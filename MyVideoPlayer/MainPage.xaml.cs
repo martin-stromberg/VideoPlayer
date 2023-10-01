@@ -1,7 +1,4 @@
-﻿using CommunityToolkit.Maui.Views;
-using Foundation;
-using Microsoft.Maui.Storage;
-using MyVideoPlayer.ViewModels;
+﻿using MyVideoPlayer.ViewModels;
 
 namespace MyVideoPlayer
 {

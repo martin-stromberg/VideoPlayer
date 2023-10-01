@@ -1,6 +1,4 @@
-﻿using BackgroundAssets;
-using MyVideoPlayer.Helper.Download;
-using MyVideoPlayer.ViewModels.Navigation;
+﻿using MyVideoPlayer.ViewModels.Navigation;
 using MyVideoPlayer.ViewModels.Navigation.MediaCollection;
 using MyVideoPlayer.ViewModels.Navigation.Sources;
 using VideoPlayerLib.Services.MediaLibrary;

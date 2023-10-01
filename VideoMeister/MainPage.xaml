@@ -1,0 +1,62 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+             xmlns:tookitPrim="clr-namespace:CommunityToolkit.Maui.Core.Primitives;assembly=CommunityToolkit.Maui.MediaElement"
+             xmlns:vm="clr-namespace:VideoMeister.ViewModels"
+             xmlns:views="clr-namespace:VideoMeister.Views"
+             x:Class="VideoMeister.MainPage"
+             Unloaded="ContentPage_Unloaded">
+    <Grid x:DataType="vm:MainPageViewModel">
+        <views:SourceNavigationPanel 
+            IsVisible="{Binding NavigationVisible}" 
+            BindingContext="{Binding NavigationContent}"/>        
+        <toolkit:MediaElement 
+            x:Name="mediaElement"
+            IsVisible="{Binding VideoVisible}"
+            ShouldShowPlaybackControls="True"
+            ShouldAutoPlay="True"
+            Aspect="AspectFill"            
+            MediaEnded="mediaElement_MediaEnded"
+            MediaFailed="mediaElement_MediaFailed"
+            MediaOpened="mediaElement_MediaOpened"
+            PositionChanged="mediaElement_PositionChanged"
+            SeekCompleted="mediaElement_SeekCompleted"
+            Source="{Binding VideoSource}"/>
+        <StackLayout BindingContext="{x:Reference mediaElement}"
+     IsVisible="{Binding VideoVisible}">
+            <Button Text="&#x25B6;&#xFE0F; Play"
+    HorizontalOptions="CenterAndExpand"
+    IsVisible="{Binding VideoVisible}"
+    Clicked="OnPlayPauseButtonClicked">
+                <Button.Triggers>
+                    <DataTrigger TargetType="Button"
+                 Binding="{Binding CurrentState}"
+                 Value="{x:Static tookitPrim:MediaElementState.Playing}">
+                        <Setter Property="Text"
+                Value="&#x23F8; Pause" />
+                    </DataTrigger>
+                    <DataTrigger TargetType="Button"
+                 Binding="{Binding CurrentState}"
+                 Value="{x:Static tookitPrim:MediaElementState.Buffering}">
+                        <Setter Property="IsEnabled"
+                Value="False" />
+                    </DataTrigger>
+                </Button.Triggers>
+            </Button>
+            <Button Text="&#x23F9; Stop"
+    HorizontalOptions="CenterAndExpand"
+    IsVisible="{Binding VideoVisible}"
+    Clicked="OnStopButtonClicked">
+                <Button.Triggers>
+                    <DataTrigger TargetType="Button"
+                 Binding="{Binding CurrentState}"
+                 Value="{x:Static tookitPrim:MediaElementState.Stopped}">
+                        <Setter Property="IsEnabled"
+                Value="False" />
+                    </DataTrigger>
+                </Button.Triggers>
+            </Button>
+        </StackLayout>
+    </Grid>
+</ContentPage>

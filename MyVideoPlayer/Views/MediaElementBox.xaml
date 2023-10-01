@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:MyVideoPlayer.ViewModels.Navigation"
+             x:Class="MyVideoPlayer.Views.MediaElementBox">
+    <VerticalStackLayout 
+        x:DataType="vm:BaseMediaElementBoxViewModel">
+        <Frame>
+            <Frame.GestureRecognizers>
+                <TapGestureRecognizer Tapped="TapGestureRecognizer_Tapped"/>
+            </Frame.GestureRecognizers>
+            <FlyoutBase.ContextFlyout>
+                <MenuFlyout>
+                    <MenuFlyoutItem Text="Abspielen"
+                                    IsEnabled="{Binding IsPlayable}"
+                                    CommandParameter="play"
+                                    Clicked="MenuFlyoutItem_Clicked"
+                                    />
+                    <MenuFlyoutItem Text="Herunterladen"
+                                    IsEnabled="{Binding IsDownloadable}"
+                                    CommandParameter="load"
+                                    Clicked="MenuFlyoutItem_Clicked"
+                                    />
+                </MenuFlyout>
+            </FlyoutBase.ContextFlyout>
+            <Grid>
+                <Image 
+    Source="{Binding Picture}" 
+    MaximumHeightRequest="200"/>
+                <Label 
+     Text="{Binding Title}"
+     VerticalOptions="End" 
+     HorizontalOptions="Center" />                
+            </Grid>            
+        </Frame>
+    </VerticalStackLayout>
+</ContentView>

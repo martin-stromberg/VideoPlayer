@@ -15,6 +15,7 @@ namespace VideoPlayerLib.Services.Database.Models
         public string MetaInfoJson { get; set; }
         public string PicturePath { get; set; }
         public DateTime MetaDataTime { get; set; }
+        public bool MetaInfoChanged { get; set; }
         public long OriginalMediaItemId { get; set; }
         public int CopyType { get; set; }
     }

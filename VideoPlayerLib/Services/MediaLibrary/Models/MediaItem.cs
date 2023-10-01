@@ -26,7 +26,12 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
         public MediaInformation MetaInfo
         {
             get { return GetProperty<MediaInformation>(); }
-            set { SetProperty<MediaInformation>(value); }
+            set { SetProperty<MediaInformation>(value); MetaInfoChanged = true; }
+        }
+        public bool MetaInfoChanged
+        {
+            get { return GetProperty<bool>(); }
+            set { SetProperty<bool>(value); }
         }
         public string PicturePath
         {

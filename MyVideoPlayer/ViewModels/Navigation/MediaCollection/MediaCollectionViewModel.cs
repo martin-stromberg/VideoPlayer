@@ -84,9 +84,9 @@ namespace MyVideoPlayer.ViewModels.Navigation.MediaCollection
         {
             base.OnAppeared();
             if (Collection == null)
-                await base.ReadMediaCollection(Source);
+                await ReadMediaCollection(Source);
             if (Collection != null)
-                await base.ReadMediaItems(Collection);
+                await ReadMediaItems(Collection);
         }
     }
 }

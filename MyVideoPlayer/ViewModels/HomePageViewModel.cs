@@ -29,9 +29,11 @@ namespace MyVideoPlayer.ViewModels
             :base()
         {
             NavigateBack = new Command(() => DoNavigateBack());
+            NavigateToSources = new Command(() => DoNavigateToSources());
             CleanScan = new Command(async () => await DoCleanScanAsync());
             MediaElement = new MediaElementViewModel();
             MediaElement.PropertyChanged += MediaElement_PropertyChanged;
+            MediaElement.OnMediaEnded += MediaElement_OnMediaEnded;
 
             this.mediaLibrary = mediaLibrary;
             this.libraryDownloader = libraryDownloader;
@@ -46,6 +48,11 @@ namespace MyVideoPlayer.ViewModels
             Title = "Medienbibliothek";
         }
 
+        private void MediaElement_OnMediaEnded(object sender, MediaSource e)
+        {
+            this.navigationManager.VideoClosed(e);
+        }
+
         private void MediaElement_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
             switch(e.PropertyName)
@@ -57,12 +64,19 @@ namespace MyVideoPlayer.ViewModels
             }
         }
 
+        private void DoNavigateToSources()
+        {
+            this.navigationManager.NavigateToSourceOverview();
+        }
+
         public Command CleanScan { get; }
         private async Task DoCleanScanAsync()
         {
             await mediaLibrary.ClearMedia();
         }
         public Command NavigateBack { get; }
+        public Command NavigateToSources { get; }
+
         private void DoNavigateBack()
         {
             if (MediaElement.IsPlaying())
@@ -91,7 +105,7 @@ namespace MyVideoPlayer.ViewModels
             {
                 if (await mediaLibrary.IsEmptyAsync())
                     await mediaLibrary.ImportAsync(new DemoLibrary());
-                navigationManager.NavigateToSourceOverview();
+                navigationManager.NavigateToOverview();
                 libraryScanner.Start();
             }
             finally

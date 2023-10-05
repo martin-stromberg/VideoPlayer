@@ -1,13 +1,18 @@
-﻿namespace MyVideoPlayer
+﻿using MyVideoPlayer.Helper.LibraryScan;
+
+namespace MyVideoPlayer
 {
     public partial class App : Application
     {
-        public App(IServiceProvider serviceProvider)
+        private readonly ILibraryCollector libraryCollector;
+
+        public App(IServiceProvider serviceProvider, ILibraryCollector libraryCollector)
         {
             InitializeComponent();
 
             MainPage = new AppShell();
             ServiceProvider = serviceProvider;
+            this.libraryCollector = libraryCollector;
         }
 
         public IServiceProvider ServiceProvider { get; }

@@ -21,29 +21,133 @@ namespace MyVideoPlayer.Helper.LibraryScan
             :base()
         {
             this.mediaLibrary = mediaLibrary;
-            this.mediaLibrary.ModelElementAdded += MediaLibrary_ModelElementAdded;
-            this.mediaLibrary.ModelElementUpdated += MediaLibrary_ModelElementUpdated;
+            this.mediaLibrary.ModelElementAdded += MediaLibrary_ModelElementAddedAsync;
+            this.mediaLibrary.ModelElementUpdated += MediaLibrary_ModelElementUpdatedAsync;
         }
 
-        private void MediaLibrary_ModelElementUpdated(object sender, VideoPlayerLib.Services.MediaLibrary.Models.BaseModelEventArgs e)
+        private void MediaLibrary_ModelElementUpdatedAsync(object sender, VideoPlayerLib.Services.MediaLibrary.Models.BaseModelEventArgs e)
         {
-            CollectMediaItem(e.Element as MediaItem);
+            CollectMediaItemAsync(e.Element as MediaItem).Wait();
         }
-        private void MediaLibrary_ModelElementAdded(object sender, VideoPlayerLib.Services.MediaLibrary.Models.BaseModelEventArgs e)
+        private void MediaLibrary_ModelElementAddedAsync(object sender, VideoPlayerLib.Services.MediaLibrary.Models.BaseModelEventArgs e)
         {
-            CollectMediaItem(e.Element as MediaItem);
+            var mediaItem = e.Element as MediaItem;
+            if (mediaItem == null) return;
+            if (mediaItem.CopyType != MediaItemCopyType.None) return;
+            CollectMediaItemAsync(e.Element as MediaItem).Wait();
         }
-        private void CollectMediaItem(MediaItem mediaItem)
+        private async Task CollectMediaItemAsync(MediaItem mediaItem)
         {
             if (mediaItem == null)
                 return;
             if (mediaItem.MetaInfo is MovieInformation)
-                CollectMovie(mediaItem, mediaItem.MetaInfo as MovieInformation);
+                await CollectMovieAsync(mediaItem, mediaItem.MetaInfo as MovieInformation);
+            else if (mediaItem.MetaInfo is EpisodeInformation)
+                await CollectTVShowAsync(mediaItem, mediaItem.MetaInfo as EpisodeInformation);
         }
 
-        private void CollectMovie(MediaItem mediaItem, MovieInformation movieInformation)
+        private async Task CollectTVShowAsync(MediaItem mediaItem, EpisodeInformation episodeInformation)
         {
-            throw new NotImplementedException();
+            TVShowInformation showInformation = null;
+            MediaItemCollection showCollection = null;
+            var collection = await mediaLibrary.GetMediaItemCollectionAsync(mediaItem.ParentCollectionId);
+            while (showInformation == null && collection != null)
+            {
+                showInformation = collection.MetaInfo as TVShowInformation;
+                if (showInformation != null)
+                    showCollection = collection;
+                collection = await mediaLibrary.GetMediaItemCollectionAsync(collection.ParentCollectionId);
+            }
+
+            var show = new TVShow()
+            {
+                Name = showInformation?.Title ?? episodeInformation.ShowName
+
+            };            
+            var season = new TVShowSeason()
+            {
+                Name = $"{episodeInformation.Season}"
+            };
+            show.Seasons = new TVShowSeason[] { season };
+            var episode = new TVShowEpisode()
+            {
+                Name = mediaItem.Name,
+            };
+            season.Episodes = new TVShowEpisode[] { episode };
+            episode.Name = episodeInformation.Title;
+            episode.EpisodeNo = episodeInformation.Episode;
+            episode.MediaItems = new long[] { mediaItem.Id };
+            await CollectShowAsync(show);
+        }
+
+        private async Task CollectShowAsync(TVShow show)
+        {
+            if (string.IsNullOrWhiteSpace(show.Name))
+                return;
+
+            var existingShows = await mediaLibrary.FindTVShowByNameAsync(show.Name);
+            var existingShow = (show.Id != 0) ? await mediaLibrary.FindTVShowAsync(show.Id): existingShows.FirstOrDefault();
+            if (existingShow == null) 
+            {
+                await mediaLibrary.AddTVShowAsync(show);
+                return;
+            }
+
+            var season = show.Seasons.FirstOrDefault();
+            var existingSeason = existingShow.Seasons.FirstOrDefault(s => s.Name == season.Name);
+            if (existingSeason == null)
+            {
+                await mediaLibrary.AddTVShowSeasonAsync(existingShow, season);
+                return;
+            }
+
+            var episode = season.Episodes.FirstOrDefault();
+            var existingEpisode = existingSeason.Episodes.FirstOrDefault(e => e.EpisodeNo == episode.EpisodeNo);
+            if (existingEpisode == null)
+            {
+                await mediaLibrary.AddTVShowEpisodeAsync(existingShow, existingSeason, episode);
+                return;
+            }
+
+            existingEpisode.Name = existingEpisode.Name ?? episode.Name;
+            existingEpisode.MediaItems = existingEpisode
+                .MediaItems
+                .Concat(episode.MediaItems)
+                .Distinct()
+                .OrderBy(id => id)
+                .ToArray();
+            await mediaLibrary.AddTVShowEpisodeAsync(existingShow, existingSeason, existingEpisode);
+        }
+
+        private async Task CollectMovieAsync(MediaItem mediaItem, MovieInformation movieInformation)
+        {
+            var movie = new Movie()
+            {
+                Name = mediaItem.Name
+            };
+            movie.Name = movieInformation.Title;
+            movie.Genre = movieInformation.Genre;
+            movie.Plot = movieInformation.Plot;
+            movie.MediaItems = new long[] { mediaItem.Id };
+            movie.PicturePath = mediaItem.PicturePath;
+
+            var existingMovie = await mediaLibrary.FindMovieAsync(mediaItem.Id);
+            if (existingMovie == null)
+            {
+                await mediaLibrary.AddMovieAsync(movie);
+                return;
+            }
+
+            existingMovie.Genre = existingMovie.Genre ?? movieInformation.Genre;
+            existingMovie.Plot = existingMovie.Plot ?? movieInformation.Plot;
+            existingMovie.MediaItems = existingMovie
+                .MediaItems
+                .Concat(movie.MediaItems)
+                .Distinct()
+                .OrderBy(id => id)
+                .ToArray();
+            movie.PicturePath = mediaItem.PicturePath;
+            await mediaLibrary.AddMovieAsync(existingMovie);
         }
     }
 }

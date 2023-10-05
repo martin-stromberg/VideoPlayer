@@ -19,7 +19,7 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models.Meta
     {
         public string ShowName { get; set; }
         public string Season { get; set; }
-        public string Eposide { get; set; }
+        public string Episode { get; set; }
     }
     public class TVShowInformation: MediaInformation
     {

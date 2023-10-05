@@ -37,6 +37,7 @@ namespace MyVideoPlayer
             services.AddSingleton<IMediaLibrary, MediaLibrary>();
             services.AddSingleton<ILibraryScanner, LibraryScanner>();
             services.AddSingleton<ILibraryDownloader, LibraryDownloader>();
+            services.AddSingleton<ILibraryCollector, LibraryCollector>();
             return services;
         }
         public static IServiceCollection ConfigureViewModels(this IServiceCollection services)

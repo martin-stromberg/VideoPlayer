@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 using VideoPlayerLib.Services.Database.Models;
 
 namespace VideoPlayerLib.Services.Database
@@ -35,6 +36,12 @@ namespace VideoPlayerLib.Services.Database
             result = await Connection.CreateTableAsync<Models.MediaCollection>();
             result = await Connection.CreateTableAsync<Models.MediaItem>();
             result = await Connection.CreateTableAsync<Models.LogEntry>();
+            result = await Connection.CreateTableAsync<Models.TVShow>();
+            result = await Connection.CreateTableAsync<Models.TVShowSeason>();
+            result = await Connection.CreateTableAsync<Models.TVShowEpisode>();
+            result = await Connection.CreateTableAsync<Models.TVShowEpisodeMediaItem>();
+            result = await Connection.CreateTableAsync<Models.Movie>();
+            result = await Connection.CreateTableAsync<Models.MovieMediaItem>();            
         }
 
         public async Task<AsyncTableQuery<MediaSource>> GetSourcesAsync()
@@ -137,6 +144,116 @@ namespace VideoPlayerLib.Services.Database
         public async Task RemoveLog(LogEntry log)
         {            
             await Connection.DeleteAsync(log);
+        }
+
+        public async Task<Movie> GetMovieByMediaItem(long mediaItemId)
+        {
+            await InitOrUpgradeAsync();
+            var movieId = (await Connection.Table<MovieMediaItem>().FirstOrDefaultAsync(mmi => mmi.MediaItemId == mediaItemId))?.MovieId;
+            return await Connection.Table<Movie>().FirstOrDefaultAsync(m => m.Id == movieId);
+        }
+
+        public async Task<IEnumerable<MovieMediaItem>> GetMovieMediaItems(long movieId)
+        {
+            await InitOrUpgradeAsync();
+            return await Connection.Table<MovieMediaItem>().Where(mmi => mmi.MovieId == movieId).ToArrayAsync();
+        }
+
+        public async Task RemoveMovieMediaItemsAsync(long movieId)
+        {
+            var items = await Connection.Table<MovieMediaItem>().Where(mmi => mmi.MovieId == movieId).ToArrayAsync();
+            if (items.Any())
+                foreach (var item in items)
+                    await Connection.DeleteAsync(item);
+        }
+
+        public async Task<Movie> AddOrUpdateMovie(Movie movie)
+        {
+            return await AddOrUpdate<Movie>(movie) as Movie;
+        }
+
+        public async Task<MovieMediaItem> AddMovieMediaItem(MovieMediaItem mediaItem)
+        {
+            return await AddOrUpdate<MovieMediaItem>(mediaItem) as MovieMediaItem;
+        }
+
+        public async Task<IEnumerable<TVShow>> GetTVShowsByName(string name)
+        {
+            await InitOrUpgradeAsync();
+            return await Connection.Table<TVShow>().Where(mmi => mmi.Name == name).ToArrayAsync();
+        }
+
+        public async Task<TVShow> GetTVShow(long id)
+        {
+            await InitOrUpgradeAsync();
+            return await Connection.Table<TVShow>().FirstOrDefaultAsync(mmi => mmi.Id == id);
+        }
+
+        public async Task<TVShow> AddOrUpdateTVShow(TVShow show)
+        {
+            return await AddOrUpdate<TVShow>(show) as TVShow;
+        }
+
+        public async Task<TVShowSeason> AddOrUpdateTVShowSeason(TVShowSeason season)
+        {
+            return await AddOrUpdate<TVShowSeason>(season) as TVShowSeason;
+        }
+
+        public async Task<TVShowEpisode> AddOrUpdateTVShowEpisode(TVShowEpisode episode)
+        {
+            return await AddOrUpdate<TVShowEpisode>(episode) as TVShowEpisode;
+        }
+
+        public async Task<IEnumerable<TVShowSeason>> GetTVShowSeasons(long showId)
+        {
+            await InitOrUpgradeAsync();
+            return await Connection
+                .Table<TVShowSeason>()
+                .Where(mmi => mmi.ShowId == showId)
+                .ToArrayAsync();
+        }
+
+        public async Task<IEnumerable<TVShowEpisode>> GetTVShowEpisodes(long seasonId)
+        {
+            await InitOrUpgradeAsync();
+            return await Connection
+                .Table<TVShowEpisode>()
+                .Where(mmi => mmi.SeasonId == seasonId)
+                .ToArrayAsync();
+        }
+
+        public async Task RemoveTVShowEpisodeMediaItemsAsync(long episodeId)
+        {
+            var items = await Connection.Table<TVShowEpisodeMediaItem>().Where(mmi => mmi.EpisodeId == episodeId).ToArrayAsync();
+            if (items.Any())
+                foreach (var item in items)
+                    await Connection.DeleteAsync(item);
+        }
+
+        public async Task<TVShowEpisodeMediaItem> AddTVShowEpisodeMediaItem(TVShowEpisodeMediaItem mediaItem)
+        {
+            return await AddOrUpdate<TVShowEpisodeMediaItem>(mediaItem) as TVShowEpisodeMediaItem;
+        }
+
+        public async Task<IEnumerable<TVShowEpisodeMediaItem>> GetTVShowEpisodeMediaItems(long episodeId)
+        {
+            await InitOrUpgradeAsync();
+            return await Connection
+                .Table<TVShowEpisodeMediaItem>()
+                .Where(mmi => mmi.EpisodeId == episodeId)
+                .ToArrayAsync();
+        }
+
+        public async Task<IEnumerable<Movie>> GetMovies()
+        {
+            await InitOrUpgradeAsync();
+            return await Connection.Table<Movie>().ToArrayAsync();
+        }
+
+        public async Task<Movie> GetMovie(long id)
+        {
+            await InitOrUpgradeAsync();
+            return await Connection.Table<Movie>().FirstOrDefaultAsync(m => m.Id == id);
         }
     }
 }

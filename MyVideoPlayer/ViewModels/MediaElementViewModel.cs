@@ -4,15 +4,20 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using VideoPlayerLib.Services.MediaLibrary;
 
 namespace MyVideoPlayer.ViewModels
 {
     public class MediaElementViewModel : BaseViewModel, IMediaElementViewModel
     {
+
         public void MediaEnded()
         {
-            VideoSource = null;
+            OnMediaEnded?.Invoke(this, VideoSource);
+            VideoSource = null;            
         }
+        public event EventHandler<MediaSource> OnMediaEnded;
+
         public void MediaFailed(string errorMessage)
         {
             VideoSource = null;
@@ -37,6 +42,7 @@ namespace MyVideoPlayer.ViewModels
 
         public void StopPlaying()
         {
+            OnMediaEnded?.Invoke(this, VideoSource);
             VideoSource = null;
         }
 

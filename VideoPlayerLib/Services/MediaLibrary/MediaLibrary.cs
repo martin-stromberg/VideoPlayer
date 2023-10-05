@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Text;
-using System.Threading.Tasks;
-using VideoPlayerLib;
+﻿using VideoPlayerLib.Extensions;
 using VideoPlayerLib.Services.Database;
 using VideoPlayerLib.Services.MediaLibrary.Models;
 
@@ -22,9 +16,9 @@ namespace VideoPlayerLib.Services.MediaLibrary
             if (modelElementAdded != null && ModelElementAdded != null)
                 ModelElementAdded(this, modelElementAdded);
             if (modelElementUpdated != null && ModelElementUpdated != null)
-                ModelElementUpdated(this, modelElementAdded);
+                ModelElementUpdated(this, modelElementUpdated);
             if (modelElementRemoved != null && ModelElementRemoved != null)
-                ModelElementRemoved(this, modelElementAdded);
+                ModelElementRemoved(this, modelElementRemoved);
         }
 
         public MediaLibrary(IMediaLibraryDatabase dataStore)
@@ -193,5 +187,163 @@ namespace VideoPlayerLib.Services.MediaLibrary
         }
         #endregion
 
+        public async Task<Movie> GetMovie(long id)
+        {
+            var movie = await dataStore.GetMovie(id);
+            var mediaItems = await dataStore.GetMovieMediaItems(movie.Id);
+            return (Movie.FromDataModel(movie) as Movie)
+                .SetMediaItems(mediaItems);
+        }
+        public async Task<IEnumerable<Movie>> GetMovies()
+        {
+            return (await dataStore.GetMovies())
+                .Select(movie => Movie.FromDataModel(movie) as Movie);
+        }
+        public async Task<Movie> FindMovieAsync(long mediaItemId)
+        {
+            var movie = await dataStore.GetMovieByMediaItem(mediaItemId);
+            if (movie == null)
+                return null;
+            var mediaItems = await dataStore.GetMovieMediaItems(movie.Id);
+            return (Movie
+                .FromDataModel(movie) as Movie)
+                .SetMediaItems(mediaItems);
+        }
+
+        public async Task AddMovieAsync(Movie movie)
+        {
+            var isNew = movie.Id == 0;
+            var dataModel = movie.ToDataModelAsync() as Database.Models.Movie;
+            var dataModelMediaItems = movie.MediaItems.Select(id => new Database.Models.MovieMediaItem()
+            {
+                MovieId = movie.Id,
+                MediaItemId = id
+            });
+            if (!isNew)
+                await dataStore.RemoveMovieMediaItemsAsync(movie.Id);
+            await dataStore.AddOrUpdateMovie(dataModel);
+            movie.UpdateAutoincrements(dataModel);
+            foreach (var mediaItem in dataModelMediaItems)
+            {
+                mediaItem.MovieId = movie.Id;
+                await dataStore.AddMovieMediaItem(mediaItem);
+            }
+            OnElementChanged(isNew ? new BaseModelEventArgs(movie) : null, !isNew ? new BaseModelEventArgs(movie) : null, null);
+        }
+
+
+        public async Task<IEnumerable<TVShow>> FindTVShowByNameAsync(string name)
+        {
+            var show = await dataStore.GetTVShowsByName(name);            
+            return show
+                .Select(show => 
+                {
+                    var model = TVShow.FromDataModel(show) as TVShow;
+                    var seasons = FindTVShowSeasons(show.Id);
+                    model.Seasons = seasons.ToArray();
+                    return model;
+                })
+                .Cast<TVShow>();
+        }
+
+        private IEnumerable<TVShowSeason> FindTVShowSeasons(long showId)
+        {
+            var seasons = dataStore
+                .GetTVShowSeasons(showId)
+                .Wait<IEnumerable<Database.Models.TVShowSeason>>();
+            return seasons
+                .Select(s =>
+                {
+                    var season = TVShowSeason.FromDataModel(s) as TVShowSeason;
+                    var episodes = FindTVShowEpisodes(season.Id);
+                    season.Episodes = episodes.ToArray();
+                    return season;
+                })
+                .Cast<TVShowSeason> ();
+        }
+
+        private IEnumerable<TVShowEpisode> FindTVShowEpisodes(long id)
+        {
+            var episodes = dataStore
+                .GetTVShowEpisodes(id)
+                .Wait<IEnumerable<Database.Models.TVShowEpisode>>();
+            return episodes
+                .Select(e =>
+                {
+                    var episode = TVShowEpisode.FromDataModel(e) as TVShowEpisode;
+                    var mediaItems = dataStore
+                        .GetTVShowEpisodeMediaItems(episode.Id)
+                        .Wait<IEnumerable<Database.Models.TVShowEpisodeMediaItem>>()
+                        .Select(mi => mi.Id);
+                    episode.MediaItems = mediaItems.ToArray();
+                    return episode;
+                })
+                .Cast<TVShowEpisode> ();
+        }
+
+        public async Task<TVShow> FindTVShowAsync(long id)
+        {
+            var show = await dataStore
+                .GetTVShow(id);
+            if (show == null)
+                return null;
+            return TVShow.FromDataModel(show) as TVShow;
+        }
+
+        public async Task AddTVShowAsync(TVShow show)
+        {
+            var isNew = show.Id == 0;
+            var dataModelShow = show.ToDataModelAsync() as Database.Models.TVShow;
+            await dataStore.AddOrUpdateTVShow(dataModelShow);
+            show.UpdateAutoincrements(dataModelShow);
+            OnElementChanged(isNew ? new BaseModelEventArgs(show) : null, !isNew ? new BaseModelEventArgs(show) : null, null);
+
+            foreach (var season in show.Seasons)
+                await AddTVShowSeasonAsync(show, season);
+        }
+
+        public async Task AddTVShowSeasonAsync(TVShow show, TVShowSeason season)
+        {
+            var isNew = season.Id == 0;
+            season.ShowId = show.Id;
+            var dataModelSeason = season.ToDataModelAsync() as Database.Models.TVShowSeason;
+            dataModelSeason.ShowId = show.Id;
+            await dataStore.AddOrUpdateTVShowSeason(dataModelSeason);
+            season.UpdateAutoincrements(dataModelSeason);
+            OnElementChanged(isNew ? new BaseModelEventArgs(season) : null, !isNew ? new BaseModelEventArgs(season) : null, null);
+
+            foreach (var episode in season.Episodes)
+                await AddTVShowEpisodeAsync(show, season, episode);
+        }
+
+        public async Task AddTVShowEpisodeAsync(TVShow show, TVShowSeason season, TVShowEpisode episode)
+        {
+            var isNew = episode.Id == 0;
+            var dataModelEpisode = episode.ToDataModelAsync() as Database.Models.TVShowEpisode;
+            var dataModelMediaItems = episode.MediaItems.Select(id => new Database.Models.TVShowEpisodeMediaItem()
+            {
+                EpisodeId = episode.Id,
+                MediaItemId = id
+            });
+            dataModelEpisode.SeasonId = season.Id;
+            if (!isNew)
+                await dataStore.RemoveTVShowEpisodeMediaItemsAsync(episode.Id);            
+            await dataStore.AddOrUpdateTVShowEpisode(dataModelEpisode);
+            episode.UpdateAutoincrements(dataModelEpisode);
+            foreach (var mediaItem in dataModelMediaItems)
+            {
+                mediaItem.EpisodeId = episode.Id;
+                await dataStore.AddTVShowEpisodeMediaItem(mediaItem);
+            }
+            OnElementChanged(isNew ? new BaseModelEventArgs(episode) : null, !isNew ? new BaseModelEventArgs(episode) : null, null);
+        }
+
+        public async Task RemoveMediaItemAsync(MediaItem mediaItem)
+        {
+            if ((MediaItemCopyType)mediaItem.CopyType == MediaItemCopyType.Cache)
+                File.Delete(mediaItem.Path);
+            var mediaStore = await dataStore.GetMediaItemAsync(mediaItem.Id);
+            await dataStore.RemoveMediaItem(mediaStore);
+        }
     }
 }

@@ -91,12 +91,12 @@ namespace MyVideoPlayer.Helper.Download
             if (source is SmbMediaSource)
                 return DownloadSmbMediaItem(source as SmbMediaSource, collection, mediaItem);
             else if (source is FtpMediaSource)
-                return DownloadFtpMediaItem(source as FtpMediaSource, collection, mediaItem);
+                return await DownloadFtpMediaItemAsync(source as FtpMediaSource, collection, mediaItem);
             else
                 return null;
         }
 
-        private MediaItem DownloadFtpMediaItem(FtpMediaSource source, MediaItemCollection collection, MediaItem mediaItem)
+        private async Task<MediaItem> DownloadFtpMediaItemAsync(FtpMediaSource source, MediaItemCollection collection, MediaItem mediaItem)
         {
             var alternateMediaItem = mediaItem.Duplicate() as MediaItem;
             alternateMediaItem.Id = 0;
@@ -122,7 +122,7 @@ namespace MyVideoPlayer.Helper.Download
                 }
             if (!File.Exists(alternateMediaItem.Path))
                 return null;
-            mediaLibrary.AddMediaItemAsync(alternateMediaItem);
+            await mediaLibrary.AddMediaItemAsync(alternateMediaItem);
             return alternateMediaItem;
         }
 
@@ -155,7 +155,7 @@ namespace MyVideoPlayer.Helper.Download
             if (!File.Exists(alternateMediaItem.Path))
                 return null;
 
-            mediaLibrary.AddMediaItemAsync(alternateMediaItem);
+            mediaLibrary.AddMediaItemAsync(alternateMediaItem).Wait();
             return alternateMediaItem;
         }
     }

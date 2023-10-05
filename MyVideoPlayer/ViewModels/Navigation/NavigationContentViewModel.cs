@@ -91,13 +91,13 @@ namespace MyVideoPlayer.ViewModels.Navigation
                 MediaLibrary_ModelElementAdded(this, new BaseModelEventArgs(source));
         }
 
-        internal async Task ReadMediaCollection(MediaSource source)
+        internal virtual async Task ReadMediaCollection(MediaSource source)
         {
             foreach (var collection in (await this.mediaLibrary.GetMediaItemCollectionsAsync(source.Id)).OrderBy(c => c.ParentCollectionId))
                 MediaLibrary_ModelElementAdded(this, new BaseModelEventArgs(collection));
         }
 
-        internal async Task ReadMediaItems(MediaItemCollection collection)
+        internal virtual async Task ReadMediaItems(MediaItemCollection collection)
         {
             foreach (var coll in (await this.mediaLibrary.GetMediaItemCollectionsAsync(collection.MediaSourceId)).OrderBy(c => c.ParentCollectionId))
                 MediaLibrary_ModelElementAdded(this, new BaseModelEventArgs(coll));

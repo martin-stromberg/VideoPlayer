@@ -397,7 +397,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
             {
                 Title = documentElement.FindChild("title", true).InnerText,
                 ShowName = documentElement.FindChild("showname", true).InnerText,
-                Eposide = documentElement.FindChild("episode", true).InnerText,
+                Episode = documentElement.FindChild("episode", true).InnerText,
                 Season = documentElement.FindChild("season", true).InnerText,
             };
             item.MetaInfo = Info;

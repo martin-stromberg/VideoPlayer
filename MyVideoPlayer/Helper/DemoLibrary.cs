@@ -131,5 +131,75 @@ namespace MyVideoPlayer.Helper
         {
             throw new NotImplementedException();
         }
+
+        public Task<Movie> FindMovieAsync(long mediaItemId)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void AddMovieAsync(Movie movie)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<IEnumerable<TVShow>> FindTVShowByNameAsync(string name)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<TVShow> FindTVShowAsync(long id)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void AddTVShowAsync(TVShow show)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void AddTVShowSeasonAsync(TVShow show, TVShowSeason season)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void AddTVShowEpisodeAsync(TVShow show, TVShowSeason season, TVShowEpisode episode)
+        {
+            throw new NotImplementedException();
+        }
+
+        Task IMediaLibrary.AddMovieAsync(Movie movie)
+        {
+            throw new NotImplementedException();
+        }
+
+        Task IMediaLibrary.AddTVShowAsync(TVShow show)
+        {
+            throw new NotImplementedException();
+        }
+
+        Task IMediaLibrary.AddTVShowSeasonAsync(TVShow show, TVShowSeason season)
+        {
+            throw new NotImplementedException();
+        }
+
+        Task IMediaLibrary.AddTVShowEpisodeAsync(TVShow show, TVShowSeason season, TVShowEpisode episode)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<IEnumerable<Movie>> GetMovies()
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<Movie> GetMovie(long id)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task RemoveMediaItemAsync(MediaItem mediaItem)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

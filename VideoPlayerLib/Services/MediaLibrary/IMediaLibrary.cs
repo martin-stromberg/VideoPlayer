@@ -23,6 +23,17 @@ namespace VideoPlayerLib.Services.MediaLibrary
         
         Task ImportAsync(IMediaLibrary library);        
         Task ClearMedia();
+        Task<IEnumerable<Movie>> GetMovies();
+        Task<Movie> FindMovieAsync(long mediaItemId);
+        Task AddMovieAsync(Movie movie);
+
+        Task<IEnumerable<TVShow>> FindTVShowByNameAsync(string name);
+        Task<TVShow> FindTVShowAsync(long id);
+        Task AddTVShowAsync(TVShow show);
+        Task AddTVShowSeasonAsync(TVShow show, TVShowSeason season);
+        Task AddTVShowEpisodeAsync(TVShow show, TVShowSeason season, TVShowEpisode episode);
+        Task<Movie> GetMovie(long id);
+        Task RemoveMediaItemAsync(MediaItem mediaItem);
 
         event EventHandler<BaseModelEventArgs> ModelElementAdded;
         event EventHandler<BaseModelEventArgs> ModelElementUpdated;

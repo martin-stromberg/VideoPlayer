@@ -19,7 +19,11 @@ namespace MyVideoPlayer.WinUI
             this.InitializeComponent();
         }
 
-        protected override MauiApp CreateMauiApp() => MauiProgram.CreateMauiApp(string.Empty);
+        protected override MauiApp CreateMauiApp()
+        {
+            string resourcesPath = AppDomain.CurrentDomain.BaseDirectory;
+            return MauiProgram.CreateMauiApp(resourcesPath);
+        }
     }
 
 }

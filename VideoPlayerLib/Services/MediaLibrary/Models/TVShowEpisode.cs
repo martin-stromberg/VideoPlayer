@@ -13,5 +13,11 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
         public long SeasonId { get; set; }
         public string EpisodeNo { get; set; }
         public long[] MediaItems { get; set; }
+
+        internal TVShowEpisode SetMediaItems(IEnumerable<TVShowEpisodeMediaItem> mediaItems)
+        {
+            MediaItems = mediaItems.Select(mi => mi.Id).ToArray();
+            return this;
+        }
     }
 }

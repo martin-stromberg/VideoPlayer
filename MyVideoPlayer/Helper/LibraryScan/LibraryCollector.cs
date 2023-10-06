@@ -50,37 +50,40 @@ namespace MyVideoPlayer.Helper.LibraryScan
         {
             TVShowInformation showInformation = null;
             MediaItemCollection showCollection = null;
+            MediaItemCollection seasonCollection = null;
             var collection = await mediaLibrary.GetMediaItemCollectionAsync(mediaItem.ParentCollectionId);
             while (showInformation == null && collection != null)
             {
                 showInformation = collection.MetaInfo as TVShowInformation;
                 if (showInformation != null)
                     showCollection = collection;
+
+                if (showInformation != null)
+                    seasonCollection = collection;
                 collection = await mediaLibrary.GetMediaItemCollectionAsync(collection.ParentCollectionId);
             }
 
             var show = new TVShow()
             {
-                Name = showInformation?.Title ?? episodeInformation.ShowName
-
-            };            
+                Name = showInformation?.Title ?? episodeInformation.ShowName,
+                PicturePath = showCollection?.PicturePath
+            };
             var season = new TVShowSeason()
             {
-                Name = $"{episodeInformation.Season}"
+                Name = $"{episodeInformation.Season}",
+                PicturePath = seasonCollection?.PicturePath
             };
-            show.Seasons = new TVShowSeason[] { season };
             var episode = new TVShowEpisode()
             {
                 Name = mediaItem.Name,
             };
-            season.Episodes = new TVShowEpisode[] { episode };
             episode.Name = episodeInformation.Title;
             episode.EpisodeNo = episodeInformation.Episode;
             episode.MediaItems = new long[] { mediaItem.Id };
-            await CollectShowAsync(show);
+            await CollectShowAsync(show, season, episode);
         }
 
-        private async Task CollectShowAsync(TVShow show)
+        private async Task CollectShowAsync(TVShow show, TVShowSeason season, TVShowEpisode episode)
         {
             if (string.IsNullOrWhiteSpace(show.Name))
                 return;
@@ -90,19 +93,26 @@ namespace MyVideoPlayer.Helper.LibraryScan
             if (existingShow == null) 
             {
                 await mediaLibrary.AddTVShowAsync(show);
+                await mediaLibrary.AddTVShowSeasonAsync(show, season);
+                await mediaLibrary.AddTVShowEpisodeAsync(existingShow, season, episode);
                 return;
             }
+            existingShow.PicturePath = show.PicturePath ?? existingShow.PicturePath;
+            await mediaLibrary.AddTVShowAsync(existingShow);
 
-            var season = show.Seasons.FirstOrDefault();
-            var existingSeason = existingShow.Seasons.FirstOrDefault(s => s.Name == season.Name);
+            var existingSeason = (await mediaLibrary.GetTVShowSeasons(existingShow.Id))
+                .Where(s => s != null)
+                .FirstOrDefault(s => s.Name == season.Name); 
             if (existingSeason == null)
             {
                 await mediaLibrary.AddTVShowSeasonAsync(existingShow, season);
                 return;
             }
+            existingSeason.PicturePath = season.PicturePath ?? existingSeason.PicturePath;
+            await mediaLibrary.AddTVShowSeasonAsync(existingShow, existingSeason);
 
-            var episode = season.Episodes.FirstOrDefault();
-            var existingEpisode = existingSeason.Episodes.FirstOrDefault(e => e.EpisodeNo == episode.EpisodeNo);
+            var existingEpisode = (await mediaLibrary.GetTVShowEpisodes(existingSeason.Id))
+                .FirstOrDefault(e => e.EpisodeNo == episode.EpisodeNo); 
             if (existingEpisode == null)
             {
                 await mediaLibrary.AddTVShowEpisodeAsync(existingShow, existingSeason, episode);

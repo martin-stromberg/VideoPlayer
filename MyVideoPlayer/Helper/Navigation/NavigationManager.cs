@@ -74,6 +74,12 @@ namespace MyVideoPlayer.Helper.Navigation
                 NavigateToCategory(e.ViewModel as CategoryBoxViewModel);
             else if (e.ViewModel is MovieBoxViewModel)
                 NavigateToMediaItem(e.ViewModel as MovieBoxViewModel);
+            else if (e.ViewModel is TVShowBoxViewModel)
+                NavigateToMediaItem(e.ViewModel as TVShowBoxViewModel);
+            else if (e.ViewModel is TVShowSeasonBoxViewModel)
+                NavigateToMediaItem(e.ViewModel as TVShowSeasonBoxViewModel);
+            else if (e.ViewModel is TVShowEpisodeBoxViewModel)
+                NavigateToMediaItem(e.ViewModel as TVShowEpisodeBoxViewModel);
         }
 
         private async void NavigateToMediaItem(MediaItemBoxViewModel viewModel)
@@ -97,6 +103,75 @@ namespace MyVideoPlayer.Helper.Navigation
             //var mediaSource = CommunityToolkit.Maui.Views.MediaSource.FromUri("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4");
             var mediaSource = CommunityToolkit.Maui.Views.MediaSource.FromFile(path);
             OnMediaSourceToPlay(mediaSource);
+        }
+
+        private async void NavigateToMediaItem(TVShowBoxViewModel viewModel)
+        {
+            var movie = await mediaLibrary.GetTVShow(viewModel.Item.Id);
+
+            var vm = serviceProvider.GetService<LibraryMediaCollectionViewModel>();
+            vm.Title = viewModel.Title;
+            vm.Parent = movie;
+            vm.CategoryType = movie.GetType();
+            NavigateTo(vm);
+        }
+
+        private async void NavigateToMediaItem(TVShowSeasonBoxViewModel viewModel)
+        {
+            var season = await mediaLibrary.GetTVShowSeason(viewModel.Item.Id);
+
+            var vm = serviceProvider.GetService<LibraryMediaCollectionViewModel>();
+            vm.Title = viewModel.Title;
+            vm.Parent = season;
+            vm.CategoryType = season.GetType();
+            NavigateTo(vm);
+        }
+
+        private async void NavigateToMediaItem(TVShowEpisodeBoxViewModel viewModel)
+        {
+            var episode = await mediaLibrary.GetTVShowEpisode(viewModel.Item.Id);
+            if (viewModel.MediaItem != null && viewModel.MediaItem.CopyType == MediaItemCopyType.Cache && !File.Exists(viewModel.MediaItem.Path))
+            {
+                viewModel.MediaItem = null;
+                viewModel.Collection = null;
+                viewModel.Source = null;
+            }
+            if (viewModel.MediaItem == null)
+                viewModel.MediaItem = await mediaLibrary.GetMediaItemAsync(episode.MediaItems.FirstOrDefault());
+            if (viewModel.Collection == null)
+                viewModel.Collection = await mediaLibrary.GetMediaItemCollectionAsync(viewModel.MediaItem.ParentCollectionId);
+            if (viewModel.Source == null)
+                viewModel.Source = await mediaLibrary.GetSourceAsync(viewModel.Collection.MediaSourceId);
+
+            if (viewModel.MediaItem.CopyType == MediaItemCopyType.None)
+            {
+                var cachedItem = (await mediaLibrary.GetAlternateMediaItemsAsync(viewModel.Item.Id))
+                    .FirstOrDefault(item => item.CopyType == MediaItemCopyType.Cache);
+                if (cachedItem != null)
+                    viewModel.MediaItem = cachedItem;
+            }
+
+            if (viewModel.MediaItem.CopyType == MediaItemCopyType.None && viewModel.Source.MustCache(viewModel.MediaItem))
+            {
+                NavigateToCachedItem(viewModel);
+                return;
+            }
+
+            var path = viewModel.Source.GetItemPath(viewModel.MediaItem);
+            var mediaSource = CommunityToolkit.Maui.Views.MediaSource.FromFile(path);
+            OnMediaSourceToPlay(mediaSource);
+        }
+        private void NavigateToCachedItem(TVShowEpisodeBoxViewModel viewModel)
+        {
+            StartPlayLoadingVideo();
+            var e = new CallbackBaseModelEventArgs(viewModel.MediaItem);
+            e.Callback += (sender, e) => {
+                viewModel.MediaItem = e.Element as MediaItem;
+                playingMediaItem = viewModel.MediaItem;
+                var mediaSource = CommunityToolkit.Maui.Views.MediaSource.FromFile(viewModel.MediaItem.Path);
+                OnMediaSourceToPlay(mediaSource);
+            };
+            DownloadRequested.Invoke(this, e);
         }
 
         private async void NavigateToMediaItem(MovieBoxViewModel viewModel)
@@ -136,7 +211,6 @@ namespace MyVideoPlayer.Helper.Navigation
             var mediaSource = CommunityToolkit.Maui.Views.MediaSource.FromFile(path);
             OnMediaSourceToPlay(mediaSource);
         }
-
         private void NavigateToCachedItem(MovieBoxViewModel viewModel)
         {
             StartPlayLoadingVideo();

@@ -22,7 +22,7 @@ namespace MyVideoPlayer.ViewModels.Navigation.Library
             set
             {
                 SetProperty<Movie>(value);
-                Picture = null;// value?.Picture;
+                Picture = value?.Picture;
             }
         }
 

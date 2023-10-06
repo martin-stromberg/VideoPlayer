@@ -129,6 +129,44 @@ namespace VideoPlayerLib.Services.Database
             await Connection.DeleteAsync(mediaItem);
         }
 
+        public async Task RemoveMovie(long movieId)
+        {
+            var movie = await GetMovie(movieId);
+            await Connection.DeleteAsync(movie);
+        }
+
+        public async Task RemoveTVShow(long id)
+        {
+            var show = await GetTVShow(id);
+            var seasons = await GetTVShowSeasons(show.Id);
+            await RemoveTVShowSeasons(seasons);
+            await Connection.DeleteAsync(show);
+        }
+
+        private async Task RemoveTVShowSeasons(IEnumerable<TVShowSeason> seasons)
+        {
+            foreach (var season in seasons)
+                await RemoveTVShowSeason(season);
+        }
+
+        private async Task RemoveTVShowSeason(TVShowSeason season)
+        {
+            var episodes = await GetTVShowEpisodes(season.Id);
+            await RemoveTVShowEpisodes(episodes);
+            await Connection.DeleteAsync(season);
+        }
+
+        private async Task RemoveTVShowEpisodes(IEnumerable<TVShowEpisode> episodes)
+        {
+            foreach (var episode in episodes)
+                await RemoveTVShowEpisode(episode);
+        }
+
+        private async Task RemoveTVShowEpisode(TVShowEpisode episode)
+        {
+            await Connection.DeleteAsync(episode);
+        }
+
         public async Task AddLog(LogEntry entry)
         {
             await InitOrUpgradeAsync();
@@ -255,5 +293,25 @@ namespace VideoPlayerLib.Services.Database
             await InitOrUpgradeAsync();
             return await Connection.Table<Movie>().FirstOrDefaultAsync(m => m.Id == id);
         }
+
+        public async Task<IEnumerable<TVShow>> GetTVShows()
+        {
+            await InitOrUpgradeAsync();
+            return await Connection.Table<TVShow>().ToArrayAsync();
+        }
+
+        public async Task<TVShowSeason> GetTVShowSeason(long id)
+        {
+            await InitOrUpgradeAsync();
+            return await Connection.Table<TVShowSeason>().FirstOrDefaultAsync(rec => rec.Id == id);
+        }
+
+        public async Task<TVShowEpisode> GetTVShowEpisode(long id)
+        {
+            await InitOrUpgradeAsync();
+            return await Connection.Table<TVShowEpisode>().FirstOrDefaultAsync(rec => rec.Id == id);
+        }
+
+        
     }
 }

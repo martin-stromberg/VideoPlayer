@@ -1,5 +1,4 @@
-﻿using VideoPlayerLib.Extensions;
-using VideoPlayerLib.Services.Database;
+﻿using VideoPlayerLib.Services.Database;
 using VideoPlayerLib.Services.MediaLibrary.Models;
 
 namespace VideoPlayerLib.Services.MediaLibrary
@@ -150,6 +149,11 @@ namespace VideoPlayerLib.Services.MediaLibrary
         #region Clear
         public async Task ClearMedia()
         {
+            foreach (var movie in await dataStore.GetMovies())
+                await dataStore.RemoveMovie(movie.Id);
+            foreach (var show in await dataStore.GetTVShows())
+                await dataStore.RemoveTVShow(show.Id);
+
             foreach (var source in await (await dataStore.GetSourcesAsync()).ToArrayAsync())
             {
                 await ClearSourceMediaAsync(source);
@@ -231,6 +235,62 @@ namespace VideoPlayerLib.Services.MediaLibrary
             OnElementChanged(isNew ? new BaseModelEventArgs(movie) : null, !isNew ? new BaseModelEventArgs(movie) : null, null);
         }
 
+        public async Task<IEnumerable<TVShow>> GetTVShows()
+        {
+            var shows = await dataStore.GetTVShows();
+            return shows
+                .Select(show =>
+                {
+                    var model = TVShow.FromDataModel(show) as TVShow;
+                    //var seasons = FindTVShowSeasons(show.Id);
+                    //model.Seasons = seasons.ToArray();
+                    return model;
+                })
+                .Cast<TVShow>();
+        }
+        public async Task<TVShow> GetTVShow(long id)
+        {
+            var show = await dataStore.GetTVShow(id);
+            return TVShow.FromDataModel(show) as TVShow;
+        }
+        public async Task<IEnumerable<TVShowSeason>> GetTVShowSeasons(long showId)
+        {
+            var seasons = await dataStore.GetTVShowSeasons(showId);
+            return seasons
+                .Select(season =>
+                {
+                    var model = TVShowSeason.FromDataModel(season) as TVShowSeason;
+                    return model;
+                })
+                .Cast<TVShowSeason>();
+        }
+
+        public async Task<TVShowSeason> GetTVShowSeason(long id)
+        {
+            var season = await dataStore.GetTVShowSeason(id);
+            return TVShowSeason.FromDataModel(season) as TVShowSeason;
+        }
+
+        public async Task<TVShowEpisode> GetTVShowEpisode(long id)
+        {
+            var episode = await dataStore.GetTVShowEpisode(id);
+            var mediaItems = await dataStore.GetTVShowEpisodeMediaItems(episode.Id);
+            return (TVShowEpisode.FromDataModel(episode) as TVShowEpisode)
+                .SetMediaItems(mediaItems);
+        }
+
+        public async Task<IEnumerable<TVShowEpisode>> GetTVShowEpisodes(long seasonId)
+        {
+            var episodes = await dataStore.GetTVShowEpisodes(seasonId);
+            return episodes
+                .Select(episode =>
+                {
+                    var model = TVShowEpisode.FromDataModel(episode) as TVShowEpisode;
+                    return model;
+                })
+                .Cast<TVShowEpisode>();
+        }
+
 
         public async Task<IEnumerable<TVShow>> FindTVShowByNameAsync(string name)
         {
@@ -239,8 +299,8 @@ namespace VideoPlayerLib.Services.MediaLibrary
                 .Select(show => 
                 {
                     var model = TVShow.FromDataModel(show) as TVShow;
-                    var seasons = FindTVShowSeasons(show.Id);
-                    model.Seasons = seasons.ToArray();
+                    //var seasons = FindTVShowSeasons(show.Id);
+                    //model.Seasons = seasons.ToArray();
                     return model;
                 })
                 .Cast<TVShow>();
@@ -255,8 +315,8 @@ namespace VideoPlayerLib.Services.MediaLibrary
                 .Select(s =>
                 {
                     var season = TVShowSeason.FromDataModel(s) as TVShowSeason;
-                    var episodes = FindTVShowEpisodes(season.Id);
-                    season.Episodes = episodes.ToArray();
+                    //var episodes = FindTVShowEpisodes(season.Id);
+                    //season.Episodes = episodes.ToArray();
                     return season;
                 })
                 .Cast<TVShowSeason> ();
@@ -298,8 +358,8 @@ namespace VideoPlayerLib.Services.MediaLibrary
             show.UpdateAutoincrements(dataModelShow);
             OnElementChanged(isNew ? new BaseModelEventArgs(show) : null, !isNew ? new BaseModelEventArgs(show) : null, null);
 
-            foreach (var season in show.Seasons)
-                await AddTVShowSeasonAsync(show, season);
+            //foreach (var season in show.Seasons)
+            //    await AddTVShowSeasonAsync(show, season);
         }
 
         public async Task AddTVShowSeasonAsync(TVShow show, TVShowSeason season)
@@ -312,8 +372,8 @@ namespace VideoPlayerLib.Services.MediaLibrary
             season.UpdateAutoincrements(dataModelSeason);
             OnElementChanged(isNew ? new BaseModelEventArgs(season) : null, !isNew ? new BaseModelEventArgs(season) : null, null);
 
-            foreach (var episode in season.Episodes)
-                await AddTVShowEpisodeAsync(show, season, episode);
+            //foreach (var episode in season.Episodes)
+            //    await AddTVShowEpisodeAsync(show, season, episode);
         }
 
         public async Task AddTVShowEpisodeAsync(TVShow show, TVShowSeason season, TVShowEpisode episode)
@@ -345,5 +405,7 @@ namespace VideoPlayerLib.Services.MediaLibrary
             var mediaStore = await dataStore.GetMediaItemAsync(mediaItem.Id);
             await dataStore.RemoveMediaItem(mediaStore);
         }
+
+        
     }
 }

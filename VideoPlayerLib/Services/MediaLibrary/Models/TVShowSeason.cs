@@ -11,6 +11,18 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
     public class TVShowSeason : BaseModel
     {
         public long ShowId { get; set; }
-        public TVShowEpisode[] Episodes { get; set; }
+        public string PicturePath
+        {
+            get { return GetProperty<string>(); }
+            set
+            {
+                SetProperty<string>(value);
+                if (value == null)
+                    Picture = null;
+                else
+                    Picture = ImageSource.FromFile(value);
+            }
+        }
+        public ImageSource Picture { get; set; }
     }
 }

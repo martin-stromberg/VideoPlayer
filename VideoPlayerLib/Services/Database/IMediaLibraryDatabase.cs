@@ -40,5 +40,10 @@ namespace VideoPlayerLib.Services.Database
         Task<IEnumerable<TVShowEpisodeMediaItem>> GetTVShowEpisodeMediaItems(long episodeId);
         Task<IEnumerable<Models.Movie>> GetMovies();
         Task<Movie> GetMovie(long id);
+        Task<IEnumerable<TVShow>> GetTVShows();
+        Task<TVShowSeason> GetTVShowSeason(long id);
+        Task<TVShowEpisode> GetTVShowEpisode(long id);
+        Task RemoveMovie(long movieId);
+        Task RemoveTVShow(long id);
     }
 }

@@ -9,7 +9,19 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
 {
     [DataModelReference(typeof(Database.Models.TVShow))]
     public class TVShow : BaseModel
-    {
-        public TVShowSeason[] Seasons { get; set; }
+    {        
+        public string PicturePath
+        {
+            get { return GetProperty<string>(); }
+            set
+            {
+                SetProperty<string>(value);
+                if (value == null)
+                    Picture = null;
+                else
+                    Picture = ImageSource.FromFile(value);
+            }
+        }
+        public ImageSource Picture { get; set; }
     }
 }

@@ -42,6 +42,8 @@ namespace VideoPlayerLib.Services.MediaLibrary
         Task<TVShowEpisode> GetTVShowEpisode(long id);
         Task<IEnumerable<MovieCollection>> FindMovieCollectionByNameAsync(string name);
         Task AddMovieCollectionAsync(MovieCollection collection);
+        Task<IEnumerable<MovieCollection>> GetMovieCollections();
+        Task<MovieCollection> GetMovieCollection(long id);
 
         event EventHandler<BaseModelEventArgs> ModelElementAdded;
         event EventHandler<BaseModelEventArgs> ModelElementUpdated;

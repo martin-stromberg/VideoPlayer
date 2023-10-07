@@ -323,5 +323,17 @@ namespace VideoPlayerLib.Services.Database
         {
             return await AddOrUpdate<MovieCollection>(collection) as MovieCollection;
         }
+
+        public async Task<IEnumerable<MovieCollection>> GetMovieCollections()
+        {
+            await InitOrUpgradeAsync();
+            return await Connection.Table<MovieCollection>().ToArrayAsync();
+        }
+
+        public async Task<MovieCollection> GetMovieCollection(long id)
+        {
+            await InitOrUpgradeAsync();
+            return await Connection.Table<MovieCollection>().FirstOrDefaultAsync(c => c.Id == id);
+        }
     }
 }

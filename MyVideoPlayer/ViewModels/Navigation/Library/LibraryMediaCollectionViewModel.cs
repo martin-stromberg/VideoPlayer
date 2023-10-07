@@ -39,7 +39,10 @@ namespace MyVideoPlayer.ViewModels.Navigation.Library
             if (Parent == null)
             {
                 if (CategoryType == typeof(Movie))
+                {
+                    await LoadMovieCollections();
                     await LoadMoviesAsync();
+                }
                 else if (CategoryType == typeof(TVShow))
                     await LoadTVShows();
             }
@@ -52,8 +55,12 @@ namespace MyVideoPlayer.ViewModels.Navigation.Library
                 }
                 else if (CategoryType == typeof(TVShowSeason))
                     await LoadTVShowsEpisodes(Parent as TVShowSeason);
+                else if (CategoryType == typeof(MovieCollection))
+                    await LoadMoviesAsync();
             }
         }
+
+        
 
         private async Task LoadTVShowsSeasons(TVShow tVShow)
         {
@@ -99,17 +106,36 @@ namespace MyVideoPlayer.ViewModels.Navigation.Library
         {
             _ = ReadMediaItems(null);
         }
+        private async Task LoadMovieCollections()
+        {            
+            var collections = await mediaLibrary.GetMovieCollections();
+            foreach (var collection in collections.OrderBy(c => c.Name))
+                AddMovieCollection(collection);
+        }
+
+        private void AddMovieCollection(MovieCollection collection)
+        {
+            if (Items.OfType<MovieCollectionBoxViewModel>().Any(vm => vm.Collection.Id == collection.Id))
+                return;
+            MovieCollectionBoxViewModel vm = ServiceProvider.GetService<MovieCollectionBoxViewModel>();
+            vm.Title = collection.Name;
+            vm.Collection = collection;
+            Items.Add(vm);
+        }
 
         private async Task LoadMoviesAsync()
         {
+            var collection = Parent as MovieCollection;
             var movies = await mediaLibrary.GetMovies();
-            foreach (var movie in movies.OrderBy(m => m.Name))
+            foreach (var movie in movies
+                .Where(m => (collection == null && m.CollectionId == 0) || (collection != null && m.CollectionId == collection.Id))
+                .OrderBy(m => m.Name))
                 AddMovie(movie);
         }
 
         private void AddMovie(Movie movie)
         {
-            if (Items.Cast<MovieBoxViewModel>().Any(vm => vm.Item.Id == movie.Id))
+            if (Items.OfType<MovieBoxViewModel>().Any(vm => vm.Item.Id == movie.Id))
                 return;
             MovieBoxViewModel vm = ServiceProvider.GetService<MovieBoxViewModel>();
             vm.Title = movie.Name;

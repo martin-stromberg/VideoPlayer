@@ -2,5 +2,6 @@
 {
     public class MovieCollection: BaseDataModel
     {
+        public string PicturePath { get; set; }
     }
 }

@@ -138,13 +138,19 @@ namespace MyVideoPlayer.Helper.LibraryScan
             {
                 collection = new MovieCollection()
                 {
-                    Name = movieCollection.Name
-                };
+                    Name = movieCollection.Name,
+                    PicturePath = movieCollection.PicturePath
+                };                
                 var existingCollection = (await mediaLibrary.FindMovieCollectionByNameAsync(movieCollection.Name)).FirstOrDefault();
                 if (existingCollection == null)
                     await mediaLibrary.AddMovieCollectionAsync(collection);
                 else
+                {
+                    existingCollection.PicturePath = collection.PicturePath;
+                    await mediaLibrary.AddMovieCollectionAsync(existingCollection);
+
                     collection = existingCollection;
+                }
             }            
 
             var movie = new Movie()

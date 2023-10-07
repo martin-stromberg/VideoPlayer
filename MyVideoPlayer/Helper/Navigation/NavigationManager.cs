@@ -87,7 +87,11 @@ namespace MyVideoPlayer.Helper.Navigation
                 NavigateToMediaItem(e.ViewModel as TVShowSeasonBoxViewModel);
             else if (e.ViewModel is TVShowEpisodeBoxViewModel)
                 NavigateToMediaItem(e.ViewModel as TVShowEpisodeBoxViewModel);
+            else if (e.ViewModel is MovieCollectionBoxViewModel)
+                NavigateToMediaItemAsync(e.ViewModel as MovieCollectionBoxViewModel);
         }
+
+        
 
         private async void NavigateToMediaItem(MediaItemBoxViewModel viewModel)
         {
@@ -181,6 +185,17 @@ namespace MyVideoPlayer.Helper.Navigation
             DownloadRequested.Invoke(this, e);
         }
 
+
+        private async Task NavigateToMediaItemAsync(MovieCollectionBoxViewModel viewModel)
+        {
+            var collection = await mediaLibrary.GetMovieCollection(viewModel.Collection.Id);
+
+            var vm = serviceProvider.GetService<LibraryMediaCollectionViewModel>();
+            vm.Title = viewModel.Title;
+            vm.Parent = collection;
+            vm.CategoryType = collection.GetType();
+            NavigateTo(vm);
+        }
         private async void NavigateToMediaItem(MovieBoxViewModel viewModel)
         {
             var movie = await mediaLibrary.GetMovie(viewModel.Item.Id);

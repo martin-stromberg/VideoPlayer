@@ -241,5 +241,15 @@ namespace MyVideoPlayer.Helper
         {
             throw new NotImplementedException();
         }
+
+        public Task<IEnumerable<MovieCollection>> GetMovieCollections()
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<MovieCollection> GetMovieCollection(long id)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

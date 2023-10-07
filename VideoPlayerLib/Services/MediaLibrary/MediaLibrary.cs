@@ -420,5 +420,22 @@ namespace VideoPlayerLib.Services.MediaLibrary
             collection.UpdateAutoincrements(dataModelShow);
             OnElementChanged(isNew ? new BaseModelEventArgs(collection) : null, !isNew ? new BaseModelEventArgs(collection) : null, null);
         }
+
+        public async Task<IEnumerable<MovieCollection>> GetMovieCollections()
+        {
+            var collections = await dataStore.GetMovieCollections();
+            return collections
+                .Select(collection =>
+                {
+                    var model = MovieCollection.FromDataModel(collection) as MovieCollection;
+                    return model;
+                })
+                .Cast<MovieCollection>();
+        }
+
+        public async Task<MovieCollection> GetMovieCollection(long id)
+        {
+            return MovieCollection.FromDataModel(await dataStore.GetMovieCollection(id)) as MovieCollection;
+        }
     }
 }

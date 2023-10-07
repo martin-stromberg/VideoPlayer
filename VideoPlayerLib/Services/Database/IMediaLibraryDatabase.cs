@@ -44,5 +44,7 @@ namespace VideoPlayerLib.Services.Database
         Task RemoveTVShow(long id);
         Task<IEnumerable<MovieCollection>> GetMovieCollectionsByName(string name);
         Task<MovieCollection> AddOrUpdateMovieCollection(MovieCollection collection);
+        Task<IEnumerable<MovieCollection>> GetMovieCollections();
+        Task<MovieCollection> GetMovieCollection(long id);
     }
 }

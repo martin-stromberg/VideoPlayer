@@ -3,8 +3,24 @@
 namespace VideoPlayerLib.Services.MediaLibrary.Models
 {
     [DataModelReference(typeof(Database.Models.MovieCollection))]
-    public class MovieCollection: BaseModel
+    public class MovieCollection : BaseModel
     {
-
+        public string PicturePath
+        {
+            get { return GetProperty<string>(); }
+            set
+            {
+                SetProperty<string>(value);
+                if (value == null)
+                    Picture = null;
+                else
+                    Picture = ImageSource.FromFile(value);
+            }
+        }
+        public ImageSource Picture
+        {
+            get { return GetProperty<ImageSource>(); }
+            set { SetProperty<ImageSource>(value); }
+        }
     }
 }

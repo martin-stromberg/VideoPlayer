@@ -8,6 +8,7 @@ using VideoPlayerLib.Services.Database.Models;
 
 namespace VideoPlayerLib.Services.MediaLibrary.Models
 {
+
     [DataModelReference(typeof(Database.Models.Movie))]
     public class Movie: BaseModel
     {      
@@ -31,6 +32,12 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
         {
             get { return GetProperty<ImageSource>(); }
             set { SetProperty<ImageSource>(value); }
+        }
+
+        public long CollectionId
+        {
+            get { return GetProperty<long>(); }
+            set { SetProperty<long>(value); }
         }
 
         internal Movie SetMediaItems(IEnumerable<Database.Models.MovieMediaItem> mediaItems)

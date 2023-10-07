@@ -131,10 +131,27 @@ namespace MyVideoPlayer.Helper.LibraryScan
 
         private async Task CollectMovieAsync(MediaItem mediaItem, MovieInformation movieInformation)
         {
+            var movieCollection = await mediaLibrary.GetMediaItemCollectionAsync(mediaItem.ParentCollectionId);
+            var source = await mediaLibrary.GetSourceAsync(movieCollection.MediaSourceId);
+            MovieCollection collection = null;
+            if (movieCollection.ParentCollectionId != 0)
+            {
+                collection = new MovieCollection()
+                {
+                    Name = movieCollection.Name
+                };
+                var existingCollection = (await mediaLibrary.FindMovieCollectionByNameAsync(movieCollection.Name)).FirstOrDefault();
+                if (existingCollection == null)
+                    await mediaLibrary.AddMovieCollectionAsync(collection);
+                else
+                    collection = existingCollection;
+            }            
+
             var movie = new Movie()
             {
                 Name = mediaItem.Name
             };
+            movie.CollectionId = collection?.Id ?? 0;
             movie.Name = movieInformation.Title;
             movie.Genre = movieInformation.Genre;
             movie.Plot = movieInformation.Plot;
@@ -147,9 +164,9 @@ namespace MyVideoPlayer.Helper.LibraryScan
                 await mediaLibrary.AddMovieAsync(movie);
                 return;
             }
-
-            existingMovie.Genre = existingMovie.Genre ?? movieInformation.Genre;
-            existingMovie.Plot = existingMovie.Plot ?? movieInformation.Plot;
+            existingMovie.CollectionId = (movie.CollectionId != 0) ? movie.CollectionId : existingMovie.CollectionId;
+            existingMovie.Genre = movieInformation.Genre ?? existingMovie.Genre;
+            existingMovie.Plot = movieInformation.Plot ?? existingMovie.Plot;
             existingMovie.MediaItems = existingMovie
                 .MediaItems
                 .Concat(movie.MediaItems)

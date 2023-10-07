@@ -406,6 +406,19 @@ namespace VideoPlayerLib.Services.MediaLibrary
             await dataStore.RemoveMediaItem(mediaStore);
         }
 
-        
+        public async Task<IEnumerable<MovieCollection>> FindMovieCollectionByNameAsync(string name)
+        {
+            return (await dataStore.GetMovieCollectionsByName(name))
+                .Select(coll => MovieCollection.FromDataModel(coll) as MovieCollection);
+        }
+
+        public async Task AddMovieCollectionAsync(MovieCollection collection)
+        {
+            var isNew = collection.Id == 0;
+            var dataModelShow = collection.ToDataModelAsync() as Database.Models.MovieCollection;
+            await dataStore.AddOrUpdateMovieCollection(dataModelShow);
+            collection.UpdateAutoincrements(dataModelShow);
+            OnElementChanged(isNew ? new BaseModelEventArgs(collection) : null, !isNew ? new BaseModelEventArgs(collection) : null, null);
+        }
     }
 }

@@ -231,5 +231,15 @@ namespace MyVideoPlayer.Helper
         {
             throw new NotImplementedException();
         }
+
+        public Task<IEnumerable<MovieCollection>> FindMovieCollectionByNameAsync(string name)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task AddMovieCollectionAsync(MovieCollection collection)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

@@ -41,6 +41,7 @@ namespace VideoPlayerLib.Services.Database
             result = await Connection.CreateTableAsync<Models.TVShowEpisode>();
             result = await Connection.CreateTableAsync<Models.TVShowEpisodeMediaItem>();
             result = await Connection.CreateTableAsync<Models.Movie>();
+            result = await Connection.CreateTableAsync<Models.MovieCollection>();
             result = await Connection.CreateTableAsync<Models.MovieMediaItem>();            
         }
 
@@ -312,6 +313,15 @@ namespace VideoPlayerLib.Services.Database
             return await Connection.Table<TVShowEpisode>().FirstOrDefaultAsync(rec => rec.Id == id);
         }
 
-        
+        public async Task<IEnumerable<MovieCollection>> GetMovieCollectionsByName(string name)
+        {
+            await InitOrUpgradeAsync();
+            return await Connection.Table<MovieCollection>().Where(coll => coll.Name == name).ToArrayAsync();
+        }
+
+        public async Task<MovieCollection> AddOrUpdateMovieCollection(MovieCollection collection)
+        {
+            return await AddOrUpdate<MovieCollection>(collection) as MovieCollection;
+        }
     }
 }

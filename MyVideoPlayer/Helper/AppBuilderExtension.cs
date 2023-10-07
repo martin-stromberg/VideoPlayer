@@ -7,6 +7,7 @@ using MyVideoPlayer.Helper.LibraryScan;
 using MyVideoPlayer.Helper.Download;
 using Microsoft.Extensions.Logging;
 using VideoPlayerLib.Services.Log;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace MyVideoPlayer
 {
@@ -20,8 +21,15 @@ namespace MyVideoPlayer
 
         public static IServiceCollection ConfigureVideoMeisterServices(this IServiceCollection services, string appPath)
         {
+            services.AddLogging();
             services.ConfigureViewModels();
-            services.AddTransient<ILogger, Logger>();
+            services.AddSingleton<ILoggerFactory>(sp =>
+            {
+                var factory = new LoggerFactory();
+                factory.AddProvider(new DatabaseLoggerProvider(sp));
+                return factory;
+            });
+            //services.AddTransient<ILogger>( sp => sp.GetService<ILoggerFactory>().CreateLogger());
             services.AddTransient<MediaLibraryDatabaseSettings>();
             services.AddTransient<LibraryScannerSettings>();
             services.AddTransient<LibraryDownloaderSettings>();
@@ -33,6 +41,7 @@ namespace MyVideoPlayer
                 Path = appPath
             });
             services.AddSingleton<INavigationManager, NavigationManager>();
+            services.AddSingleton<ILogDatabase>(sp => sp.GetService<IMediaLibraryDatabase>() as ILogDatabase);
             services.AddSingleton<IMediaLibraryDatabase, MediaLibraryDatabase>();
             services.AddSingleton<IMediaLibrary, MediaLibrary>();
             services.AddSingleton<ILibraryScanner, LibraryScanner>();

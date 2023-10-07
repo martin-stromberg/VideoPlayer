@@ -19,9 +19,12 @@ namespace MyVideoPlayer.ViewModels.Navigation
         {
             ServiceProvider = serviceProvider;
             this.mediaLibrary = mediaLibrary;
-            this.mediaLibrary.ModelElementAdded += MediaLibrary_ModelElementAdded;
-            this.mediaLibrary.ModelElementUpdated += MediaLibrary_ModelElementUpdated;
-            this.mediaLibrary.ModelElementRemoved += MediaLibrary_ModelElementRemoved;
+            if (this.mediaLibrary != null)
+            {
+                this.mediaLibrary.ModelElementAdded += MediaLibrary_ModelElementAdded;
+                this.mediaLibrary.ModelElementUpdated += MediaLibrary_ModelElementUpdated;
+                this.mediaLibrary.ModelElementRemoved += MediaLibrary_ModelElementRemoved;
+            }
             Items.CollectionChanged += Items_CollectionChanged;
         }
         protected virtual void MediaLibrary_ModelElementRemoved(object sender, BaseModelEventArgs e)
@@ -84,7 +87,9 @@ namespace MyVideoPlayer.ViewModels.Navigation
         {
             
         }
-
+        public virtual void OnDisappeared()
+        {
+        }
         public async Task ReadAllSourcesAsync()
         {
             foreach (var source in await this.mediaLibrary.GetSourcesAsync())
@@ -104,5 +109,7 @@ namespace MyVideoPlayer.ViewModels.Navigation
             foreach (var mediaItem in (await this.mediaLibrary.GetMediaItemsAsync(collection.Id)).OrderBy(c => c.ParentCollectionId))
                 MediaLibrary_ModelElementAdded(this, new BaseModelEventArgs(mediaItem));
         }
+
+        
     }
 }

@@ -17,10 +17,7 @@ namespace VideoPlayerLib.Services.Database
         Task<AsyncTableQuery<Models.MediaItem>> GetMediaItemsAsync();
         Task<Models.MediaItem> GetMediaItemAsync(long id);
         Task RemoveMediaCollection(MediaCollection collection);
-        Task RemoveMediaItem(MediaItem mediaItem);
-        Task AddLog(LogEntry entry);
-        Task<IEnumerable<Models.LogEntry>> GetLogs();
-        Task RemoveLog(LogEntry log);
+        Task RemoveMediaItem(MediaItem mediaItem);        
 
         Task<Models.Movie> GetMovieByMediaItem(long mediaItemId);
         Task<IEnumerable<Models.MovieMediaItem>> GetMovieMediaItems(long movieId);

@@ -50,7 +50,8 @@ namespace MyVideoPlayer.Helper.Download
             if (this.currentViewModel != null)
                 this.currentViewModel.ItemDownloadRequested -= CurrentViewModel_ItemDownloadRequested;
             this.currentViewModel = e.ContentViewModel;
-            this.currentViewModel.ItemDownloadRequested += CurrentViewModel_ItemDownloadRequested;
+            if (this.currentViewModel != null)
+                this.currentViewModel.ItemDownloadRequested += CurrentViewModel_ItemDownloadRequested;
         }
 
         private void CurrentViewModel_ItemDownloadRequested(object sender, MediaElementBoxViewModelEventArgs e)

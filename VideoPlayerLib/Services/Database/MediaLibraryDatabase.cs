@@ -10,7 +10,7 @@ using VideoPlayerLib.Services.Database.Models;
 
 namespace VideoPlayerLib.Services.Database
 {
-    public class MediaLibraryDatabase : IMediaLibraryDatabase
+    public class MediaLibraryDatabase : IMediaLibraryDatabase, ILogDatabase
     {
         private readonly MediaLibraryDatabaseSettings settings;
         private SQLiteAsyncConnection connection;

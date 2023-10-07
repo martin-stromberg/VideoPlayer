@@ -1,4 +1,5 @@
-﻿using MyVideoPlayer.ViewModels.Navigation;
+﻿using MyVideoPlayer.ViewModels.Logs;
+using MyVideoPlayer.ViewModels.Navigation;
 using MyVideoPlayer.ViewModels.Navigation.Library;
 using MyVideoPlayer.ViewModels.Navigation.MediaCollection;
 using MyVideoPlayer.ViewModels.Navigation.Sources;
@@ -40,6 +41,11 @@ namespace MyVideoPlayer.Helper.Navigation
             OnNavigationCompleted(viewModel);
         }
 
+        public void NavigateToRoot()
+        {
+            while (viewStack.Count() > 1)
+                NavigateBack();
+        }
         public void NavigateBack()
         {
             var currentViewModel = viewStack.Pop();
@@ -48,6 +54,7 @@ namespace MyVideoPlayer.Helper.Navigation
             else
             {                
                 currentViewModel.ItemTapped -= ViewModel_ItemTapped;
+                currentViewModel.OnDisappeared();
                 currentView = viewStack.Peek();
                 OnNavigationCompleted(currentView);
             }
@@ -342,6 +349,11 @@ namespace MyVideoPlayer.Helper.Navigation
             NavigateTo(newView);
         }
 
-        
+        public void NavigateToLog()
+        {
+            var vm = serviceProvider.GetService<LogListViewModel>();
+            vm.Title = "Protokoll";
+            NavigateTo(vm);
+        }
     }
 }

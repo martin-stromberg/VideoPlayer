@@ -3,6 +3,7 @@ using MyVideoPlayer.Helper;
 using MyVideoPlayer.Helper.Download;
 using MyVideoPlayer.Helper.LibraryScan;
 using MyVideoPlayer.Helper.Navigation;
+using MyVideoPlayer.ViewModels.Logs;
 using MyVideoPlayer.ViewModels.Navigation;
 using System;
 using System.Collections.Generic;
@@ -31,6 +32,7 @@ namespace MyVideoPlayer.ViewModels
             NavigateBack = new Command(() => DoNavigateBack());
             NavigateToSources = new Command(() => DoNavigateToSources());
             CleanScan = new Command(async () => await DoCleanScanAsync());
+            ShowLog = new Command(() => DoShowLog());
             MediaElement = new MediaElementViewModel();
             MediaElement.PropertyChanged += MediaElement_PropertyChanged;
             MediaElement.OnMediaEnded += MediaElement_OnMediaEnded;
@@ -40,12 +42,20 @@ namespace MyVideoPlayer.ViewModels
             this.navigationManager = navigationManager;
             this.libraryScanner = libraryScanner;
             this.libraryScanner.StatusChanged += (sender, e) => { StatusMessage = e.Message; };
-            this.navigationManager.NavigationCompleted += (sender, e) => { NavigationContent = e.ContentViewModel; };
+            this.navigationManager.NavigationCompleted += (sender, e) => 
+            { 
+                NavigationContent = e.ContentViewModel; 
+            };
             this.navigationManager.MediaSourceToPlay += (sender, e) => 
             { 
                 MediaElement.Play(e.MediaSource); 
             };
             Title = "Medienbibliothek";
+        }
+
+        private void DoShowLog()
+        {
+            this.navigationManager.NavigateToLog();
         }
 
         private void MediaElement_OnMediaEnded(object sender, MediaSource e)
@@ -70,6 +80,8 @@ namespace MyVideoPlayer.ViewModels
         }
 
         public Command CleanScan { get; }
+        public Command ShowLog { get; }
+
         private async Task DoCleanScanAsync()
         {
             await mediaLibrary.ClearMedia();
@@ -115,6 +127,13 @@ namespace MyVideoPlayer.ViewModels
             IsInitialized = true;
         }
         #endregion
+        #region Log
+        public bool LogVisible
+        {
+            get { return GetProperty<bool>(); }
+            set { SetProperty<bool>(value); }
+        }
+        #endregion
         #region Navigation
         public bool NavigationVisible
         {
@@ -127,14 +146,24 @@ namespace MyVideoPlayer.ViewModels
             set
             {
                 SetProperty<NavigationContentViewModel>(value);
-                NavigationVisible = value != null;
-                if (NavigationVisible)
+                if (value is LogListViewModel)
                 {
+                    NavigationVisible = false;
+                    LogVisible = true;
                     StartLoadNavigationContent();
-                    Title = value.Title;
                 }
                 else
-                    Title = "Medienbibliothek";
+                {
+                    NavigationVisible = value != null;
+                    if (NavigationVisible)
+                    {
+                        LogVisible = false;
+                        StartLoadNavigationContent();
+                        Title = value.Title;
+                    }
+                    else
+                        Title = "Medienbibliothek";
+                }
             }
         }
         private void StartLoadNavigationContent()

@@ -9,6 +9,7 @@ namespace MyVideoPlayer.Helper.Navigation
         event EventHandler<CallbackBaseModelEventArgs> DownloadRequested;
 
         void NavigateBack();
+        void NavigateToLog();
         void NavigateToOverview();
         void NavigateToSourceOverview();
         void VideoClosed(CommunityToolkit.Maui.Views.MediaSource e);

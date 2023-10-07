@@ -6,7 +6,7 @@
              xmlns:v="clr-namespace:MyVideoPlayer.Views"             
              x:Class="MyVideoPlayer.MainPage"
              Title="{Binding Title}">
-    <ContentPage.ToolbarItems>
+    <ContentPage.ToolbarItems  x:DataType="vm:HomePageViewModel">
         <ToolbarItem Text="X"                     
                      Order="Primary"
                      Command="{Binding NavigateBack}"/>
@@ -16,6 +16,9 @@
         <ToolbarItem Text="Quellen neu einlesen"                     
              Order="Secondary"
              Command="{Binding CleanScan}"/>
+        <ToolbarItem Text="Protokoll anzeigen"
+             Order="Secondary"
+             Command="{Binding ShowLog}"/>
     </ContentPage.ToolbarItems>    
     <Grid x:DataType="vm:HomePageViewModel">
         <Grid IsVisible="{Binding IsInitializing}" HorizontalOptions="Center" VerticalOptions="Center">
@@ -24,9 +27,12 @@
         <Grid IsVisible="{Binding NavigationVisible}">
             <v:MediaCollectionView BindingContext="{Binding NavigationContent}" IsVisible="{Binding NavigationVisible}"/>
         </Grid>
-        <Grid IsVisible="{Binding IsVideoVisible}">
+        <Grid IsVisible="{Binding LogVisible}">
+            <v:LogListView BindingContext="{Binding NavigationContent}" IsVisible="{Binding LogVisible}"/>
+        </Grid>
+        <Grid IsVisible="{Binding IsVideoVisible}" Margin="30">
             <v:MediaElementView BindingContext="{Binding MediaElement}" IsVisible="{Binding IsVideoVisible}"/>
-        </Grid>        
+        </Grid>
         <Label Text="{Binding StatusMessage}" VerticalOptions="End"/>
     </Grid>
 </ContentPage>

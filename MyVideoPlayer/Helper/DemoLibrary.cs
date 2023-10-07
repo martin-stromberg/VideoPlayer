@@ -201,5 +201,35 @@ namespace MyVideoPlayer.Helper
         {
             throw new NotImplementedException();
         }
+
+        public Task<IEnumerable<TVShow>> GetTVShows()
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<IEnumerable<TVShowSeason>> GetTVShowSeasons(long showId)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<IEnumerable<TVShowEpisode>> GetTVShowEpisodes(long seasonId)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<TVShow> GetTVShow(long id)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<TVShowSeason> GetTVShowSeason(long id)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<TVShowEpisode> GetTVShowEpisode(long id)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

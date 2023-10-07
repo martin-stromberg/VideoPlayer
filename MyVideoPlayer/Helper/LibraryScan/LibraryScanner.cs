@@ -31,7 +31,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
     {
         private readonly IServiceProvider serviceProvider;
         private readonly IMediaLibrary mediaLibrary;
-        private readonly ILogger logger;
+        private readonly ILogger<LibraryScanner> logger;
         private readonly LibraryScannerSettings settings;
         private string[] FileExtVideo = { ".avi", ".mkv", ".mp4", ".mov" };
         private string[] FileExtAudio = { ".mp3", ".wav", ".ogg" };
@@ -40,7 +40,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
         public LibraryScanner(
             IServiceProvider serviceProvider,
             IMediaLibrary mediaLibrary,
-            ILogger logger,
+            ILogger<LibraryScanner> logger,
             LibraryScannerSettings settings) 
         {
             this.serviceProvider = serviceProvider;
@@ -253,17 +253,22 @@ namespace MyVideoPlayer.Helper.LibraryScan
                     };
                     await mediaLibrary.AddMediaItemAsync(item);
                 }
-                logger.LogDebug($"MediaItem: {item}");
-                if (item.MetaDataTime.AddHours(24) > DateTime.Now)
-                    return;
-                if (FileExtVideo.Contains(ext))
-                    await ProcessMetaDataForVideoAsync(scanner, item);
-                if (FileExtAudio.Contains(ext))
-                    ProcessMetaDataForAudio(item);
+                try
+                {
+                    if (item.MetaDataTime.AddHours(24) > DateTime.Now)
+                        return;
+                    if (FileExtVideo.Contains(ext))
+                        await ProcessMetaDataForVideoAsync(scanner, item);
+                    if (FileExtAudio.Contains(ext))
+                        ProcessMetaDataForAudio(item);
 
-                item.MetaDataTime = DateTime.Now;
-                await mediaLibrary.AddMediaItemAsync(item);
-                logger.LogDebug($"MediaItem: {item}");
+                    item.MetaDataTime = DateTime.Now;
+                    await mediaLibrary.AddMediaItemAsync(item);
+                }
+                finally
+                {
+                    logger.LogDebug($"MediaItem: {item}");
+                }
             }
             catch (Exception ex)
             {

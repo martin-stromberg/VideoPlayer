@@ -9,10 +9,11 @@ using VideoPlayerLib.Services.Database.Models;
 
 namespace VideoPlayerLib.Services.Log
 {
-    public class Logger : ILogger
+    public class Logger: ILogger
     {
+
         private readonly ILogDatabase logDatabase;
-        private readonly ConcurrentQueue<LogEntry> logs = new System.Collections.Concurrent.ConcurrentQueue<LogEntry>();
+        private readonly ConcurrentQueue<LogEntry> logs = new ConcurrentQueue<LogEntry>();
         private BackgroundWorker worker = null;
 
         public string CategoryName { get; set; }
@@ -23,7 +24,7 @@ namespace VideoPlayerLib.Services.Log
             this.logDatabase = logDatabase;
         }
 
-        public IDisposable BeginScope<TState>(TState state) where TState : notnull
+        public IDisposable BeginScope<TState>(TState state) where TState: notnull
         {
             throw new NotImplementedException();
         }
@@ -33,7 +34,12 @@ namespace VideoPlayerLib.Services.Log
             return true;
         }
 
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception exception, Func<TState, Exception, string> formatter)
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception exception,
+            Func<TState, Exception, string> formatter)
         {
             LogEntry entry = new LogEntry()
             {
@@ -55,11 +61,13 @@ namespace VideoPlayerLib.Services.Log
             worker.RunWorkerCompleted += Worker_LogsSaved;
             worker.RunWorkerAsync(0);
         }
+
         private async void Worker_LogsSaved(object sender, RunWorkerCompletedEventArgs e)
         {
             await Task.Delay(1000);
-            worker.RunWorkerAsync((int)(e.Result));
+            worker.RunWorkerAsync((int)e.Result);
         }
+
         private void Worker_SaveLogs(object sender, DoWorkEventArgs e)
         {
             int loop = (int)e.Argument;
@@ -69,7 +77,7 @@ namespace VideoPlayerLib.Services.Log
                 try
                 {
                     logDatabase.AddLog(entry).Wait();
-                    if (loop % 10 == 0)
+                    if ((loop % 10) == 0)
                         ClearLogsAsync().Wait();
                 }
                 catch (Exception ex)
@@ -78,6 +86,7 @@ namespace VideoPlayerLib.Services.Log
                 }
             e.Result = loop + 1;
         }
+
         private async Task ClearLogsAsync()
         {
             var logs = (await logDatabase.GetLogs())
@@ -85,5 +94,6 @@ namespace VideoPlayerLib.Services.Log
             foreach (var log in logs)
                 await logDatabase.RemoveLog(log);
         }
+
     }
 }

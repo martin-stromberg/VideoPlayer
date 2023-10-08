@@ -6,13 +6,15 @@ using VideoPlayerLib.Services.Database;
 
 namespace VideoPlayerLib.Services.Log
 {
-    public class DatabaseLoggerProvider : ILoggerProvider
+    public class DatabaseLoggerProvider: ILoggerProvider
     {
+
         public DatabaseLoggerProvider(IServiceProvider serviceProvider)
             : base()
         {
             this.serviceProvider = serviceProvider;
         }
+
         private ConcurrentDictionary<string, ILogger> _loggers = new ConcurrentDictionary<string, ILogger>();
         private readonly IServiceProvider serviceProvider;
 
@@ -27,5 +29,6 @@ namespace VideoPlayerLib.Services.Log
         {
             _loggers.Clear();
         }
+
     }
 }

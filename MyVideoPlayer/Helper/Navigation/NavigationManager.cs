@@ -8,7 +8,7 @@ using VideoPlayerLib.Services.MediaLibrary.Models;
 
 namespace MyVideoPlayer.Helper.Navigation
 {
-    public class RessourceLocation: IRessourceLocation
+    public class RessourceLocation : IRessourceLocation
     {
         public string Path { get; set; }
     }
@@ -18,7 +18,7 @@ namespace MyVideoPlayer.Helper.Navigation
         string Path { get; }
     }
 
-    public class NavigationManager: INavigationManager
+    public class NavigationManager : INavigationManager
     {
         private readonly IMediaLibrary mediaLibrary;
         private readonly IServiceProvider serviceProvider;
@@ -49,10 +49,10 @@ namespace MyVideoPlayer.Helper.Navigation
         public void NavigateBack()
         {
             var currentViewModel = viewStack.Pop();
-            if (viewStack.Count == 0)     
+            if (viewStack.Count == 0)
                 viewStack.Push(currentViewModel);
             else
-            {                
+            {
                 currentViewModel.ItemTapped -= ViewModel_ItemTapped;
                 currentViewModel.OnDisappeared();
                 currentView = viewStack.Peek();
@@ -91,7 +91,7 @@ namespace MyVideoPlayer.Helper.Navigation
                 NavigateToMediaItemAsync(e.ViewModel as MovieCollectionBoxViewModel);
         }
 
-        
+
 
         private async void NavigateToMediaItem(MediaItemBoxViewModel viewModel)
         {
@@ -176,7 +176,8 @@ namespace MyVideoPlayer.Helper.Navigation
         {
             StartPlayLoadingVideo();
             var e = new CallbackBaseModelEventArgs(viewModel.MediaItem);
-            e.Callback += (sender, e) => {
+            e.Callback += (sender, e) =>
+            {
                 viewModel.MediaItem = e.Element as MediaItem;
                 playingMediaItem = viewModel.MediaItem;
                 var mediaSource = CommunityToolkit.Maui.Views.MediaSource.FromFile(viewModel.MediaItem.Path);
@@ -237,7 +238,8 @@ namespace MyVideoPlayer.Helper.Navigation
         {
             StartPlayLoadingVideo();
             var e = new CallbackBaseModelEventArgs(viewModel.MediaItem);
-            e.Callback += (sender, e) => {
+            e.Callback += (sender, e) =>
+            {
                 viewModel.MediaItem = e.Element as MediaItem;
                 playingMediaItem = viewModel.MediaItem;
                 var mediaSource = CommunityToolkit.Maui.Views.MediaSource.FromFile(viewModel.MediaItem.Path);
@@ -268,7 +270,8 @@ namespace MyVideoPlayer.Helper.Navigation
             StartPlayLoadingVideo();
 
             var e = new CallbackBaseModelEventArgs(viewModel.Item);
-            e.Callback += (sender, e) => {
+            e.Callback += (sender, e) =>
+            {
                 playingMediaItem = e.Element as MediaItem;
                 var mediaSource = CommunityToolkit.Maui.Views.MediaSource.FromFile(playingMediaItem.Path);
                 OnMediaSourceToPlay(mediaSource);
@@ -319,7 +322,7 @@ namespace MyVideoPlayer.Helper.Navigation
         }
         private MediaItem playingMediaItem = null;
         public void VideoClosed(CommunityToolkit.Maui.Views.MediaSource e)
-        {            
+        {
             if (playingMediaItem == null)
                 return;
             var currentViewModel = viewStack.Peek();
@@ -336,7 +339,7 @@ namespace MyVideoPlayer.Helper.Navigation
             vm.Source = viewModel.Source;
             vm.Collection = viewModel.Collection;
             NavigateTo(vm);
-        }        
+        }
         public void NavigateToSourceOverview()
         {
             var newView = serviceProvider.GetService<SourcesViewModel>();

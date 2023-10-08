@@ -1,15 +1,12 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using VideoPlayerLib.Services.MediaLibrary;
 using VideoPlayerLib.Services.MediaLibrary.Models;
 
 namespace MyVideoPlayer.ViewModels.Navigation
 {
-    public class NavigationContentViewModel: BaseViewModel
+    public class NavigationContentViewModel : BaseViewModel
     {
         protected IServiceProvider ServiceProvider { get; }
 
@@ -37,7 +34,7 @@ namespace MyVideoPlayer.ViewModels.Navigation
         }
         protected virtual void MediaLibrary_ModelElementAdded(object sender, BaseModelEventArgs e)
         {
-            
+
         }
 
         public ObservableCollection<BaseMediaElementBoxViewModel> Items { get; set; } = new ObservableCollection<BaseMediaElementBoxViewModel>();
@@ -85,7 +82,7 @@ namespace MyVideoPlayer.ViewModels.Navigation
 
         public virtual void OnAppeared()
         {
-            
+
         }
         public virtual void OnDisappeared()
         {
@@ -110,6 +107,6 @@ namespace MyVideoPlayer.ViewModels.Navigation
                 MediaLibrary_ModelElementAdded(this, new BaseModelEventArgs(mediaItem));
         }
 
-        
+
     }
 }

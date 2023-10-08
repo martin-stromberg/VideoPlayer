@@ -8,7 +8,7 @@ namespace MyVideoPlayer.ViewModels.Navigation.Library
     {
         private readonly IMediaLibrary mediaLibrary;
 
-        public LibraryMediaCollectionViewModel(IMediaLibrary mediaLibrary, IServiceProvider serviceProvider) 
+        public LibraryMediaCollectionViewModel(IMediaLibrary mediaLibrary, IServiceProvider serviceProvider)
             : base(mediaLibrary, serviceProvider)
         {
             this.mediaLibrary = mediaLibrary;
@@ -19,15 +19,15 @@ namespace MyVideoPlayer.ViewModels.Navigation.Library
 
         protected override void MediaLibrary_ModelElementAdded(object sender, BaseModelEventArgs e)
         {
-            
+
         }
         protected override void MediaLibrary_ModelElementRemoved(object sender, BaseModelEventArgs e)
         {
-            
+
         }
         protected override void MediaLibrary_ModelElementUpdated(object sender, BaseModelEventArgs e)
         {
-            
+
         }
 
         internal override Task ReadMediaCollection(MediaSource source)
@@ -51,7 +51,7 @@ namespace MyVideoPlayer.ViewModels.Navigation.Library
                 if (CategoryType == typeof(TVShow))
                 {
                     await LoadTVShowsSeasons(Parent as TVShow);
-                    
+
                 }
                 else if (CategoryType == typeof(TVShowSeason))
                     await LoadTVShowsEpisodes(Parent as TVShowSeason);
@@ -60,7 +60,7 @@ namespace MyVideoPlayer.ViewModels.Navigation.Library
             }
         }
 
-        
+
 
         private async Task LoadTVShowsSeasons(TVShow tVShow)
         {
@@ -94,7 +94,7 @@ namespace MyVideoPlayer.ViewModels.Navigation.Library
         }
         private void AddTVShowSeason(TVShowSeason season)
         {
-            if (Items.Cast<TVShowSeasonBoxViewModel>().Any(vm => vm.Item.Id == season.Id)) 
+            if (Items.Cast<TVShowSeasonBoxViewModel>().Any(vm => vm.Item.Id == season.Id))
                 return;
             TVShowSeasonBoxViewModel vm = ServiceProvider.GetService<TVShowSeasonBoxViewModel>();
             vm.Title = season.Name;
@@ -107,7 +107,7 @@ namespace MyVideoPlayer.ViewModels.Navigation.Library
             _ = ReadMediaItems(null);
         }
         private async Task LoadMovieCollections()
-        {            
+        {
             var collections = await mediaLibrary.GetMovieCollections();
             foreach (var collection in collections.OrderBy(c => c.Name))
                 AddMovieCollection(collection);

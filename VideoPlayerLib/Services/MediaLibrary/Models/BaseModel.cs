@@ -9,7 +9,7 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
 {
     public class BaseModel : INotifyPropertyChanged, IDisposable
     {
-        ~BaseModel() 
+        ~BaseModel()
         {
             Dispose();
         }
@@ -148,7 +148,7 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
             }
             var model = Activator.CreateInstance(modelType) as BaseModel;
             model.UpdateFromDataModel(source);
-            return model ;
+            return model;
         }
         protected virtual void UpdateFromDataModel(BaseDataModel dataModel)
         {

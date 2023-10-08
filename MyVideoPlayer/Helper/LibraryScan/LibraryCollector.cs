@@ -1,8 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using VideoPlayerLib.Services.MediaLibrary;
 using VideoPlayerLib.Services.MediaLibrary.Models;
 using VideoPlayerLib.Services.MediaLibrary.Models.Meta;
@@ -18,7 +15,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
         private readonly IMediaLibrary mediaLibrary;
 
         public LibraryCollector(IMediaLibrary mediaLibrary)
-            :base()
+            : base()
         {
             this.mediaLibrary = mediaLibrary;
             this.mediaLibrary.ModelElementAdded += MediaLibrary_ModelElementAddedAsync;
@@ -89,8 +86,8 @@ namespace MyVideoPlayer.Helper.LibraryScan
                 return;
 
             var existingShows = await mediaLibrary.FindTVShowByNameAsync(show.Name);
-            var existingShow = (show.Id != 0) ? await mediaLibrary.FindTVShowAsync(show.Id): existingShows.FirstOrDefault();
-            if (existingShow == null) 
+            var existingShow = (show.Id != 0) ? await mediaLibrary.FindTVShowAsync(show.Id) : existingShows.FirstOrDefault();
+            if (existingShow == null)
             {
                 await mediaLibrary.AddTVShowAsync(show);
                 await mediaLibrary.AddTVShowSeasonAsync(show, season);
@@ -102,7 +99,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
 
             var existingSeason = (await mediaLibrary.GetTVShowSeasons(existingShow.Id))
                 .Where(s => s != null)
-                .FirstOrDefault(s => s.Name == season.Name); 
+                .FirstOrDefault(s => s.Name == season.Name);
             if (existingSeason == null)
             {
                 await mediaLibrary.AddTVShowSeasonAsync(existingShow, season);
@@ -112,7 +109,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
             await mediaLibrary.AddTVShowSeasonAsync(existingShow, existingSeason);
 
             var existingEpisode = (await mediaLibrary.GetTVShowEpisodes(existingSeason.Id))
-                .FirstOrDefault(e => e.EpisodeNo == episode.EpisodeNo); 
+                .FirstOrDefault(e => e.EpisodeNo == episode.EpisodeNo);
             if (existingEpisode == null)
             {
                 await mediaLibrary.AddTVShowEpisodeAsync(existingShow, existingSeason, episode);
@@ -140,7 +137,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
                 {
                     Name = movieCollection.Name,
                     PicturePath = movieCollection.PicturePath
-                };                
+                };
                 var existingCollection = (await mediaLibrary.FindMovieCollectionByNameAsync(movieCollection.Name)).FirstOrDefault();
                 if (existingCollection == null)
                     await mediaLibrary.AddMovieCollectionAsync(collection);
@@ -151,7 +148,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
 
                     collection = existingCollection;
                 }
-            }            
+            }
 
             var movie = new Movie()
             {

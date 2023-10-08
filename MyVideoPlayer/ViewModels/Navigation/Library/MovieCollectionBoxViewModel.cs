@@ -5,7 +5,7 @@ namespace MyVideoPlayer.ViewModels.Navigation.Library
 {
     public class MovieCollectionBoxViewModel : BaseMediaElementBoxViewModel
     {
-        public MovieCollectionBoxViewModel(LibraryScannerSettings settings) 
+        public MovieCollectionBoxViewModel(LibraryScannerSettings settings)
             : base(settings)
         {
             IsPlayable = true;

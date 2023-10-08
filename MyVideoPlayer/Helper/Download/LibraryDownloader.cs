@@ -3,12 +3,9 @@ using MyVideoPlayer.Helper.Navigation;
 using MyVideoPlayer.ViewModels.Navigation;
 using MyVideoPlayer.ViewModels.Navigation.MediaCollection;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
-using System.Text;
-using System.Threading.Tasks;
 using VideoPlayerLib.Services.MediaLibrary;
 using VideoPlayerLib.Services.MediaLibrary.Models;
 using VideoPlayerLib.Services.Samba;
@@ -19,17 +16,17 @@ namespace MyVideoPlayer.Helper.Download
     {
 
     }
-    public class LibraryDownloader: ILibraryDownloader
+    public class LibraryDownloader : ILibraryDownloader
     {
         private readonly LibraryDownloaderSettings settings;
         private readonly INavigationManager navigationManager;
         private readonly IMediaLibrary mediaLibrary;
         private NavigationContentViewModel currentViewModel;
 
-        public LibraryDownloader(   
+        public LibraryDownloader(
             LibraryDownloaderSettings settings,
-            INavigationManager navigationManager,            
-            IMediaLibrary mediaLibrary) 
+            INavigationManager navigationManager,
+            IMediaLibrary mediaLibrary)
         {
             this.settings = settings;
             this.navigationManager = navigationManager;
@@ -39,7 +36,7 @@ namespace MyVideoPlayer.Helper.Download
         }
 
         private async void NavigationManager_DownloadRequested(object sender, CallbackBaseModelEventArgs e)
-        {            
+        {
             var mediaItem = e.Element as MediaItem;
             mediaItem = await DownloadMediaItem(null, null, mediaItem);
             e.SendCallback(mediaItem);
@@ -67,7 +64,7 @@ namespace MyVideoPlayer.Helper.Download
             await DownloadMediaItem(null, null, viewModel.Item);
         }
         private async void DownloadMediaItemCollectionAsync(MediaCollectionBoxViewModel viewModel)
-        {            
+        {
             await DownloadMediaItemCollection(viewModel.Collection);
         }
         private async Task DownloadMediaItemCollection(MediaItemCollection collection)

@@ -1,8 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using VideoPlayerLib.Services.MediaLibrary;
 using VideoPlayerLib.Services.MediaLibrary.Models;
 
@@ -10,7 +7,7 @@ namespace MyVideoPlayer.ViewModels.Navigation.Library
 {
     public class LibraryOverviewViewModel : NavigationContentViewModel
     {
-        public LibraryOverviewViewModel(IMediaLibrary mediaLibrary, IServiceProvider serviceProvider) 
+        public LibraryOverviewViewModel(IMediaLibrary mediaLibrary, IServiceProvider serviceProvider)
             : base(mediaLibrary, serviceProvider)
         {
         }

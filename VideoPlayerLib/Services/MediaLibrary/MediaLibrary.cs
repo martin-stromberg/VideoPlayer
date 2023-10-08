@@ -32,7 +32,7 @@ namespace VideoPlayerLib.Services.MediaLibrary
                 .OrderBy(s => s.Name)
                 .ToArrayAsync())
                 .Select(source => MediaSource.FromDataModel(source) as MediaSource);
-                
+
         }
         public async Task<MediaSource> GetSourceAsync(long id)
         {
@@ -42,7 +42,7 @@ namespace VideoPlayerLib.Services.MediaLibrary
         {
             var isNew = source.Id == 0;
             var dataModel = source.ToDataModelAsync() as Database.Models.MediaSource;
-            await dataStore.AddOrUpdateSourceAsync(dataModel);            
+            await dataStore.AddOrUpdateSourceAsync(dataModel);
             source.UpdateAutoincrements(dataModel);
             OnElementChanged(isNew ? new BaseModelEventArgs(source) : null, !isNew ? new BaseModelEventArgs(source) : null, null);
         }
@@ -63,7 +63,7 @@ namespace VideoPlayerLib.Services.MediaLibrary
         }
         public async Task<IEnumerable<MediaItemCollection>> GetChildMediaItemCollectionsAsync(long collectionId)
         {
-            return (await(await dataStore.GetMediaCollectionsAsync())
+            return (await (await dataStore.GetMediaCollectionsAsync())
                 .Where(s => s.ParentCollectionId == collectionId)
                 .OrderBy(s => s.Name)
                 .ToArrayAsync())
@@ -124,7 +124,7 @@ namespace VideoPlayerLib.Services.MediaLibrary
         }
         public async Task<IEnumerable<MediaItem>> GetAlternateMediaItemsAsync(long mediaItemId)
         {
-            return (await(await dataStore.GetMediaItemsAsync())
+            return (await (await dataStore.GetMediaItemsAsync())
                 .Where(s => s.OriginalMediaItemId == mediaItemId)
                 .OrderBy(s => s.Name)
                 .ToArrayAsync())
@@ -294,9 +294,9 @@ namespace VideoPlayerLib.Services.MediaLibrary
 
         public async Task<IEnumerable<TVShow>> FindTVShowByNameAsync(string name)
         {
-            var show = await dataStore.GetTVShowsByName(name);            
+            var show = await dataStore.GetTVShowsByName(name);
             return show
-                .Select(show => 
+                .Select(show =>
                 {
                     var model = TVShow.FromDataModel(show) as TVShow;
                     //var seasons = FindTVShowSeasons(show.Id);
@@ -319,7 +319,7 @@ namespace VideoPlayerLib.Services.MediaLibrary
                     //season.Episodes = episodes.ToArray();
                     return season;
                 })
-                .Cast<TVShowSeason> ();
+                .Cast<TVShowSeason>();
         }
 
         private IEnumerable<TVShowEpisode> FindTVShowEpisodes(long id)
@@ -338,7 +338,7 @@ namespace VideoPlayerLib.Services.MediaLibrary
                     episode.MediaItems = mediaItems.ToArray();
                     return episode;
                 })
-                .Cast<TVShowEpisode> ();
+                .Cast<TVShowEpisode>();
         }
 
         public async Task<TVShow> FindTVShowAsync(long id)
@@ -387,7 +387,7 @@ namespace VideoPlayerLib.Services.MediaLibrary
             });
             dataModelEpisode.SeasonId = season.Id;
             if (!isNew)
-                await dataStore.RemoveTVShowEpisodeMediaItemsAsync(episode.Id);            
+                await dataStore.RemoveTVShowEpisodeMediaItemsAsync(episode.Id);
             await dataStore.AddOrUpdateTVShowEpisode(dataModelEpisode);
             episode.UpdateAutoincrements(dataModelEpisode);
             foreach (var mediaItem in dataModelMediaItems)
@@ -400,7 +400,7 @@ namespace VideoPlayerLib.Services.MediaLibrary
 
         public async Task RemoveMediaItemAsync(MediaItem mediaItem)
         {
-            if ((MediaItemCopyType)mediaItem.CopyType == MediaItemCopyType.Cache)
+            if (mediaItem.CopyType == MediaItemCopyType.Cache)
                 File.Delete(mediaItem.Path);
             var mediaStore = await dataStore.GetMediaItemAsync(mediaItem.Id);
             await dataStore.RemoveMediaItem(mediaStore);

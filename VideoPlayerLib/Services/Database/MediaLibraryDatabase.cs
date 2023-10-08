@@ -1,11 +1,7 @@
 ﻿using SQLite;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Xml.Linq;
 using VideoPlayerLib.Services.Database.Models;
 
 namespace VideoPlayerLib.Services.Database
@@ -28,7 +24,7 @@ namespace VideoPlayerLib.Services.Database
                     connection = new SQLiteAsyncConnection(settings.FilePath, settings.OpenFlags);
                 return connection;
             }
-        } 
+        }
 
         private async Task InitOrUpgradeAsync()
         {
@@ -42,7 +38,7 @@ namespace VideoPlayerLib.Services.Database
             result = await Connection.CreateTableAsync<Models.TVShowEpisodeMediaItem>();
             result = await Connection.CreateTableAsync<Models.Movie>();
             result = await Connection.CreateTableAsync<Models.MovieCollection>();
-            result = await Connection.CreateTableAsync<Models.MovieMediaItem>();            
+            result = await Connection.CreateTableAsync<Models.MovieMediaItem>();
         }
 
         public async Task<AsyncTableQuery<MediaSource>> GetSourcesAsync()
@@ -90,12 +86,12 @@ namespace VideoPlayerLib.Services.Database
         {
             var dataModel = model as BaseDataModel;
             if (dataModel == null)
-                throw new ArgumentException(nameof(model));            
+                throw new ArgumentException(nameof(model));
 
             await InitOrUpgradeAsync();
             Debug.WriteLine($"AddOrUpdate({typeof(T)})");
             var existing = (await Connection.Table<T>()
-                .ToArrayAsync())                
+                .ToArrayAsync())
                 .FirstOrDefault(rec => (rec as BaseDataModel).IsRecord(model as BaseDataModel)) as BaseDataModel;
             if (existing == null)
             {
@@ -181,7 +177,7 @@ namespace VideoPlayerLib.Services.Database
         }
 
         public async Task RemoveLog(LogEntry log)
-        {            
+        {
             await Connection.DeleteAsync(log);
         }
 

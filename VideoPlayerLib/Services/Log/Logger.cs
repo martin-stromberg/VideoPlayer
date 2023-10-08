@@ -1,13 +1,9 @@
 ﻿using Microsoft.Extensions.Logging;
-using Microsoft.Maui.Controls;
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using VideoPlayerLib.Services.Database;
 using VideoPlayerLib.Services.Database.Models;
 
@@ -22,7 +18,7 @@ namespace VideoPlayerLib.Services.Log
         public string CategoryName { get; set; }
 
         public Logger(ILogDatabase logDatabase)
-            :base()
+            : base()
         {
             this.logDatabase = logDatabase;
         }
@@ -56,7 +52,7 @@ namespace VideoPlayerLib.Services.Log
                 return;
             worker = new BackgroundWorker();
             worker.DoWork += Worker_SaveLogs;
-            worker.RunWorkerCompleted += Worker_LogsSaved;            
+            worker.RunWorkerCompleted += Worker_LogsSaved;
             worker.RunWorkerAsync(0);
         }
         private async void Worker_LogsSaved(object sender, RunWorkerCompletedEventArgs e)
@@ -76,7 +72,7 @@ namespace VideoPlayerLib.Services.Log
                     if (loop % 10 == 0)
                         ClearLogsAsync().Wait();
                 }
-                catch(Exception ex)
+                catch (Exception ex)
                 {
                     Debug.WriteLine(ex.ToString());
                 }

@@ -1,5 +1,4 @@
 ﻿using Foundation;
-using System.Diagnostics;
 
 namespace MyVideoPlayer
 {

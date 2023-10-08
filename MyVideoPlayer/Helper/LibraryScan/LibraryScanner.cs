@@ -1,9 +1,5 @@
 ﻿#if IOS || ANDROID || MACCATALYST
-using Microsoft.Maui.ApplicationModel.DataTransfer;
-using Microsoft.Maui.Graphics.Platform;
-using SMBLibrary.Server;
 #elif WINDOWS
-using Microsoft.Maui.Graphics.Win2D;
 #endif
 using Microsoft.Extensions.Logging;
 using System.ComponentModel;
@@ -11,23 +7,16 @@ using System.Diagnostics;
 using System.Xml;
 using VideoPlayerLib;
 using VideoPlayerLib.Extensions;
+using VideoPlayerLib.Services.Common;
+using VideoPlayerLib.Services.FTP;
 using VideoPlayerLib.Services.MediaLibrary;
 using VideoPlayerLib.Services.MediaLibrary.Models;
 using VideoPlayerLib.Services.MediaLibrary.Models.Meta;
 using VideoPlayerLib.Services.Samba;
-using VideoPlayerLib.Services.FTP;
-using VideoPlayerLib.Services.Common;
-using static System.Net.Mime.MediaTypeNames;
 
 namespace MyVideoPlayer.Helper.LibraryScan
 {
-    public interface ILibraryScanner
-    {
-        event EventHandler<MessageEventArgs> StatusChanged;
-        void Start();
-        void Stop();
-    }
-    public class LibraryScanner: ILibraryScanner
+    public class LibraryScanner : ILibraryScanner
     {
         private readonly IServiceProvider serviceProvider;
         private readonly IMediaLibrary mediaLibrary;
@@ -35,13 +24,13 @@ namespace MyVideoPlayer.Helper.LibraryScan
         private readonly LibraryScannerSettings settings;
         private string[] FileExtVideo = { ".avi", ".mkv", ".mp4", ".mov" };
         private string[] FileExtAudio = { ".mp3", ".wav", ".ogg" };
-        private string[] FileExtImage = { ".jpg", ".npg"};
+        private string[] FileExtImage = { ".jpg", ".png" };
 
         public LibraryScanner(
             IServiceProvider serviceProvider,
             IMediaLibrary mediaLibrary,
             ILogger<LibraryScanner> logger,
-            LibraryScannerSettings settings) 
+            LibraryScannerSettings settings)
         {
             this.serviceProvider = serviceProvider;
             this.mediaLibrary = mediaLibrary;
@@ -101,7 +90,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
                 return;
             if (source.LastScan.AddMinutes(60) > DateTime.Now)
             {
-                OnStatusChanged("");
+                OnStatusChanged(string.Empty);
                 return;
             }
             ScanSource(source);
@@ -116,7 +105,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
                 if (source is FtpMediaSource)
                     ScanFtp(source as FtpMediaSource);
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 logger.LogError(ex, ex.Message);
                 OnStatusChanged(ex.Message);
@@ -142,14 +131,14 @@ namespace MyVideoPlayer.Helper.LibraryScan
                 SmbMediaSource smbSource = source as SmbMediaSource;
                 if (smbSource != null)
                     await ScanNextSmbShareCollectionMediaAsync(smbSource, refDate);
-                
+
                 FtpMediaSource ftpSource = source as FtpMediaSource;
                 if (ftpSource != null)
                     await ScanNextFtpShareCollectionMediaAsync(ftpSource, refDate);
             }
         }
 
-        
+
 
         private async Task ScanRemoteCollectionMediaSyncAsync(RemoteSourceScanner scanner, MediaSource source, DateTime refDate)
         {
@@ -236,7 +225,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
                 if (item == null)
                 {
                     logger.LogDebug($"Create new item.");
-                    var folderPath = Path.GetDirectoryName(file.Path).Replace('\\', source.PathDelimiter);                    
+                    var folderPath = Path.GetDirectoryName(file.Path).Replace('\\', source.PathDelimiter);
                     var folder = await mediaLibrary.FindMediaItemCollectionAsync(source.Id, folderPath);
                     if (folder == null)
                         folder = await ProcessFolderAsync(source, scanner, new Folder()
@@ -325,7 +314,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
 
             var nfoFile = scanner.FindFiles(nfoFolder, nfoName)
                 .FirstOrDefault();
-            if (nfoFile != null) 
+            if (nfoFile != null)
                 return;
 
             XmlDocument NfoDoc = new XmlDocument();
@@ -345,7 +334,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
                     NfoDoc.DocumentElement.FindChild("plot", true).InnerText = infoFile.Plot;
                     break;
             }
-            
+
             scanner.WriteTextFile(nfoPath, NfoDoc.InnerXml);
             nfoFile = scanner.FindFiles(nfoFolder, nfoName)
                 .FirstOrDefault();

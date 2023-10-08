@@ -2,7 +2,7 @@
 
 namespace MyVideoPlayer.Helper.Navigation
 {
-    public class NavigationEventArgs: EventArgs
+    public class NavigationEventArgs : EventArgs
     {
         public NavigationEventArgs(NavigationContentViewModel contentViewModel)
         {

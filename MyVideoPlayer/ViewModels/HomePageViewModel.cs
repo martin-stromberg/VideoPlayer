@@ -6,16 +6,12 @@ using MyVideoPlayer.Helper.Navigation;
 using MyVideoPlayer.ViewModels.Logs;
 using MyVideoPlayer.ViewModels.Navigation;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using VideoPlayerLib.Services.MediaLibrary;
-using VideoPlayerLib.Services.Samba;
 
 namespace MyVideoPlayer.ViewModels
 {
-    public class HomePageViewModel: BaseViewModel
+    public class HomePageViewModel : BaseViewModel
     {
         private readonly IMediaLibrary mediaLibrary;
         private readonly ILibraryDownloader libraryDownloader;
@@ -27,7 +23,7 @@ namespace MyVideoPlayer.ViewModels
             ILibraryDownloader libraryDownloader,
             INavigationManager navigationManager,
             ILibraryScanner libraryScanner)
-            :base()
+            : base()
         {
             NavigateBack = new Command(() => DoNavigateBack());
             NavigateToSources = new Command(() => DoNavigateToSources());
@@ -42,13 +38,13 @@ namespace MyVideoPlayer.ViewModels
             this.navigationManager = navigationManager;
             this.libraryScanner = libraryScanner;
             this.libraryScanner.StatusChanged += (sender, e) => { StatusMessage = e.Message; };
-            this.navigationManager.NavigationCompleted += (sender, e) => 
-            { 
-                NavigationContent = e.ContentViewModel; 
+            this.navigationManager.NavigationCompleted += (sender, e) =>
+            {
+                NavigationContent = e.ContentViewModel;
             };
-            this.navigationManager.MediaSourceToPlay += (sender, e) => 
-            { 
-                MediaElement.Play(e.MediaSource); 
+            this.navigationManager.MediaSourceToPlay += (sender, e) =>
+            {
+                MediaElement.Play(e.MediaSource);
             };
             Title = "Medienbibliothek";
         }
@@ -65,7 +61,7 @@ namespace MyVideoPlayer.ViewModels
 
         private void MediaElement_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
-            switch(e.PropertyName)
+            switch (e.PropertyName)
             {
                 case nameof(MediaElement.VideoVisible):
                     NavigationVisible = !MediaElement.VideoVisible && NavigationContent != null;

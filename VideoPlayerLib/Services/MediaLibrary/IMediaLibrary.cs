@@ -20,8 +20,8 @@ namespace VideoPlayerLib.Services.MediaLibrary
         Task<IEnumerable<MediaItem>> GetAlternateMediaItemsAsync(long mediaItemId);
         Task AddMediaItemAsync(Models.MediaItem mediaItem);
         Task<MediaItem> FindMediaItemAsync(long SourceId, string path);
-        
-        Task ImportAsync(IMediaLibrary library);        
+
+        Task ImportAsync(IMediaLibrary library);
         Task ClearMedia();
         Task<IEnumerable<Movie>> GetMovies();
         Task<Movie> FindMovieAsync(long mediaItemId);

@@ -1,8 +1,8 @@
 ﻿namespace VideoPlayerLib.Services.MediaLibrary.Models
 {
-    public class BaseModelEventArgs: EventArgs
+    public class BaseModelEventArgs : EventArgs
     {
-        public BaseModelEventArgs(BaseModel modelObj) 
+        public BaseModelEventArgs(BaseModel modelObj)
         {
             Element = modelObj;
         }
@@ -12,7 +12,7 @@
 
     public class CallbackBaseModelEventArgs : BaseModelEventArgs
     {
-        public CallbackBaseModelEventArgs(BaseModel modelObj) 
+        public CallbackBaseModelEventArgs(BaseModel modelObj)
             : base(modelObj)
         {
         }

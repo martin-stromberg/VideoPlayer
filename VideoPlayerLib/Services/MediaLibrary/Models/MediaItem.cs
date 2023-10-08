@@ -1,9 +1,6 @@
 ﻿using Newtonsoft.Json;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using VideoPlayerLib.Services.Database.Models;
 using VideoPlayerLib.Services.MediaLibrary.Models.Meta;
 
@@ -11,7 +8,7 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
 {
     public enum MediaItemCopyType { None, Cache }
     [DataModelReference(typeof(Database.Models.MediaItem))]
-    public class MediaItem: BaseModel
+    public class MediaItem : BaseModel
     {
         public string Path
         {
@@ -36,8 +33,8 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
         public string PicturePath
         {
             get { return GetProperty<string>(); }
-            set 
-            { 
+            set
+            {
                 SetProperty<string>(value);
                 if (value == null)
                     Picture = null;

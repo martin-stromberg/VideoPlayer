@@ -1,10 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using VideoPlayerLib.Services.Database;
 
 namespace VideoPlayerLib.Services.Log
@@ -12,7 +9,7 @@ namespace VideoPlayerLib.Services.Log
     public class DatabaseLoggerProvider : ILoggerProvider
     {
         public DatabaseLoggerProvider(IServiceProvider serviceProvider)
-            :base()
+            : base()
         {
             this.serviceProvider = serviceProvider;
         }

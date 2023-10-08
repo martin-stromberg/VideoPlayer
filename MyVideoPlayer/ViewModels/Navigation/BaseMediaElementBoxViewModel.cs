@@ -1,20 +1,16 @@
 ﻿using MyVideoPlayer.Helper.LibraryScan;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using VideoPlayerLib;
-using VideoPlayerLib.Extensions;
 
 namespace MyVideoPlayer.ViewModels.Navigation
 {
-    public class BaseMediaElementBoxViewModel: BaseViewModel
+    public class BaseMediaElementBoxViewModel : BaseViewModel
     {
         private readonly LibraryScannerSettings settings;
 
         public BaseMediaElementBoxViewModel(LibraryScannerSettings settings)
-            :base()
+            : base()
         {
             IsPlayable = false;
             IsDownloadable = false;
@@ -50,8 +46,8 @@ namespace MyVideoPlayer.ViewModels.Navigation
         public ImageSource Picture
         {
             get { return GetProperty<ImageSource>(); }
-            set 
-            { 
+            set
+            {
                 if (value is StreamImageSource)
                 {
                     var sourceStream = (value as StreamImageSource).Stream(CancellationToken.None).Wait<Stream>();
@@ -65,7 +61,7 @@ namespace MyVideoPlayer.ViewModels.Navigation
                     }
                     value = FileImageSource.FromFile(tempPath);
                 }
-                SetProperty<ImageSource>(value); 
+                SetProperty<ImageSource>(value);
             }
         }
     }

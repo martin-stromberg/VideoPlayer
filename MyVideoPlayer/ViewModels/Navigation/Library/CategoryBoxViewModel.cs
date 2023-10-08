@@ -1,9 +1,6 @@
 ﻿using MyVideoPlayer.Helper.LibraryScan;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace MyVideoPlayer.ViewModels.Navigation.Library
 {
@@ -13,6 +10,6 @@ namespace MyVideoPlayer.ViewModels.Navigation.Library
         {
         }
 
-        public Type Type { get; set; }   
+        public Type Type { get; set; }
     }
 }

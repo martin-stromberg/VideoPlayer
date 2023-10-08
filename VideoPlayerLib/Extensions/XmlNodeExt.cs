@@ -1,8 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Xml;
 
 namespace VideoPlayerLib.Extensions
@@ -20,7 +17,7 @@ namespace VideoPlayerLib.Extensions
                 {
                     if (!createIfNotExists)
                         return null;
-                    childNode = node.AppendChild(node.OwnerDocument.CreateElement(part));                    
+                    childNode = node.AppendChild(node.OwnerDocument.CreateElement(part));
                 }
                 node = childNode;
             }

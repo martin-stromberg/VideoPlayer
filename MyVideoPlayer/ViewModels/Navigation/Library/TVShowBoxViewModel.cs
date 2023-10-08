@@ -5,7 +5,7 @@ namespace MyVideoPlayer.ViewModels.Navigation.Library
 {
     public class TVShowBoxViewModel : BaseMediaElementBoxViewModel
     {
-        public TVShowBoxViewModel(LibraryScannerSettings settings) 
+        public TVShowBoxViewModel(LibraryScannerSettings settings)
             : base(settings)
         {
             IsPlayable = true;

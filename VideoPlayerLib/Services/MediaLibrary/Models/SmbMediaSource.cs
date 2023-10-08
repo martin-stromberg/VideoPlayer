@@ -1,18 +1,15 @@
 ﻿using Newtonsoft.Json;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using VideoPlayerLib.Services.Database.Models;
 
 namespace VideoPlayerLib.Services.MediaLibrary.Models
 {
     [DataModelReference(typeof(Database.Models.MediaSource), FilterPropertyName = nameof(Type), FilterPropertyValue = nameof(SmbMediaSource))]
-    public class SmbMediaSource: RemoteMediaSource
+    public class SmbMediaSource : RemoteMediaSource
     {
-        public SmbMediaSource() 
-            :base()
+        public SmbMediaSource()
+            : base()
         {
             Type = nameof(SmbMediaSource);
         }
@@ -30,8 +27,8 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
             get { return GetProperty<string>(); }
             set { SetProperty<string>(value); UpdateConfiguration(); }
         }
-        public override string Path 
-        { 
+        public override string Path
+        {
             get => base.Path;
             set
             {
@@ -79,13 +76,13 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
 
         public override string GetItemPath(MediaItem item)
         {
-            switch(item.CopyType)
+            switch (item.CopyType)
             {
                 case MediaItemCopyType.Cache:
                     return item.Path;
                 default:
                     return $"\\\\{ServerName}{item.Path}";
-            }            
+            }
         }
     }
 }

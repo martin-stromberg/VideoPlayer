@@ -3,7 +3,7 @@ using VideoPlayerLib.Services.MediaLibrary.Models;
 
 namespace MyVideoPlayer.ViewModels.Navigation.Library
 {
-    public class TVShowEpisodeBoxViewModel: BaseMediaElementBoxViewModel
+    public class TVShowEpisodeBoxViewModel : BaseMediaElementBoxViewModel
     {
         public TVShowEpisodeBoxViewModel(LibraryScannerSettings settings)
            : base(settings)

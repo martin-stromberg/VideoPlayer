@@ -1,11 +1,6 @@
-﻿using Microsoft.Maui.Storage;
-using System;
-using System.Collections.Generic;
+﻿using System;
 using System.Linq;
-using System.Net;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using VideoPlayerLib.Services.Common;
 
 namespace VideoPlayerLib.Services.FTP
@@ -142,7 +137,7 @@ namespace VideoPlayerLib.Services.FTP
             filePath = filePath.Replace('\\', '/');
             var tempFile = Path.GetTempFileName();
             try
-            {                
+            {
                 bool wasConnected = share.IsConnected;
                 if (!wasConnected)
                     share.Connect();

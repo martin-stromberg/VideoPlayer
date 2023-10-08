@@ -1,10 +1,6 @@
 ﻿using CommunityToolkit.Maui.Views;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using VideoPlayerLib.Services.MediaLibrary;
 
 namespace MyVideoPlayer.ViewModels
 {
@@ -14,7 +10,7 @@ namespace MyVideoPlayer.ViewModels
         public void MediaEnded()
         {
             OnMediaEnded?.Invoke(this, VideoSource);
-            VideoSource = null;            
+            VideoSource = null;
         }
         public event EventHandler<MediaSource> OnMediaEnded;
 

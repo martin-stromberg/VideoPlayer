@@ -1,13 +1,12 @@
-﻿using MyVideoPlayer.ViewModels;
+﻿using Microsoft.Extensions.Logging;
+using MyVideoPlayer.Helper.Download;
+using MyVideoPlayer.Helper.LibraryScan;
 using MyVideoPlayer.Helper.Navigation;
+using MyVideoPlayer.ViewModels;
 using VideoPlayerLib.Services.Database;
+using VideoPlayerLib.Services.Log;
 using VideoPlayerLib.Services.MediaLibrary;
 using VideoPlayerLib.Services.Samba;
-using MyVideoPlayer.Helper.LibraryScan;
-using MyVideoPlayer.Helper.Download;
-using Microsoft.Extensions.Logging;
-using VideoPlayerLib.Services.Log;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace MyVideoPlayer
 {

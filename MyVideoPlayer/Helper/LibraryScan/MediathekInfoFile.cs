@@ -1,5 +1,4 @@
-﻿using Microsoft.Maui.Controls;
-using System.Text;
+﻿using System.Text;
 using System.Xml;
 
 namespace MyVideoPlayer.Helper.LibraryScan
@@ -19,9 +18,9 @@ namespace MyVideoPlayer.Helper.LibraryScan
         {
             string[] lines = fileContent.Replace("\r\n", "\r").Split('\r');
             string firstLine = lines.FirstOrDefault();
-            if (firstLine.Replace(" ", "").StartsWith("Sender:ZDF"))
+            if (firstLine.Replace(" ", string.Empty).StartsWith("Sender:ZDF"))
                 return await LoadMediathekInfoAsync(lines);
-            else if (firstLine.Replace(" ", "").StartsWith("Sender:ARD"))
+            else if (firstLine.Replace(" ", string.Empty).StartsWith("Sender:ARD"))
                 return await LoadMediathekInfoAsync(lines);
             else
                 return false;
@@ -31,7 +30,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
         {
             foreach (var line in lines)
                 await ProcessMediathekLineAsync(line);
-            switch(Name)
+            switch (Name)
             {
                 case "Filme":
                     Name = CorrectName(Title);
@@ -43,14 +42,14 @@ namespace MyVideoPlayer.Helper.LibraryScan
                     if (!string.IsNullOrWhiteSpace(Plot) && Plot.StartsWith(Name))
                         Plot = Plot.Remove(0, Name.Length).TrimStart(' ', '-');
                     return (SeasonNo != 0) && (EpisodeNo != 0) && !string.IsNullOrWhiteSpace(Title) && !string.IsNullOrWhiteSpace(Name);
-            }            
+            }
         }
 
         private string CorrectName(string title)
         {
-            return title.Replace("Filme:", "")
+            return title.Replace("Filme:", string.Empty)
                 .Trim()
-                .Replace("| ARD Mediathek", "")
+                .Replace("| ARD Mediathek", string.Empty)
                 .Trim();
         }
 
@@ -94,7 +93,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
 
                         }
                     break;
-            }            
+            }
         }
 
         private async Task LoadInfoFromARDWebsite(string html)
@@ -114,7 +113,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
                     var description = findTag(head, "meta", "name", "description", "content");
                     if (string.IsNullOrWhiteSpace(description))
                         throw new ArgumentNullException("name");
-                                        
+
                     SeasonNo = 0;
                     EpisodeNo = 0;
                     Plot = description;
@@ -127,7 +126,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
         {
             XmlDocument XmlDoc = new XmlDocument();
             var tag = $"<{tagName}";
-            while (source.Contains(tag)) 
+            while (source.Contains(tag))
             {
                 source = source.Remove(0, source.IndexOf(tag));
                 var starttag = source.Remove(source.IndexOf(">") + 1);
@@ -164,14 +163,14 @@ namespace MyVideoPlayer.Helper.LibraryScan
             int endTagCount = 1;
             while (endTagCount > 0)
             {
-                string contentPart = "";
+                string contentPart = string.Empty;
                 int offsetStart = source.IndexOf(startTag);
                 int offsetEnd = source.IndexOf(endTag);
                 if (offsetEnd == -1)
                     return string.Empty;
                 if (offsetStart < offsetEnd && offsetStart >= 0)
                 {
-                    contentPart = source.Substring(0, offsetStart + startTag.Length);                    
+                    contentPart = source.Substring(0, offsetStart + startTag.Length);
                     endTagCount += 1;
                 }
                 else
@@ -182,7 +181,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
                         contentPart += endTag;
                 }
                 source = source.Remove(0, contentPart.Length);
-                content += contentPart;                
+                content += contentPart;
             }
             return content;
         }
@@ -222,7 +221,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
                 {
 
                 }
-            
+
         }
     }
 }

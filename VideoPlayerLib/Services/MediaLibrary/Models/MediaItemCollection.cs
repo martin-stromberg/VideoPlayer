@@ -1,15 +1,12 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using VideoPlayerLib.Services.Database.Models;
 using VideoPlayerLib.Services.MediaLibrary.Models.Meta;
 
 namespace VideoPlayerLib.Services.MediaLibrary.Models
 {
     [DataModelReference(typeof(Database.Models.MediaCollection))]
-    public class MediaItemCollection: BaseModel
+    public class MediaItemCollection : BaseModel
     {
         public long MediaSourceId
         {

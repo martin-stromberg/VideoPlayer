@@ -1,17 +1,11 @@
-﻿using Microsoft.Maui.ApplicationModel.DataTransfer;
-using System;
-using System.Collections.Generic;
+﻿using System;
 using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using VideoPlayerLib.Services.Common;
-using VideoPlayerLib.Services.Database.Models;
-using VideoPlayerLib.Services.MediaLibrary.Models;
 
 namespace VideoPlayerLib.Services.Samba
 {
-    public class SambaShareScanner: RemoteSourceScanner
+    public class SambaShareScanner : RemoteSourceScanner
     {
         private readonly SambaShare share;
         private static string[] FolderNameBlacklist = { "$RECYCLE.BIN", "System Volume Information", "lost+found" };
@@ -65,7 +59,7 @@ namespace VideoPlayerLib.Services.Samba
                         Scan(folder.Path, true);
                         return folder;
                     })
-                    .ToArray();                    
+                    .ToArray();
             }
             finally
             {

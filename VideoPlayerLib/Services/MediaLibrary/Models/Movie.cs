@@ -1,17 +1,13 @@
-﻿using Microsoft.Maui.Graphics;
-using System;
-using System.Collections.Generic;
+﻿using System;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using VideoPlayerLib.Services.Database.Models;
 
 namespace VideoPlayerLib.Services.MediaLibrary.Models
 {
 
     [DataModelReference(typeof(Database.Models.Movie))]
-    public class Movie: BaseModel
-    {      
+    public class Movie : BaseModel
+    {
         public string Genre { get; set; }
         public string Plot { get; set; }
 

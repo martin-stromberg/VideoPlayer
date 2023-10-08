@@ -4,10 +4,10 @@ namespace MyVideoPlayer.Views;
 
 public partial class MediaElementView : ContentView
 {
-	public MediaElementView()
-	{
-		InitializeComponent();
-	}
+    public MediaElementView()
+    {
+        InitializeComponent();
+    }
 
     protected IMediaElementViewModel ViewModel
     {

@@ -1,9 +1,9 @@
 ﻿namespace MyVideoPlayer.ViewModels.Navigation
 {
-    public class MediaElementBoxViewModelEventArgs: EventArgs
+    public class MediaElementBoxViewModelEventArgs : EventArgs
     {
         public MediaElementBoxViewModelEventArgs(BaseMediaElementBoxViewModel viewModel)
-            :base()
+            : base()
         {
             ViewModel = viewModel;
         }

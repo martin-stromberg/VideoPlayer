@@ -1,13 +1,8 @@
 ﻿using MyVideoPlayer.ViewModels.Navigation;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Linq.Expressions;
-using System.Text;
-using System.Threading.Tasks;
 using VideoPlayerLib.Services.Database;
 using VideoPlayerLib.Services.Database.Models;
-using VideoPlayerLib.Services.MediaLibrary;
 using VideoPlayerLib.Services.MediaLibrary.Models;
 
 namespace MyVideoPlayer.ViewModels.Logs
@@ -16,7 +11,7 @@ namespace MyVideoPlayer.ViewModels.Logs
     {
         private readonly ILogDatabase logDatabase;
 
-        public LogListViewModel(ILogDatabase logDatabase, IServiceProvider serviceProvider) 
+        public LogListViewModel(ILogDatabase logDatabase, IServiceProvider serviceProvider)
             : base(null, serviceProvider)
         {
             this.logDatabase = logDatabase;
@@ -37,7 +32,7 @@ namespace MyVideoPlayer.ViewModels.Logs
         {
             Items.Clear();
             Task.Run(() =>
-            {                
+            {
                 firstEntry = null;
                 LoadLogsAsync();
             });

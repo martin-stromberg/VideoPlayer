@@ -1,8 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using VideoPlayerLib.Services.MediaLibrary;
 using VideoPlayerLib.Services.MediaLibrary.Models;
 
@@ -11,12 +8,12 @@ namespace MyVideoPlayer.Helper
     public class DemoLibrary : IMediaLibrary
     {
         public DemoLibrary()
-            :base()
+            : base()
         {
             AddSourceAsync(new FtpMediaSource()
             {
                 Name = "Filme",
-                Password = "",
+                Password = string.Empty,
                 Username = "mstro",
                 ServerName = "raspberrypi",
                 Path = "/mstro/Crucial X62/Filme",
@@ -24,7 +21,7 @@ namespace MyVideoPlayer.Helper
             AddSourceAsync(new FtpMediaSource()
             {
                 Name = "Serien",
-                Password = "",
+                Password = string.Empty,
                 Username = "mstro",
                 ServerName = "raspberrypi",
                 Path = "/mstro/Crucial X62/Serien",
@@ -32,7 +29,7 @@ namespace MyVideoPlayer.Helper
             AddSourceAsync(new FtpMediaSource()
             {
                 Name = "Serien 2",
-                Password = "",
+                Password = string.Empty,
                 Username = "mstro",
                 ServerName = "raspberrypi",
                 Path = "/mstro/Disk2/Serien",
@@ -40,7 +37,7 @@ namespace MyVideoPlayer.Helper
             AddSourceAsync(new FtpMediaSource()
             {
                 Name = "Musik",
-                Password = "",
+                Password = string.Empty,
                 Username = "mstro",
                 ServerName = "raspberrypi",
                 Path = "/mstro/Crucial X62/Musik",

@@ -2,10 +2,10 @@
 
 namespace VideoPlayerLib.Services.Samba
 {
-    public class SmbShareFolderEventArgs: FolderEventArgs
+    public class SmbShareFolderEventArgs : FolderEventArgs
     {
         public SmbShareFolderEventArgs(SmbShareFolder folder)
-            :base(folder)
+            : base(folder)
         {
         }
     }

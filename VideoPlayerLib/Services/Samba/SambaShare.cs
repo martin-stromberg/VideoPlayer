@@ -4,7 +4,7 @@ using VideoPlayerLib.Services.Common;
 
 namespace VideoPlayerLib.Services.Samba
 {
-    public class SambaShare: RemoteShare
+    public class SambaShare : RemoteShare
     {
         private string serverName;
         private string username;
@@ -12,7 +12,7 @@ namespace VideoPlayerLib.Services.Samba
         private readonly string[] ignoreFileNames = new string[] { ".", ".." };
 
         public SambaShare(string serverName, string username, string password)
-            :base()
+            : base()
         {
             this.serverName = serverName;
             this.username = username;
@@ -27,7 +27,7 @@ namespace VideoPlayerLib.Services.Samba
             if (smbClient == null)
                 smbClient = new SMB2Client()
                 {
-                    
+
                 };
             if (!smbClient.IsConnected)
                 try
@@ -82,7 +82,7 @@ namespace VideoPlayerLib.Services.Samba
         private void CheckStatusSuccess(NTStatus status, string source)
         {
             if (status != NTStatus.STATUS_SUCCESS && status != NTStatus.STATUS_NO_MORE_FILES)
-                throw new ApplicationException($"Command execution status is {status} {(source == null ? "" : $" (Source: \"{source}\")")}.");
+                throw new ApplicationException($"Command execution status is {status} {(source == null ? string.Empty : $" (Source: \"{source}\")")}.");
         }
 
         public string[] Shares
@@ -138,7 +138,7 @@ namespace VideoPlayerLib.Services.Samba
                     status = fileStore.CloseFile(directoryHandle);
                 }
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 throw new ApplicationException($"Could not list {path}.", ex);
             }

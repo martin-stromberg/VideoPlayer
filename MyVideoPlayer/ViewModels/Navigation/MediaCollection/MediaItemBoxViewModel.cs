@@ -1,15 +1,12 @@
 ﻿using MyVideoPlayer.Helper.LibraryScan;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using VideoPlayerLib.Services.MediaLibrary.Models;
 
 namespace MyVideoPlayer.ViewModels.Navigation.MediaCollection
 {
     internal class MediaItemBoxViewModel : BaseMediaElementBoxViewModel
-    {        
+    {
         public MediaItemBoxViewModel(LibraryScannerSettings settings)
             : base(settings)
         {

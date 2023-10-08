@@ -1,16 +1,13 @@
 ﻿using Newtonsoft.Json;
 using System;
-using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using VideoPlayerLib.Services.Database.Models;
 
 namespace VideoPlayerLib.Services.MediaLibrary.Models
 {
     [DataModelReference(typeof(Database.Models.MediaSource))]
-    public class MediaSource: BaseModel
+    public class MediaSource : BaseModel
     {
         public string Type
         {
@@ -39,12 +36,12 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
         }
     }
 
-    public class RemoteMediaSource: MediaSource
+    public class RemoteMediaSource : MediaSource
     {
         private int updateLevel = 0;
 
         public RemoteMediaSource()
-            :base()
+            : base()
         {
             PathDelimiter = '\\';
         }
@@ -88,7 +85,7 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
                 var obj = JsonConvert.DeserializeObject<RemoteMediaSource>(Configuration);
                 Path = obj.Path;
             }
-            finally 
+            finally
             {
                 EndUpdate();
             }

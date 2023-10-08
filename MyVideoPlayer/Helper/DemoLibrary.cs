@@ -5,53 +5,61 @@ using VideoPlayerLib.Services.MediaLibrary.Models;
 
 namespace MyVideoPlayer.Helper
 {
-    public class DemoLibrary : IMediaLibrary
+    public class DemoLibrary: IMediaLibrary
     {
-        public DemoLibrary()
+
+        public DemoLibrary(UserSecrets secrets)
             : base()
         {
             AddSourceAsync(new FtpMediaSource()
-            {
-                Name = "Filme",
-                Password = string.Empty,
-                Username = "mstro",
-                ServerName = "raspberrypi",
-                Path = "/mstro/Crucial X62/Filme",
-            }).Wait();
+                {
+                    Name = "Filme",
+                    Password = secrets["raspberry_password"],
+                    Username = "mstro",
+                    ServerName = "raspberrypi",
+                    Path = "/mstro/Crucial X62/Filme",
+                })
+            .Wait();
             AddSourceAsync(new FtpMediaSource()
-            {
-                Name = "Serien",
-                Password = string.Empty,
-                Username = "mstro",
-                ServerName = "raspberrypi",
-                Path = "/mstro/Crucial X62/Serien",
-            }).Wait();
+                {
+                    Name = "Serien",
+                    Password = secrets["raspberry_password"],
+                    Username = "mstro",
+                    ServerName = "raspberrypi",
+                    Path = "/mstro/Crucial X62/Serien",
+                })
+            .Wait();
             AddSourceAsync(new FtpMediaSource()
-            {
-                Name = "Serien 2",
-                Password = string.Empty,
-                Username = "mstro",
-                ServerName = "raspberrypi",
-                Path = "/mstro/Disk2/Serien",
-            }).Wait();
+                {
+                    Name = "Serien 2",
+                    Password = secrets["raspberry_password"],
+                    Username = "mstro",
+                    ServerName = "raspberrypi",
+                    Path = "/mstro/Disk2/Serien",
+                })
+            .Wait();
             AddSourceAsync(new FtpMediaSource()
-            {
-                Name = "Musik",
-                Password = string.Empty,
-                Username = "mstro",
-                ServerName = "raspberrypi",
-                Path = "/mstro/Crucial X62/Musik",
-            }).Wait();
+                {
+                    Name = "Musik",
+                    Password = secrets["raspberry_password"],
+                    Username = "mstro",
+                    ServerName = "raspberrypi",
+                    Path = "/mstro/Crucial X62/Musik",
+                })
+            .Wait();
         }
 
         public Task AddSourceAsync(MediaSource source)
         {
             return Task.Run(() => sources.Add(source));
         }
+
         private List<MediaSource> sources = new List<MediaSource>();
 
         public event EventHandler<BaseModelEventArgs> ModelElementAdded;
+
         public event EventHandler<BaseModelEventArgs> ModelElementUpdated;
+
         public event EventHandler<BaseModelEventArgs> ModelElementRemoved;
 
         public Task<IEnumerable<MediaSource>> GetSourcesAsync()
@@ -248,5 +256,6 @@ namespace MyVideoPlayer.Helper
         {
             throw new NotImplementedException();
         }
+
     }
 }

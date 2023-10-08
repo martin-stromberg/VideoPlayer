@@ -8,10 +8,11 @@ using VideoPlayerLib.Services.Log;
 using VideoPlayerLib.Services.MediaLibrary;
 using VideoPlayerLib.Services.Samba;
 
-namespace MyVideoPlayer
+namespace MyVideoPlayer.Helper
 {
     internal static class AppBuilderExtension
     {
+
         public static MauiAppBuilder ConfigureVideoPlayerServices(this MauiAppBuilder builder, string appPath)
         {
             builder.Services.ConfigureVideoMeisterServices(appPath);
@@ -28,17 +29,16 @@ namespace MyVideoPlayer
                 factory.AddProvider(new DatabaseLoggerProvider(sp));
                 return factory;
             });
-            //services.AddTransient<ILogger>( sp => sp.GetService<ILoggerFactory>().CreateLogger());
+
+            // services.AddTransient<ILogger>( sp => sp.GetService<ILoggerFactory>().CreateLogger());
             services.AddTransient<MediaLibraryDatabaseSettings>();
             services.AddTransient<LibraryScannerSettings>();
             services.AddTransient<LibraryDownloaderSettings>();
             services.AddTransient<SambaShare>();
             services.AddTransient<SambaShareScanner>();
+            services.AddTransient<UserSecrets>();
 
-            services.AddSingleton<IRessourceLocation>(sp => new RessourceLocation()
-            {
-                Path = appPath
-            });
+            services.AddSingleton<IRessourceLocation>(sp => new RessourceLocation() { Path = appPath });
             services.AddSingleton<INavigationManager, NavigationManager>();
             services.AddSingleton<ILogDatabase>(sp => sp.GetService<IMediaLibraryDatabase>() as ILogDatabase);
             services.AddSingleton<IMediaLibraryDatabase, MediaLibraryDatabase>();
@@ -48,16 +48,18 @@ namespace MyVideoPlayer
             services.AddSingleton<ILibraryCollector, LibraryCollector>();
             return services;
         }
+
         public static IServiceCollection ConfigureViewModels(this IServiceCollection services)
         {
             var baseType = typeof(BaseViewModel);
             var viewModels = baseType
                 .Assembly
                 .GetTypes()
-                .Where(t => t.IsAssignableTo(baseType) && t != baseType);
+                .Where(t => t.IsAssignableTo(baseType) && (t != baseType));
             foreach (var vm in viewModels)
                 services.AddTransient(vm);
             return services;
         }
+
     }
 }

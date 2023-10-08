@@ -3,35 +3,40 @@ using MyVideoPlayer.Helper;
 using MyVideoPlayer.Helper.Download;
 using MyVideoPlayer.Helper.LibraryScan;
 using MyVideoPlayer.Helper.Navigation;
+using MyVideoPlayer.ViewModels.Logs;
 using MyVideoPlayer.ViewModels.Navigation;
 using System;
-using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using VideoPlayerLib.Services.MediaLibrary;
-using VideoPlayerLib.Services.Samba;
 
 namespace MyVideoPlayer.ViewModels
 {
     public class HomePageViewModel: BaseViewModel
     {
+
         private readonly IMediaLibrary mediaLibrary;
         private readonly ILibraryDownloader libraryDownloader;
         private readonly INavigationManager navigationManager;
         private readonly ILibraryScanner libraryScanner;
+        private readonly IServiceProvider _serviceProvider;
 
         public HomePageViewModel(
             IMediaLibrary mediaLibrary,
             ILibraryDownloader libraryDownloader,
             INavigationManager navigationManager,
-            ILibraryScanner libraryScanner)
-            :base()
+            ILibraryScanner libraryScanner,
+            IServiceProvider serviceProvider)
+            : base()
         {
+            _serviceProvider = serviceProvider;
             NavigateBack = new Command(() => DoNavigateBack());
+            NavigateToSources = new Command(() => DoNavigateToSources());
             CleanScan = new Command(async () => await DoCleanScanAsync());
+            ShowLog = new Command(() => DoShowLog());
             MediaElement = new MediaElementViewModel();
             MediaElement.PropertyChanged += MediaElement_PropertyChanged;
+            MediaElement.OnMediaEnded += MediaElement_OnMediaEnded;
 
             this.mediaLibrary = mediaLibrary;
             this.libraryDownloader = libraryDownloader;
@@ -39,49 +44,82 @@ namespace MyVideoPlayer.ViewModels
             this.libraryScanner = libraryScanner;
             this.libraryScanner.StatusChanged += (sender, e) => { StatusMessage = e.Message; };
             this.navigationManager.NavigationCompleted += (sender, e) => { NavigationContent = e.ContentViewModel; };
-            this.navigationManager.MediaSourceToPlay += (sender, e) => 
-            { 
-                MediaElement.Play(e.MediaSource); 
-            };
+            this.navigationManager.MediaSourceToPlay += (sender, e) => { MediaElement.Play(e.MediaSource); };
             Title = "Medienbibliothek";
         }
 
-        private void MediaElement_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+        private void DoShowLog()
         {
-            switch(e.PropertyName)
+            navigationManager.NavigateToLog();
+        }
+
+        private void MediaElement_OnMediaEnded(object sender, MediaSource e)
+        {
+            navigationManager.VideoClosed(e);
+        }
+
+        private void MediaElement_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            switch (e.PropertyName)
             {
                 case nameof(MediaElement.VideoVisible):
-                    NavigationVisible = !MediaElement.VideoVisible && NavigationContent != null;
+                    NavigationVisible = !MediaElement.VideoVisible && (NavigationContent != null);
                     IsVideoVisible = MediaElement.VideoVisible;
                     break;
             }
         }
 
+        private void DoNavigateToSources()
+        {
+            navigationManager.NavigateToSourceOverview();
+        }
+
         public Command CleanScan { get; }
+
+        public Command ShowLog { get; }
+
         private async Task DoCleanScanAsync()
         {
             await mediaLibrary.ClearMedia();
         }
+
         public Command NavigateBack { get; }
+
+        public Command NavigateToSources { get; }
+
         private void DoNavigateBack()
         {
             if (MediaElement.IsPlaying())
                 MediaElement.StopPlaying();
             else
-                this.navigationManager.NavigateBack();
+                navigationManager.NavigateBack();
         }
 
         #region Startup initialization
         public bool IsInitialized
         {
-            get { return GetProperty<bool>(); }
-            set { SetProperty<bool>(value); }
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+            }
         }
+
         public bool IsInitializing
         {
-            get { return GetProperty<bool>(); }
-            set { SetProperty<bool>(value); }
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+            }
         }
+
         public async void StartInitializationAsync()
         {
             if (IsInitialized)
@@ -90,8 +128,8 @@ namespace MyVideoPlayer.ViewModels
             try
             {
                 if (await mediaLibrary.IsEmptyAsync())
-                    await mediaLibrary.ImportAsync(new DemoLibrary());
-                navigationManager.NavigateToSourceOverview();
+                    await mediaLibrary.ImportAsync(new DemoLibrary(_serviceProvider.GetService<UserSecrets>()));
+                navigationManager.NavigateToOverview();
                 libraryScanner.Start();
             }
             finally
@@ -101,54 +139,109 @@ namespace MyVideoPlayer.ViewModels
             IsInitialized = true;
         }
         #endregion
+
+        #region Log
+        public bool LogVisible
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+            }
+        }
+        #endregion
+
         #region Navigation
         public bool NavigationVisible
         {
-            get { return GetProperty<bool>(); }
-            set { SetProperty<bool>(value); }
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+            }
         }
+
         public NavigationContentViewModel NavigationContent
         {
-            get { return GetProperty<NavigationContentViewModel>(); }
+            get
+            {
+                return GetProperty<NavigationContentViewModel>();
+            }
             set
             {
                 SetProperty<NavigationContentViewModel>(value);
-                NavigationVisible = value != null;
-                if (NavigationVisible)
+                if (value is LogListViewModel)
                 {
+                    NavigationVisible = false;
+                    LogVisible = true;
                     StartLoadNavigationContent();
-                    Title = value.Title;
                 }
                 else
-                    Title = "Medienbibliothek";
+                {
+                    NavigationVisible = value != null;
+                    if (NavigationVisible)
+                    {
+                        LogVisible = false;
+                        StartLoadNavigationContent();
+                        Title = value.Title;
+                    }
+                    else
+                        Title = "Medienbibliothek";
+                }
             }
         }
+
         private void StartLoadNavigationContent()
         {
             NavigationContent.OnAppeared();
         }
         #endregion
+
         #region MediaElement
         public bool IsVideoVisible
         {
-            get { return GetProperty<bool>(); }
-            set { SetProperty<bool>(value); }
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+            }
         }
+
         public MediaElementViewModel MediaElement
         {
-            get { return GetProperty<MediaElementViewModel>(); }
+            get
+            {
+                return GetProperty<MediaElementViewModel>();
+            }
             set
             {
                 SetProperty<MediaElementViewModel>(value);
             }
         }
         #endregion
+
         #region Status
         public string StatusMessage
         {
-            get { return GetProperty<string>(); }
-            set { SetProperty<string>(value); }
+            get
+            {
+                return GetProperty<string>();
+            }
+            set
+            {
+                SetProperty<string>(value);
+            }
         }
         #endregion
+
     }
 }

@@ -1,9 +1,5 @@
-﻿using SQLite;
-using System;
-using System.Collections.Generic;
+﻿using System;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace VideoPlayerLib.Services.Database.Models
 {

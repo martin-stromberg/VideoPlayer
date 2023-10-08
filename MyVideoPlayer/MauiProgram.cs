@@ -1,5 +1,5 @@
 ﻿using CommunityToolkit.Maui;
-using Microsoft.Extensions.Logging;
+using MyVideoPlayer.Helper;
 
 namespace MyVideoPlayer
 {

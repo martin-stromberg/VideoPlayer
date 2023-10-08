@@ -4,10 +4,10 @@ namespace MyVideoPlayer.Views;
 
 public partial class MediaElementBox : ContentView
 {
-	public MediaElementBox()
-	{
-		InitializeComponent();
-	}    
+    public MediaElementBox()
+    {
+        InitializeComponent();
+    }
 
     private void TapGestureRecognizer_Tapped(object sender, TappedEventArgs e)
     {
@@ -16,7 +16,7 @@ public partial class MediaElementBox : ContentView
 
     private void MenuFlyoutItem_Clicked(object sender, EventArgs e)
     {
-        switch((sender as MenuFlyoutItem).CommandParameter)
+        switch ((sender as MenuFlyoutItem).CommandParameter)
         {
             case "load":
                 (BindingContext as BaseMediaElementBoxViewModel).ProcessDownload();
@@ -26,6 +26,6 @@ public partial class MediaElementBox : ContentView
 
     private void Button_Clicked(object sender, EventArgs e)
     {
-        (BindingContext as BaseMediaElementBoxViewModel).ProcessTapped();        
+        (BindingContext as BaseMediaElementBoxViewModel).ProcessTapped();
     }
 }

@@ -1,15 +1,12 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using VideoPlayerLib.Services.MediaLibrary;
 using VideoPlayerLib.Services.MediaLibrary.Models;
 
 namespace MyVideoPlayer.ViewModels.Navigation
 {
-    public class NavigationContentViewModel: BaseViewModel
+    public class NavigationContentViewModel : BaseViewModel
     {
         protected IServiceProvider ServiceProvider { get; }
 
@@ -19,9 +16,12 @@ namespace MyVideoPlayer.ViewModels.Navigation
         {
             ServiceProvider = serviceProvider;
             this.mediaLibrary = mediaLibrary;
-            this.mediaLibrary.ModelElementAdded += MediaLibrary_ModelElementAdded;
-            this.mediaLibrary.ModelElementUpdated += MediaLibrary_ModelElementUpdated;
-            this.mediaLibrary.ModelElementRemoved += MediaLibrary_ModelElementRemoved;
+            if (this.mediaLibrary != null)
+            {
+                this.mediaLibrary.ModelElementAdded += MediaLibrary_ModelElementAdded;
+                this.mediaLibrary.ModelElementUpdated += MediaLibrary_ModelElementUpdated;
+                this.mediaLibrary.ModelElementRemoved += MediaLibrary_ModelElementRemoved;
+            }
             Items.CollectionChanged += Items_CollectionChanged;
         }
         protected virtual void MediaLibrary_ModelElementRemoved(object sender, BaseModelEventArgs e)
@@ -34,7 +34,7 @@ namespace MyVideoPlayer.ViewModels.Navigation
         }
         protected virtual void MediaLibrary_ModelElementAdded(object sender, BaseModelEventArgs e)
         {
-            
+
         }
 
         public ObservableCollection<BaseMediaElementBoxViewModel> Items { get; set; } = new ObservableCollection<BaseMediaElementBoxViewModel>();
@@ -82,27 +82,31 @@ namespace MyVideoPlayer.ViewModels.Navigation
 
         public virtual void OnAppeared()
         {
-            
-        }
 
+        }
+        public virtual void OnDisappeared()
+        {
+        }
         public async Task ReadAllSourcesAsync()
         {
             foreach (var source in await this.mediaLibrary.GetSourcesAsync())
                 MediaLibrary_ModelElementAdded(this, new BaseModelEventArgs(source));
         }
 
-        internal async Task ReadMediaCollection(MediaSource source)
+        internal virtual async Task ReadMediaCollection(MediaSource source)
         {
             foreach (var collection in (await this.mediaLibrary.GetMediaItemCollectionsAsync(source.Id)).OrderBy(c => c.ParentCollectionId))
                 MediaLibrary_ModelElementAdded(this, new BaseModelEventArgs(collection));
         }
 
-        internal async Task ReadMediaItems(MediaItemCollection collection)
+        internal virtual async Task ReadMediaItems(MediaItemCollection collection)
         {
             foreach (var coll in (await this.mediaLibrary.GetMediaItemCollectionsAsync(collection.MediaSourceId)).OrderBy(c => c.ParentCollectionId))
                 MediaLibrary_ModelElementAdded(this, new BaseModelEventArgs(coll));
             foreach (var mediaItem in (await this.mediaLibrary.GetMediaItemsAsync(collection.Id)).OrderBy(c => c.ParentCollectionId))
                 MediaLibrary_ModelElementAdded(this, new BaseModelEventArgs(mediaItem));
         }
+
+
     }
 }

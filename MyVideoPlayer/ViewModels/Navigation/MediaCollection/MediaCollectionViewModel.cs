@@ -1,8 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using VideoPlayerLib.Services.MediaLibrary;
 using VideoPlayerLib.Services.MediaLibrary.Models;
 
@@ -12,7 +9,7 @@ namespace MyVideoPlayer.ViewModels.Navigation.MediaCollection
     {
         public MediaCollectionViewModel(
             IMediaLibrary mediaLibrary,
-            IServiceProvider serviceProvider) 
+            IServiceProvider serviceProvider)
             : base(mediaLibrary, serviceProvider)
         {
         }
@@ -84,9 +81,9 @@ namespace MyVideoPlayer.ViewModels.Navigation.MediaCollection
         {
             base.OnAppeared();
             if (Collection == null)
-                await base.ReadMediaCollection(Source);
+                await ReadMediaCollection(Source);
             if (Collection != null)
-                await base.ReadMediaItems(Collection);
+                await ReadMediaItems(Collection);
         }
     }
 }

@@ -7,7 +7,7 @@ namespace MyVideoPlayer
         private HomePageViewModel viewModel;
         public MainPage()
         {
-            InitializeComponent();            
+            InitializeComponent();
             BindingContext = viewModel = App.GetService<HomePageViewModel>();
             DeviceDisplay.Current.KeepScreenOn = true;
         }

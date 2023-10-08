@@ -1,9 +1,9 @@
 ﻿namespace VideoPlayerLib.Services.Common
 {
-    public class FolderEventArgs: EventArgs
+    public class FolderEventArgs : EventArgs
     {
         public FolderEventArgs(Folder folder)
-            :base()
+            : base()
         {
             Folder = folder;
         }

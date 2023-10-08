@@ -1,8 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace VideoPlayerLib.Services.Database
 {
@@ -17,7 +14,7 @@ namespace VideoPlayerLib.Services.Database
                 {
                     string folder = Environment.GetFolderPath(Environment.SpecialFolder.Personal);
                     folder = Path.Combine(folder, "VideoMeister");
-                    if (!Directory.Exists(folder)) 
+                    if (!Directory.Exists(folder))
                         Directory.CreateDirectory(folder);
                     filePath = Path.Combine(folder, "MediaLibrary.db3");
                 }

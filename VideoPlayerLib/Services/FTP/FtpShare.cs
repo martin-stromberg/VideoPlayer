@@ -1,11 +1,7 @@
 ﻿using FluentFTP;
-using SMBLibrary.SMB1;
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Net;
-using System.Text;
-using System.Threading.Tasks;
 using VideoPlayerLib.Services.Common;
 
 namespace VideoPlayerLib.Services.FTP
@@ -15,7 +11,7 @@ namespace VideoPlayerLib.Services.FTP
         public string Name { get; internal set; }
         public string Path { get; internal set; }
     }
-    public class FtpShare: RemoteShare
+    public class FtpShare : RemoteShare
     {
         private string serverName;
         private string username;
@@ -23,7 +19,7 @@ namespace VideoPlayerLib.Services.FTP
         private FtpClient ftpClient;
 
         public FtpShare(string serverName, string username, string password)
-            :base()
+            : base()
         {
             this.serverName = serverName;
             this.username = username;

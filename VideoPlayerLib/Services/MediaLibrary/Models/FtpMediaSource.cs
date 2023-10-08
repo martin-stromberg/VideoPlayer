@@ -1,18 +1,15 @@
 ﻿using Newtonsoft.Json;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using VideoPlayerLib.Services.Database.Models;
 
 namespace VideoPlayerLib.Services.MediaLibrary.Models
 {
     [DataModelReference(typeof(Database.Models.MediaSource), FilterPropertyName = nameof(Type), FilterPropertyValue = nameof(FtpMediaSource))]
-    public class FtpMediaSource: RemoteMediaSource
+    public class FtpMediaSource : RemoteMediaSource
     {
-        public FtpMediaSource() 
-            :base()
+        public FtpMediaSource()
+            : base()
         {
             Type = nameof(FtpMediaSource);
             PathDelimiter = '/';
@@ -31,7 +28,7 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
         {
             get { return GetProperty<string>(); }
             set { SetProperty<string>(value); }
-        }        
+        }
 
         protected override void UpdateFromDataModel(BaseDataModel dataModel)
         {

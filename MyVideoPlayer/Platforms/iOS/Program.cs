@@ -1,7 +1,4 @@
-﻿using Foundation;
-using ObjCRuntime;
-using System.Diagnostics;
-using UIKit;
+﻿using UIKit;
 
 namespace MyVideoPlayer
 {

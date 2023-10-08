@@ -3,12 +3,9 @@ using MyVideoPlayer.Helper.Navigation;
 using MyVideoPlayer.ViewModels.Navigation;
 using MyVideoPlayer.ViewModels.Navigation.MediaCollection;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
-using System.Text;
-using System.Threading.Tasks;
 using VideoPlayerLib.Services.MediaLibrary;
 using VideoPlayerLib.Services.MediaLibrary.Models;
 using VideoPlayerLib.Services.Samba;
@@ -19,17 +16,17 @@ namespace MyVideoPlayer.Helper.Download
     {
 
     }
-    public class LibraryDownloader: ILibraryDownloader
+    public class LibraryDownloader : ILibraryDownloader
     {
         private readonly LibraryDownloaderSettings settings;
         private readonly INavigationManager navigationManager;
         private readonly IMediaLibrary mediaLibrary;
         private NavigationContentViewModel currentViewModel;
 
-        public LibraryDownloader(   
+        public LibraryDownloader(
             LibraryDownloaderSettings settings,
-            INavigationManager navigationManager,            
-            IMediaLibrary mediaLibrary) 
+            INavigationManager navigationManager,
+            IMediaLibrary mediaLibrary)
         {
             this.settings = settings;
             this.navigationManager = navigationManager;
@@ -39,7 +36,7 @@ namespace MyVideoPlayer.Helper.Download
         }
 
         private async void NavigationManager_DownloadRequested(object sender, CallbackBaseModelEventArgs e)
-        {            
+        {
             var mediaItem = e.Element as MediaItem;
             mediaItem = await DownloadMediaItem(null, null, mediaItem);
             e.SendCallback(mediaItem);
@@ -50,7 +47,8 @@ namespace MyVideoPlayer.Helper.Download
             if (this.currentViewModel != null)
                 this.currentViewModel.ItemDownloadRequested -= CurrentViewModel_ItemDownloadRequested;
             this.currentViewModel = e.ContentViewModel;
-            this.currentViewModel.ItemDownloadRequested += CurrentViewModel_ItemDownloadRequested;
+            if (this.currentViewModel != null)
+                this.currentViewModel.ItemDownloadRequested += CurrentViewModel_ItemDownloadRequested;
         }
 
         private void CurrentViewModel_ItemDownloadRequested(object sender, MediaElementBoxViewModelEventArgs e)
@@ -66,7 +64,7 @@ namespace MyVideoPlayer.Helper.Download
             await DownloadMediaItem(null, null, viewModel.Item);
         }
         private async void DownloadMediaItemCollectionAsync(MediaCollectionBoxViewModel viewModel)
-        {            
+        {
             await DownloadMediaItemCollection(viewModel.Collection);
         }
         private async Task DownloadMediaItemCollection(MediaItemCollection collection)
@@ -91,12 +89,12 @@ namespace MyVideoPlayer.Helper.Download
             if (source is SmbMediaSource)
                 return DownloadSmbMediaItem(source as SmbMediaSource, collection, mediaItem);
             else if (source is FtpMediaSource)
-                return DownloadFtpMediaItem(source as FtpMediaSource, collection, mediaItem);
+                return await DownloadFtpMediaItemAsync(source as FtpMediaSource, collection, mediaItem);
             else
                 return null;
         }
 
-        private MediaItem DownloadFtpMediaItem(FtpMediaSource source, MediaItemCollection collection, MediaItem mediaItem)
+        private async Task<MediaItem> DownloadFtpMediaItemAsync(FtpMediaSource source, MediaItemCollection collection, MediaItem mediaItem)
         {
             var alternateMediaItem = mediaItem.Duplicate() as MediaItem;
             alternateMediaItem.Id = 0;
@@ -122,7 +120,7 @@ namespace MyVideoPlayer.Helper.Download
                 }
             if (!File.Exists(alternateMediaItem.Path))
                 return null;
-            mediaLibrary.AddMediaItemAsync(alternateMediaItem);
+            await mediaLibrary.AddMediaItemAsync(alternateMediaItem);
             return alternateMediaItem;
         }
 
@@ -155,7 +153,7 @@ namespace MyVideoPlayer.Helper.Download
             if (!File.Exists(alternateMediaItem.Path))
                 return null;
 
-            mediaLibrary.AddMediaItemAsync(alternateMediaItem);
+            mediaLibrary.AddMediaItemAsync(alternateMediaItem).Wait();
             return alternateMediaItem;
         }
     }

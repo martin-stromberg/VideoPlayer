@@ -1,9 +1,6 @@
 ﻿using MyVideoPlayer.Helper.LibraryScan;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using VideoPlayerLib.Services.MediaLibrary.Models;
 
 namespace MyVideoPlayer.ViewModels.Navigation.MediaCollection
@@ -11,14 +8,14 @@ namespace MyVideoPlayer.ViewModels.Navigation.MediaCollection
     public class MediaCollectionBoxViewModel : BaseMediaElementBoxViewModel
     {
         public MediaCollectionBoxViewModel(LibraryScannerSettings settings)
-            :base(settings)
-        {            
+            : base(settings)
+        {
         }
         public MediaSource Source
         {
             get { return GetProperty<MediaSource>(); }
-            set 
-            { 
+            set
+            {
                 SetProperty<MediaSource>(value);
                 IsDownloadable = (Collection != null) && (ParentCollection != null) && (Source != null);
             }
@@ -26,8 +23,8 @@ namespace MyVideoPlayer.ViewModels.Navigation.MediaCollection
         public MediaItemCollection ParentCollection
         {
             get { return GetProperty<MediaItemCollection>(); }
-            set 
-            { 
+            set
+            {
                 SetProperty<MediaItemCollection>(value);
                 IsDownloadable = (Collection != null) && (ParentCollection != null) && (Source != null);
             }
@@ -35,8 +32,8 @@ namespace MyVideoPlayer.ViewModels.Navigation.MediaCollection
         public MediaItemCollection Collection
         {
             get { return GetProperty<MediaItemCollection>(); }
-            set 
-            { 
+            set
+            {
                 SetProperty<MediaItemCollection>(value);
                 Picture = value?.Picture;
                 IsDownloadable = (Collection != null) && (ParentCollection != null) && (Source != null);

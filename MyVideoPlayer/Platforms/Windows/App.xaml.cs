@@ -1,6 +1,4 @@
-﻿using Microsoft.UI.Xaml;
-
-// To learn more about WinUI, the WinUI project structure,
+﻿// To learn more about WinUI, the WinUI project structure,
 // and more about our project templates, see: http://aka.ms/winui-project-info.
 
 namespace MyVideoPlayer.WinUI
@@ -19,7 +17,11 @@ namespace MyVideoPlayer.WinUI
             this.InitializeComponent();
         }
 
-        protected override MauiApp CreateMauiApp() => MauiProgram.CreateMauiApp(string.Empty);
+        protected override MauiApp CreateMauiApp()
+        {
+            string resourcesPath = AppDomain.CurrentDomain.BaseDirectory;
+            return MauiProgram.CreateMauiApp(resourcesPath);
+        }
     }
 
 }

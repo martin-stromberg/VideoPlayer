@@ -5,8 +5,9 @@
              xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
              xmlns:v="clr-namespace:MyVideoPlayer.Views"             
              x:Class="MyVideoPlayer.MainPage"
+             x:DataType="vm:HomePageViewModel"
              Title="{Binding Title}">
-    <ContentPage.ToolbarItems  x:DataType="vm:HomePageViewModel">
+    <ContentPage.ToolbarItems>
         <ToolbarItem Text="X"                     
                      Order="Primary"
                      Command="{Binding NavigateBack}"/>
@@ -15,24 +16,34 @@
              Command="{Binding NavigateToSources}"/>
         <ToolbarItem Text="Quellen neu einlesen"                     
              Order="Secondary"
+                     IsEnabled="{Binding NavigationVisible}"
              Command="{Binding CleanScan}"/>
         <ToolbarItem Text="Protokoll anzeigen"
              Order="Secondary"
              Command="{Binding ShowLog}"/>
     </ContentPage.ToolbarItems>    
     <Grid x:DataType="vm:HomePageViewModel">
-        <Grid IsVisible="{Binding IsInitializing}" HorizontalOptions="Center" VerticalOptions="Center">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="50"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="20"/>
+        </Grid.RowDefinitions>
+        <v:MenuBand Grid.Row="0" BindingContext="{Binding MenuContent}" IsVisible="{Binding MenuVisible}"/>
+        <Grid Grid.Row="1" IsVisible="{Binding IsInitializing}" HorizontalOptions="Center" VerticalOptions="Center">
             <Label Text="Lade..."/>
         </Grid>
-        <Grid IsVisible="{Binding NavigationVisible}">
+        <Grid Grid.Row="1" IsVisible="{Binding SourceConfigurationVisible}">
+            <v:SourceConfigurationView BindingContext="{Binding NavigationContent}"/>
+        </Grid>
+        <Grid Grid.Row="1" IsVisible="{Binding NavigationVisible}">
             <v:MediaCollectionView BindingContext="{Binding NavigationContent}" IsVisible="{Binding NavigationVisible}"/>
         </Grid>
-        <Grid IsVisible="{Binding LogVisible}">
+        <Grid Grid.Row="1" IsVisible="{Binding LogVisible}">
             <v:LogListView BindingContext="{Binding NavigationContent}" IsVisible="{Binding LogVisible}"/>
         </Grid>
-        <Grid IsVisible="{Binding IsVideoVisible}" Margin="30">
+        <Grid Grid.Row="0" Grid.RowSpan="3" IsVisible="{Binding IsVideoVisible}" Margin="30">
             <v:MediaElementView BindingContext="{Binding MediaElement}" IsVisible="{Binding IsVideoVisible}"/>
         </Grid>
-        <Label Text="{Binding StatusMessage}" VerticalOptions="End"/>
+        <Label Grid.Row="2" Text="{Binding StatusMessage}" VerticalOptions="End"/>
     </Grid>
 </ContentPage>

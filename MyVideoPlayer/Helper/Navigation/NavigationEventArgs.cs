@@ -1,4 +1,5 @@
-﻿using MyVideoPlayer.ViewModels.Navigation;
+﻿using MyVideoPlayer.ViewModels.Menu;
+using MyVideoPlayer.ViewModels.Navigation;
 
 namespace MyVideoPlayer.Helper.Navigation
 {

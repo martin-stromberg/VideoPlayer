@@ -4,7 +4,9 @@ using MyVideoPlayer.Helper.Download;
 using MyVideoPlayer.Helper.LibraryScan;
 using MyVideoPlayer.Helper.Navigation;
 using MyVideoPlayer.ViewModels.Logs;
+using MyVideoPlayer.ViewModels.Menu;
 using MyVideoPlayer.ViewModels.Navigation;
+using MyVideoPlayer.ViewModels.Navigation.Sources;
 using System;
 using System.ComponentModel;
 using System.Linq;
@@ -44,6 +46,7 @@ namespace MyVideoPlayer.ViewModels
             this.libraryScanner = libraryScanner;
             this.libraryScanner.StatusChanged += (sender, e) => { StatusMessage = e.Message; };
             this.navigationManager.NavigationCompleted += (sender, e) => { NavigationContent = e.ContentViewModel; };
+            this.navigationManager.MenuChanged += (sender, e) => { MenuContent = e.ViewModel; };
             this.navigationManager.MediaSourceToPlay += (sender, e) => { MediaElement.Play(e.MediaSource); };
             Title = "Medienbibliothek";
         }
@@ -154,6 +157,33 @@ namespace MyVideoPlayer.ViewModels
         }
         #endregion
 
+        #region Menu
+        public bool MenuVisible
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+            }
+        }
+
+        public MenuViewModel MenuContent
+        {
+            get
+            {
+                return GetProperty<MenuViewModel>();
+            }
+            set
+            {
+                SetProperty<MenuViewModel>(value);
+                MenuVisible = value != null;
+            }
+        }
+        #endregion
+
         #region Navigation
         public bool NavigationVisible
         {
@@ -176,24 +206,16 @@ namespace MyVideoPlayer.ViewModels
             set
             {
                 SetProperty<NavigationContentViewModel>(value);
-                if (value is LogListViewModel)
+                LogVisible = value is LogListViewModel;
+                SourceConfigurationVisible = value is SourceConfigurationViewModel;
+                NavigationVisible = !LogVisible && !SourceConfigurationVisible && (value != null);
+                if (value != null)
                 {
-                    NavigationVisible = false;
-                    LogVisible = true;
+                    Title = value.Title;
                     StartLoadNavigationContent();
                 }
                 else
-                {
-                    NavigationVisible = value != null;
-                    if (NavigationVisible)
-                    {
-                        LogVisible = false;
-                        StartLoadNavigationContent();
-                        Title = value.Title;
-                    }
-                    else
-                        Title = "Medienbibliothek";
-                }
+                    Title = "Medienbibliothek";
             }
         }
 
@@ -242,6 +264,18 @@ namespace MyVideoPlayer.ViewModels
             }
         }
         #endregion
+
+        public bool SourceConfigurationVisible
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+            }
+        }
 
     }
 }

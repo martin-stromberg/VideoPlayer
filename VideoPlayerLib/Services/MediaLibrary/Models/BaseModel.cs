@@ -7,44 +7,60 @@ using VideoPlayerLib.Services.Database.Models;
 
 namespace VideoPlayerLib.Services.MediaLibrary.Models
 {
-    public class BaseModel : INotifyPropertyChanged, IDisposable
+    public class BaseModel: INotifyPropertyChanged, IDisposable
     {
+
         ~BaseModel()
         {
             Dispose();
         }
+
         public long Id
         {
-            get { return GetProperty<long>(); }
-            set { SetProperty<long>(value); }
+            get
+            {
+                return GetProperty<long>();
+            }
+            set
+            {
+                SetProperty<long>(value);
+            }
         }
+
         public string Name
         {
-            get { return GetProperty<string>(); }
-            set { SetProperty<string>(value); }
+            get
+            {
+                return GetProperty<string>();
+            }
+            set
+            {
+                SetProperty<string>(value);
+            }
         }
-        #region IDisposable
-        public virtual void Dispose()
-        {
 
-        }
+        #region IDisposable
+        public virtual void Dispose() { }
         #endregion
 
         #region INotifyPropertyChanged
         private Dictionary<string, object> properties = new Dictionary<string, object>();
 
         public event PropertyChangedEventHandler PropertyChanged;
+
         protected virtual void OnPropertyChanged(PropertyChangedEventArgs e)
         {
             if (PropertyChanged != null)
                 PropertyChanged(this, e);
         }
+
         protected T GetProperty<T>([CallerMemberName] string name = "")
         {
             if (!properties.ContainsKey(name))
                 return default(T);
             return (T)properties[name];
         }
+
         protected void SetProperty<T>(object value, [CallerMemberName] string name = "")
         {
             var oldValue = GetProperty<T>(name);
@@ -61,8 +77,7 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
             var ownType = GetType();
             var dataModelType = (ownType.GetCustomAttribute(typeof(DataModelReferenceAttribute)) as DataModelReferenceAttribute).DataModelType;
             var dataModel = Activator.CreateInstance(dataModelType) as BaseDataModel;
-            foreach (var prop in ownType.GetProperties()
-                .Where(p => p.CanRead))
+            foreach (var prop in ownType.GetProperties().Where(p => p.CanRead))
             {
                 var convertToJson = false;
                 var dataModelProp = dataModelType.GetProperty(prop.Name);
@@ -76,9 +91,9 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
                 if (!dataModelProp.CanWrite)
                     continue;
                 var ownValue = prop.GetValue(this);
-                if (prop.PropertyType == typeof(StreamImageSource) && ownValue != null)
+                if ((prop.PropertyType == typeof(StreamImageSource)) && (ownValue != null))
                 {
-                    StreamImageSource img = ((StreamImageSource)ownValue);
+                    StreamImageSource img = (StreamImageSource)ownValue;
                     using (var memoryStream = new MemoryStream())
                     {
                         img.Stream(CancellationToken.None).Wait<Stream>().CopyTo(memoryStream);
@@ -92,17 +107,19 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
                 }
                 if (convertToJson)
                     ownValue = JsonConvert.SerializeObject(ownValue, new JsonSerializerSettings()
-                    {
-                        TypeNameHandling = TypeNameHandling.Objects
-                    });
+                        {
+                            TypeNameHandling = TypeNameHandling.Objects
+                        });
                 dataModelProp.SetValue(dataModel, ownValue);
             }
             return dataModel;
         }
-        public void UpdateAutoincrements(Database.Models.BaseDataModel dataModel)
+
+        public void UpdateAutoincrements(BaseDataModel dataModel)
         {
-            foreach (var prop in dataModel.GetType().GetProperties()
-                .Where(p => p.GetCustomAttribute(typeof(PrimaryKeyAttribute)) != null))
+            foreach (var prop in dataModel.GetType()
+                                          .GetProperties()
+                                          .Where(p => p.GetCustomAttribute(typeof(PrimaryKeyAttribute)) != null))
             {
                 var ownProp = GetType().GetProperty(prop.Name);
                 if (ownProp == null)
@@ -111,10 +128,13 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
                 ownProp.SetValue(this, value);
             }
         }
+
         private static Dictionary<Type, Type[]> dataModelTypeAssosiation = new Dictionary<Type, Type[]>();
-        public static BaseModel FromDataModel(Database.Models.BaseDataModel source)
+
+        public static BaseModel FromDataModel(BaseDataModel source)
         {
-            if (source == null) return null;
+            if (source == null)
+                return null;
             Type dataModelType = source.GetType();
             Type[] modelTypes;
             lock (dataModelTypeAssosiation)
@@ -123,13 +143,13 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
                 if (modelTypes == null)
                 {
                     modelTypes = typeof(BaseModel).Assembly
-                        .GetTypes()
-                        .Where(t =>
-                        {
-                            var attr = t.GetCustomAttribute(typeof(DataModelReferenceAttribute)) as DataModelReferenceAttribute;
-                            return (attr != null) && attr.DataModelType == dataModelType;
-                        })
-                        .ToArray();
+                                                  .GetTypes()
+                                                  .Where(t =>
+                                                  {
+                                                      var attr = t.GetCustomAttribute(typeof(DataModelReferenceAttribute)) as DataModelReferenceAttribute;
+                                                      return (attr != null) && (attr.DataModelType == dataModelType);
+                                                  })
+                                                  .ToArray();
                     dataModelTypeAssosiation.Add(dataModelType, modelTypes);
                 }
             }
@@ -141,21 +161,22 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
             foreach (var mT in modelTypes)
             {
                 var attr = mT.GetCustomAttribute(typeof(DataModelReferenceAttribute)) as DataModelReferenceAttribute;
-                if (string.IsNullOrWhiteSpace(attr.FilterPropertyName) && modelType == null)
+                if (string.IsNullOrWhiteSpace(attr.FilterPropertyName) && (modelType == null))
                     modelType = mT;
-                else if (!string.IsNullOrWhiteSpace(attr.FilterPropertyName) && dataModelType.GetProperty(attr.FilterPropertyName).GetValue(source).ToString() == attr.FilterPropertyValue)
+                else if (!string.IsNullOrWhiteSpace(attr.FilterPropertyName)
+                    && ((dataModelType.GetProperty(attr.FilterPropertyName).GetValue(source)?.ToString()) == attr.FilterPropertyValue))
                     modelType = mT;
             }
             var model = Activator.CreateInstance(modelType) as BaseModel;
             model.UpdateFromDataModel(source);
             return model;
         }
+
         protected virtual void UpdateFromDataModel(BaseDataModel dataModel)
         {
             var ownType = GetType();
             var dataModelType = dataModel.GetType();
-            foreach (var prop in ownType.GetProperties()
-                .Where(p => p.CanWrite))
+            foreach (var prop in ownType.GetProperties().Where(p => p.CanWrite))
             {
                 var convertToJson = false;
                 var dataModelProp = dataModelType.GetProperty(prop.Name);
@@ -169,7 +190,7 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
                 if (!dataModelProp.CanRead)
                     continue;
                 var sourceValue = dataModelProp.GetValue(dataModel);
-                if (prop.PropertyType == typeof(StreamImageSource) && sourceValue != null)
+                if ((prop.PropertyType == typeof(StreamImageSource)) && (sourceValue != null))
                 {
                     byte[] bytes = Convert.FromBase64String((string)sourceValue);
                     MemoryStream stream = new MemoryStream(bytes);
@@ -177,23 +198,24 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
                 }
                 if (convertToJson)
                     sourceValue = JsonConvert.DeserializeObject((string)sourceValue, new JsonSerializerSettings()
-                    {
-                        TypeNameHandling = TypeNameHandling.Objects
-                    });
+                        {
+                            TypeNameHandling = TypeNameHandling.Objects
+                        });
                 prop.SetValue(this, sourceValue);
             }
         }
+
         public BaseModel Duplicate()
         {
             var ownType = GetType();
             var newObj = Activator.CreateInstance(ownType) as BaseModel;
-            foreach (var prop in ownType.GetProperties()
-                .Where(p => p.CanWrite && p.CanRead))
+            foreach (var prop in ownType.GetProperties().Where(p => p.CanWrite && p.CanRead))
             {
                 var sourceValue = prop.GetValue(this);
                 prop.SetValue(newObj, sourceValue);
             }
             return newObj;
         }
+
     }
 }

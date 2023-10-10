@@ -80,7 +80,14 @@ namespace MyVideoPlayer.ViewModels.Navigation
             ItemDeleteRequested?.Invoke(this, e);
         }
 
+        protected virtual void OnResetScan(BaseModelEventArgs e)
+        {
+            ResetScanRequested?.Invoke(this, e);
+        }
+
         public event EventHandler<BaseModelEventArgs> ItemDeleteRequested;
+
+        public event EventHandler<BaseModelEventArgs> ResetScanRequested;
 
         public event EventHandler<ViewModelEventArgs> NavigationRequested;
 

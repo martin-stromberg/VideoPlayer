@@ -45,10 +45,20 @@ namespace MyVideoPlayer.Helper.Navigation
             viewModel.ItemTapped += ViewModel_ItemTapped;
             viewModel.NavigationRequested += ViewModel_NavigationRequested;
             viewModel.ItemDeleteRequested += ViewModel_ItemDeleteRequested;
+            viewModel.ResetScanRequested += ViewModel_ResetScanRequested;
 
             viewStack.Push(viewModel);
             currentView = viewModel;
             OnNavigationCompleted(viewModel);
+        }
+
+        private async void ViewModel_ResetScanRequested(object sender, BaseModelEventArgs e)
+        {
+            if (e.Element is MediaSource)
+            {
+                ((MediaSource)e.Element).LastScan = DateTime.MinValue;
+                await mediaLibrary.AddSourceAsync((MediaSource)e.Element);
+            }
         }
 
         private async void ViewModel_ItemDeleteRequested(object sender, BaseModelEventArgs e)
@@ -80,6 +90,8 @@ namespace MyVideoPlayer.Helper.Navigation
                 currentViewModel.ItemTapped -= ViewModel_ItemTapped;
                 currentViewModel.NavigationRequested -= ViewModel_NavigationRequested;
                 currentViewModel.ItemDeleteRequested -= ViewModel_ItemDeleteRequested;
+                currentViewModel.ResetScanRequested -= ViewModel_ResetScanRequested;
+
                 currentViewModel.OnDisappeared();
                 currentView = viewStack.Peek();
                 OnNavigationCompleted(currentView);

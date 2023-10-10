@@ -44,6 +44,9 @@ namespace MyVideoPlayer.ViewModels.Navigation.MediaCollection
                 case SourceMenuViewModel.CommandName_Remove:
                     OnDeleteRequest(new BaseModelEventArgs(Source));
                     break;
+                case SourceMenuViewModel.CommandName_Rescan:
+                    OnResetScan(new BaseModelEventArgs(Source));
+                    break;
             }
         }
 

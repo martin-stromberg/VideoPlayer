@@ -1,5 +1,6 @@
 ﻿using MyVideoPlayer.ViewModels.Menu;
 using System;
+using System.Data;
 using System.Linq;
 using VideoPlayerLib.Services.MediaLibrary;
 using VideoPlayerLib.Services.MediaLibrary.Models;
@@ -39,6 +40,13 @@ namespace MyVideoPlayer.ViewModels.Navigation.Sources
             }
         }
 
+        protected override void MediaLibrary_ModelElementUpdated(object sender, BaseModelEventArgs e)
+        {
+            base.MediaLibrary_ModelElementUpdated(sender, e);
+            if (e.Element is MediaSource)
+                UpdateSource(e.Element as MediaSource);
+        }
+
         protected override void MediaLibrary_ModelElementAdded(object sender, BaseModelEventArgs e)
         {
             base.MediaLibrary_ModelElementAdded(sender, e);
@@ -74,6 +82,14 @@ namespace MyVideoPlayer.ViewModels.Navigation.Sources
                 vm.Source = source;
                 Items.Add(vm);
             });
+        }
+
+        private void UpdateSource(MediaSource mediaSource)
+        {
+            var vm = Items.Cast<SourceBoxViewModel>().FirstOrDefault(item => item.Source.Id == mediaSource.Id);
+            if (vm == null)
+                return;
+            MainThread.BeginInvokeOnMainThread(() => { vm.Source.Update(mediaSource); });
         }
 
         internal void RemoveSource(MediaSource source)

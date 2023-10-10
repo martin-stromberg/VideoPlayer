@@ -47,13 +47,13 @@ namespace MyVideoPlayer.ViewModels.Navigation
         private void Items_CollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
         {
             if (e.OldItems != null)
-                foreach (var item in e.NewItems.Cast<BaseMediaElementBoxViewModel>())
+                foreach (var item in e.OldItems.OfType<BaseMediaElementBoxViewModel>())
                 {
                     item.Tapped -= Item_Tapped;
                     item.DownloadRequested -= Item_DownloadRequested;
                 }
             if (e.NewItems != null)
-                foreach (var item in e.NewItems.Cast<BaseMediaElementBoxViewModel>())
+                foreach (var item in e.NewItems.OfType<BaseMediaElementBoxViewModel>())
                 {
                     item.Tapped += Item_Tapped;
                     item.DownloadRequested += Item_DownloadRequested;
@@ -74,6 +74,13 @@ namespace MyVideoPlayer.ViewModels.Navigation
         {
             NavigationRequested?.Invoke(this, e);
         }
+
+        protected virtual void OnDeleteRequest(BaseModelEventArgs e)
+        {
+            ItemDeleteRequested?.Invoke(this, e);
+        }
+
+        public event EventHandler<BaseModelEventArgs> ItemDeleteRequested;
 
         public event EventHandler<ViewModelEventArgs> NavigationRequested;
 

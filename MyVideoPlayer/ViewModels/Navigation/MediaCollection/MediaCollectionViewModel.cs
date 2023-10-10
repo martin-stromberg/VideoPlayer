@@ -41,7 +41,17 @@ namespace MyVideoPlayer.ViewModels.Navigation.MediaCollection
                 case SourceMenuViewModel.CommandName_ConfigSource:
                     OnNavigationRequest(new ViewModelEventArgs(CreateViewModel(typeof(SourceConfigurationViewModel), Source)));
                     break;
+                case SourceMenuViewModel.CommandName_Remove:
+                    OnDeleteRequest(new BaseModelEventArgs(Source));
+                    break;
             }
+        }
+
+        protected override void MediaLibrary_ModelElementRemoved(object sender, BaseModelEventArgs e)
+        {
+            base.MediaLibrary_ModelElementRemoved(sender, e);
+            if ((e.Element is MediaSource) && (((MediaSource)e.Element).Id == (Source?.Id)))
+                OnNavigationRequest(new ViewModelEventArgs(this));
         }
 
         protected override void MediaLibrary_ModelElementAdded(object sender, BaseModelEventArgs e)

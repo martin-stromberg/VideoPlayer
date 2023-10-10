@@ -44,10 +44,19 @@ namespace MyVideoPlayer.Helper.Navigation
         {
             viewModel.ItemTapped += ViewModel_ItemTapped;
             viewModel.NavigationRequested += ViewModel_NavigationRequested;
+            viewModel.ItemDeleteRequested += ViewModel_ItemDeleteRequested;
 
             viewStack.Push(viewModel);
             currentView = viewModel;
             OnNavigationCompleted(viewModel);
+        }
+
+        private async void ViewModel_ItemDeleteRequested(object sender, BaseModelEventArgs e)
+        {
+            if (e.Element is MediaItem)
+                await mediaLibrary.RemoveMediaItemAsync(e.Element as MediaItem);
+            else if (e.Element is MediaSource)
+                await mediaLibrary.RemoveMediaSourceAsync(e.Element as MediaSource);
         }
 
         private void NavigateTo(BaseViewModel viewModel)
@@ -69,6 +78,8 @@ namespace MyVideoPlayer.Helper.Navigation
             else
             {
                 currentViewModel.ItemTapped -= ViewModel_ItemTapped;
+                currentViewModel.NavigationRequested -= ViewModel_NavigationRequested;
+                currentViewModel.ItemDeleteRequested -= ViewModel_ItemDeleteRequested;
                 currentViewModel.OnDisappeared();
                 currentView = viewStack.Peek();
                 OnNavigationCompleted(currentView);
@@ -112,7 +123,10 @@ namespace MyVideoPlayer.Helper.Navigation
 
         private void ViewModel_NavigationRequested(object sender, ViewModelEventArgs e)
         {
-            NavigateTo(e.ViewModel);
+            if (e.ViewModel == currentView)
+                NavigateBack();
+            else
+                NavigateTo(e.ViewModel);
         }
 
         private async void NavigateToMediaItem(MediaItemBoxViewModel viewModel)

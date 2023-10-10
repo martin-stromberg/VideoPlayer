@@ -94,7 +94,9 @@ namespace MyVideoPlayer.ViewModels.Navigation.Sources
 
         internal void RemoveSource(MediaSource source)
         {
-            var existing = Items.Cast<SourceBoxViewModel>().FirstOrDefault(i => i.Source.Equals(source));
+            var existing = Items.Cast<SourceBoxViewModel>().FirstOrDefault(i => i.Source.Id == source.Id);
+            if (existing == null)
+                return;
             MainThread.BeginInvokeOnMainThread(() => { Items.Remove(existing); });
         }
 

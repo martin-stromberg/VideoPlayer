@@ -6,8 +6,9 @@ using VideoPlayerLib.Services.Database.Models;
 
 namespace VideoPlayerLib.Services.Database
 {
-    public class MediaLibraryDatabase : IMediaLibraryDatabase, ILogDatabase
+    public class MediaLibraryDatabase: IMediaLibraryDatabase, ILogDatabase
     {
+
         private readonly MediaLibraryDatabaseSettings settings;
         private SQLiteAsyncConnection connection;
 
@@ -28,53 +29,53 @@ namespace VideoPlayerLib.Services.Database
 
         private async Task InitOrUpgradeAsync()
         {
-            var result = await Connection.CreateTableAsync<Models.MediaSource>();
-            result = await Connection.CreateTableAsync<Models.MediaCollection>();
-            result = await Connection.CreateTableAsync<Models.MediaItem>();
-            result = await Connection.CreateTableAsync<Models.LogEntry>();
-            result = await Connection.CreateTableAsync<Models.TVShow>();
-            result = await Connection.CreateTableAsync<Models.TVShowSeason>();
-            result = await Connection.CreateTableAsync<Models.TVShowEpisode>();
-            result = await Connection.CreateTableAsync<Models.TVShowEpisodeMediaItem>();
-            result = await Connection.CreateTableAsync<Models.Movie>();
-            result = await Connection.CreateTableAsync<Models.MovieCollection>();
-            result = await Connection.CreateTableAsync<Models.MovieMediaItem>();
+            var result = await Connection.CreateTableAsync<MediaSource>();
+            result = await Connection.CreateTableAsync<MediaCollection>();
+            result = await Connection.CreateTableAsync<MediaItem>();
+            result = await Connection.CreateTableAsync<LogEntry>();
+            result = await Connection.CreateTableAsync<TVShow>();
+            result = await Connection.CreateTableAsync<TVShowSeason>();
+            result = await Connection.CreateTableAsync<TVShowEpisode>();
+            result = await Connection.CreateTableAsync<TVShowEpisodeMediaItem>();
+            result = await Connection.CreateTableAsync<Movie>();
+            result = await Connection.CreateTableAsync<MovieCollection>();
+            result = await Connection.CreateTableAsync<MovieMediaItem>();
         }
 
         public async Task<AsyncTableQuery<MediaSource>> GetSourcesAsync()
         {
             await InitOrUpgradeAsync();
-            return Connection.Table<Models.MediaSource>();
-        }
-        public async Task<Models.MediaSource> GetSourceAsync(long id)
-        {
-            await InitOrUpgradeAsync();
-            return await Connection.Table<Models.MediaSource>()
-                .FirstOrDefaultAsync(s => s.Id == id);
+            return Connection.Table<MediaSource>();
         }
 
-        public async Task<AsyncTableQuery<Models.MediaCollection>> GetMediaCollectionsAsync()
+        public async Task<MediaSource> GetSourceAsync(long id)
         {
             await InitOrUpgradeAsync();
-            return Connection.Table<Models.MediaCollection>();
+            return await Connection.Table<MediaSource>().FirstOrDefaultAsync(s => s.Id == id);
         }
-        public async Task<Models.MediaCollection> GetMediaCollectionAsync(long id)
+
+        public async Task<AsyncTableQuery<MediaCollection>> GetMediaCollectionsAsync()
         {
             await InitOrUpgradeAsync();
-            return await Connection.Table<Models.MediaCollection>()
-                .FirstOrDefaultAsync(s => s.Id == id);
+            return Connection.Table<MediaCollection>();
+        }
+
+        public async Task<MediaCollection> GetMediaCollectionAsync(long id)
+        {
+            await InitOrUpgradeAsync();
+            return await Connection.Table<MediaCollection>().FirstOrDefaultAsync(s => s.Id == id);
         }
 
         public async Task<AsyncTableQuery<MediaItem>> GetMediaItemsAsync()
         {
             await InitOrUpgradeAsync();
-            return Connection.Table<Models.MediaItem>();
+            return Connection.Table<MediaItem>();
         }
-        public async Task<Models.MediaItem> GetMediaItemAsync(long id)
+
+        public async Task<MediaItem> GetMediaItemAsync(long id)
         {
             await InitOrUpgradeAsync();
-            return await Connection.Table<Models.MediaItem>()
-                .FirstOrDefaultAsync(s => s.Id == id);
+            return await Connection.Table<MediaItem>().FirstOrDefaultAsync(s => s.Id == id);
         }
 
         public async Task<MediaSource> AddOrUpdateSourceAsync(MediaSource mediaSource)
@@ -82,7 +83,7 @@ namespace VideoPlayerLib.Services.Database
             return await AddOrUpdate<MediaSource>(mediaSource) as MediaSource;
         }
 
-        private async Task<BaseDataModel> AddOrUpdate<T>(T model) where T : new()
+        private async Task<BaseDataModel> AddOrUpdate<T>(T model) where T: new()
         {
             var dataModel = model as BaseDataModel;
             if (dataModel == null)
@@ -90,8 +91,7 @@ namespace VideoPlayerLib.Services.Database
 
             await InitOrUpgradeAsync();
             Debug.WriteLine($"AddOrUpdate({typeof(T)})");
-            var existing = (await Connection.Table<T>()
-                .ToArrayAsync())
+            var existing = (await Connection.Table<T>().ToArrayAsync())
                 .FirstOrDefault(rec => (rec as BaseDataModel).IsRecord(model as BaseDataModel)) as BaseDataModel;
             if (existing == null)
             {
@@ -184,7 +184,8 @@ namespace VideoPlayerLib.Services.Database
         public async Task<Movie> GetMovieByMediaItem(long mediaItemId)
         {
             await InitOrUpgradeAsync();
-            var movieId = (await Connection.Table<MovieMediaItem>().FirstOrDefaultAsync(mmi => mmi.MediaItemId == mediaItemId))?.MovieId;
+            var movieId = (await Connection.Table<MovieMediaItem>()
+                                           .FirstOrDefaultAsync(mmi => mmi.MediaItemId == mediaItemId))?.MovieId;
             return await Connection.Table<Movie>().FirstOrDefaultAsync(m => m.Id == movieId);
         }
 
@@ -259,7 +260,9 @@ namespace VideoPlayerLib.Services.Database
 
         public async Task RemoveTVShowEpisodeMediaItemsAsync(long episodeId)
         {
-            var items = await Connection.Table<TVShowEpisodeMediaItem>().Where(mmi => mmi.EpisodeId == episodeId).ToArrayAsync();
+            var items = await Connection.Table<TVShowEpisodeMediaItem>()
+                                        .Where(mmi => mmi.EpisodeId == episodeId)
+                                        .ToArrayAsync();
             if (items.Any())
                 foreach (var item in items)
                     await Connection.DeleteAsync(item);
@@ -331,5 +334,34 @@ namespace VideoPlayerLib.Services.Database
             await InitOrUpgradeAsync();
             return await Connection.Table<MovieCollection>().FirstOrDefaultAsync(c => c.Id == id);
         }
+
+        public async Task RemoveSource(MediaSource source)
+        {
+            await InitOrUpgradeAsync();
+            await Connection.DeleteAsync(source);
+        }
+
+        public async Task<IEnumerable<MovieMediaItem>> GetMovieMediaItemsForMediaItem(long id)
+        {
+            await InitOrUpgradeAsync();
+            return await Connection.Table<MovieMediaItem>().Where(mmi => mmi.MediaItemId == id).ToArrayAsync();
+        }
+
+        public async Task RemoveMovieMediaItemAsync(MovieMediaItem movieMediaItem)
+        {
+            await Connection.DeleteAsync(movieMediaItem);
+        }
+
+        public async Task<IEnumerable<TVShowEpisodeMediaItem>> GetTVShowMediaItemsForMediaItem(long id)
+        {
+            await InitOrUpgradeAsync();
+            return await Connection.Table<TVShowEpisodeMediaItem>().Where(mmi => mmi.MediaItemId == id).ToArrayAsync();
+        }
+
+        public async Task RemoveMovieMediaItemAsync(TVShowEpisodeMediaItem tvshowMediaItem)
+        {
+            await Connection.DeleteAsync(tvshowMediaItem);
+        }
+
     }
 }

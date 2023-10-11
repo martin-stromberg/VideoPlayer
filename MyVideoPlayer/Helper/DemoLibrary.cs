@@ -257,5 +257,10 @@ namespace MyVideoPlayer.Helper
             throw new NotImplementedException();
         }
 
+        public Task RemoveMediaSourceAsync(MediaSource mediaItem)
+        {
+            throw new NotImplementedException();
+        }
+
     }
 }

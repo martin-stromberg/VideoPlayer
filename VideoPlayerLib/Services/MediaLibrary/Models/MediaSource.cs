@@ -7,22 +7,43 @@ using VideoPlayerLib.Services.Database.Models;
 namespace VideoPlayerLib.Services.MediaLibrary.Models
 {
     [DataModelReference(typeof(Database.Models.MediaSource))]
-    public class MediaSource : BaseModel
+    public class MediaSource: BaseModel
     {
+
         public string Type
         {
-            get { return GetProperty<string>(); }
-            set { SetProperty<string>(value); }
+            get
+            {
+                return GetProperty<string>();
+            }
+            set
+            {
+                SetProperty<string>(value);
+            }
         }
+
         public string Configuration
         {
-            get { return GetProperty<string>(); }
-            set { SetProperty<string>(value); }
+            get
+            {
+                return GetProperty<string>();
+            }
+            set
+            {
+                SetProperty<string>(value);
+            }
         }
+
         public DateTime LastScan
         {
-            get { return GetProperty<DateTime>(); }
-            set { SetProperty<DateTime>(value); }
+            get
+            {
+                return GetProperty<DateTime>();
+            }
+            set
+            {
+                SetProperty<DateTime>(value);
+            }
         }
 
         public virtual string GetItemPath(MediaItem item)
@@ -34,10 +55,20 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
         {
             return false;
         }
+
+        public virtual void Update(MediaSource newSource)
+        {
+            if (!string.IsNullOrWhiteSpace(Type) && (Type != newSource.Type))
+                throw new ApplicationException("Source type change is not supported.");
+            Type = newSource.Type;
+            Name = newSource.Name;
+        }
+
     }
 
-    public class RemoteMediaSource : MediaSource
+    public class RemoteMediaSource: MediaSource
     {
+
         private int updateLevel = 0;
 
         public RemoteMediaSource()
@@ -50,30 +81,54 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
         {
             updateLevel += 1;
         }
+
         protected void EndUpdate()
         {
             updateLevel -= 1;
         }
+
         protected override void OnPropertyChanged(PropertyChangedEventArgs e)
         {
             base.OnPropertyChanged(e);
-            if (e.PropertyName != nameof(Configuration) && updateLevel == 0)
+            if ((e.PropertyName != nameof(Configuration)) && (updateLevel == 0))
                 UpdateConfiguration();
         }
+
+        public override void Update(MediaSource newSource)
+        {
+            base.Update(newSource);
+            Path = ((RemoteMediaSource)newSource).Path;
+            PathDelimiter = ((RemoteMediaSource)newSource).PathDelimiter;
+        }
+
         protected virtual void UpdateConfiguration()
         {
+            Configuration = string.Empty;
             Configuration = JsonConvert.SerializeObject(this);
         }
+
         public virtual string Path
         {
-            get { return GetProperty<string>(); }
-            set { SetProperty<string>(value); }
+            get
+            {
+                return GetProperty<string>();
+            }
+            set
+            {
+                SetProperty<string>(value);
+            }
         }
 
         public char PathDelimiter
         {
-            get { return GetProperty<char>(); }
-            protected set { SetProperty<char>(value); }
+            get
+            {
+                return GetProperty<char>();
+            }
+            protected set
+            {
+                SetProperty<char>(value);
+            }
         }
 
         protected override void UpdateFromDataModel(BaseDataModel dataModel)
@@ -82,8 +137,15 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
             try
             {
                 base.UpdateFromDataModel(dataModel);
-                var obj = JsonConvert.DeserializeObject<RemoteMediaSource>(Configuration);
-                Path = obj.Path;
+                try
+                {
+                    var obj = JsonConvert.DeserializeObject<RemoteMediaSource>(Configuration);
+                    Path = obj.Path;
+                }
+                catch
+                {
+                    Path = string.Empty;
+                }
             }
             finally
             {
@@ -95,5 +157,6 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
         {
             return true;
         }
+
     }
 }

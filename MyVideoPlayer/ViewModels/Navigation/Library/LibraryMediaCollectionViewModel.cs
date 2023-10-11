@@ -1,11 +1,13 @@
-﻿using MyVideoPlayer.ViewModels.Navigation.MediaCollection;
+﻿using MyVideoPlayer.ViewModels.Menu;
+using MyVideoPlayer.ViewModels.Navigation.MediaCollection;
 using VideoPlayerLib.Services.MediaLibrary;
 using VideoPlayerLib.Services.MediaLibrary.Models;
 
 namespace MyVideoPlayer.ViewModels.Navigation.Library
 {
-    public class LibraryMediaCollectionViewModel : MediaCollectionViewModel
+    public class LibraryMediaCollectionViewModel: MediaCollectionViewModel
     {
+
         private readonly IMediaLibrary mediaLibrary;
 
         public LibraryMediaCollectionViewModel(IMediaLibrary mediaLibrary, IServiceProvider serviceProvider)
@@ -15,25 +17,52 @@ namespace MyVideoPlayer.ViewModels.Navigation.Library
         }
 
         public Type CategoryType { get; set; }
+
         public BaseModel Parent { get; set; }
 
-        protected override void MediaLibrary_ModelElementAdded(object sender, BaseModelEventArgs e)
+        public override MenuViewModel MenuViewModel
         {
-
+            get
+            {
+                if (base.MenuViewModel is not MediaCollectionMenuViewModel)
+                    if (Parent != null)
+                        SetMenuViewModel(new MediaCollectionMenuViewModel());
+                    else
+                        SetMenuViewModel(new LibraryMenuViewModel());
+                return base.MenuViewModel;
+            }
         }
-        protected override void MediaLibrary_ModelElementRemoved(object sender, BaseModelEventArgs e)
+
+        protected override void MenuViewModel_CommandExecuted(object sender, MenuActionEventArgs e)
         {
-
+            switch (e.Action.CommandParameter)
+            {
+                case MediaCollectionMenuViewModel.CommandName_Rescan:
+                    OnResetScan(new BaseModelEventArgs(Parent));
+                    break;
+                case LibraryMenuViewModel.CommandName_Rescan:
+                    if (CategoryType == typeof(Movie))
+                        OnResetScan(new BaseModelEventArgs(new Movie()));
+                    else if (CategoryType == typeof(TVShow))
+                        OnResetScan(new BaseModelEventArgs(new TVShowEpisode()));
+                    break;
+                default:
+                    base.MenuViewModel_CommandExecuted(sender, e);
+                    break;
+            }
         }
-        protected override void MediaLibrary_ModelElementUpdated(object sender, BaseModelEventArgs e)
-        {
 
-        }
+        protected override void MediaLibrary_ModelElementAdded(object sender, BaseModelEventArgs e) { }
+
+        protected override void MediaLibrary_ModelElementRemoved(object sender, BaseModelEventArgs e) { }
+
+        protected override void MediaLibrary_ModelElementUpdated(object sender, BaseModelEventArgs e) { }
 
         internal override Task ReadMediaCollection(MediaSource source)
         {
             return Task.CompletedTask;
         }
+
         internal override async Task ReadMediaItems(MediaItemCollection collection)
         {
             if (Parent == null)
@@ -51,7 +80,6 @@ namespace MyVideoPlayer.ViewModels.Navigation.Library
                 if (CategoryType == typeof(TVShow))
                 {
                     await LoadTVShowsSeasons(Parent as TVShow);
-
                 }
                 else if (CategoryType == typeof(TVShowSeason))
                     await LoadTVShowsEpisodes(Parent as TVShowSeason);
@@ -60,11 +88,10 @@ namespace MyVideoPlayer.ViewModels.Navigation.Library
             }
         }
 
-
-
         private async Task LoadTVShowsSeasons(TVShow tVShow)
         {
-            if (tVShow == null) return;
+            if (tVShow == null)
+                return;
             var seasons = (await mediaLibrary.GetTVShowSeasons(tVShow.Id)).ToArray();
             foreach (var season in seasons.OrderBy(m => m.Name))
                 AddTVShowSeason(season);
@@ -72,17 +99,20 @@ namespace MyVideoPlayer.ViewModels.Navigation.Library
 
         private async Task LoadTVShowsEpisodes(TVShowSeason tVShowSeason)
         {
-            if (tVShowSeason == null) return;
+            if (tVShowSeason == null)
+                return;
             var episodes = (await mediaLibrary.GetTVShowEpisodes(tVShowSeason.Id)).ToArray();
             foreach (var episode in episodes.OrderBy(m => m.EpisodeNo).ThenBy(m => m.Name))
                 AddTVShowEpisode(episode);
         }
+
         private async Task LoadTVShows()
         {
             var shows = (await mediaLibrary.GetTVShows()).ToArray();
             foreach (var show in shows.OrderBy(m => m.Name))
                 AddTVShow(show);
         }
+
         private void AddTVShowEpisode(TVShowEpisode episode)
         {
             if (Items.Cast<TVShowEpisodeBoxViewModel>().Any(vm => vm.Item.Id == episode.Id))
@@ -92,6 +122,7 @@ namespace MyVideoPlayer.ViewModels.Navigation.Library
             vm.Item = episode;
             Items.Add(vm);
         }
+
         private void AddTVShowSeason(TVShowSeason season)
         {
             if (Items.Cast<TVShowSeasonBoxViewModel>().Any(vm => vm.Item.Id == season.Id))
@@ -106,6 +137,7 @@ namespace MyVideoPlayer.ViewModels.Navigation.Library
         {
             _ = ReadMediaItems(null);
         }
+
         private async Task LoadMovieCollections()
         {
             var collections = await mediaLibrary.GetMovieCollections();
@@ -128,7 +160,9 @@ namespace MyVideoPlayer.ViewModels.Navigation.Library
             var collection = Parent as MovieCollection;
             var movies = await mediaLibrary.GetMovies();
             foreach (var movie in movies
-                .Where(m => (collection == null && m.CollectionId == 0) || (collection != null && m.CollectionId == collection.Id))
+                .Where(m =>
+                       ((collection == null) && (m.CollectionId == 0))
+                    || ((collection != null) && (m.CollectionId == collection.Id)))
                 .OrderBy(m => m.Name))
                 AddMovie(movie);
         }
@@ -152,5 +186,6 @@ namespace MyVideoPlayer.ViewModels.Navigation.Library
             vm.Item = show;
             Items.Add(vm);
         }
+
     }
 }

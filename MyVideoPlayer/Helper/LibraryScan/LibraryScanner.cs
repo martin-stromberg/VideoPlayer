@@ -16,8 +16,9 @@ using VideoPlayerLib.Services.Samba;
 
 namespace MyVideoPlayer.Helper.LibraryScan
 {
-    public class LibraryScanner : ILibraryScanner
+    public class LibraryScanner: ILibraryScanner
     {
+
         private readonly IServiceProvider serviceProvider;
         private readonly IMediaLibrary mediaLibrary;
         private readonly ILogger<LibraryScanner> logger;
@@ -40,14 +41,22 @@ namespace MyVideoPlayer.Helper.LibraryScan
 
         private BackgroundWorker scanner = null;
         private bool stopScan = false;
+
         private void Scanner_DoWork(object sender, DoWorkEventArgs e)
         {
-            try { ScanNextSource(); }
+            try
+            {
+                ScanNextSource();
+            }
             catch { }
 
-            try { ScanNextCollectionMediaAsync().Wait(); }
+            try
+            {
+                ScanNextCollectionMediaAsync().Wait();
+            }
             catch { }
         }
+
         private async void Scanner_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
             if (stopScan)
@@ -56,6 +65,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
             if (!stopScan)
                 Start();
         }
+
         public void Start()
         {
             stopScan = false;
@@ -67,12 +77,14 @@ namespace MyVideoPlayer.Helper.LibraryScan
             }
             scanner.RunWorkerAsync();
         }
+
         public void Stop()
         {
             stopScan = true;
         }
 
         public event EventHandler<MessageEventArgs> StatusChanged;
+
         private void OnStatusChanged(string statusMessage)
         {
             logger.LogInformation(statusMessage);
@@ -88,13 +100,14 @@ namespace MyVideoPlayer.Helper.LibraryScan
                 .FirstOrDefault();
             if (source == null)
                 return;
-            if (source.LastScan.AddMinutes(60) > DateTime.Now)
+            if (source.LastScan.AddHours(24) >= DateTime.Now)
             {
                 OnStatusChanged(string.Empty);
                 return;
             }
             ScanSource(source);
         }
+
         private void ScanSource(MediaSource source)
         {
             try
@@ -138,9 +151,10 @@ namespace MyVideoPlayer.Helper.LibraryScan
             }
         }
 
-
-
-        private async Task ScanRemoteCollectionMediaSyncAsync(RemoteSourceScanner scanner, MediaSource source, DateTime refDate)
+        private async Task ScanRemoteCollectionMediaSyncAsync(
+            RemoteSourceScanner scanner,
+            MediaSource source,
+            DateTime refDate)
         {
             var collectionsSource = await mediaLibrary.GetMediaItemCollectionsAsync(source.Id);
             var collections = collectionsSource
@@ -149,6 +163,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
             foreach (var collection in collections)
                 await ScannCollectionMetaDataAsync(scanner, collection);
         }
+
         private async Task ScannCollectionMetaDataAsync(RemoteSourceScanner scanner, MediaItemCollection collection)
         {
             await ProcessMetaDataForFolderAsync(scanner, collection);
@@ -164,6 +179,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
             SambaShareScanner smbScanner = new SambaShareScanner(share);
             ScanRemoteSource(smbScanner, source);
         }
+
         private async Task ScanNextSmbShareCollectionMediaAsync(SmbMediaSource smbSource, DateTime refDate)
         {
             SambaShare share = new SambaShare(smbSource.ServerName, smbSource.Username, smbSource.Password);
@@ -191,6 +207,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
             FtpScanner scanner = new FtpScanner(share);
             ScanRemoteSource(scanner, source);
         }
+
         private async Task ScanNextFtpShareCollectionMediaAsync(FtpMediaSource source, DateTime refDate)
         {
             FtpShare share = new FtpShare(source.ServerName, source.Username, source.Password);
@@ -201,10 +218,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
 
         private void ScanRemoteSource(RemoteSourceScanner scanner, RemoteMediaSource source)
         {
-            scanner.FileFound += (sender, e) =>
-            {
-                ProcessFile(source, scanner, e.File).Wait();
-            };
+            scanner.FileFound += (sender, e) => { ProcessFile(source, scanner, e.File).Wait(); };
             scanner.FolderFound += (sender, e) =>
             {
                 OnStatusChanged($"{e.Folder.Path}");
@@ -228,18 +242,15 @@ namespace MyVideoPlayer.Helper.LibraryScan
                     var folderPath = Path.GetDirectoryName(file.Path).Replace('\\', source.PathDelimiter);
                     var folder = await mediaLibrary.FindMediaItemCollectionAsync(source.Id, folderPath);
                     if (folder == null)
-                        folder = await ProcessFolderAsync(source, scanner, new Folder()
-                        {
-                            Path = folderPath,
-                            Name = Path.GetFileName(folderPath)
-                        });
+                        folder = await ProcessFolderAsync(source,
+                                                          scanner,
+                                                          new Folder()
+                            {
+                                Path = folderPath,
+                                Name = Path.GetFileName(folderPath)
+                            });
 
-                    item = new MediaItem()
-                    {
-                        Name = file.Name,
-                        Path = file.Path,
-                        ParentCollectionId = folder.Id
-                    };
+                    item = new MediaItem() { Name = file.Name, Path = file.Path, ParentCollectionId = folder.Id };
                     await mediaLibrary.AddMediaItemAsync(item);
                 }
                 try
@@ -294,8 +305,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
             string nfoFolder = Path.GetDirectoryName(item.Path);
             string nfoPath = Path.Combine(nfoFolder, file.Name);
             string nfoName = Path.GetFileName(nfoPath);
-            var remoteFile = scanner.FindFiles(nfoFolder, nfoName)
-                .FirstOrDefault();
+            var remoteFile = scanner.FindFiles(nfoFolder, nfoName).FirstOrDefault();
             if (remoteFile == null)
                 return;
             string fileContent = scanner.ReadTextFile(nfoPath);
@@ -304,7 +314,11 @@ namespace MyVideoPlayer.Helper.LibraryScan
                 ProcessMediathekInfo(scanner, item, file, infoFile);
         }
 
-        private async void ProcessMediathekInfo(RemoteSourceScanner scanner, MediaItem item, RemoteFile remoteFile, MediathekInfoFile infoFile)
+        private async void ProcessMediathekInfo(
+            RemoteSourceScanner scanner,
+            MediaItem item,
+            RemoteFile remoteFile,
+            MediathekInfoFile infoFile)
         {
             string nfoFolder = Path.GetDirectoryName(item.Path);
             string nfoPath = Path.Combine(nfoFolder, remoteFile.Name);
@@ -312,8 +326,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
             nfoName = Path.ChangeExtension(nfoName, ".nfo");
             nfoPath = Path.Combine(nfoFolder, nfoName);
 
-            var nfoFile = scanner.FindFiles(nfoFolder, nfoName)
-                .FirstOrDefault();
+            var nfoFile = scanner.FindFiles(nfoFolder, nfoName).FirstOrDefault();
             if (nfoFile != null)
                 return;
 
@@ -336,8 +349,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
             }
 
             scanner.WriteTextFile(nfoPath, NfoDoc.InnerXml);
-            nfoFile = scanner.FindFiles(nfoFolder, nfoName)
-                .FirstOrDefault();
+            nfoFile = scanner.FindFiles(nfoFolder, nfoName).FirstOrDefault();
             await ProcessNFOForVideoAsync(scanner, item, nfoFile);
         }
 
@@ -346,8 +358,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
             string nfoFolder = Path.GetDirectoryName(item.Path);
             string nfoPath = Path.Combine(nfoFolder, nfoFile.Name);
             string nfoName = Path.GetFileName(nfoPath);
-            var remoteFile = scanner.FindFiles(nfoFolder, nfoName)
-                .FirstOrDefault();
+            var remoteFile = scanner.FindFiles(nfoFolder, nfoName).FirstOrDefault();
             if (remoteFile == null)
                 return;
             logger.LogDebug($"Load nfo file {nfoFile.Name}");
@@ -375,6 +386,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
                 logger.LogError(ex, ex.Message);
             }
         }
+
         private void ProcessMovieInformation(MediaItem item, XmlElement documentElement)
         {
             MovieInformation Info = new MovieInformation()
@@ -385,6 +397,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
             };
             item.MetaInfo = Info;
         }
+
         private void ProcessEposideInformation(MediaItem item, XmlElement documentElement)
         {
             EpisodeInformation Info = new EpisodeInformation()
@@ -396,6 +409,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
             };
             item.MetaInfo = Info;
         }
+
         private async Task ProcessPictureForVideoAsync(RemoteSourceScanner scanner, MediaItem item, RemoteFile picFile)
         {
             string picFolder = Path.GetDirectoryName(item.Path);
@@ -420,14 +434,17 @@ namespace MyVideoPlayer.Helper.LibraryScan
             logger.LogDebug($"Processing of meta data for audio is not implemented.");
         }
 
-        private async Task<MediaItemCollection> ProcessFolderAsync(RemoteMediaSource source, RemoteSourceScanner scanner, Folder folder)
+        private async Task<MediaItemCollection> ProcessFolderAsync(
+            RemoteMediaSource source,
+            RemoteSourceScanner scanner,
+            Folder folder)
         {
             try
             {
                 logger.LogDebug($"Folder: {folder.Path}");
                 var item = await mediaLibrary.FindMediaItemCollectionAsync(source.Id, folder.Path);
                 if (item == null)
-                    if ($"{folder.Path}" == source.Path)
+                    if (($"{folder.Path}") == source.Path)
                     {
                         logger.LogDebug($"Create root collection.");
                         item = new MediaItemCollection()
@@ -447,11 +464,13 @@ namespace MyVideoPlayer.Helper.LibraryScan
                         var folderPath = Path.GetDirectoryName(folder.Path).Replace('\\', source.PathDelimiter);
                         var parentFolder = await mediaLibrary.FindMediaItemCollectionAsync(source.Id, folderPath);
                         if (parentFolder == null)
-                            parentFolder = await ProcessFolderAsync(source, scanner, new Folder()
-                            {
-                                Path = folderPath,
-                                Name = Path.GetFileName(folderPath)
-                            });
+                            parentFolder = await ProcessFolderAsync(source,
+                                                                    scanner,
+                                                                    new Folder()
+                                {
+                                    Path = folderPath,
+                                    Name = Path.GetFileName(folderPath)
+                                });
                         item = new MediaItemCollection()
                         {
                             Name = folder.Name,
@@ -479,6 +498,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
                 return null;
             }
         }
+
         private async Task ProcessPictureForFolderAsync(RemoteSourceScanner scanner, MediaItemCollection item)
         {
             var picPath = Path.Combine(item.Path, "folder.jpg");
@@ -496,6 +516,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
             item.PicturePath = cachFile;
             await mediaLibrary.AddMediaItemCollectionAsync(item);
         }
+
         private async Task ProcessMetaDataForFolderAsync(RemoteSourceScanner scanner, MediaItemCollection item)
         {
             var nfoPath = Path.Combine(item.Path, "tvshow.nfo");
@@ -522,6 +543,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
             }
             await mediaLibrary.AddMediaItemCollectionAsync(item);
         }
+
         private void ProcessTVShowInformation(MediaItemCollection item, XmlElement documentElement)
         {
             TVShowInformation info = new TVShowInformation()
@@ -531,5 +553,6 @@ namespace MyVideoPlayer.Helper.LibraryScan
             };
             item.MetaInfo = info;
         }
+
     }
 }

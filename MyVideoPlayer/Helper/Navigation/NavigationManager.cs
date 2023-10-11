@@ -96,6 +96,33 @@ namespace MyVideoPlayer.Helper.Navigation
                 var mediaItemCollection = await mediaLibrary.GetMediaItemCollectionAsync(movieCollection.MediaItemCollectionId);
                 ViewModel_ResetScanRequested(sender, new BaseModelEventArgs(mediaItemCollection));
             }
+            else if (e.Element is Movie)
+            {
+                var movieCollections = await mediaLibrary.GetMovieCollections();
+                foreach (var movieCollection in movieCollections)
+                    ViewModel_ResetScanRequested(sender, new BaseModelEventArgs(movieCollection));
+                var movies = await mediaLibrary.GetMovies();
+                var collectionIds = new List<long>();
+                foreach (var movie in movies.Where(m => m.CollectionId == 0))
+                    if (movie.MediaItems != null)
+                        foreach (var mediaItemId in movie.MediaItems)
+                        {
+                            var mediaItem = await mediaLibrary.GetMediaItemAsync(mediaItemId);
+                            if (!collectionIds.Contains(mediaItem.ParentCollectionId))
+                                collectionIds.Add(mediaItem.ParentCollectionId);
+                        }
+                foreach (var collectionId in collectionIds)
+                {
+                    var collection = await mediaLibrary.GetMediaItemCollectionAsync(collectionId);
+                    ViewModel_ResetScanRequested(sender, new BaseModelEventArgs(collection));
+                }
+            }
+            else if (e.Element is TVShowEpisode)
+            {
+                var shows = await mediaLibrary.GetTVShows();
+                foreach (var show in shows)
+                    ViewModel_ResetScanRequested(sender, new BaseModelEventArgs(show));
+            }
         }
 
         private async void ViewModel_ItemDeleteRequested(object sender, BaseModelEventArgs e)

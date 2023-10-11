@@ -245,8 +245,15 @@ namespace VideoPlayerLib.Services.MediaLibrary
 
         public async Task<IEnumerable<Movie>> GetMovies()
         {
-            return (await dataStore.GetMovies())
-                .Select(movie => Movie.FromDataModel(movie) as Movie);
+            var movies = (await dataStore.GetMovies())
+                .Select(movie => Movie.FromDataModel(movie) as Movie)
+                .ToArray();
+            foreach (var movie in movies)
+            {
+                var mediaItems = await dataStore.GetMovieMediaItems(movie.Id);
+                movie.SetMediaItems(mediaItems);
+            }
+            return movies;
         }
 
         public async Task<Movie> FindMovieAsync(long mediaItemId)

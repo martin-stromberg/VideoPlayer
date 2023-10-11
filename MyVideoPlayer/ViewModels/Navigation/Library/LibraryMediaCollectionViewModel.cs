@@ -27,6 +27,8 @@ namespace MyVideoPlayer.ViewModels.Navigation.Library
                 if (base.MenuViewModel is not MediaCollectionMenuViewModel)
                     if (Parent != null)
                         SetMenuViewModel(new MediaCollectionMenuViewModel());
+                    else
+                        SetMenuViewModel(new LibraryMenuViewModel());
                 return base.MenuViewModel;
             }
         }
@@ -37,6 +39,12 @@ namespace MyVideoPlayer.ViewModels.Navigation.Library
             {
                 case MediaCollectionMenuViewModel.CommandName_Rescan:
                     OnResetScan(new BaseModelEventArgs(Parent));
+                    break;
+                case LibraryMenuViewModel.CommandName_Rescan:
+                    if (CategoryType == typeof(Movie))
+                        OnResetScan(new BaseModelEventArgs(new Movie()));
+                    else if (CategoryType == typeof(TVShow))
+                        OnResetScan(new BaseModelEventArgs(new TVShowEpisode()));
                     break;
                 default:
                     base.MenuViewModel_CommandExecuted(sender, e);

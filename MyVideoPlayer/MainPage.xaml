@@ -41,7 +41,7 @@
         <Grid Grid.Row="1" IsVisible="{Binding LogVisible}">
             <v:LogListView BindingContext="{Binding NavigationContent}" IsVisible="{Binding LogVisible}"/>
         </Grid>
-        <Grid Grid.Row="0" Grid.RowSpan="3" IsVisible="{Binding IsVideoVisible}" Margin="30">
+        <Grid Grid.Row="0" Grid.RowSpan="3" IsVisible="{Binding IsVideoVisible}" Margin="0">
             <v:MediaElementView BindingContext="{Binding MediaElement}" IsVisible="{Binding IsVideoVisible}"/>
         </Grid>
         <Label Grid.Row="2" Text="{Binding StatusMessage}" VerticalOptions="End"/>

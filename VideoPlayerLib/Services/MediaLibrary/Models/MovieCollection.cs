@@ -3,11 +3,15 @@
 namespace VideoPlayerLib.Services.MediaLibrary.Models
 {
     [DataModelReference(typeof(Database.Models.MovieCollection))]
-    public class MovieCollection : BaseModel
+    public class MovieCollection: BaseModel
     {
+
         public string PicturePath
         {
-            get { return GetProperty<string>(); }
+            get
+            {
+                return GetProperty<string>();
+            }
             set
             {
                 SetProperty<string>(value);
@@ -17,10 +21,30 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
                     Picture = ImageSource.FromFile(value);
             }
         }
+
         public ImageSource Picture
         {
-            get { return GetProperty<ImageSource>(); }
-            set { SetProperty<ImageSource>(value); }
+            get
+            {
+                return GetProperty<ImageSource>();
+            }
+            set
+            {
+                SetProperty<ImageSource>(value);
+            }
         }
+
+        public long MediaItemCollectionId
+        {
+            get
+            {
+                return GetProperty<long>();
+            }
+            set
+            {
+                SetProperty<long>(value);
+            }
+        }
+
     }
 }

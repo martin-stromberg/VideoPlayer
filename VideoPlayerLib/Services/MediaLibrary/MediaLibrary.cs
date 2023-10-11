@@ -334,14 +334,21 @@ namespace VideoPlayerLib.Services.MediaLibrary
 
         public async Task<IEnumerable<TVShowEpisode>> GetTVShowEpisodes(long seasonId)
         {
-            var episodes = await dataStore.GetTVShowEpisodes(seasonId);
-            return episodes
+            var dbEpisodes = await dataStore.GetTVShowEpisodes(seasonId);
+            var episodes = dbEpisodes
                 .Select(episode =>
                 {
                     var model = TVShowEpisode.FromDataModel(episode) as TVShowEpisode;
                     return model;
                 })
-                .Cast<TVShowEpisode>();
+                .Cast<TVShowEpisode>()
+                .ToArray();
+            foreach (var episode in episodes)
+            {
+                var mediaItems = await dataStore.GetTVShowEpisodeMediaItems(episode.Id);
+                episode.SetMediaItems(mediaItems);
+            }
+            return episodes;
         }
 
         public async Task<IEnumerable<TVShow>> FindTVShowByNameAsync(string name)

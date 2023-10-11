@@ -64,6 +64,38 @@ namespace MyVideoPlayer.Helper.Navigation
                 ((MediaItemCollection)e.Element).MetaDataTime = DateTime.MinValue;
                 await mediaLibrary.AddMediaItemCollectionAsync((MediaItemCollection)e.Element);
             }
+            else if (e.Element is TVShow)
+            {
+                var show = (TVShow)e.Element;
+                var seasons = await mediaLibrary.GetTVShowSeasons(show.Id);
+                foreach (var season in seasons)
+                    ViewModel_ResetScanRequested(sender, new BaseModelEventArgs(season));
+            }
+            else if (e.Element is TVShowSeason)
+            {
+                var season = (TVShowSeason)e.Element;
+                var episodes = await mediaLibrary.GetTVShowEpisodes(season.Id);
+                var collectionIds = new List<long>();
+                foreach (var episode in episodes)
+                    if (episode.MediaItems != null)
+                        foreach (var mediaItemId in episode.MediaItems)
+                        {
+                            var mediaItem = await mediaLibrary.GetMediaItemAsync(mediaItemId);
+                            if (!collectionIds.Contains(mediaItem.ParentCollectionId))
+                                collectionIds.Add(mediaItem.ParentCollectionId);
+                        }
+                foreach (var collectionId in collectionIds)
+                {
+                    var collection = await mediaLibrary.GetMediaItemCollectionAsync(collectionId);
+                    ViewModel_ResetScanRequested(sender, new BaseModelEventArgs(collection));
+                }
+            }
+            else if (e.Element is MovieCollection)
+            {
+                var movieCollection = (MovieCollection)e.Element;
+                var mediaItemCollection = await mediaLibrary.GetMediaItemCollectionAsync(movieCollection.MediaItemCollectionId);
+                ViewModel_ResetScanRequested(sender, new BaseModelEventArgs(mediaItemCollection));
+            }
         }
 
         private async void ViewModel_ItemDeleteRequested(object sender, BaseModelEventArgs e)

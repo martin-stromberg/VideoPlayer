@@ -6,12 +6,11 @@ using VideoPlayerLib.Services.MediaLibrary.Models.Meta;
 
 namespace MyVideoPlayer.Helper.LibraryScan
 {
-    public interface ILibraryCollector
+    public interface ILibraryCollector { }
+
+    public class LibraryCollector: ILibraryCollector
     {
 
-    }
-    public class LibraryCollector : ILibraryCollector
-    {
         private readonly IMediaLibrary mediaLibrary;
 
         public LibraryCollector(IMediaLibrary mediaLibrary)
@@ -22,17 +21,21 @@ namespace MyVideoPlayer.Helper.LibraryScan
             this.mediaLibrary.ModelElementUpdated += MediaLibrary_ModelElementUpdatedAsync;
         }
 
-        private void MediaLibrary_ModelElementUpdatedAsync(object sender, VideoPlayerLib.Services.MediaLibrary.Models.BaseModelEventArgs e)
+        private void MediaLibrary_ModelElementUpdatedAsync(object sender, BaseModelEventArgs e)
         {
             CollectMediaItemAsync(e.Element as MediaItem).Wait();
         }
-        private void MediaLibrary_ModelElementAddedAsync(object sender, VideoPlayerLib.Services.MediaLibrary.Models.BaseModelEventArgs e)
+
+        private void MediaLibrary_ModelElementAddedAsync(object sender, BaseModelEventArgs e)
         {
             var mediaItem = e.Element as MediaItem;
-            if (mediaItem == null) return;
-            if (mediaItem.CopyType != MediaItemCopyType.None) return;
+            if (mediaItem == null)
+                return;
+            if (mediaItem.CopyType != MediaItemCopyType.None)
+                return;
             CollectMediaItemAsync(e.Element as MediaItem).Wait();
         }
+
         private async Task CollectMediaItemAsync(MediaItem mediaItem)
         {
             if (mediaItem == null)
@@ -49,7 +52,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
             MediaItemCollection showCollection = null;
             MediaItemCollection seasonCollection = null;
             var collection = await mediaLibrary.GetMediaItemCollectionAsync(mediaItem.ParentCollectionId);
-            while (showInformation == null && collection != null)
+            while ((showInformation == null) && (collection != null))
             {
                 showInformation = collection.MetaInfo as TVShowInformation;
                 if (showInformation != null)
@@ -70,10 +73,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
                 Name = $"{episodeInformation.Season}",
                 PicturePath = seasonCollection?.PicturePath
             };
-            var episode = new TVShowEpisode()
-            {
-                Name = mediaItem.Name,
-            };
+            var episode = new TVShowEpisode() { Name = mediaItem.Name, };
             episode.Name = episodeInformation.Title;
             episode.EpisodeNo = episodeInformation.Episode;
             episode.MediaItems = new long[] { mediaItem.Id };
@@ -86,7 +86,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
                 return;
 
             var existingShows = await mediaLibrary.FindTVShowByNameAsync(show.Name);
-            var existingShow = (show.Id != 0) ? await mediaLibrary.FindTVShowAsync(show.Id) : existingShows.FirstOrDefault();
+            var existingShow = (show.Id != 0) ? (await mediaLibrary.FindTVShowAsync(show.Id)) : existingShows.FirstOrDefault();
             if (existingShow == null)
             {
                 await mediaLibrary.AddTVShowAsync(show);
@@ -136,7 +136,8 @@ namespace MyVideoPlayer.Helper.LibraryScan
                 collection = new MovieCollection()
                 {
                     Name = movieCollection.Name,
-                    PicturePath = movieCollection.PicturePath
+                    PicturePath = movieCollection.PicturePath,
+                    MediaItemCollectionId = movieCollection.Id
                 };
                 var existingCollection = (await mediaLibrary.FindMovieCollectionByNameAsync(movieCollection.Name)).FirstOrDefault();
                 if (existingCollection == null)
@@ -144,16 +145,14 @@ namespace MyVideoPlayer.Helper.LibraryScan
                 else
                 {
                     existingCollection.PicturePath = collection.PicturePath;
+                    existingCollection.MediaItemCollectionId = collection.MediaItemCollectionId;
                     await mediaLibrary.AddMovieCollectionAsync(existingCollection);
 
                     collection = existingCollection;
                 }
             }
 
-            var movie = new Movie()
-            {
-                Name = mediaItem.Name
-            };
+            var movie = new Movie() { Name = mediaItem.Name };
             movie.CollectionId = collection?.Id ?? 0;
             movie.Name = movieInformation.Title;
             movie.Genre = movieInformation.Genre;
@@ -179,5 +178,6 @@ namespace MyVideoPlayer.Helper.LibraryScan
             movie.PicturePath = mediaItem.PicturePath;
             await mediaLibrary.AddMovieAsync(existingMovie);
         }
+
     }
 }

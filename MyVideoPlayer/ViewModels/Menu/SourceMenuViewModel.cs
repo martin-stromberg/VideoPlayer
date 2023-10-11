@@ -7,7 +7,7 @@ namespace MyVideoPlayer.ViewModels.Menu
     {
 
         public const string CommandName_ConfigSource = "configSource";
-        public const string CommandName_Rescan = "rescan";
+        public const string CommandName_Rescan = "rescanSource";
         public const string CommandName_Remove = "remove";
 
         public SourceMenuViewModel()

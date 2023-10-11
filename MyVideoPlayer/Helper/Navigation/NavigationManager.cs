@@ -59,6 +59,11 @@ namespace MyVideoPlayer.Helper.Navigation
                 ((MediaSource)e.Element).LastScan = DateTime.MinValue;
                 await mediaLibrary.AddSourceAsync((MediaSource)e.Element);
             }
+            else if (e.Element is MediaItemCollection)
+            {
+                ((MediaItemCollection)e.Element).MetaDataTime = DateTime.MinValue;
+                await mediaLibrary.AddMediaItemCollectionAsync((MediaItemCollection)e.Element);
+            }
         }
 
         private async void ViewModel_ItemDeleteRequested(object sender, BaseModelEventArgs e)

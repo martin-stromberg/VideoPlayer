@@ -1,6 +1,7 @@
 ﻿using MyVideoPlayer.ViewModels.Menu;
 using MyVideoPlayer.ViewModels.Navigation.Sources;
 using System;
+using System.ComponentModel;
 using System.Linq;
 using VideoPlayerLib.Services.MediaLibrary;
 using VideoPlayerLib.Services.MediaLibrary.Models;
@@ -26,15 +27,25 @@ namespace MyVideoPlayer.ViewModels.Navigation.MediaCollection
             get
             {
                 if (menuViewModel == null)
-                {
-                    menuViewModel = new SourceMenuViewModel();
-                    menuViewModel.CommandExecuted += MenuViewModel_CommandExecuted;
-                }
+                    if (Collection == null)
+                        SetMenuViewModel(new SourceMenuViewModel());
+                    else
+                        SetMenuViewModel(new MediaCollectionMenuViewModel());
                 return menuViewModel;
             }
         }
 
-        private void MenuViewModel_CommandExecuted(object sender, MenuActionEventArgs e)
+        protected void SetMenuViewModel(MenuViewModel vm)
+        {
+            if (menuViewModel != null)
+                menuViewModel.CommandExecuted -= MenuViewModel_CommandExecuted;
+            menuViewModel = vm;
+            if (menuViewModel != null)
+                menuViewModel.CommandExecuted += MenuViewModel_CommandExecuted;
+            OnPropertyChanged(new PropertyChangedEventArgs(nameof(MenuViewModel)));
+        }
+
+        protected virtual void MenuViewModel_CommandExecuted(object sender, MenuActionEventArgs e)
         {
             switch (e.Action.CommandParameter)
             {
@@ -46,6 +57,9 @@ namespace MyVideoPlayer.ViewModels.Navigation.MediaCollection
                     break;
                 case SourceMenuViewModel.CommandName_Rescan:
                     OnResetScan(new BaseModelEventArgs(Source));
+                    break;
+                case MediaCollectionMenuViewModel.CommandName_Rescan:
+                    OnResetScan(new BaseModelEventArgs(Collection));
                     break;
             }
         }

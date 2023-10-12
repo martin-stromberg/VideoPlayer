@@ -3,9 +3,16 @@ using System.Linq;
 
 namespace VideoPlayerLib.Services.Common
 {
+
     public abstract class RemoteSourceScanner
     {
 
+        public event EventHandler<FolderScanEventArgs> BeforeScanFolder;
+
+        protected void OnBeforeScanFolder(FolderScanEventArgs e)
+        {
+            BeforeScanFolder?.Invoke(this, e);
+        }
         public event EventHandler<FolderEventArgs> FolderFound;
 
         protected void OnFolderFound(FolderEventArgs e)

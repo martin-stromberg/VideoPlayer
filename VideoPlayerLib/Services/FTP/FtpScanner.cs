@@ -28,23 +28,25 @@ namespace VideoPlayerLib.Services.FTP
                 share.Connect();
             try
             {
-                var files = FindFiles(path).Select(mediaItem => OnMediaItemFound(mediaItem)).ToArray();
-                var folders = share.ListDirectories(path)
-                                   .Where(f => !FolderNameBlacklist.Contains(f.Name))
-                                   .ToArray()
-                                   .Select(f =>
-                                           new FtpShareFolder()
-                                   {
-                                       Name = f.Name,
-                                       Path = Path.Combine(path, f.Name).Replace("\\", "/")
-                                   })
-                                   .Select(folder => OnFolderFound(folder))
-                                   .Select(folder =>
-                                   {
-                                       ScanInternal(folder.Path, true);
-                                       return folder;
-                                   })
-                                   .ToArray();
+                var args = new FolderScanEventArgs(path);
+                OnBeforeScanFolder(args);
+                var files = args.ScanFiles ? FindFiles(path).Select(mediaItem => OnMediaItemFound(mediaItem)).ToArray() : null;
+                var folders = args.ScanFolders ? share.ListDirectories(path)
+                                                      .Where(f => !FolderNameBlacklist.Contains(f.Name))
+                                                      .ToArray()
+                                                      .Select(f =>
+                                                              new FtpShareFolder()
+                                                      {
+                                                          Name = f.Name,
+                                                          Path = Path.Combine(path, f.Name).Replace("\\", "/")
+                                                      })
+                                                      .Select(folder => OnFolderFound(folder))
+                                                      .Select(folder =>
+                                                      {
+                                                          ScanInternal(folder.Path, true);
+                                                          return folder;
+                                                      })
+                                                      .ToArray() : null;
             }
             catch (Exception ex)
             {

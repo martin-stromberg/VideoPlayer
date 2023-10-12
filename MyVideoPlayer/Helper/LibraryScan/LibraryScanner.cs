@@ -218,13 +218,38 @@ namespace MyVideoPlayer.Helper.LibraryScan
 
         private void ScanRemoteSource(RemoteSourceScanner scanner, RemoteMediaSource source)
         {
+            var currSkipPath = source.LatestScanPath?.Remove(0, source.Path.Length);
+            var skipPathParts = source.LatestScanPath?.Remove(0, source.Path.Length).Split(source.PathDelimiter);
+            var latestScanPathReached = skipPathParts == null;
+            scanner.BeforeScanFolder += (sender, e) =>
+            {
+                var isParentLevelFolder = false;
+                if (!latestScanPathReached)
+                    if (skipPathParts == null)
+                        latestScanPathReached = true;
+                    else
+                    {
+                        var currRelPath = e.Value.Remove(0, source.Path.Length);
+                        isParentLevelFolder = currSkipPath.StartsWith(currRelPath);
+                        latestScanPathReached = currSkipPath == currRelPath;
+                    }
+
+                e.ScanFolders = latestScanPathReached || isParentLevelFolder;
+                e.ScanFiles = latestScanPathReached;
+            };
             scanner.FileFound += (sender, e) => { ProcessFile(source, scanner, e.File).Wait(); };
             scanner.FolderFound += (sender, e) =>
             {
                 OnStatusChanged($"{e.Folder.Path}");
                 ProcessFolderAsync(source, scanner, e.Folder).Wait();
+
+                if (latestScanPathReached)
+                    source.LatestScanPath = e.Folder.Path;
+                mediaLibrary.AddSourceAsync(source).Wait();
             };
             scanner.Scan(source.Path);
+            source.LatestScanPath = string.Empty;
+            mediaLibrary.AddSourceAsync(source).Wait();
         }
 
         private async Task ProcessFile(RemoteMediaSource source, RemoteSourceScanner scanner, RemoteFile file)

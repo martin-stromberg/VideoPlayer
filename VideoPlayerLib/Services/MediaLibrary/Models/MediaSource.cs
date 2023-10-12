@@ -97,6 +97,7 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
         public override void Update(MediaSource newSource)
         {
             base.Update(newSource);
+            LatestScanPath = ((RemoteMediaSource)newSource).LatestScanPath;
             Path = ((RemoteMediaSource)newSource).Path;
             PathDelimiter = ((RemoteMediaSource)newSource).PathDelimiter;
         }
@@ -105,6 +106,18 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
         {
             Configuration = string.Empty;
             Configuration = JsonConvert.SerializeObject(this);
+        }
+
+        public string LatestScanPath
+        {
+            get
+            {
+                return GetProperty<string>();
+            }
+            set
+            {
+                SetProperty<string>(value);
+            }
         }
 
         public virtual string Path
@@ -141,6 +154,7 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
                 {
                     var obj = JsonConvert.DeserializeObject<RemoteMediaSource>(Configuration);
                     Path = obj.Path;
+                    LatestScanPath = obj.LatestScanPath;
                 }
                 catch
                 {

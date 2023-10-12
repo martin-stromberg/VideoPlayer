@@ -5,8 +5,9 @@ using VideoPlayerLib.Services.Common;
 
 namespace VideoPlayerLib.Services.FTP
 {
-    public class FtpScanner : RemoteSourceScanner
+    public class FtpScanner: RemoteSourceScanner
     {
+
         private FtpShare share;
         private static string[] FolderNameBlacklist = { ".", ".." };
 
@@ -27,24 +28,25 @@ namespace VideoPlayerLib.Services.FTP
                 share.Connect();
             try
             {
-                var files = FindFiles(path)
-                    .Select(mediaItem => OnMediaItemFound(mediaItem))
-                    .ToArray();
-                var folders = share.ListDirectories(path)
-                    .Where(f => !FolderNameBlacklist.Contains(f.Name))
-                    .ToArray()
-                    .Select(f => new FtpShareFolder()
-                    {
-                        Name = f.Name,
-                        Path = Path.Combine(path, f.Name).Replace("\\", "/")
-                    })
-                    .Select(folder => OnFolderFound(folder))
-                    .Select(folder =>
-                    {
-                        ScanInternal(folder.Path, true);
-                        return folder;
-                    })
-                    .ToArray();
+                var args = new FolderScanEventArgs(path);
+                OnBeforeScanFolder(args);
+                var files = args.ScanFiles ? FindFiles(path).Select(mediaItem => OnMediaItemFound(mediaItem)).ToArray() : null;
+                var folders = args.ScanFolders ? share.ListDirectories(path)
+                                                      .Where(f => !FolderNameBlacklist.Contains(f.Name))
+                                                      .ToArray()
+                                                      .Select(f =>
+                                                              new FtpShareFolder()
+                                                      {
+                                                          Name = f.Name,
+                                                          Path = Path.Combine(path, f.Name).Replace("\\", "/")
+                                                      })
+                                                      .Select(folder => OnFolderFound(folder))
+                                                      .Select(folder =>
+                                                      {
+                                                          ScanInternal(folder.Path, true);
+                                                          return folder;
+                                                      })
+                                                      .ToArray() : null;
             }
             finally
             {
@@ -61,24 +63,25 @@ namespace VideoPlayerLib.Services.FTP
             try
             {
                 return share.ListFiles(path.Replace('\\', '/'))
-                        .Where(f =>
-                        {
-                            Regex mask = new Regex(
+                            .Where(f =>
+                            {
+                                Regex mask = new Regex(
                                 '^' +
                                 fileMask
                                 .Replace(".", "[.]")
                                 .Replace("*", ".*")
-                                                        .Replace("?", ".")
+                                .Replace("?", ".")
                                                         + '$',
                                 RegexOptions.IgnoreCase);
-                            return mask.IsMatch(f.Name);
-                        })
-                        .ToArray()
-                        .Select(f => new FtpShareFile()
-                        {
-                            Name = f.Name,
-                            Path = Path.Combine(path, f.Name).Replace("\\", "/")
-                        });
+                                return mask.IsMatch(f.Name);
+                            })
+                            .ToArray()
+                            .Select(f =>
+                                    new FtpShareFile()
+                            {
+                                Name = f.Name,
+                                Path = Path.Combine(path, f.Name).Replace("\\", "/")
+                            });
             }
             finally
             {
@@ -158,5 +161,6 @@ namespace VideoPlayerLib.Services.FTP
                     File.Delete(tempFile);
             }
         }
+
     }
 }

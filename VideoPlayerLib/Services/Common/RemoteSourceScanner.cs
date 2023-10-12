@@ -13,7 +13,6 @@ namespace VideoPlayerLib.Services.Common
         {
             BeforeScanFolder?.Invoke(this, e);
         }
-
         public event EventHandler<FolderEventArgs> FolderFound;
 
         protected void OnFolderFound(FolderEventArgs e)
@@ -38,6 +37,18 @@ namespace VideoPlayerLib.Services.Common
         {
             OnMediaItemFound(new FileEventArgs(file));
             return file;
+        }
+
+        public event EventHandler<ExceptionEventArgs> Error;
+
+        protected virtual void OnError(ExceptionEventArgs e)
+        {
+            Error?.Invoke(this, e);
+        }
+
+        protected virtual void OnError(Exception error)
+        {
+            Error?.Invoke(this, new ExceptionEventArgs(error));
         }
 
         public abstract void Scan(string path);

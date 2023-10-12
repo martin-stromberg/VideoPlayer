@@ -48,6 +48,10 @@ namespace VideoPlayerLib.Services.FTP
                                                       })
                                                       .ToArray() : null;
             }
+            catch (Exception ex)
+            {
+                OnError(ex);
+            }
             finally
             {
                 if (!isSubFolder)

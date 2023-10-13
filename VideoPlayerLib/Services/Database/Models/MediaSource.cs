@@ -13,6 +13,8 @@ namespace VideoPlayerLib.Services.Database.Models
 
         public DateTime LastScan { get; set; }
 
+        public DateTime LastScanStart { get; set; }
+
         public override void Update(BaseDataModel source)
         {
             base.Update(source);

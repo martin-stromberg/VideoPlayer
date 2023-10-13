@@ -46,6 +46,18 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
             }
         }
 
+        public DateTime LastScanStart
+        {
+            get
+            {
+                return GetProperty<DateTime>();
+            }
+            set
+            {
+                SetProperty<DateTime>(value);
+            }
+        }
+
         public virtual string GetItemPath(MediaItem item)
         {
             return item.Path;

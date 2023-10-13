@@ -20,6 +20,7 @@ namespace VideoPlayerLib.Services.FTP
         public override void Scan(string path)
         {
             ScanInternal(path, false);
+            OnScanCompleted();
         }
 
         private void ScanInternal(string path, bool isSubFolder)

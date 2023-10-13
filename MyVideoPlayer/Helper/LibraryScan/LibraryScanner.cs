@@ -113,6 +113,8 @@ namespace MyVideoPlayer.Helper.LibraryScan
             try
             {
                 logger.LogInformation($"Start scanning source {source.Name}");
+                source.LastScanStart = DateTime.Now;
+
                 if (source is SmbMediaSource)
                     ScanSambaSource(source as SmbMediaSource);
                 if (source is FtpMediaSource)
@@ -216,6 +218,35 @@ namespace MyVideoPlayer.Helper.LibraryScan
         }
         #endregion
 
+        private async Task FindRemovedFiles(RemoteMediaSource source, RemoteSourceScanner scanner)
+        {
+            var collections = await mediaLibrary.GetMediaItemCollectionsAsync(source.Id);
+            foreach (var collection in collections)
+            {
+                OnStatusChanged($"{collection.Path}");
+                var mediaItems = await mediaLibrary.GetMediaItemsAsync(collection.Id);
+                foreach (var mediaItem in mediaItems.Where(mi => mi.LastConfirmation < source.LastScanStart))
+                    await CheckRemovedMediaItemAsync(source, scanner, mediaItem);
+            }
+        }
+
+        private async Task CheckRemovedMediaItemAsync(
+            RemoteMediaSource source,
+            RemoteSourceScanner scanner,
+            MediaItem mediaItem)
+        {
+            var folderPath = Path.GetDirectoryName(mediaItem.Path).Replace('\\', source.PathDelimiter);
+            var fileName = Path.GetFileName(mediaItem.Path);
+            var fileExist = scanner.FindFiles(folderPath, fileName).Any();
+            if (!fileExist)
+                await mediaLibrary.RemoveMediaItemAsync(mediaItem);
+            else
+            {
+                mediaItem.LastConfirmation = DateTime.Now;
+                await mediaLibrary.AddMediaItemAsync(mediaItem);
+            }
+        }
+
         private void ScanRemoteSource(RemoteSourceScanner scanner, RemoteMediaSource source)
         {
             var currSkipPath = source.LatestScanPath?.Remove(0, source.Path.Length);
@@ -247,9 +278,14 @@ namespace MyVideoPlayer.Helper.LibraryScan
                     source.LatestScanPath = e.Folder.Path;
                 mediaLibrary.AddSourceAsync(source).Wait();
             };
+            scanner.ScanCompleted += (sender, e) =>
+            {
+                source.LatestScanPath = null;
+                mediaLibrary.AddSourceAsync(source).Wait();
+
+                FindRemovedFiles(source, scanner).Wait();
+            };
             scanner.Scan(source.Path);
-            source.LatestScanPath = string.Empty;
-            mediaLibrary.AddSourceAsync(source).Wait();
         }
 
         private async Task ProcessFile(RemoteMediaSource source, RemoteSourceScanner scanner, RemoteFile file)
@@ -275,13 +311,23 @@ namespace MyVideoPlayer.Helper.LibraryScan
                                 Name = Path.GetFileName(folderPath)
                             });
 
-                    item = new MediaItem() { Name = file.Name, Path = file.Path, ParentCollectionId = folder.Id };
+                    item = new MediaItem()
+                    {
+                        Name = file.Name,
+                        Path = file.Path,
+                        ParentCollectionId = folder.Id,
+                        LastConfirmation = DateTime.Now
+                    };
                     await mediaLibrary.AddMediaItemAsync(item);
                 }
                 try
                 {
+                    item.LastConfirmation = DateTime.Now;
                     if (item.MetaDataTime.AddHours(24) > DateTime.Now)
+                    {
+                        await mediaLibrary.AddMediaItemAsync(item);
                         return;
+                    }
                     if (FileExtVideo.Contains(ext))
                         await ProcessMetaDataForVideoAsync(scanner, item);
                     if (FileExtAudio.Contains(ext))
@@ -580,4 +626,5 @@ namespace MyVideoPlayer.Helper.LibraryScan
         }
 
     }
+
 }

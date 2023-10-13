@@ -81,8 +81,9 @@ namespace MyVideoPlayer.Helper.Navigation
                         foreach (var mediaItemId in episode.MediaItems)
                         {
                             var mediaItem = await mediaLibrary.GetMediaItemAsync(mediaItemId);
-                            if (!collectionIds.Contains(mediaItem.ParentCollectionId))
-                                collectionIds.Add(mediaItem.ParentCollectionId);
+                            if (mediaItem != null)
+                                if (!collectionIds.Contains(mediaItem.ParentCollectionId))
+                                    collectionIds.Add(mediaItem.ParentCollectionId);
                         }
                 foreach (var collectionId in collectionIds)
                 {

@@ -6,33 +6,73 @@ using VideoPlayerLib.Services.MediaLibrary.Models.Meta;
 
 namespace VideoPlayerLib.Services.MediaLibrary.Models
 {
-    public enum MediaItemCopyType { None, Cache }
-    [DataModelReference(typeof(Database.Models.MediaItem))]
-    public class MediaItem : BaseModel
+    public enum MediaItemCopyType
     {
+
+        None,
+        Cache
+
+    }
+
+    [DataModelReference(typeof(Database.Models.MediaItem))]
+    public class MediaItem: BaseModel
+    {
+
         public string Path
         {
-            get { return GetProperty<string>(); }
-            set { SetProperty<string>(value); }
+            get
+            {
+                return GetProperty<string>();
+            }
+            set
+            {
+                SetProperty<string>(value);
+            }
         }
+
         public long ParentCollectionId
         {
-            get { return GetProperty<long>(); }
-            set { SetProperty<long>(value); }
+            get
+            {
+                return GetProperty<long>();
+            }
+            set
+            {
+                SetProperty<long>(value);
+            }
         }
+
         public MediaInformation MetaInfo
         {
-            get { return GetProperty<MediaInformation>(); }
-            set { SetProperty<MediaInformation>(value); MetaInfoChanged = true; }
+            get
+            {
+                return GetProperty<MediaInformation>();
+            }
+            set
+            {
+                SetProperty<MediaInformation>(value);
+                MetaInfoChanged = true;
+            }
         }
+
         public bool MetaInfoChanged
         {
-            get { return GetProperty<bool>(); }
-            set { SetProperty<bool>(value); }
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+            }
         }
+
         public string PicturePath
         {
-            get { return GetProperty<string>(); }
+            get
+            {
+                return GetProperty<string>();
+            }
             set
             {
                 SetProperty<string>(value);
@@ -42,30 +82,71 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
                     Picture = ImageSource.FromFile(value);
             }
         }
+
         public ImageSource Picture
         {
-            get { return GetProperty<ImageSource>(); }
-            set { SetProperty<ImageSource>(value); }
+            get
+            {
+                return GetProperty<ImageSource>();
+            }
+            set
+            {
+                SetProperty<ImageSource>(value);
+            }
         }
+
         public DateTime MetaDataTime
         {
-            get { return GetProperty<DateTime>(); }
-            set { SetProperty<DateTime>(value); }
+            get
+            {
+                return GetProperty<DateTime>();
+            }
+            set
+            {
+                SetProperty<DateTime>(value);
+            }
         }
+
         public long OriginalMediaItemId
         {
-            get { return GetProperty<long>(); }
-            set { SetProperty<long>(value); }
+            get
+            {
+                return GetProperty<long>();
+            }
+            set
+            {
+                SetProperty<long>(value);
+            }
         }
+
         public MediaItemCopyType CopyType
         {
-            get { return GetProperty<MediaItemCopyType>(); }
-            set { SetProperty<MediaItemCopyType>(value); }
+            get
+            {
+                return GetProperty<MediaItemCopyType>();
+            }
+            set
+            {
+                SetProperty<MediaItemCopyType>(value);
+            }
+        }
+
+        public DateTime LastConfirmation
+        {
+            get
+            {
+                return GetProperty<DateTime>();
+            }
+            set
+            {
+                SetProperty<DateTime>(value);
+            }
         }
 
         public override string ToString()
         {
             return JsonConvert.SerializeObject(this);
         }
+
     }
 }

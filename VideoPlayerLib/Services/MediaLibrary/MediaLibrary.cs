@@ -189,8 +189,9 @@ namespace VideoPlayerLib.Services.MediaLibrary
             foreach (var source in await (await dataStore.GetSourcesAsync()).ToArrayAsync())
             {
                 await ClearSourceMediaAsync(source);
-                source.LastScan = DateTime.MinValue;
-                await dataStore.AddOrUpdateSourceAsync(source);
+                var mediaSource = await GetSourceAsync(source.Id);
+                mediaSource.ResetScan();
+                await AddSourceAsync(mediaSource);
             }
         }
 

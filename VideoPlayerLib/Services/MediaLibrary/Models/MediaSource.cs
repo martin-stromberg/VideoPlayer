@@ -88,6 +88,12 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
             Name = newSource.Name;
         }
 
+        public virtual void ResetScan()
+        {
+            LastScan = DateTime.MinValue;
+            LastScanStart = DateTime.MinValue;
+        }
+
     }
 
     public class RemoteMediaSource: MediaSource
@@ -109,6 +115,12 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
         protected void EndUpdate()
         {
             updateLevel -= 1;
+        }
+
+        public override void ResetScan()
+        {
+            base.ResetScan();
+            LatestScanPath = string.Empty;
         }
 
         protected override void OnPropertyChanged(PropertyChangedEventArgs e)

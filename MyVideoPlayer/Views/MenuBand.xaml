@@ -11,7 +11,7 @@
         ItemsLayout="HorizontalList">
         <CollectionView.ItemTemplate>
             <DataTemplate x:DataType="vm:MenuAction">
-                <Frame Margin="5" Padding="5" BackgroundColor="Green">
+                <Frame Margin="5" Padding="5">
                     <Button Opacity="0.9" 
                         Command="{Binding Command}" 
                         Text="{Binding Title}" 

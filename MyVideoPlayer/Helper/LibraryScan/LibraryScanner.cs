@@ -280,8 +280,13 @@ namespace MyVideoPlayer.Helper.LibraryScan
         {
             if (stopScan)
                 return;
-            var currSkipPath = source.LatestScanPath?.Remove(0, source.Path.Length);
-            var skipPathParts = source.LatestScanPath?.Remove(0, source.Path.Length).Split(source.PathDelimiter);
+            var currSkipPath = string.Empty;
+            string[] skipPathParts = null;
+            if (!string.IsNullOrWhiteSpace(source.LatestScanPath))
+            {
+                currSkipPath = source.LatestScanPath?.Remove(0, source.Path.Length);
+                skipPathParts = source.LatestScanPath?.Remove(0, source.Path.Length).Split(source.PathDelimiter);
+            }
             var latestScanPathReached = skipPathParts == null;
             scanner.BeforeScanFolder += (sender, e) =>
             {

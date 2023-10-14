@@ -231,7 +231,8 @@ namespace VideoPlayerLib.Services.MediaLibrary
             if (File.Exists(mediaItem.PicturePath))
                 File.Delete(mediaItem.PicturePath);
             if (((MediaItemCopyType)mediaItem.CopyType) == MediaItemCopyType.Cache)
-                File.Delete(mediaItem.Path);
+                if (File.Exists(mediaItem.Path))
+                    File.Delete(mediaItem.Path);
         }
         #endregion
 

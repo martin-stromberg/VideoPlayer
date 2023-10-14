@@ -68,23 +68,39 @@ namespace VideoPlayerLib.Services.Log
             worker.RunWorkerAsync((int)e.Result);
         }
 
-        private void Worker_SaveLogs(object sender, DoWorkEventArgs e)
+        private bool _working = false;
+
+        private async void Worker_SaveLogs(object sender, DoWorkEventArgs e)
         {
             int loop = (int)e.Argument;
             if (loop == int.MaxValue)
                 loop = 0;
-            while (logs.TryDequeue(out LogEntry entry))
-                try
-                {
-                    logDatabase.AddLog(entry).Wait();
-                    if ((loop % 10) == 0)
-                        ClearLogsAsync().Wait();
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine(ex.ToString());
-                }
             e.Result = loop + 1;
+
+            if (_working)
+                return;
+            _working = true;
+            try
+            {
+                while (logs.TryDequeue(out LogEntry entry))
+                    try
+                    {
+                        await logDatabase.AddLog(entry);
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine(ex.ToString());
+                    }
+                await ClearLogsAsync();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex.ToString());
+            }
+            finally
+            {
+                _working = false;
+            }
         }
 
         private async Task ClearLogsAsync()

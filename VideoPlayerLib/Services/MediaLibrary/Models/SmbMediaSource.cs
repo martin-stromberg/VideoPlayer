@@ -5,37 +5,64 @@ using VideoPlayerLib.Services.Database.Models;
 
 namespace VideoPlayerLib.Services.MediaLibrary.Models
 {
-    [DataModelReference(typeof(Database.Models.MediaSource), FilterPropertyName = nameof(Type), FilterPropertyValue = nameof(SmbMediaSource))]
-    public class SmbMediaSource : RemoteMediaSource
+    [DataModelReference(
+        typeof(Database.Models.MediaSource),
+        FilterPropertyName = nameof(Type),
+        FilterPropertyValue = nameof(SmbMediaSource))]
+    public class SmbMediaSource: RemoteMediaSource
     {
+
         public SmbMediaSource()
             : base()
         {
             Type = nameof(SmbMediaSource);
         }
+
         private void UpdateConfiguration()
         {
             Configuration = JsonConvert.SerializeObject(this);
         }
+
+        [Password]
         public string Password
         {
-            get { return GetProperty<string>(); }
-            set { SetProperty<string>(value); UpdateConfiguration(); }
+            get
+            {
+                return GetProperty<string>();
+            }
+            set
+            {
+                SetProperty<string>(value);
+                UpdateConfiguration();
+            }
         }
+
         public string Username
         {
-            get { return GetProperty<string>(); }
-            set { SetProperty<string>(value); UpdateConfiguration(); }
+            get
+            {
+                return GetProperty<string>();
+            }
+            set
+            {
+                SetProperty<string>(value);
+                UpdateConfiguration();
+            }
         }
+
         public override string Path
         {
-            get => base.Path;
+            get
+            {
+                return base.Path;
+            }
             set
             {
                 base.Path = value;
                 UpdateConfiguration();
             }
         }
+
         public string ServerName
         {
             get
@@ -84,5 +111,6 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
                     return $"\\\\{ServerName}{item.Path}";
             }
         }
+
     }
 }

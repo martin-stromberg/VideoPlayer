@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 using MyVideoPlayer.Helper.Download;
+using MyVideoPlayer.Helper.Export;
 using MyVideoPlayer.Helper.LibraryScan;
 using MyVideoPlayer.Helper.Navigation;
 using MyVideoPlayer.ViewModels;
@@ -31,12 +32,20 @@ namespace MyVideoPlayer.Helper
             });
 
             // services.AddTransient<ILogger>( sp => sp.GetService<ILoggerFactory>().CreateLogger());
+            #if WINDOWS10_0_17763_0_OR_GREATER
+            #elif ANDROID
+            #elif IOS || MACCATALYST
+            services.AddSingleton<IShare, MyVideoPlayer.Platforms.iOS.OwnShareImplementation>();
+            #else
+            #endif
+
             services.AddTransient<MediaLibraryDatabaseSettings>();
             services.AddTransient<LibraryScannerSettings>();
             services.AddTransient<LibraryDownloaderSettings>();
             services.AddTransient<SambaShare>();
             services.AddTransient<SambaShareScanner>();
             services.AddTransient<UserSecrets>();
+            services.AddTransient<IDatabaseExporter, DatabaseExporter>();
 
             services.AddSingleton<IRessourceLocation>(sp => new RessourceLocation() { Path = appPath });
             services.AddSingleton<INavigationManager, NavigationManager>();

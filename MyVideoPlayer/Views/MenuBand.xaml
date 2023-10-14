@@ -4,30 +4,26 @@
              xmlns:vm="clr-namespace:MyVideoPlayer.ViewModels.Menu"
              xmlns:v="clr-namespace:MyVideoPlayer.Views"
              x:Class="MyVideoPlayer.Views.MenuBand">
-    <HorizontalStackLayout Margin="0">
-        <ScrollView x:DataType="vm:MenuViewModel">
-            <FlexLayout
-    AlignContent="End"
-    AlignItems="Center"
-    AlignSelf="End"
-    BindableLayout.ItemsSource="{Binding Actions}"
-    Direction="RowReverse"
-    JustifyContent="End">
-                <BindableLayout.ItemTemplate>
-                    <DataTemplate x:DataType="vm:MenuAction">
-                        <Button Opacity="0.9" 
-                                Command="{Binding Command}" 
-                                Text="{Binding Title}" 
-                                BackgroundColor="Silver" 
-                                TextColor="Black" 
-                                BorderWidth="0" 
-                                Margin="2" Padding="2" 
-                                HeightRequest="40" 
-                                WidthRequest="200"
-                                FontSize="Small" />
-                    </DataTemplate>
-                </BindableLayout.ItemTemplate>
-            </FlexLayout>
-        </ScrollView>
-    </HorizontalStackLayout>
+    <CollectionView 
+        Margin="0"
+        ItemsSource="{Binding Actions}"
+        x:DataType="vm:MenuViewModel"
+        ItemsLayout="HorizontalList">
+        <CollectionView.ItemTemplate>
+            <DataTemplate x:DataType="vm:MenuAction">
+                <Frame Margin="5" Padding="5" BackgroundColor="Green">
+                    <Button Opacity="0.9" 
+                        Command="{Binding Command}" 
+                        Text="{Binding Title}" 
+                        BackgroundColor="Silver" 
+                        TextColor="Black" 
+                        BorderWidth="0" 
+                        Margin="5" Padding="2" 
+                        HeightRequest="40" 
+                        WidthRequest="200"
+                        FontSize="Small" />
+                </Frame>
+            </DataTemplate>
+        </CollectionView.ItemTemplate>
+    </CollectionView>
 </ContentView>

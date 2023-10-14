@@ -21,7 +21,9 @@
             <RowDefinition Height="*"/>
             <RowDefinition Height="20"/>
         </Grid.RowDefinitions>
-        <v:MenuBand Grid.Row="0" BindingContext="{Binding MenuContent}" IsVisible="{Binding MenuVisible}"/>
+        <Grid Grid.Row="0" IsVisible="{Binding MenuVisible}">
+            <v:MenuBand Grid.Row="0" BindingContext="{Binding MenuContent}" IsVisible="{Binding MenuVisible}"/>
+        </Grid>        
         <Grid Grid.Row="1" IsVisible="{Binding IsInitializing}" HorizontalOptions="Center" VerticalOptions="Center">
             <Label Text="Lade..."/>
         </Grid>

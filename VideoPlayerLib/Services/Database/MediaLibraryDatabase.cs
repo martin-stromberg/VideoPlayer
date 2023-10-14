@@ -129,6 +129,9 @@ namespace VideoPlayerLib.Services.Database
         public async Task RemoveMovie(long movieId)
         {
             var movie = await GetMovie(movieId);
+            var movieMediaItems = await GetMovieMediaItems(movieId);
+            foreach (var mmi in movieMediaItems)
+                await Connection.DeleteAsync(movieMediaItems);
             await Connection.DeleteAsync(movie);
         }
 

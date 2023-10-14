@@ -1,4 +1,5 @@
-﻿using MyVideoPlayer.Helper.LibraryScan;
+﻿using MyVideoPlayer.Helper.Export;
+using MyVideoPlayer.Helper.LibraryScan;
 using MyVideoPlayer.Helper.Navigation;
 using System;
 using System.Linq;
@@ -12,19 +13,23 @@ namespace MyVideoPlayer.ViewModels
         private readonly IMediaLibrary _MediaLibrary;
         private readonly INavigationManager _NavigationManager;
         private readonly ILibraryScanner _LibraryScanner;
+        private readonly IServiceProvider _ServiceProvider;
 
         public ControlPanelViewModel(
             IMediaLibrary mediaLibrary,
             INavigationManager navigationManager,
-            ILibraryScanner libraryScanner)
+            ILibraryScanner libraryScanner,
+            IServiceProvider serviceProvider)
             : base()
         {
+            _ServiceProvider = serviceProvider;
             _LibraryScanner = libraryScanner;
             _NavigationManager = navigationManager;
             _MediaLibrary = mediaLibrary;
             CleanScan = new Command(async () => await DoCleanScanAsync());
             ShowLog = new Command(() => DoShowLog());
             NavigateToSources = new Command(() => DoNavigateToSources());
+            ExportData = new Command(() => DoExportData());
         }
 
         public Command ShowLog { get; }
@@ -55,10 +60,38 @@ namespace MyVideoPlayer.ViewModels
 
         public Command NavigateToSources { get; }
 
+        public Command ExportData { get; }
+
         private void DoNavigateToSources()
         {
             _NavigationManager.NavigateToSourceOverview();
             OnCloseRequested();
+        }
+
+        private bool exporting = false;
+
+        private async void DoExportData()
+        {
+            if (exporting)
+                return;
+            exporting = true;
+            try
+            {
+                IDatabaseExporter exporter = _ServiceProvider.GetService<IDatabaseExporter>();
+                string filePath = await exporter.CreateExportFile();
+                await Share.Default
+                           .RequestAsync(new ShareFileRequest
+                           {
+                               Title = "Save Export File",
+                               File = new ShareFile(filePath)
+                           });
+                File.Delete(filePath);
+                OnCloseRequested();
+            }
+            finally
+            {
+                exporting = false;
+            }
         }
 
     }

@@ -22,6 +22,7 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
             }
         }
 
+        [Password]
         public string Configuration
         {
             get

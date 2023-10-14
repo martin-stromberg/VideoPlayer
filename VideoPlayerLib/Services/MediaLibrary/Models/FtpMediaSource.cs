@@ -5,6 +5,7 @@ using VideoPlayerLib.Services.Database.Models;
 
 namespace VideoPlayerLib.Services.MediaLibrary.Models
 {
+
     [DataModelReference(
         typeof(Database.Models.MediaSource),
         FilterPropertyName = nameof(Type),
@@ -19,6 +20,7 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
             PathDelimiter = '/';
         }
 
+        [Password]
         public string Password
         {
             get

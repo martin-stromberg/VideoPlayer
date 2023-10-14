@@ -508,9 +508,9 @@ namespace MyVideoPlayer.Helper.LibraryScan
         {
             MovieInformation Info = new MovieInformation()
             {
-                Title = documentElement.FindChild("title", true).InnerText,
-                Genre = documentElement.FindChild("genre", true).InnerText,
-                Plot = documentElement.FindChild("plot", true).InnerText,
+                Title = documentElement.FindChild("title", true).InnerText.Trim(),
+                Genre = documentElement.FindChild("genre", true).InnerText.Trim(),
+                Plot = documentElement.FindChild("plot", true).InnerText.Trim(),
             };
             item.MetaInfo = Info;
         }
@@ -519,10 +519,10 @@ namespace MyVideoPlayer.Helper.LibraryScan
         {
             EpisodeInformation Info = new EpisodeInformation()
             {
-                Title = documentElement.FindChild("title", true).InnerText,
-                ShowName = documentElement.FindChild("showname", true).InnerText,
-                Episode = documentElement.FindChild("episode", true).InnerText,
-                Season = documentElement.FindChild("season", true).InnerText,
+                Title = documentElement.FindChild("title", true).InnerText.Trim(),
+                ShowName = documentElement.FindChild("showname", true).InnerText.Trim(),
+                Episode = documentElement.FindChild("episode", true).InnerText.Trim(),
+                Season = documentElement.FindChild("season", true).InnerText.Trim(),
             };
             item.MetaInfo = Info;
         }
@@ -665,8 +665,8 @@ namespace MyVideoPlayer.Helper.LibraryScan
         {
             TVShowInformation info = new TVShowInformation()
             {
-                Title = documentElement.FindChild("title", true).InnerText,
-                Plot = documentElement.FindChild("plot", true).InnerText,
+                Title = documentElement.FindChild("title", true).InnerText.Trim(),
+                Plot = documentElement.FindChild("plot", true).InnerText.Trim(),
             };
             item.MetaInfo = info;
         }

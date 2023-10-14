@@ -1,4 +1,5 @@
-﻿using System;
+﻿using MyVideoPlayer.Helper.LibraryScan;
+using System;
 using System.Linq;
 using System.Reflection;
 using VideoPlayerLib.Services.MediaLibrary;
@@ -17,9 +18,11 @@ namespace MyVideoPlayer.Helper.Export
     {
 
         private readonly IMediaLibrary _MediaLibrary;
+        private readonly LibraryScannerSettings _Settings;
 
-        public DatabaseExporter(IMediaLibrary mediaLibrary)
+        public DatabaseExporter(IMediaLibrary mediaLibrary, LibraryScannerSettings settings)
         {
+            _Settings = settings;
             _MediaLibrary = mediaLibrary;
         }
 
@@ -73,8 +76,19 @@ namespace MyVideoPlayer.Helper.Export
                     episodes.AddRange(seasonEpisodes);
                 }
                 WriteModels(writer, episodes);
+
+                WriteCachedFiles(writer);
             }
             return TempFile.FullName;
+        }
+
+        private void WriteCachedFiles(StreamWriter writer)
+        {
+            var cacheFiles = Directory.GetFiles(_Settings.CacheFolderPath);
+            writer.WriteLine("Cached files");
+            foreach (var cacheFile in cacheFiles)
+                writer.WriteLine(cacheFile);
+            writer.WriteLine();
         }
 
         private void WriteModels(StreamWriter writer, IEnumerable<BaseModel> items)
@@ -96,6 +110,7 @@ namespace MyVideoPlayer.Helper.Export
         private void WriteModelHeader(StreamWriter writer, BaseModel model)
         {
             var modelType = model.GetType();
+            writer.WriteLine($"{modelType.Name}");
             foreach (var prop in modelType
                 .GetProperties()
                 .Where(p => p.CanRead))

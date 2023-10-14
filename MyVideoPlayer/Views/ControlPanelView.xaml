@@ -7,6 +7,6 @@
         <Button Text="Quellen" Command="{Binding NavigateToSources}" Margin="10"/>
         <Button Text="Quellen neu einlesen" Command="{Binding CleanScan}" Margin="10" />
         <Button Text="Protokoll anzeigen" Command="{Binding ShowLog}" Margin="10"/>
-        <Button Text="Datenbank exportieren" Command="{Binding ExportData}" Margin="10"/>
+        <Button Text="Daten exportieren" Command="{Binding ExportData}" Margin="10"/>
     </VerticalStackLayout>
 </ContentView>

@@ -44,6 +44,7 @@ namespace MyVideoPlayer.Helper.Navigation
         {
             viewModel.ItemTapped += ViewModel_ItemTapped;
             viewModel.NavigationRequested += ViewModel_NavigationRequested;
+            viewModel.CloseRequested += ViewModel_CloseRequested;
             viewModel.ItemDeleteRequested += ViewModel_ItemDeleteRequested;
             viewModel.ResetScanRequested += ViewModel_ResetScanRequested;
 
@@ -131,7 +132,11 @@ namespace MyVideoPlayer.Helper.Navigation
             if (e.Element is MediaItem)
                 await mediaLibrary.RemoveMediaItemAsync(e.Element as MediaItem);
             else if (e.Element is MediaSource)
+            {
+                (e.Element as MediaSource).Inactive = true;
+                await mediaLibrary.AddSourceAsync(e.Element as MediaSource);
                 await mediaLibrary.RemoveMediaSourceAsync(e.Element as MediaSource);
+            }
         }
 
         private void NavigateTo(BaseViewModel viewModel)
@@ -204,6 +209,12 @@ namespace MyVideoPlayer.Helper.Navigation
                 NavigateBack();
             else
                 NavigateTo(e.ViewModel);
+        }
+
+        private void ViewModel_CloseRequested(object sender, ViewModelEventArgs e)
+        {
+            if (e.ViewModel == currentView)
+                NavigateBack();
         }
 
         private async void NavigateToMediaItem(MediaItemBoxViewModel viewModel)

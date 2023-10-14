@@ -90,6 +90,8 @@ namespace MyVideoPlayer.ViewModels.Navigation.Sources
             if (vm == null)
                 return;
             MainThread.BeginInvokeOnMainThread(() => { vm.Source.Update(mediaSource); });
+            if (mediaSource.Inactive)
+                Items.Remove(vm);
         }
 
         internal void RemoveSource(MediaSource source)

@@ -91,6 +91,13 @@ namespace MyVideoPlayer.ViewModels.Navigation
 
         public event EventHandler<ViewModelEventArgs> NavigationRequested;
 
+        public event EventHandler<ViewModelEventArgs> CloseRequested;
+
+        protected virtual void OnCloseRequested()
+        {
+            CloseRequested?.Invoke(this, new ViewModelEventArgs(this));
+        }
+
         protected virtual void OnItemTapped(MediaElementBoxViewModelEventArgs e)
         {
             ItemTapped?.Invoke(this, e);

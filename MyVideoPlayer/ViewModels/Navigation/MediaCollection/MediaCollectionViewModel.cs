@@ -71,6 +71,23 @@ namespace MyVideoPlayer.ViewModels.Navigation.MediaCollection
                 OnNavigationRequest(new ViewModelEventArgs(this));
         }
 
+        protected override void MediaLibrary_ModelElementUpdated(object sender, BaseModelEventArgs e)
+        {
+            base.MediaLibrary_ModelElementUpdated(sender, e);
+            var currCollection = e.Element as MediaItemCollection;
+            if (currCollection != null) { }
+
+            var mediaSource = e.Element as MediaSource;
+            if (mediaSource != null)
+            {
+                if ((Source != null) && (mediaSource.Id == Source.Id))
+                    if (mediaSource.Inactive && !Source.Inactive)
+                    {
+                        OnCloseRequested();
+                    }
+            }
+        }
+
         protected override void MediaLibrary_ModelElementAdded(object sender, BaseModelEventArgs e)
         {
             base.MediaLibrary_ModelElementAdded(sender, e);

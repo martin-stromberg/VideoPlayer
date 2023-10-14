@@ -58,6 +58,18 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
             }
         }
 
+        public bool Inactive
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+            }
+        }
+
         public virtual string GetItemPath(MediaItem item)
         {
             return item.Path;

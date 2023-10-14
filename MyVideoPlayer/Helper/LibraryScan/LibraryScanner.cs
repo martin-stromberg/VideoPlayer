@@ -55,6 +55,12 @@ namespace MyVideoPlayer.Helper.LibraryScan
                 ScanNextCollectionMediaAsync().Wait();
             }
             catch { }
+
+            try
+            {
+                RemoveDeletedSourcesAsync();
+            }
+            catch { }
         }
 
         private async void Scanner_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
@@ -96,6 +102,7 @@ namespace MyVideoPlayer.Helper.LibraryScan
             var source = mediaLibrary
                 .GetSourcesAsync()
                 .Wait<IEnumerable<MediaSource>>()
+                .Where(s => !s.Inactive)
                 .OrderBy(s => s.LastScan)
                 .FirstOrDefault();
             if (source == null)
@@ -174,6 +181,26 @@ namespace MyVideoPlayer.Helper.LibraryScan
             await ProcessPictureForFolderAsync(scanner, collection);
             collection.MetaDataTime = DateTime.Now;
             await mediaLibrary.AddMediaItemCollectionAsync(collection);
+        }
+
+        private bool removingSources = false;
+
+        private async void RemoveDeletedSourcesAsync()
+        {
+            if (removingSources)
+                return;
+            removingSources = true;
+            try
+            {
+                var sources = (await mediaLibrary.GetSourcesAsync())
+                    .Where(s => s.Inactive);
+                foreach (var source in sources)
+                    await mediaLibrary.RemoveMediaSourceAsync(source);
+            }
+            finally
+            {
+                removingSources = false;
+            }
         }
 
         #region samba Share

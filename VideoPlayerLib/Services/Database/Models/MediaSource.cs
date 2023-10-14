@@ -15,6 +15,8 @@ namespace VideoPlayerLib.Services.Database.Models
 
         public DateTime LastScanStart { get; set; }
 
+        public bool Inactive { get; set; }
+
         public override void Update(BaseDataModel source)
         {
             base.Update(source);

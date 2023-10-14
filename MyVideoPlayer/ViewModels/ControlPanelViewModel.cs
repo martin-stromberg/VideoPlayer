@@ -1,4 +1,5 @@
-﻿using MyVideoPlayer.Helper.Navigation;
+﻿using MyVideoPlayer.Helper.LibraryScan;
+using MyVideoPlayer.Helper.Navigation;
 using System;
 using System.Linq;
 using VideoPlayerLib.Services.MediaLibrary;
@@ -10,10 +11,15 @@ namespace MyVideoPlayer.ViewModels
 
         private readonly IMediaLibrary _MediaLibrary;
         private readonly INavigationManager _NavigationManager;
+        private readonly ILibraryScanner _LibraryScanner;
 
-        public ControlPanelViewModel(IMediaLibrary mediaLibrary, INavigationManager navigationManager)
+        public ControlPanelViewModel(
+            IMediaLibrary mediaLibrary,
+            INavigationManager navigationManager,
+            ILibraryScanner libraryScanner)
             : base()
         {
+            _LibraryScanner = libraryScanner;
             _NavigationManager = navigationManager;
             _MediaLibrary = mediaLibrary;
             CleanScan = new Command(async () => await DoCleanScanAsync());
@@ -27,7 +33,11 @@ namespace MyVideoPlayer.ViewModels
 
         private async Task DoCleanScanAsync()
         {
+            _LibraryScanner.Stop();
+            await Task.Delay(1000);
             await _MediaLibrary.ClearMedia();
+            _LibraryScanner.Start();
+            OnCloseRequested();
         }
 
         private void DoShowLog()

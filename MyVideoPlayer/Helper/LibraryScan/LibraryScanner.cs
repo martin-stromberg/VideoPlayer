@@ -112,6 +112,8 @@ namespace MyVideoPlayer.Helper.LibraryScan
         {
             try
             {
+                if (stopScan)
+                    return;
                 logger.LogInformation($"Start scanning source {source.Name}");
                 source.LastScanStart = DateTime.Now;
 
@@ -249,11 +251,15 @@ namespace MyVideoPlayer.Helper.LibraryScan
 
         private void ScanRemoteSource(RemoteSourceScanner scanner, RemoteMediaSource source)
         {
+            if (stopScan)
+                return;
             var currSkipPath = source.LatestScanPath?.Remove(0, source.Path.Length);
             var skipPathParts = source.LatestScanPath?.Remove(0, source.Path.Length).Split(source.PathDelimiter);
             var latestScanPathReached = skipPathParts == null;
             scanner.BeforeScanFolder += (sender, e) =>
             {
+                if (stopScan)
+                    throw new ApplicationException("Scan canceled");
                 var isParentLevelFolder = false;
                 if (!latestScanPathReached)
                     if (skipPathParts == null)
@@ -268,9 +274,16 @@ namespace MyVideoPlayer.Helper.LibraryScan
                 e.ScanFolders = latestScanPathReached || isParentLevelFolder;
                 e.ScanFiles = latestScanPathReached;
             };
-            scanner.FileFound += (sender, e) => { ProcessFile(source, scanner, e.File).Wait(); };
+            scanner.FileFound += (sender, e) =>
+            {
+                if (stopScan)
+                    throw new ApplicationException("Scan canceled");
+                ProcessFile(source, scanner, e.File).Wait();
+            };
             scanner.FolderFound += (sender, e) =>
             {
+                if (stopScan)
+                    throw new ApplicationException("Scan canceled");
                 OnStatusChanged($"{e.Folder.Path}");
                 ProcessFolderAsync(source, scanner, e.Folder).Wait();
 
@@ -283,7 +296,8 @@ namespace MyVideoPlayer.Helper.LibraryScan
                 source.LatestScanPath = null;
                 mediaLibrary.AddSourceAsync(source).Wait();
 
-                FindRemovedFiles(source, scanner).Wait();
+                if (!stopScan)
+                    FindRemovedFiles(source, scanner).Wait();
             };
             scanner.Scan(source.Path);
         }

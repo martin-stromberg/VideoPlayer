@@ -274,10 +274,16 @@ namespace MyVideoPlayer.Helper.Navigation
                 viewModel.Source = null;
             }
             if (viewModel.MediaItem == null)
-                viewModel.MediaItem = await mediaLibrary.GetMediaItemAsync(episode.MediaItems.FirstOrDefault());
+            {
+                foreach (var miId in episode.MediaItems)
+                    if (viewModel.MediaItem == null)
+                        viewModel.MediaItem = await mediaLibrary.GetMediaItemAsync(miId);
+            }
+            if (viewModel.MediaItem == null)
+                return;
             if (viewModel.Collection == null)
                 viewModel.Collection = await mediaLibrary.GetMediaItemCollectionAsync(viewModel.MediaItem.ParentCollectionId);
-            if (viewModel.Source == null)
+            if ((viewModel.Collection != null) && (viewModel.Source == null))
                 viewModel.Source = await mediaLibrary.GetSourceAsync(viewModel.Collection.MediaSourceId);
 
             if (viewModel.MediaItem.CopyType == MediaItemCopyType.None)

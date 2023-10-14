@@ -8,19 +8,12 @@
              x:DataType="vm:HomePageViewModel"
              Title="{Binding Title}">
     <ContentPage.ToolbarItems>
+        <ToolbarItem Text="Verwalten"
+                     Order="Primary"
+                     Command="{Binding NavigateToControlPanel}"/>
         <ToolbarItem Text="X"                     
                      Order="Primary"
-                     Command="{Binding NavigateBack}"/>
-        <ToolbarItem Text="Quellen"                     
-             Order="Primary"
-             Command="{Binding NavigateToSources}"/>
-        <ToolbarItem Text="Quellen neu einlesen"                     
-             Order="Secondary"
-                     IsEnabled="{Binding NavigationVisible}"
-             Command="{Binding CleanScan}"/>
-        <ToolbarItem Text="Protokoll anzeigen"
-             Order="Secondary"
-             Command="{Binding ShowLog}"/>
+                     Command="{Binding NavigateBack}"/>        
     </ContentPage.ToolbarItems>    
     <Grid x:DataType="vm:HomePageViewModel">
         <Grid.RowDefinitions>
@@ -43,6 +36,9 @@
         </Grid>
         <Grid Grid.Row="0" Grid.RowSpan="3" IsVisible="{Binding IsVideoVisible}" Margin="0">
             <v:MediaElementView BindingContext="{Binding MediaElement}" IsVisible="{Binding IsVideoVisible}"/>
+        </Grid>
+        <Grid Grid.Row="0" Grid.RowSpan="3" IsVisible="{Binding IsControlPanelVisible}" Margin="0" BackgroundColor="Gray">
+            <v:ControlPanelView BindingContext="{Binding ControlPanelViewModel}" IsVisible="{Binding IsControlPanelVisible}"/>
         </Grid>
         <Label Grid.Row="2" Text="{Binding StatusMessage}" VerticalOptions="End"/>
     </Grid>

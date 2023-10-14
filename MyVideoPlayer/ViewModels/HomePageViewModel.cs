@@ -33,9 +33,7 @@ namespace MyVideoPlayer.ViewModels
         {
             _serviceProvider = serviceProvider;
             NavigateBack = new Command(() => DoNavigateBack());
-            NavigateToSources = new Command(() => DoNavigateToSources());
-            CleanScan = new Command(async () => await DoCleanScanAsync());
-            ShowLog = new Command(() => DoShowLog());
+            NavigateToControlPanel = new Command(() => DoNavigateToControlPanel());
             MediaElement = new MediaElementViewModel();
             MediaElement.PropertyChanged += MediaElement_PropertyChanged;
             MediaElement.OnMediaEnded += MediaElement_OnMediaEnded;
@@ -49,11 +47,6 @@ namespace MyVideoPlayer.ViewModels
             this.navigationManager.MenuChanged += (sender, e) => { MenuContent = e.ViewModel; };
             this.navigationManager.MediaSourceToPlay += (sender, e) => { MediaElement.Play(e.MediaSource); };
             Title = "Medienbibliothek";
-        }
-
-        private void DoShowLog()
-        {
-            navigationManager.NavigateToLog();
         }
 
         private void MediaElement_OnMediaEnded(object sender, MediaSource e)
@@ -72,27 +65,13 @@ namespace MyVideoPlayer.ViewModels
             }
         }
 
-        private void DoNavigateToSources()
-        {
-            navigationManager.NavigateToSourceOverview();
-        }
-
-        public Command CleanScan { get; }
-
-        public Command ShowLog { get; }
-
-        private async Task DoCleanScanAsync()
-        {
-            await mediaLibrary.ClearMedia();
-        }
-
         public Command NavigateBack { get; }
-
-        public Command NavigateToSources { get; }
 
         private void DoNavigateBack()
         {
-            if (MediaElement.IsPlaying())
+            if (IsControlPanelVisible)
+                IsControlPanelVisible = false;
+            else if (MediaElement.IsPlaying())
                 MediaElement.StopPlaying();
             else
                 navigationManager.NavigateBack();
@@ -261,6 +240,46 @@ namespace MyVideoPlayer.ViewModels
             set
             {
                 SetProperty<string>(value);
+            }
+        }
+        #endregion
+
+        #region ControlPanel 
+        public Command NavigateToControlPanel { get; }
+
+        private void DoNavigateToControlPanel()
+        {
+            IsControlPanelVisible = true;
+        }
+
+        public bool IsControlPanelVisible
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+            }
+        }
+
+        private ControlPanelViewModel controlPanelViewModel;
+
+        public ControlPanelViewModel ControlPanelViewModel
+        {
+            get
+            {
+                if (controlPanelViewModel == null)
+                {
+                    controlPanelViewModel = _serviceProvider.GetService<ControlPanelViewModel>();
+                    controlPanelViewModel.CloseRequested += (sender, e) =>
+                    {
+                        if (IsControlPanelVisible)
+                            NavigateBack.Execute(null);
+                    };
+                }
+                return controlPanelViewModel;
             }
         }
         #endregion

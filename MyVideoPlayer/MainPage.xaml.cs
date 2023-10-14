@@ -2,9 +2,11 @@
 
 namespace MyVideoPlayer
 {
-    public partial class MainPage : ContentPage
+    public partial class MainPage: ContentPage
     {
+
         private HomePageViewModel viewModel;
+
         public MainPage()
         {
             InitializeComponent();

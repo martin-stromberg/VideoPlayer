@@ -79,7 +79,8 @@ namespace MyVideoPlayer.ViewModels.Navigation.MediaCollection
             {
                 if ((Collection == null) && (currCollection.ParentCollectionId == 0))
                     Collection = currCollection;
-                else if (Collection.Id == currCollection.ParentCollectionId)
+                else if ((Collection != null) && (currCollection != null)
+                    && (Collection.Id == currCollection.ParentCollectionId))
                     AddMediaCollection(currCollection);
             }
             var currItem = e.Element as MediaItem;

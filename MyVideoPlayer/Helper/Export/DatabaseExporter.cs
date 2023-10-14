@@ -93,8 +93,16 @@ namespace MyVideoPlayer.Helper.Export
 
         private void WriteModels(StreamWriter writer, IEnumerable<BaseModel> items)
         {
+            PropertyInfo pkProp = null;
             bool headerWritten = false;
-            foreach (BaseModel model in items)
+            foreach (BaseModel model in items
+                .OrderBy(i =>
+                {
+                    if (pkProp == null)
+                        pkProp = i.GetType().GetProperty(nameof(BaseModel.Id));
+                    var value = pkProp?.GetValue(i);
+                    return (value == null) ? int.MaxValue : value;
+                }))
             {
                 if (!headerWritten)
                 {
@@ -109,21 +117,44 @@ namespace MyVideoPlayer.Helper.Export
 
         private void WriteModelHeader(StreamWriter writer, BaseModel model)
         {
+            PropertyInfo pkProp = null;
             var modelType = model.GetType();
             writer.WriteLine($"{modelType.Name}");
             foreach (var prop in modelType
                 .GetProperties()
-                .Where(p => p.CanRead))
+                .Where(p => p.CanRead)
+                .OrderBy(p =>
+                {
+                    if (pkProp == null)
+                        pkProp = modelType.GetProperty(nameof(BaseModel.Id));
+                    var pk = pkProp == p;
+                    if (pk)
+                        return 0;
+                    return int.MaxValue;
+                })
+                .ThenBy(p => p.Name))
+
                 writer.Write($"{prop.Name};");
             writer.WriteLine();
         }
 
         private void WriteModel(StreamWriter writer, BaseModel model)
         {
+            PropertyInfo pkProp = null;
             var modelType = model.GetType();
             foreach (var value in modelType
                 .GetProperties()
                 .Where(p => p.CanRead)
+                .OrderBy(p =>
+                {
+                    if (pkProp == null)
+                        pkProp = modelType.GetProperty(nameof(BaseModel.Id));
+                    var pk = pkProp == p;
+                    if (pk)
+                        return 0;
+                    return int.MaxValue;
+                })
+                .ThenBy(p => p.Name)
                 .Select(p =>
                 {
                     var attr = p.GetCustomAttribute(typeof(PasswordAttribute)) as PasswordAttribute;
@@ -132,7 +163,7 @@ namespace MyVideoPlayer.Helper.Export
                         value = $"[{string.Join(',', ((Array)value).Cast<object>().Select(value => value.ToString()))}]";
                     if (attr != null)
                         value = $"***********";
-                    return value?.ToString();
+                    return value?.ToString().Trim().Replace("\r\n", " ").Replace("\t", "  ");
                 })
                 .Select(val => val?.Replace(';', ',')))
                 writer.Write($"{value};");

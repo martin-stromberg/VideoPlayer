@@ -131,7 +131,7 @@ namespace VideoPlayerLib.Services.Database
             var movie = await GetMovie(movieId);
             var movieMediaItems = await GetMovieMediaItems(movieId);
             foreach (var mmi in movieMediaItems)
-                await Connection.DeleteAsync(movieMediaItems);
+                await Connection.DeleteAsync(mmi);
             await Connection.DeleteAsync(movie);
         }
 
@@ -164,6 +164,9 @@ namespace VideoPlayerLib.Services.Database
 
         private async Task RemoveTVShowEpisode(TVShowEpisode episode)
         {
+            var mediaItems = await GetTVShowEpisodeMediaItems(episode.Id);
+            foreach (var mediaItem in mediaItems)
+                await Connection.DeleteAsync(mediaItem);
             await Connection.DeleteAsync(episode);
         }
 

@@ -76,6 +76,22 @@ namespace VideoPlayerLib.Services.MediaLibrary
                 .Select(source => MediaItemCollection.FromDataModel(source) as MediaItemCollection);
         }
 
+        public async Task<IEnumerable<MediaItemCollection>> GetAllMediaItemCollectionsAsync()
+        {
+            return (await(await dataStore.GetMediaCollectionsAsync())
+                .OrderBy(s => s.Name)
+                .ToArrayAsync())
+                .Select(source => MediaItemCollection.FromDataModel(source) as MediaItemCollection);
+        }
+
+        public async Task RemoveMediaItemCollection(MediaItemCollection collection)
+        {
+            var dbItem = await dataStore.GetMediaCollectionAsync(collection.Id);
+            await ClearCollectionMediaAsync(dbItem);
+            await dataStore.RemoveMediaCollection(dbItem);
+            OnElementChanged(null, null, new BaseModelEventArgs(collection));
+        }
+
         public async Task<MediaItemCollection> GetMediaItemCollectionAsync(long Id)
         {
             return MediaItemCollection.FromDataModel(await dataStore.GetMediaCollectionAsync(Id)) as MediaItemCollection;
@@ -113,6 +129,14 @@ namespace VideoPlayerLib.Services.MediaLibrary
         public async Task<MediaItem> GetMediaItemAsync(long id)
         {
             return MediaItem.FromDataModel(await dataStore.GetMediaItemAsync(id)) as MediaItem;
+        }
+
+        public async Task<IEnumerable<MediaItem>> GetAllMediaItems()
+        {
+            return (await(await dataStore.GetMediaItemsAsync())
+                .OrderBy(s => s.Name)
+                .ToArrayAsync())
+                .Select(source => MediaItem.FromDataModel(source) as MediaItem);
         }
 
         public async Task<IEnumerable<MediaItem>> GetMediaItemsAsync(long CollectionId)
@@ -481,6 +505,7 @@ namespace VideoPlayerLib.Services.MediaLibrary
             if (mediaItem.CopyType == MediaItemCopyType.Cache)
                 File.Delete(mediaItem.Path);
             var mediaStore = await dataStore.GetMediaItemAsync(mediaItem.Id);
+            await ClearMediaItem(mediaStore);
             await dataStore.RemoveMediaItem(mediaStore);
         }
 

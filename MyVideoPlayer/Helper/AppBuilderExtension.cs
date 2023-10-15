@@ -32,12 +32,13 @@ namespace MyVideoPlayer.Helper
             });
 
             // services.AddTransient<ILogger>( sp => sp.GetService<ILoggerFactory>().CreateLogger());
-            #if WINDOWS10_0_17763_0_OR_GREATER
-            #elif ANDROID
-            #elif IOS || MACCATALYST
+#if WINDOWS10_0_17763_0_OR_GREATER
+#elif ANDROID
+#elif IOS
             services.AddSingleton<IShare, MyVideoPlayer.Platforms.iOS.OwnShareImplementation>();
-            #else
-            #endif
+#elif MACCATALYST
+#else
+#endif
 
             services.AddTransient<MediaLibraryDatabaseSettings>();
             services.AddTransient<LibraryScannerSettings>();
@@ -46,6 +47,7 @@ namespace MyVideoPlayer.Helper
             services.AddTransient<SambaShareScanner>();
             services.AddTransient<UserSecrets>();
             services.AddTransient<IDatabaseExporter, DatabaseExporter>();
+            services.AddTransient<ILibraryCleanup, LibraryCleanup>();
 
             services.AddSingleton<IRessourceLocation>(sp => new RessourceLocation() { Path = appPath });
             services.AddSingleton<INavigationManager, NavigationManager>();

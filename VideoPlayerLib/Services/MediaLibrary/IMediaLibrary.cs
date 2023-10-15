@@ -17,6 +17,10 @@ namespace VideoPlayerLib.Services.MediaLibrary
 
         Task<MediaItemCollection> GetMediaItemCollectionAsync(long Id);
 
+        Task<IEnumerable<MediaItemCollection>> GetAllMediaItemCollectionsAsync();
+
+        Task RemoveMediaItemCollection(MediaItemCollection collection);
+
         Task<IEnumerable<MediaItemCollection>> GetMediaItemCollectionsAsync(long SourceId);
 
         Task<IEnumerable<MediaItemCollection>> GetChildMediaItemCollectionsAsync(long collectionId);
@@ -26,6 +30,8 @@ namespace VideoPlayerLib.Services.MediaLibrary
         Task<MediaItemCollection> FindMediaItemCollectionAsync(long id, string path);
 
         Task<MediaItem> GetMediaItemAsync(long id);
+
+        Task<IEnumerable<MediaItem>> GetAllMediaItems();
 
         Task<IEnumerable<MediaItem>> GetMediaItemsAsync(long CollectionId);
 

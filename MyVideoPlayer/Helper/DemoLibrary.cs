@@ -262,5 +262,30 @@ namespace MyVideoPlayer.Helper
             throw new NotImplementedException();
         }
 
+        public Task GetAllMediaItems()
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task GetAllMediaItemCollectionsAsync()
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task RemoveMediaItemCollection(MediaItemCollection collection)
+        {
+            throw new NotImplementedException();
+        }
+
+        Task<IEnumerable<MediaItemCollection>> IMediaLibrary.GetAllMediaItemCollectionsAsync()
+        {
+            throw new NotImplementedException();
+        }
+
+        Task<IEnumerable<MediaItem>> IMediaLibrary.GetAllMediaItems()
+        {
+            throw new NotImplementedException();
+        }
+
     }
 }

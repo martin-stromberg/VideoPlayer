@@ -30,6 +30,7 @@ namespace MyVideoPlayer.ViewModels
             ShowLog = new Command(() => DoShowLog());
             NavigateToSources = new Command(() => DoNavigateToSources());
             ExportData = new Command(() => DoExportData());
+            CleanupData = new Command(() => DoCleanupDataAsync());
         }
 
         public Command ShowLog { get; }
@@ -62,6 +63,8 @@ namespace MyVideoPlayer.ViewModels
 
         public Command ExportData { get; }
 
+        public Command CleanupData { get; }
+
         private void DoNavigateToSources()
         {
             _NavigationManager.NavigateToSourceOverview();
@@ -92,6 +95,12 @@ namespace MyVideoPlayer.ViewModels
             {
                 exporting = false;
             }
+        }
+
+        private async void DoCleanupDataAsync()
+        {
+            var cleaner = _ServiceProvider.GetService<ILibraryCleanup>();
+            await cleaner.RunAsync();
         }
 
     }

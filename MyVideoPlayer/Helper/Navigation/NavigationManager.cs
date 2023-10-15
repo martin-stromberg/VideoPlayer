@@ -408,8 +408,11 @@ namespace MyVideoPlayer.Helper.Navigation
             e.Callback += (sender, e) =>
             {
                 playingMediaItem = e.Element as MediaItem;
-                var mediaSource = CommunityToolkit.Maui.Views.MediaSource.FromFile(playingMediaItem.Path);
-                OnMediaSourceToPlay(mediaSource);
+                if (playingMediaItem != null)
+                {
+                    var mediaSource = CommunityToolkit.Maui.Views.MediaSource.FromFile(playingMediaItem.Path);
+                    OnMediaSourceToPlay(mediaSource);
+                }
             };
             DownloadRequested.Invoke(this, e);
         }

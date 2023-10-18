@@ -7,6 +7,7 @@ namespace VideoPlayerLib.Services.MediaLibrary
     {
 
         private readonly IMediaLibraryDatabase dataStore;
+        private readonly string _CacheRootPath;
 
         public event EventHandler<BaseModelEventArgs> ModelElementAdded;
 
@@ -27,8 +28,11 @@ namespace VideoPlayerLib.Services.MediaLibrary
                 ModelElementRemoved(this, modelElementRemoved);
         }
 
-        public MediaLibrary(IMediaLibraryDatabase dataStore)
+        public MediaLibrary(
+            IMediaLibraryDatabase dataStore,
+            string cacheRootPath)
         {
+            _CacheRootPath = cacheRootPath;
             this.dataStore = dataStore;
         }
 
@@ -128,7 +132,7 @@ namespace VideoPlayerLib.Services.MediaLibrary
         #region Media Items
         public async Task<MediaItem> GetMediaItemAsync(long id)
         {
-            return MediaItem.FromDataModel(await dataStore.GetMediaItemAsync(id)) as MediaItem;
+            return MediaItem.FromDataModel(await dataStore.GetMediaItemAsync(id)).UpdatePicture(_CacheRootPath) as MediaItem;
         }
 
         public async Task<IEnumerable<MediaItem>> GetAllMediaItems()
@@ -136,7 +140,7 @@ namespace VideoPlayerLib.Services.MediaLibrary
             return (await(await dataStore.GetMediaItemsAsync())
                 .OrderBy(s => s.Name)
                 .ToArrayAsync())
-                .Select(source => MediaItem.FromDataModel(source) as MediaItem);
+                .Select(source => MediaItem.FromDataModel(source).UpdatePicture(_CacheRootPath) as MediaItem);
         }
 
         public async Task<IEnumerable<MediaItem>> GetMediaItemsAsync(long CollectionId)
@@ -145,7 +149,7 @@ namespace VideoPlayerLib.Services.MediaLibrary
                 .Where(s => (s.ParentCollectionId == CollectionId) && (s.OriginalMediaItemId == 0))
                 .OrderBy(s => s.Name)
                 .ToArrayAsync())
-                .Select(source => MediaItem.FromDataModel(source) as MediaItem);
+                .Select(source => MediaItem.FromDataModel(source).UpdatePicture(_CacheRootPath) as MediaItem);
         }
 
         public async Task<MediaItem> FindMediaItemAsync(long SourceId, string path)
@@ -161,7 +165,7 @@ namespace VideoPlayerLib.Services.MediaLibrary
                         .Wait<Database.Models.MediaCollection>();
                     return collection.MediaSourceId == SourceId;
                 })
-                .Select(item => MediaItem.FromDataModel(item) as MediaItem)
+                .Select(item => MediaItem.FromDataModel(item).UpdatePicture(_CacheRootPath) as MediaItem)
                 .FirstOrDefault();
         }
 
@@ -182,7 +186,7 @@ namespace VideoPlayerLib.Services.MediaLibrary
                 .Where(s => s.OriginalMediaItemId == mediaItemId)
                 .OrderBy(s => s.Name)
                 .ToArrayAsync())
-                .Select(source => MediaItem.FromDataModel(source) as MediaItem);
+                .Select(source => MediaItem.FromDataModel(source).UpdatePicture(_CacheRootPath) as MediaItem);
         }
         #endregion 
 
@@ -265,14 +269,14 @@ namespace VideoPlayerLib.Services.MediaLibrary
         {
             var movie = await dataStore.GetMovie(id);
             var mediaItems = await dataStore.GetMovieMediaItems(movie.Id);
-            return (Movie.FromDataModel(movie) as Movie)
+            return (Movie.FromDataModel(movie).UpdatePicture(_CacheRootPath) as Movie)
                 .SetMediaItems(mediaItems);
         }
 
         public async Task<IEnumerable<Movie>> GetMovies()
         {
             var movies = (await dataStore.GetMovies())
-                .Select(movie => Movie.FromDataModel(movie) as Movie)
+                .Select(movie => Movie.FromDataModel(movie).UpdatePicture(_CacheRootPath) as Movie)
                 .ToArray();
             foreach (var movie in movies)
             {
@@ -289,7 +293,8 @@ namespace VideoPlayerLib.Services.MediaLibrary
                 return null;
             var mediaItems = await dataStore.GetMovieMediaItems(movie.Id);
             return (Movie
-                .FromDataModel(movie) as Movie)
+                .FromDataModel(movie)
+                .UpdatePicture(_CacheRootPath) as Movie)
                 .SetMediaItems(mediaItems);
         }
 
@@ -324,7 +329,7 @@ namespace VideoPlayerLib.Services.MediaLibrary
             return shows
                 .Select(show =>
                 {
-                    var model = TVShow.FromDataModel(show) as TVShow;
+                    var model = TVShow.FromDataModel(show).UpdatePicture(_CacheRootPath) as TVShow;
 
                     // var seasons = FindTVShowSeasons(show.Id);
                     // model.Seasons = seasons.ToArray();
@@ -336,7 +341,7 @@ namespace VideoPlayerLib.Services.MediaLibrary
         public async Task<TVShow> GetTVShow(long id)
         {
             var show = await dataStore.GetTVShow(id);
-            return TVShow.FromDataModel(show) as TVShow;
+            return TVShow.FromDataModel(show).UpdatePicture(_CacheRootPath) as TVShow;
         }
 
         public async Task<IEnumerable<TVShowSeason>> GetTVShowSeasons(long showId)
@@ -345,7 +350,7 @@ namespace VideoPlayerLib.Services.MediaLibrary
             return seasons
                 .Select(season =>
                 {
-                    var model = TVShowSeason.FromDataModel(season) as TVShowSeason;
+                    var model = TVShowSeason.FromDataModel(season).UpdatePicture(_CacheRootPath) as TVShowSeason;
                     return model;
                 })
                 .Cast<TVShowSeason>();
@@ -354,14 +359,14 @@ namespace VideoPlayerLib.Services.MediaLibrary
         public async Task<TVShowSeason> GetTVShowSeason(long id)
         {
             var season = await dataStore.GetTVShowSeason(id);
-            return TVShowSeason.FromDataModel(season) as TVShowSeason;
+            return TVShowSeason.FromDataModel(season).UpdatePicture(_CacheRootPath) as TVShowSeason;
         }
 
         public async Task<TVShowEpisode> GetTVShowEpisode(long id)
         {
             var episode = await dataStore.GetTVShowEpisode(id);
             var mediaItems = await dataStore.GetTVShowEpisodeMediaItems(episode.Id);
-            return (TVShowEpisode.FromDataModel(episode) as TVShowEpisode)
+            return (TVShowEpisode.FromDataModel(episode).UpdatePicture(_CacheRootPath) as TVShowEpisode)
                 .SetMediaItems(mediaItems);
         }
 
@@ -371,7 +376,7 @@ namespace VideoPlayerLib.Services.MediaLibrary
             var episodes = dbEpisodes
                 .Select(episode =>
                 {
-                    var model = TVShowEpisode.FromDataModel(episode) as TVShowEpisode;
+                    var model = TVShowEpisode.FromDataModel(episode).UpdatePicture(_CacheRootPath) as TVShowEpisode;
                     return model;
                 })
                 .Cast<TVShowEpisode>()
@@ -390,7 +395,7 @@ namespace VideoPlayerLib.Services.MediaLibrary
             return show
                 .Select(show =>
                 {
-                    var model = TVShow.FromDataModel(show) as TVShow;
+                    var model = TVShow.FromDataModel(show).UpdatePicture(_CacheRootPath) as TVShow;
 
                     // var seasons = FindTVShowSeasons(show.Id);
                     // model.Seasons = seasons.ToArray();
@@ -407,7 +412,7 @@ namespace VideoPlayerLib.Services.MediaLibrary
             return seasons
                 .Select(s =>
                 {
-                    var season = TVShowSeason.FromDataModel(s) as TVShowSeason;
+                    var season = TVShowSeason.FromDataModel(s).UpdatePicture(_CacheRootPath) as TVShowSeason;
 
                     // var episodes = FindTVShowEpisodes(season.Id);
                     // season.Episodes = episodes.ToArray();
@@ -424,7 +429,7 @@ namespace VideoPlayerLib.Services.MediaLibrary
             return episodes
                 .Select(e =>
                 {
-                    var episode = TVShowEpisode.FromDataModel(e) as TVShowEpisode;
+                    var episode = TVShowEpisode.FromDataModel(e).UpdatePicture(_CacheRootPath) as TVShowEpisode;
                     var mediaItems = dataStore
                         .GetTVShowEpisodeMediaItems(episode.Id)
                         .Wait<IEnumerable<Database.Models.TVShowEpisodeMediaItem>>()
@@ -441,7 +446,7 @@ namespace VideoPlayerLib.Services.MediaLibrary
                 .GetTVShow(id);
             if (show == null)
                 return null;
-            return TVShow.FromDataModel(show) as TVShow;
+            return TVShow.FromDataModel(show).UpdatePicture(_CacheRootPath) as TVShow;
         }
 
         public async Task AddTVShowAsync(TVShow show)
@@ -512,7 +517,7 @@ namespace VideoPlayerLib.Services.MediaLibrary
         public async Task<IEnumerable<MovieCollection>> FindMovieCollectionByNameAsync(string name)
         {
             return (await dataStore.GetMovieCollectionsByName(name))
-                .Select(coll => MovieCollection.FromDataModel(coll) as MovieCollection);
+                .Select(coll => MovieCollection.FromDataModel(coll).UpdatePicture(_CacheRootPath) as MovieCollection);
         }
 
         public async Task AddMovieCollectionAsync(MovieCollection collection)
@@ -532,7 +537,7 @@ namespace VideoPlayerLib.Services.MediaLibrary
             return collections
                 .Select(collection =>
                 {
-                    var model = MovieCollection.FromDataModel(collection) as MovieCollection;
+                    var model = MovieCollection.FromDataModel(collection).UpdatePicture(_CacheRootPath) as MovieCollection;
                     return model;
                 })
                 .Cast<MovieCollection>();
@@ -540,7 +545,7 @@ namespace VideoPlayerLib.Services.MediaLibrary
 
         public async Task<MovieCollection> GetMovieCollection(long id)
         {
-            return MovieCollection.FromDataModel(await dataStore.GetMovieCollection(id)) as MovieCollection;
+            return MovieCollection.FromDataModel(await dataStore.GetMovieCollection(id)).UpdatePicture(_CacheRootPath) as MovieCollection;
         }
 
     }

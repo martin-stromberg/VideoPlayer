@@ -1,4 +1,5 @@
 ﻿using MyVideoPlayer.Helper.LibraryScan;
+using Syncfusion.Licensing;
 using Syncfusion.XlsIO;
 using System;
 using System.Linq;
@@ -21,6 +22,7 @@ namespace MyVideoPlayer.Helper.Export
 
         private readonly IMediaLibrary _MediaLibrary;
         private readonly LibraryScannerSettings _Settings;
+        private readonly string _SyncfusionKey;
 
         public enum ExportFormat
         {
@@ -30,10 +32,26 @@ namespace MyVideoPlayer.Helper.Export
 
         }
 
-        public DatabaseExporter(IMediaLibrary mediaLibrary, LibraryScannerSettings settings)
+        public DatabaseExporter(IMediaLibrary mediaLibrary, LibraryScannerSettings settings, UserSecrets userSecrets)
         {
+            _SyncfusionKey = userSecrets["syncfusion_key"];
             _Settings = settings;
             _MediaLibrary = mediaLibrary;
+        }
+
+        private static bool syncfusionRegistered = false;
+
+        private static void RegisterSyncfusion(string key)
+        {
+            if (syncfusionRegistered)
+                return;
+            SyncfusionLicenseProvider.RegisterLicense(key);
+            syncfusionRegistered = true;
+        }
+
+        private void RegisterSyncfusion()
+        {
+            RegisterSyncfusion(_SyncfusionKey);
         }
 
         public ExportFormat Format { get; set; } = ExportFormat.XLSX;
@@ -56,6 +74,7 @@ namespace MyVideoPlayer.Helper.Export
 
         private async Task<string> CreateXLSXFileAsync(DirectoryInfo tempFolder)
         {
+            RegisterSyncfusion();
             List<List<BaseModel>> baseModels = new List<List<BaseModel>>();
             var sources = await _MediaLibrary.GetSourcesAsync();
             baseModels.Add(sources.Cast<BaseModel>().ToList());

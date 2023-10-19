@@ -34,7 +34,8 @@ namespace MyVideoPlayer.Helper.Export
 
         public DatabaseExporter(IMediaLibrary mediaLibrary, LibraryScannerSettings settings, UserSecrets userSecrets)
         {
-            _SyncfusionKey = userSecrets["syncfusion_key"];
+            _SyncfusionKey = userSecrets.SyncfusionLicenseKey;
+
             _Settings = settings;
             _MediaLibrary = mediaLibrary;
         }

@@ -1,29 +1,36 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using Newtonsoft.Json.Linq;
 using System;
 using System.Linq;
+using System.Reflection;
 
 namespace MyVideoPlayer.Helper
 {
     public class UserSecrets
     {
 
-        private IConfigurationRoot config;
-
         public UserSecrets()
-            : base()
+            : base() { }
+
+        private JObject? Configuration { get; } = GetConfiguration("secrets.json");
+
+        private static JObject? GetConfiguration(string filePath)
         {
-            config = new ConfigurationBuilder()
-                .AddUserSecrets<App>()
-                .Build();
+            Assembly assembly = Assembly.GetExecutingAssembly();
+            string? assemblyName = assembly.GetName().Name;
+            using Stream? fileStream = assembly.GetManifestResourceStream($"{assemblyName}.{filePath}");
+            if (fileStream == null)
+            {
+                return null;
+            }
+
+            using StreamReader sr = new(fileStream);
+            string fileContent = sr.ReadToEnd();
+            return JObject.Parse(fileContent);
         }
 
-        public string this[string name]
-        {
-            get
-            {
-                return config[name];
-            }
-        }
+        public string SyncfusionLicenseKey => Configuration?.Value<string>(nameof(SyncfusionLicenseKey)) ?? throw new NullReferenceException(nameof(SyncfusionLicenseKey));
+
+        public string RespberryPiPassword => Configuration?.Value<string>(nameof(RespberryPiPassword)) ?? throw new NullReferenceException(nameof(RespberryPiPassword));
 
     }
 }

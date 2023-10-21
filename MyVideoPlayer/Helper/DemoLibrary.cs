@@ -14,7 +14,7 @@ namespace MyVideoPlayer.Helper
             AddSourceAsync(new FtpMediaSource()
                 {
                     Name = "Filme",
-                    Password = secrets["raspberry_password"],
+                    Password = secrets.RespberryPiPassword,
                     Username = "mstro",
                     ServerName = "raspberrypi",
                     Path = "/mstro/Crucial X62/Filme",
@@ -23,7 +23,7 @@ namespace MyVideoPlayer.Helper
             AddSourceAsync(new FtpMediaSource()
                 {
                     Name = "Serien",
-                    Password = secrets["raspberry_password"],
+                    Password = secrets.RespberryPiPassword,
                     Username = "mstro",
                     ServerName = "raspberrypi",
                     Path = "/mstro/Crucial X62/Serien",
@@ -32,7 +32,7 @@ namespace MyVideoPlayer.Helper
             AddSourceAsync(new FtpMediaSource()
                 {
                     Name = "Serien 2",
-                    Password = secrets["raspberry_password"],
+                    Password = secrets.RespberryPiPassword,
                     Username = "mstro",
                     ServerName = "raspberrypi",
                     Path = "/mstro/Disk2/Serien",
@@ -41,7 +41,7 @@ namespace MyVideoPlayer.Helper
             AddSourceAsync(new FtpMediaSource()
                 {
                     Name = "Musik",
-                    Password = secrets["raspberry_password"],
+                    Password = secrets.RespberryPiPassword,
                     Username = "mstro",
                     ServerName = "raspberrypi",
                     Path = "/mstro/Crucial X62/Musik",

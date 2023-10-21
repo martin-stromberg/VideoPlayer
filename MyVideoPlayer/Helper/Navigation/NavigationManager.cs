@@ -49,6 +49,8 @@ namespace MyVideoPlayer.Helper.Navigation
             viewModel.ResetScanRequested += ViewModel_ResetScanRequested;
 
             viewStack.Push(viewModel);
+            if (currentView != null)
+                currentView.OnDisappeared();
             currentView = viewModel;
             OnNavigationCompleted(viewModel);
         }

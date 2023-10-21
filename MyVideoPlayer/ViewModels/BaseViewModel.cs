@@ -10,13 +10,23 @@ namespace MyVideoPlayer.ViewModels
 
         #region INotifyPropertyChanged
         private Dictionary<string, object> properties = new Dictionary<string, object>();
+        private PropertyChangedEventHandler _PropertyChanged;
 
-        public event PropertyChangedEventHandler PropertyChanged;
+        public event PropertyChangedEventHandler PropertyChanged
+        {
+            add
+            {
+                _PropertyChanged += value;
+            }
+            remove
+            {
+                _PropertyChanged -= value;
+            }
+        }
 
         protected virtual void OnPropertyChanged(PropertyChangedEventArgs e)
         {
-            if (PropertyChanged != null)
-                PropertyChanged(this, e);
+            _PropertyChanged?.Invoke(this, e);
         }
 
         protected T GetProperty<T>([CallerMemberName] string name = "")
@@ -48,18 +58,6 @@ namespace MyVideoPlayer.ViewModels
                 SetProperty<string>(value);
             }
         }
-
-    }
-
-    public class ViewModelEventArgs: EventArgs
-    {
-
-        public ViewModelEventArgs(BaseViewModel viewModel)
-        {
-            ViewModel = viewModel;
-        }
-
-        public BaseViewModel ViewModel { get; set; }
 
     }
 }

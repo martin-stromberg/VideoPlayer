@@ -362,3 +362,4 @@ MigrationBackup/
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
 /MyVideoPlayer/Helper/DemoLibrary.cs
+/MyVideoPlayer/Resources/Raw/secrets.json

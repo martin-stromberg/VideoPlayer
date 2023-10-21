@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Linq;
+using VideoPlayer.Services.MediaLibrary;
+using VideoPlayer.Services.MediaLibrary.Demo;
 using VideoPlayer.StatusManagement;
 using VideoPlayer.ViewModels.Homepage;
 
@@ -8,12 +10,22 @@ namespace VideoPlayer.ViewModels.Global
     public class ApplicationViewModel: BaseViewModel
     {
 
-        public ApplicationViewModel(IServiceProvider serviceProvider, IStatusPublisher statusPublisher)
+        private readonly IMediaLibrary _MediaLibrary;
+        private readonly DemoLibrary _DemoLibrary;
+
+        public ApplicationViewModel(
+            GlobalStatusViewModel statusViewModel,
+            HomePageViewModel contentViewModel,
+            IMediaLibrary mediaLibrary,
+            DemoLibrary demoLibrary,
+            IStatusPublisher statusPublisher)
             : base(statusPublisher)
         {
+            _DemoLibrary = demoLibrary;
+            _MediaLibrary = mediaLibrary;
             Title = "Medienbibliothek";
-            StatusViewModel = serviceProvider.GetService<GlobalStatusViewModel>();
-            ContentViewModel = serviceProvider.GetService<HomePageViewModel>();
+            StatusViewModel = statusViewModel;
+            ContentViewModel = contentViewModel;
         }
 
         public override void OnAppeared()
@@ -54,15 +66,28 @@ namespace VideoPlayer.ViewModels.Global
             IsInitializing = true;
             try
             {
-                AddStatusMessage("Initialisiere");
-                await Task.Delay(2000);
+                AddStatusMessage("Initialisiere...");
+                await CheckAddDemoLibraryAsync();
                 AddStatusMessage(string.Empty);
+            }
+            catch (Exception ex)
+            {
+                AddStatusMessage(ex.Message);
             }
             finally
             {
                 IsInitializing = false;
             }
             IsInitialized = true;
+        }
+
+        private async Task CheckAddDemoLibraryAsync()
+        {
+            if (!(await _MediaLibrary.IsEmptyAsync()))
+                return;
+            AddStatusMessage("Lade Demodaten...");
+            _DemoLibrary.Fill();
+            await _MediaLibrary.ImportAsync(_DemoLibrary);
         }
         #endregion
 

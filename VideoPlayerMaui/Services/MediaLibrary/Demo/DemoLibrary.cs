@@ -1,15 +1,23 @@
 ﻿using System;
 using System.Linq;
-using VideoPlayerLib.Services.MediaLibrary;
-using VideoPlayerLib.Services.MediaLibrary.Models;
+using VideoPlayer.Models;
+using VideoPlayer.Models.MediaItems;
+using VideoPlayer.Models.Movies;
+using VideoPlayer.Models.Sources;
+using VideoPlayer.Models.TVShows;
 
-namespace MyVideoPlayer.Helper
+namespace VideoPlayer.Services.MediaLibrary.Demo
 {
     public class DemoLibrary: IMediaLibrary
     {
 
-        public DemoLibrary(UserSecrets secrets)
+        public DemoLibrary(IUserSecrets secrets)
             : base()
+        {
+            this.secrets = secrets;
+        }
+
+        public void Fill()
         {
             AddSourceAsync(new FtpMediaSource()
                 {
@@ -56,6 +64,7 @@ namespace MyVideoPlayer.Helper
         }
 
         private List<MediaSource> sources = new List<MediaSource>();
+        private readonly IUserSecrets secrets;
 
         public event EventHandler<BaseModelEventArgs> ModelElementAdded;
 

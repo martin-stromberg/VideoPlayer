@@ -363,3 +363,4 @@ MigrationBackup/
 FodyWeavers.xsd
 /MyVideoPlayer/Helper/DemoLibrary.cs
 /MyVideoPlayer/Resources/Raw/secrets.json
+/VideoPlayer/Resources/Raw/secrets.json

@@ -1,4 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
+using VideoPlayer.Helper;
+using VideoPlayer.Services;
 using VideoPlayer.StatusManagement;
 using VideoPlayer.ViewModels;
 
@@ -18,7 +20,9 @@ namespace VideoPlayer
                     fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
                 })
                 .RegisterStatusManager()
-                .RegisterViewModels();
+                .RegisterViewModels()
+                .RegisterMediaLibrary()
+                .RegisterSecrets();
 
             #if DEBUG
             builder.Logging.AddDebug();

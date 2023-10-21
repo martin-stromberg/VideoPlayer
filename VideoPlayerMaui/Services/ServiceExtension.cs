@@ -13,6 +13,7 @@ using VideoPlayer.Services.MediaLibrary;
 using System.Linq;
 using VideoPlayer.Services.Database;
 using VideoPlayer.Services.MediaLibrary;
+using VideoPlayer.Services.MediaLibrary.Demo;
 
 namespace VideoPlayer.Services
 {
@@ -31,6 +32,7 @@ namespace VideoPlayer.Services
             services.AddTransient<MediaLibrarySettings>();
             services.AddSingleton<IMediaLibraryDatabase, MediaLibraryDatabase>();
             services.AddTransient<IMediaLibrary, MediaLibrary.MediaLibrary>();
+            services.AddTransient<DemoLibrary>();
             return services;
         }
 

@@ -12,15 +12,15 @@ namespace VideoPlayer.ViewModels
 
         public BaseViewModel(IStatusPublisher statusPublisher)
         {
-            _StatusPublisher = statusPublisher;
+            StatusPublisher = statusPublisher;
         }
 
         #region Status
-        private readonly IStatusPublisher _StatusPublisher;
+        protected IStatusPublisher StatusPublisher { get; }
 
         protected virtual void AddStatusMessage(string message)
         {
-            _StatusPublisher.AddStatus(message);
+            StatusPublisher?.AddStatus(message);
         }
         #endregion
 

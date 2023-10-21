@@ -1,17 +1,89 @@
 ﻿using System;
 using System.Linq;
 using VideoPlayer.StatusManagement;
+using VideoPlayer.ViewModels.Management.Sources;
 
 namespace VideoPlayer.ViewModels.Management
 {
     public class ManagementViewModel: BaseViewModel
     {
 
-        public ManagementViewModel(IServiceProvider serviceProvider, IStatusPublisher statusPublisher)
+        public ManagementViewModel(
+            SettingsViewModel settingsViewModel,
+            AdministrativeToolsViewModel adminTasksViewModel,
+            SourcesViewModel sourcesViewModel,
+            IStatusPublisher statusPublisher)
             : base(statusPublisher)
         {
-            Settings = serviceProvider.GetService<SettingsViewModel>();
-            Tools = serviceProvider.GetService<AdministrativeToolsViewModel>();
+            Settings = settingsViewModel;
+            Tools = adminTasksViewModel;
+            Sources = sourcesViewModel;
+        }
+
+        public override void OnAppeared()
+        {
+            base.OnAppeared();
+            CheckShowFirstTime();
+        }
+
+        private void CheckShowFirstTime()
+        {
+            bool hasVisibleViewModel = GetType()
+                                       .GetProperties()
+                                       .Where(p => p.PropertyType.IsAssignableTo(typeof(BaseManagementContentViewModel)))
+                                       .Where(p => p.Name.EndsWith("Content"))
+                                       .Any(p => p.GetValue(this) != null);
+            if (!hasVisibleViewModel)
+                ChangeView(Sources);
+        }
+
+        public BaseManagementContentViewModel CurrentContent
+        {
+            get
+            {
+                return GetProperty<BaseManagementContentViewModel>();
+            }
+            set
+            {
+                SetProperty<BaseManagementContentViewModel>(value);
+            }
+        }
+
+        public SourcesViewModel Sources
+        {
+            get
+            {
+                return GetProperty<SourcesViewModel>();
+            }
+            set
+            {
+                SetProperty<SourcesViewModel>(value);
+            }
+        }
+
+        public SourcesViewModel SourcesContent
+        {
+            get
+            {
+                return GetProperty<SourcesViewModel>();
+            }
+            set
+            {
+                SetProperty<SourcesViewModel>(value);
+                SourcesVisible = value != null;
+            }
+        }
+
+        public bool SourcesVisible
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+            }
         }
 
         public SettingsViewModel Settings
@@ -98,11 +170,20 @@ namespace VideoPlayer.ViewModels.Management
             {
                 bool isVisible = prop.PropertyType.Name.Equals(viewModel.GetType().Name);
                 if (!isVisible)
+                {
+                    var oldValue = prop.GetValue(this) as BaseManagementContentViewModel;
+                    if (oldValue != null)
+                        oldValue.OnDisappeared(false);
                     prop.SetValue(this, null);
+                    if (oldValue != null)
+                        oldValue.OnDisappeared(false);
+                }
                 else
                 {
                     var sourceProp = thisType.GetProperty(prop.Name.Substring(0, prop.Name.Length - "Content".Length));
                     prop.SetValue(this, sourceProp.GetValue(this));
+                    CurrentContent = viewModel;
+                    viewModel.OnAppeared();
                 }
             }
         }

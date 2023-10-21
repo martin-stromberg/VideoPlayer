@@ -11,8 +11,18 @@
             <ColumnDefinition Width="200"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="50"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
 
-        <StackLayout Grid.Column="0">
+        <Label Grid.ColumnSpan="2" FontSize="Title" BindingContext="{Binding CurrentContent}" Text="{Binding Title}" HorizontalOptions="Center"/>
+
+        <StackLayout Grid.Column="0" Grid.Row="1">
+            <Button BindingContext="{Binding Sources}"
+                Text="{Binding Title}" 
+                Margin="5"
+                Clicked="NavigationButtonClicked"/>
             <Button BindingContext="{Binding Settings}"
                     Text="{Binding Title}" 
                     Margin="5"
@@ -22,11 +32,15 @@
                     Margin="5"
                     Clicked="NavigationButtonClicked"/>
         </StackLayout>
-        <Grid Grid.Column="1" IsVisible="{Binding SettingsVisible}">
+        
+        <Grid Grid.Column="1" Grid.Row="1" IsVisible="{Binding SettingsVisible}">
             <views:SettingsView BindingContext="{Binding SettingsContent}"/>
         </Grid>
-        <Grid Grid.Column="1" IsVisible="{Binding ToolsVisible}">
+        <Grid Grid.Column="1" Grid.Row="1" IsVisible="{Binding ToolsVisible}">
             <views:AdminTasksView BindingContext="{Binding ToolsContent}"/>
+        </Grid>
+        <Grid Grid.Column="1" Grid.Row="1" IsVisible="{Binding SourcesVisible}">
+            <views:SourcesView BindingContext="{Binding SourcesContent}"/>
         </Grid>
     </Grid>
 </ContentPage>

@@ -42,6 +42,8 @@ namespace MyVideoPlayer.ViewModels.Navigation
 
         public ObservableCollection<BaseMediaElementBoxViewModel> Items { get; set; } = new ObservableCollection<BaseMediaElementBoxViewModel>();
 
+        private List<BaseMediaElementBoxViewModel> BackgroundItems { get; } = new List<BaseMediaElementBoxViewModel>();
+
         public virtual MenuViewModel MenuViewModel { get; }
 
         private void Items_CollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
@@ -130,6 +132,8 @@ namespace MyVideoPlayer.ViewModels.Navigation
 
         internal virtual async Task ReadMediaCollection(MediaSource source)
         {
+            while (LoadingDataWaiting)
+                await Task.Delay(10);
             foreach (var collection in (await MediaLibrary.GetMediaItemCollectionsAsync(source.Id)).OrderBy(c =>
                                                                                                             c.ParentCollectionId))
                 MediaLibrary_ModelElementAdded(this, new BaseModelEventArgs(collection));
@@ -137,12 +141,41 @@ namespace MyVideoPlayer.ViewModels.Navigation
 
         internal virtual async Task ReadMediaItems(MediaItemCollection collection)
         {
+            while (LoadingDataWaiting)
+                await Task.Delay(10);
             foreach (var coll in (await MediaLibrary.GetMediaItemCollectionsAsync(collection.MediaSourceId)).OrderBy(c =>
                                                                                                                      c.ParentCollectionId))
                 MediaLibrary_ModelElementAdded(this, new BaseModelEventArgs(coll));
             foreach (var mediaItem in (await MediaLibrary.GetMediaItemsAsync(collection.Id)).OrderBy(c =>
                                                                                                      c.ParentCollectionId))
                 MediaLibrary_ModelElementAdded(this, new BaseModelEventArgs(mediaItem));
+        }
+
+        internal virtual void PutBesideItems()
+        {
+            BackgroundItems.AddRange(Items);
+            Items.Clear();
+        }
+
+        protected bool LoadingDataWaiting = false;
+
+        internal virtual async Task ReloadBackgroundItems()
+        {
+            LoadingDataWaiting = true;
+            try
+            {
+                await Task.Delay(200);
+                await Task.Run(() =>
+                {
+                    foreach (var item in BackgroundItems)
+                        MainThread.InvokeOnMainThreadAsync(() => { Items.Add(item); });
+                    BackgroundItems.Clear();
+                });
+            }
+            finally
+            {
+                LoadingDataWaiting = false;
+            }
         }
 
     }

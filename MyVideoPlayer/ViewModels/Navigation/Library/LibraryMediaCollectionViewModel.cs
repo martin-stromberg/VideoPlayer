@@ -65,6 +65,8 @@ namespace MyVideoPlayer.ViewModels.Navigation.Library
 
         internal override async Task ReadMediaItems(MediaItemCollection collection)
         {
+            while (LoadingDataWaiting)
+                await Task.Delay(10);
             if (Parent == null)
             {
                 if (CategoryType == typeof(Movie))
@@ -135,7 +137,13 @@ namespace MyVideoPlayer.ViewModels.Navigation.Library
 
         public override void OnAppeared()
         {
+            _ = ReloadBackgroundItems();
             _ = ReadMediaItems(null);
+        }
+
+        public override void OnDisappeared()
+        {
+            PutBesideItems();
         }
 
         private async Task LoadMovieCollections()

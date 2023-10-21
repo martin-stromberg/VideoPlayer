@@ -53,7 +53,9 @@ namespace MyVideoPlayer.Helper
             services.AddSingleton<INavigationManager, NavigationManager>();
             services.AddSingleton<ILogDatabase>(sp => sp.GetService<IMediaLibraryDatabase>() as ILogDatabase);
             services.AddSingleton<IMediaLibraryDatabase, MediaLibraryDatabase>();
-            services.AddSingleton<IMediaLibrary, MediaLibrary>();
+            services.AddSingleton<IMediaLibrary>(sp =>
+                                                 new MediaLibrary(sp.GetService<IMediaLibraryDatabase>(), sp.GetService<LibraryScannerSettings>()
+                                                                                                            .CacheRootPath));
             services.AddSingleton<ILibraryScanner, LibraryScanner>();
             services.AddSingleton<ILibraryDownloader, LibraryDownloader>();
             services.AddSingleton<ILibraryCollector, LibraryCollector>();

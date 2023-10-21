@@ -76,10 +76,6 @@ namespace VideoPlayerLib.Services.MediaLibrary.Models
             set
             {
                 SetProperty<string>(value);
-                if (value == null)
-                    Picture = null;
-                else
-                    Picture = ImageSource.FromFile(value);
             }
         }
 

@@ -26,7 +26,7 @@ namespace VideoPlayer.ViewModels.Management.Sources
             {
                 if (Sources.Any(vm => vm.ContainsSource(source)))
                     continue;
-                var vm = new SourceSettingsViewModel(source, StatusPublisher);
+                var vm = new SourceSettingsViewModel(source, StatusPublisher, _MediaLibrary);
                 Sources.Add(vm);
             }
         }

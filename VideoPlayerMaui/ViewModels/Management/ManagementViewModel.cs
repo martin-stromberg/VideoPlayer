@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using VideoPlayer.StatusManagement;
+using VideoPlayer.ViewModels.Global;
 using VideoPlayer.ViewModels.Management.Sources;
 
 namespace VideoPlayer.ViewModels.Management
@@ -12,12 +13,27 @@ namespace VideoPlayer.ViewModels.Management
             SettingsViewModel settingsViewModel,
             AdministrativeToolsViewModel adminTasksViewModel,
             SourcesViewModel sourcesViewModel,
+            GlobalStatusViewModel statusViewModel,
             IStatusPublisher statusPublisher)
             : base(statusPublisher)
         {
             Settings = settingsViewModel;
             Tools = adminTasksViewModel;
             Sources = sourcesViewModel;
+            Title = "Verwaltung";
+            StatusViewModel = statusViewModel;
+        }
+
+        public GlobalStatusViewModel StatusViewModel
+        {
+            get
+            {
+                return GetProperty<GlobalStatusViewModel>();
+            }
+            set
+            {
+                SetProperty<GlobalStatusViewModel>(value);
+            }
         }
 
         public override void OnAppeared()

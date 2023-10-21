@@ -42,6 +42,9 @@
 	  <MauiXaml Update="Views\Management\SourcesView.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
+	  <MauiXaml Update="Views\Management\Sources\SourceFTPConfigurationBox.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
 	  <MauiXaml Update="Views\StatusBar.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>

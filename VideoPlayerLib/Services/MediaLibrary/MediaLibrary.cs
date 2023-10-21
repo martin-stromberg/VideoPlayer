@@ -132,7 +132,7 @@ namespace VideoPlayerLib.Services.MediaLibrary
         #region Media Items
         public async Task<MediaItem> GetMediaItemAsync(long id)
         {
-            return MediaItem.FromDataModel(await dataStore.GetMediaItemAsync(id)).UpdatePicture(_CacheRootPath) as MediaItem;
+            return MediaItem.FromDataModel(await dataStore.GetMediaItemAsync(id))?.UpdatePicture(_CacheRootPath) as MediaItem;
         }
 
         public async Task<IEnumerable<MediaItem>> GetAllMediaItems()

@@ -1,6 +1,6 @@
 ﻿using VideoPlayer.ViewModels.Global;
 
-namespace VideoPlayer
+namespace VideoPlayer.Views
 {
     public partial class MainPage: ContentPage
     {

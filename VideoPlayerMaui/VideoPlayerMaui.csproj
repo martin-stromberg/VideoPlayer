@@ -27,6 +27,12 @@
 	  <MauiXaml Update="Views\HomePageView.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
+	  <MauiXaml Update="Views\Management\AdminTasksView.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
+	  <MauiXaml Update="Views\Management\SettingsView.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
 	  <MauiXaml Update="Views\StatusBar.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>

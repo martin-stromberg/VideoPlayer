@@ -4,12 +4,18 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:local="clr-namespace:VideoPlayer"
-    Shell.FlyoutBehavior="Disabled"
+    xmlns:views="clr-namespace:VideoPlayer.Views"
+    Shell.FlyoutBehavior="Flyout"
     Title="VideoPlayer">
 
     <ShellContent
-        Title="Home"
-        ContentTemplate="{DataTemplate local:MainPage}"
+        Title="Startseite"        
+        ContentTemplate="{DataTemplate views:MainPage}"
         Route="MainPage" />
+
+    <ShellContent
+        Title="Verwaltung"        
+        ContentTemplate="{DataTemplate views:ManagementPage}"
+        Route="ManagementPage" />
 
 </Shell>

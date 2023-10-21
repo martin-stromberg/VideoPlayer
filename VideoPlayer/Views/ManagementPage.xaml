@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:VideoPlayer.ViewModels.Management;assembly=VideoPlayerMaui"
+             xmlns:views="clr-namespace:VideoPlayer.Views.Management;assembly=VideoPlayerMaui"
+             x:Class="VideoPlayer.Views.ManagementPage"
+             x:DataType="vm:ManagementViewModel"
+             Title="ManagementPage">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="200"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <StackLayout Grid.Column="0">
+            <Button BindingContext="{Binding Settings}"
+                    Text="{Binding Title}" 
+                    Margin="5"
+                    Clicked="NavigationButtonClicked"/>
+            <Button BindingContext="{Binding Tools}"
+                    Text="{Binding Title}" 
+                    Margin="5"
+                    Clicked="NavigationButtonClicked"/>
+        </StackLayout>
+        <Grid Grid.Column="1" IsVisible="{Binding SettingsVisible}">
+            <views:SettingsView BindingContext="{Binding SettingsContent}"/>
+        </Grid>
+        <Grid Grid.Column="1" IsVisible="{Binding ToolsVisible}">
+            <views:AdminTasksView BindingContext="{Binding ToolsContent}"/>
+        </Grid>
+    </Grid>
+</ContentPage>

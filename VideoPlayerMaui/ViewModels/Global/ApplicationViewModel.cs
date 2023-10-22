@@ -2,6 +2,7 @@
 using System.Linq;
 using VideoPlayer.Services.MediaLibrary;
 using VideoPlayer.Services.MediaLibrary.Demo;
+using VideoPlayer.Services.MediaLibrary.Scanner;
 using VideoPlayer.StatusManagement;
 using VideoPlayer.ViewModels.Homepage;
 
@@ -12,15 +13,18 @@ namespace VideoPlayer.ViewModels.Global
 
         private readonly IMediaLibrary _MediaLibrary;
         private readonly DemoLibrary _DemoLibrary;
+        private readonly ILibraryScanner _LibraryScanner;
 
         public ApplicationViewModel(
             GlobalStatusViewModel statusViewModel,
             HomePageViewModel contentViewModel,
             IMediaLibrary mediaLibrary,
             DemoLibrary demoLibrary,
-            IStatusPublisher statusPublisher)
+            IStatusPublisher statusPublisher,
+            ILibraryScanner libraryScanner)
             : base(statusPublisher)
         {
+            _LibraryScanner = libraryScanner;
             _DemoLibrary = demoLibrary;
             _MediaLibrary = mediaLibrary;
             Title = "Medienbibliothek";
@@ -68,6 +72,7 @@ namespace VideoPlayer.ViewModels.Global
             {
                 AddStatusMessage("Initialisiere...");
                 await CheckAddDemoLibraryAsync();
+                StartLibraryScans();
                 AddStatusMessage(string.Empty);
             }
             catch (Exception ex)
@@ -79,6 +84,12 @@ namespace VideoPlayer.ViewModels.Global
                 IsInitializing = false;
             }
             IsInitialized = true;
+        }
+
+        private void StartLibraryScans()
+        {
+            AddStatusMessage("Starte Quellscanner...");
+            _LibraryScanner.Start();
         }
 
         private async Task CheckAddDemoLibraryAsync()

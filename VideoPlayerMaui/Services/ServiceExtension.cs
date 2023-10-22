@@ -15,6 +15,7 @@ using VideoPlayer.Services.Database;
 using VideoPlayer.Services.Export;
 using VideoPlayer.Services.MediaLibrary;
 using VideoPlayer.Services.MediaLibrary.Demo;
+using VideoPlayer.Services.MediaLibrary.Scanner;
 
 namespace VideoPlayer.Services
 {
@@ -35,6 +36,7 @@ namespace VideoPlayer.Services
             services.AddTransient<IMediaLibrary, MediaLibrary.MediaLibrary>();
             services.AddTransient<DemoLibrary>();
             services.AddTransient<IDatabaseExporter, DatabaseExporter>();
+            services.AddSingleton<ILibraryScanner, LibraryScanner>();
             return services;
         }
 

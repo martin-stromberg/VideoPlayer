@@ -19,15 +19,38 @@ namespace VideoPlayer.Helper
         {
             Assembly assembly = Assembly.GetExecutingAssembly();
             string assemblyName = assembly.GetName().Name;
-            using Stream fileStream = assembly.GetManifestResourceStream($"{assemblyName}.{filePath}");
-            if (fileStream == null)
-            {
-                return null;
-            }
 
-            using StreamReader sr = new(fileStream);
-            string fileContent = sr.ReadToEnd();
-            return JObject.Parse(fileContent);
+            var ressources = assembly.GetManifestResourceNames();
+
+            Stream resourceStream = assembly.GetManifestResourceStream($"{assemblyName}.{filePath}");
+            try
+            {
+                if (resourceStream == null)
+                {
+                    resourceStream = FindFile(assembly, $"{filePath}");
+                    if (resourceStream == null)
+                        throw new ApplicationException($"Embedded Ressource \"{assemblyName}.{filePath}\" was not found.");
+                }
+                using (StreamReader sr = new(resourceStream))
+                {
+                    string resourceContent = sr.ReadToEnd();
+                    return JObject.Parse(resourceContent);
+                }
+            }
+            finally
+            {
+                if (resourceStream != null)
+                    resourceStream.Close();
+            }
+        }
+
+        private static Stream FindFile(Assembly assembly, string fileName)
+        {
+            var folder = Path.GetDirectoryName(assembly.Location);
+            var filePath = Path.Combine(folder, fileName);
+            if (!File.Exists(filePath))
+                return null;
+            return new FileStream(filePath, FileMode.Open);
         }
 
         public string SyncfusionLicenseKey => Configuration?.Value<string>(nameof(SyncfusionLicenseKey)) ?? throw new NullReferenceException(nameof(SyncfusionLicenseKey));

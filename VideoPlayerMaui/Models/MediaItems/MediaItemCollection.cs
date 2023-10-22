@@ -98,5 +98,12 @@ namespace VideoPlayer.Models.MediaItems
             }
         }
 
+        protected override void UpdateFromDataModel(BaseDataModel dataModel)
+        {
+            if (((MediaCollection)dataModel).MetaInfoJson == "null")
+                ((MediaCollection)dataModel).MetaInfoJson = null;
+            base.UpdateFromDataModel(dataModel);
+        }
+
     }
 }

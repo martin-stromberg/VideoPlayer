@@ -24,13 +24,14 @@
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
 		<PackageReference Include="sqlite-net-pcl" Version="1.8.116" />
 		<PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.6" />
+		<PackageReference Include="Syncfusion.XlsIO.NET" Version="23.1.40" />
 	</ItemGroup>
 
 	<ItemGroup>
 	  <MauiXaml Update="Views\HomePageView.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
-	  <MauiXaml Update="Views\Management\AdminTasksView.xaml">
+	  <MauiXaml Update="Views\Management\AdministrativeTasks\AdminTasksView.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
 	  <MauiXaml Update="Views\Management\SettingsView.xaml">

@@ -192,17 +192,20 @@ namespace VideoPlayer.Models
                 if (!dataModelProp.CanRead)
                     continue;
                 var sourceValue = dataModelProp.GetValue(dataModel);
-                if ((prop.PropertyType == typeof(StreamImageSource)) && (sourceValue != null))
+                if (sourceValue != null)
                 {
-                    byte[] bytes = Convert.FromBase64String((string)sourceValue);
-                    MemoryStream stream = new MemoryStream(bytes);
-                    sourceValue = StreamImageSource.FromStream(() => stream);
+                    if ((prop.PropertyType == typeof(StreamImageSource)) && (sourceValue != null))
+                    {
+                        byte[] bytes = Convert.FromBase64String((string)sourceValue);
+                        MemoryStream stream = new MemoryStream(bytes);
+                        sourceValue = StreamImageSource.FromStream(() => stream);
+                    }
+                    if (convertToJson)
+                        sourceValue = JsonConvert.DeserializeObject((string)sourceValue, new JsonSerializerSettings()
+                            {
+                                TypeNameHandling = TypeNameHandling.Objects
+                            });
                 }
-                if (convertToJson)
-                    sourceValue = JsonConvert.DeserializeObject((string)sourceValue, new JsonSerializerSettings()
-                        {
-                            TypeNameHandling = TypeNameHandling.Objects
-                        });
                 prop.SetValue(this, sourceValue);
             }
         }

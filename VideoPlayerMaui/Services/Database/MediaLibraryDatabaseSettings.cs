@@ -1,4 +1,5 @@
-﻿using System;
+﻿using SQLite;
+using System;
 using System.Linq;
 
 namespace VideoPlayer.Services.Database
@@ -15,7 +16,7 @@ namespace VideoPlayer.Services.Database
                 if (string.IsNullOrWhiteSpace(filePath))
                 {
                     string folder = Environment.GetFolderPath(Environment.SpecialFolder.Personal);
-                    folder = Path.Combine(folder, "VideoMeister");
+                    folder = Path.Combine(folder, "VideoPlayer");
                     if (!Directory.Exists(folder))
                         Directory.CreateDirectory(folder);
                     filePath = Path.Combine(folder, "MediaLibrary.db3");
@@ -24,16 +25,16 @@ namespace VideoPlayer.Services.Database
             }
         }
 
-        public SQLite.SQLiteOpenFlags OpenFlags =
+        public SQLiteOpenFlags OpenFlags =
  // open the database in read/write mode
- SQLite.SQLiteOpenFlags.ReadWrite |
+ SQLiteOpenFlags.ReadWrite |
 
             // create the database if it doesn't exist
-            SQLite.SQLiteOpenFlags.Create |
+            SQLiteOpenFlags.Create |
 
             // enable multi-threaded database access
-            SQLite.SQLiteOpenFlags.SharedCache |
-            SQLite.SQLiteOpenFlags.FullMutex;
+            SQLiteOpenFlags.SharedCache |
+            SQLiteOpenFlags.FullMutex;
 
     }
 }

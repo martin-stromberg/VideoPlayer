@@ -4,6 +4,7 @@
              xmlns:vm="clr-namespace:VideoPlayer.ViewModels.Management;assembly=VideoPlayerMaui"
              xmlns:view="clr-namespace:VideoPlayer.Views;assembly=VideoPlayerMaui"
              xmlns:views="clr-namespace:VideoPlayer.Views.Management;assembly=VideoPlayerMaui"
+             xmlns:viewAdmin="clr-namespace:VideoPlayer.Views.Management.AdministrativeTasks;assembly=VideoPlayerMaui"
              x:Class="VideoPlayer.Views.ManagementPage"
              x:DataType="vm:ManagementViewModel"
              Title="{Binding Title}">
@@ -39,7 +40,7 @@
             <views:SettingsView BindingContext="{Binding SettingsContent}"/>
         </Grid>
         <Grid Grid.Column="1" Grid.Row="1" IsVisible="{Binding ToolsVisible}">
-            <views:AdminTasksView BindingContext="{Binding ToolsContent}"/>
+            <viewAdmin:AdminTasksView BindingContext="{Binding ToolsContent}"/>
         </Grid>
         <Grid Grid.Column="1" Grid.Row="1" IsVisible="{Binding SourcesVisible}">
             <views:SourcesView BindingContext="{Binding SourcesContent}"/>

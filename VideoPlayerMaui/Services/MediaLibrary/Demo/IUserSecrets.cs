@@ -8,5 +8,7 @@ namespace VideoPlayer.Services.MediaLibrary.Demo
 
         string RespberryPiPassword { get; }
 
+        string SyncfusionLicenseKey { get; }
+
     }
 }

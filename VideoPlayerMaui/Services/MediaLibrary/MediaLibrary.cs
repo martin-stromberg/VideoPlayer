@@ -35,12 +35,12 @@ namespace VideoPlayer.Services.MediaLibrary
             BaseModelEventArgs modelElementUpdated,
             BaseModelEventArgs modelElementRemoved)
         {
-            if ((modelElementAdded != null) && (ModelElementAdded != null))
-                ModelElementAdded(this, modelElementAdded);
-            if ((modelElementUpdated != null) && (ModelElementUpdated != null))
-                ModelElementUpdated(this, modelElementUpdated);
-            if ((modelElementRemoved != null) && (ModelElementRemoved != null))
-                ModelElementRemoved(this, modelElementRemoved);
+            if (modelElementAdded != null)
+                ModelElementAdded?.Invoke(this, modelElementAdded);
+            if (modelElementUpdated != null)
+                ModelElementUpdated?.Invoke(this, modelElementUpdated);
+            if (modelElementRemoved != null)
+                ModelElementRemoved?.Invoke(this, modelElementRemoved);
         }
 
         #region Sources

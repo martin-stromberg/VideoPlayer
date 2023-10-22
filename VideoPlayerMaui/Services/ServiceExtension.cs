@@ -34,7 +34,7 @@ namespace VideoPlayer.Services
             services.AddTransient<MediaLibraryDatabaseSettings>();
             services.AddTransient<MediaLibrarySettings>();
             services.AddSingleton<IMediaLibraryDatabase, MediaLibraryDatabase>();
-            services.AddTransient<IMediaLibrary, MediaLibrary.MediaLibrary>();
+            services.AddSingleton<IMediaLibrary, MediaLibrary.MediaLibrary>();
             services.AddTransient<DemoLibrary>();
             services.AddTransient<IDatabaseExporter, DatabaseExporter>();
             services.AddSingleton<ILibraryScanner, LibraryScanner>();

@@ -1,10 +1,12 @@
 ﻿using Foundation;
 
-namespace VideoPlayer
+namespace VideoPlayer.Platforms.iOS
 {
     [Register("AppDelegate")]
-    public class AppDelegate : MauiUIApplicationDelegate
+    public class AppDelegate: MauiUIApplicationDelegate
     {
+
         protected override MauiApp CreateMauiApp() => MauiProgram.CreateMauiApp();
+
     }
 }

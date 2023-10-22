@@ -71,7 +71,7 @@
 
 	<ItemGroup>
 	  <MauiAsset Update="Resources\Raw\secrets.json">
-	    <LogicalName>%(RecursiveDir)%(Filename)%(Extension)</LogicalName>
+		  <CopyToOutputDirectory></CopyToOutputDirectory>
 	  </MauiAsset>
 	</ItemGroup>
 
@@ -93,5 +93,10 @@
   <PropertyGroup Condition="$(TargetFramework.Contains('-maccatalyst')) and '$(Configuration)' == 'Release'">
     <CodesignEntitlements>Platforms/MacCatalyst/Entitlements.Release.plist</CodesignEntitlements>
     <UseHardenedRuntime>true</UseHardenedRuntime>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)'=='net8.0-ios'">
+    <CodesignKey>Apple Development: Created via API (466MVK852A)</CodesignKey>
+    <CodesignProvision>VS: WildCard Development</CodesignProvision>
   </PropertyGroup>
 </Project>

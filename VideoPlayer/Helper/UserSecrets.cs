@@ -2,6 +2,7 @@
 using System;
 using System.Linq;
 using System.Reflection;
+using VideoPlayer.Extensions;
 using VideoPlayer.Services.MediaLibrary.Demo;
 
 namespace VideoPlayer.Helper
@@ -13,10 +14,19 @@ namespace VideoPlayer.Helper
         public UserSecrets()
             : base() { }
 
-        private JObject Configuration { get; } = GetConfiguration("secrets.json");
+        private JObject Configuration { get; } = GetConfigurationAsync("secrets.json").Wait<JObject>();
 
-        private static JObject GetConfiguration(string filePath)
+        private static async Task<JObject> GetConfigurationAsync(string filePath)
         {
+            try
+            {
+                using var stream = await FileSystem.OpenAppPackageFileAsync("secrets.json");
+                using var reader = new StreamReader(stream);
+                var contents = reader.ReadToEnd();
+                return JObject.Parse(contents);
+            }
+            catch { }
+
             Assembly assembly = Assembly.GetExecutingAssembly();
             string assemblyName = assembly.GetName().Name;
 
@@ -36,6 +46,10 @@ namespace VideoPlayer.Helper
                     string resourceContent = sr.ReadToEnd();
                     return JObject.Parse(resourceContent);
                 }
+            }
+            catch
+            {
+                return null;
             }
             finally
             {

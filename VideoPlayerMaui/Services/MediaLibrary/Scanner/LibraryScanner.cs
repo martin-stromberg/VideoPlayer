@@ -64,7 +64,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
         private void Scanner_BeforeScanFolder(object sender, FolderScanEventArgs e)
         {
             CheckContinue();
-            _StatusPublisher.AddStatus($"{e.Value}");
+            _StatusPublisher.AddStatus($"{e.Value}", false);
             if (e.ScanFiles)
             {
                 var scanner = sender as RemoteSourceScanner;
@@ -164,7 +164,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
                 return;
             if (source.LastScan.AddHours(24) >= DateTime.Now)
             {
-                _StatusPublisher.AddStatus(string.Empty);
+                _StatusPublisher.AddStatus(string.Empty, true);
                 return;
             }
             ScanSource(source);
@@ -191,7 +191,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
             catch (Exception ex)
             {
                 logger.LogError(ex, ex.Message);
-                _StatusPublisher.AddStatus(ex.Message);
+                _StatusPublisher.AddStatus(ex.Message, true);
             }
             finally
             {
@@ -299,7 +299,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
             var collections = await mediaLibrary.GetMediaItemCollectionsAsync(source.Id);
             foreach (var collection in collections)
             {
-                _StatusPublisher.AddStatus($"{collection.Path}");
+                _StatusPublisher.AddStatus($"{collection.Path}", false);
                 var mediaItems = await mediaLibrary.GetMediaItemsAsync(collection.Id);
                 foreach (var mediaItem in mediaItems.Where(mi => mi.LastConfirmation < source.LastScanStart))
                     await CheckRemovedMediaItemAsync(source, scanner, mediaItem);

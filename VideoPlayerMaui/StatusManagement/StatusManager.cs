@@ -11,9 +11,11 @@ namespace VideoPlayer.StatusManagement
         public StatusManager() { }
 
         #region IStatusPublisher
-        public void AddStatus(string message)
+        public void AddStatus(string message, bool direct)
         {
             LastStatusMessage = message;
+            if (direct)
+                CheckAndDoNotification(this, DoWorkEventArgs.Empty as DoWorkEventArgs);
         }
         #endregion
 

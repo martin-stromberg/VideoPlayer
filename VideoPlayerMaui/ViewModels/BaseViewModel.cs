@@ -18,9 +18,9 @@ namespace VideoPlayer.ViewModels
         #region Status
         protected IStatusPublisher StatusPublisher { get; }
 
-        protected virtual void AddStatusMessage(string message)
+        protected virtual void AddStatusMessage(string message, bool direct = true)
         {
-            StatusPublisher?.AddStatus(message);
+            StatusPublisher?.AddStatus(message, direct);
         }
         #endregion
 

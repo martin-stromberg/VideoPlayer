@@ -11,8 +11,14 @@
                 <RowDefinition Height="50"/>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="50"/>
+            </Grid.ColumnDefinitions>
             <Label Grid.Row="0" Text="{Binding Title}"/>
             <view:SourceFTPConfigurationBox Grid.Row="1" IsVisible="{Binding IsFTP}"/>
+
+            <ImageButton Grid.Column="1" Source="icon_rescan.png" Command="{Binding Rescan}"/>
         </Grid>
     </Frame>
 </ContentView>

@@ -27,6 +27,7 @@ namespace VideoPlayer.ViewModels.Management.Sources
                 Path = ((FtpMediaSource)source).Path;
             }
             Save = new Command(async () => await DoSaveAsync());
+            Rescan = new Command(async () => await DoRescanAsync());
         }
 
         public bool IsFTP
@@ -91,6 +92,8 @@ namespace VideoPlayer.ViewModels.Management.Sources
 
         public Command Save { get; }
 
+        public Command Rescan { get; }
+
         private async Task DoSaveAsync()
         {
             try
@@ -122,6 +125,15 @@ namespace VideoPlayer.ViewModels.Management.Sources
         public bool ContainsSource(MediaSource source)
         {
             return this.source.Id == source.Id;
+        }
+
+        private async Task DoRescanAsync()
+        {
+            var currentSource = await _MediaLibrary.GetSourceAsync(source.Id);
+            currentSource.LastScan = DateTime.MinValue;
+            await _MediaLibrary.AddSourceAsync(currentSource);
+            source.Update(currentSource);
+            AddStatusMessage($"Die Quelle ist nun für den nächsten Scan vorgesehen.");
         }
 
     }

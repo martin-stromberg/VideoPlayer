@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using VideoPlayer.Services.MediaLibrary;
+using VideoPlayer.Services.MediaLibrary.Classification;
 using VideoPlayer.Services.MediaLibrary.Demo;
 using VideoPlayer.Services.MediaLibrary.Scanner;
 using VideoPlayer.StatusManagement;
@@ -14,6 +15,7 @@ namespace VideoPlayer.ViewModels.Global
         private readonly IMediaLibrary _MediaLibrary;
         private readonly DemoLibrary _DemoLibrary;
         private readonly ILibraryScanner _LibraryScanner;
+        private readonly IMediaItemClassifier _MediaItemClassifier;
 
         public ApplicationViewModel(
             GlobalStatusViewModel statusViewModel,
@@ -21,9 +23,11 @@ namespace VideoPlayer.ViewModels.Global
             IMediaLibrary mediaLibrary,
             DemoLibrary demoLibrary,
             IStatusPublisher statusPublisher,
-            ILibraryScanner libraryScanner)
+            ILibraryScanner libraryScanner,
+            IMediaItemClassifier mediaItemClassifier)
             : base(statusPublisher)
         {
+            _MediaItemClassifier = mediaItemClassifier;
             _LibraryScanner = libraryScanner;
             _DemoLibrary = demoLibrary;
             _MediaLibrary = mediaLibrary;

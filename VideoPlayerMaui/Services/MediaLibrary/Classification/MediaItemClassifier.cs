@@ -30,17 +30,14 @@ namespace VideoPlayer.Services.MediaLibrary.Classification
 
         private void MediaLibrary_ModelElementAddedAsync(object sender, BaseModelEventArgs e)
         {
-            var mediaItem = e.Element as MediaItem;
-            if (mediaItem == null)
-                return;
-            if (mediaItem.CopyType != MediaItemCopyType.None)
-                return;
             CollectMediaItemAsync(e.Element as MediaItem).Wait();
         }
 
         private async Task CollectMediaItemAsync(MediaItem mediaItem)
         {
             if (mediaItem == null)
+                return;
+            if (mediaItem.CopyType != MediaItemCopyType.None)
                 return;
             if (mediaItem.MetaInfo is MovieInformation)
                 await CollectMovieAsync(mediaItem, mediaItem.MetaInfo as MovieInformation);

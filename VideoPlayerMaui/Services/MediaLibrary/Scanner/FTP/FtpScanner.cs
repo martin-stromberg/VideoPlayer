@@ -62,13 +62,13 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.FTP
                 currentScan_latestScanPathReached = currentScan_skipPathParts == null;
 
                 Scan(mediaSource.Path, false);
+                OnScanCompleted();
             }
             finally
             {
                 CurrentSource = null;
                 share = null;
             }
-            OnScanCompleted();
         }
 
         private void Scan(string path, bool isSubFolder)

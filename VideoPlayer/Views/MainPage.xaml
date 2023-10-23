@@ -1,7 +1,8 @@
 ﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             xmlns:view="clr-namespace:VideoPlayer.Views;assembly=VideoPlayerMaui"
+             xmlns:vw="clr-namespace:VideoPlayer.Views"
+             xmlns:vwHome="clr-namespace:VideoPlayer.Views.Homepage"
              xmlns:vm="clr-namespace:VideoPlayer.ViewModels.Global;assembly=VideoPlayerMaui"
              x:Class="VideoPlayer.Views.MainPage"
              x:DataType="vm:ApplicationViewModel"
@@ -15,10 +16,10 @@
             HorizontalOptions="Center" />
         <Grid
             IsVisible="{Binding IsInitialized}">
-            <view:HomePageView 
+            <vwHome:HomePageView 
                 BindingContext="{Binding ContentViewModel}" />
         </Grid>
-        <view:StatusBar 
+        <vw:StatusBar 
             BindingContext="{Binding StatusViewModel}"
             VerticalOptions="End"
             Margin="5"/>

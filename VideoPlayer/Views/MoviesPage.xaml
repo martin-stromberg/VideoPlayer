@@ -5,7 +5,7 @@
              Title="MoviesPage">
     <VerticalStackLayout>
         <Label 
-            Text="Welcome to .NET MAUI!"
+            Text="Movies"
             VerticalOptions="Center" 
             HorizontalOptions="Center" />
 

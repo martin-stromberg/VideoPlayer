@@ -2,9 +2,9 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:vm="clr-namespace:VideoPlayer.ViewModels.Management;assembly=VideoPlayerMaui"
-             xmlns:view="clr-namespace:VideoPlayer.Views;assembly=VideoPlayerMaui"
-             xmlns:views="clr-namespace:VideoPlayer.Views.Management;assembly=VideoPlayerMaui"
-             xmlns:viewAdmin="clr-namespace:VideoPlayer.Views.Management.AdministrativeTasks;assembly=VideoPlayerMaui"
+             xmlns:view="clr-namespace:VideoPlayer.Views"
+             xmlns:views="clr-namespace:VideoPlayer.Views.Management"
+             xmlns:viewAdmin="clr-namespace:VideoPlayer.Views.Management.AdministrativeTasks"
              x:Class="VideoPlayer.Views.ManagementPage"
              x:DataType="vm:ManagementViewModel"
              Title="{Binding Title}">

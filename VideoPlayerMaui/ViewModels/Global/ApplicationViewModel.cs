@@ -16,6 +16,7 @@ namespace VideoPlayer.ViewModels.Global
         private readonly DemoLibrary _DemoLibrary;
         private readonly ILibraryScanner _LibraryScanner;
         private readonly IMediaItemClassifier _MediaItemClassifier;
+        private readonly IUserSecrets _UserSecrets;
 
         public ApplicationViewModel(
             GlobalStatusViewModel statusViewModel,
@@ -24,9 +25,11 @@ namespace VideoPlayer.ViewModels.Global
             DemoLibrary demoLibrary,
             IStatusPublisher statusPublisher,
             ILibraryScanner libraryScanner,
-            IMediaItemClassifier mediaItemClassifier)
+            IMediaItemClassifier mediaItemClassifier,
+            IUserSecrets userSecrets)
             : base(statusPublisher)
         {
+            _UserSecrets = userSecrets;
             _MediaItemClassifier = mediaItemClassifier;
             _LibraryScanner = libraryScanner;
             _DemoLibrary = demoLibrary;
@@ -75,6 +78,7 @@ namespace VideoPlayer.ViewModels.Global
             try
             {
                 AddStatusMessage("Initialisiere...");
+                await InitializeSecrets();
                 await CheckAddDemoLibraryAsync();
                 StartLibraryScans();
                 AddStatusMessage(string.Empty);
@@ -88,6 +92,11 @@ namespace VideoPlayer.ViewModels.Global
                 IsInitializing = false;
             }
             IsInitialized = true;
+        }
+
+        private async Task InitializeSecrets()
+        {
+            await _UserSecrets.Initialize();
         }
 
         private void StartLibraryScans()

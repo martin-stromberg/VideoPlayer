@@ -2,7 +2,6 @@
 using System;
 using System.Linq;
 using System.Reflection;
-using VideoPlayer.Extensions;
 using VideoPlayer.Services.MediaLibrary.Demo;
 
 namespace VideoPlayer.Helper
@@ -14,7 +13,12 @@ namespace VideoPlayer.Helper
         public UserSecrets()
             : base() { }
 
-        private JObject Configuration { get; } = GetConfigurationAsync("secrets.json").Wait<JObject>();
+        public async Task Initialize()
+        {
+            Configuration = await GetConfigurationAsync("secrets.json");
+        }
+
+        protected JObject Configuration { get; private set; }
 
         private static async Task<JObject> GetConfigurationAsync(string filePath)
         {

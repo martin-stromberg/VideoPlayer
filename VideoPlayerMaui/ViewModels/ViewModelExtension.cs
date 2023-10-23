@@ -3,7 +3,7 @@ using System.Linq;
 
 namespace VideoPlayer.ViewModels
 {
-    public static class ViewModelExtension
+    public static class NavigationManagerExtensions
     {
 
         public static MauiAppBuilder RegisterViewModels(this MauiAppBuilder builder)

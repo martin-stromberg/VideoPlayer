@@ -1,6 +1,4 @@
-﻿using VideoPlayer.Views;
-
-namespace VideoPlayer
+﻿namespace VideoPlayer
 {
     public partial class AppShell: Shell
     {
@@ -8,7 +6,6 @@ namespace VideoPlayer
         public AppShell()
         {
             InitializeComponent();
-            Routing.RegisterRoute("movies", typeof(MoviesPage));
         }
 
     }

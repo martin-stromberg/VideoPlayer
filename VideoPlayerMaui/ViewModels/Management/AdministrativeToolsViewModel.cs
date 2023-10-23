@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using VideoPlayer.Navigation;
 using VideoPlayer.Services.Export;
 using VideoPlayer.StatusManagement;
 
@@ -11,8 +12,11 @@ namespace VideoPlayer.ViewModels.Management
         private readonly IDatabaseExporter _DatabaseExporter;
         private bool exporting = false;
 
-        public AdministrativeToolsViewModel(IStatusPublisher statusPublisher, IDatabaseExporter databaseExporter)
-            : base(statusPublisher)
+        public AdministrativeToolsViewModel(
+            IStatusPublisher statusPublisher,
+            IDatabaseExporter databaseExporter,
+            INavigationManager navigationManager)
+            : base(statusPublisher, navigationManager)
         {
             _DatabaseExporter = databaseExporter;
             Title = $"Administrative Aufgaben";

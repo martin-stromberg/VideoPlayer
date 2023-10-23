@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using VideoPlayer.Navigation;
 using VideoPlayer.StatusManagement;
 using VideoPlayer.ViewModels.Global;
 using VideoPlayer.ViewModels.Management.Sources;
@@ -14,8 +15,9 @@ namespace VideoPlayer.ViewModels.Management
             AdministrativeToolsViewModel adminTasksViewModel,
             SourcesViewModel sourcesViewModel,
             GlobalStatusViewModel statusViewModel,
-            IStatusPublisher statusPublisher)
-            : base(statusPublisher)
+            IStatusPublisher statusPublisher,
+            INavigationManager navigationManager)
+            : base(statusPublisher, navigationManager)
         {
             Settings = settingsViewModel;
             Tools = adminTasksViewModel;

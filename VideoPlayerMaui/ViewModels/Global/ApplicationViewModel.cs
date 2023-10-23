@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using VideoPlayer.Navigation;
 using VideoPlayer.Services.MediaLibrary;
 using VideoPlayer.Services.MediaLibrary.Classification;
 using VideoPlayer.Services.MediaLibrary.Demo;
@@ -26,8 +27,9 @@ namespace VideoPlayer.ViewModels.Global
             IStatusPublisher statusPublisher,
             ILibraryScanner libraryScanner,
             IMediaItemClassifier mediaItemClassifier,
-            IUserSecrets userSecrets)
-            : base(statusPublisher)
+            IUserSecrets userSecrets,
+            INavigationManager navigationManager)
+            : base(statusPublisher, navigationManager)
         {
             _UserSecrets = userSecrets;
             _MediaItemClassifier = mediaItemClassifier;

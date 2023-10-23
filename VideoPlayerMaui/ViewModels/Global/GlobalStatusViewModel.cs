@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using VideoPlayer.Navigation;
 using VideoPlayer.StatusManagement;
 
 namespace VideoPlayer.ViewModels.Global
@@ -7,8 +8,8 @@ namespace VideoPlayer.ViewModels.Global
     public class GlobalStatusViewModel: BaseViewModel
     {
 
-        public GlobalStatusViewModel(IStatusSubscriber statusSubscriber)
-            : base(null)
+        public GlobalStatusViewModel(IStatusSubscriber statusSubscriber, INavigationManager navigationManager)
+            : base(null, navigationManager)
         {
             statusSubscriber.StatusChanged += (sender, e) => { StatusMessage = e.Message; };
         }

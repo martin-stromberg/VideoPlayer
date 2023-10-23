@@ -2,6 +2,7 @@
 using System.ComponentModel;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using VideoPlayer.Navigation;
 using VideoPlayer.StatusManagement;
 
 namespace VideoPlayer.ViewModels
@@ -10,9 +11,10 @@ namespace VideoPlayer.ViewModels
     public class BaseViewModel: INotifyPropertyChanged, IViewModelAppearance
     {
 
-        public BaseViewModel(IStatusPublisher statusPublisher)
+        public BaseViewModel(IStatusPublisher statusPublisher, INavigationManager navigationManager)
         {
             StatusPublisher = statusPublisher;
+            NavigationManager = navigationManager;
         }
 
         #region Status
@@ -78,6 +80,10 @@ namespace VideoPlayer.ViewModels
         /// </param>
         public virtual void OnDisappeared(bool closing) { }
         #endregion
+
+        #region Navigation
+        protected INavigationManager NavigationManager { get; }
+        #endregion 
 
         public string Title
         {

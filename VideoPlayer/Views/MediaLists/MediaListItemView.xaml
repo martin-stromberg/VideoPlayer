@@ -6,6 +6,9 @@
              x:Class="VideoPlayer.Views.MediaLists.MediaListItemView"
              x:DataType="vm:MediaListItemViewModel">
     <Frame Margin="5" WidthRequest="200" HeightRequest="200">
+        <Frame.GestureRecognizers>
+            <TapGestureRecognizer Tapped="TapGestureRecognizer_Tapped"/>
+        </Frame.GestureRecognizers>
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition/>

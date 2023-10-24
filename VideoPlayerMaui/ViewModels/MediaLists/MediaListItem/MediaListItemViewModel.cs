@@ -6,7 +6,7 @@ using VideoPlayer.StatusManagement;
 
 namespace VideoPlayer.ViewModels.MediaLists
 {
-    public class MediaListItemViewModel: BaseViewModel
+    public abstract class MediaListItemViewModel: BaseViewModel
     {
 
         public MediaListItemViewModel(
@@ -71,6 +71,8 @@ namespace VideoPlayer.ViewModels.MediaLists
                 return default(T);
             return (T)prop.GetValue(Item);
         }
+
+        public abstract void OpenDetails();
 
     }
 }

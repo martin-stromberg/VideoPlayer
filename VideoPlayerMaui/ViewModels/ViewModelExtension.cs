@@ -16,7 +16,10 @@ namespace VideoPlayer.ViewModels
         {
             var bvm = typeof(BaseViewModel);
             var asm = bvm.Assembly;
-            foreach (var model in asm.GetTypes().Where(vm => vm.IsAssignableTo(bvm)).Where(vm => vm != bvm))
+            foreach (var model in asm.GetTypes()
+                                     .Where(vm => !vm.IsAbstract)
+                                     .Where(vm => vm.IsAssignableTo(bvm))
+                                     .Where(vm => vm != bvm))
             {
                 services.AddTransient(model);
             }

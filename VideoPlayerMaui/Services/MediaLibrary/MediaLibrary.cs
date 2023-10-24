@@ -293,6 +293,20 @@ namespace VideoPlayer.Services.MediaLibrary
             return movies;
         }
 
+        public async Task<IEnumerable<Movie>> GetMovies(long collectionId)
+        {
+            var movies = (await _DataStore.GetMovies())
+                .Where(movie => movie.CollectionId == collectionId)
+                .Select(movie => Movie.FromDataModel(movie).UpdatePicture(_Settings.CacheRootPath) as Movie)
+                .ToArray();
+            foreach (var movie in movies)
+            {
+                var mediaItems = await _DataStore.GetMovieMediaItems(movie.Id);
+                movie.SetMediaItems(mediaItems);
+            }
+            return movies;
+        }
+
         public async Task<Movie> FindMovieAsync(long mediaItemId)
         {
             var movie = await _DataStore.GetMovieByMediaItem(mediaItemId);

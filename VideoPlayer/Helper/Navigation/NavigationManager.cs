@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Linq;
 using VideoPlayer.Navigation;
-using VideoPlayer.Views;
+using VideoPlayer.Views.MediaLists;
 
 namespace VideoPlayer.Helper.Navigation
 {

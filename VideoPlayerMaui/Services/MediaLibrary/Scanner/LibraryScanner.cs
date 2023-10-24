@@ -532,7 +532,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
             var cacheFileName = $"{Guid.NewGuid()}{Path.GetExtension(picName)}";
             string cachFile = Path.Combine(settings.CacheFolderPath, cacheFileName);
             scanner.DownloadFile(picPath, cachFile);
-            item.PicturePath = cachFile.Remove(0, settings.CacheRootPath.Length);
+            item.PicturePath = cachFile.Remove(0, settings.CacheRootPath.Length + 1);
             item.Picture = ImageSource.FromFile(cachFile);
             await mediaLibrary.AddMediaItemAsync(item);
         }
@@ -621,7 +621,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
             var cacheFileName = $"{Guid.NewGuid()}{Path.GetExtension(picName)}";
             string cachFile = Path.Combine(settings.CacheFolderPath, cacheFileName);
             scanner.DownloadFile(picPath, cachFile);
-            item.PicturePath = cachFile.Remove(0, settings.CacheRootPath.Length);
+            item.PicturePath = cachFile.Remove(0, settings.CacheRootPath.Length + 1);
             item.Picture = ImageSource.FromFile(cachFile);
             await mediaLibrary.AddMediaItemCollectionAsync(item);
         }

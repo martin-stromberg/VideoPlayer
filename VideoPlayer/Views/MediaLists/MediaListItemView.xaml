@@ -5,7 +5,7 @@
              xmlns:view="clr-namespace:VideoPlayer.Views.MediaLists"
              x:Class="VideoPlayer.Views.MediaLists.MediaListItemView"
              x:DataType="vm:MediaListItemViewModel">
-    <Frame Margin="5">
+    <Frame Margin="5" WidthRequest="200" HeightRequest="200">
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition/>

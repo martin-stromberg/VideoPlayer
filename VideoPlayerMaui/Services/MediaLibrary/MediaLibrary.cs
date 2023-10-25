@@ -513,8 +513,6 @@ namespace VideoPlayer.Services.MediaLibrary
 
         public async Task RemoveMediaItemAsync(MediaItem mediaItem)
         {
-            if (mediaItem.CopyType == MediaItemCopyType.Cache)
-                File.Delete(mediaItem.Path);
             var mediaStore = await _DataStore.GetMediaItemAsync(mediaItem.Id);
             await ClearMediaItem(mediaStore);
             await _DataStore.RemoveMediaItem(mediaStore);

@@ -97,8 +97,11 @@ namespace VideoPlayer.Helper.Navigation
             foreach (var mediaItemId in movie.MediaItems)
             {
                 item = await _MediaLibrary.GetMediaItemAsync(mediaItemId);
-                if (item != null)
-                    break;
+                if (item == null)
+                    continue;
+                if (item.CopyType != MediaItemCopyType.None)
+                    continue;
+                break;
             }
             if (item == null)
                 return;

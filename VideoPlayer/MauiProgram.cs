@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using CommunityToolkit.Maui;
+using Microsoft.Extensions.Logging;
 using VideoPlayer.Helper;
 using VideoPlayer.Helper.Navigation;
 using VideoPlayer.Navigation;
@@ -11,11 +12,12 @@ namespace VideoPlayer
     public static class MauiProgram
     {
 
-        public static MauiApp CreateMauiApp()
+        public static MauiApp CreateMauiApp(string resourcesPath)
         {
             var builder = MauiApp.CreateBuilder();
             builder
                 .UseMauiApp<App>()
+                .UseMauiCommunityToolkitMediaElement()
                 .ConfigureFonts(fonts =>
                 {
                     fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
@@ -23,7 +25,7 @@ namespace VideoPlayer
                 })
                 .RegisterStatusManager()
                 .RegisterViewModels()
-                .RegisterMediaLibrary()
+                .RegisterMediaLibrary(resourcesPath)
                 .RegisterSecrets()
                 .RegisterNavigationManager<NavigationManager>();
 

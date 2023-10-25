@@ -16,6 +16,7 @@ using VideoPlayer.Services.Export;
 using VideoPlayer.Services.MediaLibrary;
 using VideoPlayer.Services.MediaLibrary.Classification;
 using VideoPlayer.Services.MediaLibrary.Demo;
+using VideoPlayer.Services.MediaLibrary.Downloads;
 using VideoPlayer.Services.MediaLibrary.Scanner;
 
 namespace VideoPlayer.Services
@@ -23,22 +24,23 @@ namespace VideoPlayer.Services
     public static class ServiceExtension
     {
 
-        public static MauiAppBuilder RegisterMediaLibrary(this MauiAppBuilder builder)
+        public static MauiAppBuilder RegisterMediaLibrary(this MauiAppBuilder builder, string resourcesPath)
         {
-            builder.Services.RegisterMediaLibrary();
+            builder.Services.RegisterMediaLibrary(resourcesPath);
             return builder;
         }
 
-        public static IServiceCollection RegisterMediaLibrary(this IServiceCollection services)
+        public static IServiceCollection RegisterMediaLibrary(this IServiceCollection services, string resourcesPath)
         {
             services.AddTransient<MediaLibraryDatabaseSettings>();
-            services.AddTransient<MediaLibrarySettings>();
+            services.AddTransient<MediaLibrarySettings>(sp => new MediaLibrarySettings(resourcesPath));
             services.AddSingleton<IMediaLibraryDatabase, MediaLibraryDatabase>();
             services.AddSingleton<IMediaLibrary, MediaLibrary.MediaLibrary>();
             services.AddTransient<DemoLibrary>();
             services.AddTransient<IDatabaseExporter, DatabaseExporter>();
             services.AddSingleton<ILibraryScanner, LibraryScanner>();
             services.AddSingleton<IMediaItemClassifier, MediaItemClassifier>();
+            services.AddTransient<IMediaDownloader, MediaDownloader>();
             return services;
         }
 

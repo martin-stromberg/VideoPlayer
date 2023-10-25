@@ -15,9 +15,9 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
             INavigationManager navigationManager)
             : base(movie, statusPublisher, navigationManager) { }
 
-        public override void OpenDetails()
+        public override async void OpenDetails()
         {
-            NavigationManager.OpenMovie(Item as Movie);
+            await NavigationManager.OpenMovie(Item as Movie);
         }
 
     }

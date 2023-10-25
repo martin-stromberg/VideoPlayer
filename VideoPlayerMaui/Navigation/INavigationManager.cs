@@ -12,7 +12,7 @@ namespace VideoPlayer.Navigation
 
         void OpenMovieCollection(MovieCollection movieCollection);
 
-        void OpenMovie(Movie movie);
+        Task OpenMovie(Movie movie);
 
         void OpenTVShows();
 
@@ -21,6 +21,8 @@ namespace VideoPlayer.Navigation
         void OpenTVShowSeason(TVShowSeason tVShowSeason);
 
         void OpenTVShowEpisode(TVShowEpisode tVShowEpisode);
+
+        void NavigateBack();
 
     }
 }

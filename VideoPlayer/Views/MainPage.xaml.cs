@@ -1,4 +1,5 @@
-﻿using VideoPlayer.ViewModels.Global;
+﻿using System.ComponentModel;
+using VideoPlayer.ViewModels.Global;
 
 namespace VideoPlayer.Views
 {
@@ -9,7 +10,10 @@ namespace VideoPlayer.Views
         {
             InitializeComponent();
             BindingContext = ViewModel = App.GetService<ApplicationViewModel>();
+            ViewModel.PropertyChanged += ViewModel_PropertyChanged;
         }
+
+        private void ViewModel_PropertyChanged(object sender, PropertyChangedEventArgs e) { }
 
         public ApplicationViewModel ViewModel { get; }
 

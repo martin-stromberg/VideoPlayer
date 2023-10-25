@@ -6,7 +6,7 @@ namespace VideoPlayer
 {
     internal class Program : MauiApplication
     {
-        protected override MauiApp CreateMauiApp() => MauiProgram.CreateMauiApp();
+        protected override MauiApp CreateMauiApp() => MauiProgram.CreateMauiApp(string.Empty);
 
         static void Main(string[] args)
         {

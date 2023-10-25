@@ -7,6 +7,11 @@ namespace VideoPlayer.Services.MediaLibrary
     public class MediaLibrarySettings
     {
 
+        public MediaLibrarySettings(string resourcesPath)
+        {
+            RessourcePath = resourcesPath;
+        }
+
         private string cacheRootPath = string.Empty;
         private string cacheFolderPath = string.Empty;
         private string tempFolderPath = string.Empty;
@@ -71,6 +76,8 @@ namespace VideoPlayer.Services.MediaLibrary
                 return tempFolderPath;
             }
         }
+
+        public string RessourcePath { get; private set; }
 
     }
 }

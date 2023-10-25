@@ -6,7 +6,12 @@ namespace VideoPlayer.Platforms.iOS
     public class AppDelegate: MauiUIApplicationDelegate
     {
 
-        protected override MauiApp CreateMauiApp() => MauiProgram.CreateMauiApp();
+        protected override MauiApp CreateMauiApp()
+        {
+            NSBundle mainBundle = NSBundle.MainBundle;
+            string resourcesPath = mainBundle.ResourcePath;
+            return MauiProgram.CreateMauiApp(resourcesPath);
+        }
 
     }
 }

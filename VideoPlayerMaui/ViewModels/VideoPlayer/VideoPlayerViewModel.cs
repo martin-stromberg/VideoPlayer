@@ -49,6 +49,7 @@ namespace VideoPlayer.ViewModels.VideoPlayer
         public override void OnDisappeared(bool closing)
         {
             base.OnDisappeared(closing);
+            VideoSource = null;
             if (closing && (Item != null) && (Item.CopyType == MediaItemCopyType.Cache))
                 _MediaLibrary.RemoveMediaItemAsync(Item);
         }

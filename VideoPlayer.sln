@@ -3,17 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31611.283
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MyVideoPlayer", "MyVideoPlayer\MyVideoPlayer.csproj", "{16A09A2D-9757-47A7-91EB-48B4AA41FE36}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "VideoPlayer", "VideoPlayer\VideoPlayer.csproj", "{C1354452-069C-4C9F-ACAD-5212C504F575}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "VideoPlayerLib", "VideoPlayerLib\VideoPlayerLib.csproj", "{E32A1547-E7E9-4F5D-B71E-28E9BF79CA44}"
-EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SMBLibrary", "SMBLibrary-master\SMBLibrary\SMBLibrary.csproj", "{2E55ACD3-9949-4F2A-928D-700853B683DF}"
-EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Utilities", "SMBLibrary-master\Utilities\Utilities.csproj", "{D2A8B9D1-1F30-47C1-A82B-E6EF30E8F8A5}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VideoPlayer", "VideoPlayer\VideoPlayer.csproj", "{C1354452-069C-4C9F-ACAD-5212C504F575}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VideoPlayerMaui", "VideoPlayerMaui\VideoPlayerMaui.csproj", "{CCE663D4-3DE5-401D-8EEB-462C24D580A4}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "VideoPlayerMaui", "VideoPlayerMaui\VideoPlayerMaui.csproj", "{CCE663D4-3DE5-401D-8EEB-462C24D580A4}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,24 +13,6 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{16A09A2D-9757-47A7-91EB-48B4AA41FE36}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{16A09A2D-9757-47A7-91EB-48B4AA41FE36}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{16A09A2D-9757-47A7-91EB-48B4AA41FE36}.Debug|Any CPU.Deploy.0 = Debug|Any CPU
-		{16A09A2D-9757-47A7-91EB-48B4AA41FE36}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{16A09A2D-9757-47A7-91EB-48B4AA41FE36}.Release|Any CPU.Build.0 = Release|Any CPU
-		{16A09A2D-9757-47A7-91EB-48B4AA41FE36}.Release|Any CPU.Deploy.0 = Release|Any CPU
-		{E32A1547-E7E9-4F5D-B71E-28E9BF79CA44}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{E32A1547-E7E9-4F5D-B71E-28E9BF79CA44}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{E32A1547-E7E9-4F5D-B71E-28E9BF79CA44}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{E32A1547-E7E9-4F5D-B71E-28E9BF79CA44}.Release|Any CPU.Build.0 = Release|Any CPU
-		{2E55ACD3-9949-4F2A-928D-700853B683DF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{2E55ACD3-9949-4F2A-928D-700853B683DF}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{2E55ACD3-9949-4F2A-928D-700853B683DF}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{2E55ACD3-9949-4F2A-928D-700853B683DF}.Release|Any CPU.Build.0 = Release|Any CPU
-		{D2A8B9D1-1F30-47C1-A82B-E6EF30E8F8A5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{D2A8B9D1-1F30-47C1-A82B-E6EF30E8F8A5}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{D2A8B9D1-1F30-47C1-A82B-E6EF30E8F8A5}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{D2A8B9D1-1F30-47C1-A82B-E6EF30E8F8A5}.Release|Any CPU.Build.0 = Release|Any CPU
 		{C1354452-069C-4C9F-ACAD-5212C504F575}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{C1354452-069C-4C9F-ACAD-5212C504F575}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C1354452-069C-4C9F-ACAD-5212C504F575}.Debug|Any CPU.Deploy.0 = Debug|Any CPU

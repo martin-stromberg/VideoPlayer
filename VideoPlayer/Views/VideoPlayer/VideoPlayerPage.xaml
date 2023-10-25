@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:VideoPlayer.ViewModels.VideoPlayer;assembly=VideoPlayerMaui"
+             xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+             x:Class="VideoPlayer.Views.VideoPlayer.VideoPlayerPage"
+             x:DataType="vm:VideoPlayerViewModel"
+             Title="{Binding Title}">
+    <Grid>
+        <toolkit:MediaElement 
+            x:Name="Video"
+            ShouldAutoPlay="True" 
+            ShouldKeepScreenOn="True"
+            MediaOpened="Video_MediaOpened"
+            MediaEnded="Video_MediaEnded"
+            MediaFailed="Video_MediaFailed"
+            SeekCompleted="Video_SeekCompleted"
+            PositionChanged="Video_PositionChanged"
+            Source="{Binding VideoSource}" />
+    </Grid>
+</ContentPage>

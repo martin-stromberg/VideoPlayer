@@ -20,7 +20,7 @@ namespace VideoPlayer.Navigation
 
         void OpenTVShowSeason(TVShowSeason tVShowSeason);
 
-        void OpenTVShowEpisode(TVShowEpisode tVShowEpisode);
+        Task OpenTVShowEpisodeAsync(TVShowEpisode tVShowEpisode);
 
         void NavigateBack();
 

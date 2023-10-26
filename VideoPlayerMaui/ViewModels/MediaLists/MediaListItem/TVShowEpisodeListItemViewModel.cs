@@ -13,9 +13,9 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
             INavigationManager navigationManager)
             : base(episode, statusPublisher, navigationManager) { }
 
-        public override void OpenDetails()
+        public override async void OpenDetails()
         {
-            NavigationManager.OpenTVShowEpisode(Item as TVShowEpisode);
+            await NavigationManager.OpenTVShowEpisodeAsync(Item as TVShowEpisode);
         }
 
     }

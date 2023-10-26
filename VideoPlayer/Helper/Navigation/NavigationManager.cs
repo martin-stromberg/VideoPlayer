@@ -73,28 +73,12 @@ namespace VideoPlayer.Helper.Navigation
             NavigateToRoute($"tvshows", navigationParameter);
         }
 
-        public void OpenTVShowEpisode(TVShowEpisode tVShowEpisode)
-        {
-            throw new NotImplementedException();
-        }
-
-        public void OpenMovieCollection(MovieCollection movieCollection)
-        {
-            var navigationParameter = new Dictionary<string, object>
-            {
-                { "Collection", movieCollection }
-            };
-            NavigateToRoute($"movies", navigationParameter);
-        }
-
-        public async Task OpenMovie(Movie movie)
+        private async Task OpenFirstMediaItem(long[] mediaItems)
         {
             DownloadSource source = new DownloadSource();
-
             OpenLoading(source);
-
             MediaItem item = null;
-            foreach (var mediaItemId in movie.MediaItems)
+            foreach (var mediaItemId in mediaItems)
             {
                 item = await _MediaLibrary.GetMediaItemAsync(mediaItemId);
                 if (item == null)
@@ -109,6 +93,25 @@ namespace VideoPlayer.Helper.Navigation
             item = await _MediaDownloader.CacheAsync(item);
             var mediaSource = MediaSource.FromFile(item.Path);
             source.SetMediaSource(item, mediaSource);
+        }
+
+        public async Task OpenTVShowEpisodeAsync(TVShowEpisode tVShowEpisode)
+        {
+            await OpenFirstMediaItem(tVShowEpisode.MediaItems);
+        }
+
+        public void OpenMovieCollection(MovieCollection movieCollection)
+        {
+            var navigationParameter = new Dictionary<string, object>
+            {
+                { "Collection", movieCollection }
+            };
+            NavigateToRoute($"movies", navigationParameter);
+        }
+
+        public async Task OpenMovie(Movie movie)
+        {
+            await OpenFirstMediaItem(movie.MediaItems);
         }
 
         private string loadingMoviePath = string.Empty;

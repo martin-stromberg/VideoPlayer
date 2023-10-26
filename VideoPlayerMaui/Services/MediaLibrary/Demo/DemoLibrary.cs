@@ -301,6 +301,14 @@ namespace VideoPlayer.Services.MediaLibrary.Demo
         {
             throw new NotImplementedException();
         }
+        public Task RemoveMovieAsync(Movie movie)
+        {
+            throw new NotImplementedException();
+        }
+        public Task RemoveTVShowAsync(TVShow show)
+        {
+            throw new NotImplementedException();
+        }
 
     }
 }

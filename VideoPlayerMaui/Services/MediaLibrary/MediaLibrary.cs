@@ -1,6 +1,4 @@
-﻿using System;
-using System.Linq;
-using VideoPlayer.Extensions;
+﻿using VideoPlayer.Extensions;
 using VideoPlayer.Models;
 using VideoPlayer.Models.MediaItems;
 using VideoPlayer.Models.Movies;
@@ -552,6 +550,48 @@ namespace VideoPlayer.Services.MediaLibrary
         {
             return MovieCollection.FromDataModel(await _DataStore.GetMovieCollection(id))
                                   .UpdatePicture(_Settings.CacheRootPath) as MovieCollection;
+        }
+
+        public async Task RemoveMovieAsync(Movie movie)
+        {
+            var dbItem = await _DataStore.GetMovie(movie.Id);
+            await ClearMovie(dbItem);
+            await _DataStore.RemoveMovie(dbItem.Id);
+        }
+
+        private async Task ClearMovie(Database.Models.Movie dbItem)
+        {
+            foreach (var assignment in await _DataStore.GetMovieMediaItems(dbItem.Id))
+                await _DataStore.RemoveMovieMediaItemAsync(assignment);
+        }
+
+        public async Task RemoveTVShowAsync(TVShow show)
+        {
+            var dbItem = await _DataStore.GetTVShow(show.Id);
+            await ClearTVShow(dbItem);
+            await _DataStore.RemoveTVShow(dbItem.Id);
+        }
+
+        private async Task ClearTVShow(Database.Models.TVShow dbItem)
+        {
+            var seasons = await _DataStore.GetTVShowSeasons(dbItem.Id);
+            foreach (var season in seasons)
+            {
+                await ClearTVShowSeason(season);
+            }
+        }
+
+        private async Task ClearTVShowSeason(Database.Models.TVShowSeason season)
+        {
+            var episodes = await _DataStore.GetTVShowEpisodes(season.Id);
+            foreach (var episode in episodes)
+                await ClearTVShowEpisode(episode);
+        }
+
+        private async Task ClearTVShowEpisode(Database.Models.TVShowEpisode episode)
+        {
+            foreach (var assignment in await _DataStore.GetTVShowMediaItemsForMediaItem(episode.Id))
+                await _DataStore.RemoveMovieMediaItemAsync(assignment);
         }
 
     }

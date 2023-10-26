@@ -93,6 +93,10 @@ namespace VideoPlayer.Services.MediaLibrary
 
         Task<MovieCollection> GetMovieCollection(long id);
 
+        Task RemoveMovieAsync(Movie movie);
+
+        Task RemoveTVShowAsync(TVShow show);
+
         event EventHandler<BaseModelEventArgs> ModelElementAdded;
 
         event EventHandler<BaseModelEventArgs> ModelElementUpdated;

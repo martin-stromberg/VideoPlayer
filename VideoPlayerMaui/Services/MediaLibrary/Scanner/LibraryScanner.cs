@@ -107,6 +107,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
 
         private void Scanner_DoWork(object sender, DoWorkEventArgs e)
         {
+            running = true;
             try
             {
                 ScanNextSource();
@@ -128,12 +129,15 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
 
         private async void Scanner_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
-            if (stopScan)
-                return;
-            await Task.Delay(1000);
+            if (!stopScan)
+                await Task.Delay(1000);
             if (!stopScan)
                 Start();
+            else
+                running = false;
         }
+
+        private bool running = false;
 
         public void Start()
         {
@@ -149,7 +153,14 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
 
         public void Stop()
         {
-            stopScan = true;
+            if (running)
+                stopScan = true;
+        }
+
+        public async Task WaitForFinish()
+        {
+            while (running)
+                await Task.Delay(100);
         }
 
         private void ScanNextSource()

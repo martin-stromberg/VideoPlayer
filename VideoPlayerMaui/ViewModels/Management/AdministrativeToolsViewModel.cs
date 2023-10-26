@@ -2,6 +2,7 @@
 using System.Linq;
 using VideoPlayer.Navigation;
 using VideoPlayer.Services.Export;
+using VideoPlayer.Services.MediaLibrary.Maintenance;
 using VideoPlayer.StatusManagement;
 
 namespace VideoPlayer.ViewModels.Management
@@ -10,17 +11,21 @@ namespace VideoPlayer.ViewModels.Management
     {
 
         private readonly IDatabaseExporter _DatabaseExporter;
+        private readonly IDataCleaner _DataCleaner;
         private bool exporting = false;
 
         public AdministrativeToolsViewModel(
             IStatusPublisher statusPublisher,
             IDatabaseExporter databaseExporter,
+            IDataCleaner dataCleaner,
             INavigationManager navigationManager)
             : base(statusPublisher, navigationManager)
         {
+            _DataCleaner = dataCleaner;
             _DatabaseExporter = databaseExporter;
             Title = $"Administrative Aufgaben";
             ExportData = new Command(() => DoExportData());
+            RemoveAllData = new Command(() => DoRemoveAllData());
         }
 
         #region Export
@@ -46,6 +51,16 @@ namespace VideoPlayer.ViewModels.Management
             {
                 exporting = false;
             }
+        }
+        #endregion
+
+        #region Daten löschen
+        public Command RemoveAllData { get; }
+
+        private void DoRemoveAllData()
+        {
+            _DataCleaner.Mode = DataCleaningMode.Complete;
+            _DataCleaner.RunAsync();
         }
         #endregion
 

@@ -11,5 +11,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
 
         void Stop();
 
+        Task WaitForFinish();
+
     }
 }

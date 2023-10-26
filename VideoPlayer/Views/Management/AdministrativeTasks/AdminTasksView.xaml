@@ -6,5 +6,6 @@
              x:DataType="vm:AdministrativeToolsViewModel">
     <VerticalStackLayout>
         <Button Text="Daten exportieren" Command="{Binding ExportData}" Margin="10"/>
+        <Button Text="Daten Löschen" Command="{Binding RemoveAllData}" Margin="10"/>
     </VerticalStackLayout>
 </ContentView>

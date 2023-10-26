@@ -11,6 +11,7 @@ namespace VideoPlayer.Views
             InitializeComponent();
             BindingContext = ViewModel = App.GetService<ApplicationViewModel>();
             ViewModel.PropertyChanged += ViewModel_PropertyChanged;
+            DeviceDisplay.KeepScreenOn = true;
         }
 
         private void ViewModel_PropertyChanged(object sender, PropertyChangedEventArgs e) { }

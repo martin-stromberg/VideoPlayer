@@ -2,6 +2,7 @@
 using VideoPlayer.Models;
 using VideoPlayer.Models.MediaItems;
 using VideoPlayer.Models.Movies;
+using VideoPlayer.Models.Playlist;
 using VideoPlayer.Models.Sources;
 using VideoPlayer.Models.TVShows;
 using VideoPlayer.Services.Database;
@@ -24,9 +25,70 @@ namespace VideoPlayer.Services.MediaLibrary
 
         public event EventHandler<BaseModelEventArgs> ModelElementAdded;
 
+        public event EventHandler<BaseModelEventArgs> ModelElementRemoved;
+
         public event EventHandler<BaseModelEventArgs> ModelElementUpdated;
 
-        public event EventHandler<BaseModelEventArgs> ModelElementRemoved;
+        private async Task ClearMovie(Database.Models.Movie dbItem)
+        {
+            foreach (var assignment in await _DataStore.GetMovieMediaItems(dbItem.Id))
+                await _DataStore.RemoveMovieMediaItemAsync(assignment);
+        }
+
+        private async Task ClearTVShow(Database.Models.TVShow dbItem)
+        {
+            var seasons = await _DataStore.GetTVShowSeasons(dbItem.Id);
+            foreach (var season in seasons)
+            {
+                await ClearTVShowSeason(season);
+            }
+        }
+
+        private async Task ClearTVShowEpisode(Database.Models.TVShowEpisode episode)
+        {
+            foreach (var assignment in await _DataStore.GetTVShowMediaItemsForMediaItem(episode.Id))
+                await _DataStore.RemoveMovieMediaItemAsync(assignment);
+        }
+
+        private async Task ClearTVShowSeason(Database.Models.TVShowSeason season)
+        {
+            var episodes = await _DataStore.GetTVShowEpisodes(season.Id);
+            foreach (var episode in episodes)
+                await ClearTVShowEpisode(episode);
+        }
+
+        private IEnumerable<TVShowEpisode> FindTVShowEpisodes(long id)
+        {
+            var episodes = _DataStore
+                .GetTVShowEpisodes(id)
+                .Wait<IEnumerable<Database.Models.TVShowEpisode>>();
+            return episodes
+                .Select(e =>
+                {
+                    var episode = TVShowEpisode.FromDataModel(e).UpdatePicture(_Settings.CacheRootPath) as TVShowEpisode;
+                    var mediaItems = _DataStore
+                        .GetTVShowEpisodeMediaItems(episode.Id)
+                        .Wait<IEnumerable<Database.Models.TVShowEpisodeMediaItem>>()
+                        .Select(mi => mi.Id);
+                    episode.MediaItems = mediaItems.ToArray();
+                    return episode;
+                })
+                .Cast<TVShowEpisode>();
+        }
+
+        private IEnumerable<TVShowSeason> FindTVShowSeasons(long showId)
+        {
+            var seasons = _DataStore
+                .GetTVShowSeasons(showId)
+                .Wait<IEnumerable<Database.Models.TVShowSeason>>();
+            return seasons
+                .Select(s =>
+                {
+                    var season = TVShowSeason.FromDataModel(s).UpdatePicture(_Settings.CacheRootPath) as TVShowSeason;
+                    return season;
+                })
+                .Cast<TVShowSeason>();
+        }
 
         protected void OnElementChanged(
             BaseModelEventArgs modelElementAdded,
@@ -39,6 +101,327 @@ namespace VideoPlayer.Services.MediaLibrary
                 ModelElementUpdated?.Invoke(this, modelElementUpdated);
             if (modelElementRemoved != null)
                 ModelElementRemoved?.Invoke(this, modelElementRemoved);
+        }
+
+        public async Task AddMovieAsync(Movie movie)
+        {
+            var isNew = movie.Id == 0;
+            var dataModel = movie.ToDataModelAsync();
+            var dataModelMediaItems = movie.MediaItems
+                                           .Select(id =>
+                                                   new Database.Models.MovieMediaItem()
+                                           {
+                                               MovieId = movie.Id,
+                                               MediaItemId = id
+                                           });
+            if (!isNew)
+                await _DataStore.RemoveMovieMediaItemsAsync(movie.Id);
+            await _DataStore.AddOrUpdateMovie(dataModel as Database.Models.Movie);
+            movie.UpdateAutoincrements(dataModel);
+            foreach (var mediaItem in dataModelMediaItems)
+            {
+                mediaItem.MovieId = movie.Id;
+                await _DataStore.AddMovieMediaItem(mediaItem);
+            }
+            OnElementChanged(isNew ? (new BaseModelEventArgs(movie)) : null,
+                             (!isNew) ? (new BaseModelEventArgs(movie)) : null,
+                             null);
+        }
+
+        public async Task AddMovieCollectionAsync(MovieCollection collection)
+        {
+            var isNew = collection.Id == 0;
+            var dataModelShow = collection.ToDataModelAsync() as Database.Models.MovieCollection;
+            await _DataStore.AddOrUpdateMovieCollection(dataModelShow);
+            collection.UpdateAutoincrements(dataModelShow);
+            OnElementChanged(isNew ? (new BaseModelEventArgs(collection)) : null,
+                             (!isNew) ? (new BaseModelEventArgs(collection)) : null,
+                             null);
+        }
+
+        public async Task AddTVShowAsync(TVShow show)
+        {
+            var isNew = show.Id == 0;
+            var dataModelShow = show.ToDataModelAsync();
+            await _DataStore.AddOrUpdateTVShow(dataModelShow as Database.Models.TVShow);
+            show.UpdateAutoincrements(dataModelShow);
+            OnElementChanged(isNew ? (new BaseModelEventArgs(show)) : null,
+                             (!isNew) ? (new BaseModelEventArgs(show)) : null,
+                             null);
+        }
+
+        public async Task AddTVShowEpisodeAsync(TVShow show, TVShowSeason season, TVShowEpisode episode)
+        {
+            var isNew = episode.Id == 0;
+            var dataModelEpisode = episode.ToDataModelAsync() as Database.Models.TVShowEpisode;
+            var dataModelMediaItems = episode.MediaItems
+                                             .Select(id =>
+                                                     new Database.Models.TVShowEpisodeMediaItem()
+                                             {
+                                                 EpisodeId = episode.Id,
+                                                 MediaItemId = id
+                                             });
+            dataModelEpisode.SeasonId = season.Id;
+            if (!isNew)
+                await _DataStore.RemoveTVShowEpisodeMediaItemsAsync(episode.Id);
+            await _DataStore.AddOrUpdateTVShowEpisode(dataModelEpisode);
+            episode.UpdateAutoincrements(dataModelEpisode);
+            foreach (var mediaItem in dataModelMediaItems)
+            {
+                mediaItem.EpisodeId = episode.Id;
+                await _DataStore.AddTVShowEpisodeMediaItem(mediaItem);
+            }
+            OnElementChanged(isNew ? (new BaseModelEventArgs(episode)) : null,
+                             (!isNew) ? (new BaseModelEventArgs(episode)) : null,
+                             null);
+        }
+
+        public async Task AddTVShowSeasonAsync(TVShow show, TVShowSeason season)
+        {
+            var isNew = season.Id == 0;
+            season.ShowId = show.Id;
+            var dataModelSeason = season.ToDataModelAsync() as Database.Models.TVShowSeason;
+            dataModelSeason.ShowId = show.Id;
+            await _DataStore.AddOrUpdateTVShowSeason(dataModelSeason);
+            season.UpdateAutoincrements(dataModelSeason);
+            OnElementChanged(isNew ? (new BaseModelEventArgs(season)) : null,
+                             (!isNew) ? (new BaseModelEventArgs(season)) : null,
+                             null);
+        }
+
+        public async Task<Movie> FindMovieAsync(long mediaItemId)
+        {
+            var movie = await _DataStore.GetMovieByMediaItem(mediaItemId);
+            if (movie == null)
+                return null;
+            var mediaItems = await _DataStore.GetMovieMediaItems(movie.Id);
+            return (Movie
+                .FromDataModel(movie)
+                .UpdatePicture(_Settings.CacheRootPath) as Movie)
+                .SetMediaItems(mediaItems);
+        }
+
+        public async Task<IEnumerable<MovieCollection>> FindMovieCollectionByNameAsync(string name)
+        {
+            return (await _DataStore.GetMovieCollectionsByName(name))
+                .Select(coll =>
+                        MovieCollection.FromDataModel(coll).UpdatePicture(_Settings.CacheRootPath) as MovieCollection);
+        }
+
+        public async Task<TVShow> FindTVShowAsync(long id)
+        {
+            var show = await _DataStore
+                .GetTVShow(id);
+            if (show == null)
+                return null;
+            return TVShow.FromDataModel(show).UpdatePicture(_Settings.CacheRootPath) as TVShow;
+        }
+
+        public async Task<IEnumerable<TVShow>> FindTVShowByNameAsync(string name)
+        {
+            var show = await _DataStore.GetTVShowsByName(name);
+            return show
+                .Select(show =>
+                {
+                    var model = TVShow.FromDataModel(show).UpdatePicture(_Settings.CacheRootPath) as TVShow;
+                    return model;
+                })
+                .Cast<TVShow>();
+        }
+
+        public async Task<Movie> GetMovie(long id)
+        {
+            var movie = await _DataStore.GetMovie(id);
+            var mediaItems = await _DataStore.GetMovieMediaItems(movie.Id);
+            return (Movie.FromDataModel(movie).UpdatePicture(_Settings.CacheRootPath) as Movie)
+                .SetMediaItems(mediaItems);
+        }
+
+        public async Task<MovieCollection> GetMovieCollection(long id)
+        {
+            return MovieCollection.FromDataModel(await _DataStore.GetMovieCollection(id))
+                                  .UpdatePicture(_Settings.CacheRootPath) as MovieCollection;
+        }
+
+        public async Task<IEnumerable<MovieCollection>> GetMovieCollections()
+        {
+            var collections = await _DataStore.GetMovieCollections();
+            return collections
+                .Select(collection =>
+                {
+                    var model = MovieCollection.FromDataModel(collection).UpdatePicture(_Settings.CacheRootPath) as MovieCollection;
+                    return model;
+                })
+                .Cast<MovieCollection>();
+        }
+
+        public async Task<IEnumerable<Movie>> GetMovies()
+        {
+            var movies = (await _DataStore.GetMovies())
+                .Select(movie => Movie.FromDataModel(movie).UpdatePicture(_Settings.CacheRootPath) as Movie)
+                .ToArray();
+            foreach (var movie in movies)
+            {
+                var mediaItems = await _DataStore.GetMovieMediaItems(movie.Id);
+                movie.SetMediaItems(mediaItems);
+            }
+            return movies;
+        }
+
+        public async Task<IEnumerable<Movie>> GetMovies(long collectionId)
+        {
+            var movies = (await _DataStore.GetMovies())
+                .Where(movie => movie.CollectionId == collectionId)
+                .Select(movie => Movie.FromDataModel(movie).UpdatePicture(_Settings.CacheRootPath) as Movie)
+                .ToArray();
+            foreach (var movie in movies)
+            {
+                var mediaItems = await _DataStore.GetMovieMediaItems(movie.Id);
+                movie.SetMediaItems(mediaItems);
+            }
+            return movies;
+        }
+
+        private async Task<Playlist> CompletePlaylistAsync(Playlist playlist)
+        {
+            var entries = await _DataStore.GetPlaylistEntries(playlist.Id);
+            foreach (var entry in entries)
+            {
+                var mediaItem = await GetMediaItemAsync(entry.MediaItemId);
+                playlist.Add(mediaItem);
+            }
+            return playlist;
+        }
+
+        public async Task<IEnumerable<Playlist>> GetPlaylist(PlaylistType type)
+        {
+            var playlists = (await _DataStore.GetPlaylists())
+                .Where(playlist => playlist.Type == ((int)type))
+                .Select(playlist => Playlist.FromDataModel(playlist) as Playlist)
+                .ToArray();
+            foreach (var playlist in playlists)
+            {
+                await CompletePlaylistAsync(playlist);
+            }
+            return playlists;
+        }
+
+        public async Task<Playlist> GetPlaylist(long id)
+        {
+            var playlist = Playlist.FromDataModel(await _DataStore.GetPlaylist(id)) as Playlist;
+            return await CompletePlaylistAsync(playlist);
+        }
+
+        public async Task<IEnumerable<Playlist>> GetPlaylists()
+        {
+            var playlists = (await _DataStore.GetPlaylists())
+                .Select(playlist => Playlist.FromDataModel(playlist) as Playlist)
+                .ToArray();
+            foreach (var playlist in playlists)
+            {
+                await CompletePlaylistAsync(playlist);
+            }
+            return playlists;
+        }
+
+        public async Task<TVShow> GetTVShow(long id)
+        {
+            var show = await _DataStore.GetTVShow(id);
+            return TVShow.FromDataModel(show).UpdatePicture(_Settings.CacheRootPath) as TVShow;
+        }
+
+        public async Task<TVShowEpisode> GetTVShowEpisode(long id)
+        {
+            var episode = await _DataStore.GetTVShowEpisode(id);
+            var mediaItems = await _DataStore.GetTVShowEpisodeMediaItems(episode.Id);
+            return (TVShowEpisode.FromDataModel(episode).UpdatePicture(_Settings.CacheRootPath) as TVShowEpisode)
+                .SetMediaItems(mediaItems);
+        }
+
+        public async Task<IEnumerable<TVShowEpisode>> GetTVShowEpisodes(long seasonId)
+        {
+            var dbEpisodes = await _DataStore.GetTVShowEpisodes(seasonId);
+            var episodes = dbEpisodes
+                .Select(episode =>
+                {
+                    var model = TVShowEpisode.FromDataModel(episode).UpdatePicture(_Settings.CacheRootPath) as TVShowEpisode;
+                    return model;
+                })
+                .Cast<TVShowEpisode>()
+                .ToArray();
+            foreach (var episode in episodes)
+            {
+                var mediaItems = await _DataStore.GetTVShowEpisodeMediaItems(episode.Id);
+                episode.SetMediaItems(mediaItems);
+            }
+            return episodes;
+        }
+
+        public async Task<IEnumerable<TVShow>> GetTVShows()
+        {
+            var shows = await _DataStore.GetTVShows();
+            return shows
+                .Select(show =>
+                {
+                    var model = TVShow.FromDataModel(show).UpdatePicture(_Settings.CacheRootPath) as TVShow;
+                    return model;
+                })
+                .Cast<TVShow>();
+        }
+
+        public async Task<TVShowSeason> GetTVShowSeason(long id)
+        {
+            var season = await _DataStore.GetTVShowSeason(id);
+            return TVShowSeason.FromDataModel(season).UpdatePicture(_Settings.CacheRootPath) as TVShowSeason;
+        }
+
+        public async Task<IEnumerable<TVShowSeason>> GetTVShowSeasons(long showId)
+        {
+            var seasons = await _DataStore.GetTVShowSeasons(showId);
+            return seasons
+                .Select(season =>
+                {
+                    var model = TVShowSeason.FromDataModel(season).UpdatePicture(_Settings.CacheRootPath) as TVShowSeason;
+                    return model;
+                })
+                .Cast<TVShowSeason>();
+        }
+
+        public async Task ImportAsync(IMediaLibrary library)
+        {
+            foreach (var fromSource in await library.GetSourcesAsync())
+            {
+                fromSource.Id = 0;
+                await AddSourceAsync(fromSource);
+            }
+
+            // ToDo: Auch die MediaItems und MediaCollections
+        }
+
+        public async Task<bool> IsEmptyAsync()
+        {
+            return (await (await _DataStore.GetSourcesAsync()).FirstOrDefaultAsync()) == null;
+        }
+
+        public async Task RemoveMediaItemAsync(MediaItem mediaItem)
+        {
+            var mediaStore = await _DataStore.GetMediaItemAsync(mediaItem.Id);
+            await ClearMediaItem(mediaStore);
+            await _DataStore.RemoveMediaItem(mediaStore);
+        }
+
+        public async Task RemoveMovieAsync(Movie movie)
+        {
+            var dbItem = await _DataStore.GetMovie(movie.Id);
+            await ClearMovie(dbItem);
+            await _DataStore.RemoveMovie(dbItem.Id);
+        }
+
+        public async Task RemoveTVShowAsync(TVShow show)
+        {
+            var dbItem = await _DataStore.GetTVShow(show.Id);
+            await ClearTVShow(dbItem);
+            await _DataStore.RemoveTVShow(dbItem.Id);
         }
 
         #region Sources
@@ -195,21 +578,6 @@ namespace VideoPlayer.Services.MediaLibrary
         }
         #endregion 
 
-        public async Task ImportAsync(IMediaLibrary library)
-        {
-            foreach (var fromSource in await library.GetSourcesAsync())
-            {
-                fromSource.Id = 0;
-                await AddSourceAsync(fromSource);
-            }
-
-            // ToDo: Auch die MediaItems und MediaCollections
-        }
-
-        public async Task<bool> IsEmptyAsync()
-        {
-            return (await (await _DataStore.GetSourcesAsync()).FirstOrDefaultAsync()) == null;
-        }
 
         #region Clear
         public async Task ClearMedia()
@@ -269,330 +637,6 @@ namespace VideoPlayer.Services.MediaLibrary
                     File.Delete(mediaItem.Path);
         }
         #endregion
-
-        public async Task<Movie> GetMovie(long id)
-        {
-            var movie = await _DataStore.GetMovie(id);
-            var mediaItems = await _DataStore.GetMovieMediaItems(movie.Id);
-            return (Movie.FromDataModel(movie).UpdatePicture(_Settings.CacheRootPath) as Movie)
-                .SetMediaItems(mediaItems);
-        }
-
-        public async Task<IEnumerable<Movie>> GetMovies()
-        {
-            var movies = (await _DataStore.GetMovies())
-                .Select(movie => Movie.FromDataModel(movie).UpdatePicture(_Settings.CacheRootPath) as Movie)
-                .ToArray();
-            foreach (var movie in movies)
-            {
-                var mediaItems = await _DataStore.GetMovieMediaItems(movie.Id);
-                movie.SetMediaItems(mediaItems);
-            }
-            return movies;
-        }
-
-        public async Task<IEnumerable<Movie>> GetMovies(long collectionId)
-        {
-            var movies = (await _DataStore.GetMovies())
-                .Where(movie => movie.CollectionId == collectionId)
-                .Select(movie => Movie.FromDataModel(movie).UpdatePicture(_Settings.CacheRootPath) as Movie)
-                .ToArray();
-            foreach (var movie in movies)
-            {
-                var mediaItems = await _DataStore.GetMovieMediaItems(movie.Id);
-                movie.SetMediaItems(mediaItems);
-            }
-            return movies;
-        }
-
-        public async Task<Movie> FindMovieAsync(long mediaItemId)
-        {
-            var movie = await _DataStore.GetMovieByMediaItem(mediaItemId);
-            if (movie == null)
-                return null;
-            var mediaItems = await _DataStore.GetMovieMediaItems(movie.Id);
-            return (Movie
-                .FromDataModel(movie)
-                .UpdatePicture(_Settings.CacheRootPath) as Movie)
-                .SetMediaItems(mediaItems);
-        }
-
-        public async Task AddMovieAsync(Movie movie)
-        {
-            var isNew = movie.Id == 0;
-            var dataModel = movie.ToDataModelAsync();
-            var dataModelMediaItems = movie.MediaItems
-                                           .Select(id =>
-                                                   new Database.Models.MovieMediaItem()
-                                           {
-                                               MovieId = movie.Id,
-                                               MediaItemId = id
-                                           });
-            if (!isNew)
-                await _DataStore.RemoveMovieMediaItemsAsync(movie.Id);
-            await _DataStore.AddOrUpdateMovie(dataModel as Database.Models.Movie);
-            movie.UpdateAutoincrements(dataModel);
-            foreach (var mediaItem in dataModelMediaItems)
-            {
-                mediaItem.MovieId = movie.Id;
-                await _DataStore.AddMovieMediaItem(mediaItem);
-            }
-            OnElementChanged(isNew ? (new BaseModelEventArgs(movie)) : null,
-                             (!isNew) ? (new BaseModelEventArgs(movie)) : null,
-                             null);
-        }
-
-        public async Task<IEnumerable<TVShow>> GetTVShows()
-        {
-            var shows = await _DataStore.GetTVShows();
-            return shows
-                .Select(show =>
-                {
-                    var model = TVShow.FromDataModel(show).UpdatePicture(_Settings.CacheRootPath) as TVShow;
-                    return model;
-                })
-                .Cast<TVShow>();
-        }
-
-        public async Task<TVShow> GetTVShow(long id)
-        {
-            var show = await _DataStore.GetTVShow(id);
-            return TVShow.FromDataModel(show).UpdatePicture(_Settings.CacheRootPath) as TVShow;
-        }
-
-        public async Task<IEnumerable<TVShowSeason>> GetTVShowSeasons(long showId)
-        {
-            var seasons = await _DataStore.GetTVShowSeasons(showId);
-            return seasons
-                .Select(season =>
-                {
-                    var model = TVShowSeason.FromDataModel(season).UpdatePicture(_Settings.CacheRootPath) as TVShowSeason;
-                    return model;
-                })
-                .Cast<TVShowSeason>();
-        }
-
-        public async Task<TVShowSeason> GetTVShowSeason(long id)
-        {
-            var season = await _DataStore.GetTVShowSeason(id);
-            return TVShowSeason.FromDataModel(season).UpdatePicture(_Settings.CacheRootPath) as TVShowSeason;
-        }
-
-        public async Task<TVShowEpisode> GetTVShowEpisode(long id)
-        {
-            var episode = await _DataStore.GetTVShowEpisode(id);
-            var mediaItems = await _DataStore.GetTVShowEpisodeMediaItems(episode.Id);
-            return (TVShowEpisode.FromDataModel(episode).UpdatePicture(_Settings.CacheRootPath) as TVShowEpisode)
-                .SetMediaItems(mediaItems);
-        }
-
-        public async Task<IEnumerable<TVShowEpisode>> GetTVShowEpisodes(long seasonId)
-        {
-            var dbEpisodes = await _DataStore.GetTVShowEpisodes(seasonId);
-            var episodes = dbEpisodes
-                .Select(episode =>
-                {
-                    var model = TVShowEpisode.FromDataModel(episode).UpdatePicture(_Settings.CacheRootPath) as TVShowEpisode;
-                    return model;
-                })
-                .Cast<TVShowEpisode>()
-                .ToArray();
-            foreach (var episode in episodes)
-            {
-                var mediaItems = await _DataStore.GetTVShowEpisodeMediaItems(episode.Id);
-                episode.SetMediaItems(mediaItems);
-            }
-            return episodes;
-        }
-
-        public async Task<IEnumerable<TVShow>> FindTVShowByNameAsync(string name)
-        {
-            var show = await _DataStore.GetTVShowsByName(name);
-            return show
-                .Select(show =>
-                {
-                    var model = TVShow.FromDataModel(show).UpdatePicture(_Settings.CacheRootPath) as TVShow;
-                    return model;
-                })
-                .Cast<TVShow>();
-        }
-
-        private IEnumerable<TVShowSeason> FindTVShowSeasons(long showId)
-        {
-            var seasons = _DataStore
-                .GetTVShowSeasons(showId)
-                .Wait<IEnumerable<Database.Models.TVShowSeason>>();
-            return seasons
-                .Select(s =>
-                {
-                    var season = TVShowSeason.FromDataModel(s).UpdatePicture(_Settings.CacheRootPath) as TVShowSeason;
-                    return season;
-                })
-                .Cast<TVShowSeason>();
-        }
-
-        private IEnumerable<TVShowEpisode> FindTVShowEpisodes(long id)
-        {
-            var episodes = _DataStore
-                .GetTVShowEpisodes(id)
-                .Wait<IEnumerable<Database.Models.TVShowEpisode>>();
-            return episodes
-                .Select(e =>
-                {
-                    var episode = TVShowEpisode.FromDataModel(e).UpdatePicture(_Settings.CacheRootPath) as TVShowEpisode;
-                    var mediaItems = _DataStore
-                        .GetTVShowEpisodeMediaItems(episode.Id)
-                        .Wait<IEnumerable<Database.Models.TVShowEpisodeMediaItem>>()
-                        .Select(mi => mi.Id);
-                    episode.MediaItems = mediaItems.ToArray();
-                    return episode;
-                })
-                .Cast<TVShowEpisode>();
-        }
-
-        public async Task<TVShow> FindTVShowAsync(long id)
-        {
-            var show = await _DataStore
-                .GetTVShow(id);
-            if (show == null)
-                return null;
-            return TVShow.FromDataModel(show).UpdatePicture(_Settings.CacheRootPath) as TVShow;
-        }
-
-        public async Task AddTVShowAsync(TVShow show)
-        {
-            var isNew = show.Id == 0;
-            var dataModelShow = show.ToDataModelAsync();
-            await _DataStore.AddOrUpdateTVShow(dataModelShow as Database.Models.TVShow);
-            show.UpdateAutoincrements(dataModelShow);
-            OnElementChanged(isNew ? (new BaseModelEventArgs(show)) : null,
-                             (!isNew) ? (new BaseModelEventArgs(show)) : null,
-                             null);
-        }
-
-        public async Task AddTVShowSeasonAsync(TVShow show, TVShowSeason season)
-        {
-            var isNew = season.Id == 0;
-            season.ShowId = show.Id;
-            var dataModelSeason = season.ToDataModelAsync() as Database.Models.TVShowSeason;
-            dataModelSeason.ShowId = show.Id;
-            await _DataStore.AddOrUpdateTVShowSeason(dataModelSeason);
-            season.UpdateAutoincrements(dataModelSeason);
-            OnElementChanged(isNew ? (new BaseModelEventArgs(season)) : null,
-                             (!isNew) ? (new BaseModelEventArgs(season)) : null,
-                             null);
-        }
-
-        public async Task AddTVShowEpisodeAsync(TVShow show, TVShowSeason season, TVShowEpisode episode)
-        {
-            var isNew = episode.Id == 0;
-            var dataModelEpisode = episode.ToDataModelAsync() as Database.Models.TVShowEpisode;
-            var dataModelMediaItems = episode.MediaItems
-                                             .Select(id =>
-                                                     new Database.Models.TVShowEpisodeMediaItem()
-                                             {
-                                                 EpisodeId = episode.Id,
-                                                 MediaItemId = id
-                                             });
-            dataModelEpisode.SeasonId = season.Id;
-            if (!isNew)
-                await _DataStore.RemoveTVShowEpisodeMediaItemsAsync(episode.Id);
-            await _DataStore.AddOrUpdateTVShowEpisode(dataModelEpisode);
-            episode.UpdateAutoincrements(dataModelEpisode);
-            foreach (var mediaItem in dataModelMediaItems)
-            {
-                mediaItem.EpisodeId = episode.Id;
-                await _DataStore.AddTVShowEpisodeMediaItem(mediaItem);
-            }
-            OnElementChanged(isNew ? (new BaseModelEventArgs(episode)) : null,
-                             (!isNew) ? (new BaseModelEventArgs(episode)) : null,
-                             null);
-        }
-
-        public async Task RemoveMediaItemAsync(MediaItem mediaItem)
-        {
-            var mediaStore = await _DataStore.GetMediaItemAsync(mediaItem.Id);
-            await ClearMediaItem(mediaStore);
-            await _DataStore.RemoveMediaItem(mediaStore);
-        }
-
-        public async Task<IEnumerable<MovieCollection>> FindMovieCollectionByNameAsync(string name)
-        {
-            return (await _DataStore.GetMovieCollectionsByName(name))
-                .Select(coll =>
-                        MovieCollection.FromDataModel(coll).UpdatePicture(_Settings.CacheRootPath) as MovieCollection);
-        }
-
-        public async Task AddMovieCollectionAsync(MovieCollection collection)
-        {
-            var isNew = collection.Id == 0;
-            var dataModelShow = collection.ToDataModelAsync() as Database.Models.MovieCollection;
-            await _DataStore.AddOrUpdateMovieCollection(dataModelShow);
-            collection.UpdateAutoincrements(dataModelShow);
-            OnElementChanged(isNew ? (new BaseModelEventArgs(collection)) : null,
-                             (!isNew) ? (new BaseModelEventArgs(collection)) : null,
-                             null);
-        }
-
-        public async Task<IEnumerable<MovieCollection>> GetMovieCollections()
-        {
-            var collections = await _DataStore.GetMovieCollections();
-            return collections
-                .Select(collection =>
-                {
-                    var model = MovieCollection.FromDataModel(collection).UpdatePicture(_Settings.CacheRootPath) as MovieCollection;
-                    return model;
-                })
-                .Cast<MovieCollection>();
-        }
-
-        public async Task<MovieCollection> GetMovieCollection(long id)
-        {
-            return MovieCollection.FromDataModel(await _DataStore.GetMovieCollection(id))
-                                  .UpdatePicture(_Settings.CacheRootPath) as MovieCollection;
-        }
-
-        public async Task RemoveMovieAsync(Movie movie)
-        {
-            var dbItem = await _DataStore.GetMovie(movie.Id);
-            await ClearMovie(dbItem);
-            await _DataStore.RemoveMovie(dbItem.Id);
-        }
-
-        private async Task ClearMovie(Database.Models.Movie dbItem)
-        {
-            foreach (var assignment in await _DataStore.GetMovieMediaItems(dbItem.Id))
-                await _DataStore.RemoveMovieMediaItemAsync(assignment);
-        }
-
-        public async Task RemoveTVShowAsync(TVShow show)
-        {
-            var dbItem = await _DataStore.GetTVShow(show.Id);
-            await ClearTVShow(dbItem);
-            await _DataStore.RemoveTVShow(dbItem.Id);
-        }
-
-        private async Task ClearTVShow(Database.Models.TVShow dbItem)
-        {
-            var seasons = await _DataStore.GetTVShowSeasons(dbItem.Id);
-            foreach (var season in seasons)
-            {
-                await ClearTVShowSeason(season);
-            }
-        }
-
-        private async Task ClearTVShowSeason(Database.Models.TVShowSeason season)
-        {
-            var episodes = await _DataStore.GetTVShowEpisodes(season.Id);
-            foreach (var episode in episodes)
-                await ClearTVShowEpisode(episode);
-        }
-
-        private async Task ClearTVShowEpisode(Database.Models.TVShowEpisode episode)
-        {
-            foreach (var assignment in await _DataStore.GetTVShowMediaItemsForMediaItem(episode.Id))
-                await _DataStore.RemoveMovieMediaItemAsync(assignment);
-        }
 
     }
 }

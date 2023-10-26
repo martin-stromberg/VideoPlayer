@@ -40,6 +40,8 @@ namespace VideoPlayer.Services.Database
             result = await Connection.CreateTableAsync<Movie>();
             result = await Connection.CreateTableAsync<MovieCollection>();
             result = await Connection.CreateTableAsync<MovieMediaItem>();
+            result = await Connection.CreateTableAsync<Playlist>();
+            result = await Connection.CreateTableAsync<PlaylistEntry>();
         }
 
         public async Task<AsyncTableQuery<MediaSource>> GetSourcesAsync()
@@ -367,6 +369,21 @@ namespace VideoPlayer.Services.Database
         public async Task RemoveMovieMediaItemAsync(TVShowEpisodeMediaItem tvshowMediaItem)
         {
             await Connection.DeleteAsync(tvshowMediaItem);
+        }
+
+        public async Task<IEnumerable<Playlist>> GetPlaylists()
+        {
+            return await Connection.Table<Playlist>().ToArrayAsync();
+        }
+
+        public async Task<Playlist> GetPlaylist(long id)
+        {
+            return await Connection.Table<Playlist>().FirstOrDefaultAsync(playlist => playlist.Id == id);
+        }
+
+        public async Task<IEnumerable<PlaylistEntry>> GetPlaylistEntries(long id)
+        {
+            return await Connection.Table<PlaylistEntry>().Where(entry => entry.PlaylistId == id).ToArrayAsync();
         }
 
     }

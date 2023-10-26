@@ -90,5 +90,11 @@ namespace VideoPlayer.Services.Database
 
         Task RemoveMovieMediaItemAsync(TVShowEpisodeMediaItem movieMediaItem);
 
+        Task<IEnumerable<Playlist>> GetPlaylists();
+
+        Task<Playlist> GetPlaylist(long id);
+
+        Task<IEnumerable<PlaylistEntry>> GetPlaylistEntries(long id);
+
     }
 }

@@ -64,6 +64,42 @@ namespace VideoPlayer.Services.Playlists
             var mediaItem = await GetFirstMediaItem(tVShowEpisode.MediaItems);
             GeneralPlaylist.Items.Clear();
             GeneralPlaylist.Items.Add(mediaItem);
+            AddNextTVShowEpisodes(tVShowEpisode, currentPlaylistCompletionSessionId);
+        }
+
+        private async void AddNextTVShowEpisodes(TVShowEpisode episode, int sessionId)
+        {
+            var season = await _MediaLibrary.GetTVShowSeason(episode.SeasonId);
+            var episodes = await _MediaLibrary.GetTVShowEpisodes(season.Id);
+            foreach (var item in episodes
+                .OrderBy(item => item.EpisodeNo)
+                .SkipWhile(item => item.Id != episode.Id)
+                .SkipWhile(item => item.Id == episode.Id))
+            {
+                var mI = await GetFirstMediaItem(item.MediaItems);
+                if (sessionId != currentPlaylistCompletionSessionId)
+                    return;
+                GeneralPlaylist.Add(mI);
+            }
+
+            var show = await _MediaLibrary.GetTVShow(season.ShowId);
+            var seasons = await _MediaLibrary.GetTVShowSeasons(show.Id);
+            foreach (var item in seasons
+                .OrderBy(item => item.Name)
+                .SkipWhile(item => item.Id != episode.SeasonId)
+                .SkipWhile(item => item.Id == episode.SeasonId))
+            {
+                if (sessionId != currentPlaylistCompletionSessionId)
+                    return;
+                episodes = await _MediaLibrary.GetTVShowEpisodes(item.Id);
+                foreach (var nextSeason in episodes)
+                {
+                    var mI = await GetFirstMediaItem(nextSeason.MediaItems);
+                    if (sessionId != currentPlaylistCompletionSessionId)
+                        return;
+                    GeneralPlaylist.Add(mI);
+                }
+            }
         }
 
         public async Task StartMoviePlaybackAsync(Movie movie)

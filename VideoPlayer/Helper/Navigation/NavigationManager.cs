@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using VideoPlayer.Models;
 using VideoPlayer.Models.Movies;
 using VideoPlayer.Models.TVShows;
 using VideoPlayer.Navigation;
@@ -75,9 +76,9 @@ namespace VideoPlayer.Helper.Navigation
             NavigateToRoute($"tvshows", navigationParameter);
         }
 
-        public async Task OpenTVShowEpisodeAsync(TVShowEpisode tVShowEpisode)
+        public async Task OpenTVShowEpisodeAsync(TVShowEpisode tVShowEpisode, Func<IEnumerable<BaseModel>> GetCollectionElements)
         {
-            await _PlaylistManager.StartTVShowPlaybackAsync(tVShowEpisode);
+            await _PlaylistManager.StartTVShowPlaybackAsync(tVShowEpisode, GetCollectionElements);
             NavigateToRoute($"player");
         }
 
@@ -90,9 +91,9 @@ namespace VideoPlayer.Helper.Navigation
             NavigateToRoute($"movies", navigationParameter);
         }
 
-        public async Task OpenMovie(Movie movie)
+        public async Task OpenMovie(Movie movie, Func<IEnumerable<BaseModel>> GetCollectionElements)
         {
-            await _PlaylistManager.StartMoviePlaybackAsync(movie);
+            await _PlaylistManager.StartMoviePlaybackAsync(movie, GetCollectionElements);
             NavigateToRoute($"player");
         }
 

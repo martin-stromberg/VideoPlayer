@@ -1,6 +1,7 @@
 ﻿using CommunityToolkit.Maui.Views;
 using System;
 using System.Linq;
+using VideoPlayer.Models;
 using VideoPlayer.Models.MediaItems;
 using VideoPlayer.Models.Movies;
 using VideoPlayer.Models.Playlists;
@@ -58,21 +59,29 @@ namespace VideoPlayer.Services.Playlists
             return item;
         }
 
-        public async Task StartTVShowPlaybackAsync(TVShowEpisode tVShowEpisode)
+        public async Task StartTVShowPlaybackAsync(TVShowEpisode tVShowEpisode, Func<IEnumerable<BaseModel>> GetCollectionElements)
         {
             currentPlaylistCompletionSessionId = Random.Shared.Next(int.MaxValue);
             var mediaItem = await GetFirstMediaItem(tVShowEpisode.MediaItems);
             GeneralPlaylist.Items.Clear();
             GeneralPlaylist.Items.Add(mediaItem);
-            AddNextTVShowEpisodes(tVShowEpisode, currentPlaylistCompletionSessionId);
+            AddNextTVShowEpisodes(tVShowEpisode, currentPlaylistCompletionSessionId, GetCollectionElements);
         }
 
-        private async void AddNextTVShowEpisodes(TVShowEpisode episode, int sessionId)
+        private async void AddNextTVShowEpisodes(
+            TVShowEpisode episode,
+            int sessionId,
+            Func<IEnumerable<BaseModel>> GetCollectionElements)
         {
             var season = await _MediaLibrary.GetTVShowSeason(episode.SeasonId);
-            var episodes = await _MediaLibrary.GetTVShowEpisodes(season.Id);
+            var episodes = GetCollectionElements?.Invoke().ToArray().OfType<TVShowEpisode>();
+            if (episodes == null)
+            {
+                episodes = (await _MediaLibrary.GetTVShowEpisodes(season.Id)).ToArray().OrderBy(item => item.EpisodeNo);
+            }
+            if (sessionId != currentPlaylistCompletionSessionId)
+                return;
             foreach (var item in episodes
-                .OrderBy(item => item.EpisodeNo)
                 .SkipWhile(item => item.Id != episode.Id)
                 .SkipWhile(item => item.Id == episode.Id))
             {
@@ -102,30 +111,36 @@ namespace VideoPlayer.Services.Playlists
             }
         }
 
-        public async Task StartMoviePlaybackAsync(Movie movie)
+        public async Task StartMoviePlaybackAsync(Movie movie, Func<IEnumerable<BaseModel>> GetCollectionElements)
         {
             currentPlaylistCompletionSessionId = Random.Shared.Next(int.MaxValue);
             var mediaItem = await GetFirstMediaItem(movie.MediaItems);
             GeneralPlaylist.Items.Clear();
             GeneralPlaylist.Items.Add(mediaItem);
 
-            AddNextCollectionMovies(movie, currentPlaylistCompletionSessionId);
+            AddNextCollectionMovies(movie, GetCollectionElements, currentPlaylistCompletionSessionId);
         }
 
         private int currentPlaylistCompletionSessionId = 0;
 
-        private async void AddNextCollectionMovies(Movie movie, int sessionId)
+        private async void AddNextCollectionMovies(
+            Movie movie,
+            Func<IEnumerable<BaseModel>> GetCollectionElements,
+            int sessionId)
         {
-            var collection = await _MediaLibrary.GetMovieCollection(movie);
-            if (collection == null)
-                return;
-            if (sessionId != currentPlaylistCompletionSessionId)
-                return;
-            var movies = await _MediaLibrary.GetMovies(collection.Id);
+            var movies = GetCollectionElements?.Invoke().ToArray().OfType<Movie>();
+            if (movies == null)
+            {
+                var collection = await _MediaLibrary.GetMovieCollection(movie);
+                if (collection == null)
+                    return;
+                if (sessionId != currentPlaylistCompletionSessionId)
+                    return;
+                movies = (await _MediaLibrary.GetMovies(collection.Id)).OrderBy(mov => mov.Name).ToArray();
+            }
             if (sessionId != currentPlaylistCompletionSessionId)
                 return;
             foreach (var mov in movies
-                .OrderBy(mov => mov.Name)
                 .SkipWhile(mov => mov.Id != movie.Id)
                 .SkipWhile(mov => mov.Id == movie.Id))
             {

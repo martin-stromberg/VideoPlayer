@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using VideoPlayer.Models;
 using VideoPlayer.Models.MediaItems;
 using VideoPlayer.Models.Movies;
 using VideoPlayer.Models.Playlists;
@@ -14,9 +15,9 @@ namespace VideoPlayer.Services.Playlists
 
         Playlist GeneralPlaylist { get; }
 
-        Task StartTVShowPlaybackAsync(TVShowEpisode episode);
+        Task StartTVShowPlaybackAsync(TVShowEpisode episode, Func<IEnumerable<BaseModel>> GetCollectionElements);
 
-        Task StartMoviePlaybackAsync(Movie movie);
+        Task StartMoviePlaybackAsync(Movie movie, Func<IEnumerable<BaseModel>> GetCollectionElements);
 
         DownloadSource GetFirstVideoSource();
 

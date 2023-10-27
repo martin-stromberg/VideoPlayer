@@ -35,11 +35,22 @@ namespace VideoPlayer.ViewModels.MediaLists
                 return;
             MediaListItemViewModel vm;
             if (mediaItem is TVShow)
+            {
                 vm = new TVShowListItemViewModel(mediaItem as TVShow, StatusPublisher, NavigationManager);
+            }
             else if (mediaItem is TVShowSeason)
                 vm = new TVShowSeasonListItemViewModel(mediaItem as TVShowSeason, StatusPublisher, NavigationManager);
             else if (mediaItem is TVShowEpisode)
-                vm = new TVShowEpisodeListItemViewModel(mediaItem as TVShowEpisode, StatusPublisher, NavigationManager);
+            {
+                Func<IEnumerable<TVShowEpisode>> getEpisodes = (ParentSeason != null) ? () =>
+                                                                                        Items.Select(i => i.Item)
+                                                                                             .OfType<TVShowEpisode>() : (new Func<IEnumerable<TVShowEpisode>>(() =>
+                                                                                                                                                              new TVShowEpisode[0]));
+                vm = new TVShowEpisodeListItemViewModel(mediaItem as TVShowEpisode,
+                                                        getEpisodes,
+                                                        StatusPublisher,
+                                                        NavigationManager);
+            }
             else
                 return;
             Items.Add(vm);

@@ -48,6 +48,7 @@ namespace VideoPlayer.ViewModels.VideoPlayer
             set
             {
                 SetProperty<MediaItem>(value);
+                Title = value?.Name;
             }
         }
 

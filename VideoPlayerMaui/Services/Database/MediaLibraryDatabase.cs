@@ -386,5 +386,26 @@ namespace VideoPlayer.Services.Database
             return await Connection.Table<PlaylistEntry>().Where(entry => entry.PlaylistId == id).ToArrayAsync();
         }
 
+        public async Task<Playlist> AddOrUpdatePlaylistAsync(Playlist playlist)
+        {
+            return await AddOrUpdate<Playlist>(playlist) as Playlist;
+        }
+
+        public async Task<PlaylistEntry> AddOrUpdatePlaylistEntryAsync(PlaylistEntry dataModel2)
+        {
+            return await AddOrUpdate<PlaylistEntry>(dataModel2) as PlaylistEntry;
+        }
+
+        public async Task RemovePlaylistEntryAsync(PlaylistEntry[] mediaItemsToDelete)
+        {
+            foreach (var item in mediaItemsToDelete)
+                await RemovePlaylistEntryAsync(item);
+        }
+
+        public async Task RemovePlaylistEntryAsync(PlaylistEntry mediaItemToDelete)
+        {
+            await Connection.DeleteAsync(mediaItemToDelete);
+        }
+
     }
 }

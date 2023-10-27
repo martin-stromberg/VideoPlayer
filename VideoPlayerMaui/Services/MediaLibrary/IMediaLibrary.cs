@@ -3,7 +3,7 @@ using System.Linq;
 using VideoPlayer.Models;
 using VideoPlayer.Models.MediaItems;
 using VideoPlayer.Models.Movies;
-using VideoPlayer.Models.Playlist;
+using VideoPlayer.Models.Playlists;
 using VideoPlayer.Models.Sources;
 using VideoPlayer.Models.TVShows;
 
@@ -125,9 +125,11 @@ namespace VideoPlayer.Services.MediaLibrary
         #region Playlist 
         Task<IEnumerable<Playlist>> GetPlaylists();
 
-        Task<IEnumerable<Playlist>> GetPlaylist(PlaylistType type);
+        Task<IEnumerable<Playlist>> GetPlaylists(PlaylistType type);
 
         Task<Playlist> GetPlaylist(long id);
+
+        Task AddPlaylistAsync(Playlist playlist);
         #endregion
 
     }

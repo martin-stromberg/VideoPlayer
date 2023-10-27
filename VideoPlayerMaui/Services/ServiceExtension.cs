@@ -19,6 +19,7 @@ using VideoPlayer.Services.MediaLibrary.Demo;
 using VideoPlayer.Services.MediaLibrary.Downloads;
 using VideoPlayer.Services.MediaLibrary.Maintenance;
 using VideoPlayer.Services.MediaLibrary.Scanner;
+using VideoPlayer.Services.Playlists;
 
 namespace VideoPlayer.Services
 {
@@ -43,6 +44,7 @@ namespace VideoPlayer.Services
             services.AddSingleton<IMediaItemClassifier, MediaItemClassifier>();
             services.AddTransient<IMediaDownloader, MediaDownloader>();
             services.AddTransient<IDataCleaner, DataCleaner>();
+            services.AddSingleton<IPlaylistManager, PlaylistManager>();
             return services;
         }
 

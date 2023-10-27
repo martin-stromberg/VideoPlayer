@@ -5,6 +5,7 @@ using VideoPlayer.Services.MediaLibrary;
 using VideoPlayer.Services.MediaLibrary.Classification;
 using VideoPlayer.Services.MediaLibrary.Demo;
 using VideoPlayer.Services.MediaLibrary.Scanner;
+using VideoPlayer.Services.Playlists;
 using VideoPlayer.StatusManagement;
 using VideoPlayer.ViewModels.Homepage;
 
@@ -18,6 +19,7 @@ namespace VideoPlayer.ViewModels.Global
         private readonly ILibraryScanner _LibraryScanner;
         private readonly IMediaItemClassifier _MediaItemClassifier;
         private readonly IUserSecrets _UserSecrets;
+        private readonly IPlaylistManager _PlaylistManager;
 
         public ApplicationViewModel(
             GlobalStatusViewModel statusViewModel,
@@ -28,9 +30,11 @@ namespace VideoPlayer.ViewModels.Global
             ILibraryScanner libraryScanner,
             IMediaItemClassifier mediaItemClassifier,
             IUserSecrets userSecrets,
+            IPlaylistManager playlistManager,
             INavigationManager navigationManager)
             : base(statusPublisher, navigationManager)
         {
+            _PlaylistManager = playlistManager;
             _UserSecrets = userSecrets;
             _MediaItemClassifier = mediaItemClassifier;
             _LibraryScanner = libraryScanner;
@@ -82,6 +86,7 @@ namespace VideoPlayer.ViewModels.Global
                 AddStatusMessage("Initialisiere...");
                 await InitializeSecrets();
                 await CheckAddDemoLibraryAsync();
+                await InitGeneralPlaylistAsync();
                 StartLibraryScans();
                 AddStatusMessage(string.Empty);
             }
@@ -94,6 +99,12 @@ namespace VideoPlayer.ViewModels.Global
                 IsInitializing = false;
             }
             IsInitialized = true;
+        }
+
+        private async Task InitGeneralPlaylistAsync()
+        {
+            AddStatusMessage("Initialisiere Playlists...");
+            await _PlaylistManager.InitializeAsync();
         }
 
         private async Task InitializeSecrets()

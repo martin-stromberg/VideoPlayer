@@ -2,7 +2,7 @@
 using VideoPlayer.Models;
 using VideoPlayer.Models.MediaItems;
 using VideoPlayer.Models.Movies;
-using VideoPlayer.Models.Playlist;
+using VideoPlayer.Models.Playlists;
 using VideoPlayer.Models.Sources;
 using VideoPlayer.Models.TVShows;
 using VideoPlayer.Services.Database;
@@ -293,7 +293,7 @@ namespace VideoPlayer.Services.MediaLibrary
             return playlist;
         }
 
-        public async Task<IEnumerable<Playlist>> GetPlaylist(PlaylistType type)
+        public async Task<IEnumerable<Playlist>> GetPlaylists(PlaylistType type)
         {
             var playlists = (await _DataStore.GetPlaylists())
                 .Where(playlist => playlist.Type == ((int)type))
@@ -635,6 +635,42 @@ namespace VideoPlayer.Services.MediaLibrary
             if (((MediaItemCopyType)mediaItem.CopyType) == MediaItemCopyType.Cache)
                 if (File.Exists(mediaItem.Path))
                     File.Delete(mediaItem.Path);
+        }
+        #endregion
+
+        #region Playlist
+        public async Task AddPlaylistAsync(Playlist playlist)
+        {
+            var isNew = playlist.Id == 0;
+            var dataModel = playlist.ToDataModelAsync();
+            await _DataStore.AddOrUpdatePlaylistAsync(dataModel as Database.Models.Playlist);
+            playlist.UpdateAutoincrements(dataModel);
+
+            var existingMediaItems = (await _DataStore.GetPlaylistEntries(playlist.Id)).ToArray();
+            var mediaItemsToDelete = existingMediaItems.Where(item => !playlist.Items.Any(i => i.Id == item.MediaItemId))
+                                                       .ToArray();
+            var mediaItemsToAdd = playlist.Items
+                                          .Where(item => !existingMediaItems.Any(i => i.MediaItemId == item.Id))
+                                          .ToArray();
+            var mediaItemsToDeleteOffset = 0;
+            foreach (var mediaItemToAdd in mediaItemsToAdd)
+            {
+                Database.Models.PlaylistEntry dataModel2 = mediaItemToAdd.ToDataModelAsync() as Database.Models.PlaylistEntry;
+                if (mediaItemsToDeleteOffset < mediaItemsToDelete.Count())
+                {
+                    mediaItemsToDelete[mediaItemsToDeleteOffset].MediaItemId = dataModel2.MediaItemId;
+                    dataModel2 = mediaItemsToDelete[mediaItemsToDeleteOffset];
+                    mediaItemsToDelete[mediaItemsToDeleteOffset] = null;
+                    mediaItemsToDeleteOffset++;
+                }
+                await _DataStore.AddOrUpdatePlaylistEntryAsync(dataModel2);
+            }
+            foreach (var mediaItemToDelete in mediaItemsToDelete.Where(item => item != null))
+                await _DataStore.RemovePlaylistEntryAsync(mediaItemToDelete);
+
+            OnElementChanged(isNew ? (new BaseModelEventArgs(playlist)) : null,
+                             (!isNew) ? (new BaseModelEventArgs(playlist)) : null,
+                             null);
         }
         #endregion
 

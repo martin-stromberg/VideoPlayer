@@ -2,8 +2,9 @@
 using System.Collections.ObjectModel;
 using System.Linq;
 using VideoPlayer.Models.MediaItems;
+using VideoPlayer.Services.Database;
 
-namespace VideoPlayer.Models.Playlist
+namespace VideoPlayer.Models.Playlists
 {
     public enum PlaylistType
     {
@@ -13,6 +14,7 @@ namespace VideoPlayer.Models.Playlist
 
     }
 
+    [DataModelReference(typeof(Services.Database.Models.Playlist))]
     public class Playlist: BaseModel
     {
 

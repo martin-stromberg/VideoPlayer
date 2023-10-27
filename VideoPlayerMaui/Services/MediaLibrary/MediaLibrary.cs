@@ -208,6 +208,12 @@ namespace VideoPlayer.Services.MediaLibrary
                         MovieCollection.FromDataModel(coll).UpdatePicture(_Settings.CacheRootPath) as MovieCollection);
         }
 
+        public async Task<MovieCollection> GetMovieCollection(Movie movie)
+        {
+            var dbItem = await _DataStore.GetMovieCollection(movie.CollectionId);
+            return MovieCollection.FromDataModel(dbItem).UpdatePicture(_Settings.CacheRootPath) as MovieCollection;
+        }
+
         public async Task<TVShow> FindTVShowAsync(long id)
         {
             var show = await _DataStore

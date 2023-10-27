@@ -90,6 +90,8 @@ namespace VideoPlayer.Services.MediaLibrary
         Task<IEnumerable<MovieCollection>> GetMovieCollections();
 
         Task<MovieCollection> GetMovieCollection(long id);
+
+        Task<MovieCollection> GetMovieCollection(Movie movie);
         #endregion
 
         #region TV Show 

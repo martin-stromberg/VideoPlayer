@@ -1,8 +1,8 @@
 using CommunityToolkit.Maui.Core.Primitives;
 using CommunityToolkit.Maui.Views;
-using VideoPlayer.Helper.Navigation;
 using VideoPlayer.Models;
 using VideoPlayer.Models.MediaItems;
+using VideoPlayer.Services.Playlists;
 using VideoPlayer.ViewModels.VideoPlayer;
 
 namespace VideoPlayer.Views.VideoPlayer

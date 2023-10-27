@@ -37,5 +37,20 @@ namespace VideoPlayer.Models.Playlists
             Items.Add(mediaItem);
         }
 
+        public void RemoveUpTo(MediaItem item)
+        {
+            foreach (var listItem in Items.TakeWhile(i => (i.Id != item.Id) && (i.Id != item.OriginalMediaItemId))
+                                          .ToArray())
+                Remove(listItem);
+            foreach (var listItem in Items.TakeWhile(i => (i.Id == item.Id) || (i.Id == item.OriginalMediaItemId))
+                                          .ToArray())
+                Remove(listItem);
+        }
+
+        private void Remove(MediaItem listItem)
+        {
+            Items.Remove(listItem);
+        }
+
     }
 }

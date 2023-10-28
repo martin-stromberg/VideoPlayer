@@ -64,7 +64,8 @@ namespace VideoPlayer.Services.Playlists
             currentPlaylistCompletionSessionId = Random.Shared.Next(int.MaxValue);
             var mediaItem = await GetFirstMediaItem(tVShowEpisode.MediaItems);
             GeneralPlaylist.Items.Clear();
-            GeneralPlaylist.Items.Add(mediaItem);
+            GeneralPlaylist.Add(mediaItem);
+            await SavePlaylistAsync(GeneralPlaylist);
             AddNextTVShowEpisodes(tVShowEpisode, currentPlaylistCompletionSessionId, GetCollectionElements);
         }
 
@@ -90,6 +91,9 @@ namespace VideoPlayer.Services.Playlists
                     return;
                 GeneralPlaylist.Add(mI);
             }
+            if (sessionId != currentPlaylistCompletionSessionId)
+                return;
+            await SavePlaylistAsync(GeneralPlaylist);
 
             var show = await _MediaLibrary.GetTVShow(season.ShowId);
             var seasons = await _MediaLibrary.GetTVShowSeasons(show.Id);
@@ -109,6 +113,9 @@ namespace VideoPlayer.Services.Playlists
                     GeneralPlaylist.Add(mI);
                 }
             }
+            if (sessionId != currentPlaylistCompletionSessionId)
+                return;
+            await SavePlaylistAsync(GeneralPlaylist);
         }
 
         public async Task StartMoviePlaybackAsync(Movie movie, Func<IEnumerable<BaseModel>> GetCollectionElements)
@@ -116,8 +123,8 @@ namespace VideoPlayer.Services.Playlists
             currentPlaylistCompletionSessionId = Random.Shared.Next(int.MaxValue);
             var mediaItem = await GetFirstMediaItem(movie.MediaItems);
             GeneralPlaylist.Items.Clear();
-            GeneralPlaylist.Items.Add(mediaItem);
-
+            GeneralPlaylist.Add(mediaItem);
+            await SavePlaylistAsync(GeneralPlaylist);
             AddNextCollectionMovies(movie, GetCollectionElements, currentPlaylistCompletionSessionId);
         }
 
@@ -149,6 +156,9 @@ namespace VideoPlayer.Services.Playlists
                     return;
                 GeneralPlaylist.Add(mI);
             }
+            if (sessionId != currentPlaylistCompletionSessionId)
+                return;
+            await SavePlaylistAsync(GeneralPlaylist);
         }
 
         private string loadingMoviePath = string.Empty;
@@ -200,9 +210,9 @@ namespace VideoPlayer.Services.Playlists
 
             Task.Run(async () =>
             {
-                item = await _MediaDownloader.CacheAsync(item);
-                var mediaSource = MediaSource.FromFile(item.Path);
-                source.SetMediaSource(item, mediaSource);
+                var mediaItem = await _MediaDownloader.CacheAsync(item.Item);
+                var mediaSource = MediaSource.FromFile(mediaItem.Path);
+                source.SetMediaSource(mediaItem, mediaSource);
             });
 
             return source;
@@ -217,6 +227,11 @@ namespace VideoPlayer.Services.Playlists
         }
 
         public Playlist GeneralPlaylist { get; private set; }
+
+        private async Task SavePlaylistAsync(Playlist playlist)
+        {
+            await _MediaLibrary.AddPlaylistAsync(playlist);
+        }
 
     }
 }

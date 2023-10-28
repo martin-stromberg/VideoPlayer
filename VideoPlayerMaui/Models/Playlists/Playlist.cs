@@ -30,24 +30,32 @@ namespace VideoPlayer.Models.Playlists
             }
         }
 
-        public ObservableCollection<MediaItem> Items { get; } = new ObservableCollection<MediaItem>();
+        public ObservableCollection<PlaylistEntry> Items { get; } = new ObservableCollection<PlaylistEntry>();
 
-        public void Add(MediaItem mediaItem)
+        public void Add(PlaylistEntry entry)
         {
-            Items.Add(mediaItem);
+            entry.PlaylistId = Id;
+            Items.Add(entry);
+        }
+
+        public void Add(MediaItem entry)
+        {
+            Add(new PlaylistEntry() { Item = entry });
         }
 
         public void RemoveUpTo(MediaItem item)
         {
-            foreach (var listItem in Items.TakeWhile(i => (i.Id != item.Id) && (i.Id != item.OriginalMediaItemId))
+            foreach (var listItem in Items.TakeWhile(i =>
+                                                     (i.Item.Id != item.Id) && (i.Item.Id != item.OriginalMediaItemId))
                                           .ToArray())
                 Remove(listItem);
-            foreach (var listItem in Items.TakeWhile(i => (i.Id == item.Id) || (i.Id == item.OriginalMediaItemId))
+            foreach (var listItem in Items.TakeWhile(i =>
+                                                     (i.Item.Id == item.Id) || (i.Item.Id == item.OriginalMediaItemId))
                                           .ToArray())
                 Remove(listItem);
         }
 
-        private void Remove(MediaItem listItem)
+        private void Remove(PlaylistEntry listItem)
         {
             Items.Remove(listItem);
         }

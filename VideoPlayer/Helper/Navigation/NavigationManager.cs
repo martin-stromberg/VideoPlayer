@@ -97,6 +97,12 @@ namespace VideoPlayer.Helper.Navigation
             NavigateToRoute($"player");
         }
 
+        public async Task OpenPlaylistPlaybackAsync()
+        {
+            await _PlaylistManager.StartPlaybackAsync();
+            NavigateToRoute($"player");
+        }
+
         private string findLocalFile(string fileName, DirectoryInfo folder = null)
         {
             DirectoryInfo tempFolder = new DirectoryInfo(FileSystem.Current.CacheDirectory);

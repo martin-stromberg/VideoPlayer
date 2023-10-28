@@ -25,5 +25,7 @@ namespace VideoPlayer.Navigation
 
         void NavigateBack();
 
+        Task OpenPlaylistPlaybackAsync();
+
     }
 }

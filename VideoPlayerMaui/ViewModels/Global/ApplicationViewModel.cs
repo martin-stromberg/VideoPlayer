@@ -43,6 +43,7 @@ namespace VideoPlayer.ViewModels.Global
             Title = "Medienbibliothek";
             StatusViewModel = statusViewModel;
             ContentViewModel = contentViewModel;
+            StartPlayback = new Command((arg) => DoStartPlayback(arg));
         }
 
         public override void OnAppeared()
@@ -150,6 +151,13 @@ namespace VideoPlayer.ViewModels.Global
             {
                 SetProperty<GlobalStatusViewModel>(value);
             }
+        }
+
+        public Command StartPlayback { get; set; }
+
+        private async void DoStartPlayback(object arg)
+        {
+            await NavigationManager.OpenPlaylistPlaybackAsync();
         }
 
     }

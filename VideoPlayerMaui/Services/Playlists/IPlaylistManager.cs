@@ -19,6 +19,8 @@ namespace VideoPlayer.Services.Playlists
 
         Task StartMoviePlaybackAsync(Movie movie, Func<IEnumerable<BaseModel>> GetCollectionElements);
 
+        Task StartPlaybackAsync();
+
         DownloadSource GetFirstVideoSource();
 
         DownloadSource ProcessMediaEnded(MediaItem item);

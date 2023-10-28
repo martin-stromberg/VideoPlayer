@@ -128,6 +128,11 @@ namespace VideoPlayer.Services.Playlists
             AddNextCollectionMovies(movie, GetCollectionElements, currentPlaylistCompletionSessionId);
         }
 
+        public Task StartPlaybackAsync()
+        {
+            return Task.CompletedTask;
+        }
+
         private int currentPlaylistCompletionSessionId = 0;
 
         private async void AddNextCollectionMovies(

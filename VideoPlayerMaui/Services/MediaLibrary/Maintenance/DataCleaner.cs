@@ -6,6 +6,7 @@ using VideoPlayer.Models.Movies;
 using VideoPlayer.Models.Sources;
 using VideoPlayer.Models.TVShows;
 using VideoPlayer.Services.MediaLibrary.Scanner;
+using VideoPlayer.StatusManagement;
 
 namespace VideoPlayer.Services.MediaLibrary.Maintenance
 {
@@ -14,9 +15,11 @@ namespace VideoPlayer.Services.MediaLibrary.Maintenance
 
         private readonly IMediaLibrary _MediaLibrary;
         private readonly ILibraryScanner _LibraryScanner;
+        private readonly IStatusPublisher _StatusPublisher;
 
-        public DataCleaner(IMediaLibrary mediaLibrary, ILibraryScanner libraryScanner)
+        public DataCleaner(IMediaLibrary mediaLibrary, ILibraryScanner libraryScanner, IStatusPublisher statusPublisher)
         {
+            _StatusPublisher = statusPublisher;
             _LibraryScanner = libraryScanner;
             _MediaLibrary = mediaLibrary;
         }
@@ -28,6 +31,7 @@ namespace VideoPlayer.Services.MediaLibrary.Maintenance
             _LibraryScanner.Stop();
             try
             {
+                _StatusPublisher.AddStatus($"Warte auf laufende Hintergrundaktivitäten.", true);
                 await _LibraryScanner.WaitForFinish();
                 switch (Mode)
                 {
@@ -42,12 +46,14 @@ namespace VideoPlayer.Services.MediaLibrary.Maintenance
             }
             finally
             {
+                _StatusPublisher.AddStatus(string.Empty, false);
                 _LibraryScanner.Start();
             }
         }
 
         private async Task RunCompleteAsync()
         {
+            _StatusPublisher.AddStatus($"Lade Quellen", false);
             var sources = await _MediaLibrary.GetSourcesAsync();
             foreach (var  source  in sources)
             {
@@ -57,6 +63,7 @@ namespace VideoPlayer.Services.MediaLibrary.Maintenance
 
         private async Task CleanSourceAsync(MediaSource source)
         {
+            _StatusPublisher.AddStatus($"Bereinige {source.Name}", false);
             var collections = await _MediaLibrary.GetMediaItemCollectionsAsync(source.Id);
             foreach (var collection in collections)
             {
@@ -72,10 +79,15 @@ namespace VideoPlayer.Services.MediaLibrary.Maintenance
             var shows = await _MediaLibrary.GetTVShows();
             foreach (var show in shows)
                 await RemoveTVShow(show);
+
+            source = await _MediaLibrary.GetSourceAsync(source.Id);
+            source.LastScan = DateTime.MinValue;
+            await _MediaLibrary.AddSourceAsync(source);
         }
 
         private async Task RemoveMediaItemCollection(MediaItemCollection collection)
         {
+            _StatusPublisher.AddStatus($"{collection.Name}", false);
             var mediaItems = await _MediaLibrary.GetMediaItemsAsync(collection.Id);
             foreach (var mediaItem in mediaItems)
                 await RemoveMediaItem(mediaItem);
@@ -87,16 +99,19 @@ namespace VideoPlayer.Services.MediaLibrary.Maintenance
 
         private async Task RemoveMediaItem(MediaItem mediaItem)
         {
+            _StatusPublisher.AddStatus($"{mediaItem.Name}", false);
             await _MediaLibrary.RemoveMediaItemAsync(mediaItem);
         }
 
         private async Task RemoveMovie(Movie movie)
         {
+            _StatusPublisher.AddStatus($"{movie.Name}", false);
             await _MediaLibrary.RemoveMovieAsync(movie);
         }
 
         private async Task RemoveTVShow(TVShow show)
         {
+            _StatusPublisher.AddStatus($"{show.Name}", false);
             await _MediaLibrary.RemoveTVShowAsync(show);
         }
 

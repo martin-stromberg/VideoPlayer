@@ -106,6 +106,8 @@ namespace VideoPlayer.Services.MediaLibrary.PlaybackHistory
 
         private async Task AddNextCollectionMovieAsync(Movie movie)
         {
+            if (movie == null)
+                return;
             if (movie.CollectionId == 0)
                 return;
             var collection = await _MediaLibrary.GetMovieCollection(movie.CollectionId);
@@ -123,6 +125,8 @@ namespace VideoPlayer.Services.MediaLibrary.PlaybackHistory
 
         private async Task AddNextEpisode(TVShowEpisode episode)
         {
+            if (episode == null)
+                return;
             var episodes = await _MediaLibrary.GetTVShowEpisodes(episode.SeasonId);
             var nextEpisode = episodes
                 .SkipWhile(e => e.EpisodeNo != episode.EpisodeNo)

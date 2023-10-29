@@ -112,6 +112,9 @@ namespace VideoPlayer.Services.Export
             }
             baseModels.Add(episodes.Cast<BaseModel>().ToList());
 
+            var history = await _MediaLibrary.GetPlayBackHistoryEntries();
+            baseModels.Add(history.Cast<BaseModel>().ToList());
+
             using (ExcelEngine excelEngine = new ExcelEngine())
             {
                 Syncfusion.XlsIO.IApplication application = excelEngine.Excel;

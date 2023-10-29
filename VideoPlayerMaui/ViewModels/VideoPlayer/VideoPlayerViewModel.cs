@@ -53,6 +53,8 @@ namespace VideoPlayer.ViewModels.VideoPlayer
             }
         }
 
+        public TimeSpan ItemDuration { get; set; }
+
         private DownloadSource _Download = null;
 
         private DownloadSource Download
@@ -96,10 +98,14 @@ namespace VideoPlayer.ViewModels.VideoPlayer
             VideoSource = null;
         }
 
-        public void ProcessMediaOpened() { }
-
-        public void ProcessMediaEnded()
+        public void ProcessMediaOpened(TimeSpan duration)
         {
+            ItemDuration = duration;
+        }
+
+        public async void ProcessMediaEnded()
+        {
+            await SaveMediaItemPosition(TimeSpan.Zero);
             Download = _PlaylistManager.ProcessMediaEnded(Item);
             if (VideoSource == null)
                 NavigationManager.NavigateBack();
@@ -111,14 +117,14 @@ namespace VideoPlayer.ViewModels.VideoPlayer
 
         public void ProcessPositionChanged(TimeSpan position)
         {
-            SaveMediaItemPosition(position);
+            CheckSaveMediaItemPosition(position);
         }
 
         private TimeSpan LastSavedPosition = TimeSpan.Zero;
 
         private bool savingPosition = false;
 
-        private async void SaveMediaItemPosition(TimeSpan position)
+        private async void CheckSaveMediaItemPosition(TimeSpan position)
         {
             if (Item == null)
                 return;
@@ -130,19 +136,30 @@ namespace VideoPlayer.ViewModels.VideoPlayer
                 var Duration = position - LastSavedPosition;
                 if (Duration.TotalSeconds < 5)
                     return;
-                Item.LastPlaybackPosition = position;
-                await _MediaLibrary.UpdateMediaItemAsync(Item, false);
 
-                if (Item.CopyType != MediaItemCopyType.None)
-                {
-                    var OriginalItem = await _MediaLibrary.GetOriginalMediaItemsAsync(Item);
-                    OriginalItem.LastPlaybackPosition = position;
-                    await _MediaLibrary.UpdateMediaItemAsync(OriginalItem, false);
-                }
+                if (ItemDuration.Subtract(TimeSpan.FromSeconds(30)) < position)
+                    position = TimeSpan.Zero;
+
+                await SaveMediaItemPosition(position);
             }
             finally
             {
                 savingPosition = false;
+            }
+        }
+
+        private async Task SaveMediaItemPosition(TimeSpan position)
+        {
+            if (Item.LastPlaybackPosition == position)
+                return;
+            Item.LastPlaybackPosition = position;
+            await _MediaLibrary.UpdateMediaItemAsync(Item, false);
+
+            if (Item.CopyType != MediaItemCopyType.None)
+            {
+                var OriginalItem = await _MediaLibrary.GetOriginalMediaItemsAsync(Item);
+                OriginalItem.LastPlaybackPosition = position;
+                await _MediaLibrary.UpdateMediaItemAsync(OriginalItem, false);
             }
         }
 

@@ -76,7 +76,7 @@ namespace VideoPlayer.Views.VideoPlayer
 
         private void Video_MediaOpened(object sender, EventArgs e)
         {
-            ViewModel.ProcessMediaOpened();
+            ViewModel.ProcessMediaOpened(Video.Duration);
         }
 
         private void Video_MediaEnded(object sender, EventArgs e)

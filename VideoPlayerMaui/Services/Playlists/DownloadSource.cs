@@ -4,9 +4,9 @@ using System.Linq;
 using VideoPlayer.Models;
 using VideoPlayer.Models.MediaItems;
 
-namespace VideoPlayer.Helper.Navigation
+namespace VideoPlayer.Services.Playlists
 {
-    public  class DownloadSource
+    public class DownloadSource
     {
 
         public void SetMediaSource(MediaItem item, MediaSource mediaSource)

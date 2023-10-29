@@ -8,6 +8,9 @@
              x:Class="VideoPlayer.Views.MainPage"
              x:DataType="vm:ApplicationViewModel"
              Title="{Binding Title}">
+    <ContentPage.ToolbarItems>
+        <ToolbarItem Text="▶️" Command="{Binding StartPlayback}" CommandParameter="genral" />
+    </ContentPage.ToolbarItems>
     <Grid>
         <Label
             Text="Loading..."

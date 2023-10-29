@@ -1,12 +1,12 @@
-﻿using CommunityToolkit.Maui.Views;
-using System;
+﻿using System;
 using System.Linq;
-using VideoPlayer.Models.MediaItems;
+using VideoPlayer.Models;
 using VideoPlayer.Models.Movies;
 using VideoPlayer.Models.TVShows;
 using VideoPlayer.Navigation;
 using VideoPlayer.Services.MediaLibrary;
 using VideoPlayer.Services.MediaLibrary.Downloads;
+using VideoPlayer.Services.Playlists;
 using VideoPlayer.Views.MediaLists;
 using VideoPlayer.Views.VideoPlayer;
 
@@ -18,12 +18,15 @@ namespace VideoPlayer.Helper.Navigation
         private readonly MediaLibrarySettings _Settings;
         private readonly IMediaLibrary _MediaLibrary;
         private readonly IMediaDownloader _MediaDownloader;
+        private readonly IPlaylistManager _PlaylistManager;
 
         public NavigationManager(
             MediaLibrarySettings settings,
             IMediaLibrary mediaLibrary,
-            IMediaDownloader mediaDownloader)
+            IMediaDownloader mediaDownloader,
+            IPlaylistManager playlistManager)
         {
+            _PlaylistManager = playlistManager;
             _MediaDownloader = mediaDownloader;
             _Settings = settings;
             _MediaLibrary = mediaLibrary;
@@ -73,31 +76,10 @@ namespace VideoPlayer.Helper.Navigation
             NavigateToRoute($"tvshows", navigationParameter);
         }
 
-        private async Task OpenFirstMediaItem(long[] mediaItems)
+        public async Task OpenTVShowEpisodeAsync(TVShowEpisode tVShowEpisode, Func<IEnumerable<BaseModel>> GetCollectionElements)
         {
-            DownloadSource source = new DownloadSource();
-            OpenLoading(source);
-            MediaItem item = null;
-            foreach (var mediaItemId in mediaItems)
-            {
-                item = await _MediaLibrary.GetMediaItemAsync(mediaItemId);
-                if (item == null)
-                    continue;
-                if (item.CopyType != MediaItemCopyType.None)
-                    continue;
-                break;
-            }
-            if (item == null)
-                return;
-
-            item = await _MediaDownloader.CacheAsync(item);
-            var mediaSource = MediaSource.FromFile(item.Path);
-            source.SetMediaSource(item, mediaSource);
-        }
-
-        public async Task OpenTVShowEpisodeAsync(TVShowEpisode tVShowEpisode)
-        {
-            await OpenFirstMediaItem(tVShowEpisode.MediaItems);
+            await _PlaylistManager.StartTVShowPlaylistAsync(tVShowEpisode, GetCollectionElements);
+            NavigateToRoute($"player");
         }
 
         public void OpenMovieCollection(MovieCollection movieCollection)
@@ -109,23 +91,16 @@ namespace VideoPlayer.Helper.Navigation
             NavigateToRoute($"movies", navigationParameter);
         }
 
-        public async Task OpenMovie(Movie movie)
+        public async Task OpenMovie(Movie movie, Func<IEnumerable<BaseModel>> GetCollectionElements)
         {
-            await OpenFirstMediaItem(movie.MediaItems);
+            await _PlaylistManager.StartMoviePlaylistAsync(movie, GetCollectionElements);
+            NavigateToRoute($"player");
         }
 
-        private string loadingMoviePath = string.Empty;
-
-        private void OpenLoading(DownloadSource downloadSource)
+        public async Task OpenPlaylistPlaybackAsync()
         {
-            if (string.IsNullOrWhiteSpace(loadingMoviePath))
-                loadingMoviePath = findLocalFile("loading.mp4");
-            var navigationParameter = new Dictionary<string, object>
-            {
-                { "VideoSource", File.Exists(loadingMoviePath) ? loadingMoviePath : string.Empty },
-                { "DownloadSource", downloadSource }
-            };
-            NavigateToRoute($"player", navigationParameter);
+            await _PlaylistManager.StartPlaybackAsync();
+            NavigateToRoute($"player");
         }
 
         private string findLocalFile(string fileName, DirectoryInfo folder = null)

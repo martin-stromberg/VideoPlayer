@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using VideoPlayer.Models;
 using VideoPlayer.Models.Movies;
 using VideoPlayer.Models.TVShows;
 
@@ -12,7 +13,7 @@ namespace VideoPlayer.Navigation
 
         void OpenMovieCollection(MovieCollection movieCollection);
 
-        Task OpenMovie(Movie movie);
+        Task OpenMovie(Movie movie, Func<IEnumerable<BaseModel>> GetCollectionElements);
 
         void OpenTVShows();
 
@@ -20,9 +21,11 @@ namespace VideoPlayer.Navigation
 
         void OpenTVShowSeason(TVShowSeason tVShowSeason);
 
-        Task OpenTVShowEpisodeAsync(TVShowEpisode tVShowEpisode);
+        Task OpenTVShowEpisodeAsync(TVShowEpisode tVShowEpisode, Func<IEnumerable<BaseModel>> GetCollectionElements);
 
         void NavigateBack();
+
+        Task OpenPlaylistPlaybackAsync();
 
     }
 }

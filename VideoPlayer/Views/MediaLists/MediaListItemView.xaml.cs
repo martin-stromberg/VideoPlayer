@@ -1,5 +1,6 @@
 
-using VideoPlayer.ViewModels.MediaLists;
+
+using VideoPlayer.ViewModels.MediaLists.MediaListItem;
 
 namespace VideoPlayer.Views.MediaLists
 {
@@ -13,9 +14,14 @@ namespace VideoPlayer.Views.MediaLists
 
         protected MediaListItemViewModel ViewModel => BindingContext as MediaListItemViewModel;
 
-        private void TapGestureRecognizer_Tapped(object sender, TappedEventArgs e)
+        private void ListItemTapped(object sender, TappedEventArgs e)
         {
             ViewModel.OpenDetails();
+        }
+
+        private void ListItemPlaybackTapped(object sender, TappedEventArgs e)
+        {
+            ViewModel.StartPlayback.Execute(true);
         }
 
     }

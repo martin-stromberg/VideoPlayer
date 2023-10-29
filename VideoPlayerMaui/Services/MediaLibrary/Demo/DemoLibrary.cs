@@ -3,6 +3,7 @@ using System.Linq;
 using VideoPlayer.Models;
 using VideoPlayer.Models.MediaItems;
 using VideoPlayer.Models.Movies;
+using VideoPlayer.Models.Playlists;
 using VideoPlayer.Models.Sources;
 using VideoPlayer.Models.TVShows;
 
@@ -301,11 +302,47 @@ namespace VideoPlayer.Services.MediaLibrary.Demo
         {
             throw new NotImplementedException();
         }
+
         public Task RemoveMovieAsync(Movie movie)
         {
             throw new NotImplementedException();
         }
+
         public Task RemoveTVShowAsync(TVShow show)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<IEnumerable<Playlist>> GetPlaylists()
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<Playlist> GetPlaylist(PlaylistType type)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<Playlist> GetPlaylist(long id)
+        {
+            throw new NotImplementedException();
+        }
+
+        Task<IEnumerable<Playlist>> IMediaLibrary.GetPlaylists(PlaylistType type)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void AddPlaylistAsync(Playlist playlist)
+        {
+            throw new NotImplementedException();
+        }
+
+        Task IMediaLibrary.AddPlaylistAsync(Playlist playlist)
+        {
+            throw new NotImplementedException();
+        }
+        public Task<MovieCollection> GetMovieCollection(Movie movie)
         {
             throw new NotImplementedException();
         }

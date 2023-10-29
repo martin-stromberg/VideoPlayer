@@ -4,7 +4,7 @@ using VideoPlayer.Models;
 using VideoPlayer.Navigation;
 using VideoPlayer.StatusManagement;
 
-namespace VideoPlayer.ViewModels.MediaLists
+namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
 {
     public abstract class MediaListItemViewModel: BaseViewModel
     {
@@ -16,6 +16,7 @@ namespace VideoPlayer.ViewModels.MediaLists
             : base(statusPublisher, navigationManager)
         {
             Item = mediaItem;
+            StartPlayback = new Command(() => ExecuteStartPlayback(), () => CanStartPlayback());
         }
 
         protected Type ItemType
@@ -55,6 +56,8 @@ namespace VideoPlayer.ViewModels.MediaLists
             }
         }
 
+        public Command StartPlayback { get; set; }
+
         private void UpdateProperties()
         {
             ItemType = Item?.GetType();
@@ -73,6 +76,10 @@ namespace VideoPlayer.ViewModels.MediaLists
         }
 
         public abstract void OpenDetails();
+
+        protected abstract void ExecuteStartPlayback();
+
+        protected abstract bool CanStartPlayback();
 
     }
 }

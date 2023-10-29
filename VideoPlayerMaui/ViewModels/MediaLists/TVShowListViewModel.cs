@@ -4,6 +4,7 @@ using VideoPlayer.Models;
 using VideoPlayer.Models.TVShows;
 using VideoPlayer.Navigation;
 using VideoPlayer.Services.MediaLibrary;
+using VideoPlayer.Services.Playlists;
 using VideoPlayer.StatusManagement;
 using VideoPlayer.ViewModels.MediaLists.MediaListItem;
 
@@ -15,8 +16,9 @@ namespace VideoPlayer.ViewModels.MediaLists
         public TVShowListViewModel(
             IStatusPublisher statusPublisher,
             INavigationManager navigationManager,
-            IMediaLibrary mediaLibrary)
-            : base(statusPublisher, navigationManager, mediaLibrary) { }
+            IMediaLibrary mediaLibrary,
+            IPlaylistManager playlistManager)
+            : base(statusPublisher, navigationManager, mediaLibrary, playlistManager) { }
 
         public override void OnAppeared()
         {
@@ -35,11 +37,28 @@ namespace VideoPlayer.ViewModels.MediaLists
                 return;
             MediaListItemViewModel vm;
             if (mediaItem is TVShow)
-                vm = new TVShowListItemViewModel(mediaItem as TVShow, StatusPublisher, NavigationManager);
+            {
+                vm = new TVShowListItemViewModel(mediaItem as TVShow,
+                                                 StatusPublisher,
+                                                 NavigationManager,
+                                                 PlaylistManager);
+            }
             else if (mediaItem is TVShowSeason)
-                vm = new TVShowSeasonListItemViewModel(mediaItem as TVShowSeason, StatusPublisher, NavigationManager);
+                vm = new TVShowSeasonListItemViewModel(mediaItem as TVShowSeason,
+                                                       StatusPublisher,
+                                                       NavigationManager,
+                                                       PlaylistManager);
             else if (mediaItem is TVShowEpisode)
-                vm = new TVShowEpisodeListItemViewModel(mediaItem as TVShowEpisode, StatusPublisher, NavigationManager);
+            {
+                Func<IEnumerable<TVShowEpisode>> getEpisodes = (ParentSeason != null) ? () =>
+                                                                                        Items.Select(i => i.Item)
+                                                                                             .OfType<TVShowEpisode>() : (new Func<IEnumerable<TVShowEpisode>>(() =>
+                                                                                                                                                              new TVShowEpisode[0]));
+                vm = new TVShowEpisodeListItemViewModel(mediaItem as TVShowEpisode,
+                                                        getEpisodes,
+                                                        StatusPublisher,
+                                                        NavigationManager);
+            }
             else
                 return;
             Items.Add(vm);

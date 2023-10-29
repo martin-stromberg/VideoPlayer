@@ -17,7 +17,7 @@ namespace VideoPlayer.Models.TVShows
 
         internal TVShowEpisode SetMediaItems(IEnumerable<TVShowEpisodeMediaItem> mediaItems)
         {
-            MediaItems = mediaItems.Select(mi => mi.Id).ToArray();
+            MediaItems = mediaItems.Select(mi => mi.MediaItemId).ToArray();
             return this;
         }
 

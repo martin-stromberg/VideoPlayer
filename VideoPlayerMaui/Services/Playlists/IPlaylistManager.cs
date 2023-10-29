@@ -15,9 +15,15 @@ namespace VideoPlayer.Services.Playlists
 
         Playlist GeneralPlaylist { get; }
 
-        Task StartTVShowPlaybackAsync(TVShowEpisode episode, Func<IEnumerable<BaseModel>> GetCollectionElements);
+        Task StartTVShowPlaylistAsync(TVShowEpisode episode, Func<IEnumerable<BaseModel>> GetCollectionElements);
 
-        Task StartMoviePlaybackAsync(Movie movie, Func<IEnumerable<BaseModel>> GetCollectionElements);
+        Task StartTVShowPlaylistAsync(TVShow show);
+
+        Task StartTVShowPlaylistAsync(TVShowSeason season);
+
+        Task StartMoviePlaylistAsync(Movie movie, Func<IEnumerable<BaseModel>> GetCollectionElements);
+
+        Task StartMoviePlaylistAsync(MovieCollection movieCollection);
 
         Task StartPlaybackAsync();
 

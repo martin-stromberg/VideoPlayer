@@ -78,7 +78,7 @@ namespace VideoPlayer.Helper.Navigation
 
         public async Task OpenTVShowEpisodeAsync(TVShowEpisode tVShowEpisode, Func<IEnumerable<BaseModel>> GetCollectionElements)
         {
-            await _PlaylistManager.StartTVShowPlaybackAsync(tVShowEpisode, GetCollectionElements);
+            await _PlaylistManager.StartTVShowPlaylistAsync(tVShowEpisode, GetCollectionElements);
             NavigateToRoute($"player");
         }
 
@@ -93,7 +93,7 @@ namespace VideoPlayer.Helper.Navigation
 
         public async Task OpenMovie(Movie movie, Func<IEnumerable<BaseModel>> GetCollectionElements)
         {
-            await _PlaylistManager.StartMoviePlaybackAsync(movie, GetCollectionElements);
+            await _PlaylistManager.StartMoviePlaylistAsync(movie, GetCollectionElements);
             NavigateToRoute($"player");
         }
 

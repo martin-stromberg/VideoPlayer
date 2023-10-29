@@ -4,6 +4,7 @@ using VideoPlayer.Models;
 using VideoPlayer.Models.Movies;
 using VideoPlayer.Navigation;
 using VideoPlayer.Services.MediaLibrary;
+using VideoPlayer.Services.Playlists;
 using VideoPlayer.StatusManagement;
 using VideoPlayer.ViewModels.MediaLists.MediaListItem;
 
@@ -15,8 +16,9 @@ namespace VideoPlayer.ViewModels.MediaLists
         public MoviesListViewModel(
             IStatusPublisher statusPublisher,
             INavigationManager navigationManager,
-            IMediaLibrary mediaLibrary)
-            : base(statusPublisher, navigationManager, mediaLibrary) { }
+            IMediaLibrary mediaLibrary,
+            IPlaylistManager playlistManager)
+            : base(statusPublisher, navigationManager, mediaLibrary, playlistManager) { }
 
         public override void OnAppeared()
         {
@@ -43,7 +45,8 @@ namespace VideoPlayer.ViewModels.MediaLists
             else if (mediaItem is MovieCollection)
                 vm = new MovieCollectionListItemViewModel(mediaItem as MovieCollection,
                                                           StatusPublisher,
-                                                          NavigationManager);
+                                                          NavigationManager,
+                                                          PlaylistManager);
             else
                 return;
             Items.Add(vm);

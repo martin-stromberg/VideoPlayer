@@ -4,6 +4,7 @@ using VideoPlayer.Models;
 using VideoPlayer.Models.TVShows;
 using VideoPlayer.Navigation;
 using VideoPlayer.Services.MediaLibrary;
+using VideoPlayer.Services.Playlists;
 using VideoPlayer.StatusManagement;
 using VideoPlayer.ViewModels.MediaLists.MediaListItem;
 
@@ -15,8 +16,9 @@ namespace VideoPlayer.ViewModels.MediaLists
         public TVShowListViewModel(
             IStatusPublisher statusPublisher,
             INavigationManager navigationManager,
-            IMediaLibrary mediaLibrary)
-            : base(statusPublisher, navigationManager, mediaLibrary) { }
+            IMediaLibrary mediaLibrary,
+            IPlaylistManager playlistManager)
+            : base(statusPublisher, navigationManager, mediaLibrary, playlistManager) { }
 
         public override void OnAppeared()
         {
@@ -36,10 +38,16 @@ namespace VideoPlayer.ViewModels.MediaLists
             MediaListItemViewModel vm;
             if (mediaItem is TVShow)
             {
-                vm = new TVShowListItemViewModel(mediaItem as TVShow, StatusPublisher, NavigationManager);
+                vm = new TVShowListItemViewModel(mediaItem as TVShow,
+                                                 StatusPublisher,
+                                                 NavigationManager,
+                                                 PlaylistManager);
             }
             else if (mediaItem is TVShowSeason)
-                vm = new TVShowSeasonListItemViewModel(mediaItem as TVShowSeason, StatusPublisher, NavigationManager);
+                vm = new TVShowSeasonListItemViewModel(mediaItem as TVShowSeason,
+                                                       StatusPublisher,
+                                                       NavigationManager,
+                                                       PlaylistManager);
             else if (mediaItem is TVShowEpisode)
             {
                 Func<IEnumerable<TVShowEpisode>> getEpisodes = (ParentSeason != null) ? () =>

@@ -27,5 +27,15 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
             await NavigationManager.OpenMovie(Item as Movie, _GetCollectionElements);
         }
 
+        protected override bool CanStartPlayback()
+        {
+            return true;
+        }
+
+        protected override async void ExecuteStartPlayback()
+        {
+            OpenDetails();
+        }
+
     }
 }

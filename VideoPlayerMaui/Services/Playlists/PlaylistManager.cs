@@ -59,73 +59,185 @@ namespace VideoPlayer.Services.Playlists
             return item;
         }
 
-        public async Task StartTVShowPlaybackAsync(TVShowEpisode tVShowEpisode, Func<IEnumerable<BaseModel>> GetCollectionElements)
+        public async Task StartTVShowPlaylistAsync(TVShowEpisode tVShowEpisode, Func<IEnumerable<BaseModel>> GetCollectionElements)
         {
             currentPlaylistCompletionSessionId = Random.Shared.Next(int.MaxValue);
-            var mediaItem = await GetFirstMediaItem(tVShowEpisode.MediaItems);
             GeneralPlaylist.Items.Clear();
-            GeneralPlaylist.Add(mediaItem);
+            await AddTVShowEpisode(tVShowEpisode, currentPlaylistCompletionSessionId, () => { });
             await SavePlaylistAsync(GeneralPlaylist);
-            AddNextTVShowEpisodes(tVShowEpisode, currentPlaylistCompletionSessionId, GetCollectionElements);
         }
 
-        private async void AddNextTVShowEpisodes(
-            TVShowEpisode episode,
-            int sessionId,
-            Func<IEnumerable<BaseModel>> GetCollectionElements)
+        public async Task StartTVShowPlaylistAsync(TVShow show)
         {
-            var season = await _MediaLibrary.GetTVShowSeason(episode.SeasonId);
-            var episodes = GetCollectionElements?.Invoke().ToArray().OfType<TVShowEpisode>();
-            if (episodes == null)
-            {
-                episodes = (await _MediaLibrary.GetTVShowEpisodes(season.Id)).ToArray().OrderBy(item => item.EpisodeNo);
-            }
-            if (sessionId != currentPlaylistCompletionSessionId)
-                return;
-            foreach (var item in episodes
-                .SkipWhile(item => item.Id != episode.Id)
-                .SkipWhile(item => item.Id == episode.Id))
-            {
-                var mI = await GetFirstMediaItem(item.MediaItems);
-                if (sessionId != currentPlaylistCompletionSessionId)
-                    return;
-                GeneralPlaylist.Add(mI);
-            }
-            if (sessionId != currentPlaylistCompletionSessionId)
-                return;
-            await SavePlaylistAsync(GeneralPlaylist);
+            currentPlaylistCompletionSessionId = Random.Shared.Next(int.MaxValue);
+            GeneralPlaylist.Items.Clear();
+            Task SaveTask = null;
+            bool AsyncSave = false;
+            await AddTVShowEpisodes(show,
+                                    true,
+                                    currentPlaylistCompletionSessionId,
+                                    async () =>
+                                    {
+                                        SaveTask = SavePlaylistAsync(GeneralPlaylist);
+                                        if (AsyncSave)
+                                            await SaveTask;
+                                    });
+            if (SaveTask != null)
+                await SaveTask;
+            AsyncSave = true;
+        }
 
-            var show = await _MediaLibrary.GetTVShow(season.ShowId);
+        public async Task StartTVShowPlaylistAsync(TVShowSeason season)
+        {
+            currentPlaylistCompletionSessionId = Random.Shared.Next(int.MaxValue);
+            GeneralPlaylist.Items.Clear();
+            Task SaveTask = null;
+            bool AsyncSave = false;
+            await AddTVShowSeasonEpisodes(season,
+                                          true,
+                                          currentPlaylistCompletionSessionId,
+                                          async () =>
+                                          {
+                                              SaveTask = SavePlaylistAsync(GeneralPlaylist);
+                                              if (AsyncSave)
+                                                  await SaveTask;
+                                          });
+            if (SaveTask != null)
+                await SaveTask;
+            AsyncSave = true;
+        }
+
+        private async Task AddTVShowEpisodes(TVShow show, bool startPlayback, int session, Action Finished)
+        {
+            bool started = startPlayback;
+            bool isFirst = true;
             var seasons = await _MediaLibrary.GetTVShowSeasons(show.Id);
-            foreach (var item in seasons
-                .OrderBy(item => item.Name)
-                .SkipWhile(item => item.Id != episode.SeasonId)
-                .SkipWhile(item => item.Id == episode.SeasonId))
+            var count = seasons.Count();
+            foreach (var season in seasons)
             {
-                if (sessionId != currentPlaylistCompletionSessionId)
+                if (session != currentPlaylistCompletionSessionId)
                     return;
-                episodes = await _MediaLibrary.GetTVShowEpisodes(item.Id);
-                foreach (var nextSeason in episodes)
-                {
-                    var mI = await GetFirstMediaItem(nextSeason.MediaItems);
-                    if (sessionId != currentPlaylistCompletionSessionId)
-                        return;
-                    GeneralPlaylist.Add(mI);
-                }
+                var task = AddTVShowSeasonEpisodes(season,
+                                                   startPlayback && isFirst,
+                                                   session,
+                                                   () =>
+                                                   {
+                                                       count -= 1;
+                                                       if (count == 0)
+                                                           Finished();
+                                                   });
+                if (isFirst || !started)
+                    await task;
+                isFirst = false;
             }
-            if (sessionId != currentPlaylistCompletionSessionId)
+            if (isFirst)
+                Finished();
+        }
+
+        private async Task AddTVShowSeasonEpisodes(
+            TVShowSeason season,
+            bool startPlayback,
+            int session,
+            Action Finished)
+        {
+            bool started = startPlayback;
+            bool isFirst = true;
+            var episodes = await _MediaLibrary.GetTVShowEpisodes(season.Id);
+            var count = episodes.Count();
+            foreach (var episode in episodes)
+            {
+                if (session != currentPlaylistCompletionSessionId)
+                    return;
+                var task = AddTVShowEpisode(episode,
+                                            session,
+                                            () =>
+                                            {
+                                                count -= 1;
+                                                if (count == 0)
+                                                    Finished();
+                                            });
+                if (isFirst || !started)
+                    await task;
+                isFirst = false;
+            }
+            if (isFirst)
+                Finished();
+        }
+
+        private async Task AddTVShowEpisode(TVShowEpisode episode, int session, Action Finished)
+        {
+            if (session != currentPlaylistCompletionSessionId)
                 return;
+            var mediaItem = await GetFirstMediaItem(episode.MediaItems);
+            GeneralPlaylist.Add(mediaItem);
+            Finished();
+        }
+
+        public async Task StartMoviePlaylistAsync(Movie movie, Func<IEnumerable<BaseModel>> GetCollectionElements)
+        {
+            currentPlaylistCompletionSessionId = Random.Shared.Next(int.MaxValue);
+            GeneralPlaylist.Items.Clear();
+            await AddMovie(movie, currentPlaylistCompletionSessionId, () => { });
             await SavePlaylistAsync(GeneralPlaylist);
         }
 
-        public async Task StartMoviePlaybackAsync(Movie movie, Func<IEnumerable<BaseModel>> GetCollectionElements)
+        public async Task StartMoviePlaylistAsync(MovieCollection movieCollection)
         {
             currentPlaylistCompletionSessionId = Random.Shared.Next(int.MaxValue);
-            var mediaItem = await GetFirstMediaItem(movie.MediaItems);
             GeneralPlaylist.Items.Clear();
+            Task SaveTask = null;
+            bool AsyncSave = false;
+            await AddMovieCollection(movieCollection,
+                                     true,
+                                     currentPlaylistCompletionSessionId,
+                                     async () =>
+                                     {
+                                         SaveTask = SavePlaylistAsync(GeneralPlaylist);
+                                         if (AsyncSave)
+                                             await SaveTask;
+                                     });
+            if (SaveTask != null)
+                await SaveTask;
+            AsyncSave = true;
+        }
+
+        private async Task AddMovieCollection(
+            MovieCollection movieCollection,
+            bool startPlayback,
+            int session,
+            Action Finished)
+        {
+            var started = startPlayback;
+            var isFirst = true;
+            var movies = await _MediaLibrary.GetMovies(movieCollection.Id);
+            var count = movies.Count();
+            foreach (var movie in movies)
+            {
+                if (session != currentPlaylistCompletionSessionId)
+                    return;
+                var task = AddMovie(movie,
+                                    session,
+                                    () =>
+                                    {
+                                        count -= 1;
+                                        if (count == 0)
+                                            Finished();
+                                    });
+                if (isFirst || !started)
+                    await task;
+                isFirst = false;
+            }
+            if (isFirst)
+                Finished();
+        }
+
+        private async Task AddMovie(Movie movie, int session, Action Finished)
+        {
+            if (session != currentPlaylistCompletionSessionId)
+                return;
+            var mediaItem = await GetFirstMediaItem(movie.MediaItems);
             GeneralPlaylist.Add(mediaItem);
-            await SavePlaylistAsync(GeneralPlaylist);
-            AddNextCollectionMovies(movie, GetCollectionElements, currentPlaylistCompletionSessionId);
+            Finished();
         }
 
         public Task StartPlaybackAsync()
@@ -134,37 +246,6 @@ namespace VideoPlayer.Services.Playlists
         }
 
         private int currentPlaylistCompletionSessionId = 0;
-
-        private async void AddNextCollectionMovies(
-            Movie movie,
-            Func<IEnumerable<BaseModel>> GetCollectionElements,
-            int sessionId)
-        {
-            var movies = GetCollectionElements?.Invoke().ToArray().OfType<Movie>();
-            if (movies == null)
-            {
-                var collection = await _MediaLibrary.GetMovieCollection(movie);
-                if (collection == null)
-                    return;
-                if (sessionId != currentPlaylistCompletionSessionId)
-                    return;
-                movies = (await _MediaLibrary.GetMovies(collection.Id)).OrderBy(mov => mov.Name).ToArray();
-            }
-            if (sessionId != currentPlaylistCompletionSessionId)
-                return;
-            foreach (var mov in movies
-                .SkipWhile(mov => mov.Id != movie.Id)
-                .SkipWhile(mov => mov.Id == movie.Id))
-            {
-                var mI = await GetFirstMediaItem(mov.MediaItems);
-                if (sessionId != currentPlaylistCompletionSessionId)
-                    return;
-                GeneralPlaylist.Add(mI);
-            }
-            if (sessionId != currentPlaylistCompletionSessionId)
-                return;
-            await SavePlaylistAsync(GeneralPlaylist);
-        }
 
         private string loadingMoviePath = string.Empty;
 

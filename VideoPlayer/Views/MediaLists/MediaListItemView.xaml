@@ -1,27 +1,49 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             xmlns:vm="clr-namespace:VideoPlayer.ViewModels.MediaLists;assembly=VideoPlayerMaui"
+             xmlns:vm="clr-namespace:VideoPlayer.ViewModels.MediaLists.MediaListItem;assembly=VideoPlayerMaui"
              xmlns:view="clr-namespace:VideoPlayer.Views.MediaLists"
              x:Class="VideoPlayer.Views.MediaLists.MediaListItemView"
              x:DataType="vm:MediaListItemViewModel">
     <Frame Margin="5" WidthRequest="200" HeightRequest="200">
         <Frame.GestureRecognizers>
-            <TapGestureRecognizer Tapped="TapGestureRecognizer_Tapped"/>
+            <TapGestureRecognizer Tapped="ListItemTapped"/>
         </Frame.GestureRecognizers>
         <Grid>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="30"/>
             </Grid.ColumnDefinitions>
             <Grid.RowDefinitions>
-                <RowDefinition/>
+                <RowDefinition Height="30"/>
+                <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <Image Source="{Binding Picture}"/>
-            <Label                 
+            <Image 
+                Grid.Row="0"
+                Grid.RowSpan="2"
+                Grid.Column="0"
+                Grid.ColumnSpan="2" 
+                Source="{Binding Picture}"/>
+            <Label
+                Grid.Row="1"
+                Grid.RowSpan="0"
+                Grid.Column="0"
+                Grid.ColumnSpan="2"
                 Text="{Binding Title}"
                 VerticalOptions="End" 
                 HorizontalOptions="Center" />
+            <Frame
+                Grid.Row="0"
+                Grid.Column="1"
+                BackgroundColor="Transparent" 
+                Margin="0" 
+                Padding="0">
+                <Frame.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="ListItemPlaybackTapped"/>
+                </Frame.GestureRecognizers>
+                <Label Text="▶️" TextColor="Red" VerticalOptions="Center" HorizontalOptions="Center"/>
+            </Frame>
         </Grid>
     </Frame>
 </ContentView>

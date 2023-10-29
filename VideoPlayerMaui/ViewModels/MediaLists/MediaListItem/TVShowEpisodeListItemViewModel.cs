@@ -25,5 +25,15 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
             await NavigationManager.OpenTVShowEpisodeAsync(Item as TVShowEpisode, _GetCollectionElements);
         }
 
+        protected override bool CanStartPlayback()
+        {
+            return true;
+        }
+
+        protected override void ExecuteStartPlayback()
+        {
+            OpenDetails();
+        }
+
     }
 }

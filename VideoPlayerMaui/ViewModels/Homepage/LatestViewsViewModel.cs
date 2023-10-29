@@ -42,6 +42,10 @@ namespace VideoPlayer.ViewModels.Homepage
                 case NotifyCollectionChangedAction.Remove:
                     RemoveItems(e.OldItems);
                     break;
+                case NotifyCollectionChangedAction.Move:
+                    RemoveItems(e.OldItems);
+                    AddNewItems(e.NewItems);
+                    break;
             }
         }
 
@@ -94,13 +98,9 @@ namespace VideoPlayer.ViewModels.Homepage
         public override void OnAppeared()
         {
             base.OnAppeared();
-            LoadItems();
         }
 
-        private void LoadItems()
-        {
-            AddNewItems(_PlaybackHistoryManager.CurrentHistory.Items);
-        }
+        private void LoadItems() { }
 
     }
 }

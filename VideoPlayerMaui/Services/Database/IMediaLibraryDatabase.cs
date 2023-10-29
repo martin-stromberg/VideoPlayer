@@ -102,5 +102,9 @@ namespace VideoPlayer.Services.Database
 
         Task RemovePlaylistEntryAsync(PlaylistEntry mediaItemToDelete);
 
+        Task<IEnumerable<PlaybackHistoryEntry>> GetPlaybackHistoryEntriesAsync();
+
+        Task<PlaybackHistoryEntry> AddOrUpdatePlaybackHistoryEntry(PlaybackHistoryEntry entry);
+
     }
 }

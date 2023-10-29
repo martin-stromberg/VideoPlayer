@@ -3,6 +3,7 @@ using System.Linq;
 using VideoPlayer.Models;
 using VideoPlayer.Models.MediaItems;
 using VideoPlayer.Models.Movies;
+using VideoPlayer.Models.PlaybackHistory;
 using VideoPlayer.Models.Playlists;
 using VideoPlayer.Models.Sources;
 using VideoPlayer.Models.TVShows;
@@ -369,6 +370,16 @@ namespace VideoPlayer.Services.MediaLibrary.Demo
         }
 
         Task<BaseModel> IMediaLibrary.GetTypedItem(long mediaItemId)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task AddPlaybackHistory(History currentHistory)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<IEnumerable<HistoryEntry>> GetPlayBackHistoryEntries()
         {
             throw new NotImplementedException();
         }

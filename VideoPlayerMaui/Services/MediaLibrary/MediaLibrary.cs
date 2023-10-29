@@ -2,6 +2,7 @@
 using VideoPlayer.Models;
 using VideoPlayer.Models.MediaItems;
 using VideoPlayer.Models.Movies;
+using VideoPlayer.Models.PlaybackHistory;
 using VideoPlayer.Models.Playlists;
 using VideoPlayer.Models.Sources;
 using VideoPlayer.Models.TVShows;
@@ -703,6 +704,55 @@ namespace VideoPlayer.Services.MediaLibrary
             if (tvsmi != null)
                 return await GetTVShowEpisode(tvsmi.EpisodeId);
             return null;
+        }
+
+        public async Task AddPlaybackHistory(History currentHistory)
+        {
+            var existingEntries = (await _DataStore.GetPlaybackHistoryEntriesAsync()).OrderBy(e => e.Id).ToList();
+            for (int idx = 0; idx < currentHistory.Items.Count(); idx++)
+            {
+                var currentEntry = currentHistory.Items[idx];
+                Database.Models.PlaybackHistoryEntry existingEntry = null;
+                if (idx < existingEntries.Count)
+                    existingEntry = existingEntries[idx];
+                else
+                {
+                    existingEntry = new Database.Models.PlaybackHistoryEntry();
+                    existingEntries.Add(existingEntry);
+                }
+                existingEntry.Deleted = false;
+                existingEntry.MediaItemId = (currentEntry.Item == null) ? 0 : currentEntry.Item.Id;
+                existingEntry.TypedItemId = currentEntry.TypedItem.Id;
+                existingEntry.Type = currentEntry.TypedItem.GetType().Name;
+            }
+            for (int idx = currentHistory.Items.Count(); idx < existingEntries.Count; idx++)
+                existingEntries[idx].Deleted = true;
+            foreach (var entry in existingEntries)
+                await _DataStore.AddOrUpdatePlaybackHistoryEntry(entry);
+        }
+
+        public async Task<IEnumerable<HistoryEntry>> GetPlayBackHistoryEntries()
+        {
+            var existingEntries = (await _DataStore.GetPlaybackHistoryEntriesAsync())
+                .Where(e => !e.Deleted)
+                .OrderBy(e => e.Id)
+                .ToArray();
+            var dbItems = existingEntries.Select(entry => HistoryEntry.FromDataModel(entry) as HistoryEntry).ToArray();
+            foreach (var item in dbItems)
+            {
+                if (item.MediaItemId != 0)
+                    item.Item = await GetMediaItemAsync(item.MediaItemId);
+                switch (item.Type)
+                {
+                    case nameof(Movie):
+                        item.TypedItem = await GetMovie(item.TypedItemId);
+                        break;
+                    case nameof(TVShowEpisode):
+                        item.TypedItem = await GetTVShowEpisode(item.TypedItemId);
+                        break;
+                }
+            }
+            return dbItems;
         }
 
     }

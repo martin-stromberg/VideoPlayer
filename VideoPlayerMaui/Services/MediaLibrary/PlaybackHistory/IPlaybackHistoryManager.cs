@@ -12,6 +12,10 @@ namespace VideoPlayer.Services.MediaLibrary.PlaybackHistory
         History CurrentHistory { get; }
 
         Task Add(MediaItem item, BaseModel typedItem);
+
         Task Finish(MediaItem item, BaseModel typedItem);
+
+        Task InitializeAsync();
+
     }
 }

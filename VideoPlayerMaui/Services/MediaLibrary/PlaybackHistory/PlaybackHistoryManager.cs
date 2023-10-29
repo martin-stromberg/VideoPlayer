@@ -20,23 +20,34 @@ namespace VideoPlayer.Services.MediaLibrary.PlaybackHistory
 
         public History CurrentHistory { get; } = new History();
 
-        public Task Add(MediaItem item, BaseModel typedItem)
+        public async Task InitializeAsync()
+        {
+            var entries = await _MediaLibrary.GetPlayBackHistoryEntries();
+            foreach (var entry in entries)
+                CurrentHistory.Items.Add(entry);
+        }
+
+        public async Task Add(MediaItem item, BaseModel typedItem)
         {
             if (typedItem == null)
-                return Task.CompletedTask;
+                return;
             var existing = CurrentHistory.Items.FirstOrDefault(i => i.TypedItem.Id == typedItem.Id);
             if (existing == null)
             {
                 CurrentHistory.Items.Insert(0, new HistoryEntry() { Item = item, TypedItem = typedItem });
                 FindAndRemoveOther(typedItem);
+                await _MediaLibrary.AddPlaybackHistory(CurrentHistory);
             }
             else
             {
                 int offset = CurrentHistory.Items.IndexOf(existing);
                 if (offset > 0)
+                {
                     CurrentHistory.Items.Move(offset, 0);
+                    await _MediaLibrary.AddPlaybackHistory(CurrentHistory);
+                }
             }
-            return Task.CompletedTask;
+            return;
         }
 
         private void FindAndRemoveOther(BaseModel typedItem)

@@ -575,6 +575,17 @@ namespace VideoPlayer.Services.MediaLibrary
                              null);
         }
 
+        public async Task UpdateMediaItemAsync(MediaItem mediaItem, bool notify)
+        {
+            var isNew = mediaItem.Id == 0;
+            var dataModel = mediaItem.ToDataModelAsync();
+            await _DataStore.AddOrUpdateMediaItemAsync(dataModel as Database.Models.MediaItem);
+            mediaItem.UpdateAutoincrements(dataModel);
+            OnElementChanged(isNew ? (new BaseModelEventArgs(mediaItem)) : null,
+                             (!isNew && notify) ? (new BaseModelEventArgs(mediaItem)) : null,
+                             null);
+        }
+
         public async Task<IEnumerable<MediaItem>> GetAlternateMediaItemsAsync(long mediaItemId)
         {
             return (await (await _DataStore.GetMediaItemsAsync())
@@ -582,6 +593,11 @@ namespace VideoPlayer.Services.MediaLibrary
                 .OrderBy(s => s.Name)
                 .ToArrayAsync())
                 .Select(source => MediaItem.FromDataModel(source).UpdatePicture(_Settings.CacheRootPath) as MediaItem);
+        }
+
+        public async Task<MediaItem> GetOriginalMediaItemsAsync(MediaItem item)
+        {
+            return await GetMediaItemAsync(item.OriginalMediaItemId);
         }
         #endregion 
 

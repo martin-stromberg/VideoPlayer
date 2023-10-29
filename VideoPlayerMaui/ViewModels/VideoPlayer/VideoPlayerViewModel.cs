@@ -1,4 +1,5 @@
-﻿using CommunityToolkit.Maui.Views;
+﻿using CommunityToolkit.Maui.Core.Primitives;
+using CommunityToolkit.Maui.Views;
 using System;
 using System.Linq;
 using VideoPlayer.Models;
@@ -93,8 +94,6 @@ namespace VideoPlayer.ViewModels.VideoPlayer
         {
             base.OnDisappeared(closing);
             VideoSource = null;
-            if (closing && (Item != null) && (Item.CopyType == MediaItemCopyType.Cache))
-                _MediaLibrary.RemoveMediaItemAsync(Item);
         }
 
         public void ProcessMediaOpened() { }
@@ -110,7 +109,65 @@ namespace VideoPlayer.ViewModels.VideoPlayer
 
         public void ProcessSeekCompleted(TimeSpan position) { }
 
-        public void ProcessPositionChanged(TimeSpan position) { }
+        public void ProcessPositionChanged(TimeSpan position)
+        {
+            SaveMediaItemPosition(position);
+        }
+
+        private TimeSpan LastSavedPosition = TimeSpan.Zero;
+
+        private bool savingPosition = false;
+
+        private async void SaveMediaItemPosition(TimeSpan position)
+        {
+            if (Item == null)
+                return;
+            if (savingPosition)
+                return;
+            savingPosition = true;
+            try
+            {
+                var Duration = position - LastSavedPosition;
+                if (Duration.TotalSeconds < 5)
+                    return;
+                Item.LastPlaybackPosition = position;
+                await _MediaLibrary.UpdateMediaItemAsync(Item, false);
+
+                if (Item.CopyType != MediaItemCopyType.None)
+                {
+                    var OriginalItem = await _MediaLibrary.GetOriginalMediaItemsAsync(Item);
+                    OriginalItem.LastPlaybackPosition = position;
+                    await _MediaLibrary.UpdateMediaItemAsync(OriginalItem, false);
+                }
+            }
+            finally
+            {
+                savingPosition = false;
+            }
+        }
+
+        public event EventHandler<TimeSpanEventArgs> SeekRequest;
+
+        protected void OnSeekRequest(TimeSpan position)
+        {
+            SeekRequest?.Invoke(this, new TimeSpanEventArgs(position));
+        }
+
+        public void ProcessStateChanged(MediaElementState previousState, MediaElementState newState)
+        {
+            switch (newState)
+            {
+                case MediaElementState.Playing:
+                    ProcessPlaying();
+                    break;
+            }
+        }
+
+        private void ProcessPlaying()
+        {
+            if ((Item != null) && (Item.LastPlaybackPosition != TimeSpan.Zero))
+                OnSeekRequest(Item.LastPlaybackPosition);
+        }
 
     }
 }

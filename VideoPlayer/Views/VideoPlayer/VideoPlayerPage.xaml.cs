@@ -17,6 +17,15 @@ namespace VideoPlayer.Views.VideoPlayer
         {
             InitializeComponent();
             BindingContext = ViewModel = App.GetService<VideoPlayerViewModel>();
+            ViewModel.SeekRequest += ViewModel_SeekRequest;
+        }
+
+        private TimeSpan positionToSeek = TimeSpan.Zero;
+
+        private void ViewModel_SeekRequest(object sender, TimeSpanEventArgs e)
+        {
+            Video.SeekTo(e.Position);
+            positionToSeek = e.Position;
         }
 
         public VideoPlayerViewModel ViewModel { get; }
@@ -87,7 +96,17 @@ namespace VideoPlayer.Views.VideoPlayer
 
         private void Video_PositionChanged(object sender, MediaPositionChangedEventArgs e)
         {
+            if (positionToSeek != TimeSpan.Zero)
+            {
+                Video.SeekTo(positionToSeek);
+                positionToSeek = TimeSpan.Zero;
+            }
             ViewModel.ProcessPositionChanged(e.Position);
+        }
+
+        private void Video_StateChanged(object sender, MediaStateChangedEventArgs e)
+        {
+            ViewModel.ProcessStateChanged(e.PreviousState, e.NewState);
         }
 
     }

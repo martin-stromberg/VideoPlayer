@@ -16,6 +16,7 @@
             MediaFailed="Video_MediaFailed"
             SeekCompleted="Video_SeekCompleted"
             PositionChanged="Video_PositionChanged"
+            StateChanged="Video_StateChanged"
             Source="{Binding VideoSource}" />
     </Grid>
 </ContentPage>

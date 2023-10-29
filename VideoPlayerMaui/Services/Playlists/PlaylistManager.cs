@@ -309,6 +309,7 @@ namespace VideoPlayer.Services.Playlists
             GeneralPlaylist.RemoveUpTo(item);
             if (item.CopyType == MediaItemCopyType.Cache)
                 _ = _MediaLibrary.RemoveMediaItemAsync(item);
+            _ = SavePlaylistAsync(GeneralPlaylist);
             return GetFirstVideoSource();
         }
 

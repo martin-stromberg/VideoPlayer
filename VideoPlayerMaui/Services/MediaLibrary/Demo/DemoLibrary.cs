@@ -342,7 +342,23 @@ namespace VideoPlayer.Services.MediaLibrary.Demo
         {
             throw new NotImplementedException();
         }
+
         public Task<MovieCollection> GetMovieCollection(Movie movie)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<MediaItem> GetOriginalMediaItemsAsync(MediaItem item)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task UpdateMediaItemAsync(MediaItem item)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task UpdateMediaItemAsync(MediaItem item, bool notify)
         {
             throw new NotImplementedException();
         }

@@ -61,7 +61,11 @@ namespace VideoPlayer.Services.MediaLibrary
 
         Task<IEnumerable<MediaItem>> GetAlternateMediaItemsAsync(long mediaItemId);
 
+        Task<MediaItem> GetOriginalMediaItemsAsync(MediaItem item);
+
         Task AddMediaItemAsync(MediaItem mediaItem);
+
+        Task UpdateMediaItemAsync(MediaItem item, bool notify);
 
         Task<MediaItem> FindMediaItemAsync(long SourceId, string path);
 

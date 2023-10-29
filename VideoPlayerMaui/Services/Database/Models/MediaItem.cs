@@ -25,5 +25,7 @@ namespace VideoPlayer.Services.Database.Models
 
         public DateTime LastConfirmation { get; set; }
 
+        public TimeSpan LastPlaybackPosition { get; set; }
+
     }
 }

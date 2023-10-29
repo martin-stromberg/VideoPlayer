@@ -139,6 +139,18 @@ namespace VideoPlayer.Models.MediaItems
             }
         }
 
+        public TimeSpan LastPlaybackPosition
+        {
+            get
+            {
+                return GetProperty<TimeSpan>();
+            }
+            set
+            {
+                SetProperty<TimeSpan>(value);
+            }
+        }
+
         public override string ToString()
         {
             return JsonConvert.SerializeObject(this);

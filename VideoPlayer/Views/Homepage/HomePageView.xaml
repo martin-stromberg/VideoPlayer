@@ -11,6 +11,7 @@
             Padding="30,0"
             Spacing="25">
             <vw:CategorySelection/>
+            <vw:HorizontalMediaItemCollection BindingContext="{Binding LatestViews}"/>
         </VerticalStackLayout>
     </ScrollView>
 </ContentView>

@@ -11,10 +11,13 @@ namespace VideoPlayer.ViewModels.Homepage
         public HomePageViewModel(IStatusPublisher statusPublisher, INavigationManager navigationManager)
             : base(statusPublisher, navigationManager)
         {
+            LatestViews = new LatestViewsViewModel(StatusPublisher, navigationManager);
             OpenCategory = new Command((sender) => DoOpenCategory(sender));
         }
 
         public Command OpenCategory { get; }
+
+        public LatestViewsViewModel LatestViews { get; }
 
         private void DoOpenCategory(object cmd)
         {
@@ -27,8 +30,6 @@ namespace VideoPlayer.ViewModels.Homepage
                     NavigationManager.OpenTVShows();
                     break;
             }
-
-            // Shell.Current.GoToAsync(string.Empty);
         }
 
     }

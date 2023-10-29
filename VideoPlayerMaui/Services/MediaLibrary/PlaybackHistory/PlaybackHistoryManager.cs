@@ -56,6 +56,22 @@ namespace VideoPlayer.Services.MediaLibrary.PlaybackHistory
         private void FindAndRemoveOther(BaseModel typedItem)
         {
             FindAndRemoveOtherFromShow(typedItem as TVShowEpisode);
+            FindAndRemoveOtherFromMovieCollection(typedItem as Movie);
+        }
+
+        private void FindAndRemoveOtherFromMovieCollection(Movie movie)
+        {
+            if (movie == null)
+                return;
+            if (movie.CollectionId == 0)
+                return;
+            var existingCollectionEntry = CurrentHistory.Items
+                                                        .Where(e => e.TypedItem is Movie)
+                                                        .FirstOrDefault(e =>
+                                                                        (((Movie)e.TypedItem).Id != movie.Id)
+                                                            && (((Movie)e.TypedItem).CollectionId == movie.CollectionId));
+            if (existingCollectionEntry != null)
+                CurrentHistory.Items.Remove(existingCollectionEntry);
         }
 
         private async void FindAndRemoveOtherFromShow(TVShowEpisode episode)

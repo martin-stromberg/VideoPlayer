@@ -288,17 +288,17 @@ namespace VideoPlayer.Services.Playlists
             var item = GeneralPlaylist.Items.FirstOrDefault();
             if (item == null)
                 return null;
-
             if (string.IsNullOrWhiteSpace(loadingMoviePath))
                 loadingMoviePath = findLocalFile("loading.mp4");
             DownloadSource source = new DownloadSource();
-            source.SetMediaSource(null, MediaSource.FromFile(loadingMoviePath));
+            source.SetMediaSource(null, null, MediaSource.FromFile(loadingMoviePath));
 
             Task.Run(async () =>
             {
+                var typedItem = await _MediaLibrary.GetTypedItem(item.Item.Id);
                 var mediaItem = await _MediaDownloader.CacheAsync(item.Item);
                 var mediaSource = MediaSource.FromFile(mediaItem.Path);
-                source.SetMediaSource(mediaItem, mediaSource);
+                source.SetMediaSource(mediaItem, typedItem, mediaSource);
             });
 
             return source;

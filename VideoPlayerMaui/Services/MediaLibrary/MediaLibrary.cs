@@ -693,5 +693,17 @@ namespace VideoPlayer.Services.MediaLibrary
         }
         #endregion
 
+        public async Task<BaseModel> GetTypedItem(long id)
+        {
+            var mmi = (await _DataStore.GetMovieMediaItemsForMediaItem(id)).FirstOrDefault();
+            if (mmi != null)
+                return await GetMovie(mmi.MovieId);
+
+            var tvsmi = (await _DataStore.GetTVShowMediaItemsForMediaItem(id)).FirstOrDefault();
+            if (tvsmi != null)
+                return await GetTVShowEpisode(tvsmi.EpisodeId);
+            return null;
+        }
+
     }
 }

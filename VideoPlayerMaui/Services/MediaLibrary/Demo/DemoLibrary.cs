@@ -363,5 +363,15 @@ namespace VideoPlayer.Services.MediaLibrary.Demo
             throw new NotImplementedException();
         }
 
+        public object GetTypedItem(long id)
+        {
+            throw new NotImplementedException();
+        }
+
+        Task<BaseModel> IMediaLibrary.GetTypedItem(long mediaItemId)
+        {
+            throw new NotImplementedException();
+        }
+
     }
 }

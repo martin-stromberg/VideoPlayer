@@ -98,6 +98,7 @@ namespace VideoPlayer.ViewModels.Global
             finally
             {
                 IsInitializing = false;
+                ContentViewModel?.OnAppeared();
             }
             IsInitialized = true;
         }

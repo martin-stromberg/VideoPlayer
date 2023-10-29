@@ -70,6 +70,8 @@ namespace VideoPlayer.Services.MediaLibrary
         Task<MediaItem> FindMediaItemAsync(long SourceId, string path);
 
         Task RemoveMediaItemAsync(MediaItem mediaItem);
+
+        Task<BaseModel> GetTypedItem(long mediaItemId);
         #endregion
 
         #region Movies

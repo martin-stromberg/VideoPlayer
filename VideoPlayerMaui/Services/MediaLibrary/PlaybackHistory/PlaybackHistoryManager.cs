@@ -20,11 +20,14 @@ namespace VideoPlayer.Services.MediaLibrary.PlaybackHistory
 
         public History CurrentHistory { get; } = new History();
 
+        public bool IsInitialized { get; set; }
+
         public async Task InitializeAsync()
         {
             var entries = await _MediaLibrary.GetPlayBackHistoryEntries();
             foreach (var entry in entries)
                 CurrentHistory.Items.Add(entry);
+            IsInitialized = true;
         }
 
         public async Task Add(MediaItem item, BaseModel typedItem)

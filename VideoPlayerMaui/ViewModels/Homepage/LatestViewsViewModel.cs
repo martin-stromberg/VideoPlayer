@@ -34,19 +34,20 @@ namespace VideoPlayer.ViewModels.Homepage
 
         private void Items_CollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
         {
-            switch (e.Action)
-            {
-                case NotifyCollectionChangedAction.Add:
-                    AddNewItems(e.NewItems);
-                    break;
-                case NotifyCollectionChangedAction.Remove:
-                    RemoveItems(e.OldItems);
-                    break;
-                case NotifyCollectionChangedAction.Move:
-                    RemoveItems(e.OldItems);
-                    AddNewItems(e.NewItems);
-                    break;
-            }
+            if (_PlaybackHistoryManager.IsInitialized)
+                switch (e.Action)
+                {
+                    case NotifyCollectionChangedAction.Add:
+                        AddNewItems(e.NewItems);
+                        break;
+                    case NotifyCollectionChangedAction.Remove:
+                        RemoveItems(e.OldItems);
+                        break;
+                    case NotifyCollectionChangedAction.Move:
+                        RemoveItems(e.OldItems);
+                        AddNewItems(e.NewItems);
+                        break;
+                }
         }
 
         private void RemoveItems(IList oldItems)
@@ -62,7 +63,9 @@ namespace VideoPlayer.ViewModels.Homepage
 
         private async void AddNewItems(IList newItems)
         {
-            foreach (var item in newItems.Cast<HistoryEntry>().Where(i => i.TypedItem != null))
+            foreach (var item in newItems.Cast<HistoryEntry>()
+                                         .OrderByDescending(i => i.Id)
+                                         .Where(i => i.TypedItem != null))
             {
                 MediaListItemViewModel vm;
                 if (item.TypedItem is TVShowEpisode)
@@ -98,9 +101,13 @@ namespace VideoPlayer.ViewModels.Homepage
         public override void OnAppeared()
         {
             base.OnAppeared();
+            LoadItems();
         }
 
-        private void LoadItems() { }
+        private void LoadItems()
+        {
+            AddNewItems(_PlaybackHistoryManager.CurrentHistory.Items);
+        }
 
     }
 }

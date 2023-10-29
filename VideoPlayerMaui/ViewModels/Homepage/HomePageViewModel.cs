@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Linq;
 using VideoPlayer.Navigation;
+using VideoPlayer.Services.MediaLibrary;
+using VideoPlayer.Services.MediaLibrary.PlaybackHistory;
+using VideoPlayer.Services.Playlists;
 using VideoPlayer.StatusManagement;
 
 namespace VideoPlayer.ViewModels.Homepage
@@ -8,13 +11,37 @@ namespace VideoPlayer.ViewModels.Homepage
     public class HomePageViewModel: BaseViewModel
     {
 
-        public HomePageViewModel(IStatusPublisher statusPublisher, INavigationManager navigationManager)
+        public HomePageViewModel(
+            IStatusPublisher statusPublisher,
+            INavigationManager navigationManager,
+            IMediaLibrary mediaLibrary,
+            IPlaylistManager playlistManager,
+            IPlaybackHistoryManager playbackHistoryManager)
             : base(statusPublisher, navigationManager)
         {
+            LatestViews = new LatestViewsViewModel(StatusPublisher,
+                                                   navigationManager,
+                                                   mediaLibrary,
+                                                   playlistManager,
+                                                   playbackHistoryManager);
             OpenCategory = new Command((sender) => DoOpenCategory(sender));
         }
 
+        public override void OnAppeared()
+        {
+            base.OnAppeared();
+            LatestViews.OnAppeared();
+        }
+
+        public override void OnDisappeared(bool closing)
+        {
+            base.OnDisappeared(closing);
+            LatestViews.OnDisappeared(closing);
+        }
+
         public Command OpenCategory { get; }
+
+        public LatestViewsViewModel LatestViews { get; }
 
         private void DoOpenCategory(object cmd)
         {
@@ -27,8 +54,6 @@ namespace VideoPlayer.ViewModels.Homepage
                     NavigationManager.OpenTVShows();
                     break;
             }
-
-            // Shell.Current.GoToAsync(string.Empty);
         }
 
     }

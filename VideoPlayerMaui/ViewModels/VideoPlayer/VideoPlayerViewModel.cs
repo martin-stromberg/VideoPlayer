@@ -6,6 +6,7 @@ using VideoPlayer.Models;
 using VideoPlayer.Models.MediaItems;
 using VideoPlayer.Navigation;
 using VideoPlayer.Services.MediaLibrary;
+using VideoPlayer.Services.MediaLibrary.PlaybackHistory;
 using VideoPlayer.Services.Playlists;
 using VideoPlayer.StatusManagement;
 
@@ -16,14 +17,17 @@ namespace VideoPlayer.ViewModels.VideoPlayer
 
         private readonly IMediaLibrary _MediaLibrary;
         private readonly IPlaylistManager _PlaylistManager;
+        private readonly IPlaybackHistoryManager _PlaybackHistoryManager;
 
         public VideoPlayerViewModel(
             IStatusPublisher statusPublisher,
             INavigationManager navigationManager,
             IMediaLibrary mediaLibrary,
-            IPlaylistManager playlistManager)
+            IPlaylistManager playlistManager,
+            IPlaybackHistoryManager playbackHistoryManager)
             : base(statusPublisher, navigationManager)
         {
+            _PlaybackHistoryManager = playbackHistoryManager;
             _PlaylistManager = playlistManager;
             _MediaLibrary = mediaLibrary;
         }
@@ -40,6 +44,19 @@ namespace VideoPlayer.ViewModels.VideoPlayer
             }
         }
 
+        public BaseModel TypedItem
+        {
+            get
+            {
+                return GetProperty<BaseModel>();
+            }
+            set
+            {
+                SetProperty<BaseModel>(value);
+                Title = value?.Name ?? Item?.Name;
+            }
+        }
+
         public MediaItem Item
         {
             get
@@ -49,7 +66,7 @@ namespace VideoPlayer.ViewModels.VideoPlayer
             set
             {
                 SetProperty<MediaItem>(value);
-                Title = value?.Name;
+                Title = TypedItem?.Name ?? Item?.Name;
             }
         }
 
@@ -77,6 +94,7 @@ namespace VideoPlayer.ViewModels.VideoPlayer
         private void _Download_SourceChanged(object sender, MediaSourceEventArgs e)
         {
             Item = Download?.Item;
+            TypedItem = Download?.TypedItem;
             VideoSource = e.Source;
         }
 
@@ -141,11 +159,20 @@ namespace VideoPlayer.ViewModels.VideoPlayer
                     position = TimeSpan.Zero;
 
                 await SaveMediaItemPosition(position);
+                await StoreInHistory(position);
             }
             finally
             {
                 savingPosition = false;
             }
+        }
+
+        private async Task StoreInHistory(TimeSpan position)
+        {
+            if (position == TimeSpan.Zero)
+                await _PlaybackHistoryManager.Finish(Item, TypedItem);
+            else
+                await _PlaybackHistoryManager.Add(Item, TypedItem);
         }
 
         private async Task SaveMediaItemPosition(TimeSpan position)

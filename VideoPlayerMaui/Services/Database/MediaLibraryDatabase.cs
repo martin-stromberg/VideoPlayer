@@ -42,6 +42,7 @@ namespace VideoPlayer.Services.Database
             result = await Connection.CreateTableAsync<MovieMediaItem>();
             result = await Connection.CreateTableAsync<Playlist>();
             result = await Connection.CreateTableAsync<PlaylistEntry>();
+            result = await Connection.CreateTableAsync<PlaybackHistoryEntry>();
         }
 
         public async Task<AsyncTableQuery<MediaSource>> GetSourcesAsync()
@@ -405,6 +406,17 @@ namespace VideoPlayer.Services.Database
         public async Task RemovePlaylistEntryAsync(PlaylistEntry mediaItemToDelete)
         {
             await Connection.DeleteAsync(mediaItemToDelete);
+        }
+
+        public async Task<IEnumerable<PlaybackHistoryEntry>> GetPlaybackHistoryEntriesAsync()
+        {
+            await InitOrUpgradeAsync();
+            return await Connection.Table<PlaybackHistoryEntry>().ToArrayAsync();
+        }
+
+        public async Task<PlaybackHistoryEntry> AddOrUpdatePlaybackHistoryEntry(PlaybackHistoryEntry item)
+        {
+            return await AddOrUpdate<PlaybackHistoryEntry>(item) as PlaybackHistoryEntry;
         }
 
     }

@@ -3,6 +3,7 @@ using System.Linq;
 using VideoPlayer.Models;
 using VideoPlayer.Models.MediaItems;
 using VideoPlayer.Models.Movies;
+using VideoPlayer.Models.PlaybackHistory;
 using VideoPlayer.Models.Playlists;
 using VideoPlayer.Models.Sources;
 using VideoPlayer.Models.TVShows;
@@ -70,6 +71,8 @@ namespace VideoPlayer.Services.MediaLibrary
         Task<MediaItem> FindMediaItemAsync(long SourceId, string path);
 
         Task RemoveMediaItemAsync(MediaItem mediaItem);
+
+        Task<BaseModel> GetTypedItem(long mediaItemId);
         #endregion
 
         #region Movies
@@ -137,6 +140,10 @@ namespace VideoPlayer.Services.MediaLibrary
 
         Task AddPlaylistAsync(Playlist playlist);
         #endregion
+
+        Task AddPlaybackHistory(History history);
+
+        Task<IEnumerable<HistoryEntry>> GetPlayBackHistoryEntries();
 
     }
 }

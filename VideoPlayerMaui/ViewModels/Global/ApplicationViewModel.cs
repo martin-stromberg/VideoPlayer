@@ -4,6 +4,7 @@ using VideoPlayer.Navigation;
 using VideoPlayer.Services.MediaLibrary;
 using VideoPlayer.Services.MediaLibrary.Classification;
 using VideoPlayer.Services.MediaLibrary.Demo;
+using VideoPlayer.Services.MediaLibrary.PlaybackHistory;
 using VideoPlayer.Services.MediaLibrary.Scanner;
 using VideoPlayer.Services.Playlists;
 using VideoPlayer.StatusManagement;
@@ -20,6 +21,7 @@ namespace VideoPlayer.ViewModels.Global
         private readonly IMediaItemClassifier _MediaItemClassifier;
         private readonly IUserSecrets _UserSecrets;
         private readonly IPlaylistManager _PlaylistManager;
+        private readonly IPlaybackHistoryManager _PlaybackHistoryManager;
 
         public ApplicationViewModel(
             GlobalStatusViewModel statusViewModel,
@@ -31,9 +33,11 @@ namespace VideoPlayer.ViewModels.Global
             IMediaItemClassifier mediaItemClassifier,
             IUserSecrets userSecrets,
             IPlaylistManager playlistManager,
-            INavigationManager navigationManager)
+            INavigationManager navigationManager,
+            IPlaybackHistoryManager playbackHistoryManager)
             : base(statusPublisher, navigationManager)
         {
+            _PlaybackHistoryManager = playbackHistoryManager;
             _PlaylistManager = playlistManager;
             _UserSecrets = userSecrets;
             _MediaItemClassifier = mediaItemClassifier;
@@ -88,6 +92,7 @@ namespace VideoPlayer.ViewModels.Global
                 await InitializeSecrets();
                 await CheckAddDemoLibraryAsync();
                 await InitGeneralPlaylistAsync();
+                await InitPlaybackHistory();
                 StartLibraryScans();
                 AddStatusMessage(string.Empty);
             }
@@ -98,8 +103,15 @@ namespace VideoPlayer.ViewModels.Global
             finally
             {
                 IsInitializing = false;
+                ContentViewModel?.OnAppeared();
             }
             IsInitialized = true;
+        }
+
+        private async Task InitPlaybackHistory()
+        {
+            AddStatusMessage("Initialisiere Abspielhistorie...");
+            await _PlaybackHistoryManager.InitializeAsync();
         }
 
         private async Task InitGeneralPlaylistAsync()

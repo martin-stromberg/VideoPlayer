@@ -3,6 +3,7 @@ using System.Linq;
 using VideoPlayer.Models;
 using VideoPlayer.Models.Movies;
 using VideoPlayer.Navigation;
+using VideoPlayer.Services.Settings;
 using VideoPlayer.StatusManagement;
 
 namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
@@ -16,8 +17,9 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
             Movie movie,
             Func<IEnumerable<BaseModel>> GetCollectionElements,
             IStatusPublisher statusPublisher,
-            INavigationManager navigationManager)
-            : base(movie, statusPublisher, navigationManager)
+            INavigationManager navigationManager,
+            ISettingsService settingsService)
+            : base(movie, statusPublisher, navigationManager, settingsService)
         {
             _GetCollectionElements = GetCollectionElements;
         }

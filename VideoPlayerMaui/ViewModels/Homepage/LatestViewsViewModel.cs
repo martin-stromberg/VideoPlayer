@@ -9,6 +9,7 @@ using VideoPlayer.Navigation;
 using VideoPlayer.Services.MediaLibrary;
 using VideoPlayer.Services.MediaLibrary.PlaybackHistory;
 using VideoPlayer.Services.Playlists;
+using VideoPlayer.Services.Settings;
 using VideoPlayer.StatusManagement;
 using VideoPlayer.ViewModels.MediaLists;
 using VideoPlayer.ViewModels.MediaLists.MediaListItem;
@@ -25,8 +26,9 @@ namespace VideoPlayer.ViewModels.Homepage
             INavigationManager navigationManager,
             IMediaLibrary mediaLibrary,
             IPlaylistManager playlistManager,
-            IPlaybackHistoryManager playbackHistoryManager)
-            : base(statusPublisher, navigationManager, mediaLibrary, playlistManager)
+            IPlaybackHistoryManager playbackHistoryManager,
+            ISettingsService settingsService)
+            : base(statusPublisher, navigationManager, mediaLibrary, playlistManager, settingsService)
         {
             _PlaybackHistoryManager = playbackHistoryManager;
             _PlaybackHistoryManager.CurrentHistory.Items.CollectionChanged += Items_CollectionChanged;
@@ -73,7 +75,11 @@ namespace VideoPlayer.ViewModels.Homepage
                     var episode = item.TypedItem as TVShowEpisode;
                     TVShowSeason season = null;
                     TVShow show;
-                    vm = new TVShowEpisodeListItemViewModel(episode, () => null, StatusPublisher, NavigationManager);
+                    vm = new TVShowEpisodeListItemViewModel(episode,
+                                                            () => null,
+                                                            StatusPublisher,
+                                                            NavigationManager,
+                                                            Settings);
                     if (vm.Picture == null)
                     {
                         season = await MediaLibrary.GetTVShowSeason(episode.SeasonId);
@@ -90,7 +96,8 @@ namespace VideoPlayer.ViewModels.Homepage
                     vm = new MovieListItemViewModel(item.TypedItem as Movie,
                                                     () => null,
                                                     StatusPublisher,
-                                                    NavigationManager);
+                                                    NavigationManager,
+                                                    Settings);
                 }
                 else
                     continue;

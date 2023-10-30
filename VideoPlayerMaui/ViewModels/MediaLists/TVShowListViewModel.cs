@@ -5,6 +5,7 @@ using VideoPlayer.Models.TVShows;
 using VideoPlayer.Navigation;
 using VideoPlayer.Services.MediaLibrary;
 using VideoPlayer.Services.Playlists;
+using VideoPlayer.Services.Settings;
 using VideoPlayer.StatusManagement;
 using VideoPlayer.ViewModels.MediaLists.MediaListItem;
 
@@ -17,8 +18,9 @@ namespace VideoPlayer.ViewModels.MediaLists
             IStatusPublisher statusPublisher,
             INavigationManager navigationManager,
             IMediaLibrary mediaLibrary,
-            IPlaylistManager playlistManager)
-            : base(statusPublisher, navigationManager, mediaLibrary, playlistManager) { }
+            IPlaylistManager playlistManager,
+            ISettingsService settingsService)
+            : base(statusPublisher, navigationManager, mediaLibrary, playlistManager, settingsService) { }
 
         public override void OnAppeared()
         {
@@ -41,13 +43,15 @@ namespace VideoPlayer.ViewModels.MediaLists
                 vm = new TVShowListItemViewModel(mediaItem as TVShow,
                                                  StatusPublisher,
                                                  NavigationManager,
-                                                 PlaylistManager);
+                                                 PlaylistManager,
+                                                 Settings);
             }
             else if (mediaItem is TVShowSeason)
                 vm = new TVShowSeasonListItemViewModel(mediaItem as TVShowSeason,
                                                        StatusPublisher,
                                                        NavigationManager,
-                                                       PlaylistManager);
+                                                       PlaylistManager,
+                                                       Settings);
             else if (mediaItem is TVShowEpisode)
             {
                 Func<IEnumerable<TVShowEpisode>> getEpisodes = (ParentSeason != null) ? () =>
@@ -57,7 +61,8 @@ namespace VideoPlayer.ViewModels.MediaLists
                 vm = new TVShowEpisodeListItemViewModel(mediaItem as TVShowEpisode,
                                                         getEpisodes,
                                                         StatusPublisher,
-                                                        NavigationManager);
+                                                        NavigationManager,
+                                                        Settings);
             }
             else
                 return;

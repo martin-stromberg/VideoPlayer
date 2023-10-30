@@ -3,6 +3,7 @@ using System.Linq;
 using VideoPlayer.Models.Sources;
 using VideoPlayer.Navigation;
 using VideoPlayer.Services.MediaLibrary;
+using VideoPlayer.Services.Settings;
 using VideoPlayer.StatusManagement;
 
 namespace VideoPlayer.ViewModels.Management.Sources
@@ -17,8 +18,9 @@ namespace VideoPlayer.ViewModels.Management.Sources
             MediaSource source,
             IStatusPublisher statusPublisher,
             IMediaLibrary mediaLibrary,
-            INavigationManager navigationManager)
-            : base(statusPublisher, navigationManager)
+            INavigationManager navigationManager,
+            ISettingsService settingsService)
+            : base(statusPublisher, navigationManager, settingsService)
         {
             _MediaLibrary = mediaLibrary;
             this.source = source;

@@ -18,7 +18,7 @@ namespace VideoPlayer.Services.Export
     {
 
         private readonly IMediaLibrary _MediaLibrary;
-        private readonly MediaLibrarySettings _Settings;
+        private readonly MediaLibraryEnvironment _Settings;
 
         public enum ExportFormat
         {
@@ -28,7 +28,7 @@ namespace VideoPlayer.Services.Export
 
         }
 
-        public DatabaseExporter(IMediaLibrary mediaLibrary, MediaLibrarySettings settings, IUserSecrets userSecrets)
+        public DatabaseExporter(IMediaLibrary mediaLibrary, MediaLibraryEnvironment settings, IUserSecrets userSecrets)
         {
             RegisterSyncfusion(userSecrets.SyncfusionLicenseKey);
 

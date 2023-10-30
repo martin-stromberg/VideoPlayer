@@ -7,6 +7,7 @@ using VideoPlayer.Services.MediaLibrary.Demo;
 using VideoPlayer.Services.MediaLibrary.PlaybackHistory;
 using VideoPlayer.Services.MediaLibrary.Scanner;
 using VideoPlayer.Services.Playlists;
+using VideoPlayer.Services.Settings;
 using VideoPlayer.StatusManagement;
 using VideoPlayer.ViewModels.Homepage;
 
@@ -34,8 +35,9 @@ namespace VideoPlayer.ViewModels.Global
             IUserSecrets userSecrets,
             IPlaylistManager playlistManager,
             INavigationManager navigationManager,
-            IPlaybackHistoryManager playbackHistoryManager)
-            : base(statusPublisher, navigationManager)
+            IPlaybackHistoryManager playbackHistoryManager,
+            ISettingsService settingsService)
+            : base(statusPublisher, navigationManager, settingsService)
         {
             _PlaybackHistoryManager = playbackHistoryManager;
             _PlaylistManager = playlistManager;
@@ -89,6 +91,7 @@ namespace VideoPlayer.ViewModels.Global
             try
             {
                 AddStatusMessage("Initialisiere...");
+                await InitializeSettings();
                 await InitializeSecrets();
                 await CheckAddDemoLibraryAsync();
                 await InitGeneralPlaylistAsync();
@@ -106,6 +109,12 @@ namespace VideoPlayer.ViewModels.Global
                 ContentViewModel?.OnAppeared();
             }
             IsInitialized = true;
+        }
+
+        private async Task InitializeSettings()
+        {
+            AddStatusMessage("Lade Programmeinstellungen...");
+            await Settings.InitializeAsync();
         }
 
         private async Task InitPlaybackHistory()
@@ -128,7 +137,8 @@ namespace VideoPlayer.ViewModels.Global
         private void StartLibraryScans()
         {
             AddStatusMessage("Starte Quellscanner...");
-            _LibraryScanner.Start();
+            if (Settings.Current.LibraryScan_AutomaticScan)
+                _LibraryScanner.Start();
         }
 
         private async Task CheckAddDemoLibraryAsync()

@@ -14,6 +14,7 @@ using VideoPlayer.Services.MediaLibrary.Scanner.Models;
 using VideoPlayer.Services.MediaLibrary.Scanner.Samba;
 using VideoPlayer.Services.MediaLibrary.Scanner.Shares;
 using VideoPlayer.Services.Mediathek;
+using VideoPlayer.Services.Settings;
 using VideoPlayer.StatusManagement;
 
 namespace VideoPlayer.Services.MediaLibrary.Scanner
@@ -23,8 +24,9 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
 
         private readonly IStatusPublisher _StatusPublisher;
         private readonly IMediaLibrary mediaLibrary;
+        private readonly ISettingsService _Settings;
         private readonly ILogger<LibraryScanner> logger;
-        private readonly MediaLibrarySettings settings;
+        private readonly MediaLibraryEnvironment environment;
         private string[] FileExtVideo = { ".avi", ".mkv", ".mp4", ".mov" };
         private string[] FileExtAudio = { ".mp3", ".wav", ".ogg" };
         private string[] FileExtImage = { ".jpg", ".png" };
@@ -33,13 +35,15 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
         public LibraryScanner(
             IMediaLibrary mediaLibrary,
             ILogger<LibraryScanner> logger,
-            MediaLibrarySettings settings,
+            MediaLibraryEnvironment environment,
+            ISettingsService settings,
             IStatusPublisher statusPublisher)
         {
+            _Settings = settings;
             _StatusPublisher = statusPublisher;
             this.mediaLibrary = mediaLibrary;
             this.logger = logger;
-            this.settings = settings;
+            this.environment = environment;
             InitializeScanners();
         }
 
@@ -131,7 +135,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
         {
             if (!stopScan)
                 await Task.Delay(1000);
-            if (!stopScan)
+            if (!stopScan && _Settings.Current.LibraryScan_AutomaticScan)
                 Start();
             else
                 running = false;
@@ -173,7 +177,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
                 .FirstOrDefault();
             if (source == null)
                 return;
-            if (source.LastScan.AddHours(24) >= DateTime.Now)
+            if (source.LastScan.AddHours(_Settings.Current.LibraryScan_ScanIntervalHours) >= DateTime.Now)
             {
                 _StatusPublisher.AddStatus(string.Empty, true);
                 return;
@@ -541,9 +545,9 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
 
             logger.LogDebug($"Caching picture file {picFile.Name}");
             var cacheFileName = $"{Guid.NewGuid()}{Path.GetExtension(picName)}";
-            string cachFile = Path.Combine(settings.CacheFolderPath, cacheFileName);
+            string cachFile = Path.Combine(environment.CacheFolderPath, cacheFileName);
             scanner.DownloadFile(picPath, cachFile);
-            item.PicturePath = cachFile.Remove(0, settings.CacheRootPath.Length + 1);
+            item.PicturePath = cachFile.Remove(0, environment.CacheRootPath.Length + 1);
             item.Picture = ImageSource.FromFile(cachFile);
             await mediaLibrary.AddMediaItemAsync(item);
         }
@@ -630,9 +634,9 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
                 return;
             logger.LogDebug($"Caching Folder Picture file: {picPath}");
             var cacheFileName = $"{Guid.NewGuid()}{Path.GetExtension(picName)}";
-            string cachFile = Path.Combine(settings.CacheFolderPath, cacheFileName);
+            string cachFile = Path.Combine(environment.CacheFolderPath, cacheFileName);
             scanner.DownloadFile(picPath, cachFile);
-            item.PicturePath = cachFile.Remove(0, settings.CacheRootPath.Length + 1);
+            item.PicturePath = cachFile.Remove(0, environment.CacheRootPath.Length + 1);
             item.Picture = ImageSource.FromFile(cachFile);
             await mediaLibrary.AddMediaItemCollectionAsync(item);
         }
@@ -648,7 +652,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
             if (remoteFile == null)
                 return;
             logger.LogDebug($"Download TV Show Information file: {nfoPath}");
-            string tempFile = Path.Combine(settings.TempFolderPath, nfoName);
+            string tempFile = Path.Combine(environment.TempFolderPath, nfoName);
             XmlDocument XmlDoc = new XmlDocument();
             XmlDoc.LoadXml(scanner.ReadTextFile(nfoPath));
             if (XmlDoc.DocumentElement == null)

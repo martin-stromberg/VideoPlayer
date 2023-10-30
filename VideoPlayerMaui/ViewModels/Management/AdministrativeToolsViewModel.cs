@@ -3,6 +3,7 @@ using System.Linq;
 using VideoPlayer.Navigation;
 using VideoPlayer.Services.Export;
 using VideoPlayer.Services.MediaLibrary.Maintenance;
+using VideoPlayer.Services.Settings;
 using VideoPlayer.StatusManagement;
 
 namespace VideoPlayer.ViewModels.Management
@@ -18,8 +19,9 @@ namespace VideoPlayer.ViewModels.Management
             IStatusPublisher statusPublisher,
             IDatabaseExporter databaseExporter,
             IDataCleaner dataCleaner,
-            INavigationManager navigationManager)
-            : base(statusPublisher, navigationManager)
+            INavigationManager navigationManager,
+            ISettingsService settingsService)
+            : base(statusPublisher, navigationManager, settingsService)
         {
             _DataCleaner = dataCleaner;
             _DatabaseExporter = databaseExporter;

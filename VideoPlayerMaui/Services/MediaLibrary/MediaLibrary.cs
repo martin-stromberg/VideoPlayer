@@ -14,11 +14,11 @@ namespace VideoPlayer.Services.MediaLibrary
     {
 
         private readonly IMediaLibraryDatabase _DataStore;
-        private readonly MediaLibrarySettings _Settings;
+        private readonly MediaLibraryEnvironment _Settings;
 
         public MediaLibrary(
             IMediaLibraryDatabase dataStore,
-            MediaLibrarySettings settings)
+            MediaLibraryEnvironment settings)
         {
             _Settings = settings;
             _DataStore = dataStore;

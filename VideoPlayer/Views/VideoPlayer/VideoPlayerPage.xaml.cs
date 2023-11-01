@@ -109,5 +109,57 @@ namespace VideoPlayer.Views.VideoPlayer
             ViewModel.ProcessStateChanged(e.PreviousState, e.NewState);
         }
 
+        private void OnNavigateButtonClicked(object sender, EventArgs e)
+        {
+            if (ViewModel.Navigate.CanExecute("back"))
+                ViewModel.Navigate.Execute("back");
+        }
+
+        private TimeSpan SeekDuration = TimeSpan.FromSeconds(30);
+
+        private async void OnPlaybackButtonClicked(object sender, EventArgs e)
+        {
+            switch ((sender as ImageButton).CommandParameter)
+            {
+                case "previous":
+                    Video.SeekTo(TimeSpan.Zero);
+                    break;
+                case "left":
+                    Video.SeekTo(Video.Position.Subtract(SeekDuration));
+                    break;
+                case "play":
+                    Video.Play();
+                    break;
+                case "pause":
+                    Video.Pause();
+                    break;
+                case "right":
+                    Video.SeekTo(Video.Position.Add(SeekDuration));
+                    break;
+                case "next":
+                    await ViewModel.SeekToEndAsync();
+                    break;
+            }
+        }
+
+        private void OnTapGestureRecognizerTapped(object sender, TappedEventArgs e)
+        {
+            ViewModel.TogglePlaybackControls();
+        }
+
+        private void OnTapGestureRecognizerDoubleTapped(object sender, TappedEventArgs e)
+        {
+            ViewModel.ShowPlaybackControls(true);
+            switch (Video.CurrentState)
+            {
+                case MediaElementState.Playing:
+                    Video.Pause();
+                    break;
+                case MediaElementState.Paused:
+                    Video.Play();
+                    break;
+            }
+        }
+
     }
 }

@@ -219,5 +219,80 @@ namespace VideoPlayer.ViewModels.VideoPlayer
                 OnSeekRequest(Item.LastPlaybackPosition);
         }
 
+        private void ProcessStopped()
+        {
+            IsPlaying = false;
+            IsPlayable = true;
+        }
+
+        private void ProcessPaused()
+        {
+            IsPlaying = false;
+            IsPlayable = true;
+        }
+
+        private void DoNavigate(string arg)
+        {
+            switch (arg)
+            {
+                case "back":
+                    NavigationManager.NavigateBack();
+                    break;
+            }
+        }
+
+        public bool PlaybackControlsVisible
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+            }
+        }
+
+        public void TogglePlaybackControls()
+        {
+            PlaybackControlsVisible = !PlaybackControlsVisible && OwnPlaybackControlsActive;
+        }
+
+        public void ShowPlaybackControls(bool value)
+        {
+            PlaybackControlsVisible = OwnPlaybackControlsActive;
+        }
+
+        public async Task SeekToEndAsync()
+        {
+            await SaveMediaItemPosition(TimeSpan.Zero);
+            await StoreInHistory(TimeSpan.Zero);
+            OnSeekRequest(ItemDuration.Subtract(TimeSpan.FromSeconds(3)));
+        }
+
+        public bool OwnPlaybackControlsActive
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+            }
+        }
+
+        public bool DefaultPlaybackControlsActive
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+            }
+        }
+
     }
 }

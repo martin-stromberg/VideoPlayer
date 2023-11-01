@@ -1,5 +1,6 @@
 using CommunityToolkit.Maui.Core.Primitives;
 using CommunityToolkit.Maui.Views;
+using System.ComponentModel;
 using VideoPlayer.Models;
 using VideoPlayer.Models.MediaItems;
 using VideoPlayer.Services.Playlists;
@@ -18,6 +19,19 @@ namespace VideoPlayer.Views.VideoPlayer
             InitializeComponent();
             BindingContext = ViewModel = App.GetService<VideoPlayerViewModel>();
             ViewModel.SeekRequest += ViewModel_SeekRequest;
+            ViewModel.PropertyChanged += ViewModel_PropertyChanged;
+            ViewModel_PropertyChanged(this, new PropertyChangedEventArgs(nameof(ViewModel.DefaultPlaybackControlsActive)));
+        }
+
+        private void ViewModel_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            switch (e.PropertyName)
+            {
+                case nameof(ViewModel.DefaultPlaybackControlsActive):
+                    Video.ShouldShowPlaybackControls = ViewModel.DefaultPlaybackControlsActive;
+                    Shell.SetNavBarIsVisible(this, ViewModel.DefaultPlaybackControlsActive);
+                    break;
+            }
         }
 
         private TimeSpan positionToSeek = TimeSpan.Zero;
@@ -71,6 +85,7 @@ namespace VideoPlayer.Views.VideoPlayer
         protected override void OnDisappearing()
         {
             base.OnDisappearing();
+            Shell.SetNavBarIsVisible(this, true);
             ViewModel.OnDisappeared(true);
         }
 
@@ -101,12 +116,78 @@ namespace VideoPlayer.Views.VideoPlayer
                 Video.SeekTo(positionToSeek);
                 positionToSeek = TimeSpan.Zero;
             }
-            ViewModel.ProcessPositionChanged(e.Position);
+            if (ViewModel.ItemDuration != Video.Duration)
+                ViewModel.ProcessMediaOpened(Video.Duration);
+            if (Video.CurrentState == MediaElementState.Playing)
+                ViewModel.ProcessPositionChanged(e.Position);
         }
 
         private void Video_StateChanged(object sender, MediaStateChangedEventArgs e)
         {
+            switch (e.NewState)
+            {
+                case MediaElementState.Playing:
+                    ViewModel.ProcessMediaOpened(Video.Duration);
+                    break;
+            }
             ViewModel.ProcessStateChanged(e.PreviousState, e.NewState);
+        }
+
+        private void OnNavigateButtonClicked(object sender, EventArgs e)
+        {
+            if (ViewModel.Navigate.CanExecute("back"))
+                ViewModel.Navigate.Execute("back");
+        }
+
+        private TimeSpan SeekDuration = TimeSpan.FromSeconds(30);
+
+        private void OnPlaybackButtonClicked(object sender, EventArgs e)
+        {
+            switch ((sender as ImageButton).CommandParameter)
+            {
+                case "previous":
+                    Video.SeekTo(TimeSpan.Zero);
+                    break;
+                case "left":
+                    Video.SeekTo(Video.Position.Subtract(SeekDuration));
+                    break;
+                case "play":
+                    Video.Play();
+                    break;
+                case "pause":
+                    Video.Pause();
+                    break;
+                case "right":
+                    Video.SeekTo(Video.Position.Add(SeekDuration));
+                    break;
+                case "next":
+                    Video.SeekTo(Video.Duration.Subtract(TimeSpan.FromSeconds(1)));
+                    break;
+            }
+        }
+
+        private void OnSeekRightButtonClicked(object sender, EventArgs e)
+        {
+            Video.SeekTo(Video.Position.Add(SeekDuration));
+        }
+
+        private void OnTapGestureRecognizerTapped(object sender, TappedEventArgs e)
+        {
+            ViewModel.TogglePlaybackControls();
+        }
+
+        private void OnTapGestureRecognizerDoubleTapped(object sender, TappedEventArgs e)
+        {
+            ViewModel.ShowPlaybackControls(true);
+            switch (Video.CurrentState)
+            {
+                case MediaElementState.Playing:
+                    Video.Pause();
+                    break;
+                case MediaElementState.Paused:
+                    Video.Play();
+                    break;
+            }
         }
 
     }

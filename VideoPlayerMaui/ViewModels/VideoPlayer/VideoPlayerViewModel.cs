@@ -1,6 +1,7 @@
 ﻿using CommunityToolkit.Maui.Core.Primitives;
 using CommunityToolkit.Maui.Views;
 using System;
+using System.ComponentModel;
 using System.Linq;
 using VideoPlayer.Models;
 using VideoPlayer.Models.MediaItems;
@@ -32,6 +33,34 @@ namespace VideoPlayer.ViewModels.VideoPlayer
             _PlaybackHistoryManager = playbackHistoryManager;
             _PlaylistManager = playlistManager;
             _MediaLibrary = mediaLibrary;
+            Navigate = new Command((arg) => DoNavigate((string)arg));
+            UpdatePlayerControlStyle();
+        }
+
+        protected override void SettingsPropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            base.SettingsPropertyChanged(sender, e);
+            switch (e.PropertyName)
+            {
+                case nameof(Settings.Current.Player_ControlStyle):
+                    UpdatePlayerControlStyle();
+                    break;
+            }
+        }
+
+        private void UpdatePlayerControlStyle()
+        {
+            switch (Settings.Current.Player_ControlStyle)
+            {
+                case Models.Settings.ControlStyle.Own:
+                    DefaultPlaybackControlsActive = false;
+                    OwnPlaybackControlsActive = true;
+                    break;
+                default:
+                    DefaultPlaybackControlsActive = true;
+                    OwnPlaybackControlsActive = false;
+                    break;
+            }
         }
 
         public MediaSource VideoSource
@@ -42,6 +71,9 @@ namespace VideoPlayer.ViewModels.VideoPlayer
             }
             set
             {
+                if (value != null)
+                    SetProperty<MediaSource>(null);
+                ItemDuration = TimeSpan.Zero;
                 SetProperty<MediaSource>(value);
             }
         }
@@ -72,7 +104,17 @@ namespace VideoPlayer.ViewModels.VideoPlayer
             }
         }
 
-        public TimeSpan ItemDuration { get; set; }
+        public TimeSpan ItemDuration
+        {
+            get
+            {
+                return GetProperty<TimeSpan>();
+            }
+            set
+            {
+                SetProperty<TimeSpan>(value);
+            }
+        }
 
         private DownloadSource _Download = null;
 
@@ -121,6 +163,8 @@ namespace VideoPlayer.ViewModels.VideoPlayer
         public void ProcessMediaOpened(TimeSpan duration)
         {
             ItemDuration = duration;
+            MaximumPosition = duration.TotalMicroseconds;
+            ProcessOpened();
         }
 
         public async void ProcessMediaEnded()
@@ -137,7 +181,97 @@ namespace VideoPlayer.ViewModels.VideoPlayer
 
         public void ProcessPositionChanged(TimeSpan position)
         {
+            IsPlaying = true;
+            UpdateCurrentPosition(position);
             CheckSaveMediaItemPosition(position);
+        }
+
+        public double MaximumPosition
+        {
+            get
+            {
+                return GetProperty<double>();
+            }
+            private set
+            {
+                SetProperty<double>(value);
+            }
+        }
+
+        private bool selfUpdatingPosition = false;
+
+        public bool IsPlayable
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+            }
+        }
+
+        public bool IsPlaying
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+                if (value)
+                    IsPlayable = false;
+            }
+        }
+
+        public double CurrentPosition
+        {
+            get
+            {
+                return GetProperty<double>();
+            }
+            set
+            {
+                if (!selfUpdatingPosition)
+                    OnSeekRequest(TimeSpan.FromMicroseconds(value));
+            }
+        }
+
+        public TimeSpan CurrentPositionTime
+        {
+            get
+            {
+                return GetProperty<TimeSpan>();
+            }
+            set
+            {
+                SetProperty<TimeSpan>(value);
+                RemainingPositionTime = ItemDuration - CurrentPositionTime;
+            }
+        }
+
+        public TimeSpan RemainingPositionTime
+        {
+            get
+            {
+                return GetProperty<TimeSpan>();
+            }
+            private set
+            {
+                SetProperty<TimeSpan>(value);
+            }
+        }
+
+        public Command Navigate { get; set; }
+
+        private void UpdateCurrentPosition(TimeSpan position)
+        {
+            selfUpdatingPosition = true;
+            CurrentPositionTime = position;
+            SetProperty<double>(position.TotalMicroseconds, nameof(CurrentPosition));
+            selfUpdatingPosition = false;
         }
 
         private TimeSpan LastSavedPosition = TimeSpan.Zero;
@@ -161,7 +295,8 @@ namespace VideoPlayer.ViewModels.VideoPlayer
                     return;
                 LastSavedPosition = position;
 
-                if (ItemDuration.Subtract(TimeSpan.FromSeconds(Settings.Current.PlaybackHistory_IgnoreSecondsAtVideoEnding)) < position)
+                if ((ItemDuration != TimeSpan.Zero)
+                    && (ItemDuration.Subtract(TimeSpan.FromSeconds(Settings.Current.PlaybackHistory_IgnoreSecondsAtVideoEnding)) < position))
                     position = TimeSpan.Zero;
 
                 await SaveMediaItemPosition(position);
@@ -210,13 +345,121 @@ namespace VideoPlayer.ViewModels.VideoPlayer
                 case MediaElementState.Playing:
                     ProcessPlaying();
                     break;
+                case MediaElementState.Paused:
+                    ProcessPaused();
+                    break;
+                case MediaElementState.Stopped:
+                    ProcessStopped();
+                    break;
+                case MediaElementState.Opening:
+                    ProcessOpening();
+                    break;
+                case MediaElementState.Buffering:
+                    ProcessBuffering();
+                    break;
+                case MediaElementState.Failed:
+                    ProcessFailed();
+                    break;
             }
+        }
+
+        private void ProcessFailed()
+        {
+            IsPlaying = false;
+            IsPlayable = false;
+        }
+
+        private void ProcessBuffering()
+        {
+            IsPlaying = false;
+            IsPlayable = false;
+        }
+
+        private void ProcessOpening()
+        {
+            IsPlaying = false;
+            IsPlayable = false;
+        }
+
+        private void ProcessOpened()
+        {
+            IsPlayable = true;
+            IsPlaying = false;
         }
 
         private void ProcessPlaying()
         {
+            IsPlaying = true;
             if ((Item != null) && (Item.LastPlaybackPosition != TimeSpan.Zero))
                 OnSeekRequest(Item.LastPlaybackPosition);
+        }
+
+        private void ProcessStopped()
+        {
+            IsPlaying = false;
+            IsPlayable = true;
+        }
+
+        private void ProcessPaused()
+        {
+            IsPlaying = false;
+            IsPlayable = true;
+        }
+
+        private void DoNavigate(string arg)
+        {
+            switch (arg)
+            {
+                case "back":
+                    NavigationManager.NavigateBack();
+                    break;
+            }
+        }
+
+        public bool PlaybackControlsVisible
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+            }
+        }
+
+        public void TogglePlaybackControls()
+        {
+            PlaybackControlsVisible = !PlaybackControlsVisible && OwnPlaybackControlsActive;
+        }
+
+        public void ShowPlaybackControls(bool value)
+        {
+            PlaybackControlsVisible = OwnPlaybackControlsActive;
+        }
+
+        public bool OwnPlaybackControlsActive
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+            }
+        }
+
+        public bool DefaultPlaybackControlsActive
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+            }
         }
 
     }

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using VideoPlayer.Models.Attributes;
 using VideoPlayer.Services.Database;
 
 namespace VideoPlayer.Models
@@ -68,6 +69,30 @@ namespace VideoPlayer.Models
             set
             {
                 SetProperty<int>(Math.Max(1, value));
+            }
+        }
+        #endregion
+
+        #region Videowiedergabe
+        public enum ControlStyle
+        {
+
+            [Translation("de", "System")]
+            System,
+            [Translation("de", "Eigenes")]
+            Own
+
+        }
+
+        public ControlStyle Player_ControlStyle
+        {
+            get
+            {
+                return GetProperty<ControlStyle>();
+            }
+            set
+            {
+                SetProperty<ControlStyle>(value);
             }
         }
         #endregion

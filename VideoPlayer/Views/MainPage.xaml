@@ -6,7 +6,8 @@
              xmlns:vwHome="clr-namespace:VideoPlayer.Views.Homepage"
              xmlns:vm="clr-namespace:VideoPlayer.ViewModels.Global;assembly=VideoPlayerMaui"
              x:Class="VideoPlayer.Views.MainPage"
-             x:DataType="vm:ApplicationViewModel"
+             x:DataType="vm:ApplicationViewModel"             
+             Shell.NavBarIsVisible="True"
              Title="{Binding Title}">
     <ContentPage.ToolbarItems>
         <ToolbarItem Text="▶️" Command="{Binding StartPlayback}" CommandParameter="genral" />

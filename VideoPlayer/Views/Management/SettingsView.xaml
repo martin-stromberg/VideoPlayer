@@ -17,6 +17,7 @@
                 <RowDefinition Height="50"/>
                 <RowDefinition Height="50"/>
                 <RowDefinition Height="50"/>
+                <RowDefinition Height="50"/>
             </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="50"/>
@@ -37,17 +38,22 @@
                     Padding="0"
                     Text="{Binding PlaybackHistory_SavePositionIntervallSeconds}"/>
                 <Label 
-                    Text="Sekunden" VerticalOptions="Center"/>
+                    Text="Sekunden" VerticalOptions="Center"/>                
+            </HorizontalStackLayout>
+            <HorizontalStackLayout Grid.Column="1" Grid.Row="2">
+                <Label 
+                    Text="Art der Steuerelemente:" VerticalOptions="Center"/>
+                <Picker ItemsSource="{Binding Player_ControlStyles}" SelectedItem="{Binding Player_ControlStyle}"/>
             </HorizontalStackLayout>
 
             <!-- Startseite -->
             <Label
-                 Grid.Row="2"
+                 Grid.Row="3"
                  Grid.Column="0"
                  Grid.ColumnSpan="3"
                  Text="Startseite"
                  FontSize="Title"/>
-            <HorizontalStackLayout Grid.Column="1" Grid.Row="3">
+            <HorizontalStackLayout Grid.Column="1" Grid.Row="4">
                 <Label 
                     Text="Video fortsetzen erst ab" VerticalOptions="Center"/>
                 <components:ScalingEntry
@@ -57,7 +63,7 @@
                 <Label 
                     Text="Sekunden" VerticalOptions="Center"/>
             </HorizontalStackLayout>
-            <HorizontalStackLayout Grid.Column="1" Grid.Row="4">
+            <HorizontalStackLayout Grid.Column="1" Grid.Row="5">
                 <Label 
                     Text="Video fortsetzen nicht mehr nach " VerticalOptions="Center"/>
                 <components:ScalingEntry
@@ -70,17 +76,17 @@
 
             <!-- Startseite -->
             <Label
-                 Grid.Row="5"
+                 Grid.Row="6"
                  Grid.Column="0"
                  Grid.ColumnSpan="3"
                  Text="Quellen"
                  FontSize="Title"/>
-            <HorizontalStackLayout Grid.Column="1" Grid.Row="6">
+            <HorizontalStackLayout Grid.Column="1" Grid.Row="7">
                 <CheckBox IsChecked="{Binding LibraryScan_AutomaticScan}"/>
                 <Label 
                     Text="Quellen automatisiert nach neuen Medien durchsuchen." VerticalOptions="Center"/>                
             </HorizontalStackLayout>
-            <HorizontalStackLayout Grid.Column="1" Grid.Row="7">
+            <HorizontalStackLayout Grid.Column="1" Grid.Row="8">
                 <Label 
                     Text="Automatischen Scan starten alle " VerticalOptions="Center"/>
                 <components:ScalingEntry

@@ -6,7 +6,7 @@ using VideoPlayer.Services.Database.Models;
 
 namespace VideoPlayer.Services.Database
 {
-    public class MediaLibraryDatabase: IMediaLibraryDatabase, ILogDatabase
+    public class MediaLibraryDatabase: IMediaLibraryDatabase, ILogDatabase, ISettingsDataSource
     {
 
         private readonly MediaLibraryDatabaseSettings settings;
@@ -43,6 +43,7 @@ namespace VideoPlayer.Services.Database
             result = await Connection.CreateTableAsync<Playlist>();
             result = await Connection.CreateTableAsync<PlaylistEntry>();
             result = await Connection.CreateTableAsync<PlaybackHistoryEntry>();
+            result = await Connection.CreateTableAsync<Models.Settings>();
         }
 
         public async Task<AsyncTableQuery<MediaSource>> GetSourcesAsync()
@@ -417,6 +418,20 @@ namespace VideoPlayer.Services.Database
         public async Task<PlaybackHistoryEntry> AddOrUpdatePlaybackHistoryEntry(PlaybackHistoryEntry item)
         {
             return await AddOrUpdate<PlaybackHistoryEntry>(item) as PlaybackHistoryEntry;
+        }
+
+        public async Task<Models.Settings> GetSettingsAsync()
+        {
+            await InitOrUpgradeAsync();
+            var result = await Connection.Table<Models.Settings>().FirstOrDefaultAsync();
+            if (result == null)
+                result = new Models.Settings();
+            return result;
+        }
+
+        public async Task<Models.Settings> UpdateSettingsAsync(Models.Settings settings)
+        {
+            return await AddOrUpdate<Models.Settings>(settings) as Models.Settings;
         }
 
     }

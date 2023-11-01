@@ -21,6 +21,7 @@ using VideoPlayer.Services.MediaLibrary.Maintenance;
 using VideoPlayer.Services.MediaLibrary.PlaybackHistory;
 using VideoPlayer.Services.MediaLibrary.Scanner;
 using VideoPlayer.Services.Playlists;
+using VideoPlayer.Services.Settings;
 
 namespace VideoPlayer.Services
 {
@@ -36,8 +37,11 @@ namespace VideoPlayer.Services
         public static IServiceCollection RegisterMediaLibrary(this IServiceCollection services, string resourcesPath)
         {
             services.AddTransient<MediaLibraryDatabaseSettings>();
-            services.AddTransient<MediaLibrarySettings>(sp => new MediaLibrarySettings(resourcesPath));
+            services.AddTransient<MediaLibraryEnvironment>(sp => new MediaLibraryEnvironment(resourcesPath));
             services.AddSingleton<IMediaLibraryDatabase, MediaLibraryDatabase>();
+            services.AddSingleton<ILogDatabase>(sp => sp.GetService<IMediaLibraryDatabase>() as ILogDatabase);
+            services.AddSingleton<ISettingsDataSource>(sp =>
+                                                       sp.GetService<IMediaLibraryDatabase>() as ISettingsDataSource);
             services.AddSingleton<IMediaLibrary, MediaLibrary.MediaLibrary>();
             services.AddTransient<DemoLibrary>();
             services.AddTransient<IDatabaseExporter, DatabaseExporter>();
@@ -47,6 +51,7 @@ namespace VideoPlayer.Services
             services.AddTransient<IDataCleaner, DataCleaner>();
             services.AddSingleton<IPlaybackHistoryManager, PlaybackHistoryManager>();
             services.AddSingleton<IPlaylistManager, PlaylistManager>();
+            services.AddSingleton<ISettingsService, SettingsService>();
             return services;
         }
 

@@ -12,9 +12,9 @@ namespace VideoPlayer.Services.MediaLibrary.Downloads
     {
 
         private readonly IMediaLibrary _MediaLibrary;
-        private readonly MediaLibrarySettings _Settings;
+        private readonly MediaLibraryEnvironment _Settings;
 
-        public MediaDownloader(IMediaLibrary mediaLibrary, MediaLibrarySettings settings)
+        public MediaDownloader(IMediaLibrary mediaLibrary, MediaLibraryEnvironment settings)
         {
             _Settings = settings;
             _MediaLibrary = mediaLibrary;

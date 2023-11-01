@@ -14,14 +14,14 @@ namespace VideoPlayer.Services.Playlists
     public class PlaylistManager: IPlaylistManager
     {
 
-        private readonly MediaLibrarySettings _Settings;
+        private readonly MediaLibraryEnvironment _Settings;
         private readonly IMediaLibrary _MediaLibrary;
         private readonly IMediaDownloader _MediaDownloader;
 
         public PlaylistManager(
             IMediaLibrary mediaLibrary,
             IMediaDownloader mediaDownloader,
-            MediaLibrarySettings settings)
+            MediaLibraryEnvironment settings)
         {
             _Settings = settings;
             _MediaDownloader = mediaDownloader;

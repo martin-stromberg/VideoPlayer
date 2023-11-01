@@ -8,6 +8,7 @@ using VideoPlayer.Navigation;
 using VideoPlayer.Services.MediaLibrary;
 using VideoPlayer.Services.MediaLibrary.PlaybackHistory;
 using VideoPlayer.Services.Playlists;
+using VideoPlayer.Services.Settings;
 using VideoPlayer.StatusManagement;
 
 namespace VideoPlayer.ViewModels.VideoPlayer
@@ -24,8 +25,9 @@ namespace VideoPlayer.ViewModels.VideoPlayer
             INavigationManager navigationManager,
             IMediaLibrary mediaLibrary,
             IPlaylistManager playlistManager,
-            IPlaybackHistoryManager playbackHistoryManager)
-            : base(statusPublisher, navigationManager)
+            IPlaybackHistoryManager playbackHistoryManager,
+            ISettingsService settings)
+            : base(statusPublisher, navigationManager, settings)
         {
             _PlaybackHistoryManager = playbackHistoryManager;
             _PlaylistManager = playlistManager;
@@ -151,11 +153,15 @@ namespace VideoPlayer.ViewModels.VideoPlayer
             savingPosition = true;
             try
             {
-                var Duration = position - LastSavedPosition;
-                if (Duration.TotalSeconds < 5)
+                if (position.TotalSeconds < Settings.Current.PlaybackHistory_IgnoreSecondsAtVideoStart)
                     return;
 
-                if (ItemDuration.Subtract(TimeSpan.FromSeconds(30)) < position)
+                var Duration = position - LastSavedPosition;
+                if (Duration.TotalSeconds < Settings.Current.PlaybackHistory_SavePositionIntervallSeconds)
+                    return;
+                LastSavedPosition = position;
+
+                if (ItemDuration.Subtract(TimeSpan.FromSeconds(Settings.Current.PlaybackHistory_IgnoreSecondsAtVideoEnding)) < position)
                     position = TimeSpan.Zero;
 
                 await SaveMediaItemPosition(position);

@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using VideoPlayer.Navigation;
+using VideoPlayer.Services.Settings;
 using VideoPlayer.StatusManagement;
 
 namespace VideoPlayer.ViewModels
@@ -11,8 +12,12 @@ namespace VideoPlayer.ViewModels
     public class BaseViewModel: INotifyPropertyChanged, IViewModelAppearance
     {
 
-        public BaseViewModel(IStatusPublisher statusPublisher, INavigationManager navigationManager)
+        public BaseViewModel(
+            IStatusPublisher statusPublisher,
+            INavigationManager navigationManager,
+            ISettingsService settings)
         {
+            Settings = settings;
             StatusPublisher = statusPublisher;
             NavigationManager = navigationManager;
         }
@@ -96,6 +101,8 @@ namespace VideoPlayer.ViewModels
                 SetProperty<string>(value);
             }
         }
+
+        public ISettingsService Settings { get; }
 
     }
 }

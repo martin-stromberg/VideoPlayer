@@ -15,13 +15,13 @@ namespace VideoPlayer.Helper.Navigation
     internal class NavigationManager: INavigationManager
     {
 
-        private readonly MediaLibrarySettings _Settings;
+        private readonly MediaLibraryEnvironment _Settings;
         private readonly IMediaLibrary _MediaLibrary;
         private readonly IMediaDownloader _MediaDownloader;
         private readonly IPlaylistManager _PlaylistManager;
 
         public NavigationManager(
-            MediaLibrarySettings settings,
+            MediaLibraryEnvironment settings,
             IMediaLibrary mediaLibrary,
             IMediaDownloader mediaDownloader,
             IPlaylistManager playlistManager)

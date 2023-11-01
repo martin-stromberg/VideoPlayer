@@ -4,6 +4,7 @@ using System.Linq;
 using VideoPlayer.Navigation;
 using VideoPlayer.Services.MediaLibrary;
 using VideoPlayer.Services.Playlists;
+using VideoPlayer.Services.Settings;
 using VideoPlayer.StatusManagement;
 using VideoPlayer.ViewModels.MediaLists.MediaListItem;
 
@@ -16,8 +17,9 @@ namespace VideoPlayer.ViewModels.MediaLists
             IStatusPublisher statusPublisher,
             INavigationManager navigationManager,
             IMediaLibrary mediaLibrary,
-            IPlaylistManager playlistManager)
-            : base(statusPublisher, navigationManager)
+            IPlaylistManager playlistManager,
+            ISettingsService settingsService)
+            : base(statusPublisher, navigationManager, settingsService)
         {
             PlaylistManager = playlistManager;
             MediaLibrary = mediaLibrary;

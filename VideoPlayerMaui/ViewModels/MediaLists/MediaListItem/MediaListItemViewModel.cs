@@ -2,6 +2,7 @@
 using System.Linq;
 using VideoPlayer.Models;
 using VideoPlayer.Navigation;
+using VideoPlayer.Services.Settings;
 using VideoPlayer.StatusManagement;
 
 namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
@@ -12,8 +13,9 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
         public MediaListItemViewModel(
             BaseModel mediaItem,
             IStatusPublisher statusPublisher,
-            INavigationManager navigationManager)
-            : base(statusPublisher, navigationManager)
+            INavigationManager navigationManager,
+            ISettingsService settingsService)
+            : base(statusPublisher, navigationManager, settingsService)
         {
             Item = mediaItem;
             StartPlayback = new Command(() => ExecuteStartPlayback(), () => CanStartPlayback());

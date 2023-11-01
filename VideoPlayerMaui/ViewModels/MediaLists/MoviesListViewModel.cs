@@ -5,6 +5,7 @@ using VideoPlayer.Models.Movies;
 using VideoPlayer.Navigation;
 using VideoPlayer.Services.MediaLibrary;
 using VideoPlayer.Services.Playlists;
+using VideoPlayer.Services.Settings;
 using VideoPlayer.StatusManagement;
 using VideoPlayer.ViewModels.MediaLists.MediaListItem;
 
@@ -17,8 +18,9 @@ namespace VideoPlayer.ViewModels.MediaLists
             IStatusPublisher statusPublisher,
             INavigationManager navigationManager,
             IMediaLibrary mediaLibrary,
-            IPlaylistManager playlistManager)
-            : base(statusPublisher, navigationManager, mediaLibrary, playlistManager) { }
+            IPlaylistManager playlistManager,
+            ISettingsService settingsService)
+            : base(statusPublisher, navigationManager, mediaLibrary, playlistManager, settingsService) { }
 
         public override void OnAppeared()
         {
@@ -40,13 +42,18 @@ namespace VideoPlayer.ViewModels.MediaLists
                                                                                   Items.Select(i => i.Item)
                                                                                        .OfType<Movie>() : (new Func<IEnumerable<Movie>>(() =>
                                                                                                                                         new Movie[0]));
-                vm = new MovieListItemViewModel(mediaItem as Movie, getMovies, StatusPublisher, NavigationManager);
+                vm = new MovieListItemViewModel(mediaItem as Movie,
+                                                getMovies,
+                                                StatusPublisher,
+                                                NavigationManager,
+                                                Settings);
             }
             else if (mediaItem is MovieCollection)
                 vm = new MovieCollectionListItemViewModel(mediaItem as MovieCollection,
                                                           StatusPublisher,
                                                           NavigationManager,
-                                                          PlaylistManager);
+                                                          PlaylistManager,
+                                                          Settings);
             else
                 return;
             Items.Add(vm);

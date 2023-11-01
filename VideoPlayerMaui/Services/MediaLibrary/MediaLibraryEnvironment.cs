@@ -4,10 +4,10 @@ using System.Reflection;
 
 namespace VideoPlayer.Services.MediaLibrary
 {
-    public class MediaLibrarySettings
+    public class MediaLibraryEnvironment
     {
 
-        public MediaLibrarySettings(string resourcesPath)
+        public MediaLibraryEnvironment(string resourcesPath)
         {
             RessourcePath = resourcesPath;
         }

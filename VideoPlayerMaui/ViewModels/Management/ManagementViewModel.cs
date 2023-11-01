@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using VideoPlayer.Navigation;
+using VideoPlayer.Services.Settings;
 using VideoPlayer.StatusManagement;
 using VideoPlayer.ViewModels.Global;
 using VideoPlayer.ViewModels.Management.Sources;
@@ -16,8 +17,9 @@ namespace VideoPlayer.ViewModels.Management
             SourcesViewModel sourcesViewModel,
             GlobalStatusViewModel statusViewModel,
             IStatusPublisher statusPublisher,
-            INavigationManager navigationManager)
-            : base(statusPublisher, navigationManager)
+            INavigationManager navigationManager,
+            ISettingsService settingsService)
+            : base(statusPublisher, navigationManager, settingsService)
         {
             Settings = settingsViewModel;
             Tools = adminTasksViewModel;
@@ -198,7 +200,8 @@ namespace VideoPlayer.ViewModels.Management
                 }
                 else
                 {
-                    var sourceProp = thisType.GetProperty(prop.Name.Substring(0, prop.Name.Length - "Content".Length));
+                    var propName = prop.Name.Substring(0, prop.Name.Length - "Content".Length);
+                    var sourceProp = thisType.GetProperties().FirstOrDefault(p => p.Name == propName);
                     prop.SetValue(this, sourceProp.GetValue(this));
                     CurrentContent = viewModel;
                     viewModel.OnAppeared();

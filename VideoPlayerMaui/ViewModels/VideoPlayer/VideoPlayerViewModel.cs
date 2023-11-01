@@ -32,6 +32,7 @@ namespace VideoPlayer.ViewModels.VideoPlayer
             _PlaybackHistoryManager = playbackHistoryManager;
             _PlaylistManager = playlistManager;
             _MediaLibrary = mediaLibrary;
+            Navigate = new Command((arg) => DoNavigate((string)arg));
         }
 
         public MediaSource VideoSource
@@ -121,6 +122,8 @@ namespace VideoPlayer.ViewModels.VideoPlayer
         public void ProcessMediaOpened(TimeSpan duration)
         {
             ItemDuration = duration;
+            MaximumPosition = duration.TotalMicroseconds;
+            ProcessOpened();
         }
 
         public async void ProcessMediaEnded()
@@ -137,7 +140,84 @@ namespace VideoPlayer.ViewModels.VideoPlayer
 
         public void ProcessPositionChanged(TimeSpan position)
         {
+            IsPlaying = true;
+            UpdateCurrentPosition(position);
             CheckSaveMediaItemPosition(position);
+        }
+
+        public double MaximumPosition
+        {
+            get
+            {
+                return GetProperty<double>();
+            }
+            private set
+            {
+                SetProperty<double>(value);
+            }
+        }
+
+        private bool selfUpdatingPosition = false;
+
+        public bool IsPlayable
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+            }
+        }
+
+        public bool IsPlaying
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+                if (value)
+                    IsPlayable = false;
+            }
+        }
+
+        public double CurrentPosition
+        {
+            get
+            {
+                return GetProperty<double>();
+            }
+            set
+            {
+                if (!selfUpdatingPosition)
+                    OnSeekRequest(TimeSpan.FromMicroseconds(value));
+            }
+        }
+
+        public TimeSpan CurrentPositionTime
+        {
+            get
+            {
+                return GetProperty<TimeSpan>();
+            }
+            set
+            {
+                SetProperty<TimeSpan>(value);
+            }
+        }
+
+        public Command Navigate { get; set; }
+
+        private void UpdateCurrentPosition(TimeSpan position)
+        {
+            selfUpdatingPosition = true;
+            CurrentPositionTime = position;
+            SetProperty<double>(position.TotalMicroseconds, nameof(CurrentPosition));
+            selfUpdatingPosition = false;
         }
 
         private TimeSpan LastSavedPosition = TimeSpan.Zero;
@@ -210,13 +290,87 @@ namespace VideoPlayer.ViewModels.VideoPlayer
                 case MediaElementState.Playing:
                     ProcessPlaying();
                     break;
+                case MediaElementState.Paused:
+                    ProcessPaused();
+                    break;
+                case MediaElementState.Stopped:
+                    ProcessStopped();
+                    break;
+                case MediaElementState.Opening:
+                    ProcessOpening();
+                    break;
+                case MediaElementState.Buffering:
+                    ProcessBuffering();
+                    break;
+                case MediaElementState.Failed:
+                    ProcessFailed();
+                    break;
             }
+        }
+
+        private void ProcessFailed()
+        {
+            IsPlaying = false;
+            IsPlayable = false;
+        }
+
+        private void ProcessBuffering()
+        {
+            IsPlaying = false;
+            IsPlayable = false;
+        }
+
+        private void ProcessOpening()
+        {
+            IsPlaying = false;
+            IsPlayable = false;
+        }
+
+        private void ProcessOpened()
+        {
+            IsPlayable = true;
+            IsPlaying = false;
         }
 
         private void ProcessPlaying()
         {
+            IsPlaying = true;
             if ((Item != null) && (Item.LastPlaybackPosition != TimeSpan.Zero))
                 OnSeekRequest(Item.LastPlaybackPosition);
+        }
+
+        private void ProcessStopped()
+        {
+            IsPlaying = false;
+            IsPlayable = true;
+        }
+
+        private void ProcessPaused()
+        {
+            IsPlaying = false;
+            IsPlayable = true;
+        }
+
+        private void DoNavigate(string arg)
+        {
+            switch (arg)
+            {
+                case "back":
+                    NavigationManager.NavigateBack();
+                    break;
+            }
+        }
+
+        public bool PlaybackControlsVisible
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+            }
         }
 
     }

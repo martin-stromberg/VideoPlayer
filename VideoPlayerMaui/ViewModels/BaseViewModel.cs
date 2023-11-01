@@ -16,11 +16,16 @@ namespace VideoPlayer.ViewModels
             IStatusPublisher statusPublisher,
             INavigationManager navigationManager,
             ISettingsService settings)
+            : base()
         {
             Settings = settings;
             StatusPublisher = statusPublisher;
             NavigationManager = navigationManager;
+            if (settings.Current != null)
+                settings.Current.PropertyChanged += SettingsPropertyChanged;
         }
+
+        protected virtual void SettingsPropertyChanged(object sender, PropertyChangedEventArgs e) { }
 
         #region Status
         protected IStatusPublisher StatusPublisher { get; }

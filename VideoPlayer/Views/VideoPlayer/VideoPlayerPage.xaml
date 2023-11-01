@@ -6,8 +6,7 @@
              x:Class="VideoPlayer.Views.VideoPlayer.VideoPlayerPage"
              x:DataType="vm:VideoPlayerViewModel"             
              Title="{Binding Title}"
-             Shell.NavBarIsVisible="False"
-             Shell.FlyoutBehavior="Disabled">
+             Shell.NavBarIsVisible="False">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="50"/>

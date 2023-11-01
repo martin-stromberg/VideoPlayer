@@ -1,6 +1,7 @@
 ﻿using CommunityToolkit.Maui.Core.Primitives;
 using CommunityToolkit.Maui.Views;
 using System;
+using System.ComponentModel;
 using System.Linq;
 using VideoPlayer.Models;
 using VideoPlayer.Models.MediaItems;
@@ -33,6 +34,33 @@ namespace VideoPlayer.ViewModels.VideoPlayer
             _PlaylistManager = playlistManager;
             _MediaLibrary = mediaLibrary;
             Navigate = new Command((arg) => DoNavigate((string)arg));
+            UpdatePlayerControlStyle();
+        }
+
+        protected override void SettingsPropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            base.SettingsPropertyChanged(sender, e);
+            switch (e.PropertyName)
+            {
+                case nameof(Settings.Current.Player_ControlStyle):
+                    UpdatePlayerControlStyle();
+                    break;
+            }
+        }
+
+        private void UpdatePlayerControlStyle()
+        {
+            switch (Settings.Current.Player_ControlStyle)
+            {
+                case Models.Settings.ControlStyle.Own:
+                    DefaultPlaybackControlsActive = false;
+                    OwnPlaybackControlsActive = true;
+                    break;
+                default:
+                    DefaultPlaybackControlsActive = true;
+                    OwnPlaybackControlsActive = false;
+                    break;
+            }
         }
 
         public MediaSource VideoSource
@@ -43,6 +71,9 @@ namespace VideoPlayer.ViewModels.VideoPlayer
             }
             set
             {
+                if (value != null)
+                    SetProperty<MediaSource>(null);
+                ItemDuration = TimeSpan.Zero;
                 SetProperty<MediaSource>(value);
             }
         }
@@ -73,7 +104,17 @@ namespace VideoPlayer.ViewModels.VideoPlayer
             }
         }
 
-        public TimeSpan ItemDuration { get; set; }
+        public TimeSpan ItemDuration
+        {
+            get
+            {
+                return GetProperty<TimeSpan>();
+            }
+            set
+            {
+                SetProperty<TimeSpan>(value);
+            }
+        }
 
         private DownloadSource _Download = null;
 
@@ -241,7 +282,8 @@ namespace VideoPlayer.ViewModels.VideoPlayer
                     return;
                 LastSavedPosition = position;
 
-                if (ItemDuration.Subtract(TimeSpan.FromSeconds(Settings.Current.PlaybackHistory_IgnoreSecondsAtVideoEnding)) < position)
+                if ((ItemDuration != TimeSpan.Zero)
+                    && (ItemDuration.Subtract(TimeSpan.FromSeconds(Settings.Current.PlaybackHistory_IgnoreSecondsAtVideoEnding)) < position))
                     position = TimeSpan.Zero;
 
                 await SaveMediaItemPosition(position);
@@ -362,6 +404,40 @@ namespace VideoPlayer.ViewModels.VideoPlayer
         }
 
         public bool PlaybackControlsVisible
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+            }
+        }
+
+        public void TogglePlaybackControls()
+        {
+            PlaybackControlsVisible = !PlaybackControlsVisible && OwnPlaybackControlsActive;
+        }
+
+        public void ShowPlaybackControls(bool value)
+        {
+            PlaybackControlsVisible = OwnPlaybackControlsActive;
+        }
+
+        public bool OwnPlaybackControlsActive
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+            }
+        }
+
+        public bool DefaultPlaybackControlsActive
         {
             get
             {

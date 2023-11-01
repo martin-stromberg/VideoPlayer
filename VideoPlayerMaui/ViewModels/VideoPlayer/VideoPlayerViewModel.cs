@@ -231,6 +231,32 @@ namespace VideoPlayer.ViewModels.VideoPlayer
             IsPlayable = true;
         }
 
+        public bool IsPlaying
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(false);
+                if (!value)
+                    IsPlayable = true;
+            }
+        }
+
+        public bool IsPlayable
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(false);
+            }
+        }
+
         private void DoNavigate(string arg)
         {
             switch (arg)

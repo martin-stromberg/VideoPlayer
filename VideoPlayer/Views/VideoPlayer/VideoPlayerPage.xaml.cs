@@ -118,7 +118,8 @@ namespace VideoPlayer.Views.VideoPlayer
             }
             if (ViewModel.ItemDuration != Video.Duration)
                 ViewModel.ProcessMediaOpened(Video.Duration);
-            ViewModel.ProcessPositionChanged(e.Position);
+            if (Video.CurrentState == MediaElementState.Playing)
+                ViewModel.ProcessPositionChanged(e.Position);
         }
 
         private void Video_StateChanged(object sender, MediaStateChangedEventArgs e)
@@ -160,9 +161,14 @@ namespace VideoPlayer.Views.VideoPlayer
                     Video.SeekTo(Video.Position.Add(SeekDuration));
                     break;
                 case "next":
-                    Video.SeekTo(Video.Duration);
+                    Video.SeekTo(Video.Duration.Subtract(TimeSpan.FromSeconds(1)));
                     break;
             }
+        }
+
+        private void OnSeekRightButtonClicked(object sender, EventArgs e)
+        {
+            Video.SeekTo(Video.Position.Add(SeekDuration));
         }
 
         private void OnTapGestureRecognizerTapped(object sender, TappedEventArgs e)

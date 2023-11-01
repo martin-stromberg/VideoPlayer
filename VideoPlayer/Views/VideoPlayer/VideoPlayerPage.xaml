@@ -54,6 +54,7 @@
             </HorizontalStackLayout>
         </Grid>
         <Label Grid.Row="1" Text="{Binding CurrentPositionTime, StringFormat='{}{0:hh}:{0:mm}:{0:ss}'}" VerticalOptions="End" Margin="5,0" IsVisible="{Binding PlaybackControlsVisible}"/>
+        <Label Grid.Row="1" Text="{Binding RemainingPositionTime, StringFormat='{}{0:hh}:{0:mm}:{0:ss}'}" HorizontalOptions="End" VerticalOptions="End" Margin="5,0" IsVisible="{Binding PlaybackControlsVisible}"/>
         <Slider Grid.Row="2" Maximum="{Binding MaximumPosition}" Value="{Binding CurrentPosition}" IsVisible="{Binding PlaybackControlsVisible}"/>
         <Grid Grid.Row="3"
               BackgroundColor="Black"
@@ -64,52 +65,58 @@
                 <ColumnDefinition/>
                 <ColumnDefinition/>
                 <ColumnDefinition/>
-                <ColumnDefinition/>
+                <ColumnDefinition/>                
             </Grid.ColumnDefinitions>
             <ImageButton
                 Grid.Column="0"
                 HeightRequest="40"
+                WidthRequest="40"
                 Source="previous.png"
                 Clicked="OnPlaybackButtonClicked"
                 CommandParameter="previous"
-                HorizontalOptions="CenterAndExpand"/>
+                HorizontalOptions="Center"/>
             <ImageButton
                 Grid.Column="1"
                 HeightRequest="40"
+                WidthRequest="40"
                 Source="left.png"
                 Clicked="OnPlaybackButtonClicked"
                 CommandParameter="left"
-                HorizontalOptions="CenterAndExpand"/>
+                HorizontalOptions="Center"/>
             <ImageButton
                 Grid.Column="2"
                 HeightRequest="40"
+                WidthRequest="40"
                 Source="play.png"
                 Clicked="OnPlaybackButtonClicked"
                 CommandParameter="play"
                 IsVisible="{Binding IsPlayable}"
-                HorizontalOptions="CenterAndExpand"/>
+                HorizontalOptions="Center"/>
             <ImageButton
                 Grid.Column="2"
                 HeightRequest="40"
+                WidthRequest="40"
                 Source="pause.png"
                 Clicked="OnPlaybackButtonClicked"
                 CommandParameter="pause"
                 IsVisible="{Binding IsPlaying}"
-                HorizontalOptions="CenterAndExpand"/>
+                HorizontalOptions="Center"/>
             <ImageButton
                 Grid.Column="3"
                 HeightRequest="40"
+                WidthRequest="40"
                 Source="right.png"
                 Clicked="OnPlaybackButtonClicked"
                 CommandParameter="right"
-                HorizontalOptions="CenterAndExpand"/>
+                HorizontalOptions="Center"/>
             <ImageButton
                 Grid.Column="4"
                 HeightRequest="40"
+                WidthRequest="40"
                 Source="next.png"
                 Clicked="OnPlaybackButtonClicked"
                 CommandParameter="next"
-                HorizontalOptions="CenterAndExpand"/>
+                HorizontalOptions="Center"/>
         </Grid>
     </Grid>
 </ContentPage>

@@ -248,6 +248,19 @@ namespace VideoPlayer.ViewModels.VideoPlayer
             set
             {
                 SetProperty<TimeSpan>(value);
+                RemainingPositionTime = ItemDuration - CurrentPositionTime;
+            }
+        }
+
+        public TimeSpan RemainingPositionTime
+        {
+            get
+            {
+                return GetProperty<TimeSpan>();
+            }
+            private set
+            {
+                SetProperty<TimeSpan>(value);
             }
         }
 

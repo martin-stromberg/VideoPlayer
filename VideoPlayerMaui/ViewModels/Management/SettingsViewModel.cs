@@ -1,5 +1,8 @@
 ﻿using System;
 using System.Linq;
+using VideoPlayer.Extensions;
+using VideoPlayer.Models;
+using VideoPlayer.Models.Attributes;
 using VideoPlayer.Navigation;
 using VideoPlayer.Services.Settings;
 using VideoPlayer.StatusManagement;
@@ -28,6 +31,46 @@ namespace VideoPlayer.ViewModels.Management
             set
             {
                 Settings.Current.PlaybackHistory_SavePositionIntervallSeconds = value;
+            }
+        }
+
+        private string[] _Player_ControlStyles = null;
+
+        public string[] Player_ControlStyles
+        {
+            get
+            {
+                if (_Player_ControlStyles == null)
+                {
+                    var enumType = typeof(Settings.ControlStyle);
+                    _Player_ControlStyles = Enum.GetNames(typeof(Settings.ControlStyle))
+                                                .Select(value =>
+                                                {
+                                                    var memberInfos = enumType.GetMember(value);
+                                                    var enumValueMemberInfo = memberInfos.FirstOrDefault(m =>
+                                                                                                         m.DeclaringType == enumType);
+                                                    var valueAttributes = enumValueMemberInfo.GetCustomAttributes(typeof(TranslationAttribute), false);
+                                                    return ((TranslationAttribute)valueAttributes[0]).TranslationValue;
+                                                })
+                                                .ToArray();
+                }
+                return _Player_ControlStyles;
+            }
+        }
+
+        public string Player_ControlStyle
+        {
+            get
+            {
+                var value = (Settings.ControlStyle)Settings.Current.Player_ControlStyle;
+                var offset = Enum.GetValues(typeof(Settings.ControlStyle)).IndexOf(value);
+                return Player_ControlStyles[offset];
+            }
+            set
+            {
+                var offset = Math.Max(0, Player_ControlStyles.IndexOf(value));
+                var typeValue = (Settings.ControlStyle)Enum.GetValues(typeof(Settings.ControlStyle)).GetValue(offset);
+                Settings.Current.Player_ControlStyle = typeValue;
             }
         }
         #endregion

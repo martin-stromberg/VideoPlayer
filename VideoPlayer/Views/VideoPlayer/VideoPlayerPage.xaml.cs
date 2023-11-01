@@ -1,5 +1,6 @@
 using CommunityToolkit.Maui.Core.Primitives;
 using CommunityToolkit.Maui.Views;
+using System.ComponentModel;
 using VideoPlayer.Models;
 using VideoPlayer.Models.MediaItems;
 using VideoPlayer.Services.Playlists;
@@ -18,6 +19,19 @@ namespace VideoPlayer.Views.VideoPlayer
             InitializeComponent();
             BindingContext = ViewModel = App.GetService<VideoPlayerViewModel>();
             ViewModel.SeekRequest += ViewModel_SeekRequest;
+            ViewModel.PropertyChanged += ViewModel_PropertyChanged;
+            ViewModel_PropertyChanged(this, new PropertyChangedEventArgs(nameof(ViewModel.DefaultPlaybackControlsActive)));
+        }
+
+        private void ViewModel_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            switch (e.PropertyName)
+            {
+                case nameof(ViewModel.DefaultPlaybackControlsActive):
+                    Video.ShouldShowPlaybackControls = ViewModel.DefaultPlaybackControlsActive;
+                    Shell.SetNavBarIsVisible(this, ViewModel.DefaultPlaybackControlsActive);
+                    break;
+            }
         }
 
         private TimeSpan positionToSeek = TimeSpan.Zero;
@@ -71,6 +85,7 @@ namespace VideoPlayer.Views.VideoPlayer
         protected override void OnDisappearing()
         {
             base.OnDisappearing();
+            Shell.SetNavBarIsVisible(this, true);
             ViewModel.OnDisappeared(true);
         }
 
@@ -101,11 +116,20 @@ namespace VideoPlayer.Views.VideoPlayer
                 Video.SeekTo(positionToSeek);
                 positionToSeek = TimeSpan.Zero;
             }
-            ViewModel.ProcessPositionChanged(e.Position);
+            if (ViewModel.ItemDuration != Video.Duration)
+                ViewModel.ProcessMediaOpened(Video.Duration);
+            if (Video.CurrentState == MediaElementState.Playing)
+                ViewModel.ProcessPositionChanged(e.Position);
         }
 
         private void Video_StateChanged(object sender, MediaStateChangedEventArgs e)
         {
+            switch (e.NewState)
+            {
+                case MediaElementState.Playing:
+                    ViewModel.ProcessMediaOpened(Video.Duration);
+                    break;
+            }
             ViewModel.ProcessStateChanged(e.PreviousState, e.NewState);
         }
 
@@ -117,7 +141,7 @@ namespace VideoPlayer.Views.VideoPlayer
 
         private TimeSpan SeekDuration = TimeSpan.FromSeconds(30);
 
-        private async void OnPlaybackButtonClicked(object sender, EventArgs e)
+        private void OnPlaybackButtonClicked(object sender, EventArgs e)
         {
             switch ((sender as ImageButton).CommandParameter)
             {
@@ -137,7 +161,7 @@ namespace VideoPlayer.Views.VideoPlayer
                     Video.SeekTo(Video.Position.Add(SeekDuration));
                     break;
                 case "next":
-                    await ViewModel.SeekToEndAsync();
+                    ViewModel.SeekToEndAsync(Video.Duration);
                     break;
             }
         }

@@ -200,7 +200,8 @@ namespace VideoPlayer.ViewModels.Management
                 }
                 else
                 {
-                    var sourceProp = thisType.GetProperty(prop.Name.Substring(0, prop.Name.Length - "Content".Length));
+                    var propName = prop.Name.Substring(0, prop.Name.Length - "Content".Length);
+                    var sourceProp = thisType.GetProperties().FirstOrDefault(p => p.Name == propName);
                     prop.SetValue(this, sourceProp.GetValue(this));
                     CurrentContent = viewModel;
                     viewModel.OnAppeared();

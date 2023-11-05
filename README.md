@@ -3,7 +3,7 @@
 
 <h1 align="center">
   <br>
-  <a href="http://www.amitmerchant.com/electron-markdownify"><img src="https://github.com/Muesli84/VideoPlayer/blob/master/VideoPlayer/Resources/AppIcon/appicon.png?raw=true" alt="Markdownify" width="200"></a>
+  <img src="https://github.com/Muesli84/VideoPlayer/blob/master/VideoPlayer/Resources/AppIcon/appicon.png?raw=true" alt="Markdownify" width="200">
   <br>
   VideoPlayer
   <br>

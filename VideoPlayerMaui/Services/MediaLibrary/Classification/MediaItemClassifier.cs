@@ -71,7 +71,7 @@ namespace VideoPlayer.Services.MediaLibrary.Classification
             {
                 Name = $"{episodeInformation.Season}",
                 PicturePath = seasonCollection?.PicturePath
-            };
+            };            
             var episode = new TVShowEpisode() { Name = mediaItem.Name, };
             episode.Name = episodeInformation.Title;
             episode.EpisodeNo = episodeInformation.Episode;
@@ -101,9 +101,19 @@ namespace VideoPlayer.Services.MediaLibrary.Classification
                 .FirstOrDefault(s => s.Name == season.Name);
             if (existingSeason == null)
             {
+                if (int.TryParse(season.Name, out var seasonNo))
+                    season.Name = $"Staffel {seasonNo.ToString().PadLeft(2, '0')}";
+                existingSeason = (await mediaLibrary.GetTVShowSeasons(existingShow.Id))
+                    .Where(s => s != null)
+                    .FirstOrDefault(s => s.Name == season.Name);
+            }
+            if (existingSeason == null)
+            {
                 await mediaLibrary.AddTVShowSeasonAsync(existingShow, season);
                 return;
             }
+            if (int.TryParse(existingSeason.Name, out var sNo))
+                existingSeason.Name = $"Staffel {sNo.ToString().PadLeft(2, '0')}";
             existingSeason.PicturePath = season.PicturePath ?? existingSeason.PicturePath;
             await mediaLibrary.AddTVShowSeasonAsync(existingShow, existingSeason);
 

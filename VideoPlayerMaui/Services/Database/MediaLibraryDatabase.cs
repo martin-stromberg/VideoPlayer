@@ -242,7 +242,7 @@ namespace VideoPlayer.Services.Database
 
         public async Task<TVShowSeason> AddOrUpdateTVShowSeason(TVShowSeason season)
         {
-            return await AddOrUpdate<TVShowSeason>(season) as TVShowSeason;
+            return await AddOrUpdate<TVShowSeason>(CorrectSeasonName(season)) as TVShowSeason;
         }
 
         public async Task<TVShowEpisode> AddOrUpdateTVShowEpisode(TVShowEpisode episode)
@@ -253,10 +253,18 @@ namespace VideoPlayer.Services.Database
         public async Task<IEnumerable<TVShowSeason>> GetTVShowSeasons(long showId)
         {
             await InitOrUpgradeAsync();
-            return await Connection
+            return (await Connection
                 .Table<TVShowSeason>()
                 .Where(mmi => mmi.ShowId == showId)
-                .ToArrayAsync();
+                .ToArrayAsync())
+                .Select(season => CorrectSeasonName(season));
+        }
+
+        private TVShowSeason CorrectSeasonName(TVShowSeason season)
+        {
+            if (int.TryParse(season.Name, out var seasonNo))
+                season.Name = $"Staffel {seasonNo.ToString().PadLeft(2, '0')}";
+            return season;
         }
 
         public async Task<IEnumerable<TVShowEpisode>> GetTVShowEpisodes(long seasonId)

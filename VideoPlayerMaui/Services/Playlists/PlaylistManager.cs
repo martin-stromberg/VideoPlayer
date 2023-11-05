@@ -63,8 +63,20 @@ namespace VideoPlayer.Services.Playlists
         {
             currentPlaylistCompletionSessionId = Random.Shared.Next(int.MaxValue);
             GeneralPlaylist.Items.Clear();
-            await AddTVShowEpisode(tVShowEpisode, currentPlaylistCompletionSessionId, () => { });
-            await SavePlaylistAsync(GeneralPlaylist);
+            Task SaveTask = null;
+            bool AsyncSave = false;
+            await AddTVShowEpisodes(tVShowEpisode, 
+                                    true,
+                                    currentPlaylistCompletionSessionId, 
+                                    async () =>
+                                    {
+                                        SaveTask = SavePlaylistAsync(GeneralPlaylist);
+                                        if (AsyncSave)
+                                            await SaveTask;
+                                    });
+            if (SaveTask != null)
+                await SaveTask;
+            AsyncSave = true;
         }
 
         public async Task StartTVShowPlaylistAsync(TVShow show)
@@ -163,7 +175,35 @@ namespace VideoPlayer.Services.Playlists
             if (isFirst)
                 Finished();
         }
-
+        private async Task AddTVShowEpisodes(TVShowEpisode episode, bool startPlayback, int session, Action Finished)
+        {
+            bool started = startPlayback;
+            bool isFirst = true;
+            var season = await _MediaLibrary.GetTVShowSeason(episode.SeasonId);
+            var episodes = (await _MediaLibrary.GetTVShowEpisodes(season.Id))
+                .OrderBy(e => e.EpisodeNo)
+                .SkipWhile(e => e.EpisodeNo != episode.EpisodeNo)
+                .ToArray();
+            var count = episodes.Count();
+            foreach (var currEpisode in episodes)
+            {
+                if (session != currentPlaylistCompletionSessionId)
+                    return;
+                var task = AddTVShowEpisode(currEpisode,
+                                            session,
+                                            () =>
+                                            {
+                                                count -= 1;
+                                                if (count == 0)
+                                                    Finished();
+                                            });
+                if (isFirst || !started)
+                    await task;
+                isFirst = false;
+            }
+            if (isFirst)
+                Finished();
+        }
         private async Task AddTVShowEpisode(TVShowEpisode episode, int session, Action Finished)
         {
             if (session != currentPlaylistCompletionSessionId)

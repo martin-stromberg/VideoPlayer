@@ -102,49 +102,54 @@ namespace VideoPlayer.Services.MediaLibrary.PlaybackHistory
                 CurrentHistory.Items.Remove(existingseasonEntry);
         }
 
-        public Task Finish(MediaItem item, BaseModel typedItem)
+        public async Task Finish(MediaItem item, BaseModel typedItem)
         {
             if (typedItem == null)
-                return Task.CompletedTask;
+                return;
             var existing = CurrentHistory.Items.FirstOrDefault(i => i.TypedItem.Id == typedItem.Id);
             if (existing == null)
-                return Task.CompletedTask;
-            CurrentHistory.Items.Remove(existing);
+                return;
+            CurrentHistory.Items.Remove(existing);            
             AddNext(existing);
-            return Task.CompletedTask;
         }
 
         private async void AddNext(HistoryEntry existing)
         {
-            await AddNextEpisode(existing.TypedItem as TVShowEpisode);
-            await AddNextCollectionMovieAsync(existing.TypedItem as Movie);
+            if (await AddNextEpisode(existing.TypedItem as TVShowEpisode))
+                return;
+            if (await AddNextCollectionMovieAsync(existing.TypedItem as Movie))
+                return;
+            await _MediaLibrary.AddPlaybackHistory(CurrentHistory);
         }
 
-        private async Task AddNextCollectionMovieAsync(Movie movie)
+        private async Task<bool> AddNextCollectionMovieAsync(Movie movie)
         {
             if (movie == null)
-                return;
+                return false;
             if (movie.CollectionId == 0)
-                return;
+                return false;
             var collection = await _MediaLibrary.GetMovieCollection(movie.CollectionId);
             if (collection == null)
-                return;
+                return false;
             var movies = await _MediaLibrary.GetMovies(collection.Id);
             var nextMovie = movies
                 .OrderBy(m => m.Name)
                 .SkipWhile(e => e.Id != movie.Id)
                 .SkipWhile(e => e.Id == movie.Id)
                 .FirstOrDefault();
-            if (nextMovie != null)
-                await Add(null, nextMovie);
+            if (nextMovie == null)
+                return false;
+            await Add(null, nextMovie);
+            return true;
         }
 
-        private async Task AddNextEpisode(TVShowEpisode episode)
+        private async Task<bool> AddNextEpisode(TVShowEpisode episode)
         {
             if (episode == null)
-                return;
+                return false;
             var episodes = await _MediaLibrary.GetTVShowEpisodes(episode.SeasonId);
             var nextEpisode = episodes
+                .OrderBy(m => m.EpisodeNo)
                 .SkipWhile(e => e.EpisodeNo != episode.EpisodeNo)
                 .SkipWhile(e => e.EpisodeNo == episode.EpisodeNo)
                 .FirstOrDefault();
@@ -160,12 +165,16 @@ namespace VideoPlayer.Services.MediaLibrary.PlaybackHistory
                 if (nextEpisode != null)
                 {
                     episodes = await _MediaLibrary.GetTVShowEpisodes(nextSeason.Id);
-                    nextEpisode = episodes.FirstOrDefault();
+                    nextEpisode = episodes
+                        .OrderBy(m => m.EpisodeNo)
+                        .FirstOrDefault();
                 }
             }
 
-            if (nextEpisode != null)
-                await Add(null, nextEpisode);
+            if (nextEpisode == null)
+                return false;
+            await Add(null, nextEpisode);
+            return true;
         }
 
     }

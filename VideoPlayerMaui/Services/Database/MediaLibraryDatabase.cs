@@ -247,7 +247,14 @@ namespace VideoPlayer.Services.Database
 
         public async Task<TVShowEpisode> AddOrUpdateTVShowEpisode(TVShowEpisode episode)
         {
-            return await AddOrUpdate<TVShowEpisode>(episode) as TVShowEpisode;
+            return await AddOrUpdate<TVShowEpisode>(CorrectEpisodeName(episode)) as TVShowEpisode;
+        }
+
+        private TVShowEpisode CorrectEpisodeName(TVShowEpisode episode)
+        {
+            if (int.TryParse(episode.EpisodeNo, out var episodeNo))
+                episode.EpisodeNo = $"Folge {episodeNo.ToString().PadLeft(2, '0')}";
+            return episode;
         }
 
         public async Task<IEnumerable<TVShowSeason>> GetTVShowSeasons(long showId)
@@ -270,10 +277,11 @@ namespace VideoPlayer.Services.Database
         public async Task<IEnumerable<TVShowEpisode>> GetTVShowEpisodes(long seasonId)
         {
             await InitOrUpgradeAsync();
-            return await Connection
+            return (await Connection
                 .Table<TVShowEpisode>()
                 .Where(mmi => mmi.SeasonId == seasonId)
-                .ToArrayAsync();
+                .ToArrayAsync())
+                .Select(episode => CorrectEpisodeName(episode));
         }
 
         public async Task RemoveTVShowEpisodeMediaItemsAsync(long episodeId)

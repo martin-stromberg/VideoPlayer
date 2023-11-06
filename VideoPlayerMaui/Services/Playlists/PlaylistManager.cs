@@ -59,13 +59,13 @@ namespace VideoPlayer.Services.Playlists
             return item;
         }
 
-        public async Task StartTVShowPlaylistAsync(TVShowEpisode tVShowEpisode, Func<IEnumerable<BaseModel>> GetCollectionElements)
+        public async Task StartTVShowPlaylistAsync(TVShowEpisode episode, Func<IEnumerable<BaseModel>> GetCollectionElements)
         {
             currentPlaylistCompletionSessionId = Random.Shared.Next(int.MaxValue);
             GeneralPlaylist.Items.Clear();
             Task SaveTask = null;
             bool AsyncSave = false;
-            await AddTVShowEpisodes(tVShowEpisode, 
+            await AddTVShowEpisodes(episode, 
                                     true,
                                     currentPlaylistCompletionSessionId, 
                                     async () =>
@@ -180,6 +180,8 @@ namespace VideoPlayer.Services.Playlists
             bool started = startPlayback;
             bool isFirst = true;
             var season = await _MediaLibrary.GetTVShowSeason(episode.SeasonId);
+            //await AddTVShowEpisode(episode, session, Finished);
+
             var episodes = (await _MediaLibrary.GetTVShowEpisodes(season.Id))
                 .OrderBy(e => e.EpisodeNo)
                 .SkipWhile(e => e.EpisodeNo != episode.EpisodeNo)

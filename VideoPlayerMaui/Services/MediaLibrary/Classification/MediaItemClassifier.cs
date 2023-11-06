@@ -121,10 +121,18 @@ namespace VideoPlayer.Services.MediaLibrary.Classification
                 .FirstOrDefault(e => e.EpisodeNo == episode.EpisodeNo);
             if (existingEpisode == null)
             {
+                if (int.TryParse(episode.EpisodeNo, out var episodeNo))
+                    episode.EpisodeNo = $"Folge {episodeNo.ToString().PadLeft(2, '0')}";
+                existingEpisode = (await mediaLibrary.GetTVShowEpisodes(existingSeason.Id))
+                    .FirstOrDefault(e => e.EpisodeNo == episode.EpisodeNo);
+            }
+            if (existingEpisode == null)
+            {
                 await mediaLibrary.AddTVShowEpisodeAsync(existingShow, existingSeason, episode);
                 return;
             }
-
+            if (int.TryParse(existingEpisode.EpisodeNo, out var eNo))
+                existingEpisode.EpisodeNo = $"Folge {eNo.ToString().PadLeft(2, '0')}";
             existingEpisode.Name = existingEpisode.Name ?? episode.Name;
             existingEpisode.MediaItems = existingEpisode
                 .MediaItems

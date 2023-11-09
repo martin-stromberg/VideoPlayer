@@ -27,7 +27,6 @@
                 Source="{Binding Picture}"/>
             <Label
                 Grid.Row="1"
-                Grid.RowSpan="0"
                 Grid.Column="0"
                 Grid.ColumnSpan="2"
                 Text="{Binding Title}"

@@ -29,7 +29,7 @@ namespace VideoPlayer.ViewModels.MediaLists
 
         public IPlaylistManager PlaylistManager { get; }
 
-        public ObservableCollection<MediaListItemViewModel> Items { get; } = new ObservableCollection<MediaListItemViewModel>();
+        public ObservableCollection<BaseMediaListItemViewModel> Items { get; } = new ObservableCollection<BaseMediaListItemViewModel>();
 
     }
 }

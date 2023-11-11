@@ -4,6 +4,7 @@ using VideoPlayer.ViewModels.MediaLists.MediaListItem;
 
 namespace VideoPlayer.Views.MediaLists
 {
+
     public partial class MediaListItemView: ContentView
     {
 
@@ -12,7 +13,7 @@ namespace VideoPlayer.Views.MediaLists
             InitializeComponent();
         }
 
-        protected MediaListItemViewModel ViewModel => BindingContext as MediaListItemViewModel;
+        protected BaseMediaListItemViewModel ViewModel => BindingContext as BaseMediaListItemViewModel;
 
         private void ListItemTapped(object sender, TappedEventArgs e)
         {

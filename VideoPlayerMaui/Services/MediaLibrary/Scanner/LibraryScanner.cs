@@ -2,9 +2,11 @@
 #elif WINDOWS
 #endif
 using Microsoft.Extensions.Logging;
+using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Xml;
 using VideoPlayer.Extensions;
+using VideoPlayer.Models;
 using VideoPlayer.Models.MediaItems;
 using VideoPlayer.Models.MetaInformation;
 using VideoPlayer.Models.Sources;
@@ -112,6 +114,15 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
         private void Scanner_DoWork(object sender, DoWorkEventArgs e)
         {
             running = true;
+            try
+            {
+                ScanQueueEntriesAsync().Wait();
+            }
+            catch { }
+
+            if (!_Settings.Current.LibraryScan_AutomaticScan)
+                return;
+
             try
             {
                 ScanNextSource();
@@ -245,10 +256,10 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
                     .OrderBy(coll => coll.MetaDataTime)
                     .Where(coll => coll.MetaDataTime < refDate);
             foreach (var collection in collections)
-                await ScannCollectionMetaDataAsync(scanner, collection);
+                await ScanCollectionMetaDataAsync(scanner, collection);
         }
 
-        private async Task ScannCollectionMetaDataAsync(RemoteSourceScanner scanner, MediaItemCollection collection)
+        private async Task ScanCollectionMetaDataAsync(RemoteSourceScanner scanner, MediaItemCollection collection)
         {
             await ProcessMetaDataForFolderAsync(scanner, collection);
             await ProcessPictureForFolderAsync(scanner, collection);
@@ -408,6 +419,8 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
                 logger.LogDebug($"File with same name: {file.Name}");
                 var ext = Path.GetExtension(file.Name);
                 if (ext == ".nfo")
+                    await ProcessNFOForVideoAsync(scanner, item, file);
+                else if (ext == ".info")
                     await ProcessNFOForVideoAsync(scanner, item, file);
                 else if (FileExtImage.Contains(ext))
                     await ProcessPictureForVideoAsync(scanner, item, file);
@@ -606,7 +619,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
                     logger.LogDebug($"MediaItemCollection: {item}");
                     if (item.MetaDataTime.AddHours(24) > DateTime.Now)
                         return item;
-                    await ScannCollectionMetaDataAsync(scanner, item);
+                    await ScanCollectionMetaDataAsync(scanner, item);
                     logger.LogDebug($"MediaItemCollection: {item}");
                 }
                 catch (Exception ex)
@@ -676,6 +689,44 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
                 Plot = documentElement.FindChild("plot", true).InnerText.Trim(),
             };
             item.MetaInfo = info;
+        }
+
+        private ConcurrentQueue<BaseModel> ScanQueue = new ConcurrentQueue<BaseModel>();
+
+        private async Task ScanQueueEntriesAsync()
+        {
+            while (ScanQueue.TryDequeue(out BaseModel model))
+                await ScanNextQueueEntryAsync(model);
+        }
+
+        private async Task ScanNextQueueEntryAsync(BaseModel model)
+        {
+            await ScanMediaItemAsync(model as MediaItem);
+        }
+
+        private async Task ScanMediaItemAsync(MediaItem mediaItem)
+        {
+            if (mediaItem is null)
+                return;
+            mediaItem = await mediaLibrary.GetMediaItemAsync(mediaItem.Id);
+            mediaItem.MetaDataTime = DateTime.MinValue;
+            await mediaLibrary.AddMediaItemAsync(mediaItem);
+            var collection = await mediaLibrary.GetMediaItemCollectionAsync(mediaItem.ParentCollectionId);
+            var source = await mediaLibrary.GetSourceAsync(collection.MediaSourceId);
+            foreach (var scanner in _Scanners)
+                if (scanner.CanScan(source))
+                {
+                    scanner.Scan(source, mediaItem);
+                    logger.LogInformation($"Scan of source {mediaItem.Name} finished.");
+                    return;
+                }
+        }
+
+        public void Rescan(MediaItem item)
+        {
+            ScanQueue.Enqueue(item);
+            if (!running)
+                Start();
         }
 
     }

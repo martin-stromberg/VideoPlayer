@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Text.RegularExpressions;
+using VideoPlayer.Models.MediaItems;
 using VideoPlayer.Models.Sources;
 using VideoPlayer.Services.MediaLibrary.Scanner.Events;
 using VideoPlayer.Services.MediaLibrary.Scanner.Models;
@@ -41,6 +42,42 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.Samba
             {
                 CurrentSource = source as RemoteMediaSource;
                 Scan(mediaSource.Path, false);
+            }
+            finally
+            {
+                CurrentSource = null;
+                share = null;
+            }
+        }
+
+        public override void Scan(MediaSource source, MediaItem mediaItem)
+        {
+            SmbMediaSource mediaSource = (SmbMediaSource)source;
+            share = new SambaShare(mediaSource.ServerName, mediaSource.Username, mediaSource.Password);
+            try
+            {
+                CurrentSource = source as RemoteMediaSource;
+                share.Connect();
+                try
+                {
+                    var folderPath = Path.GetDirectoryName(mediaItem.Path);
+                    var fileName = Path.GetFileName(mediaItem.Path);
+                    var files = share.ListFiles(folderPath)
+                                     .Where(f => f.FileName == fileName)
+                                     .ToArray()
+                                     .Select(f =>
+                                             new SmbShareFile()
+                                     {
+                                         Name = f.FileName,
+                                         Path = Path.Combine(folderPath, f.FileName).Replace("/", "\\")
+                                     })
+                                     .Select(mediaItem => OnMediaItemFound(mediaItem))
+                                     .ToArray();
+                }
+                finally
+                {
+                    share.Disconnect();
+                }
             }
             finally
             {

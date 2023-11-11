@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using VideoPlayer.Common;
+using VideoPlayer.Models.MediaItems;
 using VideoPlayer.Models.Sources;
 using VideoPlayer.Services.MediaLibrary.Scanner.Events;
 using VideoPlayer.Services.MediaLibrary.Scanner.Models;
@@ -68,6 +69,8 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.Shares
         public abstract bool CanScan(MediaSource source);
 
         public abstract void Scan(MediaSource source);
+
+        public abstract void Scan(MediaSource source, MediaItem mediaItem);
 
         public abstract IEnumerable<RemoteFile> FindFiles(string path, string fileMask = "*.*");
 

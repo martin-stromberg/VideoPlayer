@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Text.RegularExpressions;
+using VideoPlayer.Models.MediaItems;
 using VideoPlayer.Models.Sources;
 using VideoPlayer.Services.MediaLibrary.Scanner.Events;
 using VideoPlayer.Services.MediaLibrary.Scanner.Models;
@@ -63,6 +64,39 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.FTP
 
                 Scan(mediaSource.Path, false);
                 OnScanCompleted();
+            }
+            finally
+            {
+                CurrentSource = null;
+                share = null;
+            }
+        }
+
+        public override void Scan(MediaSource source, MediaItem mediaItem)
+        {
+            FtpMediaSource mediaSource = (FtpMediaSource)source;
+            share = new FtpShare(mediaSource.ServerName, mediaSource.Username, mediaSource.Password);
+            try
+            {
+                CurrentSource = source as RemoteMediaSource;
+
+                var folderPath = Path.GetDirectoryName(mediaItem.Path);
+                share.Connect();
+                try
+                {
+                    var files = FindFiles(folderPath)
+                                .Where(mI => mI.Path == mediaItem.Path)
+                                .Select(mediaItem => OnMediaItemFound(mediaItem))
+                                .ToArray();
+                }
+                catch (Exception ex)
+                {
+                    OnError(ex);
+                }
+                finally
+                {
+                    share.Disconnect();
+                }
             }
             finally
             {

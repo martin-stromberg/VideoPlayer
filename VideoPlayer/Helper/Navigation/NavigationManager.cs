@@ -1,12 +1,14 @@
 ﻿using System;
 using System.Linq;
 using VideoPlayer.Models;
+using VideoPlayer.Models.MediaItems;
 using VideoPlayer.Models.Movies;
 using VideoPlayer.Models.TVShows;
 using VideoPlayer.Navigation;
 using VideoPlayer.Services.MediaLibrary;
 using VideoPlayer.Services.MediaLibrary.Downloads;
 using VideoPlayer.Services.Playlists;
+using VideoPlayer.Views.Categorization;
 using VideoPlayer.Views.MediaLists;
 using VideoPlayer.Views.VideoPlayer;
 
@@ -33,6 +35,8 @@ namespace VideoPlayer.Helper.Navigation
             Routing.RegisterRoute("movies", typeof(MoviesPage));
             Routing.RegisterRoute("tvshows", typeof(TVShowsPage));
             Routing.RegisterRoute("player", typeof(VideoPlayerPage));
+            Routing.RegisterRoute("mediaitems", typeof(MediaList));
+            Routing.RegisterRoute("mediaitem", typeof(MediaItemCardPage));
         }
 
         public void OpenMovies()
@@ -79,6 +83,12 @@ namespace VideoPlayer.Helper.Navigation
         public async Task OpenTVShowEpisodeAsync(TVShowEpisode tVShowEpisode, Func<IEnumerable<BaseModel>> GetCollectionElements)
         {
             await _PlaylistManager.StartTVShowPlaylistAsync(tVShowEpisode, GetCollectionElements);
+            NavigateToRoute($"player");
+        }
+
+        public async Task OpenMediaItemAsync(MediaItem mediaItem)
+        {
+            await _PlaylistManager.StartMediaItemPlaylistAsync(mediaItem);
             NavigateToRoute($"player");
         }
 
@@ -135,6 +145,21 @@ namespace VideoPlayer.Helper.Navigation
             }
             catch { }
             return string.Empty;
+        }
+
+        public void OpenUncategrized()
+        {
+            NavigateToRoute($"mediaitems");
+        }
+
+        public async Task OpenMediaItemDetailsAsync(MediaItem mediaItem)
+        {
+            var navigationParameter = new Dictionary<string, object>
+            {
+                { "Item", mediaItem }
+            };
+            NavigateToRoute("mediaitem", navigationParameter);
+            await Task.CompletedTask;
         }
 
     }

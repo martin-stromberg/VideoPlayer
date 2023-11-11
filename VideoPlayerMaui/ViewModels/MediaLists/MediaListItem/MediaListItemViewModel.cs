@@ -1,87 +1,63 @@
 ﻿using System;
 using System.Linq;
 using VideoPlayer.Models;
+using VideoPlayer.Models.MediaItems;
 using VideoPlayer.Navigation;
+using VideoPlayer.Services.MediaLibrary.Scanner;
 using VideoPlayer.Services.Settings;
 using VideoPlayer.StatusManagement;
 
 namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
 {
-    public abstract class MediaListItemViewModel: BaseViewModel
+    public class MediaListItemViewModel: BaseMediaListItemViewModel
     {
+
+        private readonly ILibraryScanner _LibraryScanner;
 
         public MediaListItemViewModel(
             BaseModel mediaItem,
             IStatusPublisher statusPublisher,
             INavigationManager navigationManager,
-            ISettingsService settingsService)
-            : base(statusPublisher, navigationManager, settingsService)
+            ISettingsService settingsService,
+            ILibraryScanner libraryScanner)
+            : base(mediaItem, statusPublisher, navigationManager, settingsService)
         {
-            Item = mediaItem;
-            StartPlayback = new Command(() => ExecuteStartPlayback(), () => CanStartPlayback());
+            _LibraryScanner = libraryScanner;
+            ProcessItem = new Command(() => ExecuteProcessItem(), () => CanProcessItem());
         }
 
-        protected Type ItemType
+        public Command ProcessItem { get; set; }
+
+        protected override void UpdateProperties()
         {
-            get
-            {
-                return GetProperty<Type>();
-            }
-            set
-            {
-                SetProperty<Type>(value);
-            }
+            base.UpdateProperties();
+            ProcessItem?.ChangeCanExecute();
         }
 
-        public BaseModel Item
+        public override async void OpenDetails()
         {
-            get
-            {
-                return GetProperty<BaseModel>();
-            }
-            set
-            {
-                SetProperty<BaseModel>(value);
-                UpdateProperties();
-            }
+            await NavigationManager.OpenMediaItemDetailsAsync(Item as MediaItem);
         }
 
-        public ImageSource Picture
+        protected override bool CanStartPlayback()
         {
-            get
-            {
-                return GetProperty<ImageSource>();
-            }
-            set
-            {
-                SetProperty<ImageSource>(value);
-            }
+            return false;
         }
 
-        public Command StartPlayback { get; set; }
-
-        private void UpdateProperties()
+        protected override void ExecuteStartPlayback()
         {
-            ItemType = Item?.GetType();
-            Title = Item?.Name ?? string.Empty;
-            Picture = FindProperty<ImageSource>();
+            OpenDetails();
         }
 
-        private T FindProperty<T>()
+        private bool CanProcessItem()
         {
-            if (ItemType == null)
-                return default(T);
-            var prop = ItemType.GetProperties().FirstOrDefault(p => p.CanRead && (p.PropertyType == typeof(T)));
-            if (prop == null)
-                return default(T);
-            return (T)prop.GetValue(Item);
+            return (Item != null) && (Item is MediaItem);
         }
 
-        public abstract void OpenDetails();
-
-        protected abstract void ExecuteStartPlayback();
-
-        protected abstract bool CanStartPlayback();
+        private void ExecuteProcessItem()
+        {
+            _LibraryScanner.Rescan(Item as MediaItem);
+        }
 
     }
 }

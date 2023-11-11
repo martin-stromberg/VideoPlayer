@@ -6,7 +6,7 @@ using VideoPlayer.StatusManagement;
 
 namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
 {
-    public class TVShowSeasonListItemViewModel: MediaListItemViewModel
+    public class TVShowSeasonListItemViewModel: BaseMediaListItemViewModel
     {
 
         private readonly IPlaylistManager _PlaylistManager;

@@ -8,7 +8,7 @@ using VideoPlayer.StatusManagement;
 
 namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
 {
-    public class TVShowListItemViewModel: MediaListItemViewModel
+    public class TVShowListItemViewModel: BaseMediaListItemViewModel
     {
 
         private readonly IPlaylistManager _PlaylistManager;

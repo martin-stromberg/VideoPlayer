@@ -116,6 +116,12 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
             running = true;
             try
             {
+                SaveMetaInformationAsync().Wait();
+            }
+            catch { }
+
+            try
+            {
                 ScanQueueEntriesAsync().Wait();
             }
             catch { }
@@ -702,6 +708,23 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
         private async Task ScanNextQueueEntryAsync(BaseModel model)
         {
             await ScanMediaItemAsync(model as MediaItem);
+            await ScanMediaItemAsync(model as MediaSource);
+        }
+
+        private async Task ScanMediaItemAsync(MediaSource mediaSource)
+        {
+            if (mediaSource is null)
+                return;
+
+            mediaSource = await mediaLibrary.GetSourceAsync(mediaSource.Id);
+            mediaSource.LastScan = DateTime.MinValue;
+            foreach (var scanner in _Scanners)
+                if (scanner.CanScan(mediaSource))
+                {
+                    scanner.Scan(mediaSource);
+                    logger.LogInformation($"Scan of source {mediaSource.Name} finished.");
+                    return;
+                }
         }
 
         private async Task ScanMediaItemAsync(MediaItem mediaItem)
@@ -727,6 +750,46 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
             ScanQueue.Enqueue(item);
             if (!running)
                 Start();
+        }
+
+        public void Rescan(MediaSource mediaSource)
+        {
+            ScanQueue.Enqueue(mediaSource);
+            if (!running)
+                Start();
+        }
+
+        private struct MetaInfo
+        {
+
+            public MediaItem Item { get; set; }
+
+            public MediaInformation Info { get; set; }
+
+        }
+
+        private ConcurrentQueue<MetaInfo> MetaInfoQueue = new ConcurrentQueue<MetaInfo>();
+
+        public void SaveMetaInformation(MediaItem item, MediaInformation metaInfo)
+        {
+            MetaInfoQueue.Enqueue(new MetaInfo() { Item = item, Info = metaInfo });
+            if (!running)
+                Start();
+        }
+
+        private async Task SaveMetaInformationAsync()
+        {
+            while (MetaInfoQueue.TryDequeue(out MetaInfo info))
+                await SaveMetaInformationAsync(info);
+        }
+
+        private async Task SaveMetaInformationAsync(MetaInfo info)
+        {
+            info.Item = await mediaLibrary.GetMediaItemAsync(info.Item.Id);
+            info.Item.MetaDataTime = DateTime.MinValue;
+            info.Item.MetaInfo = info.Info;
+            await mediaLibrary.AddMediaItemAsync(info.Item);
+            Rescan(info.Item);
         }
 
     }

@@ -4,6 +4,7 @@ using VideoPlayer.Navigation;
 using VideoPlayer.Services.MediaLibrary;
 using VideoPlayer.Services.MediaLibrary.Classification;
 using VideoPlayer.Services.MediaLibrary.Demo;
+using VideoPlayer.Services.MediaLibrary.Downloads;
 using VideoPlayer.Services.MediaLibrary.PlaybackHistory;
 using VideoPlayer.Services.MediaLibrary.Scanner;
 using VideoPlayer.Services.Playlists;
@@ -23,6 +24,7 @@ namespace VideoPlayer.ViewModels.Global
         private readonly IUserSecrets _UserSecrets;
         private readonly IPlaylistManager _PlaylistManager;
         private readonly IPlaybackHistoryManager _PlaybackHistoryManager;
+        private readonly IMediaDownloader _MediaDownloader;
 
         public ApplicationViewModel(
             GlobalStatusViewModel statusViewModel,
@@ -36,9 +38,11 @@ namespace VideoPlayer.ViewModels.Global
             IPlaylistManager playlistManager,
             INavigationManager navigationManager,
             IPlaybackHistoryManager playbackHistoryManager,
-            ISettingsService settingsService)
+            ISettingsService settingsService,
+            IMediaDownloader mediaDownloader)
             : base(statusPublisher, navigationManager, settingsService)
         {
+            _MediaDownloader = mediaDownloader;
             _PlaybackHistoryManager = playbackHistoryManager;
             _PlaylistManager = playlistManager;
             _UserSecrets = userSecrets;
@@ -97,6 +101,7 @@ namespace VideoPlayer.ViewModels.Global
                 await CheckAddDemoLibraryAsync();
                 await InitGeneralPlaylistAsync();
                 await InitPlaybackHistory();
+                await StartDownloadsAsync();
                 StartLibraryScans();
                 AddStatusMessage(string.Empty);
             }
@@ -133,6 +138,12 @@ namespace VideoPlayer.ViewModels.Global
         private async Task InitializeSecrets()
         {
             await _UserSecrets.Initialize();
+        }
+
+        private async Task StartDownloadsAsync()
+        {
+            AddStatusMessage("Starte Downloads...");
+            await _MediaDownloader.ContinueDownloadsAsync();
         }
 
         private void StartLibraryScans()
@@ -184,6 +195,7 @@ namespace VideoPlayer.ViewModels.Global
         }
 
         public Command ListMediaItems { get; set; }
+
         private void DoListMediaItems(object arg)
         {
             NavigationManager.OpenUncategrized();

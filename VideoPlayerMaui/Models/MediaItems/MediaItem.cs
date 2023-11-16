@@ -10,8 +10,8 @@ namespace VideoPlayer.Models.MediaItems
     {
 
         None,
-        Cache
-
+        Cache,
+        Download
     }
 
     [DataModelReference(typeof(Services.Database.Models.MediaItem))]

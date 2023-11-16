@@ -2,6 +2,7 @@
 using System.Linq;
 using VideoPlayer.Navigation;
 using VideoPlayer.Services.MediaLibrary;
+using VideoPlayer.Services.MediaLibrary.Downloads;
 using VideoPlayer.Services.MediaLibrary.Scanner;
 using VideoPlayer.Services.Playlists;
 using VideoPlayer.Services.Settings;
@@ -19,9 +20,11 @@ namespace VideoPlayer.ViewModels.MediaLists
             IMediaLibrary mediaLibrary,
             IPlaylistManager playlistManager,
             ISettingsService settingsService,
-            ILibraryScanner libraryScanner)
-            : base(statusPublisher, navigationManager, mediaLibrary, playlistManager, settingsService)
+            ILibraryScanner libraryScanner,
+            IMediaDownloader mediaDownloader)
+            : base(statusPublisher, navigationManager, mediaLibrary, playlistManager, settingsService, mediaDownloader)
         {
+            _MediaDownloader = mediaDownloader;
             _LibraryScanner = libraryScanner;
         }
 
@@ -41,6 +44,7 @@ namespace VideoPlayer.ViewModels.MediaLists
         private int currentLoadingCount = 10;
         private long currentLoadingSession = 0;
         private readonly ILibraryScanner _LibraryScanner;
+        private readonly IMediaDownloader _MediaDownloader;
 
         private void Clear()
         {
@@ -67,7 +71,8 @@ namespace VideoPlayer.ViewModels.MediaLists
                                                          StatusPublisher,
                                                          NavigationManager,
                                                          Settings,
-                                                         _LibraryScanner)
+                                                         _LibraryScanner,
+                                                         _MediaDownloader)
                         {
                             Mode = ItemViewModel.Lane
                         });

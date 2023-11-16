@@ -1,6 +1,7 @@
 ﻿using VideoPlayer.Models;
 using VideoPlayer.Models.TVShows;
 using VideoPlayer.Navigation;
+using VideoPlayer.Services.MediaLibrary.Downloads;
 using VideoPlayer.Services.Settings;
 using VideoPlayer.StatusManagement;
 
@@ -16,8 +17,9 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
             Func<IEnumerable<BaseModel>> GetCollectionElements,
             IStatusPublisher statusPublisher,
             INavigationManager navigationManager,
-            ISettingsService settingsService)
-            : base(episode, statusPublisher, navigationManager, settingsService)
+            ISettingsService settingsService,
+            IMediaDownloader mediaDownloader)
+            : base(episode, statusPublisher, navigationManager, settingsService, mediaDownloader)
         {
             _GetCollectionElements = GetCollectionElements;
         }

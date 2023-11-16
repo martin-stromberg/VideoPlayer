@@ -3,6 +3,7 @@ using System.Linq;
 using VideoPlayer.Models;
 using VideoPlayer.Models.MediaItems;
 using VideoPlayer.Navigation;
+using VideoPlayer.Services.MediaLibrary.Downloads;
 using VideoPlayer.Services.MediaLibrary.Scanner;
 using VideoPlayer.Services.Settings;
 using VideoPlayer.StatusManagement;
@@ -19,8 +20,9 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
             IStatusPublisher statusPublisher,
             INavigationManager navigationManager,
             ISettingsService settingsService,
-            ILibraryScanner libraryScanner)
-            : base(mediaItem, statusPublisher, navigationManager, settingsService)
+            ILibraryScanner libraryScanner,
+            IMediaDownloader mediaDownloader)
+            : base(mediaItem, statusPublisher, navigationManager, settingsService, mediaDownloader)
         {
             _LibraryScanner = libraryScanner;
             ProcessItem = new Command(() => ExecuteProcessItem(), () => CanProcessItem());

@@ -169,6 +169,8 @@ namespace VideoPlayer.ViewModels.VideoPlayer
 
         public async void ProcessMediaEnded()
         {
+            if (Item == null)
+                return;
             await SaveMediaItemPosition(TimeSpan.Zero);
             Download = _PlaylistManager.ProcessMediaEnded(Item);
             if (VideoSource == null)
@@ -318,6 +320,8 @@ namespace VideoPlayer.ViewModels.VideoPlayer
 
         private async Task SaveMediaItemPosition(TimeSpan position)
         {
+            if (Item == null)
+                return;
             if (Item.LastPlaybackPosition == position)
                 return;
             Item.LastPlaybackPosition = position;

@@ -6,7 +6,7 @@ using VideoPlayer.Services.Database.Models;
 
 namespace VideoPlayer.Services.Database
 {
-    public class MediaLibraryDatabase: IMediaLibraryDatabase, ILogDatabase, ISettingsDataSource
+    public class MediaLibraryDatabase: IMediaLibraryDatabase, ILogDatabase, ISettingsDataSource, IJobDatabase
     {
 
         private readonly MediaLibraryDatabaseSettings settings;
@@ -44,6 +44,7 @@ namespace VideoPlayer.Services.Database
             result = await Connection.CreateTableAsync<PlaylistEntry>();
             result = await Connection.CreateTableAsync<PlaybackHistoryEntry>();
             result = await Connection.CreateTableAsync<Models.Settings>();
+            result = await Connection.CreateTableAsync<DownloadJob>();
         }
 
         public async Task<AsyncTableQuery<MediaSource>> GetSourcesAsync()
@@ -448,6 +449,28 @@ namespace VideoPlayer.Services.Database
         public async Task<Models.Settings> UpdateSettingsAsync(Models.Settings settings)
         {
             return await AddOrUpdate<Models.Settings>(settings) as Models.Settings;
+        }
+
+        public async Task<IEnumerable<DownloadJob>> GetDownloadJobs()
+        {
+            await InitOrUpgradeAsync();
+            return await Connection.Table<DownloadJob>().ToArrayAsync();
+        }
+
+        public async Task AddDownloadJob(DownloadJob job)
+        {
+            _ = await AddOrUpdate<DownloadJob>(job) as DownloadJob;
+        }
+
+        public async Task RemoveDownloadJob(DownloadJob job)
+        {
+            await Connection.DeleteAsync(job);
+        }
+
+        public async Task<bool> DownloadJobsExist()
+        {
+            await InitOrUpgradeAsync();
+            return await Connection.Table<DownloadJob>().FirstOrDefaultAsync() is not null;
         }
 
     }

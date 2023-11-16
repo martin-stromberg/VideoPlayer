@@ -14,6 +14,7 @@ namespace VideoPlayer.Services.MediaLibrary
 
         private string cacheRootPath = string.Empty;
         private string cacheFolderPath = string.Empty;
+        private string downloadFolderPath = string.Empty;
         private string tempFolderPath = string.Empty;
         private string productName = string.Empty;
 
@@ -58,6 +59,21 @@ namespace VideoPlayer.Services.MediaLibrary
                     cacheFolderPath = folder;
                 }
                 return cacheFolderPath;
+            }
+        }
+
+        public string DownloadFolderPath
+        {
+            get
+            {
+                if (string.IsNullOrWhiteSpace(downloadFolderPath))
+                {
+                    var folder = Path.Combine(CacheRootPath, "Downloads");
+                    if (!Directory.Exists(folder))
+                        Directory.CreateDirectory(folder);
+                    downloadFolderPath = folder;
+                }
+                return downloadFolderPath;
             }
         }
 

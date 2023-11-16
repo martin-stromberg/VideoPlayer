@@ -3,6 +3,7 @@ using System.Linq;
 using VideoPlayer.Models;
 using VideoPlayer.Models.MediaItems;
 using VideoPlayer.Navigation;
+using VideoPlayer.Services.MediaLibrary.Downloads;
 using VideoPlayer.Services.Settings;
 using VideoPlayer.StatusManagement;
 
@@ -23,12 +24,29 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
             BaseModel mediaItem,
             IStatusPublisher statusPublisher,
             INavigationManager navigationManager,
-            ISettingsService settingsService)
+            ISettingsService settingsService,
+            IMediaDownloader mediaDownloader)
             : base(statusPublisher, navigationManager, settingsService)
         {
+            _MediaDownloader = mediaDownloader;
             Mode = ItemViewModel.Box;
             Item = mediaItem;
             StartPlayback = new Command(() => ExecuteStartPlayback(), () => CanStartPlayback());
+            DownloadItem = new Command(() => ExecuteDownloadItem(), () => CanDownloadItem());
+        }
+
+        private readonly IMediaDownloader _MediaDownloader;
+
+        public Command DownloadItem { get; }
+
+        private void ExecuteDownloadItem()
+        {
+            _MediaDownloader.StartDownload(Item);
+        }
+
+        private bool CanDownloadItem()
+        {
+            return true;
         }
 
         public ItemViewModel Mode

@@ -17,33 +17,47 @@
                 </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="30"/>
+                    <RowDefinition Height="30"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
                 <Image 
-                Grid.Row="0"
-                Grid.RowSpan="2"
-                Grid.Column="0"
-                Grid.ColumnSpan="2" 
-                Source="{Binding Picture}"/>
+                    Grid.Row="0"
+                    Grid.RowSpan="3"
+                    Grid.Column="0"
+                    Grid.ColumnSpan="2" 
+                    Source="{Binding Picture}"/>
                 <Label
-                Grid.Row="1"
-                Grid.Column="0"
-                Grid.ColumnSpan="2"
-                Text="{Binding Title}"
-                VerticalOptions="End" 
-                HorizontalOptions="Center" />
+                    Grid.Row="1"
+                    Grid.RowSpan="2"
+                    Grid.Column="0"
+                    Grid.ColumnSpan="2"
+                    Text="{Binding Title}"
+                    VerticalOptions="End" 
+                    HorizontalOptions="Center" />
                 <Frame
-                Grid.Row="0"
-                Grid.Column="1"
-                BackgroundColor="Transparent" 
-                Margin="0" 
-                Padding="0">
+                    Grid.Row="0"
+                    Grid.Column="1"
+                    BackgroundColor="Transparent" 
+                    Margin="0" 
+                    Padding="0">
                     <Frame.GestureRecognizers>
                         <TapGestureRecognizer Tapped="ListItemPlaybackTapped"/>
                     </Frame.GestureRecognizers>
                     <Label Text="▶️" TextColor="Red" VerticalOptions="Center" HorizontalOptions="Center"/>
                 </Frame>
+                <ImageButton 
+                    Grid.Column="1" 
+                    Grid.Row="1" 
+                    Source="download.png"
+                    HeightRequest="20"
+                    WidthRequest="20"
+                    Background="Transparent"
+                    Command="{Binding DownloadItem}">
+                    <ImageButton.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="TapGestureRecognizer_Tapped"/>
+                    </ImageButton.GestureRecognizers>
+                </ImageButton>
             </Grid>
         </Frame>
         <Frame Margin="5" HeightRequest="100" IsVisible="{Binding IsLaneMode}" HorizontalOptions="FillAndExpand">
@@ -93,7 +107,7 @@
                     </Frame.GestureRecognizers>
                     <Label Text="▶️" TextColor="Red" VerticalOptions="Center" HorizontalOptions="Center"/>
                 </Frame>
-                <ImageButton Grid.Column="2" WidthRequest="20" HeightRequest="20" Source="process.png" Command="{Binding ProcessItem}"/>
+                <ImageButton Grid.Column="2" WidthRequest="20" HeightRequest="20" Source="process.png" Command="{Binding ProcessItem}"/>                
 
             </Grid>
         </Frame>

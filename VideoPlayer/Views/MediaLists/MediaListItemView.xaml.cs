@@ -25,5 +25,10 @@ namespace VideoPlayer.Views.MediaLists
             ViewModel.StartPlayback.Execute(true);
         }
 
+        private void TapGestureRecognizer_Tapped(object sender, TappedEventArgs e)
+        {
+            ViewModel.DownloadItem.Execute(true);
+        }
+
     }
 }

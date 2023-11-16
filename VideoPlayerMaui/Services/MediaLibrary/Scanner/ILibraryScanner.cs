@@ -2,6 +2,10 @@
 #elif WINDOWS
 #endif
 
+using VideoPlayer.Models.MediaItems;
+using VideoPlayer.Models.MetaInformation;
+using VideoPlayer.Models.Sources;
+
 namespace VideoPlayer.Services.MediaLibrary.Scanner
 {
     public interface ILibraryScanner
@@ -12,6 +16,12 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
         void Stop();
 
         Task WaitForFinish();
+
+        void Rescan(MediaItem item);
+
+        void Rescan(MediaSource mediaSource);
+
+        void SaveMetaInformation(MediaItem item, MediaInformation metaInfo);
 
     }
 }

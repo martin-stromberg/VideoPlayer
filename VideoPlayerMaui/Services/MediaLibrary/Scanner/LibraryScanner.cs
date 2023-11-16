@@ -2,9 +2,11 @@
 #elif WINDOWS
 #endif
 using Microsoft.Extensions.Logging;
+using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Xml;
 using VideoPlayer.Extensions;
+using VideoPlayer.Models;
 using VideoPlayer.Models.MediaItems;
 using VideoPlayer.Models.MetaInformation;
 using VideoPlayer.Models.Sources;
@@ -112,6 +114,21 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
         private void Scanner_DoWork(object sender, DoWorkEventArgs e)
         {
             running = true;
+            try
+            {
+                SaveMetaInformationAsync().Wait();
+            }
+            catch { }
+
+            try
+            {
+                ScanQueueEntriesAsync().Wait();
+            }
+            catch { }
+
+            if (!_Settings.Current.LibraryScan_AutomaticScan)
+                return;
+
             try
             {
                 ScanNextSource();
@@ -245,10 +262,10 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
                     .OrderBy(coll => coll.MetaDataTime)
                     .Where(coll => coll.MetaDataTime < refDate);
             foreach (var collection in collections)
-                await ScannCollectionMetaDataAsync(scanner, collection);
+                await ScanCollectionMetaDataAsync(scanner, collection);
         }
 
-        private async Task ScannCollectionMetaDataAsync(RemoteSourceScanner scanner, MediaItemCollection collection)
+        private async Task ScanCollectionMetaDataAsync(RemoteSourceScanner scanner, MediaItemCollection collection)
         {
             await ProcessMetaDataForFolderAsync(scanner, collection);
             await ProcessPictureForFolderAsync(scanner, collection);
@@ -408,6 +425,8 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
                 logger.LogDebug($"File with same name: {file.Name}");
                 var ext = Path.GetExtension(file.Name);
                 if (ext == ".nfo")
+                    await ProcessNFOForVideoAsync(scanner, item, file);
+                else if (ext == ".info")
                     await ProcessNFOForVideoAsync(scanner, item, file);
                 else if (FileExtImage.Contains(ext))
                     await ProcessPictureForVideoAsync(scanner, item, file);
@@ -606,7 +625,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
                     logger.LogDebug($"MediaItemCollection: {item}");
                     if (item.MetaDataTime.AddHours(24) > DateTime.Now)
                         return item;
-                    await ScannCollectionMetaDataAsync(scanner, item);
+                    await ScanCollectionMetaDataAsync(scanner, item);
                     logger.LogDebug($"MediaItemCollection: {item}");
                 }
                 catch (Exception ex)
@@ -676,6 +695,101 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
                 Plot = documentElement.FindChild("plot", true).InnerText.Trim(),
             };
             item.MetaInfo = info;
+        }
+
+        private ConcurrentQueue<BaseModel> ScanQueue = new ConcurrentQueue<BaseModel>();
+
+        private async Task ScanQueueEntriesAsync()
+        {
+            while (ScanQueue.TryDequeue(out BaseModel model))
+                await ScanNextQueueEntryAsync(model);
+        }
+
+        private async Task ScanNextQueueEntryAsync(BaseModel model)
+        {
+            await ScanMediaItemAsync(model as MediaItem);
+            await ScanMediaItemAsync(model as MediaSource);
+        }
+
+        private async Task ScanMediaItemAsync(MediaSource mediaSource)
+        {
+            if (mediaSource is null)
+                return;
+
+            mediaSource = await mediaLibrary.GetSourceAsync(mediaSource.Id);
+            mediaSource.LastScan = DateTime.MinValue;
+            foreach (var scanner in _Scanners)
+                if (scanner.CanScan(mediaSource))
+                {
+                    scanner.Scan(mediaSource);
+                    logger.LogInformation($"Scan of source {mediaSource.Name} finished.");
+                    return;
+                }
+        }
+
+        private async Task ScanMediaItemAsync(MediaItem mediaItem)
+        {
+            if (mediaItem is null)
+                return;
+            mediaItem = await mediaLibrary.GetMediaItemAsync(mediaItem.Id);
+            mediaItem.MetaDataTime = DateTime.MinValue;
+            await mediaLibrary.AddMediaItemAsync(mediaItem);
+            var collection = await mediaLibrary.GetMediaItemCollectionAsync(mediaItem.ParentCollectionId);
+            var source = await mediaLibrary.GetSourceAsync(collection.MediaSourceId);
+            foreach (var scanner in _Scanners)
+                if (scanner.CanScan(source))
+                {
+                    scanner.Scan(source, mediaItem);
+                    logger.LogInformation($"Scan of source {mediaItem.Name} finished.");
+                    return;
+                }
+        }
+
+        public void Rescan(MediaItem item)
+        {
+            ScanQueue.Enqueue(item);
+            if (!running)
+                Start();
+        }
+
+        public void Rescan(MediaSource mediaSource)
+        {
+            ScanQueue.Enqueue(mediaSource);
+            if (!running)
+                Start();
+        }
+
+        private struct MetaInfo
+        {
+
+            public MediaItem Item { get; set; }
+
+            public MediaInformation Info { get; set; }
+
+        }
+
+        private ConcurrentQueue<MetaInfo> MetaInfoQueue = new ConcurrentQueue<MetaInfo>();
+
+        public void SaveMetaInformation(MediaItem item, MediaInformation metaInfo)
+        {
+            MetaInfoQueue.Enqueue(new MetaInfo() { Item = item, Info = metaInfo });
+            if (!running)
+                Start();
+        }
+
+        private async Task SaveMetaInformationAsync()
+        {
+            while (MetaInfoQueue.TryDequeue(out MetaInfo info))
+                await SaveMetaInformationAsync(info);
+        }
+
+        private async Task SaveMetaInformationAsync(MetaInfo info)
+        {
+            info.Item = await mediaLibrary.GetMediaItemAsync(info.Item.Id);
+            info.Item.MetaDataTime = DateTime.MinValue;
+            info.Item.MetaInfo = info.Info;
+            await mediaLibrary.AddMediaItemAsync(info.Item);
+            Rescan(info.Item);
         }
 
     }

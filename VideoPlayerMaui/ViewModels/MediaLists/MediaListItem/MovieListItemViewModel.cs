@@ -8,7 +8,7 @@ using VideoPlayer.StatusManagement;
 
 namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
 {
-    public class MovieListItemViewModel: MediaListItemViewModel
+    public class MovieListItemViewModel: BaseMediaListItemViewModel
     {
 
         private readonly Func<IEnumerable<BaseModel>> _GetCollectionElements;

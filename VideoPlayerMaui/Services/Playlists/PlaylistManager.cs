@@ -243,6 +243,14 @@ namespace VideoPlayer.Services.Playlists
             AsyncSave = true;
         }
 
+        public async Task StartMediaItemPlaylistAsync(MediaItem mediaItem)
+        {
+            currentPlaylistCompletionSessionId = Random.Shared.Next(int.MaxValue);
+            GeneralPlaylist.Items.Clear();
+            GeneralPlaylist.Add(mediaItem);
+            await SavePlaylistAsync(GeneralPlaylist);
+        }
+
         private async Task AddMovieCollection(
             MovieCollection movieCollection,
             bool startPlayback,

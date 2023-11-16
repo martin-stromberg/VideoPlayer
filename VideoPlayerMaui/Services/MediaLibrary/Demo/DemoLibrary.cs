@@ -384,5 +384,9 @@ namespace VideoPlayer.Services.MediaLibrary.Demo
             throw new NotImplementedException();
         }
 
+        public Task<IEnumerable<MediaItem>> GetUncategorizedMediaItems(int offset, int count)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

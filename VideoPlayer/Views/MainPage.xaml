@@ -10,6 +10,7 @@
              Shell.NavBarIsVisible="True"
              Title="{Binding Title}">
     <ContentPage.ToolbarItems>
+        <ToolbarItem IconImageSource="uncategorized.png" Command="{Binding ListMediaItems}" CommandParameter="uncategorized" />
         <ToolbarItem Text="▶️" Command="{Binding StartPlayback}" CommandParameter="genral" />
     </ContentPage.ToolbarItems>
     <Grid>

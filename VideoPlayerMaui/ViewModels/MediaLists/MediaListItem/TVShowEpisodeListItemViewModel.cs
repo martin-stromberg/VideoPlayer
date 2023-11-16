@@ -6,7 +6,7 @@ using VideoPlayer.StatusManagement;
 
 namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
 {
-    public class TVShowEpisodeListItemViewModel: MediaListItemViewModel
+    public class TVShowEpisodeListItemViewModel: BaseMediaListItemViewModel
     {
 
         private readonly Func<IEnumerable<BaseModel>> _GetCollectionElements;

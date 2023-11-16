@@ -37,7 +37,7 @@ namespace VideoPlayer.ViewModels.MediaLists
         {
             if (Items.Any(item => item.Item.Id == mediaItem.Id))
                 return;
-            MediaListItemViewModel vm;
+            BaseMediaListItemViewModel vm;
             if (mediaItem is TVShow)
             {
                 vm = new TVShowListItemViewModel(mediaItem as TVShow,

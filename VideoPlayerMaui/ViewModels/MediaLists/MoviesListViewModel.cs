@@ -35,7 +35,7 @@ namespace VideoPlayer.ViewModels.MediaLists
         {
             if (Items.Any(item => item.Item.Id == mediaItem.Id))
                 return;
-            MediaListItemViewModel vm;
+            BaseMediaListItemViewModel vm;
             if (mediaItem is Movie)
             {
                 Func<IEnumerable<Movie>> getMovies = (ParentCollection != null) ? () =>

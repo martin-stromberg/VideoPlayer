@@ -56,7 +56,7 @@ namespace VideoPlayer.ViewModels.Homepage
         {
             foreach (var item in oldItems.Cast<HistoryEntry>().Where(i => i.TypedItem != null))
             {
-                MediaListItemViewModel vm = Items.FirstOrDefault(i => i.Item.Id == item.TypedItem.Id);
+                BaseMediaListItemViewModel vm = Items.FirstOrDefault(i => i.Item.Id == item.TypedItem.Id);
                 if (vm == null)
                     continue;
                 Items.Remove(vm);
@@ -69,7 +69,7 @@ namespace VideoPlayer.ViewModels.Homepage
                                          .OrderByDescending(i => i.Id)
                                          .Where(i => i.TypedItem != null))
             {
-                MediaListItemViewModel vm;
+                BaseMediaListItemViewModel vm;
                 if (item.TypedItem is TVShowEpisode)
                 {
                     var episode = item.TypedItem as TVShowEpisode;

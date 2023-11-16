@@ -706,6 +706,17 @@ namespace VideoPlayer.Services.MediaLibrary
             return null;
         }
 
+        public async Task<IEnumerable<MediaItem>> GetUncategorizedMediaItems(int offset, int count)
+        {
+            return (await (await _DataStore.GetMediaItemsAsync())
+                .Where(mi =>
+                       (mi.MetaInfoJson == null) || (mi.MetaInfoJson == string.Empty) || (mi.MetaInfoJson == "null"))
+                .Skip(offset)
+                .Take(count)
+                .ToArrayAsync())
+                .Select(mi => MediaItem.FromDataModel(mi).UpdatePicture(_Settings.CacheRootPath) as MediaItem);
+        }
+
         public async Task AddPlaybackHistory(History currentHistory)
         {
             var existingEntries = (await _DataStore.GetPlaybackHistoryEntriesAsync()).OrderBy(e => e.Id).ToList();

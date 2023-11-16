@@ -50,6 +50,7 @@ namespace VideoPlayer.ViewModels.Global
             StatusViewModel = statusViewModel;
             ContentViewModel = contentViewModel;
             StartPlayback = new Command((arg) => DoStartPlayback(arg));
+            ListMediaItems = new Command((arg) => DoListMediaItems(arg));
         }
 
         public override void OnAppeared()
@@ -180,6 +181,12 @@ namespace VideoPlayer.ViewModels.Global
         private async void DoStartPlayback(object arg)
         {
             await NavigationManager.OpenPlaylistPlaybackAsync();
+        }
+
+        public Command ListMediaItems { get; set; }
+        private void DoListMediaItems(object arg)
+        {
+            NavigationManager.OpenUncategrized();
         }
 
     }

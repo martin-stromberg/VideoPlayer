@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using VideoPlayer.Navigation;
 using VideoPlayer.Services.MediaLibrary;
+using VideoPlayer.Services.MediaLibrary.Scanner;
 using VideoPlayer.Services.Settings;
 using VideoPlayer.StatusManagement;
 
@@ -12,14 +13,17 @@ namespace VideoPlayer.ViewModels.Management.Sources
     {
 
         private readonly IMediaLibrary _MediaLibrary;
+        private readonly ILibraryScanner _LibraryScanner;
 
         public SourcesViewModel(
             IMediaLibrary mediaLibrary,
             IStatusPublisher statusPublisher,
             INavigationManager navigationManager,
-            ISettingsService settingsService)
+            ISettingsService settingsService,
+            ILibraryScanner libraryScanner)
             : base(statusPublisher, navigationManager, settingsService)
         {
+            _LibraryScanner = libraryScanner;
             _MediaLibrary = mediaLibrary;
             Title = $"Quellen";
         }
@@ -36,7 +40,8 @@ namespace VideoPlayer.ViewModels.Management.Sources
                                                      StatusPublisher,
                                                      _MediaLibrary,
                                                      NavigationManager,
-                                                     Settings);
+                                                     Settings,
+                                                     _LibraryScanner);
                 Sources.Add(vm);
             }
         }

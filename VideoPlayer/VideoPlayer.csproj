@@ -58,6 +58,8 @@
 	<ItemGroup>
 	  <None Remove="Resources\AppIcon\appicon.svg" />
 	  <None Remove="Resources\Images\icon_rescan.png" />
+	  <None Remove="Resources\Images\process.png" />
+	  <None Remove="Resources\Images\uncategorized.png" />
 	  <None Remove="Resources\Raw\loading.mp4" />
 	  <None Remove="Resources\raw\secrets.json" />
 	</ItemGroup>
@@ -111,6 +113,9 @@
 	</ItemGroup>
 
 	<ItemGroup>
+	  <MauiXaml Update="Views\Categorization\MediaItemCardPage.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
 	  <MauiXaml Update="Views\Homepage\CategorySelection.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
@@ -136,6 +141,9 @@
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
 	  <MauiXaml Update="Views\Management\Sources\SourceFTPConfigurationBox.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
+	  <MauiXaml Update="Views\MediaLists\MediaItemsPage.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
 	  <MauiXaml Update="Views\MediaLists\MediaListItemView.xaml">

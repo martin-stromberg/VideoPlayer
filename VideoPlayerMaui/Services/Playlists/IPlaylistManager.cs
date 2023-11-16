@@ -25,11 +25,13 @@ namespace VideoPlayer.Services.Playlists
 
         Task StartMoviePlaylistAsync(MovieCollection movieCollection);
 
+        Task StartMediaItemPlaylistAsync(MediaItem mediaItem);
+
         Task StartPlaybackAsync();
 
         DownloadSource GetFirstVideoSource();
 
         DownloadSource ProcessMediaEnded(MediaItem item);
-
+        
     }
 }

@@ -44,6 +44,10 @@
   - The user can navigate throw categorized movies and tv shows.
   - Assigned pictures will be displayed.
 * Video playback
+* Downloads
+  - Media items on an ftp server will be downloaded before playback und automatically removed after playback.
+  - Movies, entire movie collections, entire tv shows, entire tv show seasons oder tv show episodes
+    can be downloaded, to have them stored locally on the device for offline playback.
 * Playback history
   - Incompletely watched videos can be continued.
   - movie collection or tv show continuation

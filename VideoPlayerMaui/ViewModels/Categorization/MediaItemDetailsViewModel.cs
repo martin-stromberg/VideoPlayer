@@ -219,6 +219,8 @@ namespace VideoPlayer.ViewModels.Categorization
                     ShowName = ((EpisodeInformation)value).ShowName ?? ShowName;
                     EpisodeNo = ((EpisodeInformation)value).Episode ?? EpisodeNo;
                     SeasonNo = ((EpisodeInformation)value).Season ?? SeasonNo;
+                    Subtitle = ((EpisodeInformation)value).ShowName ?? Title;
+                    Title = $"{SeasonNo} {EpisodeNo}";
                 }
                 else if (value is MovieInformation)
                 {

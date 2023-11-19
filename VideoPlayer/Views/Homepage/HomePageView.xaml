@@ -16,7 +16,7 @@
                 FontSize="Title"
                 VerticalOptions="Start"/>
             <vw:HorizontalMediaItemCollection 
-                HeightRequest="210"
+                HeightRequest="250"
                 BindingContext="{Binding LatestViews}"/>
         </VerticalStackLayout>
     </ScrollView>

@@ -7,11 +7,8 @@
              x:DataType="vm:MediaListItemViewModel">
     <Grid>
         <!-- Darstellung als Bildelement für die Wiedergabe-Navigation -->
-        <Frame Margin="5" WidthRequest="200" HeightRequest="200" IsVisible="{Binding IsBoxMode}">
-            <Frame.GestureRecognizers>
-                <TapGestureRecognizer Tapped="ListItemTapped"/>
-            </Frame.GestureRecognizers>
-            <Grid>
+        <Frame Margin="5" WidthRequest="200" HeightRequest="240" IsVisible="{Binding IsBoxMode}">
+            <Grid RowSpacing="0" ColumnSpacing="0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="30"/>
@@ -20,6 +17,8 @@
                     <RowDefinition Height="30"/>
                     <RowDefinition Height="30"/>
                     <RowDefinition Height="*"/>
+                    <RowDefinition Height="25"/>
+                    <RowDefinition Height="25"/>
                 </Grid.RowDefinitions>
 
                 <Image 
@@ -27,29 +26,27 @@
                     Grid.RowSpan="3"
                     Grid.Column="0"
                     Grid.ColumnSpan="2" 
-                    Source="{Binding Picture}"/>
+                    Source="{Binding Picture}">
+                    <Image.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="ListItemTapped"/>
+                    </Image.GestureRecognizers>
+                </Image>
                 <Label
-                    Grid.Row="1"
+                    Grid.Row="3"
                     Grid.RowSpan="2"
                     Grid.Column="0"
                     Grid.ColumnSpan="2"
-                    Text="{Binding Title}"
-                    VerticalOptions="End" 
-                    HorizontalOptions="Center" />
-                <Frame
-                    Grid.Row="0"
-                    Grid.Column="1"
-                    BackgroundColor="Transparent" 
-                    Margin="0" 
-                    Padding="0">
-                    <Frame.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="ListItemPlaybackTapped"/>
-                    </Frame.GestureRecognizers>
-                    <Label Text="▶️" TextColor="Red" VerticalOptions="Center" HorizontalOptions="Center"/>
-                </Frame>
+                    Text="{Binding Title}"                    
+                    HorizontalOptions="Start" />
+                <Label 
+                    Grid.Row="4"
+                    Grid.Column="0"
+                    Grid.ColumnSpan="2"
+                    Text="{Binding Subtitle}"
+                    HorizontalOptions="StartAndExpand"/>
                 <ImageButton 
                     Grid.Column="1" 
-                    Grid.Row="1" 
+                    Grid.Row="0" 
                     Source="download.png"
                     HeightRequest="20"
                     WidthRequest="20"
@@ -83,14 +80,14 @@
                     Grid.RowSpan="2"
                     Grid.Column="0"
                     Grid.ColumnSpan="1" 
-                    Source="{Binding Picture}"/>
+                    Source="{Binding Picture}"/>                
                 <Label
-                    Grid.Row="0"
+                    Grid.Row="1"
                     Grid.Column="1"
                     Grid.ColumnSpan="2"
                     Text="{Binding Title}"
                     VerticalOptions="Start" 
-                    HorizontalOptions="Start" />
+                    HorizontalOptions="Start" />                
                 <Label
                     Grid.Row="1"
                     Grid.Column="1"

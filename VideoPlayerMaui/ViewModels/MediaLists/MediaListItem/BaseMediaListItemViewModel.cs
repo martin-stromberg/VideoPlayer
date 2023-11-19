@@ -2,6 +2,7 @@
 using System.Linq;
 using VideoPlayer.Models;
 using VideoPlayer.Models.MediaItems;
+using VideoPlayer.Models.TVShows;
 using VideoPlayer.Navigation;
 using VideoPlayer.Services.MediaLibrary.Downloads;
 using VideoPlayer.Services.Settings;
@@ -169,7 +170,10 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
         protected virtual void UpdateProperties()
         {
             ItemType = Item?.GetType();
-            Title = Item?.Name ?? string.Empty;
+            Title = $"{(Item as TVShowEpisode)?.SeasonName} {(Item as TVShowEpisode)?.EpisodeNo}".Trim();
+            if (string.IsNullOrWhiteSpace(Title))
+                Title = Item?.Name ?? string.Empty;
+            Subtitle = (Item as TVShowEpisode)?.ShowName ?? string.Empty;
             Path = (Item as MediaItem)?.Path ?? string.Empty;
             HasDownload = (Item as MediaItem)?.HasDownload ?? false;
             Picture = FindProperty<ImageSource>();

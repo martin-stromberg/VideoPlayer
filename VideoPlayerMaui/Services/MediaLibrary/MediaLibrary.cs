@@ -338,9 +338,33 @@ namespace VideoPlayer.Services.MediaLibrary
             return TVShow.FromDataModel(show).UpdatePicture(_Settings.CacheRootPath) as TVShow;
         }
 
+        private async Task<Database.Models.TVShowEpisode> CompleteEpisodeAsync(Database.Models.TVShowEpisode episode)
+        {
+            var changed = false;
+            Database.Models.TVShowSeason season = null;
+            if (string.IsNullOrWhiteSpace(episode.SeasonName))
+            {
+                season = await _DataStore.GetTVShowSeason(episode.SeasonId);
+                episode.SeasonName = season.Name;
+                changed = true;
+            }
+            if (string.IsNullOrWhiteSpace(episode.ShowName))
+            {
+                if (season == null)
+                    season = await _DataStore.GetTVShowSeason(episode.SeasonId);
+                var show = await _DataStore.GetTVShow(season.ShowId);
+                episode.ShowName = show.Name;
+                changed = true;
+            }
+            if (changed)
+                await _DataStore.AddOrUpdateTVShowEpisode(episode);
+            return episode;
+        }
+
         public async Task<TVShowEpisode> GetTVShowEpisode(long id)
         {
             var episode = await _DataStore.GetTVShowEpisode(id);
+            episode = await CompleteEpisodeAsync(episode);
             var mediaItems = await _DataStore.GetTVShowEpisodeMediaItems(episode.Id);
             return (TVShowEpisode.FromDataModel(episode).UpdatePicture(_Settings.CacheRootPath) as TVShowEpisode)
                 .SetMediaItems(mediaItems);
@@ -348,7 +372,9 @@ namespace VideoPlayer.Services.MediaLibrary
 
         public async Task<IEnumerable<TVShowEpisode>> GetTVShowEpisodes(long seasonId)
         {
-            var dbEpisodes = await _DataStore.GetTVShowEpisodes(seasonId);
+            var dbEpisodes = (await _DataStore.GetTVShowEpisodes(seasonId)).ToArray();
+            foreach (var episode in dbEpisodes)
+                await CompleteEpisodeAsync(episode);
             var episodes = dbEpisodes
                 .Select(episode =>
                 {
@@ -518,7 +544,7 @@ namespace VideoPlayer.Services.MediaLibrary
         {
             var isNew = collection.Id == 0;
             var dataModel = collection.ToDataModelAsync();
-            await _DataStore.AddOrUpdateMediaCollectionAsync(dataModel as Services.Database.Models.MediaCollection);
+            await _DataStore.AddOrUpdateMediaCollectionAsync(dataModel as Database.Models.MediaCollection);
             collection.UpdateAutoincrements(dataModel);
             OnElementChanged(isNew ? (new BaseModelEventArgs(collection)) : null,
                              (!isNew) ? (new BaseModelEventArgs(collection)) : null,
@@ -559,7 +585,7 @@ namespace VideoPlayer.Services.MediaLibrary
                 {
                     var collection = _DataStore
                         .GetMediaCollectionAsync(item.ParentCollectionId)
-                        .Wait<Services.Database.Models.MediaCollection>();
+                        .Wait<Database.Models.MediaCollection>();
                     return collection.MediaSourceId == SourceId;
                 })
                 .Select(item => MediaItem.FromDataModel(item).UpdatePicture(_Settings.CacheRootPath) as MediaItem)
@@ -633,7 +659,7 @@ namespace VideoPlayer.Services.MediaLibrary
             }
         }
 
-        private async Task ClearCollectionMediaAsync(Services.Database.Models.MediaCollection coll)
+        private async Task ClearCollectionMediaAsync(Database.Models.MediaCollection coll)
         {
             var mediaStore = await _DataStore.GetMediaItemsAsync();
             var mediaItems = await mediaStore.Where(mi => mi.ParentCollectionId == coll.Id).ToArrayAsync();

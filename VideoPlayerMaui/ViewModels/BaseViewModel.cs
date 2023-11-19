@@ -107,6 +107,18 @@ namespace VideoPlayer.ViewModels
             }
         }
 
+        public string Subtitle
+        {
+            get
+            {
+                return GetProperty<string>();
+            }
+            set
+            {
+                SetProperty<string>(value);
+            }
+        }
+
         public ISettingsService Settings { get; }
 
     }

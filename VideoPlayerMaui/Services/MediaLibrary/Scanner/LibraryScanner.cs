@@ -535,7 +535,11 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
                 Title = documentElement.FindChild("title", true).InnerText.Trim(),
                 Genre = documentElement.FindChild("genre", true).InnerText.Trim(),
                 Plot = documentElement.FindChild("plot", true).InnerText.Trim(),
+                ReleaseDate = documentElement.FindChild("releasedate", true).InnerText.Trim().ToDateTime(),
+                Year = documentElement.FindChild("year", true).InnerText.Trim().ToInt32()
             };
+            if ((Info.Year == 0) && (Info.ReleaseDate != default(DateTime)))
+                Info.Year = Info.ReleaseDate.Year;
             item.MetaInfo = Info;
         }
 

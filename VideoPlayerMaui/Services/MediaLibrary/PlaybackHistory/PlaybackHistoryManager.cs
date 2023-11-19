@@ -38,7 +38,7 @@ namespace VideoPlayer.Services.MediaLibrary.PlaybackHistory
             if (existing == null)
             {
                 CurrentHistory.Items.Insert(0, new HistoryEntry() { Item = item, TypedItem = typedItem });
-                FindAndRemoveOther(typedItem);
+                await FindAndRemoveOther(typedItem);
                 await _MediaLibrary.AddPlaybackHistory(CurrentHistory);
             }
             else
@@ -53,9 +53,9 @@ namespace VideoPlayer.Services.MediaLibrary.PlaybackHistory
             return;
         }
 
-        private void FindAndRemoveOther(BaseModel typedItem)
+        private async Task FindAndRemoveOther(BaseModel typedItem)
         {
-            FindAndRemoveOtherFromShow(typedItem as TVShowEpisode);
+            await FindAndRemoveOtherFromShow(typedItem as TVShowEpisode);
             FindAndRemoveOtherFromMovieCollection(typedItem as Movie);
         }
 
@@ -70,11 +70,12 @@ namespace VideoPlayer.Services.MediaLibrary.PlaybackHistory
                                                         .FirstOrDefault(e =>
                                                                         (((Movie)e.TypedItem).Id != movie.Id)
                                                             && (((Movie)e.TypedItem).CollectionId == movie.CollectionId));
-            if (existingCollectionEntry != null)
-                CurrentHistory.Items.Remove(existingCollectionEntry);
+            if (existingCollectionEntry == null)
+                return;
+            CurrentHistory.Items.Remove(existingCollectionEntry);
         }
 
-        private async void FindAndRemoveOtherFromShow(TVShowEpisode episode)
+        private async Task FindAndRemoveOtherFromShow(TVShowEpisode episode)
         {
             if (episode == null)
                 return;
@@ -98,8 +99,10 @@ namespace VideoPlayer.Services.MediaLibrary.PlaybackHistory
                     break;
                 }
             }
-            if (existingseasonEntry != null)
-                CurrentHistory.Items.Remove(existingseasonEntry);
+            if (existingseasonEntry == null)
+                return;
+            CurrentHistory.Items.Remove(existingseasonEntry);
+            await FindAndRemoveOtherFromShow(episode);
         }
 
         public async Task Finish(MediaItem item, BaseModel typedItem)
@@ -109,7 +112,7 @@ namespace VideoPlayer.Services.MediaLibrary.PlaybackHistory
             var existing = CurrentHistory.Items.FirstOrDefault(i => i.TypedItem.Id == typedItem.Id);
             if (existing == null)
                 return;
-            CurrentHistory.Items.Remove(existing);            
+            CurrentHistory.Items.Remove(existing);
             AddNext(existing);
         }
 

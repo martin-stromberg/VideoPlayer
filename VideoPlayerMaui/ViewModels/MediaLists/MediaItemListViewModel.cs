@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using VideoPlayer.Models.MediaItems;
 using VideoPlayer.Navigation;
 using VideoPlayer.Services.MediaLibrary;
 using VideoPlayer.Services.MediaLibrary.Downloads;
@@ -28,15 +29,35 @@ namespace VideoPlayer.ViewModels.MediaLists
             _LibraryScanner = libraryScanner;
         }
 
+        public string Category
+        {
+            get
+            {
+                return GetProperty<string>();
+            }
+            set
+            {
+                if (Category != value)
+                    Clear();
+                SetProperty<string>(value);
+                if (isAppeared)
+                    StartLoadItems();
+            }
+        }
+
+        private bool isAppeared = false;
+
         public override void OnAppeared()
         {
             base.OnAppeared();
             StartLoadItems();
+            isAppeared = true;
         }
 
         public override void OnDisappeared(bool closing)
         {
             base.OnDisappeared(closing);
+            isAppeared = false;
             currentLoadingSession = 0;
         }
 
@@ -48,6 +69,7 @@ namespace VideoPlayer.ViewModels.MediaLists
 
         private void Clear()
         {
+            currentLoadingSession = 0;
             Items.Clear();
             currentLoadingOffset = 0;
         }
@@ -64,7 +86,16 @@ namespace VideoPlayer.ViewModels.MediaLists
         {
             if (currentLoadingSession != session)
                 return;
-            var items = (await MediaLibrary.GetUncategorizedMediaItems(currentLoadingOffset, currentLoadingCount)).ToArray();
+            MediaItem[] items = null;
+            switch (Category)
+            {
+                case "downloads":
+                    items = (await MediaLibrary.GetDownloadedMediaItems(currentLoadingOffset, currentLoadingCount)).ToArray();
+                    break;
+                default:
+                    items = (await MediaLibrary.GetUncategorizedMediaItems(currentLoadingOffset, currentLoadingCount)).ToArray();
+                    break;
+            }
             foreach (var item in items)
                 if (currentLoadingSession == session)
                     Items.Add(new MediaListItemViewModel(item,

@@ -388,5 +388,11 @@ namespace VideoPlayer.Services.MediaLibrary.Demo
         {
             throw new NotImplementedException();
         }
+
+        public Task<IEnumerable<MediaItem>> GetDownloadedMediaItems(int currentLoadingOffset, int currentLoadingCount)
+        {
+            throw new NotImplementedException();
+        }
+
     }
 }

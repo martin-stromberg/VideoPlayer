@@ -717,6 +717,16 @@ namespace VideoPlayer.Services.MediaLibrary
                 .Select(mi => MediaItem.FromDataModel(mi).UpdatePicture(_Settings.CacheRootPath) as MediaItem);
         }
 
+        public async Task<IEnumerable<MediaItem>> GetDownloadedMediaItems(int offset, int count)
+        {
+            return (await(await _DataStore.GetMediaItemsAsync())
+                   .Where(mi => mi.CopyType == 2)
+                   .Skip(offset)
+                   .Take(count)
+                   .ToArrayAsync())
+                   .Select(mi => MediaItem.FromDataModel(mi).UpdatePicture(_Settings.CacheRootPath) as MediaItem);
+        }
+
         public async Task AddPlaybackHistory(History currentHistory)
         {
             var existingEntries = (await _DataStore.GetPlaybackHistoryEntriesAsync()).OrderBy(e => e.Id).ToList();

@@ -33,6 +33,7 @@ namespace VideoPlayer.Navigation
         Task OpenPlaylistPlaybackAsync();
 
         void OpenUncategrized();
+        void OpenDownloads();
 
     }
 }

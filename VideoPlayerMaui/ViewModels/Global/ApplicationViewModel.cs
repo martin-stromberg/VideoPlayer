@@ -198,7 +198,17 @@ namespace VideoPlayer.ViewModels.Global
 
         private void DoListMediaItems(object arg)
         {
-            NavigationManager.OpenUncategrized();
+            switch (arg)
+            {
+                case "uncategorized":
+                    NavigationManager.OpenUncategrized();
+                    break;
+                case "downloads":
+                    NavigationManager.OpenDownloads();
+                    break;
+                default:
+                    throw new NotImplementedException($"{arg}");
+            }
         }
 
     }

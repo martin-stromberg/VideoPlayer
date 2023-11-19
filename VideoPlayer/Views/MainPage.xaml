@@ -11,6 +11,7 @@
              Title="{Binding Title}">
     <ContentPage.ToolbarItems>
         <ToolbarItem IconImageSource="uncategorized.png" Command="{Binding ListMediaItems}" CommandParameter="uncategorized" />
+        <ToolbarItem IconImageSource="download.png" Command="{Binding ListMediaItems}" CommandParameter="downloads" />
         <ToolbarItem Text="▶️" Command="{Binding StartPlayback}" CommandParameter="genral" />
     </ContentPage.ToolbarItems>
     <Grid>

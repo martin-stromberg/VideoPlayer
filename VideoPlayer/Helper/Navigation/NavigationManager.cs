@@ -149,7 +149,20 @@ namespace VideoPlayer.Helper.Navigation
 
         public void OpenUncategrized()
         {
-            NavigateToRoute($"mediaitems");
+            var navigationParameter = new Dictionary<string, object>
+            {
+                { "Category", "uncategorized" }
+            };
+            NavigateToRoute($"mediaitems", navigationParameter);
+        }
+
+        public void OpenDownloads()
+        {
+            var navigationParameter = new Dictionary<string, object>
+            {
+                { "Category", "downloads" }
+            };
+            NavigateToRoute($"mediaitems", navigationParameter);
         }
 
         public async Task OpenMediaItemDetailsAsync(MediaItem mediaItem)

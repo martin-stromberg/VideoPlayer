@@ -14,5 +14,7 @@ namespace VideoPlayer.Services.MediaLibrary.Downloads
 
         Task ContinueDownloadsAsync();
 
+        void RemoveDownload(BaseModel item);
+
     }
 }

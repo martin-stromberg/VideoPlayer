@@ -29,6 +29,14 @@ namespace VideoPlayer.ViewModels.MediaLists
             _LibraryScanner = libraryScanner;
         }
 
+        protected override void ProcessMediaItemRemoved(MediaItem mediaItem)
+        {
+            base.ProcessMediaItemRemoved(mediaItem);
+            var listEntry = Items.FirstOrDefault(vm => vm.Item.Id == mediaItem.Id);
+            if (listEntry != null)
+                Items.Remove(listEntry);
+        }
+
         public string Category
         {
             get

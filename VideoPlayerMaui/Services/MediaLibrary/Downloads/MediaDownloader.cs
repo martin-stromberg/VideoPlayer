@@ -239,6 +239,25 @@ namespace VideoPlayer.Services.MediaLibrary.Downloads
             }
         }
 
+        public async void RemoveDownload(BaseModel item)
+        {
+            await RemoveDownloadAsync(item as MediaItem);
+        }
+
+        public async Task RemoveDownloadAsync(MediaItem item)
+        {
+            if ((item.CopyType == MediaItemCopyType.Download) || (item.CopyType == MediaItemCopyType.Cache))
+            {
+                if (File.Exists(item.Path))
+                    File.Delete(item.Path);
+                await _MediaLibrary.RemoveMediaItemAsync(item);
+                return;
+            }
+            var items = await _MediaLibrary.GetAlternateMediaItemsAsync(item.Id);
+            foreach (var alternateItem in items)
+                await RemoveDownloadAsync(alternateItem);
+        }
+
         private BackgroundWorker _Worker = null;
 
         private void StartWorker()

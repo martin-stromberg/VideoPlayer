@@ -416,6 +416,7 @@ namespace VideoPlayer.Services.MediaLibrary
             var mediaStore = await _DataStore.GetMediaItemAsync(mediaItem.Id);
             await ClearMediaItem(mediaStore);
             await _DataStore.RemoveMediaItem(mediaStore);
+            OnElementChanged(null, null, new BaseModelEventArgs(mediaItem));
         }
 
         public async Task RemoveMovieAsync(Movie movie)

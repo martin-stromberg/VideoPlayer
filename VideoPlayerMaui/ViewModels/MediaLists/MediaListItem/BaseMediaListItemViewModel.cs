@@ -33,11 +33,14 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
             Item = mediaItem;
             StartPlayback = new Command(() => ExecuteStartPlayback(), () => CanStartPlayback());
             DownloadItem = new Command(() => ExecuteDownloadItem(), () => CanDownloadItem());
+            DeleteDownload = new Command(() => ExecuteDeleteDownload(), () => CanDeleteDownload());
         }
 
         private readonly IMediaDownloader _MediaDownloader;
 
         public Command DownloadItem { get; }
+
+        public Command DeleteDownload { get; set; }
 
         private void ExecuteDownloadItem()
         {
@@ -47,6 +50,16 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
         private bool CanDownloadItem()
         {
             return true;
+        }
+
+        private void ExecuteDeleteDownload()
+        {
+            _MediaDownloader.RemoveDownload(Item);
+        }
+
+        private bool CanDeleteDownload()
+        {
+            return (Item as MediaItem)?.HasDownload ?? false;
         }
 
         public ItemViewModel Mode
@@ -137,6 +150,20 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
             }
         }
 
+        public bool HasDownload
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+                if (DeleteDownload != null)
+                    DeleteDownload.ChangeCanExecute();
+            }
+        }
+
         public Command StartPlayback { get; set; }
 
         protected virtual void UpdateProperties()
@@ -144,6 +171,7 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
             ItemType = Item?.GetType();
             Title = Item?.Name ?? string.Empty;
             Path = (Item as MediaItem)?.Path ?? string.Empty;
+            HasDownload = (Item as MediaItem)?.HasDownload ?? false;
             Picture = FindProperty<ImageSource>();
         }
 

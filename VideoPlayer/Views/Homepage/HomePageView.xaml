@@ -9,9 +9,15 @@
     <ScrollView>
         <VerticalStackLayout
             Padding="30,0"
-            Spacing="25">
+            Spacing="0">
             <vw:CategorySelection/>
-            <vw:HorizontalMediaItemCollection BindingContext="{Binding LatestViews}"/>
+            <Label 
+                Text="Weiterschauen" 
+                FontSize="Title"
+                VerticalOptions="Start"/>
+            <vw:HorizontalMediaItemCollection 
+                HeightRequest="210"
+                BindingContext="{Binding LatestViews}"/>
         </VerticalStackLayout>
     </ScrollView>
 </ContentView>

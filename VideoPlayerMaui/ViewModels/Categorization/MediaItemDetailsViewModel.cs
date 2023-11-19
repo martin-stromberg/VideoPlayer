@@ -191,6 +191,18 @@ namespace VideoPlayer.ViewModels.Categorization
             }
         }
 
+        public DateTime ReleaseDate
+        {
+            get
+            {
+                return GetProperty<DateTime>();
+            }
+            set
+            {
+                SetProperty<DateTime>(value);
+            }
+        }
+
         public MediaInformation MetaInfo
         {
             get
@@ -214,6 +226,7 @@ namespace VideoPlayer.ViewModels.Categorization
                     Name = ((MovieInformation)value).Title ?? Name;
                     Plot = ((MovieInformation)value).Plot ?? Plot;
                     Genre = ((MovieInformation)value).Genre ?? Genre;
+                    ReleaseDate = ((MovieInformation)value).ReleaseDate;
                 }
                 else
                     SelectedVideoType = VideoType.None;
@@ -301,6 +314,7 @@ namespace VideoPlayer.ViewModels.Categorization
             Picture = Item?.Picture ?? null;
             Name = Item?.Name ?? string.Empty;
             Plot = string.Empty;
+            ReleaseDate = DateTime.MinValue;
             Genre = string.Empty;
             ShowName = (collection?.MetaInfo as TVShowInformation)?.Title ?? string.Empty;
             EpisodeNo = string.Empty;
@@ -329,7 +343,14 @@ namespace VideoPlayer.ViewModels.Categorization
             switch (SelectedVideoType)
             {
                 case VideoType.Movie:
-                    MetaInfo = new MovieInformation() { Genre = Genre, Plot = Plot, Title = Name };
+                    MetaInfo = new MovieInformation()
+                    {
+                        Genre = Genre,
+                        Plot = Plot,
+                        Title = Name,
+                        ReleaseDate = ReleaseDate,
+                        Year = (ReleaseDate == DateTime.MinValue) ? 0 : ReleaseDate.Year
+                    };
                     break;
                 case VideoType.TVShow:
                     MetaInfo = new EpisodeInformation()

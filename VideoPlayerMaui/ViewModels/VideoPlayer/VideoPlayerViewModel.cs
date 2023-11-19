@@ -293,7 +293,7 @@ namespace VideoPlayer.ViewModels.VideoPlayer
                     return;
 
                 var Duration = position - LastSavedPosition;
-                if (Duration.TotalSeconds < Settings.Current.PlaybackHistory_SavePositionIntervallSeconds)
+                if (Math.Abs(Duration.TotalSeconds) < Settings.Current.PlaybackHistory_SavePositionIntervallSeconds)
                     return;
                 LastSavedPosition = position;
 

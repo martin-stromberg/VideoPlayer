@@ -63,20 +63,10 @@ namespace VideoPlayer.Services.Playlists
         {
             currentPlaylistCompletionSessionId = Random.Shared.Next(int.MaxValue);
             GeneralPlaylist.Items.Clear();
-            Task SaveTask = null;
-            bool AsyncSave = false;
             await AddTVShowEpisodes(episode,
                                     true,
                                     currentPlaylistCompletionSessionId,
-                                    async () =>
-                                    {
-                                        SaveTask = SavePlaylistAsync(GeneralPlaylist);
-                                        if (AsyncSave)
-                                            await SaveTask;
-                                    });
-            if (SaveTask != null)
-                await SaveTask;
-            AsyncSave = true;
+                                    async () => { await SavePlaylistAsync(GeneralPlaylist); });
         }
 
         public async Task StartTVShowPlaylistAsync(TVShow show)
@@ -215,8 +205,6 @@ namespace VideoPlayer.Services.Playlists
             bool started = startPlayback;
             bool isFirst = true;
             var season = await _MediaLibrary.GetTVShowSeason(episode.SeasonId);
-
-            // await AddTVShowEpisode(episode, session, Finished);
 
             var episodes = (await _MediaLibrary.GetTVShowEpisodes(season.Id))
                 .OrderBy(e => e.EpisodeNo)

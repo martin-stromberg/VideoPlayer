@@ -416,6 +416,7 @@ namespace VideoPlayer.Services.MediaLibrary
             var mediaStore = await _DataStore.GetMediaItemAsync(mediaItem.Id);
             await ClearMediaItem(mediaStore);
             await _DataStore.RemoveMediaItem(mediaStore);
+            OnElementChanged(null, null, new BaseModelEventArgs(mediaItem));
         }
 
         public async Task RemoveMovieAsync(Movie movie)
@@ -715,6 +716,16 @@ namespace VideoPlayer.Services.MediaLibrary
                 .Take(count)
                 .ToArrayAsync())
                 .Select(mi => MediaItem.FromDataModel(mi).UpdatePicture(_Settings.CacheRootPath) as MediaItem);
+        }
+
+        public async Task<IEnumerable<MediaItem>> GetDownloadedMediaItems(int offset, int count)
+        {
+            return (await(await _DataStore.GetMediaItemsAsync())
+                   .Where(mi => mi.CopyType == 2)
+                   .Skip(offset)
+                   .Take(count)
+                   .ToArrayAsync())
+                   .Select(mi => MediaItem.FromDataModel(mi).UpdatePicture(_Settings.CacheRootPath) as MediaItem);
         }
 
         public async Task AddPlaybackHistory(History currentHistory)

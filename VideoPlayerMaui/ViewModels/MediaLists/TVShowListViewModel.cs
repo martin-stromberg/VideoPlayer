@@ -4,6 +4,7 @@ using VideoPlayer.Models;
 using VideoPlayer.Models.TVShows;
 using VideoPlayer.Navigation;
 using VideoPlayer.Services.MediaLibrary;
+using VideoPlayer.Services.MediaLibrary.Downloads;
 using VideoPlayer.Services.Playlists;
 using VideoPlayer.Services.Settings;
 using VideoPlayer.StatusManagement;
@@ -19,8 +20,9 @@ namespace VideoPlayer.ViewModels.MediaLists
             INavigationManager navigationManager,
             IMediaLibrary mediaLibrary,
             IPlaylistManager playlistManager,
-            ISettingsService settingsService)
-            : base(statusPublisher, navigationManager, mediaLibrary, playlistManager, settingsService) { }
+            ISettingsService settingsService,
+            IMediaDownloader mediaDownloader)
+            : base(statusPublisher, navigationManager, mediaLibrary, playlistManager, settingsService, mediaDownloader) { }
 
         public override void OnAppeared()
         {
@@ -44,14 +46,16 @@ namespace VideoPlayer.ViewModels.MediaLists
                                                  StatusPublisher,
                                                  NavigationManager,
                                                  PlaylistManager,
-                                                 Settings);
+                                                 Settings,
+                                                 MediaDownloader);
             }
             else if (mediaItem is TVShowSeason)
                 vm = new TVShowSeasonListItemViewModel(mediaItem as TVShowSeason,
                                                        StatusPublisher,
                                                        NavigationManager,
                                                        PlaylistManager,
-                                                       Settings);
+                                                       Settings,
+                                                       MediaDownloader);
             else if (mediaItem is TVShowEpisode)
             {
                 Func<IEnumerable<TVShowEpisode>> getEpisodes = (ParentSeason != null) ? () =>
@@ -62,7 +66,8 @@ namespace VideoPlayer.ViewModels.MediaLists
                                                         getEpisodes,
                                                         StatusPublisher,
                                                         NavigationManager,
-                                                        Settings);
+                                                        Settings,
+                                                        MediaDownloader);
             }
             else
                 return;

@@ -4,6 +4,7 @@ using VideoPlayer.Models;
 using VideoPlayer.Models.Movies;
 using VideoPlayer.Navigation;
 using VideoPlayer.Services.MediaLibrary;
+using VideoPlayer.Services.MediaLibrary.Downloads;
 using VideoPlayer.Services.Playlists;
 using VideoPlayer.Services.Settings;
 using VideoPlayer.StatusManagement;
@@ -19,8 +20,9 @@ namespace VideoPlayer.ViewModels.MediaLists
             INavigationManager navigationManager,
             IMediaLibrary mediaLibrary,
             IPlaylistManager playlistManager,
-            ISettingsService settingsService)
-            : base(statusPublisher, navigationManager, mediaLibrary, playlistManager, settingsService) { }
+            ISettingsService settingsService,
+            IMediaDownloader mediaDownloader)
+            : base(statusPublisher, navigationManager, mediaLibrary, playlistManager, settingsService, mediaDownloader) { }
 
         public override void OnAppeared()
         {
@@ -46,14 +48,16 @@ namespace VideoPlayer.ViewModels.MediaLists
                                                 getMovies,
                                                 StatusPublisher,
                                                 NavigationManager,
-                                                Settings);
+                                                Settings,
+                                                MediaDownloader);
             }
             else if (mediaItem is MovieCollection)
                 vm = new MovieCollectionListItemViewModel(mediaItem as MovieCollection,
                                                           StatusPublisher,
                                                           NavigationManager,
                                                           PlaylistManager,
-                                                          Settings);
+                                                          Settings,
+                                                          MediaDownloader);
             else
                 return;
             Items.Add(vm);

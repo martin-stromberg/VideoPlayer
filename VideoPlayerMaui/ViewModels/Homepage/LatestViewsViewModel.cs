@@ -7,6 +7,7 @@ using VideoPlayer.Models.PlaybackHistory;
 using VideoPlayer.Models.TVShows;
 using VideoPlayer.Navigation;
 using VideoPlayer.Services.MediaLibrary;
+using VideoPlayer.Services.MediaLibrary.Downloads;
 using VideoPlayer.Services.MediaLibrary.PlaybackHistory;
 using VideoPlayer.Services.Playlists;
 using VideoPlayer.Services.Settings;
@@ -27,8 +28,9 @@ namespace VideoPlayer.ViewModels.Homepage
             IMediaLibrary mediaLibrary,
             IPlaylistManager playlistManager,
             IPlaybackHistoryManager playbackHistoryManager,
-            ISettingsService settingsService)
-            : base(statusPublisher, navigationManager, mediaLibrary, playlistManager, settingsService)
+            ISettingsService settingsService,
+            IMediaDownloader mediaDownloader)
+            : base(statusPublisher, navigationManager, mediaLibrary, playlistManager, settingsService, mediaDownloader)
         {
             _PlaybackHistoryManager = playbackHistoryManager;
             _PlaybackHistoryManager.CurrentHistory.Items.CollectionChanged += Items_CollectionChanged;
@@ -79,7 +81,8 @@ namespace VideoPlayer.ViewModels.Homepage
                                                             () => null,
                                                             StatusPublisher,
                                                             NavigationManager,
-                                                            Settings);
+                                                            Settings,
+                                                            MediaDownloader);
                     if (vm.Picture == null)
                     {
                         season = await MediaLibrary.GetTVShowSeason(episode.SeasonId);
@@ -97,7 +100,8 @@ namespace VideoPlayer.ViewModels.Homepage
                                                     () => null,
                                                     StatusPublisher,
                                                     NavigationManager,
-                                                    Settings);
+                                                    Settings,
+                                                    MediaDownloader);
                 }
                 else
                     continue;

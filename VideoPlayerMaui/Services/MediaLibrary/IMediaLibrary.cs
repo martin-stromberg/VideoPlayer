@@ -75,6 +75,8 @@ namespace VideoPlayer.Services.MediaLibrary
         Task<BaseModel> GetTypedItem(long mediaItemId);
 
         Task<IEnumerable<MediaItem>> GetUncategorizedMediaItems(int offset, int count);
+
+        Task<IEnumerable<MediaItem>> GetDownloadedMediaItems(int offset, int count);
         #endregion
 
         #region Movies
@@ -145,6 +147,7 @@ namespace VideoPlayer.Services.MediaLibrary
 
         Task AddPlaybackHistory(History history);
 
-        Task<IEnumerable<HistoryEntry>> GetPlayBackHistoryEntries();        
+        Task<IEnumerable<HistoryEntry>> GetPlayBackHistoryEntries();
+
     }
 }

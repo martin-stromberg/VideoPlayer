@@ -3,6 +3,7 @@ using System.Linq;
 using VideoPlayer.Models;
 using VideoPlayer.Models.MediaItems;
 using VideoPlayer.Navigation;
+using VideoPlayer.Services.MediaLibrary.Downloads;
 using VideoPlayer.Services.Settings;
 using VideoPlayer.StatusManagement;
 
@@ -23,12 +24,42 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
             BaseModel mediaItem,
             IStatusPublisher statusPublisher,
             INavigationManager navigationManager,
-            ISettingsService settingsService)
+            ISettingsService settingsService,
+            IMediaDownloader mediaDownloader)
             : base(statusPublisher, navigationManager, settingsService)
         {
+            _MediaDownloader = mediaDownloader;
             Mode = ItemViewModel.Box;
             Item = mediaItem;
             StartPlayback = new Command(() => ExecuteStartPlayback(), () => CanStartPlayback());
+            DownloadItem = new Command(() => ExecuteDownloadItem(), () => CanDownloadItem());
+            DeleteDownload = new Command(() => ExecuteDeleteDownload(), () => CanDeleteDownload());
+        }
+
+        private readonly IMediaDownloader _MediaDownloader;
+
+        public Command DownloadItem { get; }
+
+        public Command DeleteDownload { get; set; }
+
+        private void ExecuteDownloadItem()
+        {
+            _MediaDownloader.StartDownload(Item);
+        }
+
+        private bool CanDownloadItem()
+        {
+            return true;
+        }
+
+        private void ExecuteDeleteDownload()
+        {
+            _MediaDownloader.RemoveDownload(Item);
+        }
+
+        private bool CanDeleteDownload()
+        {
+            return (Item as MediaItem)?.HasDownload ?? false;
         }
 
         public ItemViewModel Mode
@@ -119,6 +150,20 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
             }
         }
 
+        public bool HasDownload
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+                if (DeleteDownload != null)
+                    DeleteDownload.ChangeCanExecute();
+            }
+        }
+
         public Command StartPlayback { get; set; }
 
         protected virtual void UpdateProperties()
@@ -126,6 +171,7 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
             ItemType = Item?.GetType();
             Title = Item?.Name ?? string.Empty;
             Path = (Item as MediaItem)?.Path ?? string.Empty;
+            HasDownload = (Item as MediaItem)?.HasDownload ?? false;
             Picture = FindProperty<ImageSource>();
         }
 

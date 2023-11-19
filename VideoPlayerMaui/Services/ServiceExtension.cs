@@ -42,6 +42,7 @@ namespace VideoPlayer.Services
             services.AddSingleton<ILogDatabase>(sp => sp.GetService<IMediaLibraryDatabase>() as ILogDatabase);
             services.AddSingleton<ISettingsDataSource>(sp =>
                                                        sp.GetService<IMediaLibraryDatabase>() as ISettingsDataSource);
+            services.AddSingleton<IJobDatabase>(sp => sp.GetService<IMediaLibraryDatabase>() as IJobDatabase);
             services.AddSingleton<IMediaLibrary, MediaLibrary.MediaLibrary>();
             services.AddTransient<DemoLibrary>();
             services.AddTransient<IDatabaseExporter, DatabaseExporter>();
@@ -52,6 +53,7 @@ namespace VideoPlayer.Services
             services.AddSingleton<IPlaybackHistoryManager, PlaybackHistoryManager>();
             services.AddSingleton<IPlaylistManager, PlaylistManager>();
             services.AddSingleton<ISettingsService, SettingsService>();
+
             return services;
         }
 

@@ -1,5 +1,6 @@
 ﻿using VideoPlayer.Models.TVShows;
 using VideoPlayer.Navigation;
+using VideoPlayer.Services.MediaLibrary.Downloads;
 using VideoPlayer.Services.Playlists;
 using VideoPlayer.Services.Settings;
 using VideoPlayer.StatusManagement;
@@ -16,8 +17,9 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
             IStatusPublisher statusPublisher,
             INavigationManager navigationManager,
             IPlaylistManager playlistManager,
-            ISettingsService settingsService)
-            : base(season, statusPublisher, navigationManager, settingsService)
+            ISettingsService settingsService,
+            IMediaDownloader mediaDownloader)
+            : base(season, statusPublisher, navigationManager, settingsService, mediaDownloader)
         {
             _PlaylistManager = playlistManager;
         }

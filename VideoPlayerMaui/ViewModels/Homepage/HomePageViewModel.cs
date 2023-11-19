@@ -2,6 +2,7 @@
 using System.Linq;
 using VideoPlayer.Navigation;
 using VideoPlayer.Services.MediaLibrary;
+using VideoPlayer.Services.MediaLibrary.Downloads;
 using VideoPlayer.Services.MediaLibrary.PlaybackHistory;
 using VideoPlayer.Services.Playlists;
 using VideoPlayer.Services.Settings;
@@ -18,7 +19,8 @@ namespace VideoPlayer.ViewModels.Homepage
             IMediaLibrary mediaLibrary,
             IPlaylistManager playlistManager,
             IPlaybackHistoryManager playbackHistoryManager,
-            ISettingsService settingsService)
+            ISettingsService settingsService,
+            IMediaDownloader mediaDownloader)
             : base(statusPublisher, navigationManager, settingsService)
         {
             LatestViews = new LatestViewsViewModel(StatusPublisher,
@@ -26,7 +28,8 @@ namespace VideoPlayer.ViewModels.Homepage
                                                    mediaLibrary,
                                                    playlistManager,
                                                    playbackHistoryManager,
-                                                   settingsService);
+                                                   settingsService,
+                                                   mediaDownloader);
             OpenCategory = new Command((sender) => DoOpenCategory(sender));
         }
 

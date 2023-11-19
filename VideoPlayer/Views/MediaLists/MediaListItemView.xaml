@@ -6,6 +6,7 @@
              x:Class="VideoPlayer.Views.MediaLists.MediaListItemView"
              x:DataType="vm:MediaListItemViewModel">
     <Grid>
+        <!-- Darstellung als Bildelement für die Wiedergabe-Navigation -->
         <Frame Margin="5" WidthRequest="200" HeightRequest="200" IsVisible="{Binding IsBoxMode}">
             <Frame.GestureRecognizers>
                 <TapGestureRecognizer Tapped="ListItemTapped"/>
@@ -17,35 +18,51 @@
                 </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="30"/>
+                    <RowDefinition Height="30"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
                 <Image 
-                Grid.Row="0"
-                Grid.RowSpan="2"
-                Grid.Column="0"
-                Grid.ColumnSpan="2" 
-                Source="{Binding Picture}"/>
+                    Grid.Row="0"
+                    Grid.RowSpan="3"
+                    Grid.Column="0"
+                    Grid.ColumnSpan="2" 
+                    Source="{Binding Picture}"/>
                 <Label
-                Grid.Row="1"
-                Grid.Column="0"
-                Grid.ColumnSpan="2"
-                Text="{Binding Title}"
-                VerticalOptions="End" 
-                HorizontalOptions="Center" />
+                    Grid.Row="1"
+                    Grid.RowSpan="2"
+                    Grid.Column="0"
+                    Grid.ColumnSpan="2"
+                    Text="{Binding Title}"
+                    VerticalOptions="End" 
+                    HorizontalOptions="Center" />
                 <Frame
-                Grid.Row="0"
-                Grid.Column="1"
-                BackgroundColor="Transparent" 
-                Margin="0" 
-                Padding="0">
+                    Grid.Row="0"
+                    Grid.Column="1"
+                    BackgroundColor="Transparent" 
+                    Margin="0" 
+                    Padding="0">
                     <Frame.GestureRecognizers>
                         <TapGestureRecognizer Tapped="ListItemPlaybackTapped"/>
                     </Frame.GestureRecognizers>
                     <Label Text="▶️" TextColor="Red" VerticalOptions="Center" HorizontalOptions="Center"/>
                 </Frame>
+                <ImageButton 
+                    Grid.Column="1" 
+                    Grid.Row="1" 
+                    Source="download.png"
+                    HeightRequest="20"
+                    WidthRequest="20"
+                    Background="Transparent"
+                    Command="{Binding DownloadItem}">
+                    <ImageButton.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="TapGestureRecognizer_Tapped"/>
+                    </ImageButton.GestureRecognizers>
+                </ImageButton>
             </Grid>
         </Frame>
+        
+        <!-- Darstellung als Listenelement für die Verwaltungs-Navigation -->
         <Frame Margin="5" HeightRequest="100" IsVisible="{Binding IsLaneMode}" HorizontalOptions="FillAndExpand">
             <Frame.GestureRecognizers>
                 <TapGestureRecognizer Tapped="ListItemTapped"/>
@@ -54,8 +71,7 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="100"/>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="40"/>
-                    <ColumnDefinition Width="40"/>
+                    <ColumnDefinition Width="150"/>
                 </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="30"/>
@@ -82,19 +98,41 @@
                     Text="{Binding Path}"
                     VerticalOptions="Start" 
                     HorizontalOptions="Start" />
-                <Frame
+                <HorizontalStackLayout
+                    Grid.Column="2"
                     Grid.Row="0"
-                    Grid.Column="3"
-                    BackgroundColor="Transparent" 
-                    Margin="0" 
-                    Padding="0">        
-                    <Frame.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="ListItemPlaybackTapped"/>
-                    </Frame.GestureRecognizers>
-                    <Label Text="▶️" TextColor="Red" VerticalOptions="Center" HorizontalOptions="Center"/>
-                </Frame>
-                <ImageButton Grid.Column="2" WidthRequest="20" HeightRequest="20" Source="process.png" Command="{Binding ProcessItem}"/>
-
+                    Grid.RowSpan="2">
+                    <ImageButton 
+                        Margin="5"
+                        WidthRequest="40" 
+                        HeightRequest="40" 
+                        BackgroundColor="Transparent" 
+                        Source="delete.png" 
+                        IsVisible="{Binding HasDownload}"
+                        Command="{Binding DeleteDownload}"/>
+                    <ImageButton 
+                        Margin="5"
+                        WidthRequest="40" 
+                        HeightRequest="40" 
+                        BackgroundColor="Transparent" 
+                        Source="process.png" 
+                        Command="{Binding ProcessItem}"/>
+                    <Frame
+                        Grid.Row="0"
+                        Grid.RowSpan="2"
+                        Grid.Column="3"
+                        BackgroundColor="Transparent" 
+                        Margin="5" 
+                        Padding="0"
+                        WidthRequest="40" 
+                        HeightRequest="40">
+                        <Frame.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="ListItemPlaybackTapped"/>
+                        </Frame.GestureRecognizers>
+                        <Label Text="▶️" TextColor="Red" VerticalOptions="Center" HorizontalOptions="Center"/>
+                    </Frame>
+                </HorizontalStackLayout>
+                
             </Grid>
         </Frame>
     </Grid>

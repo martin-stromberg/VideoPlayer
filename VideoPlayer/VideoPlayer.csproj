@@ -57,6 +57,8 @@
 
 	<ItemGroup>
 	  <None Remove="Resources\AppIcon\appicon.svg" />
+	  <None Remove="Resources\Images\delete.png" />
+	  <None Remove="Resources\Images\download.png" />
 	  <None Remove="Resources\Images\icon_rescan.png" />
 	  <None Remove="Resources\Images\process.png" />
 	  <None Remove="Resources\Images\uncategorized.png" />

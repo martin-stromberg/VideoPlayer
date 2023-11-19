@@ -10,7 +10,8 @@ namespace VideoPlayer.Models.MediaItems
     {
 
         None,
-        Cache
+        Cache,
+        Download
 
     }
 
@@ -124,6 +125,20 @@ namespace VideoPlayer.Models.MediaItems
             set
             {
                 SetProperty<MediaItemCopyType>(value);
+                if (value == MediaItemCopyType.Download)
+                    HasDownload = true;
+            }
+        }
+
+        public bool HasDownload
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
             }
         }
 

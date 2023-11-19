@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using VideoPlayer.Models;
 using VideoPlayer.Models.MediaItems;
 
 namespace VideoPlayer.Services.MediaLibrary.Downloads
@@ -8,6 +9,12 @@ namespace VideoPlayer.Services.MediaLibrary.Downloads
     {
 
         Task<MediaItem> CacheAsync(MediaItem item);
+
+        void StartDownload(BaseModel item);
+
+        Task ContinueDownloadsAsync();
+
+        void RemoveDownload(BaseModel item);
 
     }
 }

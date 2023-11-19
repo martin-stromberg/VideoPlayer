@@ -10,9 +10,16 @@
              Shell.NavBarIsVisible="True"
              Title="{Binding Title}">
     <ContentPage.ToolbarItems>
-        <ToolbarItem IconImageSource="uncategorized.png" Command="{Binding ListMediaItems}" CommandParameter="uncategorized" />
-        <ToolbarItem IconImageSource="download.png" Command="{Binding ListMediaItems}" CommandParameter="downloads" />
-        <ToolbarItem Text="▶️" Command="{Binding StartPlayback}" CommandParameter="genral" />
+        <ToolbarItem Text="≢"                      
+                     Order="Secondary"
+                     Command="{Binding ListMediaItems}" 
+                     CommandParameter="uncategorized" />
+        <ToolbarItem Text="📥" 
+                     Command="{Binding ListMediaItems}" 
+                     CommandParameter="downloads" />
+        <ToolbarItem Text="▶️" 
+                     Command="{Binding StartPlayback}" 
+                     CommandParameter="genral" />
     </ContentPage.ToolbarItems>
     <Grid>
         <Label

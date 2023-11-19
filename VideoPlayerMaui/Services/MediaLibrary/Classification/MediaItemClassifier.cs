@@ -71,7 +71,7 @@ namespace VideoPlayer.Services.MediaLibrary.Classification
             {
                 Name = $"{episodeInformation.Season}",
                 PicturePath = seasonCollection?.PicturePath
-            };            
+            };
             var episode = new TVShowEpisode() { Name = mediaItem.Name, };
             episode.Name = episodeInformation.Title;
             episode.EpisodeNo = episodeInformation.Episode;
@@ -174,6 +174,9 @@ namespace VideoPlayer.Services.MediaLibrary.Classification
             movie.Name = movieInformation.Title;
             movie.Genre = movieInformation.Genre;
             movie.Plot = movieInformation.Plot;
+            movie.Date = movieInformation.ReleaseDate;
+            if ((movie.Date == default(DateTime)) && (movieInformation.Year > 0))
+                movie.Date = new DateTime(movieInformation.Year, 1, 1);
             movie.MediaItems = new long[] { mediaItem.Id };
             movie.PicturePath = mediaItem.PicturePath;
 

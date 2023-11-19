@@ -312,22 +312,40 @@ namespace VideoPlayer.Services.Playlists
         {
             var started = startPlayback;
             var isFirst = true;
-            var movies = await _MediaLibrary.GetMovies(movieCollection.Id);
+            var movies = (await _MediaLibrary.GetMovies(movieCollection.Id))
+                .OrderBy(m => m.Date)
+                .ThenBy(m => m.Name)
+                .ToArray();
             var count = movies.Count();
+            Task previousTask = null;
+            Task nextTask = null;
             foreach (var movie in movies)
             {
                 if (session != currentPlaylistCompletionSessionId)
                     return;
-                var task = AddMovie(movie,
+                while (nextTask != null)
+                    await Task.Delay(100);
+                nextTask = AddMovie(movie,
                                     session,
-                                    () =>
+                                    async () =>
                                     {
                                         count -= 1;
                                         if (count == 0)
                                             Finished();
+                                        else if (nextTask != null)
+                                        {
+                                            var currentTask = previousTask;
+                                            previousTask = nextTask;
+                                            if (currentTask != null)
+                                                await currentTask;
+                                            nextTask = null;
+                                        }
                                     });
                 if (isFirst || !started)
-                    await task;
+                {
+                    await nextTask;
+                    nextTask = null;
+                }
                 isFirst = false;
             }
             if (isFirst)

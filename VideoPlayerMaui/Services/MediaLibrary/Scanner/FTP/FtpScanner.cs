@@ -158,6 +158,8 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.FTP
                                 .Replace(".", "[.]")
                                 .Replace("*", ".*")
                                 .Replace("?", ".")
+                                .Replace("(", "\\(")
+                                .Replace(")", "\\)")
                                                         + '$',
                                 RegexOptions.IgnoreCase);
                                 return mask.IsMatch(f.Name);

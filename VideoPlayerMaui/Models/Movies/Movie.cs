@@ -13,6 +13,8 @@ namespace VideoPlayer.Models.Movies
 
         public string Plot { get; set; }
 
+        public DateTime Date { get; set; }
+
         public long[] MediaItems { get; set; }
 
         public string PicturePath

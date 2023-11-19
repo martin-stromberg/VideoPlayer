@@ -10,6 +10,8 @@ namespace VideoPlayer.Services.Database.Models
 
         public string Plot { get; set; }
 
+        public DateTime Date { get; set; }
+
         public string PicturePath { get; set; }
 
         public long CollectionId { get; set; }

@@ -26,13 +26,33 @@ namespace VideoPlayer.Services.MediaLibrary.Maintenance
 
         public DataCleaningMode Mode { get; set; }
 
+        private bool clearing = false;
+
         public async Task RunAsync()
         {
-            _LibraryScanner.Stop();
+            if (clearing)
+                return;
+            clearing = true;
             try
             {
+                _LibraryScanner.Stop();
                 _StatusPublisher.AddStatus($"Warte auf laufende Hintergrundaktivitäten.", true);
                 await _LibraryScanner.WaitForFinish();
+                await RunAsync(5);
+            }
+            finally
+            {
+                clearing = false;
+                _StatusPublisher.AddStatus(string.Empty, false);
+                _LibraryScanner.Start();
+            }
+        }
+
+        private async Task RunAsync(int tryCounter)
+        {
+            bool repeat = false;
+            try
+            {
                 switch (Mode)
                 {
                     case DataCleaningMode.Complete:
@@ -42,13 +62,13 @@ namespace VideoPlayer.Services.MediaLibrary.Maintenance
             }
             catch (Exception ex)
             {
+                repeat = tryCounter > 0;
                 Debug.WriteLine(ex);
+                _StatusPublisher.AddStatus($"{ex.Message}", true);
             }
-            finally
-            {
-                _StatusPublisher.AddStatus(string.Empty, false);
-                _LibraryScanner.Start();
-            }
+            finally { }
+            if (repeat)
+                await RunAsync(tryCounter - 1);
         }
 
         private async Task RunCompleteAsync()

@@ -11,5 +11,11 @@
 
         public string EpisodeNo { get; set; }
 
+        public string PicturePath { get; set; }
+
+        public long PrimaryMediaItemId { get; set; }
+
+        public long DownloadMediaItemId { get; set; }
+
     }
 }

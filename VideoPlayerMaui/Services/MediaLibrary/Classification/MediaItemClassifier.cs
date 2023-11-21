@@ -21,6 +21,12 @@ namespace VideoPlayer.Services.MediaLibrary.Classification
             this.mediaLibrary = mediaLibrary;
             this.mediaLibrary.ModelElementAdded += MediaLibrary_ModelElementAddedAsync;
             this.mediaLibrary.ModelElementUpdated += MediaLibrary_ModelElementUpdatedAsync;
+            this.mediaLibrary.ModelElementRemoved += MediaLibrary_ModelElementRemoved;
+        }
+
+        private void MediaLibrary_ModelElementRemoved(object sender, BaseModelEventArgs e)
+        {
+            RemoveMediaItemAsync(e.Element as MediaItem);
         }
 
         private void MediaLibrary_ModelElementUpdatedAsync(object sender, BaseModelEventArgs e)
@@ -33,16 +39,67 @@ namespace VideoPlayer.Services.MediaLibrary.Classification
             CollectMediaItemAsync(e.Element as MediaItem).Wait();
         }
 
+        private async Task RemoveMediaItemAsync(MediaItem mediaItem)
+        {
+            if (mediaItem == null)
+                return;
+            if (mediaItem.CopyType != MediaItemCopyType.None)
+                await RemoveDuplicate(mediaItem);
+        }
+
+        private async Task RemoveDuplicate(MediaItem mediaItem)
+        {
+            var episode = await mediaLibrary.FindTVShowEpisodeByMediaItem(mediaItem.OriginalMediaItemId);
+            await RemoveTVShowEpisode(episode, mediaItem);
+        }
+
+        private async Task RemoveTVShowEpisode(TVShowEpisode episode, MediaItem mediaItem)
+        {
+            if (episode == null)
+                return;
+            var season = await mediaLibrary.GetTVShowSeason(episode.SeasonId);
+            var show = await mediaLibrary.GetTVShow(season.ShowId);
+            switch (mediaItem.CopyType)
+            {
+                case MediaItemCopyType.Download:
+                    episode.DownloadMediaItem = null;
+                    break;
+            }
+            await mediaLibrary.AddTVShowEpisodeAsync(show, season, episode);
+        }
+
         private async Task CollectMediaItemAsync(MediaItem mediaItem)
         {
             if (mediaItem == null)
                 return;
             if (mediaItem.CopyType != MediaItemCopyType.None)
-                return;
-            if (mediaItem.MetaInfo is MovieInformation)
+                await CollectDuplicate(mediaItem);
+            else if (mediaItem.MetaInfo is MovieInformation)
                 await CollectMovieAsync(mediaItem, mediaItem.MetaInfo as MovieInformation);
             else if (mediaItem.MetaInfo is EpisodeInformation)
                 await CollectTVShowAsync(mediaItem, mediaItem.MetaInfo as EpisodeInformation);
+        }
+
+        private async Task CollectDuplicate(MediaItem mediaItem)
+        {
+            var episode = await mediaLibrary.FindTVShowEpisodeByMediaItem(mediaItem.OriginalMediaItemId);
+            await CollectTVShowEpisode(episode, mediaItem);
+        }
+
+        private async Task CollectTVShowEpisode(TVShowEpisode episode, MediaItem mediaItem)
+        {
+            if (episode == null)
+                return;
+            var season = await mediaLibrary.GetTVShowSeason(episode.SeasonId);
+            var show = await mediaLibrary.GetTVShow(season.ShowId);
+            switch (mediaItem.CopyType)
+            {
+                case MediaItemCopyType.Download:
+                    episode.DownloadMediaItem = mediaItem;
+                    break;
+            }
+
+            await mediaLibrary.AddTVShowEpisodeAsync(show, season, episode);
         }
 
         private async Task CollectTVShowAsync(MediaItem mediaItem, EpisodeInformation episodeInformation)
@@ -76,6 +133,8 @@ namespace VideoPlayer.Services.MediaLibrary.Classification
             episode.Name = episodeInformation.Title;
             episode.EpisodeNo = episodeInformation.Episode;
             episode.MediaItems = new long[] { mediaItem.Id };
+            episode.PrimaryMediaItem = mediaItem;
+            episode.PicturePath = mediaItem.PicturePath;
             await CollectShowAsync(show, season, episode);
         }
 
@@ -134,12 +193,14 @@ namespace VideoPlayer.Services.MediaLibrary.Classification
             if (int.TryParse(existingEpisode.EpisodeNo, out var eNo))
                 existingEpisode.EpisodeNo = $"Folge {eNo.ToString().PadLeft(2, '0')}";
             existingEpisode.Name = existingEpisode.Name ?? episode.Name;
+            existingEpisode.PicturePath = episode.PicturePath ?? existingEpisode.PicturePath;
             existingEpisode.MediaItems = existingEpisode
                 .MediaItems
                 .Concat(episode.MediaItems)
                 .Distinct()
                 .OrderBy(id => id)
                 .ToArray();
+            existingEpisode.PrimaryMediaItem = episode.PrimaryMediaItem;
             await mediaLibrary.AddTVShowEpisodeAsync(existingShow, existingSeason, existingEpisode);
         }
 

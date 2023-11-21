@@ -74,7 +74,7 @@ namespace VideoPlayer.Models
         }
         #endregion
 
-        public BaseDataModel ToDataModelAsync()
+        public virtual BaseDataModel ToDataModelAsync()
         {
             var ownType = GetType();
             var dataModelType = (ownType.GetCustomAttribute(typeof(DataModelReferenceAttribute)) as DataModelReferenceAttribute).DataModelType;
@@ -82,14 +82,22 @@ namespace VideoPlayer.Models
             foreach (var prop in ownType.GetProperties().Where(p => p.CanRead))
             {
                 var convertToJson = false;
+                var refFieldName = string.Empty;
                 var dataModelProp = dataModelType.GetProperty(prop.Name);
+                if (dataModelProp == null)
+                {
+                    var fieldRefAttr = prop.GetCustomAttribute(typeof(FieldModelReferenceAttribute)) as FieldModelReferenceAttribute;
+                    refFieldName = fieldRefAttr?.FieldName ?? string.Empty;
+                    var sourceRefFieldName = fieldRefAttr?.ReferenceFieldName ?? string.Empty;
+                    dataModelProp = dataModelType.GetProperty(sourceRefFieldName);
+                }
                 if (dataModelProp == null)
                 {
                     convertToJson = true;
                     dataModelProp = dataModelType.GetProperty($"{prop.Name}Json");
-                    if (dataModelProp == null)
-                        continue;
                 }
+                if (dataModelProp == null)
+                    continue;
                 if (!dataModelProp.CanWrite)
                     continue;
                 var ownValue = prop.GetValue(this);
@@ -112,6 +120,16 @@ namespace VideoPlayer.Models
                         {
                             TypeNameHandling = TypeNameHandling.Objects
                         });
+                else if (!string.IsNullOrWhiteSpace(refFieldName))
+                {
+                    var propField = prop.PropertyType.GetProperty(refFieldName);
+                    if (ownValue is not null)
+                    {
+                        ownValue = propField.GetValue(ownValue);
+                    }
+                    else
+                        ownValue = null;
+                }
                 dataModelProp.SetValue(dataModel, ownValue);
             }
             return dataModel;
@@ -181,14 +199,22 @@ namespace VideoPlayer.Models
             foreach (var prop in ownType.GetProperties().Where(p => p.CanWrite))
             {
                 var convertToJson = false;
+                string refFieldName = string.Empty;
                 var dataModelProp = dataModelType.GetProperty(prop.Name);
+                if (dataModelProp == null)
+                {
+                    var fieldRefAttr = prop.GetCustomAttribute(typeof(FieldModelReferenceAttribute)) as FieldModelReferenceAttribute;
+                    refFieldName = fieldRefAttr?.FieldName ?? string.Empty;
+                    var sourceRefFieldName = fieldRefAttr?.ReferenceFieldName ?? string.Empty;
+                    dataModelProp = dataModelType.GetProperty(sourceRefFieldName);
+                }
                 if (dataModelProp == null)
                 {
                     convertToJson = true;
                     dataModelProp = dataModelType.GetProperty($"{prop.Name}Json");
-                    if (dataModelProp == null)
-                        continue;
                 }
+                if (dataModelProp == null)
+                    continue;
                 if (!dataModelProp.CanRead)
                     continue;
                 var sourceValue = dataModelProp.GetValue(dataModel);
@@ -205,6 +231,18 @@ namespace VideoPlayer.Models
                             {
                                 TypeNameHandling = TypeNameHandling.Objects
                             });
+                    else if (!string.IsNullOrWhiteSpace(refFieldName))
+                    {
+                        var propField = prop.PropertyType.GetProperty(refFieldName);
+                        if (!sourceValue.Equals(Activator.CreateInstance(propField.PropertyType)))
+                        {
+                            var propFieldObj = Activator.CreateInstance(prop.PropertyType);
+                            propField.SetValue(propFieldObj, sourceValue);
+                            sourceValue = propFieldObj;
+                        }
+                        else
+                            sourceValue = null;
+                    }
                 }
                 prop.SetValue(this, sourceValue);
             }

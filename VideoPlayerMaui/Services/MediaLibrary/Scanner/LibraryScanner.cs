@@ -419,7 +419,10 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
         {
             string nfoFolder = Path.GetDirectoryName(item.Path);
             string fileNameWithoutExt = Path.GetFileNameWithoutExtension(item.Path);
-            var currentFiles = scanner.FindFiles(nfoFolder, $"{fileNameWithoutExt}.*").ToArray();
+            var currentFiles = scanner.FindFiles(nfoFolder, $"{fileNameWithoutExt}.*")
+                                      .Concat(scanner.FindFiles(nfoFolder, $"{fileNameWithoutExt}-thumb.*"))
+                                      .OrderByDescending(f => f.Name)
+                                      .ToArray();
             foreach (var file in currentFiles)
             {
                 logger.LogDebug($"File with same name: {file.Name}");

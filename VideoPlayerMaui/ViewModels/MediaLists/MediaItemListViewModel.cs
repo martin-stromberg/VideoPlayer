@@ -111,7 +111,8 @@ namespace VideoPlayer.ViewModels.MediaLists
                                                          NavigationManager,
                                                          Settings,
                                                          _LibraryScanner,
-                                                         _MediaDownloader)
+                                                         _MediaDownloader,
+                                                         MediaLibrary)
                         {
                             Mode = ItemViewModel.Lane
                         });

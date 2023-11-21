@@ -44,27 +44,15 @@
                     Grid.ColumnSpan="2"
                     Text="{Binding Subtitle}"
                     HorizontalOptions="StartAndExpand"/>
-                <ImageButton 
-                    Grid.Column="1" 
-                    Grid.Row="0" 
-                    Source="download.png"
-                    HeightRequest="20"
-                    WidthRequest="20"
-                    Background="Transparent"
-                    Command="{Binding DownloadItem}">
-                    <ImageButton.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="TapGestureRecognizer_Tapped"/>
-                    </ImageButton.GestureRecognizers>
-                </ImageButton>
             </Grid>
         </Frame>
         
         <!-- Darstellung als Listenelement für die Verwaltungs-Navigation -->
         <Frame Margin="5" HeightRequest="100" IsVisible="{Binding IsLaneMode}" HorizontalOptions="FillAndExpand">
             <Frame.GestureRecognizers>
-                <TapGestureRecognizer Tapped="ListItemTapped"/>
+                
             </Frame.GestureRecognizers>
-            <Grid>
+            <Grid ColumnSpacing="5">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="100"/>
                     <ColumnDefinition Width="*"/>
@@ -80,14 +68,23 @@
                     Grid.RowSpan="2"
                     Grid.Column="0"
                     Grid.ColumnSpan="1" 
-                    Source="{Binding Picture}"/>                
-                <Label
-                    Grid.Row="1"
-                    Grid.Column="1"
-                    Grid.ColumnSpan="2"
-                    Text="{Binding Title}"
-                    VerticalOptions="Start" 
-                    HorizontalOptions="Start" />                
+                    Source="{Binding Picture}"/>
+                <VerticalStackLayout
+                    Grid.Row="0"
+                    Grid.Column="1">
+                    <VerticalStackLayout.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="ListItemTapped"/>
+                    </VerticalStackLayout.GestureRecognizers>
+                    <Label
+                        Text="{Binding Title}"
+                        VerticalOptions="Start" 
+                        HorizontalOptions="Start" />
+                    <Label
+                        Text="{Binding Subtitle}"
+                        VerticalOptions="Start" 
+                        HorizontalOptions="Start" />
+                </VerticalStackLayout>
+                
                 <Label
                     Grid.Row="1"
                     Grid.Column="1"
@@ -98,7 +95,17 @@
                 <HorizontalStackLayout
                     Grid.Column="2"
                     Grid.Row="0"
-                    Grid.RowSpan="2">
+                    Grid.RowSpan="2"
+                    HorizontalOptions="EndAndExpand">
+                    <ImageButton 
+                        Margin="5"
+                        Source="download.png"
+                        WidthRequest="30" 
+                        HeightRequest="30" 
+                        Background="Transparent"
+                        IsVisible="{Binding CanBeDownloaded}"
+                        Command="{Binding DownloadItem}">
+                    </ImageButton>
                     <ImageButton 
                         Margin="5"
                         WidthRequest="40" 
@@ -131,6 +138,11 @@
                 </HorizontalStackLayout>
                 
             </Grid>
+        </Frame>
+
+        <!-- Darstellung als Listenelement für die Platzhalter (notwendig für iOS) -->
+        <Frame Margin="5" HeightRequest="100" IsVisible="{Binding IsDummyMode}" HorizontalOptions="FillAndExpand">
+            
         </Frame>
     </Grid>
 </ContentView>

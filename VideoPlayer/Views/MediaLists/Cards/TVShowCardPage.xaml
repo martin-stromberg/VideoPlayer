@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:VideoPlayer.ViewModels.MediaLists.Details;assembly=VideoPlayerMaui"
+             xmlns:view="clr-namespace:VideoPlayer.Views.MediaLists"
+             x:DataType="vm:TVShowDetailsViewModel"
+             x:Class="VideoPlayer.Views.MediaLists.Cards.TVShowCardPage"
+             Title="{Binding Title}">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="70"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <Picker 
+            ItemsSource="{Binding Seasons}" 
+            SelectedItem="{Binding SelectedSeason}" 
+            VerticalOptions="End"
+            Margin="5,10"/>        
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout>
+                <CollectionView
+                ItemsLayout="VerticalList" 
+                ItemsSource="{Binding Episodes}">
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate>
+                            <view:MediaListItemView/>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+            </VerticalStackLayout>
+        </ScrollView>
+    </Grid>
+</ContentPage>

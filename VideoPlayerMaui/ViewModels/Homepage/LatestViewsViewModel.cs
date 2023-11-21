@@ -82,7 +82,8 @@ namespace VideoPlayer.ViewModels.Homepage
                                                             StatusPublisher,
                                                             NavigationManager,
                                                             Settings,
-                                                            MediaDownloader);
+                                                            MediaDownloader,
+                                                            MediaLibrary);
                     if (vm.Picture == null)
                     {
                         season = await MediaLibrary.GetTVShowSeason(episode.SeasonId);
@@ -101,7 +102,8 @@ namespace VideoPlayer.ViewModels.Homepage
                                                     StatusPublisher,
                                                     NavigationManager,
                                                     Settings,
-                                                    MediaDownloader);
+                                                    MediaDownloader,
+                                                    MediaLibrary);
                 }
                 else
                     continue;

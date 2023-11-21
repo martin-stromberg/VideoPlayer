@@ -28,6 +28,20 @@ namespace VideoPlayer.Services.MediaLibrary.Downloads
             _MediaLibrary = mediaLibrary;
         }
 
+        public event EventHandler<BaseModelEventArgs> Downloaded;
+
+        public event EventHandler<BaseModelEventArgs> DownloadDeleted;
+
+        private void OnDownloaded(BaseModelEventArgs e)
+        {
+            Downloaded?.Invoke(this, e);
+        }
+
+        private void OnDownloadDeleted(BaseModelEventArgs e)
+        {
+            DownloadDeleted?.Invoke(this, e);
+        }
+
         private async Task<MediaItem> FindLocalItemAsync(MediaItem item, MediaItemCopyType copyType)
         {
             if ((item.CopyType == MediaItemCopyType.Cache) || (item.CopyType == MediaItemCopyType.Download))
@@ -101,6 +115,7 @@ namespace VideoPlayer.Services.MediaLibrary.Downloads
             if (!File.Exists(alternateMediaItem.Path))
                 return null;
             await _MediaLibrary.AddMediaItemAsync(alternateMediaItem);
+            OnDownloaded(new BaseModelEventArgs(mediaItem));
             return alternateMediaItem;
         }
 
@@ -144,17 +159,17 @@ namespace VideoPlayer.Services.MediaLibrary.Downloads
         public async void StartDownload(BaseModel item)
         {
             await StartDownloadAsync(item as MediaItem);
+            await StartDownloadAsync(item as TVShowEpisode);
+            await StartDownloadAsync(item as Movie);
             await StartDownloadAsync(item as TVShow);
             await StartDownloadAsync(item as TVShowSeason);
-            await StartDownloadAsync(item as TVShowEpisode);
             await StartDownloadAsync(item as MovieCollection);
-            await StartDownloadAsync(item as Movie);
         }
 
-        public async Task StartDownloadAsync(MediaItem item)
+        public async Task<Database.Models.DownloadJob> StartDownloadAsync(MediaItem item)
         {
             if (item == null)
-                return;
+                return null;
             if (item.CopyType != MediaItemCopyType.None)
                 item = await _MediaLibrary.GetMediaItemAsync(item.OriginalMediaItemId);
 
@@ -167,7 +182,7 @@ namespace VideoPlayer.Services.MediaLibrary.Downloads
                 downloadItem = mediaItems.FirstOrDefault(i => i.CopyType == MediaItemCopyType.Download);
             }
             if (downloadItem is not null)
-                return;
+                return null;
 
             var collection = await _MediaLibrary.GetMediaItemCollectionAsync(item.ParentCollectionId);
             var source = await _MediaLibrary.GetSourceAsync(collection.MediaSourceId);
@@ -180,6 +195,7 @@ namespace VideoPlayer.Services.MediaLibrary.Downloads
             };
             await _JobDataSource.AddDownloadJob(job);
             StartWorker();
+            return job;
         }
 
         public async Task StartDownloadAsync(TVShow item)
@@ -200,19 +216,17 @@ namespace VideoPlayer.Services.MediaLibrary.Downloads
                 await StartDownloadAsync(episode);
         }
 
-        public async Task StartDownloadAsync(TVShowEpisode item)
+        public async Task<Database.Models.DownloadJob> StartDownloadAsync(TVShowEpisode item)
         {
             if (item == null)
-                return;
+                return null;
             foreach (var mediaItemId in item.MediaItems)
             {
                 var mediaItem = await _MediaLibrary.GetMediaItemAsync(mediaItemId);
                 if (mediaItem.CopyType == MediaItemCopyType.None)
-                {
-                    await StartDownloadAsync(mediaItem);
-                    break;
-                }
+                    return await StartDownloadAsync(mediaItem);
             }
+            return null;
         }
 
         public async Task StartDownloadAsync(MovieCollection item)
@@ -224,38 +238,61 @@ namespace VideoPlayer.Services.MediaLibrary.Downloads
                 await StartDownloadAsync(movie);
         }
 
-        public async Task StartDownloadAsync(Movie item)
+        public async Task<Database.Models.DownloadJob> StartDownloadAsync(Movie item)
         {
             if (item == null)
-                return;
+                return null;
             foreach (var mediaItemId in item.MediaItems)
             {
                 var mediaItem = await _MediaLibrary.GetMediaItemAsync(mediaItemId);
                 if (mediaItem.CopyType == MediaItemCopyType.None)
-                {
-                    StartDownloadAsync(mediaItem);
-                    break;
-                }
+                    return await StartDownloadAsync(mediaItem);
             }
+            return null;
         }
 
         public async void RemoveDownload(BaseModel item)
         {
-            await RemoveDownloadAsync(item as MediaItem);
+            if (await RemoveDownloadAsync(item as MediaItem))
+                OnDownloadDeleted(new BaseModelEventArgs(item));
+            if (await RemoveDownloadAsync(item as TVShowEpisode))
+                OnDownloadDeleted(new BaseModelEventArgs(item));
         }
 
-        public async Task RemoveDownloadAsync(MediaItem item)
+        public async Task<bool> RemoveDownloadAsync(TVShowEpisode item)
         {
+            if (item == null)
+                return false;
+            var removed = false;
+            foreach (var itemId in item.MediaItems)
+            {
+                var mediaItem = await _MediaLibrary.GetMediaItemAsync(itemId);
+                removed = (await RemoveDownloadAsync(mediaItem)) || removed;
+            }
+            return removed;
+        }
+
+        public async Task<bool> RemoveDownloadAsync(MediaItem item)
+        {
+            if (item == null)
+                return false;
             if ((item.CopyType == MediaItemCopyType.Download) || (item.CopyType == MediaItemCopyType.Cache))
             {
                 if (File.Exists(item.Path))
                     File.Delete(item.Path);
                 await _MediaLibrary.RemoveMediaItemAsync(item);
-                return;
+                OnDownloadDeleted(new BaseModelEventArgs(item));
+                return true;
             }
+            var removed = false;
             var items = await _MediaLibrary.GetAlternateMediaItemsAsync(item.Id);
             foreach (var alternateItem in items)
-                await RemoveDownloadAsync(alternateItem);
+                if (await RemoveDownloadAsync(alternateItem))
+                {
+                    removed = true;
+                    OnDownloadDeleted(new BaseModelEventArgs(item));
+                }
+            return removed;
         }
 
         private BackgroundWorker _Worker = null;

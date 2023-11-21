@@ -70,6 +70,8 @@ namespace VideoPlayer.Services.Database
 
         Task<TVShowEpisode> GetTVShowEpisode(long id);
 
+        Task<TVShowEpisode> FindTVShowEpisodeByMediaItem(long originalMediaItemId);
+
         Task RemoveMovie(long movieId);
 
         Task RemoveTVShow(long id);

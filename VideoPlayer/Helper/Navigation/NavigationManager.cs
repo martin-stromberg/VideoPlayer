@@ -10,6 +10,7 @@ using VideoPlayer.Services.MediaLibrary.Downloads;
 using VideoPlayer.Services.Playlists;
 using VideoPlayer.Views.Categorization;
 using VideoPlayer.Views.MediaLists;
+using VideoPlayer.Views.MediaLists.Cards;
 using VideoPlayer.Views.VideoPlayer;
 
 namespace VideoPlayer.Helper.Navigation
@@ -34,6 +35,7 @@ namespace VideoPlayer.Helper.Navigation
             _MediaLibrary = mediaLibrary;
             Routing.RegisterRoute("movies", typeof(MoviesPage));
             Routing.RegisterRoute("tvshows", typeof(TVShowsPage));
+            Routing.RegisterRoute("tvshow", typeof(TVShowCardPage));
             Routing.RegisterRoute("player", typeof(VideoPlayerPage));
             Routing.RegisterRoute("mediaitems", typeof(MediaList));
             Routing.RegisterRoute("mediaitem", typeof(MediaItemCardPage));
@@ -68,7 +70,7 @@ namespace VideoPlayer.Helper.Navigation
             {
                 { "Show", show }
             };
-            NavigateToRoute($"tvshows", navigationParameter);
+            NavigateToRoute($"tvshow", navigationParameter);
         }
 
         public void OpenTVShowSeason(TVShowSeason tVShowSeason)

@@ -4,6 +4,7 @@ using VideoPlayer.Models;
 using VideoPlayer.Models.MediaItems;
 using VideoPlayer.Models.TVShows;
 using VideoPlayer.Navigation;
+using VideoPlayer.Services.MediaLibrary;
 using VideoPlayer.Services.MediaLibrary.Downloads;
 using VideoPlayer.Services.Settings;
 using VideoPlayer.StatusManagement;
@@ -14,7 +15,8 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
     {
 
         Box,
-        Lane
+        Lane,
+        Dummy
 
     }
 
@@ -26,15 +28,71 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
             IStatusPublisher statusPublisher,
             INavigationManager navigationManager,
             ISettingsService settingsService,
-            IMediaDownloader mediaDownloader)
+            IMediaDownloader mediaDownloader,
+            IMediaLibrary mediaLibrary)
             : base(statusPublisher, navigationManager, settingsService)
         {
+            mediaLibrary.ModelElementUpdated += MediaLibrary_ModelElementUpdated;
+            mediaLibrary.ModelElementRemoved += MediaLibrary_ModelElementRemoved;
+
             _MediaDownloader = mediaDownloader;
+
+            // _MediaDownloader.Downloaded += _MediaDownloader_Downloaded;
+            // _MediaDownloader.DownloadDeleted += _MediaDownloader_DownloadDeleted;
             Mode = ItemViewModel.Box;
             Item = mediaItem;
             StartPlayback = new Command(() => ExecuteStartPlayback(), () => CanStartPlayback());
             DownloadItem = new Command(() => ExecuteDownloadItem(), () => CanDownloadItem());
             DeleteDownload = new Command(() => ExecuteDeleteDownload(), () => CanDeleteDownload());
+        }
+
+        private bool IsItem(BaseModel compare)
+        {
+            if (compare.Id != Item.Id)
+                return false;
+            return compare.GetType() == Item.GetType();
+        }
+
+        private void MediaLibrary_ModelElementRemoved(object sender, BaseModelEventArgs e)
+        {
+            if (!IsItem(e.Element))
+                return;
+            Item = null;
+        }
+
+        private void MediaLibrary_ModelElementUpdated(object sender, BaseModelEventArgs e)
+        {
+            if (!IsItem(e.Element))
+                return;
+            Item = e.Element;
+        }
+
+        private void _MediaDownloader_DownloadDeleted(object sender, BaseModelEventArgs e)
+        {
+            var mediaItem = e.Element as MediaItem;
+            ProcessDownloadDeleted(Item as TVShowEpisode, mediaItem);
+        }
+
+        private void ProcessDownloadDeleted(TVShowEpisode episode, MediaItem mediaItem)
+        {
+            if ((episode is null) || (mediaItem is null))
+                return;
+            if (episode.MediaItems.Contains(mediaItem.Id))
+                HasDownload = false;
+        }
+
+        private void _MediaDownloader_Downloaded(object sender, BaseModelEventArgs e)
+        {
+            var mediaItem = e.Element as MediaItem;
+            ProcessDownload(Item as TVShowEpisode, mediaItem);
+        }
+
+        private void ProcessDownload(TVShowEpisode episode, MediaItem mediaItem)
+        {
+            if (episode is null)
+                return;
+            if (episode.MediaItems.Contains(mediaItem.Id))
+                HasDownload = true;
         }
 
         private readonly IMediaDownloader _MediaDownloader;
@@ -45,6 +103,7 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
 
         private void ExecuteDownloadItem()
         {
+            CanBeDownloaded = false;
             _MediaDownloader.StartDownload(Item);
         }
 
@@ -55,12 +114,14 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
 
         private void ExecuteDeleteDownload()
         {
+            HasDownload = false;
+            CanBeDownloaded = false;
             _MediaDownloader.RemoveDownload(Item);
         }
 
         private bool CanDeleteDownload()
         {
-            return (Item as MediaItem)?.HasDownload ?? false;
+            return true;// (Item as MediaItem)?.HasDownload ?? (Item as TVShowEpisode)?.DownloadMediaItem is not null;
         }
 
         public ItemViewModel Mode
@@ -74,6 +135,8 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
                 SetProperty<ItemViewModel>(value);
                 IsBoxMode = value == ItemViewModel.Box;
                 IsLaneMode = value == ItemViewModel.Lane;
+                IsDummyMode = value == ItemViewModel.Dummy;
+                UpdateProperties();
             }
 
         }
@@ -91,6 +154,18 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
         }
 
         public bool IsLaneMode
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            private set
+            {
+                SetProperty<bool>(value);
+            }
+        }
+
+        public bool IsDummyMode
         {
             get
             {
@@ -160,8 +235,23 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
             set
             {
                 SetProperty<bool>(value);
+                CanBeDownloaded = !value;
                 if (DeleteDownload != null)
                     DeleteDownload.ChangeCanExecute();
+            }
+        }
+
+        public bool CanBeDownloaded
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+                if (DownloadItem != null)
+                    DownloadItem.ChangeCanExecute();
             }
         }
 
@@ -170,12 +260,20 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
         protected virtual void UpdateProperties()
         {
             ItemType = Item?.GetType();
-            Title = $"{(Item as TVShowEpisode)?.SeasonName} {(Item as TVShowEpisode)?.EpisodeNo}".Trim();
-            if (string.IsNullOrWhiteSpace(Title))
-                Title = Item?.Name ?? string.Empty;
-            Subtitle = (Item as TVShowEpisode)?.ShowName ?? string.Empty;
+            switch (Mode)
+            {
+                case ItemViewModel.Box:
+                    Title = $"{(Item as TVShowEpisode)?.SeasonName} {(Item as TVShowEpisode)?.EpisodeNo}".Trim();
+                    if (string.IsNullOrWhiteSpace(Title))
+                        Title = Item?.Name ?? string.Empty;
+                    Subtitle = (Item as TVShowEpisode)?.ShowName ?? string.Empty;
+                    break;
+                case ItemViewModel.Lane:
+                    Title = $"{(Item as TVShowEpisode)?.EpisodeNo} {Item?.Name}".Trim();
+                    break;
+            }
             Path = (Item as MediaItem)?.Path ?? string.Empty;
-            HasDownload = (Item as MediaItem)?.HasDownload ?? false;
+            HasDownload = (Item as MediaItem)?.HasDownload ?? ((Item as TVShowEpisode)?.DownloadMediaItem) != null;
             Picture = FindProperty<ImageSource>();
         }
 

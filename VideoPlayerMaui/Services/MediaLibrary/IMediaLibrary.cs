@@ -132,6 +132,8 @@ namespace VideoPlayer.Services.MediaLibrary
 
         Task<TVShowEpisode> GetTVShowEpisode(long id);
 
+        Task<TVShowEpisode> FindTVShowEpisodeByMediaItem(long mediaItemId);
+
         Task AddTVShowEpisodeAsync(TVShow show, TVShowSeason season, TVShowEpisode episode);
         #endregion
 

@@ -226,8 +226,9 @@ namespace VideoPlayer.Services.Database
 
         public async Task<IEnumerable<TVShow>> GetTVShowsByName(string name)
         {
+            name = name.ToLower();
             await InitOrUpgradeAsync();
-            return await Connection.Table<TVShow>().Where(mmi => mmi.Name == name).ToArrayAsync();
+            return await Connection.Table<TVShow>().Where(mmi => mmi.Name.ToLower() == name).ToArrayAsync();
         }
 
         public async Task<TVShow> GetTVShow(long id)
@@ -337,6 +338,13 @@ namespace VideoPlayer.Services.Database
         {
             await InitOrUpgradeAsync();
             return await Connection.Table<TVShowEpisode>().FirstOrDefaultAsync(rec => rec.Id == id);
+        }
+
+        public async Task<TVShowEpisode> FindTVShowEpisodeByMediaItem(long originalMediaItemId)
+        {
+            await InitOrUpgradeAsync();
+            return await Connection.Table<TVShowEpisode>()
+                                   .FirstOrDefaultAsync(rec => rec.PrimaryMediaItemId == originalMediaItemId);
         }
 
         public async Task<IEnumerable<MovieCollection>> GetMovieCollectionsByName(string name)

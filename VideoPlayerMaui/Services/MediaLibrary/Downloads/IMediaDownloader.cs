@@ -16,5 +16,9 @@ namespace VideoPlayer.Services.MediaLibrary.Downloads
 
         void RemoveDownload(BaseModel item);
 
+        event EventHandler<BaseModelEventArgs> Downloaded;
+
+        event EventHandler<BaseModelEventArgs> DownloadDeleted;
+
     }
 }

@@ -10,6 +10,7 @@ using VideoPlayer.Models.MediaItems;
 using VideoPlayer.Models.TVShows;
 using VideoPlayer.Services.MediaLibrary;
 using VideoPlayer.Services.MediaLibrary.Demo;
+using VideoPlayer.StatusManagement;
 
 namespace VideoPlayer.Services.Export
 {
@@ -19,6 +20,7 @@ namespace VideoPlayer.Services.Export
 
         private readonly IMediaLibrary _MediaLibrary;
         private readonly MediaLibraryEnvironment _Settings;
+        private readonly IStatusPublisher _StatusPublisher;
 
         public enum ExportFormat
         {
@@ -28,8 +30,13 @@ namespace VideoPlayer.Services.Export
 
         }
 
-        public DatabaseExporter(IMediaLibrary mediaLibrary, MediaLibraryEnvironment settings, IUserSecrets userSecrets)
+        public DatabaseExporter(
+            IMediaLibrary mediaLibrary,
+            MediaLibraryEnvironment settings,
+            IUserSecrets userSecrets,
+            IStatusPublisher statusPublisher)
         {
+            _StatusPublisher = statusPublisher;
             RegisterSyncfusion(userSecrets.SyncfusionLicenseKey);
 
             _Settings = settings;
@@ -50,17 +57,25 @@ namespace VideoPlayer.Services.Export
 
         public async Task<string> CreateExportFile()
         {
-            DirectoryInfo TempFolder = Directory.CreateTempSubdirectory();
-            TempFolder.Delete();
-            TempFolder = TempFolder.Parent;
-            switch (Format)
+            _StatusPublisher.AddStatus($"Generiere Exportdatei.", true);
+            try
             {
-                case ExportFormat.CSV:
-                    return await CreateCSVFileAsync(TempFolder);
-                case ExportFormat:
-                    return await CreateXLSXFileAsync(TempFolder);
-                default:
-                    return string.Empty;
+                DirectoryInfo TempFolder = Directory.CreateTempSubdirectory();
+                TempFolder.Delete();
+                TempFolder = TempFolder.Parent;
+                switch (Format)
+                {
+                    case ExportFormat.CSV:
+                        return await CreateCSVFileAsync(TempFolder);
+                    case ExportFormat:
+                        return await CreateXLSXFileAsync(TempFolder);
+                    default:
+                        return await Task.FromResult(string.Empty);
+                }
+            }
+            finally
+            {
+                _StatusPublisher.AddStatus(string.Empty, false);
             }
         }
 

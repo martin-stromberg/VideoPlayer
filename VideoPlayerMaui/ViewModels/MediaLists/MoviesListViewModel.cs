@@ -49,7 +49,8 @@ namespace VideoPlayer.ViewModels.MediaLists
                                                 StatusPublisher,
                                                 NavigationManager,
                                                 Settings,
-                                                MediaDownloader);
+                                                MediaDownloader,
+                                                MediaLibrary);
             }
             else if (mediaItem is MovieCollection)
                 vm = new MovieCollectionListItemViewModel(mediaItem as MovieCollection,
@@ -57,7 +58,8 @@ namespace VideoPlayer.ViewModels.MediaLists
                                                           NavigationManager,
                                                           PlaylistManager,
                                                           Settings,
-                                                          MediaDownloader);
+                                                          MediaDownloader,
+                                                          MediaLibrary);
             else
                 return;
             Items.Add(vm);

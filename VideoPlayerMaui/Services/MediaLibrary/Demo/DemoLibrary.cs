@@ -394,5 +394,15 @@ namespace VideoPlayer.Services.MediaLibrary.Demo
             throw new NotImplementedException();
         }
 
+        public Task FindTVShowEpisodeByMediaItem(long originalMediaItemId)
+        {
+            throw new NotImplementedException();
+        }
+
+        Task<TVShowEpisode> IMediaLibrary.FindTVShowEpisodeByMediaItem(long mediaItemId)
+        {
+            throw new NotImplementedException();
+        }
+
     }
 }

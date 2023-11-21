@@ -145,6 +145,9 @@
 	  <MauiXaml Update="Views\Management\Sources\SourceFTPConfigurationBox.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
+	  <MauiXaml Update="Views\MediaLists\Cards\TVShowCardPage.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
 	  <MauiXaml Update="Views\MediaLists\MediaItemsPage.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>

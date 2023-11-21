@@ -47,7 +47,8 @@ namespace VideoPlayer.ViewModels.MediaLists
                                                  NavigationManager,
                                                  PlaylistManager,
                                                  Settings,
-                                                 MediaDownloader);
+                                                 MediaDownloader,
+                                                 MediaLibrary);
             }
             else if (mediaItem is TVShowSeason)
                 vm = new TVShowSeasonListItemViewModel(mediaItem as TVShowSeason,
@@ -55,7 +56,8 @@ namespace VideoPlayer.ViewModels.MediaLists
                                                        NavigationManager,
                                                        PlaylistManager,
                                                        Settings,
-                                                       MediaDownloader);
+                                                       MediaDownloader,
+                                                       MediaLibrary);
             else if (mediaItem is TVShowEpisode)
             {
                 Func<IEnumerable<TVShowEpisode>> getEpisodes = (ParentSeason != null) ? () =>
@@ -67,7 +69,8 @@ namespace VideoPlayer.ViewModels.MediaLists
                                                         StatusPublisher,
                                                         NavigationManager,
                                                         Settings,
-                                                        MediaDownloader);
+                                                        MediaDownloader,
+                                                        MediaLibrary);
             }
             else
                 return;

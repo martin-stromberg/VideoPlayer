@@ -104,17 +104,7 @@ namespace VideoPlayer.ViewModels.MediaLists.Details
                 SetProperty<ImageSource>(value);
             }
         }
-        public ImageSource Banner
-        {
-            get
-            {
-                return GetProperty<ImageSource>();
-            }
-            set
-            {
-                SetProperty<ImageSource>(value);
-            }
-        }
+
         public ObservableCollection<TVShowSeason> Seasons { get; } = new ObservableCollection<TVShowSeason>();
 
         public ObservableCollection<TVShowEpisodeListItemViewModel> Episodes { get; } = new ObservableCollection<TVShowEpisodeListItemViewModel>();

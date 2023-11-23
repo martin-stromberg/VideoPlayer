@@ -86,6 +86,34 @@ namespace VideoPlayer.Models.MediaItems
             }
         }
 
+        public string BannerPath
+        {
+            get
+            {
+                return GetProperty<string>();
+            }
+            set
+            {
+                SetProperty<string>(value);
+                if (value == null)
+                    Banner = null;
+                else
+                    Banner = ImageSource.FromFile(value);
+            }
+        }
+
+        public ImageSource Banner
+        {
+            get
+            {
+                return GetProperty<ImageSource>();
+            }
+            set
+            {
+                SetProperty<ImageSource>(value);
+            }
+        }
+
         public DateTime MetaDataTime
         {
             get

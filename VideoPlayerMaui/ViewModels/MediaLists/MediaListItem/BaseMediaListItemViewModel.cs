@@ -32,6 +32,7 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
             IMediaLibrary mediaLibrary)
             : base(statusPublisher, navigationManager, settingsService)
         {
+            MediaLibrary = mediaLibrary;
             mediaLibrary.ModelElementUpdated += MediaLibrary_ModelElementUpdated;
             mediaLibrary.ModelElementRemoved += MediaLibrary_ModelElementRemoved;
 
@@ -45,6 +46,8 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
             DownloadItem = new Command(() => ExecuteDownloadItem(), () => CanDownloadItem());
             DeleteDownload = new Command(() => ExecuteDeleteDownload(), () => CanDeleteDownload());
         }
+
+        public IMediaLibrary MediaLibrary { get; set; }
 
         private bool IsItem(BaseModel compare)
         {
@@ -270,6 +273,7 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
                     break;
                 case ItemViewModel.Lane:
                     Title = $"{(Item as TVShowEpisode)?.EpisodeNo} {Item?.Name}".Trim();
+                    Subtitle = (Item as TVShowEpisode).Plot;
                     break;
             }
             Path = (Item as MediaItem)?.Path ?? string.Empty;
@@ -288,6 +292,8 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
         }
 
         public abstract void OpenDetails();
+
+        public abstract void OpenCategory();
 
         protected abstract void ExecuteStartPlayback();
 

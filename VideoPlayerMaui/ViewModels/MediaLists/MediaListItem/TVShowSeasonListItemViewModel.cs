@@ -31,6 +31,12 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
             NavigationManager.OpenTVShowSeason(Item as TVShowSeason);
         }
 
+        public override async void OpenCategory()
+        {
+            var show = await MediaLibrary.GetTVShow((Item as TVShowSeason).ShowId);
+            NavigationManager.OpenTVShow(show);
+        }
+
         protected override bool CanStartPlayback()
         {
             return true;

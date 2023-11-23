@@ -554,6 +554,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
                 ShowName = documentElement.FindChild("showname", true).InnerText.Trim(),
                 Episode = documentElement.FindChild("episode", true).InnerText.Trim(),
                 Season = documentElement.FindChild("season", true).InnerText.Trim(),
+                Plot = documentElement.FindChild("plot", true).InnerText.Trim(),
             };
             item.MetaInfo = Info;
         }
@@ -656,15 +657,55 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
             var remoteFile = scanner
                 .FindFiles(picFolder, picName)
                 .FirstOrDefault();
-            if (remoteFile == null)
-                return;
-            logger.LogDebug($"Caching Folder Picture file: {picPath}");
-            var cacheFileName = $"{Guid.NewGuid()}{Path.GetExtension(picName)}";
-            string cachFile = Path.Combine(environment.CacheFolderPath, cacheFileName);
-            scanner.DownloadFile(picPath, cachFile);
-            item.PicturePath = cachFile.Remove(0, environment.CacheRootPath.Length + 1);
-            item.Picture = ImageSource.FromFile(cachFile);
-            await mediaLibrary.AddMediaItemCollectionAsync(item);
+            var changed = false;
+            if (remoteFile != null)
+            {
+                logger.LogDebug($"Caching Folder Picture file: {picPath}");
+                var cacheFileName = $"{Guid.NewGuid()}{Path.GetExtension(picName)}";
+                string cachFile = Path.Combine(environment.CacheFolderPath, cacheFileName);
+                scanner.DownloadFile(picPath, cachFile);
+                item.PicturePath = cachFile.Remove(0, environment.CacheRootPath.Length + 1);
+                item.Picture = ImageSource.FromFile(cachFile);
+                changed = true;
+            }
+
+            if (!changed)
+            {
+                picPath = Path.Combine(item.Path, "poster.jpg");
+                picName = Path.GetFileName(picPath);
+                remoteFile = scanner
+                    .FindFiles(picFolder, picName)
+                    .FirstOrDefault();
+                if (remoteFile != null)
+                {
+                    logger.LogDebug($"Caching Poster Picture file: {picPath}");
+                    var cacheFileName = $"{Guid.NewGuid()}{Path.GetExtension(picName)}";
+                    string cachFile = Path.Combine(environment.CacheFolderPath, cacheFileName);
+                    scanner.DownloadFile(picPath, cachFile);
+                    item.PicturePath = cachFile.Remove(0, environment.CacheRootPath.Length + 1);
+                    item.Picture = ImageSource.FromFile(cachFile);
+                    changed = true;
+                }
+            }
+
+            picPath = Path.Combine(item.Path, "banner.jpg");
+            picName = Path.GetFileName(picPath);
+            remoteFile = scanner
+                .FindFiles(picFolder, picName)
+                .FirstOrDefault();
+            if (remoteFile != null)
+            {
+                logger.LogDebug($"Caching Poster Picture file: {picPath}");
+                var cacheFileName = $"{Guid.NewGuid()}{Path.GetExtension(picName)}";
+                string cachFile = Path.Combine(environment.CacheFolderPath, cacheFileName);
+                scanner.DownloadFile(picPath, cachFile);
+                item.BannerPath = cachFile.Remove(0, environment.CacheRootPath.Length + 1);
+                item.Banner = ImageSource.FromFile(cachFile);
+                changed = true;
+            }
+
+            if (changed)
+                await mediaLibrary.AddMediaItemCollectionAsync(item);
         }
 
         private async Task ProcessMetaDataForFolderAsync(RemoteSourceScanner scanner, MediaItemCollection item)

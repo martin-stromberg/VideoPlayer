@@ -8,5 +8,7 @@ namespace VideoPlayer.Services.Database.Models
 
         public long ShowId { get; set; }
 
+        public string BannerPath { get; set; }
+
     }
 }

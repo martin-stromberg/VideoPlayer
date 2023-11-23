@@ -53,6 +53,7 @@ namespace VideoPlayer.ViewModels.MediaLists.Details
         {
             Show = show;
             Title = show.Name;
+            Banner = Show.Banner;
         }
 
         public TVShow Show { get; private set; }
@@ -68,22 +69,33 @@ namespace VideoPlayer.ViewModels.MediaLists.Details
             set
             {
                 SetProperty<TVShowSeason>(value);
-
                 LoadEpisodes();
             }
         }
 
-        public override async void OnAppeared()
+        public override void OnAppeared()
         {
             base.OnAppeared();
-            await LoadSeasons();
+            LoadSeasons();
+        }
+
+        public ImageSource Banner
+        {
+            get
+            {
+                return GetProperty<ImageSource>();
+            }
+            set
+            {
+                SetProperty<ImageSource>(value);
+            }
         }
 
         public ObservableCollection<TVShowSeason> Seasons { get; } = new ObservableCollection<TVShowSeason>();
 
         public ObservableCollection<TVShowEpisodeListItemViewModel> Episodes { get; } = new ObservableCollection<TVShowEpisodeListItemViewModel>();
 
-        private async Task LoadSeasons()
+        private async void LoadSeasons()
         {
             var currentSeason = SelectedSeason;
             var seasons = await _MediaLibrary.GetTVShowSeasons(Show.Id);
@@ -113,6 +125,7 @@ namespace VideoPlayer.ViewModels.MediaLists.Details
                 return;
             if (loadSessionId != sessionId)
                 return;
+            Banner = SelectedSeason.Banner ?? Show.Banner;
             var episodes = await _MediaLibrary.GetTVShowEpisodes(SelectedSeason.Id);
             foreach (var episode in episodes)
             {

@@ -33,6 +33,11 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
             NavigationManager.OpenMovieCollection(Item as MovieCollection);
         }
 
+        public override void OpenCategory()
+        {
+            NavigationManager.OpenMovieCollection(Item as MovieCollection);
+        }
+
         protected override bool CanStartPlayback()
         {
             return true;

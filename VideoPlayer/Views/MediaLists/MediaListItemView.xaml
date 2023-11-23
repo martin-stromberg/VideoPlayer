@@ -31,19 +31,21 @@
                         <TapGestureRecognizer Tapped="ListItemTapped"/>
                     </Image.GestureRecognizers>
                 </Image>
-                <Label
+                <VerticalStackLayout
                     Grid.Row="3"
-                    Grid.RowSpan="2"
+                    Grid.RowSpan="4"
                     Grid.Column="0"
-                    Grid.ColumnSpan="2"
-                    Text="{Binding Title}"                    
-                    HorizontalOptions="Start" />
-                <Label 
-                    Grid.Row="4"
-                    Grid.Column="0"
-                    Grid.ColumnSpan="2"
-                    Text="{Binding Subtitle}"
-                    HorizontalOptions="StartAndExpand"/>
+                    Grid.ColumnSpan="2">
+                    <VerticalStackLayout.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="ListItemDetailTapped"/>
+                    </VerticalStackLayout.GestureRecognizers>
+                    <Label
+                        Text="{Binding Title}"                    
+                        HorizontalOptions="Start" />
+                    <Label 
+                        Text="{Binding Subtitle}"
+                        HorizontalOptions="StartAndExpand"/>
+                </VerticalStackLayout>
             </Grid>
         </Frame>
         

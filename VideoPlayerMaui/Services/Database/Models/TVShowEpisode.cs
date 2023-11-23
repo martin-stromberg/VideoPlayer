@@ -11,6 +11,8 @@
 
         public string EpisodeNo { get; set; }
 
+        public string Plot { get; set; }
+
         public string PicturePath { get; set; }
 
         public long PrimaryMediaItemId { get; set; }

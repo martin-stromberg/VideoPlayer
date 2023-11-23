@@ -803,7 +803,7 @@ namespace VideoPlayer.Services.MediaLibrary
                         break;
                 }
             }
-            return dbItems.Where(item => item.Item is not null);
+            return dbItems.Where(item => (item.Item is not null) || (item.TypedItem is not null));
         }
 
     }

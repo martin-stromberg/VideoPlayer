@@ -262,17 +262,19 @@ namespace VideoPlayer.Models
 
         public BaseModel UpdatePicture(string cacheRootPath)
         {
-            var propPicture = GetType().GetProperties().FirstOrDefault(p => p.Name == "Picture");
-            if (propPicture == null)
-                return this;
-            var propPicturePath = GetType().GetProperties().FirstOrDefault(p => p.Name == "PicturePath");
-            if (propPicturePath == null)
-                return this;
-            var path = propPicturePath.GetValue(this) as string;
-            if (string.IsNullOrWhiteSpace(path))
-                return this;
-            path = Path.Combine(cacheRootPath, path);
-            propPicture.SetValue(this, ImageSource.FromFile(path));
+            foreach (var prop in GetType()
+                                 .GetProperties()
+                                 .Where(p => p.CanRead && p.CanWrite && (p.PropertyType == typeof(ImageSource))))
+            {
+                var pathProp = GetType().GetProperty($"{prop.Name}Path");
+                if (pathProp == null)
+                    continue;
+                var path = pathProp.GetValue(this) as string;
+                if (string.IsNullOrWhiteSpace(path))
+                    continue;
+                path = Path.Combine(cacheRootPath, path);
+                prop.SetValue(this, ImageSource.FromFile(path));
+            }
             return this;
         }
 

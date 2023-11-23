@@ -122,12 +122,14 @@ namespace VideoPlayer.Services.MediaLibrary.Classification
             var show = new TVShow()
             {
                 Name = showInformation?.Title ?? episodeInformation.ShowName,
-                PicturePath = showCollection?.PicturePath
+                PicturePath = showCollection?.PicturePath,
+                BannerPath = showCollection?.BannerPath
             };
             var season = new TVShowSeason()
             {
                 Name = $"{episodeInformation.Season}",
-                PicturePath = seasonCollection?.PicturePath
+                PicturePath = seasonCollection?.PicturePath,
+                BannerPath = seasonCollection?.BannerPath ?? show.BannerPath
             };
             var episode = new TVShowEpisode() { Name = mediaItem.Name, };
             episode.Name = episodeInformation.Title;
@@ -135,6 +137,7 @@ namespace VideoPlayer.Services.MediaLibrary.Classification
             episode.MediaItems = new long[] { mediaItem.Id };
             episode.PrimaryMediaItem = mediaItem;
             episode.PicturePath = mediaItem.PicturePath;
+            episode.Plot = episodeInformation.Plot;
             await CollectShowAsync(show, season, episode);
         }
 
@@ -153,6 +156,7 @@ namespace VideoPlayer.Services.MediaLibrary.Classification
                 return;
             }
             existingShow.PicturePath = show.PicturePath ?? existingShow.PicturePath;
+            existingShow.BannerPath = show.BannerPath ?? existingShow.BannerPath;
             await mediaLibrary.AddTVShowAsync(existingShow);
 
             var existingSeason = (await mediaLibrary.GetTVShowSeasons(existingShow.Id))
@@ -174,6 +178,7 @@ namespace VideoPlayer.Services.MediaLibrary.Classification
             if (int.TryParse(existingSeason.Name, out var sNo))
                 existingSeason.Name = $"Staffel {sNo.ToString().PadLeft(2, '0')}";
             existingSeason.PicturePath = season.PicturePath ?? existingSeason.PicturePath;
+            existingSeason.BannerPath = show.BannerPath ?? existingSeason.BannerPath;
             await mediaLibrary.AddTVShowSeasonAsync(existingShow, existingSeason);
 
             var existingEpisode = (await mediaLibrary.GetTVShowEpisodes(existingSeason.Id))

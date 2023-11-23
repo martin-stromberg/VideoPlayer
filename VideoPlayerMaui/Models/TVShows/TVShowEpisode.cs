@@ -35,6 +35,7 @@ namespace VideoPlayer.Models.TVShows
 
         public string EpisodeNo { get; set; }
 
+        public string Plot { get; set; }
         public long[] MediaItems { get; set; }
 
         [FieldModelReference(nameof(Models.MediaItems.MediaItem.Id), nameof(Services.Database.Models.TVShowEpisode.PrimaryMediaItemId))]

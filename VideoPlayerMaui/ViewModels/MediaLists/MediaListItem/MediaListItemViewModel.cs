@@ -43,6 +43,11 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
             await NavigationManager.OpenMediaItemDetailsAsync(Item as MediaItem);
         }
 
+        public override async void OpenCategory()
+        {
+            await NavigationManager.OpenMediaItemDetailsAsync(Item as MediaItem);
+        }
+
         protected override bool CanStartPlayback()
         {
             return false;

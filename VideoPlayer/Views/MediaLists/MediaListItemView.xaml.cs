@@ -30,5 +30,10 @@ namespace VideoPlayer.Views.MediaLists
             ViewModel.DownloadItem.Execute(true);
         }
 
+        private void ListItemDetailTapped(object sender, TappedEventArgs e)
+        {
+            ViewModel.OpenCategory();
+        }
+
     }
 }

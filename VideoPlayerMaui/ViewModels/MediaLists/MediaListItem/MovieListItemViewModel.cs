@@ -33,6 +33,17 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
             await NavigationManager.OpenMovie(Item as Movie, _GetCollectionElements);
         }
 
+        public override async void OpenCategory()
+        {
+            if ((Item as Movie).CollectionId == 0)
+                await NavigationManager.OpenMovie(Item as Movie, _GetCollectionElements);
+            else
+            {
+                var collection = await MediaLibrary.GetMovieCollection((Item as Movie).CollectionId);
+                NavigationManager.OpenMovieCollection(collection);
+            }
+        }
+
         protected override bool CanStartPlayback()
         {
             return true;

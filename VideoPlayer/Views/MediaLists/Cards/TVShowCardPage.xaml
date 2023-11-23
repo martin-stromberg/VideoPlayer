@@ -8,9 +8,20 @@
              Title="{Binding Title}">
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="70"/>
+            <RowDefinition Height="300"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
+        <Label 
+            Text="{Binding Show}" 
+            FontSize="Header"
+            Opacity="0.7"
+            HorizontalOptions="Center" 
+            VerticalOptions="Center"/>
+        <Image 
+            Grid.Column="0"
+            Grid.Row="0"
+            Aspect="AspectFit"
+            Source="{Binding Banner}"/>
         <Picker 
             ItemsSource="{Binding Seasons}" 
             SelectedItem="{Binding SelectedSeason}" 

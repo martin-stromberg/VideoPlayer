@@ -33,6 +33,11 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
             NavigationManager.OpenTVShow(Item as TVShow);
         }
 
+        public override void OpenCategory()
+        {
+            NavigationManager.OpenTVShow(Item as TVShow);
+        }
+
         protected override bool CanStartPlayback()
         {
             return true;

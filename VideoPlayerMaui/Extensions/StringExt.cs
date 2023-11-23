@@ -20,5 +20,16 @@ namespace VideoPlayer.Extensions
             return default(int);
         }
 
+        public static string Shorten(this string str, int maxLength)
+        {
+            if (str.Length < maxLength)
+                return str;
+            int offset = str.IndexOfAny(new char[] { ' ', ',', '.', '!', '?', ':', ';' }, 250);
+            if (offset > 0)
+                return $"{str.Substring(0, offset)}...";
+            else
+                return $"{str.Substring(0, 250)}...";
+        }
+
     }
 }

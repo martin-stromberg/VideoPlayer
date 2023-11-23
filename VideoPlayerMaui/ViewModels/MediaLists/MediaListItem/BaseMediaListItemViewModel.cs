@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using VideoPlayer.Extensions;
 using VideoPlayer.Models;
 using VideoPlayer.Models.MediaItems;
 using VideoPlayer.Models.TVShows;
@@ -273,7 +274,7 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
                     break;
                 case ItemViewModel.Lane:
                     Title = $"{(Item as TVShowEpisode)?.EpisodeNo} {Item?.Name}".Trim();
-                    Subtitle = (Item as TVShowEpisode).Plot;
+                    Subtitle = (Item as TVShowEpisode).Plot?.Shorten(250);
                     break;
             }
             Path = (Item as MediaItem)?.Path ?? string.Empty;

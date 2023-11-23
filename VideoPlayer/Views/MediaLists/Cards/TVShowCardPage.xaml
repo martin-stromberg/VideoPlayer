@@ -15,7 +15,17 @@
             ItemsSource="{Binding Seasons}" 
             SelectedItem="{Binding SelectedSeason}" 
             VerticalOptions="End"
-            Margin="5,10"/>        
+            Margin="5,10"/>
+        <ImageButton 
+            Margin="5"
+            Source="download.png"
+            WidthRequest="30" 
+            HeightRequest="30" 
+            Background="Transparent"
+            VerticalOptions="End"
+            HorizontalOptions="End"
+            Command="{Binding DownloadSeason}">
+        </ImageButton>
         <ScrollView Grid.Row="1">
             <VerticalStackLayout>
                 <CollectionView

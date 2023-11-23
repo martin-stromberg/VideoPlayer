@@ -27,6 +27,7 @@ namespace VideoPlayer.ViewModels.MediaLists.Details
         {
             _MediaDownloader = mediaDownloader;
             _MediaLibrary = mediaLibrary;
+            DownloadSeason = new Command(() => ExecuteDownloadSeason(), () => CanDownloadSeason());
             for (int idx = 0; idx < 100; idx++)
                 Episodes.Add(new TVShowEpisodeListItemViewModel(new TVShowEpisode()
                     {
@@ -59,6 +60,18 @@ namespace VideoPlayer.ViewModels.MediaLists.Details
 
         private TVShowSeason _SelectedSeason = null;
 
+        public Command DownloadSeason { get; }
+
+        private bool CanDownloadSeason()
+        {
+            return SelectedSeason != null;
+        }
+
+        private void ExecuteDownloadSeason()
+        {
+            _MediaDownloader.StartDownload(SelectedSeason);
+        }
+
         public TVShowSeason SelectedSeason
         {
             get
@@ -68,7 +81,7 @@ namespace VideoPlayer.ViewModels.MediaLists.Details
             set
             {
                 SetProperty<TVShowSeason>(value);
-
+                DownloadSeason?.ChangeCanExecute();
                 LoadEpisodes();
             }
         }
@@ -78,7 +91,17 @@ namespace VideoPlayer.ViewModels.MediaLists.Details
             base.OnAppeared();
             await LoadSeasons();
         }
-
+        public ImageSource Banner
+        {
+            get
+            {
+                return GetProperty<ImageSource>();
+            }
+            set
+            {
+                SetProperty<ImageSource>(value);
+            }
+        }
         public ObservableCollection<TVShowSeason> Seasons { get; } = new ObservableCollection<TVShowSeason>();
 
         public ObservableCollection<TVShowEpisodeListItemViewModel> Episodes { get; } = new ObservableCollection<TVShowEpisodeListItemViewModel>();
@@ -113,6 +136,7 @@ namespace VideoPlayer.ViewModels.MediaLists.Details
                 return;
             if (loadSessionId != sessionId)
                 return;
+            Banner = SelectedSeason.Banner ?? Show.Banner;
             var episodes = await _MediaLibrary.GetTVShowEpisodes(SelectedSeason.Id);
             foreach (var episode in episodes)
             {

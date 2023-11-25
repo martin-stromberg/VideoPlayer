@@ -558,7 +558,10 @@ namespace VideoPlayer.Services.MediaLibrary
         #region Media Items
         public async Task<MediaItem> GetMediaItemAsync(long id)
         {
-            return MediaItem.FromDataModel(await _DataStore.GetMediaItemAsync(id))?.UpdatePicture(_Settings.CacheRootPath) as MediaItem;
+            var item = await _DataStore.GetMediaItemAsync(id);
+            return (MediaItem.FromDataModel(item)?
+                .UpdatePicture(_Settings.CacheRootPath) as MediaItem)?
+                .UpdatePath(_Settings.GetPath((MediaItemCopyType)item.CopyType));
         }
 
         public async Task<IEnumerable<MediaItem>> GetAllMediaItems()
@@ -566,7 +569,9 @@ namespace VideoPlayer.Services.MediaLibrary
             return (await (await _DataStore.GetMediaItemsAsync())
                 .OrderBy(s => s.Name)
                 .ToArrayAsync())
-                .Select(source => MediaItem.FromDataModel(source).UpdatePicture(_Settings.CacheRootPath) as MediaItem);
+                .Select(item =>
+                        (MediaItem.FromDataModel(item).UpdatePicture(_Settings.CacheRootPath) as MediaItem)
+                                           .UpdatePath(_Settings.GetPath((MediaItemCopyType)item.CopyType)));
         }
 
         public async Task<IEnumerable<MediaItem>> GetMediaItemsAsync(long CollectionId)
@@ -575,7 +580,9 @@ namespace VideoPlayer.Services.MediaLibrary
                 .Where(s => (s.ParentCollectionId == CollectionId) && (s.OriginalMediaItemId == 0))
                 .OrderBy(s => s.Name)
                 .ToArrayAsync())
-                .Select(source => MediaItem.FromDataModel(source).UpdatePicture(_Settings.CacheRootPath) as MediaItem);
+                .Select(item =>
+                        (MediaItem.FromDataModel(item).UpdatePicture(_Settings.CacheRootPath) as MediaItem)
+                            .UpdatePath(_Settings.GetPath((MediaItemCopyType)item.CopyType)));
         }
 
         public async Task<MediaItem> FindMediaItemAsync(long SourceId, string path)
@@ -591,15 +598,20 @@ namespace VideoPlayer.Services.MediaLibrary
                         .Wait<Database.Models.MediaCollection>();
                     return collection.MediaSourceId == SourceId;
                 })
-                .Select(item => MediaItem.FromDataModel(item).UpdatePicture(_Settings.CacheRootPath) as MediaItem)
+                .Select(item =>
+                        (MediaItem.FromDataModel(item).UpdatePicture(_Settings.CacheRootPath) as MediaItem)
+                    .UpdatePath(_Settings.GetPath((MediaItemCopyType)item.CopyType)))
                 .FirstOrDefault();
         }
 
         public async Task AddMediaItemAsync(MediaItem mediaItem)
         {
             var isNew = mediaItem.Id == 0;
-            var dataModel = mediaItem.ToDataModelAsync();
-            await _DataStore.AddOrUpdateMediaItemAsync(dataModel as Database.Models.MediaItem);
+            var dataModel = mediaItem.ToDataModelAsync() as Database.Models.MediaItem;
+            var rootPath = _Settings.GetPath((MediaItemCopyType)dataModel.CopyType);
+            if (dataModel.Path.StartsWith(rootPath))
+                dataModel.Path = dataModel.Path.Remove(0, rootPath.Length);
+            await _DataStore.AddOrUpdateMediaItemAsync(dataModel);
             mediaItem.UpdateAutoincrements(dataModel);
             OnElementChanged(isNew ? (new BaseModelEventArgs(mediaItem)) : null,
                              (!isNew) ? (new BaseModelEventArgs(mediaItem)) : null,
@@ -609,8 +621,11 @@ namespace VideoPlayer.Services.MediaLibrary
         public async Task UpdateMediaItemAsync(MediaItem mediaItem, bool notify)
         {
             var isNew = mediaItem.Id == 0;
-            var dataModel = mediaItem.ToDataModelAsync();
-            await _DataStore.AddOrUpdateMediaItemAsync(dataModel as Database.Models.MediaItem);
+            var dataModel = mediaItem.ToDataModelAsync() as Database.Models.MediaItem;
+            var rootPath = _Settings.GetPath((MediaItemCopyType)dataModel.CopyType);
+            if (dataModel.Path.StartsWith(rootPath))
+                dataModel.Path = dataModel.Path.Remove(0, rootPath.Length);
+            await _DataStore.AddOrUpdateMediaItemAsync(dataModel);
             mediaItem.UpdateAutoincrements(dataModel);
             OnElementChanged(isNew ? (new BaseModelEventArgs(mediaItem)) : null,
                              (!isNew && notify) ? (new BaseModelEventArgs(mediaItem)) : null,
@@ -623,12 +638,39 @@ namespace VideoPlayer.Services.MediaLibrary
                 .Where(s => s.OriginalMediaItemId == mediaItemId)
                 .OrderBy(s => s.Name)
                 .ToArrayAsync())
-                .Select(source => MediaItem.FromDataModel(source).UpdatePicture(_Settings.CacheRootPath) as MediaItem);
+                .Select(item =>
+                        (MediaItem.FromDataModel(item).UpdatePicture(_Settings.CacheRootPath) as MediaItem)
+                                           .UpdatePath(_Settings.GetPath((MediaItemCopyType)item.CopyType)));
         }
 
         public async Task<MediaItem> GetOriginalMediaItemsAsync(MediaItem item)
         {
             return await GetMediaItemAsync(item.OriginalMediaItemId);
+        }
+
+        public async Task<IEnumerable<MediaItem>> GetUncategorizedMediaItems(int offset, int count)
+        {
+            return (await (await _DataStore.GetMediaItemsAsync())
+                .Where(mi =>
+                       (mi.MetaInfoJson == null) || (mi.MetaInfoJson == string.Empty) || (mi.MetaInfoJson == "null"))
+                .Skip(offset)
+                .Take(count)
+                .ToArrayAsync())
+                .Select(mi =>
+                        (MediaItem.FromDataModel(mi).UpdatePicture(_Settings.CacheRootPath) as MediaItem)
+                                       .UpdatePath(_Settings.GetPath((MediaItemCopyType)mi.CopyType)));
+        }
+
+        public async Task<IEnumerable<MediaItem>> GetDownloadedMediaItems(int offset, int count)
+        {
+            return (await(await _DataStore.GetMediaItemsAsync())
+                   .Where(mi => mi.CopyType == 2)
+                   .Skip(offset)
+                   .Take(count)
+                   .ToArrayAsync())
+                   .Select(mi =>
+                           (MediaItem.FromDataModel(mi).UpdatePicture(_Settings.CacheRootPath) as MediaItem)
+                                          .UpdatePath(_Settings.GetPath((MediaItemCopyType)mi.CopyType)));
         }
         #endregion 
 
@@ -734,27 +776,6 @@ namespace VideoPlayer.Services.MediaLibrary
             if (tvsmi != null)
                 return await GetTVShowEpisode(tvsmi.EpisodeId);
             return null;
-        }
-
-        public async Task<IEnumerable<MediaItem>> GetUncategorizedMediaItems(int offset, int count)
-        {
-            return (await (await _DataStore.GetMediaItemsAsync())
-                .Where(mi =>
-                       (mi.MetaInfoJson == null) || (mi.MetaInfoJson == string.Empty) || (mi.MetaInfoJson == "null"))
-                .Skip(offset)
-                .Take(count)
-                .ToArrayAsync())
-                .Select(mi => MediaItem.FromDataModel(mi).UpdatePicture(_Settings.CacheRootPath) as MediaItem);
-        }
-
-        public async Task<IEnumerable<MediaItem>> GetDownloadedMediaItems(int offset, int count)
-        {
-            return (await(await _DataStore.GetMediaItemsAsync())
-                   .Where(mi => mi.CopyType == 2)
-                   .Skip(offset)
-                   .Take(count)
-                   .ToArrayAsync())
-                   .Select(mi => MediaItem.FromDataModel(mi).UpdatePicture(_Settings.CacheRootPath) as MediaItem);
         }
 
         public async Task AddPlaybackHistory(History currentHistory)

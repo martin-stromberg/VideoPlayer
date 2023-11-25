@@ -63,6 +63,8 @@ namespace VideoPlayer.ViewModels.VideoPlayer
             }
         }
 
+        private bool IsRecentlySet = false;
+
         public MediaSource VideoSource
         {
             get
@@ -74,6 +76,7 @@ namespace VideoPlayer.ViewModels.VideoPlayer
                 if (value != null)
                     SetProperty<MediaSource>(null);
                 ItemDuration = TimeSpan.Zero;
+                IsRecentlySet = true;
                 SetProperty<MediaSource>(value);
             }
         }
@@ -394,8 +397,9 @@ namespace VideoPlayer.ViewModels.VideoPlayer
         private void ProcessPlaying()
         {
             IsPlaying = true;
-            if ((Item != null) && (Item.LastPlaybackPosition != TimeSpan.Zero))
+            if (IsRecentlySet && (Item != null) && (Item.LastPlaybackPosition != TimeSpan.Zero))
                 OnSeekRequest(Item.LastPlaybackPosition);
+            IsRecentlySet = false;
         }
 
         private void ProcessStopped()

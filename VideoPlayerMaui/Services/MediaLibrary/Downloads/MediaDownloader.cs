@@ -89,7 +89,7 @@ namespace VideoPlayer.Services.MediaLibrary.Downloads
             alternateMediaItem.Id = 0;
             alternateMediaItem.OriginalMediaItemId = mediaItem.Id;
             alternateMediaItem.CopyType = copyType;
-            alternateMediaItem.Path = Path.Combine(_Settings.DownloadFolderPath,
+            alternateMediaItem.Path = Path.Combine(_Settings.GetPath(copyType),
                                                    collection.Id.ToString(),
                                                    mediaItem.Name);
             using (FtpClient client = new FtpClient(source.ServerName, new NetworkCredential(source.Username, source.Password)))

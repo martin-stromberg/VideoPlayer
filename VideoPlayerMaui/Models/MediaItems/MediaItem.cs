@@ -171,5 +171,12 @@ namespace VideoPlayer.Models.MediaItems
             return JsonConvert.SerializeObject(this);
         }
 
+        public MediaItem UpdatePath(string rootPath)
+        {
+            if (!Path.StartsWith(rootPath))
+                Path = $"{rootPath}{Path}";
+            return this;
+        }
+
     }
 }

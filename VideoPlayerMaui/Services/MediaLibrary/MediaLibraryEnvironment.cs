@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Reflection;
+using VideoPlayer.Models.MediaItems;
 
 namespace VideoPlayer.Services.MediaLibrary
 {
@@ -94,6 +95,19 @@ namespace VideoPlayer.Services.MediaLibrary
         }
 
         public string RessourcePath { get; private set; }
+
+        public string GetPath(MediaItemCopyType copyType)
+        {
+            switch (copyType)
+            {
+                case MediaItemCopyType.Download:
+                    return DownloadFolderPath;
+                case MediaItemCopyType.Cache:
+                    return CacheFolderPath;
+                default:
+                    return string.Empty;
+            }
+        }
 
     }
 }

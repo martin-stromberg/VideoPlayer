@@ -90,7 +90,7 @@ namespace VideoPlayer.ViewModels.MediaLists.Details
         public override void OnAppeared()
         {
             base.OnAppeared();
-            LoadSeasons();
+            Task.Run(() => LoadSeasons());
         }
 
         public ImageSource Banner

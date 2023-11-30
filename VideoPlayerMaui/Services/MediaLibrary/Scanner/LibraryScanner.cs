@@ -364,6 +364,10 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
                 var ext = Path.GetExtension(file.Name);
                 if (!FileExtVideo.Contains(ext) && !FileExtAudio.Contains(ext))
                     return;
+                var fileName = Path.GetFileNameWithoutExtension(file.Name);
+                if (fileName.EndsWith("-trailer"))
+                    return;
+
                 var item = await mediaLibrary.FindMediaItemAsync(source.Id, file.Path);
                 if (item == null)
                 {
@@ -421,18 +425,22 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
             string fileNameWithoutExt = Path.GetFileNameWithoutExtension(item.Path);
             var currentFiles = scanner.FindFiles(nfoFolder, $"{fileNameWithoutExt}.*")
                                       .Concat(scanner.FindFiles(nfoFolder, $"{fileNameWithoutExt}-thumb.*"))
+                                      .Concat(scanner.FindFiles(nfoFolder, $"{fileNameWithoutExt}-trailer.*"))
                                       .OrderByDescending(f => f.Name)
                                       .ToArray();
             foreach (var file in currentFiles)
             {
                 logger.LogDebug($"File with same name: {file.Name}");
                 var ext = Path.GetExtension(file.Name);
+                var fileName = Path.GetFileNameWithoutExtension(file.Name);
                 if (ext == ".nfo")
                     await ProcessNFOForVideoAsync(scanner, item, file);
                 else if (ext == ".info")
                     await ProcessNFOForVideoAsync(scanner, item, file);
                 else if (FileExtImage.Contains(ext))
                     await ProcessPictureForVideoAsync(scanner, item, file);
+                else if (fileName.EndsWith("-trailer"))
+                    await ProcessTrailerForVideoAsync(scanner, item, file);
             }
             foreach (var file in currentFiles)
             {
@@ -440,6 +448,26 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
                 if (ext == ".txt")
                     await ProcessTextInfoForVideoAsync(scanner, item, file);
             }
+        }
+
+        private async Task ProcessTrailerForVideoAsync(
+            RemoteSourceScanner scanner,
+            MediaItem mediaItem,
+            RemoteFile file)
+        {
+            var alternateMediaItem = mediaItem.Duplicate() as MediaItem;
+            alternateMediaItem.Id = 0;
+            alternateMediaItem.OriginalMediaItemId = mediaItem.Id;
+            alternateMediaItem.CopyType = MediaItemCopyType.Trailer;
+            alternateMediaItem.Path = file.Path;
+
+            var trailerItems = (await mediaLibrary.GetAlternateMediaItemsAsync(mediaItem.Id))
+                .Where(mi => mi.CopyType == MediaItemCopyType.Trailer);
+            var existing = trailerItems.FirstOrDefault(mi => mi.Path == alternateMediaItem.Path);
+            if (existing != null)
+                return;
+
+            await mediaLibrary.AddMediaItemAsync(alternateMediaItem);
         }
 
         private async Task ProcessTextInfoForVideoAsync(RemoteSourceScanner scanner, MediaItem item, RemoteFile file)

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using VideoPlayer.Models.MediaItems;
 using VideoPlayer.Services.Database;
 
 namespace VideoPlayer.Models.Movies
@@ -56,6 +57,9 @@ namespace VideoPlayer.Models.Movies
                 SetProperty<long>(value);
             }
         }
+
+        [FieldModelReference(nameof(Id), nameof(Services.Database.Models.Movie.TrailerMediaItemId))]
+        public MediaItem TrailerMediaItem { get; set; }
 
         internal Movie SetMediaItems(IEnumerable<Services.Database.Models.MovieMediaItem> mediaItems)
         {

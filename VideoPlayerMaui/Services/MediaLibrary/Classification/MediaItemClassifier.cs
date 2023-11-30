@@ -84,6 +84,22 @@ namespace VideoPlayer.Services.MediaLibrary.Classification
         {
             var episode = await mediaLibrary.FindTVShowEpisodeByMediaItem(mediaItem.OriginalMediaItemId);
             await CollectTVShowEpisode(episode, mediaItem);
+
+            var movie = await mediaLibrary.FindMovieAsync(mediaItem.OriginalMediaItemId);
+            await CollectMovieDuplicate(movie, mediaItem);
+        }
+
+        private async Task CollectMovieDuplicate(Movie movie, MediaItem mediaItem)
+        {
+            if (movie == null)
+                return;
+            switch (mediaItem.CopyType)
+            {
+                case MediaItemCopyType.Trailer:
+                    movie.TrailerMediaItem = mediaItem;
+                    break;
+            }
+            await mediaLibrary.AddMovieAsync(movie);
         }
 
         private async Task CollectTVShowEpisode(TVShowEpisode episode, MediaItem mediaItem)

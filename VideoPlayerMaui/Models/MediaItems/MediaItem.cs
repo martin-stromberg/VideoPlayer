@@ -11,8 +11,8 @@ namespace VideoPlayer.Models.MediaItems
 
         None,
         Cache,
-        Download
-
+        Download,
+        Trailer
     }
 
     [DataModelReference(typeof(Services.Database.Models.MediaItem))]

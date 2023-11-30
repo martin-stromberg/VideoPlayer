@@ -16,5 +16,7 @@ namespace VideoPlayer.Services.Database.Models
 
         public long CollectionId { get; set; }
 
+        public long TrailerMediaItemId { get; set; }
+
     }
 }

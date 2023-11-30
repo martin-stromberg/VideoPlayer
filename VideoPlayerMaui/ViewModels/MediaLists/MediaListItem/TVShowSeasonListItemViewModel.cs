@@ -34,7 +34,7 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
         public override async void OpenCategory()
         {
             var show = await MediaLibrary.GetTVShow((Item as TVShowSeason).ShowId);
-            NavigationManager.OpenTVShow(show);
+            NavigationManager.OpenTVShow(show, Item as TVShowSeason, null);
         }
 
         protected override bool CanStartPlayback()

@@ -40,8 +40,10 @@
         <ScrollView Grid.Row="1">
             <VerticalStackLayout>
                 <CollectionView
-                ItemsLayout="VerticalList" 
-                ItemsSource="{Binding Episodes}">
+                    x:Name="itemList"
+                    RemainingItemsThreshold="1"
+                    ItemsLayout="VerticalList" 
+                    ItemsSource="{Binding Episodes}">
                     <CollectionView.ItemTemplate>
                         <DataTemplate>
                             <view:MediaListItemView/>
@@ -50,5 +52,6 @@
                 </CollectionView>
             </VerticalStackLayout>
         </ScrollView>
+        <Label Grid.Row="1" Text="⌛" FontSize="Caption" IsVisible="{Binding Loading}" VerticalOptions="Center" HorizontalOptions="Center"/>
     </Grid>
 </ContentPage>

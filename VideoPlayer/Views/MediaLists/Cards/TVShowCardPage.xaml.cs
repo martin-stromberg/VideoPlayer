@@ -1,10 +1,12 @@
-
+using System.ComponentModel;
 using VideoPlayer.Models.TVShows;
 using VideoPlayer.ViewModels.MediaLists.Details;
 
 namespace VideoPlayer.Views.MediaLists.Cards
 {
     [QueryProperty(nameof(Show), "Show")]
+    [QueryProperty(nameof(Season), "Season")]
+    [QueryProperty(nameof(Episode), "Episode")]
     public partial class TVShowCardPage: ContentPage
     {
 
@@ -12,6 +14,36 @@ namespace VideoPlayer.Views.MediaLists.Cards
         {
             InitializeComponent();
             BindingContext = ViewModel = App.GetService<TVShowDetailsViewModel>();
+            ViewModel.PropertyChanged += ViewModel_PropertyChanged;
+        }
+
+        private void ViewModel_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            switch (e.PropertyName)
+            {
+                case nameof(TVShowDetailsViewModel.SelectedEpisode):
+                    if (ViewModel.SelectedEpisode != null)
+                    {
+                        itemList.ScrollTo(ViewModel.SelectedEpisode);
+                        ViewModel.SelectedEpisode = null;
+                    }
+                    break;
+            }
+        }
+
+        private TVShowEpisode episode;
+
+        public TVShowEpisode Episode
+        {
+            get
+            {
+                return episode;
+            }
+            set
+            {
+                episode = value;
+                OnPropertyChanged();
+            }
         }
 
         private TVShow show;
@@ -29,12 +61,27 @@ namespace VideoPlayer.Views.MediaLists.Cards
             }
         }
 
+        private TVShowSeason season;
+
+        public TVShowSeason Season
+        {
+            get
+            {
+                return season;
+            }
+            set
+            {
+                season = value;
+                OnPropertyChanged();
+            }
+        }
+
         public TVShowDetailsViewModel ViewModel { get; private set; }
 
         protected override void OnAppearing()
         {
             base.OnAppearing();
-            ViewModel.SetParent(Show);
+            ViewModel.SetParent(Show, Season, Episode);
             ViewModel.OnAppeared();
         }
 

@@ -64,12 +64,10 @@ namespace VideoPlayer.Helper.Navigation
             MainThread.InvokeOnMainThreadAsync(() => { Shell.Current.Navigation.RemovePage(Shell.Current.CurrentPage); });
         }
 
-        public void OpenTVShow(TVShow show)
+        public void OpenTVShow(TVShow show, TVShowSeason season, TVShowEpisode episode)
         {
             var navigationParameter = new Dictionary<string, object>
-            {
-                { "Show", show }
-            };
+            { { "Show", show }, { "Season", season }, { "Episode", episode } };
             NavigateToRoute($"tvshow", navigationParameter);
         }
 

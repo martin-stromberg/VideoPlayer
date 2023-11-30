@@ -30,12 +30,12 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
 
         public override void OpenDetails()
         {
-            NavigationManager.OpenTVShow(Item as TVShow);
+            NavigationManager.OpenTVShow(Item as TVShow, null, null);
         }
 
         public override void OpenCategory()
         {
-            NavigationManager.OpenTVShow(Item as TVShow);
+            NavigationManager.OpenTVShow(Item as TVShow, null, null);
         }
 
         protected override bool CanStartPlayback()

@@ -18,7 +18,7 @@ namespace VideoPlayer.Navigation
 
         void OpenTVShows();
 
-        void OpenTVShow(TVShow tVShow);
+        void OpenTVShow(TVShow show, TVShowSeason season, TVShowEpisode tVShowEpisode);
 
         void OpenTVShowSeason(TVShowSeason tVShowSeason);
 
@@ -33,6 +33,7 @@ namespace VideoPlayer.Navigation
         Task OpenPlaylistPlaybackAsync();
 
         void OpenUncategrized();
+
         void OpenDownloads();
 
     }

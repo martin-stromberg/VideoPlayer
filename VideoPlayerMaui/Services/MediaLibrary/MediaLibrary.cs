@@ -406,6 +406,21 @@ namespace VideoPlayer.Services.MediaLibrary
                 .Cast<TVShow>();
         }
 
+        public async Task<IEnumerable<TVShow>> GetTVShows(int offset, int value)
+        {
+            var shows = await _DataStore.GetTVShows();
+            return shows
+                .OrderBy(show => show.Name)
+                .Skip(offset)
+                .Take(value)
+                .Select(show =>
+                {
+                    var model = TVShow.FromDataModel(show).UpdatePicture(_Settings.CacheRootPath) as TVShow;
+                    return model;
+                })
+                .Cast<TVShow>();
+        }
+
         public async Task<TVShowSeason> GetTVShowSeason(long id)
         {
             var season = await _DataStore.GetTVShowSeason(id);

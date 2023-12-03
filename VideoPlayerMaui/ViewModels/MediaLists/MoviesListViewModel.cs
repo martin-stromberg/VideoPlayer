@@ -68,7 +68,9 @@ namespace VideoPlayer.ViewModels.MediaLists
         private async void LoadMovieCollection(MovieCollection parentCollection)
         {
             var movies = await MediaLibrary.GetMovies(parentCollection.Id);
-            foreach (var movie in movies.OrderBy(entry => entry.Name))
+            foreach (var movie in movies
+                .OrderBy(entry => entry.Date)
+                .ThenBy(entry => entry.Name))
                 Add(movie);
         }
 

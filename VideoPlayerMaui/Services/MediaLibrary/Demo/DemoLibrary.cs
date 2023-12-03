@@ -403,6 +403,10 @@ namespace VideoPlayer.Services.MediaLibrary.Demo
         {
             throw new NotImplementedException();
         }
+        public Task<IEnumerable<TVShow>> GetTVShows(int offset, int value)
+        {
+            throw new NotImplementedException();
+        }
 
     }
 }

@@ -107,6 +107,7 @@ namespace VideoPlayer.Services.MediaLibrary
 
         #region TV Show 
         Task<IEnumerable<TVShow>> GetTVShows();
+        Task<IEnumerable<TVShow>> GetTVShows(int offset, int value);
 
         Task<TVShow> GetTVShow(long id);
 

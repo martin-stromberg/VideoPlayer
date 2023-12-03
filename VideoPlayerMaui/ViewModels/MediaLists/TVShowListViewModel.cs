@@ -97,11 +97,22 @@ namespace VideoPlayer.ViewModels.MediaLists
                     Add(season);
         }
 
-        private async void LoadTVShows()
+        private void LoadTVShows()
         {
-            var shows = await MediaLibrary.GetTVShows();
-            foreach (var show in shows.OrderBy(entry => entry.Name))
+            LoadTVShows(0);
+        }
+
+        private async void LoadTVShows(int offset)
+        {
+            var found = 0;
+            var shows = await MediaLibrary.GetTVShows(offset, 10);
+            foreach (var show in shows)
+            {
+                found += 1;
                 Add(show);
+            }
+            if (found > 0)
+                LoadTVShows(offset + found);
         }
 
         public void SetParent(TVShow show, TVShowSeason season)

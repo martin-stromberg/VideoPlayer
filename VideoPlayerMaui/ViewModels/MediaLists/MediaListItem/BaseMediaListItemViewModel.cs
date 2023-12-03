@@ -52,6 +52,10 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
 
         private bool IsItem(BaseModel compare)
         {
+            if (compare == null)
+                return false;
+            if (Item == null)
+                return false;
             if (compare.Id != Item.Id)
                 return false;
             return compare.GetType() == Item.GetType();

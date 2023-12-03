@@ -72,7 +72,14 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.Shares
 
         public abstract void Scan(MediaSource source, MediaItem mediaItem);
 
+        public abstract IEnumerable<RemoteFile> FindFiles(MediaSource source, string path, string fileMask = "*.*");
+
         public abstract IEnumerable<RemoteFile> FindFiles(string path, string fileMask = "*.*");
+
+        public abstract IEnumerable<RemoteFolder> FindFolders(
+            RemoteMediaSource source,
+            string path,
+            string folderNameMask);
 
         public abstract string ReadTextFile(string filePath);
 

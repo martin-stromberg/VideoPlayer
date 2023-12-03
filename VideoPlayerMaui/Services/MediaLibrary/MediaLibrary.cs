@@ -472,11 +472,37 @@ namespace VideoPlayer.Services.MediaLibrary
             await _DataStore.RemoveMovie(dbItem.Id);
         }
 
+        public async Task RemoveMovieCollectionAsync(MovieCollection collection)
+        {
+            var dbItem = await _DataStore.GetMovieCollection(collection.Id);
+            await ClearMovieCollection(dbItem);
+            await _DataStore.RemoveMovieCollection(dbItem.Id);
+        }
+
+        private async Task ClearMovieCollection(Database.Models.MovieCollection dbItem)
+        {
+            await Task.CompletedTask;
+        }
+
         public async Task RemoveTVShowAsync(TVShow show)
         {
             var dbItem = await _DataStore.GetTVShow(show.Id);
             await ClearTVShow(dbItem);
             await _DataStore.RemoveTVShow(dbItem.Id);
+        }
+
+        public async Task RemoveTVShowSeasonAsync(TVShowSeason season)
+        {
+            var dbItem = await _DataStore.GetTVShowSeason(season.Id);
+            await ClearTVShowSeason(dbItem);
+            await _DataStore.RemoveTVShowSeason(dbItem.Id);
+        }
+
+        public async Task RemoveTVShowEpisodeAsync(TVShowEpisode episode)
+        {
+            var dbItem = await _DataStore.GetTVShowEpisode(episode.Id);
+            await ClearTVShowEpisode(dbItem);
+            await _DataStore.RemoveTVShowEpisode(dbItem.Id);
         }
 
         #region Sources

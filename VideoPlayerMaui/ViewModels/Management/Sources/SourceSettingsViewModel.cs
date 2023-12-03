@@ -39,6 +39,7 @@ namespace VideoPlayer.ViewModels.Management.Sources
             }
             Save = new Command(async () => await DoSaveAsync());
             Rescan = new Command(() => DoRescanAsync());
+            Clean = new Command(() => ExecuteClean());
         }
 
         public bool IsFTP
@@ -105,6 +106,8 @@ namespace VideoPlayer.ViewModels.Management.Sources
 
         public Command Rescan { get; }
 
+        public Command Clean { get; }
+
         private async Task DoSaveAsync()
         {
             try
@@ -142,6 +145,12 @@ namespace VideoPlayer.ViewModels.Management.Sources
         {
             _LibraryScanner.Rescan(source);
             AddStatusMessage($"Die Quelle ist nun für den nächsten Scan vorgesehen.");
+        }
+
+        private void ExecuteClean()
+        {
+            _LibraryScanner.StartCleaning(source);
+            AddStatusMessage($"Die Bereinigung der Quelle ist nun für den nächsten Scan vorgesehen.");
         }
 
     }

@@ -211,5 +211,18 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.Samba
             throw new NotImplementedException();
         }
 
+        public override IEnumerable<RemoteFile> FindFiles(MediaSource source, string path, string fileMask = "*.*")
+        {
+            throw new NotImplementedException();
+        }
+
+        public override IEnumerable<RemoteFolder> FindFolders(
+            RemoteMediaSource source,
+            string path,
+            string folderNameMask)
+        {
+            throw new NotImplementedException();
+        }
+
     }
 }

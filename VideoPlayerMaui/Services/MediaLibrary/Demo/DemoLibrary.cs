@@ -403,7 +403,21 @@ namespace VideoPlayer.Services.MediaLibrary.Demo
         {
             throw new NotImplementedException();
         }
+
         public Task<IEnumerable<TVShow>> GetTVShows(int offset, int value)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task RemoveMovieCollectionAsync(MovieCollection collection)
+        {
+            throw new NotImplementedException();
+        }
+        public Task RemoveTVShowSeasonAsync(TVShowSeason season)
+        {
+            throw new NotImplementedException();
+        }
+        public Task RemoveTVShowEpisodeAsync(TVShowEpisode episode)
         {
             throw new NotImplementedException();
         }

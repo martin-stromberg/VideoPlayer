@@ -108,5 +108,11 @@ namespace VideoPlayer.Services.Database
 
         Task<PlaybackHistoryEntry> AddOrUpdatePlaybackHistoryEntry(PlaybackHistoryEntry entry);
 
+        Task RemoveMovieCollection(long id);
+
+        Task RemoveTVShowSeason(long id);
+
+        Task RemoveTVShowEpisode(long id);
+
     }
 }

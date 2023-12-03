@@ -140,6 +140,15 @@ namespace VideoPlayer.Services.Database
             await Connection.DeleteAsync(movie);
         }
 
+        public async Task RemoveMovieCollection(long id)
+        {
+            var collection = await GetMovieCollection(id);
+            var movies = (await GetMovies()).Where(m => m.CollectionId == id);
+            foreach (var movie in movies)
+                await RemoveMovie(movie.Id);
+            await Connection.DeleteAsync(collection);
+        }
+
         public async Task RemoveTVShow(long id)
         {
             var show = await GetTVShow(id);
@@ -154,11 +163,17 @@ namespace VideoPlayer.Services.Database
                 await RemoveTVShowSeason(season);
         }
 
-        private async Task RemoveTVShowSeason(TVShowSeason season)
+        public async Task RemoveTVShowSeason(TVShowSeason season)
         {
             var episodes = await GetTVShowEpisodes(season.Id);
             await RemoveTVShowEpisodes(episodes);
             await Connection.DeleteAsync(season);
+        }
+
+        public async Task RemoveTVShowSeason(long id)
+        {
+            var season = await GetTVShowSeason(id);
+            await RemoveTVShowSeason(season);
         }
 
         private async Task RemoveTVShowEpisodes(IEnumerable<TVShowEpisode> episodes)
@@ -173,6 +188,12 @@ namespace VideoPlayer.Services.Database
             foreach (var mediaItem in mediaItems)
                 await Connection.DeleteAsync(mediaItem);
             await Connection.DeleteAsync(episode);
+        }
+
+        public async Task RemoveTVShowEpisode(long id)
+        {
+            var episode = await GetTVShowEpisode(id);
+            await RemoveTVShowEpisode(episode);
         }
 
         public async Task AddLog(LogEntry entry)

@@ -9,7 +9,9 @@ using VideoPlayer.Extensions;
 using VideoPlayer.Models;
 using VideoPlayer.Models.MediaItems;
 using VideoPlayer.Models.MetaInformation;
+using VideoPlayer.Models.Movies;
 using VideoPlayer.Models.Sources;
+using VideoPlayer.Models.TVShows;
 using VideoPlayer.Services.MediaLibrary.Scanner.Events;
 using VideoPlayer.Services.MediaLibrary.Scanner.FTP;
 using VideoPlayer.Services.MediaLibrary.Scanner.Models;
@@ -118,13 +120,28 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
             {
                 SaveMetaInformationAsync().Wait();
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _StatusPublisher.AddStatus(ex.Message, true);
+            }
 
             try
             {
                 ScanQueueEntriesAsync().Wait();
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _StatusPublisher.AddStatus(ex.Message, true);
+            }
+
+            try
+            {
+                CleanQueueEntriesAsync().Wait();
+            }
+            catch (Exception ex)
+            {
+                _StatusPublisher.AddStatus(ex.Message, true);
+            }
 
             if (!_Settings.Current.LibraryScan_AutomaticScan)
                 return;
@@ -133,19 +150,28 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
             {
                 ScanNextSource();
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _StatusPublisher.AddStatus(ex.Message, true);
+            }
 
             try
             {
                 ScanNextCollectionMediaAsync().Wait();
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _StatusPublisher.AddStatus(ex.Message, true);
+            }
 
             try
             {
                 RemoveDeletedSourcesAsync();
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _StatusPublisher.AddStatus(ex.Message, true);
+            }
         }
 
         private async void Scanner_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
@@ -325,16 +351,49 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
         }
         #endregion
 
-        private async Task FindRemovedFiles(RemoteMediaSource source, RemoteSourceScanner scanner)
+        private async Task FindRemovedFiles(
+            RemoteMediaSource source,
+            RemoteSourceScanner scanner,
+            bool deepClean = false)
         {
+            if (source == null)
+                return;
             CheckContinue();
             var collections = await mediaLibrary.GetMediaItemCollectionsAsync(source.Id);
             foreach (var collection in collections)
             {
                 _StatusPublisher.AddStatus($"{collection.Path}", false);
-                var mediaItems = await mediaLibrary.GetMediaItemsAsync(collection.Id);
-                foreach (var mediaItem in mediaItems.Where(mi => mi.LastConfirmation < source.LastScanStart))
+
+                var currentCollection = await CheckRemovedMediaItemCollectionAsync(source, scanner, collection);
+                if (currentCollection == null)
+                    continue;
+
+                var mediaItems = await mediaLibrary.GetMediaItemsAsync(currentCollection.Id);
+                foreach (var mediaItem in mediaItems.Where(mi =>
+                                                           deepClean || (mi.LastConfirmation < source.LastScanStart)))
                     await CheckRemovedMediaItemAsync(source, scanner, mediaItem);
+            }
+        }
+
+        private async Task<MediaItemCollection> CheckRemovedMediaItemCollectionAsync(
+            RemoteMediaSource source,
+            RemoteSourceScanner scanner,
+            MediaItemCollection collection)
+        {
+            try
+            {
+                var folderPath = Path.GetDirectoryName(collection.Path).Replace('\\', source.PathDelimiter);
+                var fileName = Path.GetFileName(collection.Path);
+                var fileExist = scanner.FindFolders(source, folderPath, fileName).Any();
+                if (fileExist)
+                    return collection;
+                await mediaLibrary.RemoveMediaItemCollection(collection);
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _StatusPublisher.AddStatus(ex.Message, true);
+                return null;
             }
         }
 
@@ -343,16 +402,23 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
             RemoteSourceScanner scanner,
             MediaItem mediaItem)
         {
-            CheckContinue();
-            var folderPath = Path.GetDirectoryName(mediaItem.Path).Replace('\\', source.PathDelimiter);
-            var fileName = Path.GetFileName(mediaItem.Path);
-            var fileExist = scanner.FindFiles(folderPath, fileName).Any();
-            if (!fileExist)
-                await mediaLibrary.RemoveMediaItemAsync(mediaItem);
-            else
+            try
             {
-                mediaItem.LastConfirmation = DateTime.Now;
-                await mediaLibrary.AddMediaItemAsync(mediaItem);
+                CheckContinue();
+                var folderPath = Path.GetDirectoryName(mediaItem.Path).Replace('\\', source.PathDelimiter);
+                var fileName = Path.GetFileName(mediaItem.Path);
+                var fileExist = scanner.FindFiles(source, folderPath, fileName).Any();
+                if (!fileExist)
+                    await mediaLibrary.RemoveMediaItemAsync(mediaItem);
+                else
+                {
+                    mediaItem.LastConfirmation = DateTime.Now;
+                    await mediaLibrary.AddMediaItemAsync(mediaItem);
+                }
+            }
+            catch (Exception ex)
+            {
+                _StatusPublisher.AddStatus(ex.Message, true);
             }
         }
 
@@ -775,6 +841,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
         }
 
         private ConcurrentQueue<BaseModel> ScanQueue = new ConcurrentQueue<BaseModel>();
+        private ConcurrentQueue<BaseModel> CleanQueue = new ConcurrentQueue<BaseModel>();
 
         private async Task ScanQueueEntriesAsync()
         {
@@ -816,10 +883,93 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
             foreach (var scanner in _Scanners)
                 if (scanner.CanScan(source))
                 {
-                    scanner.Scan(source, mediaItem);
                     logger.LogInformation($"Scan of source {mediaItem.Name} finished.");
                     return;
                 }
+        }
+
+        private async Task CleanQueueEntriesAsync()
+        {
+            while (CleanQueue.TryDequeue(out BaseModel model))
+                await CleanQueueEntriesAsync(model);
+            await CleanCategorizedEntries();
+        }
+
+        private async Task CleanQueueEntriesAsync(BaseModel model)
+        {
+            await CleanQueueEntriesAsync(model as MediaSource);
+        }
+
+        private async Task CleanQueueEntriesAsync(MediaSource mediaSource)
+        {
+            if (mediaSource is null)
+                return;
+
+            mediaSource = await mediaLibrary.GetSourceAsync(mediaSource.Id);
+            foreach (var scanner in _Scanners)
+                if (scanner.CanScan(mediaSource))
+                {
+                    await FindRemovedFiles(mediaSource as RemoteMediaSource, scanner, true);
+                    logger.LogInformation($"Cleaning of source {mediaSource.Name} finished.");
+                    return;
+                }
+        }
+
+        private async Task CleanCategorizedEntries()
+        {
+            await CleanMovieCollection(0);
+            var collections = await mediaLibrary.GetMovieCollections();
+            foreach (var collection in collections)
+                await CleanMovieCollection(collection);
+            var shows = await mediaLibrary.GetTVShows();
+            foreach (var show in shows)
+                await CleanTVShow(show);
+        }
+
+        private async Task CleanTVShow(TVShow show)
+        {
+            var seasons = await mediaLibrary.GetTVShowSeasons(show.Id);
+            foreach (var season in seasons)
+                await CleanTVShowSeason(season);
+            seasons = await mediaLibrary.GetTVShowSeasons(show.Id);
+            if (seasons.Any())
+                return;
+            await mediaLibrary.RemoveTVShowAsync(show);
+        }
+
+        private async Task CleanTVShowEpisode(TVShowEpisode episode)
+        {
+            if (episode.MediaItems.Any())
+                return;
+            await mediaLibrary.RemoveTVShowEpisodeAsync(episode);
+        }
+
+        private async Task CleanTVShowSeason(TVShowSeason season)
+        {
+            var episodes = await mediaLibrary.GetTVShowEpisodes(season.Id);
+            foreach (var episode in episodes)
+                await CleanTVShowEpisode(episode);
+            episodes = await mediaLibrary.GetTVShowEpisodes(season.Id);
+            if (episodes.Any())
+                return;
+            await mediaLibrary.RemoveTVShowSeasonAsync(season);
+        }
+
+        private async Task CleanMovieCollection(MovieCollection collection)
+        {
+            await CleanMovieCollection(collection.Id);
+            var movies = await mediaLibrary.GetMovies(collection.Id);
+            if (movies.Any())
+                return;
+            await mediaLibrary.RemoveMovieCollectionAsync(collection);
+        }
+
+        private async Task CleanMovieCollection(long collectionId)
+        {
+            var movies = await mediaLibrary.GetMovies(collectionId);
+            foreach (var movie in movies)
+                if (!movie.MediaItems.Any())
+                    await mediaLibrary.RemoveMovieAsync(movie);
         }
 
         public void Rescan(MediaItem item)
@@ -832,6 +982,13 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
         public void Rescan(MediaSource mediaSource)
         {
             ScanQueue.Enqueue(mediaSource);
+            if (!running)
+                Start();
+        }
+
+        public void StartCleaning(MediaSource mediaSource)
+        {
+            CleanQueue.Enqueue(mediaSource);
             if (!running)
                 Start();
         }

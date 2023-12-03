@@ -21,6 +21,8 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
 
         void Rescan(MediaSource mediaSource);
 
+        void StartCleaning(MediaSource mediaSource);
+
         void SaveMetaInformation(MediaItem item, MediaInformation metaInfo);
 
     }

@@ -107,6 +107,7 @@ namespace VideoPlayer.Services.MediaLibrary
 
         #region TV Show 
         Task<IEnumerable<TVShow>> GetTVShows();
+
         Task<IEnumerable<TVShow>> GetTVShows(int offset, int value);
 
         Task<TVShow> GetTVShow(long id);
@@ -151,6 +152,12 @@ namespace VideoPlayer.Services.MediaLibrary
         Task AddPlaybackHistory(History history);
 
         Task<IEnumerable<HistoryEntry>> GetPlayBackHistoryEntries();
+
+        Task RemoveMovieCollectionAsync(MovieCollection collection);
+
+        Task RemoveTVShowSeasonAsync(TVShowSeason season);
+
+        Task RemoveTVShowEpisodeAsync(TVShowEpisode episode);
 
     }
 }

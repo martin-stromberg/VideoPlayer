@@ -142,6 +142,21 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.FTP
             }
         }
 
+        public override IEnumerable<RemoteFile> FindFiles(MediaSource source, string path, string fileMask = "*.*")
+        {
+            FtpMediaSource mediaSource = (FtpMediaSource)source;
+            share = new FtpShare(mediaSource.ServerName, mediaSource.Username, mediaSource.Password);
+            try
+            {
+                return FindFiles(path, fileMask);
+            }
+            finally
+            {
+                CurrentSource = null;
+                share = null;
+            }
+        }
+
         public override IEnumerable<RemoteFile> FindFiles(string path, string fileMask = "*.*")
         {
             bool wasConnected = share.IsConnected;
@@ -167,6 +182,61 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.FTP
                             .ToArray()
                             .Select(f =>
                                     new FtpShareFile()
+                            {
+                                Name = f.Name,
+                                Path = Path.Combine(path, f.Name).Replace("\\", "/")
+                            });
+            }
+            finally
+            {
+                if (!wasConnected)
+                    share.Disconnect();
+            }
+        }
+
+        public override IEnumerable<RemoteFolder> FindFolders(
+            RemoteMediaSource source,
+            string path,
+            string folderNameMask)
+        {
+            FtpMediaSource mediaSource = (FtpMediaSource)source;
+            share = new FtpShare(mediaSource.ServerName, mediaSource.Username, mediaSource.Password);
+            try
+            {
+                return FindFolders(path, folderNameMask);
+            }
+            finally
+            {
+                CurrentSource = null;
+                share = null;
+            }
+        }
+
+        private IEnumerable<RemoteFolder> FindFolders(string path, string folderMask = "*")
+        {
+            bool wasConnected = share.IsConnected;
+            if (!wasConnected)
+                share.Connect();
+            try
+            {
+                return share.ListDirectories(path.Replace('\\', '/'))
+                            .Where(f =>
+                            {
+                                Regex mask = new Regex(
+                                '^' +
+                                folderMask
+                                .Replace(".", "[.]")
+                                .Replace("*", ".*")
+                                .Replace("?", ".")
+                                .Replace("(", "\\(")
+                                .Replace(")", "\\)")
+                                                        + '$',
+                                RegexOptions.IgnoreCase);
+                                return mask.IsMatch(f.Name);
+                            })
+                            .ToArray()
+                            .Select(f =>
+                                    new FtpShareFolder()
                             {
                                 Name = f.Name,
                                 Path = Path.Combine(path, f.Name).Replace("\\", "/")

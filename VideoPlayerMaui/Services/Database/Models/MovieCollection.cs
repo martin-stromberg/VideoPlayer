@@ -7,5 +7,7 @@
 
         public long MediaItemCollectionId { get; set; }
 
+        public bool IsSingleMovie { get; set; }
+
     }
 }

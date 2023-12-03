@@ -266,19 +266,31 @@ namespace VideoPlayer.Services.MediaLibrary.Classification
             if (existingMovie == null)
             {
                 await mediaLibrary.AddMovieAsync(movie);
-                return;
+                existingMovie = movie;
             }
-            existingMovie.CollectionId = (movie.CollectionId != 0) ? movie.CollectionId : existingMovie.CollectionId;
-            existingMovie.Genre = movieInformation.Genre ?? existingMovie.Genre;
-            existingMovie.Plot = movieInformation.Plot ?? existingMovie.Plot;
-            existingMovie.MediaItems = existingMovie
-                .MediaItems
-                .Concat(movie.MediaItems)
-                .Distinct()
-                .OrderBy(id => id)
-                .ToArray();
-            movie.PicturePath = mediaItem.PicturePath;
-            await mediaLibrary.AddMovieAsync(existingMovie);
+            else
+            {
+                existingMovie.CollectionId = (movie.CollectionId != 0) ? movie.CollectionId : existingMovie.CollectionId;
+                existingMovie.Genre = movieInformation.Genre ?? existingMovie.Genre;
+                existingMovie.Plot = movieInformation.Plot ?? existingMovie.Plot;
+                existingMovie.MediaItems = existingMovie
+                    .MediaItems
+                    .Concat(movie.MediaItems)
+                    .Distinct()
+                    .OrderBy(id => id)
+                    .ToArray();
+                movie.PicturePath = mediaItem.PicturePath;
+                await mediaLibrary.AddMovieAsync(existingMovie);
+            }
+
+            if (collection != null)
+            {
+                var movies = await mediaLibrary.GetMovies(collection.Id);
+                bool SingleMovieBefore = collection.IsSingleMovie;
+                collection.IsSingleMovie = movies.Count() <= 1;
+                if (SingleMovieBefore != collection.IsSingleMovie)
+                    await mediaLibrary.AddMovieCollectionAsync(collection);
+            }
         }
 
     }

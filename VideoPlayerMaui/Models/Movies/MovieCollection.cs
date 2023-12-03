@@ -46,5 +46,17 @@ namespace VideoPlayer.Models.Movies
             }
         }
 
+        public bool IsSingleMovie
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+            }
+        }
+
     }
 }

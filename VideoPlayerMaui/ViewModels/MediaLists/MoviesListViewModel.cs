@@ -53,6 +53,7 @@ namespace VideoPlayer.ViewModels.MediaLists
                                                 MediaLibrary);
             }
             else if (mediaItem is MovieCollection)
+            {
                 vm = new MovieCollectionListItemViewModel(mediaItem as MovieCollection,
                                                           StatusPublisher,
                                                           NavigationManager,
@@ -60,6 +61,7 @@ namespace VideoPlayer.ViewModels.MediaLists
                                                           Settings,
                                                           MediaDownloader,
                                                           MediaLibrary);
+            }
             else
                 return;
             Items.Add(vm);
@@ -78,7 +80,9 @@ namespace VideoPlayer.ViewModels.MediaLists
         {
             var movies = await MediaLibrary.GetMovies(0);
             var movieCollections = await MediaLibrary.GetMovieCollections();
-            foreach (var movie in movies.Cast<BaseModel>().Concat(movieCollections).OrderBy(entry => entry.Name))
+            foreach (var movie in movies.Cast<BaseModel>()
+                                        .Concat(movieCollections.Where(coll => !coll.IsSingleMovie))
+                                        .OrderBy(entry => entry.Name))
                 Add(movie);
         }
 

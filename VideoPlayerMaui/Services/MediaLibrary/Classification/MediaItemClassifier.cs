@@ -230,6 +230,7 @@ namespace VideoPlayer.Services.MediaLibrary.Classification
             var movieCollection = await mediaLibrary.GetMediaItemCollectionAsync(mediaItem.ParentCollectionId);
             var source = await mediaLibrary.GetSourceAsync(movieCollection.MediaSourceId);
             MovieCollection collection = null;
+            bool IsSingleMovieCollection = false;
             if (movieCollection.ParentCollectionId != 0)
             {
                 collection = new MovieCollection()
@@ -240,19 +241,33 @@ namespace VideoPlayer.Services.MediaLibrary.Classification
                 };
                 var existingCollection = (await mediaLibrary.FindMovieCollectionByNameAsync(movieCollection.Name)).FirstOrDefault();
                 if (existingCollection == null)
+                {
+                    collection.IsSingleMovie = true;
                     await mediaLibrary.AddMovieCollectionAsync(collection);
+                }
                 else
                 {
+                    var collectionMovies = (await mediaLibrary.GetMovies(collection.Id))
+                        .Where(m => !m.MediaItems.Contains(mediaItem.Id));
+                    IsSingleMovieCollection = !collectionMovies.Any();
+                    if (!IsSingleMovieCollection)
+                        foreach (var m in collectionMovies.Where(cm => cm.IsSingleCollectionMovie))
+                        {
+                            m.IsSingleCollectionMovie = false;
+                            await mediaLibrary.AddMovieAsync(m);
+                        }
+
                     existingCollection.PicturePath = collection.PicturePath;
                     existingCollection.MediaItemCollectionId = collection.MediaItemCollectionId;
+                    existingCollection.IsSingleMovie = IsSingleMovieCollection;
                     await mediaLibrary.AddMovieCollectionAsync(existingCollection);
-
                     collection = existingCollection;
                 }
             }
 
             var movie = new Movie() { Name = mediaItem.Name };
             movie.CollectionId = collection?.Id ?? 0;
+            movie.IsSingleCollectionMovie = IsSingleMovieCollection;
             movie.Name = movieInformation.Title;
             movie.Genre = movieInformation.Genre;
             movie.Plot = movieInformation.Plot;
@@ -270,6 +285,7 @@ namespace VideoPlayer.Services.MediaLibrary.Classification
             }
             else
             {
+                existingMovie.IsSingleCollectionMovie = movie.IsSingleCollectionMovie;
                 existingMovie.CollectionId = (movie.CollectionId != 0) ? movie.CollectionId : existingMovie.CollectionId;
                 existingMovie.Genre = movieInformation.Genre ?? existingMovie.Genre;
                 existingMovie.Plot = movieInformation.Plot ?? existingMovie.Plot;
@@ -281,15 +297,6 @@ namespace VideoPlayer.Services.MediaLibrary.Classification
                     .ToArray();
                 movie.PicturePath = mediaItem.PicturePath;
                 await mediaLibrary.AddMovieAsync(existingMovie);
-            }
-
-            if (collection != null)
-            {
-                var movies = await mediaLibrary.GetMovies(collection.Id);
-                bool SingleMovieBefore = collection.IsSingleMovie;
-                collection.IsSingleMovie = movies.Count() <= 1;
-                if (SingleMovieBefore != collection.IsSingleMovie)
-                    await mediaLibrary.AddMovieCollectionAsync(collection);
             }
         }
 

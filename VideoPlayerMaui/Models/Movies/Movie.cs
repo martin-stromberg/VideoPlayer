@@ -14,7 +14,29 @@ namespace VideoPlayer.Models.Movies
 
         public string Plot { get; set; }
 
-        public DateTime Date { get; set; }
+        public DateTime Date
+        {
+            get
+            {
+                return GetProperty<DateTime>();
+            }
+            set
+            {
+                SetProperty<DateTime>(value);
+            }
+        }
+
+        public bool IsSingleCollectionMovie
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+            }
+        }
 
         public long[] MediaItems { get; set; }
 

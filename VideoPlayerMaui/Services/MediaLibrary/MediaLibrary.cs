@@ -223,6 +223,7 @@ namespace VideoPlayer.Services.MediaLibrary
         {
             var collections = await _DataStore.GetMovieCollections();
             return collections
+                .Where(collection => !collection.IsSingleMovie)
                 .Select(collection =>
                 {
                     var model = MovieCollection.FromDataModel(collection).UpdatePicture(_Settings.CacheRootPath) as MovieCollection;
@@ -247,7 +248,8 @@ namespace VideoPlayer.Services.MediaLibrary
         public async Task<IEnumerable<Movie>> GetMovies(long collectionId)
         {
             var movies = (await _DataStore.GetMovies())
-                .Where(movie => movie.CollectionId == collectionId)
+                .Where(movie =>
+                       (movie.CollectionId == collectionId) || (movie.IsSingleCollectionMovie && (collectionId == 0)))
                 .Select(movie => Movie.FromDataModel(movie).UpdatePicture(_Settings.CacheRootPath) as Movie)
                 .ToArray();
             foreach (var movie in movies)

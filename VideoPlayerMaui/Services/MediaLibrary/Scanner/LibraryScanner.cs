@@ -425,6 +425,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
             string fileNameWithoutExt = Path.GetFileNameWithoutExtension(item.Path);
             var currentFiles = scanner.FindFiles(nfoFolder, $"{fileNameWithoutExt}.*")
                                       .Concat(scanner.FindFiles(nfoFolder, $"{fileNameWithoutExt}-thumb.*"))
+                                      .Concat(scanner.FindFiles(nfoFolder, $"{fileNameWithoutExt}-poster.*"))
                                       .Concat(scanner.FindFiles(nfoFolder, $"{fileNameWithoutExt}-trailer.*"))
                                       .OrderByDescending(f => f.Name)
                                       .ToArray();

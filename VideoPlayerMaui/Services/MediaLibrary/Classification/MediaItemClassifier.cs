@@ -295,7 +295,8 @@ namespace VideoPlayer.Services.MediaLibrary.Classification
                     .Distinct()
                     .OrderBy(id => id)
                     .ToArray();
-                movie.PicturePath = mediaItem.PicturePath;
+                existingMovie.PicturePath = movie.PicturePath ?? existingMovie.PicturePath;
+                existingMovie.Date = movie.Date;
                 await mediaLibrary.AddMovieAsync(existingMovie);
             }
         }

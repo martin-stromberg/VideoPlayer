@@ -422,6 +422,8 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
             }
         }
 
+        private TimeSpan metaDataUpdateDuration = TimeSpan.FromSeconds(1);
+
         private async Task ProcessFile(RemoteMediaSource source, RemoteSourceScanner scanner, RemoteFile file)
         {
             try
@@ -461,7 +463,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
                 try
                 {
                     item.LastConfirmation = DateTime.Now;
-                    if (item.MetaDataTime.AddHours(24) > DateTime.Now)
+                    if (item.MetaDataTime.Add(metaDataUpdateDuration) > DateTime.Now)
                     {
                         await mediaLibrary.AddMediaItemAsync(item);
                         return;

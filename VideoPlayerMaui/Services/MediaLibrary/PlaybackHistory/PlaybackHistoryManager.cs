@@ -165,7 +165,7 @@ namespace VideoPlayer.Services.MediaLibrary.PlaybackHistory
                     .SkipWhile(e => e.Name != season.Name)
                     .SkipWhile(e => e.Name == season.Name)
                     .FirstOrDefault();
-                if (nextEpisode != null)
+                if (nextSeason != null)
                 {
                     episodes = await _MediaLibrary.GetTVShowEpisodes(nextSeason.Id);
                     nextEpisode = episodes

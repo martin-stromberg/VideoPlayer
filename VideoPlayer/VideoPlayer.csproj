@@ -94,6 +94,9 @@
 	  <Compile Update="Views\Management\Sources\SourceConfigurationBox.xaml.cs">
 	    <DependentUpon>%(Filename)</DependentUpon>
 	  </Compile>
+	  <Compile Update="Views\Management\Sources\SourceHttpConfigurationBox.xaml.cs">
+	    <DependentUpon>SourceHttpConfigurationBox.xaml</DependentUpon>
+	  </Compile>
 	  <Compile Update="Views\Management\Sources\SourceSSHConfigurationBox.xaml.cs">
 	    <DependentUpon>SourceSSHConfigurationBox.xaml</DependentUpon>
 	  </Compile>
@@ -143,6 +146,9 @@
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
 	  <MauiXaml Update="Views\Management\Sources\SourceConfigurationBox.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
+	  <MauiXaml Update="Views\Management\Sources\SourceHttpConfigurationBox.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
 	  <MauiXaml Update="Views\Management\Sources\SourceSSHConfigurationBox.xaml">

@@ -22,6 +22,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.FTP
         private string username;
         private string password;
         private FtpClient ftpClient;
+        private byte port = 21;
 
         public FtpShare(string serverName, string username, string password)
             : base()
@@ -35,7 +36,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.FTP
         {
             if (ftpClient != null)
                 throw new ApplicationException("Already connected!");
-            ftpClient = new FtpClient(serverName, new NetworkCredential(username, password), 21);
+            ftpClient = new FtpClient(serverName, new NetworkCredential(username, password), port);
             ftpClient.Connect();
         }
 

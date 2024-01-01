@@ -25,5 +25,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
 
         void SaveMetaInformation(MediaItem item, MediaInformation metaInfo);
 
+        void TestConnection(MediaSource mediaSource);
+
     }
 }

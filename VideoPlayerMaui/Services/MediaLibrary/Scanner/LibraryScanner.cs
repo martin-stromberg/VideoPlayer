@@ -17,6 +17,7 @@ using VideoPlayer.Services.MediaLibrary.Scanner.FTP;
 using VideoPlayer.Services.MediaLibrary.Scanner.Models;
 using VideoPlayer.Services.MediaLibrary.Scanner.Samba;
 using VideoPlayer.Services.MediaLibrary.Scanner.Shares;
+using VideoPlayer.Services.MediaLibrary.Scanner.SSH;
 using VideoPlayer.Services.Mediathek;
 using VideoPlayer.Services.Settings;
 using VideoPlayer.StatusManagement;
@@ -55,11 +56,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
         {
             if (_Scanners != null)
                 return;
-            _Scanners = new List<RemoteSourceScanner>()
-                {
-                    new SambaShareScanner(),
-                    new FtpScanner()
-                };
+            _Scanners = new List<RemoteSourceScanner>() { new SambaShareScanner(), new FtpScanner(), new SSHScanner() };
             foreach (var scanner in _Scanners)
             {
                 scanner.BeforeScanFolder += Scanner_BeforeScanFolder;
@@ -1026,6 +1023,17 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
             info.Item.MetaInfo = info.Info;
             await mediaLibrary.AddMediaItemAsync(info.Item);
             Rescan(info.Item);
+        }
+
+        public void TestConnection(MediaSource mediaSource)
+        {
+            foreach (var scanner in _Scanners)
+            {
+                if (scanner.CanScan(mediaSource))
+                    if (scanner.TestConnection(mediaSource))
+                        return;
+            }
+            throw new InvalidOperationException();
         }
 
     }

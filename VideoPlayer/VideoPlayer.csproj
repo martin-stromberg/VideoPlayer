@@ -94,6 +94,9 @@
 	  <Compile Update="Views\Management\Sources\SourceConfigurationBox.xaml.cs">
 	    <DependentUpon>%(Filename)</DependentUpon>
 	  </Compile>
+	  <Compile Update="Views\Management\Sources\SourceSSHConfigurationBox.xaml.cs">
+	    <DependentUpon>SourceSSHConfigurationBox.xaml</DependentUpon>
+	  </Compile>
 	  <Compile Update="Views\Management\Sources\SourceFTPConfigurationBox.xaml.cs">
 	    <DependentUpon>%(Filename)</DependentUpon>
 	  </Compile>
@@ -140,6 +143,9 @@
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
 	  <MauiXaml Update="Views\Management\Sources\SourceConfigurationBox.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
+	  <MauiXaml Update="Views\Management\Sources\SourceSSHConfigurationBox.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
 	  <MauiXaml Update="Views\Management\Sources\SourceFTPConfigurationBox.xaml">
@@ -213,4 +219,6 @@
   <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|net7.0-windows10.0.22621.0|AnyCPU'">
     <GenerateAssemblyInfo>False</GenerateAssemblyInfo>
   </PropertyGroup>
+
+  <ProjectExtensions><VisualStudio><UserProperties XamarinHotReloadDebuggerTimeoutExceptionVideoPlayerHideInfoBar="True" /></VisualStudio></ProjectExtensions>
 </Project>

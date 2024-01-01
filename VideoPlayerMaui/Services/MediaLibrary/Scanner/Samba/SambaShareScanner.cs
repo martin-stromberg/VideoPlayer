@@ -224,5 +224,10 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.Samba
             throw new NotImplementedException();
         }
 
+        public override bool TestConnection(MediaSource mediaSource)
+        {
+            throw new NotImplementedException();
+        }
+
     }
 }

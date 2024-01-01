@@ -87,5 +87,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.Shares
 
         public abstract void WriteTextFile(string nfoPath, string innerXml);
 
+        public abstract bool TestConnection(MediaSource mediaSource);
+
     }
 }

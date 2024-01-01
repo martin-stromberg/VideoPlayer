@@ -321,5 +321,22 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.FTP
             }
         }
 
+        public override bool TestConnection(MediaSource source)
+        {
+            FtpMediaSource mediaSource = (FtpMediaSource)source;
+            share = new FtpShare(mediaSource.ServerName, mediaSource.Username, mediaSource.Password);
+            try
+            {
+                CurrentSource = source as RemoteMediaSource;
+                var folders = FindFolders(string.Empty).ToArray();
+                return true;
+            }
+            finally
+            {
+                CurrentSource = null;
+                share = null;
+            }
+        }
+
     }
 }

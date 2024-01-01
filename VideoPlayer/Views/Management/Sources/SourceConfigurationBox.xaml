@@ -19,9 +19,11 @@
             </Grid.ColumnDefinitions>
             <Label Grid.Row="0" Text="{Binding Title}"/>
             <view:SourceFTPConfigurationBox Grid.Row="1" Grid.RowSpan="3" IsVisible="{Binding IsFTP}"/>
+            <view:SourceSSHConfigurationBox Grid.Row="1" Grid.RowSpan="3" IsVisible="{Binding IsSSH}"/>
 
             <Button Grid.Column="1" Grid.Row="0" Text="🔄" Margin="0" Padding="0" Background="Transparent" Command="{Binding Rescan}" FontSize="Large"/>
             <Button Grid.Column="1" Grid.Row="1" Text="🧹" Margin="0" Padding="0" Background="Transparent" Command="{Binding Clean}" FontSize="Medium"/>
+            <Button Grid.Column="1" Grid.Row="2" Text="※" Margin="0" Padding="0" Background="Transparent" Command="{Binding Test}" FontSize="Medium"/>
         </Grid>
     </Frame>
 </ContentView>

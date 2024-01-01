@@ -11,6 +11,8 @@ using VideoPlayer.Models.Movies;
 using VideoPlayer.Models.Sources;
 using VideoPlayer.Models.TVShows;
 using VideoPlayer.Services.Database;
+using VideoPlayer.Services.MediaLibrary.Scanner.Http;
+using VideoPlayer.StatusManagement;
 
 namespace VideoPlayer.Services.MediaLibrary.Downloads
 {
@@ -20,10 +22,16 @@ namespace VideoPlayer.Services.MediaLibrary.Downloads
         private readonly IMediaLibrary _MediaLibrary;
         private readonly MediaLibraryEnvironment _Settings;
         private readonly IJobDatabase _JobDataSource;
+        private readonly IStatusPublisher _StatusPublisher;
 
-        public MediaDownloader(IMediaLibrary mediaLibrary, MediaLibraryEnvironment settings, IJobDatabase jobDataSource)
+        public MediaDownloader(
+            IMediaLibrary mediaLibrary, 
+            MediaLibraryEnvironment settings, 
+            IJobDatabase jobDataSource,
+            IStatusPublisher statusPublisher)
         {
             _JobDataSource = jobDataSource;
+            this._StatusPublisher = statusPublisher;
             _Settings = settings;
             _MediaLibrary = mediaLibrary;
         }
@@ -75,6 +83,8 @@ namespace VideoPlayer.Services.MediaLibrary.Downloads
                                                        collection,
                                                        item,
                                                        MediaItemCopyType.Cache);
+            else if (source is HttpMediaSource)
+                return await DownloadHttpMediaItemAsync(source as HttpMediaSource, collection, item, MediaItemCopyType.Cache);
             else
                 return null;
         }
@@ -92,9 +102,19 @@ namespace VideoPlayer.Services.MediaLibrary.Downloads
             alternateMediaItem.Path = Path.Combine(_Settings.GetPath(copyType),
                                                    collection.Id.ToString(),
                                                    mediaItem.Name);
+            var config = new FtpConfig();
+            var logger = new FtpLogger();
+            logger.NewEntry += (sender, e) => 
+            {                 
+                if (e.Exception != null)
+                    Debug.WriteLine($"{e.Exception}");
+                else
+                    Debug.WriteLine(e.Message);
+            };
             using (FtpClient client = new FtpClient(source.ServerName, new NetworkCredential(source.Username, source.Password)))
                 try
                 {
+                    client.ValidateCertificate += (sender, e) => { e.Accept = true; };
                     client.Connect();
                     try
                     {
@@ -119,6 +139,34 @@ namespace VideoPlayer.Services.MediaLibrary.Downloads
             return alternateMediaItem;
         }
 
+        private async Task<MediaItem> DownloadHttpMediaItemAsync(
+            HttpMediaSource source,
+            MediaItemCollection collection,
+            MediaItem mediaItem,
+            MediaItemCopyType copyType)
+        {            
+            var alternateMediaItem = mediaItem.Duplicate() as MediaItem;
+            alternateMediaItem.Id = 0;
+            alternateMediaItem.OriginalMediaItemId = mediaItem.Id;
+            alternateMediaItem.CopyType = copyType;
+            alternateMediaItem.Path = Path.Combine(_Settings.GetPath(copyType),
+                                                   collection.Id.ToString(),
+                                                   mediaItem.Name);
+            HttpShare client = new HttpShare(source.Uri);
+            try
+            {
+                client.DownloadFile(mediaItem.Path, alternateMediaItem.Path);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex);
+            }
+            if (!File.Exists(alternateMediaItem.Path))
+                return null;
+            await _MediaLibrary.AddMediaItemAsync(alternateMediaItem);
+            OnDownloaded(new BaseModelEventArgs(mediaItem));
+            return alternateMediaItem;
+        }
         private MediaItem DownloadSmbMediaItem(
             SmbMediaSource source,
             MediaItemCollection collection,
@@ -296,7 +344,7 @@ namespace VideoPlayer.Services.MediaLibrary.Downloads
         }
 
         private BackgroundWorker _Worker = null;
-
+        private bool working = false;
         private void StartWorker()
         {
             if (_Worker != null)
@@ -310,13 +358,17 @@ namespace VideoPlayer.Services.MediaLibrary.Downloads
         private async void _Worker_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
             await Task.Delay(1000);
-            _Worker.RunWorkerAsync();
+            if (!working)
+                _Worker.RunWorkerAsync();
         }
 
         private void _Worker_DoWork(object sender, DoWorkEventArgs e)
         {
+            if (working)
+                return;
+            working = true;
             try
-            {
+            {                
                 var job = _JobDataSource.GetDownloadJobs()
                                         .Wait<IEnumerable<Database.Models.DownloadJob>>()
                                         .FirstOrDefault();
@@ -332,8 +384,10 @@ namespace VideoPlayer.Services.MediaLibrary.Downloads
                     var collection = _MediaLibrary.GetMediaItemCollectionAsync(mediaItem.ParentCollectionId)
                                                   .Wait<MediaItemCollection>();
                     var source = _MediaLibrary.GetSourceAsync(collection.MediaSourceId).Wait<MediaSource>();
-
-                    if (source is SmbMediaSource)
+                    _StatusPublisher.AddStatus($"Lade {mediaItem.Name}...", false);
+                    if (source is null)
+                        throw new ArgumentNullException(nameof(source));
+                    else if (source is SmbMediaSource)
                         DownloadSmbMediaItem(source as SmbMediaSource, collection, mediaItem);
                     else if (source is FtpMediaSource)
                         DownloadFtpMediaItemAsync(source as FtpMediaSource,
@@ -341,10 +395,22 @@ namespace VideoPlayer.Services.MediaLibrary.Downloads
                                                   mediaItem,
                                                   MediaItemCopyType.Download)
                         .Wait();
+                    else if (source is HttpMediaSource)
+                        DownloadHttpMediaItemAsync(source as HttpMediaSource, collection, mediaItem, MediaItemCopyType.Download)
+                        .Wait();
+                    else
+                        throw new NotSupportedException($"{source.GetType()}");
                 }
                 _JobDataSource.RemoveDownloadJob(job).Wait();
             }
-            catch { }
+            catch (Exception ex) 
+            {
+                _StatusPublisher.AddStatus(ex.Message, false);
+            }
+            finally
+            {
+                working = false;
+            }
         }
 
         public async Task ContinueDownloadsAsync()
@@ -353,5 +419,26 @@ namespace VideoPlayer.Services.MediaLibrary.Downloads
                 StartWorker();
         }
 
+        public void RemoveAllDownloads()
+        {
+            ClearFolder(_Settings.DownloadFolderPath);
+            ClearFolder(_Settings.CacheFolderPath);
+        }
+
+        private void ClearFolder(string cacheFolderPath)
+        {
+            foreach (var folder in Directory.GetDirectories(cacheFolderPath))
+                try
+                {
+                    Directory.Delete(folder, true);
+                }
+                catch { }
+            foreach (var file in Directory.GetFiles(cacheFolderPath))
+                try
+                {
+                    File.Delete(file);
+                }
+                catch { }
+        }
     }
 }

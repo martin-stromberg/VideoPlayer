@@ -6,6 +6,7 @@ namespace VideoPlayer.Models.MetaInformation
     {
 
         public string Title { get; set; }
+        public DateTime LastUpdate { get; set; }
 
         public override string ToString()
         {

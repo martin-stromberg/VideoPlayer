@@ -7,6 +7,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "VideoPlayer", "VideoPlayer\
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "VideoPlayerMaui", "VideoPlayerMaui\VideoPlayerMaui.csproj", "{CCE663D4-3DE5-401D-8EEB-462C24D580A4}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FolderAPI", "FolderAPI\FolderAPI.csproj", "{0D6ECFCA-47E1-405A-B4F7-CE7C610C0034}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -23,6 +25,10 @@ Global
 		{CCE663D4-3DE5-401D-8EEB-462C24D580A4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CCE663D4-3DE5-401D-8EEB-462C24D580A4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CCE663D4-3DE5-401D-8EEB-462C24D580A4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0D6ECFCA-47E1-405A-B4F7-CE7C610C0034}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0D6ECFCA-47E1-405A-B4F7-CE7C610C0034}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0D6ECFCA-47E1-405A-B4F7-CE7C610C0034}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0D6ECFCA-47E1-405A-B4F7-CE7C610C0034}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

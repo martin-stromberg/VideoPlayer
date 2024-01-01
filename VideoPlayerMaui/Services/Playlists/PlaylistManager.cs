@@ -406,7 +406,7 @@ namespace VideoPlayer.Services.Playlists
             {
                 var typedItem = await _MediaLibrary.GetTypedItem(item.Item.Id);
                 var mediaItem = await _MediaDownloader.CacheAsync(item.Item);
-                var mediaSource = MediaSource.FromFile(mediaItem.Path);
+                var mediaSource = mediaItem == null ? null : MediaSource.FromFile(mediaItem.Path);
                 source.SetMediaSource(mediaItem, typedItem, mediaSource);
             });
 

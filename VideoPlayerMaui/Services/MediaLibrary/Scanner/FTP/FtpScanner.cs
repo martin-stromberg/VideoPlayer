@@ -1,6 +1,5 @@
-﻿using System;
-using System.Linq;
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
+using VideoPlayer.Extensions;
 using VideoPlayer.Models.MediaItems;
 using VideoPlayer.Models.Sources;
 using VideoPlayer.Services.MediaLibrary.Scanner.Events;
@@ -44,13 +43,15 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.FTP
             return source is FtpMediaSource;
         }
 
-        public override void Scan(MediaSource source)
+        public override void Scan(MediaSource source, bool noContinue)
         {
             FtpMediaSource mediaSource = (FtpMediaSource)source;
             share = new FtpShare(mediaSource.ServerName, mediaSource.Username, mediaSource.Password);
             try
             {
                 CurrentSource = source as RemoteMediaSource;
+                if (noContinue)
+                    CurrentSource.LatestScanPath = string.Empty;
 
                 currentScan_SkipPath = string.Empty;
                 currentScan_skipPathParts = null;
@@ -338,5 +339,24 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.FTP
             }
         }
 
+        internal override void SavePictureFromUri(string imageURL, string imageFilePath)
+        {
+            var tempFile = Path.GetTempFileName();
+            try
+            {
+                HttpClient client = new HttpClient();
+                using (var inStream = client.GetStreamAsync(imageURL).Wait<Stream>())
+                using (var fs = new FileStream(tempFile, FileMode.CreateNew))
+                {
+                    inStream.CopyToAsync(fs).Wait();
+                    share.UploadFile(imageFilePath, tempFile);
+                }
+            }
+            finally
+            {
+                if (File.Exists(tempFile))
+                    File.Delete(tempFile);
+            }
+        }
     }
 }

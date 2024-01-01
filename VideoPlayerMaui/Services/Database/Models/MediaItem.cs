@@ -14,6 +14,7 @@ namespace VideoPlayer.Services.Database.Models
         public string MetaInfoJson { get; set; }
 
         public string PicturePath { get; set; }
+        public DateTime PictureTime { get; set; }
 
         public string BannerPath { get; set; }
 

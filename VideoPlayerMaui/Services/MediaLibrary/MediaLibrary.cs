@@ -560,6 +560,8 @@ namespace VideoPlayer.Services.MediaLibrary
         public async Task RemoveMediaItemCollection(MediaItemCollection collection)
         {
             var dbItem = await _DataStore.GetMediaCollectionAsync(collection.Id);
+            if (dbItem == null)
+                return;
             await ClearCollectionMediaAsync(dbItem);
             await _DataStore.RemoveMediaCollection(dbItem);
             OnElementChanged(null, null, new BaseModelEventArgs(collection));

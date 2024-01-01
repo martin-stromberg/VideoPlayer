@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Text.RegularExpressions;
+using VideoPlayer.Extensions;
 using VideoPlayer.Models.MediaItems;
 using VideoPlayer.Models.Sources;
 using VideoPlayer.Services.MediaLibrary.Scanner.FTP;
@@ -84,7 +85,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.SSH
             throw new NotImplementedException();
         }
 
-        public override void Scan(MediaSource source)
+        public override void Scan(MediaSource source, bool noContinue)
         {
             throw new NotImplementedException();
         }
@@ -96,6 +97,10 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.SSH
 
         public override bool TestConnection(MediaSource mediaSource)
         {
+            HttpClient client = new HttpClient();
+            string response = client.GetStringAsync("http://mstromberg.ddns.net:50010/Folder?path=%2FMediaServer/Disk2/Serien/Das%20Leben%20und%20ich").Wait<string>();
+
+
             SSHMediaSource source = mediaSource as SSHMediaSource;
             share = new SSHShare(source.ServerName, source.Username, source.Password);
             try
@@ -116,5 +121,25 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.SSH
             throw new NotImplementedException();
         }
 
+        internal override void SavePictureFromUri(string imageURL, string imageFilePath)
+        {
+            var tempFile = Path.GetTempFileName();
+            try
+            {
+                HttpClient client = new HttpClient();
+                using (var inStream = client.GetStreamAsync(imageURL).Wait<Stream>())
+                using (var fs = new FileStream(tempFile, FileMode.CreateNew))
+                {
+                    inStream.CopyToAsync(fs).Wait();
+                    //share.UploadFile(imageFilePath, tempFile);
+                    throw new NotImplementedException();
+                }
+            }
+            finally
+            {
+                if (File.Exists(tempFile))
+                    File.Delete(tempFile);
+            }
+        }
     }
 }

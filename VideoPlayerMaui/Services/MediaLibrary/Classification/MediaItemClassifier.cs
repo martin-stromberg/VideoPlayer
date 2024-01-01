@@ -239,6 +239,13 @@ namespace VideoPlayer.Services.MediaLibrary.Classification
                     PicturePath = movieCollection.PicturePath,
                     MediaItemCollectionId = movieCollection.Id
                 };
+                if (string.IsNullOrWhiteSpace(collection.PicturePath))
+                {
+                    var mediaItems = (await mediaLibrary.GetMediaItemsAsync(movieCollection.Id)).ToArray();
+                    if (mediaItems.Length == 1)
+                        collection.PicturePath = mediaItems[0].PicturePath;
+                }
+
                 var existingCollection = (await mediaLibrary.FindMovieCollectionByNameAsync(movieCollection.Name)).FirstOrDefault();
                 if (existingCollection == null)
                 {
@@ -247,7 +254,7 @@ namespace VideoPlayer.Services.MediaLibrary.Classification
                 }
                 else
                 {
-                    var collectionMovies = (await mediaLibrary.GetMovies(collection.Id))
+                    var collectionMovies = (await mediaLibrary.GetMovies(existingCollection.Id))
                         .Where(m => !m.MediaItems.Contains(mediaItem.Id));
                     IsSingleMovieCollection = !collectionMovies.Any();
                     if (!IsSingleMovieCollection)

@@ -45,6 +45,12 @@ namespace VideoPlayer.ViewModels.Management.Sources
                 Password = ((SSHMediaSource)source).Password;
                 Path = ((SSHMediaSource)source).Path;
             }
+            IsHttp = source is HttpMediaSource;
+            if (IsHttp)
+            {
+                Host = ((HttpMediaSource)source).Uri;
+                Path = ((HttpMediaSource)source).Path;
+            }
             Save = new Command(async () => await DoSaveAsync());
             Rescan = new Command(() => DoRescanAsync());
             Clean = new Command(() => ExecuteClean());
@@ -123,6 +129,16 @@ namespace VideoPlayer.ViewModels.Management.Sources
             }
         }
 
+        public bool IsHttp {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+            }
+        }
         public Command Save { get; }
 
         public Command Rescan { get; }
@@ -137,7 +153,7 @@ namespace VideoPlayer.ViewModels.Management.Sources
             {
                 if (IsFTP)
                 {
-                    if (string.IsNullOrWhiteSpace(Path))
+                    if (string.IsNullOrWhiteSpace(Host))
                         throw new ApplicationException($"Bitte gib einen Host an.");
                     if (string.IsNullOrWhiteSpace(Username))
                         throw new ApplicationException($"Bitte gib einen Benutzernamen an.");
@@ -153,7 +169,7 @@ namespace VideoPlayer.ViewModels.Management.Sources
 
                 if (IsSSH)
                 {
-                    if (string.IsNullOrWhiteSpace(Path))
+                    if (string.IsNullOrWhiteSpace(Host))
                         throw new ApplicationException($"Bitte gib einen Host an.");
                     if (string.IsNullOrWhiteSpace(Username))
                         throw new ApplicationException($"Bitte gib einen Benutzernamen an.");
@@ -165,6 +181,15 @@ namespace VideoPlayer.ViewModels.Management.Sources
                     ((SSHMediaSource)source).Username = Username;
                     ((SSHMediaSource)source).Password = Password;
                     ((SSHMediaSource)source).Path = Path;
+                }
+                if (IsHttp)
+                {
+                    if (string.IsNullOrWhiteSpace(Host))
+                        throw new ApplicationException($"Bitte gib eine Basisadresse an.");
+                    if (string.IsNullOrWhiteSpace(Path))
+                        throw new ApplicationException($"Bitte gib einen Pfad an.");
+                    ((HttpMediaSource)source).Uri = Host;
+                    ((HttpMediaSource)source).Path = Path;
                 }
                 await _MediaLibrary.AddSourceAsync(source);
                 AddStatusMessage($"Die Änderungen wurden gespeichert.");
@@ -194,7 +219,15 @@ namespace VideoPlayer.ViewModels.Management.Sources
 
         private void ExecuteTest()
         {
-            _LibraryScanner.TestConnection(source);
+            try
+            {
+                _LibraryScanner.TestConnection(source);
+                AddStatusMessage($"Der Test der Verbindung war erfolgreich", true);
+            }
+            catch(Exception ex)
+            {
+                AddStatusMessage(ex.Message, true);
+            }
         }
 
     }

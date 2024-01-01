@@ -68,7 +68,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.Shares
 
         public abstract bool CanScan(MediaSource source);
 
-        public abstract void Scan(MediaSource source);
+        public abstract void Scan(MediaSource source, bool noContinue);
 
         public abstract void Scan(MediaSource source, MediaItem mediaItem);
 
@@ -89,5 +89,6 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.Shares
 
         public abstract bool TestConnection(MediaSource mediaSource);
 
+        internal abstract void SavePictureFromUri(string imageURL, string imageFolderPath);
     }
 }

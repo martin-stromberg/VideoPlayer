@@ -79,6 +79,17 @@ namespace VideoPlayer.Models.MediaItems
                 SetProperty<string>(value);
             }
         }
+        public DateTime PictureTime 
+        {
+            get
+            {
+                return GetProperty<DateTime>();
+            }
+            set
+            {
+                SetProperty<DateTime>(value);
+            }
+        }
 
         public ImageSource Picture
         {

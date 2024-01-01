@@ -5,6 +5,7 @@ using VideoPlayer.Models.MediaItems;
 using VideoPlayer.Models.Movies;
 using VideoPlayer.Models.Sources;
 using VideoPlayer.Models.TVShows;
+using VideoPlayer.Services.MediaLibrary.Downloads;
 using VideoPlayer.Services.MediaLibrary.Scanner;
 using VideoPlayer.StatusManagement;
 
@@ -16,10 +17,16 @@ namespace VideoPlayer.Services.MediaLibrary.Maintenance
         private readonly IMediaLibrary _MediaLibrary;
         private readonly ILibraryScanner _LibraryScanner;
         private readonly IStatusPublisher _StatusPublisher;
+        private readonly IMediaDownloader mediaDownloader;
 
-        public DataCleaner(IMediaLibrary mediaLibrary, ILibraryScanner libraryScanner, IStatusPublisher statusPublisher)
+        public DataCleaner(
+            IMediaLibrary mediaLibrary, 
+            ILibraryScanner libraryScanner, 
+            IStatusPublisher statusPublisher,
+            IMediaDownloader mediaDownloader)
         {
             _StatusPublisher = statusPublisher;
+            this.mediaDownloader = mediaDownloader;
             _LibraryScanner = libraryScanner;
             _MediaLibrary = mediaLibrary;
         }
@@ -79,6 +86,9 @@ namespace VideoPlayer.Services.MediaLibrary.Maintenance
             {
                 await CleanSourceAsync(source);
             }
+            _StatusPublisher.AddStatus($"Löschen temporäre Dateien", false);
+            mediaDownloader.RemoveAllDownloads();
+            _StatusPublisher.AddStatus($"Datenlöschung erfolgt.", false);
         }
 
         private async Task CleanSourceAsync(MediaSource source)

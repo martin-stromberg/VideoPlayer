@@ -15,6 +15,7 @@ namespace VideoPlayer.Services.MediaLibrary.Downloads
         Task ContinueDownloadsAsync();
 
         void RemoveDownload(BaseModel item);
+        void RemoveAllDownloads();
 
         event EventHandler<BaseModelEventArgs> Downloaded;
 

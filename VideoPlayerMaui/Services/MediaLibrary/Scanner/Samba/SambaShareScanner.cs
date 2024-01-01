@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Text.RegularExpressions;
+using VideoPlayer.Extensions;
 using VideoPlayer.Models.MediaItems;
 using VideoPlayer.Models.Sources;
 using VideoPlayer.Services.MediaLibrary.Scanner.Events;
@@ -34,13 +35,15 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.Samba
             return source is SmbMediaSource;
         }
 
-        public override void Scan(MediaSource source)
+        public override void Scan(MediaSource source, bool noContinue)
         {
             SmbMediaSource mediaSource = (SmbMediaSource)source;
             share = new SambaShare(mediaSource.ServerName, mediaSource.Username, mediaSource.Password);
             try
             {
                 CurrentSource = source as RemoteMediaSource;
+                if (noContinue)
+                    CurrentSource.LatestScanPath = string.Empty;
                 Scan(mediaSource.Path, false);
             }
             finally
@@ -227,6 +230,27 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.Samba
         public override bool TestConnection(MediaSource mediaSource)
         {
             throw new NotImplementedException();
+        }
+
+        internal override void SavePictureFromUri(string imageURL, string imageFilePath)
+        {
+            var tempFile = Path.GetTempFileName();
+            try
+            {
+                HttpClient client = new HttpClient();
+                using (var inStream = client.GetStreamAsync(imageURL).Wait<Stream>())
+                using (var fs = new FileStream(tempFile, FileMode.CreateNew))
+                {
+                    inStream.CopyToAsync(fs).Wait();
+                    //share.UploadFile(imageFilePath, tempFile);
+                    throw new NotImplementedException();
+                }
+            }
+            finally
+            {
+                if (File.Exists(tempFile))
+                    File.Delete(tempFile);
+            }
         }
 
     }

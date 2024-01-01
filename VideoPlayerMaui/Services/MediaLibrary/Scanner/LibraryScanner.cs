@@ -2,8 +2,10 @@
 #elif WINDOWS
 #endif
 using Microsoft.Extensions.Logging;
+using Syncfusion.XlsIO;
 using System.Collections.Concurrent;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Xml;
 using VideoPlayer.Extensions;
 using VideoPlayer.Models;
@@ -14,6 +16,7 @@ using VideoPlayer.Models.Sources;
 using VideoPlayer.Models.TVShows;
 using VideoPlayer.Services.MediaLibrary.Scanner.Events;
 using VideoPlayer.Services.MediaLibrary.Scanner.FTP;
+using VideoPlayer.Services.MediaLibrary.Scanner.Http;
 using VideoPlayer.Services.MediaLibrary.Scanner.Models;
 using VideoPlayer.Services.MediaLibrary.Scanner.Samba;
 using VideoPlayer.Services.MediaLibrary.Scanner.Shares;
@@ -21,6 +24,7 @@ using VideoPlayer.Services.MediaLibrary.Scanner.SSH;
 using VideoPlayer.Services.Mediathek;
 using VideoPlayer.Services.Settings;
 using VideoPlayer.StatusManagement;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace VideoPlayer.Services.MediaLibrary.Scanner
 {
@@ -56,7 +60,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
         {
             if (_Scanners != null)
                 return;
-            _Scanners = new List<RemoteSourceScanner>() { new SambaShareScanner(), new FtpScanner(), new SSHScanner() };
+            _Scanners = new List<RemoteSourceScanner>() { new SambaShareScanner(), new FtpScanner(), new SSHScanner(), new HttpScanner() };
             foreach (var scanner in _Scanners)
             {
                 scanner.BeforeScanFolder += Scanner_BeforeScanFolder;
@@ -112,76 +116,91 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
 
         private void Scanner_DoWork(object sender, DoWorkEventArgs e)
         {
+            if (!working)
+                Scanner_DoWork();
+        }
+        private async void Scanner_DoWork()
+        {
             running = true;
+            working = true;
             try
             {
-                SaveMetaInformationAsync().Wait();
-            }
-            catch (Exception ex)
-            {
-                _StatusPublisher.AddStatus(ex.Message, true);
-            }
+                try
+                {
+                    await SaveMetaInformationAsync().ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _StatusPublisher.AddStatus(ex.Message, true);
+                }
+                try
+                {
+                    await ScanQueueEntriesAsync().ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _StatusPublisher.AddStatus(ex.Message, true);
+                }
 
-            try
-            {
-                ScanQueueEntriesAsync().Wait();
-            }
-            catch (Exception ex)
-            {
-                _StatusPublisher.AddStatus(ex.Message, true);
-            }
+                try
+                {
+                    await CleanQueueEntriesAsync().ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _StatusPublisher.AddStatus(ex.Message, true);
+                }
 
-            try
-            {
-                CleanQueueEntriesAsync().Wait();
-            }
-            catch (Exception ex)
-            {
-                _StatusPublisher.AddStatus(ex.Message, true);
-            }
+                if (!_Settings.Current.LibraryScan_AutomaticScan)
+                    return;
 
-            if (!_Settings.Current.LibraryScan_AutomaticScan)
-                return;
+                try
+                {
+                    ScanNextSource();
+                }
+                catch (Exception ex)
+                {
+                    _StatusPublisher.AddStatus(ex.Message, true);
+                }
 
-            try
-            {
-                ScanNextSource();
-            }
-            catch (Exception ex)
-            {
-                _StatusPublisher.AddStatus(ex.Message, true);
-            }
+                try
+                {
+                    await ScanNextCollectionMediaAsync().ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _StatusPublisher.AddStatus(ex.Message, true);
+                }
 
-            try
-            {
-                ScanNextCollectionMediaAsync().Wait();
+                try
+                {
+                    RemoveDeletedSourcesAsync();
+                }
+                catch (Exception ex)
+                {
+                    _StatusPublisher.AddStatus(ex.Message, true);
+                }
             }
-            catch (Exception ex)
+            finally
             {
-                _StatusPublisher.AddStatus(ex.Message, true);
-            }
-
-            try
-            {
-                RemoveDeletedSourcesAsync();
-            }
-            catch (Exception ex)
-            {
-                _StatusPublisher.AddStatus(ex.Message, true);
+                working = false;
             }
         }
 
         private async void Scanner_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
             if (!stopScan)
-                await Task.Delay(1000);
+                await Task.Delay(1000).ConfigureAwait(false);
             if (!stopScan && _Settings.Current.LibraryScan_AutomaticScan)
+                Start();
+            else if (working)
                 Start();
             else
                 running = false;
         }
 
         private bool running = false;
+        private bool working = false;
 
         public void Start()
         {
@@ -237,7 +256,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
                 foreach (var scanner in _Scanners)
                     if (scanner.CanScan(source))
                     {
-                        scanner.Scan(source);
+                        scanner.Scan(source, false);
                         logger.LogInformation($"Scan of source {source.Name} finished.");
                         return;
                     }
@@ -481,6 +500,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
             catch (Exception ex)
             {
                 logger.LogError(ex, ex.Message);
+                _StatusPublisher.AddStatus(ex.Message, true);
             }
         }
 
@@ -564,31 +584,57 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
             nfoName = Path.ChangeExtension(nfoName, ".nfo");
             nfoPath = Path.Combine(nfoFolder, nfoName);
 
+            if (!string.IsNullOrWhiteSpace(infoFile.ImageURL))
+                try
+                {
+                    var imageFolder = Path.GetDirectoryName(item.Path);
+                    string imageFolderPath = Path.Combine(imageFolder, remoteFile.Name);
+                    string imageName = Path.GetFileName(imageFolderPath);
+                    imageName = Path.ChangeExtension(nfoName, ".jpg");
+                    imageFolderPath = Path.Combine(imageFolder, imageName);
+
+                    var imageFile = scanner.FindFiles(imageFolder, imageName).FirstOrDefault();
+                    if (imageFile == null)
+                    {
+                        scanner.SavePictureFromUri(infoFile.ImageURL, imageFolderPath);
+                        imageFile = scanner.FindFiles(imageFolder, imageName).FirstOrDefault();
+                        await ProcessPictureForVideoAsync(scanner, item, imageFile);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine(ex);
+                }
+
             var nfoFile = scanner.FindFiles(nfoFolder, nfoName).FirstOrDefault();
-            if (nfoFile != null)
-                return;
-
-            XmlDocument NfoDoc = new XmlDocument();
-            switch (infoFile.Type)
-            {
-                case MediathekInfoFile.VideoType.TVShow:
-                    NfoDoc.LoadXml("<episodedetails/>");
-                    NfoDoc.DocumentElement.FindChild("showname", true).InnerText = infoFile.Name;
-                    NfoDoc.DocumentElement.FindChild("title", true).InnerText = infoFile.Title;
-                    NfoDoc.DocumentElement.FindChild("season", true).InnerText = infoFile.SeasonNo.ToString();
-                    NfoDoc.DocumentElement.FindChild("episode", true).InnerText = infoFile.EpisodeNo.ToString();
-                    NfoDoc.DocumentElement.FindChild("plot", true).InnerText = infoFile.Plot;
-                    break;
-                case MediathekInfoFile.VideoType.Movie:
-                    NfoDoc.LoadXml("<movie/>");
-                    NfoDoc.DocumentElement.FindChild("title", true).InnerText = infoFile.Title;
-                    NfoDoc.DocumentElement.FindChild("plot", true).InnerText = infoFile.Plot;
-                    break;
-            }
-
-            scanner.WriteTextFile(nfoPath, NfoDoc.InnerXml);
-            nfoFile = scanner.FindFiles(nfoFolder, nfoName).FirstOrDefault();
-            await ProcessNFOForVideoAsync(scanner, item, nfoFile);
+            if (nfoFile == null)
+                try
+                {
+                    XmlDocument NfoDoc = new XmlDocument();
+                    switch (infoFile.Type)
+                    {
+                        case MediathekInfoFile.VideoType.TVShow:
+                            NfoDoc.LoadXml("<episodedetails/>");
+                            NfoDoc.DocumentElement.FindChild("showname", true).InnerText = infoFile.Name;
+                            NfoDoc.DocumentElement.FindChild("title", true).InnerText = infoFile.Title;
+                            NfoDoc.DocumentElement.FindChild("season", true).InnerText = infoFile.SeasonNo.ToString();
+                            NfoDoc.DocumentElement.FindChild("episode", true).InnerText = infoFile.EpisodeNo.ToString();
+                            NfoDoc.DocumentElement.FindChild("plot", true).InnerText = infoFile.Plot;
+                            break;
+                        case MediathekInfoFile.VideoType.Movie:
+                            NfoDoc.LoadXml("<movie/>");
+                            NfoDoc.DocumentElement.FindChild("title", true).InnerText = infoFile.Title;
+                            NfoDoc.DocumentElement.FindChild("plot", true).InnerText = infoFile.Plot;
+                            break;
+                    }
+                    scanner.WriteTextFile(nfoPath, NfoDoc.InnerXml);
+                    nfoFile = scanner.FindFiles(nfoFolder, nfoName).FirstOrDefault();
+                    await ProcessNFOForVideoAsync(scanner, item, nfoFile);
+                }
+                catch (Exception ex)
+                { 
+                    Debug.WriteLine(ex);
+                }
         }
 
         private async Task ProcessNFOForVideoAsync(RemoteSourceScanner scanner, MediaItem item, RemoteFile nfoFile)
@@ -599,6 +645,11 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
             var remoteFile = scanner.FindFiles(nfoFolder, nfoName).FirstOrDefault();
             if (remoteFile == null)
                 return;
+
+            if (item.MetaInfo is MediaInformation)
+                if (((MediaInformation)item.MetaInfo).LastUpdate > nfoFile.LastWriteTime)
+                    return;
+
             logger.LogDebug($"Load nfo file {nfoFile.Name}");
             XmlDocument XmlDoc = new XmlDocument();
             try
@@ -633,7 +684,8 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
                 Genre = documentElement.FindChild("genre", true).InnerText.Trim(),
                 Plot = documentElement.FindChild("plot", true).InnerText.Trim(),
                 ReleaseDate = documentElement.FindChild("releasedate", true).InnerText.Trim().ToDateTime(),
-                Year = documentElement.FindChild("year", true).InnerText.Trim().ToInt32()
+                Year = documentElement.FindChild("year", true).InnerText.Trim().ToInt32(),
+                LastUpdate = DateTime.Now
             };
             if ((Info.Year == 0) && (Info.ReleaseDate != default(DateTime)))
                 Info.Year = Info.ReleaseDate.Year;
@@ -649,6 +701,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
                 Episode = documentElement.FindChild("episode", true).InnerText.Trim(),
                 Season = documentElement.FindChild("season", true).InnerText.Trim(),
                 Plot = documentElement.FindChild("plot", true).InnerText.Trim(),
+                LastUpdate = DateTime.Now
             };
             item.MetaInfo = Info;
         }
@@ -663,12 +716,15 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
                 .FirstOrDefault();
             if (remoteFile == null)
                 return;
+            if (item.PictureTime >= picFile.LastWriteTime)
+                return;
 
             logger.LogDebug($"Caching picture file {picFile.Name}");
             var cacheFileName = $"{Guid.NewGuid()}{Path.GetExtension(picName)}";
             string cachFile = Path.Combine(environment.CacheFolderPath, cacheFileName);
             scanner.DownloadFile(picPath, cachFile);
             item.PicturePath = cachFile.Remove(0, environment.CacheRootPath.Length + 1);
+            item.PictureTime = picFile.LastWriteTime;
             item.Picture = ImageSource.FromFile(cachFile);
             await mediaLibrary.AddMediaItemAsync(item);
         }
@@ -745,28 +801,60 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
 
         private async Task ProcessPictureForFolderAsync(RemoteSourceScanner scanner, MediaItemCollection item)
         {
-            var picPath = Path.Combine(item.Path, "folder.jpg");
-            var picName = Path.GetFileName(picPath);
-            var picFolder = Path.GetDirectoryName(picPath);
-            var remoteFile = scanner
-                .FindFiles(picFolder, picName)
-                .FirstOrDefault();
             var changed = false;
-            if (remoteFile != null)
+            var picPath = string.Empty;
+            var picName = string.Empty;
+            var picFolder = string.Empty;
+            RemoteFile remoteFile = null;
+            foreach (var ext in FileExtImage)
             {
-                logger.LogDebug($"Caching Folder Picture file: {picPath}");
-                var cacheFileName = $"{Guid.NewGuid()}{Path.GetExtension(picName)}";
-                string cachFile = Path.Combine(environment.CacheFolderPath, cacheFileName);
-                scanner.DownloadFile(picPath, cachFile);
-                item.PicturePath = cachFile.Remove(0, environment.CacheRootPath.Length + 1);
-                item.Picture = ImageSource.FromFile(cachFile);
-                changed = true;
+                picPath = Path.Combine(item.Path, $"folder{ext}");
+                picName = Path.GetFileName(picPath);
+                picFolder = Path.GetDirectoryName(picPath);
+                remoteFile = scanner
+                    .FindFiles(picFolder, picName)
+                    .FirstOrDefault();
+                
+                if (remoteFile != null)
+                {
+                    logger.LogDebug($"Caching Folder Picture file: {picPath}");
+                    var cacheFileName = $"{Guid.NewGuid()}{Path.GetExtension(picName)}";
+                    string cachFile = Path.Combine(environment.CacheFolderPath, cacheFileName);
+                    scanner.DownloadFile(picPath, cachFile);
+                    item.PicturePath = cachFile.Remove(0, environment.CacheRootPath.Length + 1);
+                    item.Picture = ImageSource.FromFile(cachFile);
+                    changed = true;
+                    break;
+                }
             }
 
             if (!changed)
+                foreach (var ext in FileExtImage)
+                {
+                    picPath = Path.Combine(item.Path, $"poster{ext}");
+                    picName = Path.GetFileName(picPath);
+                    picFolder = Path.GetDirectoryName(picPath);
+                    remoteFile = scanner
+                        .FindFiles(picFolder, picName)
+                        .FirstOrDefault();
+                    if (remoteFile != null)
+                    {
+                        logger.LogDebug($"Caching Poster Picture file: {picPath}");
+                        var cacheFileName = $"{Guid.NewGuid()}{Path.GetExtension(picName)}";
+                        string cachFile = Path.Combine(environment.CacheFolderPath, cacheFileName);
+                        scanner.DownloadFile(picPath, cachFile);
+                        item.PicturePath = cachFile.Remove(0, environment.CacheRootPath.Length + 1);
+                        item.Picture = ImageSource.FromFile(cachFile);
+                        changed = true;
+                        break;
+                    }
+                }
+
+            foreach (var ext in FileExtImage)
             {
-                picPath = Path.Combine(item.Path, "poster.jpg");
+                picPath = Path.Combine(item.Path, $"banner{ext}");
                 picName = Path.GetFileName(picPath);
+                picFolder = Path.GetDirectoryName(picPath);
                 remoteFile = scanner
                     .FindFiles(picFolder, picName)
                     .FirstOrDefault();
@@ -776,28 +864,12 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
                     var cacheFileName = $"{Guid.NewGuid()}{Path.GetExtension(picName)}";
                     string cachFile = Path.Combine(environment.CacheFolderPath, cacheFileName);
                     scanner.DownloadFile(picPath, cachFile);
-                    item.PicturePath = cachFile.Remove(0, environment.CacheRootPath.Length + 1);
-                    item.Picture = ImageSource.FromFile(cachFile);
+                    item.BannerPath = cachFile.Remove(0, environment.CacheRootPath.Length + 1);
+                    item.Banner = ImageSource.FromFile(cachFile);
                     changed = true;
+                    break;
                 }
             }
-
-            picPath = Path.Combine(item.Path, "banner.jpg");
-            picName = Path.GetFileName(picPath);
-            remoteFile = scanner
-                .FindFiles(picFolder, picName)
-                .FirstOrDefault();
-            if (remoteFile != null)
-            {
-                logger.LogDebug($"Caching Poster Picture file: {picPath}");
-                var cacheFileName = $"{Guid.NewGuid()}{Path.GetExtension(picName)}";
-                string cachFile = Path.Combine(environment.CacheFolderPath, cacheFileName);
-                scanner.DownloadFile(picPath, cachFile);
-                item.BannerPath = cachFile.Remove(0, environment.CacheRootPath.Length + 1);
-                item.Banner = ImageSource.FromFile(cachFile);
-                changed = true;
-            }
-
             if (changed)
                 await mediaLibrary.AddMediaItemCollectionAsync(item);
         }
@@ -864,7 +936,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
             foreach (var scanner in _Scanners)
                 if (scanner.CanScan(mediaSource))
                 {
-                    scanner.Scan(mediaSource);
+                    scanner.Scan(mediaSource, true);
                     logger.LogInformation($"Scan of source {mediaSource.Name} finished.");
                     return;
                 }
@@ -916,10 +988,12 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
 
         private async Task CleanCategorizedEntries()
         {
+            _StatusPublisher.AddStatus($"Bereinige kategoriesierte Filme", false);
             await CleanMovieCollection(0);
             var collections = await mediaLibrary.GetMovieCollections();
             foreach (var collection in collections)
                 await CleanMovieCollection(collection);
+            _StatusPublisher.AddStatus($"Bereinige kategoriesierte Serien", false);
             var shows = await mediaLibrary.GetTVShows();
             foreach (var show in shows)
                 await CleanTVShow(show);

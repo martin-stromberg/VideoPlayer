@@ -8,7 +8,7 @@ namespace VideoPlayer.Services.Mediathek
 
         public enum VideoType
         {
-
+            Unknown,
             Movie,
             TVShow
 
@@ -21,6 +21,7 @@ namespace VideoPlayer.Services.Mediathek
         public string Name { get; private set; }
 
         public string Title { get; private set; }
+        public string ImageURL { get; private set; }
 
         public int SeasonNo { get; private set; }
 
@@ -42,21 +43,24 @@ namespace VideoPlayer.Services.Mediathek
 
         private async Task<bool> LoadMediathekInfoAsync(string[] lines)
         {
+            Type = VideoType.Unknown;
             foreach (var line in lines)
                 await ProcessMediathekLineAsync(line);
-            switch (Name)
+            switch(Type)
             {
-                case "Filme":
+                case VideoType.Movie:
                     Name = CorrectName(Title);
                     Title = Name;
                     Type = VideoType.Movie;
                     return !string.IsNullOrWhiteSpace(Title) && !string.IsNullOrWhiteSpace(Name);
-                default:
+                case VideoType.TVShow:
                     Type = VideoType.TVShow;
                     if (!string.IsNullOrWhiteSpace(Plot) && Plot.StartsWith(Name))
                         Plot = Plot.Remove(0, Name.Length).TrimStart(' ', '-');
                     return SeasonNo != 0 && EpisodeNo != 0 && !string.IsNullOrWhiteSpace(Title)
                         && !string.IsNullOrWhiteSpace(Name);
+                default:
+                    return false;
             }
         }
 
@@ -105,38 +109,54 @@ namespace VideoPlayer.Services.Mediathek
                             var html = await client.GetStringAsync(line);
                             var bytes = Encoding.UTF8.GetBytes(html);
                             html = Encoding.Default.GetString(bytes);
-                            await LoadInfoFromZDFWebsiteAsync(html);
-                            await LoadInfoFromARDWebsite(html);
+                            LoadInfoFromZDFWebsiteAsync(html);
+                            LoadInfoFromARDWebsite(html);
                         }
                         catch { }
                     break;
             }
         }
 
-        private async Task LoadInfoFromARDWebsite(string html)
+        private void LoadInfoFromARDWebsite(string html)
         {
             var head = html.Remove(0, html.IndexOf("<head"));
-            head = html.Remove(head.IndexOf("</head>") + "</head>".Length - 1);
+            head = head.Remove(head.IndexOf("</head>") + "</head>".Length - 1);
 
             var body = html.Remove(0, html.IndexOf("<body"));
-            body = html.Remove(body.IndexOf("</body>") + "</body>".Length - 1);
+            body = body.Remove(body.IndexOf("</body>") + "</body>".Length - 1);
 
-            using (HttpClient client = new HttpClient())
-                try
+            try
+            {
+                var name = findTag(head, "meta", "property", "name", "content");
+                if (string.IsNullOrWhiteSpace(name))
+                    throw new ArgumentNullException(nameof(name));
+                var description = findTag(head, "meta", "name", "description", "content");
+                if (string.IsNullOrWhiteSpace(description))
+                    throw new ArgumentNullException(nameof(description));
+                description = description.Split('|').LastOrDefault()?.Trim();
+                if (string.IsNullOrWhiteSpace(description))
+                    throw new ArgumentNullException(nameof(description));
+                name = name.Split('|').FirstOrDefault()?.Trim();
+                if (string.IsNullOrWhiteSpace(name))
+                    throw new ArgumentNullException(nameof(name));
+                var blacklist = new string[] { "Video" };
+                description = string.Join("\r\n", description.Split('|').Where(d => !blacklist.Contains(d.Trim())));
+
+                ImageURL = findTag(head, "meta", "property", "og:image", "content");
+                if (!string.IsNullOrWhiteSpace(ImageURL))
                 {
-                    var name = findTag(head, "meta", "property", "name", "content");
-                    if (string.IsNullOrWhiteSpace(name))
-                        throw new ArgumentNullException(nameof(name));
-                    var description = findTag(head, "meta", "name", "description", "content");
-                    if (string.IsNullOrWhiteSpace(description))
-                        throw new ArgumentNullException(nameof(name));
-
-                    SeasonNo = 0;
-                    EpisodeNo = 0;
-                    Plot = description;
-                    Title = name;
+                    ImageURL = ImageURL.Substring(ImageURL.IndexOf("url=") + "url=".Length);
+                    ImageURL = Uri.UnescapeDataString(ImageURL);
+                    ImageURL = ImageURL.Replace("{width}", "500");
                 }
-                catch { }
+
+                SeasonNo = 0;
+                EpisodeNo = 0;
+                Plot = description;
+                Title = name;
+                Type = VideoType.Movie;
+            }
+            catch { }
         }
 
         private string findTag(
@@ -169,7 +189,29 @@ namespace VideoPlayer.Services.Mediathek
                             return XmlDoc.DocumentElement.GetAttribute(returnPropertyName);
                     }
                 }
-                catch { }
+                catch 
+                {
+                    var currTag = starttag;
+                    var offset = currTag.IndexOf($"{proprtyName}=\"");
+                    if (offset >= 0)
+                    {
+                        currTag = currTag.Substring(offset + $"{proprtyName}=\"".Length);
+                        offset = currTag.IndexOf('"');
+                        currTag = currTag.Substring (0, offset);
+                        if (currTag == proprtyValue && !string.IsNullOrWhiteSpace(returnPropertyName))
+                        {
+                            currTag = starttag;
+                            offset = currTag.IndexOf($"{returnPropertyName}=\"");
+                            if (offset >= 0)
+                            {
+                                currTag = currTag.Substring(offset + $"{returnPropertyName}=\"".Length);
+                                offset = currTag.IndexOf('"');
+                                currTag = currTag.Substring(0, offset);
+                                return currTag;
+                            }
+                        }
+                    }
+                }
                 source = source.Remove(0, source.IndexOf(">") + 1);
             }
             return string.Empty;
@@ -205,36 +247,47 @@ namespace VideoPlayer.Services.Mediathek
             return content;
         }
 
-        private async Task LoadInfoFromZDFWebsiteAsync(string html)
+        private void LoadInfoFromZDFWebsiteAsync(string html)
         {
             var head = html.Remove(0, html.IndexOf("<head"));
-            head = html.Remove(head.IndexOf("</head>") + "</head>".Length - 1);
+            head = head.Remove(head.IndexOf("</head>") + "</head>".Length - 1);
 
             var body = html.Remove(0, html.IndexOf("<body"));
-            body = html.Remove(body.IndexOf("</body>") + "</body>".Length - 1);
-            using (HttpClient client = new HttpClient())
-                try
+            body = body.Remove(body.IndexOf("</body>") + "</body>".Length - 1);
+            try
+            {
+                var description = findTag(head, "meta", "name", "description", "content");
+                if (string.IsNullOrWhiteSpace(description))
+                    throw new ArgumentNullException(nameof(description));
+                description = description.Split("\r\n").FirstOrDefault().Trim();
+                description = description.Split("|").FirstOrDefault().Trim();
+                var title = findTag(head, "meta", "name", "twitter:title", "content");
+                if (string.IsNullOrWhiteSpace(title))
+                    title = findTag(head, "meta", "name", "og:title", "content");
+                if (string.IsNullOrWhiteSpace(title))
+                    findTag(body, "h1", "class", "big-headline", string.Empty);
+                if (string.IsNullOrWhiteSpace(title))
+                    throw new ArgumentNullException(nameof(title));
+                var imageURL = findTag(head, "meta", "name", "twitter:image", "content");
+                if (string.IsNullOrWhiteSpace(imageURL))
+                    imageURL = findTag(head, "meta", "name", "og:image", "content");
+
+                Plot = description;
+                Title = title;
+                ImageURL = imageURL;
+                var episodeInfo = findTag(body, "span", "class", "teaser-cat", string.Empty).Trim().Split(',');
+                if (episodeInfo.Length == 2)
                 {
-                    var description = findTag(head, "meta", "name", "description", "content");
-                    if (string.IsNullOrWhiteSpace(description))
-                        throw new ArgumentNullException(nameof(description));
-                    var title = findTag(head, "meta", "name", "twitter:title", "content");
-                    if (string.IsNullOrWhiteSpace(title))
-                        title = findTag(head, "meta", "name", "og:title", "content");
-                    if (string.IsNullOrWhiteSpace(title))
-                        findTag(body, "h1", "class", "big-headline", string.Empty);
-                    if (string.IsNullOrWhiteSpace(title))
-                        throw new ArgumentNullException(nameof(title));
-                    var episodeInfo = findTag(body, "span", "class", "teaser-cat", string.Empty).Trim().Split(',');
                     var season = episodeInfo[0].Split(' ').Last();
                     var episode = episodeInfo[1].Split(' ').Last();
-
                     SeasonNo = Convert.ToInt32(season);
                     EpisodeNo = Convert.ToInt32(episode);
-                    Plot = description;
-                    Title = title;
+                    Type = VideoType.TVShow;
                 }
-                catch (Exception ex) { }
+                else
+                    Type = VideoType.Movie;
+            }
+            catch (Exception ex) { }
         }
 
     }

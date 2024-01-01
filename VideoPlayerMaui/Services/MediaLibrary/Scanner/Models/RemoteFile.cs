@@ -9,6 +9,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.Models
         public string Name { get; internal set; }
 
         public string Path { get; internal set; }
+        public DateTime LastWriteTime { get; internal set; }
 
     }
 }

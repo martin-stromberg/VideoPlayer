@@ -154,7 +154,7 @@ namespace VideoPlayer.Services.Database
             var show = await GetTVShow(id);
             var seasons = await GetTVShowSeasons(show.Id);
             await RemoveTVShowSeasons(seasons);
-            await Connection.DeleteAsync(show);
+            await Connection.DeleteAsync(show);            
         }
 
         private async Task RemoveTVShowSeasons(IEnumerable<TVShowSeason> seasons)

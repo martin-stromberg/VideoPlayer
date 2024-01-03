@@ -57,10 +57,12 @@
 
 	<ItemGroup>
 	  <None Remove="Resources\AppIcon\appicon.svg" />
+	  <None Remove="Resources\Images\cancel.png" />
 	  <None Remove="Resources\Images\delete.png" />
 	  <None Remove="Resources\Images\download.png" />
 	  <None Remove="Resources\Images\icon_rescan.png" />
 	  <None Remove="Resources\Images\process.png" />
+	  <None Remove="Resources\Images\setup.png" />
 	  <None Remove="Resources\Images\uncategorized.png" />
 	  <None Remove="Resources\Raw\loading.mp4" />
 	  <None Remove="Resources\raw\secrets.json" />
@@ -158,6 +160,9 @@
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
 	  <MauiXaml Update="Views\MediaLists\Cards\TVShowCardPage.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
+	  <MauiXaml Update="Views\MediaLists\Cards\TVShowSetupView.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
 	  <MauiXaml Update="Views\MediaLists\MediaItemsPage.xaml">

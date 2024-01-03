@@ -29,6 +29,8 @@ namespace VideoPlayer.ViewModels.MediaLists.Details
             _MediaDownloader = mediaDownloader;
             _MediaLibrary = mediaLibrary;
             DownloadSeason = new Command(() => ExecuteDownloadSeason(), () => CanDownloadSeason());
+            ToggleSetup = new Command(() =>ExecuteToggleSetup());
+            DeleteShow = new Command(() => ExecuteDeleteShow());
 
             // for (int idx = 0; idx < 100; idx++)
             // Episodes.Add(new TVShowEpisodeListItemViewModel(new TVShowEpisode()
@@ -50,6 +52,17 @@ namespace VideoPlayer.ViewModels.MediaLists.Details
             // {
             // Mode = ItemViewModel.Dummy
             // });
+        }
+
+        private void ExecuteDeleteShow()
+        {
+            _MediaLibrary.RemoveTVShowAsync(Show);
+            NavigationManager.NavigateBack();
+        }
+
+        private void ExecuteToggleSetup()
+        {
+            IsSetupVisible = !IsSetupVisible;
         }
 
         public void SetParent(TVShow show, TVShowSeason season, TVShowEpisode episode)
@@ -82,15 +95,19 @@ namespace VideoPlayer.ViewModels.MediaLists.Details
         private TVShowEpisode Episode { get; set; }
 
         public Command DownloadSeason { get; }
+        public Command ToggleSetup { get; }
+        public Command DeleteShow { get; }
 
         private bool CanDownloadSeason()
         {
-            return SelectedSeason != null;
+            return SelectedSeason != null && !_DownloadStarted;
         }
-
+        private bool _DownloadStarted = false;
         private void ExecuteDownloadSeason()
         {
             _MediaDownloader.StartDownload(SelectedSeason);
+            _DownloadStarted = true;
+            DownloadSeason?.ChangeCanExecute();
         }
 
         public TVShowSeason SelectedSeason
@@ -102,6 +119,7 @@ namespace VideoPlayer.ViewModels.MediaLists.Details
             set
             {
                 SetProperty<TVShowSeason>(value);
+                _DownloadStarted = false;
                 DownloadSeason?.ChangeCanExecute();
                 LoadEpisodes(Episode);
             }
@@ -242,5 +260,15 @@ namespace VideoPlayer.ViewModels.MediaLists.Details
             }
         }
 
+        public bool IsSetupVisible {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+            }
+        }
     }
 }

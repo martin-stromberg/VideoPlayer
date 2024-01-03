@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.ObjectModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using VideoPlayer.Models;
 using VideoPlayer.Models.MediaItems;
+using VideoPlayer.Models.TVShows;
 using VideoPlayer.Navigation;
 using VideoPlayer.Services.MediaLibrary;
 using VideoPlayer.Services.MediaLibrary.Downloads;
@@ -36,8 +38,12 @@ namespace VideoPlayer.ViewModels.MediaLists
             var mediaItem = e.Element as MediaItem;
             if (mediaItem != null)
                 ProcessMediaItemRemoved(mediaItem);
+            var tvshow = e.Element as TVShow;
+            if (tvshow is not null)
+                ProcessTVShowRemoved(tvshow);
         }
 
+        protected virtual void ProcessTVShowRemoved(TVShow show) { }
         protected virtual void ProcessMediaItemRemoved(MediaItem mediaItem) { }
 
         protected IMediaLibrary MediaLibrary { get; }

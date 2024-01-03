@@ -489,6 +489,7 @@ namespace VideoPlayer.Services.MediaLibrary
             var dbItem = await _DataStore.GetTVShow(show.Id);
             await ClearTVShow(dbItem);
             await _DataStore.RemoveTVShow(dbItem.Id);
+            OnElementChanged(null, null, new BaseModelEventArgs(show));
         }
 
         public async Task RemoveTVShowSeasonAsync(TVShowSeason season)

@@ -24,6 +24,12 @@ namespace VideoPlayer.ViewModels.MediaLists
             IMediaDownloader mediaDownloader)
             : base(statusPublisher, navigationManager, mediaLibrary, playlistManager, settingsService, mediaDownloader) { }
 
+        protected override void ProcessTVShowRemoved(TVShow show)
+        {
+            var vm = Items.FirstOrDefault(item => item.Item.Id == show.Id);
+            if (vm != null)
+                Items.Remove(vm);
+        }
         public override void OnAppeared()
         {
             base.OnAppeared();

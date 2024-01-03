@@ -13,7 +13,7 @@
             ItemsLayout="VerticalList">
             <CollectionView.ItemTemplate>
                 <DataTemplate x:DataType="vm:SourceSettingsViewModel">
-                    <view:SourceConfigurationBox />
+                    <view:SourceConfigurationBox/>
                 </DataTemplate>
             </CollectionView.ItemTemplate>
         </CollectionView>

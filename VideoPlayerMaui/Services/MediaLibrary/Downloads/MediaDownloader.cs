@@ -384,22 +384,29 @@ namespace VideoPlayer.Services.MediaLibrary.Downloads
                     var collection = _MediaLibrary.GetMediaItemCollectionAsync(mediaItem.ParentCollectionId)
                                                   .Wait<MediaItemCollection>();
                     var source = _MediaLibrary.GetSourceAsync(collection.MediaSourceId).Wait<MediaSource>();
-                    _StatusPublisher.AddStatus($"Lade {mediaItem.Name}...", false);
-                    if (source is null)
-                        throw new ArgumentNullException(nameof(source));
-                    else if (source is SmbMediaSource)
-                        DownloadSmbMediaItem(source as SmbMediaSource, collection, mediaItem);
-                    else if (source is FtpMediaSource)
-                        DownloadFtpMediaItemAsync(source as FtpMediaSource,
-                                                  collection,
-                                                  mediaItem,
-                                                  MediaItemCopyType.Download)
-                        .Wait();
-                    else if (source is HttpMediaSource)
-                        DownloadHttpMediaItemAsync(source as HttpMediaSource, collection, mediaItem, MediaItemCopyType.Download)
-                        .Wait();
-                    else
-                        throw new NotSupportedException($"{source.GetType()}");
+                    var statusId = _StatusPublisher.AddStatus($"Lade {mediaItem.Name}...", false);
+                    try
+                    {
+                        if (source is null)
+                            throw new ArgumentNullException(nameof(source));
+                        else if (source is SmbMediaSource)
+                            DownloadSmbMediaItem(source as SmbMediaSource, collection, mediaItem);
+                        else if (source is FtpMediaSource)
+                            DownloadFtpMediaItemAsync(source as FtpMediaSource,
+                                                      collection,
+                                                      mediaItem,
+                                                      MediaItemCopyType.Download)
+                            .Wait();
+                        else if (source is HttpMediaSource)
+                            DownloadHttpMediaItemAsync(source as HttpMediaSource, collection, mediaItem, MediaItemCopyType.Download)
+                            .Wait();
+                        else
+                            throw new NotSupportedException($"{source.GetType()}");
+                    }
+                    finally
+                    {
+                        _StatusPublisher.Clear(statusId);
+                    }
                 }
                 _JobDataSource.RemoveDownloadJob(job).Wait();
             }

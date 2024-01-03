@@ -64,9 +64,21 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
             foreach (var scanner in _Scanners)
             {
                 scanner.BeforeScanFolder += Scanner_BeforeScanFolder;
+                scanner.AfterScanFolder += Scanner_AfterScanFolder;
                 scanner.FileFound += Scanner_FileFound;
                 scanner.FolderFound += Scanner_FolderFound;
                 scanner.ScanCompleted += Scanner_ScanCompleted;
+            }
+        }
+
+        private void Scanner_AfterScanFolder(object sender, FolderScanEventArgs e)
+        {
+            lastFolderCollections.TryTake(out lastFolderCollection);
+            if (e.Success && lastFolderCollection.Path == e.Value)
+            {
+                lastFolderCollection = mediaLibrary.GetMediaItemCollectionAsync(lastFolderCollection.Id).Wait<MediaItemCollection>();
+                lastFolderCollection.LastUpdate = DateTime.Now;
+                mediaLibrary.AddMediaItemCollectionAsync(lastFolderCollection);
             }
         }
 
@@ -80,7 +92,20 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
                 scanner.CurrentSource.LatestScanPath = e.Value;
                 mediaLibrary.AddSourceAsync(scanner.CurrentSource).Wait();
             }
+            if (lastFolderCollection != null && lastFolder != null)
+            {
+                if (lastFolderCollection.LastUpdate >= lastFolder.LastWriteTime)
+                {
+                    e.ScanFiles = false;
+                    e.ScanFolders = false;
+                }
+            }
         }
+        
+        private MediaItemCollection lastFolderCollection = null;
+        private DateTime lastFolderCollectionUpdateTime = DateTime.MinValue;
+        private RemoteFolder lastFolder = null;
+        private ConcurrentBag<MediaItemCollection> lastFolderCollections = new ConcurrentBag<MediaItemCollection>();
 
         private void Scanner_ScanCompleted(object sender, EventArgs e)
         {
@@ -95,7 +120,8 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
         {
             CheckContinue();
             var scanner = sender as RemoteSourceScanner;
-            ProcessFolderAsync(scanner.CurrentSource, scanner, e.Folder).Wait();
+            lastFolderCollection = ProcessFolderAsync(scanner.CurrentSource, scanner, e.Folder).Wait<MediaItemCollection>();
+            lastFolderCollections.Add(lastFolderCollection);
         }
 
         private void Scanner_FileFound(object sender, FileEventArgs e)
@@ -195,7 +221,9 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
                 Start();
             else if (working)
                 Start();
-            else
+            else if (MetaInfoQueue.Any() || ScanQueue.Any()  || CleanQueue.Any())
+                Start();
+            else 
                 running = false;
         }
 
@@ -742,7 +770,11 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
             try
             {
                 logger.LogDebug($"Folder: {folder.Path}");
+                lastFolderCollectionUpdateTime = DateTime.MinValue;
+                lastFolder = folder;
                 var item = await mediaLibrary.FindMediaItemCollectionAsync(source.Id, folder.Path);
+                if (item != null)
+                    lastFolderCollectionUpdateTime = item.MetaDataTime;
                 if (item == null)
                     if (($"{folder.Path}") == source.Path)
                     {

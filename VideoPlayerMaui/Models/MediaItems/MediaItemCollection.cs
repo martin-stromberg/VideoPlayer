@@ -126,6 +126,18 @@ namespace VideoPlayer.Models.MediaItems
             }
         }
 
+        public DateTime LastUpdate 
+        {
+            get
+            {
+                return GetProperty<DateTime>();
+            }
+            set
+            {
+                SetProperty<DateTime>(value);
+            }
+        }
+
         protected override void UpdateFromDataModel(BaseDataModel dataModel)
         {
             if (((MediaCollection)dataModel).MetaInfoJson == "null")

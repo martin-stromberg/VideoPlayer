@@ -7,6 +7,7 @@ namespace VideoPlayer.Services.Database.Models
     {
 
         public long MediaSourceId { get; set; }
+        public DateTime LastUpdate { get; set; }
 
     }
 }

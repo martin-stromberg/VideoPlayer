@@ -3,7 +3,7 @@
     public interface IStatusPublisher
     {
 
-        void AddStatus(string message, bool direct);
-
+        long AddStatus(string message, bool direct);
+        void Clear(long id);
     }
 }

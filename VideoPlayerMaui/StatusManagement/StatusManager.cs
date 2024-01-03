@@ -11,11 +11,18 @@ namespace VideoPlayer.StatusManagement
         public StatusManager() { }
 
         #region IStatusPublisher
-        public void AddStatus(string message, bool direct)
+        public long AddStatus(string message, bool direct)
         {
             LastStatusMessage = message;
+            _LastStatusId = DateTime.Now.Ticks;
             if (direct)
                 CheckAndDoNotification(this, DoWorkEventArgs.Empty as DoWorkEventArgs);
+            return _LastStatusId;
+        }
+        public void Clear(long id)
+        {
+            if (_LastStatusId == id)
+                AddStatus(string.Empty, true);
         }
         #endregion
 
@@ -34,6 +41,7 @@ namespace VideoPlayer.StatusManagement
         #endregion
 
         private string _LastStatusMessage = string.Empty;
+        private long _LastStatusId = 0;
 
         protected string LastStatusMessage
         {
@@ -69,7 +77,10 @@ namespace VideoPlayer.StatusManagement
             if (LastStatusMessage.Equals(lastNotificationMessage))
                 return;
             lastNotificationMessage = LastStatusMessage;
-            MainThread.InvokeOnMainThreadAsync(() => { OnStatusChanged(lastNotificationMessage); });
+            try
+            {
+                MainThread.InvokeOnMainThreadAsync(() => { OnStatusChanged(lastNotificationMessage); });
+            }catch(InvalidOperationException) { }
         }
 
         private async void NotificationCheckCompleted(object sender, RunWorkerCompletedEventArgs e)

@@ -27,6 +27,11 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.Shares
         {
             BeforeScanFolder?.Invoke(this, e);
         }
+        public event EventHandler<FolderScanEventArgs> AfterScanFolder;
+        protected virtual void OnAfterScanFolder(FolderScanEventArgs e)
+        {
+            AfterScanFolder?.Invoke(this, e);
+        }
 
         public event EventHandler<FolderEventArgs> FolderFound;
 

@@ -2,7 +2,10 @@
 
 namespace VideoPlayer.Services.MediaLibrary.Scanner.Http
 {
-    public class HttpShareFolder : RemoteFolder { }
+    public class HttpShareFolder : RemoteFolder
+    {
+        
+    }
 }
 
 

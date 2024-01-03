@@ -176,9 +176,12 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.Http
 
         private void Scan(string path, bool isSubFolder)
         {
-            try
+            var args = new FolderScanEventArgs(path)
             {
-                var args = new FolderScanEventArgs(path);
+                Success = false
+            };
+            try
+            {                
                 OnBeforeScanFolder(args);
                 var files = args.ScanFiles ? FindFiles(path)
                                                 .Select(mediaItem => OnMediaItemFound(mediaItem)).ToArray() : null;
@@ -189,7 +192,8 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.Http
                                                               new HttpShareFolder()
                                                               {
                                                                   Name = f.Name,
-                                                                  Path = Path.Combine(path, f.Name).Replace("\\", "/")
+                                                                  Path = Path.Combine(path, f.Name).Replace("\\", "/"),
+                                                                  LastWriteTime = f.LastWriteTime
                                                               })
                                                       .Select(folder => OnFolderFound(folder))
                                                       .Select(folder =>
@@ -198,6 +202,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.Http
                                                           return folder;
                                                       })
                                                       .ToArray() : null;
+                args.Success = true;                
             }
             catch (Exception ex)
             {
@@ -205,6 +210,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.Http
             }
             finally
             {
+                OnAfterScanFolder(args);
             }
         }
 

@@ -64,11 +64,16 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.Http
             var collection = response["directories"] as JArray;
             if (collection != null)
                 foreach (var entry in collection)
+                {
+                    if (!DateTime.TryParse($"{entry["lastWriteTime"]}", out DateTime lastWriteTime))
+                        lastWriteTime = DateTime.MinValue;
                     yield return new HttpFileInfo()
                     {
-                        Name = $"{entry}",
+                        Name = $"{entry["name"]}",
                         Path = $"{path}{entry}",
+                        LastWriteTime = lastWriteTime
                     };
+                }
         }
 
         public IEnumerable<HttpFileInfo> ListDirectories(string path)

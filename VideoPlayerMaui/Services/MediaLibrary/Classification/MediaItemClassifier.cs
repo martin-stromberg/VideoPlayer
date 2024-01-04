@@ -154,6 +154,10 @@ namespace VideoPlayer.Services.MediaLibrary.Classification
             episode.PrimaryMediaItem = mediaItem;
             episode.PicturePath = mediaItem.PicturePath;
             episode.Plot = episodeInformation.Plot;
+            episode.Part = episodeInformation.Part;
+            if (int.TryParse(episodeInformation.Part, out var _))
+                episode.Part = episode.Part.PadLeft(2, '0');
+
             await CollectShowAsync(show, season, episode);
         }
 
@@ -198,13 +202,16 @@ namespace VideoPlayer.Services.MediaLibrary.Classification
             await mediaLibrary.AddTVShowSeasonAsync(existingShow, existingSeason);
 
             var existingEpisode = (await mediaLibrary.GetTVShowEpisodes(existingSeason.Id))
-                .FirstOrDefault(e => e.EpisodeNo == episode.EpisodeNo);
+                .FirstOrDefault(e => 
+                       e.EpisodeNo == episode.EpisodeNo 
+                    && (e.Part == episode.Part || (e.Part == "" && episode.Part == "01")));
             if (existingEpisode == null)
             {
                 if (int.TryParse(episode.EpisodeNo, out var episodeNo))
                     episode.EpisodeNo = $"Folge {episodeNo.ToString().PadLeft(2, '0')}";
                 existingEpisode = (await mediaLibrary.GetTVShowEpisodes(existingSeason.Id))
-                    .FirstOrDefault(e => e.EpisodeNo == episode.EpisodeNo);
+                    .FirstOrDefault(e => e.EpisodeNo == episode.EpisodeNo
+                        && (e.Part == episode.Part || (e.Part == "" && episode.Part == "01")));
             }
             if (existingEpisode == null)
             {
@@ -221,6 +228,7 @@ namespace VideoPlayer.Services.MediaLibrary.Classification
                 .Distinct()
                 .OrderBy(id => id)
                 .ToArray();
+            existingEpisode.Part = episode.Part;
             existingEpisode.PrimaryMediaItem = episode.PrimaryMediaItem;
             await mediaLibrary.AddTVShowEpisodeAsync(existingShow, existingSeason, existingEpisode);
         }

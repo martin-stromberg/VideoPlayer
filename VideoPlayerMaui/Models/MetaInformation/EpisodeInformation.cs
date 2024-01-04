@@ -10,6 +10,6 @@
         public string Episode { get; set; }
 
         public string Plot { get; set; }
-
+        public string Part { get; set; }
     }
 }

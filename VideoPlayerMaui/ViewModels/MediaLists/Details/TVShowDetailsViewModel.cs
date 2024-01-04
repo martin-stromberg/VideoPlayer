@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Renci.SshNet;
+using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
@@ -175,7 +176,7 @@ namespace VideoPlayer.ViewModels.MediaLists.Details
             var seasons = await _MediaLibrary.GetTVShowSeasons(Show.Id);
             TVShowSeason seasonToSelect = null;
             await MainThread.InvokeOnMainThreadAsync(() => { Seasons.Clear(); });
-            foreach (var season in seasons)
+            foreach (var season in seasons.OrderBy(season => season.Name))
             {
                 await MainThread.InvokeOnMainThreadAsync(() => { Seasons.Add(season); });
                 if ((currentSeason != null) && (season.Id == currentSeason.Id))
@@ -221,7 +222,9 @@ namespace VideoPlayer.ViewModels.MediaLists.Details
                 Banner = SelectedSeason.Banner ?? Show.Banner;
                 var episodes = await _MediaLibrary.GetTVShowEpisodes(SelectedSeason.Id);
                 TVShowEpisode selectedEpisode = null;
-                foreach (var episode in episodes)
+                foreach (var episode in episodes
+                    .OrderBy(episode => episode.EpisodeNo)
+                    .ThenBy(episode => episode.Part))
                 {
                     var vm = new TVShowEpisodeListItemViewModel(episode,
                                                                 () => null,

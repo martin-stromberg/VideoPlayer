@@ -6,6 +6,7 @@ using Syncfusion.XlsIO;
 using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 using System.Xml;
 using VideoPlayer.Extensions;
 using VideoPlayer.Models;
@@ -723,11 +724,15 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
 
         private void ProcessEposideInformation(MediaItem item, XmlElement documentElement)
         {
+            Regex regex = new Regex("\\((\\d+)\\)");
+            Match match = regex.Match(item.Name);
+
             EpisodeInformation Info = new EpisodeInformation()
             {
                 Title = documentElement.FindChild("title", true).InnerText.Trim(),
                 ShowName = documentElement.FindChild("showname", true).InnerText.Trim(),
                 Episode = documentElement.FindChild("episode", true).InnerText.Trim(),
+                Part = match.Success ? match.Groups[1].Value : "",
                 Season = documentElement.FindChild("season", true).InnerText.Trim(),
                 Plot = documentElement.FindChild("plot", true).InnerText.Trim(),
                 LastUpdate = DateTime.Now

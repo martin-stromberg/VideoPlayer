@@ -34,6 +34,7 @@ namespace VideoPlayer.Models.TVShows
         public string SeasonName { get; set; }
 
         public string EpisodeNo { get; set; }
+        public string Part { get; set; }
 
         public string Plot { get; set; }
         public long[] MediaItems { get; set; }
@@ -43,6 +44,7 @@ namespace VideoPlayer.Models.TVShows
 
         [FieldModelReference(nameof(Models.MediaItems.MediaItem.Id), nameof(Services.Database.Models.TVShowEpisode.DownloadMediaItemId))]
         public MediaItems.MediaItem DownloadMediaItem { get; set; }
+        
 
         internal TVShowEpisode SetMediaItems(IEnumerable<TVShowEpisodeMediaItem> mediaItems)
         {

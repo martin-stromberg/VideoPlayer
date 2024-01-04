@@ -36,9 +36,9 @@ namespace VideoPlayer.Services.MediaLibrary
                 await _DataStore.RemoveMovieMediaItemAsync(assignment);
         }
 
-        private async Task ClearTVShow(Database.Models.TVShow dbItem)
+        private async Task ClearTVShow(Database.Models.TVShow show)
         {
-            var seasons = await _DataStore.GetTVShowSeasons(dbItem.Id);
+            var seasons = await _DataStore.GetTVShowSeasons(show.Id);
             foreach (var season in seasons)
             {
                 await ClearTVShowSeason(season);
@@ -47,8 +47,30 @@ namespace VideoPlayer.Services.MediaLibrary
 
         private async Task ClearTVShowEpisode(Database.Models.TVShowEpisode episode)
         {
+            var mediaItems = (await _DataStore.GetTVShowEpisodeMediaItems(episode.Id)).ToArray();
+            await _DataStore.RemoveTVShowEpisodeMediaItemsAsync(episode.Id);
             foreach (var assignment in await _DataStore.GetTVShowMediaItemsForMediaItem(episode.Id))
                 await _DataStore.RemoveMovieMediaItemAsync(assignment);
+            
+            foreach (var mediaItemAssignment in mediaItems)
+            {                
+                var mediaItem = await _DataStore.GetMediaItemAsync(mediaItemAssignment.MediaItemId);
+                var collection = await _DataStore.GetMediaCollectionAsync(mediaItem.ParentCollectionId);
+                if (mediaItem != null)
+                {
+                    await ClearMediaItem(mediaItem);
+                    await _DataStore.RemoveMediaItem(mediaItem);
+                }
+                while (collection != null && collection.ParentCollectionId != 0)
+                {
+                    var remaining = (await GetMediaItemsAsync(collection.Id)).Any() || (await GetChildMediaItemCollectionsAsync(collection.Id)).Any();
+                    if (remaining)
+                        break;
+                    await ClearCollectionMediaAsync(collection);
+                    await _DataStore.RemoveMediaCollection(collection);
+                    collection = await _DataStore.GetMediaCollectionAsync(collection.ParentCollectionId);
+                }
+            }
         }
 
         private async Task ClearTVShowSeason(Database.Models.TVShowSeason season)

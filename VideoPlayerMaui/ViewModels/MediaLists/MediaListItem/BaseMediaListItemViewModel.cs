@@ -274,10 +274,14 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
                     Title = $"{(Item as TVShowEpisode)?.SeasonName} {(Item as TVShowEpisode)?.EpisodeNo}".Trim();
                     if (string.IsNullOrWhiteSpace(Title))
                         Title = Item?.Name ?? string.Empty;
+                    if (int.TryParse((Item as TVShowEpisode)?.Part, out int part) && part > 1)
+                        Title += $"(Teil {(Item as TVShowEpisode).Part})";
                     Subtitle = (Item as TVShowEpisode)?.ShowName ?? string.Empty;
                     break;
                 case ItemViewModel.Lane:
                     Title = $"{(Item as TVShowEpisode)?.EpisodeNo} {Item?.Name}".Trim();
+                    if (int.TryParse((Item as TVShowEpisode)?.Part, out int currPart) && currPart > 1)
+                        Title += $" (Teil {(Item as TVShowEpisode).Part})";
                     Subtitle = (Item as TVShowEpisode)?.Plot?.Shorten(250);
                     break;
             }

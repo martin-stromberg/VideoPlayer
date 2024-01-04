@@ -10,6 +10,7 @@
         public string SeasonName { get; set; }
 
         public string EpisodeNo { get; set; }
+        public string Part { get; set; }
 
         public string Plot { get; set; }
 

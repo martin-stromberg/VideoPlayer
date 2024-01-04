@@ -74,7 +74,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
         private void Scanner_AfterScanFolder(object sender, FolderScanEventArgs e)
         {
             lastFolderCollections.TryTake(out lastFolderCollection);
-            if (e.Success && lastFolderCollection.Path == e.Value)
+            if (e.Success && lastFolderCollection != null && lastFolderCollection.Path == e.Value)
             {
                 lastFolderCollection = mediaLibrary.GetMediaItemCollectionAsync(lastFolderCollection.Id).Wait<MediaItemCollection>();
                 lastFolderCollection.LastUpdate = DateTime.Now;
@@ -209,6 +209,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
             }
             finally
             {
+                _StatusPublisher.AddStatus("", false);
                 working = false;
             }
         }
@@ -996,6 +997,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
             while (CleanQueue.TryDequeue(out BaseModel model))
                 await CleanQueueEntriesAsync(model);
             await CleanCategorizedEntries();
+            _StatusPublisher.AddStatus("", false);
         }
 
         private async Task CleanQueueEntriesAsync(BaseModel model)
@@ -1033,6 +1035,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner
 
         private async Task CleanTVShow(TVShow show)
         {
+            _StatusPublisher.AddStatus($"Bereinige {show.Name}", false);
             var seasons = await mediaLibrary.GetTVShowSeasons(show.Id);
             foreach (var season in seasons)
                 await CleanTVShowSeason(season);

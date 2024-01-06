@@ -316,15 +316,15 @@ namespace VideoPlayer.Services.MediaLibrary.Downloads
                             var statusId = statusPublisher.AddStatus($"Lade {mediaItem.Name}...", false);
                             try
                             {
-                                float latestProgress = 0;
+                                currSession.SetProgress(0);
                                 existingItem = DownloadItemAsync(source, collection, mediaItem, currentSession, (progress) =>
                                 {
                                     if (currentSession == null)
                                         throw new ApplicationException($"Download caceled");
-                                    if (latestProgress != progress)
+                                    if (currSession.Progress != progress)
                                     {
-                                        latestProgress = progress;
-                                        var statusId = statusPublisher.AddStatus($"Lade {mediaItem.Name} ({latestProgress} %)...", false);
+                                        currSession.SetProgress(progress);
+                                        var statusId = statusPublisher.AddStatus($"Lade {mediaItem.Name} ({currSession.Progress} %)...", false);
                                     }
                                 }).Wait<MediaItem>();
                             }

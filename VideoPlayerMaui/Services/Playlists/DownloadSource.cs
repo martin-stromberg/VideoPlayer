@@ -7,6 +7,15 @@ using VideoPlayer.Models.MediaItems;
 
 namespace VideoPlayer.Services.Playlists
 {
+    public class ProgressEventArgs: EventArgs
+    {
+        public ProgressEventArgs(float progress)
+        {
+            Progress = progress;
+        }
+
+        public float Progress { get; }
+    }
     public class DownloadSource
     {
 
@@ -19,6 +28,7 @@ namespace VideoPlayer.Services.Playlists
 
         public event EventHandler<MediaSourceEventArgs> SourceChanged;
         public event EventHandler<ExceptionEventArgs> Error;
+        public event EventHandler<ProgressEventArgs> ProgressChanged;
 
         protected void OnSourceChanged(MediaSourceEventArgs e)
         {
@@ -28,17 +38,27 @@ namespace VideoPlayer.Services.Playlists
         {
             Error?.Invoke(this, e);
         }
+        protected void OnProgressChanged(ProgressEventArgs e)
+        {
+            ProgressChanged?.Invoke(this, e);   
+        }
         public void SetMediaSource(MediaItem item, BaseModel typedItem, MediaSource mediaSource)
         {
             Item = item;
             TypedItem = typedItem;
-            Source = mediaSource;
+            Source = mediaSource;            
             OnSourceChanged(new MediaSourceEventArgs(mediaSource));
+            SetProgress(0);
         }
         internal void SetError(string errorMessage)
         {
             ErrorMessage = errorMessage;
             OnError(new ExceptionEventArgs(new ApplicationException(errorMessage)));
+        }
+
+        internal void SetProgress(float progress)
+        {
+            OnProgressChanged(new ProgressEventArgs(progress));
         }
     }
 }

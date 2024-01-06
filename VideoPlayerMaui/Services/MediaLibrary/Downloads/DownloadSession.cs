@@ -19,6 +19,11 @@ namespace VideoPlayer.Services.MediaLibrary.Downloads
             get { return GetProperty<DownloadStatus>(); }
             private set { SetProperty<DownloadStatus>(value); }
         }
+        public float Progress
+        {
+            get { return GetProperty<float>(); }
+            private set { SetProperty<float>(value); }
+        }
 
         public string ErrorMessage {
             get { return GetProperty<string>(); }
@@ -40,7 +45,8 @@ namespace VideoPlayer.Services.MediaLibrary.Downloads
             {
                 Job = null,
                 Item = item,
-                Status = DownloadStatus.Finished
+                Status = DownloadStatus.Finished,
+                Progress = 100
             };
         }
 
@@ -50,7 +56,8 @@ namespace VideoPlayer.Services.MediaLibrary.Downloads
             {
                 Job = job,
                 Item = null,
-                Status = DownloadStatus.Waiting
+                Status = DownloadStatus.Waiting,
+                Progress = 0
             };
         }
 
@@ -75,6 +82,10 @@ namespace VideoPlayer.Services.MediaLibrary.Downloads
             ErrorMessage = ex.Message;
             Status = DownloadStatus.Failed;
             ErrorCounter += 1;
+        }
+        internal void SetProgress(float progress)
+        {
+            Progress = progress;
         }
     }
 }

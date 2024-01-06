@@ -797,8 +797,11 @@ namespace VideoPlayer.Services.MediaLibrary
             if (File.Exists(mediaItem.PicturePath))
                 File.Delete(mediaItem.PicturePath);
             if (((MediaItemCopyType)mediaItem.CopyType) == MediaItemCopyType.Cache)
-                if (File.Exists(mediaItem.Path))
-                    File.Delete(mediaItem.Path);
+            {
+                var path = _Settings.CacheFolderPath + mediaItem.Path;
+                if (File.Exists(path))
+                    File.Delete(path);
+            }
         }
         #endregion
 

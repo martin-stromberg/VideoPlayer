@@ -53,6 +53,7 @@
                 <Label Text="{Binding Title}" VerticalOptions="Center" Margin="5,0"/>
             </HorizontalStackLayout>
         </Grid>
+        <Label Grid.RowSpan="4" VerticalOptions="Center" HorizontalOptions="Center" Text="{Binding DownloadProgress}" IsVisible="{Binding IsDownloadProgressVisible}"/>
         <Label Grid.Row="1" Text="{Binding CurrentPositionTime, StringFormat='{}{0:hh}:{0:mm}:{0:ss}'}" VerticalOptions="End" Margin="5,0" IsVisible="{Binding PlaybackControlsVisible}"/>
         <Label Grid.Row="1" Text="{Binding RemainingPositionTime, StringFormat='{}{0:hh}:{0:mm}:{0:ss}'}" HorizontalOptions="End" VerticalOptions="End" Margin="5,0" IsVisible="{Binding PlaybackControlsVisible}"/>
         <Slider Grid.Row="2" Maximum="{Binding MaximumPosition}" Value="{Binding CurrentPosition}" IsVisible="{Binding PlaybackControlsVisible}"/>

@@ -410,6 +410,9 @@ namespace VideoPlayer.Services.Playlists
                         case nameof(DownloadSession.Status):
                             await UpdateDownloadSourceAsync(source, session);
                             break;
+                        case nameof(DownloadSession.Progress):
+                            source.SetProgress(session.Progress);
+                            break;
                     }
                 };
                 await UpdateDownloadSourceAsync(source, session);

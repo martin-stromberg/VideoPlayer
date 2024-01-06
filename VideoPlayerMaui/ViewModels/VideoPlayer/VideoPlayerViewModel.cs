@@ -120,6 +120,29 @@ namespace VideoPlayer.ViewModels.VideoPlayer
         }
 
         private DownloadSource _Download = null;
+        public float DownloadProgress
+        {
+            get
+            {
+                return GetProperty<float>();
+            }
+            set
+            {
+                SetProperty<float>(value);
+                IsDownloadProgressVisible = value > 0 && value < 100;
+            }
+        }
+        public bool IsDownloadProgressVisible
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+            }
+        }
 
         private DownloadSource Download
         {
@@ -133,6 +156,7 @@ namespace VideoPlayer.ViewModels.VideoPlayer
                 {
                     _Download.SourceChanged -= _Download_SourceChanged;
                     _Download.Error -= _Download_Error;
+                    _Download.ProgressChanged -= _Download_ProgressChanged;
                 }
                 _Download = value;
                 _Download_SourceChanged(this, new MediaSourceEventArgs(_Download?.Source));
@@ -140,8 +164,14 @@ namespace VideoPlayer.ViewModels.VideoPlayer
                 {
                     _Download.SourceChanged += _Download_SourceChanged;
                     _Download.Error += _Download_Error;
+                    _Download.ProgressChanged += _Download_ProgressChanged;
                 }
             }
+        }
+
+        private void _Download_ProgressChanged(object sender, ProgressEventArgs e)
+        {
+            DownloadProgress = e.Progress;
         }
 
         private void _Download_Error(object sender, Common.ExceptionEventArgs e)

@@ -87,6 +87,8 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.Http
         {
             remoteFilePath = remoteFilePath.Replace('\\', '/');
             var localFolderPath = Path.GetDirectoryName(localFilePath);
+            if (!Path.Exists(localFolderPath))
+                Directory.CreateDirectory(localFolderPath);
             using (HttpClient client = new HttpClient()
             {
                 Timeout = TimeSpan.FromMinutes(60)

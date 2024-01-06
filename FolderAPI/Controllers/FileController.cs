@@ -23,10 +23,12 @@ namespace FolderAPI.Controllers
             var filePath = fileManager.GetFilePath(path);
             try
             {
-                var fileData = System.IO.File.ReadAllBytes(filePath);
+                //var fileData = System.IO.File.ReadAllBytes(filePath);
+
+                Stream stream = new FileStream(filePath, FileMode.Open);
                 var fileName = Path.GetFileName(filePath);
                 var fileType = $"application/{Path.GetExtension(filePath).Remove(0,1)}";
-                return File(fileData, fileType, fileName);
+                return File(stream, fileType, fileName);
             }
             catch (Exception ex)
             {

@@ -19,10 +19,10 @@ namespace FolderAPI.Middleware
         {
             bool isLocal = context.Request.Host.Host == "localhost";
             if (!context.Request.Headers.ContainsKey("X-ApiKey") && !isLocal)
-                throw new ArgumentNullException("X-ApiKey");
+                 throw new ArgumentNullException("X-ApiKey");
             var apiKey = context.Request.Headers["X-ApiKey"].SingleOrDefault();
             if (!apiKeys.Contains(apiKey) && !isLocal)
-                throw new ArgumentException("X-ApiKey");
+                 throw new ArgumentException("X-ApiKey");
             await _next(context);
         }
     }

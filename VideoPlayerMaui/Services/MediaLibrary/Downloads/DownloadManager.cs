@@ -1,10 +1,4 @@
-﻿using Renci.SshNet;
-using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.ComponentModel;
 using VideoPlayer.Extensions;
 using VideoPlayer.Models;
 using VideoPlayer.Models.MediaItems;
@@ -13,19 +7,11 @@ using VideoPlayer.Models.Sources;
 using VideoPlayer.Models.TVShows;
 using VideoPlayer.Services.Database;
 using VideoPlayer.Services.MediaLibrary.Scanner.Http;
+using VideoPlayer.Services.MediaLibrary.Scanner.Shares;
 using VideoPlayer.StatusManagement;
-using static SQLite.SQLite3;
 
 namespace VideoPlayer.Services.MediaLibrary.Downloads
 {
-    public interface IDownloadManager
-    {
-        void ContinueDownloads();
-        void RemoveAllDownloads();
-        void RemoveDownload(BaseModel item);
-        Task<DownloadSession> StartDownloadAsync(MediaItem item, MediaItemCopyType cache);
-        Task<IEnumerable<DownloadSession>> StartDownloadAsync(BaseModel item, MediaItemCopyType cache);
-    }
     public class DownloadManager: IDownloadManager
     {
         private readonly IMediaLibrary mediaLibrary;
@@ -330,7 +316,17 @@ namespace VideoPlayer.Services.MediaLibrary.Downloads
                             var statusId = statusPublisher.AddStatus($"Lade {mediaItem.Name}...", false);
                             try
                             {
-                                existingItem = DownloadItemAsync(source, collection, mediaItem, currentSession).Wait<MediaItem>();
+                                float latestProgress = 0;
+                                existingItem = DownloadItemAsync(source, collection, mediaItem, currentSession, (progress) =>
+                                {
+                                    if (currentSession == null)
+                                        throw new ApplicationException($"Download caceled");
+                                    if (latestProgress != progress)
+                                    {
+                                        latestProgress = progress;
+                                        var statusId = statusPublisher.AddStatus($"Lade {mediaItem.Name} ({latestProgress} %)...", false);
+                                    }
+                                }).Wait<MediaItem>();
                             }
                             finally
                             {
@@ -388,7 +384,7 @@ namespace VideoPlayer.Services.MediaLibrary.Downloads
             }
         }
 
-        private async Task<MediaItem> DownloadItemAsync(MediaSource source, MediaItemCollection collection, MediaItem mediaItem, DownloadSession currentSession)
+        private async Task<MediaItem> DownloadItemAsync(MediaSource source, MediaItemCollection collection, MediaItem mediaItem, DownloadSession currentSession, Action<float> OnProgressChanged)
         {
             if (source is null)
                 throw new ArgumentNullException(nameof(source));
@@ -401,38 +397,42 @@ namespace VideoPlayer.Services.MediaLibrary.Downloads
                                                    collection.Id.ToString(),
                                                    mediaItem.Name);
             if (!File.Exists(alternateMediaItem.Path))
-                if (source is SmbMediaSource)
-                    DownloadSmbMediaItem(source as SmbMediaSource, collection, mediaItem);
-                else if (source is FtpMediaSource)
-                    DownloadFtpMediaItemAsync(source as FtpMediaSource,
-                                              collection,
-                                              mediaItem,
-                                              MediaItemCopyType.Download);
-                else if (source is HttpMediaSource)
-                    DownloadHttpMediaItem(source as HttpMediaSource, mediaItem, alternateMediaItem);
-                else
-                    throw new NotSupportedException($"{source.GetType()}");
-
+            {
+                RemoteShare share = CreateRemoteShare(source);
+                share.DownloadProgress += (sender, e) =>
+                {
+                    try
+                    {
+                        OnProgressChanged(e.Progress);
+                    }
+                    catch
+                    {
+                        e.Cancel = true;
+                    }
+                };
+                share.DownloadFile(mediaItem.Path, alternateMediaItem.Path);
+            }
             if (!File.Exists(alternateMediaItem.Path))
                 throw new ApplicationException($"Download of file failed.");
             await mediaLibrary.AddMediaItemAsync(alternateMediaItem);
             return alternateMediaItem;
         }
 
-        private object DownloadFtpMediaItemAsync(FtpMediaSource ftpMediaSource, MediaItemCollection collection, MediaItem mediaItem, MediaItemCopyType download)
+        private RemoteShare CreateRemoteShare(MediaSource source)
         {
-            throw new NotImplementedException();
+            if (source is SmbMediaSource)
+                throw new NotImplementedException();
+            else if (source is FtpMediaSource)
+                throw new NotImplementedException();
+            else if (source is HttpMediaSource)
+                return CreateHttpShare(source as HttpMediaSource);
+            else
+                throw new NotSupportedException($"{source.GetType()}");
         }
 
-        private void DownloadSmbMediaItem(SmbMediaSource smbMediaSource, MediaItemCollection collection, MediaItem mediaItem)
+        private RemoteShare CreateHttpShare(HttpMediaSource source)
         {
-            throw new NotImplementedException();
-        }
-
-        private void DownloadHttpMediaItem(HttpMediaSource source, MediaItem mediaItem,  MediaItem copyMediaItem)
-        {
-            HttpShare client = new HttpShare(source.Uri);
-            client.DownloadFile(mediaItem.Path, copyMediaItem.Path);
+            return new HttpShare(source.Uri);
         }
         #endregion
     }

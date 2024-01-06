@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using VideoPlayer.Extensions;
 using VideoPlayer.Services.MediaLibrary.Scanner.Models;
@@ -82,8 +83,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.Http
             var response = GetJson(uri);
             return GetFolders(response, path);
         }
-
-        public void DownloadFile(string remoteFilePath, string localFilePath)
+        public override void DownloadFile(string remoteFilePath, string localFilePath)
         {
             remoteFilePath = remoteFilePath.Replace('\\', '/');
             var localFolderPath = Path.GetDirectoryName(localFilePath);
@@ -94,17 +94,33 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.Http
             {
                 client.DefaultRequestHeaders.Add("X-ApiKey", apiKey);
                 var uri = $"{serverUri}File?path={remoteFilePath}";
-                HttpResponseMessage response = client.GetAsync(uri).Wait<HttpResponseMessage>();
-                System.Net.Http.HttpContent content = response.Content;
-                using (var s = client.GetStreamAsync(uri).Wait<Stream>())
+                using (var fs = new FileStream(localFilePath, FileMode.CreateNew))
                 {
-                    if (!Directory.Exists(localFolderPath))
-                        Directory.CreateDirectory(localFolderPath);
-                    using (var fs = new FileStream(localFilePath, FileMode.CreateNew))
+                    CancellationTokenSource cancelationToken = new CancellationTokenSource();
+                    DownloadProgressEventArgs progressArgs = new DownloadProgressEventArgs(remoteFilePath, localFilePath, 0);
+                    client.DownloadAsync(uri, fs, new Progress<float>((progress) => 
                     {
-                        s.CopyToAsync(fs).Wait();
-                    }
+                        progressArgs.Progress = progress;
+                        OnDownloadProgress(progressArgs);
+                        if (progressArgs.Cancel)
+                            cancelationToken.Cancel();
+                        
+                    }), cancelationToken.Token).Wait();
                 }
+
+
+
+                //HttpResponseMessage response = client.GetAsync(uri).Wait<HttpResponseMessage>();
+                //System.Net.Http.HttpContent content = response.Content;
+                //using (var s = client.GetStreamAsync(uri).Wait<Stream>())
+                //{
+                //    if (!Directory.Exists(localFolderPath))
+                //        Directory.CreateDirectory(localFolderPath);
+                //    using (var fs = new FileStream(localFilePath, FileMode.CreateNew))
+                //    {
+                //        s.CopyToAsync(fs).Wait();
+                //    }
+                //}
             }
         }
 

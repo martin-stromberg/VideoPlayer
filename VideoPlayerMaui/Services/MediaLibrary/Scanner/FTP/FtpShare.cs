@@ -79,7 +79,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.FTP
                             .Select(f => new FtpFileInfo() { Name = f.Name, Path = f.FullName });
         }
 
-        internal void DownloadFile(string remoteFilePath, string localFilePath)
+        public override void DownloadFile(string remoteFilePath, string localFilePath)
         {
             if (ftpClient.DownloadFile(localFilePath,
                                        remoteFilePath,

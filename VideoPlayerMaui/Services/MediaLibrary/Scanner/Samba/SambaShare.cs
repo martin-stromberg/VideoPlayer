@@ -182,7 +182,7 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.Samba
                    });
         }
 
-        public void DownloadFile(string sourcePath, string destPath)
+        public override void DownloadFile(string sourcePath, string destPath)
         {
             CheckConnected();
             sourcePath = sourcePath.Replace("\\", "/");

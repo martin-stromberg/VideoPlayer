@@ -31,6 +31,7 @@ namespace VideoPlayer.Helper.Navigation
             _Settings = settings;
             _MediaLibrary = mediaLibrary;
             Routing.RegisterRoute("movies", typeof(MoviesPage));
+            Routing.RegisterRoute("movie", typeof(MovieCardPage));
             Routing.RegisterRoute("tvshows", typeof(TVShowsPage));
             Routing.RegisterRoute("tvshow", typeof(TVShowCardPage));
             Routing.RegisterRoute("player", typeof(VideoPlayerPage));
@@ -95,13 +96,18 @@ namespace VideoPlayer.Helper.Navigation
             {
                 { "Collection", movieCollection }
             };
-            NavigateToRoute($"movies", navigationParameter);
+            NavigateToRoute($"movie", navigationParameter);
         }
 
         public async Task OpenMovie(Movie movie, Func<IEnumerable<BaseModel>> GetCollectionElements)
         {
-            await _PlaylistManager.StartMoviePlaylistAsync(movie, GetCollectionElements);
-            NavigateToRoute($"player");
+            //await _PlaylistManager.StartMoviePlaylistAsync(movie, GetCollectionElements);
+            //NavigateToRoute($"player");
+            var navigationParameter = new Dictionary<string, object>
+            {
+                { "Movie", movie }
+            };
+            NavigateToRoute($"movie", navigationParameter);
         }
 
         public async Task OpenPlaylistPlaybackAsync()

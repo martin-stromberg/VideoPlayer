@@ -1,14 +1,6 @@
 ﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using Syncfusion.XlsIO.Implementation.XmlSerialization;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using VideoPlayer.Extensions;
-using VideoPlayer.Services.MediaLibrary.Scanner.Models;
 using VideoPlayer.Services.MediaLibrary.Scanner.Shares;
 
 namespace VideoPlayer.Services.MediaLibrary.Scanner.Http
@@ -144,6 +136,16 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.Http
                 HttpResponseMessage response = client.PostAsync(uri, formContent).Wait<HttpResponseMessage>();
                 if (response.StatusCode != System.Net.HttpStatusCode.OK)
                     throw new ApplicationException($"{response.StatusCode}: {response.Content.ReadAsStringAsync().Wait<string>()}");
+            }
+        }
+
+        internal void TestConnection()
+        {
+            using (HttpClient client = new HttpClient())
+            {
+                client.DefaultRequestHeaders.Add("X-ApiKey", apiKey);
+                var uri = $"{serverUri}Folder?path=/";
+                var responseContent = client.GetStringAsync(uri).Wait<string>();
             }
         }
     }

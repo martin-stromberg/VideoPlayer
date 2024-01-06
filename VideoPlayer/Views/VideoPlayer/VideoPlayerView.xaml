@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:VideoPlayer.ViewModels.VideoPlayer;assembly=VideoPlayerMaui"
+             xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+             x:Class="VideoPlayer.Views.VideoPlayer.VideoPlayerView"
+             x:DataType="vm:VideoPlayerViewModel"
+             Shell.NavBarIsVisible="False">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="50"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="30"/>
+            <RowDefinition Height="50"/>
+        </Grid.RowDefinitions>
+        <toolkit:MediaElement 
+            Grid.RowSpan="4"
+            x:Name="Video"
+            ShouldShowPlaybackControls="False"
+            ShouldAutoPlay="True" 
+            ShouldKeepScreenOn="True"
+            MediaOpened="Video_MediaOpened"
+            MediaEnded="Video_MediaEnded"
+            MediaFailed="Video_MediaFailed"
+            SeekCompleted="Video_SeekCompleted"
+            PositionChanged="Video_PositionChanged"
+            StateChanged="Video_StateChanged"            
+            Source="{Binding VideoSource}">
+            <toolkit:MediaElement.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnTapGestureRecognizerTapped" NumberOfTapsRequired="1" />
+                <TapGestureRecognizer Tapped="OnTapGestureRecognizerDoubleTapped" NumberOfTapsRequired="2" />
+            </toolkit:MediaElement.GestureRecognizers>
+        </toolkit:MediaElement>
+        <Grid             
+            Grid.Row="0"
+            BackgroundColor="Black"
+            Opacity="0.3"
+            IsVisible="{Binding PlaybackControlsVisible}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition/>
+                <ColumnDefinition/>
+            </Grid.ColumnDefinitions>
+            <HorizontalStackLayout 
+                Grid.Column="0">
+                <ImageButton                    
+                    HeightRequest="20"
+                    WidthRequest="20"
+                    Source="back.png"
+                    Clicked="OnNavigateButtonClicked"
+                    Margin="5,0"
+                    VerticalOptions="Start"/>
+                <Label Text="{Binding Title}" VerticalOptions="Center" Margin="5,0"/>
+            </HorizontalStackLayout>
+
+            <HorizontalStackLayout Grid.Column="2" HorizontalOptions="End">
+                <ImageButton                    
+                    HeightRequest="20"
+                    WidthRequest="20"
+                    Source="window.png"
+                    IsVisible="{Binding IsFullScreen}"
+                    Command="{Binding ToggleFullScreen}"
+                    Margin="5,0"
+                    HorizontalOptions="End"/>
+                <ImageButton                    
+                    HeightRequest="20"
+                    WidthRequest="20"
+                    Source="fullscreen.png"
+                    IsVisible="{Binding IsWindowMode}"
+                    Command="{Binding ToggleFullScreen}"
+                    Margin="5,0"
+                    HorizontalOptions="End"/>
+            </HorizontalStackLayout>
+        </Grid>
+        <Label Grid.RowSpan="4" VerticalOptions="Center" HorizontalOptions="Center" Text="{Binding DownloadProgress}" IsVisible="{Binding IsDownloadProgressVisible}"/>
+        <Label Grid.Row="1" Text="{Binding CurrentPositionTime, StringFormat='{}{0:hh}:{0:mm}:{0:ss}'}" VerticalOptions="End" Margin="5,0" IsVisible="{Binding PlaybackControlsVisible}"/>
+        <Label Grid.Row="1" Text="{Binding RemainingPositionTime, StringFormat='{}{0:hh}:{0:mm}:{0:ss}'}" HorizontalOptions="End" VerticalOptions="End" Margin="5,0" IsVisible="{Binding PlaybackControlsVisible}"/>
+        <Slider Grid.Row="2" Maximum="{Binding MaximumPosition}" Value="{Binding CurrentPosition}" IsVisible="{Binding PlaybackControlsVisible}"/>
+        <Grid Grid.Row="3"
+              BackgroundColor="Black"
+              Opacity="0.3"
+              IsVisible="{Binding PlaybackControlsVisible}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition/>
+                <ColumnDefinition/>
+                <ColumnDefinition/>
+                <ColumnDefinition/>
+                <ColumnDefinition/>
+            </Grid.ColumnDefinitions>
+            <ImageButton
+                Grid.Column="0"
+                HeightRequest="40"
+                WidthRequest="40"
+                Source="previous.png"
+                Clicked="OnPlaybackButtonClicked"
+                CommandParameter="previous"
+                HorizontalOptions="Center"/>
+            <ImageButton
+                Grid.Column="1"
+                HeightRequest="40"
+                WidthRequest="40"
+                Source="left.png"
+                Clicked="OnPlaybackButtonClicked"
+                CommandParameter="left"
+                HorizontalOptions="Center"/>
+            <ImageButton
+                Grid.Column="2"
+                HeightRequest="40"
+                WidthRequest="40"
+                Source="play.png"
+                Clicked="OnPlaybackButtonClicked"
+                CommandParameter="play"
+                IsVisible="{Binding IsPlayable}"
+                HorizontalOptions="Center"/>
+            <ImageButton
+                Grid.Column="2"
+                HeightRequest="40"
+                WidthRequest="40"
+                Source="pause.png"
+                Clicked="OnPlaybackButtonClicked"
+                CommandParameter="pause"
+                IsVisible="{Binding IsPlaying}"
+                HorizontalOptions="Center"/>
+            <ImageButton
+                Grid.Column="3"
+                HeightRequest="40"
+                WidthRequest="40"
+                Source="right.png"
+                Clicked="OnPlaybackButtonClicked"
+                CommandParameter="right"
+                HorizontalOptions="Center"/>
+            <ImageButton
+                Grid.Column="4"
+                HeightRequest="40"
+                WidthRequest="40"
+                Source="next.png"
+                Clicked="OnPlaybackButtonClicked"
+                CommandParameter="next"
+                HorizontalOptions="Center"/>
+        </Grid>
+    </Grid>
+</ContentView>

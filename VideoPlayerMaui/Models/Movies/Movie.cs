@@ -89,5 +89,10 @@ namespace VideoPlayer.Models.Movies
             return this;
         }
 
+        public override string ToString()
+        {
+            return $"{Name}";
+        }
+
     }
 }

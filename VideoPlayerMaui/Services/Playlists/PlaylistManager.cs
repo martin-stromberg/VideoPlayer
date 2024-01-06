@@ -430,6 +430,8 @@ namespace VideoPlayer.Services.Playlists
                     if (session.Item != null)
                     {
                         var typedItem = await _MediaLibrary.GetTypedItem(session.Item.Id);
+                        if (typedItem == null)
+                            typedItem = await _MediaLibrary.GetTypedItem(session.Item.OriginalMediaItemId);
                         var mediaSource = MediaSource.FromFile(session.Item.Path);
                         source.SetMediaSource(session.Item, typedItem, mediaSource);
                     }
@@ -453,5 +455,9 @@ namespace VideoPlayer.Services.Playlists
             await _MediaLibrary.AddPlaylistAsync(playlist);
         }
 
+        public void ProcessMediaFailed(MediaItem item)
+        {
+            _DownloadManager.RemoveDownload(item);
+        }
     }
 }

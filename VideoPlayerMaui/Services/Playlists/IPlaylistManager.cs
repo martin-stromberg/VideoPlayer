@@ -32,6 +32,6 @@ namespace VideoPlayer.Services.Playlists
         DownloadSource GetFirstVideoSource();
 
         DownloadSource ProcessMediaEnded(MediaItem item);
-        
+        void ProcessMediaFailed(MediaItem item);
     }
 }

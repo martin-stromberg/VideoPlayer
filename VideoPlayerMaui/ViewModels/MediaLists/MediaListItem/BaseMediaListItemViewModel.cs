@@ -299,7 +299,11 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
                 return default(T);
             return (T)prop.GetValue(Item);
         }
-
+        public event EventHandler<BaseModelProcessEventArgs> BeforeOpenDetails;
+        protected virtual void OnBeforeOpenDetails(BaseModelProcessEventArgs e)
+        {
+            BeforeOpenDetails?.Invoke(this, e);
+        }
         public abstract void OpenDetails();
 
         public abstract void OpenCategory();

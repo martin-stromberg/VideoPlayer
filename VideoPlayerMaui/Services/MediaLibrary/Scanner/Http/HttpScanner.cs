@@ -83,28 +83,38 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.Http
 
         public override IEnumerable<RemoteFolder> FindFolders(RemoteMediaSource source, string path, string folderNameMask)
         {
-            return share.ListDirectories(path.Replace('\\', '/'))
-                            .Where(f =>
-                            {
-                                Regex mask = new Regex(
-                                '^' +
-                                folderNameMask
-                                .Replace(".", "[.]")
-                                .Replace("*", ".*")
-                                .Replace("?", ".")
-                                .Replace("(", "\\(")
-                                .Replace(")", "\\)")
-                                                        + '$',
-                                RegexOptions.IgnoreCase);
-                                return mask.IsMatch(f.Name);
-                            })
-                            .ToArray()
-                            .Select(f =>
-                                    new HttpShareFolder()
-                                    {
-                                        Name = f.Name,
-                                        Path = Path.Combine(path, f.Name).Replace("\\", "/")
-                                    });
+            bool ownShare = share == null;
+            if (ownShare)
+                share = new HttpShare(((HttpMediaSource)source).Uri);
+            try
+            {
+                return share.ListDirectories(path.Replace('\\', '/'))
+                                .Where(f =>
+                                {
+                                    Regex mask = new Regex(
+                                    '^' +
+                                    folderNameMask
+                                    .Replace(".", "[.]")
+                                    .Replace("*", ".*")
+                                    .Replace("?", ".")
+                                    .Replace("(", "\\(")
+                                    .Replace(")", "\\)")
+                                                            + '$',
+                                    RegexOptions.IgnoreCase);
+                                    return mask.IsMatch(f.Name);
+                                })
+                                .ToArray()
+                                .Select(f =>
+                                        new HttpShareFolder()
+                                        {
+                                            Name = f.Name,
+                                            Path = Path.Combine(path, f.Name).Replace("\\", "/")
+                                        });
+            }
+            finally
+            {
+                share = null;
+            }
         }
 
         public override string ReadTextFile(string filePath)
@@ -222,12 +232,9 @@ namespace VideoPlayer.Services.MediaLibrary.Scanner.Http
         public override bool TestConnection(MediaSource mediaSource)
         {
             HttpMediaSource source = (HttpMediaSource)mediaSource;
-            using (HttpClient httpClient = new HttpClient())
-            {
-                var uri = $"{source.Uri}Folder?path={source.Path}";
-                var responseContent = httpClient.GetStringAsync(uri).Wait<string>();
-                return true;
-            }
+            var share = new HttpShare(source.Uri);
+            share.TestConnection();
+            return true;
         }
 
         public override void WriteTextFile(string nfoPath, string innerXml)

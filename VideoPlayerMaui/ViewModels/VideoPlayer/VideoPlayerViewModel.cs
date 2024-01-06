@@ -34,7 +34,14 @@ namespace VideoPlayer.ViewModels.VideoPlayer
             _PlaylistManager = playlistManager;
             _MediaLibrary = mediaLibrary;
             Navigate = new Command((arg) => DoNavigate((string)arg));
+            ToggleFullScreen = new Command(() => ExecuteToggleFullScreen());
             UpdatePlayerControlStyle();
+            IsWindowMode = true;
+        }
+
+        private void ExecuteToggleFullScreen()
+        {
+            IsFullScreen = !IsFullScreen;
         }
 
         protected override void SettingsPropertyChanged(object sender, PropertyChangedEventArgs e)
@@ -176,7 +183,7 @@ namespace VideoPlayer.ViewModels.VideoPlayer
 
         private void _Download_Error(object sender, Common.ExceptionEventArgs e)
         {
-            NavigationManager.NavigateBack();
+            
         }
 
         private void _Download_SourceChanged(object sender, MediaSourceEventArgs e)
@@ -220,9 +227,15 @@ namespace VideoPlayer.ViewModels.VideoPlayer
             if (VideoSource == null)
                 NavigationManager.NavigateBack();
         }
-
+        public string ErrorMessage
+        {
+            get { return GetProperty<string>(); }
+            set { SetProperty<string>(value); }
+        }
         public void ProcessMediaFailed(string errorMessage) 
         {
+            _PlaylistManager.ProcessMediaFailed(Item);
+            ErrorMessage = errorMessage;
         }
 
         public void ProcessSeekCompleted(TimeSpan position) { }
@@ -313,6 +326,7 @@ namespace VideoPlayer.ViewModels.VideoPlayer
         }
 
         public Command Navigate { get; set; }
+        public Command ToggleFullScreen { get; }
 
         private void UpdateCurrentPosition(TimeSpan position)
         {
@@ -518,5 +532,32 @@ namespace VideoPlayer.ViewModels.VideoPlayer
             }
         }
 
+        public bool IsFullScreen {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+                if (value)
+                    IsWindowMode = false;
+                else if (!IsWindowMode)
+                    IsWindowMode = true;
+            }
+        }
+        public bool IsWindowMode
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+                if (value)
+                    IsFullScreen = false;
+            }
+        }
     }
 }

@@ -27,14 +27,22 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
         {
             _GetCollectionElements = GetCollectionElements;
         }
-
+        
         public override async void OpenDetails()
         {
-            await NavigationManager.OpenMovie(Item as Movie, _GetCollectionElements);
+            var args = new BaseModelProcessEventArgs(Item);
+            OnBeforeOpenDetails(args);
+            if (args.Continue)
+                await NavigationManager.OpenMovie(Item as Movie, _GetCollectionElements);
         }
 
         public override async void OpenCategory()
         {
+            var args = new BaseModelProcessEventArgs(Item);
+            OnBeforeOpenDetails(args);
+            if (!args.Continue)
+                return;
+
             if ((Item as Movie).CollectionId == 0)
                 await NavigationManager.OpenMovie(Item as Movie, _GetCollectionElements);
             else

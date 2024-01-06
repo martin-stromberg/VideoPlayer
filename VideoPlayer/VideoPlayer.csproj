@@ -60,10 +60,12 @@
 	  <None Remove="Resources\Images\cancel.png" />
 	  <None Remove="Resources\Images\delete.png" />
 	  <None Remove="Resources\Images\download.png" />
+	  <None Remove="Resources\Images\fullscreen.png" />
 	  <None Remove="Resources\Images\icon_rescan.png" />
 	  <None Remove="Resources\Images\process.png" />
 	  <None Remove="Resources\Images\setup.png" />
 	  <None Remove="Resources\Images\uncategorized.png" />
+	  <None Remove="Resources\Images\window.png" />
 	  <None Remove="Resources\Raw\loading.mp4" />
 	  <None Remove="Resources\raw\secrets.json" />
 	</ItemGroup>
@@ -104,6 +106,9 @@
 	  </Compile>
 	  <Compile Update="Views\Management\Sources\SourceFTPConfigurationBox.xaml.cs">
 	    <DependentUpon>%(Filename)</DependentUpon>
+	  </Compile>
+	  <Compile Update="Views\MediaLists\Cards\MovieSetupView.xaml.cs">
+	    <DependentUpon>MovieSetupView.xaml</DependentUpon>
 	  </Compile>
 	  <Compile Update="Views\MediaLists\MediaListPage.xaml.cs">
 	    <DependentUpon>%(Filename)</DependentUpon>
@@ -159,7 +164,13 @@
 	  <MauiXaml Update="Views\Management\Sources\SourceFTPConfigurationBox.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
+	  <MauiXaml Update="Views\MediaLists\Cards\MovieCardPage.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
 	  <MauiXaml Update="Views\MediaLists\Cards\TVShowCardPage.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
+	  <MauiXaml Update="Views\MediaLists\Cards\MovieSetupView.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
 	  <MauiXaml Update="Views\MediaLists\Cards\TVShowSetupView.xaml">
@@ -187,6 +198,9 @@
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
 	  <MauiXaml Update="Views\VideoPlayer\VideoPlayerPage.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
+	  <MauiXaml Update="Views\VideoPlayer\VideoPlayerView.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
 	</ItemGroup>

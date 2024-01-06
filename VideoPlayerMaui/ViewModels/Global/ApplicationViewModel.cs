@@ -1,6 +1,4 @@
-﻿using System;
-using System.Linq;
-using VideoPlayer.Navigation;
+﻿using VideoPlayer.Navigation;
 using VideoPlayer.Services.MediaLibrary;
 using VideoPlayer.Services.MediaLibrary.Classification;
 using VideoPlayer.Services.MediaLibrary.Demo;
@@ -24,7 +22,7 @@ namespace VideoPlayer.ViewModels.Global
         private readonly IUserSecrets _UserSecrets;
         private readonly IPlaylistManager _PlaylistManager;
         private readonly IPlaybackHistoryManager _PlaybackHistoryManager;
-        private readonly IMediaDownloader _MediaDownloader;
+        private readonly IDownloadManager _DownloadManager;
 
         public ApplicationViewModel(
             GlobalStatusViewModel statusViewModel,
@@ -39,10 +37,10 @@ namespace VideoPlayer.ViewModels.Global
             INavigationManager navigationManager,
             IPlaybackHistoryManager playbackHistoryManager,
             ISettingsService settingsService,
-            IMediaDownloader mediaDownloader)
+            IDownloadManager downloadManager)
             : base(statusPublisher, navigationManager, settingsService)
         {
-            _MediaDownloader = mediaDownloader;
+            _DownloadManager = downloadManager;
             _PlaybackHistoryManager = playbackHistoryManager;
             _PlaylistManager = playlistManager;
             _UserSecrets = userSecrets;
@@ -101,7 +99,7 @@ namespace VideoPlayer.ViewModels.Global
                 await CheckAddDemoLibraryAsync();
                 await InitGeneralPlaylistAsync();
                 await InitPlaybackHistory();
-                await StartDownloadsAsync();
+                StartDownloadsAsync();
                 StartLibraryScans();
                 AddStatusMessage(string.Empty);
             }
@@ -140,10 +138,10 @@ namespace VideoPlayer.ViewModels.Global
             await _UserSecrets.Initialize();
         }
 
-        private async Task StartDownloadsAsync()
+        private void StartDownloadsAsync()
         {
             AddStatusMessage("Starte Downloads...");
-            await _MediaDownloader.ContinueDownloadsAsync();
+            _DownloadManager.ContinueDownloads();
         }
 
         private void StartLibraryScans()

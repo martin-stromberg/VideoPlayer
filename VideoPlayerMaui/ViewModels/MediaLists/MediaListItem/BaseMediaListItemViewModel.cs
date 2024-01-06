@@ -29,7 +29,7 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
             IStatusPublisher statusPublisher,
             INavigationManager navigationManager,
             ISettingsService settingsService,
-            IMediaDownloader mediaDownloader,
+            IDownloadManager downloadManager,
             IMediaLibrary mediaLibrary)
             : base(statusPublisher, navigationManager, settingsService)
         {
@@ -37,7 +37,7 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
             mediaLibrary.ModelElementUpdated += MediaLibrary_ModelElementUpdated;
             mediaLibrary.ModelElementRemoved += MediaLibrary_ModelElementRemoved;
 
-            _MediaDownloader = mediaDownloader;
+            _DownloadManager = downloadManager;
 
             // _MediaDownloader.Downloaded += _MediaDownloader_Downloaded;
             // _MediaDownloader.DownloadDeleted += _MediaDownloader_DownloadDeleted;
@@ -103,16 +103,16 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
                 HasDownload = true;
         }
 
-        private readonly IMediaDownloader _MediaDownloader;
+        private readonly IDownloadManager _DownloadManager;
 
         public Command DownloadItem { get; }
 
         public Command DeleteDownload { get; set; }
 
-        private void ExecuteDownloadItem()
+        private async void ExecuteDownloadItem()
         {
             CanBeDownloaded = false;
-            _MediaDownloader.StartDownload(Item);
+            var downloadSession = (await _DownloadManager.StartDownloadAsync(Item, MediaItemCopyType.Download)).FirstOrDefault();            
         }
 
         private bool CanDownloadItem()
@@ -124,7 +124,7 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
         {
             HasDownload = false;
             CanBeDownloaded = false;
-            _MediaDownloader.RemoveDownload(Item);
+            _DownloadManager.RemoveDownload(Item);
         }
 
         private bool CanDeleteDownload()

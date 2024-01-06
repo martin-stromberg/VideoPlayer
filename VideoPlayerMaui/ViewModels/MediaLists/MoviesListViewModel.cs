@@ -21,8 +21,8 @@ namespace VideoPlayer.ViewModels.MediaLists
             IMediaLibrary mediaLibrary,
             IPlaylistManager playlistManager,
             ISettingsService settingsService,
-            IMediaDownloader mediaDownloader)
-            : base(statusPublisher, navigationManager, mediaLibrary, playlistManager, settingsService, mediaDownloader) { }
+            IDownloadManager downloadManager)
+            : base(statusPublisher, navigationManager, mediaLibrary, playlistManager, settingsService, downloadManager) { }
 
         public override void OnAppeared()
         {
@@ -49,7 +49,7 @@ namespace VideoPlayer.ViewModels.MediaLists
                                                 StatusPublisher,
                                                 NavigationManager,
                                                 Settings,
-                                                MediaDownloader,
+                                                DownloadManager,
                                                 MediaLibrary);
             }
             else if (mediaItem is MovieCollection)
@@ -59,7 +59,7 @@ namespace VideoPlayer.ViewModels.MediaLists
                                                           NavigationManager,
                                                           PlaylistManager,
                                                           Settings,
-                                                          MediaDownloader,
+                                                          DownloadManager,
                                                           MediaLibrary);
             }
             else

@@ -19,9 +19,9 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
             INavigationManager navigationManager,
             IPlaylistManager playlistManager,
             ISettingsService settingsService,
-            IMediaDownloader mediaDownloader,
+            IDownloadManager downloadManager,
             IMediaLibrary mediaLibrary)
-            : base(season, statusPublisher, navigationManager, settingsService, mediaDownloader, mediaLibrary)
+            : base(season, statusPublisher, navigationManager, settingsService, downloadManager, mediaLibrary)
         {
             _PlaylistManager = playlistManager;
         }

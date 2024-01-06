@@ -48,7 +48,7 @@ namespace VideoPlayer.Services
             services.AddTransient<IDatabaseExporter, DatabaseExporter>();
             services.AddSingleton<ILibraryScanner, LibraryScanner>();
             services.AddSingleton<IMediaItemClassifier, MediaItemClassifier>();
-            services.AddTransient<IMediaDownloader, MediaDownloader>();
+            services.AddSingleton<IDownloadManager, DownloadManager>();
             services.AddTransient<IDataCleaner, DataCleaner>();
             services.AddSingleton<IPlaybackHistoryManager, PlaybackHistoryManager>();
             services.AddSingleton<IPlaylistManager, PlaylistManager>();

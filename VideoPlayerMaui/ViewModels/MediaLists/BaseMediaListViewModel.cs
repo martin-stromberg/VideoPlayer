@@ -24,10 +24,10 @@ namespace VideoPlayer.ViewModels.MediaLists
             IMediaLibrary mediaLibrary,
             IPlaylistManager playlistManager,
             ISettingsService settingsService,
-            IMediaDownloader mediaDownloader)
+            IDownloadManager downloadManager)
             : base(statusPublisher, navigationManager, settingsService)
         {
-            MediaDownloader = mediaDownloader;
+            DownloadManager = downloadManager;
             PlaylistManager = playlistManager;
             MediaLibrary = mediaLibrary;
             MediaLibrary.ModelElementRemoved += MediaLibrary_ModelElementRemoved;
@@ -50,7 +50,7 @@ namespace VideoPlayer.ViewModels.MediaLists
 
         public IPlaylistManager PlaylistManager { get; }
 
-        public IMediaDownloader MediaDownloader { get; }
+        public IDownloadManager DownloadManager { get; }
 
         public ObservableCollection<BaseMediaListItemViewModel> Items { get; } = new ObservableCollection<BaseMediaListItemViewModel>();
 

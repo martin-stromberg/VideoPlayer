@@ -130,12 +130,23 @@ namespace VideoPlayer.ViewModels.VideoPlayer
             set
             {
                 if (_Download != null)
+                {
                     _Download.SourceChanged -= _Download_SourceChanged;
+                    _Download.Error -= _Download_Error;
+                }
                 _Download = value;
                 _Download_SourceChanged(this, new MediaSourceEventArgs(_Download?.Source));
                 if (_Download != null)
+                {
                     _Download.SourceChanged += _Download_SourceChanged;
+                    _Download.Error += _Download_Error;
+                }
             }
+        }
+
+        private void _Download_Error(object sender, Common.ExceptionEventArgs e)
+        {
+            NavigationManager.NavigateBack();
         }
 
         private void _Download_SourceChanged(object sender, MediaSourceEventArgs e)
@@ -180,7 +191,9 @@ namespace VideoPlayer.ViewModels.VideoPlayer
                 NavigationManager.NavigateBack();
         }
 
-        public void ProcessMediaFailed(string errorMessage) { }
+        public void ProcessMediaFailed(string errorMessage) 
+        {
+        }
 
         public void ProcessSeekCompleted(TimeSpan position) { }
 

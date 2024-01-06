@@ -20,7 +20,7 @@ namespace VideoPlayer.ViewModels.Homepage
             IPlaylistManager playlistManager,
             IPlaybackHistoryManager playbackHistoryManager,
             ISettingsService settingsService,
-            IMediaDownloader mediaDownloader)
+            IDownloadManager downloadManager)
             : base(statusPublisher, navigationManager, settingsService)
         {
             LatestViews = new LatestViewsViewModel(StatusPublisher,
@@ -29,7 +29,7 @@ namespace VideoPlayer.ViewModels.Homepage
                                                    playlistManager,
                                                    playbackHistoryManager,
                                                    settingsService,
-                                                   mediaDownloader);
+                                                   downloadManager);
             OpenCategory = new Command((sender) => DoOpenCategory(sender));
         }
 

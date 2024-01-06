@@ -204,17 +204,19 @@ namespace VideoPlayer.Services.MediaLibrary.Downloads
             throw new NotImplementedException();
         }
 
-        public async void StartDownload(BaseModel item)
+        public async Task<IEnumerable<DownloadSession>> StartDownload(BaseModel item)
         {
-            await StartDownloadAsync(item as MediaItem);
-            await StartDownloadAsync(item as TVShowEpisode);
-            await StartDownloadAsync(item as Movie);
-            await StartDownloadAsync(item as TVShow);
-            await StartDownloadAsync(item as TVShowSeason);
-            await StartDownloadAsync(item as MovieCollection);
+            List<DownloadSession> jobs = new List<DownloadSession>();
+            jobs.Add(await StartDownloadAsync(item as MediaItem));
+            jobs.Add(await StartDownloadAsync(item as TVShowEpisode));
+            jobs.Add(await StartDownloadAsync(item as Movie));
+            jobs.AddRange(await StartDownloadAsync(item as TVShow));
+            jobs.AddRange(await StartDownloadAsync(item as TVShowSeason));
+            jobs.AddRange(await StartDownloadAsync(item as MovieCollection));
+            return jobs.Where(job => job != null);
         }
 
-        public async Task<Database.Models.DownloadJob> StartDownloadAsync(MediaItem item)
+        public async Task<DownloadSession> StartDownloadAsync(MediaItem item)
         {
             if (item == null)
                 return null;
@@ -241,30 +243,35 @@ namespace VideoPlayer.Services.MediaLibrary.Downloads
                 EntryTime = DateTime.Now,
                 SourceId = source.Id
             };
+            //var session = new DownloadSession(job);
             await _JobDataSource.AddDownloadJob(job);
             StartWorker();
-            return job;
+            return null;// session;
         }
 
-        public async Task StartDownloadAsync(TVShow item)
+        public async Task<IEnumerable<DownloadSession>> StartDownloadAsync(TVShow item)
         {
+            List<DownloadSession> jobs = new List<DownloadSession>();
             if (item == null)
-                return;
-            var seasons = await _MediaLibrary.GetTVShowSeasons(item.Id);
+                return jobs;
+            var seasons = await _MediaLibrary.GetTVShowSeasons(item.Id);            
             foreach (var season in seasons)
-                await StartDownloadAsync(season);
+                jobs.AddRange(await StartDownloadAsync(season));
+            return jobs;
         }
 
-        public async Task StartDownloadAsync(TVShowSeason item)
+        public async Task<IEnumerable<DownloadSession>> StartDownloadAsync(TVShowSeason item)
         {
+            List<DownloadSession> jobs = new List<DownloadSession>();
             if (item == null)
-                return;
+                return jobs;
             var episodes = await _MediaLibrary.GetTVShowEpisodes(item.Id);
             foreach (var episode in episodes)
-                await StartDownloadAsync(episode);
+                jobs.Add(await StartDownloadAsync(episode));
+            return jobs;
         }
 
-        public async Task<Database.Models.DownloadJob> StartDownloadAsync(TVShowEpisode item)
+        public async Task<DownloadSession> StartDownloadAsync(TVShowEpisode item)
         {
             if (item == null)
                 return null;
@@ -277,16 +284,18 @@ namespace VideoPlayer.Services.MediaLibrary.Downloads
             return null;
         }
 
-        public async Task StartDownloadAsync(MovieCollection item)
+        public async Task<IEnumerable<DownloadSession>> StartDownloadAsync(MovieCollection item)
         {
+            List<DownloadSession> jobs = new List<DownloadSession>();
             if (item == null)
-                return;
+                return jobs;
             var movies = await _MediaLibrary.GetMovies(item.Id);
             foreach (var movie in movies)
-                await StartDownloadAsync(movie);
+                jobs.Add(await StartDownloadAsync(movie));
+            return jobs;
         }
 
-        public async Task<Database.Models.DownloadJob> StartDownloadAsync(Movie item)
+        public async Task<DownloadSession> StartDownloadAsync(Movie item)
         {
             if (item == null)
                 return null;

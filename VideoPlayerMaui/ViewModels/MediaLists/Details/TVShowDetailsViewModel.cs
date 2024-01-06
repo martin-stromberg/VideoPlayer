@@ -3,6 +3,7 @@ using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
+using VideoPlayer.Models;
 using VideoPlayer.Models.TVShows;
 using VideoPlayer.Navigation;
 using VideoPlayer.Services.MediaLibrary;
@@ -13,53 +14,20 @@ using VideoPlayer.ViewModels.MediaLists.MediaListItem;
 
 namespace VideoPlayer.ViewModels.MediaLists.Details
 {
-    public class TVShowDetailsViewModel: BaseViewModel
+    public class TVShowDetailsViewModel: BaseDetailsViewModel
     {
-
-        private readonly IMediaLibrary _MediaLibrary;
-        private readonly IMediaDownloader _MediaDownloader;
-
         public TVShowDetailsViewModel(
             IStatusPublisher statusPublisher,
             INavigationManager navigationManager,
             ISettingsService settings,
             IMediaLibrary mediaLibrary,
-            IMediaDownloader mediaDownloader)
-            : base(statusPublisher, navigationManager, settings)
+            IDownloadManager downloadManager)
+            : base(statusPublisher, navigationManager, settings, downloadManager, mediaLibrary)
         {
-            _MediaDownloader = mediaDownloader;
-            _MediaLibrary = mediaLibrary;
             DownloadSeason = new Command(() => ExecuteDownloadSeason(), () => CanDownloadSeason());
             ToggleSetup = new Command(() =>ExecuteToggleSetup());
-            DeleteShow = new Command(() => ExecuteDeleteShow());
-
-            // for (int idx = 0; idx < 100; idx++)
-            // Episodes.Add(new TVShowEpisodeListItemViewModel(new TVShowEpisode()
-            // {
-            // EpisodeNo = "{idx}",
-            // Id = 0,
-            // MediaItems = new long[] { },
-            // SeasonId = 0,
-            // SeasonName = ".",
-            // Name = ".",
-            // ShowName = string.Empty
-            // },
-            // () => null,
-            // StatusPublisher,
-            // navigationManager,
-            // settings,
-            // mediaDownloader,
-            // mediaLibrary)
-            // {
-            // Mode = ItemViewModel.Dummy
-            // });
         }
 
-        private void ExecuteDeleteShow()
-        {
-            _MediaLibrary.RemoveTVShowAsync(Show);
-            NavigationManager.NavigateBack();
-        }
 
         private void ExecuteToggleSetup()
         {
@@ -70,7 +38,7 @@ namespace VideoPlayer.ViewModels.MediaLists.Details
         {
             Episode = episode;
             Season = season;
-            Show = show;
+            Show = show;            
         }
 
         public TVShow show;
@@ -84,16 +52,33 @@ namespace VideoPlayer.ViewModels.MediaLists.Details
             set
             {
                 show = value;
+                base.Collection = show as BaseModel ?? Season as BaseModel ?? Episode as BaseModel;
                 Title = show?.Name ?? Episode?.Name ?? Season?.Name;
                 Banner = show?.Banner ?? Season?.Banner;
             }
         }
 
-        private TVShowSeason Season { get; set; }
+        private TVShowSeason season;
+        private TVShowSeason Season { get { return season; } 
+            set 
+            {
+                season = value;
+                base.Collection = show as BaseModel ?? Season as BaseModel ?? Episode as BaseModel;
+            } 
+        }
 
         private TVShowSeason _SelectedSeason = null;
 
-        private TVShowEpisode Episode { get; set; }
+        private TVShowEpisode episode;
+        private TVShowEpisode Episode
+        {
+            get { return episode; }
+            set
+            {
+                episode = value;
+                base.Collection = show as BaseModel ?? Season as BaseModel ?? Episode as BaseModel;
+            }
+        }
 
         public Command DownloadSeason { get; }
         public Command ToggleSetup { get; }
@@ -104,12 +89,14 @@ namespace VideoPlayer.ViewModels.MediaLists.Details
             return SelectedSeason != null && !_DownloadStarted;
         }
         private bool _DownloadStarted = false;
-        private void ExecuteDownloadSeason()
+        private async void ExecuteDownloadSeason()
         {
-            _MediaDownloader.StartDownload(SelectedSeason);
+            var sessions = await StartDownload(SelectedSeason);
             _DownloadStarted = true;
             DownloadSeason?.ChangeCanExecute();
         }
+
+        
 
         public TVShowSeason SelectedSeason
         {
@@ -168,12 +155,12 @@ namespace VideoPlayer.ViewModels.MediaLists.Details
         private async void LoadSeasons(TVShowSeason initSeason, TVShowEpisode initEpisode)
         {
             if (initSeason == null & initEpisode != null)
-                initSeason = await _MediaLibrary.GetTVShowSeason(initEpisode.SeasonId);
+                initSeason = await MediaLibrary.GetTVShowSeason(initEpisode.SeasonId);
             if ((Show == null) && (initSeason != null))
-                Show = await _MediaLibrary.GetTVShow(initSeason.ShowId);
+                Show = await MediaLibrary.GetTVShow(initSeason.ShowId);
 
             var currentSeason = SelectedSeason;
-            var seasons = await _MediaLibrary.GetTVShowSeasons(Show.Id);
+            var seasons = await MediaLibrary.GetTVShowSeasons(Show.Id);
             TVShowSeason seasonToSelect = null;
             await MainThread.InvokeOnMainThreadAsync(() => { Seasons.Clear(); });
             foreach (var season in seasons.OrderBy(season => season.Name))
@@ -220,7 +207,7 @@ namespace VideoPlayer.ViewModels.MediaLists.Details
                 if (loadSessionId != sessionId)
                     return;
                 Banner = SelectedSeason.Banner ?? Show.Banner;
-                var episodes = await _MediaLibrary.GetTVShowEpisodes(SelectedSeason.Id);
+                var episodes = await MediaLibrary.GetTVShowEpisodes(SelectedSeason.Id);
                 TVShowEpisode selectedEpisode = null;
                 foreach (var episode in episodes
                     .OrderBy(episode => episode.EpisodeNo)
@@ -231,8 +218,8 @@ namespace VideoPlayer.ViewModels.MediaLists.Details
                                                                 StatusPublisher,
                                                                 NavigationManager,
                                                                 Settings,
-                                                                _MediaDownloader,
-                                                                _MediaLibrary)
+                                                                DownloadManager,
+                                                                MediaLibrary)
                     {
                         Mode = ItemViewModel.Lane
                     };

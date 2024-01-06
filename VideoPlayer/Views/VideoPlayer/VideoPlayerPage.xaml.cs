@@ -59,13 +59,20 @@ namespace VideoPlayer.Views.VideoPlayer
                 if (_DownloadSource != null)
                 {
                     _DownloadSource.SourceChanged -= _DownloadSource_SourceChanged;
+                    _DownloadSource.Error -= _DownloadSource_Error;
                 }
                 _DownloadSource = value;
                 if (_DownloadSource != null)
                 {
                     _DownloadSource.SourceChanged += _DownloadSource_SourceChanged;
+                    _DownloadSource.Error += _DownloadSource_Error;
                 }
             }
+        }
+
+        private void _DownloadSource_Error(object sender, Common.ExceptionEventArgs e)
+        {
+            ViewModel.ProcessMediaFailed(e.Error.Message);
         }
 
         private void _DownloadSource_SourceChanged(object sender, MediaSourceEventArgs e)

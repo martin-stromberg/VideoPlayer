@@ -10,7 +10,7 @@ namespace VideoPlayer.Services.MediaLibrary.Downloads
 
         Task<MediaItem> CacheAsync(MediaItem item);
 
-        void StartDownload(BaseModel item);
+        Task<IEnumerable<DownloadSession>> StartDownload(BaseModel item);
 
         Task ContinueDownloadsAsync();
 

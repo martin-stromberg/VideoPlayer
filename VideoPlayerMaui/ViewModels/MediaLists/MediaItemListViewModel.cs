@@ -22,10 +22,9 @@ namespace VideoPlayer.ViewModels.MediaLists
             IPlaylistManager playlistManager,
             ISettingsService settingsService,
             ILibraryScanner libraryScanner,
-            IMediaDownloader mediaDownloader)
-            : base(statusPublisher, navigationManager, mediaLibrary, playlistManager, settingsService, mediaDownloader)
+            IDownloadManager downloadManager)
+            : base(statusPublisher, navigationManager, mediaLibrary, playlistManager, settingsService, downloadManager)
         {
-            _MediaDownloader = mediaDownloader;
             _LibraryScanner = libraryScanner;
         }
 
@@ -73,7 +72,6 @@ namespace VideoPlayer.ViewModels.MediaLists
         private int currentLoadingCount = 10;
         private long currentLoadingSession = 0;
         private readonly ILibraryScanner _LibraryScanner;
-        private readonly IMediaDownloader _MediaDownloader;
 
         private void Clear()
         {
@@ -111,7 +109,7 @@ namespace VideoPlayer.ViewModels.MediaLists
                                                          NavigationManager,
                                                          Settings,
                                                          _LibraryScanner,
-                                                         _MediaDownloader,
+                                                         DownloadManager,
                                                          MediaLibrary)
                         {
                             Mode = ItemViewModel.Lane

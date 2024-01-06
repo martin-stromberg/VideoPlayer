@@ -17,16 +17,16 @@ namespace VideoPlayer.Services.MediaLibrary.Maintenance
         private readonly IMediaLibrary _MediaLibrary;
         private readonly ILibraryScanner _LibraryScanner;
         private readonly IStatusPublisher _StatusPublisher;
-        private readonly IMediaDownloader mediaDownloader;
+        private readonly IDownloadManager _DownloadManager;
 
         public DataCleaner(
             IMediaLibrary mediaLibrary, 
             ILibraryScanner libraryScanner, 
             IStatusPublisher statusPublisher,
-            IMediaDownloader mediaDownloader)
+            IDownloadManager downloadManager)
         {
             _StatusPublisher = statusPublisher;
-            this.mediaDownloader = mediaDownloader;
+            this._DownloadManager = downloadManager;
             _LibraryScanner = libraryScanner;
             _MediaLibrary = mediaLibrary;
         }
@@ -87,7 +87,7 @@ namespace VideoPlayer.Services.MediaLibrary.Maintenance
                 await CleanSourceAsync(source);
             }
             _StatusPublisher.AddStatus($"Löschen temporäre Dateien", false);
-            mediaDownloader.RemoveAllDownloads();
+            _DownloadManager.RemoveAllDownloads();
             _StatusPublisher.AddStatus($"Datenlöschung erfolgt.", false);
         }
 

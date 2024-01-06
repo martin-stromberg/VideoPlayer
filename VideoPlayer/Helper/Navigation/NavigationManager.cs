@@ -20,17 +20,14 @@ namespace VideoPlayer.Helper.Navigation
 
         private readonly MediaLibraryEnvironment _Settings;
         private readonly IMediaLibrary _MediaLibrary;
-        private readonly IMediaDownloader _MediaDownloader;
         private readonly IPlaylistManager _PlaylistManager;
 
         public NavigationManager(
             MediaLibraryEnvironment settings,
             IMediaLibrary mediaLibrary,
-            IMediaDownloader mediaDownloader,
             IPlaylistManager playlistManager)
         {
             _PlaylistManager = playlistManager;
-            _MediaDownloader = mediaDownloader;
             _Settings = settings;
             _MediaLibrary = mediaLibrary;
             Routing.RegisterRoute("movies", typeof(MoviesPage));

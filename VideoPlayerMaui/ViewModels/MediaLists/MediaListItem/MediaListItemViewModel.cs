@@ -22,9 +22,9 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
             INavigationManager navigationManager,
             ISettingsService settingsService,
             ILibraryScanner libraryScanner,
-            IMediaDownloader mediaDownloader,
+            IDownloadManager downloadManager,
             IMediaLibrary mediaLibrary)
-            : base(mediaItem, statusPublisher, navigationManager, settingsService, mediaDownloader, mediaLibrary)
+            : base(mediaItem, statusPublisher, navigationManager, settingsService, downloadManager, mediaLibrary)
         {
             _LibraryScanner = libraryScanner;
             ProcessItem = new Command(() => ExecuteProcessItem(), () => CanProcessItem());

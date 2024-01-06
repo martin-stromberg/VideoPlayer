@@ -1,6 +1,4 @@
 ﻿using CommunityToolkit.Maui.Views;
-using System;
-using System.Linq;
 using VideoPlayer.Models;
 using VideoPlayer.Models.MediaItems;
 using VideoPlayer.Models.Movies;
@@ -16,16 +14,16 @@ namespace VideoPlayer.Services.Playlists
 
         private readonly MediaLibraryEnvironment _Settings;
         private readonly IMediaLibrary _MediaLibrary;
-        private readonly IMediaDownloader _MediaDownloader;
+        private readonly IDownloadManager _DownloadManager;
 
         public PlaylistManager(
             IMediaLibrary mediaLibrary,
-            IMediaDownloader mediaDownloader,
+            IDownloadManager downloadManager,
             MediaLibraryEnvironment settings)
         {
             _Settings = settings;
-            _MediaDownloader = mediaDownloader;
             _MediaLibrary = mediaLibrary;
+            _DownloadManager = downloadManager;
         }
 
         public async Task InitializeAsync()
@@ -404,13 +402,36 @@ namespace VideoPlayer.Services.Playlists
 
             Task.Run(async () =>
             {
-                var typedItem = await _MediaLibrary.GetTypedItem(item.Item.Id);
-                var mediaItem = await _MediaDownloader.CacheAsync(item.Item);
-                var mediaSource = mediaItem == null ? null : MediaSource.FromFile(mediaItem.Path);
-                source.SetMediaSource(mediaItem, typedItem, mediaSource);
+                var session = await _DownloadManager.StartDownloadAsync(item.Item, MediaItemCopyType.Cache).ConfigureAwait(false);
+                session.PropertyChanged += async (sender, e) =>
+                {
+                    switch(e.PropertyName)
+                    {
+                        case nameof(DownloadSession.Status):
+                            await UpdateDownloadSourceAsync(source, session);
+                            break;
+                    }
+                };
+                await UpdateDownloadSourceAsync(source, session);
             });
-
             return source;
+        }
+        private async Task UpdateDownloadSourceAsync(DownloadSource source, DownloadSession session)
+        {
+            switch (session.Status)
+            {
+                case DownloadStatus.Failed:
+                    source.SetError(session.ErrorMessage);
+                    break;
+                case DownloadStatus.Finished:
+                    if (session.Item != null)
+                    {
+                        var typedItem = await _MediaLibrary.GetTypedItem(session.Item.Id);
+                        var mediaSource = MediaSource.FromFile(session.Item.Path);
+                        source.SetMediaSource(session.Item, typedItem, mediaSource);
+                    }
+                    break;
+            }            
         }
 
         public DownloadSource ProcessMediaEnded(MediaItem item)

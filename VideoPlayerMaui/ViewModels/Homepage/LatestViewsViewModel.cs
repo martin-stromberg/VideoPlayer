@@ -29,8 +29,8 @@ namespace VideoPlayer.ViewModels.Homepage
             IPlaylistManager playlistManager,
             IPlaybackHistoryManager playbackHistoryManager,
             ISettingsService settingsService,
-            IMediaDownloader mediaDownloader)
-            : base(statusPublisher, navigationManager, mediaLibrary, playlistManager, settingsService, mediaDownloader)
+            IDownloadManager downloadManager)
+            : base(statusPublisher, navigationManager, mediaLibrary, playlistManager, settingsService, downloadManager)
         {
             _PlaybackHistoryManager = playbackHistoryManager;
             _PlaybackHistoryManager.CurrentHistory.Items.CollectionChanged += Items_CollectionChanged;
@@ -82,7 +82,7 @@ namespace VideoPlayer.ViewModels.Homepage
                                                             StatusPublisher,
                                                             NavigationManager,
                                                             Settings,
-                                                            MediaDownloader,
+                                                            DownloadManager,
                                                             MediaLibrary);
                     if (vm.Picture == null)
                     {
@@ -102,7 +102,7 @@ namespace VideoPlayer.ViewModels.Homepage
                                                     StatusPublisher,
                                                     NavigationManager,
                                                     Settings,
-                                                    MediaDownloader,
+                                                    DownloadManager,
                                                     MediaLibrary);
                 }
                 else

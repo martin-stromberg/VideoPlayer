@@ -19,9 +19,9 @@ namespace VideoPlayer.ViewModels.MediaLists.MediaListItem
             IStatusPublisher statusPublisher,
             INavigationManager navigationManager,
             ISettingsService settingsService,
-            IMediaDownloader mediaDownloader,
+            IDownloadManager downloadManager,
             IMediaLibrary mediaLibrary)
-            : base(episode, statusPublisher, navigationManager, settingsService, mediaDownloader, mediaLibrary)
+            : base(episode, statusPublisher, navigationManager, settingsService, downloadManager, mediaLibrary)
         {
             _GetCollectionElements = GetCollectionElements;
         }

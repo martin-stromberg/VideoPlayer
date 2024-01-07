@@ -65,7 +65,7 @@ public partial class MovieCardPage : ContentPage
     {
         base.OnAppearing();
         ViewModel.SetParent(MovieCollection, Movie);
-        ViewModel.OnAppeared();
+        ViewModel.OnAppeared();       
     }
     protected override void OnDisappearing()
     {

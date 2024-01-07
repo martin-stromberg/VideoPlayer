@@ -28,6 +28,7 @@ namespace VideoPlayer.ViewModels.MediaLists.Details
             VideoPlayerViewModel videoPlayerViewModel)
             : base(statusPublisher, navigationManager, settings, downloadManager, mediaLibrary)
         {
+            CollectionViewModel = new MovieCollectionViewModel(StatusPublisher, navigationManager, mediaLibrary, playlistManager, settings, downloadManager);
             this.playlistManager = playlistManager;
             PlayerViewModel = videoPlayerViewModel;
             PlayerViewModel.PropertyChanged += PlayerViewModel_PropertyChanged;
@@ -42,7 +43,7 @@ namespace VideoPlayer.ViewModels.MediaLists.Details
         {
             var sessions = (await DownloadManager.StartDownloadAsync(Collection, Models.MediaItems.MediaItemCopyType.Download)).ToList();
             sessions.AddRange(await DownloadManager.StartDownloadAsync(Movie, Models.MediaItems.MediaItemCopyType.Download));
-            foreach (var movie in Movies.Select(vm => vm.Item))
+            foreach (var movie in CollectionViewModel.Items.Select(vm => vm.Item))
                 sessions.AddRange(await DownloadManager.StartDownloadAsync(movie, Models.MediaItems.MediaItemCopyType.Download));
         }
 
@@ -84,7 +85,7 @@ namespace VideoPlayer.ViewModels.MediaLists.Details
         }
         private async void ExecutePlay()
         {
-            await playlistManager.StartMoviePlaylistAsync(SelectedMovie, () => Movies.Where(m => m.Item.Id != SelectedMovie.Id).Cast<BaseModel>());
+            await playlistManager.StartMoviePlaylistAsync(SelectedMovie, () => CollectionViewModel.Items.Where(m => m.Item.Id != SelectedMovie.Id).Cast<BaseModel>());
             PlayerViewModel.VideoSource = null;
             PlayerViewModel.OnAppeared();
             IsVideoPlaying = true;
@@ -189,11 +190,10 @@ namespace VideoPlayer.ViewModels.MediaLists.Details
             { 
                 SelectedMovie = Movie;
                 if (Movie == null)
-                    SelectedMovie = Movies.FirstOrDefault()?.Item as Movie;
+                    SelectedMovie = CollectionViewModel.Items.FirstOrDefault()?.Item as Movie;
             });
         }
-
-        public ObservableCollection<MovieListItemViewModel> Movies { get; } = new ObservableCollection<MovieListItemViewModel>();
+        public MovieCollectionViewModel CollectionViewModel { get; }
         
         private async void LoadMovies()
         {         
@@ -237,8 +237,8 @@ namespace VideoPlayer.ViewModels.MediaLists.Details
         private void Add(MovieListItemViewModel vm)
         {
             vm.BeforeOpenDetails += Vm_BeforeOpenDetails;
-            if (!Movies.Any(existing => existing.Item.Id == vm.Item.Id))
-                Movies.Add(vm);
+            if (!CollectionViewModel.Items.Any(existing => existing.Item.Id == vm.Item.Id))
+                CollectionViewModel.Items.Add(vm);
         }
 
         private void Vm_BeforeOpenDetails(object sender, BaseModelProcessEventArgs e)

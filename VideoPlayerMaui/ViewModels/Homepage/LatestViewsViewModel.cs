@@ -17,7 +17,7 @@ using VideoPlayer.ViewModels.MediaLists.MediaListItem;
 
 namespace VideoPlayer.ViewModels.Homepage
 {
-    public class LatestViewsViewModel: BaseMediaListViewModel
+    public class LatestViewsViewModel: BaseMediaListViewModel 
     {
 
         private readonly IPlaybackHistoryManager _PlaybackHistoryManager;

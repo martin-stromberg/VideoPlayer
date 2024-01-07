@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="VideoPlayer.Views.MediaLists.Cards.MovieCardPage"
              xmlns:vm="clr-namespace:VideoPlayer.ViewModels.MediaLists.Details;assembly=VideoPlayerMaui"
+             xmlns:vwHome="clr-namespace:VideoPlayer.Views.Homepage"
              xmlns:view="clr-namespace:VideoPlayer.Views.MediaLists"
              xmlns:viewCards="clr-namespace:VideoPlayer.Views.MediaLists.Cards"
              xmlns:video="clr-namespace:VideoPlayer.Views.VideoPlayer"
@@ -11,7 +12,7 @@
     <Grid x:Name="ContentGrid">
         <Grid.RowDefinitions>
             <RowDefinition Height="300"/>
-            <RowDefinition Height="*"/>
+            <RowDefinition Height="500"/>
         </Grid.RowDefinitions>
         <video:VideoPlayerView 
             x:Name="VideoPlayer"
@@ -37,9 +38,22 @@
             VerticalOptions="End"
             Text="{Binding PlaybackErrorMessage}" 
             IsVisible="{Binding IsPlaybackErrorMessageVisible}"/>
+
+        <vwHome:HorizontalMediaItemCollection 
+            Grid.Row="1"
+            HeightRequest="250"
+            BindingContext="{Binding CollectionViewModel}"/>
+
+        <!--<Image 
+            Grid.Column="0"
+            Grid.Row="0"
+            Aspect="AspectFit"
+            Source="{Binding Banner}"/>-->
+
         <HorizontalStackLayout 
+            Grid.Row="1"
             HorizontalOptions="End" 
-            VerticalOptions="End" 
+            VerticalOptions="Start" 
             IsVisible="{Binding IsVideoInWindowMode}">
             <ImageButton 
                 Margin="5"
@@ -57,27 +71,6 @@
                 Command="{Binding ToggleSetup}"/>
         </HorizontalStackLayout>
 
-        <!--<Image 
-            Grid.Column="0"
-            Grid.Row="0"
-            Aspect="AspectFit"
-            Source="{Binding Banner}"/>-->
-        <ScrollView 
-            Grid.Row="1" 
-            IsVisible="{Binding IsVideoInWindowMode}"
-            HorizontalScrollBarVisibility="Always">
-            <CollectionView
-                    x:Name="itemList"
-                    RemainingItemsThreshold="1"
-                    ItemsLayout="HorizontalList" 
-                    ItemsSource="{Binding Movies}">
-                <CollectionView.ItemTemplate>
-                    <DataTemplate>
-                        <view:MediaListItemView/>
-                    </DataTemplate>
-                </CollectionView.ItemTemplate>
-            </CollectionView>
-        </ScrollView>
         <viewCards:TVShowSetupView Grid.RowSpan="2" Background="Black" Margin="50" IsVisible="{Binding IsSetupVisible}"/>
     </Grid>
 </ContentPage>

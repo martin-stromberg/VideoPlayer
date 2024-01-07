@@ -62,20 +62,21 @@
             Grid.Row="0"
             Aspect="AspectFit"
             Source="{Binding Banner}"/>-->
-        <ScrollView Grid.Row="1" IsVisible="{Binding IsVideoInWindowMode}">
-            <HorizontalStackLayout>
-                <CollectionView
+        <ScrollView 
+            Grid.Row="1" 
+            IsVisible="{Binding IsVideoInWindowMode}"
+            HorizontalScrollBarVisibility="Always">
+            <CollectionView
                     x:Name="itemList"
                     RemainingItemsThreshold="1"
                     ItemsLayout="HorizontalList" 
                     ItemsSource="{Binding Movies}">
-                    <CollectionView.ItemTemplate>
-                        <DataTemplate>
-                            <view:MediaListItemView/>
-                        </DataTemplate>
-                    </CollectionView.ItemTemplate>
-                </CollectionView>
-            </HorizontalStackLayout>
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <view:MediaListItemView/>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
         </ScrollView>
         <viewCards:TVShowSetupView Grid.RowSpan="2" Background="Black" Margin="50" IsVisible="{Binding IsSetupVisible}"/>
     </Grid>

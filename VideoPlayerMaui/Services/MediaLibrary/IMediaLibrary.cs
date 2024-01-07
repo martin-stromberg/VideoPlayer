@@ -83,6 +83,7 @@ namespace VideoPlayer.Services.MediaLibrary
         Task<IEnumerable<Movie>> GetMovies();
 
         Task<IEnumerable<Movie>> GetMovies(long collectionId);
+        Task<IEnumerable<Movie>> GetMovies(long collectionId, int offset, int count);
 
         Task<Movie> FindMovieAsync(long mediaItemId);
 
@@ -99,6 +100,7 @@ namespace VideoPlayer.Services.MediaLibrary
         Task AddMovieCollectionAsync(MovieCollection collection);
 
         Task<IEnumerable<MovieCollection>> GetMovieCollections();
+        Task<IEnumerable<MovieCollection>> GetMovieCollections(int offset, int count);
 
         Task<MovieCollection> GetMovieCollection(long id);
 

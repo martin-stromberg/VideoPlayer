@@ -7,20 +7,23 @@
     xmlns:view="clr-namespace:VideoPlayer.Views.MediaLists"
     Title="{Binding Title}"
     x:DataType="vm:BaseMediaListViewModel">
-    <ScrollView>
-        <FlexLayout
-            AlignContent="Start"
-            AlignItems="Start"
-            AlignSelf="Start"
-            BindableLayout.ItemsSource="{Binding Items}"
-            Direction="Row"
-            JustifyContent="Start"
-            Wrap="Wrap">
-            <BindableLayout.ItemTemplate>
-                <DataTemplate>
-                    <view:MediaListItemView/>
-                </DataTemplate>
-            </BindableLayout.ItemTemplate>
-        </FlexLayout>
-    </ScrollView>
+    <Grid>
+        <Label Text="{Binding Items.Count}" VerticalOptions="Start" HorizontalOptions="End"/>
+        <ScrollView>
+            <FlexLayout
+                AlignContent="Start"
+                AlignItems="Start"
+                AlignSelf="Start"
+                BindableLayout.ItemsSource="{Binding Items}"
+                Direction="Row"
+                JustifyContent="Start"
+                Wrap="Wrap">
+                <BindableLayout.ItemTemplate>
+                    <DataTemplate>
+                        <view:MediaListItemView/>
+                    </DataTemplate>
+                </BindableLayout.ItemTemplate>
+            </FlexLayout>
+        </ScrollView>
+    </Grid>
 </ContentPage>

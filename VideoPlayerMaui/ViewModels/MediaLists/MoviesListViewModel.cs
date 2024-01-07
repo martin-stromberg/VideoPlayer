@@ -64,7 +64,17 @@ namespace VideoPlayer.ViewModels.MediaLists
             }
             else
                 return;
-            Items.Add(vm);
+
+            int offset = 0;
+            var addBefore = Items.SkipWhile(i =>
+            {
+                offset += 1;
+                return i.Item.Name.CompareTo(mediaItem.Name) < 0;
+            }).FirstOrDefault();
+            if (addBefore is null)
+                Items.Add(vm);
+            else
+                Items.Insert(offset-1, vm);
         }
 
         private async void LoadMovieCollection(MovieCollection parentCollection)
@@ -76,14 +86,27 @@ namespace VideoPlayer.ViewModels.MediaLists
                 Add(movie);
         }
 
-        private async void LoadMovies()
+        private int recordsToLoad = 10;
+        private async void LoadMovies(int offset = 0, int totalOffset = 0)
         {
-            var movies = await MediaLibrary.GetMovies(0);
-            var movieCollections = await MediaLibrary.GetMovieCollections();
-            foreach (var movie in movies.Cast<BaseModel>()
-                                        .Concat(movieCollections.Where(coll => !coll.IsSingleMovie))
-                                        .OrderBy(entry => entry.Name))
+            recordsToLoad = (offset == 0) ? 10 : 2;
+            var movieCollections = (totalOffset != 0) ? new MovieCollection[0] : await MediaLibrary.GetMovieCollections(offset, recordsToLoad);
+            foreach (var movieCollection in movieCollections.Where(coll => !coll.IsSingleMovie))
+                Add(movieCollection);
+
+            var movies = (totalOffset == 0)?new Movie[0]: await MediaLibrary.GetMovies(0, offset - totalOffset, recordsToLoad);
+            foreach (var movie in movies)
                 Add(movie);
+
+            var found = movieCollections.Count() + movies.Count();
+            offset += found;
+            if (found == recordsToLoad)
+                LoadMovies(offset, totalOffset);
+            else if (totalOffset == 0)
+            {
+                totalOffset = offset;
+                LoadMovies(offset, totalOffset);
+            }
         }
 
         public void SetParent(MovieCollection collection)

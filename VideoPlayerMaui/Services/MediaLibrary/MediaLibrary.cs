@@ -254,9 +254,43 @@ namespace VideoPlayer.Services.MediaLibrary
                 .Cast<MovieCollection>();
         }
 
+        public async Task<IEnumerable<MovieCollection>> GetMovieCollections(int offset, int count)
+        {
+            var collections = await _DataStore.GetMovieCollections();
+            return collections
+                .Where(collection => !collection.IsSingleMovie)
+                .OrderBy(show => show.Name)
+                .Skip(offset)
+                .Take(count)                
+                .Select(collection =>
+                {
+                    var model = MovieCollection.FromDataModel(collection).UpdatePicture(_Settings.CacheRootPath) as MovieCollection;
+                    return model;
+                })
+                .Cast<MovieCollection>();
+        }
+
         public async Task<IEnumerable<Movie>> GetMovies()
         {
             var movies = (await _DataStore.GetMovies())
+                .Select(movie => Movie.FromDataModel(movie).UpdatePicture(_Settings.CacheRootPath) as Movie)
+                .ToArray();
+            foreach (var movie in movies)
+            {
+                var mediaItems = await _DataStore.GetMovieMediaItems(movie.Id);
+                movie.SetMediaItems(mediaItems);
+            }
+            return movies;
+        }
+
+        public async Task<IEnumerable<Movie>> GetMovies(long collectionId, int offset, int count)
+        {
+            var movies = (await _DataStore.GetMovies())
+                .Where(movie =>
+                       (movie.CollectionId == collectionId) || (movie.IsSingleCollectionMovie && (collectionId == 0)))
+                .OrderBy(show => show.Name)
+                .Skip(offset)
+                .Take(count)
                 .Select(movie => Movie.FromDataModel(movie).UpdatePicture(_Settings.CacheRootPath) as Movie)
                 .ToArray();
             foreach (var movie in movies)

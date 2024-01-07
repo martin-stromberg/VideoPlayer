@@ -422,5 +422,14 @@ namespace VideoPlayer.Services.MediaLibrary.Demo
             throw new NotImplementedException();
         }
 
+        public Task<IEnumerable<Movie>> GetMovies(long collectionId, int offset, int count)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<IEnumerable<MovieCollection>> GetMovieCollections(int offset, int count)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

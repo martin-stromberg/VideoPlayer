@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:Mediathek.ViewModels.MediaLists.Details;assembly=MediathekMaui"
+             xmlns:view="clr-namespace:Mediathek.Views.MediaLists"
+             xmlns:viewCards="clr-namespace:Mediathek.Views.MediaLists.Cards"
+             x:DataType="vm:TVShowDetailsViewModel"
+             x:Class="Mediathek.Views.MediaLists.Cards.TVShowCardPage"
+             Title="{Binding Title}">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="300"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <Label 
+            Text="{Binding Show}" 
+            FontSize="Header"
+            Opacity="0.7"
+            HorizontalOptions="Center" 
+            VerticalOptions="Center"/>
+        <Image 
+            Grid.Column="0"
+            Grid.Row="0"
+            Aspect="AspectFit"
+            Source="{Binding Banner}"/>
+        <Picker 
+            ItemsSource="{Binding Seasons}" 
+            SelectedItem="{Binding SelectedSeason}" 
+            VerticalOptions="End"
+            Margin="5,10"/>
+        <HorizontalStackLayout HorizontalOptions="End" VerticalOptions="End">
+            <ImageButton 
+                Margin="5"
+                Source="download.png"
+                WidthRequest="30" 
+                HeightRequest="30" 
+                Background="Transparent"                
+                Command="{Binding DownloadSeason}"/>
+            <ImageButton 
+                Margin="5"
+                Source="setup.png"
+                WidthRequest="30" 
+                HeightRequest="30" 
+                Background="Transparent"                
+                Command="{Binding ToggleSetup}"/>
+        </HorizontalStackLayout>
+
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout>
+                <CollectionView
+                    x:Name="itemList"
+                    RemainingItemsThreshold="1"
+                    ItemsLayout="VerticalList" 
+                    ItemsSource="{Binding Episodes}">
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate>
+                            <view:MediaListItemView/>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+            </VerticalStackLayout>
+        </ScrollView>
+        <Label Grid.Row="1" Text="⌛" FontSize="Caption" IsVisible="{Binding Loading}" VerticalOptions="Center" HorizontalOptions="Center"/>
+
+        <Frame Grid.RowSpan="2" Padding="50" Opacity="0.8" BackgroundColor="Black" IsVisible="{Binding IsSetupVisible}">
+            
+        </Frame>
+        <viewCards:TVShowSetupView Grid.RowSpan="2" Background="Black" Margin="50" IsVisible="{Binding IsSetupVisible}"/>
+    </Grid>
+</ContentPage>

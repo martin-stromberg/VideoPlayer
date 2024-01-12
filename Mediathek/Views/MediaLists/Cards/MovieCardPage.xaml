@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="Mediathek.Views.MediaLists.Cards.MovieCardPage"
+             xmlns:vm="clr-namespace:Mediathek.ViewModels.MediaLists.Details;assembly=MediathekMaui"
+             xmlns:vwHome="clr-namespace:Mediathek.Views.Homepage"
+             xmlns:view="clr-namespace:Mediathek.Views.MediaLists"
+             xmlns:viewCards="clr-namespace:Mediathek.Views.MediaLists.Cards"
+             xmlns:video="clr-namespace:Mediathek.Views.VideoPlayer"
+             x:DataType="vm:MovieDetailsViewModel"
+             Title="{Binding Title}">
+    <Grid x:Name="ContentGrid">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="300"/>
+            <RowDefinition Height="500"/>
+        </Grid.RowDefinitions>
+        <video:VideoPlayerView 
+            x:Name="VideoPlayer"
+            Grid.RowSpan="{Binding VideoPlayerRowSpan}"
+            IsVisible="{Binding IsVideoPlaying}"
+            BindingContext="{Binding PlayerViewModel}"/>
+        <VerticalStackLayout
+                IsVisible="{Binding IsVideoStopped}"
+                HorizontalOptions="Center" 
+                VerticalOptions="Center">
+            <Label 
+                Text="{Binding Title}" 
+                FontSize="Header"
+                Opacity="0.7"/>
+            <ImageButton 
+                Source="play.png" 
+                WidthRequest="32"
+                HeightRequest="32"
+                BackgroundColor="Transparent"
+                Command="{Binding Play}"/>
+        </VerticalStackLayout>
+        <Label 
+            HorizontalOptions="Start" 
+            VerticalOptions="End"
+            Text="{Binding PlaybackErrorMessage}" 
+            IsVisible="{Binding IsPlaybackErrorMessageVisible}"/>
+
+        <vwHome:HorizontalMediaItemCollection 
+            Grid.Row="1"
+            HeightRequest="250"
+            BindingContext="{Binding CollectionViewModel}"/>
+
+        <!--<Image 
+            Grid.Column="0"
+            Grid.Row="0"
+            Aspect="AspectFit"
+            Source="{Binding Banner}"/>-->
+
+        <HorizontalStackLayout 
+            Grid.Row="1"
+            HorizontalOptions="End" 
+            VerticalOptions="Start" 
+            IsVisible="{Binding IsVideoInWindowMode}">
+            <ImageButton 
+                Margin="5"
+                Source="download.png"
+                WidthRequest="30" 
+                HeightRequest="30" 
+                Background="Transparent"                
+                Command="{Binding DownloadCollection}"/>
+            <ImageButton 
+                Margin="5"
+                Source="setup.png"
+                WidthRequest="30" 
+                HeightRequest="30" 
+                Background="Transparent"                
+                Command="{Binding ToggleSetup}"/>
+        </HorizontalStackLayout>
+
+        <viewCards:TVShowSetupView Grid.RowSpan="2" Background="Black" Margin="50" IsVisible="{Binding IsSetupVisible}"/>
+    </Grid>
+</ContentPage>

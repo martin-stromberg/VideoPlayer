@@ -1,0 +1,12 @@
+﻿global using Mediathek.Models;
+global using Mediathek.Models.Attributes;
+global using Mediathek.Models.MediaItems;
+global using Mediathek.Models.MetaInformation;
+global using Mediathek.Models.Movies;
+global using Mediathek.Models.PlaybackHistory;
+global using Mediathek.Models.Playlists;
+global using Mediathek.Models.Sources;
+global using Mediathek.Models.TVShows;
+global using System;
+global using System.Linq;
+global using System.Text;

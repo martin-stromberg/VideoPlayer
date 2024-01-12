@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView
+    x:Class="Mediathek.Views.Management.SourcesView"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:vm="clr-namespace:Mediathek.ViewModels.Management.Sources;assembly=MediathekMaui"
+    xmlns:view="clr-namespace:Mediathek.Views.Management.Sources"
+    x:DataType="vm:SourcesViewModel">
+    <ScrollView Orientation="Vertical">
+        <VerticalStackLayout>
+            <HorizontalStackLayout HorizontalOptions="End" HeightRequest="48" Margin="0,0,10,0" BackgroundColor="Transparent">
+                <ImageButton Source="add.png" Command="{Binding CreateNew}" HeightRequest="32" BackgroundColor="Transparent"/>
+            </HorizontalStackLayout>
+            <CollectionView 
+            Margin="0"
+            ItemsSource="{Binding Sources}"
+            ItemsLayout="VerticalList">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="vm:SourceSettingsViewModel">
+                        <view:SourceConfigurationBox/>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentView>

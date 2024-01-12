@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:Mediathek.ViewModels.MediaLists.Details;assembly=MediathekMaui"
+             x:Class="Mediathek.Views.MediaLists.Cards.TVShowSetupView"
+             x:DataType="vm:TVShowDetailsViewModel">
+    <Grid Background="Black">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="75"/>
+            <RowDefinition Height="75"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <HorizontalStackLayout HorizontalOptions="End">
+            <ImageButton 
+                Margin="5"
+                Source="cancel.png"
+                WidthRequest="30" 
+                HeightRequest="30" 
+                Background="Transparent"                
+                Command="{Binding ToggleSetup}"/>
+        </HorizontalStackLayout>
+        <Label Text="Aktionen" Grid.Row="1" TextColor="White" HorizontalOptions="Center"  FontSize="Large"/>
+
+        <VerticalStackLayout Grid.Row="2">
+            <HorizontalStackLayout HeightRequest="50" Margin="10,0,0,0">
+                <ImageButton Source="delete.png" HeightRequest="32" Command="{Binding DeleteCollection}"/>
+                <Label Text="Entfernen" VerticalOptions="Center" FontSize="Large">
+                    <Label.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding DeleteCollection}"/>
+                    </Label.GestureRecognizers>
+                </Label>
+            </HorizontalStackLayout>
+        </VerticalStackLayout>
+    </Grid>
+</ContentView>

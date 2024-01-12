@@ -1,0 +1,8 @@
+﻿using Mediathek.Services.MediaLibrary.Scanner.Models;
+using System;
+using System.Linq;
+
+namespace Mediathek.Services.MediaLibrary.Scanner.SSH
+{
+    public class SSHShareFile: RemoteFile { }
+}

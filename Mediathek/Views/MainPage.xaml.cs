@@ -1,4 +1,6 @@
-﻿using Mediathek.ViewModels.Global;
+﻿using ImageMagick;
+using Mediathek.Services.Export;
+using Mediathek.ViewModels.Global;
 using System.ComponentModel;
 
 namespace Mediathek.Views
@@ -12,6 +14,8 @@ namespace Mediathek.Views
             DeviceDisplay.KeepScreenOn = true;
             BindingContext = ViewModel = ApplicationViewModel.Empty();
             ViewModel.PropertyChanged += ViewModel_PropertyChanged;
+
+            App.GetService<UserSercretRegistrator>().RunAsync();
         }
 
         private void ViewModel_PropertyChanged(object sender, PropertyChangedEventArgs e) { }
@@ -27,7 +31,16 @@ namespace Mediathek.Views
                     await Task.Delay(1000);
                     ViewModel.Fill(App.GetService<ApplicationViewModel>());
                     ViewModel.OnAppeared();
+                    DummyMagick();
                 });
+        }
+
+        private void DummyMagick()
+        {
+            using (var image = new MagickImage())
+            {
+                image.BackgroundColor = MagickColors.White;
+            }
         }
 
         protected override void OnDisappearing()

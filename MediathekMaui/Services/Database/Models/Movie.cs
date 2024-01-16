@@ -12,6 +12,14 @@ namespace Mediathek.Services.Database.Models
 
         public DateTime Date { get; set; }
 
+        public string Genres { get; set; }
+
+        public string Language { get; set; }
+
+        public DateTime PremieredAt { get; set; }
+
+        public string Countries { get; set; }
+
         public string PicturePath { get; set; }
 
         public long CollectionId { get; set; }

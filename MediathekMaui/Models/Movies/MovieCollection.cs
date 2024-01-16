@@ -22,6 +22,7 @@ namespace Mediathek.Models.Movies
             }
         }
 
+        [Path(nameof(PicturePath))]
         public ImageSource Picture
         {
             get

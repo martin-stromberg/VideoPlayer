@@ -8,6 +8,10 @@ namespace Mediathek.Models
     public class Settings: BaseModel
     {
 
+        public int ThumbnailWidth { get; } = 200;
+
+        public int ThumbnailHeight { get; } = 240;
+
         #region Abspielhistorie
         public int PlaybackHistory_IgnoreSecondsAtVideoStart
         {

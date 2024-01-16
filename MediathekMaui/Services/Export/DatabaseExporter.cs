@@ -1,8 +1,6 @@
 ﻿using Mediathek.Extensions;
 using Mediathek.Services.MediaLibrary;
-using Mediathek.Services.MediaLibrary.Demo;
 using Mediathek.StatusManagement;
-using Syncfusion.Licensing;
 using Syncfusion.XlsIO;
 using System;
 using System.Linq;
@@ -29,24 +27,11 @@ namespace Mediathek.Services.Export
         public DatabaseExporter(
             IMediaLibrary mediaLibrary,
             MediaLibraryEnvironment settings,
-            IUserSecrets userSecrets,
             IStatusPublisher statusPublisher)
         {
             _StatusPublisher = statusPublisher;
-            RegisterSyncfusion(userSecrets.SyncfusionLicenseKey);
-
             _Settings = settings;
             _MediaLibrary = mediaLibrary;
-        }
-
-        private static bool syncfusionRegistered = false;
-
-        private static void RegisterSyncfusion(string key)
-        {
-            if (syncfusionRegistered)
-                return;
-            SyncfusionLicenseProvider.RegisterLicense(key);
-            syncfusionRegistered = true;
         }
 
         public ExportFormat Format { get; set; } = ExportFormat.XLSX;

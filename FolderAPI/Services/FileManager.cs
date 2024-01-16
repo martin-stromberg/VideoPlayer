@@ -1,28 +1,26 @@
 ﻿using FolderAPI.Models;
-using System.IO;
 using System.Text;
 
 namespace FolderAPI.Services
 {
     public class FileManager
     {
+
         private readonly string[] FolderBlacklist = new string[] { "$RECYCLE.BIN", "System Volume Information" };
-        private readonly string[] FileBlacklist = new string[] { "" };
-        private readonly string[] FileExtBlacklist = new string[] { "" };
+        private readonly string[] FileBlacklist = new string[] { string.Empty };
+        private readonly string[] FileExtBlacklist = new string[] { string.Empty };
         private Dictionary<string, string> shares = new Dictionary<string, string>()
         {
-            { "MediaServer", "\\\\raspberrypi\\FileServer\\"}
+            { "MediaServer", "\\\\raspberrypi\\FileServer\\" }
         };
+        private readonly string[] ImageFileExts = new string[] { ".jpg", ".png" };
 
         public Folder GetFolder(string path = "")
         {
-            if (string.IsNullOrWhiteSpace(path) || path == "/")
+            if (string.IsNullOrWhiteSpace(path) || (path == "/"))
                 return new Folder()
                 {
-                    Directories = shares.Select(x => new FolderInfo()
-                    {
-                        Name = x.Key
-                    }).ToArray(),
+                    Directories = shares.Select(x => new FolderInfo() { Name = x.Key }).ToArray(),
                     Files = null
                 };
             var parts = path.Split('/').Skip(1).ToArray();
@@ -51,8 +49,8 @@ namespace FolderAPI.Services
             if (isTextFile)
             {
                 using (var reader = new StreamReader(strm, Encoding.UTF8))
-                using (StreamWriter writer = new StreamWriter(new FileStream(path, FileMode.CreateNew), Encoding.UTF8))
-                    writer.Write(reader.ReadToEnd());
+                    using (StreamWriter writer = new StreamWriter(new FileStream(path, FileMode.CreateNew), Encoding.UTF8))
+                        writer.Write(reader.ReadToEnd());
             }
             else
             {
@@ -74,22 +72,13 @@ namespace FolderAPI.Services
                 Directories = folder
                     .GetDirectories()
                     .Where(x => !FolderBlacklist.Contains(x.Name))
-                    .Select(x => new FolderInfo()
-                    {
-                        Name = x.Name,
-                        LastWriteTime = GetFolderWriteTime(x)
-                    })
+                    .Select(x => new FolderInfo() { Name = x.Name, LastWriteTime = GetFolderWriteTime(x) })
                     .ToArray(),
                 Files = folder
                     .GetFiles()
                     .Where(x => !FileBlacklist.Contains(x.Name))
                     .Where(x => !FileExtBlacklist.Contains(x.Extension))
-                    .Select(x => new Models.File()
-                    {
-                        Name  =x.Name,
-                        Size = x.Length,
-                        LastWriteTime = x.LastWriteTime                    
-                    })
+                    .Select(x => new Models.File() { Name = x.Name, Size = x.Length, LastWriteTime = x.LastWriteTime })
                     .ToArray()
             };
         }
@@ -109,11 +98,9 @@ namespace FolderAPI.Services
                     if (file.LastWriteTime > lastWriteTime)
                         lastWriteTime = file.LastWriteTime;
             }
-            catch (UnauthorizedAccessException)
-            {
-
-            }
+            catch (UnauthorizedAccessException) { }
             return lastWriteTime;
         }
+
     }
 }

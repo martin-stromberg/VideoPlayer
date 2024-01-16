@@ -25,6 +25,7 @@ namespace Mediathek.Services
 
         public static IServiceCollection RegisterMediaLibrary(this IServiceCollection services, string resourcesPath)
         {
+            services.AddTransient<UserSercretRegistrator>();
             services.AddTransient<MediaLibraryDatabaseSettings>();
             services.AddTransient<MediaLibraryEnvironment>(sp => new MediaLibraryEnvironment(resourcesPath));
             services.AddSingleton<IMediaLibraryDatabase, MediaLibraryDatabase>();

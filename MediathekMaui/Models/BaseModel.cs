@@ -262,10 +262,28 @@ namespace Mediathek.Models
 
         public BaseModel UpdatePicture(string cacheRootPath)
         {
-            foreach (var prop in GetType()
+            var thisType = GetType();
+            foreach (var prop in thisType
                                  .GetProperties()
                                  .Where(p => p.CanRead && p.CanWrite && (p.PropertyType == typeof(ImageSource))))
             {
+                var valueSet = false;
+                var pathAttributes = prop.GetCustomAttributes(typeof(PathAttribute), false);
+                foreach (var attrPath in pathAttributes
+                    .Cast<PathAttribute>()
+                    .Select(attr => thisType.GetProperty(attr.PropertyName))
+                    .Where(attrProp => attrProp is not null)
+                    .Select(attrProp => attrProp.GetValue(this) as string)
+                    .Where(value => !string.IsNullOrWhiteSpace(value))
+                    .Select(value => Path.Combine(cacheRootPath, value)))
+                {
+                    prop.SetValue(this, ImageSource.FromFile(attrPath));
+                    valueSet = true;
+                    break;
+                }
+                if (valueSet)
+                    continue;
+
                 var pathProp = GetType().GetProperty($"{prop.Name}Path");
                 if (pathProp == null)
                     continue;

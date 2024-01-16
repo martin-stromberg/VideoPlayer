@@ -255,5 +255,14 @@ namespace Mediathek.Services.MediaLibrary.Scanner.Samba
             }
         }
 
+        public override void DownloadThumbnail(
+            string originalSourceFilePath,
+            string destFilePath,
+            int maxWidth,
+            int maxHeight)
+        {
+            throw new NotImplementedException();
+        }
+
     }
 }

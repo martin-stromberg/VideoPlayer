@@ -144,5 +144,14 @@ namespace Mediathek.Services.MediaLibrary.Scanner.SSH
             }
         }
 
+        public override void DownloadThumbnail(
+            string originalSourceFilePath,
+            string destFilePath,
+            int maxWidth,
+            int maxHeight)
+        {
+            throw new NotImplementedException();
+        }
+
     }
 }

@@ -9,9 +9,29 @@ namespace Mediathek.Models.Movies
     public class Movie: BaseModel
     {
 
-        public string Genre { get; set; }
+        public string Genre
+        {
+            get
+            {
+                return GetProperty<string>();
+            }
+            set
+            {
+                SetProperty<string>(value);
+            }
+        }
 
-        public string Plot { get; set; }
+        public string Plot
+        {
+            get
+            {
+                return GetProperty<string>();
+            }
+            set
+            {
+                SetProperty<string>(value);
+            }
+        }
 
         public DateTime Date
         {
@@ -22,6 +42,54 @@ namespace Mediathek.Models.Movies
             set
             {
                 SetProperty<DateTime>(value);
+            }
+        }
+
+        public string Genres
+        {
+            get
+            {
+                return GetProperty<string>();
+            }
+            set
+            {
+                SetProperty<string>(value);
+            }
+        }
+
+        public string Language
+        {
+            get
+            {
+                return GetProperty<string>();
+            }
+            set
+            {
+                SetProperty<string>(value);
+            }
+        }
+
+        public DateTime PremieredAt
+        {
+            get
+            {
+                return GetProperty<DateTime>();
+            }
+            set
+            {
+                SetProperty<DateTime>(value);
+            }
+        }
+
+        public string Countries
+        {
+            get
+            {
+                return GetProperty<string>();
+            }
+            set
+            {
+                SetProperty<string>(value);
             }
         }
 
@@ -55,6 +123,7 @@ namespace Mediathek.Models.Movies
             }
         }
 
+        [Path(nameof(PicturePath))]
         public ImageSource Picture
         {
             get

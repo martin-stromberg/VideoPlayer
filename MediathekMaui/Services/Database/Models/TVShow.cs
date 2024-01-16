@@ -10,5 +10,11 @@ namespace Mediathek.Services.Database.Models
 
         public string BannerPath { get; set; }
 
+        public DateTime PremieredAt { get; set; }
+
+        public string Genres { get; set; }
+
+        public string Language { get; set; }
+
     }
 }

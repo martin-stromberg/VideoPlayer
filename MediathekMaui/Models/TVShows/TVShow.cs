@@ -24,6 +24,7 @@ namespace Mediathek.Models.TVShows
             }
         }
 
+        [Path(nameof(PicturePath))]
         public ImageSource Picture { get; set; }
 
         public string BannerPath
@@ -42,7 +43,44 @@ namespace Mediathek.Models.TVShows
             }
         }
 
+        [Path(nameof(BannerPath))]
         public ImageSource Banner { get; set; }
+
+        public string Language
+        {
+            get
+            {
+                return GetProperty<string>();
+            }
+            set
+            {
+                SetProperty<string>(value);
+            }
+        }
+
+        public DateTime PremieredAt
+        {
+            get
+            {
+                return GetProperty<DateTime>();
+            }
+            set
+            {
+                SetProperty<DateTime>(value);
+            }
+        }
+
+        public string Genres
+        {
+            get
+            {
+                return GetProperty<string>();
+            }
+            set
+            {
+                SetProperty<string>(value);
+            }
+        }
 
         public override string ToString()
         {

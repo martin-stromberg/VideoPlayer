@@ -9,11 +9,13 @@ global using Mediathek.Views.MediaLists.Cards;
 global using Mediathek.Views.VideoPlayer;
 global using Microsoft.Extensions.Logging;
 using Mediathek.Helper.Navigation;
+using Mediathek.Helper.Touch;
 using Mediathek.Services;
 using Mediathek.StatusManagement;
 
 #if IOS
 using Mediathek.Platforms.iOS;
+
 #endif
 #if WINDOWS
 using Mediathek.Platforms.Windows;
@@ -37,17 +39,17 @@ namespace Mediathek
                 })
                 .ConfigureEffects(effects =>
                 {
-                #if IOS
-                    effects.Add<Mediathek.Helper.Touch.TouchRoutingEffect, TouchPlatformEffect>();
+                    #if IOS
+                    effects.Add<TouchRoutingEffect, TouchPlatformEffect>();
                     #endif
                     #if WINDOWS
                     effects.Add<Mediathek.Helper.Touch.TouchRoutingEffect, TouchPlatformEffect>();
                     #endif
                 })
+                .RegisterSecrets()
                 .RegisterStatusManager()
                 .RegisterViewModels()
                 .RegisterMediaLibrary(resourcesPath)
-                .RegisterSecrets()
                 .RegisterNavigationManager<NavigationManager>();
 
             #if DEBUG

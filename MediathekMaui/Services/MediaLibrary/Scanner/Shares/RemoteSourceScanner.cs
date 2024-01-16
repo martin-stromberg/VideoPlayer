@@ -95,6 +95,12 @@ namespace Mediathek.Services.MediaLibrary.Scanner.Shares
 
         public abstract void DownloadFile(string sourceFilePath, string destFilePath);
 
+        public abstract void DownloadThumbnail(
+            string originalSourceFilePath,
+            string destFilePath,
+            int maxWidth,
+            int maxHeight);
+
         public abstract void WriteTextFile(string nfoPath, string innerXml);
 
         public abstract bool TestConnection(MediaElementSource mediaSource);

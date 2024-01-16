@@ -57,19 +57,24 @@ namespace Mediathek.Services.MediaLibrary.Scanner.Http
 
         private IEnumerable<HttpFileInfo> GetFolders(JObject response, string path)
         {
-            var collection = response["directories"] as JArray;
-            if (collection != null)
-                foreach (var entry in collection)
-                {
-                    if (!DateTime.TryParse($"{entry["lastWriteTime"]}", out DateTime lastWriteTime))
-                        lastWriteTime = DateTime.MinValue;
-                    yield return new HttpFileInfo()
+            if (response is null)
+                yield return null;
+            else
+            {
+                var collection = response["directories"] as JArray;
+                if (collection != null)
+                    foreach (var entry in collection)
                     {
-                        Name = $"{entry["name"]}",
-                        Path = $"{path}{entry}",
-                        LastWriteTime = lastWriteTime
-                    };
-                }
+                        if (!DateTime.TryParse($"{entry["lastWriteTime"]}", out DateTime lastWriteTime))
+                            lastWriteTime = DateTime.MinValue;
+                        yield return new HttpFileInfo()
+                        {
+                            Name = $"{entry["name"]}",
+                            Path = $"{path}{entry}",
+                            LastWriteTime = lastWriteTime
+                        };
+                    }
+            }
         }
 
         public IEnumerable<HttpFileInfo> ListDirectories(string path)
@@ -107,18 +112,37 @@ namespace Mediathek.Services.MediaLibrary.Scanner.Http
                                          cancelationToken.Token)
                           .Wait();
                 }
+            }
+        }
 
-                // HttpResponseMessage response = client.GetAsync(uri).Wait<HttpResponseMessage>();
-                // System.Net.Http.HttpContent content = response.Content;
-                // using (var s = client.GetStreamAsync(uri).Wait<Stream>())
-                // {
-                // if (!Directory.Exists(localFolderPath))
-                // Directory.CreateDirectory(localFolderPath);
-                // using (var fs = new FileStream(localFilePath, FileMode.CreateNew))
-                // {
-                // s.CopyToAsync(fs).Wait();
-                // }
-                // }
+        public void DownloadThumbnail(string remoteFilePath, string localFilePath, int maxWidth, int maxHeight)
+        {
+            remoteFilePath = remoteFilePath.Replace('\\', '/');
+            var localFolderPath = Path.GetDirectoryName(localFilePath);
+            if (!Path.Exists(localFolderPath))
+                Directory.CreateDirectory(localFolderPath);
+            using (HttpClient client = new HttpClient() { Timeout = TimeSpan.FromMinutes(60) })
+            {
+                client.DefaultRequestHeaders.Add("X-ApiKey", apiKey);
+                var uri = $"{serverUri}Thumbnail?imagepath={remoteFilePath}&maxWidth={maxWidth}&maxHeight={maxHeight}";
+                using (var fs = new FileStream(localFilePath, FileMode.CreateNew))
+                {
+                    CancellationTokenSource cancelationToken = new CancellationTokenSource();
+                    DownloadProgressEventArgs progressArgs = new DownloadProgressEventArgs(remoteFilePath,
+                                                                                           localFilePath,
+                                                                                           0);
+                    client.DownloadAsync(uri,
+                                         fs,
+                                         new Progress<float>((progress) =>
+                    {
+                        progressArgs.Progress = progress;
+                        OnDownloadProgress(progressArgs);
+                        if (progressArgs.Cancel)
+                            cancelationToken.Cancel();
+                    }),
+                                         cancelationToken.Token)
+                          .Wait();
+                }
             }
         }
 

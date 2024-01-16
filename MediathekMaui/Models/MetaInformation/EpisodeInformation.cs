@@ -13,5 +13,7 @@
 
         public string Part { get; set; }
 
+        public DateTime AiredAt { get; set; }
+
     }
 }

@@ -26,6 +26,7 @@ namespace Mediathek.Models.TVShows
             }
         }
 
+        [Path(nameof(PicturePath))]
         public ImageSource Picture { get; set; }
 
         public long SeasonId { get; set; }
@@ -37,6 +38,8 @@ namespace Mediathek.Models.TVShows
         public string Part { get; set; }
 
         public string Plot { get; set; }
+
+        public DateTime AiredAt { get; set; }
 
         public long[] MediaItems { get; set; }
 

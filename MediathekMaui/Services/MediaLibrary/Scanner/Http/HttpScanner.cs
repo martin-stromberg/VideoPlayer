@@ -13,7 +13,7 @@ namespace Mediathek.Services.MediaLibrary.Scanner.Http
 
         private HttpShare share;
         private static string[] FolderNameBlacklist = { ".", "..", ".actors" };
-        private static string[] FileNameBlacklist = { ".tbn" };
+        private static string[] FileNameBlacklist = { ".tbn", ".hash" };
         private bool currentScan_latestScanPathReached = false;
         private string[] currentScan_skipPathParts = null;
         private string currentScan_SkipPath = string.Empty;
@@ -29,6 +29,16 @@ namespace Mediathek.Services.MediaLibrary.Scanner.Http
         {
             sourceFilePath = sourceFilePath.Replace('\\', '/');
             share.DownloadFile(sourceFilePath, destFilePath);
+        }
+
+        public override void DownloadThumbnail(
+            string originalSourceFilePath,
+            string destFilePath,
+            int maxWidth,
+            int maxHeight)
+        {
+            originalSourceFilePath = originalSourceFilePath.Replace('\\', '/');
+            share.DownloadThumbnail(originalSourceFilePath, destFilePath, maxWidth, maxHeight);
         }
 
         public override IEnumerable<RemoteFile> FindFiles(
@@ -88,6 +98,7 @@ namespace Mediathek.Services.MediaLibrary.Scanner.Http
             try
             {
                 return share.ListDirectories(path.Replace('\\', '/'))
+                            .Where(f => f is not null)
                             .Where(f =>
                             {
                                 Regex mask = new Regex(

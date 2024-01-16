@@ -26,6 +26,7 @@ namespace Mediathek.Models.TVShows
             }
         }
 
+        [Path(nameof(PicturePath))]
         public ImageSource Picture { get; set; }
 
         public string BannerPath
@@ -44,6 +45,7 @@ namespace Mediathek.Models.TVShows
             }
         }
 
+        [Path(nameof(BannerPath))]
         public ImageSource Banner { get; set; }
 
         public override string ToString()

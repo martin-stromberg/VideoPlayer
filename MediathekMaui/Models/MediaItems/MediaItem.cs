@@ -80,6 +80,18 @@ namespace Mediathek.Models.MediaItems
             }
         }
 
+        public string PictureThumbnailPath
+        {
+            get
+            {
+                return GetProperty<string>();
+            }
+            set
+            {
+                SetProperty<string>(value);
+            }
+        }
+
         public DateTime PictureTime
         {
             get
@@ -92,6 +104,8 @@ namespace Mediathek.Models.MediaItems
             }
         }
 
+        [Path(nameof(PictureThumbnailPath))]
+        [Path(nameof(PicturePath))]
         public ImageSource Picture
         {
             get

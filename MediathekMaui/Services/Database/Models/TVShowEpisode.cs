@@ -15,6 +15,8 @@
 
         public string Plot { get; set; }
 
+        public DateTime AiredAt { get; set; }
+
         public string PicturePath { get; set; }
 
         public long PrimaryMediaItemId { get; set; }

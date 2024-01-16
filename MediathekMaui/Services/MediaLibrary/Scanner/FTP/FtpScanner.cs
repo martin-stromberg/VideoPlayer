@@ -360,5 +360,14 @@ namespace Mediathek.Services.MediaLibrary.Scanner.FTP
             }
         }
 
+        public override void DownloadThumbnail(
+            string originalSourceFilePath,
+            string destFilePath,
+            int maxWidth,
+            int maxHeight)
+        {
+            throw new NotImplementedException();
+        }
+
     }
 }

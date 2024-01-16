@@ -1,4 +1,5 @@
-﻿using Mediathek.Extensions;
+﻿using ImageMagick;
+using Mediathek.Extensions;
 using Mediathek.Services.MediaLibrary.Scanner.Events;
 using Mediathek.Services.MediaLibrary.Scanner.FTP;
 using Mediathek.Services.MediaLibrary.Scanner.Http;
@@ -126,6 +127,7 @@ namespace Mediathek.Services.MediaLibrary.Scanner
         private void Scanner_FileFound(object sender, FileEventArgs e)
         {
             CheckContinue();
+            _StatusPublisher.AddStatus($"{e.File.Path}", false);
             var scanner = sender as RemoteSourceScanner;
             ProcessFile(scanner.CurrentSource, scanner, e.File).Wait();
         }
@@ -717,6 +719,10 @@ namespace Mediathek.Services.MediaLibrary.Scanner
                 Plot = documentElement.FindChild("plot", true).InnerText.Trim(),
                 ReleaseDate = documentElement.FindChild("releasedate", true).InnerText.Trim().ToDateTime(),
                 Year = documentElement.FindChild("year", true).InnerText.Trim().ToInt32(),
+                Genres = documentElement.FindChildren("genre").Select(node => node.InnerText.Trim()).ToArray(),
+                PremieredAt = documentElement.FindChild("premiered", true).InnerText.ToDateTime(),
+                Language = documentElement.FindChild("language", true).InnerText.Trim(),
+                Countries = documentElement.FindChildren("country").Select(node => node.InnerText.Trim()).ToArray(),
                 LastUpdate = DateTime.Now
             };
             if ((Info.Year == 0) && (Info.ReleaseDate != default(DateTime)))
@@ -737,6 +743,7 @@ namespace Mediathek.Services.MediaLibrary.Scanner
                 Part = match.Success ? match.Groups[1].Value : string.Empty,
                 Season = documentElement.FindChild("season", true).InnerText.Trim(),
                 Plot = documentElement.FindChild("plot", true).InnerText.Trim(),
+                AiredAt = documentElement.FindChild("aired", true).InnerText.ToDateTime(),
                 LastUpdate = DateTime.Now
             };
             item.MetaInfo = Info;
@@ -757,12 +764,41 @@ namespace Mediathek.Services.MediaLibrary.Scanner
 
             logger.LogDebug($"Caching picture file {picFile.Name}");
             var cacheFileName = $"{Guid.NewGuid()}{Path.GetExtension(picName)}";
-            string cachFile = Path.Combine(environment.CacheFolderPath, cacheFileName);
-            scanner.DownloadFile(picPath, cachFile);
-            item.PicturePath = cachFile.Remove(0, environment.CacheRootPath.Length + 1);
+            string cacheFile = Path.Combine(environment.CacheFolderPath, cacheFileName);
+            scanner.DownloadFile(picPath, cacheFile);
+            item.PicturePath = cacheFile.Remove(0, environment.CacheRootPath.Length + 1);
             item.PictureTime = picFile.LastWriteTime;
-            item.Picture = ImageSource.FromFile(cachFile);
+
+            var thumbnailFileName = $"{Guid.NewGuid()}{Path.GetExtension(picName)}";
+            string thumbnailFile = Path.Combine(environment.CacheFolderPath, thumbnailFileName);
+            scanner.DownloadThumbnail(remoteFile.Path,
+                                      thumbnailFile,
+                                      _Settings.Current.ThumbnailWidth,
+                                      _Settings.Current.ThumbnailHeight);
+
+            item.PictureThumbnailPath = File.Exists(thumbnailFile) ? thumbnailFile.Remove(0, environment.CacheRootPath.Length + 1) : string.Empty;
+            item.Picture = ImageSource.FromFile(thumbnailFile ?? cacheFile);
             await mediaLibrary.AddMediaItemAsync(item);
+        }
+
+        private string CreateThumbnail(string sourceFilePath)
+        {
+            string thumbFile = Path.ChangeExtension(sourceFilePath, $".thumbnail{Path.GetExtension(sourceFilePath)}");
+            try
+            {
+                using (var image = new MagickImage(sourceFilePath))
+                {
+                    image.Format = image.Format; // Get or Set the format of the image.
+                    image.Resize(200, 240); // fit the image into the requested width and height. 
+                    image.Quality = 10; // This is the Compression level.
+                    image.Write(thumbFile);
+                }
+            }
+            catch
+            {
+                return string.Empty;
+            }
+            return thumbFile;
         }
 
         private void ProcessMetaDataForAudio(MediaItem item)
@@ -947,6 +983,9 @@ namespace Mediathek.Services.MediaLibrary.Scanner
             {
                 Title = documentElement.FindChild("title", true).InnerText.Trim(),
                 Plot = documentElement.FindChild("plot", true).InnerText.Trim(),
+                Genres = documentElement.FindChildren("genre").Select(node => node.InnerText.Trim()).ToArray(),
+                PremieredAt = documentElement.FindChild("premiered", true).InnerText.ToDateTime(),
+                Language = documentElement.FindChild("language", true).InnerText.Trim(),
             };
             item.MetaInfo = info;
         }

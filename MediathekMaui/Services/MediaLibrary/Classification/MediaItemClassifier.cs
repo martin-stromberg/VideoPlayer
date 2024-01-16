@@ -134,7 +134,10 @@ namespace Mediathek.Services.MediaLibrary.Classification
             {
                 Name = showInformation?.Title ?? episodeInformation.ShowName,
                 PicturePath = showCollection?.PicturePath,
-                BannerPath = showCollection?.BannerPath
+                BannerPath = showCollection?.BannerPath,
+                Language = showInformation?.Language,
+                PremieredAt = showInformation?.PremieredAt ?? DateTime.MinValue,
+                Genres = ((showInformation?.Genres) != null) ? string.Join(',', showInformation?.Genres) : string.Empty,
             };
             var season = new TVShowSeason()
             {
@@ -150,6 +153,7 @@ namespace Mediathek.Services.MediaLibrary.Classification
             episode.PicturePath = mediaItem.PicturePath;
             episode.Plot = episodeInformation.Plot;
             episode.Part = episodeInformation.Part;
+            episode.AiredAt = episodeInformation?.AiredAt ?? DateTime.MinValue;
             if (int.TryParse(episodeInformation.Part, out var _))
                 episode.Part = episode.Part.PadLeft(2, '0');
 
@@ -172,6 +176,9 @@ namespace Mediathek.Services.MediaLibrary.Classification
             }
             existingShow.PicturePath = show.PicturePath ?? existingShow.PicturePath;
             existingShow.BannerPath = show.BannerPath ?? existingShow.BannerPath;
+            existingShow.PremieredAt = (show.PremieredAt != DateTime.MinValue) ? show.PremieredAt : existingShow.PremieredAt;
+            existingShow.Language = show.Language ?? existingShow.Language;
+            existingShow.Genres = show.Genres ?? existingShow.Genres;
             await mediaLibrary.AddTVShowAsync(existingShow);
 
             var existingSeason = (await mediaLibrary.GetTVShowSeasons(existingShow.Id))
@@ -224,6 +231,7 @@ namespace Mediathek.Services.MediaLibrary.Classification
                 .Distinct()
                 .OrderBy(id => id)
                 .ToArray();
+            existingEpisode.AiredAt = episode.AiredAt;
             existingEpisode.Part = episode.Part;
             existingEpisode.PrimaryMediaItem = episode.PrimaryMediaItem;
             await mediaLibrary.AddTVShowEpisodeAsync(existingShow, existingSeason, existingEpisode);
@@ -283,6 +291,10 @@ namespace Mediathek.Services.MediaLibrary.Classification
             movie.Genre = movieInformation.Genre;
             movie.Plot = movieInformation.Plot;
             movie.Date = movieInformation.ReleaseDate;
+            movie.Genres = (movieInformation.Genres != null) ? string.Join(',', movieInformation.Genres) : string.Empty;
+            movie.Language = movieInformation.Language;
+            movie.PremieredAt = movieInformation.PremieredAt;
+            movie.Countries = (movieInformation.Countries != null) ? string.Join(",", movieInformation.Countries) : string.Empty;
             if ((movie.Date == default(DateTime)) && (movieInformation.Year > 0))
                 movie.Date = new DateTime(movieInformation.Year, 1, 1);
             movie.MediaItems = new long[] { mediaItem.Id };
@@ -308,6 +320,10 @@ namespace Mediathek.Services.MediaLibrary.Classification
                     .ToArray();
                 existingMovie.PicturePath = movie.PicturePath ?? existingMovie.PicturePath;
                 existingMovie.Date = movie.Date;
+                existingMovie.Genres = movie.Genres ?? existingMovie.Genres;
+                existingMovie.Language = movie.Language ?? existingMovie.Language;
+                existingMovie.PremieredAt = (movie.PremieredAt != DateTime.MinValue) ? movie.PremieredAt : existingMovie.PremieredAt;
+                existingMovie.Countries = movie.Countries ?? existingMovie.Countries;
                 await mediaLibrary.AddMovieAsync(existingMovie);
             }
         }

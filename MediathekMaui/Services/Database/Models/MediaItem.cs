@@ -15,6 +15,8 @@ namespace Mediathek.Services.Database.Models
 
         public string PicturePath { get; set; }
 
+        public string PictureThumbnailPath { get; set; }
+
         public DateTime PictureTime { get; set; }
 
         public string BannerPath { get; set; }

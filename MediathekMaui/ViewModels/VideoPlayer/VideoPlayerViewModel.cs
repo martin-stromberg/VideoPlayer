@@ -221,7 +221,7 @@ namespace Mediathek.ViewModels.VideoPlayer
             if (Item == null)
                 return;
             await SaveMediaItemPosition(TimeSpan.Zero);
-            Download = _PlaylistManager.ProcessMediaEnded(Item);
+            Download = await _PlaylistManager.ProcessMediaEndedAsync(Item);
             if (VideoSource == null)
                 NavigationManager.NavigateBack();
         }

@@ -8,7 +8,7 @@ namespace Mediathek.Services.Playlists
 
         Task InitializeAsync();
 
-        Playlist GeneralPlaylist { get; }
+        GeneralPlaylist GeneralPlaylist { get; }
 
         Task StartTVShowPlaylistAsync(TVShowEpisode episode, Func<IEnumerable<BaseModel>> GetCollectionElements);
 
@@ -26,7 +26,7 @@ namespace Mediathek.Services.Playlists
 
         DownloadSource GetFirstVideoSource();
 
-        DownloadSource ProcessMediaEnded(MediaItem item);
+        Task<DownloadSource> ProcessMediaEndedAsync(MediaItem item);
 
         void ProcessMediaFailed(MediaItem item);
 

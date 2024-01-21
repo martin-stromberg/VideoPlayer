@@ -82,6 +82,18 @@ namespace Mediathek.Models.TVShows
             }
         }
 
+        public long CollectionId
+        {
+            get
+            {
+                return GetProperty<long>();
+            }
+            set
+            {
+                SetProperty<long>(value);
+            }
+        }
+
         public override string ToString()
         {
             return $"{Name}";

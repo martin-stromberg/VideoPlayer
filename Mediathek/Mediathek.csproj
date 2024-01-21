@@ -94,8 +94,10 @@
 	<ItemGroup>
 	  <None Remove="Resources\AppIcon\appicon.png" />
 	  <None Remove="Resources\Images\add.png" />
+	  <None Remove="Resources\Images\add_folder.png" />
 	  <None Remove="Resources\Images\back.png" />
 	  <None Remove="Resources\Images\cancel.png" />
+	  <None Remove="Resources\Images\check.png" />
 	  <None Remove="Resources\Images\delete.png" />
 	  <None Remove="Resources\Images\download.png" />
 	  <None Remove="Resources\Images\fullscreen.png" />
@@ -186,6 +188,9 @@
 	  </Compile>
 	  <Compile Update="Views\MediaLists\Cards\TVShowSetupView.xaml.cs">
 	    <DependentUpon>%(Filename)</DependentUpon>
+	  </Compile>
+	  <Compile Update="Views\MediaLists\ListItems\MediaListItemBoxView.xaml.cs">
+	    <DependentUpon>MediaListItemBoxView.xaml</DependentUpon>
 	  </Compile>
 	  <Compile Update="Views\MediaLists\MediaListItemView.xaml.cs">
 	    <DependentUpon>%(Filename)</DependentUpon>
@@ -282,6 +287,12 @@
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
 	  <MauiXaml Update="Views\MediaLists\Cards\TVShowSetupView.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
+	  <MauiXaml Update="Views\MediaLists\ListItems\MediaListItemBoxView.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
+	  <MauiXaml Update="Views\MediaLists\ListItems\NewListItemView.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
 	  <MauiXaml Update="Views\MediaLists\MediaListItemView.xaml">

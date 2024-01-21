@@ -56,6 +56,13 @@ namespace Mediathek.Helper.Navigation
             MainThread.InvokeOnMainThreadAsync(() => { Shell.Current.Navigation.RemovePage(Shell.Current.CurrentPage); });
         }
 
+        public void OpenTVShowCollection(TVShowCollection collection)
+        {
+            var navigationParameter = new Dictionary<string, object>
+            { { "Collection", collection }, { "Show", null }, { "Season", null }, { "Episode", null } };
+            NavigateToRoute($"tvshow", navigationParameter);
+        }
+
         public void OpenTVShow(TVShow show, TVShowSeason season, TVShowEpisode episode)
         {
             var navigationParameter = new Dictionary<string, object>

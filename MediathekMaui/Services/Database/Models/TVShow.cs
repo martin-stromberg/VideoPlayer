@@ -16,5 +16,7 @@ namespace Mediathek.Services.Database.Models
 
         public string Language { get; set; }
 
+        public long CollectionId { get; set; }
+
     }
 }

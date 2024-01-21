@@ -4,6 +4,7 @@ using System.ComponentModel;
 
 namespace Mediathek.Views.MediaLists.Cards
 {
+    [QueryProperty(nameof(Collection), "Collection")]
     [QueryProperty(nameof(Show), "Show")]
     [QueryProperty(nameof(Season), "Season")]
     [QueryProperty(nameof(Episode), "Episode")]
@@ -28,6 +29,21 @@ namespace Mediathek.Views.MediaLists.Cards
                         ViewModel.SelectedEpisode = null;
                     }
                     break;
+            }
+        }
+
+        private TVShowCollection collection;
+
+        public TVShowCollection Collection
+        {
+            get
+            {
+                return collection;
+            }
+            set
+            {
+                collection = value;
+                OnPropertyChanged();
             }
         }
 
@@ -81,7 +97,7 @@ namespace Mediathek.Views.MediaLists.Cards
         protected override void OnAppearing()
         {
             base.OnAppearing();
-            ViewModel.SetParent(Show, Season, Episode);
+            ViewModel.SetParent(Collection, Show, Season, Episode);
             ViewModel.OnAppeared();
         }
 

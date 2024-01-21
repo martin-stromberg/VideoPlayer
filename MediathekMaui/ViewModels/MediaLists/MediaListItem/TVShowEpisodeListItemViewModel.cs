@@ -48,5 +48,15 @@ namespace Mediathek.ViewModels.MediaLists.MediaListItem
             OpenDetails();
         }
 
+        protected override void ExecuteSaveNewItem()
+        {
+            throw new NotImplementedException();
+        }
+
+        protected override void ExecuteCancelNewItem()
+        {
+            throw new NotImplementedException();
+        }
+
     }
 }

@@ -42,9 +42,19 @@ namespace Mediathek.Services.Database
 
         Task<IEnumerable<Services.Database.Models.TVShow>> GetTVShowsByName(string name);
 
+        Task<IEnumerable<Services.Database.Models.TVShowCollection>> GetTVShowCollections();
+
+        Task<IEnumerable<Services.Database.Models.TVShowCollection>> GetTVShowCollectionsByName(string name);
+
         Task<Services.Database.Models.TVShow> GetTVShow(long id);
 
         Task<Services.Database.Models.TVShow> AddOrUpdateTVShow(Services.Database.Models.TVShow show);
+
+        Task<Services.Database.Models.TVShowCollection> AddOrUpdateTVShowCollection(Models.TVShowCollection collection);
+
+        Task<Services.Database.Models.TVShowCollection> GetTVShowCollection(long id);
+
+        Task RemoveTVShowCollection(long id);
 
         Task<Services.Database.Models.TVShowSeason> AddOrUpdateTVShowSeason(Services.Database.Models.TVShowSeason season);
 

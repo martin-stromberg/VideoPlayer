@@ -103,9 +103,13 @@ namespace Mediathek.Services.MediaLibrary
         #endregion
 
         #region TV Show 
+        Task<IEnumerable<TVShowName>> GetTVShowNames();
+
         Task<IEnumerable<TVShow>> GetTVShows();
 
         Task<IEnumerable<TVShow>> GetTVShows(int offset, int value);
+
+        Task<IEnumerable<TVShow>> GetTVShows(long collectionId);
 
         Task<TVShow> GetTVShow(long id);
 
@@ -124,6 +128,14 @@ namespace Mediathek.Services.MediaLibrary
         Task<TVShowSeason> GetTVShowSeason(long id);
 
         Task AddTVShowSeasonAsync(TVShow show, TVShowSeason season);
+        #endregion
+
+        #region TV Show Collection
+        Task<IEnumerable<TVShowCollection>> GetTVShowCollections();
+
+        Task<IEnumerable<TVShowCollection>> FindTVShowCollectionByNameAsync(string name);
+
+        Task AddTVShowCollectionAsync(TVShowCollection item);
         #endregion
 
         #region TV Show Episode
@@ -151,6 +163,8 @@ namespace Mediathek.Services.MediaLibrary
         Task<IEnumerable<HistoryEntry>> GetPlayBackHistoryEntries();
 
         Task RemoveMovieCollectionAsync(MovieCollection collection);
+
+        Task RemoveTVShowCollectionAsync(TVShowCollection collection);
 
         Task RemoveTVShowSeasonAsync(TVShowSeason season);
 

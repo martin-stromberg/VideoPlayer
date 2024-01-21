@@ -362,5 +362,50 @@ namespace Mediathek.Services.MediaLibrary.Demo
             throw new NotImplementedException();
         }
 
+        public void AddTVShowCollectionAsync(BaseModel item)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task AddTVShowCollectionAsync(TVShowCollection item)
+        {
+            throw new NotImplementedException();
+        }
+
+        public object GetTVShowCollections()
+        {
+            throw new NotImplementedException();
+        }
+
+        Task<IEnumerable<TVShowCollection>> IMediaLibrary.GetTVShowCollections()
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<IEnumerable<TVShowCollection>> FindTVShowCollectionByNameAsync(string name)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<IEnumerable<TVShow>> GetTVShows(long id)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<IEnumerable<object>> GetTVShowNames()
+        {
+            throw new NotImplementedException();
+        }
+
+        Task<IEnumerable<TVShowName>> IMediaLibrary.GetTVShowNames()
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task RemoveTVShowCollectionAsync(TVShowCollection collection)
+        {
+            throw new NotImplementedException();
+        }
+
     }
 }

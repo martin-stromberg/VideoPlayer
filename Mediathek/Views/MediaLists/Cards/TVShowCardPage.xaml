@@ -2,6 +2,7 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:vm="clr-namespace:Mediathek.ViewModels.MediaLists.Details;assembly=MediathekMaui"
+             xmlns:vwHome="clr-namespace:Mediathek.Views.Homepage"
              xmlns:view="clr-namespace:Mediathek.Views.MediaLists"
              xmlns:viewCards="clr-namespace:Mediathek.Views.MediaLists.Cards"
              x:DataType="vm:TVShowDetailsViewModel"
@@ -24,6 +25,7 @@
             Aspect="AspectFit"
             Source="{Binding Banner}"/>
         <Picker 
+            IsVisible="{Binding IsShowSelected}"
             ItemsSource="{Binding Seasons}" 
             SelectedItem="{Binding SelectedSeason}" 
             VerticalOptions="End"
@@ -31,10 +33,20 @@
         <HorizontalStackLayout HorizontalOptions="End" VerticalOptions="End">
             <ImageButton 
                 Margin="5"
+                Source="play.png"
+                WidthRequest="30" 
+                HeightRequest="30" 
+                Background="Transparent"    
+                IsVisible="{Binding IsShowCollectionVisible}"/>
+                <!--Command="{Binding StartCollectionPlayback}"-->
+                
+            <ImageButton 
+                Margin="5"
                 Source="download.png"
                 WidthRequest="30" 
                 HeightRequest="30" 
-                Background="Transparent"                
+                Background="Transparent"    
+                IsVisible="{Binding IsEpisodeLisTVisible}"
                 Command="{Binding DownloadSeason}"/>
             <ImageButton 
                 Margin="5"
@@ -45,8 +57,15 @@
                 Command="{Binding ToggleSetup}"/>
         </HorizontalStackLayout>
 
-        <ScrollView Grid.Row="1">
-            <VerticalStackLayout>
+        <vwHome:HorizontalMediaItemCollection 
+             Grid.Row="1"
+            VerticalOptions="Start"
+            IsVisible="{Binding IsShowCollectionVisible}"
+            HeightRequest="250"
+            BindingContext="{Binding ShowsViewModel}"/>
+
+        <ScrollView Grid.Row="1" IsVisible="{Binding IsEpisodeLisTVisible}">
+            <VerticalStackLayout>                
                 <CollectionView
                     x:Name="itemList"
                     RemainingItemsThreshold="1"

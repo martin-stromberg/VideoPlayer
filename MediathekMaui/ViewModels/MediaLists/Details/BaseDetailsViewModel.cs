@@ -16,7 +16,7 @@ namespace Mediathek.ViewModels.MediaLists.Details
 
         public Command DeleteCollection { get; }
 
-        protected BaseModel Collection { get; set; }
+        protected BaseModel CurrentMediaCollection { get; set; }
 
         protected IMediaLibrary MediaLibrary
         {
@@ -50,14 +50,16 @@ namespace Mediathek.ViewModels.MediaLists.Details
 
         protected virtual void ExecuteDeleteCollection()
         {
-            if (Collection is TVShow)
-                mediaLibrary.RemoveTVShowAsync(Collection as TVShow);
-            else if (Collection is TVShowSeason)
-                mediaLibrary.RemoveTVShowSeasonAsync(Collection as TVShowSeason);
-            else if (Collection is Movie)
-                mediaLibrary.RemoveMovieAsync(Collection as Movie);
-            else if (Collection is MovieCollection)
-                mediaLibrary.RemoveMovieCollectionAsync(Collection as MovieCollection);
+            if (CurrentMediaCollection is TVShow)
+                mediaLibrary.RemoveTVShowAsync(CurrentMediaCollection as TVShow);
+            else if (CurrentMediaCollection is TVShowSeason)
+                mediaLibrary.RemoveTVShowSeasonAsync(CurrentMediaCollection as TVShowSeason);
+            else if (CurrentMediaCollection is Movie)
+                mediaLibrary.RemoveMovieAsync(CurrentMediaCollection as Movie);
+            else if (CurrentMediaCollection is MovieCollection)
+                mediaLibrary.RemoveMovieCollectionAsync(CurrentMediaCollection as MovieCollection);
+            else if (CurrentMediaCollection is TVShowCollection)
+                mediaLibrary.RemoveTVShowCollectionAsync(CurrentMediaCollection as TVShowCollection);
             NavigationManager.NavigateBack();
         }
 

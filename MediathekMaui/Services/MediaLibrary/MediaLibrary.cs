@@ -119,6 +119,17 @@ namespace Mediathek.Services.MediaLibrary
                              null);
         }
 
+        public async Task AddTVShowCollectionAsync(Models.TVShows.TVShowCollection collection)
+        {
+            var isNew = collection.Id == 0;
+            var dataModelShow = collection.ToDataModelAsync();
+            await _DataStore.AddOrUpdateTVShowCollection(dataModelShow as Services.Database.Models.TVShowCollection);
+            collection.UpdateAutoincrements(dataModelShow);
+            OnElementChanged(isNew ? (new BaseModelEventArgs(collection)) : null,
+                             (!isNew) ? (new BaseModelEventArgs(collection)) : null,
+                             null);
+        }
+
         public async Task AddTVShowAsync(Models.TVShows.TVShow show)
         {
             var isNew = show.Id == 0;
@@ -457,10 +468,35 @@ namespace Mediathek.Services.MediaLibrary
             return modelEpisode;
         }
 
+        public async Task<IEnumerable<TVShowName>> GetTVShowNames()
+        {
+            var shows = await _DataStore.GetTVShows();
+            return shows
+                .Select(show =>
+                {
+                    var model = TVShowName.FromDataModel(show);
+                    return model;
+                })
+                .Cast<TVShowName>();
+        }
+
         public async Task<IEnumerable<Models.TVShows.TVShow>> GetTVShows()
         {
             var shows = await _DataStore.GetTVShows();
             return shows
+                .Select(show =>
+                {
+                    var model = Models.TVShows.TVShow.FromDataModel(show).UpdatePicture(_Settings.CacheRootPath) as Models.TVShows.TVShow;
+                    return model;
+                })
+                .Cast<Models.TVShows.TVShow>();
+        }
+
+        public async Task<IEnumerable<Models.TVShows.TVShow>> GetTVShows(long collectionId)
+        {
+            var shows = await _DataStore.GetTVShows();
+            return shows
+                .Where(show => show.CollectionId == collectionId)
                 .Select(show =>
                 {
                     var model = Models.TVShows.TVShow.FromDataModel(show).UpdatePicture(_Settings.CacheRootPath) as Models.TVShows.TVShow;
@@ -551,6 +587,24 @@ namespace Mediathek.Services.MediaLibrary
             await ClearTVShow(dbItem);
             await _DataStore.RemoveTVShow(dbItem.Id);
             OnElementChanged(null, null, new BaseModelEventArgs(show));
+        }
+
+        public async Task RemoveTVShowCollectionAsync(Models.TVShows.TVShowCollection collection)
+        {
+            var dbItem = await _DataStore.GetTVShowCollection(collection.Id);
+            await ClearTVShowCollection(dbItem);
+            await _DataStore.RemoveTVShowCollection(dbItem.Id);
+            OnElementChanged(null, null, new BaseModelEventArgs(collection));
+        }
+
+        private async Task ClearTVShowCollection(Database.Models.TVShowCollection showCollection)
+        {
+            var shows = await GetTVShows(showCollection.Id);
+            foreach (var show in shows)
+            {
+                show.CollectionId = 0;
+                await AddTVShowAsync(show);
+            }
         }
 
         public async Task RemoveTVShowSeasonAsync(Models.TVShows.TVShowSeason season)
@@ -936,6 +990,34 @@ namespace Mediathek.Services.MediaLibrary
                 }
             }
             return dbItems.Where(item => (item.Item is not null) || (item.TypedItem is not null));
+        }
+
+        public async Task<IEnumerable<Models.TVShows.TVShowCollection>> GetTVShowCollections()
+        {
+            var seasons = await _DataStore.GetTVShowCollections();
+            return seasons
+                .Select(season =>
+                {
+                    var model = Models.TVShows.TVShowCollection
+                                              .FromDataModel(season)
+                                              .UpdatePicture(_Settings.CacheRootPath) as Models.TVShows.TVShowCollection;
+                    return model;
+                })
+                .Cast<Models.TVShows.TVShowCollection>();
+        }
+
+        public async Task<IEnumerable<Models.TVShows.TVShowCollection>> FindTVShowCollectionByNameAsync(string name)
+        {
+            var seasons = await _DataStore.GetTVShowCollectionsByName(name);
+            return seasons
+                .Select(season =>
+                {
+                    var model = Models.TVShows.TVShowCollection
+                                              .FromDataModel(season)
+                                              .UpdatePicture(_Settings.CacheRootPath) as Models.TVShows.TVShowCollection;
+                    return model;
+                })
+                .Cast<Models.TVShows.TVShowCollection>();
         }
 
     }

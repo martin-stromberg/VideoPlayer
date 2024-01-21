@@ -66,5 +66,15 @@ namespace Mediathek.ViewModels.MediaLists.MediaListItem
             _LibraryScanner.Rescan(Item as MediaItem);
         }
 
+        protected override void ExecuteSaveNewItem()
+        {
+            throw new NotImplementedException();
+        }
+
+        protected override void ExecuteCancelNewItem()
+        {
+            throw new NotImplementedException();
+        }
+
     }
 }

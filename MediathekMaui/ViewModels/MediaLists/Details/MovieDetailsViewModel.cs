@@ -43,7 +43,7 @@ namespace Mediathek.ViewModels.MediaLists.Details
 
         private async void ExecuteDownloadCollection()
         {
-            var sessions = (await DownloadManager.StartDownloadAsync(Collection, MediaItemCopyType.Download)).ToList();
+            var sessions = (await DownloadManager.StartDownloadAsync(CurrentMediaCollection, MediaItemCopyType.Download)).ToList();
             sessions.AddRange(await DownloadManager.StartDownloadAsync(Movie, MediaItemCopyType.Download));
             foreach (var movie in CollectionViewModel.Items.Select(vm => vm.Item))
                 sessions.AddRange(await DownloadManager.StartDownloadAsync(movie, MediaItemCopyType.Download));
@@ -248,7 +248,7 @@ namespace Mediathek.ViewModels.MediaLists.Details
 
         private void ProcessParentChanged()
         {
-            Collection = MovieCollection as BaseModel ?? Movie as BaseModel;
+            CurrentMediaCollection = MovieCollection as BaseModel ?? Movie as BaseModel;
             Title = Movie?.Name ?? MovieCollection?.Name;
         }
 

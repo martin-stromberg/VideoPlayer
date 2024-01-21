@@ -6,6 +6,13 @@
              x:Class="Mediathek.Views.MediaLists.TVShowsPage"
              x:DataType="vm:BaseMediaListViewModel"
              Title="{Binding Title}">
+    <ContentPage.ToolbarItems>
+        <ToolbarItem Text="+" 
+                     IconImageSource="add_folder.png"
+                     Order="Primary"
+                     Command="{Binding AddCollection}" 
+                     CommandParameter="addcollection" />
+    </ContentPage.ToolbarItems>
     <ScrollView>
         <FlexLayout
         AlignContent="Start"

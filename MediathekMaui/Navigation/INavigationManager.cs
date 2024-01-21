@@ -14,6 +14,8 @@ namespace Mediathek.Navigation
 
         void OpenTVShows();
 
+        void OpenTVShowCollection(TVShowCollection tVShowCollection);
+
         void OpenTVShow(TVShow show, TVShowSeason season, TVShowEpisode tVShowEpisode);
 
         void OpenTVShowSeason(TVShowSeason tVShowSeason);

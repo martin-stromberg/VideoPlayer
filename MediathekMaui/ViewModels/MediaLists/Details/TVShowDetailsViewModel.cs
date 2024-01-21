@@ -1,6 +1,7 @@
 ﻿using Mediathek.Navigation;
 using Mediathek.Services.MediaLibrary;
 using Mediathek.Services.MediaLibrary.Downloads;
+using Mediathek.Services.Playlists;
 using Mediathek.Services.Settings;
 using Mediathek.StatusManagement;
 using Mediathek.ViewModels.MediaLists.MediaListItem;
@@ -19,9 +20,11 @@ namespace Mediathek.ViewModels.MediaLists.Details
             INavigationManager navigationManager,
             ISettingsService settings,
             IMediaLibrary mediaLibrary,
-            IDownloadManager downloadManager)
+            IDownloadManager downloadManager,
+            IPlaylistManager playlistManager)
             : base(statusPublisher, navigationManager, settings, downloadManager, mediaLibrary)
         {
+            _PlaylistManager = playlistManager;
             DownloadSeason = new Command(() => ExecuteDownloadSeason(), () => CanDownloadSeason());
             ToggleSetup = new Command(() => ExecuteToggleSetup());
         }
@@ -31,11 +34,26 @@ namespace Mediathek.ViewModels.MediaLists.Details
             IsSetupVisible = !IsSetupVisible;
         }
 
-        public void SetParent(TVShow show, TVShowSeason season, TVShowEpisode episode)
+        public void SetParent(TVShowCollection collection, TVShow show, TVShowSeason season, TVShowEpisode episode)
         {
+            Collection = collection;
             Episode = episode;
             Season = season;
             Show = show;
+        }
+
+        private TVShowCollection collection;
+
+        public TVShowCollection Collection
+        {
+            get
+            {
+                return collection;
+            }
+            set
+            {
+                collection = value;
+            }
         }
 
         public TVShow show;
@@ -49,9 +67,51 @@ namespace Mediathek.ViewModels.MediaLists.Details
             set
             {
                 show = value;
-                Collection = show as BaseModel ?? Season as BaseModel ?? Episode as BaseModel;
-                Title = show?.Name ?? Episode?.Name ?? Season?.Name;
+                CurrentMediaCollection = collection as BaseModel ?? show as BaseModel ?? Season as BaseModel ?? Episode as BaseModel;
+                Title = collection?.Name ?? show?.Name ?? Episode?.Name ?? Season?.Name;
                 Banner = show?.Banner ?? Season?.Banner;
+                IsShowSelected = value != null;
+            }
+        }
+
+        public bool IsShowSelected
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+                IsShowCollectionVisible = !value && (Collection is not null);
+            }
+        }
+
+        public bool IsShowCollectionVisible
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+                if (value)
+                    IsEpisodeLisTVisible = false;
+            }
+        }
+
+        public bool IsEpisodeLisTVisible
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+                if (value)
+                    IsShowCollectionVisible = false;
             }
         }
 
@@ -66,7 +126,7 @@ namespace Mediathek.ViewModels.MediaLists.Details
             set
             {
                 season = value;
-                Collection = show as BaseModel ?? Season as BaseModel ?? Episode as BaseModel;
+                CurrentMediaCollection = collection as BaseModel ?? show as BaseModel ?? Season as BaseModel ?? Episode as BaseModel;
             }
         }
 
@@ -83,7 +143,7 @@ namespace Mediathek.ViewModels.MediaLists.Details
             set
             {
                 episode = value;
-                Collection = show as BaseModel ?? Season as BaseModel ?? Episode as BaseModel;
+                CurrentMediaCollection = collection as BaseModel ?? show as BaseModel ?? Season as BaseModel ?? Episode as BaseModel;
             }
         }
 
@@ -133,7 +193,10 @@ namespace Mediathek.ViewModels.MediaLists.Details
                 if (DateTime.Now > ExecutionTime)
                 {
                     e.Cancel = true;
-                    LoadSeasons(Season, Episode);
+                    if (Collection is not null)
+                        LoadShows();
+                    else
+                        LoadSeasons(Season, Episode);
                     Season = null;
                 }
             };
@@ -157,9 +220,59 @@ namespace Mediathek.ViewModels.MediaLists.Details
             }
         }
 
+        private TVShowListViewModel showsViewModel = null;
+
+        public TVShowListViewModel ShowsViewModel
+        {
+            get
+            {
+                if (showsViewModel == null)
+                    showsViewModel = new TVShowListViewModel(StatusPublisher,
+                                                             NavigationManager,
+                                                             MediaLibrary,
+                                                             _PlaylistManager,
+                                                             Settings,
+                                                             DownloadManager);
+                return showsViewModel;
+            }
+        }
+
+        public ObservableCollection<TVShowListItemViewModel> Shows { get; } = new ObservableCollection<TVShowListItemViewModel>();
+
         public ObservableCollection<TVShowSeason> Seasons { get; } = new ObservableCollection<TVShowSeason>();
 
         public ObservableCollection<TVShowEpisodeListItemViewModel> Episodes { get; } = new ObservableCollection<TVShowEpisodeListItemViewModel>();
+
+        private void LoadShows()
+        {
+            ShowsViewModel.SetParent(Collection, Show, Season);
+            ShowsViewModel.OnAppeared();
+
+            // var shows = await MediaLibrary.GetTVShows(Collection.Id);
+            // await MainThread.InvokeOnMainThreadAsync(() => { Shows.Clear(); });
+            // foreach (var show in shows
+            // .OrderBy(show => show.PremieredAt)
+            // .ThenBy(show => show.Name))
+            // {
+            // IsShowCollectionVisible = true;
+            // await AddShowAsync(show);
+            // }
+        }
+
+        private async Task AddShowAsync(TVShow show)
+        {
+            var vm = new TVShowListItemViewModel(show,
+                                                 StatusPublisher,
+                                                 NavigationManager,
+                                                 _PlaylistManager,
+                                                 Settings,
+                                                 DownloadManager,
+                                                 MediaLibrary)
+            {
+                Mode = ItemViewModel.Box
+            };
+            await MainThread.InvokeOnMainThreadAsync(() => { Shows.Add(vm); });
+        }
 
         private async void LoadSeasons(TVShowSeason initSeason, TVShowEpisode initEpisode)
         {
@@ -182,6 +295,7 @@ namespace Mediathek.ViewModels.MediaLists.Details
             }
             if (seasonToSelect == null)
                 seasonToSelect = Seasons.FirstOrDefault();
+            IsEpisodeLisTVisible = true;
             await MainThread.InvokeOnMainThreadAsync(() => { SelectedSeason = seasonToSelect; });
         }
 
@@ -198,6 +312,7 @@ namespace Mediathek.ViewModels.MediaLists.Details
         }
 
         private long loadSessionId = 0;
+        private readonly IPlaylistManager _PlaylistManager;
 
         private async void LoadEpisodes(TVShowEpisode initEpisode)
         {
@@ -270,6 +385,70 @@ namespace Mediathek.ViewModels.MediaLists.Details
                 SetProperty<bool>(value);
             }
         }
+
+        #region Serienzuordnung zur Sammlung
+        public ObservableCollection<TVShowName> UnassignedShows { get; } = new ObservableCollection<TVShowName>();
+
+        public bool LoadingUnassignedShows
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            private set
+            {
+                SetProperty<bool>(value);
+                LoadedUnassinedShows = !value;
+            }
+        }
+
+        public bool LoadedUnassinedShows
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            private set
+            {
+                SetProperty<bool>(value);
+            }
+        }
+
+        public async void LoadUnassignedShows()
+        {
+            LoadingUnassignedShows = true;
+            try
+            {
+                var shows = await MediaLibrary.GetTVShowNames();
+                await MainThread.InvokeOnMainThreadAsync(() => { UnassignedShows.Clear(); });
+                foreach (var show in shows
+                    .Where(s => s.CollectionId == 0)
+                    .OrderBy(s => s.Name))
+                {
+                    await MainThread.InvokeOnMainThreadAsync(() => { UnassignedShows.Add(show); });
+                }
+            }
+            finally
+            {
+                LoadingUnassignedShows = false;
+            }
+        }
+
+        public void ClearUnassignedShows()
+        {
+            UnassignedShows.Clear();
+            LoadedUnassinedShows = false;
+        }
+
+        public async void AssignShowToCollection(TVShowName showName)
+        {
+            var show = await MediaLibrary.GetTVShow(showName.Id);
+            show.CollectionId = Collection.Id;
+            await MediaLibrary.AddTVShowAsync(show);
+            UnassignedShows.Remove(showName);
+            await AddShowAsync(show);
+        }
+        #endregion
 
     }
 }

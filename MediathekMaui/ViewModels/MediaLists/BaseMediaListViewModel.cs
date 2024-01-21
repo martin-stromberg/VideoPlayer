@@ -27,6 +27,8 @@ namespace Mediathek.ViewModels.MediaLists
             PlaylistManager = playlistManager;
             MediaLibrary = mediaLibrary;
             MediaLibrary.ModelElementRemoved += MediaLibrary_ModelElementRemoved;
+
+            AddCollection = new Command(() => ExecuteAddCollection());
         }
 
         private void MediaLibrary_ModelElementRemoved(object sender, BaseModelEventArgs e)
@@ -37,7 +39,12 @@ namespace Mediathek.ViewModels.MediaLists
             var tvshow = e.Element as TVShow;
             if (tvshow is not null)
                 ProcessTVShowRemoved(tvshow);
+            var tvshowcollection = e.Element as TVShowCollection;
+            if (tvshowcollection is not null)
+                ProcessTVShowCollectionRemoved(tvshowcollection);
         }
+
+        protected virtual void ProcessTVShowCollectionRemoved(TVShowCollection collection) { }
 
         protected virtual void ProcessTVShowRemoved(TVShow show) { }
 
@@ -50,6 +57,10 @@ namespace Mediathek.ViewModels.MediaLists
         public IDownloadManager DownloadManager { get; }
 
         public ObservableCollection<BaseMediaListItemViewModel> Items { get; } = new ObservableCollection<BaseMediaListItemViewModel>();
+
+        public Command AddCollection { get; set; }
+
+        protected virtual void ExecuteAddCollection() { }
 
     }
 }

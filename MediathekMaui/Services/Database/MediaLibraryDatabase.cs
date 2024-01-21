@@ -45,6 +45,7 @@ namespace Mediathek.Services.Database
             result = await Connection.CreateTableAsync<PlaybackHistoryEntry>();
             result = await Connection.CreateTableAsync<Models.Settings>();
             result = await Connection.CreateTableAsync<DownloadJob>();
+            result = await Connection.CreateTableAsync<Services.Database.Models.TVShowCollection>();
         }
 
         public async Task<AsyncTableQuery<MediaSource>> GetSourcesAsync()
@@ -510,6 +511,38 @@ namespace Mediathek.Services.Database
         {
             await InitOrUpgradeAsync();
             return await Connection.Table<DownloadJob>().FirstOrDefaultAsync() is not null;
+        }
+
+        public async Task<Services.Database.Models.TVShowCollection> AddOrUpdateTVShowCollection(Models.TVShowCollection collection)
+        {
+            return await AddOrUpdate<Services.Database.Models.TVShowCollection>(collection) as Services.Database.Models.TVShowCollection;
+        }
+
+        public async Task<IEnumerable<Models.TVShowCollection>> GetTVShowCollections()
+        {
+            await InitOrUpgradeAsync();
+            return await Connection.Table<Models.TVShowCollection>().ToArrayAsync();
+        }
+
+        public async Task<IEnumerable<Models.TVShowCollection>> GetTVShowCollectionsByName(string name)
+        {
+            name = name.ToLower();
+            await InitOrUpgradeAsync();
+            return await Connection.Table<Models.TVShowCollection>()
+                                   .Where(mmi => mmi.Name.ToLower() == name)
+                                   .ToArrayAsync();
+        }
+
+        public async Task<Models.TVShowCollection> GetTVShowCollection(long id)
+        {
+            await InitOrUpgradeAsync();
+            return await Connection.Table<Models.TVShowCollection>().FirstOrDefaultAsync(c => c.Id == id);
+        }
+
+        public async Task RemoveTVShowCollection(long id)
+        {
+            var collection = await GetTVShowCollection(id);
+            await Connection.DeleteAsync(collection);
         }
 
     }

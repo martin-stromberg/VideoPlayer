@@ -49,7 +49,7 @@ namespace Mediathek.Views.MediaLists
         protected override void OnAppearing()
         {
             base.OnAppearing();
-            ViewModel.SetParent(Show, Season);
+            ViewModel.SetParent(null, Show, Season);
             ViewModel.OnAppeared();
         }
 

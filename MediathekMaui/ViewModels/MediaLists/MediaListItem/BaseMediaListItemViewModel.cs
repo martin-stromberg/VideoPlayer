@@ -43,6 +43,8 @@ namespace Mediathek.ViewModels.MediaLists.MediaListItem
             StartPlayback = new Command(() => ExecuteStartPlayback(), () => CanStartPlayback());
             DownloadItem = new Command(() => ExecuteDownloadItem(), () => CanDownloadItem());
             DeleteDownload = new Command(() => ExecuteDeleteDownload(), () => CanDeleteDownload());
+            Save = new Command(() => ExecuteSaveNewItem());
+            Cancel = new Command(() => ExecuteCancelNewItem());
         }
 
         public IMediaLibrary MediaLibrary { get; set; }
@@ -144,6 +146,33 @@ namespace Mediathek.ViewModels.MediaLists.MediaListItem
                 UpdateProperties();
             }
 
+        }
+
+        public bool IsNew
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            private set
+            {
+                SetProperty<bool>(value);
+                IsStored = !value;
+            }
+        }
+
+        public bool IsStored
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            private set
+            {
+                SetProperty<bool>(value);
+                if (value && IsNew)
+                    IsNew = false;
+            }
         }
 
         public bool IsBoxMode
@@ -285,6 +314,7 @@ namespace Mediathek.ViewModels.MediaLists.MediaListItem
             Path = (Item as MediaItem)?.Path ?? string.Empty;
             HasDownload = (Item as MediaItem)?.HasDownload ?? ((Item as TVShowEpisode)?.DownloadMediaItem) != null;
             Picture = FindProperty<ImageSource>();
+            IsNew = (Item != null) && (Item.Id == 0);
         }
 
         private T FindProperty<T>()
@@ -311,6 +341,19 @@ namespace Mediathek.ViewModels.MediaLists.MediaListItem
         protected abstract void ExecuteStartPlayback();
 
         protected abstract bool CanStartPlayback();
+
+        public Command Save { get; set; }
+
+        public Command Cancel { get; set; }
+
+        protected abstract void ExecuteSaveNewItem();
+
+        protected abstract void ExecuteCancelNewItem();
+
+        public bool HasItem(BaseModel item)
+        {
+            return (Item is not null) && (Item.GetType() == item.GetType()) && (Item.Id == item.Id);
+        }
 
     }
 }

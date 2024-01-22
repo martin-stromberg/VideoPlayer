@@ -10,5 +10,7 @@ namespace Mediathek.Models.TVShows
 
         public ImageSource Picture { get; set; }
 
+        public long PlaylistId { get; set; }
+
     }
 }

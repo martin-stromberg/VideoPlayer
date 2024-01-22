@@ -3,5 +3,7 @@
     public class TVShowCollection: BaseDataModel
     {
 
+        public long PlaylistId { get; set; }
+
     }
 }

@@ -328,6 +328,8 @@ namespace Mediathek.Services.MediaLibrary
 
         private async Task<Models.Playlists.Playlist> CompletePlaylistAsync(Models.Playlists.Playlist playlist)
         {
+            if (playlist is null)
+                return playlist;
             var entries = await _DataStore.GetPlaylistEntries(playlist.Id);
             foreach (var entry in entries)
             {
@@ -929,6 +931,23 @@ namespace Mediathek.Services.MediaLibrary
                              (!isNew) ? (new BaseModelEventArgs(playlist)) : null,
                              null);
         }
+
+        public async Task RemovePlaylistAsync(Models.Playlists.Playlist playlist)
+        {
+            var dbItem = await _DataStore.GetPlaylist(playlist.Id);
+            if (dbItem == null)
+                return;
+            await ClearPlaylistEntriesAsync(dbItem);
+            await _DataStore.RemovePlaylist(dbItem.Id);
+            OnElementChanged(null, null, new BaseModelEventArgs(playlist));
+        }
+
+        private async Task ClearPlaylistEntriesAsync(Database.Models.Playlist dbItem)
+        {
+            var entries = await _DataStore.GetPlaylistEntries(dbItem.Id);
+            foreach (var entry in entries)
+                await _DataStore.RemovePlaylistEntryAsync(entry);
+        }
         #endregion
 
         public async Task<BaseModel> GetTypedItem(long id)
@@ -1018,6 +1037,13 @@ namespace Mediathek.Services.MediaLibrary
                     return model;
                 })
                 .Cast<Models.TVShows.TVShowCollection>();
+        }
+
+        public async Task<Models.TVShows.TVShowCollection> GetTVShowCollection(long collectionId)
+        {
+            return Models.TVShows.TVShowCollection
+                                 .FromDataModel(await _DataStore.GetTVShowCollection(collectionId))
+                                 .UpdatePicture(_Settings.CacheRootPath) as Models.TVShows.TVShowCollection;
         }
 
     }

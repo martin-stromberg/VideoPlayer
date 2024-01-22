@@ -124,5 +124,7 @@ namespace Mediathek.Services.Database
 
         Task RemoveTVShowEpisode(long id);
 
+        Task RemovePlaylist(long id);
+
     }
 }

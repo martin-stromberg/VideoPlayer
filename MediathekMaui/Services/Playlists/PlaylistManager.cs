@@ -181,5 +181,32 @@ namespace Mediathek.Services.Playlists
             _DownloadManager.RemoveDownload(item);
         }
 
+        private PlaylistUpdater playlistUpdater = null;
+
+        protected PlaylistUpdater PlaylistUpdater
+        {
+            get
+            {
+                if (playlistUpdater == null)
+                    playlistUpdater = new PlaylistUpdater(MediaLibrary);
+                return playlistUpdater;
+            }
+        }
+
+        protected override void ProcessTVShowAdded(TVShow show)
+        {
+            PlaylistUpdater.UpdateAsync(show);
+        }
+
+        protected override void ProcessTVShowUpdated(TVShow show)
+        {
+            PlaylistUpdater.UpdateAsync(show);
+        }
+
+        protected override void ProcessTVShowRemoved(TVShow show)
+        {
+            PlaylistUpdater.UpdateAsync(show);
+        }
+
     }
 }

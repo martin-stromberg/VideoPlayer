@@ -455,6 +455,13 @@ namespace Mediathek.Services.Database
             return await AddOrUpdate<Services.Database.Models.PlaylistEntry>(dataModel2) as Services.Database.Models.PlaylistEntry;
         }
 
+        public async Task RemovePlaylist(long id)
+        {
+            var dbItem = await Connection.Table<Models.Playlist>().FirstOrDefaultAsync(p => p.Id == id);
+            if (dbItem is not null)
+                await Connection.DeleteAsync(dbItem);
+        }
+
         public async Task RemovePlaylistEntryAsync(Services.Database.Models.PlaylistEntry[] mediaItemsToDelete)
         {
             foreach (var item in mediaItemsToDelete)

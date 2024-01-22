@@ -133,6 +133,8 @@ namespace Mediathek.Services.MediaLibrary
         #region TV Show Collection
         Task<IEnumerable<TVShowCollection>> GetTVShowCollections();
 
+        Task<TVShowCollection> GetTVShowCollection(long Id);
+
         Task<IEnumerable<TVShowCollection>> FindTVShowCollectionByNameAsync(string name);
 
         Task AddTVShowCollectionAsync(TVShowCollection item);
@@ -169,6 +171,8 @@ namespace Mediathek.Services.MediaLibrary
         Task RemoveTVShowSeasonAsync(TVShowSeason season);
 
         Task RemoveTVShowEpisodeAsync(TVShowEpisode episode);
+
+        Task RemovePlaylistAsync(Playlist playlist);
 
     }
 }

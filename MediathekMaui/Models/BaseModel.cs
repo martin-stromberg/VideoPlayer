@@ -135,7 +135,7 @@ namespace Mediathek.Models
             return dataModel;
         }
 
-        public void UpdateAutoincrements(BaseDataModel dataModel)
+        public virtual void UpdateAutoincrements(BaseDataModel dataModel)
         {
             foreach (var prop in dataModel.GetType()
                                           .GetProperties()

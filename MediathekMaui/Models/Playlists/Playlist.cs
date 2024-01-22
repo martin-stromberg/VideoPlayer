@@ -9,7 +9,8 @@ namespace Mediathek.Models.Playlists
     {
 
         General,
-        User
+        User,
+        TVShowCollection
 
     }
 
@@ -57,6 +58,13 @@ namespace Mediathek.Models.Playlists
         private void Remove(PlaylistEntry listItem)
         {
             Items.Remove(listItem);
+        }
+
+        public override void UpdateAutoincrements(Services.Database.Models.BaseDataModel dataModel)
+        {
+            base.UpdateAutoincrements(dataModel);
+            foreach (var item in Items)
+                item.PlaylistId = Id;
         }
 
     }

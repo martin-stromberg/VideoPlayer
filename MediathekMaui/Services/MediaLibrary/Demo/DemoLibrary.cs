@@ -407,5 +407,19 @@ namespace Mediathek.Services.MediaLibrary.Demo
             throw new NotImplementedException();
         }
 
+        public Task GetTVShowCollection(long collectionId)
+        {
+            throw new NotImplementedException();
+        }
+
+        Task<TVShowCollection> IMediaLibrary.GetTVShowCollection(long Id)
+        {
+            throw new NotImplementedException();
+        }
+        public Task RemovePlaylistAsync(Playlist playlist)
+        {
+            throw new NotImplementedException();
+        }
+
     }
 }

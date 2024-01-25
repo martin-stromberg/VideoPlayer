@@ -10,6 +10,8 @@ namespace Mediathek.Services.Database.Models
 
         public long TypedItemId { get; set; }
 
+        public long PlaylistId { get; set; }
+
         public string Type { get; set; }
 
         public bool Deleted { get; set; }

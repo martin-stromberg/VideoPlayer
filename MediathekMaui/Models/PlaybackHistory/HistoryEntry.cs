@@ -12,11 +12,15 @@ namespace Mediathek.Models.PlaybackHistory
 
         public long TypedItemId { get; set; }
 
+        public long PlaylistId { get; set; }
+
         public string Type { get; set; }
 
         public MediaItem Item { get; set; }
 
         public BaseModel TypedItem { get; set; }
+
+        public Playlist Playlist { get; set; }
 
     }
 }

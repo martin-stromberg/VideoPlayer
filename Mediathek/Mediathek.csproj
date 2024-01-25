@@ -106,6 +106,7 @@
 	  <None Remove="Resources\Images\next.png" />
 	  <None Remove="Resources\Images\pause.png" />
 	  <None Remove="Resources\Images\play.png" />
+	  <None Remove="Resources\Images\playlist.png" />
 	  <None Remove="Resources\Images\previous.png" />
 	  <None Remove="Resources\Images\process.png" />
 	  <None Remove="Resources\Images\right.png" />

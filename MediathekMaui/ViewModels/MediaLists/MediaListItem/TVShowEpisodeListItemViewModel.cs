@@ -28,7 +28,10 @@ namespace Mediathek.ViewModels.MediaLists.MediaListItem
         {
             try
             {
-                await NavigationManager.OpenTVShowEpisodeAsync(Item as TVShowEpisode, _GetCollectionElements);
+                if (Playlist is null)
+                    await NavigationManager.OpenTVShowEpisodeAsync(Item as TVShowEpisode, _GetCollectionElements);
+                else
+                    await NavigationManager.OpenPlaylistPlaybackAsync(Playlist, Item as TVShowEpisode);
             }
             catch (Exception ex) { }
         }

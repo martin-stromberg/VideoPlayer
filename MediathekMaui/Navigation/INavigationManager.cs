@@ -30,6 +30,8 @@ namespace Mediathek.Navigation
 
         Task OpenPlaylistPlaybackAsync();
 
+        Task OpenPlaylistPlaybackAsync(Playlist playlist, TVShowEpisode tVShowEpisode);
+
         void OpenUncategrized();
 
         void OpenDownloads();

@@ -2,12 +2,14 @@ using CommunityToolkit.Maui.Views;
 using Mediathek.Common;
 using Mediathek.Models;
 using Mediathek.Models.MediaItems;
+using Mediathek.Models.Playlists;
 using Mediathek.Services.Playlists;
 using Mediathek.ViewModels.VideoPlayer;
 using System.ComponentModel;
 
 namespace Mediathek.Views.VideoPlayer
 {
+    [QueryProperty(nameof(Playlist), "Playlist")]
     [QueryProperty(nameof(MediaItem), "MediaItem")]
     [QueryProperty(nameof(VideoSource), "VideoSource")]
     [QueryProperty(nameof(DownloadSource), "DownloadSource")]
@@ -35,6 +37,8 @@ namespace Mediathek.Views.VideoPlayer
                     break;
             }
         }
+
+        public Playlist Playlist { get; set; }
 
         private TimeSpan positionToSeek = TimeSpan.Zero;
 
@@ -88,6 +92,7 @@ namespace Mediathek.Views.VideoPlayer
             base.OnAppearing();
             if (!string.IsNullOrWhiteSpace(VideoSource))
                 ViewModel.VideoSource = MediaSource.FromFile(VideoSource);
+            ViewModel.Playlist = Playlist;
             ViewModel.OnAppeared();
         }
 

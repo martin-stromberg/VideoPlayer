@@ -80,7 +80,10 @@ namespace Mediathek.ViewModels.Homepage
                                                             NavigationManager,
                                                             Settings,
                                                             DownloadManager,
-                                                            MediaLibrary);
+                                                            MediaLibrary)
+                    {
+                        Playlist = item.Playlist
+                    };
                     if (vm.Picture == null)
                     {
                         season = await MediaLibrary.GetTVShowSeason(episode.SeasonId);
@@ -100,7 +103,10 @@ namespace Mediathek.ViewModels.Homepage
                                                     NavigationManager,
                                                     Settings,
                                                     DownloadManager,
-                                                    MediaLibrary);
+                                                    MediaLibrary)
+                    {
+                        Playlist = item.Playlist
+                    };
                 }
                 else
                     continue;

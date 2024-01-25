@@ -148,6 +148,18 @@ namespace Mediathek.ViewModels.MediaLists.MediaListItem
 
         }
 
+        public Playlist Playlist
+        {
+            get
+            {
+                return GetProperty<Playlist>();
+            }
+            set
+            {
+                SetProperty<Playlist>(value);
+            }
+        }
+
         public bool IsNew
         {
             get

@@ -24,9 +24,15 @@ namespace Mediathek.Services.Playlists
 
         Task StartPlaybackAsync();
 
+        Task StartPlaybackAsync(Playlist playlist, BaseModel item);
+
         DownloadSource GetFirstVideoSource();
 
+        DownloadSource GetNextVideoSource(Playlist playlist);
+
         Task<DownloadSource> ProcessMediaEndedAsync(MediaItem item);
+
+        Task<DownloadSource> ProcessMediaEndedAsync(MediaItem item, Playlist playlist);
 
         void ProcessMediaFailed(MediaItem item);
 

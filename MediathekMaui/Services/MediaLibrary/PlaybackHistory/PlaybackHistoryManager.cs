@@ -25,15 +25,19 @@ namespace Mediathek.Services.MediaLibrary.PlaybackHistory
             IsInitialized = true;
         }
 
-        public async Task Add(MediaItem item, BaseModel typedItem)
+        public async Task Add(MediaItem item, BaseModel typedItem, Playlist playlist)
         {
             if (typedItem == null)
                 return;
-            var existing = CurrentHistory.Items.FirstOrDefault(i => i.TypedItem.Id == typedItem.Id);
+            var existing = CurrentHistory.Items
+                                         .FirstOrDefault(i =>
+                                                         (i.TypedItem.Id == typedItem.Id)
+                                             && ((i.Playlist?.Id ?? 0) == (playlist?.Id ?? 0)));
             if (existing == null)
             {
-                CurrentHistory.Items.Insert(0, new HistoryEntry() { Item = item, TypedItem = typedItem });
-                await FindAndRemoveOther(typedItem);
+                CurrentHistory.Items
+                              .Insert(0, new HistoryEntry() { Item = item, TypedItem = typedItem, Playlist = playlist });
+                await FindAndRemoveOther(typedItem, playlist);
                 await _MediaLibrary.AddPlaybackHistory(CurrentHistory);
             }
             else
@@ -48,13 +52,13 @@ namespace Mediathek.Services.MediaLibrary.PlaybackHistory
             return;
         }
 
-        private async Task FindAndRemoveOther(BaseModel typedItem)
+        private async Task FindAndRemoveOther(BaseModel typedItem, Playlist playlist)
         {
-            await FindAndRemoveOtherFromShow(typedItem as TVShowEpisode);
-            FindAndRemoveOtherFromMovieCollection(typedItem as Movie);
+            await FindAndRemoveOtherFromShow(typedItem as TVShowEpisode, playlist);
+            FindAndRemoveOtherFromMovieCollection(typedItem as Movie, playlist);
         }
 
-        private void FindAndRemoveOtherFromMovieCollection(Movie movie)
+        private void FindAndRemoveOtherFromMovieCollection(Movie movie, Playlist playlist)
         {
             if (movie == null)
                 return;
@@ -63,22 +67,46 @@ namespace Mediathek.Services.MediaLibrary.PlaybackHistory
             var existingCollectionEntry = CurrentHistory.Items
                                                         .Where(e => e.TypedItem is Movie)
                                                         .FirstOrDefault(e =>
-                                                                        (((Movie)e.TypedItem).Id != movie.Id)
-                                                            && (((Movie)e.TypedItem).CollectionId == movie.CollectionId));
+                                                        {
+                                                            var movie = e.TypedItem as Movie;
+                                                            if (movie.Id == movie.Id)
+                                                                return false;
+                                                            if (movie.CollectionId != movie.CollectionId)
+                                                                return false;
+                                                            if (playlist == null)
+                                                                return true;
+                                                            if (e.Playlist == null)
+                                                                return true;
+                                                            if (e.Playlist.Id == playlist.Id)
+                                                                return false;
+                                                            return true;
+                                                        });
             if (existingCollectionEntry == null)
                 return;
             CurrentHistory.Items.Remove(existingCollectionEntry);
         }
 
-        private async Task FindAndRemoveOtherFromShow(TVShowEpisode episode)
+        private async Task FindAndRemoveOtherFromShow(TVShowEpisode episode, Playlist playlist)
         {
             if (episode == null)
                 return;
             var existingseasonEntry = CurrentHistory.Items
                                                     .Where(e => e.TypedItem is TVShowEpisode)
                                                     .FirstOrDefault(e =>
-                                                                    (((TVShowEpisode)e.TypedItem).Id != episode.Id)
-                                                        && (((TVShowEpisode)e.TypedItem).SeasonId == episode.SeasonId));
+                                                    {
+                                                        var listEpisode = e.TypedItem as TVShowEpisode;
+                                                        if (listEpisode.Id == episode.Id)
+                                                            return false;
+                                                        if (listEpisode.SeasonId != episode.SeasonId)
+                                                            return false;
+                                                        if (playlist == null)
+                                                            return true;
+                                                        if (e.Playlist == null)
+                                                            return true;
+                                                        if (e.Playlist.Id == playlist.Id)
+                                                            return false;
+                                                        return true;
+                                                    });
             if (existingseasonEntry == null)
             {
                 var season = await _MediaLibrary.GetTVShowSeason(episode.SeasonId);
@@ -97,7 +125,7 @@ namespace Mediathek.Services.MediaLibrary.PlaybackHistory
             if (existingseasonEntry == null)
                 return;
             CurrentHistory.Items.Remove(existingseasonEntry);
-            await FindAndRemoveOtherFromShow(episode);
+            await FindAndRemoveOtherFromShow(episode, playlist);
         }
 
         public async Task Finish(MediaItem item, BaseModel typedItem)
@@ -113,11 +141,26 @@ namespace Mediathek.Services.MediaLibrary.PlaybackHistory
 
         private async void AddNext(HistoryEntry existing)
         {
+            if (await AddNextPlaylistEntry(existing.Playlist))
+                return;
             if (await AddNextEpisode(existing.TypedItem as TVShowEpisode))
                 return;
             if (await AddNextCollectionMovieAsync(existing.TypedItem as Movie))
                 return;
             await _MediaLibrary.AddPlaybackHistory(CurrentHistory);
+        }
+
+        private async Task<bool> AddNextPlaylistEntry(Playlist playlist)
+        {
+            if (playlist is null)
+                return false;
+            playlist.CurrentPosition += 1;
+            if (playlist.CurrentPosition >= playlist.Items.Count)
+                return true;
+            var mediaItem = playlist.Items[playlist.CurrentPosition].Item;
+            var typedItem = await _MediaLibrary.GetTypedItem(mediaItem.Id);
+            await Add(mediaItem, typedItem, playlist);
+            return true;
         }
 
         private async Task<bool> AddNextCollectionMovieAsync(Movie movie)
@@ -137,7 +180,7 @@ namespace Mediathek.Services.MediaLibrary.PlaybackHistory
                 .FirstOrDefault();
             if (nextMovie == null)
                 return false;
-            await Add(null, nextMovie);
+            await Add(null, nextMovie, null);
             return true;
         }
 
@@ -171,7 +214,7 @@ namespace Mediathek.Services.MediaLibrary.PlaybackHistory
 
             if (nextEpisode == null)
                 return false;
-            await Add(null, nextEpisode);
+            await Add(null, nextEpisode, null);
             return true;
         }
 

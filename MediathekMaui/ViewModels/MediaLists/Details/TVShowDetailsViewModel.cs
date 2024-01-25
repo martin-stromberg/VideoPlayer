@@ -27,6 +27,7 @@ namespace Mediathek.ViewModels.MediaLists.Details
             _PlaylistManager = playlistManager;
             DownloadSeason = new Command(() => ExecuteDownloadSeason(), () => CanDownloadSeason());
             ToggleSetup = new Command(() => ExecuteToggleSetup());
+            TogglePlaylistView = new Command(() => ExecuteTogglePlaylistView());
         }
 
         private void ExecuteToggleSetup()
@@ -53,6 +54,7 @@ namespace Mediathek.ViewModels.MediaLists.Details
             set
             {
                 collection = value;
+                HasPlaylist = (Collection?.PlaylistId ?? 0) != 0;
             }
         }
 
@@ -98,6 +100,40 @@ namespace Mediathek.ViewModels.MediaLists.Details
                 SetProperty<bool>(value);
                 if (value)
                     IsEpisodeLisTVisible = false;
+                HasPlaylist = HasPlaylist && ((Collection?.PlaylistId ?? 0) != 0);
+            }
+        }
+
+        public bool HasPlaylist
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+            }
+        }
+
+        public Command TogglePlaylistView { get; }
+
+        private void ExecuteTogglePlaylistView()
+        {
+            PlaylistVisible = !PlaylistVisible;
+        }
+
+        public bool PlaylistVisible
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+                if (value)
+                    LoadPlaylist();
             }
         }
 
@@ -337,19 +373,9 @@ namespace Mediathek.ViewModels.MediaLists.Details
                     .OrderBy(episode => episode.EpisodeNo)
                     .ThenBy(episode => episode.Part))
                 {
-                    var vm = new TVShowEpisodeListItemViewModel(episode,
-                                                                () => null,
-                                                                StatusPublisher,
-                                                                NavigationManager,
-                                                                Settings,
-                                                                DownloadManager,
-                                                                MediaLibrary)
-                    {
-                        Mode = ItemViewModel.Lane
-                    };
                     if (loadSessionId != sessionId)
                         break;
-                    Episodes.Add(vm);
+                    AddEpisode(episode);
                     if ((initEpisode != null) && (episode.Id == initEpisode.Id))
                         selectedEpisode = episode;
                 }
@@ -360,6 +386,28 @@ namespace Mediathek.ViewModels.MediaLists.Details
             {
                 Loading = false;
             }
+        }
+
+        private void AddEpisode(TVShowEpisode episode, Playlist playlist = null)
+        {
+            var vm = new TVShowEpisodeListItemViewModel(episode,
+                                                        (playlist is null) ? () => null : () =>
+                                                                                          Episodes
+                                                                                            .SkipWhile(e =>
+                                                                                                       e.Item != episode)
+                                                                                            .SkipWhile(e =>
+                                                                                                       e.Item == episode)
+                                                                                            .Select(e => e.Item),
+                                                        StatusPublisher,
+                                                        NavigationManager,
+                                                        Settings,
+                                                        DownloadManager,
+                                                        MediaLibrary)
+            {
+                Mode = ItemViewModel.Lane,
+                Playlist = playlist
+            };
+            Episodes.Add(vm);
         }
 
         public TVShowEpisode SelectedEpisode
@@ -449,6 +497,18 @@ namespace Mediathek.ViewModels.MediaLists.Details
             await AddShowAsync(show);
         }
         #endregion
+
+        private async void LoadPlaylist()
+        {
+            var playlist = await MediaLibrary.GetPlaylist(Collection.PlaylistId);
+            foreach (var entry in playlist.Items)
+            {
+                var item = await MediaLibrary.GetTypedItem(entry.MediaItemId);
+                var episode = item as TVShowEpisode;
+                if (episode is not null)
+                    AddEpisode(episode, playlist);
+            }
+        }
 
     }
 }

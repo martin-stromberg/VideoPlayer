@@ -1,6 +1,7 @@
 ﻿using Mediathek.Models;
 using Mediathek.Models.MediaItems;
 using Mediathek.Models.Movies;
+using Mediathek.Models.Playlists;
 using Mediathek.Models.TVShows;
 using Mediathek.Services.MediaLibrary;
 using Mediathek.Services.Playlists;
@@ -112,7 +113,23 @@ namespace Mediathek.Helper.Navigation
         public async Task OpenPlaylistPlaybackAsync()
         {
             await _PlaylistManager.StartPlaybackAsync();
-            NavigateToRoute($"player");
+            var navigationParameter = new Dictionary<string, object>
+            {
+                { "Playlist", null },
+                { "Item", null }
+            };
+            NavigateToRoute($"player", navigationParameter);
+        }
+
+        public async Task OpenPlaylistPlaybackAsync(Playlist playlist, TVShowEpisode tVShowEpisode)
+        {
+            await _PlaylistManager.StartPlaybackAsync(playlist, tVShowEpisode);
+            var navigationParameter = new Dictionary<string, object>
+            {
+                { "Playlist", playlist },
+                { "Item", tVShowEpisode }
+            };
+            NavigateToRoute($"player", navigationParameter);
         }
 
         private string findLocalFile(string fileName, DirectoryInfo? folder = null)

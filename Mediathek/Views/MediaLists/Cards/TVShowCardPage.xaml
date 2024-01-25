@@ -33,12 +33,13 @@
         <HorizontalStackLayout HorizontalOptions="End" VerticalOptions="End">
             <ImageButton 
                 Margin="5"
-                Source="play.png"
+                Source="playlist.png"
                 WidthRequest="30" 
                 HeightRequest="30" 
                 Background="Transparent"    
-                IsVisible="{Binding IsShowCollectionVisible}"/>
-                <!--Command="{Binding StartCollectionPlayback}"-->
+                IsVisible="{Binding HasPlaylist}"
+                Command="{Binding TogglePlaylistView}"/>
+                
                 
             <ImageButton 
                 Margin="5"
@@ -57,12 +58,28 @@
                 Command="{Binding ToggleSetup}"/>
         </HorizontalStackLayout>
 
-        <vwHome:HorizontalMediaItemCollection 
-             Grid.Row="1"
-            VerticalOptions="Start"
-            IsVisible="{Binding IsShowCollectionVisible}"
-            HeightRequest="250"
-            BindingContext="{Binding ShowsViewModel}"/>
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout>
+                <vwHome:HorizontalMediaItemCollection                     
+                    VerticalOptions="Start"
+                    IsVisible="{Binding IsShowCollectionVisible}"
+                    HeightRequest="250"
+                    BindingContext="{Binding ShowsViewModel}"/>
+
+                <CollectionView
+                     x:Name="playlistList"
+                     IsVisible="{Binding PlaylistVisible}"
+                     RemainingItemsThreshold="1"
+                     ItemsLayout="VerticalList" 
+                     ItemsSource="{Binding Episodes}">
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate>
+                            <view:MediaListItemView/>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+            </VerticalStackLayout>
+        </ScrollView>
 
         <ScrollView Grid.Row="1" IsVisible="{Binding IsEpisodeLisTVisible}">
             <VerticalStackLayout>                
@@ -85,5 +102,6 @@
             
         </Frame>
         <viewCards:TVShowSetupView Grid.RowSpan="2" Background="Black" Margin="50" IsVisible="{Binding IsSetupVisible}"/>
+                
     </Grid>
 </ContentPage>

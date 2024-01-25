@@ -193,7 +193,10 @@ namespace Mediathek.ViewModels.VideoPlayer
 
         private void LoadFirstPlaylistVideo()
         {
-            Download = _PlaylistManager.GetFirstVideoSource();
+            if (Playlist is null)
+                Download = _PlaylistManager.GetFirstVideoSource();
+            else
+                Download = _PlaylistManager.GetNextVideoSource(Playlist);
         }
 
         public override void OnAppeared()
@@ -221,7 +224,10 @@ namespace Mediathek.ViewModels.VideoPlayer
             if (Item == null)
                 return;
             await SaveMediaItemPosition(TimeSpan.Zero);
-            Download = await _PlaylistManager.ProcessMediaEndedAsync(Item);
+            if (Playlist is null)
+                Download = await _PlaylistManager.ProcessMediaEndedAsync(Item);
+            else
+                Download = await _PlaylistManager.ProcessMediaEndedAsync(Item, Playlist);
             if (VideoSource == null)
                 NavigationManager.NavigateBack();
         }
@@ -382,7 +388,7 @@ namespace Mediathek.ViewModels.VideoPlayer
             if (position == TimeSpan.Zero)
                 await _PlaybackHistoryManager.Finish(Item, TypedItem);
             else
-                await _PlaybackHistoryManager.Add(Item, TypedItem);
+                await _PlaybackHistoryManager.Add(Item, TypedItem, Playlist);
         }
 
         private async Task SaveMediaItemPosition(TimeSpan position)
@@ -568,6 +574,8 @@ namespace Mediathek.ViewModels.VideoPlayer
                     IsFullScreen = false;
             }
         }
+
+        public Playlist Playlist { get; set; }
 
     }
 }

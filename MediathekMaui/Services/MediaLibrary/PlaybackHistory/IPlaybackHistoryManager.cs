@@ -10,7 +10,7 @@ namespace Mediathek.Services.MediaLibrary.PlaybackHistory
 
         History CurrentHistory { get; }
 
-        Task Add(MediaItem item, BaseModel typedItem);
+        Task Add(MediaItem item, BaseModel typedItem, Playlist playlist);
 
         Task Finish(MediaItem item, BaseModel typedItem);
 

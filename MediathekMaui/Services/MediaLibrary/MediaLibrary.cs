@@ -979,6 +979,7 @@ namespace Mediathek.Services.MediaLibrary
                 existingEntry.Deleted = false;
                 existingEntry.MediaItemId = (currentEntry.Item == null) ? 0 : currentEntry.Item.Id;
                 existingEntry.TypedItemId = currentEntry.TypedItem.Id;
+                existingEntry.PlaylistId = (currentEntry.Playlist is null) ? 0 : currentEntry.Playlist.Id;
                 existingEntry.Type = currentEntry.TypedItem.GetType().Name;
             }
             for (int idx = currentHistory.Items.Count(); idx < existingEntries.Count; idx++)
@@ -1007,6 +1008,8 @@ namespace Mediathek.Services.MediaLibrary
                         item.TypedItem = await GetTVShowEpisode(item.TypedItemId);
                         break;
                 }
+                if (item.PlaylistId != 0)
+                    item.Playlist = await GetPlaylist(item.PlaylistId);
             }
             return dbItems.Where(item => (item.Item is not null) || (item.TypedItem is not null));
         }

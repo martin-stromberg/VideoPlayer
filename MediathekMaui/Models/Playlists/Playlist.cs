@@ -31,6 +31,7 @@ namespace Mediathek.Models.Playlists
         }
 
         public ObservableCollection<PlaylistEntry> Items { get; } = new ObservableCollection<PlaylistEntry>();
+        public int CurrentPosition { get; internal set; }
 
         public void Add(PlaylistEntry entry)
         {

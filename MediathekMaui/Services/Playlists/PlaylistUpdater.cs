@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Linq;
 
 namespace Mediathek.Services.Playlists
@@ -47,7 +48,10 @@ namespace Mediathek.Services.Playlists
                         await ProcessAsync(item);
                         await CleanOrphanedPlaylists();
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine(ex);
+                    }
             }
             finally
             {
@@ -120,10 +124,8 @@ namespace Mediathek.Services.Playlists
                 playlist = await CreateTVShowCollectionPlaylist(collection);
             else
             {
-                // playlist.BeginUpdate();
                 await UpdateTVShowOnPlaylist(collection, playlist, show);
-
-                // playlist.EndUpdate();
+                await MediaLibrary.AddPlaylistAsync(playlist);
             }
         }
 
@@ -183,19 +185,7 @@ namespace Mediathek.Services.Playlists
                 playlist.Items.Add(newEntry);
             else
             {
-                var nextElem = playlist.Items
-                                       .SkipWhile(elem =>
-                                       {
-                                           var info = elem.Item.MetaInfo as EpisodeInformation;
-                                           return info.AiredAt < episode.AiredAt;
-                                       })
-                                       .SkipWhile(elem =>
-                                       {
-                                           var info = elem.Item.MetaInfo as EpisodeInformation;
-                                           return (info.AiredAt == episode.AiredAt)
-                                               && (info.Episode.CompareTo(episode.EpisodeNo) < 0);
-                                       })
-                                       .FirstOrDefault();
+                var nextElem = playlist.Items.SkipWhile(elem => PlaylistEntryCompare(elem, newEntry)).FirstOrDefault();
                 if (nextElem is null)
                     playlist.Items.Add(newEntry);
                 else
@@ -203,9 +193,34 @@ namespace Mediathek.Services.Playlists
             }
         }
 
+        private Func<PlaylistEntry, PlaylistEntry, bool> PlaylistEntryCompare = new Func<PlaylistEntry, PlaylistEntry, bool>((entry1, entry2) =>
+        {
+            var info1 = entry1.Item.MetaInfo as EpisodeInformation;
+            var info2 = entry2.Item.MetaInfo as EpisodeInformation;
+            if (info1.AiredAt < info2.AiredAt)
+                return true;
+            if ((info1.AiredAt == info2.AiredAt) && (info1.Episode.CompareTo(info2.Episode) < 0))
+                return true;
+            return false;
+        });
+
         private void CheckTVShowEpisodeOrder(Playlist playlist, PlaylistEntry entry)
         {
-            throw new NotImplementedException();
+            int offset = playlist.Items.IndexOf(entry);
+            while ((offset > 1) && !PlaylistEntryCompare(playlist.Items[offset - 1], entry))
+            {
+                playlist.Items.Remove(entry);
+                playlist.Items.Insert(offset - 1, entry);
+                offset = playlist.Items.IndexOf(entry);
+            }
+
+            offset = playlist.Items.IndexOf(entry);
+            while ((offset < playlist.Items.Count - 1) && PlaylistEntryCompare(playlist.Items[offset + 1], entry))
+            {
+                playlist.Items.Remove(entry);
+                playlist.Items.Insert(offset + 1, entry);
+                offset = playlist.Items.IndexOf(entry);
+            }
         }
 
     }

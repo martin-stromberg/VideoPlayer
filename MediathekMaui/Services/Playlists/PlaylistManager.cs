@@ -169,6 +169,11 @@ namespace Mediathek.Services.Playlists
             return GetFirstVideoSource();
         }
 
+        public Task<DownloadSource> ProcessMediaEndedAsync(MediaItem item, Playlist playlist)
+        {
+            return Task.FromResult(GetNextVideoSource(playlist));
+        }
+
         public GeneralPlaylist GeneralPlaylist { get; }
 
         private async Task SavePlaylistAsync(Playlist playlist)
@@ -206,6 +211,59 @@ namespace Mediathek.Services.Playlists
         protected override void ProcessTVShowRemoved(TVShow show)
         {
             PlaylistUpdater.UpdateAsync(show);
+        }
+
+        public DownloadSource GetNextVideoSource(Playlist playlist)
+        {
+            var item = (playlist.CurrentPosition > 0) ? playlist.Items[playlist.CurrentPosition] : playlist.Items
+                                                                                                           .FirstOrDefault();
+            if (item == null)
+                return null;
+            if (string.IsNullOrWhiteSpace(loadingMoviePath))
+                loadingMoviePath = findLocalFile("loading.mp4");
+            DownloadSource source = new DownloadSource();
+            source.SetMediaSource(null, null, MediaSource.FromFile(loadingMoviePath));
+
+            Task.Run(async () =>
+            {
+                var session = await _DownloadManager.StartDownloadAsync(item.Item, MediaItemCopyType.Cache)
+                                                    .ConfigureAwait(false);
+                session.PropertyChanged += async (sender, e) =>
+                {
+                    switch (e.PropertyName)
+                    {
+                        case nameof(DownloadSession.Status):
+                            await UpdateDownloadSourceAsync(source, session);
+                            break;
+                        case nameof(DownloadSession.Progress):
+                            source.SetProgress(session.Progress);
+                            break;
+                    }
+                };
+                await UpdateDownloadSourceAsync(source, session);
+            });
+            return source;
+        }
+
+        public Task StartPlaybackAsync(Playlist playlist, BaseModel item)
+        {
+            if (item is TVShowEpisode)
+            {
+                var playlistENtry = playlist.Items
+                                            .FirstOrDefault(entry =>
+                                                            (item as TVShowEpisode).MediaItems
+                                                                                   .Contains(entry.MediaItemId));
+                playlist.CurrentPosition = playlist.Items.IndexOf(playlistENtry);
+            }
+            else
+            if (item is Movie)
+            {
+                var playlistENtry = playlist.Items
+                                            .FirstOrDefault(entry =>
+                                                            (item as Movie).MediaItems.Contains(entry.MediaItemId));
+                playlist.CurrentPosition = playlist.Items.IndexOf(playlistENtry);
+            }
+            return Task.CompletedTask;
         }
 
     }

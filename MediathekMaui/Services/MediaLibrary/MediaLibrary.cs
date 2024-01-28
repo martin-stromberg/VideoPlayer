@@ -1049,5 +1049,16 @@ namespace Mediathek.Services.MediaLibrary
                                  .UpdatePicture(_Settings.CacheRootPath) as Models.TVShows.TVShowCollection;
         }
 
+        public async Task ResetMediaItemDates()
+        {
+            foreach (var source in await GetSourcesAsync())
+            {
+                source.CompleteNextScan = true;
+                if (source is RemoteMediaSource)
+                    ((RemoteMediaSource)source).LatestScanPath = string.Empty;
+                await AddSourceAsync(source);
+            }
+        }
+
     }
 }

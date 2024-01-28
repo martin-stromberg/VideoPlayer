@@ -13,6 +13,8 @@ namespace Mediathek.Services.Database.Models
         private const int Default_LibraryScan_ScanIntervalHours = 24;
         private const int Default_Player_ControlStyle = 1;
 
+        public int DataVersion { get; set; } = 0;
+
         public int PlaybackHistory_SavePositionIntervallSeconds { get; set; } = Default_PlaybackHistory_SavePositionIntervallSeconds;
 
         public int PlaybackHistory_IgnoreSecondsAtVideoStart { get; set; } = Default_PlaybackHistory_IgnoreSecondsAtVideoStart;

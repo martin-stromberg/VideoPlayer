@@ -416,7 +416,18 @@ namespace Mediathek.Services.MediaLibrary.Demo
         {
             throw new NotImplementedException();
         }
+
         public Task RemovePlaylistAsync(Playlist playlist)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void ResetMediaItemDates()
+        {
+            throw new NotImplementedException();
+        }
+
+        Task IMediaLibrary.ResetMediaItemDates()
         {
             throw new NotImplementedException();
         }

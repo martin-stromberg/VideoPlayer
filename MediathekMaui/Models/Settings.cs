@@ -12,6 +12,18 @@ namespace Mediathek.Models
 
         public int ThumbnailHeight { get; } = 240;
 
+        public int DataVersion
+        {
+            get
+            {
+                return GetProperty<int>();
+            }
+            set
+            {
+                SetProperty<int>(value);
+            }
+        }
+
         #region Abspielhistorie
         public int PlaybackHistory_IgnoreSecondsAtVideoStart
         {

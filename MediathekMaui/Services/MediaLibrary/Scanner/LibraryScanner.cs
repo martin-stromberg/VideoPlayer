@@ -111,8 +111,6 @@ namespace Mediathek.Services.MediaLibrary.Scanner
             var scanner = sender as RemoteSourceScanner;
             scanner.CurrentSource.LatestScanPath = null;
             mediaLibrary.AddSourceAsync(scanner.CurrentSource).Wait();
-
-            FindRemovedFiles(scanner.CurrentSource, scanner).Wait();
         }
 
         private void Scanner_FolderFound(object sender, FolderEventArgs e)
@@ -185,7 +183,7 @@ namespace Mediathek.Services.MediaLibrary.Scanner
 
                 try
                 {
-                    ScanNextSource();
+                    await ScanNextSourceAsync();
                 }
                 catch (Exception ex)
                 {
@@ -203,7 +201,7 @@ namespace Mediathek.Services.MediaLibrary.Scanner
 
                 try
                 {
-                    RemoveDeletedSourcesAsync();
+                    await RemoveDeletedSourcesAsync();
                 }
                 catch (Exception ex)
                 {
@@ -258,11 +256,10 @@ namespace Mediathek.Services.MediaLibrary.Scanner
                 await Task.Delay(100);
         }
 
-        private void ScanNextSource()
+        private async Task ScanNextSourceAsync()
         {
-            var source = mediaLibrary
-                .GetSourcesAsync()
-                .Wait<IEnumerable<MediaElementSource>>()
+            var source = (await mediaLibrary
+                .GetSourcesAsync())
                 .Where(s => !s.Inactive)
                 .OrderBy(s => s.LastScan)
                 .FirstOrDefault();
@@ -273,10 +270,10 @@ namespace Mediathek.Services.MediaLibrary.Scanner
                 _StatusPublisher.AddStatus(string.Empty, true);
                 return;
             }
-            ScanSource(source);
+            await ScanSourceAsync(source);
         }
 
-        private void ScanSource(MediaElementSource source)
+        private async Task ScanSourceAsync(MediaElementSource source)
         {
             try
             {
@@ -288,8 +285,10 @@ namespace Mediathek.Services.MediaLibrary.Scanner
                 foreach (var scanner in _Scanners)
                     if (scanner.CanScan(source))
                     {
-                        scanner.ProcessAll = false;
+                        scanner.ProcessAll = source.CompleteNextScan;
                         scanner.Scan(source, false);
+
+                        await FindRemovedFiles(source as RemoteMediaSource, scanner);
                         logger.LogInformation($"Scan of source {source.Name} finished.");
                         return;
                     }
@@ -303,8 +302,9 @@ namespace Mediathek.Services.MediaLibrary.Scanner
             finally
             {
                 source = mediaLibrary.GetSourceAsync(source.Id).Wait<MediaElementSource>();
+                source.CompleteNextScan = false;
                 source.LastScan = DateTime.Now;
-                mediaLibrary.AddSourceAsync(source);
+                await mediaLibrary.AddSourceAsync(source);
             }
         }
 
@@ -350,7 +350,7 @@ namespace Mediathek.Services.MediaLibrary.Scanner
 
         private bool removingSources = false;
 
-        private async void RemoveDeletedSourcesAsync()
+        private async Task RemoveDeletedSourcesAsync()
         {
             if (removingSources)
                 return;
@@ -409,9 +409,10 @@ namespace Mediathek.Services.MediaLibrary.Scanner
                 return;
             CheckContinue();
             var collections = await mediaLibrary.GetMediaItemCollectionsAsync(source.Id);
-            foreach (var collection in collections)
+            long statusId = 0;
+            foreach (var collection in collections.OrderBy(c => c.Path))
             {
-                _StatusPublisher.AddStatus($"{collection.Path}", false);
+                statusId = _StatusPublisher.AddStatus($"Bereinige: {collection.Path}", false);
 
                 var currentCollection = await CheckRemovedMediaItemCollectionAsync(source, scanner, collection);
                 if (currentCollection == null)
@@ -422,6 +423,7 @@ namespace Mediathek.Services.MediaLibrary.Scanner
                                                            deepClean || (mi.LastConfirmation < source.LastScanStart)))
                     await CheckRemovedMediaItemAsync(source, scanner, mediaItem);
             }
+            _StatusPublisher.Clear(statusId);
         }
 
         private async Task<MediaItemCollection> CheckRemovedMediaItemCollectionAsync(
@@ -511,6 +513,8 @@ namespace Mediathek.Services.MediaLibrary.Scanner
                 }
                 try
                 {
+                    if (source.CompleteNextScan)
+                        item.MetaDataTime = DateTime.MinValue;
                     item.LastConfirmation = DateTime.Now;
                     if (item.MetaDataTime.Add(metaDataUpdateDuration) > DateTime.Now)
                     {

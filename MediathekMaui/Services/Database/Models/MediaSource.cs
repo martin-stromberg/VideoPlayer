@@ -17,6 +17,8 @@ namespace Mediathek.Services.Database.Models
 
         public bool Inactive { get; set; }
 
+        public bool CompleteNextScan { get; set; }
+
         public override void Update(BaseDataModel source)
         {
             base.Update(source);

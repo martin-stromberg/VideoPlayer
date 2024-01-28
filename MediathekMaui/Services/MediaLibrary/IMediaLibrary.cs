@@ -174,5 +174,7 @@ namespace Mediathek.Services.MediaLibrary
 
         Task RemovePlaylistAsync(Playlist playlist);
 
+        Task ResetMediaItemDates();
+
     }
 }

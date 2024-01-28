@@ -76,6 +76,18 @@ namespace Mediathek.Models.Sources
             }
         }
 
+        public bool CompleteNextScan
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+            }
+        }
+
         public virtual string GetItemPath(MediaItems.MediaItem item)
         {
             return item.Path;

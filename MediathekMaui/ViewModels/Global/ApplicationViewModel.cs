@@ -129,6 +129,7 @@ namespace Mediathek.ViewModels.Global
                 await InitializeSettings();
                 await InitializeSecrets();
                 await CheckAddDemoLibraryAsync();
+                await CheckDataUpgrade();
                 await InitGeneralPlaylistAsync();
                 await InitPlaybackHistory();
                 StartDownloadsAsync();
@@ -146,6 +147,24 @@ namespace Mediathek.ViewModels.Global
                     ContentViewModel?.OnAppeared();
             }
             IsInitialized = true;
+        }
+
+        private async Task CheckDataUpgrade()
+        {
+            AddStatusMessage("Führe Datenupgrade aus...");
+            var version = Settings.Current.DataVersion;
+            switch (version)
+            {
+                case 0:
+                    await ExecuteDataUpgrade1();
+                    break;
+            }
+        }
+
+        private async Task ExecuteDataUpgrade1()
+        {
+            await _MediaLibrary.ResetMediaItemDates();
+            Settings.Current.DataVersion = 1;
         }
 
         private async Task InitializeSettings()

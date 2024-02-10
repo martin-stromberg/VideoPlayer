@@ -346,6 +346,10 @@ namespace Mediathek.ViewModels.VideoPlayer
             selfUpdatingPosition = true;
             CurrentPositionTime = position;
             SetProperty<double>(position.TotalMicroseconds, nameof(CurrentPosition));
+            #if WINDOWS
+            if (position < TimeSpan.FromSeconds(1))
+                SetInitialPosition();
+            #endif
             selfUpdatingPosition = false;
         }
 
@@ -467,6 +471,13 @@ namespace Mediathek.ViewModels.VideoPlayer
         private void ProcessPlaying()
         {
             IsPlaying = true;
+        #if IOS
+            SetInitialPosition();
+            #endif
+        }
+
+        private void SetInitialPosition()
+        {
             if (IsRecentlySet && (Item != null) && (Item.LastPlaybackPosition != TimeSpan.Zero))
                 OnSeekRequest(Item.LastPlaybackPosition);
             IsRecentlySet = false;

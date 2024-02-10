@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="MediaPlayer.Views.MediaLists.ListItems.NewListItemView"
+             xmlns:vm="clr-namespace:Mediathek.ViewModels.MediaLists.MediaListItem;assembly=MediathekMaui"
+             x:DataType="vm:MediaListItemViewModel">
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition/>
+            <ColumnDefinition/>
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="25"/>
+            <RowDefinition Height="60"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Label Grid.Row="0" Grid.ColumnSpan="2" Text="Name:"/>
+        <Entry Grid.Row="1" Grid.ColumnSpan="2" Text="{Binding Title}"/>
+        <ImageButton Grid.Row="2" Grid.Column="0" HorizontalOptions="End" Source="check.png" WidthRequest="16" HeightRequest="16" Command="{Binding Save}"/>
+        <ImageButton Grid.Row="2" Grid.Column="1" HorizontalOptions="End" Source="cancel.png" WidthRequest="16" HeightRequest="16" Command="{Binding Cancel}"/>
+        
+    </Grid>
+</ContentView>

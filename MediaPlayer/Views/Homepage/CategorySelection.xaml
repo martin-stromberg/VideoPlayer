@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:Mediathek.ViewModels.Homepage;assembly=MediathekMaui"
+             x:Class="MediaPlayer.Views.Homepage.CategorySelection"
+             x:DataType="vm:HomePageViewModel">
+    <HorizontalStackLayout HorizontalOptions="Center" Margin="0,10">
+        <Button Text="Filme" MinimumWidthRequest="100" Command="{Binding OpenCategory}" CommandParameter="movies"/>
+        <Button Text="Serien" MinimumWidthRequest="100" Command="{Binding OpenCategory}" CommandParameter="tvshows"/>
+    </HorizontalStackLayout>
+</ContentView>

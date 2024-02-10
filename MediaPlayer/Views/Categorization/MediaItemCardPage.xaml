@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:Mediathek.ViewModels.Categorization;assembly=MediathekMaui"
+             xmlns:view="clr-namespace:MediaPlayer.Views.Categorization"
+             x:Class="MediaPlayer.Views.Categorization.MediaItemCardPage"
+             x:DataType="vm:MediaItemDetailsViewModel"
+             Title="{Binding Title}">
+    <Frame BorderColor="Gray" Padding="5">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="200"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="200"/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="25"/>
+                <RowDefinition Height="50"/>
+                <RowDefinition Height="20"/>
+                <RowDefinition Height="50"/>
+                <RowDefinition Height="20"/>
+                <RowDefinition Height="50"/>
+                <RowDefinition Height="20"/>
+                <RowDefinition Height="50"/>
+                <RowDefinition Height="20"/>
+                <RowDefinition Height="50"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="70"/>
+            </Grid.RowDefinitions>
+
+            <Label Grid.Column="0" Grid.Row="0" Text="Quelle" FontSize="Caption" />
+            <Entry Grid.Column="0" Grid.Row="1" Text="{Binding SourceName}" FontSize="Default" Margin="0" IsEnabled="False"/>
+
+            <Label Grid.Column="0" Grid.Row="2" Text="Art" FontSize="Caption" />
+            <Picker Grid.Column="0" Grid.Row="3" ItemsSource="{Binding VideoTypes}" SelectedItem="{Binding SelectedVideoTypeName}"/>
+
+            <Label Grid.Column="0" Grid.Row="4" Text="Genre" FontSize="Caption" IsVisible="{Binding IsMovie}" />
+            <Entry Grid.Column="0" Grid.Row="5" Text="{Binding Genre}" FontSize="Default" Margin="0" IsEnabled="True" IsVisible="{Binding IsMovie}"/>
+
+            <Label Grid.Column="0" Grid.Row="6" Text="Erscheinungsdatum" FontSize="Caption" IsVisible="{Binding IsMovie}" />
+            <DatePicker Grid.Column="0" Grid.Row="7" Date="{Binding ReleaseDate}" FontSize="Default" Margin="0" IsEnabled="True" IsVisible="{Binding IsMovie}"/>
+
+            <Label Grid.Column="0" Grid.Row="4" Text="Staffel" FontSize="Caption" IsVisible="{Binding IsTVShow}"  />
+            <Entry Grid.Column="0" Grid.Row="5" Text="{Binding SeasonNo}" FontSize="Default" Margin="0" IsEnabled="True" IsVisible="{Binding IsTVShow}"/>
+
+            <Label Grid.Column="0" Grid.Row="6" Text="Episode" FontSize="Caption" IsVisible="{Binding IsTVShow}"  />
+            <Entry Grid.Column="0" Grid.Row="7" Text="{Binding EpisodeNo}" FontSize="Default" Margin="0" IsEnabled="True" IsVisible="{Binding IsTVShow}"/>
+
+            <Image 
+                Grid.Row="0"
+                Grid.RowSpan="7"
+                Grid.Column="3"
+                Grid.ColumnSpan="1" 
+                Source="{Binding Picture}"/>
+            <Label Grid.Column="1"
+                   Grid.ColumnSpan="2"
+                   Grid.Row="0"
+                   Text="{Binding Path}"
+                   VerticalOptions="Center" 
+                   HorizontalOptions="Center" />
+
+            <Label Grid.Column="1" Grid.Row="2" Text="Titel" FontSize="Caption" />
+            <Entry Grid.Column="1" Grid.ColumnSpan="2" Grid.Row="3" Text="{Binding Name}" FontSize="Default" Margin="0" IsEnabled="True"/>
+
+            <Label Grid.Column="1" Grid.Row="4" Text="Serientitel" FontSize="Caption" IsVisible="{Binding IsTVShow}" />
+            <Entry Grid.Column="1" Grid.Row="5" Text="{Binding ShowName}" FontSize="Default" Margin="0" IsEnabled="True" IsVisible="{Binding IsTVShow}"/>
+
+            <Label Grid.Column="1" Grid.Row="4" Text="Inhalt" FontSize="Caption"  IsVisible="{Binding IsMovie}"/>
+            <Editor Grid.Column="1" Grid.ColumnSpan="2" Grid.Row="5" Grid.RowSpan="6" Text="{Binding Plot}" FontSize="Default" Margin="0" IsEnabled="True"  IsVisible="{Binding IsMovie}"/>
+            
+
+            <Button Grid.Column="2" Grid.Row="11" Text="Speichern" Command="{Binding Save}"/>
+        </Grid>
+    </Frame>
+</ContentPage>

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="MediaPlayer.Views.MediaLists.MoviesPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:vm="clr-namespace:Mediathek.ViewModels.MediaLists;assembly=MediathekMaui"
+    xmlns:view="clr-namespace:MediaPlayer.Views.MediaLists"
+    Title="{Binding Title}"
+    x:DataType="vm:BaseMediaListViewModel">
+    <Grid>
+        <Label Text="{Binding Items.Count}" VerticalOptions="Start" HorizontalOptions="End"/>
+        <ScrollView>
+            <FlexLayout
+                AlignContent="Start"
+                AlignItems="Start"
+                AlignSelf="Start"
+                BindableLayout.ItemsSource="{Binding Items}"
+                Direction="Row"
+                JustifyContent="Start"
+                Wrap="Wrap">
+                <BindableLayout.ItemTemplate>
+                    <DataTemplate>
+                        <view:MediaListItemView/>
+                    </DataTemplate>
+                </BindableLayout.ItemTemplate>
+            </FlexLayout>
+        </ScrollView>
+    </Grid>
+</ContentPage>

@@ -70,7 +70,7 @@ namespace Mediathek.Services.MediaLibrary.Scanner.Http
                         yield return new HttpFileInfo()
                         {
                             Name = $"{entry["name"]}",
-                            Path = $"{path}{entry}",
+                            Path = $"{path}/{entry["name"]}",
                             LastWriteTime = lastWriteTime
                         };
                     }
@@ -90,28 +90,42 @@ namespace Mediathek.Services.MediaLibrary.Scanner.Http
             var localFolderPath = Path.GetDirectoryName(localFilePath);
             if (!Path.Exists(localFolderPath))
                 Directory.CreateDirectory(localFolderPath);
-            using (HttpClient client = new HttpClient() { Timeout = TimeSpan.FromMinutes(60) })
+            var tempFilePath = $"{localFilePath}.temp";
+            try
             {
-                client.DefaultRequestHeaders.Add("X-ApiKey", apiKey);
-                var uri = $"{serverUri}File?path={remoteFilePath}";
-                using (var fs = new FileStream(localFilePath, FileMode.CreateNew))
+                if (File.Exists(tempFilePath))
+                    File.Delete(tempFilePath);
+                if (File.Exists(localFolderPath))
+                    File.Delete(localFilePath);
+                using (HttpClient client = new HttpClient() { Timeout = TimeSpan.FromMinutes(60) })
                 {
-                    CancellationTokenSource cancelationToken = new CancellationTokenSource();
-                    DownloadProgressEventArgs progressArgs = new DownloadProgressEventArgs(remoteFilePath,
-                                                                                           localFilePath,
-                                                                                           0);
-                    client.DownloadAsync(uri,
-                                         fs,
-                                         new Progress<float>((progress) =>
+                    client.DefaultRequestHeaders.Add("X-ApiKey", apiKey);
+                    var uri = $"{serverUri}File?path={remoteFilePath}";
+                    using (var fs = new FileStream(tempFilePath, FileMode.CreateNew))
                     {
-                        progressArgs.Progress = progress;
-                        OnDownloadProgress(progressArgs);
-                        if (progressArgs.Cancel)
-                            cancelationToken.Cancel();
-                    }),
-                                         cancelationToken.Token)
-                          .Wait();
+                        CancellationTokenSource cancelationToken = new CancellationTokenSource();
+                        DownloadProgressEventArgs progressArgs = new DownloadProgressEventArgs(remoteFilePath,
+                                                                                               localFilePath,
+                                                                                               0);
+                        client.DownloadAsync(uri,
+                                             fs,
+                                             new Progress<float>((progress) =>
+                        {
+                            progressArgs.Progress = progress;
+                            OnDownloadProgress(progressArgs);
+                            if (progressArgs.Cancel)
+                                cancelationToken.Cancel();
+                        }),
+                                             cancelationToken.Token)
+                              .Wait();
+                    }
+                    File.Move(tempFilePath, localFilePath);
                 }
+            }
+            finally
+            {
+                if (File.Exists(tempFilePath))
+                    File.Delete(tempFilePath);
             }
         }
 

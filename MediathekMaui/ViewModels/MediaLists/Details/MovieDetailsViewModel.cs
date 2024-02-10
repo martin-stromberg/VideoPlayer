@@ -1,6 +1,7 @@
 ﻿using Mediathek.Navigation;
 using Mediathek.Services.MediaLibrary;
 using Mediathek.Services.MediaLibrary.Downloads;
+using Mediathek.Services.MediaLibrary.Scanner;
 using Mediathek.Services.Playlists;
 using Mediathek.Services.Settings;
 using Mediathek.StatusManagement;
@@ -22,8 +23,9 @@ namespace Mediathek.ViewModels.MediaLists.Details
             IMediaLibrary mediaLibrary,
             IDownloadManager downloadManager,
             IPlaylistManager playlistManager,
+            ILibraryScanner libraryScanner,
             VideoPlayerViewModel videoPlayerViewModel)
-            : base(statusPublisher, navigationManager, settings, downloadManager, mediaLibrary)
+            : base(statusPublisher, navigationManager, settings, downloadManager, mediaLibrary, libraryScanner)
         {
             CollectionViewModel = new MovieCollectionViewModel(StatusPublisher,
                                                                navigationManager,

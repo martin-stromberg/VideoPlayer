@@ -25,6 +25,18 @@
         <VerticalStackLayout Grid.Row="2">
             <HorizontalStackLayout HeightRequest="50" Margin="10,10,0,0">
                 <ImageButton 
+                    Source="process.png" 
+                    HeightRequest="32" 
+                    Margin="0,0,10,0"
+                    Command="{Binding RescanCollection}"/>
+                <Label Text="Neu erfassen" VerticalOptions="Center" FontSize="Large">
+                    <Label.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding RescanCollection}"/>
+                    </Label.GestureRecognizers>
+                </Label>
+            </HorizontalStackLayout>
+            <HorizontalStackLayout HeightRequest="50" Margin="10,10,0,0">
+                <ImageButton 
                     Source="delete.png" 
                     HeightRequest="32" 
                     Margin="0,0,10,0"

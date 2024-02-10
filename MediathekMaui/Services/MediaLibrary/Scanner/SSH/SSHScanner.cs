@@ -153,5 +153,10 @@ namespace Mediathek.Services.MediaLibrary.Scanner.SSH
             throw new NotImplementedException();
         }
 
+        public override void Scan(MediaElementSource source, MediaItemCollection mediaItemCollection)
+        {
+            throw new NotImplementedException();
+        }
+
     }
 }

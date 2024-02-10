@@ -7,11 +7,11 @@ global using Mediathek.Views.Categorization;
 global using Mediathek.Views.MediaLists;
 global using Mediathek.Views.MediaLists.Cards;
 global using Mediathek.Views.VideoPlayer;
-global using Microsoft.Extensions.Logging;
 using Mediathek.Helper.Navigation;
 using Mediathek.Helper.Touch;
 using Mediathek.Services;
 using Mediathek.StatusManagement;
+using Microsoft.Extensions.Logging;
 
 #if IOS
 using Mediathek.Platforms.iOS;
@@ -28,6 +28,7 @@ namespace Mediathek
 
         public static MauiApp CreateMauiApp(string resourcesPath)
         {
+            Console.WriteLine(resourcesPath);
             var builder = MauiApp.CreateBuilder();
             builder
                 .UseMauiApp<App>()

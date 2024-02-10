@@ -9,7 +9,7 @@
              x:DataType="vm:ApplicationViewModel"             
              Shell.NavBarIsVisible="True"
              Title="{Binding Title}">
-    <ContentPage.ToolbarItems>
+    <!--<ContentPage.ToolbarItems>
         <ToolbarItem Text="≢"                      
                      Order="Secondary"
                      Command="{Binding ListMediaItems}" 
@@ -20,7 +20,7 @@
         <ToolbarItem Text="▶️" 
                      Command="{Binding StartPlayback}" 
                      CommandParameter="genral" />
-    </ContentPage.ToolbarItems>
+    </ContentPage.ToolbarItems>-->
     <Grid>
         <Label
             Text="Loading..."
@@ -28,7 +28,7 @@
             SemanticProperties.HeadingLevel="Level1"
             FontSize="32"
             HorizontalOptions="Center" />
-        <Grid
+        <!--<Grid
             IsVisible="{Binding IsInitialized}">
             <vwHome:HomePageView 
                 BindingContext="{Binding ContentViewModel}" />
@@ -36,6 +36,6 @@
         <vw:StatusBar 
             BindingContext="{Binding StatusViewModel}"
             VerticalOptions="End"
-            Margin="5"/>
+            Margin="5"/>-->
     </Grid>
 </ContentPage>

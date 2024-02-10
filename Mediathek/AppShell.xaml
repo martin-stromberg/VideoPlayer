@@ -12,9 +12,9 @@
         ContentTemplate="{DataTemplate views:MainPage}"
         Route="MainPage" />
 
-    <ShellContent
+    <!--<ShellContent
         Title="Verwaltung"        
         ContentTemplate="{DataTemplate views:ManagementPage}"
-        Route="ManagementPage" />
+        Route="ManagementPage" />-->
 
 </Shell>

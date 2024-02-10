@@ -81,6 +81,7 @@ namespace Mediathek.ViewModels.Global
             ContentViewModel = contentViewModel;
             StartPlayback = new Command((arg) => DoStartPlayback(arg));
             ListMediaItems = new Command((arg) => DoListMediaItems(arg));
+            IsInitializing = true;
         }
 
         public bool IsDummy { get; private set; }

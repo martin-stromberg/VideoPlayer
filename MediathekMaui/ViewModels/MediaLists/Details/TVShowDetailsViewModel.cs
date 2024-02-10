@@ -1,6 +1,7 @@
 ﻿using Mediathek.Navigation;
 using Mediathek.Services.MediaLibrary;
 using Mediathek.Services.MediaLibrary.Downloads;
+using Mediathek.Services.MediaLibrary.Scanner;
 using Mediathek.Services.Playlists;
 using Mediathek.Services.Settings;
 using Mediathek.StatusManagement;
@@ -21,8 +22,9 @@ namespace Mediathek.ViewModels.MediaLists.Details
             ISettingsService settings,
             IMediaLibrary mediaLibrary,
             IDownloadManager downloadManager,
-            IPlaylistManager playlistManager)
-            : base(statusPublisher, navigationManager, settings, downloadManager, mediaLibrary)
+            IPlaylistManager playlistManager,
+            ILibraryScanner libraryScanner)
+            : base(statusPublisher, navigationManager, settings, downloadManager, mediaLibrary, libraryScanner)
         {
             _PlaylistManager = playlistManager;
             DownloadSeason = new Command(() => ExecuteDownloadSeason(), () => CanDownloadSeason());

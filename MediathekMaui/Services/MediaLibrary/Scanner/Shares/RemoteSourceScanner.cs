@@ -77,6 +77,8 @@ namespace Mediathek.Services.MediaLibrary.Scanner.Shares
 
         public abstract void Scan(MediaElementSource source, bool noContinue);
 
+        public abstract void Scan(MediaElementSource source, MediaItemCollection mediaItemCollection);
+
         public abstract void Scan(MediaElementSource source, MediaItem mediaItem);
 
         public abstract IEnumerable<RemoteFile> FindFiles(

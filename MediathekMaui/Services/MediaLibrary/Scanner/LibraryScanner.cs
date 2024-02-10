@@ -83,6 +83,9 @@ namespace Mediathek.Services.MediaLibrary.Scanner
         private void Scanner_BeforeScanFolder(object sender, FolderScanEventArgs e)
         {
             CheckContinue();
+
+            ScanQueueEntriesAsync().Wait();
+
             _StatusPublisher.AddStatus($"{e.Value}", false);
             var scanner = sender as RemoteSourceScanner;
             if (e.ScanFiles)
@@ -1016,7 +1019,8 @@ namespace Mediathek.Services.MediaLibrary.Scanner
         private async Task<bool> ScanNextQueueEntryAsync(BaseModel model, bool all)
         {
             return (await ScanMediaItemAsync(model as MediaItem))
-                || (await ScanMediaItemAsync(model as MediaElementSource, all));
+                || (await ScanMediaItemAsync(model as MediaElementSource, all))
+                || (await ScanMediaItemAsync(model as TVShow));
         }
 
         private async Task<bool> ScanMediaItemAsync(MediaElementSource mediaSource, bool all)
@@ -1049,12 +1053,53 @@ namespace Mediathek.Services.MediaLibrary.Scanner
             foreach (var scanner in _Scanners)
                 if (scanner.CanScan(source))
                 {
-                    throw new NotImplementedException();
-
-                    // logger.LogInformation($"Scan of source {mediaItem.Name} finished.");
-                    // return true;
+                    scanner.ProcessAll = true;
+                    scanner.Scan(source, mediaItem);
+                    logger.LogInformation($"Scan of source {mediaItem.Name} finished.");
+                    return true;
                 }
             return false;
+        }
+
+        private async Task<bool> ScanMediaItemAsync(TVShow show)
+        {
+            if (show is null)
+                return false;
+            show = await mediaLibrary.GetTVShow(show.Id);
+            var seasons = await mediaLibrary.GetTVShowSeasons(show.Id);
+            List<MediaItemCollection> collections = new List<MediaItemCollection>();
+            foreach (var season in seasons)
+            {
+                var episodes = await mediaLibrary.GetTVShowEpisodes(season.Id);
+                foreach (var episode in episodes
+                    .Where(e => e.PrimaryMediaItem is not null))
+                {
+                    var collection = await mediaLibrary.GetMediaItemCollectionAsync(episode.PrimaryMediaItem.ParentCollectionId);
+                    while ((collection.ParentCollectionId != 0)
+                        && ((collection.MetaInfo is null) || (collection.MetaInfo is not TVShowInformation)))
+                        collection = await mediaLibrary.GetMediaItemCollectionAsync(collection.ParentCollectionId);
+                    if (!collections.Any(c => c.Id == collection.Id))
+                        collections.Add(collection);
+                }
+            }
+            if (!collections.Any())
+                return false;
+            bool scanStarted = false;
+            foreach (var collection in collections)
+            {
+                collection.MetaDataTime = DateTime.MinValue;
+                var source = await mediaLibrary.GetSourceAsync(collection.MediaSourceId);
+                foreach (var scanner in _Scanners)
+                    if (scanner.CanScan(source))
+                    {
+                        scanner.ProcessAll = true;
+                        scanner.Scan(source, collection);
+                        logger.LogInformation($"Scan of source {collection.Name} finished.");
+                        scanStarted = true;
+                    }
+            }
+            collections.Clear();
+            return scanStarted;
         }
 
         private async Task CleanQueueEntriesAsync(bool categorizedEntries)
@@ -1148,11 +1193,21 @@ namespace Mediathek.Services.MediaLibrary.Scanner
                     await mediaLibrary.RemoveMovieAsync(movie);
         }
 
-        public void Rescan(MediaItem item)
+        private void Rescan(BaseModel item)
         {
             ScanQueue.Enqueue(new QueueEntry() { Entry = item, Arguments = new object[] { false } });
             if (!running)
                 Start();
+        }
+
+        public void Rescan(TVShow item)
+        {
+            Rescan(item as BaseModel);
+        }
+
+        public void Rescan(MediaItem item)
+        {
+            Rescan(item as BaseModel);
         }
 
         public void Rescan(MediaElementSource mediaSource, bool all)

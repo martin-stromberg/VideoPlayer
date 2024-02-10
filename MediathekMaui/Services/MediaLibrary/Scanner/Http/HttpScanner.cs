@@ -232,7 +232,62 @@ namespace Mediathek.Services.MediaLibrary.Scanner.Http
 
         public override void Scan(MediaElementSource source, MediaItem mediaItem)
         {
-            throw new NotImplementedException();
+            HttpMediaSource mediaSource = (HttpMediaSource)source;
+            share = new HttpShare(currentSource.Uri);
+            try
+            {
+                CurrentSource = source as RemoteMediaSource;
+
+                var folderPath = Path.GetDirectoryName(mediaItem.Path).Replace("\\", "/");
+                var files = FindFiles(folderPath)
+                            .Where(mI => mI.Path == mediaItem.Path)
+                            .Select(mediaItem => OnMediaItemFound(mediaItem))
+                            .ToArray();
+            }
+            finally
+            {
+                CurrentSource = null;
+                share = null;
+            }
+        }
+
+        public override void Scan(MediaElementSource source, MediaItemCollection mediaItemCollection)
+        {
+            HttpMediaSource mediaSource = (HttpMediaSource)source;
+            bool ownShare = share is null;
+            if (ownShare)
+                share = new HttpShare(mediaSource.Uri);
+            var PreviousSource = CurrentSource;
+            try
+            {
+                CurrentSource = source as RemoteMediaSource;
+
+                var folderPath = Path.GetDirectoryName(mediaItemCollection.Path).Replace("\\", "/");
+                var folders = share.ListDirectories(folderPath)
+                                   .Where(f => !FolderNameBlacklist.Contains(f.Name))
+                                   .Where(f => f.Path == mediaItemCollection.Path)
+                                   .ToArray()
+                                   .Select(f =>
+                                           new HttpShareFolder()
+                                   {
+                                       Name = f.Name,
+                                       Path = Path.Combine(folderPath, f.Name).Replace("\\", "/"),
+                                       LastWriteTime = f.LastWriteTime
+                                   })
+                                   .Select(folder => OnFolderFound(folder))
+                                   .Select(folder =>
+                                   {
+                                       Scan(folder.Path, true);
+                                       return folder;
+                                   })
+                                   .ToArray();
+            }
+            finally
+            {
+                CurrentSource = PreviousSource;
+                if (ownShare)
+                    share = null;
+            }
         }
 
         public override bool TestConnection(MediaElementSource mediaSource)

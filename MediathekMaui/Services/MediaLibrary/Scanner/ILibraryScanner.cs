@@ -12,6 +12,8 @@ namespace Mediathek.Services.MediaLibrary.Scanner
 
         void Rescan(MediaItem item);
 
+        void Rescan(TVShow item);
+
         void Rescan(MediaElementSource mediaSource, bool all);
 
         void StartCleaning(MediaElementSource mediaSource);

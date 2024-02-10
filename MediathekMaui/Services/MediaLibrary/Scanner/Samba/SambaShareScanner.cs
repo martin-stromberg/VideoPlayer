@@ -264,5 +264,10 @@ namespace Mediathek.Services.MediaLibrary.Scanner.Samba
             throw new NotImplementedException();
         }
 
+        public override void Scan(MediaElementSource source, MediaItemCollection mediaItemCollection)
+        {
+            throw new NotImplementedException();
+        }
+
     }
 }

@@ -369,5 +369,10 @@ namespace Mediathek.Services.MediaLibrary.Scanner.FTP
             throw new NotImplementedException();
         }
 
+        public override void Scan(MediaElementSource source, MediaItemCollection mediaItemCollection)
+        {
+            throw new NotImplementedException();
+        }
+
     }
 }

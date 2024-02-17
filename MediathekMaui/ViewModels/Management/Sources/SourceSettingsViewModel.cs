@@ -70,7 +70,8 @@ namespace Mediathek.ViewModels.Management.Sources
         {
             typeof(FtpMediaSource),
             typeof(SSHMediaSource),
-            typeof(HttpMediaSource)
+            typeof(HttpMediaSource),
+            typeof(SmbMediaSource)
         };
 
         public string[] SourceTypeNames => SourceTypes.Select(t => t.Name.Replace("MediaSource", string.Empty))
@@ -94,6 +95,7 @@ namespace Mediathek.ViewModels.Management.Sources
             IsFTP = SourceTypeNames.IndexOf(SelectedType) == SourceTypes.IndexOf(typeof(FtpMediaSource));
             IsSSH = SourceTypeNames.IndexOf(SelectedType) == SourceTypes.IndexOf(typeof(SSHMediaSource));
             IsHttp = SourceTypeNames.IndexOf(SelectedType) == SourceTypes.IndexOf(typeof(HttpMediaSource));
+            IsSamba = SourceTypeNames.IndexOf(SelectedType) == SourceTypes.IndexOf(typeof(SmbMediaSource));
         }
 
         public bool IsSSH
@@ -121,6 +123,18 @@ namespace Mediathek.ViewModels.Management.Sources
         }
 
         public bool IsHttp
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+            }
+        }
+
+        public bool IsSamba
         {
             get
             {
@@ -317,6 +331,29 @@ namespace Mediathek.ViewModels.Management.Sources
                         ((HttpMediaSource)source).Path = Path;
                     }
                 }
+
+                if (IsSamba)
+                {
+                    if (string.IsNullOrWhiteSpace(Path))
+                        throw new ApplicationException($"Bitte gib einen Pfad an.");
+
+                    if (Source.GetType() != typeof(SmbMediaSource))
+                        Source = new SmbMediaSource()
+                        {
+                            Id = (Source != null) ? Source.Id : 0,
+                            Path = Path,
+                            LastScan = DateTime.MinValue,
+                            Name = Title,
+                            LastScanStart = DateTime.MinValue,
+                            LatestScanPath = string.Empty,
+                            Inactive = false
+                        };
+                    else
+                    {
+                        ((SmbMediaSource)source).Path = Path;
+                    }
+                }
+
                 await _MediaLibrary.AddSourceAsync(Source);
                 IsNew = false;
                 AddStatusMessage($"Die Änderungen wurden gespeichert.");

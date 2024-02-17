@@ -98,9 +98,9 @@ namespace Mediathek.Services.MediaLibrary.Scanner.SSH
 
         public override bool TestConnection(MediaElementSource mediaSource)
         {
-            HttpClient client = new HttpClient();
-            string response = client.GetStringAsync("http://mstromberg.ddns.net:50010/Folder?path=%2FMediaServer/Disk2/Serien/Das%20Leben%20und%20ich")
-                                    .Wait<string>();
+            // HttpClient client = new HttpClient();
+            // string response = client.GetStringAsync("http://mstromberg.ddns.net:50010/Folder?path=%2FMediaServer/Disk2/Serien/Das%20Leben%20und%20ich")
+            // .Wait<string>();
 
             SSHMediaSource source = mediaSource as SSHMediaSource;
             share = new SSHShare(source.ServerName, source.Username, source.Password);

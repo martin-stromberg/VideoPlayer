@@ -58,6 +58,7 @@ namespace Mediathek.ViewModels.Homepage
                 BaseMediaListItemViewModel vm = Items.FirstOrDefault(i => i.Item.Id == item.TypedItem.Id);
                 if (vm == null)
                     continue;
+                vm.RemoveFromListRequested -= Vm_RemoveFromListRequested;
                 Items.Remove(vm);
             }
         }
@@ -110,8 +111,19 @@ namespace Mediathek.ViewModels.Homepage
                 }
                 else
                     continue;
+                vm.AllowEditMode = true;
+                vm.RemoveFromListRequested += Vm_RemoveFromListRequested;
+
                 Items.Insert(0, vm);
+
+                // Items.Add(vm);
             }
+        }
+
+        private void Vm_RemoveFromListRequested(object sender, EventArgs e)
+        {
+            var vm = sender as BaseMediaListItemViewModel;
+            _PlaybackHistoryManager.Remove(vm.Item);
         }
 
         public override void OnAppeared()
@@ -123,6 +135,12 @@ namespace Mediathek.ViewModels.Homepage
         private void LoadItems()
         {
             AddNewItems(_PlaybackHistoryManager.CurrentHistory.Items);
+        }
+
+        internal void ToggleEditMode()
+        {
+            foreach (var item in Items)
+                item.ToggleEditMode();
         }
 
     }

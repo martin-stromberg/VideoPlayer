@@ -45,6 +45,8 @@ namespace Mediathek.ViewModels.MediaLists.MediaListItem
             DeleteDownload = new Command(() => ExecuteDeleteDownload(), () => CanDeleteDownload());
             Save = new Command(() => ExecuteSaveNewItem());
             Cancel = new Command(() => ExecuteCancelNewItem());
+            RemoveFromList = new Command(() => ExecuteRemoveFromList());
+            AllowEditMode = false;
         }
 
         public IMediaLibrary MediaLibrary { get; set; }
@@ -366,6 +368,44 @@ namespace Mediathek.ViewModels.MediaLists.MediaListItem
         {
             return (Item is not null) && (Item.GetType() == item.GetType()) && (Item.Id == item.Id);
         }
+
+        public void ToggleEditMode()
+        {
+            EditModeEnabled = !EditModeEnabled && AllowEditMode;
+        }
+
+        public bool AllowEditMode
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+            }
+        }
+
+        public bool EditModeEnabled
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+            }
+        }
+
+        public Command RemoveFromList { get; }
+
+        private void ExecuteRemoveFromList()
+        {
+            RemoveFromListRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        public event EventHandler RemoveFromListRequested;
 
     }
 }

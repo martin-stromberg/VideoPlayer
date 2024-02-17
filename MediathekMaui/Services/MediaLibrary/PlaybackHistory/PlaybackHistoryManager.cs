@@ -52,6 +52,15 @@ namespace Mediathek.Services.MediaLibrary.PlaybackHistory
             return;
         }
 
+        public async Task Remove(BaseModel item)
+        {
+            var existing = CurrentHistory.Items.FirstOrDefault(i => i.TypedItem.Id == item.Id);
+            if (existing == null)
+                return;
+            CurrentHistory.Items.Remove(existing);
+            await _MediaLibrary.AddPlaybackHistory(CurrentHistory);
+        }
+
         private async Task FindAndRemoveOther(BaseModel typedItem, Playlist playlist)
         {
             await FindAndRemoveOtherFromShow(typedItem as TVShowEpisode, playlist);

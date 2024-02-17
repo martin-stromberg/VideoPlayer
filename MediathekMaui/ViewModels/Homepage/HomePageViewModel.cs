@@ -31,6 +31,7 @@ namespace Mediathek.ViewModels.Homepage
                                                    settingsService,
                                                    downloadManager);
             OpenCategory = new Command((sender) => DoOpenCategory(sender));
+            ToggleLatestViewEditMode = new Command(() => ExecuteToggleLatestViewEditMode());
         }
 
         public override void OnAppeared()
@@ -48,6 +49,13 @@ namespace Mediathek.ViewModels.Homepage
         public Command OpenCategory { get; }
 
         public LatestViewsViewModel LatestViews { get; }
+
+        public Command ToggleLatestViewEditMode { get; }
+
+        private void ExecuteToggleLatestViewEditMode()
+        {
+            LatestViews.ToggleEditMode();
+        }
 
         private void DoOpenCategory(object cmd)
         {

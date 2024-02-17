@@ -12,6 +12,8 @@ namespace Mediathek.Services.MediaLibrary.PlaybackHistory
 
         Task Add(MediaItem item, BaseModel typedItem, Playlist playlist);
 
+        Task Remove(BaseModel item);
+
         Task Finish(MediaItem item, BaseModel typedItem);
 
         Task InitializeAsync();

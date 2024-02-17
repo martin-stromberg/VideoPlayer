@@ -60,7 +60,7 @@
 		<PackageReference Include="sqlite-net-pcl" Version="1.8.116" />
 		<PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.7" />
 		<PackageReference Include="SSH.NET" Version="2023.0.1" />
-		<PackageReference Include="Syncfusion.XlsIO.NET" Version="24.1.44" />
+		<PackageReference Include="Syncfusion.XlsIO.NET" Version="24.2.6" />
 	</ItemGroup>
 
 	<ItemGroup>

@@ -126,6 +126,8 @@
 	  <None Remove="Resources\Images\setup.png" />
 	  <None Remove="Resources\Images\uncategorized.png" />
 	  <None Remove="Resources\Images\window.png" />
+	  <None Remove="Resources\Raw\loading.mp4" />
+	  <None Remove="Resources\Raw\secrets.json" />
 	  <None Remove="Resources\Splash\videoplayer.png" />
 	</ItemGroup>
 
@@ -221,6 +223,15 @@
 	  <Compile Update="Views\VideoPlayer\VideoPlayerView.xaml.cs">
 	    <DependentUpon>%(Filename)</DependentUpon>
 	  </Compile>
+	</ItemGroup>
+
+	<ItemGroup>
+	  <MauiAsset Update="Resources\Raw\loading.mp4">
+	    <LogicalName>%(RecursiveDir)%(Filename)%(Extension)</LogicalName>
+	  </MauiAsset>
+	  <MauiAsset Update="Resources\Raw\secrets.json">
+	    <LogicalName>%(RecursiveDir)%(Filename)%(Extension)</LogicalName>
+	  </MauiAsset>
 	</ItemGroup>
 
 	<ItemGroup>

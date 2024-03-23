@@ -13,6 +13,13 @@ namespace FolderAPI.Services
         {
             { "MediaServer", "\\\\raspberrypi\\FileServer\\" }
         };
+        private List<string> PathBlacklist = new List<string>()
+        {
+            "\\\\raspberrypi\\FileServer\\Crucial X62\\Dokumente",
+            "\\\\raspberrypi\\FileServer\\Crucial X62\\Backup",
+            "\\\\raspberrypi\\FileServer\\Crucial X62\\Bilder",
+            "\\\\raspberrypi\\FileServer\\Crucial X62\\Zu konvertieren"
+        };
         private readonly string[] ImageFileExts = new string[] { ".jpg", ".png" };
 
         public Folder GetFolder(string path = "")
@@ -64,16 +71,21 @@ namespace FolderAPI.Services
         private Folder GetShareFolder(string? shareName, string[] pathParts)
         {
             var path = $"{shares[shareName]}{string.Join("/", pathParts)}";
+            var isRoot = string.IsNullOrWhiteSpace(pathParts.FirstOrDefault());
             DirectoryInfo folder = new DirectoryInfo(path);
             if (!folder.Exists)
                 return null;
             return new Folder()
             {
-                Directories = folder
-                    .GetDirectories()
-                    .Where(x => !FolderBlacklist.Contains(x.Name))
-                    .Select(x => new FolderInfo() { Name = x.Name, LastWriteTime = GetFolderWriteTime(x) })
-                    .ToArray(),
+                Directories = GetChildFolders(folder)
+                              .Where(x => !FolderBlacklist.Contains(x.Name))
+                              .Select(x =>
+                                      new FolderInfo()
+                    {
+                        Name = x.Name,
+                        LastWriteTime = GetFolderWriteTime(x, isRoot ? 1 : int.MaxValue)
+                    })
+                              .ToArray(),
                 Files = folder
                     .GetFiles()
                     .Where(x => !FileBlacklist.Contains(x.Name))
@@ -83,23 +95,29 @@ namespace FolderAPI.Services
             };
         }
 
-        private DateTime GetFolderWriteTime(DirectoryInfo folder)
+        private DateTime GetFolderWriteTime(DirectoryInfo folder, int level = 0)
         {
             var lastWriteTime = folder.LastWriteTime;
             try
             {
-                foreach (var subDir in folder.GetDirectories())
-                {
-                    var subDirTime = GetFolderWriteTime(subDir);
-                    if (subDirTime > lastWriteTime)
-                        lastWriteTime = subDirTime;
-                }
+                if (level > 0)
+                    foreach (var subDir in GetChildFolders(folder))
+                    {
+                        var subDirTime = GetFolderWriteTime(subDir, level - 1);
+                        if (subDirTime > lastWriteTime)
+                            lastWriteTime = subDirTime;
+                    }
                 foreach (var file in folder.GetFiles())
                     if (file.LastWriteTime > lastWriteTime)
                         lastWriteTime = file.LastWriteTime;
             }
             catch (UnauthorizedAccessException) { }
             return lastWriteTime;
+        }
+
+        private IEnumerable<DirectoryInfo> GetChildFolders(DirectoryInfo folder)
+        {
+            return folder.GetDirectories().Where(f => !PathBlacklist.Contains(f.FullName));
         }
 
     }

@@ -432,5 +432,10 @@ namespace Mediathek.Services.MediaLibrary.Demo
             throw new NotImplementedException();
         }
 
+        public Task<IEnumerable<MediaItem>> GetDueDownloadedMediaItems(int offset, int count)
+        {
+            throw new NotImplementedException();
+        }
+
     }
 }

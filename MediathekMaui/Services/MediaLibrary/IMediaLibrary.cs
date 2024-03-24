@@ -70,6 +70,8 @@ namespace Mediathek.Services.MediaLibrary
         Task<IEnumerable<MediaItem>> GetUncategorizedMediaItems(int offset, int count);
 
         Task<IEnumerable<MediaItem>> GetDownloadedMediaItems(int offset, int count);
+
+        Task<IEnumerable<MediaItem>> GetDueDownloadedMediaItems(int offset, int count);
         #endregion
 
         #region Movies

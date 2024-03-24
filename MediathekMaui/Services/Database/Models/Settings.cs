@@ -12,6 +12,7 @@ namespace Mediathek.Services.Database.Models
         private const bool Default_LibraryScan_AutomaticScan = true;
         private const int Default_LibraryScan_ScanIntervalHours = 24;
         private const int Default_Player_ControlStyle = 1;
+        private static TimeSpan Default_Download_KeepingDuration = TimeSpan.FromDays(7);
 
         public int DataVersion { get; set; } = 0;
 
@@ -26,6 +27,8 @@ namespace Mediathek.Services.Database.Models
         public int LibraryScan_ScanIntervalHours { get; set; } = Default_LibraryScan_ScanIntervalHours;
 
         public int Player_ControlStyle { get; set; } = Default_Player_ControlStyle;
+
+        public TimeSpan Download_KeepingDuration { get; set; } = Default_Download_KeepingDuration;
 
     }
 }

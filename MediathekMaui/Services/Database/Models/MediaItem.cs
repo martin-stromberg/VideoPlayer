@@ -33,5 +33,7 @@ namespace Mediathek.Services.Database.Models
 
         public TimeSpan LastPlaybackPosition { get; set; }
 
+        public DateTime DueDate { get; set; }
+
     }
 }

@@ -2,6 +2,7 @@
 using Mediathek.Services.Database;
 using Mediathek.Services.MediaLibrary.Scanner.Http;
 using Mediathek.Services.MediaLibrary.Scanner.Shares;
+using Mediathek.Services.Settings;
 using Mediathek.StatusManagement;
 using System.ComponentModel;
 
@@ -19,8 +20,10 @@ namespace Mediathek.Services.MediaLibrary.Downloads
             IMediaLibrary mediaLibrary,
             IJobDatabase jobDatabase,
             IStatusPublisher statusPublisher,
+            ISettingsService settingsService,
             MediaLibraryEnvironment settings)
         {
+            _SettingsService = settingsService;
             this.mediaLibrary = mediaLibrary;
             this.jobDatabase = jobDatabase;
             this.statusPublisher = statusPublisher;
@@ -283,6 +286,7 @@ namespace Mediathek.Services.MediaLibrary.Downloads
         private BackgroundWorker worker = null;
         private bool working = false;
         private DownloadSession currentSession = null;
+        private readonly ISettingsService _SettingsService;
 
         private void StartWorker()
         {
@@ -311,75 +315,8 @@ namespace Mediathek.Services.MediaLibrary.Downloads
             working = true;
             try
             {
-                currentSession = GetNextSessionAsync().Wait<DownloadSession>();
-                var currSession = currentSession;
-                if (currentSession is null)
-                    return;
-                try
-                {
-                    e.Result = true;
-                    if (!currentSession.Job.Failed)
-                    {
-                        currSession.SetStarted();
-                        CompleteJobAsync(currentSession.Job).Wait();
-                        var mediaItem = mediaLibrary.GetMediaItemAsync(currentSession.Job.MediaItemId).Wait<MediaItem>();
-                        var existingItem = GetExistingDownloadedItemAsync(mediaItem, currentSession.Job.CopyType)
-                                           .Wait<MediaItem>();
-                        if (existingItem is null)
-                        {
-                            var collection = mediaLibrary.GetMediaItemCollectionAsync(mediaItem.ParentCollectionId)
-                                                         .Wait<MediaItemCollection>();
-                            var source = mediaLibrary.GetSourceAsync(collection.MediaSourceId)
-                                                     .Wait<MediaElementSource>();
-                            var statusId = statusPublisher.AddStatus($"Lade {mediaItem.Name}...", false);
-                            try
-                            {
-                                currSession.SetProgress(0);
-                                existingItem = DownloadItemAsync(source,
-                                                                 collection,
-                                                                 mediaItem,
-                                                                 currentSession,
-                                                                 (progress) =>
-                                                                 {
-                                                                     if (currentSession == null)
-                                                                         throw new ApplicationException($"Download caceled");
-                                                                     if (currSession.Progress != progress)
-                                                                     {
-                                                                         currSession.SetProgress(progress);
-                                                                         var statusId = statusPublisher.AddStatus($"Lade {mediaItem.Name} ({currSession.Progress} %)...", false);
-                                                                     }
-                                                                 })
-                                               .Wait<MediaItem>();
-                            }
-                            finally
-                            {
-                                statusPublisher.Clear(statusId);
-                            }
-                        }
-                        currSession.SetFinished(existingItem);
-                    }
-                    RemoveSession(currentSession);
-                }
-                catch (Exception ex)
-                {
-                    if (currentSession == null)
-                    {
-                        currSession.SetCanceled();
-                        throw new ApplicationException(string.Empty);
-                    }
-                    else
-                    {
-                        currentSession.SetFailed(ex);
-                        if (currentSession.ErrorCounter >= 5)
-                        {
-                            currentSession.Job.Failed = true;
-                            jobDatabase.AddDownloadJob(currentSession.Job);
-                            RemoveSession(currentSession);
-                        }
-                    }
-                    throw;
-                }
-                _ = jobDatabase.RemoveDownloadJob(currentSession.Job);
+                e.Result = ((bool)e.Result) || Worker_DownloadNextItem();
+                e.Result = ((bool)e.Result) || Worker_RemoveNextOldDownload();
             }
             catch (Exception ex)
             {
@@ -389,6 +326,104 @@ namespace Mediathek.Services.MediaLibrary.Downloads
             {
                 working = false;
             }
+        }
+
+        private bool Worker_RemoveNextOldDownload()
+        {
+            try
+            {
+                var mediaItem = mediaLibrary.GetDueDownloadedMediaItems(0, 1)
+                                            .Wait<IEnumerable<MediaItem>>()
+                                            .FirstOrDefault();
+                if (mediaItem is null)
+                    return false;
+                if (mediaItem.CopyType != MediaItemCopyType.Download)
+                {
+                    mediaItem.DueDate = DateTime.MinValue;
+                    mediaLibrary.UpdateMediaItemAsync(mediaItem, false).Wait();
+                }
+                else
+                    mediaLibrary.RemoveMediaItemAsync(mediaItem).Wait();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                statusPublisher.AddStatus(ex.Message, false);
+                return false;
+            }
+        }
+
+        private bool Worker_DownloadNextItem()
+        {
+            currentSession = GetNextSessionAsync().Wait<DownloadSession>();
+            var currSession = currentSession;
+            if (currentSession is null)
+                return false;
+            try
+            {
+                if (!currentSession.Job.Failed)
+                {
+                    currSession.SetStarted();
+                    CompleteJobAsync(currentSession.Job).Wait();
+                    var mediaItem = mediaLibrary.GetMediaItemAsync(currentSession.Job.MediaItemId).Wait<MediaItem>();
+                    var existingItem = GetExistingDownloadedItemAsync(mediaItem, currentSession.Job.CopyType)
+                                       .Wait<MediaItem>();
+                    if (existingItem is null)
+                    {
+                        var collection = mediaLibrary.GetMediaItemCollectionAsync(mediaItem.ParentCollectionId)
+                                                     .Wait<MediaItemCollection>();
+                        var source = mediaLibrary.GetSourceAsync(collection.MediaSourceId).Wait<MediaElementSource>();
+                        var statusId = statusPublisher.AddStatus($"Lade {mediaItem.Name}...", false);
+                        try
+                        {
+                            currSession.SetProgress(0);
+                            existingItem = DownloadItemAsync(source,
+                                                             collection,
+                                                             mediaItem,
+                                                             currentSession,
+                                                             (progress) =>
+                                                             {
+                                                                 if (currentSession == null)
+                                                                     throw new ApplicationException($"Download caceled");
+                                                                 if (currSession.Progress != progress)
+                                                                 {
+                                                                     currSession.SetProgress(progress);
+                                                                     var statusId = statusPublisher.AddStatus($"Lade {mediaItem.Name} ({currSession.Progress} %)...", false);
+                                                                 }
+                                                             })
+                                           .Wait<MediaItem>();
+                        }
+                        finally
+                        {
+                            statusPublisher.Clear(statusId);
+                        }
+                    }
+                    currSession.SetFinished(existingItem);
+                }
+                RemoveSession(currentSession);
+            }
+            catch (Exception ex)
+            {
+                if (currentSession == null)
+                {
+                    currSession.SetCanceled();
+                    throw new ApplicationException(string.Empty);
+                }
+                else
+                {
+                    currentSession.SetFailed(ex);
+                    if (currentSession.ErrorCounter >= 5)
+                    {
+                        currentSession.Job.Failed = true;
+                        jobDatabase.AddDownloadJob(currentSession.Job);
+                        RemoveSession(currentSession);
+                    }
+                }
+                statusPublisher.AddStatus(ex.Message, false);
+                return false;
+            }
+            _ = jobDatabase.RemoveDownloadJob(currentSession.Job);
+            return true;
         }
 
         private async Task CompleteJobAsync(Database.Models.DownloadJob job)
@@ -442,6 +477,9 @@ namespace Mediathek.Services.MediaLibrary.Downloads
             }
             if (!File.Exists(alternateMediaItem.Path))
                 throw new ApplicationException($"Download of file failed.");
+            if ((_SettingsService.Current.KeepingDuration != TimeSpan.Zero)
+                && (alternateMediaItem.CopyType == MediaItemCopyType.Download))
+                alternateMediaItem.DueDate = DateTime.Now.Add(_SettingsService.Current.KeepingDuration);
             await mediaLibrary.AddMediaItemAsync(alternateMediaItem);
             return alternateMediaItem;
         }

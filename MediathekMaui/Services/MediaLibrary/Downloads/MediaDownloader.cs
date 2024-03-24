@@ -2,6 +2,7 @@
 using Mediathek.Extensions;
 using Mediathek.Services.Database;
 using Mediathek.Services.MediaLibrary.Scanner.Http;
+using Mediathek.Services.Settings;
 using Mediathek.StatusManagement;
 using System;
 using System.ComponentModel;
@@ -21,10 +22,12 @@ namespace Mediathek.Services.MediaLibrary.Downloads
 
         public MediaDownloader(
             IMediaLibrary mediaLibrary,
+            ISettingsService settingsService,
             MediaLibraryEnvironment settings,
             IJobDatabase jobDataSource,
             IStatusPublisher statusPublisher)
         {
+            _SettingsService = settingsService;
             _JobDataSource = jobDataSource;
             _StatusPublisher = statusPublisher;
             _Settings = settings;
@@ -87,6 +90,13 @@ namespace Mediathek.Services.MediaLibrary.Downloads
                 return null;
         }
 
+        private void SetMediaItemDueDate(MediaItem alternateMediaItem)
+        {
+            if ((_SettingsService.Current.KeepingDuration != TimeSpan.Zero)
+                && (alternateMediaItem.CopyType == MediaItemCopyType.Download))
+                alternateMediaItem.DueDate = DateTime.Now.Add(_SettingsService.Current.KeepingDuration);
+        }
+
         private async Task<MediaItem> DownloadFtpMediaItemAsync(
             FtpMediaSource source,
             MediaItemCollection collection,
@@ -132,6 +142,7 @@ namespace Mediathek.Services.MediaLibrary.Downloads
                 }
             if (!File.Exists(alternateMediaItem.Path))
                 return null;
+            SetMediaItemDueDate(alternateMediaItem);
             await _MediaLibrary.AddMediaItemAsync(alternateMediaItem);
             OnDownloaded(new BaseModelEventArgs(mediaItem));
             return alternateMediaItem;
@@ -161,6 +172,7 @@ namespace Mediathek.Services.MediaLibrary.Downloads
             }
             if (!File.Exists(alternateMediaItem.Path))
                 return null;
+            SetMediaItemDueDate(alternateMediaItem);
             await _MediaLibrary.AddMediaItemAsync(alternateMediaItem);
             OnDownloaded(new BaseModelEventArgs(mediaItem));
             return alternateMediaItem;
@@ -197,7 +209,7 @@ namespace Mediathek.Services.MediaLibrary.Downloads
 
             // if (!File.Exists(alternateMediaItem.Path))
             // return null;
-
+            // SetMediaItemDueDate(alternateMediaItem);
             // mediaLibrary.AddMediaItemAsync(alternateMediaItem).Wait();
             // return alternateMediaItem;
             throw new NotImplementedException();
@@ -354,6 +366,7 @@ namespace Mediathek.Services.MediaLibrary.Downloads
 
         private BackgroundWorker _Worker = null;
         private bool working = false;
+        private readonly ISettingsService _SettingsService;
 
         private void StartWorker()
         {

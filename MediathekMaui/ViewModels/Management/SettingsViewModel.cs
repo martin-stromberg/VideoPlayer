@@ -125,5 +125,52 @@ namespace Mediathek.ViewModels.Management
         }
         #endregion
 
+        #region Downloads
+        public bool Downloads_AutomaticUnloading
+        {
+            get
+            {
+                return Settings.Current.KeepingDuration != TimeSpan.Zero;
+            }
+            set
+            {
+                if (value)
+                    Downloads_KeepingDays = "7";
+                else
+                    Downloads_KeepingDays = "0";
+                SetProperty<bool>(value);
+            }
+        }
+
+        public TimeSpan Downloads_KeepingDuration
+        {
+            get
+            {
+                return Settings.Current.KeepingDuration;
+            }
+            private set
+            {
+                Settings.Current.KeepingDuration = value;
+                SetProperty<TimeSpan>(value);
+            }
+        }
+
+        public string Downloads_KeepingDays
+        {
+            get
+            {
+                return Downloads_KeepingDuration.Days.ToString();
+            }
+            set
+            {
+                if (int.TryParse(value, out int days))
+                {
+                    Downloads_KeepingDuration = TimeSpan.FromDays(days);
+                    SetProperty<string>(value);
+                }
+            }
+        }
+        #endregion
+
     }
 }

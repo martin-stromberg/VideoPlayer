@@ -156,6 +156,19 @@ namespace Mediathek.Models.MediaItems
             }
         }
 
+        public DateTime DueDate
+        {
+            get
+            {
+                return GetProperty<DateTime>();
+            }
+            set
+            {
+                if (CopyType == MediaItemCopyType.Download)
+                    SetProperty<DateTime>(value);
+            }
+        }
+
         public bool HasDownload
         {
             get

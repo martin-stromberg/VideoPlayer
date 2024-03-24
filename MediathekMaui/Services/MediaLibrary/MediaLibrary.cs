@@ -836,6 +836,18 @@ namespace Mediathek.Services.MediaLibrary
                            (Models.MediaItems.MediaItem.FromDataModel(mi).UpdatePicture(_Settings.CacheRootPath) as Models.MediaItems.MediaItem)
                                           .UpdatePath(_Settings.GetPath((MediaItemCopyType)mi.CopyType)));
         }
+
+        public async Task<IEnumerable<Models.MediaItems.MediaItem>> GetDueDownloadedMediaItems(int offset, int count)
+        {
+            return (await (await _DataStore.GetMediaItemsAsync())
+                   .Where(mi => (mi.CopyType == 2) && (mi.DueDate != DateTime.MinValue) && (mi.DueDate < DateTime.Now))
+                   .Skip(offset)
+                   .Take(count)
+                   .ToArrayAsync())
+                   .Select(mi =>
+                           (Models.MediaItems.MediaItem.FromDataModel(mi).UpdatePicture(_Settings.CacheRootPath) as Models.MediaItems.MediaItem)
+                                          .UpdatePath(_Settings.GetPath((MediaItemCopyType)mi.CopyType)));
+        }
         #endregion 
 
 

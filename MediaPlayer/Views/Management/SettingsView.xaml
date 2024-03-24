@@ -12,9 +12,15 @@
                 <RowDefinition Height="50"/>
                 <RowDefinition Height="50"/>
                 <RowDefinition Height="50"/>
+                
                 <RowDefinition Height="50"/>
                 <RowDefinition Height="50"/>
                 <RowDefinition Height="50"/>
+                
+                <RowDefinition Height="50"/>
+                <RowDefinition Height="50"/>
+                <RowDefinition Height="50"/>
+                
                 <RowDefinition Height="50"/>
                 <RowDefinition Height="50"/>
                 <RowDefinition Height="50"/>
@@ -95,6 +101,24 @@
                     Text="{Binding LibraryScan_ScanIntervalHours}"/>
                 <Label 
                     Text="Stunden" VerticalOptions="Center"/>
+            </HorizontalStackLayout>
+            
+            
+            <!-- Downloads -->
+            <Label
+                 Grid.Row="9"
+                 Grid.Column="0"
+                 Grid.ColumnSpan="3"
+                 Text="Downloads"
+                 FontSize="Title"/>
+            <HorizontalStackLayout Grid.Column="1" Grid.Row="10">
+                <CheckBox IsChecked="{Binding Downloads_AutomaticUnloading}"/>
+                <Label Text="Downloads auomatisch löschen" VerticalOptions="Center"/>
+            </HorizontalStackLayout>
+
+            <HorizontalStackLayout Grid.Column="1" Grid.Row="11" IsVisible="{Binding Downloads_AutomaticUnloading}">
+                <Label Text="Aufbewahrungsdauer (in Tagen)" VerticalOptions="Center"/>
+                <Entry Text="{Binding Downloads_KeepingDays}"/>                
             </HorizontalStackLayout>
         </Grid>
     </ScrollView>

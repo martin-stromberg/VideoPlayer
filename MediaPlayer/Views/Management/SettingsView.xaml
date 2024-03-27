@@ -24,6 +24,7 @@
                 <RowDefinition Height="50"/>
                 <RowDefinition Height="50"/>
                 <RowDefinition Height="50"/>
+                <RowDefinition Height="50"/>
             </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="50"/>
@@ -119,6 +120,10 @@
             <HorizontalStackLayout Grid.Column="1" Grid.Row="11" IsVisible="{Binding Downloads_AutomaticUnloading}">
                 <Label Text="Aufbewahrungsdauer (in Tagen)" VerticalOptions="Center"/>
                 <Entry Text="{Binding Downloads_KeepingDays}"/>                
+            </HorizontalStackLayout>
+            <HorizontalStackLayout Grid.Column="1" Grid.Row="12" IsVisible="{Binding Downloads_AutomaticUnloading}">
+                <Label Text="Beibehalten nach Wiedergabe (in Tagen)" VerticalOptions="Center"/>
+                <Entry Text="{Binding Downloads_KeepingDaysAfterView}"/>
             </HorizontalStackLayout>
         </Grid>
     </ScrollView>

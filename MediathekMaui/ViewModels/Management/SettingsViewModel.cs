@@ -130,14 +130,20 @@ namespace Mediathek.ViewModels.Management
         {
             get
             {
-                return Settings.Current.KeepingDuration != TimeSpan.Zero;
+                return Settings.Current.Download_KeepingDuration != TimeSpan.Zero;
             }
             set
             {
                 if (value)
+                {
                     Downloads_KeepingDays = "7";
+                    Downloads_KeepingDaysAfterView = "7";
+                }
                 else
+                {
                     Downloads_KeepingDays = "0";
+                    Downloads_KeepingDaysAfterView = "0";
+                }
                 SetProperty<bool>(value);
             }
         }
@@ -146,11 +152,24 @@ namespace Mediathek.ViewModels.Management
         {
             get
             {
-                return Settings.Current.KeepingDuration;
+                return Settings.Current.Download_KeepingDuration;
             }
             private set
             {
-                Settings.Current.KeepingDuration = value;
+                Settings.Current.Download_KeepingDuration = value;
+                SetProperty<TimeSpan>(value);
+            }
+        }
+
+        public TimeSpan Downloads_KeepingDurationAfterView
+        {
+            get
+            {
+                return Settings.Current.Download_KeepingDurationAfterView;
+            }
+            private set
+            {
+                Settings.Current.Download_KeepingDurationAfterView = value;
                 SetProperty<TimeSpan>(value);
             }
         }
@@ -166,6 +185,22 @@ namespace Mediathek.ViewModels.Management
                 if (int.TryParse(value, out int days))
                 {
                     Downloads_KeepingDuration = TimeSpan.FromDays(days);
+                    SetProperty<string>(value);
+                }
+            }
+        }
+
+        public string Downloads_KeepingDaysAfterView
+        {
+            get
+            {
+                return Downloads_KeepingDurationAfterView.Days.ToString();
+            }
+            set
+            {
+                if (int.TryParse(value, out int days))
+                {
+                    Downloads_KeepingDurationAfterView = TimeSpan.FromDays(days);
                     SetProperty<string>(value);
                 }
             }

@@ -113,7 +113,20 @@ namespace Mediathek.Models
         #endregion
 
         #region Downloads
-        public TimeSpan KeepingDuration
+        public TimeSpan Download_KeepingDuration
+        {
+            get
+            {
+                return GetProperty<TimeSpan>();
+            }
+            set
+            {
+                SetProperty<TimeSpan>(value);
+            }
+
+        }
+
+        public TimeSpan Download_KeepingDurationAfterView
         {
             get
             {

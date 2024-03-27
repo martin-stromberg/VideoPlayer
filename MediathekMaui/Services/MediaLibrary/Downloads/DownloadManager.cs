@@ -301,8 +301,12 @@ namespace Mediathek.Services.MediaLibrary.Downloads
         private async void _Worker_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
             if ((bool)e.Result)
+            {
                 statusPublisher.AddStatus(string.Empty, false);
-            await Task.Delay(1000);
+                await Task.Delay(1000);
+            }
+            else
+                await Task.Delay(10000);
             if (!working)
                 worker.RunWorkerAsync();
         }
@@ -343,7 +347,12 @@ namespace Mediathek.Services.MediaLibrary.Downloads
                     mediaLibrary.UpdateMediaItemAsync(mediaItem, false).Wait();
                 }
                 else
-                    mediaLibrary.RemoveMediaItemAsync(mediaItem).Wait();
+                {
+                    mediaItem.DueDate = DateTime.Now.AddMinutes(1);
+                    mediaLibrary.UpdateMediaItemAsync(mediaItem, false).Wait();
+
+                    RemoveDownload(mediaItem);
+                }
                 return true;
             }
             catch (Exception ex)
@@ -477,9 +486,9 @@ namespace Mediathek.Services.MediaLibrary.Downloads
             }
             if (!File.Exists(alternateMediaItem.Path))
                 throw new ApplicationException($"Download of file failed.");
-            if ((_SettingsService.Current.KeepingDuration != TimeSpan.Zero)
+            if ((_SettingsService.Current.Download_KeepingDuration != TimeSpan.Zero)
                 && (alternateMediaItem.CopyType == MediaItemCopyType.Download))
-                alternateMediaItem.DueDate = DateTime.Now.Add(_SettingsService.Current.KeepingDuration);
+                alternateMediaItem.DueDate = DateTime.Now.Add(_SettingsService.Current.Download_KeepingDuration);
             await mediaLibrary.AddMediaItemAsync(alternateMediaItem);
             return alternateMediaItem;
         }

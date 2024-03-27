@@ -92,9 +92,9 @@ namespace Mediathek.Services.MediaLibrary.Downloads
 
         private void SetMediaItemDueDate(MediaItem alternateMediaItem)
         {
-            if ((_SettingsService.Current.KeepingDuration != TimeSpan.Zero)
+            if ((_SettingsService.Current.Download_KeepingDuration != TimeSpan.Zero)
                 && (alternateMediaItem.CopyType == MediaItemCopyType.Download))
-                alternateMediaItem.DueDate = DateTime.Now.Add(_SettingsService.Current.KeepingDuration);
+                alternateMediaItem.DueDate = DateTime.Now.Add(_SettingsService.Current.Download_KeepingDuration);
         }
 
         private async Task<MediaItem> DownloadFtpMediaItemAsync(

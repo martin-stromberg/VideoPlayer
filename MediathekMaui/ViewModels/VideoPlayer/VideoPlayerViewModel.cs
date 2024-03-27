@@ -402,6 +402,9 @@ namespace Mediathek.ViewModels.VideoPlayer
             if (Item.LastPlaybackPosition == position)
                 return;
             Item.LastPlaybackPosition = position;
+            if ((position == TimeSpan.Zero) && (Item.CopyType == MediaItemCopyType.Download)
+                && (Settings.Current.Download_KeepingDurationAfterView != TimeSpan.Zero))
+                Item.DueDate = DateTime.Now.Add(Settings.Current.Download_KeepingDurationAfterView);
             await _MediaLibrary.UpdateMediaItemAsync(Item, false);
 
             if (Item.CopyType != MediaItemCopyType.None)

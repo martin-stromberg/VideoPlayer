@@ -30,5 +30,7 @@ namespace Mediathek.Services.Database.Models
 
         public TimeSpan Download_KeepingDuration { get; set; } = Default_Download_KeepingDuration;
 
+        public TimeSpan Download_KeepingDurationAfterView { get; set; } = Default_Download_KeepingDuration;
+
     }
 }

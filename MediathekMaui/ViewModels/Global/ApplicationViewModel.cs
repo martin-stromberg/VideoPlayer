@@ -3,6 +3,7 @@ using Mediathek.Services.MediaLibrary;
 using Mediathek.Services.MediaLibrary.Classification;
 using Mediathek.Services.MediaLibrary.Demo;
 using Mediathek.Services.MediaLibrary.Downloads;
+using Mediathek.Services.MediaLibrary.OverviewPreparation;
 using Mediathek.Services.MediaLibrary.PlaybackHistory;
 using Mediathek.Services.MediaLibrary.Scanner;
 using Mediathek.Services.Playlists;
@@ -34,6 +35,7 @@ namespace Mediathek.ViewModels.Global
             _LibraryScanner = viewModel._LibraryScanner;
             _DemoLibrary = viewModel._DemoLibrary;
             _MediaLibrary = viewModel._MediaLibrary;
+            _OverviewManager = viewModel._OverviewManager;
             Title = viewModel.Title;
             StatusViewModel = viewModel.StatusViewModel;
             ContentViewModel = viewModel.ContentViewModel;
@@ -47,9 +49,10 @@ namespace Mediathek.ViewModels.Global
         private IPlaylistManager _PlaylistManager;
         private IPlaybackHistoryManager _PlaybackHistoryManager;
         private IDownloadManager _DownloadManager;
+        private IOverviewManager _OverviewManager;
 
         private ApplicationViewModel()
-            : this(null, null, null, null, null, null, null, null, null, null, null, null, null) { }
+            : this(null, null, null, null, null, null, null, null, null, null, null, null, null, null) { }
 
         public ApplicationViewModel(
             GlobalStatusViewModel statusViewModel,
@@ -64,9 +67,11 @@ namespace Mediathek.ViewModels.Global
             INavigationManager navigationManager,
             IPlaybackHistoryManager playbackHistoryManager,
             ISettingsService settingsService,
-            IDownloadManager downloadManager)
+            IDownloadManager downloadManager,
+            IOverviewManager overviewManager)
             : base(statusPublisher, navigationManager, settingsService)
         {
+            _OverviewManager = overviewManager;
             IsDummy = false;
             _DownloadManager = downloadManager;
             _PlaybackHistoryManager = playbackHistoryManager;
@@ -159,7 +164,16 @@ namespace Mediathek.ViewModels.Global
                 case 0:
                     await ExecuteDataUpgrade1();
                     break;
+                case 1:
+                    await ExecuteDataUpgrade2();
+                    break;
             }
+        }
+
+        private async Task ExecuteDataUpgrade2()
+        {
+            await _OverviewManager.RecreateData();
+            Settings.Current.DataVersion = 2;
         }
 
         private async Task ExecuteDataUpgrade1()

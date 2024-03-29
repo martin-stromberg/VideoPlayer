@@ -35,17 +35,18 @@ namespace Mediathek.Services.Database
             result = await Connection.CreateTableAsync<LogEntry>();
             result = await Connection.CreateTableAsync<Services.Database.Models.TVShow>();
             result = await Connection.CreateTableAsync<Services.Database.Models.TVShowSeason>();
-            result = await Connection.CreateTableAsync<Services.Database.Models.TVShowEpisode>();
+            result = await Connection.CreateTableAsync<Models.TVShowEpisode>();
             result = await Connection.CreateTableAsync<TVShowEpisodeMediaItem>();
-            result = await Connection.CreateTableAsync<Services.Database.Models.Movie>();
-            result = await Connection.CreateTableAsync<Services.Database.Models.MovieCollection>();
+            result = await Connection.CreateTableAsync<Models.Movie>();
+            result = await Connection.CreateTableAsync<Models.MovieCollection>();
             result = await Connection.CreateTableAsync<MovieMediaItem>();
-            result = await Connection.CreateTableAsync<Services.Database.Models.Playlist>();
-            result = await Connection.CreateTableAsync<Services.Database.Models.PlaylistEntry>();
+            result = await Connection.CreateTableAsync<Models.Playlist>();
+            result = await Connection.CreateTableAsync<Models.PlaylistEntry>();
             result = await Connection.CreateTableAsync<PlaybackHistoryEntry>();
             result = await Connection.CreateTableAsync<Models.Settings>();
             result = await Connection.CreateTableAsync<DownloadJob>();
-            result = await Connection.CreateTableAsync<Services.Database.Models.TVShowCollection>();
+            result = await Connection.CreateTableAsync<Models.TVShowCollection>();
+            result = await connection.CreateTableAsync<OverviewElement>();
         }
 
         public async Task<AsyncTableQuery<MediaSource>> GetSourcesAsync()
@@ -75,13 +76,13 @@ namespace Mediathek.Services.Database
         public async Task<AsyncTableQuery<Services.Database.Models.MediaItem>> GetMediaItemsAsync()
         {
             await InitOrUpgradeAsync();
-            return Connection.Table<Services.Database.Models.MediaItem>();
+            return Connection.Table<Models.MediaItem>();
         }
 
         public async Task<Services.Database.Models.MediaItem> GetMediaItemAsync(long id)
         {
             await InitOrUpgradeAsync();
-            return await Connection.Table<Services.Database.Models.MediaItem>().FirstOrDefaultAsync(s => s.Id == id);
+            return await Connection.Table<Models.MediaItem>().FirstOrDefaultAsync(s => s.Id == id);
         }
 
         public async Task<MediaSource> AddOrUpdateSourceAsync(MediaSource mediaSource)
@@ -550,6 +551,36 @@ namespace Mediathek.Services.Database
         {
             var collection = await GetTVShowCollection(id);
             await Connection.DeleteAsync(collection);
+        }
+
+        public async Task<IEnumerable<OverviewElement>> GetOverviewElements()
+        {
+            await InitOrUpgradeAsync();
+            return await Connection.Table<OverviewElement>().ToArrayAsync();
+        }
+
+        public async Task<OverviewElement> GetOverviewElement(long id)
+        {
+            await InitOrUpgradeAsync();
+            return await Connection.Table<OverviewElement>().FirstOrDefaultAsync(rec => rec.Id == id);
+        }
+
+        public async Task RemoveOverviewElement(OverviewElement record)
+        {
+            await Connection.DeleteAsync(record);
+        }
+
+        public async Task<OverviewElement> GetOverviewElementByOriginalId(string typeName, long originalId)
+        {
+            await InitOrUpgradeAsync();
+            return await Connection.Table<OverviewElement>()
+                                   .FirstOrDefaultAsync(rec => (rec.Type == typeName)
+                                       && (rec.OriginalId == originalId));
+        }
+
+        public async Task AddOrUpdateOverviewElementAsync(OverviewElement record)
+        {
+            _ = await AddOrUpdate<OverviewElement>(record) as OverviewElement;
         }
 
     }

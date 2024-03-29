@@ -321,4 +321,6 @@
 	  </MauiXaml>
 	</ItemGroup>
 
+	<ProjectExtensions><VisualStudio><UserProperties XamarinHotReloadDebuggerTimeoutExceptionMediaPlayerHideInfoBar="True" /></VisualStudio></ProjectExtensions>
+
 </Project>

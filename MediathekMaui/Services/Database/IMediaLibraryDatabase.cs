@@ -126,5 +126,15 @@ namespace Mediathek.Services.Database
 
         Task RemovePlaylist(long id);
 
+        Task<IEnumerable<OverviewElement>> GetOverviewElements();
+
+        Task<OverviewElement> GetOverviewElement(long id);
+
+        Task RemoveOverviewElement(OverviewElement record);
+
+        Task<OverviewElement> GetOverviewElementByOriginalId(string typeName, long originalId);
+
+        Task AddOrUpdateOverviewElementAsync(OverviewElement record);
+
     }
 }

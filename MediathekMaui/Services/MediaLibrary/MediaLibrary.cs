@@ -1072,5 +1072,43 @@ namespace Mediathek.Services.MediaLibrary
             }
         }
 
+        public async Task<IEnumerable<Models.Overview.OverviewElement>> GetAllOverviewElements()
+        {
+            var records = await _DataStore.GetOverviewElements();
+            return records.OrderBy(s => s.Name)
+                          .Select(item =>
+                                  Models.Overview.OverviewElement
+                                                 .FromDataModel(item)
+                                                 .UpdatePicture(_Settings.CacheRootPath) as Models.Overview.OverviewElement);
+        }
+
+        public async Task RemoveOverviewElement(Models.Overview.OverviewElement element)
+        {
+            var dbItem = await _DataStore.GetOverviewElement(element.Id);
+            if (dbItem == null)
+                return;
+            await _DataStore.RemoveOverviewElement(dbItem);
+            OnElementChanged(null, null, new BaseModelEventArgs(element));
+        }
+
+        public async Task<Models.Overview.OverviewElement> GetOverviewElementByOriginalId(string typeName, long id)
+        {
+            var record = await _DataStore.GetOverviewElementByOriginalId(typeName, id);
+            if (record is null)
+                return null;
+            return Models.Overview.OverviewElement.FromDataModel(record).UpdatePicture(_Settings.CacheRootPath) as Models.Overview.OverviewElement;
+        }
+
+        public async Task AddOverviewElement(Models.Overview.OverviewElement element)
+        {
+            var isNew = element.Id == 0;
+            var dataModel = element.ToDataModelAsync() as OverviewElement;
+            await _DataStore.AddOrUpdateOverviewElementAsync(dataModel);
+            element.UpdateAutoincrements(dataModel);
+            OnElementChanged(isNew ? (new BaseModelEventArgs(element)) : null,
+                             (!isNew) ? (new BaseModelEventArgs(element)) : null,
+                             null);
+        }
+
     }
 }

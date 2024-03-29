@@ -5,6 +5,7 @@ using Mediathek.Services.MediaLibrary.Classification;
 using Mediathek.Services.MediaLibrary.Demo;
 using Mediathek.Services.MediaLibrary.Downloads;
 using Mediathek.Services.MediaLibrary.Maintenance;
+using Mediathek.Services.MediaLibrary.OverviewPreparation;
 using Mediathek.Services.MediaLibrary.PlaybackHistory;
 using Mediathek.Services.MediaLibrary.Scanner;
 using Mediathek.Services.Playlists;
@@ -43,6 +44,7 @@ namespace Mediathek.Services
             services.AddSingleton<IPlaybackHistoryManager, PlaybackHistoryManager>();
             services.AddSingleton<IPlaylistManager, PlaylistManager>();
             services.AddSingleton<ISettingsService, SettingsService>();
+            services.AddSingleton<IOverviewManager, OverviewManager>();
 
             return services;
         }

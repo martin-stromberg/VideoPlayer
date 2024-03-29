@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Mediathek.Models.Overview;
+using System;
 using System.Linq;
 
 namespace Mediathek.Services.MediaLibrary
@@ -160,6 +161,16 @@ namespace Mediathek.Services.MediaLibrary
         Task<Playlist> GetPlaylist(long id);
 
         Task AddPlaylistAsync(Playlist playlist);
+        #endregion
+
+        #region Overview Elements
+        Task<IEnumerable<OverviewElement>> GetAllOverviewElements();
+
+        Task RemoveOverviewElement(OverviewElement element);
+
+        Task<OverviewElement> GetOverviewElementByOriginalId(string typeName, long id);
+
+        Task AddOverviewElement(OverviewElement element);
         #endregion
 
         Task AddPlaybackHistory(History history);

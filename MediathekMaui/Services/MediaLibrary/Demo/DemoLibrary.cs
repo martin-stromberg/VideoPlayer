@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Mediathek.Models.Overview;
+using System;
 using System.Linq;
 
 namespace Mediathek.Services.MediaLibrary.Demo
@@ -433,6 +434,36 @@ namespace Mediathek.Services.MediaLibrary.Demo
         }
 
         public Task<IEnumerable<MediaItem>> GetDueDownloadedMediaItems(int offset, int count)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task RecreateOverviewElements()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void GetAllOverviewElements()
+        {
+            throw new NotImplementedException();
+        }
+
+        Task<IEnumerable<OverviewElement>> IMediaLibrary.GetAllOverviewElements()
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task RemoveOverviewElement(OverviewElement element)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<OverviewElement> GetOverviewElementByOriginalId(string typeName, long id)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task AddOverviewElement(OverviewElement element)
         {
             throw new NotImplementedException();
         }

@@ -166,6 +166,8 @@ namespace Mediathek.Services.MediaLibrary
         #region Overview Elements
         Task<IEnumerable<OverviewElement>> GetAllOverviewElements();
 
+        Task<IEnumerable<OverviewElement>> GetOverviewElements(int offset, int count, params string[] typeNames);
+
         Task RemoveOverviewElement(OverviewElement element);
 
         Task<OverviewElement> GetOverviewElementByOriginalId(string typeName, long id);

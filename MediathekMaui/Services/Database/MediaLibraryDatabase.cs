@@ -559,6 +559,20 @@ namespace Mediathek.Services.Database
             return await Connection.Table<OverviewElement>().ToArrayAsync();
         }
 
+        public async Task<IEnumerable<OverviewElement>> GetOverviewElements(
+            int offset,
+            int count,
+            params string[] typeNames)
+        {
+            await InitOrUpgradeAsync();
+            return await Connection.Table<OverviewElement>()
+                                   .Where(rec => typeNames.Contains(rec.Type))
+                                   .OrderBy(rec => rec.Name)
+                                   .Skip(offset)
+                                   .Take(count)
+                                   .ToArrayAsync();
+        }
+
         public async Task<OverviewElement> GetOverviewElement(long id)
         {
             await InitOrUpgradeAsync();

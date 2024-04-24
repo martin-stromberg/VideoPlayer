@@ -1,4 +1,5 @@
-﻿using Mediathek.Navigation;
+﻿using Mediathek.Models.Overview;
+using Mediathek.Navigation;
 using Mediathek.Services.MediaLibrary;
 using Mediathek.Services.MediaLibrary.Downloads;
 using Mediathek.Services.Playlists;
@@ -96,6 +97,15 @@ namespace Mediathek.ViewModels.MediaLists
                                                            DownloadManager,
                                                            MediaLibrary);
             }
+            else if (mediaItem is OverviewElement)
+            {
+                vm = new OverviewElementListItemViewModel(mediaItem as OverviewElement,
+                                                          StatusPublisher,
+                                                          NavigationManager,
+                                                          Settings,
+                                                          DownloadManager,
+                                                          MediaLibrary);
+            }
             else
                 return;
             Items.Add(vm);
@@ -123,10 +133,29 @@ namespace Mediathek.ViewModels.MediaLists
 
         private void LoadTVShows()
         {
-            LoadTVShows(0);
+            if (ParentCollection is null)
+                LoadTVShows2(0);
+            else
+                LoadTVShows(0);
         }
 
         private List<TVShowCollection> loadingCollections = new List<TVShowCollection>();
+
+        private async void LoadTVShows2(int offset)
+        {
+            var found = 0;
+            var shows = (await MediaLibrary.GetOverviewElements(offset, 10, nameof(TVShow), nameof(TVShowCollection)))
+                    .OrderBy(show => show.Year)
+                    .ThenBy(show => show.Name);
+            foreach (var show in shows)
+            {
+                found++;
+                Add(show);
+            }
+
+            if (found > 0)
+                LoadTVShows2(offset + found);
+        }
 
         private async void LoadTVShows(int offset)
         {

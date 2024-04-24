@@ -468,5 +468,14 @@ namespace Mediathek.Services.MediaLibrary.Demo
             throw new NotImplementedException();
         }
 
+        public Task<IEnumerable<OverviewElement>> GetOverviewElements(int offset, int count, params string[] typeNames)
+        {
+            throw new NotImplementedException();
+        }
+        public Task<IEnumerable<TVShowCollection>> GetTVShowCollections(long id)
+        {
+            throw new NotImplementedException();
+        }
+
     }
 }

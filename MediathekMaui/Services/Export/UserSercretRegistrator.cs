@@ -30,7 +30,7 @@ namespace Mediathek.Services.Export
             {
                 await _UserSecrets.Initialize();
 
-                // RegisterSyncfusion(_UserSecrets.SyncfusionLicenseKey);
+                RegisterSyncfusion(_UserSecrets.SyncfusionLicenseKey);
             }
             catch { }
         }

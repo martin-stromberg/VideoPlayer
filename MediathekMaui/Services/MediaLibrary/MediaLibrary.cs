@@ -1082,6 +1082,18 @@ namespace Mediathek.Services.MediaLibrary
                                                  .UpdatePicture(_Settings.CacheRootPath) as Models.Overview.OverviewElement);
         }
 
+        public async Task<IEnumerable<Models.Overview.OverviewElement>> GetOverviewElements(
+            int offset,
+            int count,
+            params string[] typeNames)
+        {
+            var records = await _DataStore.GetOverviewElements(offset, count, typeNames);
+            return records.Select(item =>
+                                  Models.Overview.OverviewElement
+                                                 .FromDataModel(item)
+                                                 .UpdatePicture(_Settings.CacheRootPath) as Models.Overview.OverviewElement);
+        }
+
         public async Task RemoveOverviewElement(Models.Overview.OverviewElement element)
         {
             var dbItem = await _DataStore.GetOverviewElement(element.Id);

@@ -128,6 +128,8 @@ namespace Mediathek.Services.Database
 
         Task<IEnumerable<OverviewElement>> GetOverviewElements();
 
+        Task<IEnumerable<OverviewElement>> GetOverviewElements(int offset, int count, params string[] typeNames);
+
         Task<OverviewElement> GetOverviewElement(long id);
 
         Task RemoveOverviewElement(OverviewElement record);

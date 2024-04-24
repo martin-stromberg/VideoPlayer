@@ -24,9 +24,14 @@ namespace Mediathek.Models.Overview
 
         public string Genre5 { get; set; }
 
+        [Path(nameof(PicturePath))]
+        public ImageSource Picture { get; set; }
+
         public string PicturePath { get; set; }
 
         public DateTime LastUpdate { get; set; }
+
+        public bool Delete { get; set; }
 
         internal bool Update(TVShow show)
         {

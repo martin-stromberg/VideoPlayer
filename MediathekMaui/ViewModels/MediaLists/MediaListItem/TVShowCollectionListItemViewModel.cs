@@ -1,11 +1,14 @@
-﻿using Mediathek.Navigation;
+﻿using Mediathek.Models.Overview;
+using Mediathek.Navigation;
 using Mediathek.Services.MediaLibrary;
 using Mediathek.Services.MediaLibrary.Downloads;
 using Mediathek.Services.Settings;
 using Mediathek.StatusManagement;
+using Microsoft.VisualBasic;
 
 namespace Mediathek.ViewModels.MediaLists.MediaListItem
 {
+
     public class TVShowCollectionListItemViewModel: BaseMediaListItemViewModel
     {
 

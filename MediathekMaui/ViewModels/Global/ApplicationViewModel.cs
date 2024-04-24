@@ -167,6 +167,9 @@ namespace Mediathek.ViewModels.Global
                 case 1:
                     await ExecuteDataUpgrade2();
                     break;
+                case 2:
+                    await ExecuteDataUpgrade3();
+                    break;
             }
         }
 
@@ -174,6 +177,12 @@ namespace Mediathek.ViewModels.Global
         {
             await _OverviewManager.RecreateData();
             Settings.Current.DataVersion = 2;
+        }
+
+        private async Task ExecuteDataUpgrade3()
+        {
+            await _OverviewManager.RecreateData();
+            Settings.Current.DataVersion = 3;
         }
 
         private async Task ExecuteDataUpgrade1()

@@ -32,9 +32,10 @@ namespace Mediathek.Services.Export
             _StatusPublisher = statusPublisher;
             _Settings = settings;
             _MediaLibrary = mediaLibrary;
+            Format = ExportFormat.XLSX;
         }
 
-        public ExportFormat Format { get; set; } = ExportFormat.XLSX;
+        public ExportFormat Format { get; set; }
 
         public async Task<string> CreateExportFile()
         {
@@ -67,9 +68,12 @@ namespace Mediathek.Services.Export
         {
             unknownSheetCounter = 0;
             List<List<BaseModel>> baseModels = new List<List<BaseModel>>();
+
+            _StatusPublisher.AddStatus($"Generiere Exportdatei (Quellen)", true);
             var sources = await _MediaLibrary.GetSourcesAsync();
             baseModels.Add(sources.Cast<BaseModel>().ToList());
 
+            _StatusPublisher.AddStatus($"Generiere Exportdatei (Mediensammlungen)", true);
             List<MediaItemCollection> collections = new List<MediaItemCollection>();
             foreach (var source in sources)
             {
@@ -78,20 +82,33 @@ namespace Mediathek.Services.Export
             }
             baseModels.Add(collections.Cast<BaseModel>().ToList());
 
+            _StatusPublisher.AddStatus($"Generiere Exportdatei (Mediendateien)", true);
             List<MediaItem> mediaItems = new List<MediaItem>();
             foreach (var collection in collections)
             {
                 var collectionMediaItems = await _MediaLibrary.GetMediaItemsAsync(collection.Id);
                 mediaItems.AddRange(collectionMediaItems);
             }
+            int offset = 0;
+            while (true)
+            {
+                var collectionMediaItems = await _MediaLibrary.GetDownloadedMediaItems(offset, 10);
+                if (!collectionMediaItems.Any())
+                    break;
+                mediaItems.AddRange(collectionMediaItems);
+                offset += collectionMediaItems.Count();
+            }
             baseModels.Add(mediaItems.Cast<BaseModel>().ToList());
 
+            _StatusPublisher.AddStatus($"Generiere Exportdatei (Filme)", true);
             var movies = await _MediaLibrary.GetMovies();
             baseModels.Add(movies.Cast<BaseModel>().ToList());
 
+            _StatusPublisher.AddStatus($"Generiere Exportdatei (Serien)", true);
             var tvShows = await _MediaLibrary.GetTVShows();
             baseModels.Add(tvShows.Cast<BaseModel>().ToList());
 
+            _StatusPublisher.AddStatus($"Generiere Exportdatei (Serienstaffeln)", true);
             List<TVShowSeason> seasons = new List<TVShowSeason>();
             foreach (var show in tvShows)
             {
@@ -100,6 +117,7 @@ namespace Mediathek.Services.Export
             }
             baseModels.Add(seasons.Cast<BaseModel>().ToList());
 
+            _StatusPublisher.AddStatus($"Generiere Exportdatei (Serienepisoden)", true);
             List<TVShowEpisode> episodes = new List<TVShowEpisode>();
             foreach (var season in seasons)
             {
@@ -108,8 +126,12 @@ namespace Mediathek.Services.Export
             }
             baseModels.Add(episodes.Cast<BaseModel>().ToList());
 
+            _StatusPublisher.AddStatus($"Generiere Exportdatei (Abspiellisten)", true);
             var history = await _MediaLibrary.GetPlayBackHistoryEntries();
             baseModels.Add(history.Cast<BaseModel>().ToList());
+
+            _StatusPublisher.AddStatus($"Generiere Exportdatei (Übersichtselemente)", true);
+            baseModels.Add((await _MediaLibrary.GetAllOverviewElements()).Cast<BaseModel>().ToList());
 
             using (ExcelEngine excelEngine = new ExcelEngine())
             {
@@ -117,6 +139,7 @@ namespace Mediathek.Services.Export
                 application.DefaultVersion = ExcelVersion.Xlsx;
                 IWorkbook workbook = application.Workbooks.Create(baseModels.Count + 1);
 
+                _StatusPublisher.AddStatus($"Generiere Exportdatei.", true);
                 FillModelWorksheets(workbook, baseModels);
 
                 MemoryStream ms = new MemoryStream();

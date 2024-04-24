@@ -228,9 +228,29 @@ namespace Mediathek.Services.MediaLibrary.Scanner.Samba
             throw new NotImplementedException();
         }
 
-        public override bool TestConnection(MediaElementSource mediaSource)
+        public override bool TestConnection(MediaElementSource source)
         {
-            throw new NotImplementedException();
+            SmbMediaSource mediaSource = (SmbMediaSource)source;
+            share = new SambaShare(mediaSource.ServerName, mediaSource.Username, mediaSource.Password);
+            try
+            {
+                CurrentSource = source as RemoteMediaSource;
+                try
+                {
+                    share.Connect();
+                    share.Disconnect();
+                    return true;
+                }
+                catch
+                {
+                    return false;
+                }
+            }
+            finally
+            {
+                CurrentSource = null;
+                share = null;
+            }
         }
 
         internal override void SavePictureFromUri(string imageURL, string imageFilePath)

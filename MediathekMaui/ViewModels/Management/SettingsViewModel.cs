@@ -136,8 +136,10 @@ namespace Mediathek.ViewModels.Management
             {
                 if (value)
                 {
-                    Downloads_KeepingDays = "7";
-                    Downloads_KeepingDaysAfterView = "7";
+                    if (Downloads_KeepingDays == "0")
+                        Downloads_KeepingDays = "7";
+                    if (Downloads_KeepingDaysAfterView == "0")
+                        Downloads_KeepingDaysAfterView = "7";
                 }
                 else
                 {

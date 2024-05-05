@@ -115,7 +115,7 @@ namespace Mediathek.Services.MediaLibrary.Downloads
             };
             var session = DownloadSession.CreateFromJob(job);
             await jobDatabase.AddDownloadJob(job);
-            AddSession(session);
+            await CheckAddSession(session);
             return session;
         }
 
@@ -240,7 +240,31 @@ namespace Mediathek.Services.MediaLibrary.Downloads
 
         #region Worker
         private List<DownloadSession> downloadSessions = new List<DownloadSession>();
-
+        private async Task CheckAddSession(DownloadSession session)
+        {
+            switch (session.Job.CopyType)
+            {
+                case MediaItemCopyType.Cache:
+                    var existingItems = (await mediaLibrary.GetAlternateMediaItemsAsync(session.Job.MediaItemId)).ToArray();
+                    var download = existingItems.FirstOrDefault(i => i.CopyType == MediaItemCopyType.Download);
+                    if (download is not null)
+                    {
+                        session.SetFinished(download);
+                        return;
+                    }
+                    var cache = existingItems.FirstOrDefault(i => i.CopyType == MediaItemCopyType.Cache);
+                    if (cache is not null)
+                    {
+                        session.SetFinished(cache);
+                        return;
+                    }
+                    AddSession(session);
+                    break;
+                default:
+                    AddSession(session);
+                    break;
+            }
+        }
         private void AddSession(DownloadSession session)
         {
             switch (session.Job.CopyType)

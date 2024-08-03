@@ -8,9 +8,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Magick.NET-Q16-AnyCPU" Version="13.5.0" />
-    <PackageReference Include="Magick.NET.Core" Version="13.5.0" />
-    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0" />
+    <PackageReference Include="Magick.NET-Q16-AnyCPU" Version="13.9.0" />
+    <PackageReference Include="Magick.NET.Core" Version="13.9.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
   </ItemGroup>
 
 </Project>

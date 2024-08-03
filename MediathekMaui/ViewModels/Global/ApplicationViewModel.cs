@@ -95,6 +95,8 @@ namespace Mediathek.ViewModels.Global
         {
             base.OnAppeared();
             LoadContent();
+
+            ((LibraryScanner)_LibraryScanner).RedoErrorbehaviour();
         }
 
         #region Startup initialization

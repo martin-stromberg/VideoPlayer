@@ -6,7 +6,7 @@ using System.Linq;
 namespace Mediathek.Models.Sources
 {
 
-    [DataModelReference(typeof(MediaSource))]
+    [DataModelReference(typeof(MediaDataSource))]
     public class MediaElementSource: BaseModel
     {
 

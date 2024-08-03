@@ -1,9 +1,13 @@
-namespace Mediathek.Views.MediaLists.ListItems;
 
-public partial class NewListItemView : ContentView
+namespace Mediathek.Views.MediaLists.ListItems
 {
-	public NewListItemView()
-	{
-		InitializeComponent();
-	}
+    public partial class NewListItemView: ContentView
+    {
+
+        public NewListItemView()
+        {
+            InitializeComponent();
+        }
+
+    }
 }

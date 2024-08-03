@@ -343,8 +343,8 @@ namespace Mediathek.Services.MediaLibrary.Downloads
             working = true;
             try
             {
-                e.Result = ((bool)e.Result) || Worker_DownloadNextItem();
-                e.Result = ((bool)e.Result) || Worker_RemoveNextOldDownload();
+                //e.Result = ((bool)e.Result) || Worker_DownloadNextItem();
+                //e.Result = ((bool)e.Result) || Worker_RemoveNextOldDownload();
             }
             catch (Exception ex)
             {

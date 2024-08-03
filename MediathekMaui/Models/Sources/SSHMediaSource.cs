@@ -6,7 +6,7 @@ using System.Linq;
 namespace Mediathek.Models.Sources
 {
     [DataModelReference(
-        typeof(Services.Database.Models.MediaSource),
+        typeof(Services.Database.Models.MediaDataSource),
         FilterPropertyName = nameof(Type),
         FilterPropertyValue = nameof(SSHMediaSource))]
     public class SSHMediaSource: RemoteMediaSource

@@ -1,5 +1,4 @@
-﻿using Mediathek.Platforms.iOS;
-using ObjCRuntime;
+﻿using ObjCRuntime;
 using UIKit;
 
 namespace Mediathek

@@ -5,8 +5,8 @@ namespace Mediathek.Services.MediaLibrary.Scanner.Samba
     public class SmbShareFileEventArgs: FileEventArgs
     {
 
-        public SmbShareFileEventArgs(SmbShareFile file)
-            : base(file)
+        public SmbShareFileEventArgs(RemoteMediaSource source, SmbShareFile file)
+            : base(source, file)
         {
             File = file;
         }

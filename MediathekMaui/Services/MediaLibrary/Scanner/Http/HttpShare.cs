@@ -2,6 +2,7 @@
 using Mediathek.Services.MediaLibrary.Scanner.Shares;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using System.Diagnostics;
 using System.Net;
 
 namespace Mediathek.Services.MediaLibrary.Scanner.Http
@@ -28,7 +29,15 @@ namespace Mediathek.Services.MediaLibrary.Scanner.Http
 
         private JObject GetJson(string uri)
         {
-            return JsonConvert.DeserializeObject(Get(uri)) as JObject;
+            try
+            {
+                return JsonConvert.DeserializeObject(Get(uri)) as JObject;
+            }
+            catch (Exception ex)
+            { 
+                Debug.WriteLine(ex);
+                return null; 
+            }
         }
 
         public IEnumerable<HttpFileInfo> ListFiles(string path)
@@ -40,8 +49,16 @@ namespace Mediathek.Services.MediaLibrary.Scanner.Http
 
         private IEnumerable<HttpFileInfo> GetFiles(JObject response, string path)
         {
-            var collection = response["files"] as JArray;
-            if (collection != null)
+            JArray collection = null;
+            try
+            {
+                collection = response["files"] as JArray;
+            }
+            catch(Exception ex)
+            {
+                Debug.WriteLine($"{ex.Message}");
+            }
+            if (collection is not null)
                 foreach (var entry in collection)
                 {
                     if (!DateTime.TryParse($"{entry["lastWriteTime"]}", out DateTime lastWriteTime))
@@ -57,24 +74,27 @@ namespace Mediathek.Services.MediaLibrary.Scanner.Http
 
         private IEnumerable<HttpFileInfo> GetFolders(JObject response, string path)
         {
-            if (response is null)
-                yield return null;
-            else
+            JArray collection = null;
+            try
             {
-                var collection = response["directories"] as JArray;
-                if (collection != null)
-                    foreach (var entry in collection)
-                    {
-                        if (!DateTime.TryParse($"{entry["lastWriteTime"]}", out DateTime lastWriteTime))
-                            lastWriteTime = DateTime.MinValue;
-                        yield return new HttpFileInfo()
-                        {
-                            Name = $"{entry["name"]}",
-                            Path = $"{path}/{entry["name"]}",
-                            LastWriteTime = lastWriteTime
-                        };
-                    }
+                collection = response["directories"] as JArray;
             }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"{ex.Message}");
+            }
+            if (collection != null)
+                foreach (var entry in collection)
+                {
+                    if (!DateTime.TryParse($"{entry["lastWriteTime"]}", out DateTime lastWriteTime))
+                        lastWriteTime = DateTime.MinValue;
+                    yield return new HttpFileInfo()
+                    {
+                        Name = $"{entry["name"]}",
+                        Path = $"{path}/{entry["name"]}",
+                        LastWriteTime = lastWriteTime
+                    };
+                }
         }
 
         public IEnumerable<HttpFileInfo> ListDirectories(string path)

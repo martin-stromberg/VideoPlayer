@@ -13,18 +13,41 @@ namespace Mediathek.Services.MediaLibrary.Scanner.Samba
 
         private SambaShare share;
         private static string[] FolderNameBlacklist = { "$RECYCLE.BIN", "System Volume Information", "lost+found" };
+        private bool currentScan_latestScanPathReached = false;
+        private string[] currentScan_skipPathParts = null;
+        private string currentScan_SkipPath = string.Empty;
+        private SmbMediaSource currentSource = null;
 
         public SambaShareScanner() { }
 
+        protected override void OnBeforeScanFolder(FolderScanEventArgs e)
+        {
+            var isParentLevelFolder = false;
+            if (!currentScan_latestScanPathReached)
+                if (currentScan_skipPathParts == null)
+                    currentScan_latestScanPathReached = true;
+                else
+                {
+                    var source = CurrentSource as RemoteMediaSource;
+                    var currRelPath = e.Value.Remove(0, source.Path.Length);
+                    isParentLevelFolder = currentScan_SkipPath.StartsWith(currRelPath);
+                    currentScan_latestScanPathReached = currentScan_SkipPath == currRelPath;
+                }
+
+            e.ScanFolders = currentScan_latestScanPathReached || isParentLevelFolder;
+            e.ScanFiles = currentScan_latestScanPathReached;
+            base.OnBeforeScanFolder(e);
+        }
+
         protected override RemoteFolder OnFolderFound(RemoteFolder folder)
         {
-            OnFolderFound(new SmbShareFolderEventArgs((SmbShareFolder)folder));
+            OnFolderFound(new SmbShareFolderEventArgs(CurrentSource, (SmbShareFolder)folder));
             return folder;
         }
 
         protected override RemoteFile OnMediaItemFound(RemoteFile file)
         {
-            OnMediaItemFound(new SmbShareFileEventArgs((SmbShareFile)file));
+            OnMediaItemFound(new SmbShareFileEventArgs(CurrentSource, (SmbShareFile)file));
             return file;
         }
 
@@ -35,18 +58,41 @@ namespace Mediathek.Services.MediaLibrary.Scanner.Samba
 
         public override void Scan(MediaElementSource source, bool noContinue)
         {
-            SmbMediaSource mediaSource = (SmbMediaSource)source;
-            share = new SambaShare(mediaSource.ServerName, mediaSource.Username, mediaSource.Password);
+            currentSource = (SmbMediaSource)source;
+            share = new SambaShare(currentSource.ServerName, currentSource.Username, currentSource.Password);
             try
             {
                 CurrentSource = source as RemoteMediaSource;
                 if (noContinue)
                     CurrentSource.LatestScanPath = string.Empty;
-                Scan(mediaSource.Path, false);
+
+                currentScan_SkipPath = string.Empty;
+                currentScan_skipPathParts = null;
+                if (!string.IsNullOrWhiteSpace(currentSource.LatestScanPath))
+                {
+                    currentScan_SkipPath = currentSource.LatestScanPath?.Remove(0, currentSource.Path.Length);
+                    currentScan_skipPathParts = currentSource.LatestScanPath?.Remove(0, currentSource.Path.Length)
+                                                                             .Split(currentSource.PathDelimiter);
+                }
+                currentScan_latestScanPathReached = currentScan_skipPathParts == null;
+
+
+                var folder = new SmbShareFolder()
+                {
+                    Name = currentSource.Path.Replace("/", "\\").TrimEnd('\\'),
+                    Path = currentSource.Path.Replace("/", "\\")
+                };
+                while (folder.Name.Contains("\\"))
+                    folder.Name = folder.Name.Remove(0, folder.Name.IndexOf("\\") + 1);
+                OnFolderFound(folder);
+
+                Scan(currentSource.Path, false);
+                OnScanCompleted();
             }
             finally
             {
                 CurrentSource = null;
+                currentSource = null;
                 share = null;
             }
         }

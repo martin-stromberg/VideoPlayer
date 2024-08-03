@@ -9,7 +9,7 @@
     x:DataType="vm:BaseMediaListViewModel">
     <Grid>
         <Label Text="{Binding Items.Count}" VerticalOptions="Start" HorizontalOptions="End"/>
-        <ScrollView>
+        <!--<ScrollView>
             <FlexLayout
                 AlignContent="Start"
                 AlignItems="Start"
@@ -24,6 +24,19 @@
                     </DataTemplate>
                 </BindableLayout.ItemTemplate>
             </FlexLayout>
+        </ScrollView>-->
+
+        <ScrollView>
+            <CollectionView ItemsSource="{Binding Items}">
+                <CollectionView.ItemsLayout>
+                    <GridItemsLayout Orientation="Vertical" Span="2" />
+                </CollectionView.ItemsLayout>
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <view:MediaListItemView/>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
         </ScrollView>
     </Grid>
 </ContentPage>

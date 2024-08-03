@@ -1,5 +1,4 @@
-﻿using Mediathek.Platforms.MacCatalyst;
-using ObjCRuntime;
+﻿using ObjCRuntime;
 using UIKit;
 
 namespace Mediathek

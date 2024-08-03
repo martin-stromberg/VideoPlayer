@@ -24,6 +24,7 @@
             <view:SourceFTPConfigurationBox Grid.Row="1" Grid.ColumnSpan="2" Grid.RowSpan="3" IsVisible="{Binding IsFTP}"/>
             <view:SourceSSHConfigurationBox Grid.Row="1" Grid.ColumnSpan="2" Grid.RowSpan="3" IsVisible="{Binding IsSSH}"/>
             <view:SourceHttpConfigurationBox Grid.Row="1" Grid.ColumnSpan="2" Grid.RowSpan="3" IsVisible="{Binding IsHttp}"/>
+            <view:SourceSambaConfigurationBox Grid.Row="1" Grid.ColumnSpan="2" Grid.RowSpan="3" IsVisible="{Binding IsSamba}"/>
 
             <Button Grid.Column="2" Grid.Row="0" IsVisible="{Binding IsStored}" Text="🔄" Margin="0" Padding="0" Background="Transparent" Command="{Binding Rescan}" FontSize="Large"/>
             <Button Grid.Column="2" Grid.Row="1" IsVisible="{Binding IsStored}" Text="🧹" Margin="0" Padding="0" Background="Transparent" Command="{Binding Clean}" FontSize="Medium"/>

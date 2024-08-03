@@ -7,7 +7,7 @@ using System.Linq;
 namespace Mediathek.Models.Sources
 {
     [DataModelReference(
-        typeof(MediaSource),
+        typeof(MediaDataSource),
         FilterPropertyName = nameof(Type),
         FilterPropertyValue = nameof(SmbMediaSource))]
     public class SmbMediaSource: RemoteMediaSource
@@ -34,7 +34,6 @@ namespace Mediathek.Models.Sources
             set
             {
                 SetProperty<string>(value);
-                UpdateConfiguration();
             }
         }
 
@@ -47,7 +46,6 @@ namespace Mediathek.Models.Sources
             set
             {
                 SetProperty<string>(value);
-                UpdateConfiguration();
             }
         }
 
@@ -60,7 +58,6 @@ namespace Mediathek.Models.Sources
             set
             {
                 base.Path = value;
-                UpdateConfiguration();
             }
         }
 
@@ -95,11 +92,15 @@ namespace Mediathek.Models.Sources
 
         protected override void UpdateFromDataModel(BaseDataModel dataModel)
         {
-            base.UpdateFromDataModel(dataModel);
-            var obj = JsonConvert.DeserializeObject<SmbMediaSource>(Configuration);
-            Password = obj.Password;
-            Username = obj.Username;
-            Path = obj.Path;
+            BeginUpdate();
+            try
+            {
+                base.UpdateFromDataModel(dataModel);
+                var obj = JsonConvert.DeserializeObject<SmbMediaSource>(Configuration);
+                Password = obj.Password;
+                Username = obj.Username;
+                Path = obj.Path;
+            }finally { EndUpdate(); }
         }
 
         public override string GetItemPath(MediaItems.MediaItem item)

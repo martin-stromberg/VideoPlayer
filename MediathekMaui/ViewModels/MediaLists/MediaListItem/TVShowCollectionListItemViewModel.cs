@@ -1,5 +1,4 @@
-﻿using Mediathek.Models.Overview;
-using Mediathek.Navigation;
+﻿using Mediathek.Navigation;
 using Mediathek.Services.MediaLibrary;
 using Mediathek.Services.MediaLibrary.Downloads;
 using Mediathek.Services.Settings;

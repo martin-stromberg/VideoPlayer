@@ -10,7 +10,7 @@
             <ColumnDefinition Width="30"/>
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
-            <RowDefinition Height="30"/>
+            <RowDefinition Height="48"/>
             <RowDefinition Height="30"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="25"/>
@@ -18,29 +18,37 @@
         </Grid.RowDefinitions>
 
         <Image 
-        Grid.Row="0"
-        Grid.RowSpan="3"
-        Grid.Column="0"
-        Grid.ColumnSpan="2" 
-        Source="{Binding Picture}">
+            Grid.Row="0"
+            Grid.RowSpan="3"
+            Grid.Column="0"
+            Grid.ColumnSpan="2" 
+            Source="{Binding Picture}">
             <Image.GestureRecognizers>
                 <TapGestureRecognizer Tapped="ListItemTapped"/>
             </Image.GestureRecognizers>
         </Image>
         <VerticalStackLayout
-        Grid.Row="3"
-        Grid.RowSpan="4"
-        Grid.Column="0"
-        Grid.ColumnSpan="2">
+            Grid.Row="3"
+            Grid.RowSpan="4"
+            Grid.Column="0"
+            Grid.ColumnSpan="2">
             <VerticalStackLayout.GestureRecognizers>
                 <TapGestureRecognizer Tapped="ListItemDetailTapped"/>
             </VerticalStackLayout.GestureRecognizers>
             <Label
-            Text="{Binding Title}"                    
-            HorizontalOptions="Start" />
+                Text="{Binding Title}"                    
+                HorizontalOptions="Start" />
             <Label 
-            Text="{Binding Subtitle}"
-            HorizontalOptions="StartAndExpand"/>
+                Text="{Binding Subtitle}"
+                HorizontalOptions="StartAndExpand"/>
         </VerticalStackLayout>
+        <ImageButton 
+            Grid.Row="0"
+            Grid.Column="1"
+            WidthRequest="25"
+            Source="cancel.png"            
+            BackgroundColor="Transparent"
+            IsVisible="{Binding EditModeEnabled}"
+            Command="{Binding RemoveFromList}"/>
     </Grid>
 </ContentView>

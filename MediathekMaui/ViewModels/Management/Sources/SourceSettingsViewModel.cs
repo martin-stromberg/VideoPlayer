@@ -346,11 +346,15 @@ namespace Mediathek.ViewModels.Management.Sources
                             Name = Title,
                             LastScanStart = DateTime.MinValue,
                             LatestScanPath = string.Empty,
-                            Inactive = false
+                            Inactive = false,
+                            Username = Username,
+                            Password = Password,
                         };
                     else
                     {
                         ((SmbMediaSource)source).Path = Path;
+                        ((SmbMediaSource)source).Username = Username;
+                        ((SmbMediaSource)source).Password = Password;
                     }
                 }
 

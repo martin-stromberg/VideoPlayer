@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Linq;
 
 namespace Mediathek.Services.MediaLibrary.Classification
@@ -21,7 +22,7 @@ namespace Mediathek.Services.MediaLibrary.Classification
 
         private void MediaLibrary_ModelElementRemoved(object sender, BaseModelEventArgs e)
         {
-            RemoveMediaItemAsync(e.Element as MediaItem);
+            RemoveMediaItemAsync(e.Element as MediaItem).Wait();
         }
 
         private void MediaLibrary_ModelElementUpdatedAsync(object sender, BaseModelEventArgs e)
@@ -65,14 +66,21 @@ namespace Mediathek.Services.MediaLibrary.Classification
 
         private async Task CollectMediaItemAsync(MediaItem mediaItem)
         {
-            if (mediaItem == null)
-                return;
-            if (mediaItem.CopyType != MediaItemCopyType.None)
-                await CollectDuplicate(mediaItem);
-            else if (mediaItem.MetaInfo is MovieInformation)
-                await CollectMovieAsync(mediaItem, mediaItem.MetaInfo as MovieInformation);
-            else if (mediaItem.MetaInfo is EpisodeInformation)
-                await CollectTVShowAsync(mediaItem, mediaItem.MetaInfo as EpisodeInformation);
+            try
+            {
+                if (mediaItem == null)
+                    return;
+                if (mediaItem.CopyType != MediaItemCopyType.None)
+                    await CollectDuplicate(mediaItem);
+                else if (mediaItem.MetaInfo is MovieInformation)
+                    await CollectMovieAsync(mediaItem, mediaItem.MetaInfo as MovieInformation);
+                else if (mediaItem.MetaInfo is EpisodeInformation)
+                    await CollectTVShowAsync(mediaItem, mediaItem.MetaInfo as EpisodeInformation);
+            }
+            catch(Exception ex)
+            {
+                Debug.WriteLine(ex);
+            }
         }
 
         private async Task CollectDuplicate(MediaItem mediaItem)

@@ -1,5 +1,4 @@
-﻿
-namespace Mediathek.Helper.Touch
+﻿namespace Mediathek.Helper.Touch
 {
     public class TouchActionEventArgs: EventArgs
     {

@@ -168,7 +168,8 @@ namespace Mediathek.Services.MediaLibrary.Scanner.Samba
         {
             return List(path)
                    .Where(dir =>
-                          ((uint)dir.FileAttributes & (uint)SMBLibrary.FileAttributes.Directory) == ((uint)SMBLibrary.FileAttributes.Directory));
+                          ((uint)dir.FileAttributes & (uint)SMBLibrary.FileAttributes.Directory) == ((uint)SMBLibrary.FileAttributes.Directory))
+                   .Where(dir => !string.IsNullOrWhiteSpace(dir.FileName));
         }
 
         public IEnumerable<FileDirectoryInformation> ListFiles(string path)
@@ -179,6 +180,9 @@ namespace Mediathek.Services.MediaLibrary.Scanner.Samba
                        var isTemporary = ((uint)dir.FileAttributes & (uint)SMBLibrary.FileAttributes.Normal) == ((uint)SMBLibrary.FileAttributes.Temporary);
                        var isDirectory = ((uint)dir.FileAttributes & (uint)SMBLibrary.FileAttributes.Normal) == ((uint)SMBLibrary.FileAttributes.Directory);
                        return !isDirectory && !isTemporary;
+                   })
+                   .Where(dir => {
+                       return !string.IsNullOrWhiteSpace(dir.FileName);
                    });
         }
 

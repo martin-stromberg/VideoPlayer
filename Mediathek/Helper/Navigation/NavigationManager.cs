@@ -1,8 +1,13 @@
-﻿using Mediathek.Models;
+﻿using Mediathek.Views.Categorization;
+using Mediathek.Views.MediaLists;
+using Mediathek.Views.MediaLists.Cards;
+using Mediathek.Views.VideoPlayer;
+using Mediathek.Models;
 using Mediathek.Models.MediaItems;
 using Mediathek.Models.Movies;
 using Mediathek.Models.Playlists;
 using Mediathek.Models.TVShows;
+using Mediathek.Navigation;
 using Mediathek.Services.MediaLibrary;
 using Mediathek.Services.Playlists;
 using System;
@@ -44,7 +49,7 @@ namespace Mediathek.Helper.Navigation
             NavigateToRoute("tvshows");
         }
 
-        protected void NavigateToRoute(string route, Dictionary<string, object>? args = default)
+        protected void NavigateToRoute(string route, Dictionary<string, object> args = default)
         {
             if (args == null)
                 Shell.Current.GoToAsync(route);
@@ -132,7 +137,7 @@ namespace Mediathek.Helper.Navigation
             NavigateToRoute($"player", navigationParameter);
         }
 
-        private string findLocalFile(string fileName, DirectoryInfo? folder = null)
+        private string findLocalFile(string fileName, DirectoryInfo folder = null)
         {
             DirectoryInfo tempFolder = new DirectoryInfo(FileSystem.Current.CacheDirectory);
             FileInfo tempFile = new FileInfo(Path.Combine(tempFolder.FullName, fileName));

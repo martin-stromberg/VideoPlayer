@@ -2,12 +2,11 @@
 using Foundation;
 using UIKit;
 
-namespace Mediathek.Platforms.iOS
+namespace Mediathek
 {
     [Register("AppDelegate")]
-    public class AppDelegate: MauiUIApplicationDelegate
+    public class AppDelegate : MauiUIApplicationDelegate
     {
-
         protected override MauiApp CreateMauiApp()
         {
             NSBundle mainBundle = NSBundle.MainBundle;
@@ -23,6 +22,5 @@ namespace Mediathek.Platforms.iOS
             audioSession.SetActive(true, AVAudioSessionSetActiveOptions.NotifyOthersOnDeactivation, out nSError);
             return base.FinishedLaunching(application, launchOptions);
         }
-
     }
 }

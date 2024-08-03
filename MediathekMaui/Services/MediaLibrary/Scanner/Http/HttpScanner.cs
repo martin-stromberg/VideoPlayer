@@ -183,6 +183,7 @@ namespace Mediathek.Services.MediaLibrary.Scanner.Http
                 }
                 currentScan_latestScanPathReached = currentScan_skipPathParts == null;
 
+                OnBeforeScanSource(new MediaElementSourceEventArgs(CurrentSource));
                 Scan(currentSource.Path, false);
                 OnScanCompleted();
             }

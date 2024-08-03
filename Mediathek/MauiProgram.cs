@@ -1,38 +1,29 @@
-﻿global using CommunityToolkit.Maui;
-global using CommunityToolkit.Maui.Core.Primitives;
-global using Mediathek.Helper;
-global using Mediathek.Navigation;
-global using Mediathek.ViewModels;
-global using Mediathek.Views.Categorization;
-global using Mediathek.Views.MediaLists;
-global using Mediathek.Views.MediaLists.Cards;
-global using Mediathek.Views.VideoPlayer;
+﻿using CommunityToolkit.Maui;
 using Mediathek.Helper.Navigation;
-using Mediathek.Helper.Touch;
+using Microsoft.Extensions.Logging;
+using Mediathek.Helper;
+using Mediathek.Navigation;
 using Mediathek.Services;
 using Mediathek.StatusManagement;
-using Microsoft.Extensions.Logging;
+using Mediathek.ViewModels;
+
 
 #if IOS
 using Mediathek.Platforms.iOS;
-
 #endif
 #if WINDOWS
 using Mediathek.Platforms.Windows;
 #endif
-
 namespace Mediathek
 {
     public static class MauiProgram
     {
-
         public static MauiApp CreateMauiApp(string resourcesPath)
         {
-            Console.WriteLine(resourcesPath);
             var builder = MauiApp.CreateBuilder();
             builder
                 .UseMauiApp<App>()
-                .UseMauiCommunityToolkitMediaElement()
+                //.UseMauiCommunityToolkitMediaElement()
                 .ConfigureFonts(fonts =>
                 {
                     fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
@@ -40,25 +31,23 @@ namespace Mediathek
                 })
                 .ConfigureEffects(effects =>
                 {
-                    #if IOS
+#if IOS
                     effects.Add<TouchRoutingEffect, TouchPlatformEffect>();
-                    #endif
-                    #if WINDOWS
-                    effects.Add<Mediathek.Helper.Touch.TouchRoutingEffect, TouchPlatformEffect>();
-                    #endif
+#endif
+#if WINDOWS
+                    effects.Add<TouchRoutingEffect, TouchPlatformEffect>();
+#endif
                 })
-                .RegisterSecrets()
-                .RegisterStatusManager()
-                .RegisterViewModels()
-                .RegisterMediaLibrary(resourcesPath)
-                .RegisterNavigationManager<NavigationManager>();
-
-            #if DEBUG
-            builder.Logging.AddDebug();
-            #endif
+                   .RegisterSecrets()
+                   .RegisterStatusManager()
+                   .RegisterViewModels()
+                   .RegisterMediaLibrary(resourcesPath)
+                   .RegisterNavigationManager<NavigationManager>();
+#if DEBUG
+    		builder.Logging.AddDebug();
+#endif
 
             return builder.Build();
         }
-
     }
 }

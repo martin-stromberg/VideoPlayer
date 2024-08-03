@@ -5,8 +5,8 @@ namespace Mediathek.Services.MediaLibrary.Scanner.Samba
     public class SmbShareFolderEventArgs: FolderEventArgs
     {
 
-        public SmbShareFolderEventArgs(SmbShareFolder folder)
-            : base(folder) { }
+        public SmbShareFolderEventArgs(RemoteMediaSource source, SmbShareFolder folder)
+            : base(source, folder) { }
 
     }
 }

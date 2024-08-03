@@ -1,4 +1,5 @@
 ﻿using ImageMagick;
+using Mediathek.Common;
 using Mediathek.Extensions;
 using Mediathek.Services.MediaLibrary.Scanner.Events;
 using Mediathek.Services.MediaLibrary.Scanner.FTP;
@@ -14,6 +15,7 @@ using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Xml;
 
@@ -65,6 +67,85 @@ namespace Mediathek.Services.MediaLibrary.Scanner
                 scanner.FileFound += Scanner_FileFound;
                 scanner.FolderFound += Scanner_FolderFound;
                 scanner.ScanCompleted += Scanner_ScanCompleted;
+            }
+        }
+
+        /// <summary>
+        /// Temporäre Methode zum Rekonstruieren einer Fehlersituation
+        /// </summary>
+        private async Task RedoErrorbehaviour_Execute(RemoteMediaSource source, RemoteSourceScanner scanner)
+        {
+            try
+            {
+                _StatusPublisher.AddStatus("Test: Bereinige Daten...", true);
+                var movies = await mediaLibrary.GetMovies();
+                foreach (var movie in movies)
+                    await mediaLibrary.RemoveMovieAsync(movie);
+                var collections = await mediaLibrary.GetMediaItemCollectionsAsync(source.Id);
+                foreach (var collection in collections)
+                    await mediaLibrary.RemoveMediaItemCollection(collection);
+
+                _StatusPublisher.AddStatus("Test: Warte...", true);
+                await Task.Delay(TimeSpan.FromMinutes(1));
+
+
+                var remoteFolder = new HttpShareFolder()
+                {
+                    Name = "Filme",
+                    Path = "/MediaServer/Disk3/Filme",
+                    LastWriteTime = DateTime.Now
+                };
+                Scanner_FolderFound(scanner, new FolderEventArgs(source, remoteFolder));
+
+                remoteFolder = new HttpShareFolder()
+                {
+                    Name = "(500) Days of Summer (2009)",
+                    Path = "/MediaServer/Disk3/Filme/(500) Days of Summer (2009)",
+                    LastWriteTime = DateTime.Now
+                };
+                Scanner_FolderFound(scanner, new FolderEventArgs(source, remoteFolder));
+
+                var remoteFile = new HttpShareFile()
+                {
+                    LastWriteTime = DateTime.Now,
+                    Name = "(500) Days of Summer (2009).mp4",
+                    Path = "/MediaServer/Disk3/Filme/(500) Days of Summer (2009)/(500) Days of Summer (2009).mp4"
+                };
+                Scanner_FileFound(scanner, new FileEventArgs(source, remoteFile));                
+
+                _StatusPublisher.AddStatus("Test: Fertig ohne Fehler!", true);
+            }
+            catch (Exception ex)
+            {
+                _StatusPublisher.AddStatus(ex.Message, true);
+                Debug.Write(ex);
+            }
+        }
+        public async void RedoErrorbehaviour()
+        {
+            try
+            {
+                var scanner = this._Scanners.FirstOrDefault(s => s is HttpScanner);
+                var sources = await mediaLibrary.GetSourcesAsync();
+                var source = sources.Cast<RemoteMediaSource>().FirstOrDefault(s => s.Name == "Filme");
+                var finished = false;
+
+                scanner.BeforeScanSource += async (sender, e) =>
+                {
+                    _ = Task.Run(async () => {
+                        await RedoErrorbehaviour_Execute(source, scanner);
+                        finished = true;
+                    });
+
+                    while (!finished)
+                        await Task.Delay(2000);
+                    throw new ApplicationException("Cancel!");
+                };
+                scanner.Scan(source, true);                
+            }
+            catch(Exception ex)
+            {
+                Debug.Write(ex);
             }
         }
 
@@ -120,7 +201,7 @@ namespace Mediathek.Services.MediaLibrary.Scanner
         {
             CheckContinue();
             var scanner = sender as RemoteSourceScanner;
-            lastFolderCollection = ProcessFolderAsync(scanner.CurrentSource, scanner, e.Folder)
+            lastFolderCollection = ProcessFolderAsync(e.Source, scanner, e.Folder)
                                    .Wait<MediaItemCollection>();
             lastFolderCollections.Add(lastFolderCollection);
         }
@@ -130,7 +211,7 @@ namespace Mediathek.Services.MediaLibrary.Scanner
             CheckContinue();
             _StatusPublisher.AddStatus($"{e.File.Path}", false);
             var scanner = sender as RemoteSourceScanner;
-            ProcessFile(scanner.CurrentSource, scanner, e.File).Wait();
+            ProcessFile(e.Source, scanner, e.File).Wait();
         }
 
         private void CheckContinue()
@@ -494,7 +575,7 @@ namespace Mediathek.Services.MediaLibrary.Scanner
                 if (item == null)
                 {
                     logger.LogDebug($"Create new item.");
-                    var folderPath = Path.GetDirectoryName(file.Path).Replace('\\', source.PathDelimiter);
+                    var folderPath = PathTools.GetDirectoryPath(file.Path).Replace('\\', source.PathDelimiter);
                     var folder = await mediaLibrary.FindMediaItemCollectionAsync(source.Id, folderPath);
                     if (folder == null)
                         folder = await ProcessFolderAsync(source,
@@ -844,7 +925,7 @@ namespace Mediathek.Services.MediaLibrary.Scanner
                     if (item == null)
                     {
                         logger.LogDebug($"Create new collection.");
-                        var folderPath = Path.GetDirectoryName(folder.Path).Replace('\\', source.PathDelimiter);
+                        var folderPath = PathTools.GetDirectoryPath(folder.Path).Replace('\\', source.PathDelimiter);
                         var parentFolder = await mediaLibrary.FindMediaItemCollectionAsync(source.Id, folderPath);
                         if (parentFolder == null)
                             parentFolder = await ProcessFolderAsync(source,

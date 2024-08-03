@@ -11,6 +11,7 @@ namespace Mediathek.Services.MediaLibrary.Scanner.Shares
     {
 
         public event EventHandler ScanCompleted;
+        public event EventHandler<MediaElementSourceEventArgs> BeforeScanSource;
 
         public RemoteMediaSource CurrentSource { get; protected set; }
 
@@ -19,6 +20,10 @@ namespace Mediathek.Services.MediaLibrary.Scanner.Shares
         protected virtual void OnScanCompleted()
         {
             ScanCompleted?.Invoke(this, EventArgs.Empty);
+        }
+        protected virtual void OnBeforeScanSource(MediaElementSourceEventArgs e)
+        {
+            BeforeScanSource?.Invoke(this, e);
         }
 
         public event EventHandler<FolderScanEventArgs> BeforeScanFolder;
@@ -44,7 +49,7 @@ namespace Mediathek.Services.MediaLibrary.Scanner.Shares
 
         protected virtual RemoteFolder OnFolderFound(RemoteFolder folder)
         {
-            OnFolderFound(new FolderEventArgs(folder));
+            OnFolderFound(new FolderEventArgs(CurrentSource, folder));
             return folder;
         }
 
@@ -57,7 +62,7 @@ namespace Mediathek.Services.MediaLibrary.Scanner.Shares
 
         protected virtual RemoteFile OnMediaItemFound(RemoteFile file)
         {
-            OnMediaItemFound(new FileEventArgs(file));
+            OnMediaItemFound(new FileEventArgs(CurrentSource, file));
             return file;
         }
 

@@ -3,7 +3,7 @@ using System.Linq;
 
 namespace Mediathek.Services.Database.Models
 {
-    public class MediaSource: BaseDataModel
+    public class MediaDataSource: BaseDataModel
     {
 
         public string Type { get; set; }
@@ -22,7 +22,7 @@ namespace Mediathek.Services.Database.Models
         public override void Update(BaseDataModel source)
         {
             base.Update(source);
-            Configuration = ((MediaSource)source).Configuration;
+            Configuration = ((MediaDataSource)source).Configuration;
         }
 
     }

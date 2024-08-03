@@ -6,13 +6,13 @@ namespace Mediathek.Services.Database
     public interface IMediaLibraryDatabase
     {
 
-        Task RemoveSource(MediaSource source);
+        Task RemoveSource(MediaDataSource source);
 
-        Task<MediaSource> AddOrUpdateSourceAsync(MediaSource mediaSource);
+        Task<MediaDataSource> AddOrUpdateSourceAsync(MediaDataSource mediaSource);
 
-        Task<AsyncTableQuery<MediaSource>> GetSourcesAsync();
+        Task<AsyncTableQuery<MediaDataSource>> GetSourcesAsync();
 
-        Task<MediaSource> GetSourceAsync(long id);
+        Task<MediaDataSource> GetSourceAsync(long id);
 
         Task<MediaCollection> AddOrUpdateMediaCollectionAsync(MediaCollection collection);
 

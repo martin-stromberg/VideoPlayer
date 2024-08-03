@@ -2,7 +2,6 @@
 
 namespace Mediathek.Platforms.iOS
 {
-    
 
     public class TouchEffect: RoutingEffect
     {

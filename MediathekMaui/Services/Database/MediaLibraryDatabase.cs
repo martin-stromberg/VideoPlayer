@@ -27,9 +27,13 @@ namespace Mediathek.Services.Database
             }
         }
 
+        private bool _initialized = false;
+
         private async Task InitOrUpgradeAsync()
         {
-            var result = await Connection.CreateTableAsync<MediaSource>();
+            if (_initialized)
+                return;
+            var result = await Connection.CreateTableAsync<MediaDataSource>();
             result = await Connection.CreateTableAsync<MediaCollection>();
             result = await Connection.CreateTableAsync<Services.Database.Models.MediaItem>();
             result = await Connection.CreateTableAsync<LogEntry>();
@@ -47,18 +51,19 @@ namespace Mediathek.Services.Database
             result = await Connection.CreateTableAsync<DownloadJob>();
             result = await Connection.CreateTableAsync<Models.TVShowCollection>();
             result = await connection.CreateTableAsync<OverviewElement>();
+            _initialized = true;
         }
 
-        public async Task<AsyncTableQuery<MediaSource>> GetSourcesAsync()
+        public async Task<AsyncTableQuery<MediaDataSource>> GetSourcesAsync()
         {
             await InitOrUpgradeAsync();
-            return Connection.Table<MediaSource>();
+            return Connection.Table<MediaDataSource>();
         }
 
-        public async Task<MediaSource> GetSourceAsync(long id)
+        public async Task<MediaDataSource> GetSourceAsync(long id)
         {
             await InitOrUpgradeAsync();
-            return await Connection.Table<MediaSource>().FirstOrDefaultAsync(s => s.Id == id);
+            return await Connection.Table<MediaDataSource>().FirstOrDefaultAsync(s => s.Id == id);
         }
 
         public async Task<AsyncTableQuery<MediaCollection>> GetMediaCollectionsAsync()
@@ -85,32 +90,39 @@ namespace Mediathek.Services.Database
             return await Connection.Table<Models.MediaItem>().FirstOrDefaultAsync(s => s.Id == id);
         }
 
-        public async Task<MediaSource> AddOrUpdateSourceAsync(MediaSource mediaSource)
+        public async Task<MediaDataSource> AddOrUpdateSourceAsync(MediaDataSource mediaSource)
         {
-            return await AddOrUpdate<MediaSource>(mediaSource) as MediaSource;
+            return await AddOrUpdate<MediaDataSource>(mediaSource) as MediaDataSource;
         }
 
         private async Task<BaseDataModel> AddOrUpdate<T>(T model) where T: new()
         {
-            var dataModel = model as BaseDataModel;
-            if (dataModel == null)
-                throw new ArgumentException(nameof(model));
-
-            await InitOrUpgradeAsync();
-            Debug.WriteLine($"AddOrUpdate({typeof(T)})");
-            var existing = (await Connection.Table<T>().ToArrayAsync())
-                .FirstOrDefault(rec => (rec as BaseDataModel).IsRecord(model as BaseDataModel)) as BaseDataModel;
-            if (existing == null)
+            try
             {
-                Debug.WriteLine($"AddOrUpdate({typeof(T)}).Insert");
-                await Connection.InsertAsync(model);
+                var dataModel = model as BaseDataModel;
+                if (dataModel == null)
+                    throw new ArgumentException(nameof(model));
+
+                await InitOrUpgradeAsync();
+                Debug.WriteLine($"AddOrUpdate({typeof(T)})");
+                var existing = (await Connection.Table<T>().ToArrayAsync())
+                    .FirstOrDefault(rec => (rec as BaseDataModel).IsRecord(model as BaseDataModel)) as BaseDataModel;
+                if (existing == null)
+                {
+                    Debug.WriteLine($"AddOrUpdate({typeof(T)}).Insert");
+                    await Connection.InsertAsync(model);
+                    return dataModel;
+                }
+
+                Debug.WriteLine($"AddOrUpdate({typeof(T)}).Update");
+                existing.Update(dataModel);
+                await Connection.UpdateAsync(existing);
                 return dataModel;
             }
-
-            Debug.WriteLine($"AddOrUpdate({typeof(T)}).Update");
-            existing.Update(dataModel);
-            await Connection.UpdateAsync(existing);
-            return dataModel;
+            catch (Exception ex)
+            {
+                throw;
+            }
         }
 
         public async Task<MediaCollection> AddOrUpdateMediaCollectionAsync(MediaCollection collection)
@@ -400,7 +412,7 @@ namespace Mediathek.Services.Database
                                    .FirstOrDefaultAsync(c => c.Id == id);
         }
 
-        public async Task RemoveSource(MediaSource source)
+        public async Task RemoveSource(MediaDataSource source)
         {
             await InitOrUpgradeAsync();
             await Connection.DeleteAsync(source);

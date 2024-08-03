@@ -1,3 +1,5 @@
+using CommunityToolkit.Maui.Core.Primitives;
+using Mediathek.Helper.Touch;
 using Mediathek.Common;
 using Mediathek.Models;
 using Mediathek.Services.Playlists;
@@ -212,9 +214,7 @@ namespace Mediathek.Views.VideoPlayer
             }
         }
 
-        private void TouchRoutingEffect_TouchAction(object sender, Helper.Touch.TouchActionEventArgs args)
-        {
-        }
+        private void TouchRoutingEffect_TouchAction(object sender, TouchActionEventArgs args) { }
 
     }
 }

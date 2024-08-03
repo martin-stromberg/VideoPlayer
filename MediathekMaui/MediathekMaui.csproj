@@ -44,23 +44,22 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="CommunityToolkit.Maui.MediaElement" Version="3.0.1" />
-		<PackageReference Include="FluentFTP" Version="49.0.1" />
-		<PackageReference Include="Magick.NET-Q16-AnyCPU" Version="13.5.0" />
-		<PackageReference Include="Magick.NET.Core" Version="13.5.0" />
+		<PackageReference Include="CommunityToolkit.Maui.MediaElement" Version="3.0.0" />
+		<PackageReference Include="FluentFTP" Version="50.0.1" />
+		<PackageReference Include="Magick.NET-Q16-AnyCPU" Version="13.9.0" />
+		<PackageReference Include="Magick.NET.Core" Version="13.9.0" />
 		<PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
 		<PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />
-		<PackageReference Include="Microsoft.Maui.Controls" Version="8.0.7" />
-		<PackageReference Include="Microsoft.Maui.Controls.Compatibility" Version="8.0.7" />
-		<PackageReference Include="Microsoft.Maui.Graphics" Version="8.0.7" />
+		<PackageReference Include="Microsoft.Maui.Controls" Version="8.0.40" />
+		<PackageReference Include="Microsoft.Maui.Controls.Compatibility" Version="8.0.40" />
+		<PackageReference Include="Microsoft.Maui.Graphics" Version="8.0.40" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-		<PackageReference Include="Rebex.Sftp" Version="7.0.8755" />
-		<PackageReference Include="SMBLibrary" Version="1.5.1" />
-		<PackageReference Include="sqlite-net-pcl" Version="1.8.116" />
-		<PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.7" />
-		<PackageReference Include="SSH.NET" Version="2023.0.1" />
-		<PackageReference Include="Syncfusion.XlsIO.NET" Version="24.2.6" />
+		<PackageReference Include="Rebex.Sftp" Version="7.0.8865" />
+		<PackageReference Include="sqlite-net-pcl" Version="1.9.172" />
+		<PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.8" />
+		<PackageReference Include="SSH.NET" Version="2024.0.0" />
+		<PackageReference Include="Syncfusion.XlsIO.NET" Version="25.2.6" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -69,6 +68,11 @@
 	  <Folder Include="Platforms\MacCatalyst\" />
 	  <Folder Include="Platforms\Tizen\" />
 	  <Folder Include="Platforms\Windows\" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <ProjectReference Include="..\SMBLibrary-master\SMBLibrary\SMBLibrary.csproj" />
+	  <ProjectReference Include="..\SMBLibrary-master\Utilities\Utilities.csproj" />
 	</ItemGroup>
 
 </Project>

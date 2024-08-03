@@ -5,12 +5,16 @@ namespace Mediathek.Services.MediaLibrary.Scanner.Events
     public class FolderEventArgs: EventArgs
     {
 
-        public FolderEventArgs(RemoteFolder folder)
+        public FolderEventArgs(
+            RemoteMediaSource source,
+            RemoteFolder folder)
             : base()
         {
+            Source = source;
             Folder = folder;
         }
 
+        public RemoteMediaSource Source { get; }
         public RemoteFolder Folder { get; }
 
     }

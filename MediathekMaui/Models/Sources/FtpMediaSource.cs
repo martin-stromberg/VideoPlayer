@@ -8,7 +8,7 @@ namespace Mediathek.Models.Sources
 {
 
     [DataModelReference(
-        typeof(MediaSource),
+        typeof(MediaDataSource),
         FilterPropertyName = nameof(Type),
         FilterPropertyValue = nameof(FtpMediaSource))]
     public class FtpMediaSource: RemoteMediaSource

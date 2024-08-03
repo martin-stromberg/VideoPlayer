@@ -1,10 +1,10 @@
-﻿using System.Diagnostics;
+﻿using Microsoft.Extensions.DependencyInjection;
+using System.Diagnostics;
 
 namespace Mediathek
 {
-    public partial class App: Application
+    public partial class App : Application
     {
-
         public App(IServiceProvider serviceProvider)
         {
             InitializeComponent();
@@ -22,6 +22,5 @@ namespace Mediathek
         }
 
         public IServiceProvider ServiceProvider { get; }
-
     }
 }

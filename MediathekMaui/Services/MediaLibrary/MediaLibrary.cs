@@ -1,6 +1,7 @@
 ﻿using Mediathek.Extensions;
 using Mediathek.Services.Database;
 using Mediathek.Services.Database.Models;
+using System.Diagnostics;
 
 namespace Mediathek.Services.MediaLibrary
 {
@@ -90,22 +91,30 @@ namespace Mediathek.Services.MediaLibrary
 
         public async Task AddMovieAsync(Models.Movies.Movie movie)
         {
-            var isNew = movie.Id == 0;
-            var dataModel = movie.ToDataModelAsync();
-            var dataModelMediaItems = movie.MediaItems
-                                           .Select(id => new MovieMediaItem() { MovieId = movie.Id, MediaItemId = id });
-            if (!isNew)
-                await _DataStore.RemoveMovieMediaItemsAsync(movie.Id);
-            await _DataStore.AddOrUpdateMovie(dataModel as Services.Database.Models.Movie);
-            movie.UpdateAutoincrements(dataModel);
-            foreach (var mediaItem in dataModelMediaItems)
+            try
             {
-                mediaItem.MovieId = movie.Id;
-                await _DataStore.AddMovieMediaItem(mediaItem);
+                var isNew = movie.Id == 0;
+                var dataModel = movie.ToDataModelAsync();
+                var dataModelMediaItems = movie.MediaItems
+                                               .Select(id => new MovieMediaItem() { MovieId = movie.Id, MediaItemId = id });
+                if (!isNew)
+                    await _DataStore.RemoveMovieMediaItemsAsync(movie.Id);
+                await _DataStore.AddOrUpdateMovie(dataModel as Services.Database.Models.Movie);
+                movie.UpdateAutoincrements(dataModel);
+                foreach (var mediaItem in dataModelMediaItems)
+                {
+                    mediaItem.MovieId = movie.Id;
+                    await _DataStore.AddMovieMediaItem(mediaItem);
+                }
+                OnElementChanged(isNew ? (new BaseModelEventArgs(movie)) : null,
+                                 (!isNew) ? (new BaseModelEventArgs(movie)) : null,
+                                 null);
             }
-            OnElementChanged(isNew ? (new BaseModelEventArgs(movie)) : null,
-                             (!isNew) ? (new BaseModelEventArgs(movie)) : null,
-                             null);
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex);
+                throw;
+            }
         }
 
         public async Task AddMovieCollectionAsync(Models.Movies.MovieCollection collection)
@@ -641,7 +650,7 @@ namespace Mediathek.Services.MediaLibrary
         {
             var isNew = source.Id == 0;
             var dataModel = source.ToDataModelAsync();
-            await _DataStore.AddOrUpdateSourceAsync(dataModel as MediaSource);
+            await _DataStore.AddOrUpdateSourceAsync(dataModel as MediaDataSource);
             source.UpdateAutoincrements(dataModel);
             OnElementChanged(isNew ? (new BaseModelEventArgs(source)) : null,
                              (!isNew) ? (new BaseModelEventArgs(source)) : null,
@@ -868,7 +877,7 @@ namespace Mediathek.Services.MediaLibrary
             }
         }
 
-        private async Task ClearSourceMediaAsync(MediaSource source)
+        private async Task ClearSourceMediaAsync(MediaDataSource source)
         {
             var collStore = await _DataStore.GetMediaCollectionsAsync();
             var collections = await collStore.Where(c => c.MediaSourceId == source.Id).ToArrayAsync();

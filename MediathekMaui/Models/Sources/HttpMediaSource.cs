@@ -5,7 +5,7 @@ using Newtonsoft.Json;
 namespace Mediathek.Models.Sources
 {
     [DataModelReference(
-        typeof(MediaSource),
+        typeof(MediaDataSource),
         FilterPropertyName = nameof(Type),
         FilterPropertyValue = nameof(HttpMediaSource))]
     public class HttpMediaSource: RemoteMediaSource

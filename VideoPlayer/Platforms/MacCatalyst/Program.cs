@@ -1,6 +1,5 @@
 ﻿using ObjCRuntime;
 using UIKit;
-using VideoPlayer.Platforms.MacCatalyst;
 
 namespace VideoPlayer
 {

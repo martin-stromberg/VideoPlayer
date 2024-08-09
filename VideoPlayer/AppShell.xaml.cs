@@ -1,10 +1,15 @@
-﻿namespace VideoPlayer
+﻿using VideoPlayer.Service;
+
+namespace VideoPlayer
 {
     public partial class AppShell: Shell
     {
 
-        public AppShell()
+        private readonly IApplicationManager _AppInitializer;
+
+        public AppShell(IApplicationManager appInitializer)
         {
+            _AppInitializer = appInitializer;
             InitializeComponent();
         }
 

@@ -1,8 +1,14 @@
 ﻿
+using VideoPlayer.Service.BaseServices;
 using VideoPlayer.Service.Database;
+using VideoPlayer.Service.Device;
+using VideoPlayer.Service.Download;
 using VideoPlayer.Service.Events;
+using VideoPlayer.Service.Export;
 using VideoPlayer.Service.Library;
 using VideoPlayer.Service.Library.Scanner;
+using VideoPlayer.Service.Library.Scanner.Classification;
+using VideoPlayer.Service.Resources;
 
 namespace VideoPlayer.Service
 {
@@ -28,6 +34,11 @@ namespace VideoPlayer.Service
             return _Current.RegisterForEvents(_Current._ServiceProvider.GetService<T>());
         }
 
+        public T ResolveService<T>()
+        {
+            return RegisterForEvents(_ServiceProvider.GetService<T>());
+        }
+
         public void DisposeService(object service)
         {
             _EventController.Unregister(service);
@@ -51,7 +62,7 @@ namespace VideoPlayer.Service
             Worker.Start();
         }
 
-        private void RunInitialization()
+        private async void RunInitialization()
         {
             if (_Initializing)
                 return;
@@ -60,6 +71,8 @@ namespace VideoPlayer.Service
             {
                 if (Initialized)
                     return;
+                NotifyStatus($"Initialisiere Monitormanagement.", true);
+                var displayManager = GetService<IDeviceDisplayManager>();
                 NotifyStatus($"Initialisiere Datenbank.", true);
                 var database = GetService<IMediaLibraryDatabase>();
                 database.UpdateSchema();
@@ -69,8 +82,17 @@ namespace VideoPlayer.Service
                     var library = GetService<IMediaLibrary>();
                     library.CreateDemoData();
                 }
+                NotifyStatus($"Initialisiere Benutzeroberfläche.");
+                var resourceManager = GetService<IResourceManager>();
+
+                NotifyStatus($"Bereinige alte Daten.");
+                var downloadManager = GetService<IDownloadManager>();
+                downloadManager.ClearTempFolder();
+
                 NotifyStatus($"Starte Hintergrundaktivitäten.");
                 GetService<ILibraryScanner>().Start();
+                GetService<IMediaClassifier>().Start();
+                downloadManager.Start();
                 InitializationCompleted?.Invoke(this, EventArgs.Empty);
                 NotifyStatus($"Initialisierung erfolgt.");
             }

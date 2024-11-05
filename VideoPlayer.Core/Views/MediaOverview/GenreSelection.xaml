@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:VideoPlayer.ViewModels.MediaOverview.Genres"
+             x:Class="VideoPlayer.Views.MediaOverview.GenreSelection"
+             x:DataType="vm:GenreSelectionViewModel">
+    <ScrollView Orientation="Horizontal" HorizontalOptions="Start">
+        <FlexLayout x:Name="ItemCollection"
+            AlignContent="Start"
+            AlignItems="Start"
+            AlignSelf="Start"
+            BindableLayout.ItemsSource="{Binding Items}"
+            Direction="Row"
+            JustifyContent="Start"
+            Margin="0,5,0,5"
+            Wrap="NoWrap">
+            <BindableLayout.ItemTemplate>
+                <DataTemplate x:DataType="vm:GenreViewModel">
+                    <Frame BorderColor="Gray"
+                           Margin="0,5,0,0"
+                           Padding="0,0,10,0">
+                        <Frame.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding Tapped}"/>
+                        </Frame.GestureRecognizers>
+                        <Grid VerticalOptions="Center">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="50"/>
+                                <ColumnDefinition/>
+                            </Grid.ColumnDefinitions>
+                            <ImageButton Source="{Binding Icon}" 
+                                         HeightRequest="16"/>
+                            <Label Grid.Column="1" 
+                                   VerticalOptions="Center"
+                                   Text="{Binding Title}"/>
+                        </Grid>
+                    </Frame>
+                </DataTemplate>
+            </BindableLayout.ItemTemplate>
+        </FlexLayout>
+    </ScrollView>
+</ContentView>

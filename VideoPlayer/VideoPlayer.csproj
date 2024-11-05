@@ -41,6 +41,7 @@
 	<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net8.0-ios|AnyCPU'">
 	  <ApplicationId>de.MartinStromberg.videoplayer</ApplicationId>
 	  <ApplicationIdGuid>9c007b76-9113-46f4-b4ca-d07a17410b22</ApplicationIdGuid>
+	  <MtouchLink>None</MtouchLink>
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net8.0-maccatalyst|AnyCPU'">
@@ -75,14 +76,17 @@
 
 	<ItemGroup>
 		<!-- App Icon -->
-		<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#512BD4" />
+		<MauiIcon Include="Resources\AppIcon\appicon.png" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#000000" BaseSize="512,512" />
 
 		<!-- Splash Screen -->
-		<MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#512BD4" BaseSize="128,128" />
+		<MauiSplashScreen Include="Resources\Splash\splash.png" Color="#000000" BaseSize="512,512" />
 
 		<!-- Images -->
 		<MauiImage Include="Resources\Images\*" />
 		<MauiImage Update="Resources\Images\dotnet_bot.png" Resize="True" BaseSize="300,185" />
+		<MauiImage Update="Resources\Images\home.png">
+		  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</MauiImage>
 
 		<!-- Custom Fonts -->
 		<MauiFont Include="Resources\Fonts\*" />
@@ -92,13 +96,80 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Microsoft.Maui.Controls" Version="8.0.71" />
-		<PackageReference Include="Microsoft.Maui.Controls.Compatibility" Version="8.0.71" />
+	  <MauiImage Remove="Resources\Images\abenteuer.png" />
+	  <MauiImage Remove="Resources\Images\abenteuer32x32.png" />
+	  <MauiImage Remove="Resources\Images\action.png" />
+	  <MauiImage Remove="Resources\Images\action32x32.png" />
+	  <MauiImage Remove="Resources\Images\animation.png" />
+	  <MauiImage Remove="Resources\Images\animation32x32.png" />
+	  <MauiImage Remove="Resources\Images\biografie.png" />
+	  <MauiImage Remove="Resources\Images\biografie32x32.png" />
+	  <MauiImage Remove="Resources\Images\crime.png" />
+	  <MauiImage Remove="Resources\Images\crime32x32.png" />
+	  <MauiImage Remove="Resources\Images\documentary.png" />
+	  <MauiImage Remove="Resources\Images\documentary32x32.png" />
+	  <MauiImage Remove="Resources\Images\drama.png" />
+	  <MauiImage Remove="Resources\Images\drama32x32.png" />
+	  <MauiImage Remove="Resources\Images\familie.png" />
+	  <MauiImage Remove="Resources\Images\familie32x32.png" />
+	  <MauiImage Remove="Resources\Images\fantasy.png" />
+	  <MauiImage Remove="Resources\Images\fantasy32x32.png" />
+	  <MauiImage Remove="Resources\Images\komodie.png" />
+	  <MauiImage Remove="Resources\Images\komodie32x32.png" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <None Remove="Resources\Images\movie_collection32x32.png" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="CommunityToolkit.Maui.MediaElement" Version="4.1.1" />
+		<PackageReference Include="Microsoft.Maui.Controls" Version="8.0.82" />
+		<PackageReference Include="Microsoft.Maui.Controls.Compatibility" Version="8.0.82" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="8.0.0" />
 	</ItemGroup>
 
 	<ItemGroup>
 	  <ProjectReference Include="..\VideoPlayer.Core\VideoPlayer.Core.csproj" />
 	</ItemGroup>
+
+	<ItemGroup>
+	  <Compile Update="Properties\icons.Designer.cs">
+	    <DesignTime>True</DesignTime>
+	    <AutoGen>True</AutoGen>
+	    <DependentUpon>icons.resx</DependentUpon>
+	  </Compile>
+	  <Compile Update="Properties\videos.Designer.cs">
+	    <DesignTime>True</DesignTime>
+	    <AutoGen>True</AutoGen>
+	    <DependentUpon>videos.resx</DependentUpon>
+	  </Compile>
+	  <Compile Update="Properties\secrets.Designer.cs">
+	    <DesignTime>True</DesignTime>
+	    <AutoGen>True</AutoGen>
+	    <DependentUpon>secrets.resx</DependentUpon>
+	  </Compile>
+	</ItemGroup>
+
+	<ItemGroup>
+	  <EmbeddedResource Update="Properties\icons.resx">
+	    <Generator>ResXFileCodeGenerator</Generator>
+	    <LastGenOutput>icons.Designer.cs</LastGenOutput>
+	  </EmbeddedResource>
+	  <EmbeddedResource Update="Properties\videos.resx">
+	    <Generator>ResXFileCodeGenerator</Generator>
+	    <LastGenOutput>videos.Designer.cs</LastGenOutput>
+	  </EmbeddedResource>
+	  <EmbeddedResource Update="Properties\secrets.resx">
+	    <Generator>ResXFileCodeGenerator</Generator>
+	    <LastGenOutput>secrets.Designer.cs</LastGenOutput>
+	  </EmbeddedResource>
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Folder Include="Resources\Raw\" />
+	</ItemGroup>
+
+	<ProjectExtensions><VisualStudio><UserProperties XamarinHotReloadDebuggerTimeoutExceptionVideoPlayerHideInfoBar="True" /></VisualStudio></ProjectExtensions>
 
 </Project>

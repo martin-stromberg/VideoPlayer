@@ -1,8 +1,13 @@
-﻿using System.Text.Json.Nodes;
+﻿using System.Collections.Concurrent;
+using System.Text.Json.Nodes;
 using VideoPlayer.Service.Library.Models;
+using VideoPlayer.Extensions;
+using Microsoft.Maui.Storage;
+using System.Diagnostics;
 
 namespace VideoPlayer.Service.Library.SourceReader
 {
+
     [ServiceModelReference(typeof(HttpMediaSource))]
     public class HttpSourceReader: SourceReader
     {
@@ -20,50 +25,65 @@ namespace VideoPlayer.Service.Library.SourceReader
 
         public override SourceFolder GetRoot()
         {
-            return new SourceFolder() { FullPath = HttpMediaSource.Uri, Name = HttpMediaSource.Name, };
+            return new SourceFolder() { FullPath = HttpMediaSource.Uri, Path = "/", Name = HttpMediaSource.Name };
         }
 
-        private string lastRequestUri = string.Empty;
-        private DateTime lastRequestTime = DateTime.MinValue;
-        private string lastRequestResponse = string.Empty;
+        private RequestCache _Cache = new RequestCache();
 
-        private async Task<string> Request(string fullPath)
+        private async Task<string> Request(string fullPath, bool skipCache = false)
         {
-            if ((lastRequestUri == fullPath) && (lastRequestTime.AddSeconds(30) > DateTime.Now))
-                return lastRequestResponse;
-            lastRequestUri = string.Empty;
+            if (!skipCache)
+            {
+                var response = _Cache.GetResponse(fullPath);
+                if (!string.IsNullOrWhiteSpace(response)) 
+                    return response;
+            }
+
             HttpClient client = new HttpClient() { BaseAddress = new Uri(fullPath) };
             client.DefaultRequestHeaders.Add("X-ApiKey", "e568205d-f5ae-4754-954f-c0f56a266078");
-            lastRequestResponse = await client.GetStringAsync(fullPath);
-            lastRequestTime = DateTime.Now;
-            lastRequestUri = fullPath;
-            return lastRequestResponse;
+            {
+                var response = await client.GetStringAsync(fullPath);
+                _Cache.Save(fullPath, response);
+                return response;
+            }
         }
 
         private IEnumerable<SourceFile> ParseFiles(SourceFolder parentFolder, string json)
         {
+            if (string.IsNullOrWhiteSpace(json))
+                return new SourceFile[0];
             var node = JsonObject.Parse(json).AsObject();
             var files = node["files"].AsArray();
             return files.Select(f =>
-                                new SourceFile()
+            {
+                var file = new SourceFile()
                 {
                     FullPath = Path.Combine(parentFolder.FullPath, f["name"].AsValue().ToString()),
                     Name = f["name"].AsValue().ToString(),
                     LastWriteTime = DateTime.Parse(f["lastWriteTime"].AsValue().ToString())
-                });
+                };
+                file.Path = file.FullPath.Remove(0, HttpMediaSource.Uri.Length);
+                return file;
+            });
         }
 
         private IEnumerable<SourceFolder> ParseFolders(SourceFolder parentFolder, string json)
         {
+            if (string.IsNullOrWhiteSpace(json))
+                return new SourceFolder[0];
             var node = JsonObject.Parse(json).AsObject();
             var files = node["directories"].AsArray();
             return files.Select(f =>
-                                new SourceFolder()
+            {
+                var folder = new SourceFolder()
                 {
                     FullPath = Path.Combine(parentFolder.FullPath, f["name"].AsValue().ToString()),
                     Name = f["name"].AsValue().ToString(),
                     LastWriteTime = DateTime.Parse(f["lastWriteTime"].AsValue().ToString())
-                });
+                };
+                folder.Path = folder.FullPath.Remove(0, HttpMediaSource.Uri.Length);
+                return folder;
+            });
         }
 
         public override async Task<IEnumerable<SourceFile>> ReadFilesAsync(SourceFolder folder)
@@ -75,9 +95,70 @@ namespace VideoPlayer.Service.Library.SourceReader
         public override async Task<IEnumerable<SourceFolder>> ReadFoldersAsync(SourceFolder folder)
         {
             var json = await Request(folder.FullPath);
-
             return ParseFolders(folder, json);
         }
+        public override async Task<SourceFile> ReadFileAsync(MediaItem mediaItem)
+        {
+            var folderPath = Path.GetDirectoryName(mediaItem.Path);
+            var folder = GetRoot();
+            SourceFolder[] subFolders;
+            while (folder is not null && folder.Path != folderPath)
+            {
+                subFolders = (await ReadFoldersAsync(folder)).ToArray();
+                folder = subFolders.FirstOrDefault(f => 
+                    folderPath.StartsWith(f.Path) 
+                    && f.Path.Length <= folderPath.Length
+                    && folderPath.Substring(0, f.Path.Length) == f.Path
+                    && (folderPath.Remove(0, f.Path.Length) == ""
+                    || folderPath.Remove(0, f.Path.Length).StartsWith("/"))
+                    )                    ;
+            }
+            if (folder is not null)
+                return (await ReadFilesAsync(folder)).FirstOrDefault(f => f.Name == mediaItem.Name);
+            return null;
+        }
+        public override FileInfo Download(MediaItem file, Action<decimal> progressCallback)
+        {
+            string localFilePath = Path.GetTempFileName();
+            File.Delete(localFilePath);
+            var remoteFilePath = file.Path.Replace('\\', '/');
+            var localFolderPath = Path.GetDirectoryName(localFilePath);
+            if (!Path.Exists(localFolderPath))
+                Directory.CreateDirectory(localFolderPath);
+            //long fileSize = -1;
+            //decimal currectProgress = 0;            
+            using (HttpClient client = new HttpClient() { Timeout = TimeSpan.FromMinutes(60) })
+            {
+                client.DefaultRequestHeaders.Add("X-ApiKey", "e568205d-f5ae-4754-954f-c0f56a266078");
+                var uri = $"{HttpMediaSource.Uri}{file.Path}".Replace("Folder?", "File?");
+                CancellationTokenSource cancelationToken = new CancellationTokenSource();
+                using (var fileStream = new FileStream(localFilePath, FileMode.CreateNew))
+                {
+                    client.DownloadAsync(uri, fileStream, new Progress<float>((progress) =>
+                    {
+                        progressCallback(Math.Round((decimal)progress * 100, 2));
+                    }),
+                                             cancelationToken.Token).Wait();
+                }
+            }
+            return new FileInfo(localFilePath);
+        }
 
+        public override string ReadTextFile(MediaItem file)
+        {
+            var tempFile = Download(file, (p) => { });
+            try
+            {
+                return File.ReadAllText(tempFile.FullName);
+            }
+            finally
+            {
+                tempFile.Refresh();
+                if (tempFile.Exists)
+                    tempFile.Delete();
+            }
+        }
+
+        
     }
 }

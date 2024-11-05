@@ -16,8 +16,10 @@ namespace VideoPlayer.Service.Library.SourceReader
 
         public abstract Task<IEnumerable<SourceFolder>> ReadFoldersAsync(SourceFolder folder);
 
-        public abstract Task<IEnumerable<SourceFile>> ReadFilesAsync(SourceFolder folder)
+        public abstract Task<IEnumerable<SourceFile>> ReadFilesAsync(SourceFolder folder);
+        public abstract Task<SourceFile> ReadFileAsync(MediaItem mediaItem);
+        public abstract FileInfo Download(MediaItem nfoFile, Action<decimal> progressCallback);
 
-
+        public abstract string ReadTextFile(MediaItem nfoFile);
     }
 }

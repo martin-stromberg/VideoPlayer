@@ -1,5 +1,6 @@
 
 using VideoPlayer.Service;
+using VideoPlayer.ViewModels.HomePage;
 
 namespace VideoPlayer.Views
 {
@@ -9,12 +10,13 @@ namespace VideoPlayer.Views
         public MainPage()
         {
             InitializeComponent();
+            BindingContext = new BaseHomePageViewModel();
         }
 
         protected override void OnLoadingContent(IApplicationManager applicationManager)
         {
             base.OnLoadingContent(applicationManager);
+            BindingContext = applicationManager.ResolveService<HomePageViewModel>();
         }
-
     }
 }

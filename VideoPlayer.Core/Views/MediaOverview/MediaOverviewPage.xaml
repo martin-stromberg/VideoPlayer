@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<baseView:BaseContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                          xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+                          xmlns:baseView="clr-namespace:VideoPlayer.Views"
+                          xmlns:views="clr-namespace:VideoPlayer.Views.MediaOverview"
+                          xmlns:vm="clr-namespace:VideoPlayer.ViewModels.MediaOverview"
+                          xmlns:vmItem="clr-namespace:VideoPlayer.ViewModels.MediaOverview.MediaItem"
+                          x:Class="VideoPlayer.Views.MediaOverview.MediaOverviewPage"
+                          x:DataType="vm:BaseMediaOverviewViewModel"
+                          Title="{Binding Title}">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="60"/>
+            <RowDefinition/>
+            <RowDefinition Height="50"/>
+        </Grid.RowDefinitions>
+        <views:GenreSelection Grid.Row="0" 
+                              BindingContext="{Binding GenreSelectionContext}"/>
+        
+        <ScrollView Grid.Row="1" 
+                    Orientation="Vertical"
+                    HorizontalOptions="Center"
+                    Scrolled="ScrollView_Scrolled">
+            <FlexLayout x:Name="ItemCollection"
+                        AlignContent="Start"
+                        AlignItems="Start"
+                        AlignSelf="Start"
+                        HorizontalOptions="Center"
+                        BindableLayout.ItemsSource="{Binding Items}"
+                        Direction="Row"
+                        JustifyContent="Start"
+                        Margin="0,10,0,0"                        
+                        Wrap="Wrap">
+                <BindableLayout.ItemTemplate>
+                    <DataTemplate x:DataType="vmItem:BaseMediaListItem">
+                        <views:MediaListItemView>
+                            <views:MediaListItemView.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding Tapped}" CommandParameter="{Binding .}"/>
+                            </views:MediaListItemView.GestureRecognizers>
+                        </views:MediaListItemView>
+                    </DataTemplate>
+                </BindableLayout.ItemTemplate>
+            </FlexLayout>
+        </ScrollView>
+    </Grid>
+</baseView:BaseContentPage>

@@ -1,13 +1,50 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <views:BaseContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             xmlns:views="clr-namespace:VideoPlayer.Views"
-             x:Class="VideoPlayer.Views.MainPage"
-             Title="Videoplayer">
-    <VerticalStackLayout>
+                       xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+                       xmlns:views="clr-namespace:VideoPlayer.Views"
+                       xmlns:homePage="clr-namespace:VideoPlayer.Views.HomePage"
+                       xmlns:vm="clr-namespace:VideoPlayer.ViewModels.HomePage"
+                       x:Class="VideoPlayer.Views.MainPage"                       
+                       x:DataType="vm:BaseHomePageViewModel"
+                       Title="{Binding Title}">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="50"/>
+            <RowDefinition/>
+            <RowDefinition Height="50"/>
+        </Grid.RowDefinitions>
+        <HorizontalStackLayout Grid.Column="0"
+                               Grid.Row="0"
+                               Margin="10"
+                               HorizontalOptions="Center"
+                               IsVisible="{Binding IsLoading}">
+            <Label Text="Lade Programminhalte..."/>
+        </HorizontalStackLayout>
+        <HorizontalStackLayout Grid.Column="0"
+                               Grid.Row="0"
+                               Margin="10"
+                               HorizontalOptions="Center"
+                               IsVisible="{Binding IsLoaded}">
+            <ImageButton Source="home.png" 
+                         WidthRequest="50"
+                         Command="{Binding Navigate}"
+                         CommandParameter="home"/>
+            <ImageButton Source="cinema.png" 
+                         WidthRequest="50"
+                         Command="{Binding Navigate}"
+                         CommandParameter="movies"/>            
+            <ImageButton Source="tv.png" 
+                         WidthRequest="50"
+                         Command="{Binding Navigate}"
+                         CommandParameter="tv"/>
+        </HorizontalStackLayout>
+        <VerticalStackLayout Grid.Row="1">
+            <homePage:NextPlayingView BindingContext="{Binding NextPlayingContext}"/>
+        </VerticalStackLayout>
         <Label 
-            Text="Welcome to .NET MAUI!"
+            Grid.Row="2"
+            Text="{Binding StatusMessage}"
             VerticalOptions="Center" 
-            HorizontalOptions="Center" />
-    </VerticalStackLayout>
+            HorizontalOptions="Start" />
+    </Grid>
 </views:BaseContentPage>

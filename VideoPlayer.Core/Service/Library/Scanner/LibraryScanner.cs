@@ -1,100 +1,137 @@
 ﻿using System;
 using System.Linq;
-using System.Reflection;
+using VideoPlayer.Service.BaseServices;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.SourceReader;
 
 namespace VideoPlayer.Service.Library.Scanner
 {
-    public interface ILibraryScanner
-    {
 
-        void Start();
-
-    }
-
-    public class LibraryScanner: TimerService, ILibraryScanner
+    public class LibraryScanner: SourceTimerService, ILibraryScanner
     {
 
         private readonly IMediaLibrary _MediaLibrary;
-        private Dictionary<Type, ISourceReader> _SourceReaderTypes = new Dictionary<Type, ISourceReader>();
+        private readonly ILibraryScannerSettings _Settings;
 
-        public LibraryScanner(IMediaLibrary mediaLibrary)
+        public LibraryScanner(
+            IMediaLibrary mediaLibrary,
+            ILibraryScannerSettings settings)
             : base()
         {
+            _Settings = settings;
             _MediaLibrary = mediaLibrary;
-            DueTime = TimeSpan.FromSeconds(10);
-            Period = TimeSpan.FromSeconds(60);
+            DueTime = settings.FirstCheck;
+            Period = settings.CheckInterval;
         }
 
         protected override async Task ExecuteTimerAsync()
         {
-            await ScanNextSourceAsync();
+            while (await ScanNextSourceAsync())
+                CheckActive();
         }
 
-        private async Task ScanNextSourceAsync()
+        private async Task<bool> ScanNextSourceAsync()
         {
             var source = _MediaLibrary.GetNextScanSource();
             if (source is null)
-                return;
+                return false;
+            if (_Settings.SourceScanInterval > TimeSpan.Zero)
+                if (source.LastScan.Add(_Settings.SourceScanInterval) > DateTime.Now)
+                    return false;
             await ScanSourceAsync(source);
-        }
-
-        private ISourceReader CreateReader(MediaSource source)
-        {
-            var sourceType = source.GetType();
-            var destType = typeof(ISourceReader);
-            if (!_SourceReaderTypes.ContainsKey(sourceType))
-            {
-                destType = sourceType.Assembly
-                                     .GetTypes()
-                                     .Where(t => !t.IsAbstract)
-                                     .Where(t => t.IsAssignableTo(destType))
-                                     .Where(t =>
-                                     {
-                                         var attr = t.GetCustomAttribute(typeof(ServiceModelReferenceAttribute)) as ServiceModelReferenceAttribute;
-                                         if (attr is null)
-                                             return false;
-                                         if (attr.ServiceModelType != sourceType)
-                                             return false;
-                                         return true;
-                                     })
-                                     .FirstOrDefault();
-                if (destType is null)
-                    return null;
-                _SourceReaderTypes.Add(sourceType, Activator.CreateInstance(destType, source) as ISourceReader);
-            }
-            return _SourceReaderTypes[sourceType];
+            return true;
         }
 
         private async Task ScanSourceAsync(MediaSource source)
         {
             var reader = CreateReader(source);
             var root = reader.GetRoot();
-            await ScanAsync(reader, root);
+            await ScanAsync(source, reader, root, null);
+
+            source.LastScan = DateTime.Now;
+            _MediaLibrary.AddOrUpdateSource(source);
         }
 
-        private async Task ScanAsync(ISourceReader reader, SourceFolder parentFolder)
+        private async Task ScanAsync(
+            MediaSource source,
+            ISourceReader reader,
+            SourceFolder currentFolder,
+            MediaCollection parentCollection)
         {
-            ProcessFolder(parentFolder);
+            CheckActive();
+            StartProcess($"Erfasse {currentFolder.FullPath}");
+            try
+            {
+                var collection = ProcessFolder(source, parentCollection, currentFolder);
 
-            var folders = await reader.ReadFoldersAsync(parentFolder);
-            foreach (var folder in folders)
-                await ScanAsync(reader, folder);
+                if (!collection.Classified)
+                {
+                    var folders = await reader.ReadFoldersAsync(currentFolder);
+                    foreach (var folder in folders)
+                        await ScanAsync(source, reader, folder, collection);
 
-            var files = await reader.ReadFilesAsync(parentFolder);
-            foreach (var file in files)
-                ProcessFile(file);
+                    NotifyStatus($"Erfasse {currentFolder.FullPath}");
+                    var files = await reader.ReadFilesAsync(currentFolder);
+                    foreach (var file in files)
+                        ProcessFile(file, collection);
+                }
+            }
+            finally
+            {
+                FinishProcess();
+            }
         }
 
-        private void ProcessFolder(SourceFolder folder)
+        private MediaCollection ProcessFolder(MediaSource source, MediaCollection parentCollection, SourceFolder folder)
         {
-            throw new NotImplementedException();
+            var collection = _MediaLibrary.GetMediaCollectionByPath(source.Id, folder.Path);
+
+            if (collection is null)
+                collection = CreateCollection(source.Id, parentCollection?.Id ?? 0, folder);
+
+            collection.Classified = collection.Classified && (collection.LastAccess == folder.LastWriteTime);
+            collection.LastAccess = folder.LastWriteTime;
+            collection = _MediaLibrary.AddOrUpdateMediaCollection(collection);
+            return collection;
         }
 
-        private void ProcessFile(SourceFile file)
+        private MediaCollection CreateCollection(long sourceId, long parentCollectionId, SourceFolder folder)
         {
-            throw new NotImplementedException();
+            var collection = new MediaCollection()
+            {
+                LastAccess = DateTime.MinValue,
+                Name = folder.Name,
+                ParentId = parentCollectionId,
+                SourceId = sourceId,
+                Path = folder.Path,
+                Classified = false,
+                Id = 0
+            };
+            return collection;
+        }
+
+        private void ProcessFile(SourceFile file, MediaCollection collection)
+        {
+            var mediaItem = _MediaLibrary.GetMediaItemByPath(collection.Id, file.Path);
+            if (mediaItem is null)
+                mediaItem = CreateMediaItem(collection.Id, file);
+            mediaItem.Classified = mediaItem.Classified && (mediaItem.LastAccess != file.LastWriteTime);
+            mediaItem.LastAccess = file.LastWriteTime;
+            mediaItem = _MediaLibrary.AddOrUpdateMediaItem(mediaItem);
+        }
+
+        private MediaItem CreateMediaItem(long collectionId, SourceFile file)
+        {
+            var mediaItem = new MediaItem()
+            {
+                Id = 0,
+                Name = file.Name,
+                Path = file.Path,
+                ParentCollectionId = collectionId,
+                Classified = false,
+                LastAccess = DateTime.MinValue
+            };
+            return mediaItem;
         }
 
     }

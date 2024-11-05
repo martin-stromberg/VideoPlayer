@@ -83,7 +83,14 @@ namespace VideoPlayer.Service.Events
         private void Publisher_OnEvent(object sender, NotificationEventArgs e)
         {
             foreach (var subscriber in subscribers)
-                subscriber.ProcessNotification(sender, e);
+                try
+                {
+                    subscriber.ProcessNotification(sender, e);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"{ex}");
+                }
         }
 
         public void Unregister(object service)

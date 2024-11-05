@@ -12,5 +12,7 @@ namespace VideoPlayer.Service
 
         bool Initialized { get; }
 
+        T ResolveService<T>();
+
     }
 }

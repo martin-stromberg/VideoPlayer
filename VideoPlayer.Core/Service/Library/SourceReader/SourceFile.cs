@@ -7,6 +7,8 @@
 
         public string FullPath { get; set; }
 
+        public string Path { get; set; }
+
         public DateTime LastWriteTime { get; set; }
 
     }

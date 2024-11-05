@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<view:BaseCardPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                   xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+                   xmlns:view="clr-namespace:VideoPlayer.Views.MediaOverview.Cards"
+                   xmlns:vm="clr-namespace:VideoPlayer.ViewModels.MediaOverview.Cards"
+                   xmlns:video="clr-namespace:VideoPlayer.Views.Video"
+                   xmlns:common="clr-namespace:VideoPlayer.Views.Common"
+                   x:Class="VideoPlayer.Views.MediaOverview.Cards.TVShowCardPage"
+                   x:DataType="vm:BaseMediaItemCardViewModel"
+                   Title="{Binding Title}">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="300"/>
+            <RowDefinition/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition/>
+            <ColumnDefinition/>
+        </Grid.ColumnDefinitions>
+        <Frame Grid.ColumnSpan="2"
+           BackgroundColor="{Binding PictureBackgroundColor}" 
+           BorderColor="{Binding PictureBackgroundColor}"/>
+        <Image Grid.ColumnSpan="2"
+           Source="{Binding Picture}" 
+           IsVisible="{Binding PictureVisible}" 
+           Opacity="0.6"
+           HorizontalOptions="CenterAndExpand"/>
+        <VerticalStackLayout HorizontalOptions="Start"
+                             Margin="10">
+            <Label Text="{Binding Title}" 
+               FontSize="Header"
+               TextColor="{Binding PictureTextColor}"/>
+            <Label TextColor="{Binding PictureTextColor}"
+               FontSize="Small">
+                <Label.Text>
+                    <MultiBinding StringFormat="{}{0} · {1}">
+                        <Binding Path="Year"/>
+                        <Binding Path="Genres"/>
+                    </MultiBinding>
+                </Label.Text>
+            </Label>
+            <Label Text="{Binding Plot}" 
+               TextColor="{Binding PictureTextColor}"
+               LineBreakMode="WordWrap"
+               Margin="0,10"/>
+        </VerticalStackLayout>
+        <Frame Grid.ColumnSpan="2"
+           BorderColor="Silver"
+           Opacity="0.4"
+           HorizontalOptions="Center" 
+           VerticalOptions="Center">
+            <ImageButton Source="movie_collection32x32.png"                         
+                     Command="{Binding PlaybackCommand}"/>
+        </Frame>
+        <video:VideoPlayerView Grid.ColumnSpan="2"
+                           IsVisible="{Binding VideoPlayerVisible}"/>
+
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout>
+                <common:HorizontalMediaCollectionView BindingContext="{Binding CollectionContext}"/>
+            </VerticalStackLayout>
+        </ScrollView>
+
+    </Grid>
+</view:BaseCardPage>

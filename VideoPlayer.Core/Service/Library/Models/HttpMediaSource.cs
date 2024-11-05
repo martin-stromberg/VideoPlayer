@@ -1,4 +1,5 @@
-﻿using VideoPlayer.Service.Database.Models;
+﻿using Newtonsoft.Json;
+using VideoPlayer.Service.Database.Models;
 
 namespace VideoPlayer.Service.Library.Models
 {
@@ -13,8 +14,13 @@ namespace VideoPlayer.Service.Library.Models
             : base(dataModel)
         {
             if (dataModel is not null)
+            {
                 if (dataModel.Type != MediaSourceType.Http)
                     throw new ArgumentException(nameof(MediaDataSource.Type));
+
+                var copy = JsonConvert.DeserializeObject(dataModel.Configuration, typeof(HttpMediaSource)) as HttpMediaSource;
+                Uri = copy.Uri;
+            }
         }
 
         public string Uri
@@ -27,6 +33,12 @@ namespace VideoPlayer.Service.Library.Models
             {
                 SetProperty(value);
             }
+        }
+
+        protected override void AssignChanges()
+        {
+            base.AssignChanges();
+            ((MediaDataSource)DataModel).Type = MediaSourceType.Http;
         }
 
     }

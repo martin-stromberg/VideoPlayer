@@ -20,6 +20,18 @@ namespace VideoPlayer.Service.Database.Models
             }
         }
 
+        public long SourceId
+        {
+            get
+            {
+                return GetProperty<long>();
+            }
+            set
+            {
+                SetProperty<long>(value);
+            }
+        }
+
         public string Path
         {
             get
@@ -57,5 +69,25 @@ namespace VideoPlayer.Service.Database.Models
             }
         }
 
+        public string MetaInformation {
+            get
+            {
+                return GetProperty<string>();
+            }
+            set
+            {
+                SetProperty(value);
+            }
+        }
+        public DateTime LastMetaInformationUpdate {
+            get
+            {
+                return GetProperty<DateTime>();
+            }
+            set
+            {
+                SetProperty(value);
+            }
+        }
     }
 }

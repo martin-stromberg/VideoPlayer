@@ -67,7 +67,7 @@
         <video:VideoPlayerView Grid.ColumnSpan="2"
                                IsVisible="{Binding VideoPlayerVisible}"/>
 
-        <ScrollView Grid.Row="1">
+        <ScrollView Grid.Row="1"  Grid.ColumnSpan="2">
             <VerticalStackLayout>
                 <common:HorizontalMediaCollectionView BindingContext="{Binding CollectionContext}"/>
             </VerticalStackLayout>

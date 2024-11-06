@@ -1,5 +1,7 @@
 ﻿using System;
+using VideoPlayer.Extensions;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -20,6 +22,15 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
                 LoadImage(PathTools.Combine(FileSystem.Current.AppDataDirectory, episode.PicturePath));
             else if(!string.IsNullOrWhiteSpace(episode.BannerPath))
                 LoadImage(PathTools.Combine(FileSystem.Current.AppDataDirectory, episode.BannerPath));
+            Title = $"{episode.Episode}: {episode.Name}";
+        }
+
+        public TVShowEpisodeMediaListItem(TVShowSeason season, ClassifiedEntry entry) 
+            : this(entry)
+        {
+            var episode = ((TVShowEpisode)entry);
+            if (season is not null)
+                Title = $"S{season.Number}E{episode.Episode}: {episode.Name}";
         }
     }
 }

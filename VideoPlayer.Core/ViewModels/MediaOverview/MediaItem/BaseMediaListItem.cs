@@ -14,7 +14,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
             Item = item;
             Title = item.Name;
             Id = item.Id;
-            Subtitle = item.ReleaseDate.ToString();
+            Subtitle = item.ReleaseDate.ToString("dd.MM.yyyy");
             Tapped = new Command((sender) => ExecuteTapped(sender));
         }
 

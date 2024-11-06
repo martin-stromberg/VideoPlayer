@@ -6,7 +6,7 @@
                    xmlns:video="clr-namespace:VideoPlayer.Views.Video"
                    xmlns:common="clr-namespace:VideoPlayer.Views.Common"
                    x:Class="VideoPlayer.Views.MediaOverview.Cards.TVShowCardPage"
-                   x:DataType="vm:BaseMediaItemCardViewModel"
+                   x:DataType="vm:TVShowCardViewModel"
                    Title="{Binding Title}">
     <Grid>
         <Grid.RowDefinitions>
@@ -53,12 +53,28 @@
                      Command="{Binding PlaybackCommand}"/>
         </Frame>
         <video:VideoPlayerView Grid.ColumnSpan="2"
-                           IsVisible="{Binding VideoPlayerVisible}"/>
+                           IsVisible="{Binding VideoPlayerVisible}"/>        
+        <ScrollView Grid.Row="1" Grid.ColumnSpan="2" Orientation="Both">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition/>
+                    <ColumnDefinition Width="64"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="64"/>
+                    <RowDefinition/>
+                </Grid.RowDefinitions>
+                
+                <Picker Grid.Column="0" 
+                        ItemsSource="{Binding Seasons}" 
+                        SelectedItem="{Binding SelectedSeason}"/>
+                <ImageButton Source="movie_collection32x32.png"
+                             Command="{Binding PlaybackCommand}"/>
 
-        <ScrollView Grid.Row="1">
-            <VerticalStackLayout>
-                <common:HorizontalMediaCollectionView BindingContext="{Binding CollectionContext}"/>
-            </VerticalStackLayout>
+                <common:HorizontalMediaCollectionView Grid.ColumnSpan="2" 
+                                                      Grid.Row="1"
+                                                      BindingContext="{Binding CollectionContext}"/>
+            </Grid>
         </ScrollView>
 
     </Grid>

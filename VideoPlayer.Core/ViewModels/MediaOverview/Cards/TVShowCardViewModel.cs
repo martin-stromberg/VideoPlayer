@@ -26,11 +26,21 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             this.mediaLibrary = mediaLibrary;
             this.mediaCollectionSelector = mediaCollectionSelector;
             CollectionContext.Items.Add(new TVShowMediaListItem(entry));
-            Year = entry.ReleaseDate.Year;
-            if (Year == 0)
-                Year = entry.PremieredAt.Year;
-            Genres = "";
-            Plot = entry.Plot;            
+                       
+        }
+        public TVShowCardViewModel(
+            IPlaylistManager playlistManager, 
+            IEnvironment environment, 
+            IResourceManager resourceManager, 
+            IDownloadManager downloadManager,
+            IMediaLibrary mediaLibrary,
+            IMediaCollectionSelector mediaCollectionSelector,
+            TVShowEpisode entry)
+            : base(playlistManager, environment, resourceManager, downloadManager, entry)
+        {
+            this.mediaLibrary = mediaLibrary;
+            this.mediaCollectionSelector = mediaCollectionSelector;
+            CollectionContext.Items.Add(new TVShowEpisodeMediaListItem(entry));
         }
         public ObservableCollection<TVShowSeason> Seasons { get; } = new ObservableCollection<TVShowSeason>();
         protected TVShow Show { get => base.Entry as TVShow; }
@@ -42,6 +52,8 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             {
                 SetProperty(value);
                 VideoSource = null;
+                if (value is not null && SelectedSeason is null || SelectedSeason.Id != value.SeasonId)
+                    LoadSeason(null);
             }
         }
         protected TVShow SelectedShow
@@ -53,7 +65,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
                 LoadShowSeasons(value);
             }
         }
-        protected TVShowSeason SelectedSeason
+        public TVShowSeason SelectedSeason
         {
             get => GetProperty<TVShowSeason>();
             set
@@ -63,29 +75,46 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             }
         }
 
+        protected override void UpdateMediaInformation(ClassifiedEntry entry)
+        {
+            entry = SelectedEpisode ?? SelectedSeason ?? SelectedShow ?? entry;
+            base.UpdateMediaInformation(entry);
+            if (SelectedEpisode is not null)
+                Title = $"{SelectedEpisode.Episode}: {SelectedEpisode.Name}";
+        }
+
+        protected override void ExecutePlaybackCommand()
+        {
+            if (SelectedEpisode is null)
+                base.ExecutePlaybackCommand();
+            else
+            {
+                PlayLoadingVideo();
+                StartPlayback(SelectedEpisode);
+            }
+        }
+
         private void LoadShowSeasons(TVShow show)
         {
             Seasons.Clear();
-            var seasons = mediaLibrary.GetSeasons(show.Id);            
+            var seasons = mediaLibrary.GetSeasons(show.Id).OrderBy(s => s.Number).ThenBy(s => s.ReleaseDate).ThenBy(s => s.Name);
             foreach (var season in seasons)
                 Seasons.Add(season);
             if (Episode is not null)
                 SelectedSeason = Seasons.FirstOrDefault(s => s.Id == Episode.SeasonId);
             else if (Show is not null)
                 SelectedSeason = Seasons.FirstOrDefault();
-        }
-
-        
+        }        
 
         private void LoadSeason(TVShowSeason value)
         {
             if (SelectedShow is null)
                 LoadShow();
-            var season = mediaLibrary.GetTVShowSeason(Episode.SeasonId);
-            var episodes = mediaCollectionSelector.FindNextEntries(season);
+            var season = value ?? mediaLibrary.GetTVShowSeason(Episode.SeasonId);
+            var episodes = mediaCollectionSelector.FindNextEntries(season).Cast<TVShowEpisode>().Where(e => e.SeasonId == season.Id);
             CollectionContext.Items.Clear();
             foreach (var episode in episodes)
-                CollectionContext.Items.Add(new TVShowEpisodeMediaListItem(episode));
+                CollectionContext.Items.Add(new TVShowEpisodeMediaListItem(season, episode));
         }
 
         private void LoadShow()
@@ -115,6 +144,8 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             base.ExecuteFirstAppeared();
             if (Episode is not null)
                 Select(Episode);
+            else
+                LoadShow();
         }
     }
 }

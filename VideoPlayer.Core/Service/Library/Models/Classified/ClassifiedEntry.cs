@@ -95,5 +95,9 @@ namespace VideoPlayer.Service.Library.Models.Classified
             ((DataClassifiedEntry)DataModel).Type = (DataEntryType)Type;
         }
 
+        public override string ToString()
+        {
+            return $"{Name}";
+        }
     }
 }

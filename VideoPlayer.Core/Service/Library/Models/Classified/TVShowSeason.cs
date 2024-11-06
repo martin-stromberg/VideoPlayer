@@ -73,5 +73,9 @@ namespace VideoPlayer.Service.Library.Models.Classified
             ((DataClassifiedEntry)DataModel).PictureBackgroundColor = PictureBackgroundColor;
             ((DataClassifiedEntry)DataModel).BannerBackgroundColor = BannerBackgroundColor;
         }
+        public override string ToString()
+        {
+            return $"Staffel {Number}";
+        }
     }
 }

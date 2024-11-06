@@ -6,6 +6,7 @@ using VideoPlayer.ViewModels.MediaOverview.MediaItem;
 
 namespace VideoPlayer.ViewModels.MediaOverview.Cards
 {
+    [Obsolete($"Use {nameof(TVShowCardViewModel)} instead")]
     public class TVShowEpisodeCardViewModel : BaseMediaItemCardViewModel
     {
         public TVShowEpisodeCardViewModel(IPlaylistManager playlistManager, IEnvironment environment, IResourceManager resourceManager, IDownloadManager downloadManager, TVShowEpisode entry) 
@@ -18,7 +19,8 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             Genres = "";
             Plot = entry.Plot;
         }
-        protected TVShowEpisode Show { get => base.Entry as TVShowEpisode; }
+        protected TVShowEpisode Episode { get => base.Entry as TVShowEpisode; }
+        
         protected override void SetCollectionVisible(bool visible)
         {
             base.SetCollectionVisible(false);

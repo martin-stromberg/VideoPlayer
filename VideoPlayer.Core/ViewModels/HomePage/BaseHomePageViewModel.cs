@@ -13,6 +13,7 @@ namespace VideoPlayer.ViewModels.HomePage
         public BaseHomePageViewModel()
             :base()
         {
+            Title = "Videoplayer";
             IsLoading = true;
             Navigate = new Command((args) => { ExecuteNavigate(args.ToString()); });
         }
@@ -61,6 +62,7 @@ namespace VideoPlayer.ViewModels.HomePage
         #endregion
         #region Content
         public BaseViewModel NextPlayingContext { get => GetProperty<BaseViewModel>(); set => SetProperty(value); }
+        public BaseViewModel NewContext { get => GetProperty<BaseViewModel>(); set => SetProperty(value); }
         #endregion
     }
 }

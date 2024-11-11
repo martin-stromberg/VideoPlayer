@@ -14,6 +14,11 @@ namespace VideoPlayer.Service.Library.Models.Classified
         {
             if (DataModel is not null)
             {
+                Genres = (((DataClassifiedEntry)DataModel).Genre is null) ? (new string[0]) : ((DataClassifiedEntry)DataModel).Genre
+                                                                                                                              .Split(',')
+                                                                                                                              .Where(g =>
+                                                                                                                                     !string.IsNullOrWhiteSpace(g))
+                                                                                                                              .ToArray();
                 OriginalName = ((DataClassifiedEntry)DataModel).OriginalTitle;
                 Language = ((DataClassifiedEntry)DataModel).Language;
                 Plot = ((DataClassifiedEntry)DataModel).Plot;                
@@ -23,7 +28,7 @@ namespace VideoPlayer.Service.Library.Models.Classified
         public string OriginalName { get => GetProperty<string>(); set => SetProperty(value); }
         public string Language { get => GetProperty<string>(); set => SetProperty(value); }
         public string Plot { get => GetProperty<string>(); set => SetProperty(value); }
-        
+        public string[] Genres { get => GetProperty<string[]>(); set => SetProperty(value); }
 
         protected override void AssignChanges()
         {
@@ -32,7 +37,8 @@ namespace VideoPlayer.Service.Library.Models.Classified
                 return;
             ((DataClassifiedEntry)DataModel).OriginalTitle = OriginalName;
             ((DataClassifiedEntry)DataModel).Plot = Plot;
-            ((DataClassifiedEntry)DataModel).Language = Language;            
+            ((DataClassifiedEntry)DataModel).Language = Language; 
+            ((DataClassifiedEntry)DataModel).Genre = string.Join(',', Genres);
         }
 
     }

@@ -12,6 +12,8 @@ namespace VideoPlayer.Service.Library
     {
         Setup Setup { get; }
 
+        event EventHandler<BaseServiceModelEventArgs> ItemUpdated;
+
         void CreateDemoData();
 
         #region MediaSource
@@ -31,6 +33,7 @@ namespace VideoPlayer.Service.Library
         #region MediaItem
         MediaItem GetMediaItemByPath(long id, string fullPath);
         IEnumerable<MediaItem> GetDueMediaItems();
+        IEnumerable<MediaItem> GetMediaItemsThatNeedsPictureUpdate();
         MediaItem GetMediaItem(long id);
         IEnumerable<MediaItem> GetCopyMediaItems(long id);
         IEnumerable<MediaItem> GetMediaCollectionItems(long collectionId);
@@ -94,7 +97,7 @@ namespace VideoPlayer.Service.Library
         void Delete(MediaItem mediaItem);
     }
 
-    public class MediaLibrary: BaseService, IMediaLibrary
+    public class MediaLibrary : BaseService, IMediaLibrary
     {
 
         private readonly IMediaLibraryDatabase _Database;
@@ -192,33 +195,33 @@ namespace VideoPlayer.Service.Library
             Setup setup = new Setup() { Name = nameof(Setup) };
             MediaSource[] mediaSources = new MediaSource[]
             {
-                new HttpMediaSource()
-                {
-                    Name = "Test",
-                    Uri = $"http://mstromberg.ddns.net:50010/Folder?path=/MediaServer/Disk3/Test"
-                },
                 //new HttpMediaSource()
                 //{
-                //    Name = "Filme",
-                //    Uri = $"http://mstromberg.ddns.net:50010/Folder?path=/MediaServer/Disk3/Filme"
+                //    Name = "Test",
+                //    Uri = $"http://mstromberg.ddns.net:50010/Folder?path=/MediaServer/Disk3/Test"
                 //},
-                // new HttpMediaSource()
-                // {
-                // Name = "Serien",
-                // Uri = $"http://mstromberg.ddns.net:50010/Folder?path=/MediaServer/Crucial X62/Serien"
-                // },
-                // new HttpMediaSource()
-                // {
-                // Name = "Serien (2)",
-                // Uri = $"http://mstromberg.ddns.net:50010/Folder?path=/MediaServer/Disk2/Serien"
-                // }
+                new HttpMediaSource()
+                {
+                    Name = "Filme",
+                    Uri = $"http://mstromberg.ddns.net:50010/Folder?path=/MediaServer/Disk3/Filme"
+                },
+                 new HttpMediaSource()
+                 {
+                 Name = "Serien",
+                 Uri = $"http://mstromberg.ddns.net:50010/Folder?path=/MediaServer/Crucial X62/Serien"
+                 },
+                 new HttpMediaSource()
+                 {
+                 Name = "Serien (2)",
+                 Uri = $"http://mstromberg.ddns.net:50010/Folder?path=/MediaServer/Disk2/Serien"
+                 }
             };
-            Genre[] genres = new Genre[] { 
+            Genre[] genres = new Genre[] {
                 new Genre(null){ Name = "Action" },
                 new Genre(null){ Name = "Sport" },
                 new Genre(null){ Name = "Animation" },
-                new Genre(null){ Name = "Abenteuer", 
-                                AlternateNames = new GenreName[]{ 
+                new Genre(null){ Name = "Abenteuer",
+                                AlternateNames = new GenreName[]{
                                     new GenreName(null){ Name = "Adventure"}
                                 } },
                 new Genre(null){ Name = "Science Fiction" ,
@@ -230,7 +233,7 @@ namespace VideoPlayer.Service.Library
                                 AlternateNames = new GenreName[]
                                 {
                                     new GenreName(null){ Name = "Comedy" }
-                                } 
+                                }
                 },
                 new Genre(null){ Name = "Seifenopern",
                                 AlternateNames = new GenreName[]
@@ -321,7 +324,7 @@ namespace VideoPlayer.Service.Library
                 AddOrUpdateGenre(genre);
         }
 
-        public void AddOrUpdate<T>(T model) where T: BaseServiceModel
+        public void AddOrUpdate<T>(T model) where T : BaseServiceModel
         {
             Console.WriteLine($"ADDORUPDATE {model} ({model.Id} - {model.Name})");
             var dbModel = ((BaseServiceModel)model).GetDatabaseModel();
@@ -331,9 +334,12 @@ namespace VideoPlayer.Service.Library
             model.Id = dbModel.Id;
             model.CreatedAt = dbModel.CreatedAt;
             dbModel.SetRestorePoint();
+            ItemUpdated?.Invoke(this, new BaseServiceModelEventArgs(model));
         }
 
-        public void AddOrUpdateRange<T>(params T[] models) where T: BaseServiceModel
+        public event EventHandler<BaseServiceModelEventArgs> ItemUpdated;
+
+        public void AddOrUpdateRange<T>(params T[] models) where T : BaseServiceModel
         {
             foreach (var model in models)
                 AddOrUpdate(model);
@@ -423,6 +429,14 @@ namespace VideoPlayer.Service.Library
                                                 new KeyValuePair<string, object>(nameof(MediaDataItem.CopyType), DataMediaItemCopyType.Download))
                                            .Where(c => c.DueDate < DateTime.Now)
                                            .Select(c => c.Id));
+            foreach (var itemId in itemIds)
+                yield return GetMediaItem(itemId);
+        }
+        public IEnumerable<MediaItem> GetMediaItemsThatNeedsPictureUpdate()
+        {
+            var itemIds = _Database.GetAll<MediaDataItem>(
+                                        new KeyValuePair<string, object>(nameof(MediaDataItem.NeedsPictureUpdate), true))
+                                   .Select(c => c.Id);
             foreach (var itemId in itemIds)
                 yield return GetMediaItem(itemId);
         }
@@ -773,9 +787,9 @@ namespace VideoPlayer.Service.Library
 
         private void UpdateGenreNames(Genre genre)
         {
-            var genreNames = _Database.GetAll<DataGenreName>(new KeyValuePair<string, object>(nameof(DataGenreName.DataGenreId), genre.Id));
+            var genreNames = _Database.GetAll<DataGenreName>(new KeyValuePair<string, object>(nameof(DataGenreName.DataGenreId), genre.Id)).ToArray();
             var genreNamesToAdd = genre.AlternateNames.Where(n => !genreNames.Any(gN => gN.Name == n.Name)).ToArray();
-            var genreNamesToRemove = genreNames.Where(gN => genre.AlternateNames.Any(g => g.Name == gN.Name)).ToArray();
+            var genreNamesToRemove = genreNames.Where(gN => !genre.AlternateNames.Any(g => g.Name == gN.Name)).ToArray();
             foreach (var genreName in genreNamesToAdd)
             {
                 genreName.GenreId = genre.Id;

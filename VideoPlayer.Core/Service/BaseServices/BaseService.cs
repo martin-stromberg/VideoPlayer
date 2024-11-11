@@ -64,8 +64,21 @@ namespace VideoPlayer.Service.BaseServices
         public void ProcessNotification(object sender, NotificationEventArgs e)
         {
             if (sender != this)
-                ProcessNotification(e);
+                switch (e.Name)
+                {
+                    case "Status":
+                        OnStatusReceived((string)e.Data);
+                        break;
+                    case "Error":
+                        OnStatusReceived(((Exception)e.Data).Message);
+                        break;
+                    default:
+                        ProcessNotification(e);
+                        break;
+                }
+            
         }
+        protected virtual void OnStatusReceived(string statusMessage) { }
 
         /// <summary>
         /// Reagiert auf ein fremdes Event

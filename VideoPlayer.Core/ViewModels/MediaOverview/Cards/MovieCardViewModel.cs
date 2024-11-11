@@ -16,8 +16,6 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
     public class MovieCardViewModel : BaseMediaItemCardViewModel
     {
         private readonly IMediaCollectionSelector mediaCollectionSelector;
-        private readonly IMediaLibrary mediaLibrary;
-
         protected Movie Movie { get => base.Entry as Movie; }
         protected MovieCollection Collection { get => base.Entry as MovieCollection; }
         protected Movie SelectedMovie
@@ -34,7 +32,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             IMediaLibrary mediaLibrary,
             IDownloadManager downloadManager,
             Movie entry)
-            :base(playlistManager, environment, resourceManager, downloadManager, entry)
+            :base(playlistManager, environment, resourceManager, downloadManager, mediaLibrary, entry)
         {
             CollectionContext.Items.Add(new MovieMediaListItem(entry));
             Year = entry.ReleaseDate.Year;
@@ -43,7 +41,6 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             Genres = string.Join(", ", entry.Genres);
             Plot = entry.Plot;
             this.mediaCollectionSelector = mediaCollectionSelector;
-            this.mediaLibrary = mediaLibrary;
         }
 
         public MovieCardViewModel(
@@ -54,17 +51,21 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             IMediaLibrary mediaLibrary,
             IDownloadManager downloadManager,
             MovieCollection entry)
-            : base(playlistManager, environment, resourceManager, downloadManager, entry)
+            : base(playlistManager, environment, resourceManager, downloadManager, mediaLibrary, entry)
         {
             CollectionContext.Items.Add(new MovieCollectionMediaListItem(entry));            
             this.mediaCollectionSelector = mediaCollectionSelector;
-            this.mediaLibrary = mediaLibrary;
             Select(null);
         }
         protected override void UpdateMediaInformation(ClassifiedEntry entry)
         {
             entry = SelectedMovie ?? entry;
             base.UpdateMediaInformation(entry);
+        }
+        protected override void Rescan(ClassifiedEntry entry)
+        {
+            entry = SelectedMovie ?? entry;
+            base.Rescan(entry);
         }
         protected override void Select(ClassifiedEntry item)
         {
@@ -104,7 +105,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             }  
             else if (Movie is not null && Movie.CollectionId != 0)
             {
-                var collection = mediaLibrary.GetMovieCollection(Movie.CollectionId);
+                var collection = MediaLibrary.GetMovieCollection(Movie.CollectionId);
                 CollectionContext.Items.Clear();
                 foreach (var entry in mediaCollectionSelector.FindNextEntries(collection))
                     CollectionContext.Items.Add(new MovieMediaListItem(entry));

@@ -29,7 +29,10 @@
             };
             _Worker.Start();
         }
-
+        protected void ForceExecute()
+        {
+            Task.Run(() => ExecuteTimer(null));
+        }
         public virtual void Stop()
         {
             if (_Worker is not null)

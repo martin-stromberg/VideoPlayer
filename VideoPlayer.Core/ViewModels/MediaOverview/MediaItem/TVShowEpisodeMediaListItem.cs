@@ -22,7 +22,6 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
                 LoadImage(PathTools.Combine(FileSystem.Current.AppDataDirectory, episode.PicturePath));
             else if(!string.IsNullOrWhiteSpace(episode.BannerPath))
                 LoadImage(PathTools.Combine(FileSystem.Current.AppDataDirectory, episode.BannerPath));
-            Title = $"{episode.Episode}: {episode.Name}";
         }
 
         public TVShowEpisodeMediaListItem(TVShowSeason season, ClassifiedEntry entry) 
@@ -31,6 +30,26 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
             var episode = ((TVShowEpisode)entry);
             if (season is not null)
                 Title = $"S{season.Number}E{episode.Episode}: {episode.Name}";
+        }
+
+        protected TVShowEpisode Episode => base.Item as TVShowEpisode;
+        protected override void UpdateMediaInformation(ClassifiedEntry item)
+        {
+            switch (ApplicationArea)
+            {
+                case CardItemApplicationArea.Single:
+                    if (Episode is not null)
+                    {
+                        Title = Episode.ShowName;
+                        Subtitle = $"S{Episode.SeasonNo}E{Episode.Episode}: {Episode.Name}";
+                    }
+                    if (string.IsNullOrWhiteSpace(Title))
+                        base.UpdateMediaInformation(item);
+                    break;
+                default:
+                    base.UpdateMediaInformation(item);
+                    break;
+            }
         }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Linq;
 
 namespace VideoPlayer.Service.Events
@@ -89,7 +90,7 @@ namespace VideoPlayer.Service.Events
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"{ex}");
+                    Debug.WriteLine($"{ex}");
                 }
         }
 

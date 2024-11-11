@@ -15,7 +15,7 @@ namespace VideoPlayer.ViewModels.Common
         ObservableCollection<BaseMediaListItem> Items { get; }
         bool Visible { get; set; }
     }
-    public class MediaCollectionViewModel: BaseViewModel, IMediaCollectionViewModel
+    public class MediaCollectionViewModel: ViewModels.BaseViewModel, IMediaCollectionViewModel
     {
         public MediaCollectionViewModel()
         {

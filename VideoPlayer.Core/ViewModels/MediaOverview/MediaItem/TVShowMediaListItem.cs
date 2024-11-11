@@ -14,7 +14,26 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
             if (!string.IsNullOrWhiteSpace(show.PicturePath))
                 LoadImage(PathTools.Combine(FileSystem.Current.AppDataDirectory, show.PicturePath));
         }
+        protected TVShow Show => base.Item as TVShow;
+        protected override void UpdateMediaInformation(ClassifiedEntry item)
+        {
+            switch(ApplicationArea)
+            {
+                case CardItemApplicationArea.Single:
+                    if (Show is not null)
+                    {
+                        Title = Show.Name;
+                        Subtitle = GetDateTimeInfo(item.ReleaseDate, item.PremieredAt);
+                    }                    
+                    if (string.IsNullOrWhiteSpace(Title))
+                        base.UpdateMediaInformation(item);
+                    break;
+                default:
+                    base.UpdateMediaInformation(item);
+                    break;
+            }            
+        }
 
-
+        
     }
 }

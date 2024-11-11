@@ -9,6 +9,7 @@ using VideoPlayer.Service.Library;
 using VideoPlayer.Service.Library.Scanner;
 using VideoPlayer.Service.Library.Scanner.Classification;
 using VideoPlayer.Service.Playlists;
+using VideoPlayer.Service.Status;
 
 namespace VideoPlayer.Service
 {
@@ -38,6 +39,7 @@ namespace VideoPlayer.Service
             services.AddSingleton<IDownloadManager, DownloadManager>();
             services.AddTransient<IEnvironment, ApplicationEnvironment>();
             services.AddTransient<IMediaCollectionSelector, MediaCollectionSelector>();
+            services.AddSingleton<IStatusManager, StatusManager>();
             return services;
         }
 

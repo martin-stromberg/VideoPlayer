@@ -29,6 +29,11 @@
                     <TapGestureRecognizer Tapped="ListItemTapped"/>
                 </Image.GestureRecognizers>-->
             </Image>
+            <VerticalStackLayout Grid.Column="1"
+                                 Grid.RowSpan="3">
+                <Image Source="collection64x64.png" 
+                       IsVisible="{Binding IsCollection}"/>
+            </VerticalStackLayout>
             <VerticalStackLayout
                 Grid.Row="3"
                 Grid.RowSpan="4"

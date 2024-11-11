@@ -8,6 +8,7 @@ namespace VideoPlayer.Tools
 {
     public static class PathTools
     {
+        private static char[] _PathDelimiters = new char[] { '/', '\\'};
         public static string Combine(params string[] parts)
         {            
             var slash = parts.FirstOrDefault().Contains('/');
@@ -20,6 +21,20 @@ namespace VideoPlayer.Tools
             }
             else
                 return string.Join('\\', parts);
+        }
+
+        public static string IncludeTrailingPathDelimiter(this string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+                throw new ArgumentException(nameof(path));
+
+            var offset = path.LastIndexOfAny(_PathDelimiters);
+            var delimiter = (offset >= 0) ? path[offset] : _PathDelimiters.First();
+            if (path.EndsWith(delimiter))
+                return path;
+            else
+                return $"{path}{delimiter}";
+
         }
     }
 }

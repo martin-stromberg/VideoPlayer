@@ -9,7 +9,7 @@
                        Title="{Binding Title}">
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="50"/>
+            <RowDefinition Height="64"/>
             <RowDefinition/>
             <RowDefinition Height="50"/>
         </Grid.RowDefinitions>
@@ -23,23 +23,24 @@
         <HorizontalStackLayout Grid.Column="0"
                                Grid.Row="0"
                                Margin="10"
-                               HorizontalOptions="Center"
+                               HorizontalOptions="Start"
                                IsVisible="{Binding IsLoaded}">
             <ImageButton Source="home.png" 
-                         WidthRequest="50"
-                         Command="{Binding Navigate}"
-                         CommandParameter="home"/>
+                             WidthRequest="64"
+                             Command="{Binding Navigate}"
+                             CommandParameter="home"/>
             <ImageButton Source="cinema.png" 
-                         WidthRequest="50"
-                         Command="{Binding Navigate}"
-                         CommandParameter="movies"/>            
+                             WidthRequest="64"
+                             Command="{Binding Navigate}"
+                             CommandParameter="movies"/>
             <ImageButton Source="tv.png" 
-                         WidthRequest="50"
-                         Command="{Binding Navigate}"
-                         CommandParameter="tv"/>
+                             WidthRequest="64"
+                             Command="{Binding Navigate}"
+                             CommandParameter="tv"/>
         </HorizontalStackLayout>
         <VerticalStackLayout Grid.Row="1">
             <homePage:NextPlayingView BindingContext="{Binding NextPlayingContext}"/>
+            <homePage:NextPlayingView BindingContext="{Binding NewContext}"/>
         </VerticalStackLayout>
         <Label 
             Grid.Row="2"

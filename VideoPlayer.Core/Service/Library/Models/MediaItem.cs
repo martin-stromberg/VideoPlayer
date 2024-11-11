@@ -43,6 +43,8 @@ namespace VideoPlayer.Service.Library.Models
                 LastClassificationTry = ((MediaDataItem)DataModel).LastClassificationTry;
                 OriginalMediaItemId = ((MediaDataItem)DataModel).OriginalMediaItemId;
                 DueDate = ((MediaDataItem)DataModel).DueDate;
+                NeedsPictureUpdate = ((MediaDataItem)DataModel).NeedsPictureUpdate;
+                LastPictureUpdateTry = ((MediaDataItem)DataModel).LastPictureUpdateTry;
             }
         }
 
@@ -163,6 +165,27 @@ namespace VideoPlayer.Service.Library.Models
             }
         }
 
+        public bool NeedsPictureUpdate {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty(value);
+            }
+        }
+
+        public DateTime LastPictureUpdateTry {
+            get
+            {
+                return GetProperty<DateTime>();
+            }
+            set
+            {
+                SetProperty(value);
+            }
+        }
         protected override void AssignChanges()
         {
             base.AssignChanges();
@@ -178,6 +201,8 @@ namespace VideoPlayer.Service.Library.Models
             var value = Enum.GetValues(typeof(DataMediaItemCopyType)).Cast<DataMediaItemCopyType>().Skip(offset).FirstOrDefault();
             ((MediaDataItem)DataModel).CopyType = value;
             ((MediaDataItem)DataModel).DueDate = DueDate;
+            ((MediaDataItem)DataModel).NeedsPictureUpdate = NeedsPictureUpdate;
+            ((MediaDataItem)DataModel).LastPictureUpdateTry = LastPictureUpdateTry;
         }
 
     }

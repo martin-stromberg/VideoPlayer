@@ -253,5 +253,27 @@ namespace VideoPlayer.Service.Database.Models
                 SetProperty<string>(value);
             }
         }
+
+        public string ShowName {
+            get
+            {
+                return GetProperty<string>();
+            }
+            set
+            {
+                SetProperty<string>(value);
+            }
+        }
+
+        public int SeasonNo {
+            get
+            {
+                return GetProperty<int>();
+            }
+            set
+            {
+                SetProperty<int>(value);
+            }
+        }
     }
 }

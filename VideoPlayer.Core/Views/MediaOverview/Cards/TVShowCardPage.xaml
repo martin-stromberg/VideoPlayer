@@ -17,17 +17,20 @@
             <ColumnDefinition/>
             <ColumnDefinition/>
         </Grid.ColumnDefinitions>
+        <!-- Background Box -->
         <Frame Grid.ColumnSpan="2"
            BackgroundColor="{Binding PictureBackgroundColor}" 
            BorderColor="{Binding PictureBackgroundColor}"/>
+        <!-- Background Image -->
         <Image Grid.ColumnSpan="2"
            Source="{Binding Picture}" 
            IsVisible="{Binding PictureVisible}" 
            Opacity="0.6"
            HorizontalOptions="CenterAndExpand"/>
+        <!-- Media Information -->
         <VerticalStackLayout HorizontalOptions="Start"
                              Margin="10">
-            <Label Text="{Binding Title}" 
+            <Label Text="{Binding Name}" 
                FontSize="Header"
                TextColor="{Binding PictureTextColor}"/>
             <Label TextColor="{Binding PictureTextColor}"
@@ -44,6 +47,7 @@
                LineBreakMode="WordWrap"
                Margin="0,10"/>
         </VerticalStackLayout>
+        <!-- Playback Button -->
         <Frame Grid.ColumnSpan="2"
            BorderColor="Silver"
            Opacity="0.4"
@@ -52,6 +56,22 @@
             <ImageButton Source="movie_collection32x32.png"                         
                      Command="{Binding PlaybackCommand}"/>
         </Frame>
+        <!-- Action Buttons -->
+        <VerticalStackLayout Grid.Column="1">
+            <ImageButton Source="delete64x64.png"
+                 HorizontalOptions="End"
+                 VerticalOptions="Start"
+                 IsVisible="{Binding HasDownload}"
+                 Command="{Binding ActionCommand}"
+                 CommandParameter="delete"/>
+            <ImageButton Source="classification64x64.png"
+                         Margin="0,5,0,0"
+                         HorizontalOptions="End"
+                         VerticalOptions="Start"
+                         Command="{Binding ActionCommand}"
+                         CommandParameter="rescan"/>
+        </VerticalStackLayout>
+
         <video:VideoPlayerView Grid.ColumnSpan="2"
                            IsVisible="{Binding VideoPlayerVisible}"/>        
         <ScrollView Grid.Row="1" Grid.ColumnSpan="2" Orientation="Both">
@@ -68,8 +88,10 @@
                 <Picker Grid.Column="0" 
                         ItemsSource="{Binding Seasons}" 
                         SelectedItem="{Binding SelectedSeason}"/>
-                <ImageButton Source="movie_collection32x32.png"
-                             Command="{Binding PlaybackCommand}"/>
+                <ImageButton Grid.Column="1" 
+                             Source="download64x64.png"
+                             Command="{Binding ActionCommand}"
+                             CommandParameter="downloadseason"/>    
 
                 <common:HorizontalMediaCollectionView Grid.ColumnSpan="2" 
                                                       Grid.Row="1"

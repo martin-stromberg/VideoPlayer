@@ -19,7 +19,25 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
             if (!string.IsNullOrWhiteSpace(movie.PicturePath))
                 LoadImage(PathTools.Combine(FileSystem.Current.AppDataDirectory, movie.PicturePath));
         }
+        protected Movie Movie => base.Item as Movie;
+        protected override void UpdateMediaInformation(ClassifiedEntry item)
+        {
+            switch (ApplicationArea)
+            {
+                case CardItemApplicationArea.Single:
+                    if (Movie is not null)
+                    {
+                        Title = Movie.Name;
+                        Subtitle = GetDateTimeInfo(Movie.ReleaseDate, Movie.PremieredAt);
+                    }
+                    if (string.IsNullOrWhiteSpace(Title))
+                        base.UpdateMediaInformation(Movie);
+                    break;
+                default:
+                    base.UpdateMediaInformation(Movie);
+                    break;
+            }
+        }
 
-        
     }
 }

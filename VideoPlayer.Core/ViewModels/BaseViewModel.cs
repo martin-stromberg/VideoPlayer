@@ -113,7 +113,7 @@ namespace VideoPlayer.ViewModels
         {
             switch (e.Name)
             {
-                case "Status":
+                case "StatusUpdated":
                     OnStatusReceived((string)e.Data);
                     break;
                 case "Error":

@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using VideoPlayer.Navigation;
 using VideoPlayer.Service.Library;
+using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
 using VideoPlayer.ViewModels.MediaOverview.Genres;
 
@@ -17,7 +18,10 @@ namespace VideoPlayer.ViewModels.MediaOverview
             : base(genreSelectionViewModel, new EntryType[] { EntryType.Movie, EntryType.MovieCollection }, mediaLibrary, navigationManager)
         {
         }
+        protected override bool CheckViewGenre(Genre genre)
+        {
+            return genre.HasMovies && base.CheckViewGenre(genre);
+        }
 
-        
     }
 }

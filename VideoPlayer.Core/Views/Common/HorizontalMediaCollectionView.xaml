@@ -4,7 +4,8 @@
              xmlns:views="clr-namespace:VideoPlayer.Views.MediaOverview"
              xmlns:vmItem="clr-namespace:VideoPlayer.ViewModels.MediaOverview.MediaItem"
              x:Class="VideoPlayer.Views.Common.HorizontalMediaCollectionView">
-    <ScrollView IsVisible="{Binding Visible}" Orientation="Horizontal">
+    <ScrollView IsVisible="{Binding Visible}" 
+                Orientation="Horizontal">
         <FlexLayout x:Name="ItemCollection"
         AlignContent="Start"
         AlignItems="Start"

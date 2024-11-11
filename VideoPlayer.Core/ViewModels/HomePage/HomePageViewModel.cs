@@ -1,12 +1,13 @@
 ﻿using System;
 using System.Linq;
 using VideoPlayer.Navigation;
+using VideoPlayer.Service.Events;
 using VideoPlayer.Service.Playlists;
 using VideoPlayer.ViewModels.MediaOverview;
 
 namespace VideoPlayer.ViewModels.HomePage
 {
-    public class HomePageViewModel: BaseHomePageViewModel
+    public class HomePageViewModel: BaseHomePageViewModel, IMultiEventCollection
     {
         public HomePageViewModel(
             INavigationManager navigationManager,
@@ -16,6 +17,7 @@ namespace VideoPlayer.ViewModels.HomePage
             Title = "Videoplayer";            
             this.navigationManager = navigationManager;
             NextPlayingContext = new NextPlayingViewModel(playlistManager, navigationManager);
+            NewContext = new NewPlaylistViewModel(playlistManager, navigationManager);
         }
 
         public override void ExecuteAppeared()
@@ -61,6 +63,17 @@ namespace VideoPlayer.ViewModels.HomePage
             }
         }
         #endregion
-        
+        #region IMultiEventCollection
+        public IEnumerable<IEventSubscriber> GetSubscribers()
+        {
+            return new IEventSubscriber[] { NextPlayingContext };
+        }
+
+        public IEnumerable<IEventPublisher> GetPublishers()
+        {
+            return new IEventPublisher[0] { };
+        }
+        #endregion
+
     }
 }

@@ -1,12 +1,15 @@
 ﻿using System;
 using System.Linq;
 using VideoPlayer.Service.BaseServices;
+using VideoPlayer.Service.Events;
 using VideoPlayer.Service.Library.Models;
+using VideoPlayer.Service.Library.Models.Classified;
 
 namespace VideoPlayer.Service.Library.Scanner.Classification
 {
 
-    public class MediaClassifier: SourceTimerService, IMediaClassifier
+    public class MediaClassifier: SourceTimerService, 
+        IMediaClassifier
     {
 
         private readonly IMediaLibrary _MediaLibrary;
@@ -22,9 +25,27 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             DueTime = settings.FirstCheck;
             Period = settings.CheckInterval;
         }
-
+        protected override void ProcessNotification(NotificationEventArgs e)
+        {
+            base.ProcessNotification(e);
+            switch (e.Name)
+            {
+                case "ScanCompleted":
+                    ForceExecute();
+                    break;
+            }
+        }
         public event EventHandler<BaseServiceModelEventArgs> MediaItemClassified;
-
+        public override IEnumerable<IEventSubscriber> GetSubscribers()
+        {
+            return base.GetSubscribers()
+                .Concat(_Classifier.OfType<IEventSubscriber>());
+        }
+        public override IEnumerable<IEventPublisher> GetPublishers()
+        {
+            return base.GetPublishers()
+                .Concat(_Classifier.OfType<IEventPublisher>());
+        }
         protected override async Task ExecuteTimerAsync()
         {
             await ClassifyNextItems();
@@ -46,12 +67,42 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                     }
                     await Classify(mediaItem);
                 }
+
+                foreach (var entry in _MediaLibrary.GetMediaItemsThatNeedsPictureUpdate())
+                {
+                    if (!processing)
+                    {
+                        StartProcess($"Klassifiziere nächste Elemente");
+                        processing = true;
+                    }
+                    await UpdatePictures(entry);
+                }
             }
             finally
             {
                 if (processing)
                     FinishProcess();
             }
+        }
+
+        private async Task UpdatePictures(MediaItem item)
+        {
+            if (item is not null)
+                try
+                {
+                    NotifyStatus($"Bereite Grafiken auf für: {item.Name}");
+                    foreach (var classifier in _Classifier)
+                        if (await classifier.UpdatePictures(item))
+                            break;
+                    item.NeedsPictureUpdate = false;
+                    _MediaLibrary.AddOrUpdateMediaItem(item);
+                }
+                catch (Exception ex)
+                {
+                    item.LastPictureUpdateTry = DateTime.Now;
+                    _MediaLibrary.AddOrUpdateMediaItem(item);
+                    NotifyError(ex);
+                }
         }
 
         private async Task Classify(MediaItem mediaItem)

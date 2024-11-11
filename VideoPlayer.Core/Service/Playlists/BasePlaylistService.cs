@@ -22,7 +22,7 @@ namespace VideoPlayer.Service.Playlists
 
         protected IMediaLibrary MediaLibrary { get; }
         protected IMediaCollectionSelector MediaCollectionSelector { get; }
-        protected Playlist Current { get => playlist ??= InitCurrentPlaylist(); }
+        public Playlist Current { get => playlist ??= InitCurrentPlaylist(); }
         internal void Reset()
         {
             Current.Items.Clear();
@@ -33,7 +33,7 @@ namespace VideoPlayer.Service.Playlists
         {
             _ = Current.Items.Any();
         }
-        protected void SaveChanges()
+        protected virtual void SaveChanges()
         {
             MediaLibrary.AddOrUpdatePlaylist(Current);
         }

@@ -16,6 +16,7 @@ namespace VideoPlayer.Service.Library.Models.Classified
                 ShowId = ((DataClassifiedEntry)DataModel).CollectionId;
                 PictureBackgroundColor = ((DataClassifiedEntry)DataModel).PictureBackgroundColor;
                 BannerBackgroundColor = ((DataClassifiedEntry)DataModel).BannerBackgroundColor;
+                ShowName = ((DataClassifiedEntry)DataModel).ShowName;
             }
         }
 
@@ -63,6 +64,17 @@ namespace VideoPlayer.Service.Library.Models.Classified
             }
         }
 
+        public string ShowName {
+            get
+            {
+                return GetProperty<string>();
+            }
+            set
+            {
+                SetProperty<string>(value);
+            }
+        }
+
         protected override void AssignChanges()
         {
             base.AssignChanges();
@@ -72,6 +84,7 @@ namespace VideoPlayer.Service.Library.Models.Classified
             ((DataClassifiedEntry)DataModel).CollectionId = ShowId;
             ((DataClassifiedEntry)DataModel).PictureBackgroundColor = PictureBackgroundColor;
             ((DataClassifiedEntry)DataModel).BannerBackgroundColor = BannerBackgroundColor;
+            ((DataClassifiedEntry)DataModel).ShowName = ShowName;
         }
         public override string ToString()
         {

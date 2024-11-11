@@ -227,8 +227,6 @@ namespace VideoPlayer.Service.Library.Models.Classified
             }
         }
 
-        
-
         protected override void AssignChanges()
         {
             base.AssignChanges();

@@ -23,6 +23,8 @@ namespace VideoPlayer.Service.Library.Models.Classified
                 Part = ((DataClassifiedEntry)DataModel).PartNo;
                 Plot = ((DataClassifiedEntry)DataModel).Plot;
                 SeasonId = ((DataClassifiedEntry)DataModel).CollectionId;
+                ShowName = ((DataClassifiedEntry)DataModel).ShowName;
+                SeasonNo = ((DataClassifiedEntry)DataModel).SeasonNo;
             }
         }
 
@@ -38,6 +40,8 @@ namespace VideoPlayer.Service.Library.Models.Classified
             ((DataClassifiedEntry)DataModel).PartNo = Part;
             ((DataClassifiedEntry)DataModel).Plot = Plot;
             ((DataClassifiedEntry)DataModel).CollectionId = SeasonId;
+            ((DataClassifiedEntry)DataModel).ShowName = ShowName;
+            ((DataClassifiedEntry)DataModel).SeasonNo = SeasonNo;
         }
 
         public long DownloadMediaItemId
@@ -61,5 +65,8 @@ namespace VideoPlayer.Service.Library.Models.Classified
         public long SeasonId { get; set; }
 
         public string[] Genres => new string[0];
+
+        public string ShowName { get; set; }
+        public int SeasonNo { get; set; }
     }
 }

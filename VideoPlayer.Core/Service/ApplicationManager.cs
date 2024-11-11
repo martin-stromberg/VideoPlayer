@@ -8,7 +8,9 @@ using VideoPlayer.Service.Export;
 using VideoPlayer.Service.Library;
 using VideoPlayer.Service.Library.Scanner;
 using VideoPlayer.Service.Library.Scanner.Classification;
+using VideoPlayer.Service.Playlists;
 using VideoPlayer.Service.Resources;
+using VideoPlayer.Service.Status;
 
 namespace VideoPlayer.Service
 {
@@ -19,6 +21,7 @@ namespace VideoPlayer.Service
         private readonly IServiceProvider _ServiceProvider;
         private bool _Initializing = false;
         private readonly IEventController _EventController;
+        private IStatusManager _StatusManager;
 
         public event EventHandler InitializationCompleted;
 
@@ -71,6 +74,7 @@ namespace VideoPlayer.Service
             {
                 if (Initialized)
                     return;
+                _StatusManager = GetService<IStatusManager>();
                 NotifyStatus($"Initialisiere Monitormanagement.", true);
                 var displayManager = GetService<IDeviceDisplayManager>();
                 NotifyStatus($"Initialisiere Datenbank.", true);
@@ -90,6 +94,7 @@ namespace VideoPlayer.Service
                 downloadManager.ClearTempFolder();
 
                 NotifyStatus($"Starte Hintergrundaktivitäten.");
+                GetService<IPlaylistManager>().Init();
                 GetService<ILibraryScanner>().Start();
                 GetService<IMediaClassifier>().Start();
                 downloadManager.Start();

@@ -5,7 +5,7 @@
              x:Class="VideoPlayer.Views.HomePage.NextPlayingView">
     <VerticalStackLayout IsVisible="{Binding HasItems}">
         <Label 
-            Text="Weiterschauen"
+            Text="{Binding Title}"
             VerticalOptions="Center" 
             HorizontalOptions="Start" />
         <common:HorizontalMediaCollectionView HorizontalOptions="Start"/>

@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using VideoPlayer.Service.BaseServices;
 using VideoPlayer.Service.Download;
+using VideoPlayer.Service.Events;
 using VideoPlayer.Service.Library;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
@@ -15,6 +16,7 @@ namespace VideoPlayer.Service.Playlists
     public interface IPlaylistManager
     {
         NextPlaybackPlaylist NextPlaybackPlaylist { get; }
+        NewEntriesPlaylist NewPlaylist { get; }
         event EventHandler<BaseServiceModelEventArgs> PlaybackRequest;
         event EventHandler<BaseServiceModelEventArgs> Downloading;
         event EventHandler<DownloadProgressEventArgs> DownloadProgressChanged;
@@ -38,8 +40,18 @@ namespace VideoPlayer.Service.Playlists
             General.DownloadProgress += General_DownloadProgress;
 
             NextPlaybackPlaylist = new NextPlaybackPlaylist(mediaLibrary, mediaCollectionSelector);
+            NewPlaylist = new NewEntriesPlaylist(mediaLibrary, mediaCollectionSelector);
         }
-
+        public override IEnumerable<IEventPublisher> GetPublishers()
+        {
+            return base.GetPublishers()
+                .Concat(new IEventPublisher[] { NewPlaylist });
+        }
+        public override IEnumerable<IEventSubscriber> GetSubscribers()
+        {
+            return base.GetSubscribers()
+                .Concat(new IEventSubscriber[] { NewPlaylist });
+        }
         private void General_DownloadProgress(object sender, DownloadProgressEventArgs e)
         {
             DownloadProgressChanged?.Invoke(this, e);
@@ -64,11 +76,13 @@ namespace VideoPlayer.Service.Playlists
         {
             General.Init();
             NextPlaybackPlaylist.Init();
+            NewPlaylist.Init();
         }
         public void Reset()
         {
             General.Reset();
             NextPlaybackPlaylist.Reset();
+            NewPlaylist.Reset();
         }
 
         public void Play(ClassifiedEntry movie)
@@ -84,5 +98,9 @@ namespace VideoPlayer.Service.Playlists
         {
             General.Continue(currentMediaItem);
         }
+
+        #region NewEntriesPlaylist
+        public NewEntriesPlaylist NewPlaylist { get; }
+        #endregion
     }
 }

@@ -31,8 +31,18 @@ namespace VideoPlayer.ViewModels.MediaOverview
             this.entryTypes = entryTypes;
             MediaLibrary = mediaLibrary;
             this.navigationManager = navigationManager;
+            genreSelectionViewModel.GenreLoaded += GenreSelectionViewModel_GenreLoaded;
             GenreSelectionContext = genreSelectionViewModel;
             Items.CollectionChanged += Items_CollectionChanged;
+        }
+        protected virtual bool CheckViewGenre(Genre genre)
+        {
+            return true;
+        }
+        private void GenreSelectionViewModel_GenreLoaded(object sender, BaseServiceModelEventArgs e)
+        {
+            if (!CheckViewGenre(e.ModelObject as Genre))
+                e.ModelObject = null;
         }
 
         private void Items_CollectionChanged(object sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)

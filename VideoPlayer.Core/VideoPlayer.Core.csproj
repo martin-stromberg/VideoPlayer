@@ -54,6 +54,9 @@
 	  <MauiXaml Update="Views\Common\HorizontalMediaCollectionView.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
+	  <MauiXaml Update="Views\Downloads\DownloadListPage.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
 	  <MauiXaml Update="Views\HomePage\NextPlayingView.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>

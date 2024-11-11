@@ -17,7 +17,8 @@
             <BindableLayout.ItemTemplate>
                 <DataTemplate x:DataType="vm:GenreViewModel">
                     <Frame BorderColor="Gray"
-                           Margin="0,5,0,0"
+                           MinimumWidthRequest="100"
+                           Margin="0,5,5,0"
                            Padding="0,0,10,0">
                         <Frame.GestureRecognizers>
                             <TapGestureRecognizer Command="{Binding Tapped}"/>

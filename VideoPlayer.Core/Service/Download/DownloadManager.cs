@@ -125,6 +125,17 @@ namespace VideoPlayer.Service.Download
             queue.Enqueue(session);
             return session;
         }
+        public DownloadSession Enqueue(ClassifiedEntry entry, MediaItemCopyType copyType)
+        {
+            var session = new DownloadSession()
+            {
+                Entry = entry,
+                Item = null,
+                CopyType = MediaItemCopyType.Cache
+            };
+            queue.Enqueue(session);
+            return session;
+        }
 
         protected override async Task ExecuteTimerAsync()
         {

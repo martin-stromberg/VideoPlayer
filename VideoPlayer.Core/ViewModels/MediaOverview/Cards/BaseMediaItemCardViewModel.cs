@@ -17,13 +17,17 @@ using VideoPlayer.Tools;
 using VideoPlayer.ViewModels.Common;
 using VideoPlayer.Service.Library.Models.Playlists;
 using VideoPlayer.ViewModels.MediaOverview.MediaItem;
+using VideoPlayer.Service.Library;
+using Microsoft.Extensions.Logging;
 
 namespace VideoPlayer.ViewModels.MediaOverview.Cards
 {
-    public class BaseMediaItemCardViewModel : BaseViewModel, IEventPublisher
+    public class BaseMediaItemCardViewModel 
+        : BaseViewModel, IEventPublisher, IMultiEventCollection
     {
         private bool _SkipPositionEvent;
         protected IPlaylistManager PlaylistManager { get; }
+        protected IMediaLibrary MediaLibrary { get; }
         protected ClassifiedEntry Entry 
         { 
             get => GetProperty<ClassifiedEntry>();
@@ -72,22 +76,35 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             IEnvironment environment,
             IResourceManager resourceManager,
             IDownloadManager downloadManager,
+            IMediaLibrary mediaLibrary,
             ClassifiedEntry entry)
         {
             this.PlaylistManager = playlistManager;
             this.environment = environment;
             this.resourceManager = resourceManager;
             this.downloadManager = downloadManager;
+            this.MediaLibrary = mediaLibrary;
             this.Entry = entry;            
             VideoSource = null;
-            CollectionContext = new MediaCollectionViewModel();
+            CollectionContext = new BaseViewModel();
             CollectionContext.Selected += CollectionContext_Selected;
             CollectionContext.Items.CollectionChanged += CollectionContext_Items_CollectionChanged;
             PlaybackCommand = new Command(() => ExecutePlaybackCommand());
-            ActionCommand = new Command((args) => ExecuteAction(args));
+            ActionCommand = new Command((args) => ExecuteAction((string)args));
         }
+
+        public IEnumerable<IEventSubscriber> GetSubscribers()
+        {
+            return new IEventSubscriber[] { MediaLibrary as IEventSubscriber };
+        }
+
+        public IEnumerable<IEventPublisher> GetPublishers()
+        {
+            return new IEventPublisher[] { MediaLibrary as IEventPublisher };
+        }
+
         public bool HasDownload { get => GetProperty<bool>(); set { SetProperty(value); } }
-        private void ExecuteAction(object args)
+        protected virtual void ExecuteAction(string args)
         {
             try
             {
@@ -95,6 +112,9 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
                 {
                     case "delete":
                         RemoveDownload();
+                        break;
+                    case "rescan":
+                        Rescan(Entry);
                         break;
                 }
             }
@@ -104,6 +124,15 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             }
         }
 
+        protected virtual void Rescan(ClassifiedEntry entry)
+        {
+            Notify(this, new Service.Events.NotificationEventArgs("Rescan", entry));
+        }
+
+        protected void StartDownload(TVShowSeason selectedSeason)
+        {
+            downloadManager.Enqueue(selectedSeason, MediaItemCopyType.Download);
+        }
         protected virtual void RemoveDownload()
         {
             HasDownload = false;
@@ -172,6 +201,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
 
         public Color PictureBackgroundColor { get => GetProperty<Color>(); set => SetProperty(value); }
         public Color PictureTextColor { get => GetProperty<Color>(); set => SetProperty(value); }
+        public string Name { get => GetProperty<string>(); protected set => SetProperty(value); }
         public int Year { get => GetProperty<int>(); protected set => SetProperty(value); }
         public string Genres { get => GetProperty<string>(); protected set => SetProperty(value); }
         public string Plot { get => GetProperty<string>(); protected set => SetProperty(value); }
@@ -291,7 +321,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
         private string _PreviousStatus = string.Empty;
         private readonly IEnvironment environment;
         private readonly IResourceManager resourceManager;
-        private readonly IDownloadManager downloadManager;
+        private readonly IDownloadManager downloadManager;        
 
         public event EventHandler<NotificationEventArgs> OnEvent;
 

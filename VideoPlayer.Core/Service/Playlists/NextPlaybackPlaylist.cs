@@ -12,7 +12,6 @@ using VideoPlayer.Service.Library.Models.Playlists;
 
 namespace VideoPlayer.Service.Playlists
 {
-
     public class NextPlaybackPlaylist : BasePlaylistService
     {
         public NextPlaybackPlaylist(

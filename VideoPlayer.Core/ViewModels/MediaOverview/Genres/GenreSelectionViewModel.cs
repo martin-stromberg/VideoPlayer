@@ -34,18 +34,26 @@ namespace VideoPlayer.ViewModels.MediaOverview.Genres
         {
             var genres = mediaLibrary.GetGenres()
                 .OrderBy(g => g.Name);
+            BaseServiceModelEventArgs args = null;
             foreach (var genre in genres)
                 if (!Items.Any(i => genre.Name == i.Title))
                 {
-                    var vm = new GenreViewModel(genre)
+                    if (args is null)
+                        args = new BaseServiceModelEventArgs(genre);
+                    args.ModelObject = genre;
+                    GenreLoaded?.Invoke(this, args);
+                    if (args.ModelObject is null)
+                        continue;
+                    var vm = new GenreViewModel(args.ModelObject as Genre)
                     {
-                        Icon = resourceManager.GetGenreIcon(genre)
+                        Icon = resourceManager.GetGenreIcon(args.ModelObject as Genre)
                     };
                     vm.Selected += GenreViewModel_Selected;
                     Items.Add(vm);
                 }
         }
         public event EventHandler<string> GenreSelected;
+        public event EventHandler<BaseServiceModelEventArgs> GenreLoaded;
 
         private void GenreViewModel_Selected(object sender, EventArgs e)
         {

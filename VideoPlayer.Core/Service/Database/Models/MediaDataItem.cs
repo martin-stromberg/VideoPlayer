@@ -135,5 +135,26 @@ namespace VideoPlayer.Service.Database.Models
                 SetProperty(value);
             }
         }
+        [Indexed]
+        public bool NeedsPictureUpdate {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty(value);
+            }
+        }
+        public DateTime LastPictureUpdateTry {
+            get
+            {
+                return GetProperty<DateTime>();
+            }
+            set
+            {
+                SetProperty(value);
+            }
+        }
     }
 }

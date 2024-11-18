@@ -1,4 +1,5 @@
-﻿using Syncfusion.Licensing;
+﻿using Microsoft.Extensions.Logging;
+using Syncfusion.Licensing;
 using Syncfusion.XlsIO;
 using System;
 using System.Linq;
@@ -22,10 +23,11 @@ namespace VideoPlayer.Service.Export
     {
 
         Task<string> CreateExportFile();
+        Task<string> CreateBackupFile();
 
     }
 
-    public  class DataExporter: BaseService, IDataExporter
+    public class DataExporter : BaseService, IDataExporter
     {
 
         private readonly IMediaLibraryDatabase _MediaLibrary;
@@ -38,7 +40,10 @@ namespace VideoPlayer.Service.Export
 
         }
 
-        public DataExporter(IMediaLibraryDatabase mediaLibrary, IDataExporterRegistration registration)
+        public DataExporter(
+            IMediaLibraryDatabase mediaLibrary, IDataExporterRegistration registration,
+            ILogger<DataExporter> logger)
+            : base(logger)
         {
             RegisterSyncfusion(registration.LicenseKey);
             _MediaLibrary = mediaLibrary;
@@ -56,6 +61,11 @@ namespace VideoPlayer.Service.Export
 
         public ExportFormat Format { get; set; } = ExportFormat.XLSX;
 
+        public Task<string> CreateBackupFile()
+        {
+            FileInfo sourceFile = new FileInfo(_MediaLibrary.Settings.DatabasePath);
+            return Task.FromResult(sourceFile.FullName);
+        }
         public async Task<string> CreateExportFile()
         {
             NotifyStatus($"Generiere Exportdatei.", true);
@@ -94,6 +104,7 @@ namespace VideoPlayer.Service.Export
                                      .Where(t => t != baseType)
                                      .Where(t => !t.IsAbstract)
                                      .Where(t => t.IsAssignableTo(baseType))
+                                     .Where(t => t.GetCustomAttribute(typeof(SkipExportAttribute)) is null)
                                      .ToArray();
             foreach (var modelType in modelTypes)
             {
@@ -229,12 +240,21 @@ namespace VideoPlayer.Service.Export
             return fieldNames.ToArray();
         }
 
+        private string GetExcelColumnName(int columnNumber) 
+        { 
+            string columnName = string.Empty; 
+            while (columnNumber > 0) 
+            { 
+                int modulo = (columnNumber - 1) % 26; 
+                columnName = Convert.ToChar(65 + modulo) + columnName; 
+                columnNumber = (columnNumber - modulo) / 26; 
+            } 
+            return columnName; 
+        }
+
         private string GetFieldName(int column, int row)
         {
-            var StartField = (int)'A';
-            StartField = StartField + column;
-            string columnName = ((char)StartField).ToString();
-            return $"{columnName}{row + 1}";
+            return $"{GetExcelColumnName(column+1)}{row + 1}";
         }
         #endregion
 

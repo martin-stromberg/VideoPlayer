@@ -13,6 +13,10 @@
                 Command="{Binding Action}" 
                 CommandParameter="Export"
                 Margin="5"/>
+        <Button Text="Backup exportieren"
+                Command="{Binding Action}" 
+                CommandParameter="Backup"
+                Margin="5"/>
         <Label Text="{Binding StatusMessage}"/>
     </VerticalStackLayout>
 </ContentView>

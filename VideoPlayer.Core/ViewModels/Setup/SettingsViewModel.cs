@@ -94,6 +94,9 @@ namespace VideoPlayer.ViewModels.Setup
                     case "Export":
                         ExportData();
                         break;
+                    case "Backup":
+                        BackupDatabase();
+                        break;
                     case "ResetApp":
                         await ResetAppAsync();
                         break;
@@ -104,6 +107,24 @@ namespace VideoPlayer.ViewModels.Setup
             {
                 OnStatusReceived(ex.Message);
                 Debug.WriteLine(ex);
+            }
+        }
+
+        private async void BackupDatabase()
+        {
+            try
+            {
+                string filePath = await _DataExporter.CreateBackupFile();
+                await Share.Default
+                               .RequestAsync(new ShareFileRequest
+                               {
+                                   Title = "Exportdatei speichern",
+                                   File = new ShareFile(filePath)
+                               });
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex.Message);
             }
         }
 
@@ -122,6 +143,10 @@ namespace VideoPlayer.ViewModels.Setup
                                File = new ShareFile(filePath)
                            });
                 File.Delete(filePath);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex.Message);
             }
             finally
             {

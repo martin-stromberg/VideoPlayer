@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using VideoPlayer.ViewModels.MediaOverview;
 
 namespace VideoPlayer.Views.MediaOverview;
@@ -11,12 +12,19 @@ public partial class MediaOverviewPage : BaseContentPage
 
     private void ScrollView_Scrolled(object sender, ScrolledEventArgs e)
     {
-        if (!(sender is ScrollView scrollView)) return;
+        try
+        {
+            if (!(sender is ScrollView scrollView)) return;
 
-        var scrollSpace = scrollView.ContentSize.Height - scrollView.Height;
+            var scrollSpace = scrollView.ContentSize.Height - scrollView.Height;
 
-        if (scrollSpace-500 > e.ScrollY) return;
+            if (scrollSpace - 500 > e.ScrollY) return;
 
-        (BindingContext as BaseMediaOverviewViewModel).LoadNextItems();
+            (BindingContext as BaseMediaOverviewViewModel).LoadNextItems();
+        }
+        catch(Exception ex)
+        {
+            Debug.WriteLine(ex);
+        }
     }
 }

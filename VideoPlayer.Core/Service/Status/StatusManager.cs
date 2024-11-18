@@ -1,4 +1,5 @@
-﻿using System.Collections.Concurrent;
+﻿using Microsoft.Extensions.Logging;
+using System.Collections.Concurrent;
 using VideoPlayer.Service.BaseServices;
 using VideoPlayer.Service.Events;
 
@@ -6,8 +7,8 @@ namespace VideoPlayer.Service.Status
 {
     public class StatusManager: BaseService, IStatusManager
     {
-        public StatusManager()
-            :base()
+        public StatusManager(ILogger<StatusManager> logger)
+            :base(logger)
         {
 
         }

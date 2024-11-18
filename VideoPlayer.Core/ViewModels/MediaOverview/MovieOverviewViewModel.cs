@@ -11,6 +11,7 @@ using VideoPlayer.ViewModels.MediaOverview.Genres;
 
 namespace VideoPlayer.ViewModels.MediaOverview
 {
+    
     public class MovieOverviewViewModel
         : BaseMediaOverviewViewModel
     {

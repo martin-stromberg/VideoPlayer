@@ -1,4 +1,5 @@
-﻿using VideoPlayer.Service.BaseServices;
+﻿using Microsoft.Extensions.Logging;
+using VideoPlayer.Service.BaseServices;
 using VideoPlayer.Service.Download;
 using VideoPlayer.Service.Library;
 using VideoPlayer.Service.Library.Models;
@@ -13,7 +14,9 @@ namespace VideoPlayer.Service.Playlists
         public BasePlaylistService(
             IMediaLibrary mediaLibrary, 
             IMediaCollectionSelector mediaCollectionSelector, 
-            PlaylistType playlistType)
+            PlaylistType playlistType,
+            ILogger logger)
+            :base(logger)
         {
             MediaLibrary = mediaLibrary;
             MediaCollectionSelector = mediaCollectionSelector;

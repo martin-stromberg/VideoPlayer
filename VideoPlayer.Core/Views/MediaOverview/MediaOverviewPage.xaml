@@ -3,6 +3,7 @@
                           xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
                           xmlns:baseView="clr-namespace:VideoPlayer.Views"
                           xmlns:views="clr-namespace:VideoPlayer.Views.MediaOverview"
+                          xmlns:viewCommon="clr-namespace:VideoPlayer.Views.Common"
                           xmlns:vm="clr-namespace:VideoPlayer.ViewModels.MediaOverview"
                           xmlns:vmItem="clr-namespace:VideoPlayer.ViewModels.MediaOverview.MediaItem"
                           x:Class="VideoPlayer.Views.MediaOverview.MediaOverviewPage"
@@ -16,7 +17,10 @@
         </Grid.RowDefinitions>
         <views:GenreSelection Grid.Row="0" 
                               BindingContext="{Binding GenreSelectionContext}"/>
-        
+        <viewCommon:MemoryInfoView BindingContext="{Binding MemoryInfo}"
+                           HorizontalOptions="End"
+                           Grid.Row="2"
+                           Grid.Column="1"/>
         <ScrollView Grid.Row="1" 
                     Orientation="Vertical"
                     HorizontalOptions="Center"

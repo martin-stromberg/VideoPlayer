@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Linq;
 using VideoPlayer.Service.BaseServices;
 using VideoPlayer.Service.Events;
@@ -9,6 +10,10 @@ namespace VideoPlayer.Service.Device
     {
 
         private int _counter = 0;
+
+        public DeviceDisplayManager(ILogger<DeviceDisplayManager> logger) : base(logger)
+        {
+        }
 
         private void Increase()
         {

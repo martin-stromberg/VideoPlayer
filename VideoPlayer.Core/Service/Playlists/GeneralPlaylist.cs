@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -17,8 +18,9 @@ namespace VideoPlayer.Service.Playlists
         public GeneralPlaylist(
             IMediaLibrary mediaLibrary,
             IDownloadManager downloadManager,
-            IMediaCollectionSelector mediaCollectionSelector)
-            :base(mediaLibrary, mediaCollectionSelector, PlaylistType.General)
+            IMediaCollectionSelector mediaCollectionSelector,
+            ILogger logger)
+            :base(mediaLibrary, mediaCollectionSelector, PlaylistType.General, logger)
         {
             this.downloadManager = downloadManager;
         }

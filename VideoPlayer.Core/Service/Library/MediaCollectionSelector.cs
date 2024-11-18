@@ -11,6 +11,8 @@ namespace VideoPlayer.Service.Library
 {
     public interface IMediaCollectionSelector
     {
+        TVShowSeason FindFirstSeason(TVShow show);
+        ClassifiedEntry FindFirstEpisode(TVShow show);
         ClassifiedEntry FindNextEntry(ClassifiedEntry mediaItem);
         MediaItem FindNextMediaItem(MediaItem mediaItem);
         IEnumerable<ClassifiedEntry> FindNextEntries(ClassifiedEntry entry);
@@ -137,14 +139,14 @@ namespace VideoPlayer.Service.Library
                     yield return season;
             }
         }
-        private TVShowSeason FindFirstSeason(TVShow show)
+        public TVShowSeason FindFirstSeason(TVShow show)
         {
             if (show is null) return null;
             var season = FindSeasons(show)
                 .FirstOrDefault();
             return season;
         }
-        private ClassifiedEntry FindFirstEpisode(TVShow show)
+        public ClassifiedEntry FindFirstEpisode(TVShow show)
         {
             if (show is null) return null;
             return FindFirstEpisode(FindFirstSeason(show));

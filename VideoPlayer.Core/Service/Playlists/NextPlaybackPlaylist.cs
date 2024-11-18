@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -16,8 +17,9 @@ namespace VideoPlayer.Service.Playlists
     {
         public NextPlaybackPlaylist(
             IMediaLibrary mediaLibrary,
-            IMediaCollectionSelector mediaCollectionSelector)
-            : base(mediaLibrary, mediaCollectionSelector, PlaylistType.NextPlayback)
+            IMediaCollectionSelector mediaCollectionSelector,
+            ILogger logger)
+            : base(mediaLibrary, mediaCollectionSelector, PlaylistType.NextPlayback, logger)
         {
         }
 

@@ -57,6 +57,16 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             this.mediaCollectionSelector = mediaCollectionSelector;
             Select(null);
         }
+        protected override void Download(ClassifiedEntry entry)
+        {
+            entry = SelectedMovie ?? entry;
+            base.Download(entry);
+        }
+        protected override void RemoveDownload(ClassifiedEntry entry)
+        {
+            entry = SelectedMovie ?? entry;
+            base.RemoveDownload(entry);
+        }
         protected override void UpdateMediaInformation(ClassifiedEntry entry)
         {
             entry = SelectedMovie ?? entry;
@@ -101,7 +111,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
                 CollectionContext.Items.Clear();
                 foreach (var entry in mediaCollectionSelector.FindNextEntries(Collection))
                     CollectionContext.Items.Add(new MovieMediaListItem(entry));
-                Select(CollectionContext.Items.FirstOrDefault()?.Item);
+                Select(CollectionContext.Items.FirstOrDefault()?.Element as ClassifiedEntry);
             }  
             else if (Movie is not null && Movie.CollectionId != 0)
             {

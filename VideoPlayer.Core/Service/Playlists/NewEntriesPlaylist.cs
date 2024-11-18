@@ -1,4 +1,5 @@
-﻿using VideoPlayer.Service.Events;
+﻿using Microsoft.Extensions.Logging;
+using VideoPlayer.Service.Events;
 using VideoPlayer.Service.Library;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
@@ -12,8 +13,9 @@ namespace VideoPlayer.Service.Playlists
 
         public NewEntriesPlaylist(
             IMediaLibrary mediaLibrary, 
-            IMediaCollectionSelector mediaCollectionSelector) 
-            : base(mediaLibrary, mediaCollectionSelector, PlaylistType.New)
+            IMediaCollectionSelector mediaCollectionSelector,
+            ILogger logger) 
+            : base(mediaLibrary, mediaCollectionSelector, PlaylistType.New, logger)
         {
             this.mediaLibrary = mediaLibrary;
         }

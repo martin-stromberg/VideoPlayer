@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -31,16 +32,17 @@ namespace VideoPlayer.Service.Playlists
         public PlaylistManager(
             IMediaLibrary mediaLibrary, 
             IDownloadManager downloadManager,
-            IMediaCollectionSelector mediaCollectionSelector)
-            :base()
+            IMediaCollectionSelector mediaCollectionSelector,
+            ILogger<PlaylistManager> logger)
+            :base(logger)
         {
-            General = new GeneralPlaylist(mediaLibrary, downloadManager, mediaCollectionSelector);
+            General = new GeneralPlaylist(mediaLibrary, downloadManager, mediaCollectionSelector, Logger);
             General.PlaybackRequest += General_PlaybackRequest;
             General.DownloadStarting += General_DownloadStarting;
             General.DownloadProgress += General_DownloadProgress;
 
-            NextPlaybackPlaylist = new NextPlaybackPlaylist(mediaLibrary, mediaCollectionSelector);
-            NewPlaylist = new NewEntriesPlaylist(mediaLibrary, mediaCollectionSelector);
+            NextPlaybackPlaylist = new NextPlaybackPlaylist(mediaLibrary, mediaCollectionSelector, Logger);
+            NewPlaylist = new NewEntriesPlaylist(mediaLibrary, mediaCollectionSelector, Logger);
         }
         public override IEnumerable<IEventPublisher> GetPublishers()
         {

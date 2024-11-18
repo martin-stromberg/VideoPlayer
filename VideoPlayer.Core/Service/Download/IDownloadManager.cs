@@ -10,6 +10,7 @@ namespace VideoPlayer.Service.Download
         void ClearTempFolder();
         DownloadSession Enqueue(ClassifiedEntry entry, Library.Models.MediaItem item);
         DownloadSession Enqueue(ClassifiedEntry entry, MediaItemCopyType copyType);
+        IEnumerable<FileInfo> GetOrphanedFiles();
         void RemoveDownloads(ClassifiedEntry entry);
     }
 }

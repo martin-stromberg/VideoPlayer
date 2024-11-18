@@ -1,4 +1,5 @@
 ﻿
+using Microsoft.Extensions.Logging;
 using VideoPlayer.Service.BaseServices;
 using VideoPlayer.Service.Database;
 using VideoPlayer.Service.Device;
@@ -8,6 +9,8 @@ using VideoPlayer.Service.Export;
 using VideoPlayer.Service.Library;
 using VideoPlayer.Service.Library.Scanner;
 using VideoPlayer.Service.Library.Scanner.Classification;
+using VideoPlayer.Service.Library.Scanner.Picture;
+using VideoPlayer.Service.Log;
 using VideoPlayer.Service.Playlists;
 using VideoPlayer.Service.Resources;
 using VideoPlayer.Service.Status;
@@ -22,10 +25,14 @@ namespace VideoPlayer.Service
         private bool _Initializing = false;
         private readonly IEventController _EventController;
         private IStatusManager _StatusManager;
+        private IMediaLibrary _MediaLibrary;
 
         public event EventHandler InitializationCompleted;
 
-        public ApplicationManager(IServiceProvider serviceProvider, IEventController eventController)
+        public ApplicationManager(
+            IServiceProvider serviceProvider, IEventController eventController,
+            ILogger<ApplicationManager> logger)
+            :base(logger)
         {
             _EventController = eventController;
             _ServiceProvider = serviceProvider;
@@ -65,7 +72,40 @@ namespace VideoPlayer.Service
             Worker.Start();
         }
 
-        private async void RunInitialization()
+        private void StartPostInitialization()
+        {
+            Thread Worker = new Thread(new ThreadStart(() => { RunPostInitialization(); }))
+            {
+                IsBackground = true,
+                Priority = ThreadPriority.Lowest
+            };
+            Worker.Start();
+        }
+        private void RunPostInitialization()
+        {
+            try
+            {
+                NotifyStatus($"Bereinige alte Daten.");
+                _MediaLibrary.ClearLogs();
+                (GetService<ILoggerProvider>() as DatabaseLoggerProvider).Init(_MediaLibrary);
+
+                var downloadManager = GetService<IDownloadManager>();
+                downloadManager.ClearTempFolder();
+
+                NotifyStatus($"Starte Hintergrundaktivitäten.");
+                GetService<ILibraryScanner>().Start();
+                GetService<IMediaClassifier>().Start();
+                GetService<IMediaPictureProcessor>().Start();
+                downloadManager.Start();
+
+                NotifyStatus($"Initialisierung erfolgt.");
+            }
+            catch (Exception ex)
+            {
+                NotifyError(ex);
+            }
+        }
+        private void RunInitialization()
         {
             if (_Initializing)
                 return;
@@ -74,32 +114,27 @@ namespace VideoPlayer.Service
             {
                 if (Initialized)
                     return;
+                DateTime startTime = DateTime.Now;
                 _StatusManager = GetService<IStatusManager>();
+                var database = GetService<IMediaLibraryDatabase>();
+                _MediaLibrary = GetService<IMediaLibrary>();                
                 NotifyStatus($"Initialisiere Monitormanagement.", true);
                 var displayManager = GetService<IDeviceDisplayManager>();
-                NotifyStatus($"Initialisiere Datenbank.", true);
-                var database = GetService<IMediaLibraryDatabase>();
+                NotifyStatus($"Initialisiere Datenbank.", true);                
                 database.UpdateSchema();
                 if (database.IsEmpty())
                 {
                     NotifyStatus($"Lade Demodaten.");
-                    var library = GetService<IMediaLibrary>();
-                    library.CreateDemoData();
+                    _MediaLibrary.CreateDemoData();
                 }
+
                 NotifyStatus($"Initialisiere Benutzeroberfläche.");
                 var resourceManager = GetService<IResourceManager>();
 
-                NotifyStatus($"Bereinige alte Daten.");
-                var downloadManager = GetService<IDownloadManager>();
-                downloadManager.ClearTempFolder();
-
-                NotifyStatus($"Starte Hintergrundaktivitäten.");
                 GetService<IPlaylistManager>().Init();
-                GetService<ILibraryScanner>().Start();
-                GetService<IMediaClassifier>().Start();
-                downloadManager.Start();
-                InitializationCompleted?.Invoke(this, EventArgs.Empty);
-                NotifyStatus($"Initialisierung erfolgt.");
+                InitializationCompleted?.Invoke(this, EventArgs.Empty);                
+
+                StartPostInitialization();
             }
             catch (Exception ex)
             {

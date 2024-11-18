@@ -1,4 +1,5 @@
 ﻿using System.Collections.ObjectModel;
+using System.Diagnostics.CodeAnalysis;
 using VideoPlayer.Service.Download;
 using VideoPlayer.Service.Library;
 using VideoPlayer.Service.Library.Models.Classified;
@@ -66,7 +67,12 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             get => GetProperty<TVShowEpisode>();
             set
             {
+                var old = SelectedEpisode;
+                if (old is not null)
+                    old.PropertyChanged -= SelectedEntry_PropertyChanged;
                 SetProperty(value);
+                if (value is not null)
+                    value.PropertyChanged += SelectedEntry_PropertyChanged;
                 VideoSource = null;
                 if (value is not null && SelectedSeason is null || SelectedSeason.Id != value.SeasonId)
                     LoadSeason(null);
@@ -77,7 +83,12 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             get => GetProperty<TVShow>();
             set
             {
+                var old = SelectedShow;
+                if (old is not null)
+                    old.PropertyChanged -= SelectedEntry_PropertyChanged;
                 SetProperty(value);
+                if (value is not null)
+                    value.PropertyChanged += SelectedEntry_PropertyChanged;
                 LoadShowSeasons(value);
             }
         }
@@ -86,11 +97,30 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             get => GetProperty<TVShowSeason>();
             set
             {
+                var old = SelectedSeason;
+                if (old is not null)
+                    old.PropertyChanged -= SelectedEntry_PropertyChanged;
                 SetProperty(value);
+                if (value is not null)
+                    value.PropertyChanged += SelectedEntry_PropertyChanged;
                 LoadSeason(value);
             }
         }
 
+        private void SelectedEntry_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            UpdateMediaInformation(SelectedEpisode ?? SelectedSeason ?? SelectedShow ?? Entry);
+        }
+        protected override void RemoveDownload(ClassifiedEntry entry)
+        {
+            entry = SelectedEpisode ?? SelectedSeason ?? SelectedShow ?? entry;
+            base.RemoveDownload(entry);
+        }
+        protected override void Download(ClassifiedEntry entry)
+        {
+            entry = SelectedEpisode ?? SelectedSeason ?? SelectedShow ?? entry;
+            base.Download(entry);
+        }
         protected override void UpdateMediaInformation(ClassifiedEntry entry)
         {
             entry = SelectedEpisode ?? SelectedSeason ?? SelectedShow ?? entry;

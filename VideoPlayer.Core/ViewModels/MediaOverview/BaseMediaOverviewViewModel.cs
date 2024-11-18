@@ -8,6 +8,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 using VideoPlayer.Navigation;
+using VideoPlayer.Service.Device;
 using VideoPlayer.Service.Library;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
@@ -16,7 +17,11 @@ using VideoPlayer.ViewModels.MediaOverview.MediaItem;
 
 namespace VideoPlayer.ViewModels.MediaOverview
 {
-    public class BaseMediaOverviewViewModel: BaseViewModel
+    public interface IReusableViewModel
+    {
+        void Reuse();
+    }
+    public class BaseMediaOverviewViewModel: BaseViewModel, IReusableViewModel
     {
         private readonly EntryType[] entryTypes;
         private readonly INavigationManager navigationManager;
@@ -34,6 +39,7 @@ namespace VideoPlayer.ViewModels.MediaOverview
             genreSelectionViewModel.GenreLoaded += GenreSelectionViewModel_GenreLoaded;
             GenreSelectionContext = genreSelectionViewModel;
             Items.CollectionChanged += Items_CollectionChanged;
+            MemoryInfo = new MemoryInformation();
         }
         protected virtual bool CheckViewGenre(Genre genre)
         {
@@ -52,7 +58,10 @@ namespace VideoPlayer.ViewModels.MediaOverview
                     (item as BaseMediaListItem).Selected += BaseMediaOverviewViewModel_Selected;
             if (e.OldItems is not null)
                 foreach (var item in e.OldItems)
-                (item as BaseMediaListItem).Selected -= BaseMediaOverviewViewModel_Selected;
+                {
+                    (item as BaseMediaListItem).Selected -= BaseMediaOverviewViewModel_Selected;
+                    MediaLibrary.Release((item as BaseMediaListItem).Item);
+                }
         }
 
         private void BaseMediaOverviewViewModel_Selected(object sender, EventArgs e)
@@ -67,7 +76,11 @@ namespace VideoPlayer.ViewModels.MediaOverview
                 Debug.WriteLine(ex);
             }
         }
-
+        public void Reuse()
+        {
+            //foreach (var item in Items.Skip(10).ToList())
+                //Items.Remove(item);
+        }
         public override void ExecuteAppeared()
         {
             base.ExecuteAppeared();
@@ -171,5 +184,9 @@ namespace VideoPlayer.ViewModels.MediaOverview
         {
             LoadNextMediaAsync(Items.Count);
         }
+
+        #region Memory Info
+        public IMemoryInformation MemoryInfo { get; }
+        #endregion
     }
 }

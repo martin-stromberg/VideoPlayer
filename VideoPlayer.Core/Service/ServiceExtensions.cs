@@ -8,6 +8,7 @@ using VideoPlayer.Service.Export;
 using VideoPlayer.Service.Library;
 using VideoPlayer.Service.Library.Scanner;
 using VideoPlayer.Service.Library.Scanner.Classification;
+using VideoPlayer.Service.Library.Scanner.Picture;
 using VideoPlayer.Service.Playlists;
 using VideoPlayer.Service.Status;
 
@@ -27,10 +28,11 @@ namespace VideoPlayer.Service
             services.AddSingleton<IEventController, EventController>();
             services.AddSingleton<IApplicationManager, ApplicationManager>();
             services.AddSingleton<IMediaLibraryDatabase, MediaLibraryDatabase>();
-            services.AddTransient<IMediaLibrary, MediaLibrary>();
+            services.AddSingleton<IMediaLibrary, MediaLibrary>();
             services.AddTransient<IDatabaseSettings, DatabaseSettings>();
             services.AddSingleton<ILibraryScanner, LibraryScanner>();
             services.AddSingleton<IDeviceDisplayManager, DeviceDisplayManager>();
+            services.AddSingleton<IMediaPictureProcessor, MediaPictureProcessor>();
             services.AddSingleton<IMediaClassifier, MediaClassifier>();
             services.AddTransient<IMediaClassifierSettings, MediaClassifierSettings>();
             services.AddTransient<ILibraryScannerSettings, LibraryScannerSettings>();
@@ -40,6 +42,7 @@ namespace VideoPlayer.Service
             services.AddTransient<IEnvironment, ApplicationEnvironment>();
             services.AddTransient<IMediaCollectionSelector, MediaCollectionSelector>();
             services.AddSingleton<IStatusManager, StatusManager>();
+            services.AddSingleton<IMemoryInformation, MemoryInformation>();
             return services;
         }
 

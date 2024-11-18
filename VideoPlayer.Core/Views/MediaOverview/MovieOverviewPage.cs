@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using VideoPlayer.Service;
+using VideoPlayer.ViewModels;
 using VideoPlayer.ViewModels.MediaOverview;
 
 namespace VideoPlayer.Views.MediaOverview
@@ -18,7 +19,7 @@ namespace VideoPlayer.Views.MediaOverview
         protected override void OnLoadingContent(IApplicationManager applicationManager)
         {
             base.OnLoadingContent(applicationManager);
-            BindingContext = applicationManager.ResolveService<MovieOverviewViewModel>();
+            BindingContext = GetOrCreateViewModel<MovieOverviewViewModel>();
         }
     }
 }

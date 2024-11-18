@@ -17,7 +17,7 @@ namespace VideoPlayer.Views.MediaOverview
         protected override void OnLoadingContent(IApplicationManager applicationManager)
         {
             base.OnLoadingContent(applicationManager);
-            BindingContext = applicationManager.ResolveService<TVShowOverviewViewModel>();
+            BindingContext = GetOrCreateViewModel<TVShowOverviewViewModel>();
         }
     }
 }

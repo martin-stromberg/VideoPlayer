@@ -86,7 +86,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             this.MediaLibrary = mediaLibrary;
             this.Entry = entry;            
             VideoSource = null;
-            CollectionContext = new BaseViewModel();
+            CollectionContext = new MediaCollectionViewModel();
             CollectionContext.Selected += CollectionContext_Selected;
             CollectionContext.Items.CollectionChanged += CollectionContext_Items_CollectionChanged;
             PlaybackCommand = new Command(() => ExecutePlaybackCommand());
@@ -103,7 +103,8 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             return new IEventPublisher[] { MediaLibrary as IEventPublisher };
         }
 
-        public bool HasDownload { get => GetProperty<bool>(); set { SetProperty(value); } }
+        public bool HasDownload { get => GetProperty<bool>(); set { SetProperty(value); HasNoDownload = !value; } }
+        public bool HasNoDownload { get => GetProperty<bool>(); private set { SetProperty(value); } }
         protected virtual void ExecuteAction(string args)
         {
             try
@@ -111,10 +112,13 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
                 switch ((string)args)
                 {
                     case "delete":
-                        RemoveDownload();
+                        RemoveDownload(Entry);
                         break;
                     case "rescan":
                         Rescan(Entry);
+                        break;
+                    case "download":
+                        Download(Entry);
                         break;
                 }
             }
@@ -122,6 +126,13 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             {
                 NotifyError(ex);
             }
+        }
+
+        protected virtual void Download(ClassifiedEntry entry)
+        {
+            if (entry is not null)
+                downloadManager.Enqueue(entry, MediaItemCopyType.Download);
+            HasNoDownload = false;
         }
 
         protected virtual void Rescan(ClassifiedEntry entry)
@@ -133,10 +144,10 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
         {
             downloadManager.Enqueue(selectedSeason, MediaItemCopyType.Download);
         }
-        protected virtual void RemoveDownload()
+        protected virtual void RemoveDownload(ClassifiedEntry entry)
         {
             HasDownload = false;
-            downloadManager.RemoveDownloads(Entry);
+            downloadManager.RemoveDownloads(entry);
             UpdateMediaInformation(Entry);
         }
 

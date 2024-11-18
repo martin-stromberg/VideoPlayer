@@ -75,7 +75,7 @@ namespace VideoPlayer.Tests
         protected void InitializePlaylistManager()
         {
             IMediaCollectionSelector mediaCollectionSelector = new MediaCollectionSelector(MediaLibrary);
-            PlaylistManager = new PlaylistManager(MediaLibrary, DownloadManager, mediaCollectionSelector);
+            PlaylistManager = new PlaylistManager(MediaLibrary, DownloadManager, mediaCollectionSelector, null);
         }
 
         protected void InitializeEmptyDatabase()
@@ -85,12 +85,12 @@ namespace VideoPlayer.Tests
             Database.UpdateSchema();
             if (!Database.IsEmpty())
                 throw new ApplicationException($"Database is not new.");
-            MediaLibrary = new MediaLibrary(Database);
+            MediaLibrary = new MediaLibrary(Database, null);
         }
 
         protected void InitializeDownloadManager()
         {
-            DownloadManager = new DownloadManager(MediaLibrary, new ApplicationEnvironment());
+            DownloadManager = new DownloadManager(MediaLibrary, new ApplicationEnvironment(), null, null);
             DownloadManager.CreatingSourceReader += DownloadManager_CreatingSourceReader;
         }
 
@@ -108,7 +108,7 @@ namespace VideoPlayer.Tests
                 FirstCheck = TimeSpan.FromSeconds(1),
                 CheckInterval = TimeSpan.FromMinutes(30)
             };
-            MediaClassifier = new MediaClassifier(MediaLibrary, settings);
+            MediaClassifier = new MediaClassifier(MediaLibrary, settings, null);
             MediaClassifier.ExecutionStarted += MediaClassifier_ExecutionStarted;
             MediaClassifier.ExecutionFinished += MediaClassifier_ExecutionFinished;
             MediaClassifier.CreatingSourceReader += MediaClassifier_CreatingSourceReader;
@@ -130,7 +130,7 @@ namespace VideoPlayer.Tests
                 CheckInterval = TimeSpan.FromHours(1),
                 FirstCheck = TimeSpan.FromSeconds(1),
             };
-            Scanner = new LibraryScanner(MediaLibrary, settings);
+            Scanner = new LibraryScanner(MediaLibrary, settings, null);
             Scanner.CreatingSourceReader += MediaClassifier_CreatingSourceReader;
             Scanner.ExecutionStarted += Scanner_ExecutionStarted;
             Scanner.ExecutionFinished += Scanner_ExecutionFinished;

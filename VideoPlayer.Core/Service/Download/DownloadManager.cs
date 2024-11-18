@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -94,19 +95,24 @@ namespace VideoPlayer.Service.Download
                 Progress?.Invoke(this, _progressInfo);
             }
         }
+        private ConcurrentQueue<DownloadSession> queueCheck = new ConcurrentQueue<DownloadSession>();
         private ConcurrentQueue<DownloadSession> queue = new ConcurrentQueue<DownloadSession>();
         private readonly IMediaLibrary mediaLibrary;
         private readonly IEnvironment environment;
+        private readonly IMediaCollectionSelector mediaCollectionSelector;
 
         public DownloadManager(
             IMediaLibrary mediaLibrary,
-            IEnvironment environment)
-            :base()
+            IEnvironment environment,
+            IMediaCollectionSelector mediaCollectionSelector,
+            ILogger<DownloadManager> logger)
+            :base(logger)
         {
             base.DueTime = TimeSpan.FromSeconds(5);
             base.Period = TimeSpan.FromSeconds(5);
             this.mediaLibrary = mediaLibrary;
             this.environment = environment;
+            this.mediaCollectionSelector = mediaCollectionSelector;
         }
 
         public bool HasJobs
@@ -122,7 +128,7 @@ namespace VideoPlayer.Service.Download
                 Item = item,
                 CopyType = MediaItemCopyType.Cache
             };
-            queue.Enqueue(session);
+            queueCheck.Enqueue(session);
             return session;
         }
         public DownloadSession Enqueue(ClassifiedEntry entry, MediaItemCopyType copyType)
@@ -131,34 +137,119 @@ namespace VideoPlayer.Service.Download
             {
                 Entry = entry,
                 Item = null,
-                CopyType = MediaItemCopyType.Cache
+                CopyType = copyType
             };
-            queue.Enqueue(session);
+            queueCheck.Enqueue(session);
             return session;
         }
 
-        protected override async Task ExecuteTimerAsync()
+        protected override Task ExecuteTimerAsync()
         {
-            await ExecuteTimerDownloads();
-            await ExecuteDownloadRemovals();
+            Task.Run(Execute);
+            return Task.CompletedTask;
+        }
+        private void Execute()
+        {
+            try
+            {
+                ExecuteChecks();
+                ExecuteTimerDownloads();
+                ExecuteDownloadRemovals();
+            }
+            catch(Exception ex) 
+            {
+                NotifyError(ex);
+            }
+        }
+        private object _ExecutingLock = new object();
+        private bool _ExecutingCheck = false;
+        private bool _ExecutingDownloads = false;
+        private void ExecuteChecks()
+        {
+            lock (_ExecutingLock)
+            {
+                if (_ExecutingCheck) return;
+                _ExecutingCheck = true;
+            }
+            try
+            {
+                if (!queueCheck.TryPeek(out var firstEntry))
+                    return;
+                Check(firstEntry);
+                if (!queueCheck.TryDequeue(out var secondEntry))
+                    return;
+                if (secondEntry.Entry.Id != firstEntry.Entry.Id)
+                    queueCheck.Enqueue(secondEntry);
+            }
+            finally
+            {
+                _ExecutingCheck = false;
+            }
         }
 
-        private Task ExecuteDownloadRemovals()
+        private void Check(DownloadSession session)
         {
-            foreach (var mediaItem in mediaLibrary.GetDueMediaItems())
-                if (RemoveDownload(mediaItem))
-                {                    
-                    var elem = mediaLibrary.GetMovieByMediaItem(mediaItem.Id)as ClassifiedEntry 
-                        ?? mediaLibrary.GetTVShowEpisodeByMediaItem(mediaItem.Id);
-                    if (elem is null) continue;
-                    var de = elem as IDownloadableEntry;
-                    if (de is null) continue;
-                    if (de.DownloadMediaItemId != mediaItem.Id)
-                        continue;
-                    de.DownloadMediaItemId = 0;
-                    mediaLibrary.AddOrUpdateEntry(elem);
+            try
+            {
+                session.Start();
+                CompleteSession(session);
+                if (SplitSession(session))
+                    return;
+                if (session.Item is null)
+                    throw new ApplicationException($"No media item found to download.");
+
+                if (session.Item.CopyType == session.CopyType)
+                    session.Finish();
+                else if (session.Item.CopyType == MediaItemCopyType.Download)
+                    session.Finish();
+                else if (session.Item.CopyType != MediaItemCopyType.Original)
+                {
+                    var newPath = Path.Combine(environment.GetPath(session.CopyType), $"{Guid.NewGuid}{Path.GetExtension(session.Item.Name)}");
+                    session.Item.CopyType = session.CopyType;
+                    if (session.Item.Path != newPath)
+                    {
+                        File.Move(session.Item.Path, newPath);
+                        session.Item.Path = newPath;
+                    }
+                    mediaLibrary.AddOrUpdateMediaItem(session.Item);
+                    session.Finish();
                 }
-            return Task.CompletedTask;
+                else
+                    queue.Enqueue(session);
+            }
+            catch (Exception ex)
+            {
+                session.Fail(ex);
+            }
+        }
+
+        private void ExecuteDownloadRemovals()
+        {
+            lock (_ExecutingLock)
+            {
+                if (_ExecutingDownloads) return;
+                _ExecutingDownloads = true;
+            }
+            try
+            {
+                foreach (var mediaItem in mediaLibrary.GetDueMediaItems())
+                    if (RemoveDownload(mediaItem))
+                    {
+                        var elem = mediaLibrary.GetMovieByMediaItem(mediaItem.Id) as ClassifiedEntry
+                            ?? mediaLibrary.GetTVShowEpisodeByMediaItem(mediaItem.Id);
+                        if (elem is null) continue;
+                        var de = elem as IDownloadableEntry;
+                        if (de is null) continue;
+                        if (de.DownloadMediaItemId != mediaItem.Id)
+                            continue;
+                        de.DownloadMediaItemId = 0;
+                        mediaLibrary.AddOrUpdateEntry(elem);
+                    }
+            }
+            finally
+            {
+                _ExecutingDownloads = false;
+            }
         }
 
         public void RemoveDownloads(ClassifiedEntry entry)
@@ -193,6 +284,13 @@ namespace VideoPlayer.Service.Download
 
             }
         }
+        public void RemoveDownloads(MediaItem mediaItem)
+        {
+            if (mediaItem.CopyType == MediaItemCopyType.Download)
+                RemoveDownload(mediaItem);
+            else if (mediaItem.CopyType == MediaItemCopyType.Cache)
+                RemoveDownload(mediaItem);
+        }
         private bool RemoveDownload(MediaItem mediaItem)
         {
             if (mediaItem.CopyType == MediaItemCopyType.Original)
@@ -214,27 +312,38 @@ namespace VideoPlayer.Service.Download
             }
         }
 
-        private Task ExecuteTimerDownloads()
+        private void ExecuteTimerDownloads()
         {
-            if (!queue.TryPeek(out var firstEntry))
-                return Task.CompletedTask;
-            Download(firstEntry);
-            if (!queue.TryDequeue(out var secondEntry))
-                return Task.CompletedTask;
-            if (secondEntry.Entry.Id != firstEntry.Entry.Id)
-                queue.Enqueue(secondEntry);
-            return Task.CompletedTask;
+            lock (_ExecutingLock)
+            {
+                if (_ExecutingDownloads) return;
+                _ExecutingDownloads = true;
+            }
+            try
+            {
+                if (!queue.TryPeek(out var firstEntry))
+                    return;
+                Download(firstEntry);
+                if (!queue.TryDequeue(out var secondEntry))
+                    return;
+                if (secondEntry.Entry.Id != firstEntry.Entry.Id)
+                    queue.Enqueue(secondEntry);
+            }
+            finally
+            {
+                _ExecutingDownloads = false;
+            }
         }
 
         private void Download(DownloadSession session)
         {
             try
-            {
-                session.Start();
-                CompleteSession(session);
-                if (session.Item is null)
-                    throw new ApplicationException($"No media item found to download.");
-                session.Item = Download(session.Item, session.CopyType, (p) => { session.SetProgress(p); });
+            {   
+                session.Item = Download(session.Item, session.CopyType, (p) => 
+                { 
+                    session.SetProgress(p);
+                    NotifyStatus($"Lade {session.Item.Name} ({p} %)");
+                });
                 if (session.Entry is not null)
                 {
                     session.Entry = mediaLibrary.GetClassifiedEntry(session.Entry.Id);
@@ -259,13 +368,46 @@ namespace VideoPlayer.Service.Download
             }
         }
 
+        #region SplitSession
+        private bool SplitSession(DownloadSession session)
+        {
+            if (session.Entry is null) return false;
+            return SplitSession(session.Entry as TVShow, session.CopyType)
+                || SplitSession(session.Entry as TVShowSeason, session.CopyType)
+                || SplitSession(session.Entry as MovieCollection, session.CopyType);
+        }
+        private bool SplitSession(MovieCollection movieCollection, MediaItemCopyType copyType)
+        {
+            if (movieCollection is null) return false;
+            foreach (var movie in mediaCollectionSelector.FindNextEntries(movieCollection))
+                Enqueue(movie, copyType);
+            return true;
+        }
+
+        private bool SplitSession(TVShowSeason tVShowSeason, MediaItemCopyType copyType)
+        {
+            if (tVShowSeason is null) return false;
+            foreach (var episode in mediaCollectionSelector.FindNextEntries(tVShowSeason)
+                .OfType<TVShowEpisode>()
+                .TakeWhile(episode => episode.SeasonId == tVShowSeason.Id))
+                Enqueue(episode, copyType);
+            return true;
+        }
+
+        private bool SplitSession(TVShow tVShow, MediaItemCopyType copyType)
+        {
+            if (tVShow is null) return false;
+            var season = mediaCollectionSelector.FindFirstSeason(tVShow);
+            return SplitSession(season, copyType);
+        }
+        #endregion
+
         private MediaItem Download(MediaItem item, MediaItemCopyType copyType, Action<decimal> progressCallback)
         {
             if (item.CopyType == copyType)
                 return item;
             if (item.CopyType == MediaItemCopyType.Download)
                 return item;
-
             if (item.CopyType != MediaItemCopyType.Original)
             {
                 var newPath = Path.Combine(environment.GetPath(copyType), $"{Guid.NewGuid}{Path.GetExtension(item.Name)}");
@@ -381,6 +523,23 @@ namespace VideoPlayer.Service.Download
             var folderPath = Path.GetDirectoryName(localFilePath);
             foreach (var file in Directory.GetFiles(folderPath))
                 File.Delete(file);
+        }
+
+        public IEnumerable<FileInfo> GetOrphanedFiles()
+        {
+            var rootPath = environment.GetRootPath();
+            var copyTypes = new MediaItemCopyType[] { MediaItemCopyType.Cache, MediaItemCopyType.Download };
+            return copyTypes
+                .Select(ct => environment.GetPath(ct))
+                .SelectMany(path => Directory.GetFiles(path))
+                .Select(file => new FileInfo(file))
+                .Where(file =>
+                {
+                    var relPath = file.FullName.Remove(0, rootPath.Length);
+                    var mediaItem = mediaLibrary.GetMediaItemByPath(relPath);
+                    mediaLibrary.Release(mediaItem);
+                    return mediaItem is null;
+                });
         }
     }
 }

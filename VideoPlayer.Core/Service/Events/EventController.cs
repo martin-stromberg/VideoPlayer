@@ -83,7 +83,7 @@ namespace VideoPlayer.Service.Events
 
         private void Publisher_OnEvent(object sender, NotificationEventArgs e)
         {
-            foreach (var subscriber in subscribers)
+            foreach (var subscriber in subscribers.ToList())
                 try
                 {
                     subscriber.ProcessNotification(sender, e);

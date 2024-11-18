@@ -4,6 +4,7 @@ using System.Linq;
 using VideoPlayer.Service;
 using VideoPlayer.Service.Events;
 using VideoPlayer.ViewModels;
+using VideoPlayer.ViewModels.Common;
 using VideoPlayer.ViewModels.MediaOverview.Cards;
 
 namespace VideoPlayer.Views
@@ -14,6 +15,8 @@ namespace VideoPlayer.Views
         private bool _Initialized = false;
         private IApplicationManager _appManager;
         private IEventController _eventController;
+        private IViewModelManager _ViewModelManager;
+
         private bool _IsAppeared = false;
         private bool _AppearedEventSent = false;
 
@@ -111,7 +114,12 @@ namespace VideoPlayer.Views
 
         protected virtual void OnLoadingContent(IApplicationManager applicationManager)
         {
-            _eventController = ApplicationManager.GetService<IEventController>();            
+            _eventController = ApplicationManager.GetService<IEventController>();
+            _ViewModelManager = ApplicationManager.GetService<IViewModelManager>();
+        }
+        protected BaseViewModel GetOrCreateViewModel<T>() where T : BaseViewModel
+        {
+            return _ViewModelManager.Get<T>();
         }
         #endregion
         #region Binding Context

@@ -1,4 +1,5 @@
-﻿using VideoPlayer.Service.BaseServices;
+﻿using Microsoft.Extensions.Logging;
+using VideoPlayer.Service.BaseServices;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
 using VideoPlayer.Service.Library.SourceReader;
@@ -8,7 +9,10 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
     public abstract class BaseClassifier: BaseService
     {
 
-        public BaseClassifier(IMediaLibrary mediaLibrary)
+        public BaseClassifier(
+            IMediaLibrary mediaLibrary,
+            ILogger logger)
+            :base(logger)
         {
             MediaLibrary = mediaLibrary;
         }
@@ -31,6 +35,8 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             OnSourceReaderRequest(e);
             return e.Reader;
         }
+
+        public abstract Task<bool> UpdatePictures(Actor actor);
     }
 
 }

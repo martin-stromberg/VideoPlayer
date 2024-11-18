@@ -4,29 +4,6 @@ using VideoPlayer.Service.Database.Models;
 
 namespace VideoPlayer.Service.Library.Models.Classified
 {
-    public interface IDownloadableEntry
-    {
-        long DownloadMediaItemId { get; set; }
-    }
-    public interface IMediaItemCollectionEntry
-    {
-        long[] MediaItemIds { get; set; }
-    }
-    public interface IPlayableEntry
-    {
-        string[] Genres { get; }
-        string Plot { get; }
-        DateTime ReleaseDate { get; }
-        DateTime PremieredAt { get; }
-    }
-
-    public interface IPicturedEntry
-    {
-        string PicturePath { get; }
-        string PictureBackgroundColor { get; }
-        string BannerPath { get; }
-        string BannerBackgroundColor { get; }
-    }
     public enum EntryType
     {
 

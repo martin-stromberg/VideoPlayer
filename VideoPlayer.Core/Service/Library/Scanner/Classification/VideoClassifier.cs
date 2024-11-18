@@ -1,5 +1,7 @@
-﻿using SixLabors.ImageSharp.PixelFormats;
+﻿using Microsoft.Extensions.Logging;
+using SixLabors.ImageSharp.PixelFormats;
 using System.Diagnostics;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Xml;
 using VideoPlayer.Extensions;
@@ -27,8 +29,8 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
         private static string[] pictureExtensions = new string[] { ".jpg", ".gif", ".png" };
         private static string infoFileTVShow = "tvshow.nfo";
 
-        public VideoClassifier(IMediaLibrary mediaLibrary)
-            : base(mediaLibrary) { }
+        public VideoClassifier(IMediaLibrary mediaLibrary, ILogger logger)
+            : base(mediaLibrary, logger) { }
 
         public override async Task<bool> Classify(MediaItem mediaItem)
         {            
@@ -53,27 +55,62 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                 var originalPath = mediaItem.Path.Replace(trailerExt, ext);
                 var originalMediaItem = MediaLibrary.GetMediaItemByPath(mediaItem.ParentCollectionId, originalPath);
                 if (originalMediaItem is not null)
-                    ClassifyVideo(originalMediaItem);
+                    try
+                    {
+                        ClassifyVideo(originalMediaItem);
+                    }
+                    finally
+                    {
+                        MediaLibrary.Release(originalMediaItem);
+                    }
             }
             return true;
         }
 
         private bool ClassifyVideo(MediaItem mediaItem)
         {
-            Console.WriteLine($"CLASSIFY {mediaItem}");
+            Console.WriteLine($"CLASSIFY {mediaItem}");            
             var collection = MediaLibrary.GetMediaCollection(mediaItem.ParentCollectionId);
-            var source = MediaLibrary.GetSource(collection.SourceId);
-            var reader = CreateReader(source);
-            var parentMetaInfo = UpdateMediaInformation(collection, reader);
-            var rootName = Path.GetFileNameWithoutExtension(mediaItem.Path);
-            var allItems = MediaLibrary.GetMediaCollectionItems(collection.Id)
-                                       .Where(item => Path.GetFileNameWithoutExtension(item.Name).StartsWith(rootName))
-                                       .ToArray();
-            var nfoFile = allItems.FirstOrDefault(item => nfoExtensions.Contains(Path.GetExtension(item.Name)));            
-            UpdateMediaInformation(mediaItem, nfoFile, reader);
-            UpdateMovie(mediaItem, collection, source);
-            UpdateTVShowEpisode(mediaItem, collection, source, parentMetaInfo);
-            Console.WriteLine($"CLASSIFY-END {mediaItem}");
+            try
+            {
+                var source = MediaLibrary.GetSource(collection.SourceId);
+                try
+                {
+                    var reader = CreateReader(source);
+                    var parentMetaInfo = UpdateMediaInformation(collection, reader);
+                    var rootName = Path.GetFileNameWithoutExtension(mediaItem.Path);
+                    var allItems = MediaLibrary.GetMediaCollectionItems(collection.Id)
+                                               .Where(item =>
+                                               {
+                                                   var result = Path.GetFileNameWithoutExtension(item.Name).StartsWith(rootName);
+                                                   if (!result)
+                                                       MediaLibrary.Release(item);
+                                                   return result;
+                                               })
+                                               .ToList();
+                    try
+                    {
+                        var nfoFile = allItems.FirstOrDefault(item => nfoExtensions.Contains(Path.GetExtension(item.Name)));
+                        UpdateMediaInformation(mediaItem, nfoFile, reader);
+                        UpdateMovie(mediaItem, collection, source);
+                        UpdateTVShowEpisode(mediaItem, collection, source, parentMetaInfo);
+                        Console.WriteLine($"CLASSIFY-END {mediaItem}");
+                    }
+                    finally
+                    {
+                        foreach (var item in allItems)
+                            MediaLibrary.Release(item);
+                    }
+                }
+                finally
+                {
+                    MediaLibrary.Release(source);
+                }
+            }
+            finally
+            {
+                MediaLibrary.Release(collection);
+            }
             return true;
         }
 
@@ -85,62 +122,96 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             var episode = MediaLibrary.GetTVShowEpisodeByMediaItem(mediaItem.Id);
             if ((episode is null) && (episodeInfo is null || showInfo is null))
                 return;
-            var show = UpdateShowByMediaItem(mediaItem, collection, source, showInfo);
-            if (show is null)
-                return;
-            var season = UpdateSeasonByMediaItem(mediaItem, collection, source, show);
-            if (season is null) return;
-
-            if ((episode is not null) && (episodeInfo is null || showInfo is null))
-                DeactivateEpisode(episode);
-            else if (episodeInfo is not null)
+            try
             {
-                var namedMovie = MediaLibrary.GetTVShowEpisodeByIdentification(show.Name, episodeInfo.Season, episodeInfo.Episode, episodeInfo.Part);
-                if (namedMovie is null)
-                    episode = CreateEpisode(mediaItem, season);
-                else
-                    episode = UpdateEpisode(namedMovie, mediaItem);
+                var show = UpdateShowByMediaItem(mediaItem, collection, source, showInfo);
+                if (show is null)
+                    return;
+                try
+                {
+                    var season = UpdateSeasonByMediaItem(mediaItem, collection, source, show);
+                    if (season is null) return;
+                    try
+                    {
+                        if ((episode is not null) && (episodeInfo is null || showInfo is null))
+                            DeactivateEpisode(episode);
+                        else if (episodeInfo is not null)
+                        {
+                            var namedEpisode = MediaLibrary.GetTVShowEpisodeByIdentification(show.Name, episodeInfo.Season, episodeInfo.Episode, episodeInfo.Part);
+                            if (namedEpisode is null)
+                                episode = CreateEpisode(mediaItem, season);
+                            else
+                            {
+                                MediaLibrary.Release(episode);
+                                episode = UpdateEpisode(namedEpisode, mediaItem);
+                            }
+                        }
+                        var isNew = episode.Id == 0;
+                        episode.ShowName = show.Name;
+                        episode.SeasonNo = season.Number;
+                        mediaItem.NeedsPictureUpdate = true;
+                        episode = MediaLibrary.AddOrUpdateEpisode(episode);
+                        UpdateSeasonDescandantInformation(season);
+                        UpdateShowDescandantInformation(show);
+                        Console.WriteLine($"UPDATEMOVIE-END {mediaItem}");
+                        if (isNew)
+                            Notify(this, new Events.NotificationEventArgs("EntryClassified-New", episode));
+                        else
+                            Notify(this, new Events.NotificationEventArgs("EntryClassified", episode));
+                    }
+                    finally
+                    {
+                        MediaLibrary.Release(season);
+                    }
+                }
+                finally
+                {
+                    MediaLibrary.Release(show);
+                }
             }
-            var isNew = episode.Id == 0;
-            episode.ShowName = show.Name;
-            episode.SeasonNo = season.Number;
-            mediaItem.NeedsPictureUpdate = true;
-            episode = MediaLibrary.AddOrUpdateEpisode(episode);            
-            UpdateSeasonDescandantInformation(season);
-            UpdateShowDescandantInformation(show);
-            Console.WriteLine($"UPDATEMOVIE-END {mediaItem}");
-            if (isNew)
-                Notify(this, new Events.NotificationEventArgs("EntryClassified-New", episode));
-            else
-                Notify(this, new Events.NotificationEventArgs("EntryClassified", episode));
+            finally
+            {
+                MediaLibrary.Release(episode);
+            }
         }
 
         private void UpdateShowDescandantInformation(TVShow show)
         {
             var seasons = MediaLibrary.GetSeasons(show.Id).ToArray();
-            show.ReleaseDate = seasons
-                .Where(e => e.ReleaseDate != DateTime.MinValue)
-                .Select(e => e.ReleaseDate)
-                .Aggregate(DateTime.MinValue, (minVal, nextVal) => (minVal < nextVal && minVal != DateTime.MinValue) ? minVal : nextVal);
-            show.PremieredAt = seasons
-                .Where(e => e.PremieredAt != DateTime.MinValue)
-                .Select(e => e.PremieredAt)
-                .Aggregate(DateTime.MinValue, (minVal, nextVal) => (minVal < nextVal && minVal != DateTime.MinValue) ? minVal : nextVal);
-            show = MediaLibrary.AddOrUpdateTVShow(show);
+            try
+            {
+                show.ReleaseDate = seasons
+                    .Where(e => e.ReleaseDate != DateTime.MinValue)
+                    .Select(e => e.ReleaseDate)
+                    .Aggregate(DateTime.MinValue, (minVal, nextVal) => (minVal < nextVal && minVal != DateTime.MinValue) ? minVal : nextVal);
+                show.PremieredAt = seasons
+                    .Where(e => e.PremieredAt != DateTime.MinValue)
+                    .Select(e => e.PremieredAt)
+                    .Aggregate(DateTime.MinValue, (minVal, nextVal) => (minVal < nextVal && minVal != DateTime.MinValue) ? minVal : nextVal);
+                show = MediaLibrary.AddOrUpdateTVShow(show);
+            }
+            finally
+            {
+                MediaLibrary.Release(seasons);
+            }
         }
 
         private void UpdateSeasonDescandantInformation(TVShowSeason season)
         {
             var episodes = MediaLibrary.GetEpisodes(season.Id).ToArray();
-            season.ReleaseDate = episodes
-                .Where(e => e.ReleaseDate != DateTime.MinValue)
-                .Select(e => e.ReleaseDate)
-                .Aggregate(DateTime.MinValue, (minVal, nextVal) => (minVal < nextVal && minVal != DateTime.MinValue) ? minVal : nextVal);
-            season.PremieredAt = episodes
-                .Where(e => e.PremieredAt != DateTime.MinValue)
-                .Select(e => e.PremieredAt)
-                .Aggregate(DateTime.MinValue, (minVal, nextVal) => (minVal < nextVal && minVal != DateTime.MinValue) ? minVal : nextVal);
-            season = MediaLibrary.AddOrUpdateSeason(season);
+            try
+            {
+                season.ReleaseDate = episodes
+                    .Where(e => e.ReleaseDate != DateTime.MinValue)
+                    .Select(e => e.ReleaseDate)
+                    .Aggregate(DateTime.MinValue, (minVal, nextVal) => (minVal < nextVal && minVal != DateTime.MinValue) ? minVal : nextVal);
+                season.PremieredAt = episodes
+                    .Where(e => e.PremieredAt != DateTime.MinValue)
+                    .Select(e => e.PremieredAt)
+                    .Aggregate(DateTime.MinValue, (minVal, nextVal) => (minVal < nextVal && minVal != DateTime.MinValue) ? minVal : nextVal);
+                season = MediaLibrary.AddOrUpdateSeason(season);
+            }
+            finally { MediaLibrary.Release(episodes); }
         }
 
         private TVShowSeason UpdateSeasonByMediaItem(MediaItem mediaItem, MediaCollection collection, Models.MediaSource source, TVShow show)
@@ -165,6 +236,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
 
         private async Task UpdateTVShowSeasonPictures(TVShowSeason season, MediaCollection collection, MediaSource source)
         {
+            var releaseCollection = false;
             while (collection.ParentId != 0)
             {
                 var pictures = MediaLibrary.GetMediaCollectionItems(collection.Id)
@@ -194,8 +266,13 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                 }
                 if (collection.MetaInformation is TVShowInformation)
                     break;
+                if (releaseCollection)
+                    MediaLibrary.Release(collection);
                 collection = MediaLibrary.GetMediaCollection(collection.ParentId);
+                releaseCollection = true;
             }
+            if (releaseCollection)
+                MediaLibrary.Release(collection);
         }
 
         private TVShowSeason UpdateTVShowSeason(TVShowSeason season, int seasonNo)
@@ -244,41 +321,62 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
 
         private async Task UpdateTVShowPictures(TVShow show, MediaCollection collection, MediaSource mediaSource)
         {
-            while ((collection.ParentId != 0) 
+            var releaseCollection = false;
+            while ((collection.ParentId != 0)
                 && (collection.MetaInformation is null || collection.MetaInformation is not TVShowInformation))
+            {
+                if (releaseCollection)
+                    MediaLibrary.Release(collection);
                 collection = MediaLibrary.GetMediaCollection(collection.ParentId);
+                releaseCollection = true;
+            }
+            if (releaseCollection)
+                MediaLibrary.Release(collection);
             var pictures = MediaLibrary.GetMediaCollectionItems(collection.Id)
-                .Where(i => i.CopyType == MediaItemCopyType.Original)
-                .Where(i => pictureExtensions.Contains(Path.GetExtension(i.Name)))
+                .Where(i =>
+                {
+                    var result = i.CopyType == MediaItemCopyType.Original;
+                    result &= pictureExtensions.Contains(Path.GetExtension(i.Name));
+                    if (!result)
+                        MediaLibrary.Release(i);
+                    return result;
+                })
                 .ToArray();
-            var poster = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"poster");
-            var banner = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"banner");
-            var fanart = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"fanart");
-            var folder = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"folder");
+            try
+            {
+                var poster = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"poster");
+                var banner = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"banner");
+                var fanart = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"fanart");
+                var folder = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"folder");
 
-            if (banner is not null)
-            {
-                var kV = await UpdateCacheFileAsync(banner, show.BannerPath, mediaSource);
-                show.BannerPath = kV.Key;
-                show.BannerBackgroundColor = kV.Value.ToHex();
+                if (banner is not null)
+                {
+                    var kV = await UpdateCacheFileAsync(banner, show.BannerPath, mediaSource);
+                    show.BannerPath = kV.Key;
+                    show.BannerBackgroundColor = kV.Value.ToHex();
+                }
+                else if (fanart is not null)
+                {
+                    var kV = await UpdateCacheFileAsync(fanart, show.BannerPath, mediaSource); ;
+                    show.BannerPath = kV.Key;
+                    show.BannerBackgroundColor = kV.Value.ToHex();
+                }
+                if (poster is not null)
+                {
+                    var kV = await UpdateCacheFileAsync(poster, show.PicturePath, mediaSource);
+                    show.PicturePath = kV.Key;
+                    show.PictureBackgroundColor = kV.Value.ToHex();
+                }
+                else if (folder is not null)
+                {
+                    var kV = await UpdateCacheFileAsync(folder, show.PicturePath, mediaSource);
+                    show.PicturePath = kV.Key;
+                    show.PictureBackgroundColor = kV.Value.ToHex();
+                }
             }
-            else if (fanart is not null)
+            finally
             {
-                var kV = await UpdateCacheFileAsync(fanart, show.BannerPath, mediaSource); ;
-                show.BannerPath = kV.Key;
-                show.BannerBackgroundColor = kV.Value.ToHex();
-            }
-            if (poster is not null)
-            {
-                var kV = await UpdateCacheFileAsync(poster, show.PicturePath, mediaSource);
-                show.PicturePath = kV.Key;
-                show.PictureBackgroundColor = kV.Value.ToHex();
-            }
-            else if (folder is not null)
-            {
-                var kV = await UpdateCacheFileAsync(folder, show.PicturePath, mediaSource);
-                show.PicturePath = kV.Key;
-                show.PictureBackgroundColor = kV.Value.ToHex();
+                MediaLibrary.Release(pictures);
             }
             show = MediaLibrary.AddOrUpdateTVShow(show);
         }
@@ -309,32 +407,45 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
         {
             var rootName = Path.GetFileNameWithoutExtension(mediaItem.Name);
             var pictures = MediaLibrary.GetMediaCollectionItems(collection.Id)
-                .Where(i => i.CopyType == MediaItemCopyType.Original)
-                .Where(i => pictureExtensions.Contains(Path.GetExtension(i.Name)))
-                .Where(i => i.Name.StartsWith(rootName))
+                .Where(i =>
+                {
+                    var result = i.CopyType == MediaItemCopyType.Original;
+                    result &= i.Name.StartsWith(rootName);
+                    result &= pictureExtensions.Contains(Path.GetExtension(i.Name));
+                    if (!result)
+                        MediaLibrary.Release(i);
+                    return result;
+                })
                 .ToArray();
-            var poster = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"{rootName}-poster");
-            var banner = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"{rootName}-banner");
-            var fanart = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"{rootName}-fanart");
-            var thumb = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"{rootName}-thumb");
+            try
+            {
+                var poster = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"{rootName}-poster");
+                var banner = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"{rootName}-banner");
+                var fanart = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"{rootName}-fanart");
+                var thumb = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"{rootName}-thumb");
 
-            if (banner is not null)
-            {
-                var kV = await UpdateCacheFileAsync(banner, episode.BannerPath, mediaSource);
-                episode.BannerPath = kV.Key;
-                episode.BannerBackgroundColor = kV.Value.ToHex();
+                if (banner is not null)
+                {
+                    var kV = await UpdateCacheFileAsync(banner, episode.BannerPath, mediaSource);
+                    episode.BannerPath = kV.Key;
+                    episode.BannerBackgroundColor = kV.Value.ToHex();
+                }
+                if (poster is not null)
+                {
+                    var kV = await UpdateCacheFileAsync(poster, episode.PicturePath, mediaSource);
+                    episode.PicturePath = kV.Key;
+                    episode.PictureBackgroundColor = kV.Value.ToHex();
+                }
+                else if (thumb is not null)
+                {
+                    var kV = await UpdateCacheFileAsync(thumb, episode.PicturePath, mediaSource);
+                    episode.PicturePath = kV.Key;
+                    episode.PictureBackgroundColor = kV.Value.ToHex();
+                }
             }
-            if (poster is not null)
+            finally
             {
-                var kV = await UpdateCacheFileAsync(poster, episode.PicturePath, mediaSource);
-                episode.PicturePath = kV.Key;
-                episode.PictureBackgroundColor = kV.Value.ToHex();
-            }
-            else if (thumb is not null)
-            {
-                var kV = await UpdateCacheFileAsync(thumb, episode.PicturePath, mediaSource);
-                episode.PicturePath = kV.Key;
-                episode.PictureBackgroundColor = kV.Value.ToHex();
+                MediaLibrary.Release(pictures);
             }
             MediaLibrary.AddOrUpdateEpisode(episode);
         }
@@ -458,9 +569,14 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
         {
             var collectionMovies = MediaLibrary
                 .GetMediaCollectionItems(mediaItem.ParentCollectionId)
-                .Where(mi => mi.CopyType == MediaItemCopyType.Original)
-                .Where(mi => videoExtensions.Contains(Path.GetExtension(mi.Name)))
-                .Where(mi => !trailerExtensions.Any(ext => mi.Name.EndsWith(ext)))
+                .Where(mi =>
+                {
+                    var result = mi.CopyType == MediaItemCopyType.Original;
+                    result &= videoExtensions.Contains(Path.GetExtension(mi.Name));
+                    result &= !trailerExtensions.Any(ext => mi.Name.EndsWith(ext));
+                    MediaLibrary.Release(mi);
+                    return result;
+                })
                 .Select(mi => Path.GetFileNameWithoutExtension(mi.Name))
                 .Distinct()
                 .ToArray();
@@ -468,22 +584,28 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             movie.Visible = movie.IsSingle && movie.Enabled;
 
             var movieCollection = MediaLibrary.GetMovieCollection(movie.CollectionId);
-            if (movieCollection is null)
-                movieCollection = MediaLibrary.GetMovieCollectionByMediaCollection(mediaItem.ParentCollectionId);
-
-            if (movieCollection is null)
-                movieCollection = CreateMovieCollection(movie, mediaItem);
-            else
-                movieCollection = UpdateMovieCollection(movieCollection, movie, mediaItem);
-            var isNew = movieCollection.Id == 0;
-            movieCollection = MediaLibrary.AddOrUpdateMovieCollection(movieCollection);
-            movie.CollectionId = movieCollection.Id;
-            movie = MediaLibrary.AddOrUpdateMovie(movie);
-            UpdateCollectionMovies(movieCollection);
-            if (isNew)
-                Notify(this, new Events.NotificationEventArgs("EntryClassified-New", movieCollection));
-            else
-                Notify(this, new Events.NotificationEventArgs("EntryClassified", movieCollection));
+            try
+            {
+                if (movieCollection is null)
+                    movieCollection = MediaLibrary.GetMovieCollectionByMediaCollection(mediaItem.ParentCollectionId);
+                if (movieCollection is null)
+                    movieCollection = CreateMovieCollection(movie, mediaItem);
+                else
+                    movieCollection = UpdateMovieCollection(movieCollection, movie, mediaItem);
+                var isNew = movieCollection.Id == 0;
+                movieCollection = MediaLibrary.AddOrUpdateMovieCollection(movieCollection);
+                movie.CollectionId = movieCollection.Id;
+                movie = MediaLibrary.AddOrUpdateMovie(movie);
+                UpdateCollectionMovies(movieCollection);
+                if (isNew)
+                    Notify(this, new Events.NotificationEventArgs("EntryClassified-New", movieCollection));
+                else
+                    Notify(this, new Events.NotificationEventArgs("EntryClassified", movieCollection));
+            }
+            finally
+            {
+                MediaLibrary.Release(movieCollection);
+            }            
         }
 
         private void UpdateCollectionMovies(MovieCollection collection)
@@ -491,11 +613,18 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             var collectionMovies = MediaLibrary
                 .GetCollectionMovies(collection.Id)
                 .ToArray();
-            foreach (var movie in collectionMovies
-                .Where(movie => movie.IsSingle != collection.IsSingle))
+            try
             {
-                movie.IsSingle = collection.IsSingle;
-                _ = MediaLibrary.AddOrUpdateMovie(movie);
+                foreach (var movie in collectionMovies
+                    .Where(movie => movie.IsSingle != collection.IsSingle))
+                {
+                    movie.IsSingle = collection.IsSingle;
+                    _ = MediaLibrary.AddOrUpdateMovie(movie);
+                }
+            }
+            finally
+            {
+                MediaLibrary.Release(collectionMovies);
             }
         }
 
@@ -507,46 +636,164 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             var movie = MediaLibrary.GetMovieByMediaItem(mediaItem.Id);
             if ((movie is null) && (movieInfo is null))
                 return;
-            if (mediaItem.CopyType == MediaItemCopyType.Download)
-                AddDownloadToMovie(movie, mediaItem);
-            else if (mediaItem.CopyType == MediaItemCopyType.Cache)
-                AddCacheToMovie(movie, mediaItem);
-            else if ((movie is not null) && (movieInfo is null))
-                DeactivateMovie(movie);
-            else if (movieInfo is not null)
+            try
             {
-                var namedMovies = MediaLibrary.GetMoviesByName(movieInfo.Title).ToArray();
-                var namedMovie = namedMovies
-                    .OrderBy(movie => movie.Name)
-                    .Where(e => movieInfo.Language == e.Language)
-                    .Concat(namedMovies.Where(e => movieInfo.Language != e.Language))
-                    .FirstOrDefault();
-                if (namedMovie is null)
-                    movie = CreateMovie(mediaItem);
+                if (mediaItem.CopyType == MediaItemCopyType.Download)
+                    AddDownloadToMovie(movie, mediaItem);
+                else if (mediaItem.CopyType == MediaItemCopyType.Cache)
+                    AddCacheToMovie(movie, mediaItem);
+                else if ((movie is not null) && (movieInfo is null))
+                    DeactivateMovie(movie);
+                else if (movieInfo is not null)
+                {
+                    var namedMovies = MediaLibrary.GetMoviesByName(movieInfo.Title).ToList();
+                    namedMovies = namedMovies
+                        .OrderBy(movie => (movieInfo.Language == movie.Language) ? 0 : 1)
+                        .ThenBy(movie => movie.Name)
+                        .ToList();
+                    var namedMovie = namedMovies.FirstOrDefault();                                        
+                    if (namedMovie is null)
+                        movie = CreateMovie(mediaItem);
+                    else
+                    {
+                        MediaLibrary.Release(namedMovies.Skip(1));
+                        MediaLibrary.Release(movie);
+                        movie = UpdateMovie(namedMovie, mediaItem);
+                    }
+                }
+                var isNew = movie.Id == 0;
+                mediaItem.NeedsPictureUpdate = true;
+                movie = MediaLibrary.AddOrUpdateMovie(movie);
+                UpdateMovieCollection(movie, mediaItem);
+                ActivateGenres(movie);
+                UpdateMovieActors(movie, movieInfo);
+                Console.WriteLine($"UPDATEMOVIE-END {mediaItem}");
+                if (isNew)
+                    Notify(this, new Events.NotificationEventArgs("EntryClassified-New", movie));
                 else
-                    movie = UpdateMovie(namedMovie, mediaItem);
+                    Notify(this, new Events.NotificationEventArgs("EntryClassified", movie));
             }
-            var isNew = movie.Id == 0;
-            mediaItem.NeedsPictureUpdate = true;
-            movie = MediaLibrary.AddOrUpdateMovie(movie);                        
-            UpdateMovieCollection(movie, mediaItem);
-            ActivateGenres(movie);
-            Console.WriteLine($"UPDATEMOVIE-END {mediaItem}");            
-            if (isNew)
-                Notify(this, new Events.NotificationEventArgs("EntryClassified-New", movie));
-            else
-                Notify(this, new Events.NotificationEventArgs("EntryClassified", movie));
+            finally
+            {
+                MediaLibrary.Release(movie);
+            }
+        }
+
+        private void UpdateMovieActors(Movie movie, MovieInformation movieInfo)
+        {
+            var roles = movieInfo.Actors.Select(actorInfo =>
+            {
+                Actor actor = GetOrCreateActor(actorInfo);
+                MediaLibrary.Release(actor);
+                return new Role(null)
+                {
+                    Actor = actor,
+                    ActorId = actor.Id,
+                    Name = actorInfo.Role,
+                    EntryId = movie.Id
+                };
+            }).ToList();
+
+            var existingRoles = MediaLibrary.GetRoles(movie.Id).OrderBy(r => r.Id).ToList();
+            try
+            {
+                var rolesToSave = roles.Select(role =>
+                {
+                    var existing = existingRoles.FirstOrDefault();
+                    if (existing is null)
+                        return role;
+                    existingRoles.RemoveAt(0);
+                    existing.Actor = role.Actor;
+                    existing.ActorId = role.ActorId;
+                    existing.Name = role.Name;
+                    existing.EntryId = role.EntryId;
+                    return existing;
+                });
+                try
+                {
+                    foreach (var role in rolesToSave)
+                        MediaLibrary.AddOrUpdateRole(role);
+                    foreach (var role in existingRoles)
+                        MediaLibrary.Delete(role);
+                }
+                finally
+                {
+                    MediaLibrary.Release(rolesToSave);
+                }
+            }
+            finally
+            {
+                MediaLibrary.Release(existingRoles);
+            }
+        }
+
+        private Actor GetOrCreateActor(ActorInformation actorInfo)
+        {
+            var actors = MediaLibrary.GetActorsByName(actorInfo.Name).ToList();
+            try
+            {
+                var actor = actors.FirstOrDefault(act => act.ThumbUri == actorInfo.Thumb);
+                if (actor is null)
+                    actor = CreateActor(actorInfo);
+                else
+                    actors.RemoveAt(0);
+                return actor;
+            }
+            finally
+            {
+                MediaLibrary.Release(actors);
+            }            
+        }
+
+        private Actor CreateActor(ActorInformation actorInfo)
+        {
+            Actor actor = new Actor(null)
+            {
+                Name = actorInfo.Name,
+                ThumbUri = actorInfo.Thumb,
+                NeedsPictureUpdate = true
+            };
+            actor = MediaLibrary.AddOrUpdateActor(actor);            
+            return actor;
         }
 
         private void ActivateGenres(Movie movie)
         {
-            foreach (var genre in movie.Genres.Select(g => MediaLibrary.GetGenres().FirstOrDefault(genre => genre.Name == g)))
-                ActivateGenre(genre, true, false);
+            foreach (var genre in movie.Genres.Select(g => MediaLibrary.GetGenres()
+                .FirstOrDefault(genre =>
+                {
+                    var result = genre.Name == g;
+                    if (!result)
+                        MediaLibrary.Release(genre);
+                    return result;
+                })))
+                try
+                {
+                    ActivateGenre(genre, true, false);
+                }
+                finally
+                {
+                    MediaLibrary.Release(genre);
+                }
         }
         private void ActivateGenres(TVShow show)
         {
-            foreach (var genre in show.Genres.Select(g => MediaLibrary.GetGenres().FirstOrDefault(genre => genre.Name == g)))
-                ActivateGenre(genre, false, true);
+            foreach (var genre in show.Genres.Select(g => MediaLibrary.GetGenres()
+                .FirstOrDefault(genre =>
+                {
+                    var result = genre.Name == g;
+                    if (!result)
+                        MediaLibrary.Release(genre);
+                    return result;
+                })))
+                try
+                {
+                    ActivateGenre(genre, false, true);
+                }
+                finally
+                {
+                    MediaLibrary.Release(genre);
+                }
         }
 
         private void ActivateGenre(Genre genre, bool movie, bool tvshow)
@@ -577,31 +824,44 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
         {
             var rootName = Path.GetFileNameWithoutExtension(mediaItem.Name);
             var pictures = MediaLibrary.GetMediaCollectionItems(collection.Id)
-                .Where(i => i.CopyType == MediaItemCopyType.Original)
-                .Where(i => pictureExtensions.Contains(Path.GetExtension(i.Name)))
-                .Where(i => i.Name.StartsWith(rootName))
+                .Where(i =>
+                {
+                    var result = i.CopyType == MediaItemCopyType.Original;
+                    result &= i.Name.StartsWith(rootName);
+                    result &= pictureExtensions.Contains(Path.GetExtension(i.Name));
+                    if (!result)
+                        MediaLibrary.Release(i);
+                    return result;
+                })
                 .ToArray();
-            var poster = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"{rootName}-poster");
-            var banner = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"{rootName}-banner");
-            var fanart = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"{rootName}-fanart");
+            try
+            {
+                var poster = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"{rootName}-poster");
+                var banner = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"{rootName}-banner");
+                var fanart = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"{rootName}-fanart");
 
-            if (banner is not null)
-            {
-                var kV = await UpdateCacheFileAsync(banner, movie.BannerPath, mediaSource);
-                movie.BannerPath = kV.Key;
-                movie.BannerBackgroundColor = kV.Value.ToHex();
+                if (banner is not null)
+                {
+                    var kV = await UpdateCacheFileAsync(banner, movie.BannerPath, mediaSource);
+                    movie.BannerPath = kV.Key;
+                    movie.BannerBackgroundColor = kV.Value.ToHex();
+                }
+                else if (fanart is not null)
+                {
+                    var kV = await UpdateCacheFileAsync(fanart, movie.BannerPath, mediaSource);
+                    movie.BannerPath = kV.Key;
+                    movie.BannerBackgroundColor = kV.Value.ToHex();
+                }
+                if (poster is not null)
+                {
+                    var kV = await UpdateCacheFileAsync(poster, movie.PicturePath, mediaSource);
+                    movie.PicturePath = kV.Key;
+                    movie.PictureBackgroundColor = kV.Value.ToHex();
+                }                
             }
-            else if (fanart is not null)
+            finally
             {
-                var kV = await UpdateCacheFileAsync(fanart, movie.BannerPath, mediaSource);
-                movie.BannerPath = kV.Key;
-                movie.BannerBackgroundColor = kV.Value.ToHex();
-            }
-            if (poster is not null)
-            {
-                var kV = await UpdateCacheFileAsync(poster, movie.PicturePath, mediaSource);
-                movie.PicturePath = kV.Key; 
-                movie.PictureBackgroundColor = kV.Value.ToHex();
+                MediaLibrary.Release(pictures);
             }
             MediaLibrary.AddOrUpdateMovie(movie);
         }
@@ -633,7 +893,13 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
         private MediaInformation UpdateMediaInformation(MediaCollection collection, ISourceReader reader)
         {
             var nfoFile = MediaLibrary.GetMediaCollectionItems(collection.Id)                                       
-                                        .FirstOrDefault(item => item.Name == infoFileTVShow);
+                                        .FirstOrDefault(item =>
+                                        {
+                                            var result= item.Name == infoFileTVShow;
+                                            if (!result)
+                                                MediaLibrary.Release(item);
+                                            return result;
+                                        });
             MediaInformation returnInfo = null;
             if (nfoFile is not null)
             {
@@ -645,9 +911,16 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             if (collection.ParentId != 0)
             {
                 collection = MediaLibrary.GetMediaCollection(collection.ParentId);
-                var parentInfo = UpdateMediaInformation(collection, reader);
-                if (returnInfo is null)
-                    returnInfo = parentInfo;
+                try
+                {
+                    var parentInfo = UpdateMediaInformation(collection, reader);
+                    if (returnInfo is null)
+                        returnInfo = parentInfo;
+                }
+                finally
+                {
+                    MediaLibrary.Release(collection);
+                }
             }
             return returnInfo;
         }
@@ -702,14 +975,21 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
         private string[] CorrectGenres(string[] genres)
         {
             var allGenres = MediaLibrary.GetGenres().ToArray();
-            for (int idx = genres.GetLowerBound(0); idx<= genres.GetUpperBound(0); idx++)
+            try
             {
-                var genre = genres[idx];
-                var origGenre = allGenres.FirstOrDefault(g => g.Name == genre);
-                var altGenre = origGenre ?? allGenres.FirstOrDefault(g => g.AlternateNames.Any(ga => ga.Name == genre));
-                if (altGenre is null)
-                    altGenre = MediaLibrary.AddOrUpdateGenre(Genre.Create(genre));
-                genres[idx] = altGenre.Name;
+                for (int idx = genres.GetLowerBound(0); idx <= genres.GetUpperBound(0); idx++)
+                {
+                    var genre = genres[idx];
+                    var origGenre = allGenres.FirstOrDefault(g => g.Name == genre);
+                    var altGenre = origGenre ?? allGenres.FirstOrDefault(g => g.AlternateNames.Any(ga => ga.Name == genre));
+                    if (altGenre is null)
+                        altGenre = MediaLibrary.AddOrUpdateGenre(Genre.Create(genre));
+                    genres[idx] = altGenre.Name;
+                }
+            }
+            finally
+            {
+                MediaLibrary.Release(allGenres);
             }
             return genres.Distinct().ToArray();
         }
@@ -729,7 +1009,14 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                 ReleaseDate = xmlNode.FindChild("releasedate", true).InnerText.Trim().ToDateTime(),
                 PremieredAt = xmlNode.FindChild("premiered", true).InnerText.Trim().ToDateTime(),
                 Year = xmlNode.FindChild("year", true).InnerText.Trim().ToInt32(),
-                LastUpdate = DateTime.Now
+                LastUpdate = DateTime.Now,
+                Actors = xmlNode.FindChildren("actor").Select(node => new ActorInformation()
+                {
+                    Name = node.FindChild("name", true).InnerText.Trim(),
+                    Role = node.FindChild("role", true).InnerText.Trim(),
+                    Order = node.FindChild("order", true).InnerText.Trim().ToInt32(),
+                    Thumb = node.FindChild("thumb", true).InnerText.Trim(),
+                }).ToArray()
             };
             if ((info.Year == 0) && (info.ReleaseDate != default))
                 info.Year = info.ReleaseDate.Year;
@@ -762,12 +1049,34 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
         {
             var rootName = Path.GetFileNameWithoutExtension(mediaItem.Path);
             var collection = MediaLibrary.GetMediaCollection(mediaItem.ParentCollectionId);
-            var items = MediaLibrary.GetMediaCollectionItems(collection.Id)
-                                    .Where(item => Path.GetFileNameWithoutExtension(item.Path) == rootName)
-                                    .Where(item => videoExtensions.Contains(Path.GetExtension(item.Name)));
+            IEnumerable<MediaItem> items;
+            try
+            {
+                items = MediaLibrary.GetMediaCollectionItems(collection.Id)
+                                        .Where(item =>
+                                        {
+                                            var result = Path.GetFileNameWithoutExtension(item.Path) == rootName;
+                                            result &= videoExtensions.Contains(Path.GetExtension(item.Name));
+                                            if (!result)
+                                                MediaLibrary.Release(item);
+                                            return result;
+                                        });
+            }
+            finally
+            {
+                MediaLibrary.Release(collection);
+            }
             var result = false;
-            foreach (var item in items)
-                result = ClassifyVideo(item) | result;
+            try
+            {
+                foreach (var item in items)
+                    result = ClassifyVideo(item) | result;
+            }
+            finally
+            {
+                foreach (var item in items)
+                    MediaLibrary.Release(item);
+            }
             return result;
         }
 
@@ -784,20 +1093,159 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
         public override async Task<bool> UpdatePictures(MediaItem mediaItem)
         {
             var collection = MediaLibrary.GetMediaCollection(mediaItem.ParentCollectionId);
-            var mediaSource = MediaLibrary.GetSource(collection.SourceId);
-            var movie = MediaLibrary.GetMovieByMediaItem(mediaItem.Id);
-            var episode = MediaLibrary.GetTVShowEpisodeByMediaItem(mediaItem.Id);
-            if (movie is not null)
-                await UpdateMoviePictures(movie, mediaItem, collection, mediaSource);
-            else if (episode is not null)
+            try
             {
-                await UpdateEpisodePictures(episode, mediaItem, collection, mediaSource);
+                var mediaSource = MediaLibrary.GetSource(collection.SourceId);
+                try
+                {
+                    var movie = MediaLibrary.GetMovieByMediaItem(mediaItem.Id);
+                    var episode = MediaLibrary.GetTVShowEpisodeByMediaItem(mediaItem.Id);
+                    if (movie is not null)
+                    {
+                        try
+                        {
+                            await UpdateMoviePictures(movie, mediaItem, collection, mediaSource);
+                        }
+                        finally
+                        {
+                            MediaLibrary.Release(movie);
+                        }
+                    }
+                    else if (episode is not null)
+                    {
+                        try
+                        {
+                            await UpdateEpisodePictures(episode, mediaItem, collection, mediaSource);
 
-                var season = MediaLibrary.GetTVShowSeason(episode.SeasonId);
-                await UpdateTVShowSeasonPictures(season, collection, mediaSource);
+                            var season = MediaLibrary.GetTVShowSeason(episode.SeasonId);
+                            try
+                            {
+                                await UpdateTVShowSeasonPictures(season, collection, mediaSource);
+                            }
+                            finally { MediaLibrary.Release(season); }
 
-                var show = MediaLibrary.GetTVShow(season.ShowId);
-                await UpdateTVShowPictures(show, collection, mediaSource);
+                            var show = MediaLibrary.GetTVShow(season.ShowId);
+                            try
+                            {
+                                await UpdateTVShowPictures(show, collection, mediaSource);
+                            }
+                            finally { MediaLibrary.Release(show); }
+                        }
+                        finally
+                        {
+                            MediaLibrary.Release(episode);
+                        }
+                    }
+                }
+                finally
+                {
+                    MediaLibrary.Release(mediaSource);
+                }
+            }
+            finally
+            {
+                MediaLibrary.Release(collection);
+            }
+            return true;
+        }
+        public override async Task<bool> UpdatePictures(Actor actor)
+        {
+            var actorFileName = actor.Name
+                .ToLower()
+                .Replace(" ", "_");
+            var roles = MediaLibrary
+                .GetActorsRoles(actor.Id)
+                .Select(role =>
+                {
+                    MediaLibrary.Release(role);
+                    return role;
+                })
+                .ToList();
+            var entries = roles
+                .Select(role => role.EntryId)
+                .Distinct()
+                .Select(id => MediaLibrary.GetClassifiedEntry(id))
+                .Where(entry => entry is not null)
+                .Select(entry =>
+                {
+                    MediaLibrary.Release(entry);
+                    return entry;
+                })
+                .ToList();
+            var mediaItems = entries
+                .OfType<IMediaItemCollectionEntry>()
+                .SelectMany(entry => entry.MediaItemIds)
+                .Distinct()
+                .Select(id => MediaLibrary.GetMediaItem(id))
+                .Where(mi => mi is not null)
+                .Select(mi =>
+                {
+                    MediaLibrary.Release(mi);
+                    return mi;
+                })
+                .ToList();
+            var collections = mediaItems
+                .Select(mio => mio.ParentCollectionId)
+                .Distinct()
+                .Select(id => MediaLibrary.GetMediaCollection(id))
+                .Where(col => col is not null)
+                .Select(col =>
+                {
+                    MediaLibrary.Release(col);
+                    return col;
+                })
+                .ToList();
+            var mediaSources = collections
+                .Select(col => col.SourceId)
+                .Distinct()
+                .Select(id => MediaLibrary.GetSource(id))
+                .Where(source => source is not null)
+                .Select(source =>
+                {
+                    MediaLibrary.Release(source);
+                    return source;
+                })
+                .ToList();
+
+            foreach (var mediaSource in mediaSources)
+            {
+                var actorsCollections = collections
+                    .Where(col => col.SourceId == mediaSource.Id)
+                    .SelectMany(col => MediaLibrary.GetChildMediaCollections(col.Id))
+                    .Where(col => col is not null)
+                    .Select(col =>
+                    {
+                        MediaLibrary.Release(col);
+                        return col;
+                    })
+                    .Where(col => col.Name == ".actors")
+                    .ToList();
+                var pictureItems = actorsCollections
+                    .SelectMany(col => MediaLibrary.GetMediaCollectionItems(col.Id))
+                    .Where(mi => mi is not null)
+                    .Select(mi =>
+                    {
+                        MediaLibrary.Release(mi);
+                        return mi;
+                    })
+                    .Where(mi =>
+                    {
+                        var result = mi.CopyType == MediaItemCopyType.Original;
+                        result &= Path.GetFileNameWithoutExtension(mi.Name).ToLower() == actorFileName;
+                        result &= pictureExtensions.Contains(Path.GetExtension(mi.Name));
+                        return result;
+                    })
+                    .ToList();
+
+                foreach (var picture in pictureItems)
+                {
+                    var kV = await UpdateCacheFileAsync(picture, actor.PicturePath, mediaSource);
+                    actor.PicturePath = kV.Key;
+                    actor.PictureBackgroundColor = kV.Value.ToHex();
+                    break;
+                }
+                MediaLibrary.AddOrUpdateActor(actor);
+                break;
             }
             return true;
         }

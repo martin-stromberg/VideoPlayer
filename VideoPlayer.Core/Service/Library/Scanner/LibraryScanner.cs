@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Concurrent;
 using System.Formats.Asn1;
 using System.Linq;
@@ -22,8 +23,9 @@ namespace VideoPlayer.Service.Library.Scanner
 
         public LibraryScanner(
             IMediaLibrary mediaLibrary,
-            ILibraryScannerSettings settings)
-            : base()
+            ILibraryScannerSettings settings,
+            ILogger<LibraryScanner> logger)
+            : base(logger)
         {
             _Settings = settings;
             _MediaLibrary = mediaLibrary;
@@ -49,15 +51,20 @@ namespace VideoPlayer.Service.Library.Scanner
             Reset(entry as TVShow);
             Reset(entry as TVShowSeason);
             Reset(entry as TVShowEpisode);
+            _MediaLibrary.Hold(entry);
             _ForceEntries.Enqueue(entry);
         }
         private void Reset(MovieCollection entry)
         {
             if (entry is null) return;
             foreach (var movie in _MediaLibrary.GetCollectionMovies(entry.Id))
+            {
                 Reset(movie);
+                _MediaLibrary.Release(movie);
+            }
             var collection = _MediaLibrary.GetMediaCollection(entry.MediaItemCollectionId);
             Reset(collection, false);
+            _MediaLibrary.Release(collection);
         }
         private void Reset(MediaCollection collection, bool recurse = true)
         {
@@ -66,7 +73,10 @@ namespace VideoPlayer.Service.Library.Scanner
 
             if (!recurse) return;
             foreach (var mediaItem in _MediaLibrary.GetMediaCollectionItems(collection.Id))
+            {
                 Reset(mediaItem);
+                _MediaLibrary.Release(mediaItem);
+            }
         }
         private void Reset(Movie entry)
         {
@@ -75,19 +85,28 @@ namespace VideoPlayer.Service.Library.Scanner
                 .Select(id => _MediaLibrary.GetMediaItem(id))
                 .Where(mi => mi is not null);
             foreach (var mediaItem in mediaItems)
+            {
                 Reset(mediaItem);
+                _MediaLibrary.Release(mediaItem);
+            }
         }
         private void Reset(TVShow entry)
         {
             if (entry is null) return;
             foreach (var season in _MediaLibrary.GetSeasons(entry.Id))
+            {
                 Reset(season);
+                _MediaLibrary.Release(season);
+            }
         }
         private void Reset(TVShowSeason entry)
         {
             if (entry is null) return;
             foreach (var episode in _MediaLibrary.GetEpisodes(entry.Id))
+            {
                 Reset(episode);
+                _MediaLibrary.Release(episode);
+            }
         }
         private void Reset(TVShowEpisode entry)
         {
@@ -97,11 +116,18 @@ namespace VideoPlayer.Service.Library.Scanner
                 .Where(mi => mi is not null)
                 .ToArray();
             foreach (var mediaItem in mediaItems)
+            {
                 Reset(mediaItem);
+                _MediaLibrary.Release(mediaItem);
+            }
             foreach (var collection in mediaItems
-                .Select(mi => _MediaLibrary.GetMediaCollection(mi.ParentCollectionId))
-                .Distinct())
+                .Select(mi => mi.ParentCollectionId)
+                .Distinct()
+                .Select(id => _MediaLibrary.GetMediaCollection(id)))
+            {
                 Reset(collection, false);
+                _MediaLibrary.Release(collection);
+            }
         }
         private void Reset(MediaItem mediaItem)
         {
@@ -124,38 +150,54 @@ namespace VideoPlayer.Service.Library.Scanner
 
             if (!_ForceEntries.TryDequeue(out BaseServiceModel entry))
                 return false;
-
-            await ForceScan(entry as MediaItem);
-            await ForceScan(entry as MediaCollection);
-            ForceScan(entry as TVShow);
-            ForceScan(entry as TVShowSeason);
-            ForceScan(entry as TVShowEpisode);
-            ForceScan(entry as Movie);
-            ForceScan(entry as MovieCollection);
-            return true;
+            try
+            {
+                await ForceScan(entry as MediaItem);
+                await ForceScan(entry as MediaCollection);
+                ForceScan(entry as TVShow);
+                ForceScan(entry as TVShowSeason);
+                ForceScan(entry as TVShowEpisode);
+                ForceScan(entry as Movie);
+                ForceScan(entry as MovieCollection);
+                return true;
+            }
+            finally
+            {
+                _MediaLibrary.Release(entry);
+            }
         }
 
         private void ForceScan(MovieCollection movieCollection)
         {
             if (movieCollection is null) return;
             var collections = _MediaLibrary.GetCollectionMovies(movieCollection.Id)
-                .SelectMany(movie => movie.MediaItemIds.Select(id => _MediaLibrary.GetMediaItem(id))
-                .Select(mi => _MediaLibrary.GetMediaCollection(mi.ParentCollectionId))
-                ).Distinct();
+                .SelectMany(movie => movie.MediaItemIds)
+                .Distinct()
+                .Select(id => _MediaLibrary.GetMediaItem(id))
+                .Select(mi => mi.ParentCollectionId)
+                .Distinct()
+                .Select(id => _MediaLibrary.GetMediaCollection(id));
             foreach (var collection in collections)
+            {
                 EnqueueForceScan(collection);
+                _MediaLibrary.Release(collection);
+            }
         }
         private void ForceScan(Movie movie)
         {
             if (movie is null) return;
-            var mediaItems = movie.MediaItemIds.Select(id => _MediaLibrary.GetMediaItem(id));
+            var mediaItems = movie.MediaItemIds
+                .Distinct()
+                .Select(id => _MediaLibrary.GetMediaItem(id));
             foreach (var mediaItem in mediaItems)
                 _ForceEntries.Enqueue(mediaItem);
         }
         private void ForceScan(TVShowEpisode episode)
         {
             if (episode is null) return;
-            var mediaItems = episode.MediaItemIds.Select(id => _MediaLibrary.GetMediaItem(id));
+            var mediaItems = episode.MediaItemIds
+                .Distinct()
+                .Select(id => _MediaLibrary.GetMediaItem(id));
             foreach (var mediaItem in mediaItems)
                 _ForceEntries.Enqueue(mediaItem);
         }
@@ -163,19 +205,51 @@ namespace VideoPlayer.Service.Library.Scanner
         {
             if (season is null) return;
             var collections = _MediaLibrary.GetEpisodes(season.Id)
-                .SelectMany(episode => episode.MediaItemIds.Select(id => _MediaLibrary.GetMediaItem(id))
-                .Select(mi => _MediaLibrary.GetMediaCollection(mi.ParentCollectionId))
-                .Distinct());
+                .SelectMany(episode => episode.MediaItemIds)
+                .Distinct()
+                .Select(id => _MediaLibrary.GetMediaItem(id))
+                .Select(mi => mi.ParentCollectionId)
+                .Distinct()
+                .Select(id => _MediaLibrary.GetMediaCollection(id));
             foreach (var collection in collections)
+            {
                 EnqueueForceScan(collection);
+                _MediaLibrary.Release(collection);
+            }
         }
         private void ForceScan(TVShow show)
         {
             if (show is null) return;
-            var seasons = _MediaLibrary.GetSeasons(show.Id).ToArray();
-            var episodes = seasons.SelectMany(season => _MediaLibrary.GetEpisodes(season.Id)).ToArray();
-            var mediaItems = episodes.SelectMany(episode => episode.MediaItemIds.Select(id => _MediaLibrary.GetMediaItem(id))).ToArray();
-            var collections = mediaItems.Select(mi => _MediaLibrary.GetMediaCollection(mi.ParentCollectionId)).ToArray();
+            var seasons = _MediaLibrary
+                .GetSeasons(show.Id)
+                .ToArray();
+            var episodes = seasons
+                .SelectMany(season =>
+                {
+                    _MediaLibrary.Release(season);
+                    return _MediaLibrary.GetEpisodes(season.Id);
+                })
+                .ToArray();
+            var mediaItems = episodes
+                .SelectMany(episode => 
+                {
+                    _MediaLibrary.Release(episode);
+                    return episode.MediaItemIds; 
+                })
+                .Distinct()
+                .Select(id => _MediaLibrary.GetMediaItem(id))
+                .Where(mi => mi is not null)
+                .ToArray();
+            var collections = mediaItems
+                .Select(mi => 
+                {
+                    _MediaLibrary.Release(mi);
+                    return mi.ParentCollectionId; 
+                })
+                .Distinct()
+                .Select(id => _MediaLibrary.GetMediaCollection(id))
+                .Where(col => col is not null)
+                .ToArray();
             collections = collections.Distinct().ToArray();
             collections = collections.SelectMany(col =>
                 {
@@ -185,18 +259,23 @@ namespace VideoPlayer.Service.Library.Scanner
                         && parentCol.ParentId != 0)
                         parentCol = _MediaLibrary.GetMediaCollection(col.ParentId);
                     if (parentCol.MetaInformation is null)
+                    {
+                        _MediaLibrary.Release(parentCol);
                         return new MediaCollection[] { col };
+                    }
                     if (!(parentCol.MetaInformation is TVShowInformation))
-                        return new MediaCollection[] { col }; ;
+                    {
+                        _MediaLibrary.Release(parentCol);
+                        return new MediaCollection[] { col };
+                    }
                     return new MediaCollection[] { col, parentCol };
                 })
-                .ToArray();
-            collections = collections
                 .Where(col => col is not null)
-                .Distinct()
                 .ToArray();
-            foreach (var collection in collections)
+            foreach (var collection in collections.Distinct())
                 EnqueueForceScan(collection);
+            foreach (var collection in collections)
+                _MediaLibrary.Release(collection);
         }
         private void EnqueueForceScan(MediaCollection collection)
         {
@@ -208,7 +287,10 @@ namespace VideoPlayer.Service.Library.Scanner
             if (collection is null) return;
             var mediaItems = _MediaLibrary.GetMediaCollectionItems(collection.Id);
             foreach (var mediaItem in mediaItems)
+            {
                 await ForceScan(mediaItem);
+                _MediaLibrary.Release(mediaItem);
+            }
         }
         private async Task ForceScan(MediaItem mediaItem)
         {
@@ -217,18 +299,27 @@ namespace VideoPlayer.Service.Library.Scanner
             collection.Classified = false;
             MediaCollection parentCollection = _MediaLibrary.GetMediaCollection(collection.ParentId);
             MediaSource source = _MediaLibrary.GetSource(collection.SourceId);
-            var reader = CreateReader(source);
-            var folder = reader.GetRoot();
-            while (folder.Path != collection.Path)
-            {               
-                var relPath = collection.Path.Remove(0, PathTools.IncludeTrailingPathDelimiter(folder.Path).Length);
-                var relPathParts = relPath.Split('/');
-                var name = relPathParts.FirstOrDefault();
-                folder = (await reader.ReadFoldersAsync(folder))
-                    .Where(f => f.Name == name)
-                    .FirstOrDefault();
+            try
+            {
+                var reader = CreateReader(source);
+                var folder = reader.GetRoot();
+                while (folder.Path != collection.Path)
+                {
+                    var relPath = collection.Path.Remove(0, PathTools.IncludeTrailingPathDelimiter(folder.Path).Length);
+                    var relPathParts = relPath.Split('/');
+                    var name = relPathParts.FirstOrDefault();
+                    folder = (await reader.ReadFoldersAsync(folder))
+                        .Where(f => f.Name == name)
+                        .FirstOrDefault();
+                }
+                await ScanAsync(source, reader, folder, parentCollection, true);
             }
-            await ScanAsync(source, reader, folder, parentCollection, true);
+            finally
+            {
+                _MediaLibrary.Release(collection);
+                _MediaLibrary.Release(parentCollection);
+                _MediaLibrary.Release(source);
+            }
         }
 
 
@@ -245,11 +336,18 @@ namespace VideoPlayer.Service.Library.Scanner
             var source = _MediaLibrary.GetNextScanSource();
             if (source is null)
                 return false;
-            if (_Settings.SourceScanInterval > TimeSpan.Zero)
-                if (source.LastScan.Add(_Settings.SourceScanInterval) > DateTime.Now)
-                    return false;
-            await ScanSourceAsync(source);
-            return true;
+            try
+            {
+                if (_Settings.SourceScanInterval > TimeSpan.Zero)
+                    if (source.LastScan.Add(_Settings.SourceScanInterval) > DateTime.Now)
+                        return false;
+                await ScanSourceAsync(source);                
+                return true;
+            }
+            finally
+            {
+                _MediaLibrary.Release(source);
+            }
         }
 
         private async Task ScanSourceAsync(MediaSource source)
@@ -277,18 +375,25 @@ namespace VideoPlayer.Service.Library.Scanner
             try
             {
                 var collection = ProcessFolder(source, parentCollection, currentFolder);
-                if (!collection.Classified)
+                try
                 {
-                    var folders = await reader.ReadFoldersAsync(currentFolder);
-                    foreach (var folder in folders)
-                        await ScanAsync(source, reader, folder, collection);
+                    if (!collection.Classified)
+                    {
+                        var folders = await reader.ReadFoldersAsync(currentFolder);
+                        foreach (var folder in folders)
+                            await ScanAsync(source, reader, folder, collection);
 
-                    NotifyStatus($"Erfasse {currentFolder.FullPath}");
-                    var files = await reader.ReadFilesAsync(currentFolder);
-                    foreach (var file in files)
-                        ProcessFile(file, collection);
-                    NotifyScanCompleted();
-                }                
+                        NotifyStatus($"Erfasse {currentFolder.FullPath}");
+                        var files = await reader.ReadFilesAsync(currentFolder);
+                        foreach (var file in files)
+                            ProcessFile(file, collection);
+                        NotifyScanCompleted();
+                    }
+                }
+                finally
+                {
+                    _MediaLibrary.Release(collection);
+                }
             }
             finally
             {
@@ -332,11 +437,15 @@ namespace VideoPlayer.Service.Library.Scanner
         private void ProcessFile(SourceFile file, MediaCollection collection)
         {
             var mediaItem = _MediaLibrary.GetMediaItemByPath(collection.Id, file.Path);
-            if (mediaItem is null)
+            var isNew = (mediaItem is null);
+            if (isNew)
                 mediaItem = CreateMediaItem(collection.Id, file);
             mediaItem.Classified = mediaItem.Classified && (mediaItem.LastAccess == file.LastWriteTime);
+            mediaItem.NeedsPictureUpdate = false;
             mediaItem.LastAccess = file.LastWriteTime;
             mediaItem = _MediaLibrary.AddOrUpdateMediaItem(mediaItem);
+            if (isNew)
+                _MediaLibrary.Release(collection);
         }
 
         private MediaItem CreateMediaItem(long collectionId, SourceFile file)

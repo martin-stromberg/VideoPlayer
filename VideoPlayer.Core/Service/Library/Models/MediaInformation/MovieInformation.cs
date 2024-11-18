@@ -12,6 +12,6 @@
         public DateTime PremieredAt { get; set; }
 
         public int Year { get; set; }
-
+        public ActorInformation[] Actors { get; set; }
     }
 }

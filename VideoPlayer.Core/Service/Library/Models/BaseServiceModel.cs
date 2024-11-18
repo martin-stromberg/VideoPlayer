@@ -62,6 +62,7 @@ namespace VideoPlayer.Service.Library.Models
                 }
         }
 
+        public long InstanceId { get; } = DateTime.Now.Ticks;
         public long Id
         {
             get

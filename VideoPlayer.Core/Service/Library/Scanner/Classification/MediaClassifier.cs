@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Linq;
 using VideoPlayer.Service.BaseServices;
 using VideoPlayer.Service.Events;
@@ -15,15 +16,22 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
         private readonly IMediaLibrary _MediaLibrary;
         private readonly BaseClassifier[] _Classifier;
 
-        public MediaClassifier(IMediaLibrary mediaLibrary, IMediaClassifierSettings settings)
-            : base()
+        public MediaClassifier(
+            IMediaLibrary mediaLibrary, 
+            IMediaClassifierSettings settings, 
+            ILogger<MediaClassifier> logger)
+            : base(logger)
         {
             _MediaLibrary = mediaLibrary;
-            _Classifier = new BaseClassifier[] { new VideoClassifier(mediaLibrary) };
+            _Classifier = new BaseClassifier[] { new VideoClassifier(mediaLibrary, logger) };
             foreach (var classifier in _Classifier)
                 classifier.SourceReaderRequest += (sender, e) => { e.Reader = CreateReader(e.MediaSource); };
             DueTime = settings.FirstCheck;
             Period = settings.CheckInterval;
+        }
+        private void NotifyClassificationCompleted()
+        {
+            Notify(this, new NotificationEventArgs("ClassificationCompleted", null));
         }
         protected override void ProcessNotification(NotificationEventArgs e)
         {
@@ -56,55 +64,69 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             var processing = false;            
             try
             {
+                var found = false;
+                var lastNotification = DateTime.Now;
+                var checkNotify = () => {
+                    if (lastNotification.AddSeconds(10) < DateTime.Now)
+                    {
+                        NotifyClassificationCompleted();
+                        lastNotification = DateTime.Now;
+                        found = false;
+                    }
+                    else
+                        found = true;
+                };
                 foreach (var mediaItem in _MediaLibrary
                     .GetUnclassifiedMediaItems()
                     .Where(mi => mi is not null))
-                {
-                    if (!processing)
+                    try
                     {
-                        StartProcess($"Klassifiziere nächste Elemente");
-                        processing = true;
+                        if (!processing)
+                        {
+                            StartProcess($"Klassifiziere nächste Elemente");
+                            processing = true;
+                        }
+                        await Classify(mediaItem);
+                        checkNotify();
                     }
-                    await Classify(mediaItem);
-                }
+                    finally
+                    {
+                        _MediaLibrary.Release(mediaItem);
+                    }
 
-                foreach (var entry in _MediaLibrary.GetMediaItemsThatNeedsPictureUpdate())
-                {
-                    if (!processing)
+                foreach (var collection in _MediaLibrary.GetUnclassifiedMediaCollections())
+                    try
                     {
-                        StartProcess($"Klassifiziere nächste Elemente");
-                        processing = true;
+                        if (!processing)
+                        {
+                            StartProcess($"Klassifiziere nächste Elemente");
+                            processing = true;
+                        }                        
+                        await Classify(collection);
+                        checkNotify();
                     }
-                    await UpdatePictures(entry);
-                }
+                    finally
+                    {
+                        _MediaLibrary.Release(collection);
+                    }
+                if (found)
+                    NotifyClassificationCompleted();
             }
             finally
             {
                 if (processing)
-                    FinishProcess();
+                    FinishProcess();                
             }
         }
 
-        private async Task UpdatePictures(MediaItem item)
+        private Task Classify(MediaCollection collection)
         {
-            if (item is not null)
-                try
-                {
-                    NotifyStatus($"Bereite Grafiken auf für: {item.Name}");
-                    foreach (var classifier in _Classifier)
-                        if (await classifier.UpdatePictures(item))
-                            break;
-                    item.NeedsPictureUpdate = false;
-                    _MediaLibrary.AddOrUpdateMediaItem(item);
-                }
-                catch (Exception ex)
-                {
-                    item.LastPictureUpdateTry = DateTime.Now;
-                    _MediaLibrary.AddOrUpdateMediaItem(item);
-                    NotifyError(ex);
-                }
+            collection.Classified = true;
+            _MediaLibrary.AddOrUpdateMediaCollection(collection);
+            return Task.CompletedTask;
         }
 
+        
         private async Task Classify(MediaItem mediaItem)
         {
             try

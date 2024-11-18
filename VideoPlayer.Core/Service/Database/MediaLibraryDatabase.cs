@@ -35,6 +35,7 @@ namespace VideoPlayer.Service.Database
                                         SQLiteOpenFlags.Create | SQLiteOpenFlags.ReadWrite | SQLiteOpenFlags.FullMutex,
                                         true);
         }
+        public IDatabaseSettings Settings { get => _Settings; }
 
         protected Type[] ModelTypes
         {
@@ -284,6 +285,21 @@ namespace VideoPlayer.Service.Database
             return Connection.Delete(entryToDelete) == 1;
         }
 
+        public void Truncate<T>()
+        {
+            Connection.BeginTransaction();
+            try
+            {
+                Connection.DropTable<T>();
+                Connection.CreateTable<T>(CreateFlags.None);
+                Connection.Commit();
+            }
+            catch
+            {
+                Connection.Rollback();
+                throw;
+            }
+        }
     }
 
     public struct Filter
@@ -296,7 +312,7 @@ namespace VideoPlayer.Service.Database
 
     public interface IMediaLibraryDatabase
     {
-
+        IDatabaseSettings Settings { get; }
         void UpdateSchema();
 
         bool IsEmpty();
@@ -318,5 +334,6 @@ namespace VideoPlayer.Service.Database
 
         IEnumerable<BaseDataModel> GetAll(Type modelType, params KeyValuePair<string, object>[] args);
         bool Delete<T>(T entryToDelete) where T : BaseDataModel;
+        void Truncate<T>();
     }
 }

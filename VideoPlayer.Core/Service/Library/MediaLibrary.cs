@@ -1,111 +1,30 @@
-﻿using System.Collections.Concurrent;
+﻿using Microsoft.Extensions.Logging;
+using System.Collections.Concurrent;
+using System.Data;
+using System.Reflection;
 using VideoPlayer.Service.BaseServices;
 using VideoPlayer.Service.Database;
 using VideoPlayer.Service.Database.Models;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
 using VideoPlayer.Service.Library.Models.Playlists;
+using VideoPlayer.Service.Log;
 
 namespace VideoPlayer.Service.Library
 {
-    public interface IMediaLibrary
-    {
-        Setup Setup { get; }
 
-        event EventHandler<BaseServiceModelEventArgs> ItemUpdated;
-
-        void CreateDemoData();
-
-        #region MediaSource
-        MediaSource AddOrUpdateSource(MediaSource source);
-
-        MediaSource GetSource(long id);
-
-        MediaSource GetNextScanSource();
-        #endregion
-        #region MediaCollection
-        MediaCollection GetMediaCollectionByPath(long id, string fullPath);
-
-        MediaCollection GetMediaCollection(long id);
-
-        MediaCollection AddOrUpdateMediaCollection(MediaCollection collection);
-        #endregion
-        #region MediaItem
-        MediaItem GetMediaItemByPath(long id, string fullPath);
-        IEnumerable<MediaItem> GetDueMediaItems();
-        IEnumerable<MediaItem> GetMediaItemsThatNeedsPictureUpdate();
-        MediaItem GetMediaItem(long id);
-        IEnumerable<MediaItem> GetCopyMediaItems(long id);
-        IEnumerable<MediaItem> GetMediaCollectionItems(long collectionId);
-
-        MediaItem AddOrUpdateMediaItem(MediaItem mediaItem);
-
-        IEnumerable<MediaItem> GetUnclassifiedMediaItems();
-        #endregion
-        #region Movie
-        Movie GetMovieByMediaItem(long mediaItemId);
-
-        Movie GetMovie(long id);
-
-        IEnumerable<Movie> GetMoviesByName(string name);
-
-        IEnumerable<Movie> GetCollectionMovies(long collectionId);
-
-        Movie AddOrUpdateMovie(Movie movie);
-        #endregion
-        
-        #region MovieCollection
-        MovieCollection GetMovieCollection(long id);
-
-        MovieCollection AddOrUpdateMovieCollection(MovieCollection movieCollection);
-
-        MovieCollection GetMovieCollectionByMediaCollection(long mediaCollectionId);
-        #endregion
-
-        #region TVShow Episode
-        TVShowEpisode GetTVShowEpisode(long id);
-        TVShowEpisode GetTVShowEpisodeByMediaItem(long mediaItemId);
-        TVShowEpisode GetTVShowEpisodeByIdentification(string showName, int season, int episode, string part);
-        TVShowEpisode AddOrUpdateEpisode(TVShowEpisode episode);
-        IEnumerable<TVShowEpisode> GetEpisodes(long seasonId);
-        #endregion
-        #region TVShowSeason
-        TVShowSeason GetShowSeason(TVShow show, int seasonNo);
-        TVShowSeason GetTVShowSeason(long id);
-        TVShowSeason AddOrUpdateSeason(TVShowSeason season);
-        IEnumerable<TVShowSeason> GetSeasons(long showId);
-        #endregion
-        #region TVShow
-        TVShow GetTVShow(long id);
-        TVShow GetShowByName(string name);
-        TVShow AddOrUpdateTVShow(TVShow show);
-        #endregion
-        ClassifiedEntry AddOrUpdateEntry(ClassifiedEntry entry);
-        ClassifiedEntry GetClassifiedEntry(long id);
-        IEnumerable<ClassifiedEntry> GetOverview(int offset, int count, string genre, params EntryType[] entryTypes);
-        #region Genres
-        IEnumerable<Genre> GetGenres();
-        Genre GetGenre(long ind);
-        Genre AddOrUpdateGenre(Genre altGenre);
-        #endregion
-        #region Playlists 
-        Playlist AddOrUpdatePlaylist(Playlist playlist);
-        IEnumerable<Playlist> GetPlaylists(Models.Playlists.PlaylistType general);
-        Playlist GetPlaylist(long id);
-        #endregion
-
-        void Delete(MediaItem mediaItem);
-    }
-
-    public class MediaLibrary : BaseService, IMediaLibrary
+    public class MediaLibrary : TimerService, IMediaLibrary
     {
 
         private readonly IMediaLibraryDatabase _Database;
         private ConcurrentDictionary<Type, ModelCache<BaseDataModel>> _ModelCaches = new ConcurrentDictionary<Type, ModelCache<BaseDataModel>>();
 
-        public MediaLibrary(IMediaLibraryDatabase database)
+        public MediaLibrary(
+            IMediaLibraryDatabase database,
+            ILogger<MediaLibrary> logger)
+            : base(logger)
         {
-            _Database = database;
+            _Database = database; Start();
         }
         private Setup _Setup = null;
         public Setup Setup
@@ -137,7 +56,7 @@ namespace VideoPlayer.Service.Library
             {
                 if (!_ModelCaches.ContainsKey(type))
                 {
-                    _ModelCaches[type] = new ModelCache<BaseDataModel>(_Database, this, type);
+                    _ModelCaches[type] = new ModelCache<BaseDataModel>(_Database, this, type, Logger);
                     _ModelCaches[type].ElementUpdated += MediaLibrary_ElementUpdated;
                 }
             }
@@ -330,10 +249,13 @@ namespace VideoPlayer.Service.Library
             var dbModel = ((BaseServiceModel)model).GetDatabaseModel();
             var cache = GetModelCache(dbModel.GetType());
             dbModel = _Database.AddOrUpdate(dbModel);
+            var isNew = dbModel.Id == 0;
             cache.Update(model, dbModel);
             model.Id = dbModel.Id;
             model.CreatedAt = dbModel.CreatedAt;
             dbModel.SetRestorePoint();
+            if (isNew)
+                Hold(model);
             ItemUpdated?.Invoke(this, new BaseServiceModelEventArgs(model));
         }
 
@@ -396,6 +318,24 @@ namespace VideoPlayer.Service.Library
             AddOrUpdate(collection);
             return collection;
         }
+        public IEnumerable<MediaCollection> GetUnclassifiedMediaCollections()
+        {
+            var collectionIds = _Database
+                .GetAll<MediaDataItemCollection>(
+                    new KeyValuePair<string, object>(nameof(MediaDataItemCollection.Classified), false))
+                .Select(c => c.Id);
+            foreach (var id in collectionIds)
+                yield return GetMediaCollection(id);
+        }
+        public IEnumerable<MediaCollection> GetChildMediaCollections(long parentId)
+        {
+            var collectionIds = _Database
+                .GetAll<MediaDataItemCollection>(
+                    new KeyValuePair<string, object>(nameof(MediaDataItemCollection.ParentId), parentId))
+                .Select(c => c.Id);
+            foreach (var id in collectionIds)
+                yield return GetMediaCollection(id);
+        }
         #endregion
         #region MediaItem
         public void Delete(MediaItem mediaItem)
@@ -450,6 +390,27 @@ namespace VideoPlayer.Service.Library
                 return null;
             return GetMediaItem(mediaItemId);
         }
+        public MediaItem GetMediaItemByPath(string relPath)
+        {
+            var mediaItemId = _Database.GetAll<MediaDataItem>(new KeyValuePair<string, object>(nameof(MediaDataItem.Path), relPath))
+                                       .Select(c => c.Id)
+                                       .FirstOrDefault();
+            if (mediaItemId == 0)
+                return null;
+            return GetMediaItem(mediaItemId);
+        }
+        public IEnumerable<MediaItem> GetMediaItems(params MediaItemCopyType[] copyType)
+        {
+            var copyTypes = copyType.Select(ct => (DataMediaItemCopyType)ct).ToArray();
+            var cache = GetModelCache(typeof(MediaItem));
+            var itemIds = cache
+                .GetAll()
+                .Cast<MediaDataItem>()
+                .Where(item => copyTypes.Contains(item.CopyType))
+                .Select(mi => mi.Id);
+            foreach (var itemId in itemIds)
+                yield return GetMediaItem(itemId);
+        }
         public MediaItem GetMediaItem(long id)
         {
             var cache = GetModelCache(typeof(MediaDataItem));
@@ -478,7 +439,7 @@ namespace VideoPlayer.Service.Library
                                    .OrderBy(item => item.LastClassificationTry)
                                    .Select(c => c.Id)
                                    .ToArray();
-            foreach (var itemId in  itemIds)
+            foreach (var itemId in itemIds)
                 yield return GetMediaItem(itemId);
         }
 
@@ -553,7 +514,7 @@ namespace VideoPlayer.Service.Library
         private void UpdateMovieMediaItems(DataClassifiedEntry dbModel, long id, long[] mediaItemIds)
         {
             var newEntries = mediaItemIds.Select(
-                mediaItemId => new DataClassifiedEntryMediaItem() 
+                mediaItemId => new DataClassifiedEntryMediaItem()
                 {
                     EntryId = id,
                     MediaItemId = mediaItemId
@@ -568,7 +529,7 @@ namespace VideoPlayer.Service.Library
             foreach (var entryToAdd in entriesToAdd)
                 _Database.AddOrUpdate(entryToAdd);
             foreach (var entryToDelete in entriesToDelete)
-                _= _Database.Delete(entryToDelete);            
+                _ = _Database.Delete(entryToDelete);
         }
         #region MovieCollection
         public MovieCollection GetMovieCollection(long id)
@@ -753,7 +714,6 @@ namespace VideoPlayer.Service.Library
             if (source.Type != EntryType.TVShow)
                 throw new ArgumentException(nameof(source.Type));
             return source;
-
         }
 
         public TVShow AddOrUpdateTVShow(TVShow show)
@@ -813,7 +773,7 @@ namespace VideoPlayer.Service.Library
 
         #endregion
         #region Playlists 
-        public IEnumerable<Playlist> GetPlaylists(Models.Playlists.PlaylistType general) 
+        public IEnumerable<Playlist> GetPlaylists(Models.Playlists.PlaylistType general)
         {
             var entryIds = _Database.GetAll<DataPlaylist>(
                 new KeyValuePair<string, object>(nameof(DataPlaylist.Type), (DataPlaylist.PlaylistType)general))
@@ -821,7 +781,7 @@ namespace VideoPlayer.Service.Library
             foreach (var itemId in entryIds)
                 yield return GetPlaylist(itemId);
         }
-        public Playlist GetPlaylist(long id) 
+        public Playlist GetPlaylist(long id)
         {
             var cache = GetModelCache(typeof(DataPlaylist));
             var source = cache.GetServiceModel<Playlist>(id) as Playlist;
@@ -869,5 +829,119 @@ namespace VideoPlayer.Service.Library
                 _ = _Database.Delete(entryToDelete);
         }
         #endregion
+
+        #region Log Entry
+        public void AddOrUpdateLogEntry(LogEntry entry)
+        {
+            AddOrUpdate(entry);
+            Release(entry);
+        }
+
+        public void ClearLogs()
+        {
+            _Database.Truncate<DataLogEntry>();
+        }
+
+        #endregion
+        #region Actors
+        public Actor AddOrUpdateActor(Actor entry)
+        {
+            AddOrUpdate(entry);
+            return entry;
+        }
+        public IEnumerable<Actor> GetActorsByName(string name)
+        {
+            var entryIds = _Database.GetAll<DataActor>(
+                new KeyValuePair<string, object>(nameof(DataActor.Name), name))
+                                    .Select(c => c.Id);
+            foreach (var itemId in entryIds)
+                yield return GetActor(itemId);
+        }
+        public Actor GetActor(long id)
+        {
+            var cache = GetModelCache(typeof(DataActor));
+            var source = cache.GetServiceModel<Actor>(id) as Actor;
+            return source;
+        }
+        public IEnumerable<Actor> GetActorsThatNeedsPictureUpdate()
+        {
+            var entryIds = _Database.GetAll<DataActor>(
+                new KeyValuePair<string, object>(nameof(DataActor.NeedsPictureUpdate), true))
+                                    .Select(c => c.Id);
+            foreach (var itemId in entryIds)
+                yield return GetActor(itemId);
+        }
+        #endregion
+        #region Roles
+        public Role AddOrUpdateRole(Role entry)
+        {
+            AddOrUpdate(entry);
+            return entry;
+        }
+        public IEnumerable<Role> GetRoles(long entryId)
+        {
+            var entryIds = _Database.GetAll<DataRole>(
+                new KeyValuePair<string, object>(nameof(DataRole.EntryId), entryId))
+                                    .Select(c => c.Id);
+            foreach (var itemId in entryIds)
+                yield return GetRole(itemId);
+        }
+        public IEnumerable<Role> GetActorsRoles(long actorId)
+        {
+            var entryIds = _Database.GetAll<DataRole>(
+                new KeyValuePair<string, object>(nameof(DataRole.ActorId), actorId))
+                                    .Select(c => c.Id);
+            foreach (var itemId in entryIds)
+                yield return GetRole(itemId);
+        }
+        public Role GetRole(long id)
+        {
+            var cache = GetModelCache(typeof(DataRole));
+            var source = cache.GetServiceModel<Role>(id) as Role;
+            return source;
+        }
+        public void Delete(Role role)
+        {
+            var dbModel = role.GetDatabaseModel() as MediaDataItem;
+            if (!_Database.Delete<MediaDataItem>(dbModel))
+                throw new ApplicationException($"Role could not be deleted.");
+        }
+        #endregion
+
+        public void Release(IEnumerable<BaseServiceModel> entries)
+        {
+            foreach (var entry in entries)
+                Release(entry);
+        }
+        public void Release(BaseServiceModel entry)
+        {
+            if (entry is null) return;
+            var attr = entry.GetType().GetCustomAttribute<DataModelReferenceAttribute>() as DataModelReferenceAttribute;
+            if (attr is null) return;
+            var cache = GetModelCache(attr.DataModelType);
+            lock (cache)
+                cache.Release(entry);
+        }
+        public void Hold(BaseServiceModel entry)
+        {
+            if (entry is null) return;
+            var attr = entry.GetType().GetCustomAttribute<DataModelReferenceAttribute>() as DataModelReferenceAttribute;
+            if (attr is null) return;
+            var cache = GetModelCache(attr.DataModelType);
+            lock(cache)
+                cache.Hold(entry);
+        }
+
+        private DateTime _LastReleaseCheck = DateTime.Now;
+        private TimeSpan _ReleaseCheckInterval = TimeSpan.FromSeconds(60);
+        protected override Task ExecuteTimerAsync()
+        {
+            if (_LastReleaseCheck.Add(_ReleaseCheckInterval) > DateTime.Now)
+                return Task.CompletedTask;
+            _LastReleaseCheck = DateTime.Now;
+            foreach (var cache in _ModelCaches.Values)
+                cache.CheckReleases();
+            return Task.CompletedTask;
+        }
     }
 }

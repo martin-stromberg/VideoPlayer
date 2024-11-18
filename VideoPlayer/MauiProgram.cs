@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Logging;
 using VideoPlayer.Navigation;
 using VideoPlayer.Service;
+using VideoPlayer.Service.Log;
 using VideoPlayer.Services;
 using VideoPlayer.ViewModels;
 
@@ -27,7 +28,10 @@ namespace VideoPlayer
                 .RegisterViewModels();
 
             #if DEBUG
-            builder.Logging.AddDebug();
+            builder.Logging.AddDebug()
+                .AddFilter("VideoPlayer", LogLevel.Trace)
+                .AddFilter("Microsoft", LogLevel.Warning)
+                .AddProvider(new DatabaseLoggerProvider());
             #endif
 
             return builder.Build();

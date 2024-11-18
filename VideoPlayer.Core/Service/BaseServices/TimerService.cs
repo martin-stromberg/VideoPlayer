@@ -1,4 +1,6 @@
-﻿namespace VideoPlayer.Service.BaseServices
+﻿using Microsoft.Extensions.Logging;
+
+namespace VideoPlayer.Service.BaseServices
 {
     public abstract class TimerService: BaseService, ITimerService
     {
@@ -6,7 +8,9 @@
         private System.Timers.Timer _Worker = null;
         private bool _Executing = false;
 
-        public TimerService() { }
+        public TimerService(ILogger logger)
+            :base(logger)
+        { }
 
         protected TimeSpan DueTime { get; set; } = TimeSpan.FromSeconds(10);
 

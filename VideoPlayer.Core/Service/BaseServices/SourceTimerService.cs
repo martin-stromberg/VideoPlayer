@@ -1,4 +1,5 @@
-﻿using System.Reflection;
+﻿using Microsoft.Extensions.Logging;
+using System.Reflection;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.SourceReader;
 
@@ -8,7 +9,11 @@ namespace VideoPlayer.Service.BaseServices
     {
 
         private Dictionary<string, ISourceReader> _SourceReaderTypes = new Dictionary<string, ISourceReader>();
-        
+
+        protected SourceTimerService(ILogger logger) : base(logger)
+        {
+        }
+
         protected ISourceReader CreateReader(MediaSource source)
         {
             var sourceType = source.GetType();

@@ -1,4 +1,5 @@
-﻿using SQLite;
+﻿using Microsoft.Extensions.Logging;
+using SQLite;
 using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;

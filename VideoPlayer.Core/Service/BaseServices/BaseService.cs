@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Linq;
 using VideoPlayer.Service.Events;
 
@@ -6,12 +7,26 @@ namespace VideoPlayer.Service.BaseServices
 {
     public class BaseService : IEventPublisher, IEventSubscriber, IMultiEventCollection
     {
-
+        public BaseService(ILogger logger)
+            :base()
+        {
+            this.Logger = logger;
+        }
+        protected void Log(string message, LogLevel level = LogLevel.Information)
+        {
+            Logger?.Log(level, 0, GetType(), null, (state, ex) => message);
+        }
+        protected void Log(Exception error)
+        {
+            Logger?.Log(LogLevel.Error, 0, GetType(), error, (state, ex) => error.ToString());
+        }
+        public long InstanceId { get; } = DateTime.Now.Ticks;
         #region IEventPublisher
         private Timer _StatusTimer = null;
         private string _LastStatus = string.Empty;
         private DateTime _LastStatusTime;
         private string _PreviousStatus = string.Empty;
+        protected readonly ILogger Logger;
 
         public event EventHandler<NotificationEventArgs> OnEvent;
 

@@ -12,9 +12,9 @@ namespace VideoPlayer.Service.Log
         {
             if (DataModel is not null)
             {
-                Message = ((BaseDataModel)DataModel).Message;
-                Level = ((BaseDataModel)DataModel).Level;
-                Timestamp = ((BaseDataModel)DataModel).Timestamp;
+                Message = ((DataLogEntry)DataModel).Message;
+                Level = ((DataLogEntry)DataModel).Level;
+                Timestamp = ((DataLogEntry)DataModel).Timestamp;
             }
         }
 
@@ -27,9 +27,9 @@ namespace VideoPlayer.Service.Log
             base.AssignChanges();
             if (DataModel is not null)
             {
-                ((BaseDataModel)DataModel).Message = Message;
-                ((BaseDataModel)DataModel).Level = Level;
-                ((BaseDataModel)DataModel).Timestamp = Timestamp;
+                ((DataLogEntry)DataModel).Message = Message;
+                ((DataLogEntry)DataModel).Level = Level;
+                ((DataLogEntry)DataModel).Timestamp = Timestamp;
             }
         }
     }

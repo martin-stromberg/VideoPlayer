@@ -1,4 +1,6 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using Microsoft.Maui.Controls;
+using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
@@ -27,28 +29,70 @@ namespace VideoPlayer.Service.Database
 
         public class CacheElement
         {
-
+            private int _Counter = 0;
             public T Item { get; set; }
 
             public DateTime LastUpdate { get; set; }
 
             public Dictionary<string, object> Data { get; } = new Dictionary<string, object>();
             public BaseServiceModel ServiceModel { get; internal set; }
+            public int Counter { get => _Counter; }
+            public bool Deactivated { get; set; }
+            public DateTime ReleaseDue { get; private set; }
+
+            private void OnRelease()
+            {
+                ReleaseRequested?.Invoke(this, EventArgs.Empty);
+            }
+            public event EventHandler ReleaseRequested;
+
+            internal void IncreaseCounter()
+            {
+                Deactivated = false;
+                Interlocked.Increment(ref _Counter);
+            }
+            internal void DecreaseCounter()
+            {
+                var newValue = Interlocked.Decrement(ref _Counter);
+                if (newValue == 0)
+                    Deactivate();
+            }
+
+            private void Deactivate()
+            {                
+                ReleaseDue = DateTime.Now.AddSeconds(10);
+                Deactivated = true;
+            }
+
+            public void CheckRelease()
+            {
+                if (!Deactivated) return;
+                if (_Counter > 0)
+                {
+                    Deactivated = false;
+                    return;
+                }
+                if (ReleaseDue < DateTime.Now)
+                    OnRelease();
+            }
         }
 
         private ConcurrentDictionary<long, CacheElement> _cache = new ConcurrentDictionary<long, CacheElement>();
 
         private readonly IMediaLibraryDatabase _Database;
         private readonly IMediaLibrary _MediaLibrary;
+        private readonly ILogger logger;
 
         public ModelCache(
             IMediaLibraryDatabase database, 
             IMediaLibrary mediaLibrary,
-            Type type)
+            Type type,
+            ILogger logger)
         {
             _Database = database;
             _MediaLibrary = mediaLibrary;
             ElementType = type;
+            this.logger = logger;
         }
 
         public TimeSpan MaxCacheDuration { get; set; } = TimeSpan.FromMinutes(10);
@@ -59,25 +103,32 @@ namespace VideoPlayer.Service.Database
 
         private T Get(long id)
         {
+            logger?.LogTrace($"{GetType()}: Get {typeof(T).Name} {id}");
             var element = _cache.ContainsKey(id) ? _cache[id] : (new CacheElement());
+            element.IncreaseCounter();
             if (element.LastUpdate.Add(MaxCacheDuration) < DateTime.Now)
-                Update(element, id);
+                Update(element, id);            
             return element.Item;
         }
 
         public T2 GetServiceModel<T2>(long id) where T2: BaseServiceModel
         {
+            logger?.LogTrace($"{GetType()}: GetServiceModel {typeof(T).Name} {id}");
             var element = _cache.ContainsKey(id) ? _cache[id] : (new CacheElement());
+            element.IncreaseCounter();
             if (element.LastUpdate.Add(MaxCacheDuration) < DateTime.Now)
                 Update(element, id);
             if (element.ServiceModel is not null)
                 if (!(element.ServiceModel is T2))
                     return null;
             if (element.ServiceModel is not null)
+            {
+                logger?.LogTrace($"{GetType()}: GetServiceModel.Result = {typeof(T).Name} {id} (Instance {element.ServiceModel.InstanceId})");
                 return (T2)element.ServiceModel;
+            }
 
             var model = element.Item;
-            var serviceModel = BaseServiceModel.FromDatabaseModel(model);            
+            var serviceModel = BaseServiceModel.FromDatabaseModel(model);
             if (serviceModel is not null)
                 UpdateServiceModelData(serviceModel, element.Data);
             element.ServiceModel = serviceModel;
@@ -92,6 +143,7 @@ namespace VideoPlayer.Service.Database
         private void UpdateServiceModelData(BaseServiceModel serviceModel, Dictionary<string, object> data)
         {
             var modelType = serviceModel.GetType();
+            logger?.LogTrace($"{GetType()}: UpdateServiceModelData {modelType.Name} {serviceModel.Id} (Instance {serviceModel.InstanceId})");
             foreach (var dataEntry in data)
             {
                 var prop = modelType.GetProperty(dataEntry.Key);
@@ -234,7 +286,14 @@ namespace VideoPlayer.Service.Database
                 var child = _Database.GetAll(attr.DataModelType, args).FirstOrDefault();
                 id = child.Id;
             }
-            return idMethod.Invoke(_MediaLibrary, new object[] { id }) as BaseServiceModel;
+            try
+            {
+                return idMethod.Invoke(_MediaLibrary, new object[] { id }) as BaseServiceModel;
+            }
+            catch
+            {
+                throw;
+            }
         }
 
         public IEnumerable<T> GetAll()
@@ -268,12 +327,46 @@ namespace VideoPlayer.Service.Database
         internal void Update(BaseServiceModel model, BaseDataModel dbModel) 
         {
             var element = _cache.ContainsKey(dbModel.Id) ? _cache[dbModel.Id] : (new CacheElement());
+            element.ReleaseRequested += Element_ReleaseRequested;
             element.Item = (T)dbModel;
             element.ServiceModel = model;
             element.LastUpdate = DateTime.Now;
             if (!_cache.ContainsKey(dbModel.Id))
                 _cache.AddOrUpdate(dbModel.Id, element, (id, existing) => element);
             OnElementUpdated(new CacheElementEventArgs(element));
+        }
+
+        private void Element_ReleaseRequested(object sender, EventArgs e)
+        {
+            var element = sender as CacheElement;
+            if (element.Item is null)
+                return;
+            if (_cache.Remove(element.Item.Id, out element))
+            {
+                element.ReleaseRequested -= Element_ReleaseRequested;
+                element.ServiceModel = null;
+                element.Item = null;
+            }
+        }
+
+        internal void Release(BaseServiceModel entry)
+        {
+            var element = _cache.ContainsKey(entry.Id) ? _cache[entry.Id] : null;
+            if (element is null) return;
+            element.DecreaseCounter();
+        }
+
+        internal void Hold(BaseServiceModel entry)
+        {
+            var element = _cache.ContainsKey(entry.Id) ? _cache[entry.Id] : null;
+            if (element is null) return;
+            element.IncreaseCounter();
+        }
+
+        internal void CheckReleases()
+        {
+            foreach (var element in _cache.Values.ToList())
+                element.CheckRelease();
         }
     }
 }

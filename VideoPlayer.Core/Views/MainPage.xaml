@@ -4,6 +4,7 @@
                        xmlns:views="clr-namespace:VideoPlayer.Views"
                        xmlns:homePage="clr-namespace:VideoPlayer.Views.HomePage"
                        xmlns:vm="clr-namespace:VideoPlayer.ViewModels.HomePage"
+                       xmlns:viewCommon="clr-namespace:VideoPlayer.Views.Common"
                        x:Class="VideoPlayer.Views.MainPage"                       
                        x:DataType="vm:BaseHomePageViewModel"
                        Title="{Binding Title}">
@@ -42,6 +43,10 @@
             <homePage:NextPlayingView BindingContext="{Binding NextPlayingContext}"/>
             <homePage:NextPlayingView BindingContext="{Binding NewContext}"/>
         </VerticalStackLayout>
+        <viewCommon:MemoryInfoView BindingContext="{Binding MemoryInfo}"
+                                   HorizontalOptions="End"
+                                   Grid.Row="2"
+                                   Grid.Column="1"/>
         <Label 
             Grid.Row="2"
             Text="{Binding StatusMessage}"

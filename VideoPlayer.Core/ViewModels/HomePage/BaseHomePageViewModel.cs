@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using VideoPlayer.Service.Device;
 using VideoPlayer.Service.Playlists;
 
 namespace VideoPlayer.ViewModels.HomePage
@@ -16,6 +17,7 @@ namespace VideoPlayer.ViewModels.HomePage
             Title = "Videoplayer";
             IsLoading = true;
             Navigate = new Command((args) => { ExecuteNavigate(args.ToString()); });
+            MemoryInfo = new MemoryInformation();
         }
         #region Loading Status
         public override void ExecuteAppeared()
@@ -63,6 +65,9 @@ namespace VideoPlayer.ViewModels.HomePage
         #region Content
         public BaseViewModel NextPlayingContext { get => GetProperty<BaseViewModel>(); set => SetProperty(value); }
         public BaseViewModel NewContext { get => GetProperty<BaseViewModel>(); set => SetProperty(value); }
+        #endregion
+        #region Memory Info
+        public IMemoryInformation MemoryInfo { get; }
         #endregion
     }
 }

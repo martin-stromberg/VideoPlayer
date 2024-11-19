@@ -32,6 +32,7 @@
         public static string LongestCommonPrefix(this string[] strs)
         {
             if (strs == null || strs.Length == 0) return "";
+            strs = strs.Select(str => str.CleanName()).ToArray();
             string prefix = strs[0];
             for (int i = 1; i < strs.Length; i++)
             {
@@ -42,6 +43,15 @@
                 }
             }
             return prefix;
+        }
+        public static string CleanName(this string str)
+        {
+            return str.Replace("é", "e")
+                .Replace("'", "")
+                .Replace(",", "")
+                .Replace(" - ", " ")
+                .Replace(":", "")
+                .Replace("  ", " ");
         }
     }
 }

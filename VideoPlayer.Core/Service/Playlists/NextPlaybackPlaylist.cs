@@ -57,7 +57,6 @@ namespace VideoPlayer.Service.Playlists
                     return;
                 }
 
-
                 if (firstEntry is null)
                     firstEntry = AddMediaItem(mediaItem);
                 if (firstEntry.Item is not null && firstEntry.Item.Id == mediaItem.Id)
@@ -137,6 +136,11 @@ namespace VideoPlayer.Service.Playlists
             var existing = Current.Items.FirstOrDefault(i => i.Item?.Id == currentMediaItem.Id);
             if (existing is null)
                 return;
+            if (existing.Entry is not null) 
+            {
+                existing.Entry.LastWatched = DateTime.Now;
+                MediaLibrary.AddOrUpdateEntry(existing.Entry);
+            }
             var nextMediaItem = FindNextMediaItem(currentMediaItem);
             Current.Remove(existing);
             AddMediaItem(nextMediaItem);

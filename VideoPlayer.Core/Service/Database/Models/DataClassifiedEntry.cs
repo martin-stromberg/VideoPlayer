@@ -275,5 +275,16 @@ namespace VideoPlayer.Service.Database.Models
                 SetProperty<int>(value);
             }
         }
+
+        public DateTime LastWatched {
+            get
+            {
+                return GetProperty<DateTime>();
+            }
+            set
+            {
+                SetProperty<DateTime>(value);
+            }
+        }
     }
 }

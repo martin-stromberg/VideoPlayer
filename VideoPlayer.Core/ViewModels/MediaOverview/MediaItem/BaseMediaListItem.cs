@@ -32,6 +32,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
         {
             Title = item.Name;
             Subtitle = GetDateTimeInfo(item.ReleaseDate, item.PremieredAt);
+            Watched = item.LastWatched != DateTime.MinValue;
         }
         protected string GetDateTimeInfo(params DateTime[] dates)
         {
@@ -51,5 +52,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
         public string Subtitle { get => GetProperty<string>(); set => SetProperty(value); }
         public ImageSource Picture { get => GetProperty<ImageSource>(); set => SetProperty(value); }
         public bool IsCollection { get => GetProperty<bool>(); set => SetProperty(value); }
+
+        public bool Watched { get => GetProperty<bool>(); set => SetProperty(value); }
     }
 }

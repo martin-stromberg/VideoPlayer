@@ -15,6 +15,7 @@ namespace VideoPlayer.Service.Library.Models.Classified
                 Type = (EntryType)((DataClassifiedEntry)DataModel).Type;
                 ReleaseDate = ((DataClassifiedEntry)DataModel).ReleaseDate;
                 PremieredAt = ((DataClassifiedEntry)DataModel).PremieredAt;
+                LastWatched = ((DataClassifiedEntry)DataModel).LastWatched;
                 if (Type != type)
                     throw new ArgumentException(nameof(type));
             }
@@ -84,6 +85,17 @@ namespace VideoPlayer.Service.Library.Models.Classified
             }
         }
 
+        public DateTime LastWatched {
+            get
+            {
+                return GetProperty<DateTime>();
+            }
+            set
+            {
+                SetProperty<DateTime>(value);
+            }
+        }
+
         protected override void AssignChanges()
         {
             base.AssignChanges();
@@ -93,6 +105,7 @@ namespace VideoPlayer.Service.Library.Models.Classified
             ((DataClassifiedEntry)DataModel).PremieredAt = PremieredAt;
             ((DataClassifiedEntry)DataModel).ReleaseDate = ReleaseDate;
             ((DataClassifiedEntry)DataModel).Type = (DataEntryType)Type;
+            ((DataClassifiedEntry)DataModel).LastWatched = LastWatched;
         }
 
         public override string ToString()

@@ -1,7 +1,10 @@
 ﻿using System.Collections;
 using System.Collections.Concurrent;
 using System.ComponentModel;
+using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Threading;
+using VideoPlayer.Service.Attributes;
 using VideoPlayer.Service.Database;
 using VideoPlayer.Service.Download;
 using VideoPlayer.Service.Events;
@@ -10,6 +13,7 @@ using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
 using VideoPlayer.Service.Library.Scanner;
 using VideoPlayer.Service.Library.Scanner.Classification;
+using VideoPlayer.Service.Library.Scanner.Picture;
 using VideoPlayer.Service.Library.SourceReader;
 using VideoPlayer.Service.Playlists;
 using VideoPlayer.Tests.Helper;
@@ -58,8 +62,11 @@ namespace VideoPlayer.Tests
         protected Dictionary<string, DummySourceReader> DummySources { get; private set; } = new Dictionary<string, DummySourceReader>();
 
         protected MediaClassifier MediaClassifier { get; private set; }
+        private bool _MediaClassifierWorking = false; 
+        protected MediaPictureProcessor MediaPictureProcessor { get; private set; }
+        private bool _MediaPictureProcessorWorking = false;
 
-        private bool _MediaClassifierWorking = false;
+
 
         protected LibraryScanner Scanner { get; private set; }
 
@@ -116,6 +123,24 @@ namespace VideoPlayer.Tests
             MediaClassifier.MediaItemClassified += MediaClassifier_MediaItemClassified;
             if (autoStart)
                 MediaClassifier.Start();
+
+            MediaPictureProcessor = new MediaPictureProcessor(MediaLibrary, settings, null);
+            MediaPictureProcessor.ExecutionStarted += MediaPictureProcessor_ExecutionStarted;
+            MediaPictureProcessor.ExecutionFinished += MediaPictureProcessor_ExecutionFinished;
+            MediaPictureProcessor.CreatingSourceReader += MediaClassifier_CreatingSourceReader;
+            MediaPictureProcessor.OnEvent += MediaClassifier_OnEvent;
+            if (autoStart)
+                MediaPictureProcessor.Start();
+        }
+
+        private void MediaPictureProcessor_ExecutionFinished(object sender, EventArgs e)
+        {
+            _MediaPictureProcessorWorking = false;
+        }
+
+        private void MediaPictureProcessor_ExecutionStarted(object sender, EventArgs e)
+        {
+            _MediaPictureProcessorWorking = true;
         }
 
         protected virtual void MediaClassifier_MediaItemClassified(object sender, BaseServiceModelEventArgs e) { }
@@ -173,7 +198,22 @@ namespace VideoPlayer.Tests
                 if (DummySources.ContainsKey(e.Source?.Name))
                     e.Reader = DummySources[e.Source.Name];
         }
-
+protected async Task WaitForMediaPictureClassificationStarted(TimeSpan timeout)
+        {
+            var endTime = DateTime.Now.Add(timeout);
+            while (!_MediaPictureProcessorWorking && (DateTime.Now < endTime))
+                await Task.Delay(200).ConfigureAwait(false);
+            if (!_MediaPictureProcessorWorking)
+                throw new ApplicationException($"Picture Processing not started in time.");
+        }
+        protected async Task WaitForMediaPictureClassificationFinished(TimeSpan timeout)
+        {
+            var endTime = DateTime.Now.Add(timeout);
+            while (_MediaPictureProcessorWorking && (DateTime.Now < endTime))
+                await Task.Delay(200).ConfigureAwait(false);
+            if (_MediaPictureProcessorWorking)
+                throw new ApplicationException($"Picture Processing not finished in time.");
+        }
         protected async Task WaitForClassificationStarted(TimeSpan timeout)
         {
             var endTime = DateTime.Now.Add(timeout);
@@ -237,6 +277,7 @@ namespace VideoPlayer.Tests
 
             scannerFinishedCallback.Invoke();
             await ExecuteClassification();
+            await ExecutePictureClassification();
         }
 
         protected async Task ExecuteClassification()
@@ -245,6 +286,14 @@ namespace VideoPlayer.Tests
             await WaitForClassificationStarted(TimeSpan.FromSeconds(20));
             await WaitForClassificationFinished(TimeSpan.FromSeconds(10 * 60));
             MediaClassifier.Stop();
+        }
+
+        protected async Task ExecutePictureClassification()
+        {
+            MediaPictureProcessor.Start();
+            await WaitForMediaPictureClassificationStarted(TimeSpan.FromSeconds(20));
+            await WaitForMediaPictureClassificationFinished(TimeSpan.FromSeconds(10 * 60));
+            MediaPictureProcessor.Stop();
         }
 
         protected async Task ExecuteDownloads(params ClassifiedEntry[] entries)
@@ -622,6 +671,10 @@ namespace VideoPlayer.Tests
                 .Where(p => p.CanRead);
             foreach (var sourceProp in sourceProps)
             {
+                if (sourceProp.GetCustomAttributes(true).Any(attr => attr is IgnoreCheckAttribute))
+                    continue;
+                
+
                 var destProp = expected.GetType().GetProperty(sourceProp.Name);
                 var sourceValue = sourceProp.GetValue(actual, null);
                 var destValue = destProp.GetValue(expected, null);

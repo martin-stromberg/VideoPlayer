@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using VideoPlayer.Service.Attributes;
 using VideoPlayer.Service.Database.Models;
 
 namespace VideoPlayer.Service.Library.Models
@@ -62,6 +63,7 @@ namespace VideoPlayer.Service.Library.Models
                 }
         }
 
+        [IgnoreCheck]
         public long InstanceId { get; } = DateTime.Now.Ticks;
         public long Id
         {

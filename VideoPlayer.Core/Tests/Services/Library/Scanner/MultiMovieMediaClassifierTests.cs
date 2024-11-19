@@ -7,7 +7,6 @@ using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace VideoPlayer.Tests.Services.Library.Scanner
 {
-    [Disabled]
     public class MultiMovieMediaClassifierTests : BaseTest
     {
 
@@ -44,7 +43,7 @@ namespace VideoPlayer.Tests.Services.Library.Scanner
                 .Select(e =>
                 {
                     AssertTrue(e.CreatedAt > LastExecutionBegin, $"Invalid created at {e.CreatedAt} for movie.");
-                    AssertTrue(string.IsNullOrWhiteSpace(e.BannerPath), $"{nameof(e.BannerPath)} is not empty");
+                    AssertTrue(!string.IsNullOrWhiteSpace(e.BannerPath), $"{nameof(e.BannerPath)} is empty");
                     AssertTrue(!string.IsNullOrWhiteSpace(e.PicturePath), $"{nameof(e.PicturePath)} is empty");
                     e.CreatedAt = DateTime.MinValue;
                     e.BannerPath = string.Empty;
@@ -56,17 +55,20 @@ namespace VideoPlayer.Tests.Services.Library.Scanner
                 new MovieCollection(null)
                 {
                     BannerPath = "",
+                    BannerBackgroundColor = "#60715F",
                     CreatedAt = DateTime.MinValue,
                     Enabled = true,
                     Id = 2,
                     IsSingle = false,
                     Name = "Bad Boys",
                     PicturePath = "",
+                    PictureBackgroundColor = "#757960",
                     PremieredAt = new DateTime(1995, 06, 01),
                     ReleaseDate = new DateTime(1995, 06, 01),
                     Type = EntryType.MovieCollection,
                     Visible = true,
-                    MediaItemCollectionId = 2
+                    MediaItemCollectionId = 2,
+                    Genres = new string[] { "Action", "Comedy", "Crime", "Drama", "Thriller" }
                 }
             };
             AssertRecordsEqual( entries , expected);

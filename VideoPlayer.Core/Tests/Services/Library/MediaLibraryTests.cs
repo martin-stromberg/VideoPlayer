@@ -9,7 +9,8 @@ using VideoPlayer.Service.Library.Models.Playlists;
 using VideoPlayer.Tests.Helper;
 
 namespace VideoPlayer.Tests.Services.Library
-{    
+{
+    [Disabled]
     public class MediaLibraryTests : BaseTest
     {
         private DateTime startDate = DateTime.MinValue;

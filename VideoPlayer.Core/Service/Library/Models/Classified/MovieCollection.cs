@@ -17,10 +17,17 @@ namespace VideoPlayer.Service.Library.Models.Classified
         {
             if (DataModel is not null)
             {
+                Genres = (((DataClassifiedEntry)DataModel).Genre is null) ? (new string[0]) : ((DataClassifiedEntry)DataModel).Genre
+                                                                                                                              .Split(',')
+                                                                                                                              .Where(g =>
+                                                                                                                                     !string.IsNullOrWhiteSpace(g))
+                                                                                                                              .ToArray();
                 PicturePath = ((DataClassifiedEntry)DataModel).PicturePath;
                 BannerPath = ((DataClassifiedEntry)DataModel).BannerPath;
                 MediaItemCollectionId = ((DataClassifiedEntry)DataModel).MediaItemCollectionId;
                 IsSingle = ((DataClassifiedEntry)DataModel).IsSingle;
+                BannerBackgroundColor = ((DataClassifiedEntry)DataModel).BannerBackgroundColor;
+                PictureBackgroundColor = ((DataClassifiedEntry)DataModel).PictureBackgroundColor;
             }
         }
 
@@ -35,7 +42,17 @@ namespace VideoPlayer.Service.Library.Models.Classified
                 SetProperty<string>(value);
             }
         }
-
+        public string PictureBackgroundColor
+        {
+            get
+            {
+                return GetProperty<string>();
+            }
+            set
+            {
+                SetProperty<string>(value);
+            }
+        }
         public string BannerPath
         {
             get
@@ -47,7 +64,17 @@ namespace VideoPlayer.Service.Library.Models.Classified
                 SetProperty<string>(value);
             }
         }
-
+        public string BannerBackgroundColor
+        {
+            get
+            {
+                return GetProperty<string>();
+            }
+            set
+            {
+                SetProperty<string>(value);
+            }
+        }
         public long MediaItemCollectionId
         {
             get
@@ -71,7 +98,17 @@ namespace VideoPlayer.Service.Library.Models.Classified
                 SetProperty<bool>(value);
             }
         }
-
+        public string[] Genres
+        {
+            get
+            {
+                return GetProperty<string[]>();
+            }
+            set
+            {
+                SetProperty<string[]>(value);
+            }
+        }
         protected override void AssignChanges()
         {
             base.AssignChanges();
@@ -81,6 +118,9 @@ namespace VideoPlayer.Service.Library.Models.Classified
             ((DataClassifiedEntry)DataModel).BannerPath = BannerPath;
             ((DataClassifiedEntry)DataModel).MediaItemCollectionId = MediaItemCollectionId;
             ((DataClassifiedEntry)DataModel).IsSingle = IsSingle;
+            ((DataClassifiedEntry)DataModel).Genre = string.Join(',', Genres);
+            ((DataClassifiedEntry)DataModel).BannerBackgroundColor = BannerBackgroundColor;
+            ((DataClassifiedEntry)DataModel).PictureBackgroundColor = PictureBackgroundColor;
         }
 
     }

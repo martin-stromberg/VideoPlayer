@@ -531,6 +531,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             {
                 Enabled = true,
                 MediaItemCollectionId = mediaItem.ParentCollectionId,
+                Genres = new string[0]
             };
             return UpdateMovieCollection(collection, movie, mediaItem);
         }
@@ -559,9 +560,12 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                 collection.PremieredAt = collectionMovies.Min(m => m.PremieredAt);
             }
             collection.PicturePath = movie.PicturePath;
+            collection.PictureBackgroundColor = movie.PictureBackgroundColor;
             collection.IsSingle = collectionMovies.Count(m => m.Enabled) <= 1;
             collection.Visible = !collection.IsSingle && collection.Enabled;
             collection.BannerPath = movie.BannerPath;
+            collection.BannerBackgroundColor = movie.BannerBackgroundColor;
+            collection.Genres = collectionMovies.SelectMany(m => m.Genres).Distinct().OrderBy(g => g).ToArray();
             return collection;
         }
 
@@ -648,6 +652,10 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                 {
                     var namedMovies = MediaLibrary.GetMoviesByName(movieInfo.Title).ToList();
                     namedMovies = namedMovies
+                        .Where(movie => {
+                            var date = movieInfo.ReleaseDate == DateTime.MinValue ? movieInfo.PremieredAt : movieInfo.ReleaseDate;
+                            return date == DateTime.MinValue || movie.ReleaseDate == date || movie.PremieredAt == date;
+                        })
                         .OrderBy(movie => (movieInfo.Language == movie.Language) ? 0 : 1)
                         .ThenBy(movie => movie.Name)
                         .ToList();
@@ -839,6 +847,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                 var poster = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"{rootName}-poster");
                 var banner = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"{rootName}-banner");
                 var fanart = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"{rootName}-fanart");
+                var landscape = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"{rootName}-landscape");
 
                 if (banner is not null)
                 {
@@ -852,12 +861,28 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                     movie.BannerPath = kV.Key;
                     movie.BannerBackgroundColor = kV.Value.ToHex();
                 }
+                else if (landscape is not null)
+                {
+                    var kV = await UpdateCacheFileAsync(landscape, movie.BannerPath, mediaSource);
+                    movie.BannerPath = kV.Key;
+                    movie.BannerBackgroundColor = kV.Value.ToHex();
+                }
                 if (poster is not null)
                 {
                     var kV = await UpdateCacheFileAsync(poster, movie.PicturePath, mediaSource);
                     movie.PicturePath = kV.Key;
                     movie.PictureBackgroundColor = kV.Value.ToHex();
-                }                
+                }
+
+                var movieCollection = MediaLibrary.GetMovieCollection(movie.CollectionId);
+                try
+                {
+                    await UpdateMovieCollectionPicturesAsync(movieCollection, collection, mediaSource);
+                }
+                finally
+                {
+                    MediaLibrary.Release(movieCollection);
+                }
             }
             finally
             {
@@ -866,6 +891,92 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             MediaLibrary.AddOrUpdateMovie(movie);
         }
 
+
+       private async Task UpdateMovieCollectionPicturesAsync(MovieCollection movieCollection, MediaCollection collection, MediaSource mediaSource)
+        {
+            var pictures = MediaLibrary.GetMediaCollectionItems(collection.Id)
+                .Where(i =>
+                {
+                    var result = i.CopyType == MediaItemCopyType.Original;
+                    result &= pictureExtensions.Contains(Path.GetExtension(i.Name));
+                    if (!result)
+                        MediaLibrary.Release(i);
+                    return result;
+                })
+                .ToArray();
+            try
+            {
+                var movies = MediaLibrary.GetCollectionMovies(movieCollection.Id).ToArray();
+                try
+                {                    
+                    var poster = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"poster");
+                    var banner = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"banner");
+                    var fanart = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"fanart");
+                    var folder = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"folder");
+
+                    if (banner is not null)
+                    {
+                        var kV = await UpdateCacheFileAsync(banner, movieCollection.BannerPath, mediaSource);
+                        movieCollection.BannerPath = kV.Key;
+                        movieCollection.BannerBackgroundColor = kV.Value.ToHex();
+                    }
+                    else if (fanart is not null)
+                    {
+                        var kV = await UpdateCacheFileAsync(fanart, movieCollection.BannerPath, mediaSource);
+                        movieCollection.BannerPath = kV.Key;
+                        movieCollection.BannerBackgroundColor = kV.Value.ToHex();
+                    }
+                    else
+                    {
+                        var firstMovie = movies
+                            .Where(m => !string.IsNullOrWhiteSpace(m.BannerPath))
+                            .OrderBy(m => m.ReleaseDate)
+                            .ThenBy(m => m.PremieredAt)
+                            .FirstOrDefault();
+                        if (firstMovie is not null)
+                        {
+                            movieCollection.BannerBackgroundColor = firstMovie.BannerBackgroundColor;
+                            movieCollection.BannerPath = firstMovie.BannerPath;
+                        }
+                    }
+
+                    if (poster is not null)
+                    {
+                        var kV = await UpdateCacheFileAsync(poster, movieCollection.PicturePath, mediaSource);
+                        movieCollection.PicturePath = kV.Key;
+                        movieCollection.PictureBackgroundColor = kV.Value.ToHex();
+                    }
+                    else if (folder is not null)
+                    {
+                        var kV = await UpdateCacheFileAsync(folder, movieCollection.PicturePath, mediaSource);
+                        movieCollection.PicturePath = kV.Key;
+                        movieCollection.PictureBackgroundColor = kV.Value.ToHex();
+                    }
+                    else
+                    {
+                        var firstMovie = movies
+                            .Where(m => !string.IsNullOrWhiteSpace(m.PicturePath))
+                            .OrderBy(m => m.ReleaseDate)
+                            .ThenBy(m => m.PremieredAt)
+                            .FirstOrDefault();
+                        if (firstMovie is not null)
+                        {
+                            movieCollection.PictureBackgroundColor = firstMovie.PictureBackgroundColor;
+                            movieCollection.PicturePath = firstMovie.PicturePath;
+                        }
+                    }
+                    MediaLibrary.AddOrUpdateMovieCollection(movieCollection);
+                }
+                finally
+                {
+                    MediaLibrary.Release(movies);
+                }
+            }
+            finally
+            {
+                MediaLibrary.Release(pictures);
+            }
+        }
 
         private async Task<KeyValuePair<string, Color>> UpdateCacheFileAsync(MediaItem mediaItem, string destPath, MediaSource mediaSource)
         {

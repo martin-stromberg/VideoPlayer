@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
+using SixLabors.ImageSharp;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -113,6 +114,12 @@ namespace VideoPlayer.Service.Library.Scanner.Picture
                             break;
                     actor.NeedsPictureUpdate = false;
                     _MediaLibrary.AddOrUpdateActor(actor);
+                }
+                catch(UnknownImageFormatException ex)
+                {
+                    actor.NeedsPictureUpdate = false;
+                    _MediaLibrary.AddOrUpdateActor(actor);
+                    NotifyError(ex);
                 }
                 catch (Exception ex)
                 {

@@ -673,7 +673,6 @@ protected async Task WaitForMediaPictureClassificationStarted(TimeSpan timeout)
             {
                 if (sourceProp.GetCustomAttributes(true).Any(attr => attr is IgnoreCheckAttribute))
                     continue;
-                
 
                 var destProp = expected.GetType().GetProperty(sourceProp.Name);
                 var sourceValue = sourceProp.GetValue(actual, null);

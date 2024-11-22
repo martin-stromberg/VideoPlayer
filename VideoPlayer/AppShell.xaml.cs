@@ -12,6 +12,5 @@ namespace VideoPlayer
             _AppInitializer = appInitializer;
             InitializeComponent();
         }
-
     }
 }

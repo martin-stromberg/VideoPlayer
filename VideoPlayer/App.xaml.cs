@@ -1,4 +1,5 @@
-﻿using VideoPlayer.Service;
+﻿using VideoPlayer.Properties;
+using VideoPlayer.Service;
 
 namespace VideoPlayer
 {
@@ -10,6 +11,11 @@ namespace VideoPlayer
             InitializeComponent();
 
             MainPage = new AppShell(appInitialize);
+        }
+
+        protected override void OnSleep()
+        {
+            base.OnSleep();
         }
 
     }

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<views:BaseContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                       xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+                       xmlns:views="clr-namespace:VideoPlayer.Views"
+                       xmlns:viewDownload="clr-namespace:VideoPlayer.Views.Downloads"
+                       xmlns:viewCommon="clr-namespace:VideoPlayer.Views.Common"
+                       xmlns:viewOverview="clr-namespace:VideoPlayer.Views.MediaOverview"
+                       xmlns:vm="clr-namespace:VideoPlayer.ViewModels.Downloads"
+                       xmlns:vmItem="clr-namespace:VideoPlayer.ViewModels.MediaOverview.MediaItem"
+                       x:Class="VideoPlayer.Views.Downloads.DownloadListPage"
+                       x:DataType="vm:DownloadListViewModel"
+                       Title="{Binding Title}">
+    <Grid>
+        <ScrollView Orientation="Vertical" Padding="0" Margin="0">
+            <FlexLayout x:Name="ItemCollection"
+                        BackgroundColor="Silver"
+                        AlignContent="Stretch"
+                        AlignItems="Stretch"
+                        AlignSelf="Stretch"
+                        HorizontalOptions="StartAndExpand"
+                        BindableLayout.ItemsSource="{Binding Items}"
+                        Direction="Column"
+                        JustifyContent="Center"
+                        Margin="0,10,0,0"                        
+                        Wrap="NoWrap">
+                <BindableLayout.ItemTemplate>
+                        <DataTemplate x:DataType="vmItem:BaseMediaListItem">
+                            <viewDownload:MediaListItemViewPanel>
+                                <viewDownload:MediaListItemViewPanel.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding Tapped}" CommandParameter="{Binding .}"/>
+                                </viewDownload:MediaListItemViewPanel.GestureRecognizers>
+                            </viewDownload:MediaListItemViewPanel>
+                        </DataTemplate>
+                    </BindableLayout.ItemTemplate>
+                </FlexLayout>
+        </ScrollView>
+    </Grid>
+</views:BaseContentPage>

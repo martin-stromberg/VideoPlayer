@@ -1,0 +1,121 @@
+﻿using VideoPlayer.Service.Library.Models;
+using VideoPlayer.Service.Library.Models.Classified;
+using VideoPlayer.Service.Library.Models.Playlists;
+using VideoPlayer.Service.Log;
+
+namespace VideoPlayer.Service.Library
+{
+    public interface IMediaLibrary
+    {
+        Setup Setup { get; }
+
+        event EventHandler<BaseServiceModelEventArgs> ItemUpdated;
+
+        void CreateDemoData();
+
+        #region MediaSource
+        MediaSource AddOrUpdateSource(MediaSource source);
+
+        MediaSource GetSource(long id);
+
+        MediaSource GetNextScanSource();
+        #endregion
+        #region MediaCollection
+        MediaCollection GetMediaCollectionByPath(long id, string fullPath);
+
+        MediaCollection GetMediaCollection(long id);
+
+        MediaCollection AddOrUpdateMediaCollection(MediaCollection collection);
+        IEnumerable<MediaCollection> GetUnclassifiedMediaCollections();
+        IEnumerable<MediaCollection> GetChildMediaCollections(long objectId);
+        #endregion
+        #region MediaItem
+        MediaItem GetMediaItemByPath(long collectionId, string fullPath);
+        MediaItem GetMediaItemByPath(string relPath);
+        IEnumerable<MediaItem> GetMediaItems(params MediaItemCopyType[] copyType);
+        IEnumerable<MediaItem> GetDueMediaItems();
+        IEnumerable<MediaItem> GetMediaItemsThatNeedsPictureUpdate();
+        MediaItem GetMediaItem(long id);
+        IEnumerable<MediaItem> GetCopyMediaItems(long id);
+        IEnumerable<MediaItem> GetMediaCollectionItems(long collectionId);
+
+        MediaItem AddOrUpdateMediaItem(MediaItem mediaItem);
+
+        IEnumerable<MediaItem> GetUnclassifiedMediaItems();
+        #endregion
+        #region Movie
+        Movie GetMovieByMediaItem(long mediaItemId);
+
+        Movie GetMovie(long id);
+
+        IEnumerable<Movie> GetMoviesByName(string name);
+
+        IEnumerable<Movie> GetCollectionMovies(long collectionId);
+
+        Movie AddOrUpdateMovie(Movie movie);
+        #endregion
+        
+        #region MovieCollection
+        MovieCollection GetMovieCollection(long id);
+
+        MovieCollection AddOrUpdateMovieCollection(MovieCollection movieCollection);
+
+        MovieCollection GetMovieCollectionByMediaCollection(long mediaCollectionId);
+        #endregion
+
+        #region TVShow Episode
+        TVShowEpisode GetTVShowEpisode(long id);
+        TVShowEpisode GetTVShowEpisodeByMediaItem(long mediaItemId);
+        TVShowEpisode GetTVShowEpisodeByIdentification(string showName, int season, int episode, string part);
+        TVShowEpisode AddOrUpdateEpisode(TVShowEpisode episode);
+        IEnumerable<TVShowEpisode> GetEpisodes(long seasonId);
+        #endregion
+        #region TVShowSeason
+        TVShowSeason GetShowSeason(TVShow show, int seasonNo);
+        TVShowSeason GetTVShowSeason(long id);
+        TVShowSeason AddOrUpdateSeason(TVShowSeason season);
+        IEnumerable<TVShowSeason> GetSeasons(long showId);
+        #endregion
+        #region TVShow
+        TVShow GetTVShow(long id);
+        TVShow GetShowByName(string name);
+        TVShow AddOrUpdateTVShow(TVShow show);
+        #endregion
+        ClassifiedEntry AddOrUpdateEntry(ClassifiedEntry entry);
+        ClassifiedEntry GetClassifiedEntry(long id);
+        IEnumerable<ClassifiedEntry> GetOverview(int offset, int count, string genre, params EntryType[] entryTypes);
+        #region Genres
+        IEnumerable<Genre> GetGenres();
+        Genre GetGenre(long ind);
+        Genre AddOrUpdateGenre(Genre altGenre);
+        #endregion
+        #region Playlists 
+        Playlist AddOrUpdatePlaylist(Playlist playlist);
+        IEnumerable<Playlist> GetPlaylists(Models.Playlists.PlaylistType general);
+        Playlist GetPlaylist(long id);
+        #endregion
+
+        void Delete(MediaItem mediaItem);
+        #region Log Entry
+        void AddOrUpdateLogEntry(LogEntry entry);
+        void ClearLogs();
+        #endregion
+        #region Actors
+        Actor AddOrUpdateActor(Actor entry);
+        IEnumerable<Actor> GetActorsByName(string name);
+        Actor GetActor(long id);
+        IEnumerable<Actor> GetActorsThatNeedsPictureUpdate();
+        #endregion
+        #region Roles
+        Role AddOrUpdateRole(Role entry);
+        IEnumerable<Role> GetRoles(long entryId);
+        IEnumerable<Role> GetActorsRoles(long actorId);
+        Role GetRole(long id);
+        void Delete(Role role);
+        #endregion
+        void Release(BaseServiceModel entry);
+        void Release(IEnumerable<BaseServiceModel> entry);
+        void Hold(BaseServiceModel entry);
+        
+    }
+}

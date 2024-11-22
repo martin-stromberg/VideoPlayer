@@ -1,8 +1,19 @@
 ﻿
+using Microsoft.Extensions.Logging;
+using VideoPlayer.Service.BaseServices;
 using VideoPlayer.Service.Database;
+using VideoPlayer.Service.Device;
+using VideoPlayer.Service.Download;
 using VideoPlayer.Service.Events;
+using VideoPlayer.Service.Export;
 using VideoPlayer.Service.Library;
 using VideoPlayer.Service.Library.Scanner;
+using VideoPlayer.Service.Library.Scanner.Classification;
+using VideoPlayer.Service.Library.Scanner.Picture;
+using VideoPlayer.Service.Log;
+using VideoPlayer.Service.Playlists;
+using VideoPlayer.Service.Resources;
+using VideoPlayer.Service.Status;
 
 namespace VideoPlayer.Service
 {
@@ -13,10 +24,15 @@ namespace VideoPlayer.Service
         private readonly IServiceProvider _ServiceProvider;
         private bool _Initializing = false;
         private readonly IEventController _EventController;
+        private IStatusManager _StatusManager;
+        private IMediaLibrary _MediaLibrary;
 
         public event EventHandler InitializationCompleted;
 
-        public ApplicationManager(IServiceProvider serviceProvider, IEventController eventController)
+        public ApplicationManager(
+            IServiceProvider serviceProvider, IEventController eventController,
+            ILogger<ApplicationManager> logger)
+            :base(logger)
         {
             _EventController = eventController;
             _ServiceProvider = serviceProvider;
@@ -26,6 +42,11 @@ namespace VideoPlayer.Service
         public static T GetService<T>()
         {
             return _Current.RegisterForEvents(_Current._ServiceProvider.GetService<T>());
+        }
+
+        public T ResolveService<T>()
+        {
+            return RegisterForEvents(_ServiceProvider.GetService<T>());
         }
 
         public void DisposeService(object service)
@@ -51,6 +72,39 @@ namespace VideoPlayer.Service
             Worker.Start();
         }
 
+        private void StartPostInitialization()
+        {
+            Thread Worker = new Thread(new ThreadStart(() => { RunPostInitialization(); }))
+            {
+                IsBackground = true,
+                Priority = ThreadPriority.Lowest
+            };
+            Worker.Start();
+        }
+        private void RunPostInitialization()
+        {
+            try
+            {
+                NotifyStatus($"Bereinige alte Daten.");
+                _MediaLibrary.ClearLogs();
+                (GetService<ILoggerProvider>() as DatabaseLoggerProvider).Init(_MediaLibrary);
+
+                var downloadManager = GetService<IDownloadManager>();
+                downloadManager.ClearTempFolder();
+
+                NotifyStatus($"Starte Hintergrundaktivitäten.");
+                GetService<ILibraryScanner>().Start();
+                GetService<IMediaClassifier>().Start();
+                GetService<IMediaPictureProcessor>().Start();
+                downloadManager.Start();
+
+                NotifyStatus($"Initialisierung erfolgt.");
+            }
+            catch (Exception ex)
+            {
+                NotifyError(ex);
+            }
+        }
         private void RunInitialization()
         {
             if (_Initializing)
@@ -60,19 +114,27 @@ namespace VideoPlayer.Service
             {
                 if (Initialized)
                     return;
-                NotifyStatus($"Initialisiere Datenbank.", true);
+                DateTime startTime = DateTime.Now;
+                _StatusManager = GetService<IStatusManager>();
                 var database = GetService<IMediaLibraryDatabase>();
+                _MediaLibrary = GetService<IMediaLibrary>();                
+                NotifyStatus($"Initialisiere Monitormanagement.", true);
+                var displayManager = GetService<IDeviceDisplayManager>();
+                NotifyStatus($"Initialisiere Datenbank.", true);                
                 database.UpdateSchema();
                 if (database.IsEmpty())
                 {
                     NotifyStatus($"Lade Demodaten.");
-                    var library = GetService<IMediaLibrary>();
-                    library.CreateDemoData();
+                    _MediaLibrary.CreateDemoData();
                 }
-                NotifyStatus($"Starte Hintergrundaktivitäten.");
-                GetService<ILibraryScanner>().Start();
-                InitializationCompleted?.Invoke(this, EventArgs.Empty);
-                NotifyStatus($"Initialisierung erfolgt.");
+
+                NotifyStatus($"Initialisiere Benutzeroberfläche.");
+                var resourceManager = GetService<IResourceManager>();
+
+                GetService<IPlaylistManager>().Init();
+                InitializationCompleted?.Invoke(this, EventArgs.Empty);                
+
+                StartPostInitialization();
             }
             catch (Exception ex)
             {

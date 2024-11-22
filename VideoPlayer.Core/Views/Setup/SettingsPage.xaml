@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<views:BaseContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                       xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+                       x:Class="VideoPlayer.Views.Setup.SettingsPage"
+                       xmlns:views="clr-namespace:VideoPlayer.Views"
+                       xmlns:viewsSetup="clr-namespace:VideoPlayer.Views.Setup"
+                       xmlns:vm="clr-namespace:VideoPlayer.ViewModels.Setup"
+                       x:DataType="vm:SettingsViewModel"
+                       Title="{Binding Title}">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition/>
+            <RowDefinition/>
+            <RowDefinition Height="50"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="200"/>
+            <ColumnDefinition/>
+        </Grid.ColumnDefinitions>
+        <VerticalStackLayout Grid.Column="0" Grid.RowSpan="3">
+            <Button Text="Administrative Aufgaben"
+                    Command="{Binding Navigate}"
+                    CommandParameter="AdminTasks"/>
+        </VerticalStackLayout>
+        <viewsSetup:AdminTasks 
+            Grid.Row="1"
+            Grid.Column="1"
+            BindingContext="{Binding .}"
+            IsVisible="{Binding AdminTasksVisible}"/>
+        <Label 
+            Grid.Row="2"
+            Grid.Column="0"
+            Grid.ColumnSpan="2"
+            Text="{Binding StatusMessage}"
+            VerticalOptions="Center" 
+            HorizontalOptions="Start" />
+    </Grid>
+
+</views:BaseContentPage>

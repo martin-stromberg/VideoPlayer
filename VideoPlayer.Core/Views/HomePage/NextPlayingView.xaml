@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:common="clr-namespace:VideoPlayer.Views.Common"
+             x:Class="VideoPlayer.Views.HomePage.NextPlayingView">
+    <VerticalStackLayout IsVisible="{Binding HasItems}">
+        <Label 
+            Text="{Binding Title}"
+            VerticalOptions="Center" 
+            HorizontalOptions="Start" />
+        <common:HorizontalMediaCollectionView HorizontalOptions="Start"/>
+    </VerticalStackLayout>
+</ContentView>

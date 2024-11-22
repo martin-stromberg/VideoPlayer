@@ -1,10 +1,12 @@
-﻿using SQLite;
+﻿using Microsoft.Extensions.Logging;
+using SQLite;
 using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
 namespace VideoPlayer.Service.Database.Models
 {
+
     public class BaseDataModel: INotifyPropertyChanged
     {
 
@@ -34,6 +36,18 @@ namespace VideoPlayer.Service.Database.Models
             }
         }
 
+        public DateTime CreatedAt
+        {
+            get
+            {
+                return GetProperty<DateTime>();
+            }
+            set
+            {
+                SetProperty<DateTime>(value);
+            }
+        }
+
         public DateTime LastModified
         {
             get
@@ -60,7 +74,7 @@ namespace VideoPlayer.Service.Database.Models
 
         protected void SetProperty<T>(T value, [CallerMemberName] string name = "")
         {
-            SetProperty(value, name);
+            SetProperty((object)value, name);
         }
 
         protected void SetProperty(object value, string name)
@@ -105,7 +119,7 @@ namespace VideoPlayer.Service.Database.Models
             foreach (var prop in element._Properties)
                 SetProperty(prop.Value, prop.Key);
             foreach (var prop in _Properties.Keys.Where(k => !element._Properties.ContainsKey(k)))
-                SetProperty(prop, null);
+                SetProperty(null, prop);
             SetRestorePoint();
         }
 

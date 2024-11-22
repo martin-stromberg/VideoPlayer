@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Linq;
 
 namespace VideoPlayer.Service.Events
@@ -82,8 +83,15 @@ namespace VideoPlayer.Service.Events
 
         private void Publisher_OnEvent(object sender, NotificationEventArgs e)
         {
-            foreach (var subscriber in subscribers)
-                subscriber.ProcessNotification(sender, e);
+            foreach (var subscriber in subscribers.ToList())
+                try
+                {
+                    subscriber.ProcessNotification(sender, e);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"{ex}");
+                }
         }
 
         public void Unregister(object service)

@@ -14,5 +14,9 @@ namespace VideoPlayer.Service.Database.Models
 
         public Type DataModelType { get; private set; }
 
+        public string ReferenceFieldName { get; set; }
+
+        public string ReferenceFieldValue { get; set; }
+
     }
 }

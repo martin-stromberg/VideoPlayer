@@ -10,28 +10,29 @@
                        x:Class="VideoPlayer.Views.Downloads.DownloadListPage"
                        x:DataType="vm:DownloadListViewModel"
                        Title="{Binding Title}">
-    <ScrollView Orientation="Vertical">
-        <VerticalStackLayout>
+    <Grid>
+        <ScrollView Orientation="Vertical" Padding="0" Margin="0">
             <FlexLayout x:Name="ItemCollection"
-                    AlignContent="Start"
-                    AlignItems="Start"
-                    AlignSelf="Start"
-                    HorizontalOptions="Center"
-                    BindableLayout.ItemsSource="{Binding Items}"
-                    Direction="Column"
-                    JustifyContent="Start"
-                    Margin="0,10,0,0"                        
-                    Wrap="NoWrap">
+                        BackgroundColor="Silver"
+                        AlignContent="Stretch"
+                        AlignItems="Stretch"
+                        AlignSelf="Stretch"
+                        HorizontalOptions="StartAndExpand"
+                        BindableLayout.ItemsSource="{Binding Items}"
+                        Direction="Column"
+                        JustifyContent="Center"
+                        Margin="0,10,0,0"                        
+                        Wrap="NoWrap">
                 <BindableLayout.ItemTemplate>
-                    <DataTemplate x:DataType="vmItem:BaseMediaListItem">
-                        <viewDownload:MediaListItemViewPanel>
-                            <viewDownload:MediaListItemViewPanel.GestureRecognizers>
-                                <TapGestureRecognizer Command="{Binding Tapped}" CommandParameter="{Binding .}"/>
-                            </viewDownload:MediaListItemViewPanel.GestureRecognizers>
-                        </viewDownload:MediaListItemViewPanel>
-                    </DataTemplate>
-                </BindableLayout.ItemTemplate>
-            </FlexLayout>
-        </VerticalStackLayout>
-    </ScrollView>
+                        <DataTemplate x:DataType="vmItem:BaseMediaListItem">
+                            <viewDownload:MediaListItemViewPanel>
+                                <viewDownload:MediaListItemViewPanel.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding Tapped}" CommandParameter="{Binding .}"/>
+                                </viewDownload:MediaListItemViewPanel.GestureRecognizers>
+                            </viewDownload:MediaListItemViewPanel>
+                        </DataTemplate>
+                    </BindableLayout.ItemTemplate>
+                </FlexLayout>
+        </ScrollView>
+    </Grid>
 </views:BaseContentPage>

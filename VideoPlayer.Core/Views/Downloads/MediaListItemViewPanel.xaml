@@ -7,6 +7,7 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="150"/>
                 <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="50"/>
             </Grid.ColumnDefinitions>
             <Grid.RowDefinitions>
@@ -30,12 +31,18 @@
             </VerticalStackLayout>
 
             <Label Grid.Column="1"
+                   Grid.ColumnSpan="2"
                    Grid.Row="0"
                    Text="{Binding Title}" 
                    HorizontalOptions="Start" />
             <Label Grid.Column="1"
                    Grid.Row="1"
                    Text="{Binding Subtitle}"
+                   HorizontalOptions="Start"/>
+            <Label Grid.Column="2"
+                   Grid.Row="1"
+                   Text="{Binding DueDate}"
+                   IsVisible="{Binding DueDateSet}"
                    HorizontalOptions="Start"/>
 
             <VerticalStackLayout Grid.Column="2"

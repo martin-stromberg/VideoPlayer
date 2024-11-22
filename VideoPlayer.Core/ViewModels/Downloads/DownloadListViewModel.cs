@@ -15,11 +15,13 @@ namespace VideoPlayer.ViewModels.Downloads
 {
     public class DownloadListViewModel: MediaCollectionViewModel
     {
+        private readonly IEnvironment environment;
         private readonly IMediaLibrary mediaLibrary;
         private readonly IDownloadManager downloadManager;
 
-        public DownloadListViewModel(IMediaLibrary mediaLibrary, IDownloadManager downloadManager)
+        public DownloadListViewModel(IEnvironment environment, IMediaLibrary mediaLibrary, IDownloadManager downloadManager)
         {
+            this.environment = environment;
             this.mediaLibrary = mediaLibrary;
             this.downloadManager = downloadManager;
         }
@@ -42,7 +44,8 @@ namespace VideoPlayer.ViewModels.Downloads
             {
                 var entry = mediaLibrary.GetMovieByMediaItem(item.Id) as ClassifiedEntry 
                     ?? mediaLibrary.GetTVShowEpisodeByMediaItem(item.Id);
-                var vm = new DownloadListItemViewModel(item, entry);
+                var vm = new DownloadListItemViewModel(environment, item, entry);
+                vm.DeleteRequested += Vm_DeleteRequested;
                 Items.Add(vm);
             }
 
@@ -65,7 +68,7 @@ namespace VideoPlayer.ViewModels.Downloads
                 fileVM.File.Delete();
             var listItemVM = sender as DownloadListItemViewModel;
             if (listItemVM is not null)
-                downloadManager.RemoveDownloads(listItemVM.Element as ClassifiedEntry);            
+                downloadManager.RemoveDownloads(listItemVM.Entry as ClassifiedEntry);            
         }
     }
 }

@@ -403,11 +403,8 @@ namespace VideoPlayer.Service.Library
         {
             var copyTypes = copyType.Select(ct => (DataMediaItemCopyType)ct).ToArray();
             var cache = GetModelCache(typeof(MediaItem));
-            var itemIds = cache
-                .GetAll()
-                .Cast<MediaDataItem>()
-                .Where(item => copyTypes.Contains(item.CopyType))
-                .Select(mi => mi.Id);
+            var itemIds = copyTypes.SelectMany(ct =>_Database.GetAll<MediaDataItem>(new KeyValuePair<string, object>(nameof(MediaDataItem.CopyType), ct))
+                .Select(mi => mi.Id));
             foreach (var itemId in itemIds)
                 yield return GetMediaItem(itemId);
         }
@@ -903,8 +900,9 @@ namespace VideoPlayer.Service.Library
         public void Delete(Role role)
         {
             var dbModel = role.GetDatabaseModel() as MediaDataItem;
-            if (!_Database.Delete<MediaDataItem>(dbModel))
-                throw new ApplicationException($"Role could not be deleted.");
+            if (dbModel is not null)
+                if (!_Database.Delete<MediaDataItem>(dbModel))
+                    throw new ApplicationException($"Role could not be deleted.");
         }
         #endregion
 

@@ -69,7 +69,7 @@ namespace VideoPlayer.ViewModels.MediaOverview
             try
             {
                 var vm = (BaseMediaListItem)sender;
-                navigationManager.OpenCard(vm);
+                navigationManager.OpenCard(vm, false);
             }
             catch(Exception ex)
             {

@@ -691,7 +691,8 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
 
         private void UpdateMovieActors(Movie movie, MovieInformation movieInfo)
         {
-            var roles = movieInfo.Actors.Select(actorInfo =>
+            if (movieInfo is null) return;
+            var roles = movieInfo.Actors is null ? new Role[0] : movieInfo.Actors.Select(actorInfo =>
             {
                 Actor actor = GetOrCreateActor(actorInfo);
                 MediaLibrary.Release(actor);
@@ -702,7 +703,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                     Name = actorInfo.Role,
                     EntryId = movie.Id
                 };
-            }).ToList();
+            }).ToArray();
 
             var existingRoles = MediaLibrary.GetRoles(movie.Id)
                 .Where(role => role is not null)

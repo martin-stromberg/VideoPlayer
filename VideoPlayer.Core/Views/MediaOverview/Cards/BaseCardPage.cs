@@ -20,10 +20,10 @@ namespace VideoPlayer.Views.MediaOverview.Cards
 
         public BaseCardPage()
             :base()
-        {            
-            
-        }
+        {
 
+        } 
+        public virtual bool AutoPlay { get; set; }
         public virtual long ElementId { get; set; }
         protected ClassifiedEntry Entry { get; private set; }
         protected override void OnLoadingContent(IApplicationManager applicationManager)
@@ -38,7 +38,7 @@ namespace VideoPlayer.Views.MediaOverview.Cards
             base.OnAppearing();            
         }
 
-        protected T1 CreateCardViewModel<T1, T2>(T2 movie) 
+        protected T1 CreateCardViewModel<T1, T2>(T2 entry, bool autoPlay) 
             where T1: BaseMediaItemCardViewModel
         {
             object[] args = null;
@@ -49,7 +49,7 @@ namespace VideoPlayer.Views.MediaOverview.Cards
                         .Select(p =>
                         {
                             if (p.ParameterType == typeof(T2))
-                                return movie;
+                                return entry;
                             var arg = serviceProvider.GetService(p.ParameterType);                            
                             return arg;
                         }).ToArray();
@@ -58,7 +58,9 @@ namespace VideoPlayer.Views.MediaOverview.Cards
                 .Where(a => a is not null)
                 .FirstOrDefault();
             //return (T1)method.Invoke(args);
-            return (T1)Activator.CreateInstance(typeof(T1), args);
+            var instance = (T1)Activator.CreateInstance(typeof(T1), args);
+            (instance as BaseMediaItemCardViewModel).AutoPlay = autoPlay;
+            return instance;
         }
     }
 }

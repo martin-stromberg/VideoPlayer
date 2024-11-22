@@ -3,6 +3,16 @@ using VideoPlayer.Service.Library.Models;
 
 namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
 {
+    public class ArgumentEventArgs:EventArgs
+    {
+        public ArgumentEventArgs(object argument)
+            :base()
+        {
+            Argument = argument;
+        }
+
+        public object Argument { get; }
+    }
     public class BaseListItem: BaseViewModel
     {
         public BaseListItem(BaseServiceModel element)
@@ -10,20 +20,20 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
         {
             Id = element is null ? 0 : element.Id;
             Element = element;
-            Tapped = new Command((sender) => ExecuteTapped(sender));
+            Tapped = new Command((arg) => ExecuteTapped((bool)arg));
         }
         public long Id { get; }
         public BaseServiceModel Element { get; }
-
+        public bool AllowAutoPlay { get; set; }
         public Command Tapped { get; }
-        private void ExecuteTapped(object sender)
+        private void ExecuteTapped(bool autoPlay)
         {
             try
             {
-                Selected?.Invoke(this, EventArgs.Empty);
+                Selected?.Invoke(this, new ArgumentEventArgs(AllowAutoPlay && autoPlay));
             }
             catch { }
         }
-        public event EventHandler Selected;
+        public event EventHandler<ArgumentEventArgs> Selected;
     }
 }

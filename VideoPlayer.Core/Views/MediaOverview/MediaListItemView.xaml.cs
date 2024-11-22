@@ -1,3 +1,5 @@
+using VideoPlayer.ViewModels.MediaOverview.MediaItem;
+
 namespace VideoPlayer.Views.MediaOverview;
 
 public partial class MediaListItemView : ContentView
@@ -6,4 +8,9 @@ public partial class MediaListItemView : ContentView
 	{
 		InitializeComponent();
 	}
+
+    private void TapGestureRecognizer_Tapped(object sender, TappedEventArgs e)
+    {		
+		(BindingContext as BaseMediaListItem)?.Tapped.Execute(bool.Parse((string)e.Parameter));
+    }
 }

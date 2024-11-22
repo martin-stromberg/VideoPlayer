@@ -33,7 +33,16 @@ namespace VideoPlayer.ViewModels.HomePage
             HasItems = Items.Any();
         }
         public bool HasItems { get => GetProperty<bool>(); set => SetProperty(value); }
-
+        public bool AllowAutoPlay 
+        { 
+            get => GetProperty<bool>(); 
+            set 
+            {
+                SetProperty(value);
+                foreach (var item in Items)
+                    item.AllowAutoPlay = value;
+            }
+        }
         private void Playlist_PlaylistLoaded(object sender, Service.Library.Models.BaseServiceModelEventArgs e)
         {
             this.playlist = e.ModelObject as Playlist;
@@ -81,27 +90,33 @@ namespace VideoPlayer.ViewModels.HomePage
                 {
                     Service.Library.Models.Classified.EntryType.MovieCollection => new MovieCollectionMediaListItem(item.Entry)
                     {
-                        ApplicationArea = CardItemApplicationArea.Single
+                        ApplicationArea = CardItemApplicationArea.Single,
+                        AllowAutoPlay = AllowAutoPlay
                     },
                     Service.Library.Models.Classified.EntryType.Movie => new MovieMediaListItem(item.Entry)
                     {
-                        ApplicationArea = CardItemApplicationArea.Single
+                        ApplicationArea = CardItemApplicationArea.Single,
+                        AllowAutoPlay = AllowAutoPlay
                     },
                     Service.Library.Models.Classified.EntryType.TVShowEpisode => new TVShowEpisodeMediaListItem(item.Entry)
                     {
-                        ApplicationArea = CardItemApplicationArea.Single
+                        ApplicationArea = CardItemApplicationArea.Single,
+                        AllowAutoPlay = AllowAutoPlay
                     },
                     Service.Library.Models.Classified.EntryType.TVShowSeason => new TVShowSeasonMediaListItem(item.Entry)
                     {
-                        ApplicationArea = CardItemApplicationArea.Single
+                        ApplicationArea = CardItemApplicationArea.Single,
+                        AllowAutoPlay = AllowAutoPlay
                     },
                     Service.Library.Models.Classified.EntryType.TVShow => new TVShowMediaListItem(item.Entry)
                     {
-                        ApplicationArea = CardItemApplicationArea.Single
+                        ApplicationArea = CardItemApplicationArea.Single,
+                        AllowAutoPlay = AllowAutoPlay
                     },
                     _ => new BaseMediaListItem(item.Entry)
                     {
-                        ApplicationArea = CardItemApplicationArea.Single
+                        ApplicationArea = CardItemApplicationArea.Single,
+                        AllowAutoPlay = AllowAutoPlay
                     },
                 };
                 vm.Selected += Item_Selected;
@@ -111,12 +126,12 @@ namespace VideoPlayer.ViewModels.HomePage
 
         }
 
-        private void Item_Selected(object sender, EventArgs e)
+        private void Item_Selected(object sender, ArgumentEventArgs e)
         {
             try
             {
                 var vm = (BaseMediaListItem)sender;
-                navigationManager.OpenCard(vm);
+                navigationManager.OpenCard(vm, (bool)e.Argument);
             }
             catch (Exception ex)
             {

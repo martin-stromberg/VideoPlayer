@@ -22,6 +22,7 @@ namespace VideoPlayer.ViewModels.HomePage
             : base(playlistManager.NextPlaybackPlaylist, navigationManager)
         {
             Title = "Weiterschauen";
+            AllowAutoPlay = true;
         }
     }
 }

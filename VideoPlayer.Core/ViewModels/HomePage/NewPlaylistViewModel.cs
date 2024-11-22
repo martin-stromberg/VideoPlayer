@@ -12,6 +12,7 @@ namespace VideoPlayer.ViewModels.HomePage
             :base(playlistManager.NewPlaylist, navigationManager)
         {
             Title = "Neu hinzugefügt";
+            AllowAutoPlay = false;
         }
     }
 }

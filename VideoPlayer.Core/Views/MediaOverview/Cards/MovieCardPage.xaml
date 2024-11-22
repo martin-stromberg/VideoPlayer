@@ -52,6 +52,9 @@
                Opacity="0.4"
                HorizontalOptions="Center" 
                VerticalOptions="Center">
+            <Frame.GestureRecognizers>
+                <TapGestureRecognizer Tapped="TapGestureRecognizer_Tapped" />
+            </Frame.GestureRecognizers>
             <ImageButton Source="movie_collection32x32.png"                         
                          Command="{Binding PlaybackCommand}"/>
         </Frame>

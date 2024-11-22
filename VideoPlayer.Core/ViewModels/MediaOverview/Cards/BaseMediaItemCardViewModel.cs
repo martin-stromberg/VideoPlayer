@@ -190,8 +190,15 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
         }
         protected virtual void ExecutePlaybackCommand()
         {
-            PlayLoadingVideo();
-            StartPlayback(Entry);
+            try
+            {
+                PlayLoadingVideo();
+                StartPlayback(Entry);
+            }
+            catch(Exception ex)
+            {
+                NotifyError(ex);
+            }
         }
 
         private void CollectionContext_Items_CollectionChanged(object sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
@@ -266,6 +273,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
         public decimal DownloadProgress { get => GetProperty<decimal>(); set => SetProperty(value); }
         public bool IsDownloadProgressVisible { get => GetProperty<bool>(); set => SetProperty(value); }
         public MediaElementState CurrentState { get; private set; }
+        public bool AutoPlay { get => GetProperty<bool>(); set => SetProperty(value); }
 
         public override void ExecuteAppeared()
         {
@@ -301,7 +309,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
         {
             IsDownloadProgressVisible = false;
             if (IsAppeared)
-                ExecutePlaybackRequest(e.ModelObject as Service.Library.Models.Playlists.PlaylistEntry);            
+                ExecutePlaybackRequest(e.ModelObject as Service.Library.Models.Playlists.PlaylistEntry);
         }
 
         private void ExecutePlaybackRequest(PlaylistEntry playlistEntry)
@@ -347,6 +355,8 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
         protected override void ExecuteFirstAppeared()
         {
             base.ExecuteFirstAppeared();
+            if (AutoPlay)
+                Task.Run(() => { ExecutePlaybackCommand(); });
         }
         public override void ExecuteNavigatingFrom()
         {

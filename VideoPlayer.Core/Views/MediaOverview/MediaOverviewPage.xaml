@@ -38,9 +38,9 @@
                 <BindableLayout.ItemTemplate>
                     <DataTemplate x:DataType="vmItem:BaseMediaListItem">
                         <views:MediaListItemView>
-                            <views:MediaListItemView.GestureRecognizers>
+                            <!--<views:MediaListItemView.GestureRecognizers>
                                 <TapGestureRecognizer Command="{Binding Tapped}" CommandParameter="{Binding .}"/>
-                            </views:MediaListItemView.GestureRecognizers>
+                            </views:MediaListItemView.GestureRecognizers>-->
                         </views:MediaListItemView>
                     </DataTemplate>
                 </BindableLayout.ItemTemplate>

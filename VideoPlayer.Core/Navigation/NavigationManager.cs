@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Maui.Graphics.Text;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -59,7 +60,7 @@ namespace VideoPlayer.Navigation
         }
         #endregion
 
-        public void OpenCard(BaseMediaListItem vm)
+        public void OpenCard(BaseMediaListItem vm, bool autoPlay = false)
         {
             if ((vm is MovieMediaListItem) || (vm is MovieCollectionMediaListItem))
                 NavigateToRoute(_RouteNameMovieCard, new Dictionary<string, object>()
@@ -69,7 +70,8 @@ namespace VideoPlayer.Navigation
             else if ((vm is TVShowMediaListItem) || (vm is TVShowEpisodeMediaListItem))
                 NavigateToRoute(_RouteNameTVShowCard, new Dictionary<string, object>()
                 {
-                    { "Id", vm.Id }
+                    { "Id", vm.Id },
+                    { "AutoPlay", autoPlay }
                 });
             else
                 throw new NotImplementedException(vm.GetType().Name);

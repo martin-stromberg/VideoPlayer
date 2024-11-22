@@ -10,6 +10,7 @@ using VideoPlayer.ViewModels.MediaOverview.Cards;
 namespace VideoPlayer.Views.MediaOverview.Cards;
 
 [QueryProperty(nameof(ElementId), "Id")]
+[QueryProperty(nameof(AutoPlay), "AutoPlay")]
 public partial class MovieCardPage : BaseCardPage
 {
     
@@ -19,6 +20,7 @@ public partial class MovieCardPage : BaseCardPage
 	{
 		InitializeComponent();
     }
+    public override bool AutoPlay { get => base.AutoPlay; set => base.AutoPlay = value; }
     public override long ElementId { get => base.ElementId; set => base.ElementId = value; }
     protected Movie Movie { get => base.Entry as Movie; }
     protected MovieCollection Collection { get => base.Entry as MovieCollection; }
@@ -29,11 +31,16 @@ public partial class MovieCardPage : BaseCardPage
         switch (Entry.Type)
         {
             case EntryType.Movie:
-                BindingContext = CreateCardViewModel<MovieCardViewModel, Movie>(Movie);
+                BindingContext = CreateCardViewModel<MovieCardViewModel, Movie>(Movie, AutoPlay);
                 break;
             case EntryType.MovieCollection:
-                BindingContext = CreateCardViewModel<MovieCardViewModel, MovieCollection>(Collection);
+                BindingContext = CreateCardViewModel<MovieCardViewModel, MovieCollection>(Collection, AutoPlay);
                 break;
         }
+    }
+
+    private void TapGestureRecognizer_Tapped(object sender, TappedEventArgs e)
+    {
+        (BindingContext as BaseMediaItemCardViewModel)?.PlaybackCommand.Execute(null);
     }
 }

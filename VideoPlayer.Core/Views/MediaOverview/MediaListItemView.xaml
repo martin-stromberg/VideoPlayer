@@ -25,9 +25,9 @@
                 Grid.Column="0"
                 Grid.ColumnSpan="2" 
                 Source="{Binding Picture}">
-                <!--<Image.GestureRecognizers>
-                    <TapGestureRecognizer Tapped="ListItemTapped"/>
-                </Image.GestureRecognizers>-->
+                <Image.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="TapGestureRecognizer_Tapped" CommandParameter="true"/>
+                </Image.GestureRecognizers>
             </Image>
             <VerticalStackLayout Grid.Column="1"
                                  Grid.RowSpan="3">
@@ -41,9 +41,9 @@
                 Grid.RowSpan="4"
                 Grid.Column="0"
                 Grid.ColumnSpan="2">        
-                <!--<VerticalStackLayout.GestureRecognizers>
-                    <TapGestureRecognizer Tapped="ListItemDetailTapped"/>
-                </VerticalStackLayout.GestureRecognizers>-->
+                <VerticalStackLayout.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="TapGestureRecognizer_Tapped" CommandParameter="false"/>
+                </VerticalStackLayout.GestureRecognizers>
                 <Label
                     Text="{Binding Title}"                    
                     HorizontalOptions="Start" />

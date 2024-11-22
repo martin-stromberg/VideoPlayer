@@ -223,6 +223,8 @@ namespace VideoPlayer.Service.Download
             }
         }
 
+        private DateTime _LastDownloadRemovalCheck = DateTime.MinValue;
+        private TimeSpan _DownloadRemovalInternal = TimeSpan.FromMinutes(5);
         private void ExecuteDownloadRemovals()
         {
             lock (_ExecutingLock)
@@ -232,6 +234,9 @@ namespace VideoPlayer.Service.Download
             }
             try
             {
+                if (_LastDownloadRemovalCheck.Add(_DownloadRemovalInternal) > DateTime.Now)
+                    return;
+                _LastDownloadRemovalCheck = DateTime.Now;
                 foreach (var mediaItem in mediaLibrary.GetDueMediaItems())
                     if (RemoveDownload(mediaItem))
                     {
@@ -428,7 +433,8 @@ namespace VideoPlayer.Service.Download
                 Name = item.Name,
                 OriginalMediaItemId = item.Id,
                 ParentCollectionId = item.ParentCollectionId,
-                Path = Path.Combine(environment.GetPath(copyType), $"{Guid.NewGuid()}-{item.Name}")
+                Path = Path.Combine(environment.GetPath(copyType), $"{Guid.NewGuid()}-{item.Name}"),
+                LastPosition = item.LastPosition
             };
             Download(item, duplicate, progressCallback);
 

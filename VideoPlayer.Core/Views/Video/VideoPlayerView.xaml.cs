@@ -1,12 +1,15 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using VideoPlayer.ViewModels.Common;
 using VideoPlayer.ViewModels.MediaOverview.Cards;
 
 namespace VideoPlayer.Views.Video;
 
 public partial class VideoPlayerView : ContentView
 {
-	public VideoPlayerView()
+    private TimeSpan positionToSeek;
+
+    public VideoPlayerView()
 	{
 		InitializeComponent();
 	}
@@ -14,7 +17,16 @@ public partial class VideoPlayerView : ContentView
     {
         base.OnBindingContextChanged();
         if (ViewModel is not null)
+        {
             ViewModel.PropertyChanged += OnPropertyChanged;
+            ViewModel.SeekRequested += ViewModel_SeekRequested;
+        }
+    }
+
+    private void ViewModel_SeekRequested(object sender, TimeSpanEventArgs e)
+    {
+        Video.SeekTo(e.Position);
+        positionToSeek = e.Position;
     }
 
     protected BaseMediaItemCardViewModel ViewModel
@@ -36,7 +48,14 @@ public partial class VideoPlayerView : ContentView
     {
         try
         {
-            ViewModel?.ExecutePositionChanged(e.Position, Video.Duration);
+            if (positionToSeek != TimeSpan.Zero)
+            {
+                var newPosition = positionToSeek;
+                positionToSeek = TimeSpan.Zero;
+                Video.SeekTo(newPosition);
+            }
+            else
+                ViewModel?.ExecutePositionChanged(e.Position, Video.Duration);
         }
         catch(Exception ex) 
         {
@@ -67,5 +86,17 @@ public partial class VideoPlayerView : ContentView
             Debug.WriteLine(ex);
         }
 
+    }
+
+    private void Video_MediaOpened(object sender, EventArgs e)
+    {
+        try
+        {
+            ViewModel?.ExecuteMediaOpened();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine(ex);
+        }
     }
 }

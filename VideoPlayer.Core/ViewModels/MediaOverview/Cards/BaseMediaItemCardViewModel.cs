@@ -26,6 +26,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
         : BaseViewModel, IEventPublisher, IMultiEventCollection
     {
         private bool _SkipPositionEvent;
+        private TimeSpan _StartingPosition;
         protected IPlaylistManager PlaylistManager { get; }
         protected IMediaLibrary MediaLibrary { get; }
         protected ClassifiedEntry Entry 
@@ -84,7 +85,8 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             this.resourceManager = resourceManager;
             this.downloadManager = downloadManager;
             this.MediaLibrary = mediaLibrary;
-            this.Entry = entry;            
+            this.Entry = entry;
+            Title = entry.Name;
             VideoSource = null;
             CollectionContext = new MediaCollectionViewModel();
             CollectionContext.Selected += CollectionContext_Selected;
@@ -164,6 +166,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
         {
             PlaybackControlsVisible = false;
             _SkipPositionEvent = true;
+            _StartingPosition = TimeSpan.Zero;
             VideoSource = resourceManager.GetLoadingVideo();
         }
         protected virtual void ExecutePlaybackCommand()
@@ -248,11 +251,13 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
         public override void ExecuteAppeared()
         {
             base.ExecuteAppeared();
+            UpdateMediaInformation(Entry);
             PlaylistManager.PlaybackRequest += PlaylistManager_PlaybackRequest;
             PlaylistManager.Downloading += PlaylistManager_Downloading;
             PlaylistManager.DownloadProgressChanged += PlaylistManager_DownloadProgressChanged;
-            NotifyStatus("ProcessStarted");
+            Notify("ProcessStarted");
         }
+
 
         private void PlaylistManager_DownloadProgressChanged(object sender, DownloadProgressEventArgs e)
         {
@@ -282,7 +287,9 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
 
         private void ExecutePlaybackRequest(PlaylistEntry playlistEntry)
         {
-            if (playlistEntry is not null)
+            if (!MainThread.IsMainThread)
+                MainThread.InvokeOnMainThreadAsync(() => { ExecutePlaybackRequest(playlistEntry); });
+            else if (playlistEntry is not null)
                 ExecutePlaybackRequest(playlistEntry.Item, playlistEntry.Entry);
             else
                 VideoSource = null;
@@ -307,12 +314,13 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             PlaybackControlsVisible = true;
             currentMediaItem = mediaItem;
             _SkipPositionEvent = false;
+            _StartingPosition = mediaItem.LastPosition;
             VideoSource = CommunityToolkit.Maui.Views.MediaSource.FromFile(totalPath);
         }
 
         public override void ExecuteDisappeared()
         {
-            NotifyStatus("ProcessFinished");
+            Notify("ProcessFinished");
             PlaylistManager.PlaybackRequest -= PlaylistManager_PlaybackRequest;
             PlaylistManager.Downloading -= PlaylistManager_Downloading;
             base.ExecuteDisappeared();
@@ -336,6 +344,10 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
 
         public event EventHandler<NotificationEventArgs> OnEvent;
 
+        public virtual void Notify(string msgName)
+        {
+            Notify(this, new NotificationEventArgs(msgName, null));
+        }
         public virtual void Notify(object sender, NotificationEventArgs e)
         {
             OnEvent?.Invoke(sender, e);
@@ -380,13 +392,19 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
         public void ExecutePositionChanged(TimeSpan position, TimeSpan duration)
         {
             if (!_SkipPositionEvent)
-            PlaylistManager.ProcessVideoPosition(currentMediaItem, position, duration);
+                PlaylistManager.ProcessVideoPosition(currentMediaItem, position, duration);
         }
         public void ExecuteMediaEnded()
         {
             if (!_SkipPositionEvent)
                 PlaylistManager.ProcessMediaEnded(currentMediaItem);
         }
+        public void ExecuteMediaOpened()
+        {
+            if (_StartingPosition != TimeSpan.Zero)
+                SeekRequested?.Invoke(this, new TimeSpanEventArgs(_StartingPosition));                
+        }
+        public event EventHandler<TimeSpanEventArgs> SeekRequested;
 
         internal void ExecuteStateChanged(MediaElementState previousState, MediaElementState newState)
         {

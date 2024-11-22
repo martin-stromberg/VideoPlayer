@@ -45,6 +45,7 @@ namespace VideoPlayer.Service.Library.Models
                 DueDate = ((MediaDataItem)DataModel).DueDate;
                 NeedsPictureUpdate = ((MediaDataItem)DataModel).NeedsPictureUpdate;
                 LastPictureUpdateTry = ((MediaDataItem)DataModel).LastPictureUpdateTry;
+                LastPosition = ((MediaDataItem)DataModel).LastPosition;
             }
         }
 
@@ -186,6 +187,18 @@ namespace VideoPlayer.Service.Library.Models
                 SetProperty(value);
             }
         }
+
+        public TimeSpan LastPosition {
+            get
+            {
+                return GetProperty<TimeSpan>();
+            }
+            set
+            {
+                SetProperty(value);
+            }
+        }
+
         protected override void AssignChanges()
         {
             base.AssignChanges();
@@ -203,6 +216,7 @@ namespace VideoPlayer.Service.Library.Models
             ((MediaDataItem)DataModel).DueDate = DueDate;
             ((MediaDataItem)DataModel).NeedsPictureUpdate = NeedsPictureUpdate;
             ((MediaDataItem)DataModel).LastPictureUpdateTry = LastPictureUpdateTry;
+            ((MediaDataItem)DataModel).LastPosition = LastPosition;
         }
 
     }

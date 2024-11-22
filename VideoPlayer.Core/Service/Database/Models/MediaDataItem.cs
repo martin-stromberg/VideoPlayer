@@ -156,5 +156,16 @@ namespace VideoPlayer.Service.Database.Models
                 SetProperty(value);
             }
         }
+
+        public TimeSpan LastPosition {
+            get
+            {
+                return GetProperty<TimeSpan>();
+            }
+            set
+            {
+                SetProperty(value);
+            }
+        }
     }
 }

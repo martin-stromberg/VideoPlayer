@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -60,7 +61,10 @@ namespace VideoPlayer.Service.Playlists
                 if (firstEntry is null)
                     firstEntry = AddMediaItem(mediaItem);
                 if (firstEntry.Item is not null && firstEntry.Item.Id == mediaItem.Id)
+                {
+                    SaveMediaItemPosition(firstEntry.Item, firstEntry.Entry, position);
                     return;
+                }
 
                 _ = AddMediaItem(mediaItem);
             }
@@ -68,6 +72,15 @@ namespace VideoPlayer.Service.Playlists
             {
                 processing = false;
             }            
+        }
+
+        private void SaveMediaItemPosition(MediaItem item, ClassifiedEntry entry, TimeSpan position)
+        {
+            if (item is not null)
+            {
+                item.LastPosition = position;
+                MediaLibrary.AddOrUpdateMediaItem(item);
+            }
         }
 
         private PlaylistEntry AddMediaItem(MediaItem mediaItem)

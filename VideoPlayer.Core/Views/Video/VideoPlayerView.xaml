@@ -16,6 +16,7 @@
             PositionChanged="Video_PositionChanged"
             MediaEnded ="Video_MediaEnded"
             StateChanged="Video_StateChanged"
+            MediaOpened="Video_MediaOpened"
             >
             <!--MediaOpened="Video_MediaOpened"
 MediaEnded="Video_MediaEnded"

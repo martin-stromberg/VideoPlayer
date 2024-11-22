@@ -132,14 +132,20 @@ namespace VideoPlayer.Service.Library.SourceReader
                 client.DefaultRequestHeaders.Add("X-ApiKey", "e568205d-f5ae-4754-954f-c0f56a266078");
                 var uri = $"{HttpMediaSource.Uri}{file.Path}".Replace("Folder?", "File?");
                 CancellationTokenSource cancelationToken = new CancellationTokenSource();
+
                 using (var fileStream = new FileStream(localFilePath, FileMode.CreateNew))
-                {
-                    client.DownloadAsync(uri, fileStream, new Progress<float>((progress) =>
+                    try
                     {
-                        progressCallback(Math.Round((decimal)progress * 100, 2));
-                    }),
-                                             cancelationToken.Token).Wait();
-                }
+                        client.DownloadAsync(uri, fileStream, new Progress<float>((progress) =>
+                        {
+                            progressCallback(Math.Round((decimal)progress * 100, 2));
+                        }),
+                                                 cancelationToken.Token).Wait();
+                    }
+                    catch (HttpClientRequestException)
+                    {
+                        File.Delete(localFilePath);
+                    }
             }
             return new FileInfo(localFilePath);
         }

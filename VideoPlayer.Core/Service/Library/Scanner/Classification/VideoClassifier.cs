@@ -71,46 +71,47 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
         {
             Console.WriteLine($"CLASSIFY {mediaItem}");            
             var collection = MediaLibrary.GetMediaCollection(mediaItem.ParentCollectionId);
-            try
-            {
-                var source = MediaLibrary.GetSource(collection.SourceId);
+            if (collection is not null)
                 try
                 {
-                    var reader = CreateReader(source);
-                    var parentMetaInfo = UpdateMediaInformation(collection, reader);
-                    var rootName = Path.GetFileNameWithoutExtension(mediaItem.Path);
-                    var allItems = MediaLibrary.GetMediaCollectionItems(collection.Id)
-                                               .Where(item =>
-                                               {
-                                                   var result = Path.GetFileNameWithoutExtension(item.Name).StartsWith(rootName);
-                                                   if (!result)
-                                                       MediaLibrary.Release(item);
-                                                   return result;
-                                               })
-                                               .ToList();
+                    var source = MediaLibrary.GetSource(collection.SourceId);
                     try
                     {
-                        var nfoFile = allItems.FirstOrDefault(item => nfoExtensions.Contains(Path.GetExtension(item.Name)));
-                        UpdateMediaInformation(mediaItem, nfoFile, reader);
-                        UpdateMovie(mediaItem, collection, source);
-                        UpdateTVShowEpisode(mediaItem, collection, source, parentMetaInfo);
-                        Console.WriteLine($"CLASSIFY-END {mediaItem}");
+                        var reader = CreateReader(source);
+                        var parentMetaInfo = UpdateMediaInformation(collection, reader);
+                        var rootName = Path.GetFileNameWithoutExtension(mediaItem.Path);
+                        var allItems = MediaLibrary.GetMediaCollectionItems(collection.Id)
+                                                   .Where(item =>
+                                                   {
+                                                       var result = Path.GetFileNameWithoutExtension(item.Name).StartsWith(rootName);
+                                                       if (!result)
+                                                           MediaLibrary.Release(item);
+                                                       return result;
+                                                   })
+                                                   .ToList();
+                        try
+                        {
+                            var nfoFile = allItems.FirstOrDefault(item => nfoExtensions.Contains(Path.GetExtension(item.Name)));
+                            UpdateMediaInformation(mediaItem, nfoFile, reader);
+                            UpdateMovie(mediaItem, collection, source);
+                            UpdateTVShowEpisode(mediaItem, collection, source, parentMetaInfo);
+                            Console.WriteLine($"CLASSIFY-END {mediaItem}");
+                        }
+                        finally
+                        {
+                            foreach (var item in allItems)
+                                MediaLibrary.Release(item);
+                        }
                     }
                     finally
                     {
-                        foreach (var item in allItems)
-                            MediaLibrary.Release(item);
+                        MediaLibrary.Release(source);
                     }
                 }
                 finally
                 {
-                    MediaLibrary.Release(source);
+                    MediaLibrary.Release(collection);
                 }
-            }
-            finally
-            {
-                MediaLibrary.Release(collection);
-            }
             return true;
         }
 
@@ -702,7 +703,10 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                 };
             }).ToList();
 
-            var existingRoles = MediaLibrary.GetRoles(movie.Id).OrderBy(r => r.Id).ToList();
+            var existingRoles = MediaLibrary.GetRoles(movie.Id)
+                .Where(role => role is not null)
+                .OrderBy(r => r.Id)
+                .ToList();
             try
             {
                 var rolesToSave = roles.Select(role =>
@@ -995,9 +999,15 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             if (!destFileInfo.Directory.Exists)
                 destFileInfo.Directory.Create();
             if (!destFileInfo.Exists || destFileInfo.LastWriteTime < sourceFileInfo.LastWriteTime)
-                reader.Download(mediaItem, (p) => { }).MoveTo(destFileInfo.FullName, true);
-            using (var image = Image.Load<Rgba32>(destFileInfo.FullName))
-                pictureBackgroundColor = await image.GetPixelColorAsync(0, 0);
+            {
+                var tempfile = reader.Download(mediaItem, (p) => { });
+                if (tempfile.Exists)
+                    tempfile.MoveTo(destFileInfo.FullName, true);
+            }
+            destFileInfo.Refresh();
+            if (destFileInfo.Exists)
+                using (var image = Image.Load<Rgba32>(destFileInfo.FullName))
+                    pictureBackgroundColor = await image.GetPixelColorAsync(0, 0);
             return new KeyValuePair<string, Color>(destFileInfo.FullName.Remove(0, FileSystem.Current.AppDataDirectory.Length), pictureBackgroundColor);
         }
 
@@ -1022,16 +1032,17 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             if (collection.ParentId != 0)
             {
                 collection = MediaLibrary.GetMediaCollection(collection.ParentId);
-                try
-                {
-                    var parentInfo = UpdateMediaInformation(collection, reader);
-                    if (returnInfo is null)
-                        returnInfo = parentInfo;
-                }
-                finally
-                {
-                    MediaLibrary.Release(collection);
-                }
+                if (collection is not null)
+                    try
+                    {
+                        var parentInfo = UpdateMediaInformation(collection, reader);
+                        if (returnInfo is null)
+                            returnInfo = parentInfo;
+                    }
+                    finally
+                    {
+                        MediaLibrary.Release(collection);
+                    }
             }
             return returnInfo;
         }
@@ -1160,23 +1171,24 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
         {
             var rootName = Path.GetFileNameWithoutExtension(mediaItem.Path);
             var collection = MediaLibrary.GetMediaCollection(mediaItem.ParentCollectionId);
-            IEnumerable<MediaItem> items;
-            try
-            {
-                items = MediaLibrary.GetMediaCollectionItems(collection.Id)
-                                        .Where(item =>
-                                        {
-                                            var result = Path.GetFileNameWithoutExtension(item.Path) == rootName;
-                                            result &= videoExtensions.Contains(Path.GetExtension(item.Name));
-                                            if (!result)
-                                                MediaLibrary.Release(item);
-                                            return result;
-                                        });
-            }
-            finally
-            {
-                MediaLibrary.Release(collection);
-            }
+            IEnumerable<MediaItem> items = new MediaItem[0];
+            if (collection is not null)
+                try
+                {
+                    items = MediaLibrary.GetMediaCollectionItems(collection.Id)
+                                            .Where(item =>
+                                            {
+                                                var result = Path.GetFileNameWithoutExtension(item.Path) == rootName;
+                                                result &= videoExtensions.Contains(Path.GetExtension(item.Name));
+                                                if (!result)
+                                                    MediaLibrary.Release(item);
+                                                return result;
+                                            });
+                }
+                finally
+                {
+                    MediaLibrary.Release(collection);
+                }
             var result = false;
             try
             {

@@ -1,8 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Net;
+using System.Runtime.Serialization;
 
 namespace VideoPlayer.Extensions
 {
@@ -18,6 +15,8 @@ namespace VideoPlayer.Extensions
             // Get the http headers first to examine the content length
             using (var response = await client.GetAsync(requestUri, HttpCompletionOption.ResponseHeadersRead))
             {
+                if (!response.IsSuccessStatusCode)
+                    throw new HttpClientRequestException($"Request failed with code {response.StatusCode}.", response.StatusCode);
                 var contentLength = response.Content.Headers.ContentLength;
 
                 using (var download = await response.Content.ReadAsStreamAsync(cancellationToken))

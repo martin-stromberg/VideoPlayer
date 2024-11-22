@@ -30,9 +30,18 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
 
         protected virtual void UpdateMediaInformation(ClassifiedEntry item)
         {
-            Title = item.Name;
-            Subtitle = GetDateTimeInfo(item.ReleaseDate, item.PremieredAt);
-            Watched = item.LastWatched != DateTime.MinValue;
+            if (item is null)
+            {
+                Title = string.Empty;
+                Subtitle = string.Empty;
+                Watched = false;
+            }
+            else
+            {
+                Title = item.Name;
+                Subtitle = GetDateTimeInfo(item.ReleaseDate, item.PremieredAt);
+                Watched = item.LastWatched != DateTime.MinValue;
+            }
         }
         protected string GetDateTimeInfo(params DateTime[] dates)
         {

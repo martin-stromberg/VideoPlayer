@@ -1,4 +1,5 @@
-﻿using VideoPlayer.Service.Library.Models;
+﻿using Microsoft.Maui.Controls;
+using VideoPlayer.Service.Library.Models;
 
 namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
 {
@@ -7,7 +8,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
         public BaseListItem(BaseServiceModel element)
             :base()
         {
-            Id = element.Id;
+            Id = element is null ? 0 : element.Id;
             Element = element;
             Tapped = new Command((sender) => ExecuteTapped(sender));
         }

@@ -2,6 +2,7 @@
 using SixLabors.ImageSharp.PixelFormats;
 using System.Diagnostics;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using System.Xml;
 using VideoPlayer.Extensions;
@@ -1005,9 +1006,10 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                     tempfile.MoveTo(destFileInfo.FullName, true);
             }
             destFileInfo.Refresh();
-            if (destFileInfo.Exists)
-                using (var image = Image.Load<Rgba32>(destFileInfo.FullName))
-                    pictureBackgroundColor = await image.GetPixelColorAsync(0, 0);
+            if (!destFileInfo.Exists)
+                return new KeyValuePair<string, Color>(String.Empty, Colors.Transparent);
+            using (var image = Image.Load<Rgba32>(destFileInfo.FullName))
+                pictureBackgroundColor = await image.GetPixelColorAsync(0, 0);
             return new KeyValuePair<string, Color>(destFileInfo.FullName.Remove(0, FileSystem.Current.AppDataDirectory.Length), pictureBackgroundColor);
         }
 

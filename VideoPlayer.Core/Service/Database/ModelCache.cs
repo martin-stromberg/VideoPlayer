@@ -348,7 +348,12 @@ namespace VideoPlayer.Service.Database
                 element.Item = null;
             }
         }
-
+        internal void Remove(BaseServiceModel entry)
+        {
+            var element = _cache.ContainsKey(entry.Id) ? _cache[entry.Id] : null;
+            if (element is null) return;
+            _cache.TryRemove(entry.Id, out element);
+        }
         internal void Release(BaseServiceModel entry)
         {
             var element = _cache.ContainsKey(entry.Id) ? _cache[entry.Id] : null;

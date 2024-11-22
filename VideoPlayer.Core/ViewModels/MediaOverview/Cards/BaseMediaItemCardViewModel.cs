@@ -19,6 +19,9 @@ using VideoPlayer.Service.Library.Models.Playlists;
 using VideoPlayer.ViewModels.MediaOverview.MediaItem;
 using VideoPlayer.Service.Library;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
+using VideoPlayer.Navigation;
+using System.Xml.Serialization;
 
 namespace VideoPlayer.ViewModels.MediaOverview.Cards
 {
@@ -78,6 +81,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             IResourceManager resourceManager,
             IDownloadManager downloadManager,
             IMediaLibrary mediaLibrary,
+            INavigationManager navigationManager,
             ClassifiedEntry entry)
         {
             this.PlaylistManager = playlistManager;
@@ -85,6 +89,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             this.resourceManager = resourceManager;
             this.downloadManager = downloadManager;
             this.MediaLibrary = mediaLibrary;
+            this.navigationManager = navigationManager;
             this.Entry = entry;
             Title = entry.Name;
             VideoSource = null;
@@ -119,6 +124,9 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
                     case "rescan":
                         Rescan(Entry);
                         break;
+                    case "reload":
+                        Reload(Entry);
+                        break;
                     case "download":
                         Download(Entry);
                         break;
@@ -140,6 +148,17 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
         protected virtual void Rescan(ClassifiedEntry entry)
         {
             Notify(this, new Service.Events.NotificationEventArgs("Rescan", entry));
+        }
+        protected virtual void Reload(ClassifiedEntry entry)
+        {
+            Entry.Visible = false;
+            Notify(this, new Service.Events.NotificationEventArgs("Reload", entry));
+            Close();
+        }
+        protected virtual void Close ()
+        {           
+            
+            navigationManager.CloseCurrentPage();
         }
 
         protected void StartDownload(TVShowSeason selectedSeason)
@@ -340,7 +359,8 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
         private string _PreviousStatus = string.Empty;
         private readonly IEnvironment environment;
         private readonly IResourceManager resourceManager;
-        private readonly IDownloadManager downloadManager;        
+        private readonly IDownloadManager downloadManager;
+        private readonly INavigationManager navigationManager;
 
         public event EventHandler<NotificationEventArgs> OnEvent;
 

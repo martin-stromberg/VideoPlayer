@@ -1,5 +1,6 @@
 ﻿using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
+using VideoPlayer.Navigation;
 using VideoPlayer.Service.Download;
 using VideoPlayer.Service.Library;
 using VideoPlayer.Service.Library.Models.Classified;
@@ -20,8 +21,9 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             IMediaLibrary mediaLibrary,
             IDownloadManager downloadManager,
             IMediaCollectionSelector mediaCollectionSelector,
+            INavigationManager navigationManager,
             TVShow entry) 
-            : base(playlistManager, environment, resourceManager, downloadManager, mediaLibrary, entry)
+            : base(playlistManager, environment, resourceManager, downloadManager, mediaLibrary, navigationManager, entry)
         {
             this.mediaCollectionSelector = mediaCollectionSelector;
             CollectionContext.Items.Add(new TVShowMediaListItem(entry));                       
@@ -33,8 +35,9 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             IDownloadManager downloadManager,
             IMediaLibrary mediaLibrary,
             IMediaCollectionSelector mediaCollectionSelector,
+            INavigationManager navigationManager,
             TVShowEpisode entry)
-            : base(playlistManager, environment, resourceManager, downloadManager, mediaLibrary, entry)
+            : base(playlistManager, environment, resourceManager, downloadManager, mediaLibrary, navigationManager, entry)
         {
             this.mediaCollectionSelector = mediaCollectionSelector;
             CollectionContext.Items.Add(new TVShowEpisodeMediaListItem(entry));

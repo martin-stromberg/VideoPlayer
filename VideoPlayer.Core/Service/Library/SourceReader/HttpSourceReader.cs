@@ -142,7 +142,11 @@ namespace VideoPlayer.Service.Library.SourceReader
                         }),
                                                  cancelationToken.Token).Wait();
                     }
-                    catch (HttpClientRequestException)
+                    catch (HttpClientRequestException ex)
+                    {
+                        File.Delete(localFilePath);
+                    }
+                    catch (Exception ex)
                     {
                         File.Delete(localFilePath);
                     }

@@ -17,6 +17,7 @@ namespace VideoPlayer.Navigation
 
         #region Detail Card
         void OpenCard(BaseMediaListItem vm);
+        void CloseCurrentPage();
         #endregion
 
         //void OpenMovieCollection(MovieCollection movieCollection);

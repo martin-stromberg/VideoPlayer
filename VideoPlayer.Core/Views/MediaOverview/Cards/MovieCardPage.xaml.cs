@@ -25,6 +25,7 @@ public partial class MovieCardPage : BaseCardPage
     protected override void OnLoadingContent(IApplicationManager applicationManager)
     {
         base.OnLoadingContent(applicationManager);
+        if (Entry is not null)
         switch (Entry.Type)
         {
             case EntryType.Movie:

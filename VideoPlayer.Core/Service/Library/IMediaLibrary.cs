@@ -42,6 +42,7 @@ namespace VideoPlayer.Service.Library
         MediaItem AddOrUpdateMediaItem(MediaItem mediaItem);
 
         IEnumerable<MediaItem> GetUnclassifiedMediaItems();
+        void Delete(MediaItem mediaItem);
         #endregion
         #region Movie
         Movie GetMovieByMediaItem(long mediaItemId);
@@ -53,8 +54,9 @@ namespace VideoPlayer.Service.Library
         IEnumerable<Movie> GetCollectionMovies(long collectionId);
 
         Movie AddOrUpdateMovie(Movie movie);
+        void Delete(Movie movie);
         #endregion
-        
+
         #region MovieCollection
         MovieCollection GetMovieCollection(long id);
 
@@ -69,6 +71,7 @@ namespace VideoPlayer.Service.Library
         TVShowEpisode GetTVShowEpisodeByIdentification(string showName, int season, int episode, string part);
         TVShowEpisode AddOrUpdateEpisode(TVShowEpisode episode);
         IEnumerable<TVShowEpisode> GetEpisodes(long seasonId);
+        void Delete(TVShowEpisode episode);
         #endregion
         #region TVShowSeason
         TVShowSeason GetShowSeason(TVShow show, int seasonNo);
@@ -95,7 +98,7 @@ namespace VideoPlayer.Service.Library
         Playlist GetPlaylist(long id);
         #endregion
 
-        void Delete(MediaItem mediaItem);
+        
         #region Log Entry
         void AddOrUpdateLogEntry(LogEntry entry);
         void ClearLogs();

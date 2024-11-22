@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using VideoPlayer.Navigation;
 using VideoPlayer.Service.Download;
 using VideoPlayer.Service.Library;
 using VideoPlayer.Service.Library.Models.Classified;
@@ -31,8 +32,9 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             IMediaCollectionSelector mediaCollectionSelector,
             IMediaLibrary mediaLibrary,
             IDownloadManager downloadManager,
+            INavigationManager navigationManager,
             Movie entry)
-            :base(playlistManager, environment, resourceManager, downloadManager, mediaLibrary, entry)
+            :base(playlistManager, environment, resourceManager, downloadManager, mediaLibrary, navigationManager, entry)
         {
             CollectionContext.Items.Add(new MovieMediaListItem(entry));
             Year = entry.ReleaseDate.Year;
@@ -50,8 +52,9 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             IMediaCollectionSelector mediaCollectionSelector,
             IMediaLibrary mediaLibrary,
             IDownloadManager downloadManager,
+            INavigationManager navigationManager,
             MovieCollection entry)
-            : base(playlistManager, environment, resourceManager, downloadManager, mediaLibrary, entry)
+            : base(playlistManager, environment, resourceManager, downloadManager, mediaLibrary, navigationManager, entry)
         {
             CollectionContext.Items.Add(new MovieCollectionMediaListItem(entry));            
             this.mediaCollectionSelector = mediaCollectionSelector;

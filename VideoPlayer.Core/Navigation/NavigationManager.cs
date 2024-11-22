@@ -74,5 +74,10 @@ namespace VideoPlayer.Navigation
             else
                 throw new NotImplementedException(vm.GetType().Name);
         }
+
+        public void CloseCurrentPage()
+        {
+            MainThread.InvokeOnMainThreadAsync(() => { Shell.Current.Navigation.RemovePage(Shell.Current.CurrentPage); });
+        }
     }
 }

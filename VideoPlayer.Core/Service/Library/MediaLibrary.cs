@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Data;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using VideoPlayer.Service.BaseServices;
 using VideoPlayer.Service.Database;
@@ -318,6 +319,49 @@ namespace VideoPlayer.Service.Library
             AddOrUpdate(collection);
             return collection;
         }
+        public void Delete(MediaCollection collection)
+        {
+            var cache = GetModelCache(typeof(MediaDataItemCollection));
+            cache.Remove(collection);
+
+            var mediaItems = GetMediaCollectionItems(collection.Id)
+                .Select(mi =>
+                {
+                    Release(mi);
+                    return mi;
+                });
+            foreach (var mediaItem in mediaItems)
+                Delete(mediaItem);
+
+            var parentCollection = GetMediaCollection(collection.ParentId);
+
+            var dbModel = collection.GetDatabaseModel() as MediaDataItem;
+            if (!_Database.Delete<MediaDataItem>(dbModel))
+                throw new ApplicationException($"Media item collection could not be deleted.");
+
+            if (parentCollection is null)
+                return;
+            try
+            {
+                var hasChildCollections = GetChildMediaCollections(parentCollection.Id)
+                    .Select(col => { Release(col); return col; })
+                    .ToArray()
+                    .Any();
+                if (hasChildCollections)
+                    return;
+                var hasMediaItems = GetMediaCollectionItems(parentCollection.Id)
+                    .Select(mi => { Release(mi); return mi; })
+                    .ToArray()
+                    .Any();
+                if (hasMediaItems)
+                    return;
+            }
+            finally
+            {
+                Release(parentCollection);
+            }
+            Delete(parentCollection);
+        }
         public IEnumerable<MediaCollection> GetUnclassifiedMediaCollections()
         {
             var collectionIds = _Database
@@ -340,6 +384,25 @@ namespace VideoPlayer.Service.Library
         #region MediaItem
         public void Delete(MediaItem mediaItem)
         {
+            Delete(mediaItem, false);
+        }
+        public void Delete(MediaItem mediaItem, bool deleteBelongingItems)
+        {
+            if (deleteBelongingItems)
+            {
+                var mediaItems = GetMediaCollectionItems(mediaItem.ParentCollectionId)
+                    .Where(mi =>
+                    {
+                        var result = mi.Id != mediaItem.Id;
+                        result &= mi.Name.StartsWith(Path.GetFileNameWithoutExtension(mediaItem.Name));
+                        Release(mi);
+                        return result;
+                    })
+                    .ToArray();
+                foreach (var mi in mediaItems)
+                    Delete(mi, false);
+            }
+
             var dbModel = mediaItem.GetDatabaseModel() as MediaDataItem;
             if (!_Database.Delete<MediaDataItem>(dbModel))
                 throw new ApplicationException($"Media item could not be deleted.");
@@ -403,7 +466,7 @@ namespace VideoPlayer.Service.Library
         {
             var copyTypes = copyType.Select(ct => (DataMediaItemCopyType)ct).ToArray();
             var cache = GetModelCache(typeof(MediaItem));
-            var itemIds = copyTypes.SelectMany(ct =>_Database.GetAll<MediaDataItem>(new KeyValuePair<string, object>(nameof(MediaDataItem.CopyType), ct))
+            var itemIds = copyTypes.SelectMany(ct => _Database.GetAll<MediaDataItem>(new KeyValuePair<string, object>(nameof(MediaDataItem.CopyType), ct))
                 .Select(mi => mi.Id));
             foreach (var itemId in itemIds)
                 yield return GetMediaItem(itemId);
@@ -420,7 +483,6 @@ namespace VideoPlayer.Service.Library
             AddOrUpdate(mediaItem);
             return mediaItem;
         }
-
         public IEnumerable<MediaItem> GetUnclassifiedMediaItems()
         {
             var cache = GetModelCache(typeof(MediaItem));
@@ -499,6 +561,58 @@ namespace VideoPlayer.Service.Library
             UpdateMovieMediaItems(movie.GetDatabaseModel() as DataClassifiedEntry, movie.Id, movie.MediaItemIds);
             return movie;
         }
+        public void Delete(Movie movie)
+        {
+            var cache = GetModelCache(typeof(DataClassifiedEntry));
+            cache.Remove(movie);
+
+            List<long> collectionIds = new List<long>();
+            foreach (var mediaItemId in movie.MediaItemIds)
+            {
+                var mediaItem = GetMediaItem(mediaItemId);
+                if (mediaItem is null)
+                    continue;
+                collectionIds.Add(mediaItem.ParentCollectionId);
+                Delete(mediaItem, true);
+            }
+
+            var movieCollection = GetMovieCollection(movie.CollectionId);
+
+            var roles = GetRoles(movie.Id);
+            foreach (var role in roles)
+                Delete(role);
+
+            var dbModel = movie.GetDatabaseModel() as DataClassifiedEntry;
+            if (!_Database.Delete<DataClassifiedEntry>(dbModel))
+                throw new ApplicationException($"Movie item could not be deleted.");
+
+
+            if (movieCollection is null)
+            {
+                foreach (var collectionId in collectionIds.Distinct())
+                {
+                    var collection = GetMediaCollection(collectionId);
+                    if (collection is null)
+                        continue;
+                    Delete(collection);
+                }
+            }
+            else
+                try
+                {
+                    var hasRemainingMovies = GetCollectionMovies(movieCollection.Id)
+                        .Select(col => { Release(col); return col; })
+                        .ToArray()
+                        .Any();
+                    if (hasRemainingMovies)
+                        return;
+                    Delete(movieCollection);
+                }
+                finally
+                {
+                    Release(movieCollection);
+                }
+        }
         public IEnumerable<Movie> GetMovies()
         {
             return _Database.GetAll<DataClassifiedEntry>(
@@ -546,7 +660,45 @@ namespace VideoPlayer.Service.Library
             AddOrUpdate(movieCollection);
             return movieCollection;
         }
+        public void Delete(MovieCollection movieCollection)
+        {
+            var cache = GetModelCache(typeof(DataClassifiedEntry));
+            cache.Remove(movieCollection);
 
+            var movies = GetCollectionMovies(movieCollection.Id)
+                .Select(m => { Release(m); return m; })
+                .ToArray();
+            foreach (var movie in movies)
+                Delete(movie);
+
+            var collection = GetMediaCollection(movieCollection.MediaItemCollectionId);
+
+            var dbModel = movieCollection.GetDatabaseModel() as DataClassifiedEntry;
+            if (!_Database.Delete<DataClassifiedEntry>(dbModel))
+                throw new ApplicationException($"Movie item could not be deleted.");
+            if (collection is null)
+                return;
+            try
+            {
+                var hasChildCollections = GetChildMediaCollections(collection.Id)
+                    .Select(col => { Release(col); return col; })
+                    .ToArray()
+                    .Any();
+                if (hasChildCollections)
+                    return;
+                var hasMediaItems = GetMediaCollectionItems(collection.Id)
+                    .Select(mi => { Release(mi); return mi; })
+                    .ToArray()
+                    .Any();
+                if (hasMediaItems)
+                    return;
+            }
+            finally
+            {
+                Release(collection);
+            }
+            Delete(collection);
+        }
         public MovieCollection GetMovieCollectionByMediaCollection(long mediaCollectionId)
         {
             var collectionId = _Database
@@ -624,6 +776,33 @@ namespace VideoPlayer.Service.Library
             AddOrUpdate(episode);
             UpdateMovieMediaItems(episode.GetDatabaseModel() as DataClassifiedEntry, episode.Id, episode.MediaItemIds);
             return episode;
+        }
+        public void Delete(TVShowEpisode episode)
+        {
+            var cache = GetModelCache(typeof(DataClassifiedEntry));
+            cache.Remove(episode);
+
+            List<long> collectionIds = new List<long>();
+            foreach (var mediaItemId in episode.MediaItemIds)
+            {
+                var mediaItem = GetMediaItem(mediaItemId);
+                if (mediaItem is null)
+                    continue;
+                collectionIds.Add(mediaItem.ParentCollectionId);
+                Delete(mediaItem, true);
+            }
+
+            foreach (var collectionId in collectionIds.Distinct())
+            {
+                var collection = GetMediaCollection(collectionId);
+                if (collection is null)
+                    continue;
+                Delete(collection);
+            }
+
+            var dbModel = episode.GetDatabaseModel() as DataClassifiedEntry;
+            if (!_Database.Delete<DataClassifiedEntry>(dbModel))
+                throw new ApplicationException($"Episode item could not be deleted.");
         }
         public TVShowEpisode GetTVShowEpisode(long id)
         {
@@ -846,6 +1025,17 @@ namespace VideoPlayer.Service.Library
             AddOrUpdate(entry);
             return entry;
         }
+        public void Delete(Actor actor)
+        {
+            var roles = GetActorsRoles(actor.Id).ToArray();
+            foreach (var role in roles)
+                Delete(role);
+
+            var dbModel = actor.GetDatabaseModel() as DataActor;
+            if (dbModel is not null)
+                if (!_Database.Delete<DataActor>(dbModel))
+                    throw new ApplicationException($"Actor could not be deleted.");
+        }
         public IEnumerable<Actor> GetActorsByName(string name)
         {
             var entryIds = _Database.GetAll<DataActor>(
@@ -899,10 +1089,24 @@ namespace VideoPlayer.Service.Library
         }
         public void Delete(Role role)
         {
-            var dbModel = role.GetDatabaseModel() as MediaDataItem;
+            var actor = GetActor(role.ActorId);
+            Release(actor);
+
+            var dbModel = role.GetDatabaseModel() as DataRole;
             if (dbModel is not null)
-                if (!_Database.Delete<MediaDataItem>(dbModel))
+                if (!_Database.Delete<DataRole>(dbModel))
                     throw new ApplicationException($"Role could not be deleted.");
+
+            if (actor is not null)
+            {
+                var remainingRoles = GetActorsRoles(actor.Id)
+                    .Where(role => role is not null)
+                    .Select(role => { Release(role); return role; })
+                    .ToArray();
+                if (remainingRoles.Any())
+                    return;
+            }
+            Delete(actor);
         }
         #endregion
 

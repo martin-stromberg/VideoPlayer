@@ -61,7 +61,7 @@ namespace VideoPlayer.Service.Library.Models
                 ((DataSetup)DataModel).DownloadManager_DueTime_Watched = DownloadManager_DueTime_Watched;
             }
         }
-        internal Setup Default()
+        internal static Setup Default()
         {
             return new Setup()
             {

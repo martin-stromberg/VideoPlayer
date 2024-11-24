@@ -17,9 +17,9 @@ namespace VideoPlayer.Platforms.iOS
             }
             catch (Exception ex)
             {
+                File.WriteAllText($"{Guid.NewGuid()}.error", $"{DateTime.Now}\r\n{ex}");
                 Debug.WriteLine($"!!! AUSNAHMEFEHLER: {ex}");
             }
         }
-
     }
 }

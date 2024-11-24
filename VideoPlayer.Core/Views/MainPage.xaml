@@ -40,13 +40,15 @@
                              CommandParameter="tv"/>
         </HorizontalStackLayout>
         <VerticalStackLayout Grid.Row="1">
-            <homePage:NextPlayingView BindingContext="{Binding NextPlayingContext}"/>
-            <homePage:NextPlayingView BindingContext="{Binding NewContext}"/>
+            <homePage:NextPlayingView BindingContext="{Binding NextPlayingContext}" IsVisible="{Binding ContentVisible}"/>
+            <homePage:NextPlayingView BindingContext="{Binding NewContext}" IsVisible="{Binding ContentVisible}"/>
+            <Label Text="{Binding ErrorMessages}" IsVisible="{Binding ErrorsVisible}"/>
+            <Button IsVisible="{Binding ErrorsVisible}" Text="Bestätigen" Clicked="Button_Clicked"/>
         </VerticalStackLayout>
         <viewCommon:MemoryInfoView BindingContext="{Binding MemoryInfo}"
                                    HorizontalOptions="End"
                                    Grid.Row="2"
-                                   Grid.Column="1"/>
+                                   Grid.Column="1"/>        
         <Label 
             Grid.Row="2"
             Text="{Binding StatusMessage}"

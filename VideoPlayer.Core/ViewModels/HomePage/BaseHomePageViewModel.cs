@@ -63,11 +63,16 @@ namespace VideoPlayer.ViewModels.HomePage
         }
         #endregion
         #region Content
+        public bool ContentVisible { get => GetProperty<bool>(); set => SetProperty(value); }
         public BaseViewModel NextPlayingContext { get => GetProperty<BaseViewModel>(); set => SetProperty(value); }
         public BaseViewModel NewContext { get => GetProperty<BaseViewModel>(); set => SetProperty(value); }
         #endregion
         #region Memory Info
         public IMemoryInformation MemoryInfo { get; }
+        #endregion
+        #region Error Messages
+        public string ErrorMessages { get => GetProperty<string>(); set { SetProperty(value); ErrorsVisible = !string.IsNullOrWhiteSpace(value); } }
+        public bool ErrorsVisible { get => GetProperty<bool>(); set { SetProperty(value); ContentVisible = !value; } }
         #endregion
     }
 }

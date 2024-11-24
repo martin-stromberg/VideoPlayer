@@ -269,6 +269,14 @@ namespace VideoPlayer.Service.Library
         }
 
         #region MediaSource
+        public IEnumerable<MediaSource> GetSources()
+        {
+            var sourceIds = _Database
+                .GetAll<MediaDataSource>()
+                .Select(source => source.Id);
+            foreach (var id in sourceIds)
+                yield return GetSource(id);
+        }
         public MediaSource AddOrUpdateSource(MediaSource source)
         {
             AddOrUpdate<MediaSource>(source);

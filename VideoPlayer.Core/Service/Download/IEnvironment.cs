@@ -6,5 +6,6 @@ namespace VideoPlayer.Service.Download
     {
         string GetRootPath();
         string GetPath(MediaItemCopyType copyType);
+        string GetErrorLogPath();
     }
 }

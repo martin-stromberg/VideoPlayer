@@ -656,19 +656,27 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                     namedMovies = namedMovies
                         .Where(movie => {
                             var date = movieInfo.ReleaseDate == DateTime.MinValue ? movieInfo.PremieredAt : movieInfo.ReleaseDate;
-                            return date == DateTime.MinValue || movie.ReleaseDate == date || movie.PremieredAt == date;
+                            var result = date == DateTime.MinValue || movie.ReleaseDate == date || movie.PremieredAt == date;
+                            if (!result)
+                                MediaLibrary.Release(movie);
+                            return result;
                         })
                         .OrderBy(movie => (movieInfo.Language == movie.Language) ? 0 : 1)
                         .ThenBy(movie => movie.Name)
                         .ToList();
                     var namedMovie = namedMovies.FirstOrDefault();                                        
-                    if (namedMovie is null)
+                    if (namedMovie is null && movie is null)
                         movie = CreateMovie(mediaItem);
-                    else
+                    else if (movie is null)
                     {
                         MediaLibrary.Release(namedMovies.Skip(1));
                         MediaLibrary.Release(movie);
                         movie = UpdateMovie(namedMovie, mediaItem);
+                    }
+                    else
+                    {
+                        MediaLibrary.Release(namedMovies);
+                        movie = UpdateMovie(movie, mediaItem);
                     }
                 }
                 var isNew = movie.Id == 0;

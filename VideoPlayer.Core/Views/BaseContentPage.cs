@@ -49,6 +49,7 @@ namespace VideoPlayer.Views
         protected override void OnDisappearing()
         {
             base.OnDisappearing();
+            SendDisappearedEvent();
             _IsAppeared = false;
         }
         private void SendAppearedEvent()

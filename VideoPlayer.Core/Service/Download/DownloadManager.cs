@@ -117,7 +117,7 @@ namespace VideoPlayer.Service.Download
 
         public bool HasJobs
         {
-            get => !queue.IsEmpty;
+            get => !queue.IsEmpty || !queueCheck.IsEmpty;
         }
 
         public DownloadSession Enqueue(ClassifiedEntry entry, MediaItem item)
@@ -164,6 +164,10 @@ namespace VideoPlayer.Service.Download
         private object _ExecutingLock = new object();
         private bool _ExecutingCheck = false;
         private bool _ExecutingDownloads = false;
+        public bool Executing
+        {
+            get { return _ExecutingDownloads || _ExecutingCheck; }
+        }
         private void ExecuteChecks()
         {
             lock (_ExecutingLock)

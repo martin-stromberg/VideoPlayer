@@ -39,5 +39,16 @@ namespace VideoPlayer.Service.Download
                 Directory.CreateDirectory(folderPath);
             return folderPath;
         }
+
+        public string GetErrorLogPath()
+        {
+            var folderPath = Path.Combine(
+                        GetRootPath(),
+                        "errors"
+                        );
+            if (!Path.Exists(folderPath))
+                Directory.CreateDirectory(folderPath);
+            return folderPath;
+        }
     }
 }

@@ -3,6 +3,7 @@ using System.Linq;
 using VideoPlayer.Service.Database;
 using VideoPlayer.Service.Device;
 using VideoPlayer.Service.Download;
+using VideoPlayer.Service.ErrorHandling;
 using VideoPlayer.Service.Events;
 using VideoPlayer.Service.Export;
 using VideoPlayer.Service.Library;
@@ -43,6 +44,7 @@ namespace VideoPlayer.Service
             services.AddTransient<IMediaCollectionSelector, MediaCollectionSelector>();
             services.AddSingleton<IStatusManager, StatusManager>();
             services.AddSingleton<IMemoryInformation, MemoryInformation>();
+            services.AddTransient<IErrorLogManager, ErrorLogManager>();            
             return services;
         }
 

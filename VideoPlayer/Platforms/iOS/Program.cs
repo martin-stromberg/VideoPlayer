@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using UIKit;
+using VideoPlayer.Service.Download;
 
 namespace VideoPlayer.Platforms.iOS
 {
@@ -17,9 +18,20 @@ namespace VideoPlayer.Platforms.iOS
             }
             catch (Exception ex)
             {
-                File.WriteAllText($"{Guid.NewGuid()}.error", $"{DateTime.Now}\r\n{ex}");
+                LogError(ex);
                 Debug.WriteLine($"!!! AUSNAHMEFEHLER: {ex}");
             }
+        }
+
+        private static void LogError(Exception ex)
+        {
+            try
+            {
+                var environment = new ApplicationEnvironment();
+                string logPath = Path.Combine(environment.GetErrorLogPath(), $"{Guid.NewGuid()}.error");
+                File.WriteAllText(logPath, $"{DateTime.Now}\r\n{ex}");
+            }
+            catch { }
         }
     }
 }

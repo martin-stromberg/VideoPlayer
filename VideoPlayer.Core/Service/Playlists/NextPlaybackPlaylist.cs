@@ -73,7 +73,6 @@ namespace VideoPlayer.Service.Playlists
                 processing = false;
             }            
         }
-
         private void SaveMediaItemPosition(MediaItem item, ClassifiedEntry entry, TimeSpan position)
         {
             if (item is not null)
@@ -149,11 +148,13 @@ namespace VideoPlayer.Service.Playlists
             var existing = Current.Items.FirstOrDefault(i => i.Item?.Id == currentMediaItem.Id);
             if (existing is null)
                 return;
+            #region Zuletzt gesehen speichern
             if (existing.Entry is not null) 
             {
                 existing.Entry.LastWatched = DateTime.Now;
                 MediaLibrary.AddOrUpdateEntry(existing.Entry);
             }
+            #endregion
             var nextMediaItem = FindNextMediaItem(currentMediaItem);
             Current.Remove(existing);
             AddMediaItem(nextMediaItem);
@@ -165,5 +166,7 @@ namespace VideoPlayer.Service.Playlists
             return MediaLibrary.GetTVShowEpisodeByMediaItem(mediaItem.Id) as ClassifiedEntry
                 ?? MediaLibrary.GetMovieByMediaItem(mediaItem.Id);
         }
+
+        
     }
 }

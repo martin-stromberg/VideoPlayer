@@ -22,6 +22,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
 using VideoPlayer.Navigation;
 using System.Xml.Serialization;
+using System.Runtime.CompilerServices;
 
 namespace VideoPlayer.ViewModels.MediaOverview.Cards
 {
@@ -254,8 +255,28 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
         public bool VideoPlayerVisible { get => GetProperty<bool>(); set { SetProperty(value); PictureVisible = !value; } }
         public bool PictureVisible { get => GetProperty<bool>(); set => SetProperty(value); }
 
-        
-        
+
+        protected override void OnPropertyChanged([CallerMemberName] string propertyName = "")
+        {
+            base.OnPropertyChanged(propertyName);
+            switch(propertyName)
+            {
+                case nameof(IsAppeared):
+                    if (IsAppeared)
+                        CheckOnAppearedAction();
+                    break;
+            }
+        }
+
+        private void CheckOnAppearedAction()
+        {
+            if (_StartPlaybackOnAppeared is not null)
+            {
+                ExecutePlaybackRequest(_StartPlaybackOnAppeared);
+                _StartPlaybackOnAppeared = null;
+            }
+        }
+
         protected void StartPlayback(ClassifiedEntry entry)
         {
             PlaylistManager.Play(entry);
@@ -277,14 +298,13 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
 
         public override void ExecuteAppeared()
         {
-            base.ExecuteAppeared();
-            UpdateMediaInformation(Entry);
             PlaylistManager.PlaybackRequest += PlaylistManager_PlaybackRequest;
             PlaylistManager.Downloading += PlaylistManager_Downloading;
+            base.ExecuteAppeared();
+            UpdateMediaInformation(Entry);
             PlaylistManager.DownloadProgressChanged += PlaylistManager_DownloadProgressChanged;
             Notify("ProcessStarted");
         }
-
 
         private void PlaylistManager_DownloadProgressChanged(object sender, DownloadProgressEventArgs e)
         {
@@ -310,6 +330,8 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             IsDownloadProgressVisible = false;
             if (IsAppeared)
                 ExecutePlaybackRequest(e.ModelObject as Service.Library.Models.Playlists.PlaylistEntry);
+            else
+                _StartPlaybackOnAppeared = e.ModelObject as Service.Library.Models.Playlists.PlaylistEntry;
         }
 
         private void ExecutePlaybackRequest(PlaylistEntry playlistEntry)
@@ -367,6 +389,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
         private Timer _StatusTimer = null;
         private string _LastStatus = string.Empty;
         private string _PreviousStatus = string.Empty;
+        private PlaylistEntry _StartPlaybackOnAppeared;
         private readonly IEnvironment environment;
         private readonly IResourceManager resourceManager;
         private readonly IDownloadManager downloadManager;

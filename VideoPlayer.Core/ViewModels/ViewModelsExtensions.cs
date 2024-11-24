@@ -27,6 +27,7 @@ namespace VideoPlayer.ViewModels
             services.AddTransient<TVShowOverviewViewModel, TVShowOverviewViewModel>();
             services.AddTransient<GenreSelectionViewModel, GenreSelectionViewModel>();
             services.AddTransient<DownloadListViewModel, DownloadListViewModel>();
+            services.AddSingleton<ErrorViewModel, ErrorViewModel>();
             return services;
         }
 

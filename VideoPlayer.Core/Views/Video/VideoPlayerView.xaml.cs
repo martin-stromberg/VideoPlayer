@@ -25,8 +25,23 @@ public partial class VideoPlayerView : ContentView
 
     private void ViewModel_SeekRequested(object sender, TimeSpanEventArgs e)
     {
-        Video.SeekTo(e.Position);
-        positionToSeek = e.Position;
+        try
+        {
+            switch (Video.CurrentState)
+            {
+                case CommunityToolkit.Maui.Core.Primitives.MediaElementState.Buffering:
+                case CommunityToolkit.Maui.Core.Primitives.MediaElementState.Failed:
+                case CommunityToolkit.Maui.Core.Primitives.MediaElementState.Paused:
+                case CommunityToolkit.Maui.Core.Primitives.MediaElementState.Stopped:
+                case CommunityToolkit.Maui.Core.Primitives.MediaElementState.Opening:
+                    return;
+            }
+            Video.SeekTo(e.Position);
+        }
+        finally
+        {
+            positionToSeek = e.Position;
+        }
     }
 
     protected BaseMediaItemCardViewModel ViewModel
@@ -43,7 +58,14 @@ public partial class VideoPlayerView : ContentView
                 break;
         }
     }
-
+    private double lastVolume = 0;
+    private void CheckVolumeChanged()
+    {
+        if (lastVolume == Video.Volume)
+            return;
+        lastVolume = Video.Volume;
+        ;// ViewModel?.ExecuteVolumeChanged(lastVolume);
+    }
     private void Video_PositionChanged(object sender, CommunityToolkit.Maui.Core.Primitives.MediaPositionChangedEventArgs e)
     {
         try
@@ -55,7 +77,10 @@ public partial class VideoPlayerView : ContentView
                 Video.SeekTo(newPosition);
             }
             else
+            {
                 ViewModel?.ExecutePositionChanged(e.Position, Video.Duration);
+                CheckVolumeChanged();
+            }
         }
         catch(Exception ex) 
         {

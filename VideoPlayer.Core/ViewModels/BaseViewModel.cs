@@ -35,7 +35,7 @@ namespace VideoPlayer.ViewModels
         IAppearable,
         INavigatable
     {
-
+        public Guid InstanceId { get; } = Guid.NewGuid();
         public string Title
         {
             get
@@ -80,7 +80,7 @@ namespace VideoPlayer.ViewModels
 
         #region IAppearable
         private bool firstAppeared = true;
-        protected bool IsAppeared { get; set; }
+        protected bool IsAppeared { get => GetProperty<bool>(); set => SetProperty(value); }
         public virtual void ExecuteAppeared() 
         {
             IsAppeared = true;

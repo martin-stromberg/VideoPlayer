@@ -89,7 +89,12 @@ namespace VideoPlayer.Tests
 
         private async Task Run(bool forceAll = false)
         {
-            foreach (var test in Tests)
+            foreach (var test in Tests.OrderBy(t =>
+            {
+                var attr = t.GetType().GetCustomAttribute<DisabledAttribute>();
+                if (attr is null) return 0;
+                else return 1;
+            }))
                 if (forceAll || test.GetType().GetCustomAttribute<DisabledAttribute>() is null)
                     await test.Run();
         }

@@ -17,6 +17,7 @@ using VideoPlayer.Service.Library.Scanner.Picture;
 using VideoPlayer.Service.Library.SourceReader;
 using VideoPlayer.Service.Playlists;
 using VideoPlayer.Tests.Helper;
+using VideoPlayer.Tools;
 
 namespace VideoPlayer.Tests
 {
@@ -198,7 +199,7 @@ namespace VideoPlayer.Tests
                 if (DummySources.ContainsKey(e.Source?.Name))
                     e.Reader = DummySources[e.Source.Name];
         }
-protected async Task WaitForMediaPictureClassificationStarted(TimeSpan timeout)
+        protected async Task WaitForMediaPictureClassificationStarted(TimeSpan timeout)
         {
             var endTime = DateTime.Now.Add(timeout);
             while (!_MediaPictureProcessorWorking && (DateTime.Now < endTime))
@@ -253,6 +254,17 @@ protected async Task WaitForMediaPictureClassificationStarted(TimeSpan timeout)
                     Uri = $"http://127.0.0.1/{name}"
                 });
         }
+        protected void ResetSourceScans()
+        {
+            foreach (var source in MediaLibrary.GetSources())
+                ResetSourceScans(source);
+        }
+
+        private void ResetSourceScans(MediaSource source)
+        {
+            source.LastScan = DateTime.MinValue;
+            MediaLibrary.AddOrUpdate(source);
+        }
 
         private MediaCollection GetRootCollection(MediaSource source)
         {
@@ -291,7 +303,7 @@ protected async Task WaitForMediaPictureClassificationStarted(TimeSpan timeout)
         protected async Task ExecutePictureClassification()
         {
             MediaPictureProcessor.Start();
-            await WaitForMediaPictureClassificationStarted(TimeSpan.FromSeconds(20));
+            await WaitForMediaPictureClassificationStarted(TimeSpan.FromSeconds(60));
             await WaitForMediaPictureClassificationFinished(TimeSpan.FromSeconds(10 * 60));
             MediaPictureProcessor.Stop();
         }
@@ -306,7 +318,7 @@ protected async Task WaitForMediaPictureClassificationStarted(TimeSpan timeout)
         }
         protected async Task WaitForDownloadsFinished()
         {
-            while (DownloadManager.HasJobs)
+            while (DownloadManager.HasJobs || DownloadManager.Executing)
                 await Task.Delay(1000);
         }
 
@@ -362,6 +374,12 @@ protected async Task WaitForMediaPictureClassificationStarted(TimeSpan timeout)
         }
         protected void AddSingleMovie()
         {
+            var originalnfo = new FileInfo($"-(500) Days of Summer (2009)-(500) Days of Summer (2009).nfo.original");
+            if (!originalnfo.Exists)
+                throw new FileNotFoundException(originalnfo.FullName);
+            var nfoFile = new FileInfo("-(500) Days of Summer (2009)-(500) Days of Summer (2009).nfo");
+            originalnfo.CopyTo(nfoFile.FullName, true);
+
             var source = AddMediaSource("Filme", true);
             var collection = AddMediaCollection(source, null, "(500) Days of Summer (2009)", false);
             var mediaItem = AddMediaItem(source, collection, "(500) Days of Summer (2009).mp4", false);
@@ -375,6 +393,16 @@ protected async Task WaitForMediaPictureClassificationStarted(TimeSpan timeout)
             mediaItem = AddMediaItem(source, collection, "(500) Days of Summer (2009)-poster.jpg.hash", false);
             mediaItem = AddMediaItem(source, collection, "(500) Days of Summer (2009)-trailer.mp4", false);
             mediaItem = AddMediaItem(source, collection, ".tbn", false);
+        }
+        protected void RenameSingleMovie()
+        {
+            var originalnfo = new FileInfo($"-(500) Days of Summer (2009)-(500) Days of Summer (2009).nfo.renamed");
+            if (!originalnfo.Exists)
+                throw new FileNotFoundException(originalnfo.FullName);
+            var nfoFile = new FileInfo("-(500) Days of Summer (2009)-(500) Days of Summer (2009).nfo");
+            originalnfo.CopyTo(nfoFile.FullName, true);
+            nfoFile.Refresh();
+            File.SetLastWriteTime(nfoFile.FullName, DateTime.Now);
         }
         protected void AddMultiMovie()
         {

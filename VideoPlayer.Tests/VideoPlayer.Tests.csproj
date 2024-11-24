@@ -77,6 +77,10 @@
 	</ItemGroup>
 
 	<ItemGroup>
+	  <None Remove="Resources\Raw\-(500) Days of Summer (2009)-(500) Days of Summer (2009).nfo.renamed" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<PackageReference Include="Microsoft.Maui.Controls" Version="8.0.82" />
 		<PackageReference Include="Microsoft.Maui.Controls.Compatibility" Version="8.0.82" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="8.0.0" />
@@ -84,6 +88,12 @@
 
 	<ItemGroup>
 	  <ProjectReference Include="..\VideoPlayer.Core\VideoPlayer.Core.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <MauiAsset Update="Resources\Raw\-(500) Days of Summer (2009)-(500) Days of Summer (2009).nfo.renamed">
+	    <LogicalName>%(RecursiveDir)%(Filename)%(Extension)</LogicalName>
+	  </MauiAsset>
 	</ItemGroup>
 
 	<ProjectExtensions><VisualStudio><UserProperties XamarinHotReloadDebuggerTimeoutExceptionVideoPlayerTestsHideInfoBar="True" /></VisualStudio></ProjectExtensions>

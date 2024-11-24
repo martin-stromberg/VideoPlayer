@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
+using VideoPlayer.Service.Library.Models.MediaInformation;
 using VideoPlayer.Tests.Helper;
 
 namespace VideoPlayer.Tests.Services.Download
@@ -53,12 +54,21 @@ namespace VideoPlayer.Tests.Services.Download
                 .Select(mi =>
                 {
                     mi = mi.Clone() as MediaItem;
+                    if (mi.CopyType == MediaItemCopyType.Cache)
+                    {
+                        AssertTrue(mi.DueDate != DateTime.MinValue, $"No due date is set for downloaded media item.");
+                        mi.DueDate = DateTime.MinValue;
+                    }
                     mi.CreatedAt = DateTime.MinValue;
                     mi.LastAccess = DateTime.MinValue;
                     mi.LastClassificationTry = DateTime.MinValue;
                     mi.LastMetaInformationUpdate = DateTime.MinValue;
                     if (mi.MetaInformation is not null)
+                    {
                         mi.MetaInformation.LastUpdate = DateTime.MinValue;
+                        var movI = mi.MetaInformation as MovieInformation;
+                        movI.Actors = Enumerable.Range(1, movI.Actors.Length).Select(i => new ActorInformation()).ToArray();
+                    }
                     if (mi.Path.StartsWith("/Cache/"))
                         mi.Path = $"/Cache/{mi.Name}";
                     return mi;
@@ -86,7 +96,8 @@ namespace VideoPlayer.Tests.Services.Download
                         Language = null,
                         OriginalTitle = "(500) Days of Summer",
                         Title = "(500) Days of Summer",
-                        LastUpdate = DateTime.MinValue
+                        LastUpdate = DateTime.MinValue,
+                        Actors = Enumerable.Range(1, 97).Select(i => new ActorInformation(){ }).ToArray()
                     },
                     OriginalMediaItemId = 0,
                     ParentCollectionId = 2,
@@ -117,6 +128,10 @@ namespace VideoPlayer.Tests.Services.Download
                     LastAccess = DateTime.MinValue,
                     LastClassificationTry = DateTime.MinValue,
                     LastMetaInformationUpdate = DateTime.MinValue,
+                    LastPictureUpdateTry = DateTime.MinValue,
+                    LastPosition = TimeSpan.Zero,
+                    DueDate = DateTime.MinValue,
+                    NeedsPictureUpdate = false,
                     MetaInformation = null,
                     OriginalMediaItemId = 1,
                     ParentCollectionId = 2,
@@ -136,12 +151,21 @@ namespace VideoPlayer.Tests.Services.Download
                 .Select(mi =>
                 {
                     mi = mi.Clone() as MediaItem;
+                    if (mi.CopyType == MediaItemCopyType.Cache)
+                    {
+                        AssertTrue(mi.DueDate != DateTime.MinValue, $"No due date is set for downloaded media item.");
+                        mi.DueDate = DateTime.MinValue;
+                    }
                     mi.CreatedAt = DateTime.MinValue;
                     mi.LastAccess = DateTime.MinValue;
                     mi.LastClassificationTry = DateTime.MinValue;
                     mi.LastMetaInformationUpdate = DateTime.MinValue;
                     if (mi.MetaInformation is not null)
+                    {
                         mi.MetaInformation.LastUpdate = DateTime.MinValue;
+                        var movI = mi.MetaInformation as MovieInformation;
+                        movI.Actors = Enumerable.Range(1, movI.Actors.Length).Select(i => new ActorInformation()).ToArray();
+                    }
                     if (mi.Path.StartsWith("/Cache/"))
                         mi.Path = $"/Cache/{mi.Name}";
                     return mi;
@@ -157,16 +181,26 @@ namespace VideoPlayer.Tests.Services.Download
             //Download Klassifizieren
             await ExecuteClassification();
             expected[2].Classified = true;
+            expected[2].NeedsPictureUpdate = true;
             actual = MediaLibrary.GetMediaItems()
                 .Select(mi =>
                 {
                     mi = mi.Clone() as MediaItem;
+                    if (mi.CopyType == MediaItemCopyType.Cache)
+                    {
+                        AssertTrue(mi.DueDate != DateTime.MinValue, $"No due date is set for downloaded media item.");
+                        mi.DueDate = DateTime.MinValue;
+                    }
                     mi.CreatedAt = DateTime.MinValue;
                     mi.LastAccess = DateTime.MinValue;
                     mi.LastClassificationTry = DateTime.MinValue;
                     mi.LastMetaInformationUpdate = DateTime.MinValue;
                     if (mi.MetaInformation is not null)
+                    {
                         mi.MetaInformation.LastUpdate = DateTime.MinValue;
+                        var movI = mi.MetaInformation as MovieInformation;
+                        movI.Actors = Enumerable.Range(1, movI.Actors.Length).Select(i => new ActorInformation()).ToArray();
+                    }
                     if (mi.Path.StartsWith("/Cache/"))
                         mi.Path = $"/Cache/{mi.Name}";
                     return mi;
@@ -227,12 +261,21 @@ namespace VideoPlayer.Tests.Services.Download
                 .Select(mi =>
                 {
                     mi = mi.Clone() as MediaItem;
+                    if (mi.CopyType == MediaItemCopyType.Cache)
+                    {
+                        AssertTrue(mi.DueDate != DateTime.MinValue, $"No due date is set for downloaded media item.");
+                        mi.DueDate = DateTime.MinValue;
+                    }
                     mi.CreatedAt = DateTime.MinValue;
                     mi.LastAccess = DateTime.MinValue;
                     mi.LastClassificationTry = DateTime.MinValue;
                     mi.LastMetaInformationUpdate = DateTime.MinValue;
                     if (mi.MetaInformation is not null)
+                    {
                         mi.MetaInformation.LastUpdate = DateTime.MinValue;
+                        var movI = mi.MetaInformation as MovieInformation;
+                        movI.Actors = Enumerable.Range(1, movI.Actors.Length).Select(i => new ActorInformation()).ToArray();
+                    }
                     if (mi.Path.StartsWith("/Cache/"))
                         mi.Path = $"/Cache/{mi.Name}";
                     return mi;

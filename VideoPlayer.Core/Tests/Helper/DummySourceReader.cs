@@ -63,7 +63,22 @@ namespace VideoPlayer.Tests.Helper
 
         public SourceFolder GetRoot()
         {
-            return new SourceFolder() { FullPath = "/", Path = "/", Name = name };
+            var folder = new SourceFolder() { FullPath = "/", Path = "/", Name = name };
+            folder.LastWriteTime = FindLastWriteTimeAsync(folder);
+            return folder;
+        }
+
+        private DateTime FindLastWriteTimeAsync(SourceFolder folder)
+        {
+            var subFolders = ReadFoldersAsync(folder).Result
+                .Select(f => f.LastWriteTime)
+                .Concat(new DateTime[] { DateTime.MinValue })
+                .Max(f => f);
+            var files = ReadFilesAsync(folder).Result
+                .Select(f => f.LastWriteTime)
+                .Concat(new DateTime[] { DateTime.MinValue })
+                .Max(f => f);
+            return subFolders > files ? subFolders : files;
         }
 
         public Task<IEnumerable<SourceFile>> ReadFilesAsync(SourceFolder folder)
@@ -81,13 +96,17 @@ namespace VideoPlayer.Tests.Helper
                     var ext = Path.GetExtension(relPath);
                     if (string.IsNullOrWhiteSpace(ext))
                         return null;
-                    return new SourceFile()
+                    var file = new SourceFile()
                     {
                         FullPath = $"{folder.FullPath}/{relPath}",
                         Name = relPath,
                         LastWriteTime = DateTime.Now,
                         Path = $"{folder.Path}/{relPath}"
                     };
+
+                    string fileName = file.Path.Replace("\\", "-").Replace("/", "-").Replace(":", "-");
+                    file.LastWriteTime = File.GetLastWriteTime(fileName);
+                    return file;
                 })
                 .Where(s => s is not null));
         }
@@ -109,13 +128,15 @@ namespace VideoPlayer.Tests.Helper
                     var ext = Path.GetExtension(relPath);
                     if (!string.IsNullOrWhiteSpace(ext))
                         return null;
-                    return new SourceFolder()
+                    var foundFolder = new SourceFolder()
                     {
                         FullPath = $"{folder.FullPath}{relPath}",
                         Name = relPath,
                         LastWriteTime = DateTime.Now,
                         Path = $"{folder.Path}{relPath}"
                     };
+                    foundFolder.LastWriteTime = FindLastWriteTimeAsync(foundFolder);
+                    return foundFolder;
                 })
                 .Where(s => s is not null));
         }

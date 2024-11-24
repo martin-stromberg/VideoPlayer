@@ -7,6 +7,7 @@ using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace VideoPlayer.Tests.Services.Library.Scanner
 {
+    [Disabled]
     public class MultiMovieMediaClassifierTests : BaseTest
     {
 

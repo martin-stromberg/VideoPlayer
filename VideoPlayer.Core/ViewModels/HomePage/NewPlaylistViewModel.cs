@@ -1,5 +1,6 @@
 ﻿using VideoPlayer.Navigation;
 using VideoPlayer.Service.Playlists;
+using VideoPlayer.Service.Resources;
 
 namespace VideoPlayer.ViewModels.HomePage
 {
@@ -8,8 +9,8 @@ namespace VideoPlayer.ViewModels.HomePage
         
         public NewPlaylistViewModel(
             IPlaylistManager playlistManager,
-            INavigationManager navigationManager)
-            :base(playlistManager.NewPlaylist, navigationManager)
+            INavigationManager navigationManager, IResourceManager resourceManager)
+            :base(playlistManager.NewPlaylist, navigationManager, resourceManager)
         {
             Title = "Neu hinzugefügt";
             AllowAutoPlay = false;

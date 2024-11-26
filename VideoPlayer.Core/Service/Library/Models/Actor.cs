@@ -21,6 +21,8 @@ namespace VideoPlayer.Service.Library.Models
                 BannerPath = ((DataActor)DataModel).BannerPath;
                 BannerBackgroundColor = ((DataActor)DataModel).BannerBackgroundColor;
                 LastPictureUpdateTry = ((DataActor)DataModel).LastPictureUpdateTry;
+                RoleCount = ((DataActor)DataModel).RoleCount;
+                RoleCountUpdated = ((DataActor)DataModel).RoleCountUpdated;
             }
         }
         protected override void AssignChanges()
@@ -35,6 +37,8 @@ namespace VideoPlayer.Service.Library.Models
                 ((DataActor)DataModel).BannerPath = BannerPath;
                 ((DataActor)DataModel).BannerBackgroundColor = BannerBackgroundColor;
                 ((DataActor)DataModel).LastPictureUpdateTry = LastPictureUpdateTry;
+                ((DataActor)DataModel).RoleCount = RoleCount;
+                ((DataActor)DataModel).RoleCountUpdated = RoleCountUpdated;
             }
         }
         public string PicturePath { get => GetProperty<string>(); set => SetProperty(value); }
@@ -47,5 +51,7 @@ namespace VideoPlayer.Service.Library.Models
 
         public string BannerBackgroundColor { get => GetProperty<string>(); set => SetProperty(value); }
         public DateTime LastPictureUpdateTry { get => GetProperty<DateTime>(); set => SetProperty(value); }
+        public int RoleCount { get => GetProperty<int>(); set => SetProperty(value); }
+        public bool RoleCountUpdated { get => GetProperty<bool>(); set => SetProperty(value); }
     }
 }

@@ -12,6 +12,7 @@ using VideoPlayer.Service.Device;
 using VideoPlayer.Service.Library;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
+using VideoPlayer.Service.Resources;
 using VideoPlayer.ViewModels.MediaOverview.Genres;
 using VideoPlayer.ViewModels.MediaOverview.MediaItem;
 
@@ -25,17 +26,20 @@ namespace VideoPlayer.ViewModels.MediaOverview
     {
         private readonly EntryType[] entryTypes;
         private readonly INavigationManager navigationManager;
+        private readonly IResourceManager resourceManager;
 
         public BaseMediaOverviewViewModel(
             GenreSelectionViewModel genreSelectionViewModel,
             EntryType[] entryTypes,
             IMediaLibrary mediaLibrary,
-            INavigationManager navigationManager)
+            INavigationManager navigationManager,
+            IResourceManager resourceManager)
             :base()
         {
             this.entryTypes = entryTypes;
             MediaLibrary = mediaLibrary;
             this.navigationManager = navigationManager;
+            this.resourceManager = resourceManager;
             genreSelectionViewModel.GenreLoaded += GenreSelectionViewModel_GenreLoaded;
             GenreSelectionContext = genreSelectionViewModel;
             Items.CollectionChanged += Items_CollectionChanged;
@@ -160,7 +164,7 @@ namespace VideoPlayer.ViewModels.MediaOverview
                             return false;
                         return (attr.ServiceModelType == itemType);
                     });
-                    var vm = mediaItemType is null ? new BaseMediaListItem(item) : Activator.CreateInstance(mediaItemType, item) as BaseMediaListItem;
+                    var vm = mediaItemType is null ? new BaseMediaListItem(item, resourceManager) : Activator.CreateInstance(mediaItemType, item) as BaseMediaListItem;
                     Items.Add(vm);
                 }
             }

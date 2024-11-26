@@ -1,5 +1,6 @@
 ﻿using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
+using VideoPlayer.Service.Resources;
 using VideoPlayer.Tools;
 
 namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
@@ -7,8 +8,8 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
     [ServiceModelReference(typeof(MovieCollection))]
     public class MovieCollectionMediaListItem : BaseMediaListItem
     {
-        public MovieCollectionMediaListItem(ClassifiedEntry item)
-            : base(item)
+        public MovieCollectionMediaListItem(ClassifiedEntry item, IResourceManager resourceManager)
+            : base(item, resourceManager)
         {
             var movie = ((MovieCollection)item);
             if (!string.IsNullOrWhiteSpace(movie.PicturePath))

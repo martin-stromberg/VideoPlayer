@@ -29,6 +29,9 @@ public partial class TVShowCardPage : BaseCardPage
             case EntryType.TVShow:
                 BindingContext = CreateCardViewModel<TVShowCardViewModel, TVShow>(Show, AutoPlay);
                 break;
+            case EntryType.TVShowSeason:
+                BindingContext = CreateCardViewModel<TVShowCardViewModel, TVShowSeason>(Season, AutoPlay);
+                break;
             case EntryType.TVShowEpisode:
                 BindingContext = CreateCardViewModel<TVShowCardViewModel, TVShowEpisode>(Episode, AutoPlay);
                 break;

@@ -23,7 +23,6 @@ using Microsoft.Extensions.Configuration;
 using VideoPlayer.Navigation;
 using System.Xml.Serialization;
 using System.Runtime.CompilerServices;
-using Foundation;
 
 namespace VideoPlayer.ViewModels.MediaOverview.Cards
 {
@@ -88,7 +87,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
         {
             this.PlaylistManager = playlistManager;
             this.environment = environment;
-            this.resourceManager = resourceManager;
+            this.ResourceManager = resourceManager;
             this.downloadManager = downloadManager;
             this.MediaLibrary = mediaLibrary;
             this.navigationManager = navigationManager;
@@ -188,7 +187,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             PlaybackControlsVisible = false;
             _SkipPositionEvent = true;
             _StartingPosition = TimeSpan.Zero;
-            VideoSource = resourceManager.GetLoadingVideo();
+            VideoSource = ResourceManager.GetLoadingVideo();
         }
         protected virtual void ExecutePlaybackCommand()
         {
@@ -331,7 +330,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             {
                 PlaybackControlsVisible = false;
                 _SkipPositionEvent = true;
-                VideoSource = resourceManager.GetLoadingVideo();
+                VideoSource = ResourceManager.GetLoadingVideo();
             }
         }
 
@@ -402,7 +401,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
         private string _PreviousStatus = string.Empty;
         private PlaylistEntry _StartPlaybackOnAppeared;
         private readonly IEnvironment environment;
-        private readonly IResourceManager resourceManager;
+        protected IResourceManager ResourceManager { get; }
         private readonly IDownloadManager downloadManager;
         private readonly INavigationManager navigationManager;
 

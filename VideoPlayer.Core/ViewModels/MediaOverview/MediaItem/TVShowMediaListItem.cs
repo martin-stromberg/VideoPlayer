@@ -1,5 +1,6 @@
 ﻿using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
+using VideoPlayer.Service.Resources;
 using VideoPlayer.Tools;
 
 namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
@@ -7,12 +8,14 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
     [ServiceModelReference(typeof(TVShow))]
     public class TVShowMediaListItem : BaseMediaListItem
     {
-        public TVShowMediaListItem(ClassifiedEntry item)
-            : base(item)
+        public TVShowMediaListItem(ClassifiedEntry item, IResourceManager resourceManager)
+            : base(item, resourceManager)
         {
             var show = ((TVShow)item);
             if (!string.IsNullOrWhiteSpace(show.PicturePath))
                 LoadImage(PathTools.Combine(FileSystem.Current.AppDataDirectory, show.PicturePath));
+            else
+                LoadDefaultImage();
         }
         protected TVShow Show => base.Item as TVShow;
         protected override void UpdateMediaInformation(ClassifiedEntry item)

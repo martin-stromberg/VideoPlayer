@@ -1052,6 +1052,7 @@ namespace VideoPlayer.Service.Library
         #region Actors
         public Actor AddOrUpdateActor(Actor entry)
         {
+            entry = CompleteActor(entry);
             AddOrUpdate(entry);
             return entry;
         }
@@ -1077,8 +1078,9 @@ namespace VideoPlayer.Service.Library
         public Actor GetActor(long id)
         {
             var cache = GetModelCache(typeof(DataActor));
-            var source = cache.GetServiceModel<Actor>(id) as Actor;
-            return source;
+            var actor = cache.GetServiceModel<Actor>(id) as Actor;
+            actor = CompleteActor(actor);
+            return actor;
         }
         public IEnumerable<Actor> GetActorsThatNeedsPictureUpdate()
         {
@@ -1100,6 +1102,18 @@ namespace VideoPlayer.Service.Library
                                     .Select(c => c.Id);
             foreach (var itemId in entryIds)
                 yield return GetActor(itemId);
+        }
+        private Actor CompleteActor(Actor actor)
+        {
+            if (actor is not null)
+            if (!actor.RoleCountUpdated)
+            {
+                    actor.RoleCount = _Database
+                        .GetAll<DataRole>(new KeyValuePair<string, object>(nameof(DataRole.ActorId), actor.Id))
+                        .Count();
+                    actor.RoleCountUpdated = true;
+            }
+            return actor;
         }
         #endregion
         #region Roles
@@ -1133,21 +1147,30 @@ namespace VideoPlayer.Service.Library
         public void Delete(Role role)
         {
             var actor = GetActor(role.ActorId);
-            Release(actor);
-
-            var dbModel = role.GetDatabaseModel() as DataRole;
-            if (dbModel is not null)
-                if (!_Database.Delete<DataRole>(dbModel))
-                    throw new ApplicationException($"Role could not be deleted.");
-
-            if (actor is not null)
+            try
             {
-                var remainingRoles = GetActorsRoles(actor.Id)
-                    .Where(role => role is not null)
-                    .Select(role => { Release(role); return role; })
-                    .ToArray();
-                if (remainingRoles.Any())
-                    return;
+                var dbModel = role.GetDatabaseModel() as DataRole;
+                if (dbModel is not null)
+                    if (!_Database.Delete<DataRole>(dbModel))
+                        throw new ApplicationException($"Role could not be deleted.");
+
+                if (actor is not null)
+                {
+                    var remainingRoles = GetActorsRoles(actor.Id)
+                        .Where(role => role is not null)
+                        .Select(role => { Release(role); return role; })
+                        .ToArray();
+                    if (remainingRoles.Any())
+                    {
+                        actor.RoleCount = remainingRoles.Length;
+                        actor.RoleCountUpdated = true;
+                        return;
+                    }
+                }
+            }
+            finally
+            {
+                Release(actor);
             }
             Delete(actor);
         }

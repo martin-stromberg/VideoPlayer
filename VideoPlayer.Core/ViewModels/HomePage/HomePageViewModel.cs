@@ -3,6 +3,7 @@ using System.Linq;
 using VideoPlayer.Navigation;
 using VideoPlayer.Service.Events;
 using VideoPlayer.Service.Playlists;
+using VideoPlayer.Service.Resources;
 using VideoPlayer.ViewModels.MediaOverview;
 
 namespace VideoPlayer.ViewModels.HomePage
@@ -11,13 +12,13 @@ namespace VideoPlayer.ViewModels.HomePage
     {
         public HomePageViewModel(
             INavigationManager navigationManager,
-            IPlaylistManager playlistManager)
+            IPlaylistManager playlistManager, IResourceManager resourceManager)
             : base()
         {
             Title = "Videoplayer";            
             this.navigationManager = navigationManager;
-            NextPlayingContext = new NextPlayingViewModel(playlistManager, navigationManager);
-            NewContext = new NewPlaylistViewModel(playlistManager, navigationManager);
+            NextPlayingContext = new NextPlayingViewModel(playlistManager, navigationManager, resourceManager);
+            NewContext = new NewPlaylistViewModel(playlistManager, navigationManager, resourceManager);
         }
 
         public override void ExecuteAppeared()

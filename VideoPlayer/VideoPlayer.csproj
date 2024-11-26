@@ -134,6 +134,11 @@
 	</ItemGroup>
 
 	<ItemGroup>
+	  <Compile Update="Properties\images.Designer.cs">
+	    <DependentUpon>images.resx</DependentUpon>
+	    <DesignTime>True</DesignTime>
+	    <AutoGen>True</AutoGen>
+	  </Compile>
 	  <Compile Update="Properties\icons.Designer.cs">
 	    <DesignTime>True</DesignTime>
 	    <AutoGen>True</AutoGen>
@@ -152,6 +157,10 @@
 	</ItemGroup>
 
 	<ItemGroup>
+	  <EmbeddedResource Update="Properties\images.resx">
+	    <LastGenOutput>images.Designer.cs</LastGenOutput>
+	    <Generator>ResXFileCodeGenerator</Generator>
+	  </EmbeddedResource>
 	  <EmbeddedResource Update="Properties\icons.resx">
 	    <Generator>ResXFileCodeGenerator</Generator>
 	    <LastGenOutput>icons.Designer.cs</LastGenOutput>

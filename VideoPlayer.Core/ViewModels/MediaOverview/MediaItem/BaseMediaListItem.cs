@@ -5,17 +5,21 @@ using System.Text;
 using System.Threading.Tasks;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
+using VideoPlayer.Service.Resources;
 
 namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
 {
     public enum CardItemApplicationArea { Single, InCollection }
     public class BaseMediaListItem : BaseListItem
     {
-        public BaseMediaListItem(ClassifiedEntry item)
+        private readonly IResourceManager resourceManager;
+
+        public BaseMediaListItem(ClassifiedEntry item, IResourceManager resourceManager)
             :base(item)
         {   
             UpdateMediaInformation(Item);
             ApplicationArea = CardItemApplicationArea.InCollection;
+            this.resourceManager = resourceManager;
         }
         public ClassifiedEntry Item { get => base.Element as ClassifiedEntry; }
         public CardItemApplicationArea ApplicationArea
@@ -52,8 +56,11 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
                 return string.Empty;
         }
 
-        
 
+        protected void LoadDefaultImage()
+        {
+            Picture = resourceManager.GetDefaultItemPicture();
+        }
         protected void LoadImage(string path)
         {
             Picture = ImageSource.FromFile(path);

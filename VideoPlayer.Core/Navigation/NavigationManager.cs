@@ -67,7 +67,7 @@ namespace VideoPlayer.Navigation
                 {
                     { "Id", vm.Id }
                 });
-            else if ((vm is TVShowMediaListItem) || (vm is TVShowEpisodeMediaListItem))
+            else if ((vm is TVShowMediaListItem) || (vm is TVShowEpisodeMediaListItem) || (vm is TVShowSeasonMediaListItem))
                 NavigateToRoute(_RouteNameTVShowCard, new Dictionary<string, object>()
                 {
                     { "Id", vm.Id },

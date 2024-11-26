@@ -27,7 +27,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             : base(playlistManager, environment, resourceManager, downloadManager, mediaLibrary, navigationManager, entry)
         {
             this.mediaCollectionSelector = mediaCollectionSelector;
-            CollectionContext.Items.Add(new TVShowMediaListItem(entry));                       
+            CollectionContext.Items.Add(new TVShowMediaListItem(entry, resourceManager));                       
         }
         public TVShowCardViewModel(
             IPlaylistManager playlistManager, 
@@ -41,7 +41,21 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             : base(playlistManager, environment, resourceManager, downloadManager, mediaLibrary, navigationManager, entry)
         {
             this.mediaCollectionSelector = mediaCollectionSelector;
-            CollectionContext.Items.Add(new TVShowEpisodeMediaListItem(entry));
+            CollectionContext.Items.Add(new TVShowEpisodeMediaListItem(entry, resourceManager));
+        }
+        public TVShowCardViewModel(
+            IPlaylistManager playlistManager,
+            IEnvironment environment,
+            IResourceManager resourceManager,
+            IDownloadManager downloadManager,
+            IMediaLibrary mediaLibrary,
+            IMediaCollectionSelector mediaCollectionSelector,
+            INavigationManager navigationManager,
+            TVShowSeason entry)
+            : base(playlistManager, environment, resourceManager, downloadManager, mediaLibrary, navigationManager, entry)
+        {
+            this.mediaCollectionSelector = mediaCollectionSelector;
+            CollectionContext.Items.Add(new TVShowSeasonMediaListItem(entry, resourceManager));
         }
         protected override void ExecuteAction(string args)
         {
@@ -65,6 +79,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
 
         public ObservableCollection<TVShowSeason> Seasons { get; } = new ObservableCollection<TVShowSeason>();
         protected TVShow Show { get => base.Entry as TVShow; }
+        protected TVShowSeason Season { get => base.Entry as TVShowSeason; }
         protected TVShowEpisode Episode { get => base.Entry as TVShowEpisode; }
         protected TVShowEpisode SelectedEpisode
         {
@@ -159,6 +174,8 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
                 Seasons.Add(season);
             if (Episode is not null)
                 SelectedSeason = Seasons.FirstOrDefault(s => s.Id == Episode.SeasonId);
+            else if (Season is not null)
+                SelectedSeason = Seasons.FirstOrDefault(s => s.Id == Season.Id);
             else if (Show is not null)
                 SelectedSeason = Seasons.FirstOrDefault();
         }        
@@ -171,13 +188,18 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             var episodes = mediaCollectionSelector.FindNextEntries(season).Cast<TVShowEpisode>().Where(e => e.SeasonId == season.Id);
             CollectionContext.Items.Clear();
             foreach (var episode in episodes)
-                CollectionContext.Items.Add(new TVShowEpisodeMediaListItem(season, episode));
+                CollectionContext.Items.Add(new TVShowEpisodeMediaListItem(season, episode, ResourceManager));
         }
 
         private void LoadShow()
         {
             if (Show is not null)
                 SelectedShow = Show;
+            else if (Season is not null)
+            {
+                var show = MediaLibrary.GetTVShow(Season.ShowId);
+                SelectedShow = show;
+            }
             else if (Episode is not null)
             {
                 var season = MediaLibrary.GetTVShowSeason(Episode.SeasonId);
@@ -201,6 +223,8 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             base.ExecuteFirstAppeared();
             if (Episode is not null)
                 Select(Episode);
+            else if (Season is not null)
+                LoadShow();
             else
                 LoadShow();
         }

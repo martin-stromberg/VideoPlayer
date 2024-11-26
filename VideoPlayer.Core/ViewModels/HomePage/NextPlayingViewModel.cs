@@ -10,6 +10,7 @@ using VideoPlayer.Service.Events;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Playlists;
 using VideoPlayer.Service.Playlists;
+using VideoPlayer.Service.Resources;
 using VideoPlayer.ViewModels.MediaOverview.MediaItem;
 
 namespace VideoPlayer.ViewModels.HomePage
@@ -18,8 +19,8 @@ namespace VideoPlayer.ViewModels.HomePage
     {
         public NextPlayingViewModel(
             IPlaylistManager playlistManager, 
-            INavigationManager navigationManager) 
-            : base(playlistManager.NextPlaybackPlaylist, navigationManager)
+            INavigationManager navigationManager, IResourceManager resourceManager) 
+            : base(playlistManager.NextPlaybackPlaylist, navigationManager, resourceManager)
         {
             Title = "Weiterschauen";
             AllowAutoPlay = true;

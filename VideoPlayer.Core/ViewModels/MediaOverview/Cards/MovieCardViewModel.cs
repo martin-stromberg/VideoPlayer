@@ -37,7 +37,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             Movie entry)
             :base(playlistManager, environment, resourceManager, downloadManager, mediaLibrary, navigationManager, entry)
         {
-            CollectionContext.Items.Add(new MovieMediaListItem(entry));
+            CollectionContext.Items.Add(new MovieMediaListItem(entry, resourceManager));
             Year = entry.ReleaseDate.Year;
             if (Year == 0)
                 Year = entry.PremieredAt.Year;
@@ -57,7 +57,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             MovieCollection entry)
             : base(playlistManager, environment, resourceManager, downloadManager, mediaLibrary, navigationManager, entry)
         {
-            CollectionContext.Items.Add(new MovieCollectionMediaListItem(entry));            
+            CollectionContext.Items.Add(new MovieCollectionMediaListItem(entry, resourceManager));            
             this.mediaCollectionSelector = mediaCollectionSelector;
             Select(null);
         }
@@ -114,7 +114,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             {
                 CollectionContext.Items.Clear();
                 foreach (var entry in mediaCollectionSelector.FindNextEntries(Collection))
-                    CollectionContext.Items.Add(new MovieMediaListItem(entry));
+                    CollectionContext.Items.Add(new MovieMediaListItem(entry, ResourceManager));
                 Select(CollectionContext.Items.FirstOrDefault()?.Element as ClassifiedEntry);
             }  
             else if (Movie is not null && Movie.CollectionId != 0)
@@ -122,7 +122,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
                 var collection = MediaLibrary.GetMovieCollection(Movie.CollectionId);
                 CollectionContext.Items.Clear();
                 foreach (var entry in mediaCollectionSelector.FindNextEntries(collection))
-                    CollectionContext.Items.Add(new MovieMediaListItem(entry));
+                    CollectionContext.Items.Add(new MovieMediaListItem(entry, ResourceManager));
             }
         }
         protected override void SetCollectionVisible(bool visible)

@@ -8,24 +8,27 @@ using System.Threading.Tasks;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
 using VideoPlayer.Tools;
+using VideoPlayer.Service.Resources;
 
 namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
 {
     [ServiceModelReference(typeof(TVShowEpisode))]
     public class TVShowEpisodeMediaListItem: BaseMediaListItem
     {
-        public TVShowEpisodeMediaListItem(ClassifiedEntry entry)
-            : base(entry) 
+        public TVShowEpisodeMediaListItem(ClassifiedEntry entry, IResourceManager resourceManager)
+            : base(entry, resourceManager) 
         {
             var episode = ((TVShowEpisode)entry);
             if (!string.IsNullOrWhiteSpace(episode.PicturePath))
                 LoadImage(PathTools.Combine(FileSystem.Current.AppDataDirectory, episode.PicturePath));
             else if(!string.IsNullOrWhiteSpace(episode.BannerPath))
                 LoadImage(PathTools.Combine(FileSystem.Current.AppDataDirectory, episode.BannerPath));
+            else
+                LoadDefaultImage();
         }
 
-        public TVShowEpisodeMediaListItem(TVShowSeason season, ClassifiedEntry entry) 
-            : this(entry)
+        public TVShowEpisodeMediaListItem(TVShowSeason season, ClassifiedEntry entry, IResourceManager resourceManager) 
+            : this(entry, resourceManager)
         {
             var episode = ((TVShowEpisode)entry);
             if (season is not null)

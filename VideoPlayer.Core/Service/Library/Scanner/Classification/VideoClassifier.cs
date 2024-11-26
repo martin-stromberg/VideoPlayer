@@ -694,53 +694,76 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
         private void UpdateMovieActors(Movie movie, MovieInformation movieInfo)
         {
             if (movieInfo is null) return;
-            var roles = movieInfo.Actors is null ? new Role[0] : movieInfo.Actors.Select(actorInfo =>
-            {
-                Actor actor = GetOrCreateActor(actorInfo);
-                MediaLibrary.Release(actor);
-                return new Role(null)
-                {
-                    Actor = actor,
-                    ActorId = actor.Id,
-                    Name = actorInfo.Role,
-                    EntryId = movie.Id
-                };
-            }).ToArray();
-
-            var existingRoles = MediaLibrary.GetRoles(movie.Id)
-                .Where(role => role is not null)
-                .OrderBy(r => r.Id)
-                .ToList();
+            List<Actor> actors = new List<Actor>();
             try
             {
-                var rolesToSave = roles.Select(role =>
+                var roles = movieInfo.Actors is null ? new Role[0] : movieInfo.Actors.Select(actorInfo =>
                 {
-                    var existing = existingRoles.FirstOrDefault();
-                    if (existing is null)
-                        return role;
-                    existingRoles.RemoveAt(0);
-                    existing.Actor = role.Actor;
-                    existing.ActorId = role.ActorId;
-                    existing.Name = role.Name;
-                    existing.EntryId = role.EntryId;
-                    return existing;
-                });
+                    Actor actor = GetOrCreateActor(actorInfo);
+                    actors.Add(actor);
+                    return new Role(null)
+                    {
+                        Actor = actor,
+                        ActorId = actor.Id,
+                        Name = actorInfo.Role,
+                        EntryId = movie.Id
+                    };
+                }).ToArray();
+
+                var existingRoles = MediaLibrary.GetRoles(movie.Id)
+                    .Where(role => role is not null)
+                    .OrderBy(r => r.Id)
+                    .ToList();
                 try
                 {
-                    foreach (var role in rolesToSave)
-                        MediaLibrary.AddOrUpdateRole(role);
-                    foreach (var role in existingRoles)
-                        MediaLibrary.Delete(role);
+                    var rolesToSave = roles.Select(role =>
+                    {
+                        var existing = existingRoles.FirstOrDefault();
+                        if (existing is null)
+                            return role;
+                        existingRoles.RemoveAt(0);
+                        existing.Actor = role.Actor;
+                        existing.ActorId = role.ActorId;
+                        existing.Name = role.Name;
+                        existing.EntryId = role.EntryId;
+                        return existing;
+                    });
+                    try
+                    {
+                        foreach (var role in rolesToSave)
+                            MediaLibrary.AddOrUpdateRole(role);
+                        foreach (var role in existingRoles)
+                            MediaLibrary.Delete(role);
+                    }
+                    finally
+                    {
+                        MediaLibrary.Release(rolesToSave);
+                    }
                 }
                 finally
                 {
-                    MediaLibrary.Release(rolesToSave);
+                    MediaLibrary.Release(existingRoles);
                 }
+
+
             }
             finally
             {
-                MediaLibrary.Release(existingRoles);
+                UpdateActorRoleCounts(actors);
+                MediaLibrary.Release(actors);
             }
+        }
+
+        private void UpdateActorRoleCounts(List<Actor> actors)
+        {
+            foreach (var actor in actors)
+                UpdateActorRoleCount(actor);
+        }
+
+        private void UpdateActorRoleCount(Actor actor)
+        {
+            actor.RoleCountUpdated = false;
+            MediaLibrary.AddOrUpdateActor(actor);
         }
 
         private Actor GetOrCreateActor(ActorInformation actorInfo)

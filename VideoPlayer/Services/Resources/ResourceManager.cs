@@ -21,10 +21,12 @@ namespace VideoPlayer.Services.Resources
             this.environment = environment;
         }
         private ConcurrentDictionary<string, ImageSource> images = new ConcurrentDictionary<string, ImageSource>();
+        private ImageSource defaultMediaItemPicture = null;
         private readonly IEnvironment environment;
 
         private void Init()
         {
+            defaultMediaItemPicture = ImageSource.FromStream(() => new MemoryStream(VideoPlayer.Properties.images.default_movie_poster));
             images.AddOrUpdate(
                 nameof(icons.abenteuer), 
                 ImageSource.FromStream(() => new MemoryStream(icons.abenteuer32x32)), 
@@ -127,6 +129,10 @@ namespace VideoPlayer.Services.Resources
                 (name, value) => value);
         }
 
+        public ImageSource GetDefaultItemPicture()
+        {
+            return defaultMediaItemPicture;
+        }
         public ImageSource GetGenreIcon(Genre genre)
         {
             var names = new string[] { genre.Name.ToLower() }

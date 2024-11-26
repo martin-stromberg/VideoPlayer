@@ -9,6 +9,7 @@ namespace VideoPlayer.Service.Resources
 {
     public interface IResourceManager
     {
+        ImageSource GetDefaultItemPicture();
         ImageSource GetGenreIcon(Genre genre);
         CommunityToolkit.Maui.Views.MediaSource GetLoadingVideo();
     }

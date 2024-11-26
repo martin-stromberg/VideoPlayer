@@ -29,7 +29,7 @@
                Opacity="0.6"
                HorizontalOptions="End"/>
         <!-- Media Information -->
-        <VerticalStackLayout HorizontalOptions="Start">
+        <VerticalStackLayout HorizontalOptions="Start" Margin="5,5">
             <Label Text="{Binding Title}" 
                    FontSize="Header"
                    TextColor="{Binding PictureTextColor}"/>

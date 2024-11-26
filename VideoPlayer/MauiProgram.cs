@@ -28,11 +28,11 @@ namespace VideoPlayer
                 .RegisterViewModels();
 
             #if DEBUG
-            builder.Logging.AddDebug()
+            builder.Logging//.AddDebug()
                 .AddFilter("VideoPlayer", LogLevel.Trace)
                 .AddFilter("Microsoft", LogLevel.Warning)
                 .AddProvider(new DatabaseLoggerProvider());
-#endif
+            #endif
 
 
             return builder.Build();

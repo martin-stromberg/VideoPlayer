@@ -107,6 +107,10 @@ namespace VideoPlayer.Service.Database.Models
                 {
                     var currValue = _Properties[propName];
                     var prevValue = _PropertiesBackup[propName];
+                    if (currValue is null && prevValue is null)
+                        continue;
+                    if (currValue is null)
+                        return true;
                     if (!currValue.Equals(prevValue))
                         return true;
                 }
@@ -123,5 +127,9 @@ namespace VideoPlayer.Service.Database.Models
             SetRestorePoint();
         }
 
+        public override string ToString()
+        {
+            return $"{Id}: {Name}";
+        }
     }
 }

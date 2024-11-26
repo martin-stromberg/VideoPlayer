@@ -32,5 +32,11 @@ namespace VideoPlayer.Service.ErrorHandling
                     File.Delete(file);
                 }
         }
+
+        public void WriteError(Exception error)
+        {
+            string logPath = Path.Combine(RootPath, $"{Guid.NewGuid()}.error");
+            File.WriteAllText(logPath, $"{DateTime.Now}\r\n{error}");
+        }
     }
 }

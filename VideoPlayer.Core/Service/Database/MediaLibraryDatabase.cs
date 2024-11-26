@@ -142,12 +142,10 @@ namespace VideoPlayer.Service.Database
                 {
                     dbModel.CreatedAt = DateTime.Now;
                     connection.Insert(dbModel);
-                    Console.WriteLine($"INSERT {dbModel}");
                 }
                 else
                 {
                     connection.Update(dbModel);
-                    Console.WriteLine($"UPDATE {dbModel}");
                 }
             });
             return (T)dbModel;

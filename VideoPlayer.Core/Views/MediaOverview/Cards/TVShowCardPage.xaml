@@ -12,6 +12,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="300"/>
             <RowDefinition/>
+            <RowDefinition Height="50"/>
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
             <ColumnDefinition/>
@@ -87,6 +88,7 @@
                            IsVisible="{Binding VideoPlayerVisible}"/>
         <!-- Content -->
         <ScrollView Grid.Row="1" 
+                    Grid.RowSpan="2"
                     Grid.ColumnSpan="2" 
                     Orientation="Vertical">
             <Grid Margin="5" ColumnSpacing="3">
@@ -113,6 +115,9 @@
                                                       BindingContext="{Binding CollectionContext}"/>
             </Grid>
         </ScrollView>
-
+        <Label  Grid.Row="2"
+                Grid.ColumnSpan="2"
+                Text="{Binding Message}" 
+                IsVisible="{Binding HasMessage}"/>
     </Grid>
 </view:BaseCardPage>

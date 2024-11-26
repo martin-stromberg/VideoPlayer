@@ -641,7 +641,7 @@ namespace VideoPlayer.Service.Library.Scanner
             if (collection is null)
                 collection = CreateCollection(source.Id, parentCollection?.Id ?? 0, folder);
 
-            collection.Classified = collection.Classified && (collection.LastAccess == folder.LastWriteTime);
+            collection.Classified = collection.Classified && (collection.LastAccess == folder.LastWriteTime) && (folder.LastWriteTime != DateTime.MinValue);
             collection.LastAccess = folder.LastWriteTime;
             collection = _MediaLibrary.AddOrUpdateMediaCollection(collection);
             return collection;

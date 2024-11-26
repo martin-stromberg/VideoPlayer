@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using System.Xml;
+using System.Xml.Linq;
 using VideoPlayer.Extensions;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
@@ -69,8 +70,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
         }
 
         private bool ClassifyVideo(MediaItem mediaItem)
-        {
-            Console.WriteLine($"CLASSIFY {mediaItem}");            
+        {         
             var collection = MediaLibrary.GetMediaCollection(mediaItem.ParentCollectionId);
             if (collection is not null)
                 try
@@ -96,7 +96,6 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                             UpdateMediaInformation(mediaItem, nfoFile, reader);
                             UpdateMovie(mediaItem, collection, source);
                             UpdateTVShowEpisode(mediaItem, collection, source, parentMetaInfo);
-                            Console.WriteLine($"CLASSIFY-END {mediaItem}");
                         }
                         finally
                         {
@@ -118,7 +117,6 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
 
         private void UpdateTVShowEpisode(MediaItem mediaItem, MediaCollection collection, MediaSource source, MediaInformation parentInfo)
         {
-            Console.WriteLine($"UPDATETVSHOW{mediaItem}");
             var showInfo = parentInfo as TVShowInformation;
             var episodeInfo = mediaItem.MetaInformation as EpisodeInformation;
             var episode = MediaLibrary.GetTVShowEpisodeByMediaItem(mediaItem.Id);
@@ -155,7 +153,6 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                         episode = MediaLibrary.AddOrUpdateEpisode(episode);
                         UpdateSeasonDescandantInformation(season);
                         UpdateShowDescandantInformation(show);
-                        Console.WriteLine($"UPDATEMOVIE-END {mediaItem}");
                         if (isNew)
                             Notify(this, new Events.NotificationEventArgs("EntryClassified-New", episode));
                         else
@@ -313,7 +310,6 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             var isNew = show.Id == 0;
             show = MediaLibrary.AddOrUpdateTVShow(show);            
             ActivateGenres(show);
-            Console.WriteLine($"UPDATEMOVIE-END {mediaItem}");
             if (isNew)
                 Notify(this, new Events.NotificationEventArgs("EntryClassified-New", show));
             else
@@ -524,6 +520,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             movie.MediaItemIds = movie.MediaItemIds.Concat(new long[] { mediaItem.Id }).Distinct().ToArray();
             movie.Enabled = true;
             movie.Visible = true;
+            movie.Director = movieInfo.Director;
             return movie;
         }
 
@@ -636,8 +633,6 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
 
         private void UpdateMovie(MediaItem mediaItem, MediaCollection collection, MediaSource mediaSource)
         {
-            Console.WriteLine($"UPDATEMOVIE {mediaItem}");
-            
             var movieInfo = mediaItem.MetaInformation as MovieInformation;
             var movie = MediaLibrary.GetMovieByMediaItem(mediaItem.Id);
             if ((movie is null) && (movieInfo is null))
@@ -685,7 +680,6 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                 UpdateMovieCollection(movie, mediaItem);
                 ActivateGenres(movie);
                 UpdateMovieActors(movie, movieInfo);
-                Console.WriteLine($"UPDATEMOVIE-END {mediaItem}");
                 if (isNew)
                     Notify(this, new Events.NotificationEventArgs("EntryClassified-New", movie));
                 else
@@ -1029,7 +1023,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                                         {
                                             var result= item.Name == infoFileTVShow;
                                             if (!result)
-                                                MediaLibrary.Release(item);
+                                                MediaLibrary.Release(item, true);
                                             return result;
                                         });
             MediaInformation returnInfo = null;
@@ -1052,7 +1046,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                     }
                     finally
                     {
-                        MediaLibrary.Release(collection);
+                        MediaLibrary.Release(collection, true);
                     }
             }
             return returnInfo;
@@ -1100,6 +1094,14 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                 Genres = documentElement.FindChildren("genre").Select(node => node.InnerText.Trim()).ToArray(),
                 PremieredAt = documentElement.FindChild("premiered", true).InnerText.ToDateTime(),
                 Language = documentElement.FindChild("language", true).InnerText.Trim(),
+                Studios = documentElement.FindChildren("studio").Select(node => node.InnerText).ToArray(),
+                Actors = documentElement.FindChildren("actor").Select(node => new ActorInformation()
+                {
+                    Name = node.FindChild("name", true).InnerText.Trim(),
+                    Role = node.FindChild("role", true).InnerText.Trim(),
+                    Order = node.FindChild("order", true).InnerText.Trim().ToInt32(),
+                    Thumb = node.FindChild("thumb", true).InnerText.Trim(),
+                }).ToArray(),
             };
             info.Genres = CorrectGenres(info.Genres);
             return info;
@@ -1122,7 +1124,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             }
             finally
             {
-                MediaLibrary.Release(allGenres);
+                MediaLibrary.Release(allGenres, false);
             }
             return genres.Distinct().ToArray();
         }
@@ -1149,7 +1151,10 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                     Role = node.FindChild("role", true).InnerText.Trim(),
                     Order = node.FindChild("order", true).InnerText.Trim().ToInt32(),
                     Thumb = node.FindChild("thumb", true).InnerText.Trim(),
-                }).ToArray()
+                }).ToArray(),
+                Studios = xmlNode.FindChildren("studio").Select(node => node.InnerText).ToArray(),
+                Director = xmlNode.FindChild("director", true).InnerText,
+                Language = xmlNode.FindChild("language", true).InnerText,
             };
             if ((info.Year == 0) && (info.ReleaseDate != default))
                 info.Year = info.ReleaseDate.Year;
@@ -1173,7 +1178,15 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                 LastUpdate = DateTime.Now,
                 OriginalTitle = "",
                 Language = "",
-                AiredAt = xmlNode.FindChild("aired", true).InnerText.Trim().ToDateTime()
+                AiredAt = xmlNode.FindChild("aired", true).InnerText.Trim().ToDateTime(),
+                Actors = xmlNode.FindChildren("actor").Select(node => new ActorInformation()
+                {
+                    Name = node.FindChild("name", true).InnerText.Trim(),
+                    Role = node.FindChild("role", true).InnerText.Trim(),
+                    Order = node.FindChild("order", true).InnerText.Trim().ToInt32(),
+                    Thumb = node.FindChild("thumb", true).InnerText.Trim(),
+                }).ToArray(),
+                Director = xmlNode.FindChild("director", true).InnerText
             };
             return Info;
         }
@@ -1192,13 +1205,13 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                                                 var result = Path.GetFileNameWithoutExtension(item.Path) == rootName;
                                                 result &= videoExtensions.Contains(Path.GetExtension(item.Name));
                                                 if (!result)
-                                                    MediaLibrary.Release(item);
+                                                    MediaLibrary.Release(item, true);
                                                 return result;
                                             });
                 }
                 finally
                 {
-                    MediaLibrary.Release(collection);
+                    MediaLibrary.Release(collection, true);
                 }
             var result = false;
             try
@@ -1208,8 +1221,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             }
             finally
             {
-                foreach (var item in items)
-                    MediaLibrary.Release(item);
+                MediaLibrary.Release(items, true);
             }
             return result;
         }
@@ -1223,6 +1235,8 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
         {
             return ClassifyGeneralFile(mediaItem);
         }
+
+        
 
         public override async Task<bool> UpdatePictures(MediaItem mediaItem)
         {
@@ -1242,7 +1256,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                         }
                         finally
                         {
-                            MediaLibrary.Release(movie);
+                            MediaLibrary.Release(movie, true);
                         }
                     }
                     else if (episode is not null)
@@ -1256,29 +1270,29 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                             {
                                 await UpdateTVShowSeasonPictures(season, collection, mediaSource);
                             }
-                            finally { MediaLibrary.Release(season); }
+                            finally { MediaLibrary.Release(season, true); }
 
                             var show = MediaLibrary.GetTVShow(season.ShowId);
                             try
                             {
                                 await UpdateTVShowPictures(show, collection, mediaSource);
                             }
-                            finally { MediaLibrary.Release(show); }
+                            finally { MediaLibrary.Release(show, true); }
                         }
                         finally
                         {
-                            MediaLibrary.Release(episode);
+                            MediaLibrary.Release(episode, true);
                         }
                     }
                 }
                 finally
                 {
-                    MediaLibrary.Release(mediaSource);
+                    MediaLibrary.Release(mediaSource, true);
                 }
             }
             finally
             {
-                MediaLibrary.Release(collection);
+                MediaLibrary.Release(collection, true);
             }
             return true;
         }
@@ -1287,26 +1301,22 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             var actorFileName = actor.Name
                 .ToLower()
                 .Replace(" ", "_");
-            var roles = MediaLibrary
+            var collections = MediaLibrary
                 .GetActorsRoles(actor.Id)
                 .Select(role =>
                 {
-                    MediaLibrary.Release(role);
+                    MediaLibrary.Release(role, true);
                     return role;
                 })
-                .ToList();
-            var entries = roles
                 .Select(role => role.EntryId)
                 .Distinct()
                 .Select(id => MediaLibrary.GetClassifiedEntry(id))
                 .Where(entry => entry is not null)
                 .Select(entry =>
                 {
-                    MediaLibrary.Release(entry);
+                    MediaLibrary.Release(entry, true);
                     return entry;
                 })
-                .ToList();
-            var mediaItems = entries
                 .OfType<IMediaItemCollectionEntry>()
                 .SelectMany(entry => entry.MediaItemIds)
                 .Distinct()
@@ -1314,11 +1324,9 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                 .Where(mi => mi is not null)
                 .Select(mi =>
                 {
-                    MediaLibrary.Release(mi);
+                    MediaLibrary.Release(mi, true);
                     return mi;
                 })
-                .ToList();
-            var collections = mediaItems
                 .Select(mio => mio.ParentCollectionId)
                 .Distinct()
                 .Select(id => MediaLibrary.GetMediaCollection(id))
@@ -1343,30 +1351,24 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
 
             foreach (var mediaSource in mediaSources)
             {
-                var actorsCollections = collections
+                var pictureItems = collections
                     .Where(col => col.SourceId == mediaSource.Id)
                     .SelectMany(col => MediaLibrary.GetChildMediaCollections(col.Id))
                     .Where(col => col is not null)
                     .Select(col =>
                     {
-                        MediaLibrary.Release(col);
+                        MediaLibrary.Release(col, true);
                         return col;
                     })
                     .Where(col => col.Name == ".actors")
-                    .ToList();
-                var pictureItems = actorsCollections
                     .SelectMany(col => MediaLibrary.GetMediaCollectionItems(col.Id))
                     .Where(mi => mi is not null)
-                    .Select(mi =>
-                    {
-                        MediaLibrary.Release(mi);
-                        return mi;
-                    })
                     .Where(mi =>
                     {
                         var result = mi.CopyType == MediaItemCopyType.Original;
                         result &= Path.GetFileNameWithoutExtension(mi.Name).ToLower() == actorFileName;
                         result &= pictureExtensions.Contains(Path.GetExtension(mi.Name));
+                        MediaLibrary.Release(mi, true);
                         return result;
                     })
                     .ToList();
@@ -1382,6 +1384,38 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                 break;
             }
             return true;
+        }
+
+        public override async Task DeleteOrpahnedPictures()
+        {
+            await Task.Delay(0);
+            var cacheFolder = PathTools.Combine(FileSystem.Current.AppDataDirectory, "Cache");
+            var pictureFiles = Directory.GetFiles(cacheFolder)
+                .Where(file => pictureExtensions.Contains(Path.GetExtension(file).ToLower()))
+                .Select(file => new FileInfo(file));
+            foreach (var file in pictureFiles)
+            {
+                var mediaItem = MediaLibrary.GetClassifiedEntriesWithPicture(file.Name)
+                    .Select(mi =>
+                    {
+                        MediaLibrary.Release(mi, true);
+                        return mi;
+                    });
+                if (mediaItem.Any())
+                    continue;
+
+                var actors = MediaLibrary.GetActorsWithPicture(file.Name)
+                    .Select(mi =>
+                    {
+                        MediaLibrary.Release(mi, true);
+                        return mi;
+                    });
+                if (actors.Any())
+                    continue;
+
+                file.Delete();
+            }
+            
         }
     }
 

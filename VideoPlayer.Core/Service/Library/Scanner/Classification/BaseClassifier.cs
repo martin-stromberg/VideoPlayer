@@ -19,7 +19,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
 
         public abstract Task<bool> Classify(MediaItem mediaItem);
         public abstract Task<bool> UpdatePictures(MediaItem mediaItem);
-
+        public abstract Task DeleteOrpahnedPictures();
         public IMediaLibrary MediaLibrary { get; private set; }
 
         public event EventHandler<SourceReaderRequestEventArgs> SourceReaderRequest;

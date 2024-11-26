@@ -9,6 +9,7 @@ using VideoPlayer.Service.Attributes;
 using VideoPlayer.Service.BaseServices;
 using VideoPlayer.Service.Database;
 using VideoPlayer.Service.Database.Models;
+using VideoPlayer.Service.Library;
 
 namespace VideoPlayer.Service.Export
 {
@@ -24,13 +25,13 @@ namespace VideoPlayer.Service.Export
 
         Task<string> CreateExportFile();
         Task<string> CreateBackupFile();
-
+        Task<string> CreateMemoryExportFile();
     }
 
     public class DataExporter : BaseService, IDataExporter
     {
-
-        private readonly IMediaLibraryDatabase _MediaLibrary;
+        private readonly IMediaLibrary _MediaLibrary;
+        private readonly IMediaLibraryDatabase _MediaLibraryDatabase;
 
         public enum ExportFormat
         {
@@ -41,12 +42,15 @@ namespace VideoPlayer.Service.Export
         }
 
         public DataExporter(
-            IMediaLibraryDatabase mediaLibrary, IDataExporterRegistration registration,
+            IMediaLibrary mediaLibrary,
+            IMediaLibraryDatabase mediaLibraryDatabase, 
+            IDataExporterRegistration registration,
             ILogger<DataExporter> logger)
             : base(logger)
         {
             RegisterSyncfusion(registration.LicenseKey);
             _MediaLibrary = mediaLibrary;
+            _MediaLibraryDatabase = mediaLibraryDatabase;
         }
 
         private static bool syncfusionRegistered = false;
@@ -63,7 +67,7 @@ namespace VideoPlayer.Service.Export
 
         public Task<string> CreateBackupFile()
         {
-            FileInfo sourceFile = new FileInfo(_MediaLibrary.Settings.DatabasePath);
+            FileInfo sourceFile = new FileInfo(_MediaLibraryDatabase.Settings.DatabasePath);
             return Task.FromResult(sourceFile.FullName);
         }
         public async Task<string> CreateExportFile()
@@ -90,35 +94,65 @@ namespace VideoPlayer.Service.Export
             }
         }
 
+        public async Task<string> CreateMemoryExportFile()
+        {
+            NotifyStatus($"Generiere Exportdatei.", true);
+            try
+            {
+                DirectoryInfo TempFolder = Directory.CreateTempSubdirectory();
+                TempFolder.Delete();
+                TempFolder = TempFolder.Parent;
+                switch (Format)
+                {
+                    case ExportFormat.CSV:
+                        return await Task.FromResult(string.Empty);
+                    case ExportFormat.XLSX:
+                        return CreateMemoryXLSXFileAsync(TempFolder);
+                    default:
+                        return await Task.FromResult(string.Empty);
+                }
+            }
+            finally
+            {
+                NotifyStatus(string.Empty, false);
+            }
+        }
+
         #region Excel
         private int unknownSheetCounter = 0;
 
-        private string CreateXLSXFileAsync(DirectoryInfo tempFolder)
+        private string CreateMemoryXLSXFileAsync(DirectoryInfo tempFolder)
         {
             unknownSheetCounter = 0;
-            List<List<BaseDataModel>> baseModels = new List<List<BaseDataModel>>();
-
-            var baseType = typeof(BaseDataModel);
-            var modelTypes = baseType.Assembly
-                                     .GetTypes()
-                                     .Where(t => t != baseType)
-                                     .Where(t => !t.IsAbstract)
-                                     .Where(t => t.IsAssignableTo(baseType))
-                                     .Where(t => t.GetCustomAttribute(typeof(SkipExportAttribute)) is null)
-                                     .ToArray();
-            foreach (var modelType in modelTypes)
+            var lastModelTypeName = "";
+            List<List<object>> baseModels = new List<List<object>>();
+            baseModels.Add(new List<object>());
+            foreach (var element in _MediaLibrary.GetAllCachedObjects()
+                .OrderBy(e => (e.Item as BaseDataModel)?.GetType().FullName ?? e.ServiceModel?.GetType().FullName))
             {
-                var recordSet = _MediaLibrary.GetAll(modelType);
-                baseModels.Add(recordSet.ToList());
-            }
+                baseModels.First().Add(element);
 
+                if (element.Item is null && element.ServiceModel is null)
+                    continue;
+
+                var typeName = (element.Item as BaseDataModel)?.GetType().FullName ?? element.ServiceModel?.GetType().FullName;
+                if (typeName != lastModelTypeName)
+                    baseModels.Add(new List<object>());
+                lastModelTypeName = typeName;
+                baseModels.Last().Add(element.Item);
+            }
+            return CreateExcelFile(tempFolder, baseModels);
+        }
+
+        private string CreateExcelFile(DirectoryInfo tempFolder, List<List<object>> baseModels)
+        {
             using (ExcelEngine excelEngine = new ExcelEngine())
             {
                 Syncfusion.XlsIO.IApplication application = excelEngine.Excel;
                 application.DefaultVersion = ExcelVersion.Xlsx;
                 IWorkbook workbook = application.Workbooks.Create(baseModels.Count + 1);
 
-                FillModelWorksheets(workbook, baseModels);
+                FillModelWorksheets(workbook, baseModels.ToArray());
 
                 MemoryStream ms = new MemoryStream();
                 workbook.SaveAs(ms);
@@ -138,9 +172,30 @@ namespace VideoPlayer.Service.Export
             }
         }
 
-        private void FillModelWorksheets(IWorkbook workbook, List<List<BaseDataModel>> baseModels)
+        private string CreateXLSXFileAsync(DirectoryInfo tempFolder)
         {
-            for (int idx = 0; idx < baseModels.Count; idx++)
+            unknownSheetCounter = 0;
+            List<List<object>> baseModels = new List<List<object>>();
+
+            var baseType = typeof(BaseDataModel);
+            var modelTypes = baseType.Assembly
+                                     .GetTypes()
+                                     .Where(t => t != baseType)
+                                     .Where(t => !t.IsAbstract)
+                                     .Where(t => t.IsAssignableTo(baseType))
+                                     .Where(t => t.GetCustomAttribute(typeof(SkipExportAttribute)) is null)
+                                     .ToArray();
+            foreach (var modelType in modelTypes)
+            {
+                var recordSet = _MediaLibraryDatabase.GetAll(modelType);
+                baseModels.Add(recordSet.Cast<object>().ToList());
+            }
+            return CreateExcelFile(tempFolder, baseModels);
+        }
+
+        private void FillModelWorksheets(IWorkbook workbook, params List<object>[] baseModels)
+        {
+            for (int idx = 0; idx < baseModels.Length; idx++)
                 FillModelWorksheet(workbook.Worksheets[idx], baseModels[idx]);
 
             // FillCacheFilesWorksheet(workbook.Worksheets[workbook.Worksheets.Count - 1]);
@@ -157,7 +212,7 @@ namespace VideoPlayer.Service.Export
         // }
         // }
 
-        private void FillModelWorksheet(IWorksheet worksheet, List<BaseDataModel> items)
+        private void FillModelWorksheet(IWorksheet worksheet, List<object> items)
         {
             var modelType = items.FirstOrDefault()?.GetType();
             if (modelType == null)
@@ -170,7 +225,7 @@ namespace VideoPlayer.Service.Export
                 return;
             }
             var baseModelType = modelType;
-            while (baseModelType.BaseType.Name != typeof(BaseDataModel).Name)
+            while (baseModelType.BaseType.Name != typeof(object).Name && baseModelType.BaseType.Name != typeof(BaseDataModel).Name)
                 baseModelType = baseModelType.BaseType;
             worksheet.Name = baseModelType.Name;
 
@@ -178,19 +233,21 @@ namespace VideoPlayer.Service.Export
             WriteTableContent(worksheet, fieldNames, items);
         }
 
-        private void WriteTableContent(IWorksheet worksheet, string[] fieldNames, List<BaseDataModel> items)
+        private void WriteTableContent(IWorksheet worksheet, string[] fieldNames, List<object> items)
         {
             for (int idx = 0; idx < items.Count; idx++)
                 WriteTableRow(worksheet, fieldNames, items[idx], idx + 1);
         }
 
-        private void WriteTableRow(IWorksheet worksheet, string[] fieldNames, BaseDataModel item, int row)
+        private void WriteTableRow(IWorksheet worksheet, string[] fieldNames, object item, int row)
         {
+            if (item is null)
+                return;
             var modelType = item.GetType();
             foreach (var prop in modelType.GetProperties().Where(p => p.CanRead))
             {
                 var value = prop.GetValue(item);
-                if (value == null)
+                if (value is null)
                     continue;
                 var attr = prop.GetCustomAttribute(typeof(PasswordAttribute)) as PasswordAttribute;
                 if ((value != null) && prop.PropertyType.IsArray)
@@ -210,7 +267,7 @@ namespace VideoPlayer.Service.Export
             }
         }
 
-        private string[] WriteTableHeader(IWorksheet worksheet, List<BaseDataModel> items)
+        private string[] WriteTableHeader(IWorksheet worksheet, List<object> items)
         {
             List<string> fieldNames = new List<string>();
             var types = items.Select(item => item.GetType()).Distinct();
@@ -266,12 +323,12 @@ namespace VideoPlayer.Service.Export
                 TempFile.Delete();
             using (StreamWriter writer = new StreamWriter(TempFile.FullName))
             {
-                foreach (var method in _MediaLibrary.GetType().GetMethods())
+                foreach (var method in _MediaLibraryDatabase.GetType().GetMethods())
                     try
                     {
                         if (!method.ReturnType.IsAssignableTo(typeof(IEnumerable<BaseDataModel>)))
                             continue;
-                        var returnValue = method.Invoke(_MediaLibrary, null) as IEnumerable<BaseDataModel>;
+                        var returnValue = method.Invoke(_MediaLibraryDatabase, null) as IEnumerable<BaseDataModel>;
                         WriteModels(writer, returnValue.OfType<BaseDataModel>().ToList());
                     }
                     catch { }

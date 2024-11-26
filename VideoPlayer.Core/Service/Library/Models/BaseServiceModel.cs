@@ -206,7 +206,10 @@ namespace VideoPlayer.Service.Library.Models
             var model = Activator.CreateInstance(modelType, dataModel) as BaseServiceModel;
             return model;
         }
-
+        public override string ToString()
+        {
+            return $"{Id}: {Name}";
+        }
         public object Clone()
         {
             var clone = Activator.CreateInstance(GetType(), DataModel) as BaseServiceModel;

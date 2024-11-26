@@ -93,7 +93,7 @@ namespace VideoPlayer.Service.Library.Models.Playlists
             firstEntry.Item = e.Session.Item;
             PlaybackRequest?.Invoke(this, firstEntry);
         }
-        private void DownloadSession_Failed(object sender, DownloadEventArgs e)
+        private void DownloadSession_Failed(object sender, DownloadFailedEventArgs e)
         {
             if (e.Session != CurrentDownload)
                 return;
@@ -164,6 +164,6 @@ namespace VideoPlayer.Service.Library.Models.Playlists
         }
 
         public event EventHandler<DownloadEventArgs> DownloadRequested;
-        public event EventHandler<DownloadEventArgs> DownloadFailed;
+        public event EventHandler<DownloadFailedEventArgs> DownloadFailed;
     }
 }

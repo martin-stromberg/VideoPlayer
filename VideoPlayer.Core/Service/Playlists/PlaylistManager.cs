@@ -21,6 +21,7 @@ namespace VideoPlayer.Service.Playlists
         event EventHandler<BaseServiceModelEventArgs> PlaybackRequest;
         event EventHandler<BaseServiceModelEventArgs> Downloading;
         event EventHandler<DownloadProgressEventArgs> DownloadProgressChanged;
+        event EventHandler<DownloadFailedEventArgs> DownloadFailed;
         void Init();
         void Play(ClassifiedEntry movie);
         void ProcessMediaEnded(MediaItem currentMediaItem);
@@ -40,10 +41,17 @@ namespace VideoPlayer.Service.Playlists
             General.PlaybackRequest += General_PlaybackRequest;
             General.DownloadStarting += General_DownloadStarting;
             General.DownloadProgress += General_DownloadProgress;
+            General.DownloadFailed += General_DownloadFailed;
 
             NextPlaybackPlaylist = new NextPlaybackPlaylist(mediaLibrary, mediaCollectionSelector, Logger);
             NewPlaylist = new NewEntriesPlaylist(mediaLibrary, mediaCollectionSelector, Logger);
         }
+
+        private void General_DownloadFailed(object sender, DownloadFailedEventArgs e)
+        {
+            DownloadFailed?.Invoke(this, e);
+        }
+
         public override IEnumerable<IEventPublisher> GetPublishers()
         {
             return base.GetPublishers()
@@ -67,6 +75,7 @@ namespace VideoPlayer.Service.Playlists
         public event EventHandler<BaseServiceModelEventArgs> PlaybackRequest;
         public event EventHandler<BaseServiceModelEventArgs> Downloading;
         public event EventHandler<DownloadProgressEventArgs> DownloadProgressChanged;
+        public event EventHandler<DownloadFailedEventArgs> DownloadFailed;
         private void General_PlaybackRequest(object sender, Library.Models.Playlists.PlaylistEntry e)
         {
             PlaybackRequest?.Invoke(this, new BaseServiceModelEventArgs(e));

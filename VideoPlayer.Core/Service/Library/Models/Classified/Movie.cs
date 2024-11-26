@@ -49,6 +49,7 @@ namespace VideoPlayer.Service.Library.Models.Classified
                 OriginalTitle = ((DataClassifiedEntry)DataModel).OriginalTitle;
                 BannerBackgroundColor = ((DataClassifiedEntry)DataModel).BannerBackgroundColor;
                 PictureBackgroundColor = ((DataClassifiedEntry)DataModel).PictureBackgroundColor;
+                Director = ((DataClassifiedEntry)DataModel).Director;
             }
         }
 
@@ -204,6 +205,17 @@ namespace VideoPlayer.Service.Library.Models.Classified
             }
         }
 
+        public string Director {
+            get
+            {
+                return GetProperty<string>();
+            }
+            set
+            {
+                SetProperty<string>(value);
+            }
+        }
+
         protected override void AssignChanges()
         {
             base.AssignChanges();
@@ -221,6 +233,7 @@ namespace VideoPlayer.Service.Library.Models.Classified
             ((DataClassifiedEntry)DataModel).Language = Language;
             ((DataClassifiedEntry)DataModel).BannerBackgroundColor = BannerBackgroundColor;
             ((DataClassifiedEntry)DataModel).PictureBackgroundColor = PictureBackgroundColor;
+            ((DataClassifiedEntry)DataModel).Director = Director;
         }
 
     }

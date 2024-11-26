@@ -20,7 +20,11 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
         {
             Id = element is null ? 0 : element.Id;
             Element = element;
-            Tapped = new Command((arg) => ExecuteTapped((bool)arg));
+            Tapped = new Command((arg) => {
+                if (!bool.TryParse(arg?.ToString(), out var boolArg))
+                    boolArg = false;
+                ExecuteTapped(boolArg); 
+            });
         }
         public long Id { get; }
         public BaseServiceModel Element { get; }

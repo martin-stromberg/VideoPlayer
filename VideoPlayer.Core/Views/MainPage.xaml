@@ -43,7 +43,8 @@
             <homePage:NextPlayingView BindingContext="{Binding NextPlayingContext}" IsVisible="{Binding ContentVisible}"/>
             <homePage:NextPlayingView BindingContext="{Binding NewContext}" IsVisible="{Binding ContentVisible}"/>
             <Label Text="{Binding ErrorMessages}" IsVisible="{Binding ErrorsVisible}"/>
-            <Button IsVisible="{Binding ErrorsVisible}" Text="Bestätigen" Clicked="Button_Clicked"/>
+            <Button IsVisible="{Binding ErrorsVisible}" Text="Bestätigen" Clicked="Button_Clicked" CommandParameter="confirm"/>
+            <Button IsVisible="{Binding ErrorsVisible}" Text="Teilen" Clicked="Button_Clicked" CommandParameter="share"/>
         </VerticalStackLayout>
         <viewCommon:MemoryInfoView BindingContext="{Binding MemoryInfo}"
                                    HorizontalOptions="End"

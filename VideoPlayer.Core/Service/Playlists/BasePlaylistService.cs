@@ -88,12 +88,12 @@ namespace VideoPlayer.Service.Playlists
         {
             ExecuteDownloadRequest(e);
         }
-        private void PL_DownloadFailed(object sender, DownloadEventArgs e)
+        private void PL_DownloadFailed(object sender, DownloadFailedEventArgs e)
         {
             ExecuteDownloadFailed(e);
         }
 
-        protected virtual void ExecuteDownloadFailed(DownloadEventArgs e)
+        protected virtual void ExecuteDownloadFailed(DownloadFailedEventArgs e)
         {
         }
 

@@ -47,6 +47,14 @@ namespace VideoPlayer.Service.Library.Scanner.Picture
         protected override async Task ExecuteTimerAsync()
         {
             await ClassifyNextItems();
+            DeleteOrpahnedPictures();
+        }
+
+        private void DeleteOrpahnedPictures()
+        {
+            NotifyStatus($"Bereinige Grafikspeicher.");
+            foreach (var classifier in _Classifier)
+                classifier.DeleteOrpahnedPictures();
         }
 
         private async Task ClassifyNextItems()

@@ -2,7 +2,7 @@
 {
     public class MovieInformation: MediaInformation
     {
-
+        public string Director { get; set; }        
         public string[] Genres { get; set; }
 
         public string Plot { get; set; }
@@ -11,7 +11,6 @@
 
         public DateTime PremieredAt { get; set; }
 
-        public int Year { get; set; }
-        public ActorInformation[] Actors { get; set; }
+        public int Year { get; set; }        
     }
 }

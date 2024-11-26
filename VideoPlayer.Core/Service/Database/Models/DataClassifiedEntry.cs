@@ -286,5 +286,17 @@ namespace VideoPlayer.Service.Database.Models
                 SetProperty<DateTime>(value);
             }
         }
+
+        public string Director
+        {
+            get
+            {
+                return GetProperty<string>();
+            }
+            set
+            {
+                SetProperty<string>(value);
+            }
+        }
     }
 }

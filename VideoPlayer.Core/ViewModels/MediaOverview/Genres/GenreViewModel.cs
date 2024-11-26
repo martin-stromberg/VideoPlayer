@@ -18,7 +18,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Genres
             :base()
         {
             this.genre = genre;
-            Title = genre.Name;
+            Title = genre is null ? "Alle" : genre.Name;
             Tapped = new Command(() => { OnSelected(); });
         }
 

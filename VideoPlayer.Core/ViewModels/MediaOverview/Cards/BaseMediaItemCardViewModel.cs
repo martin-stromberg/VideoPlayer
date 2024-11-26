@@ -23,6 +23,7 @@ using Microsoft.Extensions.Configuration;
 using VideoPlayer.Navigation;
 using System.Xml.Serialization;
 using System.Runtime.CompilerServices;
+using Foundation;
 
 namespace VideoPlayer.ViewModels.MediaOverview.Cards
 {
@@ -295,15 +296,23 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
         public bool IsDownloadProgressVisible { get => GetProperty<bool>(); set => SetProperty(value); }
         public MediaElementState CurrentState { get; private set; }
         public bool AutoPlay { get => GetProperty<bool>(); set => SetProperty(value); }
+        public string Message { get => GetProperty<string>(); set { SetProperty(value); HasMessage = !string.IsNullOrWhiteSpace(value); } }
+        public bool HasMessage { get => GetProperty<bool>(); private set => SetProperty(value); }
 
         public override void ExecuteAppeared()
         {
             PlaylistManager.PlaybackRequest += PlaylistManager_PlaybackRequest;
             PlaylistManager.Downloading += PlaylistManager_Downloading;
+            PlaylistManager.DownloadFailed += PlaylistManager_DownloadFailed;
             base.ExecuteAppeared();
             UpdateMediaInformation(Entry);
             PlaylistManager.DownloadProgressChanged += PlaylistManager_DownloadProgressChanged;
             Notify("ProcessStarted");
+        }
+
+        private void PlaylistManager_DownloadFailed(object sender, DownloadFailedEventArgs e)
+        {
+            Message = e.Error.Message;
         }
 
         private void PlaylistManager_DownloadProgressChanged(object sender, DownloadProgressEventArgs e)
@@ -314,6 +323,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
 
         private void PlaylistManager_Downloading(object sender, BaseServiceModelEventArgs e)
         {
+            Message = string.Empty;
             IsDownloadProgressVisible = false;
             if (!IsAppeared)
                 return;
@@ -327,6 +337,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
 
         private void PlaylistManager_PlaybackRequest(object sender, Service.Library.Models.BaseServiceModelEventArgs e)
         {
+            Message = string.Empty;
             IsDownloadProgressVisible = false;
             if (IsAppeared)
                 ExecutePlaybackRequest(e.ModelObject as Service.Library.Models.Playlists.PlaylistEntry);

@@ -15,6 +15,9 @@ namespace VideoPlayer.Service.Library.Models.MediaInformation
 
         public DateTime LastUpdate { get; set; }
 
+        public string[] Studios { get; set; }
+        public ActorInformation[] Actors { get; set; }
+
         public virtual int CompareTo(object obj)
         {
             if (obj is null) 

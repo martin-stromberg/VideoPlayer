@@ -15,18 +15,8 @@ using VideoPlayer.Service.Library.SourceReader;
 using VideoPlayer.Tools;
 using static SQLite.SQLite3;
 
-namespace VideoPlayer.Service.Download 
+namespace VideoPlayer.Service.Download
 {
-    public class ExceptionEventArgs : EventArgs
-    {
-        public ExceptionEventArgs(Exception error)
-            :base()
-        {
-            Error = error;
-        }
-
-        public Exception Error { get; }
-    }
     public class DownloadManager : SourceTimerService, IDownloadManager
     {
         public enum DownloadStatus { Waiting, Downloading, Finished, Failed }
@@ -306,7 +296,7 @@ namespace VideoPlayer.Service.Download
                 throw new ArgumentException(mediaItem.CopyType.ToString());
             try
             {                
-                var path = Path.Combine(environment.GetPath(mediaItem.CopyType), mediaItem.Name);
+                var path = PathTools.Combine(environment.GetRootPath(), mediaItem.Path);
                 if (File.Exists(path))
                     File.Delete(path);
                 mediaLibrary.Delete(mediaItem);

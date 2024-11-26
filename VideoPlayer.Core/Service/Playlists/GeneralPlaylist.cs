@@ -40,6 +40,7 @@ namespace VideoPlayer.Service.Playlists
             e.Session.Finished += Session_Finished;
         }
 
+
         private void Session_Finished(object sender, DownloadEventArgs e)
         {
             (sender as DownloadManager.DownloadSession).Progress -= Session_Progress;
@@ -58,14 +59,16 @@ namespace VideoPlayer.Service.Playlists
             DownloadStarting?.Invoke(this, e);
         }
 
-        protected override void ExecuteDownloadFailed(DownloadEventArgs e)
+        protected override void ExecuteDownloadFailed(DownloadFailedEventArgs e)
         {
             base.ExecuteDownloadFailed(e);
             PlaybackRequest?.Invoke(this, null);
+            DownloadFailed?.Invoke(this, e);
         }
 
         public event EventHandler<PlaylistEntry> PlaybackRequest;
         public event EventHandler<DownloadEventArgs> DownloadStarting;
+        public event EventHandler<DownloadFailedEventArgs> DownloadFailed;
         public event EventHandler<DownloadProgressEventArgs> DownloadProgress;
 
         public void Start(ClassifiedEntry entry)

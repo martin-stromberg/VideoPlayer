@@ -1,4 +1,5 @@
-﻿using VideoPlayer.Service.Library.Models;
+﻿using VideoPlayer.Service.Database;
+using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
 using VideoPlayer.Service.Library.Models.Playlists;
 using VideoPlayer.Service.Log;
@@ -12,6 +13,8 @@ namespace VideoPlayer.Service.Library
         event EventHandler<BaseServiceModelEventArgs> ItemUpdated;
 
         void CreateDemoData();
+
+        IEnumerable<CacheElement> GetAllCachedObjects();
 
         #region MediaSource
         MediaSource AddOrUpdateSource(MediaSource source);
@@ -42,7 +45,7 @@ namespace VideoPlayer.Service.Library
         MediaItem AddOrUpdateMediaItem(MediaItem mediaItem);
 
         IEnumerable<MediaItem> GetUnclassifiedMediaItems();
-        void Delete(MediaItem mediaItem);
+        void Delete(MediaItem mediaItem);        
         #endregion
         #region Movie
         Movie GetMovieByMediaItem(long mediaItemId);
@@ -87,6 +90,7 @@ namespace VideoPlayer.Service.Library
         ClassifiedEntry AddOrUpdateEntry(ClassifiedEntry entry);
         ClassifiedEntry GetClassifiedEntry(long id);
         IEnumerable<ClassifiedEntry> GetOverview(int offset, int count, string genre, params EntryType[] entryTypes);
+        IEnumerable<ClassifiedEntry> GetClassifiedEntriesWithPicture(string name);
         #region Genres
         IEnumerable<Genre> GetGenres();
         Genre GetGenre(long ind);
@@ -108,6 +112,7 @@ namespace VideoPlayer.Service.Library
         IEnumerable<Actor> GetActorsByName(string name);
         Actor GetActor(long id);
         IEnumerable<Actor> GetActorsThatNeedsPictureUpdate();
+        IEnumerable<Actor> GetActorsWithPicture(string pictureFileName);
         #endregion
         #region Roles
         Role AddOrUpdateRole(Role entry);
@@ -117,8 +122,9 @@ namespace VideoPlayer.Service.Library
         void Delete(Role role);
         #endregion
         void Release(BaseServiceModel entry);
+        void Release(BaseServiceModel entry, bool force);
         void Release(IEnumerable<BaseServiceModel> entry);
+        void Release(IEnumerable<BaseServiceModel> entry, bool force);
         void Hold(BaseServiceModel entry);
-        
     }
 }

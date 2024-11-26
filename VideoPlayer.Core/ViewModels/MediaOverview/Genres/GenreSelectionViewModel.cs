@@ -34,6 +34,13 @@ namespace VideoPlayer.ViewModels.MediaOverview.Genres
         {
             var genres = mediaLibrary.GetGenres()
                 .OrderBy(g => g.Name);
+            if (!Items.Any())
+            {
+                var vm = new GenreViewModel(null);
+                vm.Selected += GenreViewModel_Selected;
+                Items.Add(vm);
+            }
+
             BaseServiceModelEventArgs args = null;
             foreach (var genre in genres)
                 if (!Items.Any(i => genre.Name == i.Title))
@@ -57,7 +64,8 @@ namespace VideoPlayer.ViewModels.MediaOverview.Genres
 
         private void GenreViewModel_Selected(object sender, EventArgs e)
         {
-            GenreSelected?.Invoke(this, (sender as GenreViewModel).Title);
+            var vm = (sender as GenreViewModel);
+            GenreSelected?.Invoke(this, vm.Title == "Alle" ? "" : vm.Title);
         }
     }
 }

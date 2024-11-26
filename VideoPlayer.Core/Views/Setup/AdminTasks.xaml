@@ -13,10 +13,18 @@
                 Command="{Binding Action}" 
                 CommandParameter="Export"
                 Margin="5"/>
+        <Button Text="Arbeitsspeicherdaten exportieren"
+                Command="{Binding Action}" 
+                CommandParameter="ExportMemory"
+                Margin="5"/>
         <Button Text="Backup exportieren"
                 Command="{Binding Action}" 
                 CommandParameter="Backup"
                 Margin="5"/>
+        <Button Text="Alle Einträge neu klassifizieren"
+            Command="{Binding Action}" 
+            CommandParameter="ReclassifyAll"
+            Margin="5"/>
         <Label Text="{Binding StatusMessage}"/>
     </VerticalStackLayout>
 </ContentView>

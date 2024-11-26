@@ -17,27 +17,4 @@ namespace VideoPlayer.Service.Download
 
         public DownloadSession Session { get; set; }
     }
-    public class DownloadProgressEventArgs : DownloadEventArgs
-    {
-        public DownloadProgressEventArgs(
-            BaseServiceModel elementToDownload,
-            decimal progress) 
-            : base(elementToDownload)
-        {
-            Progress = progress;
-        }
-
-        public decimal Progress { get; }
-    }
-    public class DownloadFailedEventArgs: DownloadEventArgs
-    {
-        public DownloadFailedEventArgs(
-            BaseServiceModel elementToDownload,
-            Exception error)
-            : base(elementToDownload)
-        {
-            Error = error;
-        }
-        public Exception Error { get; }
-    }
 }

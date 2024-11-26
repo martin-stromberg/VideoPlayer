@@ -4,6 +4,7 @@ using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using VideoPlayer.Service.Database.Models;
@@ -12,71 +13,73 @@ using VideoPlayer.Service.Library.Models;
 
 namespace VideoPlayer.Service.Database
 {
-    public class ModelCache<T> where T: BaseDataModel
+    public class CacheElement
     {
+        private int _Counter = 0;
+        public BaseDataModel Item { get; set; }
 
-        public class CacheElementEventArgs: EventArgs
+        public DateTime LastUpdate { get; set; }
+
+        public Dictionary<string, object> Data { get; } = new Dictionary<string, object>();
+        public BaseServiceModel ServiceModel { get; internal set; }
+        public int Counter { get => _Counter; }
+        public bool Deactivated { get; set; }
+        public DateTime ReleaseDue { get; private set; }
+        public string StackInformation { get; set; }
+
+        private void OnRelease()
         {
+            ReleaseRequested?.Invoke(this, EventArgs.Empty);
+        }
+        public event EventHandler ReleaseRequested;
 
-            public CacheElementEventArgs(CacheElement element)
-            {
-                Element = element;
-            }
-
-            public CacheElement Element { get; private set; }
-
+        internal void IncreaseCounter()
+        {
+            Deactivated = false;            
+            Interlocked.Increment(ref _Counter);
+            StackInformation += $"Held at: {new StackTrace()}\r\n\r\n";
+        }
+        internal void DecreaseCounter(bool direct)
+        {
+            var newValue = Interlocked.Decrement(ref _Counter);
+            StackInformation += $"Released at: {new StackTrace()}\r\n\r\n";
+            if (newValue == 0)
+                Deactivate(direct);
         }
 
-        public class CacheElement
+        private void Deactivate(bool direct)
         {
-            private int _Counter = 0;
-            public T Item { get; set; }
+            ReleaseDue = (direct) ? DateTime.Now : DateTime.Now.AddSeconds(10);
+            Deactivated = true;
+            if (direct)
+                OnRelease();
+        }
 
-            public DateTime LastUpdate { get; set; }
-
-            public Dictionary<string, object> Data { get; } = new Dictionary<string, object>();
-            public BaseServiceModel ServiceModel { get; internal set; }
-            public int Counter { get => _Counter; }
-            public bool Deactivated { get; set; }
-            public DateTime ReleaseDue { get; private set; }
-
-            private void OnRelease()
-            {
-                ReleaseRequested?.Invoke(this, EventArgs.Empty);
-            }
-            public event EventHandler ReleaseRequested;
-
-            internal void IncreaseCounter()
+        public void CheckRelease()
+        {
+            if (!Deactivated) return;
+            if (_Counter > 0)
             {
                 Deactivated = false;
-                Interlocked.Increment(ref _Counter);
+                return;
             }
-            internal void DecreaseCounter()
-            {
-                var newValue = Interlocked.Decrement(ref _Counter);
-                if (newValue == 0)
-                    Deactivate();
-            }
+            if (ReleaseDue < DateTime.Now)
+                OnRelease();
+        }
+    }
+    public class CacheElementEventArgs : EventArgs
+    {
 
-            private void Deactivate()
-            {                
-                ReleaseDue = DateTime.Now.AddSeconds(10);
-                Deactivated = true;
-            }
-
-            public void CheckRelease()
-            {
-                if (!Deactivated) return;
-                if (_Counter > 0)
-                {
-                    Deactivated = false;
-                    return;
-                }
-                if (ReleaseDue < DateTime.Now)
-                    OnRelease();
-            }
+        public CacheElementEventArgs(CacheElement element)
+        {
+            Element = element;
         }
 
+        public CacheElement Element { get; private set; }
+
+    }
+    public class ModelCache<T> where T: BaseDataModel
+    {
         private ConcurrentDictionary<long, CacheElement> _cache = new ConcurrentDictionary<long, CacheElement>();
 
         private readonly IMediaLibraryDatabase _Database;
@@ -108,7 +111,7 @@ namespace VideoPlayer.Service.Database
             element.IncreaseCounter();
             if (element.LastUpdate.Add(MaxCacheDuration) < DateTime.Now)
                 Update(element, id);            
-            return element.Item;
+            return (T)element.Item;
         }
 
         public T2 GetServiceModel<T2>(long id) where T2: BaseServiceModel
@@ -301,7 +304,11 @@ namespace VideoPlayer.Service.Database
             return _cache
                 .Values
                 .Where(e => e.LastUpdate.Add(MaxCacheDuration) < DateTime.Now)
-                .Select(e => e.Item);
+                .Select(e => (T)e.Item);
+        }
+        public IEnumerable<CacheElement> GetAllElements()
+        {
+            return _cache.Values;
         }
 
         private void Update(CacheElement element, long id)
@@ -313,7 +320,10 @@ namespace VideoPlayer.Service.Database
                 ((BaseDataModel)element.Item).Update(storedObject);
             element.LastUpdate = DateTime.Now;
             if (!_cache.ContainsKey(id))
-                _cache.AddOrUpdate(id, element, (id, existing) => element);
+            {
+                element.ReleaseRequested += Element_ReleaseRequested;
+                _cache.AddOrUpdate(id, element, (id, existing) => element);                
+            }
             OnElementUpdated(new CacheElementEventArgs(element));
         }
 
@@ -326,13 +336,15 @@ namespace VideoPlayer.Service.Database
 
         internal void Update(BaseServiceModel model, BaseDataModel dbModel) 
         {
-            var element = _cache.ContainsKey(dbModel.Id) ? _cache[dbModel.Id] : (new CacheElement());
-            element.ReleaseRequested += Element_ReleaseRequested;
+            var element = _cache.ContainsKey(dbModel.Id) ? _cache[dbModel.Id] : (new CacheElement());            
             element.Item = (T)dbModel;
             element.ServiceModel = model;
             element.LastUpdate = DateTime.Now;
             if (!_cache.ContainsKey(dbModel.Id))
+            {
+                element.ReleaseRequested += Element_ReleaseRequested;
                 _cache.AddOrUpdate(dbModel.Id, element, (id, existing) => element);
+            }
             OnElementUpdated(new CacheElementEventArgs(element));
         }
 
@@ -354,11 +366,11 @@ namespace VideoPlayer.Service.Database
             if (element is null) return;
             _cache.TryRemove(entry.Id, out element);
         }
-        internal void Release(BaseServiceModel entry)
+        internal void Release(BaseServiceModel entry, bool force)
         {
             var element = _cache.ContainsKey(entry.Id) ? _cache[entry.Id] : null;
             if (element is null) return;
-            element.DecreaseCounter();
+            element.DecreaseCounter(force);
         }
 
         internal void Hold(BaseServiceModel entry)

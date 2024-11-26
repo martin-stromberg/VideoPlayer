@@ -13,7 +13,6 @@
     <Grid>
         <ScrollView Orientation="Vertical" Padding="0" Margin="0">
             <FlexLayout x:Name="ItemCollection"
-                        BackgroundColor="Silver"
                         AlignContent="Stretch"
                         AlignItems="Stretch"
                         AlignSelf="Stretch"

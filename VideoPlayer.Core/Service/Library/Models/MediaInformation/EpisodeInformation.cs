@@ -14,5 +14,6 @@ namespace VideoPlayer.Service.Library.Models.MediaInformation
 
         public string Part { get; set; }
         public DateTime AiredAt { get; set; }
+        public string Director { get; set; }
     }
 }

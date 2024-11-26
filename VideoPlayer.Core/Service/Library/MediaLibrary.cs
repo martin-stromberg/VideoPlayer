@@ -25,7 +25,8 @@ namespace VideoPlayer.Service.Library
             ILogger<MediaLibrary> logger)
             : base(logger)
         {
-            _Database = database; Start();
+            _Database = database; 
+            Start();
         }
         private Setup _Setup = null;
         public Setup Setup
@@ -66,11 +67,11 @@ namespace VideoPlayer.Service.Library
 
         private void MediaLibrary_ElementUpdated(object sender, EventArgs e)
         {
-            var args = e as ModelCache<BaseDataModel>.CacheElementEventArgs;
+            var args = e as CacheElementEventArgs;
             UpdateMediaItems(args.Element);
         }
 
-        private void UpdateMediaItems(ModelCache<BaseDataModel>.CacheElement element)
+        private void UpdateMediaItems(CacheElement element)
         {
             var classifiedEntry = element.Item as DataClassifiedEntry;
             var mediaItemIds = new long[0];
@@ -246,11 +247,10 @@ namespace VideoPlayer.Service.Library
 
         public void AddOrUpdate<T>(T model) where T : BaseServiceModel
         {
-            Console.WriteLine($"ADDORUPDATE {model} ({model.Id} - {model.Name})");
             var dbModel = ((BaseServiceModel)model).GetDatabaseModel();
             var cache = GetModelCache(dbModel.GetType());
-            dbModel = _Database.AddOrUpdate(dbModel);
             var isNew = dbModel.Id == 0;
+            dbModel = _Database.AddOrUpdate(dbModel);            
             cache.Update(model, dbModel);
             model.Id = dbModel.Id;
             model.CreatedAt = dbModel.CreatedAt;
@@ -266,6 +266,13 @@ namespace VideoPlayer.Service.Library
         {
             foreach (var model in models)
                 AddOrUpdate(model);
+        }
+
+        public IEnumerable<CacheElement> GetAllCachedObjects()
+        {
+            foreach (var cache in _ModelCaches.Values.ToList())
+                foreach (var element in cache.GetAllElements().ToList())
+                    yield return element;
         }
 
         #region MediaSource
@@ -432,13 +439,14 @@ namespace VideoPlayer.Service.Library
         }
         public IEnumerable<MediaItem> GetDueMediaItems()
         {
+            var dueDate = DateTime.Now;
             var itemIds = _Database.GetAll<MediaDataItem>(
                                         new KeyValuePair<string, object>(nameof(MediaDataItem.CopyType), DataMediaItemCopyType.Cache))
-                                   .Where(c => c.DueDate < DateTime.Now)
+                                   .Where(c => c.DueDate < dueDate)
                                    .Select(c => c.Id)
                                    .Concat(_Database.GetAll<MediaDataItem>(
                                                 new KeyValuePair<string, object>(nameof(MediaDataItem.CopyType), DataMediaItemCopyType.Download))
-                                           .Where(c => c.DueDate < DateTime.Now)
+                                           .Where(c => c.DueDate < dueDate)
                                            .Select(c => c.Id));
             foreach (var itemId in itemIds)
                 yield return GetMediaItem(itemId);
@@ -517,6 +525,7 @@ namespace VideoPlayer.Service.Library
             foreach (var itemId in itemIds)
                 yield return GetMediaItem(itemId);
         }
+        
         #endregion
         #region Movie
         public Movie GetMovieByMediaItem(long mediaItemId)
@@ -745,6 +754,19 @@ namespace VideoPlayer.Service.Library
             var cache = GetModelCache(typeof(DataClassifiedEntry));
             var source = cache.GetServiceModel<ClassifiedEntry>(id) as ClassifiedEntry;
             return source;
+        }
+        public IEnumerable<ClassifiedEntry> GetClassifiedEntriesWithPicture(string name)
+        {
+            var entryIds = _Database.GetAll<DataClassifiedEntry>()
+                                    .Where(entry => 
+                                    { 
+                                        var result = !string.IsNullOrWhiteSpace(entry.PicturePath) && entry.PicturePath.EndsWith(name);
+                                        result |= !string.IsNullOrWhiteSpace(entry.BannerPath) && entry.BannerPath.EndsWith(name);
+                                        return result;
+                                    })                                    
+                                    .Select(c => c.Id);
+            foreach (var itemId in entryIds)
+                yield return GetClassifiedEntry(itemId);
         }
         #region TVShowEpisode
         public TVShowEpisode GetTVShowEpisodeByMediaItem(long mediaItemId)
@@ -1018,7 +1040,7 @@ namespace VideoPlayer.Service.Library
         public void AddOrUpdateLogEntry(LogEntry entry)
         {
             AddOrUpdate(entry);
-            Release(entry);
+            Release(entry, true);
         }
 
         public void ClearLogs()
@@ -1062,6 +1084,19 @@ namespace VideoPlayer.Service.Library
         {
             var entryIds = _Database.GetAll<DataActor>(
                 new KeyValuePair<string, object>(nameof(DataActor.NeedsPictureUpdate), true))
+                                    .Select(c => c.Id);
+            foreach (var itemId in entryIds)
+                yield return GetActor(itemId);
+        }
+        public IEnumerable<Actor> GetActorsWithPicture(string pictureFileName)
+        {
+            var entryIds = _Database.GetAll<DataActor>()
+                                    .Where(entry =>
+                                    {
+                                        var result = !string.IsNullOrWhiteSpace(entry.PicturePath) && entry.PicturePath.EndsWith(pictureFileName);
+                                        result |= !string.IsNullOrWhiteSpace(entry.BannerPath) && entry.BannerPath.EndsWith(pictureFileName);
+                                        return result;
+                                    })
                                     .Select(c => c.Id);
             foreach (var itemId in entryIds)
                 yield return GetActor(itemId);
@@ -1120,17 +1155,25 @@ namespace VideoPlayer.Service.Library
 
         public void Release(IEnumerable<BaseServiceModel> entries)
         {
+            Release(entries, false);
+        }
+        public void Release(IEnumerable<BaseServiceModel> entries, bool force)
+        {
             foreach (var entry in entries)
-                Release(entry);
+                Release(entry, force);
         }
         public void Release(BaseServiceModel entry)
+        {
+            Release(entry, false);
+        }
+        public void Release(BaseServiceModel entry, bool force)
         {
             if (entry is null) return;
             var attr = entry.GetType().GetCustomAttribute<DataModelReferenceAttribute>() as DataModelReferenceAttribute;
             if (attr is null) return;
             var cache = GetModelCache(attr.DataModelType);
             lock (cache)
-                cache.Release(entry);
+                cache.Release(entry, force);
         }
         public void Hold(BaseServiceModel entry)
         {

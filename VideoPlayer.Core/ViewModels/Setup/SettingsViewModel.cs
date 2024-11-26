@@ -4,6 +4,8 @@ using System.Linq;
 using VideoPlayer.Service.Device;
 using VideoPlayer.Service.Export;
 using VideoPlayer.Service.Library;
+using VideoPlayer.Service.Library.Models;
+using VideoPlayer.Service.Library.Models.Classified;
 using VideoPlayer.Service.Library.Scanner;
 using VideoPlayer.Service.Library.Scanner.Classification;
 using VideoPlayer.Service.Playlists;
@@ -20,6 +22,7 @@ namespace VideoPlayer.ViewModels.Setup
         private readonly IPlaylistManager _PlaylistManager;
         private readonly IDeviceDisplayManager _DeviceDisplayManager;
         private bool _Exporting;
+        private bool _ExportingMemory;
 
         public SettingsViewModel(
             IDataExporter dataExporter,
@@ -100,6 +103,12 @@ namespace VideoPlayer.ViewModels.Setup
                     case "ResetApp":
                         await ResetAppAsync();
                         break;
+                    case "ReclassifyAll":
+                        await ReclassifyAll();
+                        break;
+                    case "ExportMemory":
+                        await ExportMemoryAsync();
+                        break;
                 }
                 OnStatusReceived($"");
             }
@@ -108,6 +117,43 @@ namespace VideoPlayer.ViewModels.Setup
                 OnStatusReceived(ex.Message);
                 Debug.WriteLine(ex);
             }
+        }
+        private bool _Reclassifying = false;
+        private async Task ReclassifyAll()
+        {
+            if (_Reclassifying) return;
+            _Reclassifying = true;
+            try
+            {
+                OnStatusReceived($"Lade Medien.");
+                await Task.Run(() =>{
+                    try
+                    {
+                        foreach (var mi in _MediaLibrary
+                            .GetMediaItems(MediaItemCopyType.Original)
+                            .Where(mi => mi is not null))
+                        {                            
+                            if (mi.Classified)
+                            {
+                                OnStatusReceived($"Speichere {mi.Name}.");
+                                mi.Classified = false;
+                                _MediaLibrary.AddOrUpdateMediaItem(mi);
+                            }
+                            _MediaLibrary.Release(mi);
+                        }
+                        OnStatusReceived($"");
+                    }
+                    catch (Exception ex)
+                    {
+                        OnStatusReceived(ex.Message);
+                    }
+                });                
+            }
+            finally
+            {
+                _Reclassifying = false;
+            }
+            
         }
 
         private async void BackupDatabase()
@@ -128,6 +174,31 @@ namespace VideoPlayer.ViewModels.Setup
             }
         }
 
+        private async Task ExportMemoryAsync()
+        {
+            if (_ExportingMemory)
+                return;
+            _ExportingMemory = true;
+            try
+            {
+                string filePath = await _DataExporter.CreateMemoryExportFile();
+                await Share.Default
+                           .RequestAsync(new ShareFileRequest
+                           {
+                               Title = "Exportdatei speichern",
+                               File = new ShareFile(filePath)
+                           });
+                File.Delete(filePath);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex.Message);
+            }
+            finally
+            {
+                _ExportingMemory = false;
+            }
+        }
         private async void ExportData()
         {
             if (_Exporting)

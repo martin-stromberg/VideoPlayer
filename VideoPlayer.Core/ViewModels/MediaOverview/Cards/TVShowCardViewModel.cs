@@ -187,8 +187,19 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             var season = value ?? MediaLibrary.GetTVShowSeason(Episode.SeasonId);
             var episodes = mediaCollectionSelector.FindNextEntries(season).Cast<TVShowEpisode>().Where(e => e.SeasonId == season.Id);
             CollectionContext.Items.Clear();
+            var isFirst = true;
             foreach (var episode in episodes)
-                CollectionContext.Items.Add(new TVShowEpisodeMediaListItem(season, episode, ResourceManager));
+            {                
+                var li = new TVShowEpisodeMediaListItem(season, episode, ResourceManager);
+                CollectionContext.Items.Add(li);
+                if (isFirst)
+                {
+                    isFirst = false;
+                    BringToView(episode);
+                }
+                else if (Episode is not null && (episode.Id == Episode.Id))
+                    BringToView(Episode);
+            }
         }
 
         private void LoadShow()

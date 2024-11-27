@@ -111,6 +111,13 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             return new IEventPublisher[] { MediaLibrary as IEventPublisher };
         }
 
+
+        protected void BringToView(ClassifiedEntry entry)
+        {
+            BringToViewRequest?.Invoke(this, new BaseServiceModelEventArgs(entry));
+        }
+        public event EventHandler<BaseServiceModelEventArgs> BringToViewRequest;
+
         public bool HasDownload { get => GetProperty<bool>(); set { SetProperty(value); HasNoDownload = !value; } }
         public bool HasNoDownload { get => GetProperty<bool>(); private set { SetProperty(value); } }
         protected virtual void ExecuteAction(string args)

@@ -1,5 +1,6 @@
 using Microsoft.Maui.Controls;
 using System;
+using System.Diagnostics.CodeAnalysis;
 using VideoPlayer.Service;
 using VideoPlayer.Service.Library.Models.Classified;
 using VideoPlayer.ViewModels.MediaOverview.Cards;
@@ -36,6 +37,19 @@ public partial class TVShowCardPage : BaseCardPage
                 BindingContext = CreateCardViewModel<TVShowCardViewModel, TVShowEpisode>(Episode, AutoPlay);
                 break;
         }
+    }
+    protected BaseMediaItemCardViewModel ViewModel { get => BindingContext as BaseMediaItemCardViewModel; }
+
+    protected override void OnBindingContextChanged()
+    {
+        base.OnBindingContextChanged();
+        if (ViewModel is not null)
+            ViewModel.BringToViewRequest += TVShowCardPage_BringToViewRequest;
+    }
+
+    private void TVShowCardPage_BringToViewRequest(object sender, Service.Library.Models.BaseServiceModelEventArgs e)
+    {
+        EpisodeList.BringToView(e.ModelObject);
     }
 
     private void TapGestureRecognizer_Tapped(object sender, TappedEventArgs e)

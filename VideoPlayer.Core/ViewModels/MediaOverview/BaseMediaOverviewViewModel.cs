@@ -164,7 +164,9 @@ namespace VideoPlayer.ViewModels.MediaOverview
                             return false;
                         return (attr.ServiceModelType == itemType);
                     });
-                    var vm = mediaItemType is null ? new BaseMediaListItem(item, resourceManager) : Activator.CreateInstance(mediaItemType, item) as BaseMediaListItem;
+                    var vm = mediaItemType is null 
+                        ? new BaseMediaListItem(item, resourceManager) 
+                        : Activator.CreateInstance(mediaItemType, item, resourceManager) as BaseMediaListItem;
                     Items.Add(vm);
                 }
             }

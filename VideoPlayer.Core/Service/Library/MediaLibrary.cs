@@ -1045,7 +1045,17 @@ namespace VideoPlayer.Service.Library
 
         public void ClearLogs()
         {
+            var errorEntries = _Database
+                .GetAll<DataLogEntry>(new KeyValuePair<string, object>(nameof(DataLogEntry.Level), LogLevel.Error))
+                .Where(entry => entry.CreatedAt.Add(TimeSpan.FromDays(2)) > DateTime.Now)
+                .OrderBy(entry => entry.Id)
+                .ToArray();
             _Database.Truncate<DataLogEntry>();
+            foreach (var entry in errorEntries)
+            {
+                entry.Id = 0;
+                _Database.AddOrUpdate<DataLogEntry>(entry);
+            }
         }
 
         #endregion

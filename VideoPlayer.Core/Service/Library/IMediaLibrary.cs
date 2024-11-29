@@ -17,6 +17,7 @@ namespace VideoPlayer.Service.Library
         IEnumerable<CacheElement> GetAllCachedObjects();
 
         #region MediaSource
+        IEnumerable<MediaSource> GetSources();
         MediaSource AddOrUpdateSource(MediaSource source);
 
         MediaSource GetSource(long id);

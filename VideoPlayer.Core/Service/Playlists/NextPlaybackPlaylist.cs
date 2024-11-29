@@ -42,11 +42,18 @@ namespace VideoPlayer.Service.Playlists
                     return;
                 }
 
+                if (lastPosition > position)
+                {
+                    lastPosition = position;
+                    return;
+                }
+
                 if (lastItem is null || lastItem.Id != mediaItem.Id)
                 {
                     ProcessVideoChanged(mediaItem, position);
                     return;
                 }
+                
                 if (lastPosition.Add(ProcessingInterval) > position)
                     return;
                 lastPosition = position;

@@ -19,15 +19,24 @@
             <ColumnDefinition/>
         </Grid.ColumnDefinitions>
         <VerticalStackLayout Grid.Column="0" Grid.RowSpan="3">
+            <Button Text="Medienquellen"
+                    Command="{Binding Navigate}"
+                    CommandParameter="MediaSources"/>
             <Button Text="Administrative Aufgaben"
                     Command="{Binding Navigate}"
                     CommandParameter="AdminTasks"/>
         </VerticalStackLayout>
         <viewsSetup:AdminTasks 
-            Grid.Row="1"
+            Grid.Row="0"
             Grid.Column="1"
             BindingContext="{Binding .}"
             IsVisible="{Binding AdminTasksVisible}"/>
+        <viewsSetup:MediaSourcesView
+            Grid.Row="0"
+            Grid.RowSpan="2"
+            Grid.Column="1"
+            BindingContext="{Binding .}"
+            IsVisible="{Binding MediaSourcesVisible}"/>
         <Label 
             Grid.Row="2"
             Grid.Column="0"

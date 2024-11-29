@@ -472,7 +472,10 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
         public void ExecuteMediaOpened()
         {
             if (_StartingPosition != TimeSpan.Zero)
-                SeekRequested?.Invoke(this, new TimeSpanEventArgs(_StartingPosition));                
+            {
+                SeekRequested?.Invoke(this, new TimeSpanEventArgs(_StartingPosition));
+                _StartingPosition = TimeSpan.Zero;
+            }
         }
         public event EventHandler<TimeSpanEventArgs> SeekRequested;
 

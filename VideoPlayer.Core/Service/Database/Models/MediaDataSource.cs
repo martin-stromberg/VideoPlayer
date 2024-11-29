@@ -50,5 +50,15 @@ namespace VideoPlayer.Service.Database.Models
             }
         }
 
+        public bool Deleted {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty(value);
+            }
+        }
     }
 }

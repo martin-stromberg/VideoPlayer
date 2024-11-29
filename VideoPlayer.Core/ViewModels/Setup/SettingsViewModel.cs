@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
 using VideoPlayer.Service.Device;
@@ -42,8 +43,9 @@ namespace VideoPlayer.ViewModels.Setup
             Title = "Einstellungen";
             Navigate = new Command((args) => { ExecuteNavigate(args?.ToString()); });
             Action = new Command((args) => { ExecuteAction(args?.ToString()); });
-            AdminTasksVisible = true;
-        }
+            MediaSourcesVisible = true;
+            MediaSources.CollectionChanged += MediaSources_CollectionChanged;
+        }        
 
         public Command Navigate { get; }
 
@@ -54,11 +56,23 @@ namespace VideoPlayer.ViewModels.Setup
             try
             {
                 AdminTasksVisible = args == "AdminTasks";
+                MediaSourcesVisible = args == "MediaSources";
             }
             catch (Exception ex) { }
         }
 
         public bool AdminTasksVisible
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+            }
+        }
+        public bool MediaSourcesVisible
         {
             get
             {
@@ -109,6 +123,9 @@ namespace VideoPlayer.ViewModels.Setup
                     case "ExportMemory":
                         await ExportMemoryAsync();
                         break;
+                    case "newSource":
+                        CreateNewSource();
+                        break;
                 }
                 OnStatusReceived($"");
             }
@@ -118,6 +135,7 @@ namespace VideoPlayer.ViewModels.Setup
                 Debug.WriteLine(ex);
             }
         }
+
         private bool _Reclassifying = false;
         private async Task ReclassifyAll()
         {
@@ -224,7 +242,6 @@ namespace VideoPlayer.ViewModels.Setup
                 _Exporting = false;
             }
         }
-
         private async Task ResetAppAsync()
         {
             OnStatusReceived($"Beende Hintergrundaktivitäten.");
@@ -240,5 +257,64 @@ namespace VideoPlayer.ViewModels.Setup
             _LibraryScanner.Start();
             _MediaClassifier.Start();
         }
+
+        public override void ExecuteAppeared()
+        {
+            base.ExecuteAppeared();
+            LoadSources();
+        }
+        public override void ExecuteDisappeared()
+        {
+            base.ExecuteDisappeared();
+            MediaSources.Clear();
+        }
+
+        #region Quellen
+        private void CreateNewSource()
+        {
+            var vm = new MediaSourceViewModel(null);
+            vm.RemoveRequest += Vm_RemoveRequest;
+            vm.SaveRequest += Vm_SaveRequest;
+            MediaSources.Insert(0, vm);
+        }
+
+        private void Vm_RemoveRequest(object sender, EventArgs e)
+        {
+            var vm = sender as MediaSourceViewModel;
+            if (vm.Source.Id == 0)
+                MediaSources.Remove(vm);
+            else
+            {
+                vm.Source.Deleted = true;
+                _MediaLibrary.AddOrUpdateSource(vm.Source);
+            }
+        }
+
+        private void LoadSources()
+        {
+            MediaSources.Clear();
+            foreach (var source in _MediaLibrary.GetSources())
+            {
+                var vm = new MediaSourceViewModel(source);
+                vm.RemoveRequest += Vm_RemoveRequest;
+                vm.SaveRequest += Vm_SaveRequest;
+                MediaSources.Add(vm);
+            }
+        }
+
+        private void Vm_SaveRequest(object sender, EventArgs e)
+        {
+            var vm = sender as MediaSourceViewModel;
+            _MediaLibrary.AddOrUpdateSource(vm.Source);
+        }
+
+        private void MediaSources_CollectionChanged(object sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+        {
+            if (e.OldItems is not null)
+                foreach (var item in e.OldItems.Cast<MediaSourceViewModel>())
+                    _MediaLibrary.Release(item.Source);
+        }
+        public ObservableCollection<MediaSourceViewModel> MediaSources { get; } = new ObservableCollection<MediaSourceViewModel>();
+        #endregion
     }
 }

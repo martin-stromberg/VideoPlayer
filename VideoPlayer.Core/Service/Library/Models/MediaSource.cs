@@ -15,7 +15,10 @@ namespace VideoPlayer.Service.Library.Models
             : base(dataModel)
         {
             if (dataModel is not null)
+            {
                 LastScan = dataModel.LastScan;
+                Deleted = ((MediaDataSource)DataModel).Deleted;
+            }
         }
 
         protected override void AssignChanges()
@@ -25,6 +28,7 @@ namespace VideoPlayer.Service.Library.Models
             {
                 ((MediaDataSource)DataModel).Configuration = JsonConvert.SerializeObject(this);
                 ((MediaDataSource)DataModel).LastScan = LastScan;
+                ((MediaDataSource)DataModel).Deleted = Deleted;
             }
         }
 
@@ -40,5 +44,15 @@ namespace VideoPlayer.Service.Library.Models
             }
         }
 
+        public bool Deleted {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty(value);
+            }
+        }
     }
 }

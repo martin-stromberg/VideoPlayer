@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:VideoPlayer.ViewModels.Setup"
+             x:Class="VideoPlayer.Views.Setup.SourcePanel"
+             x:DataType="vm:MediaSourceViewModel">
+    <Grid Margin="5">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="30"/>
+            <RowDefinition Height="100"/>
+            <RowDefinition Height="50"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition/>
+            <ColumnDefinition Width="100"/>
+        </Grid.ColumnDefinitions>
+
+        <Frame Grid.Column="0"
+               Grid.ColumnSpan="2"
+               Grid.Row="0"
+               Grid.RowSpan="3"/>
+
+        <Label Grid.Row="0" 
+               Margin="5,0,0,0"
+               Text="{Binding Title}"
+               FontSize="Header"/>
+        <VerticalStackLayout Grid.Row="1" 
+                             Margin="5,0,0,0">
+            <FlexLayout x:Name="ItemCollection"
+                AlignContent="Stretch"
+                AlignItems="Stretch"
+                AlignSelf="Stretch"
+                HorizontalOptions="StartAndExpand"
+                BindableLayout.ItemsSource="{Binding Properties}"
+                Direction="Column"
+                JustifyContent="Center"
+                Margin="0,10,0,0"                        
+                Wrap="NoWrap">
+                <BindableLayout.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ElementProperty">
+                        <HorizontalStackLayout>
+                            <Label Text="{Binding Name}" 
+                                   VerticalTextAlignment="Center"
+                                   MinimumWidthRequest="100"/>
+                            <Entry Text="{Binding Value}"
+                                   VerticalTextAlignment="Center"/>
+                        </HorizontalStackLayout>
+                    </DataTemplate>
+                </BindableLayout.ItemTemplate>
+            </FlexLayout>
+        </VerticalStackLayout>
+
+        <HorizontalStackLayout Grid.Column="0"
+                               Grid.ColumnSpan="2"
+                               Grid.Row="2"
+                               HorizontalOptions="End">
+            <Button Text="Abbrechen" 
+                    Command="{Binding Action}" 
+                    CommandParameter="Cancel" 
+                    IsVisible="{Binding HasChanged}"
+                    Margin="5,0,5,0"/>
+            <Button Text="Speichern" 
+                    Command="{Binding Action}" 
+                    CommandParameter="Save" 
+                    IsVisible="{Binding HasChanged}"
+                    Margin="5,0,5,0"/>
+        </HorizontalStackLayout>
+    </Grid>
+</ContentView>

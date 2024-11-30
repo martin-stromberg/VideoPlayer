@@ -3,7 +3,7 @@ using VideoPlayer.Service.Database.Models;
 
 namespace VideoPlayer.Service.Library.Models.Sources
 {
-    [DataModelReference(typeof(MediaDataSource))]
+    [DataModelReference(typeof(MediaDataSource), ReferenceFieldName = nameof(MediaDataSource.Type), ReferenceFieldValue = nameof(MediaSourceType.Http))]
     public class HttpMediaSource : MediaSource
     {
 

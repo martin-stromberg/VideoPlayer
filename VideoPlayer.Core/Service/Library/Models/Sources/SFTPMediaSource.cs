@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
 using VideoPlayer.Service.Database.Models;
@@ -9,27 +10,32 @@ using VideoPlayer.Service.Library.Models;
 
 namespace VideoPlayer.Service.Library.Models.Sources
 {
-    [DataModelReference(typeof(MediaDataSource), ReferenceFieldName = nameof(MediaDataSource.Type), ReferenceFieldValue = nameof(MediaSourceType.Smb))]
-    public class SmbMediaSource: MediaSource
+    [DataModelReference(typeof(MediaDataSource), ReferenceFieldName = nameof(MediaDataSource.Type), ReferenceFieldValue = nameof(MediaSourceType.SFTP))]
+    public class SFTPMediaSource: MediaSource
     {
-        public SmbMediaSource()
+        public SFTPMediaSource()
             : this(null) { }
-        public SmbMediaSource(MediaDataSource dataModel)
+        public SFTPMediaSource(MediaDataSource dataModel)
              : base(dataModel)
         {
             if (dataModel is not null)
             {
-                if (dataModel.Type != MediaSourceType.Smb)
+                if (dataModel.Type != MediaSourceType.SFTP)
                     throw new ArgumentException(nameof(MediaDataSource.Type));
 
-                var copy = JsonConvert.DeserializeObject(dataModel.Configuration, typeof(SmbMediaSource)) as SmbMediaSource;
+                var copy = JsonConvert.DeserializeObject(dataModel.Configuration, typeof(SFTPMediaSource)) as SFTPMediaSource;
                 Servername = copy.Servername;
+                Port = copy.Port;
                 Username = copy.Username;
                 Password = copy.Password;
-                ShareName = copy.ShareName;
                 Servername = copy.Servername;
                 RootPath = copy.RootPath;
             }
+        }
+        protected override void AssignChanges()
+        {
+            base.AssignChanges();
+            ((MediaDataSource)DataModel).Type = MediaSourceType.SFTP;
         }
         public string Servername
         {
@@ -64,17 +70,6 @@ namespace VideoPlayer.Service.Library.Models.Sources
                 SetProperty(value);
             }
         }
-        public string ShareName
-        {
-            get
-            {
-                return GetProperty<string>();
-            }
-            set
-            {
-                SetProperty(value);
-            }
-        }
         public string RootPath
         {
             get
@@ -86,16 +81,10 @@ namespace VideoPlayer.Service.Library.Models.Sources
                 SetProperty(value);
             }
         }
-
-        public string Path
+        public short Port
         {
-            get => $"\\\\{Servername}\\{ShareName}\\{RootPath}";
-        }
-
-        protected override void AssignChanges()
-        {
-            base.AssignChanges();
-            ((MediaDataSource)DataModel).Type = MediaSourceType.Smb;
+            get => GetProperty<short>();
+            set => SetProperty(value);
         }
     }
 }

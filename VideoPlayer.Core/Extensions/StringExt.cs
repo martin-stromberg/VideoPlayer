@@ -16,6 +16,12 @@
                 return value;
             return default(int);
         }
+        public static short ToInt16(this string str)
+        {
+            if (short.TryParse(str, out var value))
+                return value;
+            return default(short);
+        }
 
         public static string Shorten(this string str, int maxLength)
         {

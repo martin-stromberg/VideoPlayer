@@ -7,8 +7,9 @@ namespace VideoPlayer.Service.Database.Models
     {
 
         Undefined,
-        Http
-
+        Http,
+        Smb,
+        SFTP
     }
 
     public class MediaDataSource: BaseDataModel
@@ -22,6 +23,8 @@ namespace VideoPlayer.Service.Database.Models
             }
             set
             {
+                if (value == MediaSourceType.Undefined)
+                    value = MediaSourceType.Smb;
                 SetProperty(value);
             }
         }

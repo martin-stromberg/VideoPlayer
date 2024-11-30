@@ -7,6 +7,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
+using VideoPlayer.Extensions;
 using VideoPlayer.Service.Library.Models.Sources;
 
 namespace VideoPlayer.ViewModels.Setup
@@ -150,6 +151,14 @@ namespace VideoPlayer.ViewModels.Setup
                 SmbSource.ShareName = Properties.First(p => p.Name == "Freigabename").Value;
                 SmbSource.RootPath = Properties.First(p => p.Name == "Relativer Pfad").Value;
             }
+            else if (SFTPSource is not null)
+            {
+                SFTPSource.Servername = Properties.First(p => p.Name == "IP-Adresse").Value;
+                SFTPSource.Username = Properties.First(p => p.Name == "Benutzername").Value;
+                SFTPSource.Password = Properties.First(p => p.Name == "Passwort").Value;
+                SFTPSource.Port = Properties.First(p => p.Name == "Port").Value.ToInt16();
+                SFTPSource.RootPath = Properties.First(p => p.Name == "Relativer Pfad").Value;
+            }
             SaveRequest.Invoke(this, EventArgs.Empty);
         }
         public event EventHandler SaveRequest;
@@ -173,7 +182,7 @@ namespace VideoPlayer.ViewModels.Setup
             if (Source is null || Source.Id == 0)
                 AddProperty(new ElementProperty("Art", Source?.GetType()?.Name?.Replace("MediaSource", "") ?? string.Empty)
                 {
-                    PossibleValues = new string[] { "Http", "Smb" }
+                    PossibleValues = new string[] { "Http", "Smb", "SFTP" }
                 });
             if (HttpSource is not null)
             {
@@ -186,6 +195,14 @@ namespace VideoPlayer.ViewModels.Setup
                 AddProperty(new ElementProperty("Passwort", SmbSource.Password));
                 AddProperty(new ElementProperty("Freigabename", SmbSource.ShareName));
                 AddProperty(new ElementProperty("Relativer Pfad", SmbSource.RootPath));                
+            }
+            else if (SFTPSource  is not null)
+            {
+                AddProperty(new ElementProperty("IP-Adresse", SFTPSource.Servername));
+                AddProperty(new ElementProperty("Port", SFTPSource.Port.ToString()));
+                AddProperty(new ElementProperty("Benutzername", SFTPSource.Username));
+                AddProperty(new ElementProperty("Passwort", SFTPSource.Password));                
+                AddProperty(new ElementProperty("Relativer Pfad", SFTPSource.RootPath));
             }
             HasChanged = Source is null || Source.Id == 0;
             IsStored = Source is not null && Source.Id != 0;
@@ -220,6 +237,10 @@ namespace VideoPlayer.ViewModels.Setup
                         };
                         LoadProperties();
                         break;
+                    case "SFTP":
+                        Source = new SFTPMediaSource();
+                        LoadProperties();
+                        break;
                 }                
             }            
         }
@@ -228,6 +249,7 @@ namespace VideoPlayer.ViewModels.Setup
         public bool HasChanged { get => GetProperty<bool>(); set => SetProperty(value); }
         protected  HttpMediaSource HttpSource { get => Source as HttpMediaSource; }
         protected SmbMediaSource SmbSource { get => Source as SmbMediaSource; }
+        protected SFTPMediaSource SFTPSource { get => Source as SFTPMediaSource; }
         public MediaSource Source { get; private set; }
         public ObservableCollection<ElementProperty> Properties { get; } = new ObservableCollection<ElementProperty>();
         public ObservableCollection<ElementProperty> OriginalProperties { get; } = new ObservableCollection<ElementProperty>();

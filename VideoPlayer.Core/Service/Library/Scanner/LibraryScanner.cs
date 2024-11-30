@@ -8,6 +8,7 @@ using VideoPlayer.Service.Events;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
 using VideoPlayer.Service.Library.Models.MediaInformation;
+using VideoPlayer.Service.Library.Models.Sources;
 using VideoPlayer.Service.Library.SourceReader;
 using VideoPlayer.Tools;
 
@@ -40,6 +41,9 @@ namespace VideoPlayer.Service.Library.Scanner
             {
                 case "Rescan":
                     EnqueueForceScan(e.Data as BaseServiceModel);                    
+                    ForceExecute();
+                    break;
+                case "Scan":
                     ForceExecute();
                     break;
                 case "Reload":

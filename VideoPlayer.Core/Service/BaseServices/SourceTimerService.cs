@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using System.Reflection;
 using VideoPlayer.Service.Library.Models;
+using VideoPlayer.Service.Library.Models.Sources;
 using VideoPlayer.Service.Library.SourceReader;
 
 namespace VideoPlayer.Service.BaseServices

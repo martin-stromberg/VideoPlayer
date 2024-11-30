@@ -4,12 +4,13 @@ using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Extensions;
 using Microsoft.Maui.Storage;
 using System.Diagnostics;
+using VideoPlayer.Service.Library.Models.Sources;
 
-namespace VideoPlayer.Service.Library.SourceReader
+namespace VideoPlayer.Service.Library.SourceReader.Http
 {
 
     [ServiceModelReference(typeof(HttpMediaSource))]
-    public class HttpSourceReader: SourceReader
+    public class HttpSourceReader : SourceReader
     {
 
         public HttpSourceReader(HttpMediaSource mediaSource)
@@ -35,7 +36,7 @@ namespace VideoPlayer.Service.Library.SourceReader
             if (!skipCache)
             {
                 var response = _Cache.GetResponse(fullPath);
-                if (!string.IsNullOrWhiteSpace(response)) 
+                if (!string.IsNullOrWhiteSpace(response))
                     return response;
             }
 
@@ -52,7 +53,7 @@ namespace VideoPlayer.Service.Library.SourceReader
         {
             if (string.IsNullOrWhiteSpace(json))
                 return new SourceFile[0];
-            var node = JsonObject.Parse(json).AsObject();
+            var node = JsonNode.Parse(json).AsObject();
             var files = node["files"].AsArray();
             return files.Select(f =>
             {
@@ -71,7 +72,7 @@ namespace VideoPlayer.Service.Library.SourceReader
         {
             if (string.IsNullOrWhiteSpace(json))
                 return new SourceFolder[0];
-            var node = JsonObject.Parse(json).AsObject();
+            var node = JsonNode.Parse(json).AsObject();
             var files = node["directories"].AsArray();
             return files.Select(f =>
             {
@@ -105,13 +106,13 @@ namespace VideoPlayer.Service.Library.SourceReader
             while (folder is not null && folder.Path != folderPath)
             {
                 subFolders = (await ReadFoldersAsync(folder)).ToArray();
-                folder = subFolders.FirstOrDefault(f => 
-                    folderPath.StartsWith(f.Path) 
+                folder = subFolders.FirstOrDefault(f =>
+                    folderPath.StartsWith(f.Path)
                     && f.Path.Length <= folderPath.Length
                     && folderPath.Substring(0, f.Path.Length) == f.Path
                     && (folderPath.Remove(0, f.Path.Length) == ""
                     || folderPath.Remove(0, f.Path.Length).StartsWith("/"))
-                    )                    ;
+                    );
             }
             if (folder is not null)
                 return (await ReadFilesAsync(folder)).FirstOrDefault(f => f.Name == mediaItem.Name);
@@ -169,6 +170,6 @@ namespace VideoPlayer.Service.Library.SourceReader
             }
         }
 
-        
+
     }
 }

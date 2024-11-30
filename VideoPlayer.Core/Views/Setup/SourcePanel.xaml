@@ -7,7 +7,7 @@
     <Grid Margin="5">
         <Grid.RowDefinitions>
             <RowDefinition Height="30"/>
-            <RowDefinition Height="100"/>
+            <RowDefinition Height="*"/>
             <RowDefinition Height="50"/>
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
@@ -38,16 +38,36 @@
                 Wrap="NoWrap">
                 <BindableLayout.ItemTemplate>
                     <DataTemplate x:DataType="vm:ElementProperty">
-                        <HorizontalStackLayout>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="100"/>
+                                <ColumnDefinition/>
+                            </Grid.ColumnDefinitions>
                             <Label Text="{Binding Name}" 
+                                   Grid.Column="0"
                                    VerticalTextAlignment="Center"
                                    MinimumWidthRequest="100"/>
                             <Entry Text="{Binding Value}"
-                                   VerticalTextAlignment="Center"/>
-                        </HorizontalStackLayout>
+                                   Grid.Column="1"
+                                   VerticalTextAlignment="Center"
+                                   IsVisible="{Binding IsFreeText}"/>
+                            <Picker ItemsSource="{Binding PossibleValues}" 
+                                    Grid.Column="1"
+                                    SelectedItem="{Binding Value}"
+                                    IsVisible="{Binding IsSelectionValue}"/>
+                        </Grid>
                     </DataTemplate>
                 </BindableLayout.ItemTemplate>
             </FlexLayout>
+        </VerticalStackLayout>
+
+        <VerticalStackLayout Grid.Column="1"
+                             Grid.Row="0"
+                             Grid.RowSpan="2"
+                             IsVisible="{Binding IsStored}">
+            <ImageButton Source="scan64x64.png"
+                         Command="{Binding Action}"
+                         CommandParameter="scan"/>
         </VerticalStackLayout>
 
         <HorizontalStackLayout Grid.Column="0"

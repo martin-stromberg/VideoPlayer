@@ -3,9 +3,9 @@ using System;
 using System.Linq;
 using VideoPlayer.Service.Database.Models;
 
-namespace VideoPlayer.Service.Library.Models
+namespace VideoPlayer.Service.Library.Models.Sources
 {
-    public class MediaSource: BaseServiceModel
+    public class MediaSource : BaseServiceModel
     {
 
         public MediaSource()
@@ -44,7 +44,8 @@ namespace VideoPlayer.Service.Library.Models
             }
         }
 
-        public bool Deleted {
+        public bool Deleted
+        {
             get
             {
                 return GetProperty<bool>();

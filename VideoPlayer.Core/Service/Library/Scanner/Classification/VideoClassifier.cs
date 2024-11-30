@@ -10,6 +10,7 @@ using VideoPlayer.Extensions;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
 using VideoPlayer.Service.Library.Models.MediaInformation;
+using VideoPlayer.Service.Library.Models.Sources;
 using VideoPlayer.Service.Library.SourceReader;
 using VideoPlayer.Tools;
 using Image = SixLabors.ImageSharp.Image;
@@ -213,7 +214,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             finally { MediaLibrary.Release(episodes); }
         }
 
-        private TVShowSeason UpdateSeasonByMediaItem(MediaItem mediaItem, MediaCollection collection, Models.MediaSource source, TVShow show)
+        private TVShowSeason UpdateSeasonByMediaItem(MediaItem mediaItem, MediaCollection collection, MediaSource source, TVShow show)
         {
             var episodeInfo = mediaItem.MetaInformation as EpisodeInformation;
             if (episodeInfo is null)
@@ -293,7 +294,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             return UpdateTVShowSeason(season, seasonNo);
         }
 
-        private TVShow UpdateShowByMediaItem(MediaItem mediaItem, MediaCollection collection, Models.MediaSource source, TVShowInformation showInfo) {
+        private TVShow UpdateShowByMediaItem(MediaItem mediaItem, MediaCollection collection, MediaSource source, TVShowInformation showInfo) {
             var episodeInfo = mediaItem.MetaInformation as EpisodeInformation;
             if (showInfo is null) 
                 return null;

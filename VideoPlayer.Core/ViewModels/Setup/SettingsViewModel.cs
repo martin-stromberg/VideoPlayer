@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
 using VideoPlayer.Service.Device;
+using VideoPlayer.Service.Events;
 using VideoPlayer.Service.Export;
 using VideoPlayer.Service.Library;
 using VideoPlayer.Service.Library.Models;
@@ -275,6 +276,7 @@ namespace VideoPlayer.ViewModels.Setup
             var vm = new MediaSourceViewModel(null);
             vm.RemoveRequest += Vm_RemoveRequest;
             vm.SaveRequest += Vm_SaveRequest;
+            vm.ScanRequest += Vm_ScanRequest;
             MediaSources.Insert(0, vm);
         }
 
@@ -298,8 +300,18 @@ namespace VideoPlayer.ViewModels.Setup
                 var vm = new MediaSourceViewModel(source);
                 vm.RemoveRequest += Vm_RemoveRequest;
                 vm.SaveRequest += Vm_SaveRequest;
+                vm.ScanRequest += Vm_ScanRequest;
                 MediaSources.Add(vm);
             }
+        }
+
+        private void Vm_ScanRequest(object sender, EventArgs e)
+        {
+            var vm = sender as MediaSourceViewModel;
+            vm.Source.LastScan = DateTime.MinValue;
+            _MediaLibrary.AddOrUpdateSource(vm.Source);
+            NotifyStatus($"Ein Scan von {vm.Source.Name} ist geplant!");
+            Notify(this, new NotificationEventArgs("Scan", vm.Source));
         }
 
         private void Vm_SaveRequest(object sender, EventArgs e)

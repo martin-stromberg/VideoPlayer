@@ -11,6 +11,7 @@ using VideoPlayer.Service.Events;
 using VideoPlayer.Service.Library;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
+using VideoPlayer.Service.Library.Models.Sources;
 using VideoPlayer.Service.Library.Scanner;
 using VideoPlayer.Service.Library.Scanner.Classification;
 using VideoPlayer.Service.Library.Scanner.Picture;

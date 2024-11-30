@@ -1,10 +1,10 @@
 ﻿using Newtonsoft.Json;
 using VideoPlayer.Service.Database.Models;
 
-namespace VideoPlayer.Service.Library.Models
+namespace VideoPlayer.Service.Library.Models.Sources
 {
     [DataModelReference(typeof(MediaDataSource))]
-    public class HttpMediaSource: MediaSource
+    public class HttpMediaSource : MediaSource
     {
 
         public HttpMediaSource()

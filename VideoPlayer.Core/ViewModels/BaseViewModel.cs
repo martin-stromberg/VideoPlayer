@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Linq;
@@ -30,7 +31,9 @@ namespace VideoPlayer.ViewModels
 
         public BaseViewModel ViewModel { get; }
     }
-    public class BaseViewModel: IEventSubscriber, 
+    public class BaseViewModel: 
+        IEventSubscriber,
+        IEventPublisher,
         INotifyPropertyChanged,
         IAppearable,
         INavigatable
@@ -49,7 +52,8 @@ namespace VideoPlayer.ViewModels
         }
 
         #region INotifyPropertyChanged
-        public event PropertyChangedEventHandler PropertyChanged;
+        public event PropertyChangedEventHandler PropertyChanged;        
+
         private ConcurrentDictionary<string, object> _Properties = new ConcurrentDictionary<string, object>();
 
         protected T GetProperty<T>([CallerMemberName] string name = "")
@@ -124,5 +128,53 @@ namespace VideoPlayer.ViewModels
 
         protected virtual void OnStatusReceived(string statusMessage) { }
 
+        #region IEventPublisher
+        private Timer _StatusTimer = null;
+        private string _LastStatus = string.Empty;
+        private DateTime _LastStatusTime;
+        private string _PreviousStatus = string.Empty;
+        protected readonly ILogger Logger;
+
+        public event EventHandler<NotificationEventArgs> OnEvent;
+
+        public virtual void Notify(object sender, NotificationEventArgs e)
+        {
+            OnEvent?.Invoke(sender, e);
+        }
+
+        public virtual void NotifyError(Exception error)
+        {
+            Notify(this, new NotificationEventArgs("Error", error));
+        }
+
+        public virtual void NotifyStatus(string message, bool direct = false)
+        {
+            _LastStatus = message;
+            _LastStatusTime = DateTime.Now;
+            if (direct)
+                SendStatus();
+            else if (_StatusTimer is null)
+                _StatusTimer = new Timer((args) => { SendStatus(); }, null, 1000, 1000);
+        }
+
+        private void SendStatus()
+        {
+            try
+            {
+                var currentStatus = _LastStatus;
+                if (_LastStatusTime.AddSeconds(5) < DateTime.Now)
+                    _LastStatus = string.Empty;
+                if (string.IsNullOrWhiteSpace(currentStatus) && _StatusTimer is not null)
+                {
+                    _StatusTimer.Dispose();
+                    _StatusTimer = null;
+                }
+                if (!string.IsNullOrWhiteSpace(currentStatus) || !string.IsNullOrWhiteSpace(_PreviousStatus))
+                    Notify(this, new NotificationEventArgs("Status", currentStatus));
+                _PreviousStatus = currentStatus;
+            }
+            catch { }
+        }
+        #endregion
     }
 }

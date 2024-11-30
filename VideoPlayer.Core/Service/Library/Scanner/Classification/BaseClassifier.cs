@@ -2,6 +2,7 @@
 using VideoPlayer.Service.BaseServices;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
+using VideoPlayer.Service.Library.Models.Sources;
 using VideoPlayer.Service.Library.SourceReader;
 
 namespace VideoPlayer.Service.Library.Scanner.Classification

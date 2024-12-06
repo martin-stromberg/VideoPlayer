@@ -76,6 +76,12 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             entry = SelectedMovie ?? entry;
             base.UpdateMediaInformation(entry);
         }
+        protected override void Rename(ClassifiedEntry entry, string newName)
+        {
+            entry = SelectedMovie ?? entry;
+            if (entry is MovieCollection)
+                base.Rename(entry, newName);
+        }
         protected override void Rescan(ClassifiedEntry entry)
         {
             entry = SelectedMovie ?? entry;
@@ -115,7 +121,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
                 CollectionContext.Items.Clear();
                 foreach (var entry in mediaCollectionSelector.FindNextEntries(Collection))
                     CollectionContext.Items.Add(new MovieMediaListItem(entry, ResourceManager));
-                Select(CollectionContext.Items.FirstOrDefault()?.Element as ClassifiedEntry);
+                //Select(CollectionContext.Items.FirstOrDefault()?.Element as ClassifiedEntry);
             }  
             else if (Movie is not null && Movie.CollectionId != 0)
             {

@@ -57,6 +57,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
         {
             IDownloadableEntry downloadableEntry = entry as IDownloadableEntry;
             IPlayableEntry playableEntry = entry as IPlayableEntry;
+            CanEdit = entry is MovieCollection;
             HasDownload = downloadableEntry is not null && downloadableEntry.DownloadMediaItemId != 0;
             SetPicture(entry as IPicturedEntry);
             Title = entry.Name;
@@ -117,7 +118,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             BringToViewRequest?.Invoke(this, new BaseServiceModelEventArgs(entry));
         }
         public event EventHandler<BaseServiceModelEventArgs> BringToViewRequest;
-
+        public bool CanEdit { get => GetProperty<bool>(); private set { SetProperty(value); } }
         public bool HasDownload { get => GetProperty<bool>(); set { SetProperty(value); HasNoDownload = !value; } }
         public bool HasNoDownload { get => GetProperty<bool>(); private set { SetProperty(value); } }
         protected virtual void ExecuteAction(string args)
@@ -482,6 +483,16 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
         internal void ExecuteStateChanged(MediaElementState previousState, MediaElementState newState)
         {
             CurrentState = newState;
+        }
+        protected virtual void Rename(ClassifiedEntry entry, string newName)
+        {
+            entry.Name = newName;
+            MediaLibrary.AddOrUpdateEntry(entry);
+            UpdateMediaInformation(entry);
+        }
+        public void Rename(string newName)
+        {
+            Rename(Entry, newName);
         }
         #endregion
     }

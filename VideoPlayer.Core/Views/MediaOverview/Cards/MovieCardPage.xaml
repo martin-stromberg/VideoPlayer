@@ -59,8 +59,24 @@
             <ImageButton Source="movie_collection32x32.png"                         
                          Command="{Binding PlaybackCommand}"/>
         </Frame>
+        <VerticalStackLayout IsVisible="false"
+                             x:Name="PanelRename"
+                             Grid.ColumnSpan="2"
+                             Grid.Row="0"
+                             BackgroundColor="Black">
+            <Entry x:Name="EditRename"
+                   VerticalOptions="Start"
+                   HorizontalOptions="FillAndExpand"/>
+        </VerticalStackLayout>
+        
         <!-- Action Buttons -->
         <VerticalStackLayout Grid.Column="1">
+            <ImageButton Source="edit64x64.png"
+                         HorizontalOptions="End"
+                         VerticalOptions="Start"
+                         IsVisible="{Binding CanEdit}"
+                         Clicked="ImageButton_Clicked"
+                         CommandParameter="rename"/>
             <ImageButton Source="delete64x64.png"
                          HorizontalOptions="End"
                          VerticalOptions="Start"

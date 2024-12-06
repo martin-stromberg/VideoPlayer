@@ -13,8 +13,6 @@ namespace VideoPlayer.Views.MediaOverview.Cards;
 [QueryProperty(nameof(AutoPlay), "AutoPlay")]
 public partial class MovieCardPage : BaseCardPage
 {
-    
-
     public MovieCardPage()
 		:base()
 	{
@@ -42,5 +40,30 @@ public partial class MovieCardPage : BaseCardPage
     private void TapGestureRecognizer_Tapped(object sender, TappedEventArgs e)
     {
         (BindingContext as BaseMediaItemCardViewModel)?.PlaybackCommand.Execute(null);
+    }
+
+    private async void ImageButton_Clicked(object sender, EventArgs e)
+    {
+        try
+        {
+            switch ((sender as ImageButton).CommandParameter)
+            {
+                case "rename":
+                    PanelRename.IsVisible = !PanelRename.IsVisible;
+                    if (PanelRename.IsVisible)
+                        EditRename.Text = Title;
+                    else
+                    {
+                        EditRename.Text = EditRename.Text.Trim();
+                        if (!string.IsNullOrWhiteSpace(EditRename.Text))
+                            (BindingContext as BaseMediaItemCardViewModel).Rename(EditRename.Text);
+                    }
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            await DisplayAlert("Fehler", ex.Message, "OK");
+        }
     }
 }

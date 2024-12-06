@@ -1,5 +1,8 @@
 ﻿using Microsoft.Extensions.Logging;
+using Renci.SshNet;
+using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -251,13 +254,15 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                 {
                     if (banner is not null)
                     {
-                        var kV = await UpdateCacheFileAsync(banner, season.BannerPath, source);
+                        NotifyStatus($"Bereite Banner auf für: {season.ShowName} {season.ToString()}");
+                        var kV = await UpdateCacheFileAsync(banner, season.BannerPath, source, 0, 300);
                         season.BannerPath = kV.Key;
                         season.BannerBackgroundColor = kV.Value.ToHex();
                     }
                     if (poster is not null)
                     {
-                        var kV = await UpdateCacheFileAsync(poster, season.PicturePath, source);
+                        NotifyStatus($"Bereite Poster auf für: {season.ShowName} {season.ToString()}");
+                        var kV = await UpdateCacheFileAsync(poster, season.PicturePath, source, 0, 240);
                         season.PicturePath = kV.Key;
                         season.PictureBackgroundColor = kV.Value.ToHex();
                     }
@@ -350,25 +355,29 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
 
                 if (banner is not null)
                 {
-                    var kV = await UpdateCacheFileAsync(banner, show.BannerPath, mediaSource);
+                    NotifyStatus($"Bereite Banner auf für: {show.Name}");
+                    var kV = await UpdateCacheFileAsync(banner, show.BannerPath, mediaSource, 0, 300);
                     show.BannerPath = kV.Key;
                     show.BannerBackgroundColor = kV.Value.ToHex();
                 }
                 else if (fanart is not null)
                 {
-                    var kV = await UpdateCacheFileAsync(fanart, show.BannerPath, mediaSource); ;
+                    NotifyStatus($"Bereite Banner auf für: {show.Name}");
+                    var kV = await UpdateCacheFileAsync(fanart, show.BannerPath, mediaSource, 0, 300);
                     show.BannerPath = kV.Key;
                     show.BannerBackgroundColor = kV.Value.ToHex();
                 }
                 if (poster is not null)
                 {
-                    var kV = await UpdateCacheFileAsync(poster, show.PicturePath, mediaSource);
+                    NotifyStatus($"Bereite Poster auf für: {show.Name}");
+                    var kV = await UpdateCacheFileAsync(poster, show.PicturePath, mediaSource, 0, 240);
                     show.PicturePath = kV.Key;
                     show.PictureBackgroundColor = kV.Value.ToHex();
                 }
                 else if (folder is not null)
                 {
-                    var kV = await UpdateCacheFileAsync(folder, show.PicturePath, mediaSource);
+                    NotifyStatus($"Bereite Poster auf für: {show.Name}");
+                    var kV = await UpdateCacheFileAsync(folder, show.PicturePath, mediaSource, 0, 240);
                     show.PicturePath = kV.Key;
                     show.PictureBackgroundColor = kV.Value.ToHex();
                 }
@@ -425,19 +434,22 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
 
                 if (banner is not null)
                 {
-                    var kV = await UpdateCacheFileAsync(banner, episode.BannerPath, mediaSource);
+                    NotifyStatus($"Bereite Banner auf für: {episode.Name}");
+                    var kV = await UpdateCacheFileAsync(banner, episode.BannerPath, mediaSource, 0, 300);
                     episode.BannerPath = kV.Key;
                     episode.BannerBackgroundColor = kV.Value.ToHex();
                 }
                 if (poster is not null)
                 {
-                    var kV = await UpdateCacheFileAsync(poster, episode.PicturePath, mediaSource);
+                    NotifyStatus($"Bereite Poster auf für: {episode.Name}");
+                    var kV = await UpdateCacheFileAsync(poster, episode.PicturePath, mediaSource, 0, 240);
                     episode.PicturePath = kV.Key;
                     episode.PictureBackgroundColor = kV.Value.ToHex();
                 }
                 else if (thumb is not null)
                 {
-                    var kV = await UpdateCacheFileAsync(thumb, episode.PicturePath, mediaSource);
+                    NotifyStatus($"Bereite Poster auf für: {episode.Name}");
+                    var kV = await UpdateCacheFileAsync(thumb, episode.PicturePath, mediaSource, 0, 240);
                     episode.PicturePath = kV.Key;
                     episode.PictureBackgroundColor = kV.Value.ToHex();
                 }
@@ -776,7 +788,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                 if (actor is null)
                     actor = CreateActor(actorInfo);
                 else
-                    actors.RemoveAt(0);
+                    actors.Remove(actor);
                 return actor;
             }
             finally
@@ -883,25 +895,29 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
 
                 if (banner is not null)
                 {
-                    var kV = await UpdateCacheFileAsync(banner, movie.BannerPath, mediaSource);
+                    NotifyStatus($"Bereite Banner auf für: {movie.Name}");
+                    var kV = await UpdateCacheFileAsync(banner, movie.BannerPath, mediaSource, 0, 300);
                     movie.BannerPath = kV.Key;
                     movie.BannerBackgroundColor = kV.Value.ToHex();
                 }
                 else if (fanart is not null)
                 {
-                    var kV = await UpdateCacheFileAsync(fanart, movie.BannerPath, mediaSource);
+                    NotifyStatus($"Bereite Banner auf für: {movie.Name}");
+                    var kV = await UpdateCacheFileAsync(fanart, movie.BannerPath, mediaSource, 0, 300);
                     movie.BannerPath = kV.Key;
                     movie.BannerBackgroundColor = kV.Value.ToHex();
                 }
                 else if (landscape is not null)
                 {
-                    var kV = await UpdateCacheFileAsync(landscape, movie.BannerPath, mediaSource);
+                    NotifyStatus($"Bereite Banner auf für: {movie.Name}");
+                    var kV = await UpdateCacheFileAsync(landscape, movie.BannerPath, mediaSource, 0, 300);
                     movie.BannerPath = kV.Key;
                     movie.BannerBackgroundColor = kV.Value.ToHex();
                 }
                 if (poster is not null)
                 {
-                    var kV = await UpdateCacheFileAsync(poster, movie.PicturePath, mediaSource);
+                    NotifyStatus($"Bereite Poster auf für: {movie.Name}");
+                    var kV = await UpdateCacheFileAsync(poster, movie.PicturePath, mediaSource, 0, 240);
                     movie.PicturePath = kV.Key;
                     movie.PictureBackgroundColor = kV.Value.ToHex();
                 }
@@ -948,13 +964,15 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
 
                     if (banner is not null)
                     {
-                        var kV = await UpdateCacheFileAsync(banner, movieCollection.BannerPath, mediaSource);
+                        NotifyStatus($"Bereite Banner auf für: {movieCollection.Name}");
+                        var kV = await UpdateCacheFileAsync(banner, movieCollection.BannerPath, mediaSource, 0, 300);
                         movieCollection.BannerPath = kV.Key;
                         movieCollection.BannerBackgroundColor = kV.Value.ToHex();
                     }
                     else if (fanart is not null)
                     {
-                        var kV = await UpdateCacheFileAsync(fanart, movieCollection.BannerPath, mediaSource);
+                        NotifyStatus($"Bereite Banner auf für: {movieCollection.Name}");
+                        var kV = await UpdateCacheFileAsync(fanart, movieCollection.BannerPath, mediaSource, 0, 300);
                         movieCollection.BannerPath = kV.Key;
                         movieCollection.BannerBackgroundColor = kV.Value.ToHex();
                     }
@@ -974,13 +992,15 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
 
                     if (poster is not null)
                     {
-                        var kV = await UpdateCacheFileAsync(poster, movieCollection.PicturePath, mediaSource);
+                        NotifyStatus($"Bereite Poster auf für: {movieCollection.Name}");
+                        var kV = await UpdateCacheFileAsync(poster, movieCollection.PicturePath, mediaSource, 0, 240);
                         movieCollection.PicturePath = kV.Key;
                         movieCollection.PictureBackgroundColor = kV.Value.ToHex();
                     }
                     else if (folder is not null)
                     {
-                        var kV = await UpdateCacheFileAsync(folder, movieCollection.PicturePath, mediaSource);
+                        NotifyStatus($"Bereite Poster auf für: {movieCollection.Name}");
+                        var kV = await UpdateCacheFileAsync(folder, movieCollection.PicturePath, mediaSource, 0, 240);
                         movieCollection.PicturePath = kV.Key;
                         movieCollection.PictureBackgroundColor = kV.Value.ToHex();
                     }
@@ -1010,9 +1030,9 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             }
         }
 
-        private async Task<KeyValuePair<string, Color>> UpdateCacheFileAsync(MediaItem mediaItem, string destPath, MediaSource mediaSource)
+        private async Task<KeyValuePair<string, Microsoft.Maui.Graphics.Color>> UpdateCacheFileAsync(MediaItem mediaItem, string destPath, MediaSource mediaSource, int width, int height)
         {
-            Color pictureBackgroundColor = Colors.Transparent;
+            var pictureBackgroundColor = Colors.Transparent;
             if (string.IsNullOrEmpty(destPath))
             {
                 var cacheFolder = PathTools.Combine(FileSystem.Current.AppDataDirectory, "Cache");
@@ -1034,10 +1054,17 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             }
             destFileInfo.Refresh();
             if (!destFileInfo.Exists)
-                return new KeyValuePair<string, Color>(String.Empty, Colors.Transparent);
+                return new KeyValuePair<string, Microsoft.Maui.Graphics.Color>(String.Empty, Colors.Transparent);
             using (var image = Image.Load<Rgba32>(destFileInfo.FullName))
+            {
                 pictureBackgroundColor = await image.GetPixelColorAsync(0, 0);
-            return new KeyValuePair<string, Color>(destFileInfo.FullName.Remove(0, FileSystem.Current.AppDataDirectory.Length), pictureBackgroundColor);
+                if (width != 0 || height != 0)
+                {
+                    image.Mutate(i => i.Resize(0, height));
+                    image.Save(destFileInfo.FullName);
+                }                
+            }
+            return new KeyValuePair<string, Microsoft.Maui.Graphics.Color>(destFileInfo.FullName.Remove(0, FileSystem.Current.AppDataDirectory.Length), pictureBackgroundColor);
         }
 
         private MediaInformation UpdateMediaInformation(MediaCollection collection, ISourceReader reader)
@@ -1399,7 +1426,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
 
                 foreach (var picture in pictureItems)
                 {
-                    var kV = await UpdateCacheFileAsync(picture, actor.PicturePath, mediaSource);
+                    var kV = await UpdateCacheFileAsync(picture, actor.PicturePath, mediaSource, 0, 240);
                     actor.PicturePath = kV.Key;
                     actor.PictureBackgroundColor = kV.Value.ToHex();
                     break;

@@ -34,13 +34,8 @@
                    FontSize="Header"
                    TextColor="{Binding PictureTextColor}"/>
             <Label TextColor="{Binding PictureTextColor}"
-                   FontSize="Small">
-                <Label.Text>
-                    <MultiBinding StringFormat="{}{0} · {1}">
-                        <Binding Path="Year"/>
-                        <Binding Path="Genres"/>
-                    </MultiBinding>
-                </Label.Text>
+                   FontSize="Small"
+                   Text="{Binding Subtitle}" >
             </Label>
             <Label Text="{Binding Plot}" 
                    TextColor="{Binding PictureTextColor}"
@@ -59,6 +54,7 @@
             <ImageButton Source="movie_collection32x32.png"                         
                          Command="{Binding PlaybackCommand}"/>
         </Frame>
+        <!-- Umbenennung -->
         <VerticalStackLayout IsVisible="false"
                              x:Name="PanelRename"
                              Grid.ColumnSpan="2"
@@ -67,8 +63,7 @@
             <Entry x:Name="EditRename"
                    VerticalOptions="Start"
                    HorizontalOptions="FillAndExpand"/>
-        </VerticalStackLayout>
-        
+        </VerticalStackLayout>        
         <!-- Action Buttons -->
         <VerticalStackLayout Grid.Column="1">
             <ImageButton Source="edit64x64.png"

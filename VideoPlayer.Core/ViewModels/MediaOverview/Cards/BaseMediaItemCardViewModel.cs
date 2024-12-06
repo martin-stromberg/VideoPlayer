@@ -75,6 +75,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
                 Genres = "";
                 Plot = "";
             }
+            Subtitle = $"{(Year > 0 ? Year.ToString() : "")}{(Year > 0 && !string.IsNullOrWhiteSpace(Genres) ? " - " : "")}{Genres}";
         }
 
         public BaseMediaItemCardViewModel(
@@ -118,6 +119,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             BringToViewRequest?.Invoke(this, new BaseServiceModelEventArgs(entry));
         }
         public event EventHandler<BaseServiceModelEventArgs> BringToViewRequest;
+        public string Subtitle { get => GetProperty<string>(); private set { SetProperty(value); } }
         public bool CanEdit { get => GetProperty<bool>(); private set { SetProperty(value); } }
         public bool HasDownload { get => GetProperty<bool>(); set { SetProperty(value); HasNoDownload = !value; } }
         public bool HasNoDownload { get => GetProperty<bool>(); private set { SetProperty(value); } }

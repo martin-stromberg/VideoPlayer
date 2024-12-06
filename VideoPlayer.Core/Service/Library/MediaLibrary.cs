@@ -117,26 +117,35 @@ namespace VideoPlayer.Service.Library
             Setup setup = new Setup() { Name = nameof(Setup) };
             MediaSource[] mediaSources = new MediaSource[]
             {
+                new SFTPMediaSource()
+                {
+                    Name = "Filme",
+                    Servername = "*",
+                    Port = 22,
+                    Username = "Martin Stromberg",
+                    Password = "*",
+                    RootPath = "/MedienServer/Filme"
+                }
                 //new HttpMediaSource()
                 //{
                 //    Name = "Test",
                 //    Uri = $"http://mstromberg.ddns.net:50010/Folder?path=/MediaServer/Disk3/Test"
                 //},
-                new HttpMediaSource()
-                {
-                    Name = "Filme",
-                    Uri = $"http://mstromberg.ddns.net:50010/Folder?path=/MediaServer/Disk3/Filme"
-                },
-                 new HttpMediaSource()
-                 {
-                 Name = "Serien",
-                 Uri = $"http://mstromberg.ddns.net:50010/Folder?path=/MediaServer/Crucial X62/Serien"
-                 },
-                 new HttpMediaSource()
-                 {
-                 Name = "Serien (2)",
-                 Uri = $"http://mstromberg.ddns.net:50010/Folder?path=/MediaServer/Disk2/Serien"
-                 }
+                //new HttpMediaSource()
+                //{
+                //    Name = "Filme",
+                //    Uri = $"http://mstromberg.ddns.net:50010/Folder?path=/MediaServer/Disk3/Filme"
+                //},
+                // new HttpMediaSource()
+                // {
+                // Name = "Serien",
+                // Uri = $"http://mstromberg.ddns.net:50010/Folder?path=/MediaServer/Crucial X62/Serien"
+                // },
+                // new HttpMediaSource()
+                // {
+                // Name = "Serien (2)",
+                // Uri = $"http://mstromberg.ddns.net:50010/Folder?path=/MediaServer/Disk2/Serien"
+                // }
             };
             Genre[] genres = new Genre[] {
                 new Genre(null){ Name = "Action" },
@@ -308,8 +317,35 @@ namespace VideoPlayer.Service.Library
             var source = cache.GetServiceModel<MediaSource>(id);
             return source;
         }
+        public void Delete(MediaSource source)
+        {
+            var cache = GetModelCache(typeof(MediaDataSource));
+            cache.Remove(source);
+
+            var collections = GetSourceMediaCollections(source.Id)
+                .Select(col =>
+                {
+                    Release(col);
+                    return col;
+                });
+            foreach (var collection in collections)
+                Delete(collection);
+
+            var dbModel = source.GetDatabaseModel() as MediaDataSource;
+            if (!_Database.Delete<MediaDataSource>(dbModel))
+                throw new ApplicationException($"Media source could not be deleted.");
+        }
         #endregion
         #region MediaCollection
+        public IEnumerable<MediaCollection> GetSourceMediaCollections(long sourceId)
+        {
+            var collectionIds = _Database
+                .GetAll<MediaDataItemCollection>(
+                    new KeyValuePair<string, object>(nameof(MediaDataItemCollection.SourceId), sourceId))
+                .Select(c => c.Id);
+            foreach (var id in collectionIds)
+                yield return GetMediaCollection(id);
+        }
         public MediaCollection GetMediaCollectionByPath(long sourceId, string fullPath)
         {
             var collectionId = _Database
@@ -340,6 +376,15 @@ namespace VideoPlayer.Service.Library
             var cache = GetModelCache(typeof(MediaDataItemCollection));
             cache.Remove(collection);
 
+            var childCollections = GetChildMediaCollections(collection.Id)
+                .Select(col =>
+                {
+                    Release(col);
+                    return col;
+                });
+            foreach (var childCollection in childCollections)
+                Delete(childCollection);
+
             var mediaItems = GetMediaCollectionItems(collection.Id)
                 .Select(mi =>
                 {
@@ -347,12 +392,12 @@ namespace VideoPlayer.Service.Library
                     return mi;
                 });
             foreach (var mediaItem in mediaItems)
-                Delete(mediaItem);
+                Delete(mediaItem);            
 
             var parentCollection = GetMediaCollection(collection.ParentId);
 
-            var dbModel = collection.GetDatabaseModel() as MediaDataItem;
-            if (!_Database.Delete<MediaDataItem>(dbModel))
+            var dbModel = collection.GetDatabaseModel() as MediaDataItemCollection;
+            if (!_Database.Delete<MediaDataItemCollection>(dbModel))
                 throw new ApplicationException($"Media item collection could not be deleted.");
 
             if (parentCollection is null)

@@ -18,6 +18,7 @@ namespace VideoPlayer.Service.Library
         IEnumerable<CacheElement> GetAllCachedObjects();
 
         #region MediaSource
+        void Delete(MediaSource source);
         IEnumerable<MediaSource> GetSources();
         MediaSource AddOrUpdateSource(MediaSource source);
 
@@ -26,10 +27,11 @@ namespace VideoPlayer.Service.Library
         MediaSource GetNextScanSource();
         #endregion
         #region MediaCollection
+        IEnumerable<MediaCollection> GetSourceMediaCollections(long sourceId);
         MediaCollection GetMediaCollectionByPath(long id, string fullPath);
 
         MediaCollection GetMediaCollection(long id);
-
+        void Delete(MediaCollection collection);
         MediaCollection AddOrUpdateMediaCollection(MediaCollection collection);
         IEnumerable<MediaCollection> GetUnclassifiedMediaCollections();
         IEnumerable<MediaCollection> GetChildMediaCollections(long objectId);

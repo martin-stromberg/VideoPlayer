@@ -50,10 +50,12 @@
                             <Entry Text="{Binding Value}"
                                    Grid.Column="1"
                                    VerticalTextAlignment="Center"
+                                   IsEnabled="{Binding IsEditable}"
                                    IsVisible="{Binding IsFreeText}"/>
                             <Picker ItemsSource="{Binding PossibleValues}" 
                                     Grid.Column="1"
                                     SelectedItem="{Binding Value}"
+                                    IsEnabled="{Binding IsEditable}"
                                     IsVisible="{Binding IsSelectionValue}"/>
                         </Grid>
                     </DataTemplate>
@@ -68,6 +70,10 @@
             <ImageButton Source="scan64x64.png"
                          Command="{Binding Action}"
                          CommandParameter="scan"/>
+            <ImageButton Source="delete64x64.png"
+                         IsVisible="{Binding IsEditable}"
+                         Command="{Binding Action}"
+                         CommandParameter="delete"/>
         </VerticalStackLayout>
 
         <HorizontalStackLayout Grid.Column="0"

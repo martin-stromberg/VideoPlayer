@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.VisualBasic.FileIO;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -48,6 +49,7 @@ namespace VideoPlayer.ViewModels.Setup
                 IsSelectionValue = value != null && value.Length > 0; 
             } 
         }
+        public bool IsEditable { get => GetProperty<bool>(); set => SetProperty(value); }
 
         #region INotifyPropertyChanged
         public event PropertyChangedEventHandler PropertyChanged;
@@ -104,12 +106,27 @@ namespace VideoPlayer.ViewModels.Setup
                     case "scan":
                         Scan();
                         break;
+                    case "delete":
+                        Delete();
+                        break;
                 }
             }
             catch
             {
 
             }
+        }
+
+        private void Delete()
+        {
+            if (Source.Id != 0)
+            {
+                Source.Deleted = true;
+                LoadProperties();                
+                AssignChanges();
+            }
+            else
+                RemoveRequest.Invoke(this, EventArgs.Empty);
         }
 
         private void Scan()
@@ -176,6 +193,7 @@ namespace VideoPlayer.ViewModels.Setup
 
         private void LoadProperties()
         {
+            IsEditable = Source is null || Source.Id == 0 || !Source.Deleted;
             Properties.Clear();
             OriginalProperties.Clear();
             AddProperty(new ElementProperty("Name", Source?.Name ?? "Neue Quelle"));
@@ -205,11 +223,12 @@ namespace VideoPlayer.ViewModels.Setup
                 AddProperty(new ElementProperty("Relativer Pfad", SFTPSource.RootPath));
             }
             HasChanged = Source is null || Source.Id == 0;
-            IsStored = Source is not null && Source.Id != 0;
+            IsStored = Source is not null && Source.Id != 0;            
         }
 
         private void AddProperty(ElementProperty elementProperty)
-        {            
+        {
+            elementProperty.IsEditable = IsEditable;
             Properties.Add(elementProperty);
             OriginalProperties.Add(new ElementProperty(elementProperty.Name, elementProperty.Value));
             elementProperty.PropertyChanged += OnPropertyChanged;
@@ -244,7 +263,7 @@ namespace VideoPlayer.ViewModels.Setup
                 }                
             }            
         }
-
+        public bool IsEditable { get => GetProperty<bool>(); set => SetProperty(value); }
         public bool IsStored { get => GetProperty<bool>(); set => SetProperty(value); }
         public bool HasChanged { get => GetProperty<bool>(); set => SetProperty(value); }
         protected  HttpMediaSource HttpSource { get => Source as HttpMediaSource; }

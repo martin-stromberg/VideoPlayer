@@ -570,6 +570,11 @@ namespace VideoPlayer.Service.Library.Scanner
                 return false;
             try
             {
+                if (source.Deleted)
+                {
+                    DeleteSource(source);
+                    return true;
+                }
                 if (_Settings.SourceScanInterval > TimeSpan.Zero)
                     if (source.LastScan.Add(_Settings.SourceScanInterval) > DateTime.Now)
                         return false;
@@ -579,6 +584,19 @@ namespace VideoPlayer.Service.Library.Scanner
             finally
             {
                 _MediaLibrary.Release(source);
+            }
+        }
+
+        private void DeleteSource(MediaSource source)
+        {
+            StartProcess($"Entferne Quelle {source.Name}");
+            try
+            {
+                _MediaLibrary.Delete(source);
+            }
+            finally
+            {
+                FinishProcess();
             }
         }
 

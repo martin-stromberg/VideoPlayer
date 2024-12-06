@@ -117,35 +117,6 @@ namespace VideoPlayer.Service.Library
             Setup setup = new Setup() { Name = nameof(Setup) };
             MediaSource[] mediaSources = new MediaSource[]
             {
-                new SFTPMediaSource()
-                {
-                    Name = "Filme",
-                    Servername = "*",
-                    Port = 22,
-                    Username = "Martin Stromberg",
-                    Password = "*",
-                    RootPath = "/MedienServer/Filme"
-                }
-                //new HttpMediaSource()
-                //{
-                //    Name = "Test",
-                //    Uri = $"http://mstromberg.ddns.net:50010/Folder?path=/MediaServer/Disk3/Test"
-                //},
-                //new HttpMediaSource()
-                //{
-                //    Name = "Filme",
-                //    Uri = $"http://mstromberg.ddns.net:50010/Folder?path=/MediaServer/Disk3/Filme"
-                //},
-                // new HttpMediaSource()
-                // {
-                // Name = "Serien",
-                // Uri = $"http://mstromberg.ddns.net:50010/Folder?path=/MediaServer/Crucial X62/Serien"
-                // },
-                // new HttpMediaSource()
-                // {
-                // Name = "Serien (2)",
-                // Uri = $"http://mstromberg.ddns.net:50010/Folder?path=/MediaServer/Disk2/Serien"
-                // }
             };
             Genre[] genres = new Genre[] {
                 new Genre(null){ Name = "Action" },

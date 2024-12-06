@@ -695,7 +695,7 @@ namespace VideoPlayer.Service.Library.Scanner
             mediaItem.LastAccess = file.LastWriteTime;
             mediaItem = _MediaLibrary.AddOrUpdateMediaItem(mediaItem);
             if (isNew)
-                _MediaLibrary.Release(collection);
+                _MediaLibrary.Release(mediaItem);
         }
 
         private MediaItem CreateMediaItem(long collectionId, SourceFile file)

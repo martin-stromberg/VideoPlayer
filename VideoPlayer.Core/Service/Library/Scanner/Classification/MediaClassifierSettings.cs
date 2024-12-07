@@ -6,7 +6,6 @@
         public TimeSpan FirstCheck { get; set; } = TimeSpan.FromSeconds(60);
 
         public TimeSpan CheckInterval { get; set; } = TimeSpan.FromHours(1);
-
     }
 
 }

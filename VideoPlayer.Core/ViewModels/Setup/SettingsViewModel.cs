@@ -11,6 +11,7 @@ using VideoPlayer.Service.Library.Models.Classified;
 using VideoPlayer.Service.Library.Scanner;
 using VideoPlayer.Service.Library.Scanner.Classification;
 using VideoPlayer.Service.Playlists;
+using VideoPlayer.Service.Settings;
 
 namespace VideoPlayer.ViewModels.Setup
 {
@@ -23,6 +24,9 @@ namespace VideoPlayer.ViewModels.Setup
         private readonly IMediaClassifier _MediaClassifier;
         private readonly IPlaylistManager _PlaylistManager;
         private readonly IDeviceDisplayManager _DeviceDisplayManager;
+        private readonly IMediaClassifierSettings settings;
+        private readonly ILibraryScannerSettings libraryScannerSettings;
+        private readonly IApplicationSettings applicationSettings;
         private bool _Exporting;
         private bool _ExportingMemory;
 
@@ -32,7 +36,9 @@ namespace VideoPlayer.ViewModels.Setup
             ILibraryScanner libraryScanner,
             IMediaClassifier mediaClassifier,
             IPlaylistManager playlistManager,
-            IDeviceDisplayManager deviceDisplayManager)
+            IDeviceDisplayManager deviceDisplayManager,
+            IMediaClassifierSettings settings,
+            IApplicationSettings applicationSettings)
             : base()
         {
             _DataExporter = dataExporter;
@@ -41,10 +47,12 @@ namespace VideoPlayer.ViewModels.Setup
             _MediaClassifier = mediaClassifier;
             _PlaylistManager = playlistManager;
             _DeviceDisplayManager = deviceDisplayManager;
+            this.settings = settings;
+            this.applicationSettings = applicationSettings;
             Title = "Einstellungen";
             Navigate = new Command((args) => { ExecuteNavigate(args?.ToString()); });
             Action = new Command((args) => { ExecuteAction(args?.ToString()); });
-            MediaSourcesVisible = true;
+            SettingsVisible = true;
             MediaSources.CollectionChanged += MediaSources_CollectionChanged;
         }        
 
@@ -58,10 +66,51 @@ namespace VideoPlayer.ViewModels.Setup
             {
                 AdminTasksVisible = args == "AdminTasks";
                 MediaSourcesVisible = args == "MediaSources";
+                SettingsVisible = args == "Settings";
             }
             catch (Exception ex) { }
         }
 
+        
+        public bool ScansEnabled
+        {
+            get
+            {
+                return applicationSettings.ScanningEnabled;
+            }
+            set
+            {
+                applicationSettings.ScanningEnabled = value;
+                SetProperty<bool>(value);                
+                Notify(this, new NotificationEventArgs("Scan", null));
+            }
+        }
+        public bool ClassificationsEnabled
+        {
+            get
+            {
+                return applicationSettings.ClassificationEnabled;
+            }
+            set
+            {
+                applicationSettings.ClassificationEnabled = value;
+                SetProperty<bool>(value);                
+                Notify(this, new NotificationEventArgs("ScanCompleted", null));
+            }
+        }
+        public bool ImageScrapsEnabled
+        {
+            get
+            {
+                return applicationSettings.ImageScrappingEnabled;
+            }
+            set
+            {
+                applicationSettings.ImageScrappingEnabled = value;
+                SetProperty<bool>(value);                
+                Notify(this, new NotificationEventArgs("ClassificationCompleted", null));
+            }
+        }
         public bool AdminTasksVisible
         {
             get
@@ -84,6 +133,18 @@ namespace VideoPlayer.ViewModels.Setup
                 SetProperty<bool>(value);
             }
         }
+        public bool SettingsVisible
+        {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty<bool>(value);
+            }
+        }
+        
 
         public string StatusMessage
         {

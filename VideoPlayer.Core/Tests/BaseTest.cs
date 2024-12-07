@@ -17,6 +17,7 @@ using VideoPlayer.Service.Library.Scanner.Classification;
 using VideoPlayer.Service.Library.Scanner.Picture;
 using VideoPlayer.Service.Library.SourceReader;
 using VideoPlayer.Service.Playlists;
+using VideoPlayer.Service.Settings;
 using VideoPlayer.Tests.Helper;
 using VideoPlayer.Tools;
 
@@ -117,7 +118,8 @@ namespace VideoPlayer.Tests
                 FirstCheck = TimeSpan.FromSeconds(1),
                 CheckInterval = TimeSpan.FromMinutes(30)
             };
-            MediaClassifier = new MediaClassifier(MediaLibrary, settings, null);
+            var applicationSettings = new ApplicationSettings();
+            MediaClassifier = new MediaClassifier(MediaLibrary, settings, applicationSettings,null);
             MediaClassifier.ExecutionStarted += MediaClassifier_ExecutionStarted;
             MediaClassifier.ExecutionFinished += MediaClassifier_ExecutionFinished;
             MediaClassifier.CreatingSourceReader += MediaClassifier_CreatingSourceReader;
@@ -126,7 +128,7 @@ namespace VideoPlayer.Tests
             if (autoStart)
                 MediaClassifier.Start();
 
-            MediaPictureProcessor = new MediaPictureProcessor(MediaLibrary, settings, null);
+            MediaPictureProcessor = new MediaPictureProcessor(MediaLibrary, settings, applicationSettings, null);
             MediaPictureProcessor.ExecutionStarted += MediaPictureProcessor_ExecutionStarted;
             MediaPictureProcessor.ExecutionFinished += MediaPictureProcessor_ExecutionFinished;
             MediaPictureProcessor.CreatingSourceReader += MediaClassifier_CreatingSourceReader;
@@ -157,7 +159,8 @@ namespace VideoPlayer.Tests
                 CheckInterval = TimeSpan.FromHours(1),
                 FirstCheck = TimeSpan.FromSeconds(1),
             };
-            Scanner = new LibraryScanner(MediaLibrary, settings, null);
+            var applicationSettings = new ApplicationSettings();
+            Scanner = new LibraryScanner(MediaLibrary, settings, applicationSettings, null);
             Scanner.CreatingSourceReader += MediaClassifier_CreatingSourceReader;
             Scanner.ExecutionStarted += Scanner_ExecutionStarted;
             Scanner.ExecutionFinished += Scanner_ExecutionFinished;

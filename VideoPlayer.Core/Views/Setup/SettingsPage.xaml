@@ -19,12 +19,18 @@
             <ColumnDefinition/>
         </Grid.ColumnDefinitions>
         <VerticalStackLayout Grid.Column="0" Grid.RowSpan="3">
+            <Button Text="Einstellungen"
+                    Command="{Binding Navigate}"
+                    CommandParameter="Settings"
+                    Margin="5"/>
             <Button Text="Medienquellen"
                     Command="{Binding Navigate}"
-                    CommandParameter="MediaSources"/>
+                    CommandParameter="MediaSources"
+                    Margin="5"/>
             <Button Text="Administrative Aufgaben"
                     Command="{Binding Navigate}"
-                    CommandParameter="AdminTasks"/>
+                    CommandParameter="AdminTasks"
+                    Margin="5"/>
         </VerticalStackLayout>
         <viewsSetup:AdminTasks 
             Grid.Row="0"
@@ -37,6 +43,12 @@
             Grid.Column="1"
             BindingContext="{Binding .}"
             IsVisible="{Binding MediaSourcesVisible}"/>
+        <viewsSetup:SettingsView
+            Grid.Row="0"
+            Grid.RowSpan="2"
+            Grid.Column="1"
+            BindingContext="{Binding .}"
+            IsVisible="{Binding SettingsVisible}"/>
         <Label 
             Grid.Row="2"
             Grid.Column="0"

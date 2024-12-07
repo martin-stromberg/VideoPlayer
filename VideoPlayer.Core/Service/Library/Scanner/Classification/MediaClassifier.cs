@@ -5,6 +5,7 @@ using VideoPlayer.Service.BaseServices;
 using VideoPlayer.Service.Events;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
+using VideoPlayer.Service.Settings;
 
 namespace VideoPlayer.Service.Library.Scanner.Classification
 {
@@ -14,15 +15,20 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
     {
 
         private readonly IMediaLibrary _MediaLibrary;
+        private readonly IMediaClassifierSettings settings;
+        private readonly IApplicationSettings applicationSettings;
         private readonly BaseClassifier[] _Classifier;
 
         public MediaClassifier(
             IMediaLibrary mediaLibrary, 
             IMediaClassifierSettings settings, 
+            IApplicationSettings applicationSettings,
             ILogger<MediaClassifier> logger)
             : base(logger)
         {
             _MediaLibrary = mediaLibrary;
+            this.settings = settings;
+            this.applicationSettings = applicationSettings;
             _Classifier = new BaseClassifier[] { new VideoClassifier(mediaLibrary, logger) };
             foreach (var classifier in _Classifier)
                 classifier.SourceReaderRequest += (sender, e) => { e.Reader = CreateReader(e.MediaSource); };
@@ -56,7 +62,8 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
         }
         protected override async Task ExecuteTimerAsync()
         {
-            await ClassifyNextItems();
+            if (applicationSettings.ClassificationEnabled)
+                await ClassifyNextItems();
         }
 
         private async Task ClassifyNextItems()
@@ -129,6 +136,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
         
         private async Task Classify(MediaItem mediaItem)
         {
+            if (!applicationSettings.ClassificationEnabled) return;
             try
             {
                 NotifyStatus($"Klassifiziere: {mediaItem.Path}");

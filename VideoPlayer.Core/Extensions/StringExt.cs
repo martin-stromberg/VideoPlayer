@@ -22,6 +22,12 @@
                 return value;
             return default(short);
         }
+        public static bool ToBool(this string str)
+        {
+            if (bool.TryParse(str, out var value))
+                return value;
+            return default(bool);
+        }
 
         public static string Shorten(this string str, int maxLength)
         {

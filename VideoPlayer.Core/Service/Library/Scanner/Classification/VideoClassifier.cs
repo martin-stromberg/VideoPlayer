@@ -103,8 +103,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                         }
                         finally
                         {
-                            foreach (var item in allItems)
-                                MediaLibrary.Release(item);
+                            MediaLibrary.Release(allItems);
                         }
                     }
                     finally
@@ -1077,30 +1076,37 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                                                 MediaLibrary.Release(item, true);
                                             return result;
                                         });
-            MediaInformation returnInfo = null;
-            if (nfoFile is not null)
+            try
             {
-                returnInfo = ReadMediaInformation(nfoFile, reader);
-                collection.MetaInformation = returnInfo;
-                collection.LastMetaInformationUpdate = DateTime.Now;
-                MediaLibrary.AddOrUpdateMediaCollection(collection);
+                MediaInformation returnInfo = null;
+                if (nfoFile is not null)
+                {
+                    returnInfo = ReadMediaInformation(nfoFile, reader);
+                    collection.MetaInformation = returnInfo;
+                    collection.LastMetaInformationUpdate = DateTime.Now;
+                    MediaLibrary.AddOrUpdateMediaCollection(collection);
+                }
+                if (collection.ParentId != 0)
+                {
+                    collection = MediaLibrary.GetMediaCollection(collection.ParentId);
+                    if (collection is not null)
+                        try
+                        {
+                            var parentInfo = UpdateMediaInformation(collection, reader);
+                            if (returnInfo is null)
+                                returnInfo = parentInfo;
+                        }
+                        finally
+                        {
+                            MediaLibrary.Release(collection, true);
+                        }
+                }
+                return returnInfo;
             }
-            if (collection.ParentId != 0)
+            finally
             {
-                collection = MediaLibrary.GetMediaCollection(collection.ParentId);
-                if (collection is not null)
-                    try
-                    {
-                        var parentInfo = UpdateMediaInformation(collection, reader);
-                        if (returnInfo is null)
-                            returnInfo = parentInfo;
-                    }
-                    finally
-                    {
-                        MediaLibrary.Release(collection, true);
-                    }
-            }
-            return returnInfo;
+                MediaLibrary.Release(nfoFile);
+            }            
         }
         private void UpdateMediaInformation(MediaItem mediaItem, MediaItem nfoFile, ISourceReader reader)
         {
@@ -1258,7 +1264,8 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                                                 if (!result)
                                                     MediaLibrary.Release(item, true);
                                                 return result;
-                                            });
+                                            })
+                                            .ToArray();
                 }
                 finally
                 {
@@ -1268,7 +1275,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             try
             {
                 foreach (var item in items)
-                    result = ClassifyVideo(item) | result;
+                    result = ClassifyVideo(item) || result;
             }
             finally
             {

@@ -9,6 +9,7 @@ using VideoPlayer.Service.BaseServices;
 using VideoPlayer.Service.Events;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Scanner.Classification;
+using VideoPlayer.Service.Settings;
 
 namespace VideoPlayer.Service.Library.Scanner.Picture
 {
@@ -19,15 +20,18 @@ namespace VideoPlayer.Service.Library.Scanner.Picture
     public class MediaPictureProcessor : SourceTimerService, IMediaPictureProcessor
     {
         private readonly IMediaLibrary _MediaLibrary;
+        private readonly IApplicationSettings _ApplicationSettings;
         private readonly BaseClassifier[] _Classifier;
 
         public MediaPictureProcessor(
             IMediaLibrary mediaLibrary,
             IMediaClassifierSettings settings,
+            IApplicationSettings applicationSettings,
             ILogger<MediaPictureProcessor> logger) 
             : base(logger)
         {
             _MediaLibrary = mediaLibrary;
+            this._ApplicationSettings = applicationSettings;
             _Classifier = new BaseClassifier[] { new VideoClassifier(mediaLibrary, logger) };
             foreach (var classifier in _Classifier)
                 classifier.SourceReaderRequest += (sender, e) => { e.Reader = CreateReader(e.MediaSource); };
@@ -46,8 +50,11 @@ namespace VideoPlayer.Service.Library.Scanner.Picture
         }
         protected override async Task ExecuteTimerAsync()
         {
-            await ClassifyNextItems();
-            DeleteOrpahnedPictures();
+            if (_ApplicationSettings.ImageScrappingEnabled)
+            {
+                await ClassifyNextItems();
+                DeleteOrpahnedPictures();
+            }
         }
 
         private void DeleteOrpahnedPictures()

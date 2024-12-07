@@ -6,13 +6,11 @@ namespace VideoPlayer.Service.Library.Scanner
 
     public interface ILibraryScannerSettings
     {
-
         public TimeSpan SourceScanInterval { get; set; }
 
         public TimeSpan FirstCheck { get; set; }
 
         public TimeSpan CheckInterval { get; set; }
-
     }
 
     public class LibraryScannerSettings: ILibraryScannerSettings
@@ -23,6 +21,5 @@ namespace VideoPlayer.Service.Library.Scanner
         public TimeSpan FirstCheck { get; set; } = TimeSpan.FromSeconds(10);
 
         public TimeSpan CheckInterval { get; set; } = TimeSpan.FromMinutes(1);
-
     }
 }

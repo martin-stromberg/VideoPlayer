@@ -6,7 +6,6 @@
         public TimeSpan FirstCheck { get; set; }
 
         public TimeSpan CheckInterval { get; set; }
-
     }
 
 }

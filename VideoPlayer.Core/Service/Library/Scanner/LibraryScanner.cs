@@ -10,6 +10,7 @@ using VideoPlayer.Service.Library.Models.Classified;
 using VideoPlayer.Service.Library.Models.MediaInformation;
 using VideoPlayer.Service.Library.Models.Sources;
 using VideoPlayer.Service.Library.SourceReader;
+using VideoPlayer.Service.Settings;
 using VideoPlayer.Tools;
 
 namespace VideoPlayer.Service.Library.Scanner
@@ -20,19 +21,28 @@ namespace VideoPlayer.Service.Library.Scanner
 
         private readonly IMediaLibrary _MediaLibrary;
         private readonly ILibraryScannerSettings _Settings;
+        private readonly IApplicationSettings _ApplicationSettings;
         private ConcurrentQueue<BaseServiceModel> _ForceEntries = new ConcurrentQueue<BaseServiceModel>();
         private ConcurrentQueue<BaseServiceModel> _ForceReloadEntries = new ConcurrentQueue<BaseServiceModel>();
 
         public LibraryScanner(
             IMediaLibrary mediaLibrary,
             ILibraryScannerSettings settings,
+            IApplicationSettings applicationSettings,
             ILogger<LibraryScanner> logger)
             : base(logger)
         {
             _Settings = settings;
+            _ApplicationSettings = applicationSettings;
             _MediaLibrary = mediaLibrary;
             DueTime = settings.FirstCheck;
             Period = settings.CheckInterval;
+        }
+        protected override void CheckActive()
+        {
+            base.CheckActive();
+            if (!_ApplicationSettings.ScanningEnabled)
+                throw new CancelledException();
         }
         protected override void ProcessNotification(NotificationEventArgs e)
         {
@@ -563,6 +573,8 @@ namespace VideoPlayer.Service.Library.Scanner
 
         private async Task<bool> ScanNextSourceAsync()
         {
+            if (!_ApplicationSettings.ScanningEnabled)
+                return false;
             while (CheckReloadNextForcedEntries());
             await CheckScanNextForcedEntryAsync();
             var source = _MediaLibrary.GetNextScanSource();
@@ -574,7 +586,7 @@ namespace VideoPlayer.Service.Library.Scanner
                 {
                     DeleteSource(source);
                     return true;
-                }
+                }                
                 if (_Settings.SourceScanInterval > TimeSpan.Zero)
                     if (source.LastScan.Add(_Settings.SourceScanInterval) > DateTime.Now)
                         return false;
@@ -627,7 +639,7 @@ namespace VideoPlayer.Service.Library.Scanner
                 var collection = ProcessFolder(source, parentCollection, currentFolder);
                 try
                 {
-                    if (!collection.Classified)
+                    if (!collection.LastScanCompleted)
                     {
                         var folders = await reader.ReadFoldersAsync(currentFolder);
                         foreach (var folder in folders)
@@ -636,9 +648,13 @@ namespace VideoPlayer.Service.Library.Scanner
                         NotifyStatus($"Erfasse {currentFolder.FullPath}");
                         var files = await reader.ReadFilesAsync(currentFolder);
                         foreach (var file in files)
-                            ProcessFile(file, collection);
+                            ProcessFile(file, collection);                        
+
+                        collection.LastScanCompleted = true;
+                        _MediaLibrary.AddOrUpdateMediaCollection(collection);
+
                         NotifyScanCompleted();
-                    }
+                    }                    
                 }
                 finally
                 {
@@ -663,7 +679,8 @@ namespace VideoPlayer.Service.Library.Scanner
             if (collection is null)
                 collection = CreateCollection(source.Id, parentCollection?.Id ?? 0, folder);
 
-            collection.Classified = collection.Classified && (collection.LastAccess == folder.LastWriteTime) && (folder.LastWriteTime != DateTime.MinValue);
+            collection.LastScanCompleted = collection.LastScanCompleted && (collection.LastAccess == folder.LastWriteTime) && (folder.LastWriteTime != DateTime.MinValue);
+            collection.Classified = collection.Classified && collection.LastScanCompleted;
             collection.LastAccess = folder.LastWriteTime;
             collection = _MediaLibrary.AddOrUpdateMediaCollection(collection);
             return collection;

@@ -89,5 +89,16 @@ namespace VideoPlayer.Service.Database.Models
                 SetProperty(value);
             }
         }
+
+        public bool LastScanCompleted {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty(value);
+            }
+        }
     }
 }

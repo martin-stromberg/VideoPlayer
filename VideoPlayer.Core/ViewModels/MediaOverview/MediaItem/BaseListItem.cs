@@ -20,12 +20,23 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
         {
             Id = element is null ? 0 : element.Id;
             Element = element;
+            Element.PropertyChanged += Element_PropertyChanged;
             Tapped = new Command((arg) => {
                 if (!bool.TryParse(arg?.ToString(), out var boolArg))
                     boolArg = false;
                 ExecuteTapped(boolArg); 
             });
         }
+
+        private void Element_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            ElementPropertyChanged(e);
+        }
+        protected virtual void ElementPropertyChanged(System.ComponentModel.PropertyChangedEventArgs e)
+        {
+
+        }
+
         public long Id { get; }
         public BaseServiceModel Element { get; }
         public bool AllowAutoPlay { get; set; }

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -30,6 +31,11 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
                 SetProperty(value);
                 UpdateMediaInformation(Item);
             }
+        }
+        protected override void ElementPropertyChanged(PropertyChangedEventArgs e)
+        {
+            base.ElementPropertyChanged(e);
+            UpdateMediaInformation(Item);
         }
 
         protected virtual void UpdateMediaInformation(ClassifiedEntry item)

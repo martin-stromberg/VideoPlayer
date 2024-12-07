@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
+using Microsoft.Maui.Controls;
 using System.Collections.Concurrent;
 using System.Data;
 using System.Diagnostics.CodeAnalysis;
@@ -252,7 +253,12 @@ namespace VideoPlayer.Service.Library
         public IEnumerable<CacheElement> GetAllCachedObjects()
         {
             foreach (var cache in _ModelCaches.Values.ToList())
-                foreach (var element in cache.GetAllElements().ToList())
+                foreach (var element in cache.GetAllElements()
+                    .Select(elem =>
+                    {
+                        elem.StackInformation += $"Exported at {DateTime.Now}\n\n";
+                        return elem;
+                    }).ToList())
                     yield return element;
         }
 
@@ -802,10 +808,11 @@ namespace VideoPlayer.Service.Library
         {
             var show = GetShowByName(showName);
             if (show is null) return null;
+            Release(show);
             var season = GetShowSeason(show, seasonNo);
             if (season is null)
                 return null;
-
+            Release(season);
             var episodeId = _Database
                 .GetAll<DataClassifiedEntry>(
                     new KeyValuePair<string, object>(nameof(DataClassifiedEntry.Type), DataEntryType.TVShowEpisode),

@@ -59,6 +59,7 @@ namespace VideoPlayer.Service.Playlists
                 pl = CreatePlaylist();
             try
             {
+                pl.Items.CollectionChanged += Items_CollectionChanged;
                 pl.DownloadRequested += Pl_DownloadRequested; ;
                 pl.DownloadFailed += PL_DownloadFailed;
                 pl.PlaybackRequest += Pl_PlaybackRequest;
@@ -71,7 +72,21 @@ namespace VideoPlayer.Service.Playlists
             }
         }
 
-        
+        private void Items_CollectionChanged(object sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+        {
+            if (e.NewItems is not null)
+                foreach (var item in e.NewItems.OfType<PlaylistEntry>())
+                {                    
+                    MediaLibrary.Hold(item.Item);
+                    MediaLibrary.Hold(item.Entry);
+                }
+            if (e.OldItems is not null)
+                foreach (var item in e.OldItems.OfType<PlaylistEntry>())
+                {
+                    MediaLibrary.Release(item.Item);
+                    MediaLibrary.Release(item.Entry);
+                }
+        }
 
         public event EventHandler<BaseServiceModelEventArgs> PlaylistLoaded;
 

@@ -37,12 +37,18 @@ namespace VideoPlayer.Service.Database
         {
             Deactivated = false;            
             Interlocked.Increment(ref _Counter);
-            StackInformation += $"Held at: {new StackTrace()}\r\n\r\n";
+            StackInformation += $"Held at {DateTime.Now}:\n  {ClearStack(new StackTrace().ToString())}\n\n";
         }
+
+        private string ClearStack(string stackTrace)
+        {
+            return string.Join("\n", stackTrace.Replace("\r\n", "\n").Replace("\r", "\n").Split("\n").Where(line =>!line.TrimStart().StartsWith("at System.")));
+        }
+
         internal void DecreaseCounter(bool direct)
         {
             var newValue = Interlocked.Decrement(ref _Counter);
-            StackInformation += $"Released at: {new StackTrace()}\r\n\r\n";
+            StackInformation += $"Released at {DateTime.Now}:\n  {ClearStack(new StackTrace().ToString())}\n\n";
             if (newValue == 0)
                 Deactivate(direct);
         }
@@ -123,7 +129,10 @@ namespace VideoPlayer.Service.Database
                 Update(element, id);
             if (element.ServiceModel is not null)
                 if (!(element.ServiceModel is T2))
+                {
+                    element.DecreaseCounter(false);
                     return null;
+                }
             if (element.ServiceModel is not null)
             {
                 logger?.LogTrace($"{GetType()}: GetServiceModel.Result = {typeof(T).Name} {id} (Instance {element.ServiceModel.InstanceId})");
@@ -137,7 +146,10 @@ namespace VideoPlayer.Service.Database
             element.ServiceModel = serviceModel;
             if (element.ServiceModel is not null)
                 if (!(element.ServiceModel is T2))
+                {
+                    element.DecreaseCounter(false);
                     return null;
+                }
             if (element.ServiceModel is not null)
                 return (T2)element.ServiceModel;
             return null;

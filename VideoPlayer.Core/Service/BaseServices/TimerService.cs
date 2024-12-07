@@ -45,7 +45,7 @@ namespace VideoPlayer.Service.BaseServices
                 _Worker = null;
             }
         }
-        protected void CheckActive()
+        protected virtual void CheckActive()
         {
             if (_Worker is null)
                 throw new CancelledException();

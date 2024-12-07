@@ -23,6 +23,7 @@ namespace VideoPlayer.Service.Library.Models
                 if (!string.IsNullOrWhiteSpace(((MediaDataItemCollection)DataModel).MetaInformation))
                     MetaInformation = JsonConvert.DeserializeObject(((MediaDataItemCollection)DataModel).MetaInformation) as MediaInformation.MediaInformation;
                 LastMetaInformationUpdate = ((MediaDataItemCollection)DataModel).LastMetaInformationUpdate;
+                LastScanCompleted = ((MediaDataItemCollection)DataModel).LastScanCompleted;
             }
         }
 
@@ -107,6 +108,17 @@ namespace VideoPlayer.Service.Library.Models
             }
         }
 
+        public bool LastScanCompleted {
+            get
+            {
+                return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty(value);
+            }
+        }
+
         protected override void AssignChanges()
         {
             base.AssignChanges();
@@ -117,6 +129,7 @@ namespace VideoPlayer.Service.Library.Models
             ((MediaDataItemCollection)DataModel).Classified = Classified;
             ((MediaDataItemCollection)DataModel).MetaInformation = JsonConvert.SerializeObject(MetaInformation);
             ((MediaDataItemCollection)DataModel).LastMetaInformationUpdate = LastMetaInformationUpdate;
+            ((MediaDataItemCollection)DataModel).LastScanCompleted = LastScanCompleted;
         }
 
     }

@@ -242,8 +242,14 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             while (collection.ParentId != 0)
             {
                 var pictures = MediaLibrary.GetMediaCollectionItems(collection.Id)
-                    .Where(i => i.CopyType == MediaItemCopyType.Original)
-                    .Where(i => pictureExtensions.Contains(Path.GetExtension(i.Name)))
+                    .Where(i =>
+                    {
+                        var result = i.CopyType == MediaItemCopyType.Original;
+                        result &= pictureExtensions.Contains(Path.GetExtension(i.Name));
+                        if (!result)
+                            MediaLibrary.Release(i);
+                        return result;
+                    })
                     .ToArray();
                 try
                 {

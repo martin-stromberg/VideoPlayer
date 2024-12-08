@@ -245,35 +245,41 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                     .Where(i => i.CopyType == MediaItemCopyType.Original)
                     .Where(i => pictureExtensions.Contains(Path.GetExtension(i.Name)))
                     .ToArray();
-                var poster = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"season{season.Number.ToString().PadLeft(2, '0')}-poster");
-                var banner = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"season{season.Number.ToString().PadLeft(2, '0')}-banner");
-                var fanart = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"season{season.Number.ToString().PadLeft(2, '0')}-fanart");
-
-                if (banner is not null || poster is not null)
+                try
                 {
-                    if (banner is not null)
+                    var poster = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"season{season.Number.ToString().PadLeft(2, '0')}-poster");
+                    var banner = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"season{season.Number.ToString().PadLeft(2, '0')}-banner");
+                    var fanart = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"season{season.Number.ToString().PadLeft(2, '0')}-fanart");
+                    if (banner is not null || poster is not null)
                     {
-                        NotifyStatus($"Bereite Banner auf für: {season.ShowName} {season.ToString()}");
-                        var kV = await UpdateCacheFileAsync(banner, season.BannerPath, source, 0, 300);
-                        season.BannerPath = kV.Key;
-                        season.BannerBackgroundColor = kV.Value.ToHex();
+                        if (banner is not null)
+                        {
+                            NotifyStatus($"Bereite Banner auf für: {season.ShowName} {season.ToString()}");
+                            var kV = await UpdateCacheFileAsync(banner, season.BannerPath, source, 0, 300);
+                            season.BannerPath = kV.Key;
+                            season.BannerBackgroundColor = kV.Value.ToHex();
+                        }
+                        if (poster is not null)
+                        {
+                            NotifyStatus($"Bereite Poster auf für: {season.ShowName} {season.ToString()}");
+                            var kV = await UpdateCacheFileAsync(poster, season.PicturePath, source, 0, 240);
+                            season.PicturePath = kV.Key;
+                            season.PictureBackgroundColor = kV.Value.ToHex();
+                        }
+                        season = MediaLibrary.AddOrUpdateSeason(season);
+                        break;
                     }
-                    if (poster is not null)
-                    {
-                        NotifyStatus($"Bereite Poster auf für: {season.ShowName} {season.ToString()}");
-                        var kV = await UpdateCacheFileAsync(poster, season.PicturePath, source, 0, 240);
-                        season.PicturePath = kV.Key;
-                        season.PictureBackgroundColor = kV.Value.ToHex();
-                    }
-                    season = MediaLibrary.AddOrUpdateSeason(season);
-                    break;
+                    if (collection.MetaInformation is TVShowInformation)
+                        break;
+                    if (releaseCollection)
+                        MediaLibrary.Release(collection);
+                    collection = MediaLibrary.GetMediaCollection(collection.ParentId);
+                    releaseCollection = true;
                 }
-                if (collection.MetaInformation is TVShowInformation)
-                    break;
-                if (releaseCollection)
-                    MediaLibrary.Release(collection);
-                collection = MediaLibrary.GetMediaCollection(collection.ParentId);
-                releaseCollection = true;
+                finally
+                {
+                    MediaLibrary.Release(pictures);
+                }
             }
             if (releaseCollection)
                 MediaLibrary.Release(collection);

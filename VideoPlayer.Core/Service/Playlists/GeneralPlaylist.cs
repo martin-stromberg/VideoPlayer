@@ -43,19 +43,19 @@ namespace VideoPlayer.Service.Playlists
 
         private void Session_Finished(object sender, DownloadEventArgs e)
         {
-            (sender as DownloadManager.DownloadSession).Progress -= Session_Progress;
-            (sender as DownloadManager.DownloadSession).Finished -= Session_Finished;
+            (sender as DownloadSession).Progress -= Session_Progress;
+            (sender as DownloadSession).Finished -= Session_Finished;
         }
 
         private void Session_Progress(object sender, ProgressEventArgs e)
         {
-            var session = (sender as DownloadManager.DownloadSession);
+            var session = (sender as DownloadSession);
             DownloadProgress?.Invoke(this, new DownloadProgressEventArgs(session.Entry, e.Progress));
         }
 
         private void Session_Starting(object sender, DownloadEventArgs e)
         {
-            (sender as DownloadManager.DownloadSession).Starting -= Session_Starting;
+            (sender as DownloadSession).Starting -= Session_Starting;
             DownloadStarting?.Invoke(this, e);
         }
 

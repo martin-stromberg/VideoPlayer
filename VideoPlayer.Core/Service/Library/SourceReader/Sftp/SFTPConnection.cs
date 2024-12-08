@@ -51,11 +51,17 @@ namespace VideoPlayer.Service.Library.SourceReader.SFtp
             CheckConnection();
             using (var stream = File.OpenWrite(localFilePath))
             {
-                var fileInfo = _client.Get(path);                
+                var fileInfo = _client.Get(path);
+                var lastPercent = (decimal)0;
+                var lastProgress = DateTime.MinValue;
                 _client.DownloadFile(path, stream, (progress) => 
                 {
-                    var percent = fileInfo.Length == 0 ? -1 : ((long)progress / fileInfo.Length) * 100;
-                    progressCallback(percent);
+                    var percent = fileInfo.Length == 0 ? -1 : Math.Round(((decimal)progress / (decimal)fileInfo.Length) * 100, 2);
+                    if (percent != lastPercent && lastProgress.AddSeconds(1) < DateTime.Now)
+                    {
+                        lastProgress = DateTime.Now;
+                        progressCallback(percent);                        
+                    }
                 });
             }
         }

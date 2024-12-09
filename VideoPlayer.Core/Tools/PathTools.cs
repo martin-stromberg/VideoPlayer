@@ -26,7 +26,7 @@ namespace VideoPlayer.Tools
         public static string IncludeTrailingPathDelimiter(this string path)
         {
             if (string.IsNullOrWhiteSpace(path))
-                throw new ArgumentException(nameof(path));
+                return _PathDelimiters.First().ToString();
 
             var offset = path.LastIndexOfAny(_PathDelimiters);
             var delimiter = (offset >= 0) ? path[offset] : _PathDelimiters.First();

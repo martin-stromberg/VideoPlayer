@@ -1066,16 +1066,32 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             destFileInfo.Refresh();
             if (!destFileInfo.Exists)
                 return new KeyValuePair<string, Microsoft.Maui.Graphics.Color>(String.Empty, Colors.Transparent);
-            using (var image = Image.Load<Rgba32>(destFileInfo.FullName))
+            try
             {
-                pictureBackgroundColor = await image.GetPixelColorAsync(0, 0);
-                if (width != 0 || height != 0)
+                using (var image = Image.Load<Rgba32>(destFileInfo.FullName))
                 {
-                    image.Mutate(i => i.Resize(0, height));
-                    image.Save(destFileInfo.FullName);
-                }                
+                    pictureBackgroundColor = await image.GetPixelColorAsync(0, 0);
+                    if (height != 0)
+                        if (height > image.Height)
+                        {
+                            image.Mutate(i => i.Resize(0, height));
+                            image.Save(destFileInfo.FullName);
+                        }
+                    if (width != 0)
+                        if (width > image.Width)
+                        {
+
+                        }
+                }
+                return new KeyValuePair<string, Microsoft.Maui.Graphics.Color>(destFileInfo.FullName.Remove(0, FileSystem.Current.AppDataDirectory.Length), pictureBackgroundColor);
             }
-            return new KeyValuePair<string, Microsoft.Maui.Graphics.Color>(destFileInfo.FullName.Remove(0, FileSystem.Current.AppDataDirectory.Length), pictureBackgroundColor);
+            catch (InvalidImageContentException ex)
+            {
+                Debug.WriteLine(ex.ToString());
+                if (destFileInfo.Exists)
+                    destFileInfo.Delete();
+                throw;
+            }
         }
 
         private MediaInformation UpdateMediaInformation(MediaCollection collection, ISourceReader reader)
@@ -1444,12 +1460,17 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                     .ToList();
 
                 foreach (var picture in pictureItems)
-                {
-                    var kV = await UpdateCacheFileAsync(picture, actor.PicturePath, mediaSource, 0, 240);
-                    actor.PicturePath = kV.Key;
-                    actor.PictureBackgroundColor = kV.Value.ToHex();
-                    break;
-                }
+                    try
+                    {
+                        var kV = await UpdateCacheFileAsync(picture, actor.PicturePath, mediaSource, 0, 240);
+                        actor.PicturePath = kV.Key;
+                        actor.PictureBackgroundColor = kV.Value.ToHex();
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine(ex);
+                    }
                 MediaLibrary.AddOrUpdateActor(actor);
                 break;
             }

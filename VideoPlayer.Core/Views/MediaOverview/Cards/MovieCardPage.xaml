@@ -106,6 +106,7 @@
                     Grid.ColumnSpan="2">
             <VerticalStackLayout>
                 <common:HorizontalMediaCollectionView BindingContext="{Binding CollectionContext}"/>
+                <common:HorizontalMediaCollectionView BindingContext="{Binding SecondCollectionContext}"/>
             </VerticalStackLayout>
         </ScrollView>
         <Label  Grid.Row="2"

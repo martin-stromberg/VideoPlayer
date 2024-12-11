@@ -11,6 +11,7 @@ using VideoPlayer.Service.Resources;
 namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
 {
     public enum CardItemApplicationArea { Single, InCollection }
+    
     public class BaseMediaListItem : BaseListItem
     {
         private readonly IResourceManager resourceManager;

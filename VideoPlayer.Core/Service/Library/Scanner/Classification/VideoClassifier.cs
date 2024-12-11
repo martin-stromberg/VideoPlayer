@@ -3,6 +3,7 @@ using Renci.SshNet;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
+using Syncfusion.XlsIO.Parser.Biff_Records;
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -1352,18 +1353,22 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                             await UpdateEpisodePictures(episode, mediaItem, collection, mediaSource);
 
                             var season = MediaLibrary.GetTVShowSeason(episode.SeasonId);
-                            try
+                            if (season is not null)
                             {
-                                await UpdateTVShowSeasonPictures(season, collection, mediaSource);
-                            }
-                            finally { MediaLibrary.Release(season, true); }
+                                try
+                                {
+                                    await UpdateTVShowSeasonPictures(season, collection, mediaSource);
+                                }
+                                finally { MediaLibrary.Release(season, true); }
 
-                            var show = MediaLibrary.GetTVShow(season.ShowId);
-                            try
-                            {
-                                await UpdateTVShowPictures(show, collection, mediaSource);
+                                var show = MediaLibrary.GetTVShow(season.ShowId);
+                                if (show is not null)
+                                    try
+                                    {
+                                        await UpdateTVShowPictures(show, collection, mediaSource);
+                                    }
+                                    finally { MediaLibrary.Release(show, true); }
                             }
-                            finally { MediaLibrary.Release(show, true); }
                         }
                         finally
                         {

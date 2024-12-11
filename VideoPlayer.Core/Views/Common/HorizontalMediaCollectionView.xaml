@@ -3,7 +3,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:views="clr-namespace:VideoPlayer.Views.MediaOverview"
              xmlns:vmItem="clr-namespace:VideoPlayer.ViewModels.MediaOverview.MediaItem"
-             x:Class="VideoPlayer.Views.Common.HorizontalMediaCollectionView">
+             x:Class="VideoPlayer.Views.Common.HorizontalMediaCollectionView"
+             IsVisible="{Binding Visible}">
     <ScrollView IsVisible="{Binding Visible}"
                 x:Name="ScrollContent"
                 Orientation="Horizontal">

@@ -16,7 +16,7 @@ namespace VideoPlayer.Navigation
         #endregion
 
         #region Detail Card
-        void OpenCard(BaseMediaListItem vm, bool autoPlay);
+        void OpenCard(BaseListItem vm, bool autoPlay);
         void CloseCurrentPage();
         #endregion
 

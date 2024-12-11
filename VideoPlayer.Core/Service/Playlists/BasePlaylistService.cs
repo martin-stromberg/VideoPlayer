@@ -3,6 +3,7 @@ using VideoPlayer.Service.BaseServices;
 using VideoPlayer.Service.Download;
 using VideoPlayer.Service.Library;
 using VideoPlayer.Service.Library.Models;
+using VideoPlayer.Service.Library.Models.Classified;
 using VideoPlayer.Service.Library.Models.Playlists;
 
 namespace VideoPlayer.Service.Playlists
@@ -22,7 +23,7 @@ namespace VideoPlayer.Service.Playlists
             MediaCollectionSelector = mediaCollectionSelector;
             this.playlistType = playlistType;
         }
-
+        public bool CorrectInvisibleMediaItems { get; set; }
         protected IMediaLibrary MediaLibrary { get; }
         protected IMediaCollectionSelector MediaCollectionSelector { get; }
         public Playlist Current { get => playlist ??= InitCurrentPlaylist(); }
@@ -59,6 +60,9 @@ namespace VideoPlayer.Service.Playlists
                 pl = CreatePlaylist();
             try
             {
+                if (CorrectInvisibleMediaItems)
+                    DoCorrectInvisibleMediaItems(pl);
+
                 pl.Items.CollectionChanged += Items_CollectionChanged;
                 pl.DownloadRequested += Pl_DownloadRequested; ;
                 pl.DownloadFailed += PL_DownloadFailed;
@@ -69,6 +73,31 @@ namespace VideoPlayer.Service.Playlists
             finally
             {
                 PlaylistLoaded?.Invoke(this, new BaseServiceModelEventArgs(pl));
+            }
+        }
+
+        private void DoCorrectInvisibleMediaItems(Playlist pl)
+        {
+            foreach (var item in pl.Items)
+                DoCorrectInvisibleMediaItems(item);
+        }
+
+        private void DoCorrectInvisibleMediaItems(PlaylistEntry item)
+        {
+            if (item.Entry is null) return;
+            if (item.Entry.Visible) return;
+            if (item.Entry is MovieCollection)
+            {
+                var movies = MediaLibrary.GetCollectionMovies(item.Entry.Id).ToList();
+                try
+                {
+                    var movie = movies.FirstOrDefault();
+                    if (movie is null) return;
+                    movies.Remove(movie);
+                    MediaLibrary.Release(item.Entry);
+                    item.Entry = movie;
+                }
+                finally { MediaLibrary.Release(movies); }
             }
         }
 

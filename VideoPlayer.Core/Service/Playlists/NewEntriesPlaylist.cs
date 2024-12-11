@@ -17,6 +17,7 @@ namespace VideoPlayer.Service.Playlists
             ILogger logger) 
             : base(mediaLibrary, mediaCollectionSelector, PlaylistType.New, logger)
         {
+            base.CorrectInvisibleMediaItems = true;
             this.mediaLibrary = mediaLibrary;
         }
         protected override void ProcessNotification(NotificationEventArgs e)

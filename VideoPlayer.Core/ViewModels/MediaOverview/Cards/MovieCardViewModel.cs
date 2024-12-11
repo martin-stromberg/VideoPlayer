@@ -1,6 +1,7 @@
 ﻿using Syncfusion.XlsIO.FormatParser.FormatTokens;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -8,6 +9,7 @@ using VideoPlayer.Navigation;
 using VideoPlayer.Service.Device;
 using VideoPlayer.Service.Download;
 using VideoPlayer.Service.Library;
+using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
 using VideoPlayer.Service.Playlists;
 using VideoPlayer.Service.Resources;
@@ -129,8 +131,58 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
                 CollectionContext.Items.Clear();
                 foreach (var entry in mediaCollectionSelector.FindNextEntries(collection))
                     CollectionContext.Items.Add(new MovieMediaListItem(entry, ResourceManager));
+
+                LoadActorsAsync();
             }
         }
+
+        private async void LoadActorsAsync()
+        {
+            await Task.Delay(100);
+            LoadActors(Entry);            
+        }
+        public ObservableCollection<RoleListItem> Roles { get; } = new ObservableCollection<RoleListItem>();
+        private void LoadActors(ClassifiedEntry entry)
+        {
+            entry = SelectedMovie ?? entry;
+            if (entry is MovieCollection)
+            {
+                var roles = CollectionContext.Items.SelectMany(e => MediaLibrary.GetRoles(e.Id))
+                    .GroupBy(e => e.ActorId)
+                    .Where(e =>
+                    {
+                        var result = e.Count() == CollectionContext.Items.Count;
+                        if (!result)
+                            MediaLibrary.Release(e.Cast<BaseServiceModel>());
+                        return result;
+                    })
+                    .Select(e =>
+                    {
+                        MediaLibrary.Release(e.Skip(1));
+                        return e.First();
+                    })
+                    .OrderByDescending(role => role.Actor.RoleCount)
+                    .ToArray();
+                UpdateRoles(roles);
+            }
+            else
+            {
+                var roles = MediaLibrary.GetRoles(entry.Id)
+                    .Select(role => role)
+                    .OrderByDescending(role => role.Actor.RoleCount)
+                    .ToArray();
+                UpdateRoles(roles);
+            }            
+            
+        }
+
+        private void UpdateRoles(Role[] roles)
+        {
+            SecondCollectionContext.Items.Clear();
+            foreach (var role in roles)
+                SecondCollectionContext.Items.Add(new RoleListItem(role, ResourceManager));
+        }
+
         protected override void SetCollectionVisible(bool visible)
         {            
             base.SetCollectionVisible(visible && CollectionContext.Items.Count > 1);

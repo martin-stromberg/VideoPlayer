@@ -11,6 +11,6 @@ public partial class MediaListItemView : ContentView
 
     private void TapGestureRecognizer_Tapped(object sender, TappedEventArgs e)
     {		
-		(BindingContext as BaseMediaListItem)?.Tapped.Execute(bool.Parse((string)e.Parameter));
+		(BindingContext as BaseListItem)?.Tapped.Execute(bool.Parse((string)e.Parameter));
     }
 }

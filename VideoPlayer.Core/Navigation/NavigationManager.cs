@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using VideoPlayer.Service.Library;
+using VideoPlayer.Service.Library.Models;
 using VideoPlayer.ViewModels.MediaOverview.MediaItem;
 using VideoPlayer.Views.MediaOverview;
 using VideoPlayer.Views.MediaOverview.Cards;
@@ -18,6 +19,7 @@ namespace VideoPlayer.Navigation
         private const string _RouteNameTVShowOverview = "tvshows";
         private const string _RouteNameMovieCard = "movie";
         private const string _RouteNameTVShowCard = "tvshow";
+        private const string _RouteNameActor = "actor";
 
         public NavigationManager()
             :base()
@@ -26,6 +28,7 @@ namespace VideoPlayer.Navigation
             Routing.RegisterRoute(_RouteNameTVShowOverview, typeof(TVShowOverviewPage));
             Routing.RegisterRoute(_RouteNameMovieCard, typeof(MovieCardPage));
             Routing.RegisterRoute(_RouteNameTVShowCard, typeof(TVShowCardPage));
+            Routing.RegisterRoute(_RouteNameActor, typeof(ActorPage));
         }
         #region General
         protected async void NavigateToRoute(string route, 
@@ -60,7 +63,7 @@ namespace VideoPlayer.Navigation
         }
         #endregion
 
-        public void OpenCard(BaseMediaListItem vm, bool autoPlay = false)
+        public void OpenCard(BaseListItem vm, bool autoPlay = false)
         {
             if ((vm is MovieMediaListItem) || (vm is MovieCollectionMediaListItem))
                 NavigateToRoute(_RouteNameMovieCard, new Dictionary<string, object>()
@@ -73,6 +76,14 @@ namespace VideoPlayer.Navigation
                     { "Id", vm.Id },
                     { "AutoPlay", autoPlay }
                 });
+            else if (vm is RoleListItem)
+            {
+                NavigateToRoute(_RouteNameActor, new Dictionary<string, object>()
+                {
+                    { "Id", ((Role)((RoleListItem)vm).Element).Actor.Id },
+                    { "AutoPlay", autoPlay }
+                });
+            }
             else
                 throw new NotImplementedException(vm.GetType().Name);
         }

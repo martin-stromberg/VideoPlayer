@@ -1,38 +1,28 @@
-﻿using VideoPlayer.Extensions;
-using CommunityToolkit.Maui.Core.Primitives;
-using CommunityToolkit.Maui.Views;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using VideoPlayer.Service.Device;
+﻿using CommunityToolkit.Maui.Core.Primitives;
+using System.Collections.Specialized;
+using System.Runtime.CompilerServices;
+using VideoPlayer.Extensions;
+using VideoPlayer.Navigation;
 using VideoPlayer.Service.Download;
 using VideoPlayer.Service.Events;
+using VideoPlayer.Service.Library;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
+using VideoPlayer.Service.Library.Models.Playlists;
 using VideoPlayer.Service.Playlists;
 using VideoPlayer.Service.Resources;
 using VideoPlayer.Tools;
 using VideoPlayer.ViewModels.Common;
-using VideoPlayer.Service.Library.Models.Playlists;
 using VideoPlayer.ViewModels.MediaOverview.MediaItem;
-using VideoPlayer.Service.Library;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Configuration;
-using VideoPlayer.Navigation;
-using System.Xml.Serialization;
-using System.Runtime.CompilerServices;
 
 namespace VideoPlayer.ViewModels.MediaOverview.Cards
 {
     public class BaseMediaItemCardViewModel 
-        : BaseViewModel, IEventPublisher, IMultiEventCollection
+        : BaseCardViewModel
     {
         private bool _SkipPositionEvent;
         private TimeSpan _StartingPosition;
         protected IPlaylistManager PlaylistManager { get; }
-        protected IMediaLibrary MediaLibrary { get; }
         protected ClassifiedEntry Entry 
         { 
             get => GetProperty<ClassifiedEntry>();
@@ -86,33 +76,29 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             IMediaLibrary mediaLibrary,
             INavigationManager navigationManager,
             ClassifiedEntry entry)
+            :base(mediaLibrary, navigationManager)
         {
             this.PlaylistManager = playlistManager;
             this.environment = environment;
             this.ResourceManager = resourceManager;
             this.downloadManager = downloadManager;
-            this.MediaLibrary = mediaLibrary;
-            this.navigationManager = navigationManager;
             this.Entry = entry;
             Title = entry.Name;
             VideoSource = null;
-            CollectionContext = new MediaCollectionViewModel();
-            CollectionContext.Selected += CollectionContext_Selected;
-            CollectionContext.Items.CollectionChanged += CollectionContext_Items_CollectionChanged;
+            SecondCollectionContext = new MediaCollectionViewModel();
+            SecondCollectionContext.Selected += SecondCollectionContext_Selected;
+            SecondCollectionContext.Items.CollectionChanged += Items_CollectionChanged;
+
             PlaybackCommand = new Command(() => ExecutePlaybackCommand());
             ActionCommand = new Command((args) => ExecuteAction((string)args));
         }
 
-        public IEnumerable<IEventSubscriber> GetSubscribers()
-        {
-            return new IEventSubscriber[] { MediaLibrary as IEventSubscriber };
-        }
 
-        public IEnumerable<IEventPublisher> GetPublishers()
+        private void Items_CollectionChanged(object sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
         {
-            return new IEventPublisher[] { MediaLibrary as IEventPublisher };
+            var isEmpty = SecondCollectionContext.Items.Count == 0;
+            SetSecondCollectionVisible(!isEmpty);
         }
-
 
         protected void BringToView(ClassifiedEntry entry)
         {
@@ -165,12 +151,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             Entry.Visible = false;
             Notify(this, new Service.Events.NotificationEventArgs("Reload", entry));
             Close();
-        }
-        protected virtual void Close ()
-        {           
-            
-            navigationManager.CloseCurrentPage();
-        }
+        }        
 
         protected void StartDownload(TVShowSeason selectedSeason)
         {
@@ -183,11 +164,18 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             UpdateMediaInformation(Entry);
         }
 
-        private void CollectionContext_Selected(object sender, BaseViewModelEventArgs e)
+
+        private void SecondCollectionContext_Selected(object sender, BaseViewModelEventArgs e)
         {
-            Select((e.ViewModel as BaseMediaListItem).Item);
+            OpenCard((e.ViewModel as BaseListItem));
         }
 
+        
+        
+        protected override void Select(BaseListItem item)
+        {
+            Select((item as BaseMediaListItem).Item);            
+        }
         protected virtual void Select(ClassifiedEntry item)
         {
             UpdateMediaInformation(item ?? Entry);
@@ -212,15 +200,9 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             }
         }
 
-        private void CollectionContext_Items_CollectionChanged(object sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+        protected virtual void SetSecondCollectionVisible(bool visible)
         {
-            var isEmpty = CollectionContext.Items.Count == 0;            
-            SetCollectionVisible(!isEmpty);
-        }
-
-        protected virtual void SetCollectionVisible(bool visible)
-        {
-            CollectionVisible = visible;
+            SecondCollectionVisible = visible;
         }
 
         protected void SetPicture(IPicturedEntry picturedEntry)
@@ -297,8 +279,8 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             VideoSource = null;
         }
 
-        public IMediaCollectionViewModel CollectionContext { get; }
-        public bool CollectionVisible { get => GetProperty<bool>(); set { CollectionContext.Visible = value;  SetProperty<bool>(value); } }
+        public IMediaCollectionViewModel SecondCollectionContext { get; }
+        public bool SecondCollectionVisible { get => GetProperty<bool>(); set { SecondCollectionContext.Visible = value; SetProperty<bool>(value); } }
         public Command PlaybackCommand { get; }
         public Command ActionCommand { get; }
         public decimal DownloadProgress { get => GetProperty<decimal>(); set => SetProperty(value); }
@@ -413,7 +395,6 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
         private readonly IEnvironment environment;
         protected IResourceManager ResourceManager { get; }
         private readonly IDownloadManager downloadManager;
-        private readonly INavigationManager navigationManager;
 
         public event EventHandler<NotificationEventArgs> OnEvent;
 

@@ -14,7 +14,7 @@ namespace VideoPlayer.Views
         public MainPage()
         {
             InitializeComponent();
-            BindingContext = new BaseHomePageViewModel();
+            BindingContext = new BaseHomePageViewModel(null);
         }
 
         protected override void OnLoadingContent(IApplicationManager applicationManager)
@@ -42,35 +42,36 @@ namespace VideoPlayer.Views
 
         private async void SendMail(string subject, string message)
         {
-            try
-            {
-                _IsSendingMail = true;
-
-                if (_emailService.IsComposeSupported)
+            if (!_IsSendingMail)
+                try
                 {
-                    var emailMessage = new EmailMessage
+                    _IsSendingMail = true;
+
+                    if (_emailService.IsComposeSupported)
                     {
-                        Subject = subject,
-                        Body = message,
-                        To = new List<string> { "mstromberg84+videoplayer@icloud.com" }
-                    };
+                        var emailMessage = new EmailMessage
+                        {
+                            Subject = subject,
+                            Body = message,
+                            To = new List<string> { "mstromberg84+videoplayer@icloud.com" }
+                        };
 
-                    await _emailService.ComposeAsync(emailMessage);
+                        await _emailService.ComposeAsync(emailMessage);
+                    }
+                    else
+                    {
+                        await DisplayAlert("Unsupported",
+                           "The opening of the email client is currently not supported.", "OK");
+                    }
                 }
-                else
+                catch (Exception ex)
                 {
-                    await DisplayAlert("Unsupported",
-                       "The opening of the email client is currently not supported.", "OK");
+                    await DisplayAlert("Error", ex.ToString(), "OK");
                 }
-            }
-            catch (Exception ex)
-            {
-                await DisplayAlert("Error", ex.ToString(), "OK");
-            }
-            finally
-            {
-                _IsSendingMail = false;
-            }
+                finally
+                {
+                    _IsSendingMail = false;
+                }
         }
     }
 }

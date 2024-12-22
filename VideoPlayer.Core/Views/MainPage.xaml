@@ -14,6 +14,7 @@
             <RowDefinition/>
             <RowDefinition Height="50"/>
         </Grid.RowDefinitions>
+        <!-- Lade Programminhalte... -->
         <HorizontalStackLayout Grid.Column="0"
                                Grid.Row="0"
                                Margin="10"
@@ -21,6 +22,7 @@
                                IsVisible="{Binding IsLoading}">
             <Label Text="Lade Programminhalte..."/>
         </HorizontalStackLayout>
+        <!-- Auswahl der Medianart -->
         <HorizontalStackLayout Grid.Column="0"
                                Grid.Row="0"
                                Margin="10"
@@ -38,7 +40,12 @@
                              WidthRequest="64"
                              Command="{Binding Navigate}"
                              CommandParameter="tv"/>
+            <ImageButton Source="actors64x64.png" 
+                         WidthRequest="64"
+                         Command="{Binding Navigate}"
+                         CommandParameter="actors"/>
         </HorizontalStackLayout>
+        <!-- Inhalt -->
         <VerticalStackLayout Grid.Row="1">
             <homePage:NextPlayingView BindingContext="{Binding NextPlayingContext}" IsVisible="{Binding ContentVisible}"/>
             <homePage:NextPlayingView BindingContext="{Binding NewContext}" IsVisible="{Binding ContentVisible}"/>
@@ -46,6 +53,7 @@
             <Button IsVisible="{Binding ErrorsVisible}" Text="Bestätigen" Clicked="Button_Clicked" CommandParameter="confirm"/>
             <Button IsVisible="{Binding ErrorsVisible}" Text="Teilen" Clicked="Button_Clicked" CommandParameter="share"/>
         </VerticalStackLayout>
+        <!-- Fußzeile -->
         <viewCommon:MemoryInfoView BindingContext="{Binding MemoryInfo}"
                                    HorizontalOptions="End"
                                    Grid.Row="2"

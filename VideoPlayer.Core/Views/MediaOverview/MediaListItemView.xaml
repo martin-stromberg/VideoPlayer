@@ -31,6 +31,8 @@
             </Image>
             <VerticalStackLayout Grid.Column="1"
                                  Grid.RowSpan="3">
+                <Label Text="{Binding Counter}" 
+                       IsVisible="{Binding HasCounter}"/>
                 <Image Source="collection64x64.png" 
                        IsVisible="{Binding IsCollection}"/>
                 <Image Source="gesehen64x64.png" 

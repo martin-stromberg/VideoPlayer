@@ -25,7 +25,6 @@ namespace VideoPlayer.ViewModels.Setup
         private readonly IPlaylistManager _PlaylistManager;
         private readonly IDeviceDisplayManager _DeviceDisplayManager;
         private readonly IMediaClassifierSettings settings;
-        private readonly ILibraryScannerSettings libraryScannerSettings;
         private readonly IApplicationSettings applicationSettings;
         private bool _Exporting;
         private bool _ExportingMemory;
@@ -68,7 +67,7 @@ namespace VideoPlayer.ViewModels.Setup
                 MediaSourcesVisible = args == "MediaSources";
                 SettingsVisible = args == "Settings";
             }
-            catch (Exception ex) { }
+            catch (Exception) { }
         }
 
         

@@ -31,7 +31,6 @@ namespace VideoPlayer.Service.Library.Models
                 throw new ApplicationException($"Service model class does not define a data model reference.");
         }
 
-        private BaseDataModel _DataModel = null;
         protected BaseDataModel DataModel 
         { 
             get => GetProperty<BaseDataModel>();

@@ -21,11 +21,6 @@ namespace VideoPlayer.Extensions
             StatusCode = statusCode;
         }
 
-        protected HttpClientRequestException(SerializationInfo info, StreamingContext context, HttpStatusCode statusCode) : base(info, context)
-        {
-            StatusCode = statusCode;
-        }
-
         public HttpStatusCode StatusCode { get; }
     }
 }

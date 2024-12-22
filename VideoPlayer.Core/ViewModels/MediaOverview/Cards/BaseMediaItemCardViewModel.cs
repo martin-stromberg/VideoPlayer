@@ -395,32 +395,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
         private readonly IEnvironment environment;
         protected IResourceManager ResourceManager { get; }
         private readonly IDownloadManager downloadManager;
-
-        public event EventHandler<NotificationEventArgs> OnEvent;
-
-        public virtual void Notify(string msgName)
-        {
-            Notify(this, new NotificationEventArgs(msgName, null));
-        }
-        public virtual void Notify(object sender, NotificationEventArgs e)
-        {
-            OnEvent?.Invoke(sender, e);
-        }
-
-        public virtual void NotifyError(Exception error)
-        {
-            Notify(this, new NotificationEventArgs("Error", error));
-        }
-
-        public virtual void NotifyStatus(string message, bool direct = false)
-        {
-            _LastStatus = message;
-            if (direct)
-                SendStatus();
-            else if (_StatusTimer is null)
-                _StatusTimer = new Timer((args) => { SendStatus(); }, null, 1000, 1000);
-        }
-
+        
         private void SendStatus()
         {
             try
@@ -438,8 +413,6 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             }
             catch { }
         }
-
-
         #endregion
 
         #region VideoEvents 

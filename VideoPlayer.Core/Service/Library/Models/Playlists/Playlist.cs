@@ -23,8 +23,6 @@ namespace VideoPlayer.Service.Library.Models.Playlists
     [DataModelReference(typeof(Service.Database.Models.DataPlaylist))]
     public class Playlist : BaseServiceModel
     {
-        private readonly IDownloadManager downloadManager;
-
         public Playlist(BaseDataModel dataModel) 
             : base(dataModel)
         {

@@ -43,27 +43,6 @@ namespace VideoPlayer.Service.Library.Models.Classified
             }
         }
 
-        public string BannerBackgroundColor {
-            get
-            {
-                return GetProperty<string>();
-            }
-            set
-            {
-                SetProperty<string>(value);
-            }
-        }
-        public string PictureBackgroundColor {
-            get
-            {
-                return GetProperty<string>();
-            }
-            set
-            {
-                SetProperty<string>(value);
-            }
-        }
-
         public string ShowName {
             get
             {

@@ -16,8 +16,6 @@ namespace VideoPlayer.Views
         private IApplicationManager _appManager;
         private IEventController _eventController;
         private IViewModelManager _ViewModelManager;
-
-        private bool _IsAppeared = false;
         private bool _AppearedEventSent = false;
 
         public BaseContentPage()
@@ -43,14 +41,12 @@ namespace VideoPlayer.Views
         protected override void OnAppearing()
         {
             base.OnAppearing();
-            _IsAppeared = true;            
             Initialize();
         }
         protected override void OnDisappearing()
         {
             base.OnDisappearing();
             SendDisappearedEvent();
-            _IsAppeared = false;
         }
         private void SendAppearedEvent()
         {

@@ -41,6 +41,8 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
         public BaseServiceModel Element { get; }
         public bool AllowAutoPlay { get; set; }
         public Command Tapped { get; }
+        public bool HasCounter { get => GetProperty<bool>(); set => SetProperty(value); }
+        public int Counter { get => GetProperty<int>(); set { SetProperty(value); HasCounter = value != 0; } }
         private void ExecuteTapped(bool autoPlay)
         {
             try

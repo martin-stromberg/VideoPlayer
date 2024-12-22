@@ -12,6 +12,7 @@ using VideoPlayer.Service.Device;
 using VideoPlayer.Service.Library;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
+using VideoPlayer.Service.Processor;
 using VideoPlayer.Service.Resources;
 using VideoPlayer.ViewModels.MediaOverview.Genres;
 using VideoPlayer.ViewModels.MediaOverview.MediaItem;
@@ -26,24 +27,25 @@ namespace VideoPlayer.ViewModels.MediaOverview
     {
         private readonly EntryType[] entryTypes;
         private readonly INavigationManager navigationManager;
-        private readonly IResourceManager resourceManager;
+        protected IResourceManager ResourceManager { get; }
 
         public BaseMediaOverviewViewModel(
             GenreSelectionViewModel genreSelectionViewModel,
             EntryType[] entryTypes,
             IMediaLibrary mediaLibrary,
             INavigationManager navigationManager,
+            IProcessorCollection processorCollection,
             IResourceManager resourceManager)
             :base()
         {
             this.entryTypes = entryTypes;
             MediaLibrary = mediaLibrary;
             this.navigationManager = navigationManager;
-            this.resourceManager = resourceManager;
+            ResourceManager = resourceManager;
             genreSelectionViewModel.GenreLoaded += GenreSelectionViewModel_GenreLoaded;
             GenreSelectionContext = genreSelectionViewModel;
             Items.CollectionChanged += Items_CollectionChanged;
-            MemoryInfo = new MemoryInformation();
+            MemoryInfo = new MemoryInformation(processorCollection);
         }
         protected virtual bool CheckViewGenre(Genre genre)
         {
@@ -59,12 +61,12 @@ namespace VideoPlayer.ViewModels.MediaOverview
         {
             if (e.NewItems is not null)
                 foreach (var item in e.NewItems)
-                    (item as BaseMediaListItem).Selected += BaseMediaOverviewViewModel_Selected;
+                    (item as BaseListItem).Selected += BaseMediaOverviewViewModel_Selected;
             if (e.OldItems is not null)
                 foreach (var item in e.OldItems)
                 {
-                    (item as BaseMediaListItem).Selected -= BaseMediaOverviewViewModel_Selected;
-                    MediaLibrary.Release((item as BaseMediaListItem).Item);
+                    (item as BaseListItem).Selected -= BaseMediaOverviewViewModel_Selected;
+                    MediaLibrary.Release((item as BaseListItem)?.Element);
                 }
         }
 
@@ -72,7 +74,7 @@ namespace VideoPlayer.ViewModels.MediaOverview
         {
             try
             {
-                var vm = (BaseMediaListItem)sender;
+                var vm = (BaseListItem)sender;
                 navigationManager.OpenCard(vm, false);
             }
             catch(Exception ex)
@@ -120,7 +122,7 @@ namespace VideoPlayer.ViewModels.MediaOverview
         }
 
         public IMediaLibrary MediaLibrary { get; }
-        public ObservableCollection<BaseMediaListItem> Items { get; } = new ObservableCollection<BaseMediaListItem>();
+        public ObservableCollection<BaseListItem> Items { get; } = new ObservableCollection<BaseListItem>();
         private void LoadMedia()
         {
             LoadNextMediaAsync(0);
@@ -131,7 +133,7 @@ namespace VideoPlayer.ViewModels.MediaOverview
         private bool loading = false;
         private object loadingBlock = new object();
         private Type[] mediaItemTypes = null;
-        private void LoadNextMediaAsync(int offset, int count = 10)
+        protected virtual void LoadNextMediaAsync(int offset, int count = 10)
         {
             lock (loadingBlock)
             {
@@ -165,8 +167,8 @@ namespace VideoPlayer.ViewModels.MediaOverview
                         return (attr.ServiceModelType == itemType);
                     });
                     var vm = mediaItemType is null 
-                        ? new BaseMediaListItem(item, resourceManager) 
-                        : Activator.CreateInstance(mediaItemType, item, resourceManager) as BaseMediaListItem;
+                        ? new BaseMediaListItem(item, ResourceManager) 
+                        : Activator.CreateInstance(mediaItemType, item, ResourceManager) as BaseMediaListItem;
                     Items.Add(vm);
                 }
             }

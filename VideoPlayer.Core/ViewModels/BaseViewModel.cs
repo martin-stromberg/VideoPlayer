@@ -137,6 +137,10 @@ namespace VideoPlayer.ViewModels
 
         public event EventHandler<NotificationEventArgs> OnEvent;
 
+        public virtual void Notify(string msgName)
+        {
+            Notify(this, new NotificationEventArgs(msgName, null));
+        }
         public virtual void Notify(object sender, NotificationEventArgs e)
         {
             OnEvent?.Invoke(sender, e);

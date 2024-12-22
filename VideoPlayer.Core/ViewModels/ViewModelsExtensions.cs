@@ -25,6 +25,7 @@ namespace VideoPlayer.ViewModels
             services.AddTransient<SettingsViewModel, SettingsViewModel>();
             services.AddTransient<MovieOverviewViewModel, MovieOverviewViewModel>();
             services.AddTransient<TVShowOverviewViewModel, TVShowOverviewViewModel>();
+            services.AddTransient<ActorsOverviewViewModel, ActorsOverviewViewModel>();
             services.AddTransient<GenreSelectionViewModel, GenreSelectionViewModel>();
             services.AddTransient<DownloadListViewModel, DownloadListViewModel>();
             services.AddSingleton<ErrorViewModel, ErrorViewModel>();

@@ -7,6 +7,7 @@ using VideoPlayer.Navigation;
 using VideoPlayer.Service.Library;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
+using VideoPlayer.Service.Processor;
 using VideoPlayer.Service.Resources;
 using VideoPlayer.ViewModels.MediaOverview.Genres;
 
@@ -16,8 +17,15 @@ namespace VideoPlayer.ViewModels.MediaOverview
     {
         public TVShowOverviewViewModel(IMediaLibrary mediaLibrary,
             GenreSelectionViewModel genreSelectionViewModel, 
-            INavigationManager navigationManager, IResourceManager resourceManager) 
-            : base(genreSelectionViewModel, new EntryType[] { EntryType.TVShow, EntryType.TVShowCollection }, mediaLibrary, navigationManager, resourceManager)
+            INavigationManager navigationManager,
+            IProcessorCollection processorCollection,
+            IResourceManager resourceManager) 
+            : base(genreSelectionViewModel, 
+                  new EntryType[] { EntryType.TVShow, EntryType.TVShowCollection }, 
+                  mediaLibrary, 
+                  navigationManager, 
+                  processorCollection,
+                  resourceManager)
         {
         }
         protected override bool CheckViewGenre(Genre genre)

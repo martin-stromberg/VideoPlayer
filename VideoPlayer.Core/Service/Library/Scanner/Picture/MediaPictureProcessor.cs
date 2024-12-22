@@ -9,6 +9,7 @@ using VideoPlayer.Service.BaseServices;
 using VideoPlayer.Service.Events;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Scanner.Classification;
+using VideoPlayer.Service.Processor;
 using VideoPlayer.Service.Settings;
 
 namespace VideoPlayer.Service.Library.Scanner.Picture
@@ -27,8 +28,9 @@ namespace VideoPlayer.Service.Library.Scanner.Picture
             IMediaLibrary mediaLibrary,
             IMediaClassifierSettings settings,
             IApplicationSettings applicationSettings,
+            IProcessorCollection processorCollection,
             ILogger<MediaPictureProcessor> logger) 
-            : base(logger)
+            : base(nameof(MediaPictureProcessor), processorCollection, logger)
         {
             _MediaLibrary = mediaLibrary;
             this._ApplicationSettings = applicationSettings;
@@ -48,11 +50,11 @@ namespace VideoPlayer.Service.Library.Scanner.Picture
                     break;
             }
         }
-        protected override async Task ExecuteTimerAsync()
+        protected override void ExecuteTimerSync()
         {
             if (_ApplicationSettings.ImageScrappingEnabled)
             {
-                await ClassifyNextItems();
+                ClassifyNextItems();
                 DeleteOrpahnedPictures();
             }
         }
@@ -64,7 +66,7 @@ namespace VideoPlayer.Service.Library.Scanner.Picture
                 classifier.DeleteOrpahnedPictures();
         }
 
-        private async Task ClassifyNextItems()
+        private void ClassifyNextItems()
         {
             var processing = false;
             try
@@ -78,7 +80,7 @@ namespace VideoPlayer.Service.Library.Scanner.Picture
                             StartProcess($"Bereite Grafiken auf.");
                             processing = true;
                         }
-                        await UpdatePictures(entry);
+                        UpdatePictures(entry);
                     }
                     catch(Exception ex)
                     {
@@ -97,7 +99,7 @@ namespace VideoPlayer.Service.Library.Scanner.Picture
                             StartProcess($"Bereite Grafiken auf.");
                             processing = true;
                         }
-                        await UpdatePictures(actor);
+                        UpdatePictures(actor);
                     }
                     catch (Exception ex)
                     {
@@ -118,14 +120,14 @@ namespace VideoPlayer.Service.Library.Scanner.Picture
             }
         }
 
-        private async Task UpdatePictures(Actor actor)
+        private void UpdatePictures(Actor actor)
         {
             if (actor is not null)
                 try
                 {
                     NotifyStatus($"Bereite Grafiken auf für: {actor.Name}");
                     foreach (var classifier in _Classifier)
-                        if (await classifier.UpdatePictures(actor))
+                        if (classifier.UpdatePictures(actor))
                             break;
                     actor.NeedsPictureUpdate = false;
                     _MediaLibrary.AddOrUpdateActor(actor);
@@ -144,14 +146,14 @@ namespace VideoPlayer.Service.Library.Scanner.Picture
                 }
         }
 
-        private async Task UpdatePictures(MediaItem item)
+        private void UpdatePictures(MediaItem item)
         {
             if (item is not null)
                 try
                 {
                     NotifyStatus($"Bereite Grafiken auf für: {item.Name}");
                     foreach (var classifier in _Classifier)
-                        if (await classifier.UpdatePictures(item))
+                        if (classifier.UpdatePictures(item))
                             break;
                     item.NeedsPictureUpdate = false;
                     _MediaLibrary.AddOrUpdateMediaItem(item);

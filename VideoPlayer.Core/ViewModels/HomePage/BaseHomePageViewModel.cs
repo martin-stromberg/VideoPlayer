@@ -5,19 +5,20 @@ using System.Text;
 using System.Threading.Tasks;
 using VideoPlayer.Service.Device;
 using VideoPlayer.Service.Playlists;
+using VideoPlayer.Service.Processor;
 
 namespace VideoPlayer.ViewModels.HomePage
 {
     public class BaseHomePageViewModel: BaseViewModel
     {
         
-        public BaseHomePageViewModel()
+        public BaseHomePageViewModel(IProcessorCollection processorCollection)
             :base()
         {
             Title = "Videoplayer";
             IsLoading = true;
             Navigate = new Command((args) => { ExecuteNavigate(args.ToString()); });
-            MemoryInfo = new MemoryInformation();
+            MemoryInfo = new MemoryInformation(processorCollection);
         }
         #region Loading Status
         public override void ExecuteAppeared()

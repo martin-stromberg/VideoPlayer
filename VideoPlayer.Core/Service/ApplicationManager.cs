@@ -12,6 +12,7 @@ using VideoPlayer.Service.Library.Scanner.Classification;
 using VideoPlayer.Service.Library.Scanner.Picture;
 using VideoPlayer.Service.Log;
 using VideoPlayer.Service.Playlists;
+using VideoPlayer.Service.Processor;
 using VideoPlayer.Service.Resources;
 using VideoPlayer.Service.Status;
 
@@ -24,6 +25,7 @@ namespace VideoPlayer.Service
         private readonly IServiceProvider _ServiceProvider;
         private bool _Initializing = false;
         private readonly IEventController _EventController;
+        private IProcessorCollection _ProcessorCollection;
         private IStatusManager _StatusManager;
         private IMediaLibrary _MediaLibrary;
 
@@ -87,7 +89,7 @@ namespace VideoPlayer.Service
             {
                 NotifyStatus($"Bereinige alte Daten.");
                 _MediaLibrary.ClearLogs();
-                (GetService<ILoggerProvider>() as DatabaseLoggerProvider).Init(_MediaLibrary);
+                (GetService<ILoggerProvider>() as DatabaseLoggerProvider).Init(_MediaLibrary, _ProcessorCollection);
 
                 var downloadManager = GetService<IDownloadManager>();
                 downloadManager.ClearTempFolder();
@@ -114,8 +116,9 @@ namespace VideoPlayer.Service
             {
                 if (Initialized)
                     return;
-                DateTime startTime = DateTime.Now;
+                DateTime startTime = DateTime.Now;                
                 _StatusManager = GetService<IStatusManager>();
+                _ProcessorCollection = GetService<IProcessorCollection>();
                 var database = GetService<IMediaLibraryDatabase>();
                 _MediaLibrary = GetService<IMediaLibrary>();                
                 NotifyStatus($"Initialisiere Monitormanagement.", true);

@@ -3,6 +3,7 @@ using System.Reflection;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Sources;
 using VideoPlayer.Service.Library.SourceReader;
+using VideoPlayer.Service.Processor;
 
 namespace VideoPlayer.Service.BaseServices
 {
@@ -11,7 +12,12 @@ namespace VideoPlayer.Service.BaseServices
 
         private Dictionary<string, ISourceReader> _SourceReaderTypes = new Dictionary<string, ISourceReader>();
 
-        protected SourceTimerService(ILogger logger) : base(logger)
+        protected SourceTimerService(string name, IProcessorCollection processorCollection, ILogger logger) 
+            : base(name, processorCollection, logger)
+        {
+        }
+        protected SourceTimerService(string name, ILogger logger)
+            : base(name, logger)
         {
         }
 

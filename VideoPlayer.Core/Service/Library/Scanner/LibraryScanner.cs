@@ -10,6 +10,7 @@ using VideoPlayer.Service.Library.Models.Classified;
 using VideoPlayer.Service.Library.Models.MediaInformation;
 using VideoPlayer.Service.Library.Models.Sources;
 using VideoPlayer.Service.Library.SourceReader;
+using VideoPlayer.Service.Processor;
 using VideoPlayer.Service.Settings;
 using VideoPlayer.Tools;
 
@@ -29,8 +30,9 @@ namespace VideoPlayer.Service.Library.Scanner
             IMediaLibrary mediaLibrary,
             ILibraryScannerSettings settings,
             IApplicationSettings applicationSettings,
+            IProcessorCollection processorCollection,
             ILogger<LibraryScanner> logger)
-            : base(logger)
+            : base(nameof(LibraryScanner), processorCollection, logger)
         {
             _Settings = settings;
             _ApplicationSettings = applicationSettings;
@@ -167,9 +169,10 @@ namespace VideoPlayer.Service.Library.Scanner
             _MediaLibrary.AddOrUpdateMediaItem(mediaItem);
         }
         #endregion
-        protected override async Task ExecuteTimerAsync()
+        protected override void ExecuteTimerSync()
         {
-            while (await ScanNextSourceAsync())
+            base.ExecuteTimerSync();
+            while (ScanNextSource())
                 CheckActive();
         }
 
@@ -357,7 +360,7 @@ namespace VideoPlayer.Service.Library.Scanner
 
 
         #region Forced Scan
-        private async Task<bool> ScanNextForcedEntry()
+        private  bool ScanNextForcedEntry()
         {
             CheckActive();
 
@@ -365,8 +368,8 @@ namespace VideoPlayer.Service.Library.Scanner
                 return false;
             try
             {
-                await ForceScan(entry as MediaItem);
-                await ForceScan(entry as MediaCollection);
+                ForceScan(entry as MediaItem);
+                ForceScan(entry as MediaCollection);
                 ForceScan(entry as TVShow);
                 ForceScan(entry as TVShowSeason);
                 ForceScan(entry as TVShowEpisode);
@@ -495,7 +498,7 @@ namespace VideoPlayer.Service.Library.Scanner
             _ForceEntries.Enqueue(collection);
         }
 
-        private async Task ForceScan(MediaCollection collection)
+        private void ForceScan(MediaCollection collection)
         {
             if (collection is null) return; 
             
@@ -505,7 +508,7 @@ namespace VideoPlayer.Service.Library.Scanner
             var mediaItems = _MediaLibrary.GetMediaCollectionItems(collection.Id);
             foreach (var mediaItem in mediaItems)
             {
-                await ForceScan(mediaItem);
+                ForceScan(mediaItem);
                 _MediaLibrary.Release(mediaItem);
             }
 
@@ -520,11 +523,11 @@ namespace VideoPlayer.Service.Library.Scanner
                     var relPath = collection.Path.Remove(0, PathTools.IncludeTrailingPathDelimiter(folder.Path).Length);
                     var relPathParts = relPath.Split('/');
                     var name = relPathParts.FirstOrDefault();
-                    folder = (await reader.ReadFoldersAsync(folder))
+                    folder = (reader.ReadFolders(folder))
                         .Where(f => f.Name == name)
                         .FirstOrDefault();
                 }
-                await ScanAsync(source, reader, folder, parentCollection, true);
+                Scan(source, reader, folder, parentCollection, true);
             }
             finally
             {
@@ -533,7 +536,7 @@ namespace VideoPlayer.Service.Library.Scanner
                 _MediaLibrary.Release(source);
             }
         }
-        private async Task ForceScan(MediaItem mediaItem)
+        private void ForceScan(MediaItem mediaItem)
         {
             if (mediaItem is null) return;
             MediaCollection collection = _MediaLibrary.GetMediaCollection(mediaItem.ParentCollectionId);
@@ -549,11 +552,11 @@ namespace VideoPlayer.Service.Library.Scanner
                     var relPath = collection.Path.Remove(0, PathTools.IncludeTrailingPathDelimiter(folder.Path).Length);
                     var relPathParts = relPath.Split('/');
                     var name = relPathParts.FirstOrDefault();
-                    folder = (await reader.ReadFoldersAsync(folder))
+                    folder = (reader.ReadFolders(folder))
                         .Where(f => f.Name == name)
                         .FirstOrDefault();
                 }
-                await ScanAsync(source, reader, folder, parentCollection, true);
+                Scan(source, reader, folder, parentCollection, true);
             }
             finally
             {
@@ -564,19 +567,19 @@ namespace VideoPlayer.Service.Library.Scanner
         }
 
 
-        private async Task CheckScanNextForcedEntryAsync()
+        private void CheckScanNextForcedEntry()
         {
-            while (await ScanNextForcedEntry())
+            while (ScanNextForcedEntry())
                 ;
         }
         #endregion
 
-        private async Task<bool> ScanNextSourceAsync()
+        private bool ScanNextSource()
         {
             if (!_ApplicationSettings.ScanningEnabled)
                 return false;
             while (CheckReloadNextForcedEntries());
-            await CheckScanNextForcedEntryAsync();
+            CheckScanNextForcedEntry();
             var source = _MediaLibrary.GetNextScanSource();
             if (source is null)
                 return false;
@@ -590,7 +593,7 @@ namespace VideoPlayer.Service.Library.Scanner
                 if (_Settings.SourceScanInterval > TimeSpan.Zero)
                     if (source.LastScan.Add(_Settings.SourceScanInterval) > DateTime.Now)
                         return false;
-                await ScanSourceAsync(source);                
+                ScanSource(source);                
                 return true;
             }
             finally
@@ -612,17 +615,17 @@ namespace VideoPlayer.Service.Library.Scanner
             }
         }
 
-        private async Task ScanSourceAsync(MediaSource source)
+        private void ScanSource(MediaSource source)
         {
             var reader = CreateReader(source);
             var root = reader.GetRoot();
-            await ScanAsync(source, reader, root, null);
+            Scan(source, reader, root, null);
 
             source.LastScan = DateTime.Now;
             _MediaLibrary.AddOrUpdateSource(source);
         }
 
-        private async Task ScanAsync(
+        private void Scan(
             MediaSource source,
             ISourceReader reader,
             SourceFolder currentFolder,
@@ -630,7 +633,7 @@ namespace VideoPlayer.Service.Library.Scanner
             bool skipScanForcedEntries = false)
         {
             if (!skipScanForcedEntries)
-                await CheckScanNextForcedEntryAsync();
+                CheckScanNextForcedEntry();
             else
                 CheckActive();
             StartProcess($"Erfasse {currentFolder.FullPath}");
@@ -641,12 +644,12 @@ namespace VideoPlayer.Service.Library.Scanner
                 {
                     if (!collection.LastScanCompleted)
                     {
-                        var folders = await reader.ReadFoldersAsync(currentFolder);
+                        var folders = reader.ReadFolders(currentFolder);
                         foreach (var folder in folders)
-                            await ScanAsync(source, reader, folder, collection);
+                            Scan(source, reader, folder, collection);
 
                         NotifyStatus($"Erfasse {currentFolder.FullPath}");
-                        var files = await reader.ReadFilesAsync(currentFolder);
+                        var files = reader.ReadFiles(currentFolder);
                         foreach (var file in files)
                             ProcessFile(file, collection);                        
 

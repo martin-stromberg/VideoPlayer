@@ -112,6 +112,7 @@ namespace VideoPlayer.Service.Library
         void ClearLogs();
         #endregion
         #region Actors
+        IEnumerable<Actor> GetActorOverview(int offset, int count);
         Actor AddOrUpdateActor(Actor entry);
         IEnumerable<Actor> GetActorsByName(string name);
         Actor GetActor(long id);

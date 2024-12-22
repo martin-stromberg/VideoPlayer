@@ -15,12 +15,11 @@ namespace VideoPlayer.Service.Library.SourceReader.SFtp
         public int ConcurrentConnections { get; set; } = 1;
         public SFTPMediaSource MediaSource { get; private set; }
 
-        public async Task<SFTPConnection> Connect()
+        public SFTPConnection Connect()
         {
             SFTPConnection connection = null;
             while (connection is null)
             {
-                await Task.Delay(100);
                 lock (_collectionLock)
                     if (!_free.TryDequeue(out connection))
                         connection = CreateNewConnection();

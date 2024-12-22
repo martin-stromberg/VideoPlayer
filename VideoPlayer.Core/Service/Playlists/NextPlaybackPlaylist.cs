@@ -11,74 +11,178 @@ using VideoPlayer.Service.Library;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
 using VideoPlayer.Service.Library.Models.Playlists;
+using VideoPlayer.Service.Processor;
 
 namespace VideoPlayer.Service.Playlists
 {
     public class NextPlaybackPlaylist : BasePlaylistService
     {
+        private readonly IProcessorCollection processorCollection;
         public NextPlaybackPlaylist(
             IMediaLibrary mediaLibrary,
             IMediaCollectionSelector mediaCollectionSelector,
+            IProcessorCollection processorCollection,
             ILogger logger)
             : base(mediaLibrary, mediaCollectionSelector, PlaylistType.NextPlayback, logger)
         {
+            this.processorCollection = processorCollection;
         }
 
-        private TimeSpan StartingPeriod = TimeSpan.FromSeconds(5);
-        private TimeSpan EndingPeriod = TimeSpan.FromSeconds(30);
-        private TimeSpan ProcessingInterval = TimeSpan.FromSeconds(5);
-        private MediaItem lastItem = null;
-        private TimeSpan lastPosition = TimeSpan.Zero;
-        private bool processing = false;
-        internal void ProcessVideoPosition(MediaItem mediaItem, TimeSpan position, TimeSpan duration)
+        #region Timer
+        private TimeSpan _StartingPeriod = TimeSpan.FromSeconds(5);
+        private TimeSpan _EndingPeriod = TimeSpan.FromSeconds(30);
+        private TimeSpan _ProcessingInterval = TimeSpan.FromSeconds(5);
+        private System.Timers.Timer _Worker = null;
+        private long _ExecutionSession = 0;
+        private object _ProcessingLock = new object();
+        private MediaItem _ProcessingMediaItem;
+        private TimeSpan _ProcessingPosition;
+        private TimeSpan _ProcessingDuration;
+        private bool _Executing = false;
+        private TimeSpan _LastProcessingPosition = TimeSpan.Zero;
+        private TimeSpan _LastPosition = TimeSpan.Zero;
+        private MediaItem _LastItem = null;
+        private int _BreakupCounter = 0;
+        public void Start()
         {
-            if (processing) return;
-            processing = true;
+            if (_Worker is not null) return;            
+            _Worker = new System.Timers.Timer(TimeSpan.FromSeconds(5)) { AutoReset = false };            
+            var currentExecutionSession = _ExecutionSession = DateTime.Now.Ticks;
+            _Worker.Elapsed += (sender, args) =>
+            {
+                _Worker.Stop();
+                if (processorCollection is not null)
+                {
+                    processorCollection.Enqueue(
+                        "",
+                        ExecuteTimer,
+                        args,
+                        (arg) =>
+                        {
+                            if (_Worker is not null && currentExecutionSession == _ExecutionSession)
+                                if (_BreakupCounter < 5)
+                                    _Worker.Start();
+                                else Stop();
+                        },
+                        (arg, ex) =>
+                        {
+                            NotifyError(ex);
+                        });
+                }
+                else
+                {
+                    ExecuteTimer(args);
+                    if (_BreakupCounter < 5)
+                        _Worker.Start();
+                    else Stop();
+                }
+            };
+            _Worker.Start();
+        }
+        private void Stop()
+        {
+            if (_Worker is not null)
+                _Worker.Dispose();
+            _Worker = null;
+        }
+        private void ExecuteTimer(object args)
+        {
+            if (_Executing)
+                return;
+            _Executing = true;
             try
             {
-                if (position < StartingPeriod)
-                {
-                    lastPosition = position;
-                    return;
-                }
-
-                if (lastPosition > position)
-                {
-                    lastPosition = position;
-                    return;
-                }
-
-                if (lastItem is null || lastItem.Id != mediaItem.Id)
-                {
-                    ProcessVideoChanged(mediaItem, position);
-                    return;
-                }
-                
-                if (lastPosition.Add(ProcessingInterval) > position)
-                    return;
-                lastPosition = position;
-
-                var firstEntry = Current.First;
-                if (position.Add(EndingPeriod) > duration)
-                {
-                    ProcessVideoEnding(mediaItem);
-                    return;
-                }
-
-                if (firstEntry is null)
-                    firstEntry = AddMediaItem(mediaItem);
-                if (firstEntry.Item is not null && firstEntry.Item.Id == mediaItem.Id)
-                {
-                    SaveMediaItemPosition(firstEntry.Item, firstEntry.Entry, position);
-                    return;
-                }
-
-                _ = AddMediaItem(mediaItem);
+                ProcessVideoPosition();
+            }
+            catch (Exception ex)
+            {
+                NotifyError(ex);
             }
             finally
             {
-                processing = false;
-            }            
+                _Executing = false;
+            }
+        }
+        private void ProcessVideoPosition()
+        {
+            MediaItem currentMediaItem;
+            TimeSpan currentPosition;
+            TimeSpan currentDuration;
+            lock (_ProcessingLock)
+            {
+                currentMediaItem = _ProcessingMediaItem;
+                currentPosition = _ProcessingPosition;
+                currentDuration = _ProcessingDuration;
+            }
+            if (_LastPosition == currentPosition)
+            {
+                _BreakupCounter += 1;
+                return;
+            }
+            _LastPosition = currentPosition;
+            if (currentPosition < _StartingPeriod)
+            {
+                _LastProcessingPosition = currentPosition;
+                return;
+            }
+
+            if (_LastProcessingPosition > currentPosition)
+            {
+                _BreakupCounter = 0;
+                _LastProcessingPosition = currentPosition;
+                return;
+            }
+
+            if (_LastItem is null || _LastItem.Id != currentMediaItem.Id)
+            {
+                _BreakupCounter = 0;
+                ProcessVideoChanged(currentMediaItem, currentPosition);
+                return;
+            }
+
+            _BreakupCounter = 0;
+            if (_LastProcessingPosition.Add(_ProcessingInterval) > currentPosition)
+                return;
+            _LastProcessingPosition = currentPosition;
+
+            var firstEntry = Current.First;
+            if (currentPosition.Add(_EndingPeriod) > currentDuration)
+            {
+                ProcessVideoEnding(currentMediaItem);
+                return;
+            }
+
+            if (firstEntry is null)
+                firstEntry = AddMediaItem(currentMediaItem);
+            if (firstEntry.Item is not null && firstEntry.Item.Id == currentMediaItem.Id)
+            {
+                SaveMediaItemPosition(firstEntry.Item, firstEntry.Entry, currentPosition);
+                return;
+            }
+
+            _ = AddMediaItem(currentMediaItem);
+        }
+        private void ProcessVideoChanged(MediaItem currentMediaItem, TimeSpan position)
+        {
+            _LastProcessingPosition = TimeSpan.Zero;
+            _LastItem = currentMediaItem;
+            _ProcessingInterval = TimeSpan.FromSeconds(5);
+        }
+        private void ProcessVideoEnding(MediaItem currentMediaItem)
+        {
+            var existing = Current.Items.FirstOrDefault(i => i.Item?.Id == currentMediaItem.Id);
+            if (existing is null)
+                return;
+            #region Zuletzt gesehen speichern
+            if (existing.Entry is not null)
+            {
+                existing.Entry.LastWatched = DateTime.Now;
+                MediaLibrary.AddOrUpdateEntry(existing.Entry);
+            }
+            #endregion
+            var nextMediaItem = FindNextMediaItem(currentMediaItem);
+            Current.Remove(existing);
+            AddMediaItem(nextMediaItem);
         }
         private void SaveMediaItemPosition(MediaItem item, ClassifiedEntry entry, TimeSpan position)
         {
@@ -88,7 +192,19 @@ namespace VideoPlayer.Service.Playlists
                 MediaLibrary.AddOrUpdateMediaItem(item);
             }
         }
+        #endregion
 
+        internal void ProcessVideoPosition(MediaItem mediaItem, TimeSpan position, TimeSpan duration)
+        {
+            lock (_ProcessingLock)
+            {
+                _ProcessingMediaItem = mediaItem;
+                _ProcessingPosition = position;
+                _ProcessingDuration = duration;
+            }
+            Start();
+        }
+        
         private PlaylistEntry AddMediaItem(MediaItem mediaItem)
         {
             if (mediaItem is null)
@@ -144,28 +260,7 @@ namespace VideoPlayer.Service.Playlists
             }
         }
 
-        private void ProcessVideoChanged(MediaItem currentMediaItem, TimeSpan position)
-        {
-            lastPosition = TimeSpan.Zero;
-            lastItem = currentMediaItem;
-            ProcessingInterval = TimeSpan.FromSeconds(5);
-        }
-        private void ProcessVideoEnding(MediaItem currentMediaItem)
-        {
-            var existing = Current.Items.FirstOrDefault(i => i.Item?.Id == currentMediaItem.Id);
-            if (existing is null)
-                return;
-            #region Zuletzt gesehen speichern
-            if (existing.Entry is not null) 
-            {
-                existing.Entry.LastWatched = DateTime.Now;
-                MediaLibrary.AddOrUpdateEntry(existing.Entry);
-            }
-            #endregion
-            var nextMediaItem = FindNextMediaItem(currentMediaItem);
-            Current.Remove(existing);
-            AddMediaItem(nextMediaItem);
-        }
+        
 
         private ClassifiedEntry GetClassifiedEntry(MediaItem mediaItem)
         {

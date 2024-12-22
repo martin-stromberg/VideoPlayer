@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using VideoPlayer.Service.BaseServices;
 using VideoPlayer.Service.Database.Models;
 using VideoPlayer.Service.Library.Models;
+using VideoPlayer.Service.Processor;
 
 namespace VideoPlayer.Service.Device
 {
@@ -57,7 +58,8 @@ namespace VideoPlayer.Service.Device
     }
     public class MemoryInformation : TimerService, IMemoryInformation
     {
-        public MemoryInformation() : base(null)
+        public MemoryInformation(IProcessorCollection processorCollection) 
+            : base("", processorCollection, null)
         {
             Start();DueTime = TimeSpan.FromSeconds(10); Period = TimeSpan.FromSeconds(10);
         }

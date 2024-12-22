@@ -3,6 +3,7 @@ using System.Linq;
 using VideoPlayer.Navigation;
 using VideoPlayer.Service.Events;
 using VideoPlayer.Service.Playlists;
+using VideoPlayer.Service.Processor;
 using VideoPlayer.Service.Resources;
 using VideoPlayer.ViewModels.MediaOverview;
 
@@ -12,8 +13,10 @@ namespace VideoPlayer.ViewModels.HomePage
     {
         public HomePageViewModel(
             INavigationManager navigationManager,
-            IPlaylistManager playlistManager, IResourceManager resourceManager)
-            : base()
+            IPlaylistManager playlistManager, 
+            IResourceManager resourceManager,
+            IProcessorCollection processorCollection)
+            : base(processorCollection)
         {
             Title = "Videoplayer";            
             this.navigationManager = navigationManager;
@@ -53,6 +56,9 @@ namespace VideoPlayer.ViewModels.HomePage
                         navigationManager.OpenTVShows();
                         break;
                     case "home":
+                        break;
+                    case "actors":
+                        navigationManager.OpenActorsOverview();
                         break;
                     default:
                         throw new NotImplementedException(nameof(navigationCategory));

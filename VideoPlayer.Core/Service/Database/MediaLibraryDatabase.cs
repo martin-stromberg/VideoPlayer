@@ -278,6 +278,24 @@ namespace VideoPlayer.Service.Database
                 .Cast<T>();
         }
 
+        public IEnumerable<T> GetAll<T>(int offset, int count, string orderFieldName, bool ascending, params Filter[] args)
+            where T : BaseDataModel
+        {
+            var orderProp = typeof(T).GetProperty(orderFieldName);
+            if (ascending)
+                return GetAll(typeof(T), args)
+                    .OrderBy(rec => orderProp.GetValue(rec))
+                    .Skip(offset)
+                    .Take(count)
+                    .Cast<T>();
+            else
+                return GetAll(typeof(T), args)
+                    .OrderByDescending(rec => orderProp.GetValue(rec))
+                    .Skip(offset)
+                    .Take(count)
+                    .Cast<T>();
+        }
+
         public bool Delete<T>(T entryToDelete) where T : BaseDataModel
         {
             return Connection.Delete(entryToDelete) == 1;
@@ -328,6 +346,8 @@ namespace VideoPlayer.Service.Database
         IEnumerable<T> GetAll<T>(int offset, int count, params KeyValuePair<string, object>[] args)
             where T: BaseDataModel;
         IEnumerable<T> GetAll<T>(int offset, int count, params Filter[] args)
+            where T : BaseDataModel;
+        IEnumerable<T> GetAll<T>(int offset, int count, string orderFieldName, bool ascending, params Filter[] args)
             where T : BaseDataModel;
 
         IEnumerable<BaseDataModel> GetAll(Type modelType, params KeyValuePair<string, object>[] args);

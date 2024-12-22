@@ -20,9 +20,9 @@ namespace VideoPlayer.Service.Library.SourceReader.SFtp
             _ConnectionManager.Clear();
         }
 
-        protected async Task<SFTPConnection> ConnectAsync()
+        protected SFTPConnection Connect()
         {
-            var connection = await _ConnectionManager.Connect();
+            var connection = _ConnectionManager.Connect();
             try
             {
                 connection.CheckConnection();
@@ -56,7 +56,7 @@ namespace VideoPlayer.Service.Library.SourceReader.SFtp
             if (!Path.Exists(localFolderPath))
                 Directory.CreateDirectory(localFolderPath);
 
-            var connection = ConnectAsync().Result;
+            var connection = Connect();
             try
             {
                 connection.Download(file.Path, localFilePath, progressCallback);
@@ -73,14 +73,14 @@ namespace VideoPlayer.Service.Library.SourceReader.SFtp
             return new SourceFolder() { FullPath = FTPMediaSource.RootPath, Path = "", Name = FTPMediaSource.Name };
         }
 
-        public override async Task<SourceFile> ReadFileAsync(MediaItem mediaItem)
+        public override SourceFile ReadFile(MediaItem mediaItem)
         {
             var folderPath = Path.GetDirectoryName(mediaItem.Path);
             var folder = GetRoot();
             SourceFolder[] subFolders;
             while (folder is not null && folder.Path != folderPath)
             {
-                subFolders = (await ReadFoldersAsync(folder)).ToArray();
+                subFolders = (ReadFolders(folder)).ToArray();
                 folder = subFolders.FirstOrDefault(f =>
                     folderPath.StartsWith(f.Path)
                     && f.Path.Length <= folderPath.Length
@@ -90,13 +90,13 @@ namespace VideoPlayer.Service.Library.SourceReader.SFtp
                     );
             }
             if (folder is not null)
-                return (await ReadFilesAsync(folder)).FirstOrDefault(f => f.Name == mediaItem.Name);
+                return (ReadFiles(folder)).FirstOrDefault(f => f.Name == mediaItem.Name);
             return null;
         }
 
-        public override async Task<IEnumerable<SourceFile>> ReadFilesAsync(SourceFolder folder)
+        public override IEnumerable<SourceFile> ReadFiles(SourceFolder folder)
         {
-            var connection = await ConnectAsync();
+            var connection = Connect();
             try
             {
                 var fileList = connection.QueryDirectory($"{folder.Path}");
@@ -119,9 +119,9 @@ namespace VideoPlayer.Service.Library.SourceReader.SFtp
             }
         }
 
-        public override async Task<IEnumerable<SourceFolder>> ReadFoldersAsync(SourceFolder folder)
+        public override IEnumerable<SourceFolder> ReadFolders(SourceFolder folder)
         {
-            var connection = await ConnectAsync();
+            var connection = Connect();
             try
             {
                 var fileList = connection.QueryDirectory($"{folder.Path}");

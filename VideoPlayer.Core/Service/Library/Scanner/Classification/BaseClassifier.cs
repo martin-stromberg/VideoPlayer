@@ -18,9 +18,9 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             MediaLibrary = mediaLibrary;
         }
 
-        public abstract Task<bool> Classify(MediaItem mediaItem);
-        public abstract Task<bool> UpdatePictures(MediaItem mediaItem);
-        public abstract Task DeleteOrpahnedPictures();
+        public abstract bool Classify(MediaItem mediaItem);
+        public abstract bool UpdatePictures(MediaItem mediaItem);
+        public abstract void DeleteOrpahnedPictures();
         public IMediaLibrary MediaLibrary { get; private set; }
 
         public event EventHandler<SourceReaderRequestEventArgs> SourceReaderRequest;
@@ -37,7 +37,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             return e.Reader;
         }
 
-        public abstract Task<bool> UpdatePictures(Actor actor);
+        public abstract bool UpdatePictures(Actor actor);
     }
 
 }

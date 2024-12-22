@@ -12,6 +12,7 @@ using VideoPlayer.Service.Library.Models.Classified;
 using VideoPlayer.Service.Library.Models.Playlists;
 using VideoPlayer.Service.Library.Models.Sources;
 using VideoPlayer.Service.Log;
+using VideoPlayer.Service.Processor;
 
 namespace VideoPlayer.Service.Library
 {
@@ -24,8 +25,9 @@ namespace VideoPlayer.Service.Library
 
         public MediaLibrary(
             IMediaLibraryDatabase database,
+            IProcessorCollection processorCollection,
             ILogger<MediaLibrary> logger)
-            : base(logger)
+            : base("", logger)
         {
             _Database = database; 
             Start();
@@ -1084,6 +1086,13 @@ namespace VideoPlayer.Service.Library
 
         #endregion
         #region Actors
+        public IEnumerable<Actor> GetActorOverview(int offset, int count)
+        {
+            var entryIds = _Database.GetAll<DataActor>(offset, count, nameof(DataActor.RoleCount), false)
+                                    .Select(c => c.Id);
+            foreach (var itemId in entryIds)
+                yield return GetActor(itemId);
+        }
         public Actor AddOrUpdateActor(Actor entry)
         {
             entry = CompleteActor(entry);

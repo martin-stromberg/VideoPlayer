@@ -17,6 +17,7 @@ namespace VideoPlayer.Navigation
     {
         private const string _RouteNameMovieOverview = "movies";
         private const string _RouteNameTVShowOverview = "tvshows";
+        private const string _RouteNameActorsOverview = "actors";
         private const string _RouteNameMovieCard = "movie";
         private const string _RouteNameTVShowCard = "tvshow";
         private const string _RouteNameActor = "actor";
@@ -26,13 +27,14 @@ namespace VideoPlayer.Navigation
         {
             Routing.RegisterRoute(_RouteNameMovieOverview, typeof(MovieOverviewPage));
             Routing.RegisterRoute(_RouteNameTVShowOverview, typeof(TVShowOverviewPage));
+            Routing.RegisterRoute(_RouteNameActorsOverview, typeof(ActorsOverviewPage));
             Routing.RegisterRoute(_RouteNameMovieCard, typeof(MovieCardPage));
             Routing.RegisterRoute(_RouteNameTVShowCard, typeof(TVShowCardPage));
             Routing.RegisterRoute(_RouteNameActor, typeof(ActorPage));
         }
         #region General
         protected async void NavigateToRoute(string route, 
-            Dictionary<string, object>? args = default)
+            Dictionary<string, object> args = default)
         {
             try
             {
@@ -61,6 +63,10 @@ namespace VideoPlayer.Navigation
         {
             NavigateToRoute(_RouteNameTVShowOverview);
         }
+        public void OpenActorsOverview()
+        {
+            NavigateToRoute(_RouteNameActorsOverview);
+        }
         #endregion
 
         public void OpenCard(BaseListItem vm, bool autoPlay = false)
@@ -77,10 +83,18 @@ namespace VideoPlayer.Navigation
                     { "AutoPlay", autoPlay }
                 });
             else if (vm is RoleListItem)
-            {
+            {                
                 NavigateToRoute(_RouteNameActor, new Dictionary<string, object>()
                 {
                     { "Id", ((Role)((RoleListItem)vm).Element).Actor.Id },
+                    { "AutoPlay", autoPlay }
+                });
+            }
+            else if (vm is ActorListItem)
+            {
+                NavigateToRoute(_RouteNameActor, new Dictionary<string, object>()
+                {
+                    { "Id", vm.Id },
                     { "AutoPlay", autoPlay }
                 });
             }

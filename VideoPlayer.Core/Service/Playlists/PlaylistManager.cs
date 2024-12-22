@@ -10,6 +10,7 @@ using VideoPlayer.Service.Events;
 using VideoPlayer.Service.Library;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
+using VideoPlayer.Service.Processor;
 using VideoPlayer.Service.Resources;
 
 namespace VideoPlayer.Service.Playlists
@@ -33,6 +34,7 @@ namespace VideoPlayer.Service.Playlists
         public PlaylistManager(
             IMediaLibrary mediaLibrary, 
             IDownloadManager downloadManager,
+            IProcessorCollection processorCollection,
             IMediaCollectionSelector mediaCollectionSelector,
             ILogger<PlaylistManager> logger)
             :base(logger)
@@ -43,7 +45,7 @@ namespace VideoPlayer.Service.Playlists
             General.DownloadProgress += General_DownloadProgress;
             General.DownloadFailed += General_DownloadFailed;
 
-            NextPlaybackPlaylist = new NextPlaybackPlaylist(mediaLibrary, mediaCollectionSelector, Logger);
+            NextPlaybackPlaylist = new NextPlaybackPlaylist(mediaLibrary, mediaCollectionSelector, processorCollection, Logger);
             NewPlaylist = new NewEntriesPlaylist(mediaLibrary, mediaCollectionSelector, Logger);
         }
 

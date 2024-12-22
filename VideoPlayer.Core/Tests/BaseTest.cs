@@ -17,6 +17,7 @@ using VideoPlayer.Service.Library.Scanner.Classification;
 using VideoPlayer.Service.Library.Scanner.Picture;
 using VideoPlayer.Service.Library.SourceReader;
 using VideoPlayer.Service.Playlists;
+using VideoPlayer.Service.Processor;
 using VideoPlayer.Service.Settings;
 using VideoPlayer.Tests.Helper;
 using VideoPlayer.Tools;
@@ -26,7 +27,10 @@ namespace VideoPlayer.Tests
     public abstract class BaseTest: INotifyPropertyChanged
     {
 
-        public BaseTest() { }
+        public BaseTest() 
+        {
+            ProcessorCollection = new ProcessorCollection();
+        }
 
         #region INotifyPropertyChanged
         public event PropertyChangedEventHandler PropertyChanged;
@@ -85,7 +89,7 @@ namespace VideoPlayer.Tests
         protected void InitializePlaylistManager()
         {
             IMediaCollectionSelector mediaCollectionSelector = new MediaCollectionSelector(MediaLibrary);
-            PlaylistManager = new PlaylistManager(MediaLibrary, DownloadManager, mediaCollectionSelector, null);
+            PlaylistManager = new PlaylistManager(MediaLibrary, DownloadManager, ProcessorCollection, mediaCollectionSelector, null);
         }
 
         protected void InitializeEmptyDatabase()
@@ -95,12 +99,12 @@ namespace VideoPlayer.Tests
             Database.UpdateSchema();
             if (!Database.IsEmpty())
                 throw new ApplicationException($"Database is not new.");
-            MediaLibrary = new MediaLibrary(Database, null);
+            MediaLibrary = new MediaLibrary(Database, ProcessorCollection, null);
         }
 
         protected void InitializeDownloadManager()
         {
-            DownloadManager = new DownloadManager(MediaLibrary, new ApplicationEnvironment(), null, null);
+            DownloadManager = new DownloadManager(MediaLibrary, new ApplicationEnvironment(), null, ProcessorCollection, null);
             DownloadManager.CreatingSourceReader += DownloadManager_CreatingSourceReader;
         }
 
@@ -119,7 +123,7 @@ namespace VideoPlayer.Tests
                 CheckInterval = TimeSpan.FromMinutes(30)
             };
             var applicationSettings = new ApplicationSettings();
-            MediaClassifier = new MediaClassifier(MediaLibrary, settings, applicationSettings,null);
+            MediaClassifier = new MediaClassifier(MediaLibrary, settings, applicationSettings, ProcessorCollection, null);
             MediaClassifier.ExecutionStarted += MediaClassifier_ExecutionStarted;
             MediaClassifier.ExecutionFinished += MediaClassifier_ExecutionFinished;
             MediaClassifier.CreatingSourceReader += MediaClassifier_CreatingSourceReader;
@@ -128,7 +132,7 @@ namespace VideoPlayer.Tests
             if (autoStart)
                 MediaClassifier.Start();
 
-            MediaPictureProcessor = new MediaPictureProcessor(MediaLibrary, settings, applicationSettings, null);
+            MediaPictureProcessor = new MediaPictureProcessor(MediaLibrary, settings, applicationSettings, ProcessorCollection, null);
             MediaPictureProcessor.ExecutionStarted += MediaPictureProcessor_ExecutionStarted;
             MediaPictureProcessor.ExecutionFinished += MediaPictureProcessor_ExecutionFinished;
             MediaPictureProcessor.CreatingSourceReader += MediaClassifier_CreatingSourceReader;
@@ -160,7 +164,7 @@ namespace VideoPlayer.Tests
                 FirstCheck = TimeSpan.FromSeconds(1),
             };
             var applicationSettings = new ApplicationSettings();
-            Scanner = new LibraryScanner(MediaLibrary, settings, applicationSettings, null);
+            Scanner = new LibraryScanner(MediaLibrary, settings, applicationSettings, ProcessorCollection, null);
             Scanner.CreatingSourceReader += MediaClassifier_CreatingSourceReader;
             Scanner.ExecutionStarted += Scanner_ExecutionStarted;
             Scanner.ExecutionFinished += Scanner_ExecutionFinished;
@@ -647,6 +651,8 @@ namespace VideoPlayer.Tests
                 SetProperty<string>(value);
             }
         }
+
+        public ProcessorCollection ProcessorCollection { get; }
 
         protected abstract Task ExecuteAsync(object loopArgument);
 

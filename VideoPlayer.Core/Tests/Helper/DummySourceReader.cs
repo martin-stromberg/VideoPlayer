@@ -64,26 +64,26 @@ namespace VideoPlayer.Tests.Helper
         public SourceFolder GetRoot()
         {
             var folder = new SourceFolder() { FullPath = "/", Path = "/", Name = name };
-            folder.LastWriteTime = FindLastWriteTimeAsync(folder);
+            folder.LastWriteTime = FindLastWriteTime(folder);
             return folder;
         }
 
-        private DateTime FindLastWriteTimeAsync(SourceFolder folder)
+        private DateTime FindLastWriteTime(SourceFolder folder)
         {
-            var subFolders = ReadFoldersAsync(folder).Result
+            var subFolders = ReadFolders(folder)
                 .Select(f => f.LastWriteTime)
                 .Concat(new DateTime[] { DateTime.MinValue })
                 .Max(f => f);
-            var files = ReadFilesAsync(folder).Result
+            var files = ReadFiles(folder)
                 .Select(f => f.LastWriteTime)
                 .Concat(new DateTime[] { DateTime.MinValue })
                 .Max(f => f);
             return subFolders > files ? subFolders : files;
         }
 
-        public Task<IEnumerable<SourceFile>> ReadFilesAsync(SourceFolder folder)
+        public IEnumerable<SourceFile> ReadFiles(SourceFolder folder)
         {
-            return Task.FromResult(_Structure
+            return _Structure
                 .Select(s =>
                 {
                     if (!s.Key.StartsWith(folder.Path))
@@ -108,12 +108,12 @@ namespace VideoPlayer.Tests.Helper
                     file.LastWriteTime = File.GetLastWriteTime(fileName);
                     return file;
                 })
-                .Where(s => s is not null));
+                .Where(s => s is not null);
         }
 
-        public Task<IEnumerable<SourceFolder>> ReadFoldersAsync(SourceFolder folder)
+        public IEnumerable<SourceFolder> ReadFolders(SourceFolder folder)
         {
-            return Task.FromResult(_Structure
+            return _Structure
                 .Select(s =>
                 {
                     if (!s.Key.StartsWith(folder.Path))
@@ -135,10 +135,10 @@ namespace VideoPlayer.Tests.Helper
                         LastWriteTime = DateTime.Now,
                         Path = $"{folder.Path}{relPath}"
                     };
-                    foundFolder.LastWriteTime = FindLastWriteTimeAsync(foundFolder);
+                    foundFolder.LastWriteTime = FindLastWriteTime(foundFolder);
                     return foundFolder;
                 })
-                .Where(s => s is not null));
+                .Where(s => s is not null);
         }
 
         private Stream FindFileStream(string fileName, bool findLink = true)
@@ -173,9 +173,9 @@ namespace VideoPlayer.Tests.Helper
                 }
         }
 
-        public Task<SourceFile> ReadFileAsync(MediaItem mediaItem)
+        public SourceFile ReadFile(MediaItem mediaItem)
         {
-            return Task.FromResult(_Structure
+            return _Structure
                 .Select(s =>
                 {
                     if (!s.Key.StartsWith(mediaItem.Path))
@@ -188,7 +188,7 @@ namespace VideoPlayer.Tests.Helper
                         Path = $"{mediaItem.Path}"
                     };
                 })
-                .FirstOrDefault(s => s is not null));
+                .FirstOrDefault(s => s is not null);
         }
 
     }

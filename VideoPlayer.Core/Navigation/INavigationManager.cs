@@ -13,6 +13,7 @@ namespace VideoPlayer.Navigation
         #region Overviews
         void OpenMovies();
         void OpenTVShows();
+        void OpenActorsOverview();
         #endregion
 
         #region Detail Card

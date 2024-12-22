@@ -10,11 +10,11 @@ namespace VideoPlayer.Service.Library.SourceReader
 
         SourceFolder GetRoot();
 
-        Task<IEnumerable<SourceFile>> ReadFilesAsync(SourceFolder folder);
+        IEnumerable<SourceFile> ReadFiles(SourceFolder folder);
 
-        Task<IEnumerable<SourceFolder>> ReadFoldersAsync(SourceFolder folder);
+        IEnumerable<SourceFolder> ReadFolders(SourceFolder folder);
 
-        Task<SourceFile> ReadFileAsync(MediaItem mediaItem);
+        SourceFile ReadFile(MediaItem mediaItem);
         FileInfo Download(MediaItem nfoFile, Action<decimal> progressCallback);
 
         string ReadTextFile(MediaItem nfoFile);

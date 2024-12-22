@@ -12,6 +12,7 @@ using VideoPlayer.Service.Library;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
 using VideoPlayer.Service.Library.SourceReader;
+using VideoPlayer.Service.Processor;
 using VideoPlayer.Tools;
 using static SQLite.SQLite3;
 
@@ -29,8 +30,9 @@ namespace VideoPlayer.Service.Download
             IMediaLibrary mediaLibrary,
             IEnvironment environment,
             IMediaCollectionSelector mediaCollectionSelector,
+            IProcessorCollection processorCollection,
             ILogger<DownloadManager> logger)
-            :base(logger)
+            :base(nameof(DownloadManager), processorCollection, logger)
         {
             base.DueTime = TimeSpan.FromSeconds(5);
             base.Period = TimeSpan.FromSeconds(5);

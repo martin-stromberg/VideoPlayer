@@ -5,6 +5,7 @@ using VideoPlayer.Service.BaseServices;
 using VideoPlayer.Service.Events;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
+using VideoPlayer.Service.Processor;
 using VideoPlayer.Service.Settings;
 
 namespace VideoPlayer.Service.Library.Scanner.Classification
@@ -23,8 +24,9 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             IMediaLibrary mediaLibrary, 
             IMediaClassifierSettings settings, 
             IApplicationSettings applicationSettings,
+            IProcessorCollection processorCollection,
             ILogger<MediaClassifier> logger)
-            : base(logger)
+            : base(nameof(MediaClassifier), processorCollection, logger)
         {
             _MediaLibrary = mediaLibrary;
             this.settings = settings;
@@ -60,13 +62,13 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             return base.GetPublishers()
                 .Concat(_Classifier.OfType<IEventPublisher>());
         }
-        protected override async Task ExecuteTimerAsync()
+        protected override void ExecuteTimerSync()
         {
             if (applicationSettings.ClassificationEnabled)
-                await ClassifyNextItems();
+                ClassifyNextItems();
         }
 
-        private async Task ClassifyNextItems()
+        private void ClassifyNextItems()
         {
             var processing = false;            
             try
@@ -93,7 +95,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                             StartProcess($"Klassifiziere nächste Elemente");
                             processing = true;
                         }
-                        await Classify(mediaItem);
+                        Classify(mediaItem);
                         checkNotify();
                     }
                     finally
@@ -109,7 +111,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                             StartProcess($"Klassifiziere nächste Elemente");
                             processing = true;
                         }                        
-                        await Classify(collection);
+                        Classify(collection);
                         checkNotify();
                     }
                     finally
@@ -134,14 +136,14 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
         }
 
         
-        private async Task Classify(MediaItem mediaItem)
+        private void Classify(MediaItem mediaItem)
         {
             if (!applicationSettings.ClassificationEnabled) return;
             try
             {
                 NotifyStatus($"Klassifiziere: {mediaItem.Path}");
                 foreach (var classifier in _Classifier)
-                    if (await classifier.Classify(mediaItem))
+                    if (classifier.Classify(mediaItem))
                         break;
                 mediaItem.Classified = true;
                 _MediaLibrary.AddOrUpdateMediaItem(mediaItem);

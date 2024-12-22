@@ -1,4 +1,5 @@
-﻿using System;
+﻿using SQLite;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -17,6 +18,7 @@ namespace VideoPlayer.Service.Database.Models
 
         public string BannerBackgroundColor { get => GetProperty<string>(); set => SetProperty(value); }
         public DateTime LastPictureUpdateTry { get => GetProperty<DateTime>(); set => SetProperty(value); }
+        [Indexed]
         public int RoleCount { get => GetProperty<int>(); set => SetProperty(value); }
         public bool RoleCountUpdated { get => GetProperty<bool>(); set => SetProperty(value); }
     }

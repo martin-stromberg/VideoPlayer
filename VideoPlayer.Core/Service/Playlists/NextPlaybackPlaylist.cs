@@ -182,7 +182,10 @@ namespace VideoPlayer.Service.Playlists
             #endregion
             var nextMediaItem = FindNextMediaItem(currentMediaItem);
             Current.Remove(existing);
-            AddMediaItem(nextMediaItem);
+            if (nextMediaItem is not null)
+                AddMediaItem(nextMediaItem);
+            else
+                SaveChanges();
         }
         private void SaveMediaItemPosition(MediaItem item, ClassifiedEntry entry, TimeSpan position)
         {
@@ -209,25 +212,31 @@ namespace VideoPlayer.Service.Playlists
         {
             if (mediaItem is null)
                 return null;
-            var existing = Current.Items.FirstOrDefault(i => i.Item is not null && i.Item.Id == mediaItem.Id);
-            if (existing is not null)
-            {
-                Current.MoveTo(existing, 0);
+            try
+            {                
+                var existing = Current.Items.FirstOrDefault(i => i.Item is not null && i.Item.Id == mediaItem.Id);
+                if (existing is not null)
+                {
+                    Current.MoveTo(existing, 0);
+                    return Current.First;
+                }
+                var nextEntry = GetClassifiedEntry(mediaItem);
+                existing = Current.Items.FirstOrDefault(i => i.Item is null && i.Entry.Id == nextEntry.Id);
+                if (existing is not null)
+                {
+                    existing.Item = mediaItem;
+                    Current.MoveTo(existing, 0);
+                    return Current.First;
+                }
+                RemoveBelongingEntries(nextEntry as TVShowEpisode);
+                RemoveBelongingEntries(nextEntry as Movie);
+                Current.Add(mediaItem, nextEntry);
                 return Current.First;
             }
-            var nextEntry = GetClassifiedEntry(mediaItem);
-            existing = Current.Items.FirstOrDefault(i => i.Item is null && i.Entry.Id == nextEntry.Id);
-            if (existing is not null)
+            finally
             {
-                existing.Item = mediaItem;
-                Current.MoveTo(existing, 0);
-                return Current.First;
+                SaveChanges();
             }
-            RemoveBelongingEntries(nextEntry as TVShowEpisode);
-            RemoveBelongingEntries(nextEntry as Movie);
-            Current.Add(mediaItem, nextEntry);
-            SaveChanges();
-            return Current.First;
         }
 
         private void RemoveBelongingEntries(TVShowEpisode entry)

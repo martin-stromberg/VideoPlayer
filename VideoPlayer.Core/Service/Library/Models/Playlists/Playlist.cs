@@ -18,7 +18,8 @@ namespace VideoPlayer.Service.Library.Models.Playlists
         User,
         TVShowCollection,
         NextPlayback,
-        New
+        New,
+        Favorite
     }
     [DataModelReference(typeof(Service.Database.Models.DataPlaylist))]
     public class Playlist : BaseServiceModel

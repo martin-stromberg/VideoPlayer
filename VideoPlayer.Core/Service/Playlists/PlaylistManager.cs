@@ -28,6 +28,9 @@ namespace VideoPlayer.Service.Playlists
         void ProcessMediaEnded(MediaItem currentMediaItem);
         void ProcessVideoPosition(MediaItem currentMediaItem, TimeSpan position, TimeSpan duration);
         void Reset();
+        void AddToFavorite(ClassifiedEntry entry);
+        void RemoveFromFavorite(ClassifiedEntry entry);
+        bool IsInFavorite(ClassifiedEntry entry);
     }
     public class PlaylistManager: BaseService, IPlaylistManager
     {
@@ -47,6 +50,7 @@ namespace VideoPlayer.Service.Playlists
 
             NextPlaybackPlaylist = new NextPlaybackPlaylist(mediaLibrary, mediaCollectionSelector, processorCollection, Logger);
             NewPlaylist = new NewEntriesPlaylist(mediaLibrary, mediaCollectionSelector, Logger);
+            Favorites = new FavoritePlaylist(mediaLibrary, mediaCollectionSelector, logger);
         }
 
         private void General_DownloadFailed(object sender, DownloadFailedEventArgs e)
@@ -85,17 +89,20 @@ namespace VideoPlayer.Service.Playlists
 
         protected GeneralPlaylist General { get; set; }
         public NextPlaybackPlaylist NextPlaybackPlaylist { get; protected set; }
+        public FavoritePlaylist Favorites { get; protected set; }
         public void Init()
         {
             General.Init();
             NextPlaybackPlaylist.Init();
             NewPlaylist.Init();
+            Favorites.Init();
         }
         public void Reset()
         {
             General.Reset();
             NextPlaybackPlaylist.Reset();
             NewPlaylist.Reset();
+            Favorites.Reset();
         }
 
         public void Play(ClassifiedEntry movie)
@@ -114,6 +121,21 @@ namespace VideoPlayer.Service.Playlists
 
         #region NewEntriesPlaylist
         public NewEntriesPlaylist NewPlaylist { get; }
+        #endregion
+
+        #region Favorites
+        public void AddToFavorite(ClassifiedEntry entry)
+        {
+            Favorites.Add(entry);
+        }
+        public void RemoveFromFavorite(ClassifiedEntry entry)
+        {
+            Favorites.Remove(entry);
+        }
+        public bool IsInFavorite(ClassifiedEntry entry)
+        {
+            return Favorites.Contains(entry);
+        }
         #endregion
     }
 }

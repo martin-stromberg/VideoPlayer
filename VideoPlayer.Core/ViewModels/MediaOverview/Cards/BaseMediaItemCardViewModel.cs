@@ -49,6 +49,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             IPlayableEntry playableEntry = entry as IPlayableEntry;
             CanEdit = entry is MovieCollection;
             HasDownload = downloadableEntry is not null && downloadableEntry.DownloadMediaItemId != 0;
+            IsFavorite = PlaylistManager.IsInFavorite(entry);
             SetPicture(entry as IPicturedEntry);
             Title = entry.Name;
             if (playableEntry is not null)
@@ -108,6 +109,8 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
         public string Subtitle { get => GetProperty<string>(); private set { SetProperty(value); } }
         public bool CanEdit { get => GetProperty<bool>(); private set { SetProperty(value); } }
         public bool HasDownload { get => GetProperty<bool>(); set { SetProperty(value); HasNoDownload = !value; } }
+        public bool IsNotFavorite { get => GetProperty<bool>(); set { SetProperty(value); } }
+        public bool IsFavorite { get => GetProperty<bool>(); set { SetProperty(value); IsNotFavorite = !value; } }
         public bool HasNoDownload { get => GetProperty<bool>(); private set { SetProperty(value); } }
         protected virtual void ExecuteAction(string args)
         {
@@ -127,6 +130,12 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
                     case "download":
                         Download(Entry);
                         break;
+                    case "add_favorite":
+                        AddToFavorite(Entry);
+                        break;
+                    case "remove_favorite":
+                        RemoveFromFavorite(Entry);
+                        break;
                 }
             }
             catch(Exception ex)
@@ -140,6 +149,18 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             if (entry is not null)
                 downloadManager.Enqueue(entry, MediaItemCopyType.Download);
             HasNoDownload = false;
+        }
+        protected virtual void AddToFavorite(ClassifiedEntry entry)
+        {
+            if (entry is not null)
+                PlaylistManager.AddToFavorite(entry);
+            IsFavorite = true;
+        }
+        protected virtual void RemoveFromFavorite(ClassifiedEntry entry)
+        {
+            if (entry is not null)
+                PlaylistManager.RemoveFromFavorite(entry);
+            IsFavorite = false;
         }
 
         protected virtual void Rescan(ClassifiedEntry entry)

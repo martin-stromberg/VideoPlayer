@@ -18,6 +18,7 @@ namespace VideoPlayer.Service.Playlists
     public interface IPlaylistManager
     {
         NextPlaybackPlaylist NextPlaybackPlaylist { get; }
+        FavoritePlaylist Favorites { get; }
         NewEntriesPlaylist NewPlaylist { get; }
         event EventHandler<BaseServiceModelEventArgs> PlaybackRequest;
         event EventHandler<BaseServiceModelEventArgs> Downloading;

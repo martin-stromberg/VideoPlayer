@@ -21,6 +21,7 @@ namespace VideoPlayer.ViewModels.HomePage
             Title = "Videoplayer";            
             this.navigationManager = navigationManager;
             NextPlayingContext = new NextPlayingViewModel(playlistManager, navigationManager, resourceManager);
+            FavoritesContext = new FavoritesViewModel(playlistManager, navigationManager, resourceManager);
             NewContext = new NewPlaylistViewModel(playlistManager, navigationManager, resourceManager);
         }
 

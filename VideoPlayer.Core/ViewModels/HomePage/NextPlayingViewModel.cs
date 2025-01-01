@@ -19,7 +19,8 @@ namespace VideoPlayer.ViewModels.HomePage
     {
         public NextPlayingViewModel(
             IPlaylistManager playlistManager, 
-            INavigationManager navigationManager, IResourceManager resourceManager) 
+            INavigationManager navigationManager, 
+            IResourceManager resourceManager) 
             : base(playlistManager.NextPlaybackPlaylist, navigationManager, resourceManager)
         {
             Title = "Weiterschauen";

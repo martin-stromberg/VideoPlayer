@@ -18,10 +18,13 @@ namespace VideoPlayer.Service.Playlists
             ILogger logger) 
             : base(mediaLibrary, mediaCollectionSelector, PlaylistType.Favorite, logger)
         {
+            base.CorrectInvisibleMediaItems = false;
         }
         protected override Playlist InitCurrentPlaylist()
         {
             var playlist = base.InitCurrentPlaylist();
+            playlist.AutoDownload = false;
+            playlist.BagMode = false;
             return playlist;
         }
 

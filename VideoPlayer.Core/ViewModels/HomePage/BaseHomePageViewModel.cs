@@ -66,6 +66,7 @@ namespace VideoPlayer.ViewModels.HomePage
         #region Content
         public bool ContentVisible { get => GetProperty<bool>(); set => SetProperty(value); }
         public BaseViewModel NextPlayingContext { get => GetProperty<BaseViewModel>(); set => SetProperty(value); }
+        public BaseViewModel FavoritesContext { get => GetProperty<BaseViewModel>(); set => SetProperty(value); }
         public BaseViewModel NewContext { get => GetProperty<BaseViewModel>(); set => SetProperty(value); }
         #endregion
         #region Memory Info

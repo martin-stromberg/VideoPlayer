@@ -30,7 +30,7 @@ namespace VideoPlayer.Service.Library.Scanner.Picture
             IApplicationSettings applicationSettings,
             IProcessorCollection processorCollection,
             ILogger<MediaPictureProcessor> logger) 
-            : base(nameof(MediaPictureProcessor), processorCollection, logger)
+            : base(nameof(SourceTimerService), processorCollection, logger)
         {
             _MediaLibrary = mediaLibrary;
             this._ApplicationSettings = applicationSettings;

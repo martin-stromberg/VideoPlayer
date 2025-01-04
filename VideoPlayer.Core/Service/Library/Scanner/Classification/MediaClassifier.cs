@@ -26,7 +26,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             IApplicationSettings applicationSettings,
             IProcessorCollection processorCollection,
             ILogger<MediaClassifier> logger)
-            : base(nameof(MediaClassifier), processorCollection, logger)
+            : base(nameof(SourceTimerService), processorCollection, logger)
         {
             _MediaLibrary = mediaLibrary;
             this.settings = settings;

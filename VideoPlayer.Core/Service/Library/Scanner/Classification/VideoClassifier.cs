@@ -899,6 +899,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                 .ToArray();
             try
             {
+                var filmPicture = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"{rootName}");
                 var poster = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"{rootName}-poster");
                 var banner = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"{rootName}-banner");
                 var fanart = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"{rootName}-fanart");
@@ -929,6 +930,13 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                 {
                     NotifyStatus($"Bereite Poster auf für: {movie.Name}");
                     var kV = UpdateCacheFileAsync(poster, movie.PicturePath, mediaSource, 0, 240);
+                    movie.PicturePath = kV.Key;
+                    movie.PictureBackgroundColor = kV.Value.ToHex();
+                }
+                else if (filmPicture is not null)
+                {
+                    NotifyStatus($"Bereite Poster auf für: {movie.Name}");
+                    var kV = UpdateCacheFileAsync(filmPicture, movie.PicturePath, mediaSource, 0, 240);
                     movie.PicturePath = kV.Key;
                     movie.PictureBackgroundColor = kV.Value.ToHex();
                 }

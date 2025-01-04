@@ -32,7 +32,7 @@ namespace VideoPlayer.Service.Library.Scanner
             IApplicationSettings applicationSettings,
             IProcessorCollection processorCollection,
             ILogger<LibraryScanner> logger)
-            : base(nameof(LibraryScanner), processorCollection, logger)
+            : base(nameof(SourceTimerService), processorCollection, logger)
         {
             _Settings = settings;
             _ApplicationSettings = applicationSettings;
@@ -541,6 +541,7 @@ namespace VideoPlayer.Service.Library.Scanner
             if (mediaItem is null) return;
             MediaCollection collection = _MediaLibrary.GetMediaCollection(mediaItem.ParentCollectionId);
             collection.Classified = false;
+            collection.LastScanCompleted = false;
             MediaCollection parentCollection = _MediaLibrary.GetMediaCollection(collection.ParentId);
             MediaSource source = _MediaLibrary.GetSource(collection.SourceId);
             try

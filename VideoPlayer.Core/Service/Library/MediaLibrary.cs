@@ -786,7 +786,7 @@ namespace VideoPlayer.Service.Library
                 .SelectMany(entry =>
                 {
                     return new string[] { entry.PicturePath, entry.BannerPath }
-                        .Where(path => string.IsNullOrWhiteSpace(path));
+                        .Where(path => !string.IsNullOrWhiteSpace(path));
                 }).Distinct();
         }
         public IEnumerable<ClassifiedEntry> GetClassifiedEntriesWithPicture(string name)

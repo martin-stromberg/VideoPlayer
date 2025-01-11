@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
 using VideoPlayer.Service.Resources;
+using VideoPlayer.Tools;
 
 namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
 {
@@ -37,6 +38,24 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
         {
             base.ElementPropertyChanged(e);
             UpdateMediaInformation(Item);
+            switch(e.PropertyName)
+            {
+                case nameof(IPicturedEntry.PicturePath):
+                    UpdatePicture(Item as IPicturedEntry);
+                    break;
+            }
+        }
+
+        protected virtual void UpdatePicture(IPicturedEntry item)
+        {
+            if (item is null)
+                LoadDefaultImage();
+            else if (!string.IsNullOrWhiteSpace(item.PicturePath))
+                LoadImage(PathTools.Combine(FileSystem.Current.AppDataDirectory, item.PicturePath));
+            else if (!string.IsNullOrWhiteSpace(item.BannerPath))
+                LoadImage(PathTools.Combine(FileSystem.Current.AppDataDirectory, item.BannerPath));
+            else
+                LoadDefaultImage();
         }
 
         protected virtual void UpdateMediaInformation(ClassifiedEntry item)
@@ -70,7 +89,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
         }
         protected void LoadImage(string path)
         {
-            Picture = ImageSource.FromFile(path);
+            Picture = ImageSource.FromFile(path); 
         }
         public string Subtitle { get => GetProperty<string>(); set => SetProperty(value); }
         public ImageSource Picture { get => GetProperty<ImageSource>(); set => SetProperty(value); }

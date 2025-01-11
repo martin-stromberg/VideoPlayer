@@ -18,6 +18,21 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
                 LoadDefaultImage();
         }
         protected TVShow Show => base.Item as TVShow;
+        protected override void UpdatePicture(IPicturedEntry item)
+        {
+            switch (ApplicationArea)
+            {
+                case CardItemApplicationArea.Single:
+                    if (Show is not null)
+                        base.UpdatePicture(Show);
+                    else
+                        base.UpdatePicture(item);
+                    break;
+                default:
+                    base.UpdatePicture(item);
+                    break;
+            }
+        }
         protected override void UpdateMediaInformation(ClassifiedEntry item)
         {
             switch(ApplicationArea)

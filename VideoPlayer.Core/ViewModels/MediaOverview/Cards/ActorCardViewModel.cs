@@ -29,12 +29,25 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
         {
             this.resourceManager = resourceManager;
             Actor = actor;
+            Action = new Command((args) =>ExecuteAction(args));
         }
+
+        private void ExecuteAction(object args)
+        {
+            switch (args)
+            {
+                case "rescan":
+                    Notify(this, new Service.Events.NotificationEventArgs("ReloadPictures", Actor));
+                    break;
+            }
+        }
+
         ~ActorCardViewModel()
         {
 
         }
         public Actor Actor { get; }
+        public Command Action { get; }
         public ImageSource Picture { get => GetProperty<ImageSource>(); private set => SetProperty(value); }
 
         public override void ExecuteAppeared()

@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using SixLabors.ImageSharp;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -48,8 +49,42 @@ namespace VideoPlayer.Service.Library.Scanner.Picture
                 case "ClassificationCompleted":
                     ForceExecute();
                     break;
+                case "ReloadPictures":
+                    EnqueueForceScan(e.Data as BaseServiceModel);
+                    ForceExecute();
+                    break;
             }
         }
+        private ConcurrentQueue<BaseServiceModel> _ForceReloadEntries = new ConcurrentQueue<BaseServiceModel>();
+        private void EnqueueForceScan(BaseServiceModel entry)
+        {
+            if (!_ForceReloadEntries.Any(e => e.Id == entry.Id))
+            {
+                _MediaLibrary.Hold(entry);
+                _ForceReloadEntries.Enqueue(entry);
+            }
+        }
+        private bool CheckReloadNextForcedEntries()
+        {
+            CheckActive();
+            if (!_ForceReloadEntries.TryDequeue(out BaseServiceModel entry))
+                return false;
+            try
+            {
+                ForceReload(entry as Actor);                
+                return true;
+            }
+            finally
+            {
+                _MediaLibrary.Release(entry);
+            }
+        }
+        private void ForceReload(Actor actor)
+        {
+            actor.NeedsPictureUpdate = true;
+            UpdatePictures(actor);
+        }
+
         protected override void ExecuteTimerSync()
         {
             if (_ApplicationSettings.ImageScrappingEnabled)
@@ -59,11 +94,32 @@ namespace VideoPlayer.Service.Library.Scanner.Picture
             }
         }
 
-        private void DeleteOrpahnedPictures()
+        private TimeSpan OrphanedPictureInterval = TimeSpan.FromDays(1);
+        private bool DeleteOrpahnedPicturesRunning = false;
+        private async void DeleteOrpahnedPictures()
         {
-            NotifyStatus($"Bereinige Grafikspeicher.");
-            foreach (var classifier in _Classifier)
-                classifier.DeleteOrpahnedPictures();
+            if (DeleteOrpahnedPicturesRunning) return;
+            DeleteOrpahnedPicturesRunning = true;
+            try
+            {
+                if (_ApplicationSettings.LastPictureOrphanagesCheck.Add(OrphanedPictureInterval) > DateTime.Now)
+                    return;
+                StartProcess($"Bereinige Grafikspeicher.");
+                try
+                {
+                    foreach (var classifier in _Classifier)
+                        await classifier.DeleteOrpahnedPictures();
+                }
+                finally
+                {
+                    _ApplicationSettings.LastPictureOrphanagesCheck = DateTime.Now;
+                    FinishProcess();
+                }
+            }
+            finally
+            {
+                DeleteOrpahnedPicturesRunning = false;
+            }
         }
 
         private void ClassifyNextItems()
@@ -71,6 +127,7 @@ namespace VideoPlayer.Service.Library.Scanner.Picture
             var processing = false;
             try
             {
+                while (CheckReloadNextForcedEntries());
                 List<Exception> errors = new List<Exception>();
                 foreach (var entry in _MediaLibrary.GetMediaItemsThatNeedsPictureUpdate())
                     try
@@ -79,7 +136,7 @@ namespace VideoPlayer.Service.Library.Scanner.Picture
                         {
                             StartProcess($"Bereite Grafiken auf.");
                             processing = true;
-                        }
+                        }                        
                         UpdatePictures(entry);
                     }
                     catch(Exception ex)
@@ -89,6 +146,7 @@ namespace VideoPlayer.Service.Library.Scanner.Picture
                     finally
                     {
                         _MediaLibrary.Release(entry);
+                        while (CheckReloadNextForcedEntries());
                     }
 
                 foreach (var actor in _MediaLibrary.GetActorsThatNeedsPictureUpdate())

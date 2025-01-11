@@ -12,6 +12,7 @@ namespace VideoPlayer.Service.Settings
         bool ScanningEnabled { get; set;  }
         bool ClassificationEnabled { get; set; }
         bool ImageScrappingEnabled { get; set; }
+        DateTime LastPictureOrphanagesCheck { get; set; }
     }
     public class ApplicationSettings: IApplicationSettings
     {
@@ -37,6 +38,11 @@ namespace VideoPlayer.Service.Settings
         public bool ImageScrappingEnabled
         {
             get => Preferences.Get(IdImageScrappingEnabled, DefaultImageScrappingEnabled);
+            set => Preferences.Set(IdImageScrappingEnabled, value);
+        }
+        public DateTime LastPictureOrphanagesCheck
+        {
+            get => Preferences.Get(IdImageScrappingEnabled, DateTime.MinValue);
             set => Preferences.Set(IdImageScrappingEnabled, value);
         }
     }

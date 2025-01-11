@@ -17,6 +17,21 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
             IsCollection = true;
         }
         protected MovieCollection Collection => base.Item as MovieCollection;
+        protected override void UpdatePicture(IPicturedEntry item)
+        {
+            switch (ApplicationArea)
+            {
+                case CardItemApplicationArea.Single:
+                    if (Collection is not null)
+                        base.UpdatePicture(Collection);
+                    else
+                        base.UpdatePicture(item);
+                    break;
+                default:
+                    base.UpdatePicture(item);
+                    break;
+            }
+        }
         protected override void UpdateMediaInformation(ClassifiedEntry item)
         {
             switch (ApplicationArea)

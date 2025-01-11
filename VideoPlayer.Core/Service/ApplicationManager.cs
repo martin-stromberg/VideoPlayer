@@ -32,7 +32,8 @@ namespace VideoPlayer.Service
         public event EventHandler InitializationCompleted;
 
         public ApplicationManager(
-            IServiceProvider serviceProvider, IEventController eventController,
+            IServiceProvider serviceProvider, 
+            IEventController eventController,
             ILogger<ApplicationManager> logger)
             :base(logger)
         {

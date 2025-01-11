@@ -4,7 +4,9 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using Syncfusion.XlsIO.Parser.Biff_Records;
+using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
@@ -1489,32 +1491,24 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             return true;
         }
 
-        public override void DeleteOrpahnedPictures()
+        public override async Task DeleteOrpahnedPictures()
         {
             var cacheFolder = PathTools.Combine(FileSystem.Current.AppDataDirectory, "Cache");
             var pictureFiles = Directory.GetFiles(cacheFolder)
                 .Where(file => pictureExtensions.Contains(Path.GetExtension(file).ToLower()))
-                .Select(file => new FileInfo(file));
+                .Select(file => new FileInfo(file))
+                .OrderBy(file => file.Name)
+                .ToList();;
+            var storedFilePaths = MediaLibrary.GetClassifiedEntryPictureFileNames()
+                .Concat(MediaLibrary.GetActorPictureFileNames())
+                .Distinct()
+                .ToList();
             foreach (var file in pictureFiles)
             {
-                var mediaItem = MediaLibrary.GetClassifiedEntriesWithPicture(file.Name)
-                    .Select(mi =>
-                    {
-                        MediaLibrary.Release(mi, true);
-                        return mi;
-                    });
+                await Task.Delay(10);
+                var mediaItem = storedFilePaths.Where(path => path.EndsWith(file.Name));
                 if (mediaItem.Any())
                     continue;
-
-                var actors = MediaLibrary.GetActorsWithPicture(file.Name)
-                    .Select(mi =>
-                    {
-                        MediaLibrary.Release(mi, true);
-                        return mi;
-                    });
-                if (actors.Any())
-                    continue;
-
                 file.Delete();
             }
             

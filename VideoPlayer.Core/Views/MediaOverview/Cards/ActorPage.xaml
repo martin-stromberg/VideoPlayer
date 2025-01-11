@@ -11,6 +11,7 @@
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="100"/>
             <ColumnDefinition/>
+            <ColumnDefinition Width="100"/>
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
             <RowDefinition Height="200"/>
@@ -30,9 +31,18 @@
                VerticalOptions="Center" 
                HorizontalOptions="Center" />
 
-        <common:HorizontalMediaCollectionView Grid.Row="1"
+        <VerticalStackLayout Grid.Column="2">
+            <ImageButton Source="classification64x64.png"
+                         Margin="0,5,0,0"
+                         HorizontalOptions="End"
+                         VerticalOptions="Start"
+                         Command="{Binding Action}"
+                         CommandParameter="rescan"/>
+        </VerticalStackLayout>
+
+            <common:HorizontalMediaCollectionView Grid.Row="1"
                                               Grid.Column="0"
-                                              Grid.ColumnSpan="2"
+                                              Grid.ColumnSpan="3"
                                               BindingContext="{Binding CollectionContext}"/>
     </Grid>
 </view:BaseCardPage>

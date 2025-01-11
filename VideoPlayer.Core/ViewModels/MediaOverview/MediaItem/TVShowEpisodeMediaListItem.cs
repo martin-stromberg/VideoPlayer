@@ -9,6 +9,7 @@ using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
 using VideoPlayer.Tools;
 using VideoPlayer.Service.Resources;
+using Renci.SshNet;
 
 namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
 {
@@ -36,6 +37,21 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
         }
 
         protected TVShowEpisode Episode => base.Item as TVShowEpisode;
+        protected override void UpdatePicture(IPicturedEntry item)
+        {
+            switch (ApplicationArea)
+            {
+                case CardItemApplicationArea.Single:
+                    if (Episode is not null)
+                        base.UpdatePicture(Episode);
+                    else
+                        base.UpdatePicture(item);
+                    break;
+                default:
+                    base.UpdatePicture(item);
+                    break;
+            }
+        }
         protected override void UpdateMediaInformation(ClassifiedEntry item)
         {
             switch (ApplicationArea)

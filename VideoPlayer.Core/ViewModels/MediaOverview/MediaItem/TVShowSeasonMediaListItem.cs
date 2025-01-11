@@ -18,6 +18,21 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
                 LoadDefaultImage();
         }
         protected TVShowSeason Season => base.Item as TVShowSeason;
+        protected override void UpdatePicture(IPicturedEntry item)
+        {
+            switch (ApplicationArea)
+            {
+                case CardItemApplicationArea.Single:
+                    if (Season is not null)
+                        base.UpdatePicture(Season);
+                    else
+                        base.UpdatePicture(item);
+                    break;
+                default:
+                    base.UpdatePicture(item);
+                    break;
+            }
+        }
         protected override void UpdateMediaInformation(ClassifiedEntry item)
         {
             switch (ApplicationArea)

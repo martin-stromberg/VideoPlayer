@@ -25,6 +25,8 @@ namespace VideoPlayer.Service.Settings
         private const string IdImageScrappingEnabled = "imagescrapping_enabled";
         private const bool DefaultImageScrappingEnabled = true;
 
+        private const string IdLastPictureOrphanagesCheck = "lastPictureOrphanagesCheck";
+
         public bool ScanningEnabled 
         {
             get => Preferences.Get(IdScanningEnabled, DefaultScanningEnabled); 
@@ -42,8 +44,8 @@ namespace VideoPlayer.Service.Settings
         }
         public DateTime LastPictureOrphanagesCheck
         {
-            get => Preferences.Get(IdImageScrappingEnabled, DateTime.MinValue);
-            set => Preferences.Set(IdImageScrappingEnabled, value);
+            get => Preferences.Get(IdLastPictureOrphanagesCheck, DateTime.MinValue);
+            set => Preferences.Set(IdLastPictureOrphanagesCheck, value);
         }
     }
 }

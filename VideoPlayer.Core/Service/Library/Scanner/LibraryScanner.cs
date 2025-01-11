@@ -421,17 +421,28 @@ namespace VideoPlayer.Service.Library.Scanner
         {
             if (season is null) return;
             var collections = _MediaLibrary.GetEpisodes(season.Id)
-                .SelectMany(episode => episode.MediaItemIds)
+                .SelectMany(episode =>
+                {
+                    _MediaLibrary.Release(episode);
+                    return episode.MediaItemIds;
+                })
                 .Distinct()
                 .Select(id => _MediaLibrary.GetMediaItem(id))
-                .Select(mi => mi.ParentCollectionId)
+                .Where(mi => mi is not null)
+                .Select(mi =>
+                {
+                    _MediaLibrary.Release(mi);
+                    return mi.ParentCollectionId;
+                })
                 .Distinct()
-                .Select(id => _MediaLibrary.GetMediaCollection(id));
+                .Select(id => _MediaLibrary.GetMediaCollection(id))
+                .Select(col =>
+                {
+                    _MediaLibrary.Release(col);
+                    return col;
+                });
             foreach (var collection in collections)
-            {
                 EnqueueForceScan(collection);
-                _MediaLibrary.Release(collection);
-            }
         }
         private void ForceScan(TVShow show)
         {

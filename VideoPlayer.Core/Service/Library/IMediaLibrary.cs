@@ -95,6 +95,7 @@ namespace VideoPlayer.Service.Library
         ClassifiedEntry GetClassifiedEntry(long id);
         IEnumerable<ClassifiedEntry> GetOverview(int offset, int count, string genre, params EntryType[] entryTypes);
         IEnumerable<ClassifiedEntry> GetClassifiedEntriesWithPicture(string name);
+        IEnumerable<string> GetClassifiedEntryPictureFileNames();
         #region Genres
         IEnumerable<Genre> GetGenres();
         Genre GetGenre(long ind);
@@ -118,6 +119,7 @@ namespace VideoPlayer.Service.Library
         Actor GetActor(long id);
         IEnumerable<Actor> GetActorsThatNeedsPictureUpdate();
         IEnumerable<Actor> GetActorsWithPicture(string pictureFileName);
+        IEnumerable<string> GetActorPictureFileNames();
         #endregion
         #region Roles
         Role AddOrUpdateRole(Role entry);

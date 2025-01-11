@@ -780,6 +780,15 @@ namespace VideoPlayer.Service.Library
             var source = cache.GetServiceModel<ClassifiedEntry>(id) as ClassifiedEntry;
             return source;
         }
+        public IEnumerable<string> GetClassifiedEntryPictureFileNames()
+        {
+            return _Database.GetAll<DataClassifiedEntry>()
+                .SelectMany(entry =>
+                {
+                    return new string[] { entry.PicturePath, entry.BannerPath }
+                        .Where(path => string.IsNullOrWhiteSpace(path));
+                }).Distinct();
+        }
         public IEnumerable<ClassifiedEntry> GetClassifiedEntriesWithPicture(string name)
         {
             var entryIds = _Database.GetAll<DataClassifiedEntry>()
@@ -1132,6 +1141,12 @@ namespace VideoPlayer.Service.Library
                                     .Select(c => c.Id);
             foreach (var itemId in entryIds)
                 yield return GetActor(itemId);
+        }
+        public IEnumerable<string> GetActorPictureFileNames()
+        {
+            return _Database.GetAll<DataActor>()
+                .SelectMany(entry => new string[] { entry.PicturePath, entry.BannerPath }.Where(path => !string.IsNullOrWhiteSpace(path)))
+                .Distinct();
         }
         public IEnumerable<Actor> GetActorsWithPicture(string pictureFileName)
         {

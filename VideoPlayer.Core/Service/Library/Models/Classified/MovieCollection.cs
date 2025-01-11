@@ -9,7 +9,7 @@ namespace VideoPlayer.Service.Library.Models.Classified
         typeof(DataClassifiedEntry),
         ReferenceFieldName = nameof(ClassifiedEntry.Type),
         ReferenceFieldValue = nameof(EntryType.MovieCollection))]
-    public class MovieCollection: ClassifiedEntry
+    public class MovieCollection: ClassifiedEntry, IPicturedEntry
     {
 
         public MovieCollection(DataClassifiedEntry dataModel)

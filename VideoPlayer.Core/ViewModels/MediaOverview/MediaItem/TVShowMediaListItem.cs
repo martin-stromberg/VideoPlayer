@@ -11,11 +11,6 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
         public TVShowMediaListItem(ClassifiedEntry item, IResourceManager resourceManager)
             : base(item, resourceManager)
         {
-            var show = ((TVShow)item);
-            if (!string.IsNullOrWhiteSpace(show.PicturePath))
-                LoadImage(PathTools.Combine(FileSystem.Current.AppDataDirectory, show.PicturePath));
-            else
-                LoadDefaultImage();
         }
         protected TVShow Show => base.Item as TVShow;
         protected override void UpdatePicture(IPicturedEntry item)

@@ -11,11 +11,6 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
         public TVShowSeasonMediaListItem(ClassifiedEntry item, IResourceManager resourceManager)
             : base(item, resourceManager)
         {
-            var season = ((TVShowSeason)item);
-            if (!string.IsNullOrWhiteSpace(season.PicturePath))
-                LoadImage(PathTools.Combine(FileSystem.Current.AppDataDirectory, season.PicturePath));
-            else
-                LoadDefaultImage();
         }
         protected TVShowSeason Season => base.Item as TVShowSeason;
         protected override void UpdatePicture(IPicturedEntry item)

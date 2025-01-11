@@ -16,11 +16,6 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
         public MovieMediaListItem(ClassifiedEntry item, IResourceManager resourceManager) 
             : base(item, resourceManager)
         {
-            var movie = ((Movie)item);
-            if (!string.IsNullOrWhiteSpace(movie.PicturePath))
-                LoadImage(PathTools.Combine(FileSystem.Current.AppDataDirectory, movie.PicturePath));
-            else
-                LoadDefaultImage();
         }
 
         protected Movie Movie => base.Item as Movie;

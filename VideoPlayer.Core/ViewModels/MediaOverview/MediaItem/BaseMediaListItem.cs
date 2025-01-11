@@ -23,6 +23,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
             UpdateMediaInformation(Item);
             ApplicationArea = CardItemApplicationArea.InCollection;
             this.resourceManager = resourceManager;
+            UpdatePicture(Item as IPicturedEntry);
         }
         public ClassifiedEntry Item { get => base.Element as ClassifiedEntry; }
         public CardItemApplicationArea ApplicationArea

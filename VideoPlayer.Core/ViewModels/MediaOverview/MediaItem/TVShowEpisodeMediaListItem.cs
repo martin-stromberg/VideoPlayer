@@ -19,13 +19,6 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
         public TVShowEpisodeMediaListItem(ClassifiedEntry entry, IResourceManager resourceManager)
             : base(entry, resourceManager) 
         {
-            var episode = ((TVShowEpisode)entry);
-            if (!string.IsNullOrWhiteSpace(episode.PicturePath))
-                LoadImage(PathTools.Combine(FileSystem.Current.AppDataDirectory, episode.PicturePath));
-            else if(!string.IsNullOrWhiteSpace(episode.BannerPath))
-                LoadImage(PathTools.Combine(FileSystem.Current.AppDataDirectory, episode.BannerPath));
-            else
-                LoadDefaultImage();
         }
 
         public TVShowEpisodeMediaListItem(TVShowSeason season, ClassifiedEntry entry, IResourceManager resourceManager) 

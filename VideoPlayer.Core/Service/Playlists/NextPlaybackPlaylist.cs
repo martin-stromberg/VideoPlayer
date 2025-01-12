@@ -228,6 +228,22 @@ namespace VideoPlayer.Service.Playlists
                     Current.MoveTo(existing, 0);
                     return Current.First;
                 }
+
+                #region Erste Episode => Staffel
+                TVShowEpisode episode = nextEntry as TVShowEpisode;
+                if (episode is not null)
+                    if (episode.Episode == 1)
+                    {
+                        var season = MediaLibrary.GetTVShowSeason(episode.SeasonId);
+                        if (season is not null)
+                        {
+                            MediaLibrary.Release(nextEntry);
+                            nextEntry = season;
+                        }
+                    }
+                #endregion
+                
+
                 RemoveBelongingEntries(nextEntry as TVShowEpisode);
                 RemoveBelongingEntries(nextEntry as Movie);
                 Current.Add(mediaItem, nextEntry);

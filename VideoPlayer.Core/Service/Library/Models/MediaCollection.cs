@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json;
+using System.Text;
 using VideoPlayer.Service.Database.Models;
 
 namespace VideoPlayer.Service.Library.Models
@@ -21,7 +22,8 @@ namespace VideoPlayer.Service.Library.Models
                 LastAccess = ((MediaDataItemCollection)DataModel).LastAccess;
                 Classified = ((MediaDataItemCollection)DataModel).Classified;
                 if (!string.IsNullOrWhiteSpace(((MediaDataItemCollection)DataModel).MetaInformation))
-                    MetaInformation = JsonConvert.DeserializeObject(((MediaDataItemCollection)DataModel).MetaInformation) as MediaInformation.MediaInformation;
+                    MetaInformation = JsonConvert.DeserializeObject<MediaInformation.MediaInformation>(((MediaDataItemCollection)DataModel).MetaInformation, new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.All });
+                //MetaInformation = JsonConvert.DeserializeObject(((MediaDataItemCollection)DataModel).MetaInformation) as MediaInformation.MediaInformation;
                 LastMetaInformationUpdate = ((MediaDataItemCollection)DataModel).LastMetaInformationUpdate;
                 LastScanCompleted = ((MediaDataItemCollection)DataModel).LastScanCompleted;
             }
@@ -127,7 +129,8 @@ namespace VideoPlayer.Service.Library.Models
             ((MediaDataItemCollection)DataModel).Path = Path;
             ((MediaDataItemCollection)DataModel).LastAccess = LastAccess;
             ((MediaDataItemCollection)DataModel).Classified = Classified;
-            ((MediaDataItemCollection)DataModel).MetaInformation = JsonConvert.SerializeObject(MetaInformation);
+            //((MediaDataItemCollection)DataModel).MetaInformation = JsonConvert.SerializeObject(MetaInformation);
+            ((MediaDataItemCollection)DataModel).MetaInformation = JsonConvert.SerializeObject(MetaInformation, new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.All });
             ((MediaDataItemCollection)DataModel).LastMetaInformationUpdate = LastMetaInformationUpdate;
             ((MediaDataItemCollection)DataModel).LastScanCompleted = LastScanCompleted;
         }

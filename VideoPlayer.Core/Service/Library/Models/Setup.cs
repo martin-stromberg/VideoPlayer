@@ -19,6 +19,7 @@ namespace VideoPlayer.Service.Library.Models
                 DownloadManager_DueTime_Cache = ((DataSetup)DataModel).DownloadManager_DueTime_Cache;
                 DownloadManager_DueTime_Download = ((DataSetup)DataModel).DownloadManager_DueTime_Download;
                 DownloadManager_DueTime_Watched = ((DataSetup)DataModel).DownloadManager_DueTime_Watched;
+                DownloadManager_DueTime_NextPlaylistCache = ((DataSetup)DataModel).DownloadManager_DueTime_NextPlaylistCache;
             }
         }
 
@@ -51,6 +52,17 @@ namespace VideoPlayer.Service.Library.Models
                 SetProperty(value);
             }
         }
+
+        public TimeSpan DownloadManager_DueTime_NextPlaylistCache {
+            get => GetProperty<TimeSpan>();
+            internal set
+            {
+                if (value == TimeSpan.Zero)
+                    value = Default().DownloadManager_DueTime_NextPlaylistCache;
+                SetProperty(value);
+            }
+        }
+
         protected override void AssignChanges()
         {
             base.AssignChanges();
@@ -59,6 +71,7 @@ namespace VideoPlayer.Service.Library.Models
                 ((DataSetup)DataModel).DownloadManager_DueTime_Cache = DownloadManager_DueTime_Cache;
                 ((DataSetup)DataModel).DownloadManager_DueTime_Download= DownloadManager_DueTime_Download;
                 ((DataSetup)DataModel).DownloadManager_DueTime_Watched = DownloadManager_DueTime_Watched;
+                ((DataSetup)DataModel).DownloadManager_DueTime_NextPlaylistCache = DownloadManager_DueTime_NextPlaylistCache;
             }
         }
         internal static Setup Default()
@@ -67,7 +80,8 @@ namespace VideoPlayer.Service.Library.Models
             {
                 DownloadManager_DueTime_Cache = TimeSpan.FromHours(6),
                 DownloadManager_DueTime_Download = TimeSpan.FromDays(7),
-                DownloadManager_DueTime_Watched = TimeSpan.FromHours(1)
+                DownloadManager_DueTime_Watched = TimeSpan.FromHours(1),
+                DownloadManager_DueTime_NextPlaylistCache = TimeSpan.FromDays(3),
             };
         }
     }

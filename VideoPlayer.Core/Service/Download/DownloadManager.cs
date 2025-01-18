@@ -46,13 +46,14 @@ namespace VideoPlayer.Service.Download
             get => !queue.IsEmpty || !queueCheck.IsEmpty;
         }
 
-        public DownloadSession Enqueue(ClassifiedEntry entry, MediaItem item)
+        public DownloadSession Enqueue(ClassifiedEntry entry, MediaItem item, TimeSpan dueTime)
         {
             var session = new DownloadSession()
             {
                 Entry = entry,
                 Item = item,
-                CopyType = MediaItemCopyType.Cache
+                CopyType = MediaItemCopyType.Cache,
+                DueTime = dueTime,
             };
             queueCheck.Enqueue(session);
             return session;
@@ -274,7 +275,7 @@ namespace VideoPlayer.Service.Download
         {
             try
             {   
-                session.Item = Download(session.Item, session.CopyType, (p) => 
+                session.Item = Download(session.Item, session.CopyType, session.DueTime, (p) => 
                 { 
                     session.SetProgress(p);
                     NotifyStatus($"Lade {session.Item.Name} ({p} %)");
@@ -337,7 +338,7 @@ namespace VideoPlayer.Service.Download
         }
         #endregion
 
-        private MediaItem Download(MediaItem item, MediaItemCopyType copyType, Action<decimal> progressCallback)
+        private MediaItem Download(MediaItem item, MediaItemCopyType copyType, TimeSpan dueTime, Action<decimal> progressCallback)
         {
             if (item.CopyType == copyType)
                 return item;
@@ -369,15 +370,18 @@ namespace VideoPlayer.Service.Download
             Download(item, duplicate, progressCallback);
 
             var setup = mediaLibrary.Setup;
-            switch(copyType)
-            {
-                case MediaItemCopyType.Download:
-                    duplicate.DueDate = DateTime.Now.Add(setup.DownloadManager_DueTime_Download);
-                    break;
-                case MediaItemCopyType.Cache:
-                    duplicate.DueDate = DateTime.Now.Add(setup.DownloadManager_DueTime_Cache);
-                    break;
-            }            
+            if (dueTime != TimeSpan.Zero)
+                duplicate.DueDate = DateTime.Now.Add(dueTime);
+            else
+                switch (copyType)
+                {
+                    case MediaItemCopyType.Download:
+                        duplicate.DueDate = DateTime.Now.Add(setup.DownloadManager_DueTime_Download);
+                        break;
+                    case MediaItemCopyType.Cache:
+                        duplicate.DueDate = DateTime.Now.Add(setup.DownloadManager_DueTime_Cache);
+                        break;
+                }     
             duplicate.Path = duplicate.Path.Remove(0, environment.GetRootPath().Length);
             return mediaLibrary.AddOrUpdateMediaItem(duplicate);
         }

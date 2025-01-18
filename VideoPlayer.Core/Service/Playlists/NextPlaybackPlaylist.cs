@@ -18,12 +18,14 @@ namespace VideoPlayer.Service.Playlists
     public class NextPlaybackPlaylist : BasePlaylistService
     {
         private readonly IProcessorCollection processorCollection;
+
         public NextPlaybackPlaylist(
             IMediaLibrary mediaLibrary,
             IMediaCollectionSelector mediaCollectionSelector,
             IProcessorCollection processorCollection,
+            IDownloadManager downloadManager,
             ILogger logger)
-            : base(mediaLibrary, mediaCollectionSelector, PlaylistType.NextPlayback, logger)
+            : base(mediaLibrary, mediaCollectionSelector, downloadManager, PlaylistType.NextPlayback, logger)
         {
             this.processorCollection = processorCollection;
         }
@@ -181,6 +183,8 @@ namespace VideoPlayer.Service.Playlists
             }
             #endregion
             var nextMediaItem = FindNextMediaItem(currentMediaItem);
+            if (nextMediaItem is not null)
+                base.Current.SkipNextDownload();
             Current.Remove(existing);
             if (nextMediaItem is not null)
                 AddMediaItem(nextMediaItem);
@@ -197,6 +201,12 @@ namespace VideoPlayer.Service.Playlists
         }
         #endregion
 
+        protected override Playlist InitCurrentPlaylist()
+        {
+            var playlist = base.InitCurrentPlaylist();
+            playlist.AutoDownload = true;
+            return playlist;
+        }
         internal void ProcessVideoPosition(MediaItem mediaItem, TimeSpan position, TimeSpan duration)
         {
             lock (_ProcessingLock)
@@ -207,7 +217,41 @@ namespace VideoPlayer.Service.Playlists
             }
             Start();
         }
-        
+
+        protected override void ExecuteDownloadFinished(ClassifiedEntry entry, MediaItem item)
+        {
+            base.ExecuteDownloadFinished(entry, item);
+            StartDownloadSecondMediaItem(entry, item);
+        }
+
+        private void StartDownloadSecondMediaItem(ClassifiedEntry entry, MediaItem mediaItem)
+        {
+            var existing = Current.Items.FirstOrDefault(i => i.Item is not null && i.Item.Id == mediaItem.Id);
+            if (existing is null)
+            {
+                if (entry is null)
+                    entry = GetClassifiedEntry(mediaItem);
+                existing = Current.Items.FirstOrDefault(i => i.Item is null && i.Entry.Id == entry.Id);
+                if (existing is null)
+                {
+                    TVShowEpisode episode = entry as TVShowEpisode;
+                    if (episode is not null)
+                        if (episode.Episode == 1)
+                        {
+                            var season = MediaLibrary.GetTVShowSeason(episode.SeasonId);
+                            if (season is not null)
+                                entry = season;
+                            existing = Current.Items.FirstOrDefault(i => i.Item is null && i.Entry.Id == entry.Id);
+                        }
+
+                }
+            }
+            if (existing is null)
+                return;
+            var nextMediaItem = FindNextMediaItem(mediaItem);
+            ExecuteDownloadRequest(nextMediaItem, MediaLibrary.Setup.DownloadManager_DueTime_NextPlaylistCache);
+        }
+
         private PlaylistEntry AddMediaItem(MediaItem mediaItem)
         {
             if (mediaItem is null)
@@ -267,6 +311,7 @@ namespace VideoPlayer.Service.Playlists
                 var existingSeason = MediaLibrary.GetTVShowSeason(existingEntry.SeasonId);
                 if (existingSeason.ShowId != season.ShowId)
                     continue;
+                Current.SkipNextDownload();
                 Current.Remove(existing);
             }
         }
@@ -283,9 +328,7 @@ namespace VideoPlayer.Service.Playlists
                     continue;
                 Current.Remove(existing);
             }
-        }
-
-        
+        }        
 
         private ClassifiedEntry GetClassifiedEntry(MediaItem mediaItem)
         {

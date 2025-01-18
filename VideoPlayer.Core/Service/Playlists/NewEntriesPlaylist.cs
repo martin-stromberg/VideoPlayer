@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
+using VideoPlayer.Service.Download;
 using VideoPlayer.Service.Events;
 using VideoPlayer.Service.Library;
 using VideoPlayer.Service.Library.Models;
@@ -14,8 +15,9 @@ namespace VideoPlayer.Service.Playlists
         public NewEntriesPlaylist(
             IMediaLibrary mediaLibrary, 
             IMediaCollectionSelector mediaCollectionSelector,
+            IDownloadManager downloadManager,
             ILogger logger) 
-            : base(mediaLibrary, mediaCollectionSelector, PlaylistType.New, logger)
+            : base(mediaLibrary, mediaCollectionSelector, downloadManager, PlaylistType.New, logger)
         {
             base.CorrectInvisibleMediaItems = true;
             this.mediaLibrary = mediaLibrary;

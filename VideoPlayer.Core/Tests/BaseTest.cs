@@ -320,7 +320,7 @@ namespace VideoPlayer.Tests
         {
             DownloadManager.Start();
             foreach (var entry in entries)
-                DownloadManager.Enqueue(entry, null);
+                DownloadManager.Enqueue(entry, null, TimeSpan.Zero);
             await WaitForDownloadsFinished();
             DownloadManager.Stop();
         }

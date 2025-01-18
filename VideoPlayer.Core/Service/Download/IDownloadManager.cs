@@ -8,7 +8,7 @@ namespace VideoPlayer.Service.Download
     public interface IDownloadManager: ITimerService
     {
         void ClearTempFolder();
-        DownloadSession Enqueue(ClassifiedEntry entry, Library.Models.MediaItem item);
+        DownloadSession Enqueue(ClassifiedEntry entry, Library.Models.MediaItem item, TimeSpan dueTime);
         DownloadSession Enqueue(ClassifiedEntry entry, MediaItemCopyType copyType);
         IEnumerable<FileInfo> GetOrphanedFiles();
         void RemoveDownloads(ClassifiedEntry entry);

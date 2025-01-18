@@ -20,7 +20,7 @@ namespace VideoPlayer.Service.Playlists
             IDownloadManager downloadManager,
             IMediaCollectionSelector mediaCollectionSelector,
             ILogger logger)
-            :base(mediaLibrary, mediaCollectionSelector, PlaylistType.General, logger)
+            :base(mediaLibrary, mediaCollectionSelector, downloadManager, PlaylistType.General, logger)
         {
             this.downloadManager = downloadManager;
         }
@@ -34,7 +34,7 @@ namespace VideoPlayer.Service.Playlists
         protected override void ExecuteDownloadRequest(DownloadEventArgs e)
         {
             var entry = e.ModelObject as PlaylistEntry;
-            e.Session = downloadManager.Enqueue(entry.Entry, entry.Item);
+            e.Session = downloadManager.Enqueue(entry.Entry, entry.Item, TimeSpan.Zero);
             e.Session.Starting += Session_Starting;
             e.Session.Progress += Session_Progress;
             e.Session.Finished += Session_Finished;

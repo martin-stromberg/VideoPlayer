@@ -9,18 +9,21 @@ using VideoPlayer.Service.Library.Models.Playlists;
 namespace VideoPlayer.Service.Playlists
 {
     public class BasePlaylistService : BaseService
-    {        
+    {
+        private readonly IDownloadManager downloadManager;
         private readonly PlaylistType playlistType;
         private Playlist playlist;
         public BasePlaylistService(
             IMediaLibrary mediaLibrary, 
-            IMediaCollectionSelector mediaCollectionSelector, 
+            IMediaCollectionSelector mediaCollectionSelector,
+            IDownloadManager downloadManager,
             PlaylistType playlistType,
             ILogger logger)
             :base(logger)
         {
             MediaLibrary = mediaLibrary;
             MediaCollectionSelector = mediaCollectionSelector;
+            this.downloadManager = downloadManager;
             this.playlistType = playlistType;
         }
         public bool CorrectInvisibleMediaItems { get; set; }
@@ -143,8 +146,28 @@ namespace VideoPlayer.Service.Playlists
 
         protected virtual void ExecuteDownloadRequest(DownloadEventArgs e)
         {
+            var entry = e.ModelObject as PlaylistEntry;
+            e.Session = downloadManager.Enqueue(entry.Entry, entry.Item, TimeSpan.Zero);
+            e.Session.Finished += Session_Finished;
+        }
+        protected virtual void ExecuteDownloadRequest(MediaItem item, TimeSpan dueTime)
+        {
+            var session = downloadManager.Enqueue(null, item, dueTime);
+            session.Finished += Session_Finished;
         }
 
+        private void Session_Finished(object sender, DownloadEventArgs e)
+        {
+            e.Session.Finished -= Session_Finished;
+            ExecuteDownloadFinished(e.Session.Entry, e.Session.Item);
+        }
+
+        protected virtual void ExecuteDownloadFinished(ClassifiedEntry entry, MediaItem item)
+        {
+            
+        }
+
+        
         protected MediaItem FindNextMediaItem(MediaItem mediaItem)
         {
             return MediaCollectionSelector.FindNextMediaItem(mediaItem);

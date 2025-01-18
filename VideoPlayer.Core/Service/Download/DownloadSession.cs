@@ -33,6 +33,9 @@ namespace VideoPlayer.Service.Download
                 }
             }
         }
+
+        public TimeSpan DueTime { get; internal set; }
+
         public void Reset()
         {
             Status = DownloadStatus.Waiting;

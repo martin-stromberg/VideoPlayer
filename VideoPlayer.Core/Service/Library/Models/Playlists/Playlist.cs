@@ -110,7 +110,7 @@ namespace VideoPlayer.Service.Library.Models.Playlists
                 Items.Insert(0, entry);
             else
                 Items.Add(entry);
-            if (Items.IndexOf(entry) == 0)
+            if (AutoDownload && Items.IndexOf(entry) == 0)
                 CurrentDownload = OnDownloadRequested(entry);
         }
 
@@ -147,6 +147,10 @@ namespace VideoPlayer.Service.Library.Models.Playlists
 
         protected DownloadSession OnDownloadRequested(PlaylistEntry e)
         {
+            if (skipNextDownload) {
+                skipNextDownload = false;
+                return null;
+            };            
             var args = new DownloadEventArgs(e);
             OnDownloadRequested(args);
             return args.Session;
@@ -160,6 +164,12 @@ namespace VideoPlayer.Service.Library.Models.Playlists
         {
             Remove(existing);
             Add(existing);
+        }
+
+        private bool skipNextDownload = false;
+        internal void SkipNextDownload()
+        {
+            skipNextDownload = true;
         }
 
         public event EventHandler<DownloadEventArgs> DownloadRequested;

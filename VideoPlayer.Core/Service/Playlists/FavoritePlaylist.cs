@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using VideoPlayer.Service.Download;
 using VideoPlayer.Service.Library;
 using VideoPlayer.Service.Library.Models.Classified;
 using VideoPlayer.Service.Library.Models.Playlists;
@@ -15,8 +16,9 @@ namespace VideoPlayer.Service.Playlists
         public FavoritePlaylist(
             IMediaLibrary mediaLibrary, 
             IMediaCollectionSelector mediaCollectionSelector, 
+            IDownloadManager downloadManager,
             ILogger logger) 
-            : base(mediaLibrary, mediaCollectionSelector, PlaylistType.Favorite, logger)
+            : base(mediaLibrary, mediaCollectionSelector, downloadManager, PlaylistType.Favorite, logger)
         {
             base.CorrectInvisibleMediaItems = false;
         }

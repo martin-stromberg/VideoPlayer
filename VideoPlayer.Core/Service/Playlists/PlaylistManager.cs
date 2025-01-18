@@ -49,9 +49,9 @@ namespace VideoPlayer.Service.Playlists
             General.DownloadProgress += General_DownloadProgress;
             General.DownloadFailed += General_DownloadFailed;
 
-            NextPlaybackPlaylist = new NextPlaybackPlaylist(mediaLibrary, mediaCollectionSelector, processorCollection, Logger);
-            NewPlaylist = new NewEntriesPlaylist(mediaLibrary, mediaCollectionSelector, Logger);
-            Favorites = new FavoritePlaylist(mediaLibrary, mediaCollectionSelector, logger);
+            NextPlaybackPlaylist = new NextPlaybackPlaylist(mediaLibrary, mediaCollectionSelector, processorCollection, downloadManager, Logger);
+            NewPlaylist = new NewEntriesPlaylist(mediaLibrary, mediaCollectionSelector, downloadManager, Logger);
+            Favorites = new FavoritePlaylist(mediaLibrary, mediaCollectionSelector, downloadManager,logger);
         }
 
         private void General_DownloadFailed(object sender, DownloadFailedEventArgs e)

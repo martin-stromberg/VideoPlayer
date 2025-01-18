@@ -52,7 +52,7 @@ namespace VideoPlayer.Service.Library.Scanner
             switch(e.Name)
             {
                 case "Rescan":
-                    EnqueueForceScan(e.Data as BaseServiceModel);                    
+                    EnqueueForceScan(e.Data as BaseServiceModel);
                     ForceExecute();
                     break;
                 case "Scan":
@@ -63,6 +63,13 @@ namespace VideoPlayer.Service.Library.Scanner
                     ForceExecute();
                     break;
             }
+        }
+        public void ForceScanAll()
+        {
+            foreach (var source in _MediaLibrary.GetSources()
+                .Where(source => !source.Deleted))
+                EnqueueForceScan(source);
+            ForceExecute();
         }
 
         #region EnqueueForceReload
@@ -78,6 +85,7 @@ namespace VideoPlayer.Service.Library.Scanner
         #region EnqueueForceScan
         private void EnqueueForceScan(BaseServiceModel entry)
         {
+            Reset(entry as MediaSource);
             Reset(entry as Movie);
             Reset(entry as MovieCollection);
             Reset(entry as TVShow);
@@ -86,6 +94,15 @@ namespace VideoPlayer.Service.Library.Scanner
             _MediaLibrary.Hold(entry);
             _ForceEntries.Enqueue(entry);
         }
+
+        private void Reset(MediaSource mediaSource)
+        {
+            if (mediaSource is null) return;
+            mediaSource.LastScan = DateTime.MinValue;
+            _MediaLibrary.AddOrUpdateSource(mediaSource);
+            _MediaLibrary.Release(mediaSource);
+        }
+
         private void Reset(MovieCollection entry)
         {
             if (entry is null) return;
@@ -368,6 +385,7 @@ namespace VideoPlayer.Service.Library.Scanner
                 return false;
             try
             {
+                ForceScan(entry as MediaSource);
                 ForceScan(entry as MediaItem);
                 ForceScan(entry as MediaCollection);
                 ForceScan(entry as TVShow);
@@ -381,6 +399,12 @@ namespace VideoPlayer.Service.Library.Scanner
             {
                 _MediaLibrary.Release(entry);
             }
+        }
+
+        private void ForceScan(MediaSource mediaSource)
+        {
+            if (mediaSource is null) return;
+            _ = CheckScanSource(mediaSource);
         }
 
         private void ForceScan(MovieCollection movieCollection)
@@ -590,22 +614,27 @@ namespace VideoPlayer.Service.Library.Scanner
         {
             if (!_ApplicationSettings.ScanningEnabled)
                 return false;
-            while (CheckReloadNextForcedEntries());
+            while (CheckReloadNextForcedEntries()) ;
             CheckScanNextForcedEntry();
             var source = _MediaLibrary.GetNextScanSource();
             if (source is null)
                 return false;
+            return CheckScanSource(source);
+        }
+
+        private bool CheckScanSource(MediaSource source)
+        {
             try
             {
                 if (source.Deleted)
                 {
                     DeleteSource(source);
                     return true;
-                }                
+                }
                 if (_Settings.SourceScanInterval > TimeSpan.Zero)
                     if (source.LastScan.Add(_Settings.SourceScanInterval) > DateTime.Now)
                         return false;
-                ScanSource(source);                
+                ScanSource(source);
                 return true;
             }
             finally

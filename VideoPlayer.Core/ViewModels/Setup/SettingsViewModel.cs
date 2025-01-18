@@ -143,8 +143,95 @@ namespace VideoPlayer.ViewModels.Setup
                 SetProperty<bool>(value);
             }
         }
-        
 
+        public int DownloadDueTimeCacheDays
+        {
+            get
+            {
+                return applicationSettings.DownloadDueTimeCache.Days;
+            }
+            set
+            {
+                applicationSettings.DownloadDueTimeCache = new TimeSpan(value, DownloadDueTimeCache.Hours, DownloadDueTimeCache.Minutes, DownloadDueTimeCache.Seconds);
+            }
+        }
+        public TimeSpan DownloadDueTimeCache
+        {
+            get
+            {
+                return applicationSettings.DownloadDueTimeCache;
+            }
+            set
+            {
+                applicationSettings.DownloadDueTimeCache = new TimeSpan(DownloadDueTimeCacheDays, value.Hours, value.Minutes, value.Seconds);
+            }
+        }
+        public int DownloadDueTimeNextPlaylistCacheDays
+        {
+            get
+            {
+                return applicationSettings.DownloadDueTimeNextPlaylistCache.Days;
+            }
+            set
+            {
+                applicationSettings.DownloadDueTimeNextPlaylistCache = new TimeSpan(value, DownloadDueTimeNextPlaylistCache.Hours, DownloadDueTimeNextPlaylistCache.Minutes, DownloadDueTimeNextPlaylistCache.Seconds);
+            }
+        }
+        public TimeSpan DownloadDueTimeNextPlaylistCache
+        {
+            get
+            {
+                return applicationSettings.DownloadDueTimeNextPlaylistCache;
+            }
+            set
+            {
+                applicationSettings.DownloadDueTimeNextPlaylistCache = new TimeSpan(DownloadDueTimeNextPlaylistCacheDays, value.Hours, value.Minutes, value.Seconds);
+            }
+        }
+        public int DownloadDueTimeNextDownloadDays
+        {
+            get
+            {
+                return applicationSettings.DownloadDueTimeDownload.Days;
+            }
+            set
+            {
+                applicationSettings.DownloadDueTimeDownload = new TimeSpan(value, DownloadDueTimeNextDownload.Hours, DownloadDueTimeNextDownload.Minutes, DownloadDueTimeNextDownload.Seconds);
+            }
+        }
+        public TimeSpan DownloadDueTimeNextDownload
+        {
+            get
+            {
+                return applicationSettings.DownloadDueTimeDownload;
+            }
+            set
+            {
+                applicationSettings.DownloadDueTimeDownload = new TimeSpan(DownloadDueTimeNextDownloadDays, value.Hours, value.Minutes, value.Seconds);
+            }
+        }
+        public int DownloadDueTimeNextWatchedDays
+        {
+            get
+            {
+                return applicationSettings.DownloadDueTimeWatched.Days;
+            }
+            set
+            {
+                applicationSettings.DownloadDueTimeWatched = new TimeSpan(value, DownloadDueTimeNextWatched.Hours, DownloadDueTimeNextWatched.Minutes, DownloadDueTimeNextWatched.Seconds);
+            }
+        }
+        public TimeSpan DownloadDueTimeNextWatched
+        {
+            get
+            {
+                return applicationSettings.DownloadDueTimeWatched;
+            }
+            set
+            {
+                applicationSettings.DownloadDueTimeWatched = new TimeSpan(DownloadDueTimeNextWatchedDays, value.Hours, value.Minutes, value.Seconds);
+            }
+        }
         public string StatusMessage
         {
             get

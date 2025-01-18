@@ -32,30 +32,7 @@ namespace VideoPlayer.Service.Library
             _Database = database; 
             Start();
         }
-        private Setup _Setup = null;
-        public Setup Setup
-        {
-            get
-            {
-                if (_Setup is null)
-                {
-                    var setupId = _Database
-                        .GetAll<DataSetup>()
-                        .Select(c => c.Id)
-                        .FirstOrDefault();
-
-                    var cache = GetModelCache(typeof(DataSetup));
-                    _Setup = cache.GetServiceModel<Setup>(setupId);
-                    if (_Setup is null)
-                    {
-                        _Setup = Setup.Default();
-                        AddOrUpdate(_Setup);
-                    }
-                }
-                return _Setup;
-            }
-        }
-
+        
         private ModelCache<BaseDataModel> GetModelCache(Type type)
         {
             lock (_Database)
@@ -117,7 +94,6 @@ namespace VideoPlayer.Service.Library
         public void CreateDemoData()
         {
             Clear();
-            Setup setup = new Setup() { Name = nameof(Setup) };
             MediaSource[] mediaSources = new MediaSource[]
             {
             };
@@ -223,7 +199,6 @@ namespace VideoPlayer.Service.Library
                                 } },
                 new Genre(null){ Name = "Western" },
             };
-            AddOrUpdate(setup);
             AddOrUpdateRange(mediaSources);
             foreach (var genre in genres)
                 AddOrUpdateGenre(genre);

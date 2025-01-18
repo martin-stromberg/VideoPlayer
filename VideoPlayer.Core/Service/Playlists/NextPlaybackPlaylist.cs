@@ -12,22 +12,26 @@ using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
 using VideoPlayer.Service.Library.Models.Playlists;
 using VideoPlayer.Service.Processor;
+using VideoPlayer.Service.Settings;
 
 namespace VideoPlayer.Service.Playlists
 {
     public class NextPlaybackPlaylist : BasePlaylistService
     {
         private readonly IProcessorCollection processorCollection;
+        private readonly IApplicationSettings applicationSettings;
 
         public NextPlaybackPlaylist(
             IMediaLibrary mediaLibrary,
             IMediaCollectionSelector mediaCollectionSelector,
             IProcessorCollection processorCollection,
             IDownloadManager downloadManager,
+            IApplicationSettings applicationSettings,
             ILogger logger)
             : base(mediaLibrary, mediaCollectionSelector, downloadManager, PlaylistType.NextPlayback, logger)
         {
             this.processorCollection = processorCollection;
+            this.applicationSettings = applicationSettings;
         }
 
         #region Timer
@@ -249,7 +253,7 @@ namespace VideoPlayer.Service.Playlists
             if (existing is null)
                 return;
             var nextMediaItem = FindNextMediaItem(mediaItem);
-            ExecuteDownloadRequest(nextMediaItem, MediaLibrary.Setup.DownloadManager_DueTime_NextPlaylistCache);
+            ExecuteDownloadRequest(nextMediaItem, applicationSettings.DownloadDueTimeNextPlaylistCache);
         }
 
         private PlaylistEntry AddMediaItem(MediaItem mediaItem)

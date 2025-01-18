@@ -13,6 +13,7 @@ using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
 using VideoPlayer.Service.Library.SourceReader;
 using VideoPlayer.Service.Processor;
+using VideoPlayer.Service.Settings;
 using VideoPlayer.Tools;
 using static SQLite.SQLite3;
 
@@ -25,12 +26,14 @@ namespace VideoPlayer.Service.Download
         private readonly IMediaLibrary mediaLibrary;
         private readonly IEnvironment environment;
         private readonly IMediaCollectionSelector mediaCollectionSelector;
+        private readonly IApplicationSettings applicationSettings;
 
         public DownloadManager(
             IMediaLibrary mediaLibrary,
             IEnvironment environment,
             IMediaCollectionSelector mediaCollectionSelector,
             IProcessorCollection processorCollection,
+            IApplicationSettings applicationSettings,
             ILogger<DownloadManager> logger)
             :base(nameof(DownloadManager), processorCollection, logger)
         {
@@ -39,6 +42,7 @@ namespace VideoPlayer.Service.Download
             this.mediaLibrary = mediaLibrary;
             this.environment = environment;
             this.mediaCollectionSelector = mediaCollectionSelector;
+            this.applicationSettings = applicationSettings;
         }
 
         public bool HasJobs
@@ -242,7 +246,7 @@ namespace VideoPlayer.Service.Download
             catch(Exception ex)
             {
                 NotifyError(ex);
-                mediaItem.DueDate = DateTime.Now.Add(mediaLibrary.Setup.DownloadManager_DueTime_Watched);
+                mediaItem.DueDate = DateTime.Now.Add(applicationSettings.DownloadDueTimeWatched);
                 mediaLibrary.AddOrUpdateMediaItem(mediaItem);
                 return false;
             }
@@ -369,17 +373,16 @@ namespace VideoPlayer.Service.Download
             };
             Download(item, duplicate, progressCallback);
 
-            var setup = mediaLibrary.Setup;
             if (dueTime != TimeSpan.Zero)
                 duplicate.DueDate = DateTime.Now.Add(dueTime);
             else
                 switch (copyType)
                 {
                     case MediaItemCopyType.Download:
-                        duplicate.DueDate = DateTime.Now.Add(setup.DownloadManager_DueTime_Download);
+                        duplicate.DueDate = DateTime.Now.Add(applicationSettings.DownloadDueTimeDownload);
                         break;
                     case MediaItemCopyType.Cache:
-                        duplicate.DueDate = DateTime.Now.Add(setup.DownloadManager_DueTime_Cache);
+                        duplicate.DueDate = DateTime.Now.Add(applicationSettings.DownloadDueTimeCache);
                         break;
                 }     
             duplicate.Path = duplicate.Path.Remove(0, environment.GetRootPath().Length);

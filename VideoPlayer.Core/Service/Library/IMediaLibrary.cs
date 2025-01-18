@@ -8,9 +8,7 @@ using VideoPlayer.Service.Log;
 namespace VideoPlayer.Service.Library
 {
     public interface IMediaLibrary
-    {
-        Setup Setup { get; }
-
+    {        
         event EventHandler<BaseServiceModelEventArgs> ItemUpdated;
 
         void CreateDemoData();

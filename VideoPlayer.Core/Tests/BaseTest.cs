@@ -89,7 +89,7 @@ namespace VideoPlayer.Tests
         protected void InitializePlaylistManager()
         {
             IMediaCollectionSelector mediaCollectionSelector = new MediaCollectionSelector(MediaLibrary);
-            PlaylistManager = new PlaylistManager(MediaLibrary, DownloadManager, ProcessorCollection, mediaCollectionSelector, null);
+            PlaylistManager = new PlaylistManager(MediaLibrary, DownloadManager, ProcessorCollection, mediaCollectionSelector, new ApplicationSettings(), null);
         }
 
         protected void InitializeEmptyDatabase()
@@ -104,7 +104,7 @@ namespace VideoPlayer.Tests
 
         protected void InitializeDownloadManager()
         {
-            DownloadManager = new DownloadManager(MediaLibrary, new ApplicationEnvironment(), null, ProcessorCollection, null);
+            DownloadManager = new DownloadManager(MediaLibrary, new ApplicationEnvironment(), null, ProcessorCollection, new ApplicationSettings(), null);
             DownloadManager.CreatingSourceReader += DownloadManager_CreatingSourceReader;
         }
 

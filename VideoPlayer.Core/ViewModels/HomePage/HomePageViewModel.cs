@@ -2,6 +2,7 @@
 using System.Linq;
 using VideoPlayer.Navigation;
 using VideoPlayer.Service.Events;
+using VideoPlayer.Service.Library.Scanner;
 using VideoPlayer.Service.Playlists;
 using VideoPlayer.Service.Processor;
 using VideoPlayer.Service.Resources;
@@ -15,8 +16,9 @@ namespace VideoPlayer.ViewModels.HomePage
             INavigationManager navigationManager,
             IPlaylistManager playlistManager, 
             IResourceManager resourceManager,
+            ILibraryScanner libraryScanner,
             IProcessorCollection processorCollection)
-            : base(processorCollection)
+            : base(processorCollection, libraryScanner)
         {
             Title = "Videoplayer";            
             this.navigationManager = navigationManager;

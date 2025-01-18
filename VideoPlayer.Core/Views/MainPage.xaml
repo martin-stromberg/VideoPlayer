@@ -46,16 +46,20 @@
                          CommandParameter="actors"/>
         </HorizontalStackLayout>
         <!-- Inhalt -->
-        <ScrollView Grid.Row="1">
-            <VerticalStackLayout>
-                <homePage:NextPlayingView BindingContext="{Binding NextPlayingContext}" IsVisible="{Binding ContentVisible}"/>
-                <homePage:NextPlayingView BindingContext="{Binding FavoritesContext}" IsVisible="{Binding ContentVisible}"/>
-                <homePage:NextPlayingView BindingContext="{Binding NewContext}" IsVisible="{Binding ContentVisible}"/>
-                <Label Text="{Binding ErrorMessages}" IsVisible="{Binding ErrorsVisible}"/>
-                <Button IsVisible="{Binding ErrorsVisible}" Text="Bestätigen" Clicked="Button_Clicked" CommandParameter="confirm"/>
-                <Button IsVisible="{Binding ErrorsVisible}" Text="Teilen" Clicked="Button_Clicked" CommandParameter="share"/>
-            </VerticalStackLayout>
-        </ScrollView>
+        <RefreshView Grid.Row="1"
+                     IsRefreshing="{Binding IsRefreshing}"
+                     Command="{Binding RefreshCommand}">
+            <ScrollView>
+                <VerticalStackLayout>
+                    <homePage:NextPlayingView BindingContext="{Binding NextPlayingContext}" IsVisible="{Binding ContentVisible}"/>
+                    <homePage:NextPlayingView BindingContext="{Binding FavoritesContext}" IsVisible="{Binding ContentVisible}"/>
+                    <homePage:NextPlayingView BindingContext="{Binding NewContext}" IsVisible="{Binding ContentVisible}"/>
+                    <Label Text="{Binding ErrorMessages}" IsVisible="{Binding ErrorsVisible}"/>
+                    <Button IsVisible="{Binding ErrorsVisible}" Text="Bestätigen" Clicked="Button_Clicked" CommandParameter="confirm"/>
+                    <Button IsVisible="{Binding ErrorsVisible}" Text="Teilen" Clicked="Button_Clicked" CommandParameter="share"/>
+                </VerticalStackLayout>
+            </ScrollView>
+        </RefreshView>
         <!-- Fußzeile -->
         <viewCommon:MemoryInfoView BindingContext="{Binding MemoryInfo}"
                                    HorizontalOptions="End"

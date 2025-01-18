@@ -1,9 +1,11 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using VideoPlayer.Service.Device;
+using VideoPlayer.Service.Library.Scanner;
 using VideoPlayer.Service.Playlists;
 using VideoPlayer.Service.Processor;
 
@@ -11,14 +13,19 @@ namespace VideoPlayer.ViewModels.HomePage
 {
     public class BaseHomePageViewModel: BaseViewModel
     {
-        
-        public BaseHomePageViewModel(IProcessorCollection processorCollection)
+        private readonly ILibraryScanner libraryScanner;
+
+        public BaseHomePageViewModel(
+            IProcessorCollection processorCollection,
+            ILibraryScanner libraryScanner)
             :base()
         {
             Title = "Videoplayer";
             IsLoading = true;
             Navigate = new Command((args) => { ExecuteNavigate(args.ToString()); });
             MemoryInfo = new MemoryInformation(processorCollection);
+            RefreshCommand = new Command(() => ExecuteRefresh());
+            this.libraryScanner = libraryScanner;
         }
         #region Loading Status
         public override void ExecuteAppeared()
@@ -61,6 +68,26 @@ namespace VideoPlayer.ViewModels.HomePage
         {
             base.OnStatusReceived(statusMessage);
             StatusMessage = statusMessage;
+        }
+        #endregion
+        #region Refreshing
+        public bool IsRefreshing { get => GetProperty<bool>(); set => SetProperty<bool>(value); }
+        public Command RefreshCommand { get; }
+        private void ExecuteRefresh()
+        {
+            try
+            {
+                libraryScanner.ForceScanAll();
+                NotifyStatus($"Starte Scan.");
+            }
+            catch(Exception ex)
+            {
+                Logger.LogError(ex, ex.Message);
+            }
+            finally
+            {
+                IsRefreshing = false;
+            }
         }
         #endregion
         #region Content

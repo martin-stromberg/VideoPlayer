@@ -8,6 +8,7 @@ using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
+using System.Reflection.PortableExecutable;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using System.Xml;
@@ -1342,6 +1343,11 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                 var mediaSource = MediaLibrary.GetSource(collection.SourceId);
                 try
                 {
+                    var reader = CreateReader(mediaSource);
+                    var sourceFileInfo = reader.ReadFile(mediaItem);
+                    if (sourceFileInfo is null)
+                        return true;
+
                     var movie = MediaLibrary.GetMovieByMediaItem(mediaItem.Id);
                     var episode = MediaLibrary.GetTVShowEpisodeByMediaItem(mediaItem.Id);
                     if (movie is not null)

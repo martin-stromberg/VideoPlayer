@@ -74,7 +74,7 @@ namespace VideoPlayer.Service.Database
             {
                 foreach (var tableMapping in connection.TableMappings.Where(m => m.PK is not null))
                 {
-                    if (connection.Query(tableMapping, $"select * from {tableMapping.TableName};").Any())
+                    if (connection.Query(tableMapping, $"select * from {tableMapping.TableName} LIMIT 1;").Any())
                         return false;
                 }
                 return true;

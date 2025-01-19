@@ -129,44 +129,56 @@ namespace VideoPlayer.Service.Library.Scanner.Picture
             {
                 while (CheckReloadNextForcedEntries());
                 List<Exception> errors = new List<Exception>();
-                foreach (var entry in _MediaLibrary.GetMediaItemsThatNeedsPictureUpdate())
-                    try
-                    {
-                        if (!processing)
+                var mediaItemsFound = true;
+                while (mediaItemsFound)
+                {
+                    mediaItemsFound = false;
+                    foreach (var entry in _MediaLibrary.GetMediaItemsThatNeedsPictureUpdate().ToList())
+                        try
                         {
-                            StartProcess($"Bereite Grafiken auf.");
-                            processing = true;
-                        }                        
-                        UpdatePictures(entry);
-                    }
-                    catch(Exception ex)
-                    {
-                        errors.Add(ex);
-                    }
-                    finally
-                    {
-                        _MediaLibrary.Release(entry);
-                        while (CheckReloadNextForcedEntries());
-                    }
-
-                foreach (var actor in _MediaLibrary.GetActorsThatNeedsPictureUpdate())
-                    try
-                    {
-                        if (!processing)
-                        {
-                            StartProcess($"Bereite Grafiken auf.");
-                            processing = true;
+                            mediaItemsFound = true;
+                            if (!processing)
+                            {
+                                StartProcess($"Bereite Grafiken auf.");
+                                processing = true;
+                            }
+                            UpdatePictures(entry);
                         }
-                        UpdatePictures(actor);
-                    }
-                    catch (Exception ex)
-                    {
-                        errors.Add(ex);
-                    }
-                    finally
-                    {
-                        _MediaLibrary.Release(actor);
-                    }
+                        catch (Exception ex)
+                        {
+                            errors.Add(ex);
+                        }
+                        finally
+                        {
+                            _MediaLibrary.Release(entry);
+                            while (CheckReloadNextForcedEntries()) ;
+                        }
+                }
+
+                var actorFound = true;
+                while (actorFound)
+                {
+                    actorFound = false;
+                    foreach (var actor in _MediaLibrary.GetActorsThatNeedsPictureUpdate().ToList())
+                        try
+                        {
+                            actorFound = true;
+                            if (!processing)
+                            {
+                                StartProcess($"Bereite Grafiken auf.");
+                                processing = true;
+                            }
+                            UpdatePictures(actor);
+                        }
+                        catch (Exception ex)
+                        {
+                            errors.Add(ex);
+                        }
+                        finally
+                        {
+                            _MediaLibrary.Release(actor);
+                        }
+                }
 
                 if (errors.Any())
                     throw new AggregateException("Some picture items could not be updated.", errors);

@@ -87,7 +87,15 @@ namespace VideoPlayer.ViewModels.HomePage
             var offset = playlist.Items.IndexOf(item);
             var existing = Items.FirstOrDefault(i => i.Id == item.EntryId);
             if (existing is not null)
+            {
+                if (offset >= Items.Count)
+                {
+                    Items.Remove(existing);
+                    Items.Append(existing);
+                }
+                else
                 Items.Move(Items.IndexOf(existing), offset);
+            }
             else
             {
                 var vm = item.Entry?.Type switch
@@ -125,7 +133,7 @@ namespace VideoPlayer.ViewModels.HomePage
                 };
                 vm.Selected += Item_Selected;
                 if (vm is not null)
-                    Items.Insert(offset, vm);
+                    Items.Insert(Math.Min(offset, Items.Count), vm);
             }
 
         }

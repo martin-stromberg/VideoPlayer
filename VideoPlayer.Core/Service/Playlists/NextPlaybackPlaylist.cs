@@ -13,6 +13,7 @@ using VideoPlayer.Service.Library.Models.Classified;
 using VideoPlayer.Service.Library.Models.Playlists;
 using VideoPlayer.Service.Processor;
 using VideoPlayer.Service.Settings;
+using static SQLite.SQLite3;
 
 namespace VideoPlayer.Service.Playlists
 {
@@ -182,6 +183,12 @@ namespace VideoPlayer.Service.Playlists
             #region Zuletzt gesehen speichern
             if (existing.Entry is not null)
             {
+                if (existing.Entry is TVShowSeason)
+                {
+                    var episode = MediaLibrary.GetTVShowEpisodeByMediaItem(currentMediaItem.Id);
+                    if (episode is not null)
+                        existing.Entry = episode;
+                }
                 existing.Entry.LastWatched = DateTime.Now;
                 MediaLibrary.AddOrUpdateEntry(existing.Entry);
             }
@@ -235,7 +242,8 @@ namespace VideoPlayer.Service.Playlists
             {
                 if (entry is null)
                     entry = GetClassifiedEntry(mediaItem);
-                existing = Current.Items.FirstOrDefault(i => i.Item is null && i.Entry.Id == entry.Id);
+                if (entry is not null)
+                    existing = Current.Items.FirstOrDefault(i => i.Item is null && i.Entry is not null && i.Entry.Id == entry.Id);
                 if (existing is null)
                 {
                     TVShowEpisode episode = entry as TVShowEpisode;
@@ -292,9 +300,15 @@ namespace VideoPlayer.Service.Playlists
                 #endregion
                 
 
-                RemoveBelongingEntries(nextEntry as TVShowEpisode);
-                RemoveBelongingEntries(nextEntry as Movie);
+                var entriesToRemove = RemoveBelongingEntries(nextEntry as TVShowEpisode)
+                    .Concat(RemoveBelongingEntries(nextEntry as Movie))
+                    .ToList();
                 Current.Add(mediaItem, nextEntry);
+                foreach (var entry in entriesToRemove)
+                {
+                    Current.SkipNextDownload();
+                    Current.Remove(entry);
+                }
                 return Current.First;
             }
             finally
@@ -303,34 +317,35 @@ namespace VideoPlayer.Service.Playlists
             }
         }
 
-        private void RemoveBelongingEntries(TVShowEpisode entry)
+        private IEnumerable<PlaylistEntry> RemoveBelongingEntries(TVShowEpisode entry)
         {
-            if (entry is null) return;
+            if (entry is null) yield break;
             var season = MediaLibrary.GetTVShowSeason(entry.SeasonId);
-            if (!Current.Items.Any()) return;
+            if (!Current.Items.Any()) yield break;
             foreach (var existing in Current.Items.ToArray())
             {
                 var existingEntry = existing.Entry as TVShowEpisode;
-                if (existingEntry is null) continue;
-                var existingSeason = MediaLibrary.GetTVShowSeason(existingEntry.SeasonId);
+                var existingSeason = (existingEntry is null) 
+                                   ? existing.Entry as TVShowSeason
+                                   : MediaLibrary.GetTVShowSeason(existingEntry.SeasonId);
+                if (existingSeason is null) continue;
                 if (existingSeason.ShowId != season.ShowId)
                     continue;
-                Current.SkipNextDownload();
-                Current.Remove(existing);
+                yield return existing;                
             }
         }
-        private void RemoveBelongingEntries(Movie entry)
+        private IEnumerable<PlaylistEntry> RemoveBelongingEntries(Movie entry)
         {
-            if (entry is null) return;
+            if (entry is null) yield break;
             var collection = MediaLibrary.GetMovieCollection(entry.CollectionId);
-            if (collection is null) return;
+            if (collection is null) yield break;
             foreach (var existing in Current.Items.ToArray())
             {
                 var existingEntry = existing.Entry as Movie;
                 if (existingEntry is null) continue;
                 if (existingEntry.CollectionId != collection.Id)
                     continue;
-                Current.Remove(existing);
+                yield return existing;
             }
         }        
 

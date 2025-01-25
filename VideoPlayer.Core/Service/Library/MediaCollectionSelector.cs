@@ -98,6 +98,7 @@ namespace VideoPlayer.Service.Library
 
             return (entry as IMediaItemCollectionEntry).MediaItemIds
                 .Select(id => mediaLibrary.GetMediaItem(id))
+                .Where(mi => mi is not null)
                 .Where(mi => mi.CopyType == MediaItemCopyType.Original
                     || mi.CopyType == MediaItemCopyType.Download
                     || mi.CopyType == MediaItemCopyType.Cache)

@@ -18,6 +18,6 @@ namespace VideoPlayer.Service.Library.SourceReader
         FileInfo Download(MediaItem nfoFile, Action<decimal> progressCallback);
 
         string ReadTextFile(MediaItem nfoFile);
-
+        void Upload(string sourceFilePath, string destFilePath, Action<decimal> progressCallback);
     }
 }

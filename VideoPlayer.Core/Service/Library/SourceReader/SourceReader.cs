@@ -22,5 +22,7 @@ namespace VideoPlayer.Service.Library.SourceReader
         public abstract FileInfo Download(MediaItem nfoFile, Action<decimal> progressCallback);
 
         public abstract string ReadTextFile(MediaItem nfoFile);
+
+        public abstract void Upload(string sourceFilePath, string destFilePath, Action<decimal> progressCallback);
     }
 }

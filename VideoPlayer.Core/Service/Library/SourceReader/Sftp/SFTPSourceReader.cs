@@ -67,7 +67,18 @@ namespace VideoPlayer.Service.Library.SourceReader.SFtp
             }
             return new FileInfo(localFilePath);
         }
-
+        public override void Upload(string sourceFilePath, string destFilePath, Action<decimal> progressCallback)
+        {
+            var connection = Connect();
+            try
+            {
+                connection.Upload(sourceFilePath, destFilePath, progressCallback);
+            }
+            finally
+            {
+                Release(connection);
+            }
+        }
         public override SourceFolder GetRoot()
         {
             return new SourceFolder() { FullPath = FTPMediaSource.RootPath, Path = "", Name = FTPMediaSource.Name };

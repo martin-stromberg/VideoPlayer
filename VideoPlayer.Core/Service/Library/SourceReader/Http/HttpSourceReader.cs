@@ -170,6 +170,9 @@ namespace VideoPlayer.Service.Library.SourceReader.Http
             }
         }
 
-
+        public override void Upload(string sourceFilePath, string destFilePath, Action<decimal> progressCallback)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

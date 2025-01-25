@@ -65,5 +65,28 @@ namespace VideoPlayer.Service.Library.SourceReader.SFtp
                 });
             }
         }
+
+        internal void Upload(string localFilePath, string destFilePath, Action<decimal> progressCallback)
+        {
+            destFilePath = $"{mediaSource.RootPath}{destFilePath}";
+            CheckConnection();
+            if (_client.Exists(destFilePath)) 
+                throw new ApplicationException($"File {destFilePath} already exists.");
+            var fileLen = new FileInfo(localFilePath).Length;
+            using (var stream = File.OpenRead(localFilePath))
+            {                
+                var lastPercent = (decimal)0;
+                var lastProgress = DateTime.MinValue;
+                _client.UploadFile(stream, destFilePath, (progress) =>
+                {
+                    var percent = fileLen == 0 ? -1 : Math.Round(((decimal)progress / (decimal)fileLen) * 100, 2);
+                    if (percent != lastPercent && lastProgress.AddSeconds(1) < DateTime.Now)
+                    {
+                        lastProgress = DateTime.Now;
+                        progressCallback(percent);
+                    }
+                });
+            }
+        }
     }
 }

@@ -6,7 +6,7 @@ using VideoPlayer.Service.Library.SourceReader;
 
 namespace VideoPlayer.Tests.Helper
 {
-    public class DummySourceReader: ISourceReader
+    public class DummySourceReader : ISourceReader
     {
 
         private Dictionary<string, string> _Structure = new Dictionary<string, string>();
@@ -191,5 +191,9 @@ namespace VideoPlayer.Tests.Helper
                 .FirstOrDefault(s => s is not null);
         }
 
+        public void Upload(string sourceFilePath, string destFilePath, Action<decimal> progressCallback)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

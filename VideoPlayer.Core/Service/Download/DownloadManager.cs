@@ -3,6 +3,7 @@ using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -111,6 +112,13 @@ namespace VideoPlayer.Service.Download
             {
                 if (!queueCheck.TryPeek(out var firstEntry))
                     return;
+                if (firstEntry.Waiting)
+                {
+                    if (!queueCheck.TryDequeue(out var secondFirstEntry))
+                        return;
+                    queueCheck.Enqueue(secondFirstEntry);
+                    return;
+                }
                 Check(firstEntry);
                 if (!queueCheck.TryDequeue(out var secondEntry))
                     return;
@@ -158,12 +166,61 @@ namespace VideoPlayer.Service.Download
                     session.Finish();
                 }
                 else
-                    queue.Enqueue(session);
+                {
+                    var existingSession = FindExistingCheckSession(session);
+                    if (existingSession is not null)
+                    {
+                        if (existingSession.DueTime != TimeSpan.Zero)
+                            session.DueTime = existingSession.DueTime;
+                    }
+                    existingSession = FindExistingDownloadSession(session);
+                    if (existingSession is not null)
+                    {
+                        if (existingSession.DueTime != TimeSpan.Zero)
+                            session.DueTime = existingSession.DueTime;
+                        session.Assign(existingSession);
+                        queueCheck.Enqueue(session);
+                    }
+                    else if (!IsSessionAlreadyQueued(session))
+                        queue.Enqueue(session);
+                }
             }
             catch (Exception ex)
             {
                 session.Fail(ex);
             }
+        }
+
+        private bool IsSessionAlreadyQueued(DownloadSession session)
+        {
+            return queue.Any(s => s.SessionId == session.SessionId);
+        }
+
+        private DownloadSession FindExistingCheckSession(DownloadSession session)
+        {
+            var existing = queueCheck.FirstOrDefault(s => s.SessionId != session.SessionId 
+                && s.Item is not null 
+                && session.Item is not null 
+                && s.Item.Id == session.Item.Id);
+            if (existing is null)
+                existing = queueCheck.FirstOrDefault(s => s.SessionId != session.SessionId 
+                    && s.Entry is not null 
+                    && session.Entry is not null 
+                    && s.Entry.Id == session.Entry.Id);
+            return existing;
+        }
+        private DownloadSession FindExistingDownloadSession(DownloadSession session)
+        {
+            var existing = queue.FirstOrDefault(s => s.SessionId != session.SessionId 
+                && s.Item is not null 
+                && session.Item is not null 
+                && s.Item.Id == session.Item.Id);
+            if (existing is null)
+                existing = queue.FirstOrDefault(s => s.SessionId != session.SessionId 
+                    && s.Entry is not null 
+                    && session.Entry is not null 
+                    && s.Entry.Id == session.Entry.Id);
+            return existing;
         }
 
         private DateTime _LastDownloadRemovalCheck = DateTime.MinValue;
@@ -411,9 +468,26 @@ namespace VideoPlayer.Service.Download
         private void CompleteSession(DownloadSession session)
         {
             if (session.Entry is null)
+            {
                 session.Entry = FindEntry(session.Item);
+                mediaLibrary.Hold(session.Entry);
+            }
             if (session.Item is null)
-                session.Item = FindItem(session.Entry);            
+            {
+                session.Item = FindItem(session.Entry);
+                mediaLibrary.Hold(session.Item);
+            }
+            if (session.Item is null)
+                return;            
+            if (session.Entry is not null && session.Item.CopyType == MediaItemCopyType.Original)
+            {
+                var existingDownloadItem = FindItem(session.Entry);
+                if (existingDownloadItem is not null)
+                {
+                    mediaLibrary.Release(session.Item);
+                    session.Item = existingDownloadItem;
+                }
+            }
         }
 
         private MediaItem FindItem(ClassifiedEntry entry)
@@ -423,6 +497,7 @@ namespace VideoPlayer.Service.Download
             if (firstPlayableEntry is null) return null;
             var mediaItems = firstPlayableEntry.MediaItemIds
                 .Select(id => mediaLibrary.GetMediaItem(id))
+                .Select(mi => { mediaLibrary.Release(mi); return mi; })
                 .Where(mi => mi is not null)
                 .Where(mi => mi.CopyType != MediaItemCopyType.Trailer)
                 .ToArray();

@@ -1,4 +1,5 @@
 ﻿using CommunityToolkit.Maui.Core.Primitives;
+using CommunityToolkit.Maui.Views;
 using System.Collections.Specialized;
 using System.Runtime.CompilerServices;
 using VideoPlayer.Extensions;
@@ -387,6 +388,10 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             currentMediaItem = mediaItem;
             _SkipPositionEvent = false;
             _StartingPosition = mediaItem.LastPosition;
+            if (VideoSource is not null)
+                if (VideoSource is FileMediaSource)
+                    if (((FileMediaSource)VideoSource).Path == totalPath)
+                        return;
             VideoSource = CommunityToolkit.Maui.Views.MediaSource.FromFile(totalPath);
         }
 

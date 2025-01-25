@@ -147,7 +147,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
         protected virtual void Download(ClassifiedEntry entry)
         {
             if (entry is not null)
-                downloadManager.Enqueue(entry, MediaItemCopyType.Download);
+                downloadManager.Enqueue(entry, MediaItemCopyType.Download, TimeSpan.Zero);
             HasNoDownload = false;
         }
         protected virtual void AddToFavorite(ClassifiedEntry entry)
@@ -176,7 +176,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
 
         protected void StartDownload(TVShowSeason selectedSeason)
         {
-            downloadManager.Enqueue(selectedSeason, MediaItemCopyType.Download);
+            downloadManager.Enqueue(selectedSeason, MediaItemCopyType.Download, TimeSpan.Zero);
         }
         protected virtual void RemoveDownload(ClassifiedEntry entry)
         {

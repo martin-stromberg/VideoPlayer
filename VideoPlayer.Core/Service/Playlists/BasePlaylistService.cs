@@ -67,7 +67,7 @@ namespace VideoPlayer.Service.Playlists
                     DoCorrectInvisibleMediaItems(pl);
 
                 pl.Items.CollectionChanged += Items_CollectionChanged;
-                pl.DownloadRequested += Pl_DownloadRequested; ;
+                pl.DownloadRequested += Pl_DownloadRequested;
                 pl.DownloadFailed += PL_DownloadFailed;
                 pl.PlaybackRequest += Pl_PlaybackRequest;
                 pl.AutoDownload = true;

@@ -62,13 +62,14 @@ namespace VideoPlayer.Service.Download
             queueCheck.Enqueue(session);
             return session;
         }
-        public DownloadSession Enqueue(ClassifiedEntry entry, MediaItemCopyType copyType)
+        public DownloadSession Enqueue(ClassifiedEntry entry, MediaItemCopyType copyType, TimeSpan dueTime)
         {
             var session = new DownloadSession()
             {
                 Entry = entry,
                 Item = null,
-                CopyType = copyType
+                CopyType = copyType,
+                DueTime = dueTime
             };
             queueCheck.Enqueue(session);
             return session;
@@ -134,9 +135,15 @@ namespace VideoPlayer.Service.Download
                     throw new ApplicationException($"No media item found to download.");
 
                 if (session.Item.CopyType == session.CopyType)
+                {
+                    SetDue(session.Item, session.CopyType, session.DueTime);
                     session.Finish();
+                }
                 else if (session.Item.CopyType == MediaItemCopyType.Download)
+                {
+                    SetDue(session.Item, session.CopyType, session.DueTime);
                     session.Finish();
+                }
                 else if (session.Item.CopyType != MediaItemCopyType.Original)
                 {
                     var newPath = Path.Combine(environment.GetPath(session.CopyType), $"{Guid.NewGuid}{Path.GetExtension(session.Item.Name)}");
@@ -146,6 +153,7 @@ namespace VideoPlayer.Service.Download
                         File.Move(session.Item.Path, newPath);
                         session.Item.Path = newPath;
                     }
+                    SetDue(session.Item, session.CopyType, session.DueTime);
                     mediaLibrary.AddOrUpdateMediaItem(session.Item);
                     session.Finish();
                 }
@@ -312,33 +320,33 @@ namespace VideoPlayer.Service.Download
         private bool SplitSession(DownloadSession session)
         {
             if (session.Entry is null) return false;
-            return SplitSession(session.Entry as TVShow, session.CopyType)
-                || SplitSession(session.Entry as TVShowSeason, session.CopyType)
-                || SplitSession(session.Entry as MovieCollection, session.CopyType);
+            return SplitSession(session.Entry as TVShow, session.CopyType, session.DueTime)
+                || SplitSession(session.Entry as TVShowSeason, session.CopyType, session.DueTime)
+                || SplitSession(session.Entry as MovieCollection, session.CopyType, session.DueTime);
         }
-        private bool SplitSession(MovieCollection movieCollection, MediaItemCopyType copyType)
+        private bool SplitSession(MovieCollection movieCollection, MediaItemCopyType copyType, TimeSpan dueTime)
         {
             if (movieCollection is null) return false;
             foreach (var movie in mediaCollectionSelector.FindNextEntries(movieCollection))
-                Enqueue(movie, copyType);
+                Enqueue(movie, copyType, dueTime);
             return true;
         }
 
-        private bool SplitSession(TVShowSeason tVShowSeason, MediaItemCopyType copyType)
+        private bool SplitSession(TVShowSeason tVShowSeason, MediaItemCopyType copyType, TimeSpan dueTime)
         {
             if (tVShowSeason is null) return false;
             foreach (var episode in mediaCollectionSelector.FindNextEntries(tVShowSeason)
                 .OfType<TVShowEpisode>()
                 .TakeWhile(episode => episode.SeasonId == tVShowSeason.Id))
-                Enqueue(episode, copyType);
+                Enqueue(episode, copyType, dueTime);
             return true;
         }
 
-        private bool SplitSession(TVShow tVShow, MediaItemCopyType copyType)
+        private bool SplitSession(TVShow tVShow, MediaItemCopyType copyType, TimeSpan dueTime)
         {
             if (tVShow is null) return false;
             var season = mediaCollectionSelector.FindFirstSeason(tVShow);
-            return SplitSession(season, copyType);
+            return SplitSession(season, copyType, dueTime);
         }
         #endregion
 
@@ -372,21 +380,23 @@ namespace VideoPlayer.Service.Download
                 LastPosition = item.LastPosition
             };
             Download(item, duplicate, progressCallback);
-
-            if (dueTime != TimeSpan.Zero)
-                duplicate.DueDate = DateTime.Now.Add(dueTime);
-            else
-                switch (copyType)
-                {
-                    case MediaItemCopyType.Download:
-                        duplicate.DueDate = DateTime.Now.Add(applicationSettings.DownloadDueTimeDownload);
-                        break;
-                    case MediaItemCopyType.Cache:
-                        duplicate.DueDate = DateTime.Now.Add(applicationSettings.DownloadDueTimeCache);
-                        break;
-                }     
+            SetDue(duplicate, copyType, dueTime);
             duplicate.Path = duplicate.Path.Remove(0, environment.GetRootPath().Length);
             return mediaLibrary.AddOrUpdateMediaItem(duplicate);
+        }
+
+        private void SetDue(MediaItem mediaItem, MediaItemCopyType copyType, TimeSpan dueTime)
+        {
+            var newDueDate = (dueTime != TimeSpan.Zero)
+                ? DateTime.Now.Add(dueTime)
+                : copyType switch
+                {
+                    MediaItemCopyType.Download => DateTime.Now.Add(applicationSettings.DownloadDueTimeDownload),
+                    MediaItemCopyType.Cache => DateTime.Now.Add(applicationSettings.DownloadDueTimeCache),
+                    _ => DateTime.Now.Add(applicationSettings.DownloadDueTimeCache)
+                };
+            if (mediaItem.DueDate < newDueDate)
+                mediaItem.DueDate = newDueDate;
         }
 
         private void Download(MediaItem item, MediaItem destItem, Action<decimal> progressCallback)

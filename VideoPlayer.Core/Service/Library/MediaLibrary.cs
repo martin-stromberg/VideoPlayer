@@ -7,6 +7,8 @@ using System.Reflection;
 using VideoPlayer.Service.BaseServices;
 using VideoPlayer.Service.Database;
 using VideoPlayer.Service.Database.Models;
+using VideoPlayer.Service.ErrorHandling;
+using VideoPlayer.Service.Events;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
 using VideoPlayer.Service.Library.Models.Playlists;
@@ -21,15 +23,18 @@ namespace VideoPlayer.Service.Library
     {
 
         private readonly IMediaLibraryDatabase _Database;
+        private readonly IErrorLogManager errorLogManager;
         private ConcurrentDictionary<Type, ModelCache<BaseDataModel>> _ModelCaches = new ConcurrentDictionary<Type, ModelCache<BaseDataModel>>();
 
         public MediaLibrary(
             IMediaLibraryDatabase database,
+            IErrorLogManager errorLogManager,
             IProcessorCollection processorCollection,
             ILogger<MediaLibrary> logger)
             : base("", logger)
         {
-            _Database = database; 
+            _Database = database;
+            this.errorLogManager = errorLogManager;
             Start();
         }
         
@@ -1251,6 +1256,17 @@ namespace VideoPlayer.Service.Library
             foreach (var cache in _ModelCaches.Values)
                 cache.CheckReleases();
             return Task.CompletedTask;
+        }
+        protected override void ProcessNotification(NotificationEventArgs e)
+        {
+            base.ProcessNotification(e);
+            switch(e.Name)
+            {
+                case "Error":
+                    if (errorLogManager is not null)
+                        errorLogManager.WriteError(e.Data as Exception);
+                    break;
+            }
         }
     }
 }

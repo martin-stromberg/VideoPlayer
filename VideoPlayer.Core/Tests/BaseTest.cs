@@ -99,7 +99,7 @@ namespace VideoPlayer.Tests
             Database.UpdateSchema();
             if (!Database.IsEmpty())
                 throw new ApplicationException($"Database is not new.");
-            MediaLibrary = new MediaLibrary(Database, ProcessorCollection, null);
+            MediaLibrary = new MediaLibrary(Database, null, ProcessorCollection, null);
         }
 
         protected void InitializeDownloadManager()

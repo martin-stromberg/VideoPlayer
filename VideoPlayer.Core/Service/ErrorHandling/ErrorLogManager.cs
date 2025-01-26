@@ -35,6 +35,7 @@ namespace VideoPlayer.Service.ErrorHandling
 
         public void WriteError(Exception error)
         {
+            if (error is null) return;
             string logPath = Path.Combine(RootPath, $"{Guid.NewGuid()}.error");
             File.WriteAllText(logPath, $"{DateTime.Now}\r\n{error}");
         }

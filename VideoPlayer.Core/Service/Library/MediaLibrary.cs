@@ -604,6 +604,7 @@ namespace VideoPlayer.Service.Library
             foreach (var role in roles)
                 Delete(role);
 
+            AddProtocol(movie, $"Delete");
             var dbModel = movie.GetDatabaseModel() as DataClassifiedEntry;
             if (!_Database.Delete<DataClassifiedEntry>(dbModel))
                 throw new ApplicationException($"Movie item could not be deleted.");
@@ -695,6 +696,7 @@ namespace VideoPlayer.Service.Library
 
             var collection = GetMediaCollection(movieCollection.MediaItemCollectionId);
 
+            AddProtocol(movieCollection, $"Delete");
             var dbModel = movieCollection.GetDatabaseModel() as DataClassifiedEntry;
             if (!_Database.Delete<DataClassifiedEntry>(dbModel))
                 throw new ApplicationException($"Movie item could not be deleted.");
@@ -844,7 +846,7 @@ namespace VideoPlayer.Service.Library
                     continue;
                 Delete(collection);
             }
-
+            AddProtocol(episode, $"Delete");
             var dbModel = episode.GetDatabaseModel() as DataClassifiedEntry;
             if (!_Database.Delete<DataClassifiedEntry>(dbModel))
                 throw new ApplicationException($"Episode item could not be deleted.");
@@ -1213,7 +1215,27 @@ namespace VideoPlayer.Service.Library
             Delete(actor);
         }
         #endregion
-
+        #region ProtocolEntry
+        public void AddProtocol(ClassifiedEntry entry, string description)
+        {
+            if (entry is null) return;
+            DataProtocolEntry protocolEntry = new DataProtocolEntry()
+            {
+                Description = description,
+                Name = entry.Name,
+                EntryType = entry.GetType().Name,
+                EntryId = entry.Id
+            };
+            _Database.AddOrUpdate(protocolEntry);
+        }
+        public IEnumerable<ProtocolEntry> GetProtocolEntries(ClassifiedEntry entry)
+        {
+            return _Database.GetAll<DataProtocolEntry>(
+                new KeyValuePair<string, object>(nameof(DataProtocolEntry.EntryId), entry.Id),
+                new KeyValuePair<string, object>(nameof(DataProtocolEntry.EntryType), entry.GetType().Name))
+                .Select(record => new ProtocolEntry(record));
+        }
+        #endregion
         public void Release(IEnumerable<BaseServiceModel> entries)
         {
             Release(entries, false);

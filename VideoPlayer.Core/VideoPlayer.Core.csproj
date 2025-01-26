@@ -74,6 +74,9 @@
 	  <MauiXaml Update="Views\MediaOverview\Cards\TVShowCardPage.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
+	  <MauiXaml Update="Views\Protocol\ProtocolPage.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
 	  <MauiXaml Update="Views\Setup\MediaSourcesView.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>

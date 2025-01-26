@@ -126,10 +126,13 @@ namespace VideoPlayer.Service.Library
         Role GetRole(long id);
         void Delete(Role role);
         #endregion
+        void AddProtocol(ClassifiedEntry entry, string description);
+        IEnumerable<ProtocolEntry> GetProtocolEntries(ClassifiedEntry entry);
         void Release(BaseServiceModel entry);
         void Release(BaseServiceModel entry, bool force);
         void Release(IEnumerable<BaseServiceModel> entry);
         void Release(IEnumerable<BaseServiceModel> entry, bool force);
         void Hold(BaseServiceModel entry);
+        
     }
 }

@@ -10,6 +10,7 @@ using VideoPlayer.Service.Library.Models;
 using VideoPlayer.ViewModels.MediaOverview.MediaItem;
 using VideoPlayer.Views.MediaOverview;
 using VideoPlayer.Views.MediaOverview.Cards;
+using VideoPlayer.Views.Protocol;
 
 namespace VideoPlayer.Navigation
 {
@@ -21,6 +22,7 @@ namespace VideoPlayer.Navigation
         private const string _RouteNameMovieCard = "movie";
         private const string _RouteNameTVShowCard = "tvshow";
         private const string _RouteNameActor = "actor";
+        private const string _RouteNameProtocol = "protocol";
 
         public NavigationManager()
             :base()
@@ -31,6 +33,7 @@ namespace VideoPlayer.Navigation
             Routing.RegisterRoute(_RouteNameMovieCard, typeof(MovieCardPage));
             Routing.RegisterRoute(_RouteNameTVShowCard, typeof(TVShowCardPage));
             Routing.RegisterRoute(_RouteNameActor, typeof(ActorPage));
+            Routing.RegisterRoute(_RouteNameProtocol, typeof(ProtocolPage));
         }
         #region General
         protected async void NavigateToRoute(string route, 
@@ -101,7 +104,14 @@ namespace VideoPlayer.Navigation
             else
                 throw new NotImplementedException(vm.GetType().Name);
         }
-
+        public void OpenProtocol(string elemType, long elemId)
+        {
+            NavigateToRoute(_RouteNameProtocol, new Dictionary<string, object>()
+                {
+                    { "Id", elemId },
+                    { "Type", elemType }
+                });
+        }
         public void CloseCurrentPage()
         {
             MainThread.InvokeOnMainThreadAsync(() => { Shell.Current.Navigation.RemovePage(Shell.Current.CurrentPage); });

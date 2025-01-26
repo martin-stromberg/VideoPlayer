@@ -5,6 +5,7 @@ using VideoPlayer.ViewModels.Downloads;
 using VideoPlayer.ViewModels.HomePage;
 using VideoPlayer.ViewModels.MediaOverview;
 using VideoPlayer.ViewModels.MediaOverview.Genres;
+using VideoPlayer.ViewModels.Protocol;
 using VideoPlayer.ViewModels.Setup;
 
 namespace VideoPlayer.ViewModels
@@ -29,6 +30,7 @@ namespace VideoPlayer.ViewModels
             services.AddTransient<GenreSelectionViewModel, GenreSelectionViewModel>();
             services.AddTransient<DownloadListViewModel, DownloadListViewModel>();
             services.AddSingleton<ErrorViewModel, ErrorViewModel>();
+            services.AddTransient<ProtocolViewModel , ProtocolViewModel>();
             return services;
         }
 

@@ -137,6 +137,9 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
                     case "remove_favorite":
                         RemoveFromFavorite(Entry);
                         break;
+                    case "openProtocol":
+                        OpenProtocol(Entry);
+                        break;
                 }
             }
             catch(Exception ex)
@@ -163,7 +166,6 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
                 PlaylistManager.RemoveFromFavorite(entry);
             IsFavorite = false;
         }
-
         protected virtual void Rescan(ClassifiedEntry entry)
         {
             Notify(this, new Service.Events.NotificationEventArgs("Rescan", entry));

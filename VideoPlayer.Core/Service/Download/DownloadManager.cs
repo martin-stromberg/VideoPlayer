@@ -145,15 +145,18 @@ namespace VideoPlayer.Service.Download
                 if (session.Item.CopyType == session.CopyType)
                 {
                     SetDue(session.Item, session.CopyType, session.DueTime);
+                    mediaLibrary.AddProtocol(session.Entry, $"Update Existing Download - (MediaItem {session.Item.Id} - {session.Item.CopyType} - {session.Item.DueDate})");
                     session.Finish();
                 }
                 else if (session.Item.CopyType == MediaItemCopyType.Download)
                 {
                     SetDue(session.Item, session.CopyType, session.DueTime);
+                    mediaLibrary.AddProtocol(session.Entry, $"Update Existing Download - (MediaItem {session.Item.Id} - {session.Item.CopyType} - {session.Item.DueDate})");
                     session.Finish();
                 }
                 else if (session.Item.CopyType != MediaItemCopyType.Original)
                 {
+                    var oldPath = Path.Combine(environment.GetPath(session.Item.CopyType), $"{session.Item.Path}");
                     var newPath = Path.Combine(environment.GetPath(session.CopyType), $"{Guid.NewGuid}{Path.GetExtension(session.Item.Name)}");
                     session.Item.CopyType = session.CopyType;
                     if (session.Item.Path != newPath)
@@ -162,6 +165,7 @@ namespace VideoPlayer.Service.Download
                         session.Item.Path = newPath;
                     }
                     SetDue(session.Item, session.CopyType, session.DueTime);
+                    mediaLibrary.AddProtocol(session.Entry, $"Update Existing Download - (MediaItem {session.Item.Id} - {session.Item.CopyType} - {session.Item.DueDate})");
                     mediaLibrary.AddOrUpdateMediaItem(session.Item);
                     session.Finish();
                 }
@@ -243,6 +247,7 @@ namespace VideoPlayer.Service.Download
                         var elem = mediaLibrary.GetMovieByMediaItem(mediaItem.Id) as ClassifiedEntry
                             ?? mediaLibrary.GetTVShowEpisodeByMediaItem(mediaItem.Id);
                         if (elem is null) continue;
+                        mediaLibrary.AddProtocol(elem, $"Remove Download (MediaItem {mediaItem.Id} - {mediaItem.CopyType} - {mediaItem.DueDate})");
                         var de = elem as IDownloadableEntry;
                         if (de is null) continue;
                         if (de.DownloadMediaItemId != mediaItem.Id)
@@ -275,8 +280,9 @@ namespace VideoPlayer.Service.Download
                 .Where(mi => mi is not null)
                 .Where(mi => mi.CopyType == MediaItemCopyType.Download || mi.CopyType == MediaItemCopyType.Cache))
             {
+                mediaLibrary.AddProtocol(entry, $"Remove Download (MediaItem {mediaItem.Id} - {mediaItem.CopyType} - {mediaItem.DueDate})");
                 if (!RemoveDownload(mediaItem))
-                    continue;
+                    continue;                
                 collectionEntry.MediaItemIds = collectionEntry.MediaItemIds.Where(i => i != mediaItem.Id).ToArray();
                 if (downlodable is not null)
                 {
@@ -286,7 +292,6 @@ namespace VideoPlayer.Service.Download
                         mediaLibrary.AddOrUpdateEntry(entry);
                     }
                 }
-
             }
         }
         public void RemoveDownloads(MediaItem mediaItem)
@@ -364,6 +369,7 @@ namespace VideoPlayer.Service.Download
                             ((IDownloadableEntry)session.Entry).DownloadMediaItemId = session.Item.Id;
                     }
                     session.Entry = mediaLibrary.AddOrUpdateEntry(session.Entry);
+                    mediaLibrary.AddProtocol(session.Entry, $"Download - (MediaItem {session.Item.Id} - {session.Item.CopyType} - {session.Item.DueDate})");
                 }
                 session.Finish();
             }
@@ -488,6 +494,8 @@ namespace VideoPlayer.Service.Download
                     session.Item = existingDownloadItem;
                 }
             }
+            if (session.Item is null)
+                return;
         }
 
         private MediaItem FindItem(ClassifiedEntry entry)
@@ -541,6 +549,8 @@ namespace VideoPlayer.Service.Download
             if (item is null) return null;
             var movie = mediaLibrary.GetMovieByMediaItem(item.Id);
             if (movie is not null) return movie;
+            var episode = mediaLibrary.GetTVShowEpisodeByMediaItem(item.Id);
+            if (episode is not null) return episode;
             return null;
         }
 
@@ -568,6 +578,23 @@ namespace VideoPlayer.Service.Download
                     mediaLibrary.Release(mediaItem);
                     return mediaItem is null;
                 });
+        }
+
+        public void PrepareWatchedMediaItem(ClassifiedEntry entry, MediaItem item)
+        {
+            if (item.CopyType == MediaItemCopyType.Original)
+                return;
+            var newDueDate = item.CopyType switch
+            {
+                MediaItemCopyType.Download => DateTime.Now.Add(applicationSettings.DownloadDueTimeWatched),
+                MediaItemCopyType.Cache => DateTime.Now.Add(applicationSettings.DownloadDueTimeWatched),
+                _ => DateTime.Now.Add(applicationSettings.DownloadDueTimeWatched)
+            };
+            if (item.DueDate <= newDueDate)
+                return;
+            item.DueDate = newDueDate;
+            mediaLibrary.AddOrUpdateMediaItem(item);
+            mediaLibrary.AddProtocol(entry, $"Watched (MediaItem {item.Id} - {item.CopyType} - {item.DueDate})");
         }
     }
 }

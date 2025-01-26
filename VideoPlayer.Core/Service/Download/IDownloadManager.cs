@@ -11,6 +11,7 @@ namespace VideoPlayer.Service.Download
         DownloadSession Enqueue(ClassifiedEntry entry, Library.Models.MediaItem item, TimeSpan dueTime);
         DownloadSession Enqueue(ClassifiedEntry entry, MediaItemCopyType copyType, TimeSpan dueTime);
         IEnumerable<FileInfo> GetOrphanedFiles();
+        void PrepareWatchedMediaItem(ClassifiedEntry entry, MediaItem item);
         void RemoveDownloads(ClassifiedEntry entry);
     }
 }

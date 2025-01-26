@@ -2,6 +2,7 @@
 using VideoPlayer.Navigation;
 using VideoPlayer.Service.Events;
 using VideoPlayer.Service.Library;
+using VideoPlayer.Service.Library.Models.Classified;
 using VideoPlayer.ViewModels.Common;
 using VideoPlayer.ViewModels.MediaOverview.MediaItem;
 
@@ -39,6 +40,10 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
         protected virtual void OpenCard(BaseListItem listItem)
         {
             navigationManager.OpenCard(listItem, false);
+        }
+        protected virtual void OpenProtocol(ClassifiedEntry entry)
+        {
+            navigationManager.OpenProtocol(entry.GetType().Name, entry.Id);
         }
         #endregion
         #region CollectionContext

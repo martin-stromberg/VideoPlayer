@@ -179,7 +179,11 @@ namespace VideoPlayer.Service.Playlists
         {
             var existing = Current.Items.FirstOrDefault(i => i.Item?.Id == currentMediaItem.Id);
             if (existing is null)
+            {
+                ProcessMediaItemWatched(null, currentMediaItem);
                 return;
+            }
+            ProcessMediaItemWatched(existing.Entry, currentMediaItem);
             #region Zuletzt gesehen speichern
             if (existing.Entry is not null)
             {

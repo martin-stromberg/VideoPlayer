@@ -61,28 +61,36 @@
                      Command="{Binding PlaybackCommand}"/>
         </Frame>
         <!-- Action Buttons -->
-        <VerticalStackLayout Grid.Column="1">
+        <HorizontalStackLayout Grid.Column="0"
+                               Grid.ColumnSpan="2"
+                               HorizontalOptions="End">
             <ImageButton Source="delete64x64.png"
                          HorizontalOptions="End"
                          VerticalOptions="Start"
                          IsVisible="{Binding HasDownload}"
                          Command="{Binding ActionCommand}"
                          CommandParameter="delete"
-                         Margin="0,0,0,5"/>
+                         Margin="5,0,5,0"/>
             <ImageButton Source="download64x64.png"
                          HorizontalOptions="End"
                          VerticalOptions="Start"
                          IsVisible="{Binding HasNoDownload}"
                          Command="{Binding ActionCommand}"
                          CommandParameter="download"
-                         Margin="0,0,0,5"/>
+                         Margin="5,0,5,0"/>
             <ImageButton Source="classification64x64.png"
                          HorizontalOptions="End"
                          VerticalOptions="Start"
                          Command="{Binding ActionCommand}"
                          CommandParameter="rescan"
-                         Margin="0,0,0,5"/>
-        </VerticalStackLayout>
+                         Margin="5,0,5,0"/>
+            <ImageButton Source="protocol64x64.png"
+                         HorizontalOptions="End"
+                         VerticalOptions="Start"
+                         Command="{Binding ActionCommand}"
+                         CommandParameter="openProtocol"
+                         Margin="5,0,5,0"/>
+        </HorizontalStackLayout>
         <!-- Video Player -->
         <video:VideoPlayerView Grid.ColumnSpan="2"
                            IsVisible="{Binding VideoPlayerVisible}"/>

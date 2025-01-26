@@ -167,7 +167,10 @@ namespace VideoPlayer.Service.Playlists
             
         }
 
-        
+        protected virtual void ProcessMediaItemWatched(ClassifiedEntry entry, MediaItem item)
+        {
+            downloadManager.PrepareWatchedMediaItem(entry, item);
+        }
         protected MediaItem FindNextMediaItem(MediaItem mediaItem)
         {
             return MediaCollectionSelector.FindNextMediaItem(mediaItem);

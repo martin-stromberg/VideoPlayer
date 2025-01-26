@@ -19,6 +19,7 @@ namespace VideoPlayer.Navigation
         #region Detail Card
         void OpenCard(BaseListItem vm, bool autoPlay);
         void CloseCurrentPage();
+        void OpenProtocol(string elemType, long elemId);
         #endregion
 
         //void OpenMovieCollection(MovieCollection movieCollection);

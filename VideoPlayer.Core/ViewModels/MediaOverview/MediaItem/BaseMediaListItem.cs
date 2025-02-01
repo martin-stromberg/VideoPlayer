@@ -51,12 +51,20 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
         {
             if (item is null)
                 LoadDefaultImage();
-            else if (!string.IsNullOrWhiteSpace(item.PicturePath))
+            else if (CheckPictureExistance(item, item.PicturePath))
                 LoadImage(PathTools.Combine(FileSystem.Current.AppDataDirectory, item.PicturePath));
-            else if (!string.IsNullOrWhiteSpace(item.BannerPath))
+            else if (CheckPictureExistance(item, item.BannerPath))
                 LoadImage(PathTools.Combine(FileSystem.Current.AppDataDirectory, item.BannerPath));
             else
                 LoadDefaultImage();
+        }
+
+        private bool CheckPictureExistance(IPicturedEntry item, string picturePath)
+        {
+            var result = !string.IsNullOrWhiteSpace(picturePath);
+            if (!result) return result;
+            result = File.Exists(PathTools.Combine(FileSystem.Current.AppDataDirectory, picturePath));
+            return result;
         }
 
         protected virtual void UpdateMediaInformation(ClassifiedEntry item)
@@ -90,7 +98,10 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
         }
         protected void LoadImage(string path)
         {
-            Picture = ImageSource.FromFile(path); 
+            if (File.Exists(path))
+                Picture = ImageSource.FromFile(path);
+            else 
+                LoadDefaultImage();
         }
         public string Subtitle { get => GetProperty<string>(); set => SetProperty(value); }
         public ImageSource Picture { get => GetProperty<ImageSource>(); set => SetProperty(value); }

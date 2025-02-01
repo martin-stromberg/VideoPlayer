@@ -58,10 +58,15 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
                     if (string.IsNullOrWhiteSpace(Title))
                         base.UpdateMediaInformation(item);
                     break;
-                default:
-                    base.UpdateMediaInformation(item);
+                default:                    
                     if (Episode is not null)
-                        Title = $"S{Episode.SeasonNo}E{Episode.Episode}: {Episode.Name}";                    
+                    {
+                        Title = $"S{Episode.SeasonNo}E{Episode.Episode}: {Episode.Name}";
+                        Subtitle = GetDateTimeInfo(Episode.ReleaseDate, Episode.PremieredAt);
+                        Watched = Episode.LastWatched != DateTime.MinValue;
+                    }
+                    else
+                        base.UpdateMediaInformation(item);
                     break;
             }
         }

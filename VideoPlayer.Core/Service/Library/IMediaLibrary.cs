@@ -128,6 +128,7 @@ namespace VideoPlayer.Service.Library
         #endregion
         void AddProtocol(ClassifiedEntry entry, string description);
         IEnumerable<ProtocolEntry> GetProtocolEntries(ClassifiedEntry entry);
+        IEnumerable<ProtocolEntry> GetProtocolEntries(ClassifiedEntry entry, int offset, int count);
         void Release(BaseServiceModel entry);
         void Release(BaseServiceModel entry, bool force);
         void Release(IEnumerable<BaseServiceModel> entry);

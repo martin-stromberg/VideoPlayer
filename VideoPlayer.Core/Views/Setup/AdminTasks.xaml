@@ -25,6 +25,10 @@
             Command="{Binding Action}" 
             CommandParameter="ReclassifyAll"
             Margin="5"/>
+        <Button Text="Allgemeines Protokoll einsehen"
+                Command="{Binding Action}" 
+                CommandParameter="ViewLog"
+                Margin="5"/>
         <Label Text="{Binding StatusMessage}"/>
     </VerticalStackLayout>
 </ContentView>

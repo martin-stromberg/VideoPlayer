@@ -1564,6 +1564,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                 var mediaItem = storedFilePaths.Where(path => path.EndsWith(file.Name));
                 if (mediaItem.Any())
                     continue;
+                MediaLibrary.AddProtocol(new ClassifiedEntry(null, EntryType.None) { Name = file.Name, Id = 0 }, $"Delete cached file: {file.Name}");
                 file.Delete();
             }
             

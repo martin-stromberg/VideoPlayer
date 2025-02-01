@@ -13,7 +13,7 @@ namespace VideoPlayer.Service.Library.Models.Classified
         TVShowEpisode = 12,
         MovieCollection = 100,
         TVShowCollection = 110,
-
+        None = 999,
     }
 
     [DataModelReference(

@@ -2,6 +2,7 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
+using VideoPlayer.Navigation;
 using VideoPlayer.Service.Device;
 using VideoPlayer.Service.Events;
 using VideoPlayer.Service.Export;
@@ -26,6 +27,7 @@ namespace VideoPlayer.ViewModels.Setup
         private readonly IDeviceDisplayManager _DeviceDisplayManager;
         private readonly IMediaClassifierSettings settings;
         private readonly IApplicationSettings applicationSettings;
+        private readonly INavigationManager navigationManager;
         private bool _Exporting;
         private bool _ExportingMemory;
 
@@ -37,7 +39,8 @@ namespace VideoPlayer.ViewModels.Setup
             IPlaylistManager playlistManager,
             IDeviceDisplayManager deviceDisplayManager,
             IMediaClassifierSettings settings,
-            IApplicationSettings applicationSettings)
+            IApplicationSettings applicationSettings,
+            INavigationManager navigationManager)
             : base()
         {
             _DataExporter = dataExporter;
@@ -48,6 +51,7 @@ namespace VideoPlayer.ViewModels.Setup
             _DeviceDisplayManager = deviceDisplayManager;
             this.settings = settings;
             this.applicationSettings = applicationSettings;
+            this.navigationManager = navigationManager;
             Title = "Einstellungen";
             Navigate = new Command((args) => { ExecuteNavigate(args?.ToString()); });
             Action = new Command((args) => { ExecuteAction(args?.ToString()); });
@@ -274,6 +278,9 @@ namespace VideoPlayer.ViewModels.Setup
                     case "newSource":
                         CreateNewSource();
                         break;
+                    case "ViewLog":
+                        ViewLog();
+                        break;
                 }
                 OnStatusReceived($"");
             }
@@ -282,6 +289,11 @@ namespace VideoPlayer.ViewModels.Setup
                 OnStatusReceived(ex.Message);
                 Debug.WriteLine(ex);
             }
+        }
+
+        private void ViewLog()
+        {
+            navigationManager.OpenProtocol(typeof(ClassifiedEntry).Name, 0);
         }
 
         private bool _Reclassifying = false;

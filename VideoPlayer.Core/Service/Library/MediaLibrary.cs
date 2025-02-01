@@ -1230,9 +1230,13 @@ namespace VideoPlayer.Service.Library
         }
         public IEnumerable<ProtocolEntry> GetProtocolEntries(ClassifiedEntry entry)
         {
-            return _Database.GetAll<DataProtocolEntry>(
-                new KeyValuePair<string, object>(nameof(DataProtocolEntry.EntryId), entry.Id),
-                new KeyValuePair<string, object>(nameof(DataProtocolEntry.EntryType), entry.GetType().Name))
+            return GetProtocolEntries(entry, 0, int.MaxValue);
+        }
+        public IEnumerable<ProtocolEntry> GetProtocolEntries(ClassifiedEntry entry, int offset, int count)
+        {
+            return _Database.GetAll<DataProtocolEntry>(offset, count, nameof(DataProtocolEntry.Id), false, 
+                new Filter() { Name = nameof(DataProtocolEntry.EntryId) , Value = entry.Id , Type = FilterType.Equal },
+                new Filter() { Name = nameof(DataProtocolEntry.EntryType), Value = entry.GetType().Name, Type = FilterType.Equal })
                 .Select(record => new ProtocolEntry(record));
         }
         #endregion

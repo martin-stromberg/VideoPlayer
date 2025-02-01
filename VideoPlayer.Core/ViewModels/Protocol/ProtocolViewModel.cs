@@ -40,7 +40,7 @@ namespace VideoPlayer.ViewModels.Protocol
         {
             base.ExecuteAppeared();
             if (Entry is not null)
-                LoadEntries();
+                LoadEntriesAsync();
         }
 
         internal void LoadParent(string elementType, long elementId)
@@ -54,16 +54,43 @@ namespace VideoPlayer.ViewModels.Protocol
             }
             Entry = entry;
             if (IsAppeared)
-                LoadEntries();
+                LoadEntriesAsync();
+        }
+        private async void LoadEntriesAsync()
+        {
+            int offset = 0;
+            int count = 10;
+            Items.Clear();
+            int loaded = await Task<int>.Run(() => LoadEntries(offset, count));
+            while (loaded > 0 && loaded == count)
+            {
+                offset += loaded;
+                loaded = await Task<int>.Run(() => LoadEntries(offset, count));
+            }
         }
 
-        private void LoadEntries()
+        private int LoadEntries(int offset, int count)
         {
-            var entries = mediaLibrary.GetProtocolEntries(Entry);
-            Items.Clear();
-            foreach (var e in entries
-                .Select(e => new ProtocolListEntryViewModel(e)))
-                Items.Add(e);
+            try
+            {
+                var entries = mediaLibrary.GetProtocolEntries(Entry, offset, count);
+                var loaded = 0;
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    foreach (var e in entries
+                    .Select(e => new ProtocolListEntryViewModel(e)))
+                    {
+                        loaded += 1;
+                        Items.Add(e);
+                    }
+                });
+                return loaded;
+            }
+            catch(Exception ex)
+            {
+                NotifyError(ex);
+                return 0;
+            }
         }
     }
 }

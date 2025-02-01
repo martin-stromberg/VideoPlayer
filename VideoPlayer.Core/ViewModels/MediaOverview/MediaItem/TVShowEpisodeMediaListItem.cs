@@ -60,6 +60,8 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
                     break;
                 default:
                     base.UpdateMediaInformation(item);
+                    if (Episode is not null)
+                        Title = $"S{Episode.SeasonNo}E{Episode.Episode}: {Episode.Name}";                    
                     break;
             }
         }

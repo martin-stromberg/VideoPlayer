@@ -1569,6 +1569,69 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             }
             
         }
+
+        public override async Task RecaptureInvalidPictures()
+        {
+            await RecaptureInvalidPicturesAsync(EntryType.Movie);
+            await RecaptureInvalidPicturesAsync(EntryType.TVShowEpisode);
+        }
+
+
+        private async Task RecaptureInvalidPicturesAsync(EntryType entryType)
+        {
+            int offset = 0;
+            int count = 10;
+            var entries = MediaLibrary.GetOverview(offset, count, "", entryType).ToArray();
+            while (entries.Any())
+            {
+                await Task.Delay(10);
+                foreach (var entry in entries)
+                {
+                    offset += 1;
+                    RecaptureInvalidPictures(entry);
+                    MediaLibrary.Release(entry, true);
+                }
+                entries = MediaLibrary.GetOverview(offset, count, "", entryType).ToArray();
+            }
+        }
+
+        private void RecaptureInvalidPictures(ClassifiedEntry entry)
+        {
+            var pEntry = entry as IPicturedEntry;
+            if (pEntry is null) return;
+            var micEntry = entry as IMediaItemCollectionEntry;
+            if (micEntry is null) return;
+
+            if (!MustBeRecaptured(pEntry))
+                return;
+            var mediaItems = micEntry.MediaItemIds
+                .Select(id => MediaLibrary.GetMediaItem(id))
+                .Where(mi => mi is not null)
+                .ToArray();
+            foreach (var mediaItem in mediaItems)
+            {
+                mediaItem.NeedsPictureUpdate = true;
+                MediaLibrary.AddOrUpdateMediaItem(mediaItem);
+                MediaLibrary.Release(mediaItem);
+            }
+        }
+
+        private bool MustBeRecaptured(IPicturedEntry pEntry)
+        {
+            if (!string.IsNullOrWhiteSpace(pEntry.PicturePath))
+            {
+                var path = PathTools.Combine(FileSystem.Current.AppDataDirectory, pEntry.PicturePath);
+                if (!File.Exists(path))
+                    return true;
+            }
+            if (!string.IsNullOrWhiteSpace(pEntry.BannerPath))
+            {
+                var path = PathTools.Combine(FileSystem.Current.AppDataDirectory, pEntry.BannerPath);
+                if (!File.Exists(path))
+                    return true;
+            }
+            return false;
+        }
     }
 
 }

@@ -38,6 +38,8 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
         }
 
         public abstract bool UpdatePictures(Actor actor);
+
+        public abstract Task RecaptureInvalidPictures();
     }
 
 }

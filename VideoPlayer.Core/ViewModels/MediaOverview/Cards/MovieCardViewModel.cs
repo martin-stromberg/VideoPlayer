@@ -94,7 +94,11 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             SelectedMovie = item as Movie;
             base.Select(item);
         }
-
+        protected override void OpenProtocol(ClassifiedEntry entry)
+        {
+            entry = SelectedMovie ?? entry;
+            base.OpenProtocol(entry);
+        }
         protected override void ExecutePlaybackCommand()
         {
             if (SelectedMovie is null)

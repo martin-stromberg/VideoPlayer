@@ -61,21 +61,23 @@ namespace VideoPlayer.ViewModels.Protocol
             int offset = 0;
             int count = 10;
             Items.Clear();
-            int loaded = await Task<int>.Run(() => LoadEntries(offset, count));
+            Title = Entry?.Name;
+            int loaded = await LoadEntriesAsync(offset, count);
             while (loaded > 0 && loaded == count)
             {
                 offset += loaded;
-                loaded = await Task<int>.Run(() => LoadEntries(offset, count));
+                loaded = await LoadEntriesAsync(offset, count);
             }
         }
 
-        private int LoadEntries(int offset, int count)
+
+        private async Task<int> LoadEntriesAsync(int offset, int count)
         {
             try
             {
-                var entries = mediaLibrary.GetProtocolEntries(Entry, offset, count);
+                var entries = mediaLibrary.GetProtocolEntries(Entry, offset, count).ToArray();
                 var loaded = 0;
-                MainThread.BeginInvokeOnMainThread(() =>
+                await MainThread.InvokeOnMainThreadAsync(() =>
                 {
                     foreach (var e in entries
                     .Select(e => new ProtocolListEntryViewModel(e)))

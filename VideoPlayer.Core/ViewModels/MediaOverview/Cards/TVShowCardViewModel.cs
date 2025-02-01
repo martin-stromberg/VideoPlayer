@@ -165,7 +165,11 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
                 StartPlayback(SelectedEpisode);
             }
         }
-
+        protected override void OpenProtocol(ClassifiedEntry entry)
+        {
+            entry = SelectedEpisode ?? SelectedSeason ?? SelectedShow ?? entry;
+            base.OpenProtocol(entry);
+        }
         private void LoadShowSeasons(TVShow show)
         {
             Seasons.Clear();

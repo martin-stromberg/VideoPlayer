@@ -120,6 +120,7 @@ namespace VideoPlayer.Service.Database.Models
 
         public void Update<T>(T element) where T: BaseDataModel
         {
+            if (element is null) return;
             foreach (var prop in element._Properties)
                 SetProperty(prop.Value, prop.Key);
             foreach (var prop in _Properties.Keys.Where(k => !element._Properties.ContainsKey(k)))

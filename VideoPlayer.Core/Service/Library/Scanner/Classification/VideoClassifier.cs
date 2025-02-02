@@ -264,19 +264,19 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                         if (banner is not null)
                         {
                             NotifyStatus($"Bereite Banner auf für: {season.ShowName} {season.ToString()}");
-                            season.BannerPath = PreparePicture(source, collection, pictures, banner, season.BannerPath, 300, true, out string backgroundColor);
+                            season.BannerPath = PreparePicture(source, collection, pictures, banner, season.BannerPath, season.BannerBackgroundColor, 300, true, out string backgroundColor);
                             season.BannerBackgroundColor = backgroundColor;
                         }
                         if (poster is not null)
                         {
                             NotifyStatus($"Bereite Poster auf für: {season.ShowName} {season.ToString()}");
-                            season.PicturePath = PreparePicture(source, collection, pictures, poster, season.PicturePath, 240, true, out string backgroundColor);
+                            season.PicturePath = PreparePicture(source, collection, pictures, poster, season.PicturePath, season.PictureBackgroundColor, 240, true, out string backgroundColor);
                             season.PictureBackgroundColor = backgroundColor;
                         }
                         else if (fanart is not null)
                         {
                             NotifyStatus($"Bereite Fanart auf für: {season.ShowName} {season.ToString()}");
-                            season.PicturePath = PreparePicture(source, collection, pictures, fanart, season.PicturePath, 240, true, out string backgroundColor);
+                            season.PicturePath = PreparePicture(source, collection, pictures, fanart, season.PicturePath, season.PictureBackgroundColor, 240, true, out string backgroundColor);
                             season.PictureBackgroundColor = backgroundColor;
                         }
                         season = MediaLibrary.AddOrUpdateSeason(season);
@@ -304,25 +304,35 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             MediaItem[] allPictures, 
             MediaItem pictureFile, 
             string currentpath, 
+            string currentbackgroundColor,
             int maxHeight, 
             bool uploadThumb,
             out string backgroundColor)
         {
+            backgroundColor = currentbackgroundColor;
             var fileNameWithoutExtension = Path.GetFileNameWithoutExtension(pictureFile.Name);
             var expectedFileNameEnding = $"x{maxHeight}{Path.GetExtension(pictureFile.Name)}";
-            var existingThumb = allPictures.FirstOrDefault(p =>
+            foreach (var existingThumb in allPictures.Where(p =>
             {
                 if (!p.Name.StartsWith(fileNameWithoutExtension))
                     return false;
                 if (!p.Name.EndsWith(expectedFileNameEnding))
                     return false;
                 return true;
-            });
-            var kV = (existingThumb is null)
-                   ? UpdateCacheFileAsync(pictureFile, currentpath, source, 0, maxHeight, uploadThumb)
-                   : UpdateCacheFileAsync(existingThumb, currentpath, source, 0, 0, false);
-            backgroundColor = kV.Value.ToHex();
-            return kV.Key;
+            }))
+                try
+                {
+                    var kV = (existingThumb is null)
+                           ? UpdateCacheFileAsync(pictureFile, currentpath, source, 0, maxHeight, uploadThumb)
+                           : UpdateCacheFileAsync(existingThumb, currentpath, source, 0, 0, false);
+                    backgroundColor = kV.Value.ToHex();
+                    return kV.Key;
+                }
+                catch
+                {
+
+                }
+            return currentpath;
         }
 
         
@@ -403,28 +413,28 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                 if (banner is not null)
                 {
                     NotifyStatus($"Bereite Banner auf für: {show.Name}");
-                    show.BannerPath = PreparePicture(mediaSource, collection, pictures, banner, show.BannerPath, 300, true, out string backgroundColor);
+                    show.BannerPath = PreparePicture(mediaSource, collection, pictures, banner, show.BannerPath, show.BannerBackgroundColor, 300, true, out string backgroundColor);
                     show.BannerBackgroundColor = backgroundColor;
                     MediaLibrary.AddProtocol(show, $"Banner aktualisiert. (MediaItem {banner.Id} - {banner.Name})");
                 }
                 else if (fanart is not null)
                 {
                     NotifyStatus($"Bereite Banner auf für: {show.Name}");
-                    show.BannerPath = PreparePicture(mediaSource, collection, pictures, fanart, show.BannerPath, 300, true, out string backgroundColor);
+                    show.BannerPath = PreparePicture(mediaSource, collection, pictures, fanart, show.BannerPath, show.BannerBackgroundColor, 300, true, out string backgroundColor);
                     show.BannerBackgroundColor = backgroundColor;
                     MediaLibrary.AddProtocol(show, $"Banner aktualisiert. (MediaItem {fanart.Id} - {fanart.Name})");
                 }
                 if (poster is not null)
                 {
                     NotifyStatus($"Bereite Poster auf für: {show.Name}");
-                    show.PicturePath = PreparePicture(mediaSource, collection, pictures, poster, show.PicturePath, 240, true, out string backgroundColor);
+                    show.PicturePath = PreparePicture(mediaSource, collection, pictures, poster, show.PicturePath, show.PictureBackgroundColor, 240, true, out string backgroundColor);
                     show.PictureBackgroundColor = backgroundColor;
                     MediaLibrary.AddProtocol(show, $"Bild aktualisiert. (MediaItem {poster.Id} - {poster.Name})");
                 }
                 else if (folder is not null)
                 {
                     NotifyStatus($"Bereite Poster auf für: {show.Name}");
-                    show.PicturePath = PreparePicture(mediaSource, collection, pictures, folder, show.PicturePath, 240, true, out string backgroundColor);
+                    show.PicturePath = PreparePicture(mediaSource, collection, pictures, folder, show.PicturePath, show.PictureBackgroundColor, 240, true, out string backgroundColor);
                     show.PictureBackgroundColor = backgroundColor;
                     MediaLibrary.AddProtocol(show, $"Bild aktualisiert. (MediaItem {folder.Id} - {folder.Name})");
                 }
@@ -482,35 +492,35 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                 if (banner is not null)
                 {
                     NotifyStatus($"Bereite Banner auf für: {episode.Name}");
-                    episode.BannerPath = PreparePicture(mediaSource, collection, pictures, banner, episode.BannerPath, 300, true, out string backgroundColor);
+                    episode.BannerPath = PreparePicture(mediaSource, collection, pictures, banner, episode.BannerPath, episode.BannerBackgroundColor, 300, true, out string backgroundColor);
                     episode.BannerBackgroundColor = backgroundColor;
                     MediaLibrary.AddProtocol(episode, $"Banner aktualisiert. (MediaItem {banner.Id} - {banner.Name})");
                 }
                 else if (fanart is not null)
                 {
                     NotifyStatus($"Bereite Fanart auf für: {episode.Name}");
-                    episode.BannerPath = PreparePicture(mediaSource, collection, pictures, fanart, episode.BannerPath, 300, true, out string backgroundColor);
+                    episode.BannerPath = PreparePicture(mediaSource, collection, pictures, fanart, episode.BannerPath, episode.BannerBackgroundColor, 300, true, out string backgroundColor);
                     episode.BannerBackgroundColor = backgroundColor;
                     MediaLibrary.AddProtocol(episode, $"Banner aktualisiert. (MediaItem {fanart.Id} - {fanart.Name})");
                 }
                 if (poster is not null)
                 {
                     NotifyStatus($"Bereite Poster auf für: {episode.Name}");
-                    episode.PicturePath = PreparePicture(mediaSource, collection, pictures, poster, episode.PicturePath, 240, true, out string backgroundColor);
+                    episode.PicturePath = PreparePicture(mediaSource, collection, pictures, poster, episode.PicturePath, episode.PictureBackgroundColor, 240, true, out string backgroundColor);
                     episode.PictureBackgroundColor = backgroundColor;
                     MediaLibrary.AddProtocol(episode, $"Bild aktualisiert. (MediaItem {poster.Id} - {poster.Name})");
                 }
                 else if (thumb is not null)
                 {
                     NotifyStatus($"Bereite Thumb auf für: {episode.Name}");
-                    episode.PicturePath = PreparePicture(mediaSource, collection, pictures, thumb, episode.PicturePath, 240, true, out string backgroundColor);
+                    episode.PicturePath = PreparePicture(mediaSource, collection, pictures, thumb, episode.PicturePath, episode.PictureBackgroundColor, 240, true, out string backgroundColor);
                     episode.PictureBackgroundColor = backgroundColor;
                     MediaLibrary.AddProtocol(episode, $"Bild aktualisiert. (MediaItem {thumb.Id} - {thumb.Name})");
                 }
                 else if (fanart is not null)
                 {
                     NotifyStatus($"Bereite Fanart auf für: {episode.Name}");
-                    episode.PicturePath = PreparePicture(mediaSource, collection, pictures, fanart, episode.PicturePath, 240, true, out string backgroundColor);
+                    episode.PicturePath = PreparePicture(mediaSource, collection, pictures, fanart, episode.PicturePath, episode.PictureBackgroundColor, 240, true, out string backgroundColor);
                     episode.PictureBackgroundColor = backgroundColor;
                     MediaLibrary.AddProtocol(episode, $"Bild aktualisiert. (MediaItem {fanart.Id} - {fanart.Name})");
                 }
@@ -959,35 +969,35 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                 if (banner is not null)
                 {
                     NotifyStatus($"Bereite Banner auf für: {movie.Name}");
-                    movie.BannerPath = PreparePicture(mediaSource, collection, pictures, banner, movie.BannerPath, 300, true, out string backgroundColor);
+                    movie.BannerPath = PreparePicture(mediaSource, collection, pictures, banner, movie.BannerPath, movie.BannerBackgroundColor, 300, true, out string backgroundColor);
                     movie.BannerBackgroundColor = backgroundColor;
                     MediaLibrary.AddProtocol(movie, $"Banner aktualisiert. (MediaItem {banner.Id} - {banner.Name})");
                 }
                 else if (fanart is not null)
                 {
                     NotifyStatus($"Bereite Banner auf für: {movie.Name}");
-                    movie.BannerPath = PreparePicture(mediaSource, collection, pictures, fanart, movie.BannerPath, 300, true, out string backgroundColor);
+                    movie.BannerPath = PreparePicture(mediaSource, collection, pictures, fanart, movie.BannerPath, movie.BannerBackgroundColor, 300, true, out string backgroundColor);
                     movie.BannerBackgroundColor = backgroundColor;
                     MediaLibrary.AddProtocol(movie, $"Banner aktualisiert. (MediaItem {fanart.Id} - {fanart.Name})");
                 }
                 else if (landscape is not null)
                 {
                     NotifyStatus($"Bereite Banner auf für: {movie.Name}");
-                    movie.BannerPath = PreparePicture(mediaSource, collection, pictures, landscape, movie.BannerPath, 300, true, out string backgroundColor);
+                    movie.BannerPath = PreparePicture(mediaSource, collection, pictures, landscape, movie.BannerPath, movie.BannerBackgroundColor, 300, true, out string backgroundColor);
                     movie.BannerBackgroundColor = backgroundColor;
                     MediaLibrary.AddProtocol(movie, $"Banner aktualisiert. (MediaItem {landscape.Id} - {landscape.Name})");
                 }
                 if (poster is not null)
                 {
                     NotifyStatus($"Bereite Poster auf für: {movie.Name}");
-                    movie.PicturePath = PreparePicture(mediaSource, collection, pictures, poster, movie.PicturePath, 240, true, out string backgroundColor);
+                    movie.PicturePath = PreparePicture(mediaSource, collection, pictures, poster, movie.PicturePath, movie.PictureBackgroundColor, 240, true, out string backgroundColor);
                     movie.PictureBackgroundColor = backgroundColor;
                     MediaLibrary.AddProtocol(movie, $"Bild aktualisiert. (MediaItem {poster.Id} - {poster.Name})");
                 }
                 else if (filmPicture is not null)
                 {
                     NotifyStatus($"Bereite Poster auf für: {movie.Name}");
-                    movie.PicturePath = PreparePicture(mediaSource, collection, pictures, filmPicture, movie.PicturePath, 240, true, out string backgroundColor);
+                    movie.PicturePath = PreparePicture(mediaSource, collection, pictures, filmPicture, movie.PicturePath, movie.PictureBackgroundColor, 240, true, out string backgroundColor);
                     movie.PictureBackgroundColor = backgroundColor;
                     MediaLibrary.AddProtocol(movie, $"Bild aktualisiert. (MediaItem {filmPicture.Id} - {filmPicture.Name})");
                 }
@@ -1035,14 +1045,14 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                     if (banner is not null)
                     {
                         NotifyStatus($"Bereite Banner auf für: {movieCollection.Name}");
-                        movieCollection.BannerPath = PreparePicture(mediaSource, collection, pictures, banner, movieCollection.BannerPath, 300, true, out string backgroundColor);
+                        movieCollection.BannerPath = PreparePicture(mediaSource, collection, pictures, banner, movieCollection.BannerPath, movieCollection.BannerBackgroundColor, 300, true, out string backgroundColor);
                         movieCollection.BannerBackgroundColor = backgroundColor;
                         MediaLibrary.AddProtocol(movieCollection, $"Banner aktualisiert. (MediaItem {banner.Id} - {banner.Name})");
                     }
                     else if (fanart is not null)
                     {
                         NotifyStatus($"Bereite Banner auf für: {movieCollection.Name}");
-                        movieCollection.BannerPath = PreparePicture(mediaSource, collection, pictures, fanart, movieCollection.BannerPath, 300, true, out string backgroundColor);
+                        movieCollection.BannerPath = PreparePicture(mediaSource, collection, pictures, fanart, movieCollection.BannerPath, movieCollection.BannerBackgroundColor, 300, true, out string backgroundColor);
                         movieCollection.BannerBackgroundColor = backgroundColor;
                         MediaLibrary.AddProtocol(movieCollection, $"Banner aktualisiert. (MediaItem {fanart.Id} - {fanart.Name})");
                     }
@@ -1064,14 +1074,14 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                     if (poster is not null)
                     {
                         NotifyStatus($"Bereite Poster auf für: {movieCollection.Name}");
-                        movieCollection.PicturePath = PreparePicture(mediaSource, collection, pictures, poster, movieCollection.BannerPath, 240, true, out string backgroundColor);
+                        movieCollection.PicturePath = PreparePicture(mediaSource, collection, pictures, poster, movieCollection.BannerPath, movieCollection.BannerBackgroundColor, 240, true, out string backgroundColor);
                         movieCollection.PictureBackgroundColor = backgroundColor;
                         MediaLibrary.AddProtocol(movieCollection, $"Bild aktualisiert. (MediaItem {poster.Id} - {poster.Name})");
                     }
                     else if (folder is not null)
                     {
                         NotifyStatus($"Bereite Poster auf für: {movieCollection.Name}");
-                        movieCollection.PicturePath = PreparePicture(mediaSource, collection, pictures, folder, movieCollection.BannerPath, 240, true, out string backgroundColor);
+                        movieCollection.PicturePath = PreparePicture(mediaSource, collection, pictures, folder, movieCollection.BannerPath, movieCollection.BannerBackgroundColor, 240, true, out string backgroundColor);
                         movieCollection.PictureBackgroundColor = backgroundColor;
                         MediaLibrary.AddProtocol(movieCollection, $"Bild aktualisiert. (MediaItem {folder.Id} - {folder.Name})");
                     }
@@ -1532,7 +1542,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                 foreach (var picture in pictureItems)
                     try
                     {
-                        actor.PicturePath = PreparePicture(mediaSource, null, pictureItems.ToArray(), picture, actor.PicturePath, 240, false, out string backgroundColor);
+                        actor.PicturePath = PreparePicture(mediaSource, null, pictureItems.ToArray(), picture, actor.PicturePath, actor.PictureBackgroundColor, 240, false, out string backgroundColor);
                         actor.PictureBackgroundColor = backgroundColor;
                         break;
                     }

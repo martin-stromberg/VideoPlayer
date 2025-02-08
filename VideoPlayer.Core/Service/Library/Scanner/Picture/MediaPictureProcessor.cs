@@ -108,9 +108,15 @@ namespace VideoPlayer.Service.Library.Scanner.Picture
                 try
                 {
                     foreach (var classifier in _Classifier)
-                        await classifier.DeleteOrpahnedPictures();
+                        await classifier.DeleteOrpahnedPictures(() => 
+                        {
+                            while (CheckReloadNextForcedEntries()) ;
+                        });
                     foreach (var classifier in _Classifier)
-                        await classifier.RecaptureInvalidPictures();
+                        await classifier.RecaptureInvalidPictures(() =>
+                        {
+                            while (CheckReloadNextForcedEntries()) ;
+                        });
                 }
                 finally
                 {

@@ -1567,7 +1567,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             return true;
         }
 
-        public override async Task DeleteOrpahnedPictures()
+        public override async Task DeleteOrpahnedPictures(Action callback)
         {
             var cacheFolder = PathTools.Combine(FileSystem.Current.AppDataDirectory, "Cache");
             var pictureFiles = Directory.GetFiles(cacheFolder)
@@ -1580,26 +1580,30 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                 .Distinct()
                 .ToList();
             foreach (var file in pictureFiles)
-            {
-                await Task.Delay(10);
-                var mediaItem = storedFilePaths.Where(path => path.EndsWith(file.Name));
-                if (mediaItem.Any())
-                    continue;
-                MediaLibrary.AddProtocol(new DummyClassifiedEntry() { Name = file.Name, Id = 0 }, $"Delete cached file: {file.Name}");
-                file.Delete();
-            }
-            
+                try
+                {
+                    await Task.Delay(10);
+                    var mediaItem = storedFilePaths.Where(path => path.EndsWith(file.Name));
+                    if (mediaItem.Any())
+                        continue;
+                    MediaLibrary.AddProtocol(new DummyClassifiedEntry() { Name = file.Name, Id = 0 }, $"Delete cached file: {file.Name}");
+                    file.Delete();
+                }
+                finally
+                {
+                    callback();
+                }            
         }
 
-        public override async Task RecaptureInvalidPictures()
+        public override async Task RecaptureInvalidPictures(Action value)
         {
-            await RecaptureInvalidPicturesAsync(EntryType.Movie);
-            await RecaptureInvalidPicturesAsync(EntryType.TVShowEpisode);
-            await RecaptureInvalidActorPicturesAsync();
-            await RecaptureRoleCount();
+            await RecaptureInvalidPicturesAsync(EntryType.Movie, value);
+            await RecaptureInvalidPicturesAsync(EntryType.TVShowEpisode, value);
+            await RecaptureInvalidActorPicturesAsync(value);
+            await RecaptureRoleCount(value);
         }
 
-        private async Task RecaptureRoleCount()
+        private async Task RecaptureRoleCount(Action value)
         {
             var actors = MediaLibrary.GetRolesWithoutRoleCount()
                 .Select(role => { MediaLibrary.Release(role); return role.ActorId; })
@@ -1607,30 +1611,40 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                 .Where(actor => actor is not null)
                 .ToArray();
             foreach (var actor in actors)
-            {                
-                actor.RoleCountUpdated = false;
-                MediaLibrary.AddOrUpdateActor(actor);
-                MediaLibrary.Release(actor);
-                await Task.Delay(10);
-            }
+                try
+                {
+                    actor.RoleCountUpdated = false;
+                    MediaLibrary.AddOrUpdateActor(actor);
+                    MediaLibrary.Release(actor);
+                    await Task.Delay(10);
+                }
+                finally
+                {
+                    value();
+                }
         }
 
-        private async Task RecaptureInvalidActorPicturesAsync()
+        private async Task RecaptureInvalidActorPicturesAsync(Action value)
         {
             int offset = 0;
-            int count = 10;
+            int count = 1000;
             var entries = MediaLibrary.GetActorOverview(offset, count).ToArray();
             while (entries.Any())
-            {
-                await Task.Delay(10);
-                foreach (var entry in entries)
+                try
                 {
-                    offset += 1;
-                    RecaptureInvalidPictures(entry);
-                    MediaLibrary.Release(entry, true);
+                    await Task.Delay(10);
+                    foreach (var entry in entries)
+                    {
+                        offset += 1;
+                        RecaptureInvalidPictures(entry);
+                        MediaLibrary.Release(entry, true);
+                    }
+                    entries = MediaLibrary.GetActorOverview(offset, count).ToArray();
                 }
-                entries = MediaLibrary.GetActorOverview(offset, count).ToArray();
-            }
+                finally
+                {
+                    value();
+                }
         }
 
         private void RecaptureInvalidPictures(Actor entry)
@@ -1644,22 +1658,27 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             }
         }
 
-        private async Task RecaptureInvalidPicturesAsync(EntryType entryType)
+        private async Task RecaptureInvalidPicturesAsync(EntryType entryType, Action value)
         {
             int offset = 0;
             int count = 10;
             var entries = MediaLibrary.GetOverview(offset, count, "", entryType).ToArray();
             while (entries.Any())
-            {
-                await Task.Delay(10);
-                foreach (var entry in entries)
+                try
                 {
-                    offset += 1;
-                    RecaptureInvalidPictures(entry);
-                    MediaLibrary.Release(entry, true);
+                    await Task.Delay(10);
+                    foreach (var entry in entries)
+                    {
+                        offset += 1;
+                        RecaptureInvalidPictures(entry);
+                        MediaLibrary.Release(entry, true);
+                    }
+                    entries = MediaLibrary.GetOverview(offset, count, "", entryType).ToArray();
                 }
-                entries = MediaLibrary.GetOverview(offset, count, "", entryType).ToArray();
-            }
+                finally
+                {
+                    value();
+                }
         }
 
         private void RecaptureInvalidPictures(ClassifiedEntry entry)

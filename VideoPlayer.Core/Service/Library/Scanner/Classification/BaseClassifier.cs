@@ -20,7 +20,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
 
         public abstract bool Classify(MediaItem mediaItem);
         public abstract bool UpdatePictures(MediaItem mediaItem);
-        public abstract Task DeleteOrpahnedPictures();
+        public abstract Task DeleteOrpahnedPictures(Action callback);
         public IMediaLibrary MediaLibrary { get; private set; }
 
         public event EventHandler<SourceReaderRequestEventArgs> SourceReaderRequest;
@@ -39,7 +39,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
 
         public abstract bool UpdatePictures(Actor actor);
 
-        public abstract Task RecaptureInvalidPictures();
+        public abstract Task RecaptureInvalidPictures(Action value);
     }
 
 }

@@ -143,46 +143,96 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
         private async void LoadActorsAsync()
         {
             await Task.Delay(100);
-            LoadActors(Entry);            
+            await Task.Run(() => { LoadActors(Entry); });
+                   
         }
         public ObservableCollection<RoleListItem> Roles { get; } = new ObservableCollection<RoleListItem>();
-        private void LoadActors(ClassifiedEntry entry)
+        private async void LoadActors(ClassifiedEntry entry)
         {
-            entry = SelectedMovie ?? entry;
-            if (entry is MovieCollection)
+            try
             {
-                var roles = CollectionContext.Items.SelectMany(e => MediaLibrary.GetRoles(e.Id))
-                    .GroupBy(e => e.ActorId)
-                    .Where(e =>
+                entry = SelectedMovie ?? entry;
+                if (entry is MovieCollection)
+                {
+                    Dictionary<long, List<Role>> actorCollections = new Dictionary<long, List<Role>>();
+                    foreach (var item in CollectionContext.Items)
+                        actorCollections.Add(item.Id, new List<Role>());
+                    int offset = 0;
+                    int count = 10;
+                    var totalCount = 0;
+                    var collectionChanged = true;
+                    var isFirst = true;
+                    while (collectionChanged)
                     {
-                        var result = e.Count() == CollectionContext.Items.Count;
-                        if (!result)
-                            MediaLibrary.Release(e.Cast<BaseServiceModel>());
-                        return result;
-                    })
-                    .Select(e =>
+                        foreach (var item in CollectionContext.Items)
+                            actorCollections[item.Id].AddRange(MediaLibrary.GetRoles(item.Id, offset, count));
+                        var newtotalCount = actorCollections.Sum(e => e.Value.Count());
+                        collectionChanged = newtotalCount != totalCount;
+                        totalCount = newtotalCount;
+                        var roles = actorCollections.Values.SelectMany(e => e)
+
+                            .GroupBy(e => e.ActorId)
+                            .Where(e =>
+                            {
+                                var result = e.Count() == CollectionContext.Items.Count;
+                                return result;
+                            })
+                            .Select(e =>
+                            {
+                                return e.First();
+                            })
+                            .OrderByDescending(role => role.Actor.RoleCount)
+                            .ToArray();
+                        if (roles.Any())
+                        {
+                            await MainThread.InvokeOnMainThreadAsync(() => { UpdateRoles(roles, isFirst); });
+                            isFirst = false;
+                            foreach (var roleToRemove in roles)
+                                foreach (var item in CollectionContext.Items)
+                                {
+                                    var existing = actorCollections[item.Id].FirstOrDefault(e => e.Id == roleToRemove.Id);
+                                    if (existing is null)
+                                        existing = actorCollections[item.Id].FirstOrDefault(e => e.ActorId == roleToRemove.ActorId);
+                                    if (existing is not null)
+                                        actorCollections[item.Id].Remove(existing);
+                                }
+                        }
+                    }
+                    foreach (var list in actorCollections.Values)
+                        MediaLibrary.Release(list);
+                    actorCollections.Clear();
+                }
+                else
+                {
+                    int offset = 0;
+                    int count = 10;
+                    var roles = MediaLibrary.GetRoles(entry.Id, offset, count)
+                        .Select(role => role)
+                        .ToArray();
+                    while (roles.Any())
                     {
-                        MediaLibrary.Release(e.Skip(1));
-                        return e.First();
-                    })
-                    .OrderByDescending(role => role.Actor.RoleCount)
-                    .ToArray();
-                UpdateRoles(roles);
+                        await MainThread.InvokeOnMainThreadAsync(() => { UpdateRoles(roles, offset == 0); }).ConfigureAwait(false);
+                        offset += roles.Count();
+                        count = 1;
+                        await Task.Delay(100);
+                        roles = await Task<Role[]>.Run(() => { 
+                            return MediaLibrary.GetRoles(entry.Id, offset, count)
+                                .Select(role => role)
+                                .ToArray();
+                            });
+                    }
+                }
             }
-            else
+            catch (Exception ex) 
             {
-                var roles = MediaLibrary.GetRoles(entry.Id)
-                    .Select(role => role)
-                    .OrderByDescending(role => role.Actor.RoleCount)
-                    .ToArray();
-                UpdateRoles(roles);
-            }            
-            
+                NotifyError(ex);
+            }
         }
 
-        private void UpdateRoles(Role[] roles)
-        {
-            SecondCollectionContext.Items.Clear();
+        private void UpdateRoles(Role[] roles, bool clearFirst)
+        {            
+            if (clearFirst)
+                SecondCollectionContext.Items.Clear();
             foreach (var role in roles)
                 SecondCollectionContext.Items.Add(new RoleListItem(role, ResourceManager));
         }

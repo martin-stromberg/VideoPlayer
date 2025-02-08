@@ -134,6 +134,7 @@ namespace VideoPlayer.Service.Library
         void Release(IEnumerable<BaseServiceModel> entry);
         void Release(IEnumerable<BaseServiceModel> entry, bool force);
         void Hold(BaseServiceModel entry);
-        
+        IEnumerable<Role> GetRoles(long id, int offset, int count);
+        IEnumerable<Role> GetRolesWithoutRoleCount();
     }
 }

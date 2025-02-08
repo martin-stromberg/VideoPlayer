@@ -39,6 +39,7 @@ namespace VideoPlayer.Service.Library.Models
                 ((DataActor)DataModel).LastPictureUpdateTry = LastPictureUpdateTry;
                 ((DataActor)DataModel).RoleCount = RoleCount;
                 ((DataActor)DataModel).RoleCountUpdated = RoleCountUpdated;
+                
             }
         }
         public string PicturePath { get => GetProperty<string>(); set => SetProperty(value); }

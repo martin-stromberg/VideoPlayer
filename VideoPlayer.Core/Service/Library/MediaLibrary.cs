@@ -1146,13 +1146,22 @@ namespace VideoPlayer.Service.Library
         private Actor CompleteActor(Actor actor)
         {
             if (actor is not null)
-            if (!actor.RoleCountUpdated)
-            {
-                    actor.RoleCount = _Database
+                if (!actor.RoleCountUpdated)
+                {
+                    var roles = _Database
                         .GetAll<DataRole>(new KeyValuePair<string, object>(nameof(DataRole.ActorId), actor.Id))
-                        .Count();
+                        .Select(role => role.Id)
+                        .ToArray();
+                    actor.RoleCount = roles.Count();
                     actor.RoleCountUpdated = true;
-            }
+                    foreach (var roleId in roles)
+                    {
+                        var role = GetRole(roleId);
+                        role.Order = actor.RoleCount;
+                        AddOrUpdateRole(role);
+                        Release(role);
+                    }
+                }
             return actor;
         }
         #endregion
@@ -1166,6 +1175,20 @@ namespace VideoPlayer.Service.Library
         {
             var entryIds = _Database.GetAll<DataRole>(
                 new KeyValuePair<string, object>(nameof(DataRole.EntryId), entryId))
+                                    .Select(c => c.Id);
+            foreach (var itemId in entryIds)
+                yield return GetRole(itemId);
+        }
+        public IEnumerable<Role> GetRoles(long entryId, int offset, int count)
+        {
+            var entryIds = _Database.GetAll<DataRole>(offset, count, nameof(DataRole.Order), false, new Filter() { Name = nameof(DataRole.EntryId), Value = entryId, Type = FilterType.Equal })
+                                    .Select(c => c.Id);
+            foreach (var itemId in entryIds)
+                yield return GetRole(itemId);
+        }
+        public IEnumerable<Role> GetRolesWithoutRoleCount()
+        {
+            var entryIds = _Database.GetAll<DataRole>(new KeyValuePair<string, object>(nameof(DataRole.Order), 0))
                                     .Select(c => c.Id);
             foreach (var itemId in entryIds)
                 yield return GetRole(itemId);
@@ -1198,12 +1221,18 @@ namespace VideoPlayer.Service.Library
                 {
                     var remainingRoles = GetActorsRoles(actor.Id)
                         .Where(role => role is not null)
-                        .Select(role => { Release(role); return role; })
                         .ToArray();
                     if (remainingRoles.Any())
                     {
                         actor.RoleCount = remainingRoles.Length;
                         actor.RoleCountUpdated = true;
+                        AddOrUpdateActor(actor);
+                        foreach (var remainingRole in remainingRoles)
+                        {
+                            remainingRole.Order = actor.RoleCount;
+                            AddOrUpdateRole(remainingRole);
+                            Release(remainingRole);
+                        }
                         return;
                     }
                 }

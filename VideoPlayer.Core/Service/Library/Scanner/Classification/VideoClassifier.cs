@@ -3,7 +3,6 @@ using Renci.SshNet;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
-using Syncfusion.XlsIO.Parser.Biff_Records;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Linq;
@@ -332,6 +331,18 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                 {
 
                 }
+
+            try
+            {
+                var kV = UpdateCacheFileAsync(pictureFile, currentpath, source, 0, maxHeight, uploadThumb);
+                backgroundColor = kV.Value.ToHex();
+                return kV.Key;
+            }
+            catch
+            {
+
+            }
+
             return currentpath;
         }
 
@@ -1563,7 +1574,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                 .Where(file => pictureExtensions.Contains(Path.GetExtension(file).ToLower()))
                 .Select(file => new FileInfo(file))
                 .OrderBy(file => file.Name)
-                .ToList();;
+                .ToList();
             var storedFilePaths = MediaLibrary.GetClassifiedEntryPictureFileNames()
                 .Concat(MediaLibrary.GetActorPictureFileNames())
                 .Distinct()
@@ -1574,7 +1585,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                 var mediaItem = storedFilePaths.Where(path => path.EndsWith(file.Name));
                 if (mediaItem.Any())
                     continue;
-                MediaLibrary.AddProtocol(new ClassifiedEntry(null, EntryType.None) { Name = file.Name, Id = 0 }, $"Delete cached file: {file.Name}");
+                MediaLibrary.AddProtocol(new DummyClassifiedEntry() { Name = file.Name, Id = 0 }, $"Delete cached file: {file.Name}");
                 file.Delete();
             }
             
@@ -1584,8 +1595,54 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
         {
             await RecaptureInvalidPicturesAsync(EntryType.Movie);
             await RecaptureInvalidPicturesAsync(EntryType.TVShowEpisode);
+            await RecaptureInvalidActorPicturesAsync();
+            await RecaptureRoleCount();
         }
 
+        private async Task RecaptureRoleCount()
+        {
+            var actors = MediaLibrary.GetRolesWithoutRoleCount()
+                .Select(role => { MediaLibrary.Release(role); return role.ActorId; })
+                .Select(id => MediaLibrary.GetActor(id))
+                .Where(actor => actor is not null)
+                .ToArray();
+            foreach (var actor in actors)
+            {                
+                actor.RoleCountUpdated = false;
+                MediaLibrary.AddOrUpdateActor(actor);
+                MediaLibrary.Release(actor);
+                await Task.Delay(10);
+            }
+        }
+
+        private async Task RecaptureInvalidActorPicturesAsync()
+        {
+            int offset = 0;
+            int count = 10;
+            var entries = MediaLibrary.GetActorOverview(offset, count).ToArray();
+            while (entries.Any())
+            {
+                await Task.Delay(10);
+                foreach (var entry in entries)
+                {
+                    offset += 1;
+                    RecaptureInvalidPictures(entry);
+                    MediaLibrary.Release(entry, true);
+                }
+                entries = MediaLibrary.GetActorOverview(offset, count).ToArray();
+            }
+        }
+
+        private void RecaptureInvalidPictures(Actor entry)
+        {
+            var pEntry = entry as IPicturedEntry;
+            if (pEntry is null) return;
+            if (MustBeRecaptured(pEntry))
+            {
+                entry.NeedsPictureUpdate = true;
+                MediaLibrary.AddOrUpdateActor(entry);
+            }
+        }
 
         private async Task RecaptureInvalidPicturesAsync(EntryType entryType)
         {

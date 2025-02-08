@@ -14,6 +14,7 @@ namespace VideoPlayer.Service.Library.Models.Classified
         MovieCollection = 100,
         TVShowCollection = 110,
         None = 999,
+        Dummy = 1000,
     }
 
     [DataModelReference(

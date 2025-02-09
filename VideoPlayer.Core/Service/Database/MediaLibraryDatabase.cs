@@ -181,7 +181,7 @@ namespace VideoPlayer.Service.Database
                     query += $" where {string.Join(" and ", args.Select(a =>
                     { 
                         if (a.Value is Array)
-                            return $"({string.Join(" or ", ((Array)a.Value).Cast<object>().Select(v => $"{a.Key} = ?"))})";
+                            return $"({string.Join(" or ", ((Array)a.Value).Cast<object>().Select(v => $"\"{a.Key}\" = ?"))})";
                         return $"{a.Key} = ?";
                     }))}";
                     var param = args?.SelectMany(a =>

@@ -182,7 +182,7 @@ namespace VideoPlayer.Service.Database
                     { 
                         if (a.Value is Array)
                             return $"({string.Join(" or ", ((Array)a.Value).Cast<object>().Select(v => $"\"{a.Key}\" = ?"))})";
-                        return $"{a.Key} = ?";
+                        return $"\"{a.Key}\" = ?";
                     }))}";
                     var param = args?.SelectMany(a =>
                     {
@@ -218,21 +218,21 @@ namespace VideoPlayer.Service.Database
                                         switch (a.Type)
                                         {
                                             case FilterType.Equal:
-                                                return $"{a.Name} = ?";
+                                                return $"\"{a.Name}\" = ?";
                                             case FilterType.Contains:
-                                                return $"{a.Name} like '%{v.ToString()}%'";
+                                                return $"\"{a.Name}\" like '%{v.ToString()}%'";
                                             default:
-                                                return $"{a.Name} = ?";
+                                                return $"\"{a.Name}\" = ?";
                                         }                                        
                                     }))})";
                             switch(a.Type)
                             {
                                 case FilterType.Equal:
-                                    return $"{a.Name} = ?";
+                                    return $"\"{a.Name}\" = ?";
                                 case FilterType.Contains:
-                                    return $"{a.Name} like '%{a.Value.ToString()}%'";
+                                    return $"\"{a.Name}\" like '%{a.Value.ToString()}%'";
                                 default:
-                                    return $"{a.Name} = ?";
+                                    return $"\"{a.Name}\" = ?";
                             }
                         }))}";
                     var param = args?

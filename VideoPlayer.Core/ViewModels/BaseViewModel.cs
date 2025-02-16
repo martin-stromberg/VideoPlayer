@@ -85,14 +85,20 @@ namespace VideoPlayer.ViewModels
         #region IAppearable
         private bool firstAppeared = true;
         protected bool IsAppeared { get => GetProperty<bool>(); set => SetProperty(value); }
+        protected bool IsAppearing { get => GetProperty<bool>(); set => SetProperty(value); }
         public virtual void ExecuteAppeared() 
         {
-            IsAppeared = true;
-            if (firstAppeared)
+            IsAppearing = true;
+            try
             {
-                firstAppeared = false;
-                ExecuteFirstAppeared();
+                IsAppeared = true;
+                if (firstAppeared)
+                {
+                    firstAppeared = false;
+                    ExecuteFirstAppeared();
+                }
             }
+            finally { IsAppearing = false; }
         }
         public virtual void ExecuteDisappeared() { IsAppeared = false; }
         protected virtual void ExecuteFirstAppeared()

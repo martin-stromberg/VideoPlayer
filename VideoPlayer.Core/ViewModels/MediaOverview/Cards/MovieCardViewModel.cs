@@ -22,10 +22,11 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
         private readonly IMediaCollectionSelector mediaCollectionSelector;
         protected Movie Movie { get => base.Entry as Movie; }
         protected MovieCollection Collection { get => base.Entry as MovieCollection; }
+        protected Movie EffectiveSelectedMovie { get => GetProperty<Movie>(); set => SetProperty(value); }
         protected Movie SelectedMovie
         {
             get { return GetProperty<Movie>(); }
-            set { SetProperty(value); VideoSource = null; }
+            set { SetProperty(value); if (!IsAppearing) EffectiveSelectedMovie = value; VideoSource = null; }
         }
 
         public MovieCardViewModel(
@@ -96,7 +97,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
         }
         protected override void OpenProtocol(ClassifiedEntry entry)
         {
-            entry = SelectedMovie ?? entry;
+            entry = EffectiveSelectedMovie ?? entry;
             base.OpenProtocol(entry);
         }
         protected override void ExecutePlaybackCommand()

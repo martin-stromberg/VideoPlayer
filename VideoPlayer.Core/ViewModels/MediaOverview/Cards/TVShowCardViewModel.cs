@@ -111,6 +111,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
                 LoadShowSeasons(value);
             }
         }
+        private TVShowSeason EffectiveSelectedSeason = null;
         public TVShowSeason SelectedSeason
         {
             get => GetProperty<TVShowSeason>();
@@ -120,6 +121,8 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
                 if (old is not null)
                     old.PropertyChanged -= SelectedEntry_PropertyChanged;
                 SetProperty(value);
+                if (!IsAppearing)
+                    EffectiveSelectedSeason = value;
                 if (value is not null)
                     value.PropertyChanged += SelectedEntry_PropertyChanged;
                 LoadSeason(value);
@@ -152,7 +155,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
         }
         protected override void Rescan(ClassifiedEntry entry)
         {
-            entry = SelectedEpisode ?? SelectedSeason ?? SelectedShow ?? entry;
+            entry = SelectedEpisode ?? EffectiveSelectedSeason ?? SelectedShow ?? entry;
             base.Rescan(entry);
         }
         protected override void ExecutePlaybackCommand()
@@ -167,7 +170,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
         }
         protected override void OpenProtocol(ClassifiedEntry entry)
         {
-            entry = SelectedEpisode ?? SelectedSeason ?? SelectedShow ?? entry;
+            entry = SelectedEpisode ?? EffectiveSelectedSeason ?? SelectedShow ?? entry;
             base.OpenProtocol(entry);
         }
         private void LoadShowSeasons(TVShow show)

@@ -637,7 +637,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                 .GetCollectionMovies(collection.Id)
                 .ToArray();
 
-            var commonName = collectionMovies.Select(m => m.Name).ToArray().LongestCommonPrefix();
+            var commonName = collectionMovies.Select(m => m.Name).ToArray().LongestCommonPrefix().TrimEnd();
             if (string.IsNullOrWhiteSpace(commonName))
             {
                 var mediaCollection = MediaLibrary.GetMediaCollection(mediaItem.ParentCollectionId);

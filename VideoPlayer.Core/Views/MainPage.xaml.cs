@@ -21,7 +21,8 @@ namespace VideoPlayer.Views
         {
             base.OnLoadingContent(applicationManager);
             this.applicationManager = applicationManager;
-            _emailService = applicationManager.ResolveService<IEmail>();
+            _emailService = Email.Default;
+            BtnSendErrorMail.IsEnabled = _emailService is not null;
             var errorManager = applicationManager.ResolveService<IErrorLogManager>();
             if (errorManager.HasErrors)
                 BindingContext = applicationManager.ResolveService<ErrorViewModel>();

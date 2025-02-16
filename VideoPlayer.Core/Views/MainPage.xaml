@@ -56,7 +56,7 @@
                     <homePage:NextPlayingView BindingContext="{Binding NewContext}" IsVisible="{Binding ContentVisible}"/>
                     <Label Text="{Binding ErrorMessages}" IsVisible="{Binding ErrorsVisible}"/>
                     <Button IsVisible="{Binding ErrorsVisible}" Text="Bestätigen" Clicked="Button_Clicked" CommandParameter="confirm"/>
-                    <Button IsVisible="{Binding ErrorsVisible}" Text="Teilen" Clicked="Button_Clicked" CommandParameter="share"/>
+                    <Button IsVisible="{Binding ErrorsVisible}" x:Name="BtnSendErrorMail" Text="Teilen" Clicked="Button_Clicked" CommandParameter="share"/>
                 </VerticalStackLayout>
             </ScrollView>
         </RefreshView>

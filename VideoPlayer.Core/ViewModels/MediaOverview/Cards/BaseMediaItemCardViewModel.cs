@@ -249,7 +249,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
                 PictureTextColor = PictureBackgroundColor.GetContrastingTextColor();
             }
             if (PictureBackgroundColor == Colors.White)
-                PictureBackgroundColor = Color.FromHex("#cdcdcd");
+                PictureBackgroundColor = Color.FromArgb("#cdcdcd");
             if (File.Exists(picturePath))
                 Picture = ImageSource.FromFile(picturePath);
             else

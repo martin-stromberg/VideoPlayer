@@ -59,7 +59,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             IMediaLibrary mediaLibrary,
             IDownloadManager downloadManager,
             INavigationManager navigationManager,
-            ILogger logger,
+            ILogger<MovieCardViewModel> logger,
             MovieCollection entry)
             : base(playlistManager, environment, resourceManager, downloadManager, mediaLibrary, navigationManager, logger, entry)
         {

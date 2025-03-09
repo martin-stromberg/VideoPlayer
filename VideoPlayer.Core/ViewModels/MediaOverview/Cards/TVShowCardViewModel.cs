@@ -24,7 +24,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             IDownloadManager downloadManager,
             IMediaCollectionSelector mediaCollectionSelector,
             INavigationManager navigationManager,
-            ILogger logger,
+            ILogger<TVShowCardViewModel> logger,
             TVShow entry) 
             : base(playlistManager, environment, resourceManager, downloadManager, mediaLibrary, navigationManager, logger, entry)
         {
@@ -39,7 +39,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             IMediaLibrary mediaLibrary,
             IMediaCollectionSelector mediaCollectionSelector,
             INavigationManager navigationManager,
-            ILogger logger,
+            ILogger<TVShowCardViewModel> logger,
             TVShowEpisode entry)
             : base(playlistManager, environment, resourceManager, downloadManager, mediaLibrary, navigationManager, logger, entry)
         {
@@ -54,7 +54,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             IMediaLibrary mediaLibrary,
             IMediaCollectionSelector mediaCollectionSelector,
             INavigationManager navigationManager,
-            ILogger logger,
+            ILogger<TVShowCardViewModel> logger,
             TVShowSeason entry)
             : base(playlistManager, environment, resourceManager, downloadManager, mediaLibrary, navigationManager,logger, entry)
         {

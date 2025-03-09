@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
@@ -17,8 +18,8 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
     {
         private readonly IResourceManager resourceManager;
 
-        public BaseMediaListItem(ClassifiedEntry item, IResourceManager resourceManager)
-            :base(item)
+        public BaseMediaListItem(ClassifiedEntry item, IResourceManager resourceManager, ILogger logger)
+            :base(item, logger)
         {   
             UpdateMediaInformation(Item);
             ApplicationArea = CardItemApplicationArea.InCollection;

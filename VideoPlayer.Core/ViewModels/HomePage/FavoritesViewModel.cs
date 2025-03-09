@@ -1,4 +1,5 @@
-﻿using VideoPlayer.Navigation;
+﻿using Microsoft.Extensions.Logging;
+using VideoPlayer.Navigation;
 using VideoPlayer.Service.Playlists;
 using VideoPlayer.Service.Resources;
 
@@ -9,8 +10,9 @@ namespace VideoPlayer.ViewModels.HomePage
         public FavoritesViewModel(
             IPlaylistManager playlistManager,
             INavigationManager navigationManager, 
-            IResourceManager resourceManager) 
-            : base(playlistManager.Favorites, navigationManager, resourceManager)
+            IResourceManager resourceManager,
+            ILogger<FavoritesViewModel> logger) 
+            : base(playlistManager.Favorites, navigationManager, resourceManager, logger)
         {
             Title = "Favoriten";
             AllowAutoPlay = false;

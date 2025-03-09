@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -16,8 +17,8 @@ namespace VideoPlayer.ViewModels.MediaOverview.Genres
         private readonly IMediaLibrary mediaLibrary;
         private readonly IResourceManager resourceManager;
 
-        public GenreSelectionViewModel(IMediaLibrary mediaLibrary, IResourceManager resourceManager)
-            : base()
+        public GenreSelectionViewModel(IMediaLibrary mediaLibrary, IResourceManager resourceManager, ILogger<GenreSelectionViewModel> logger)
+            : base(logger)
         {
             this.mediaLibrary = mediaLibrary;
             this.resourceManager = resourceManager;
@@ -36,7 +37,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Genres
                 .OrderBy(g => g.Name);
             if (!Items.Any())
             {
-                var vm = new GenreViewModel(null);
+                var vm = new GenreViewModel(null, Logger);
                 vm.Selected += GenreViewModel_Selected;
                 Items.Add(vm);
             }
@@ -51,7 +52,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Genres
                     GenreLoaded?.Invoke(this, args);
                     if (args.ModelObject is null)
                         continue;
-                    var vm = new GenreViewModel(args.ModelObject as Genre)
+                    var vm = new GenreViewModel(args.ModelObject as Genre, Logger)
                     {
                         Icon = resourceManager.GetGenreIcon(args.ModelObject as Genre)
                     };

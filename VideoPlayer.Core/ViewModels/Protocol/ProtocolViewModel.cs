@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -14,7 +15,8 @@ namespace VideoPlayer.ViewModels.Protocol
     public class ProtocolListEntryViewModel : BaseViewModel
     {
 
-        public ProtocolListEntryViewModel(ProtocolEntry entry)
+        public ProtocolListEntryViewModel(ProtocolEntry entry, ILogger logger)
+            :base(logger)
         {
             Description = entry.Description;
             CreatedAt = entry.CreatedAt;
@@ -28,8 +30,9 @@ namespace VideoPlayer.ViewModels.Protocol
         private readonly IMediaLibrary mediaLibrary;
 
         public ProtocolViewModel(
-            IMediaLibrary mediaLibrary)
-            :base()
+            IMediaLibrary mediaLibrary,
+            ILogger<ProtocolViewModel> logger)
+            :base(logger)
         {
             this.mediaLibrary = mediaLibrary;
         }
@@ -80,7 +83,7 @@ namespace VideoPlayer.ViewModels.Protocol
                 await MainThread.InvokeOnMainThreadAsync(() =>
                 {
                     foreach (var e in entries
-                    .Select(e => new ProtocolListEntryViewModel(e)))
+                    .Select(e => new ProtocolListEntryViewModel(e, Logger)))
                     {
                         loaded += 1;
                         Items.Add(e);

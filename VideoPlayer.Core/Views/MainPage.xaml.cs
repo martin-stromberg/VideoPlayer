@@ -14,7 +14,7 @@ namespace VideoPlayer.Views
         public MainPage()
         {
             InitializeComponent();
-            BindingContext = new BaseHomePageViewModel(null, null);
+            BindingContext = new BaseHomePageViewModel(null, null, null);
         }
 
         protected override void OnLoadingContent(IApplicationManager applicationManager)

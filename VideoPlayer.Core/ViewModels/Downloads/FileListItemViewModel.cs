@@ -1,12 +1,13 @@
-﻿using VideoPlayer.Service.Library.Models;
+﻿using Microsoft.Extensions.Logging;
+using VideoPlayer.Service.Library.Models;
 using VideoPlayer.ViewModels.MediaOverview.MediaItem;
 
 namespace VideoPlayer.ViewModels.Downloads
 {
     public class FileListItemViewModel: BaseListItem, IDownloadListItem
     {
-        public FileListItemViewModel(FileInfo file)
-            : base(new MediaItem())
+        public FileListItemViewModel(FileInfo file, ILogger logger)
+            : base(new MediaItem(), logger)
         {
             File = file;
             UpdateMediaInformation();

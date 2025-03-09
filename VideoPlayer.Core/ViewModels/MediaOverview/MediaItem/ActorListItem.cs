@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -13,8 +14,8 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
     {
         private readonly IResourceManager _ResourceManager;
 
-        public ActorListItem(BaseServiceModel element, IResourceManager resourceManager)
-            : base(element)
+        public ActorListItem(BaseServiceModel element, IResourceManager resourceManager, ILogger logger)
+            : base(element, logger)
         {
             _ResourceManager = resourceManager;
             var actor = ((Actor)element);

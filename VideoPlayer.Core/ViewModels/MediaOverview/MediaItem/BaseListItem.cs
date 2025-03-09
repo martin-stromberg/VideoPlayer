@@ -1,4 +1,5 @@
-﻿using Microsoft.Maui.Controls;
+﻿using Microsoft.Extensions.Logging;
+using Microsoft.Maui.Controls;
 using VideoPlayer.Service.Library.Models;
 
 namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
@@ -15,8 +16,8 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
     }
     public class BaseListItem: BaseViewModel
     {
-        public BaseListItem(BaseServiceModel element)
-            :base()
+        public BaseListItem(BaseServiceModel element, ILogger logger)
+            :base(logger)
         {
             Id = element is null ? 0 : element.Id;
             Element = element;

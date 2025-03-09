@@ -33,7 +33,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             "-trailer.mov",
             "-trailer.mkv"
         };
-        private static string[] videoExtensions = new string[] { ".avi", ".mp4", ".mov", ".mkv" };
+        private static string[] videoExtensions = new string[] { ".mp4", ".avi", ".mov", ".mkv", ".mpg" };
         private static string[] nfoExtensions = new string[] { ".nfo" };
         private static string[] pictureExtensions = new string[] { ".jpg", ".gif", ".png" };
         private static string infoFileTVShow = "tvshow.nfo";

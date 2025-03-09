@@ -1,4 +1,5 @@
-﻿using System.Collections.Specialized;
+﻿using Microsoft.Extensions.Logging;
+using System.Collections.Specialized;
 using VideoPlayer.Navigation;
 using VideoPlayer.Service.Events;
 using VideoPlayer.Service.Library;
@@ -12,11 +13,12 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
     {
         private readonly INavigationManager navigationManager;
 
-        public BaseCardViewModel(IMediaLibrary mediaLibrary, INavigationManager navigationManager)
+        public BaseCardViewModel(IMediaLibrary mediaLibrary, INavigationManager navigationManager, ILogger logger)
+            :base(logger)
         {
             MediaLibrary = mediaLibrary;
             this.navigationManager = navigationManager;
-            CollectionContext = new MediaCollectionViewModel();
+            CollectionContext = new MediaCollectionViewModel(logger);
             CollectionContext.Selected += CollectionContext_Selected;
             CollectionContext.Items.CollectionChanged += CollectionContext_Items_CollectionChanged;
         }

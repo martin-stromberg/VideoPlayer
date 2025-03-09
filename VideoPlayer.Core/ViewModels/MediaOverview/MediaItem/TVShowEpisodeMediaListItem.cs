@@ -10,19 +10,20 @@ using VideoPlayer.Service.Library.Models.Classified;
 using VideoPlayer.Tools;
 using VideoPlayer.Service.Resources;
 using Renci.SshNet;
+using Microsoft.Extensions.Logging;
 
 namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
 {
     [ServiceModelReference(typeof(TVShowEpisode))]
     public class TVShowEpisodeMediaListItem: BaseMediaListItem
     {
-        public TVShowEpisodeMediaListItem(ClassifiedEntry entry, IResourceManager resourceManager)
-            : base(entry, resourceManager) 
+        public TVShowEpisodeMediaListItem(ClassifiedEntry entry, IResourceManager resourceManager, ILogger logger)
+            : base(entry, resourceManager,logger) 
         {
         }
 
-        public TVShowEpisodeMediaListItem(TVShowSeason season, ClassifiedEntry entry, IResourceManager resourceManager) 
-            : this(entry, resourceManager)
+        public TVShowEpisodeMediaListItem(TVShowSeason season, ClassifiedEntry entry, IResourceManager resourceManager, ILogger logger) 
+            : this(entry, resourceManager, logger)
         {
             var episode = ((TVShowEpisode)entry);
             if (season is not null)

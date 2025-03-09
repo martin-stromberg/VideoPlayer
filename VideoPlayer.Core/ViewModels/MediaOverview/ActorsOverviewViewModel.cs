@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -23,13 +24,14 @@ namespace VideoPlayer.ViewModels.MediaOverview
             GenreSelectionViewModel genreSelectionViewModel,
             INavigationManager navigationManager, 
             IProcessorCollection processorCollection,
-            IResourceManager resourceManager)
+            IResourceManager resourceManager,
+            ILogger<ActorsOverviewViewModel> logger)
             : base(genreSelectionViewModel, 
                   new EntryType[] { }, 
                   mediaLibrary, 
                   navigationManager, 
                   processorCollection,
-                  resourceManager)
+                  resourceManager, logger)
         {
         }
 
@@ -60,7 +62,7 @@ namespace VideoPlayer.ViewModels.MediaOverview
                 foreach (var item in items)
                 {
                     itemsFound = true;
-                    var vm = new ActorListItem(item, ResourceManager);
+                    var vm = new ActorListItem(item, ResourceManager, Logger);
                     Items.Add(vm);
                 }
             }

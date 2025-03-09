@@ -1,4 +1,5 @@
-﻿using VideoPlayer.Service.Library.Models;
+﻿using Microsoft.Extensions.Logging;
+using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
 using VideoPlayer.Service.Resources;
 using VideoPlayer.Tools;
@@ -8,8 +9,8 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
     [ServiceModelReference(typeof(TVShowSeason))]
     public class TVShowSeasonMediaListItem: BaseMediaListItem
     {
-        public TVShowSeasonMediaListItem(ClassifiedEntry item, IResourceManager resourceManager)
-            : base(item, resourceManager)
+        public TVShowSeasonMediaListItem(ClassifiedEntry item, IResourceManager resourceManager, ILogger logger)
+            : base(item, resourceManager, logger)
         {
         }
         protected TVShowSeason Season => base.Item as TVShowSeason;

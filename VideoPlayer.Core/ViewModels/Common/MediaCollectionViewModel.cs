@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -17,7 +18,8 @@ namespace VideoPlayer.ViewModels.Common
     }
     public class MediaCollectionViewModel: ViewModels.BaseViewModel, IMediaCollectionViewModel
     {
-        public MediaCollectionViewModel()
+        public MediaCollectionViewModel(ILogger logger)
+            :base(logger)
         {
             Items.CollectionChanged += Items_CollectionChanged;
         }

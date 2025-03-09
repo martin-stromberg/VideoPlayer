@@ -1,4 +1,5 @@
-﻿using VideoPlayer.ViewModels;
+﻿using Microsoft.Extensions.Logging;
+using VideoPlayer.ViewModels;
 
 namespace VideoPlayer.Tests.Views
 {
@@ -7,7 +8,8 @@ namespace VideoPlayer.Tests.Views
 
         private TestManager _TestManager;
 
-        public TestViewModel()
+        public TestViewModel(ILogger<TestViewModel> logger)
+            :base(logger) 
         {
             _TestManager = new TestManager();
             _TestManager.Finished += (sender, e) =>

@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -19,7 +20,8 @@ namespace VideoPlayer.ViewModels.Downloads
         private readonly IMediaLibrary mediaLibrary;
         private readonly IDownloadManager downloadManager;
 
-        public DownloadListViewModel(IEnvironment environment, IMediaLibrary mediaLibrary, IDownloadManager downloadManager)
+        public DownloadListViewModel(IEnvironment environment, IMediaLibrary mediaLibrary, IDownloadManager downloadManager, ILogger<DownloadListViewModel> logger)
+            :base(logger)
         {
             this.environment = environment;
             this.mediaLibrary = mediaLibrary;
@@ -44,7 +46,7 @@ namespace VideoPlayer.ViewModels.Downloads
             {
                 var entry = mediaLibrary.GetMovieByMediaItem(item.Id) as ClassifiedEntry 
                     ?? mediaLibrary.GetTVShowEpisodeByMediaItem(item.Id);
-                var vm = new DownloadListItemViewModel(environment, item, entry);
+                var vm = new DownloadListItemViewModel(environment, item, entry, Logger);
                 vm.DeleteRequested += Vm_DeleteRequested;
                 Items.Add(vm);
             }
@@ -52,7 +54,7 @@ namespace VideoPlayer.ViewModels.Downloads
             var files = downloadManager.GetOrphanedFiles();
             foreach (var file in files)
             {
-                var vm = new OrphanedFileListItemViewMode(file);
+                var vm = new OrphanedFileListItemViewMode(file, Logger);
                 vm.DeleteRequested += Vm_DeleteRequested;
                 Items.Add(vm);
             }

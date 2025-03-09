@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Linq;
 using VideoPlayer.Navigation;
 using VideoPlayer.Service.Events;
@@ -17,14 +18,18 @@ namespace VideoPlayer.ViewModels.HomePage
             IPlaylistManager playlistManager, 
             IResourceManager resourceManager,
             ILibraryScanner libraryScanner,
-            IProcessorCollection processorCollection)
-            : base(processorCollection, libraryScanner)
+            IProcessorCollection processorCollection,
+            ILogger<HomePageViewModel> logger,
+            ILogger<NextPlayingViewModel> loggerNextPlaying,
+            ILogger<FavoritesViewModel> loggerFavorites,
+            ILogger<NewPlaylistViewModel> loggerNewPlaying)
+            : base(processorCollection, libraryScanner, logger)
         {
             Title = "Videoplayer";            
             this.navigationManager = navigationManager;
-            NextPlayingContext = new NextPlayingViewModel(playlistManager, navigationManager, resourceManager);
-            FavoritesContext = new FavoritesViewModel(playlistManager, navigationManager, resourceManager);
-            NewContext = new NewPlaylistViewModel(playlistManager, navigationManager, resourceManager);
+            NextPlayingContext = new NextPlayingViewModel(playlistManager, navigationManager, resourceManager, loggerNextPlaying);
+            FavoritesContext = new FavoritesViewModel(playlistManager, navigationManager, resourceManager, loggerFavorites);
+            NewContext = new NewPlaylistViewModel(playlistManager, navigationManager, resourceManager, loggerNewPlaying);
         }
 
         public override void ExecuteAppeared()

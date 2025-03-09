@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -16,8 +17,9 @@ namespace VideoPlayer.ViewModels.HomePage
         public ErrorViewModel(
             IErrorLogManager errorLogManager, 
             ILibraryScanner libraryScanner,
-            IProcessorCollection processorCollection)
-            :base(processorCollection, libraryScanner)
+            IProcessorCollection processorCollection,
+            ILogger<ErrorViewModel> logger)
+            :base(processorCollection, libraryScanner, logger)
         {
             this.errorLogManager = errorLogManager;
             ErrorMessages = string.Join("\r\n", errorLogManager.ReadErrors());

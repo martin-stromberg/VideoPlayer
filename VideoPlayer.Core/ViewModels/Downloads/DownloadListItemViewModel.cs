@@ -1,4 +1,5 @@
-﻿using Microsoft.Maui.Storage;
+﻿using Microsoft.Extensions.Logging;
+using Microsoft.Maui.Storage;
 using Microsoft.VisualBasic;
 using System;
 using System.Collections.Generic;
@@ -15,8 +16,8 @@ namespace VideoPlayer.ViewModels.Downloads
 {
     public class DownloadListItemViewModel : FileListItemViewModel, IDownloadListItem
     {
-        public DownloadListItemViewModel(IEnvironment environment, MediaItem element, ClassifiedEntry entry) 
-            : base(new FileInfo(PathTools.Combine(environment.GetRootPath(), element.Path)))
+        public DownloadListItemViewModel(IEnvironment environment, MediaItem element, ClassifiedEntry entry, ILogger logger) 
+            : base(new FileInfo(PathTools.Combine(environment.GetRootPath(), element.Path)), logger)
         {            
             Item = element;
             Entry = entry;

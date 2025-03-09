@@ -1,4 +1,5 @@
-﻿using VideoPlayer.Navigation;
+﻿using Microsoft.Extensions.Logging;
+using VideoPlayer.Navigation;
 using VideoPlayer.Service.Playlists;
 using VideoPlayer.Service.Resources;
 
@@ -9,8 +10,10 @@ namespace VideoPlayer.ViewModels.HomePage
         
         public NewPlaylistViewModel(
             IPlaylistManager playlistManager,
-            INavigationManager navigationManager, IResourceManager resourceManager)
-            :base(playlistManager.NewPlaylist, navigationManager, resourceManager)
+            INavigationManager navigationManager, 
+            IResourceManager resourceManager,
+            ILogger<NewPlaylistViewModel> logger)
+            :base(playlistManager.NewPlaylist, navigationManager, resourceManager,logger)
         {
             Title = "Neu hinzugefügt";
             AllowAutoPlay = false;

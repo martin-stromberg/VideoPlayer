@@ -7,7 +7,7 @@ namespace VideoPlayer.Tests.Views
         public TestView()
         {
             InitializeComponent();
-            BindingContext = new TestViewModel();
+            BindingContext = new TestViewModel(null);
         }
 
         public async void OnAppearing()

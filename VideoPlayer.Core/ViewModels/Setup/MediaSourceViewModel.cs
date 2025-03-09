@@ -1,4 +1,5 @@
-﻿using Microsoft.VisualBasic.FileIO;
+﻿using Microsoft.Extensions.Logging;
+using Microsoft.VisualBasic.FileIO;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -83,7 +84,8 @@ namespace VideoPlayer.ViewModels.Setup
     }
     public class MediaSourceViewModel: BaseViewModel
     {
-        public MediaSourceViewModel(MediaSource source)
+        public MediaSourceViewModel(MediaSource source, ILogger logger)
+            :base(logger)
         {
             Source = source;
             Title = Source?.Name ?? "Neue Quelle";

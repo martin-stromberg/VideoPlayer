@@ -1,4 +1,5 @@
-﻿using Syncfusion.XlsIO.FormatParser.FormatTokens;
+﻿using Microsoft.Extensions.Logging;
+using Syncfusion.XlsIO.FormatParser.FormatTokens;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -37,10 +38,11 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             IMediaLibrary mediaLibrary,
             IDownloadManager downloadManager,
             INavigationManager navigationManager,
+            ILogger<MovieCardViewModel> logger,
             Movie entry)
-            :base(playlistManager, environment, resourceManager, downloadManager, mediaLibrary, navigationManager, entry)
+            :base(playlistManager, environment, resourceManager, downloadManager, mediaLibrary, navigationManager, logger, entry)
         {
-            CollectionContext.Items.Add(new MovieMediaListItem(entry, resourceManager));
+            CollectionContext.Items.Add(new MovieMediaListItem(entry, resourceManager, logger));
             Year = entry.ReleaseDate.Year;
             if (Year == 0)
                 Year = entry.PremieredAt.Year;
@@ -57,10 +59,11 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             IMediaLibrary mediaLibrary,
             IDownloadManager downloadManager,
             INavigationManager navigationManager,
+            ILogger logger,
             MovieCollection entry)
-            : base(playlistManager, environment, resourceManager, downloadManager, mediaLibrary, navigationManager, entry)
+            : base(playlistManager, environment, resourceManager, downloadManager, mediaLibrary, navigationManager, logger, entry)
         {
-            CollectionContext.Items.Add(new MovieCollectionMediaListItem(entry, resourceManager));            
+            CollectionContext.Items.Add(new MovieCollectionMediaListItem(entry, resourceManager, Logger));            
             this.mediaCollectionSelector = mediaCollectionSelector;
             Select(null);
         }
@@ -127,7 +130,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             {
                 CollectionContext.Items.Clear();
                 foreach (var entry in mediaCollectionSelector.FindNextEntries(Collection))
-                    CollectionContext.Items.Add(new MovieMediaListItem(entry, ResourceManager));
+                    CollectionContext.Items.Add(new MovieMediaListItem(entry, ResourceManager, Logger));
                 //Select(CollectionContext.Items.FirstOrDefault()?.Element as ClassifiedEntry);
             }  
             else if (Movie is not null && Movie.CollectionId != 0)
@@ -135,7 +138,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
                 var collection = MediaLibrary.GetMovieCollection(Movie.CollectionId);
                 CollectionContext.Items.Clear();
                 foreach (var entry in mediaCollectionSelector.FindNextEntries(collection))
-                    CollectionContext.Items.Add(new MovieMediaListItem(entry, ResourceManager));
+                    CollectionContext.Items.Add(new MovieMediaListItem(entry, ResourceManager, Logger));
 
                 LoadActorsAsync();
             }
@@ -235,7 +238,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             if (clearFirst)
                 SecondCollectionContext.Items.Clear();
             foreach (var role in roles)
-                SecondCollectionContext.Items.Add(new RoleListItem(role, ResourceManager));
+                SecondCollectionContext.Items.Add(new RoleListItem(role, ResourceManager, Logger));
         }
 
         protected override void SetCollectionVisible(bool visible)

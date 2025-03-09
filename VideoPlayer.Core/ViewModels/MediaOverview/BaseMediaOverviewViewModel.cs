@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
@@ -35,8 +36,9 @@ namespace VideoPlayer.ViewModels.MediaOverview
             IMediaLibrary mediaLibrary,
             INavigationManager navigationManager,
             IProcessorCollection processorCollection,
-            IResourceManager resourceManager)
-            :base()
+            IResourceManager resourceManager,
+            ILogger logger)
+            :base(logger)
         {
             this.entryTypes = entryTypes;
             MediaLibrary = mediaLibrary;
@@ -167,7 +169,7 @@ namespace VideoPlayer.ViewModels.MediaOverview
                         return (attr.ServiceModelType == itemType);
                     });
                     var vm = mediaItemType is null 
-                        ? new BaseMediaListItem(item, ResourceManager) 
+                        ? new BaseMediaListItem(item, ResourceManager, Logger) 
                         : Activator.CreateInstance(mediaItemType, item, ResourceManager) as BaseMediaListItem;
                     Items.Add(vm);
                 }

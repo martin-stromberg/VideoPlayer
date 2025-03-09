@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -14,8 +15,8 @@ namespace VideoPlayer.ViewModels.MediaOverview.Genres
     {
         private readonly Genre genre;
 
-        public GenreViewModel(Genre genre)
-            :base()
+        public GenreViewModel(Genre genre, ILogger logger)
+            :base(logger)
         {
             this.genre = genre;
             Title = genre is null ? "Alle" : genre.Name;

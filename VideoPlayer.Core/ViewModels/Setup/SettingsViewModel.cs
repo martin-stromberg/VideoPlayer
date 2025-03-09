@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
@@ -40,8 +41,9 @@ namespace VideoPlayer.ViewModels.Setup
             IDeviceDisplayManager deviceDisplayManager,
             IMediaClassifierSettings settings,
             IApplicationSettings applicationSettings,
-            INavigationManager navigationManager)
-            : base()
+            INavigationManager navigationManager,
+            ILogger<SettingsViewModel> logger)
+            : base(logger)
         {
             _DataExporter = dataExporter;
             _MediaLibrary = mediaLibrary;
@@ -432,7 +434,7 @@ namespace VideoPlayer.ViewModels.Setup
         #region Quellen
         private void CreateNewSource()
         {
-            var vm = new MediaSourceViewModel(null);
+            var vm = new MediaSourceViewModel(null, Logger);
             vm.RemoveRequest += Vm_RemoveRequest;
             vm.SaveRequest += Vm_SaveRequest;
             vm.ScanRequest += Vm_ScanRequest;
@@ -456,7 +458,7 @@ namespace VideoPlayer.ViewModels.Setup
             MediaSources.Clear();
             foreach (var source in _MediaLibrary.GetSources())
             {
-                var vm = new MediaSourceViewModel(source);
+                var vm = new MediaSourceViewModel(source, Logger);
                 vm.RemoveRequest += Vm_RemoveRequest;
                 vm.SaveRequest += Vm_SaveRequest;
                 vm.ScanRequest += Vm_ScanRequest;

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -13,8 +14,8 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
     [ServiceModelReference(typeof(Movie))]
     public class MovieMediaListItem : BaseMediaListItem
     {
-        public MovieMediaListItem(ClassifiedEntry item, IResourceManager resourceManager) 
-            : base(item, resourceManager)
+        public MovieMediaListItem(ClassifiedEntry item, IResourceManager resourceManager, ILogger logger) 
+            : base(item, resourceManager, logger)
         {
         }
 

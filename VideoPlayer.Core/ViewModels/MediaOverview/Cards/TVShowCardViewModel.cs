@@ -1,4 +1,5 @@
-﻿using System.Collections.ObjectModel;
+﻿using Microsoft.Extensions.Logging;
+using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using VideoPlayer.Navigation;
 using VideoPlayer.Service.Device;
@@ -23,11 +24,12 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             IDownloadManager downloadManager,
             IMediaCollectionSelector mediaCollectionSelector,
             INavigationManager navigationManager,
+            ILogger logger,
             TVShow entry) 
-            : base(playlistManager, environment, resourceManager, downloadManager, mediaLibrary, navigationManager, entry)
+            : base(playlistManager, environment, resourceManager, downloadManager, mediaLibrary, navigationManager, logger, entry)
         {
             this.mediaCollectionSelector = mediaCollectionSelector;
-            CollectionContext.Items.Add(new TVShowMediaListItem(entry, resourceManager));                       
+            CollectionContext.Items.Add(new TVShowMediaListItem(entry, resourceManager, logger));                       
         }
         public TVShowCardViewModel(
             IPlaylistManager playlistManager, 
@@ -37,11 +39,12 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             IMediaLibrary mediaLibrary,
             IMediaCollectionSelector mediaCollectionSelector,
             INavigationManager navigationManager,
+            ILogger logger,
             TVShowEpisode entry)
-            : base(playlistManager, environment, resourceManager, downloadManager, mediaLibrary, navigationManager, entry)
+            : base(playlistManager, environment, resourceManager, downloadManager, mediaLibrary, navigationManager, logger, entry)
         {
             this.mediaCollectionSelector = mediaCollectionSelector;
-            CollectionContext.Items.Add(new TVShowEpisodeMediaListItem(entry, resourceManager));
+            CollectionContext.Items.Add(new TVShowEpisodeMediaListItem(entry, resourceManager, logger));
         }
         public TVShowCardViewModel(
             IPlaylistManager playlistManager,
@@ -51,11 +54,12 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             IMediaLibrary mediaLibrary,
             IMediaCollectionSelector mediaCollectionSelector,
             INavigationManager navigationManager,
+            ILogger logger,
             TVShowSeason entry)
-            : base(playlistManager, environment, resourceManager, downloadManager, mediaLibrary, navigationManager, entry)
+            : base(playlistManager, environment, resourceManager, downloadManager, mediaLibrary, navigationManager,logger, entry)
         {
             this.mediaCollectionSelector = mediaCollectionSelector;
-            CollectionContext.Items.Add(new TVShowSeasonMediaListItem(entry, resourceManager));
+            CollectionContext.Items.Add(new TVShowSeasonMediaListItem(entry, resourceManager, logger));
         }
         protected override void ExecuteAction(string args)
         {
@@ -197,7 +201,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             var isFirst = true;
             foreach (var episode in episodes)
             {                
-                var li = new TVShowEpisodeMediaListItem(season, episode, ResourceManager);
+                var li = new TVShowEpisodeMediaListItem(season, episode, ResourceManager, Logger);
                 CollectionContext.Items.Add(li);
                 if (isFirst)
                 {

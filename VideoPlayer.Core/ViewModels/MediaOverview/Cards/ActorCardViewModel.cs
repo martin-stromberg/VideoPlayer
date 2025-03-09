@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Diagnostics.Metrics;
@@ -24,8 +25,9 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             IMediaLibrary mediaLibrary, 
             IResourceManager resourceManager, 
             INavigationManager navigationManager,
+            ILogger<ActorCardViewModel> logger,
             Actor actor) 
-            :base(mediaLibrary, navigationManager)
+            :base(mediaLibrary, navigationManager, logger)
         {
             this.resourceManager = resourceManager;
             Actor = actor;
@@ -69,17 +71,17 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             CollectionContext.Items.Clear();
             foreach (var entry in entries)
                 if (entry is Movie)
-                    CollectionContext.Items.Add(new MovieMediaListItem(entry, resourceManager));
+                    CollectionContext.Items.Add(new MovieMediaListItem(entry, resourceManager, Logger));
                 else if (entry is MovieCollection)
-                    CollectionContext.Items.Add(new MovieCollectionMediaListItem(entry, resourceManager));
+                    CollectionContext.Items.Add(new MovieCollectionMediaListItem(entry, resourceManager, Logger));
                 else if (entry is TVShow)
-                    CollectionContext.Items.Add(new TVShowMediaListItem(entry, resourceManager));
+                    CollectionContext.Items.Add(new TVShowMediaListItem(entry, resourceManager, Logger));
                 else if (entry is TVShowSeason)
-                    CollectionContext.Items.Add(new TVShowSeasonMediaListItem(entry, resourceManager));
+                    CollectionContext.Items.Add(new TVShowSeasonMediaListItem(entry, resourceManager, Logger));
                 else if (entry is TVShowEpisode)
-                    CollectionContext.Items.Add(new TVShowEpisodeMediaListItem(entry, resourceManager));
+                    CollectionContext.Items.Add(new TVShowEpisodeMediaListItem(entry, resourceManager, Logger));
                 else
-                    CollectionContext.Items.Add(new BaseMediaListItem(entry, resourceManager));
+                    CollectionContext.Items.Add(new BaseMediaListItem(entry, resourceManager, Logger));
         }
         private bool _IgnoreDisapper = false;
         public override void ExecuteDisappeared()

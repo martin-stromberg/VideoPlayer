@@ -17,8 +17,9 @@ namespace VideoPlayer.ViewModels.HomePage
 
         public BaseHomePageViewModel(
             IProcessorCollection processorCollection,
-            ILibraryScanner libraryScanner)
-            :base()
+            ILibraryScanner libraryScanner,
+            ILogger logger)
+            :base(logger)
         {
             Title = "Videoplayer";
             IsLoading = true;
@@ -82,7 +83,7 @@ namespace VideoPlayer.ViewModels.HomePage
             }
             catch(Exception ex)
             {
-                Logger.LogError(ex, ex.Message);
+                Logger?.LogError(ex, ex.Message);
             }
             finally
             {

@@ -1,5 +1,6 @@
 ﻿using CommunityToolkit.Maui.Core.Primitives;
 using CommunityToolkit.Maui.Views;
+using Microsoft.Extensions.Logging;
 using System.Collections.Specialized;
 using System.Runtime.CompilerServices;
 using VideoPlayer.Extensions;
@@ -77,8 +78,9 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             IDownloadManager downloadManager,
             IMediaLibrary mediaLibrary,
             INavigationManager navigationManager,
+            ILogger logger,
             ClassifiedEntry entry)
-            :base(mediaLibrary, navigationManager)
+            :base(mediaLibrary, navigationManager, logger)
         {
             this.PlaylistManager = playlistManager;
             this.environment = environment;
@@ -87,7 +89,7 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
             this.Entry = entry;
             Title = entry.Name;
             VideoSource = null;
-            SecondCollectionContext = new MediaCollectionViewModel();
+            SecondCollectionContext = new MediaCollectionViewModel(logger);
             SecondCollectionContext.Selected += SecondCollectionContext_Selected;
             SecondCollectionContext.Items.CollectionChanged += Items_CollectionChanged;
 

@@ -1,4 +1,5 @@
-﻿using System.Collections.ObjectModel;
+﻿using Microsoft.Extensions.Logging;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using VideoPlayer.Navigation;
 using VideoPlayer.Service.Library.Models;
@@ -20,8 +21,9 @@ namespace VideoPlayer.ViewModels.HomePage
         public BasePlayingViewModel(
             BasePlaylistService playlistService,
             INavigationManager navigationManager,
-            IResourceManager resourceManager)
-            :base()
+            IResourceManager resourceManager,
+            ILogger logger)
+            :base(logger)
         {
             //this.playlistManager = playlistManager;
             this.navigationManager = navigationManager;
@@ -100,32 +102,32 @@ namespace VideoPlayer.ViewModels.HomePage
             {
                 var vm = item.Entry?.Type switch
                 {
-                    Service.Library.Models.Classified.EntryType.MovieCollection => new MovieCollectionMediaListItem(item.Entry, resourceManager)
+                    Service.Library.Models.Classified.EntryType.MovieCollection => new MovieCollectionMediaListItem(item.Entry, resourceManager, Logger)
                     {
                         ApplicationArea = CardItemApplicationArea.Single,
                         AllowAutoPlay = AllowAutoPlay
                     },
-                    Service.Library.Models.Classified.EntryType.Movie => new MovieMediaListItem(item.Entry, resourceManager)
+                    Service.Library.Models.Classified.EntryType.Movie => new MovieMediaListItem(item.Entry, resourceManager, Logger)
                     {
                         ApplicationArea = CardItemApplicationArea.Single,
                         AllowAutoPlay = AllowAutoPlay
                     },
-                    Service.Library.Models.Classified.EntryType.TVShowEpisode => new TVShowEpisodeMediaListItem(item.Entry, resourceManager)
+                    Service.Library.Models.Classified.EntryType.TVShowEpisode => new TVShowEpisodeMediaListItem(item.Entry, resourceManager, Logger)
                     {
                         ApplicationArea = CardItemApplicationArea.Single,
                         AllowAutoPlay = AllowAutoPlay
                     },
-                    Service.Library.Models.Classified.EntryType.TVShowSeason => new TVShowSeasonMediaListItem(item.Entry, resourceManager)
+                    Service.Library.Models.Classified.EntryType.TVShowSeason => new TVShowSeasonMediaListItem(item.Entry, resourceManager, Logger)
                     {
                         ApplicationArea = CardItemApplicationArea.Single,
                         AllowAutoPlay = AllowAutoPlay
                     },
-                    Service.Library.Models.Classified.EntryType.TVShow => new TVShowMediaListItem(item.Entry, resourceManager)
+                    Service.Library.Models.Classified.EntryType.TVShow => new TVShowMediaListItem(item.Entry, resourceManager, Logger)
                     {
                         ApplicationArea = CardItemApplicationArea.Single,
                         AllowAutoPlay = AllowAutoPlay
                     },
-                    _ => new BaseMediaListItem(item.Entry, resourceManager)
+                    _ => new BaseMediaListItem(item.Entry, resourceManager, Logger)
                     {
                         ApplicationArea = CardItemApplicationArea.Single,
                         AllowAutoPlay = AllowAutoPlay

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
@@ -20,8 +21,9 @@ namespace VideoPlayer.ViewModels.HomePage
         public NextPlayingViewModel(
             IPlaylistManager playlistManager, 
             INavigationManager navigationManager, 
-            IResourceManager resourceManager) 
-            : base(playlistManager.NextPlaybackPlaylist, navigationManager, resourceManager)
+            IResourceManager resourceManager,
+            ILogger<NextPlayingViewModel> logger) 
+            : base(playlistManager.NextPlaybackPlaylist, navigationManager, resourceManager, logger)
         {
             Title = "Weiterschauen";
             AllowAutoPlay = true;

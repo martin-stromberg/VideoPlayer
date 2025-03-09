@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -19,13 +20,14 @@ namespace VideoPlayer.ViewModels.MediaOverview
             GenreSelectionViewModel genreSelectionViewModel, 
             INavigationManager navigationManager,
             IProcessorCollection processorCollection,
-            IResourceManager resourceManager) 
+            IResourceManager resourceManager,
+            ILogger<TVShowOverviewViewModel> logger) 
             : base(genreSelectionViewModel, 
                   new EntryType[] { EntryType.TVShow, EntryType.TVShowCollection }, 
                   mediaLibrary, 
                   navigationManager, 
                   processorCollection,
-                  resourceManager)
+                  resourceManager, logger)
         {
         }
         protected override bool CheckViewGenre(Genre genre)

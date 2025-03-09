@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.Metrics;
 using System.Linq;
@@ -14,8 +15,8 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
     {
         private readonly IResourceManager _ResourceManager;
 
-        public RoleListItem(BaseServiceModel element, IResourceManager resourceManager) 
-            : base(element)
+        public RoleListItem(BaseServiceModel element, IResourceManager resourceManager, ILogger logger) 
+            : base(element, logger)
         {
             _ResourceManager = resourceManager;
             var role = ((Role)element);

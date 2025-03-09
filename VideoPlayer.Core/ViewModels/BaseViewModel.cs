@@ -38,6 +38,11 @@ namespace VideoPlayer.ViewModels
         IAppearable,
         INavigatable
     {
+        public BaseViewModel(ILogger logger)
+            :base()
+        {
+            Logger = logger;
+        }
         public Guid InstanceId { get; } = Guid.NewGuid();
         public string Title
         {

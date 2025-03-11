@@ -9,6 +9,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using VideoPlayer.Service.BaseServices;
+using VideoPlayer.Service.ErrorHandling;
 using VideoPlayer.Service.Library;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
@@ -373,9 +374,34 @@ namespace VideoPlayer.Service.Download
                 }
                 session.Finish();
             }
+            catch(FileDeletedException ex)
+            {
+                RemoveMediaItemWithRescan(session.Item);
+                session.Item = null;
+                session.Reset();
+                queueCheck.Enqueue(session);
+            }
             catch(Exception ex)
             {
                 session.Fail(ex);
+            }
+        }
+
+        private void RemoveMediaItemWithRescan(MediaItem item)
+        {
+            if (item.CopyType != MediaItemCopyType.Original)
+                return;
+            var collection = mediaLibrary.GetMediaCollection(item.ParentCollectionId);
+            try
+            {
+                mediaLibrary.Delete(item);
+                collection.LastAccess = DateTime.MinValue;
+                mediaLibrary.AddOrUpdateMediaCollection(collection);
+                Notify(this, new Events.NotificationEventArgs("Scan", null));
+            }
+            finally
+            {
+                mediaLibrary.Release(collection);
             }
         }
 

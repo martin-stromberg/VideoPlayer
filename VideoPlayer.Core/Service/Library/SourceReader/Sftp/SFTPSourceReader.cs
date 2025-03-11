@@ -1,6 +1,8 @@
 ﻿using Renci.SshNet;
+using Renci.SshNet.Common;
 using Renci.SshNet.Sftp;
 using System.Collections.Concurrent;
+using VideoPlayer.Service.ErrorHandling;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Sources;
 
@@ -60,6 +62,10 @@ namespace VideoPlayer.Service.Library.SourceReader.SFtp
             try
             {
                 connection.Download(file.Path, localFilePath, progressCallback);
+            }
+            catch(SftpPathNotFoundException ex)
+            {
+                throw new FileDeletedException(ex.Message, ex);
             }
             finally
             {

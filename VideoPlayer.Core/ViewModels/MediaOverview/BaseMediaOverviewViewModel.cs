@@ -170,7 +170,7 @@ namespace VideoPlayer.ViewModels.MediaOverview
                     });
                     var vm = mediaItemType is null 
                         ? new BaseMediaListItem(item, ResourceManager, Logger) 
-                        : Activator.CreateInstance(mediaItemType, item, ResourceManager) as BaseMediaListItem;
+                        : Activator.CreateInstance(mediaItemType, item, ResourceManager, Logger) as BaseMediaListItem;
                     Items.Add(vm);
                 }
             }

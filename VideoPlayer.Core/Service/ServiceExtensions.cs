@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Linq;
 using VideoPlayer.Service.Database;
 using VideoPlayer.Service.Device;
@@ -50,6 +51,7 @@ namespace VideoPlayer.Service
             services.AddSingleton<IMemoryInformation, MemoryInformation>();
             services.AddTransient<IErrorLogManager, ErrorLogManager>();
             services.AddSingleton<IProcessorCollection, ProcessorCollection>();
+            services.AddTransient<ILogger>(sp => sp.GetService<ILogger<ApplicationManager>>());
             return services;
         }
 

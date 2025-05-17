@@ -46,6 +46,7 @@ namespace VideoPlayer.Service.Library.Models
                 NeedsPictureUpdate = ((MediaDataItem)DataModel).NeedsPictureUpdate;
                 LastPictureUpdateTry = ((MediaDataItem)DataModel).LastPictureUpdateTry;
                 LastPosition = ((MediaDataItem)DataModel).LastPosition;
+                Tenant = ((MediaDataItem)DataModel).Tenant;
             }
         }
 
@@ -199,6 +200,17 @@ namespace VideoPlayer.Service.Library.Models
             }
         }
 
+        public string Tenant {
+            get
+            {
+                return GetProperty<string>();
+            }
+            set
+            {
+                SetProperty(value);
+            }
+        }
+
         protected override void AssignChanges()
         {
             base.AssignChanges();
@@ -214,6 +226,7 @@ namespace VideoPlayer.Service.Library.Models
             var value = Enum.GetValues(typeof(DataMediaItemCopyType)).Cast<DataMediaItemCopyType>().Skip(offset).FirstOrDefault();
             ((MediaDataItem)DataModel).CopyType = value;
             ((MediaDataItem)DataModel).DueDate = DueDate;
+            ((MediaDataItem)DataModel).Tenant = Tenant;
             ((MediaDataItem)DataModel).NeedsPictureUpdate = NeedsPictureUpdate;
             ((MediaDataItem)DataModel).LastPictureUpdateTry = LastPictureUpdateTry;
             ((MediaDataItem)DataModel).LastPosition = LastPosition;

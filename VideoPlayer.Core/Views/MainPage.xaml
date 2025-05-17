@@ -23,7 +23,29 @@
             <Label Text="Lade Programminhalte..."/>
         </HorizontalStackLayout>
         <!-- Auswahl der Medianart -->
-        <HorizontalStackLayout Grid.Column="0"
+        <Grid ColumnDefinitions="Auto, *" 
+              Grid.Column="0"
+              Grid.Row="0"
+              Margin="10"
+              IsVisible="{Binding IsLoaded}">
+            <HorizontalStackLayout Grid.Column="0"
+                           Margin="10"
+                           HorizontalOptions="Start"
+                           IsVisible="{Binding IsLoaded}">
+                <ImageButton Source="home.png" WidthRequest="64" Command="{Binding Navigate}" CommandParameter="home"/>
+                <ImageButton Source="cinema.png" WidthRequest="64" Command="{Binding Navigate}" CommandParameter="movies"/>
+                <ImageButton Source="tv.png" WidthRequest="64" Command="{Binding Navigate}" CommandParameter="tv"/>
+                <ImageButton Source="actors64x64.png" WidthRequest="64" Command="{Binding Navigate}" CommandParameter="actors"/>
+            </HorizontalStackLayout>
+
+            <Picker Title="Kategorie auswählen"
+                Grid.Column="1"
+                Margin="10,0,10,0"
+                HorizontalOptions="End"
+                ItemsSource="{Binding Tenants}" 
+                SelectedItem="{Binding SelectedTenant}" />
+        </Grid>
+        <!--<HorizontalStackLayout Grid.Column="0"
                                Grid.Row="0"
                                Margin="10"
                                HorizontalOptions="Start"
@@ -44,7 +66,11 @@
                          WidthRequest="64"
                          Command="{Binding Navigate}"
                          CommandParameter="actors"/>
-        </HorizontalStackLayout>
+            <Picker Title="Kategorie auswählen" 
+                    HorizontalOptions="End"
+                    ItemsSource="{Binding Tenants}" 
+                    SelectedItem="{Binding SelectedTenant}" />
+        </HorizontalStackLayout>-->
         <!-- Inhalt -->
         <RefreshView Grid.Row="1"
                      IsRefreshing="{Binding IsRefreshing}"

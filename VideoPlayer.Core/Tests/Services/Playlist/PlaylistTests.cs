@@ -44,9 +44,9 @@ namespace VideoPlayer.Tests.Services.Playlist
 
         private void ExecuteTypeMixedWatches()
         {
-            var movies = MediaLibrary.GetOverview(0, int.MaxValue, "", Service.Library.Models.Classified.EntryType.Movie);
+            var movies = MediaLibrary.GetOverview(0, int.MaxValue, "", "", Service.Library.Models.Classified.EntryType.Movie);
             var movie = movies.FirstOrDefault();
-            var shows = MediaLibrary.GetOverview(0, int.MaxValue, "", Service.Library.Models.Classified.EntryType.TVShow);
+            var shows = MediaLibrary.GetOverview(0, int.MaxValue, "", "", Service.Library.Models.Classified.EntryType.TVShow);
             var show = shows.FirstOrDefault();
             var seasons = MediaLibrary.GetSeasons(show.Id)
                 .OrderBy(s => s.Number)
@@ -57,7 +57,7 @@ namespace VideoPlayer.Tests.Services.Playlist
                     .OrderBy(e => e.Episode)
                     .ThenBy(e => e.Part))
                 .ToList();
-            var movieCollections = MediaLibrary.GetOverview(0, int.MaxValue, "", Service.Library.Models.Classified.EntryType.MovieCollection);
+            var movieCollections = MediaLibrary.GetOverview(0, int.MaxValue, "", "", Service.Library.Models.Classified.EntryType.MovieCollection);
             var movieCollection = movieCollections.FirstOrDefault();
             var collectionMovies = MediaLibrary.GetCollectionMovies(movieCollection.Id)
                     .OrderBy(m => m.ReleaseDate)
@@ -133,7 +133,7 @@ namespace VideoPlayer.Tests.Services.Playlist
 
         private void ExecuteMixedTVShowWatch()
         {
-            var shows = MediaLibrary.GetOverview(0, int.MaxValue, "", Service.Library.Models.Classified.EntryType.TVShow);
+            var shows = MediaLibrary.GetOverview(0, int.MaxValue, "", "", Service.Library.Models.Classified.EntryType.TVShow);
             var show = shows.FirstOrDefault();
             var seasons = MediaLibrary.GetSeasons(show.Id)
                 .OrderBy(s => s.Number)
@@ -172,7 +172,7 @@ namespace VideoPlayer.Tests.Services.Playlist
 
         private void ExecuteMovieCollectionWatch()
         {
-            var movieCollections = MediaLibrary.GetOverview(0, int.MaxValue, "", Service.Library.Models.Classified.EntryType.MovieCollection);
+            var movieCollections = MediaLibrary.GetOverview(0, int.MaxValue, "", "", Service.Library.Models.Classified.EntryType.MovieCollection);
             var movieCollection = movieCollections.FirstOrDefault();
             ExecuteMovieCollectionPlayback(movieCollection);
         }
@@ -237,7 +237,7 @@ namespace VideoPlayer.Tests.Services.Playlist
 
         private void ExecuteTVShowWatch(bool expectEmptyList = true)
         {
-            var shows = MediaLibrary.GetOverview(0, int.MaxValue, "", Service.Library.Models.Classified.EntryType.TVShow);
+            var shows = MediaLibrary.GetOverview(0, int.MaxValue, "", "", Service.Library.Models.Classified.EntryType.TVShow);
             var show = shows.FirstOrDefault();            
             ExecuteShowPlayback(show, expectEmptyList);
         }
@@ -306,7 +306,7 @@ namespace VideoPlayer.Tests.Services.Playlist
 
         private void ExecuteSingleMovieWatch()
         {
-            var movies = MediaLibrary.GetOverview(0, int.MaxValue, "", Service.Library.Models.Classified.EntryType.Movie);
+            var movies = MediaLibrary.GetOverview(0, int.MaxValue, "", "", Service.Library.Models.Classified.EntryType.Movie);
             var movie = movies.FirstOrDefault();
             var mediaItem = GetPlayableMediaItem(movie);
             var playlist = MediaLibrary.GetPlaylists(Service.Library.Models.Playlists.PlaylistType.NextPlayback).FirstOrDefault();

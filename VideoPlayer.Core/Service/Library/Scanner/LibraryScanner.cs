@@ -658,6 +658,8 @@ namespace VideoPlayer.Service.Library.Scanner
 
         private void ScanSource(MediaSource source)
         {
+            source.Tenant = source.Tenant ?? string.Empty;
+
             var reader = CreateReader(source);
             var root = reader.GetRoot();
             Scan(source, reader, root, null);
@@ -683,6 +685,12 @@ namespace VideoPlayer.Service.Library.Scanner
                 var collection = ProcessFolder(source, parentCollection, currentFolder);
                 try
                 {
+                    if (collection.Tenant != source.Tenant)
+                    {
+                        collection.Tenant = source.Tenant ?? string.Empty;
+                        collection.LastScanCompleted = false;
+                        _MediaLibrary.AddOrUpdateMediaCollection(collection);
+                    }
                     if (!collection.LastScanCompleted)
                     {
                         var folders = reader.ReadFolders(currentFolder);
@@ -694,7 +702,7 @@ namespace VideoPlayer.Service.Library.Scanner
                         foreach (var file in files)
                             ProcessFile(file, collection);                        
 
-                        collection.LastScanCompleted = true;
+                        collection.LastScanCompleted = true;                        
                         _MediaLibrary.AddOrUpdateMediaCollection(collection);
 
                         NotifyScanCompleted();
@@ -723,9 +731,14 @@ namespace VideoPlayer.Service.Library.Scanner
             if (collection is null)
                 collection = CreateCollection(source.Id, parentCollection?.Id ?? 0, folder);
 
-            collection.LastScanCompleted = collection.LastScanCompleted && (collection.LastAccess == folder.LastWriteTime) && (folder.LastWriteTime != DateTime.MinValue);
+            collection.LastScanCompleted = collection.LastScanCompleted 
+                && (collection.LastAccess == folder.LastWriteTime) 
+                && (folder.LastWriteTime != DateTime.MinValue) 
+                && ((parentCollection != null && collection.Tenant == parentCollection.Tenant)
+                  || (parentCollection == null && collection.Tenant == source.Tenant) );
             collection.Classified = collection.Classified && collection.LastScanCompleted;
             collection.LastAccess = folder.LastWriteTime;
+            collection.Tenant = source.Tenant ?? string.Empty;
             collection = _MediaLibrary.AddOrUpdateMediaCollection(collection);
             return collection;
         }
@@ -751,8 +764,9 @@ namespace VideoPlayer.Service.Library.Scanner
             var isNew = (mediaItem is null);
             if (isNew)
                 mediaItem = CreateMediaItem(collection.Id, file);
-            mediaItem.Classified = mediaItem.Classified && (mediaItem.LastAccess == file.LastWriteTime);
-            mediaItem.NeedsPictureUpdate = false;
+            mediaItem.Classified = mediaItem.Classified && (mediaItem.LastAccess == file.LastWriteTime) && (mediaItem.Tenant == collection.Tenant);
+            mediaItem.Tenant = collection.Tenant;
+            mediaItem.NeedsPictureUpdate = mediaItem.Classified && mediaItem.NeedsPictureUpdate;
             mediaItem.LastAccess = file.LastWriteTime;
             mediaItem = _MediaLibrary.AddOrUpdateMediaItem(mediaItem);
             if (isNew)

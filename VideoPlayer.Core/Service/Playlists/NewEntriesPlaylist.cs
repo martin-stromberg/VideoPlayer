@@ -1,18 +1,22 @@
 ﻿using Microsoft.Extensions.Logging;
+using Org.BouncyCastle.Asn1.Cmp;
 using VideoPlayer.Service.Download;
 using VideoPlayer.Service.Events;
 using VideoPlayer.Service.Library;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
 using VideoPlayer.Service.Library.Models.Playlists;
+using VideoPlayer.Service.Library.Tenants;
 
 namespace VideoPlayer.Service.Playlists
 {
     public class NewEntriesPlaylist : BasePlaylistService
     {
+        private readonly ITenantSelection tenantSelection;
         private readonly IMediaLibrary mediaLibrary;
 
         public NewEntriesPlaylist(
+            ITenantSelection tenantSelection,
             IMediaLibrary mediaLibrary, 
             IMediaCollectionSelector mediaCollectionSelector,
             IDownloadManager downloadManager,
@@ -20,6 +24,7 @@ namespace VideoPlayer.Service.Playlists
             : base(mediaLibrary, mediaCollectionSelector, downloadManager, PlaylistType.New, logger)
         {
             base.CorrectInvisibleMediaItems = true;
+            this.tenantSelection = tenantSelection;
             this.mediaLibrary = mediaLibrary;
         }
         protected override void ProcessNotification(NotificationEventArgs e)
@@ -43,8 +48,15 @@ namespace VideoPlayer.Service.Playlists
         }
         protected override void SaveChanges()
         {
-            while (Current.Items.Count > 10)
-                Current.Items.RemoveAt(Current.Items.Count - 1);
+            if (tenantSelection is not null)
+            foreach (var tenant in tenantSelection.AllTenants)
+                while (Current.Items.Count(i => i.Tenant == tenant) > 10)
+                {
+                    var lastEntry = Current.Items.LastOrDefault(i => i.Tenant == tenant);
+                    if (lastEntry == null)
+                        break;
+                    Current.Items.Remove(lastEntry);
+                }
             base.SaveChanges();
         }
         private void Add(PlaylistEntry entry)
@@ -102,6 +114,8 @@ namespace VideoPlayer.Service.Playlists
                 {
                     Entry = movie
                 });
+            else
+                Confirm(existing);
         }
 
         private void ProcessUpdatedEntry(MovieCollection collection)
@@ -114,6 +128,8 @@ namespace VideoPlayer.Service.Playlists
                 {
                     Entry = collection
                 });
+            else
+                Confirm(existing);
         }
 
         private void ProcessUpdatedEntry(TVShow show)
@@ -125,6 +141,8 @@ namespace VideoPlayer.Service.Playlists
                 {
                     Entry = show
                 });
+            else
+                Confirm(existing);
         }
 
         private void ProcessUpdatedEntry(TVShowSeason season)
@@ -137,6 +155,8 @@ namespace VideoPlayer.Service.Playlists
                 {
                     Entry = season
                 });
+            else
+                Confirm(existing);
         }
 
         private void ProcessUpdatedEntry(TVShowEpisode episode)
@@ -150,6 +170,15 @@ namespace VideoPlayer.Service.Playlists
                 {
                     Entry = episode
                 });
+            else
+                Confirm(existing);
+        }
+
+        private void Confirm(PlaylistEntry existing)
+        {
+            int offset = Current.Items.IndexOf(existing);
+            if (offset > 0)
+                Current.Items.Move(offset, 0);
         }
     }
 }

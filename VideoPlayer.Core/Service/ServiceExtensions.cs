@@ -11,6 +11,7 @@ using VideoPlayer.Service.Library;
 using VideoPlayer.Service.Library.Scanner;
 using VideoPlayer.Service.Library.Scanner.Classification;
 using VideoPlayer.Service.Library.Scanner.Picture;
+using VideoPlayer.Service.Library.Tenants;
 using VideoPlayer.Service.Playlists;
 using VideoPlayer.Service.Processor;
 using VideoPlayer.Service.Settings;
@@ -29,6 +30,7 @@ namespace VideoPlayer.Service
 
         public static IServiceCollection RegisterServices(this IServiceCollection services)
         {
+            services.AddSingleton<ITenantSelection, TenantSelection>();
             services.AddSingleton<IEventController, EventController>();
             services.AddSingleton<IApplicationSettings, ApplicationSettings>();
             services.AddSingleton<IApplicationManager, ApplicationManager>();

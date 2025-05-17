@@ -90,5 +90,7 @@ namespace VideoPlayer.Service.Library.Models.Playlists
                 EntryId = (value == null) ? 0 : value.Id;
             }
         }
+
+        public string Tenant { get { return Item != null ? Item.Tenant : Entry != null ? Entry.Tenant : string.Empty; } }
     }
 }

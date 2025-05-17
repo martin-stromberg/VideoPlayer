@@ -26,6 +26,7 @@ namespace VideoPlayer.Service.Library.Models
                 //MetaInformation = JsonConvert.DeserializeObject(((MediaDataItemCollection)DataModel).MetaInformation) as MediaInformation.MediaInformation;
                 LastMetaInformationUpdate = ((MediaDataItemCollection)DataModel).LastMetaInformationUpdate;
                 LastScanCompleted = ((MediaDataItemCollection)DataModel).LastScanCompleted;
+                Tenant = ((MediaDataItemCollection)DataModel).Tenant;
             }
         }
 
@@ -121,6 +122,17 @@ namespace VideoPlayer.Service.Library.Models
             }
         }
 
+        public string Tenant {
+            get
+            {
+                return GetProperty<string>();
+            }
+            set
+            {
+                SetProperty(value);
+            }
+        }
+
         protected override void AssignChanges()
         {
             base.AssignChanges();
@@ -133,6 +145,7 @@ namespace VideoPlayer.Service.Library.Models
             ((MediaDataItemCollection)DataModel).MetaInformation = JsonConvert.SerializeObject(MetaInformation, new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.All });
             ((MediaDataItemCollection)DataModel).LastMetaInformationUpdate = LastMetaInformationUpdate;
             ((MediaDataItemCollection)DataModel).LastScanCompleted = LastScanCompleted;
+            ((MediaDataItemCollection)DataModel).Tenant = Tenant;
         }
 
     }

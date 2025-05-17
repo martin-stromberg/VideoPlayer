@@ -18,6 +18,7 @@ namespace VideoPlayer.Service.Library.Models.Sources
             {
                 LastScan = dataModel.LastScan;
                 Deleted = ((MediaDataSource)DataModel).Deleted;
+                Tenant = ((MediaDataSource)DataModel).Tenant;
             }
         }
 
@@ -29,6 +30,7 @@ namespace VideoPlayer.Service.Library.Models.Sources
                 ((MediaDataSource)DataModel).Configuration = JsonConvert.SerializeObject(this);
                 ((MediaDataSource)DataModel).LastScan = LastScan;
                 ((MediaDataSource)DataModel).Deleted = Deleted;
+                ((MediaDataSource)DataModel).Tenant = Tenant;
             }
         }
 
@@ -49,6 +51,17 @@ namespace VideoPlayer.Service.Library.Models.Sources
             get
             {
                 return GetProperty<bool>();
+            }
+            set
+            {
+                SetProperty(value);
+            }
+        }
+
+        public string Tenant {
+            get
+            {
+                return GetProperty<string>();
             }
             set
             {

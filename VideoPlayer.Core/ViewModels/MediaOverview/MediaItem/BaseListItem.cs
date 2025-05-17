@@ -21,7 +21,8 @@ namespace VideoPlayer.ViewModels.MediaOverview.MediaItem
         {
             Id = element is null ? 0 : element.Id;
             Element = element;
-            Element.PropertyChanged += Element_PropertyChanged;
+            if (Element is not null)
+                Element.PropertyChanged += Element_PropertyChanged;
             Tapped = new Command((arg) => {
                 if (!bool.TryParse(arg?.ToString(), out var boolArg))
                     boolArg = false;

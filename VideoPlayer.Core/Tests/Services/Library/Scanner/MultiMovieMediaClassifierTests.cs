@@ -39,7 +39,7 @@ namespace VideoPlayer.Tests.Services.Library.Scanner
             });
 
             var entries = MediaLibrary
-                .GetOverview(0, 10, "", EntryType.Movie, EntryType.MovieCollection)
+                .GetOverview(0, 10, "", "", EntryType.Movie, EntryType.MovieCollection)
                 .OfType<MovieCollection>()
                 .Select(e =>
                 {

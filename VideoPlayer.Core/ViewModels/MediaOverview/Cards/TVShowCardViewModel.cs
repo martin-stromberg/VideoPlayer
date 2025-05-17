@@ -132,7 +132,16 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
                 LoadSeason(value);
             }
         }
-
+        protected override void AddToFavorite(ClassifiedEntry entry)
+        {
+            entry = SelectedEpisode ?? SelectedSeason ?? SelectedShow ?? entry;
+            base.AddToFavorite(entry);
+        }
+        protected override void RemoveFromFavorite(ClassifiedEntry entry)
+        {
+            entry = SelectedEpisode ?? SelectedSeason ?? SelectedShow ?? entry;
+            base.RemoveFromFavorite(entry);
+        }
         private void SelectedEntry_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
             UpdateMediaInformation(SelectedEpisode ?? SelectedSeason ?? SelectedShow ?? Entry);

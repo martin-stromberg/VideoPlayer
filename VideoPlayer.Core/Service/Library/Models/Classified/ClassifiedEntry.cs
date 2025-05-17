@@ -16,6 +16,7 @@ namespace VideoPlayer.Service.Library.Models.Classified
                 ReleaseDate = ((DataClassifiedEntry)DataModel).ReleaseDate;
                 PremieredAt = ((DataClassifiedEntry)DataModel).PremieredAt;
                 LastWatched = ((DataClassifiedEntry)DataModel).LastWatched;
+                Tenant = ((DataClassifiedEntry)DataModel).Tenant;
                 if (Type != type)
                     throw new ArgumentException(nameof(type));
             }
@@ -25,7 +26,16 @@ namespace VideoPlayer.Service.Library.Models.Classified
                 Enabled = true;
             }
         }
-
+        public string Tenant {
+            get
+            {
+                return GetProperty<string>();
+            }
+            set
+            {
+                SetProperty(value);
+            }
+        }
         public EntryType Type
         {
             get
@@ -106,6 +116,7 @@ namespace VideoPlayer.Service.Library.Models.Classified
             ((DataClassifiedEntry)DataModel).ReleaseDate = ReleaseDate;
             ((DataClassifiedEntry)DataModel).Type = (DataEntryType)Type;
             ((DataClassifiedEntry)DataModel).LastWatched = LastWatched;
+            ((DataClassifiedEntry)DataModel).Tenant = Tenant;
         }
 
         public override string ToString()

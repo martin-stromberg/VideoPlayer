@@ -84,6 +84,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                     var source = MediaLibrary.GetSource(collection.SourceId);
                     try
                     {
+                        mediaItem.Tenant = source.Tenant;
                         var reader = CreateReader(source);
                         var parentMetaInfo = UpdateMediaInformation(collection, reader);
                         var rootName = Path.GetFileNameWithoutExtension(mediaItem.Path);
@@ -154,6 +155,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                         var isNew = episode.Id == 0;
                         episode.ShowName = show.Name;
                         episode.SeasonNo = season.Number;
+                        episode.Tenant = season.Tenant;
                         mediaItem.NeedsPictureUpdate = true;
                         episode = MediaLibrary.AddOrUpdateEpisode(episode);
                         UpdateSeasonDescandantInformation(season);
@@ -229,6 +231,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             else
                 season = UpdateTVShowSeason(season, episodeInfo.Season);
             season.ShowName = show.Name;
+            season.Tenant = show.Tenant;
             var isNew = season.Id == 0;
             season = MediaLibrary.AddOrUpdateSeason(season);
             if (isNew)
@@ -258,7 +261,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                     var poster = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"season{season.Number.ToString().PadLeft(2, '0')}-poster");
                     var banner = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"season{season.Number.ToString().PadLeft(2, '0')}-banner");
                     var fanart = pictures.FirstOrDefault(i => Path.GetFileNameWithoutExtension(i.Name) == $"season{season.Number.ToString().PadLeft(2, '0')}-fanart");
-                    if (banner is not null || poster is not null)
+                    if (banner is not null || poster is not null || fanart is not null)
                     {
                         if (banner is not null)
                         {
@@ -382,6 +385,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                     show = UpdateTVShow(show, showInfo);
             }
             var isNew = show.Id == 0;
+            show.Tenant = source.Tenant;
             show = MediaLibrary.AddOrUpdateTVShow(show);            
             ActivateGenres(show);
             if (isNew)
@@ -474,7 +478,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                 Enabled = true,
                 Visible = true,
                 PicturePath = string.Empty,
-                BannerPath = string.Empty
+                BannerPath = string.Empty,
             };
             return UpdateTVShow(show, showInfo);
         }
@@ -555,6 +559,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             episode.MediaItemIds = episode.MediaItemIds.Concat(new long[] { mediaItem.Id }).Distinct().ToArray();
             episode.PremieredAt = episodeInfo.AiredAt;
             episode.ReleaseDate = episodeInfo.AiredAt;
+            episode.Tenant = mediaItem.Tenant;
             episode.Enabled = true;
             episode.Visible = true;
             return episode;
@@ -571,6 +576,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                 BannerPath = string.Empty,
                 SeasonId = season.Id,
                 DownloadMediaItemId = 0,
+                Tenant = mediaItem.Tenant,
             };
             return UpdateEpisode(episode, mediaItem);
         }
@@ -598,6 +604,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                 CollectionId = 0,
                 TrailerMediaItemId = 0,
                 DownloadMediaItemId = 0,
+                Tenant = mediaItem.Tenant,
             };
             return UpdateMovie(movie, mediaItem);
         }
@@ -616,7 +623,61 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             movie.Enabled = true;
             movie.Visible = true;
             movie.Director = movieInfo.Director;
+            movie.Tenant = mediaItem.Tenant;
+            if (mediaItem.Tenant is null)
+                RescanCollection(mediaItem);
             return movie;
+        }
+
+        private void RescanCollection(MediaItem mediaItem)
+        {
+            var collection = MediaLibrary.GetMediaCollection(mediaItem.ParentCollectionId);
+            try
+            {
+                collection.Classified = false;
+                collection.LastAccess = DateTime.MinValue;
+                MediaLibrary.AddOrUpdateMediaCollection(collection);
+                if (collection.Tenant is null)
+                    RescanCollection(collection);
+            }
+            finally
+            {
+                MediaLibrary.Release(collection);
+            }
+        }
+
+        private void RescanCollection(MediaCollection collection)
+        {
+            var parentCollection = MediaLibrary.GetMediaCollection(collection.ParentId);
+            if (parentCollection is not null)
+                try
+                {
+                    parentCollection.Classified = false;
+                    parentCollection.LastAccess = DateTime.MinValue;
+                    MediaLibrary.AddOrUpdateMediaCollection(collection);
+                    if (parentCollection.Tenant is null)
+                        RescanCollection(parentCollection);
+                }
+                finally
+                {
+                    MediaLibrary.Release(parentCollection);
+                }
+            if (parentCollection is null)
+                RescanSource(collection);
+        }
+
+        private void RescanSource(MediaCollection collection)
+        {
+            var source = MediaLibrary.GetSource(collection.SourceId);
+            try
+            {
+                source.LastScan = DateTime.MinValue;
+                MediaLibrary.AddOrUpdateSource(source);
+            }
+            finally
+            {
+                MediaLibrary.Release(source);
+            }
         }
 
         private MovieCollection CreateMovieCollection(Movie movie, MediaItem mediaItem)
@@ -625,7 +686,8 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
             {
                 Enabled = true,
                 MediaItemCollectionId = mediaItem.ParentCollectionId,
-                Genres = new string[0]
+                Genres = new string[0],
+                Tenant = movie.Tenant,
             };
             return UpdateMovieCollection(collection, movie, mediaItem);
         }
@@ -653,6 +715,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                 collection.ReleaseDate = collectionMovies.Min(m => m.ReleaseDate);
                 collection.PremieredAt = collectionMovies.Min(m => m.PremieredAt);
             }
+            collection.Tenant = movie.Tenant;
             collection.PicturePath = movie.PicturePath;
             collection.PictureBackgroundColor = movie.PictureBackgroundColor;
             collection.IsSingle = collectionMovies.Count(m => m.Enabled) <= 1;
@@ -834,14 +897,16 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                     finally
                     {
                         MediaLibrary.Release(rolesToSave);
+                        foreach (var role in rolesToSave)
+                            MediaLibrary.Release(role.Actor);
                     }
                 }
                 finally
                 {
                     MediaLibrary.Release(existingRoles);
+                    foreach (var role in existingRoles)
+                        MediaLibrary.Release(role.Actor);
                 }
-
-
             }
             finally
             {
@@ -1662,7 +1727,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
         {
             int offset = 0;
             int count = 10;
-            var entries = MediaLibrary.GetOverview(offset, count, "", entryType).ToArray();
+            var entries = MediaLibrary.GetOverview(offset, count, "", "", entryType).ToArray();
             while (entries.Any())
                 try
                 {
@@ -1673,7 +1738,7 @@ namespace VideoPlayer.Service.Library.Scanner.Classification
                         RecaptureInvalidPictures(entry);
                         MediaLibrary.Release(entry, true);
                     }
-                    entries = MediaLibrary.GetOverview(offset, count, "", entryType).ToArray();
+                    entries = MediaLibrary.GetOverview(offset, count, "", "", entryType).ToArray();
                 }
                 finally
                 {

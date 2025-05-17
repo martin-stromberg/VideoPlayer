@@ -745,11 +745,12 @@ namespace VideoPlayer.Service.Library
             return entry;
         }
 
-        public IEnumerable<ClassifiedEntry> GetOverview(int offset, int count, string genre, params EntryType[] entryTypes)
+        public IEnumerable<ClassifiedEntry> GetOverview(int offset, int count, string tenant, string genre, params EntryType[] entryTypes)
         {
             var entryIds = _Database.GetAll<DataClassifiedEntry>(offset, count,
                     new Filter() { Name = nameof(DataClassifiedEntry.Enabled), Value = true },
                     new Filter() { Name = nameof(DataClassifiedEntry.Visible), Value = true },
+                    new Filter() { Name = nameof(DataClassifiedEntry.Tenant), Value = tenant },
                     new Filter() { Name = nameof(DataClassifiedEntry.Type), Value = entryTypes },
                     new Filter() { Name = string.IsNullOrWhiteSpace(genre) ? "" : nameof(DataClassifiedEntry.Genre), Value = genre, Type = FilterType.Contains })
                                     .Select(c => c.Id);

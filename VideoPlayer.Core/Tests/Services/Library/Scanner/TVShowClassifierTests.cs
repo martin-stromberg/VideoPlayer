@@ -30,7 +30,7 @@ namespace VideoPlayer.Tests.Services.Library.Scanner
             });
 
             var entries = MediaLibrary
-                .GetOverview(0, 10, "", EntryType.TVShow, EntryType.TVShowCollection)
+                .GetOverview(0, 10, "", "", EntryType.TVShow, EntryType.TVShowCollection)
                 .OfType<TVShow>()
                 .Select(e =>
                 {

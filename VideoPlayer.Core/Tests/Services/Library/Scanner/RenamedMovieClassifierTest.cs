@@ -27,7 +27,7 @@ namespace VideoPlayer.Tests.Services.Library.Scanner
                 AssertRecordCount(mediaItems, 11);
             });
             var entries = MediaLibrary
-                .GetOverview(0, 10, "", EntryType.Movie, EntryType.MovieCollection)
+                .GetOverview(0, 10, "", "", EntryType.Movie, EntryType.MovieCollection)
                 .OfType<Movie>()
                 .Select(e =>
                 {
@@ -78,7 +78,7 @@ namespace VideoPlayer.Tests.Services.Library.Scanner
                 AssertRecordCount(mediaItems, 1);
             });
             entries = MediaLibrary
-                .GetOverview(0, 10, "", EntryType.Movie, EntryType.MovieCollection)
+                .GetOverview(0, 10, "", "", EntryType.Movie, EntryType.MovieCollection)
                 .OfType<Movie>()
                 .Select(e =>
                 {

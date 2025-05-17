@@ -378,8 +378,14 @@ namespace VideoPlayer.Service.Download
             {
                 RemoveMediaItemWithRescan(session.Item);
                 session.Item = null;
-                session.Reset();
-                queueCheck.Enqueue(session);
+                session.TryCount += 1;
+                if (session.TryCount < 5)
+                {
+                    session.Reset();
+                    queueCheck.Enqueue(session);
+                }
+                else
+                    session.Fail(ex);
             }
             catch(Exception ex)
             {

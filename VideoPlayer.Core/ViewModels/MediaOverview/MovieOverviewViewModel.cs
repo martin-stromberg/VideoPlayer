@@ -8,6 +8,7 @@ using VideoPlayer.Navigation;
 using VideoPlayer.Service.Library;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
+using VideoPlayer.Service.Library.Tenants;
 using VideoPlayer.Service.Processor;
 using VideoPlayer.Service.Resources;
 using VideoPlayer.ViewModels.MediaOverview.Genres;
@@ -23,13 +24,14 @@ namespace VideoPlayer.ViewModels.MediaOverview
             GenreSelectionViewModel genreSelectionViewModel, 
             INavigationManager navigationManager,
             IProcessorCollection processorCollection,
+            ITenantSelection tenantSelection,
             IResourceManager resourceManager, ILogger<MovieOverviewViewModel> logger) 
             : base(genreSelectionViewModel, 
                   new EntryType[] { EntryType.Movie, EntryType.MovieCollection }, 
                   mediaLibrary, 
                   navigationManager, 
                   processorCollection,
-                  resourceManager, logger)
+                  resourceManager, tenantSelection, logger)
         {
         }
         protected override bool CheckViewGenre(Genre genre)

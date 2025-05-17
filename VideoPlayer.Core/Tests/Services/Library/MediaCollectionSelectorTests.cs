@@ -36,7 +36,7 @@ namespace VideoPlayer.Tests.Services.Library
         private void ExecuteSelectorWithEpisodeEntries()
         {
             MediaCollectionSelector selector = new MediaCollectionSelector(MediaLibrary);
-            var shows = MediaLibrary.GetOverview(0, int.MaxValue, "", Service.Library.Models.Classified.EntryType.TVShow);
+            var shows = MediaLibrary.GetOverview(0, int.MaxValue, "", "", Service.Library.Models.Classified.EntryType.TVShow);
             var show = shows.FirstOrDefault();
             var seasons = MediaLibrary.GetSeasons(show.Id)
                 .OrderBy(s => s.Number)
@@ -65,7 +65,7 @@ namespace VideoPlayer.Tests.Services.Library
         private void ExecuteSelectorWithEpisodeItems()
         {
             MediaCollectionSelector selector = new MediaCollectionSelector(MediaLibrary);
-            var shows = MediaLibrary.GetOverview(0, int.MaxValue, "", Service.Library.Models.Classified.EntryType.TVShow);
+            var shows = MediaLibrary.GetOverview(0, int.MaxValue, "", "", Service.Library.Models.Classified.EntryType.TVShow);
             var show = shows.FirstOrDefault();
             var seasons = MediaLibrary.GetSeasons(show.Id)
                 .OrderBy(s => s.Number)

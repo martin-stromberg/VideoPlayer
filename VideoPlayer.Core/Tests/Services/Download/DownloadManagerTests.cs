@@ -42,7 +42,7 @@ namespace VideoPlayer.Tests.Services.Download
                 .GetMediaItems()
                 .Where(mi => movie.MediaItemIds.Contains(mi.Id))
                 .FirstOrDefault();
-            var actualOverviewEntries = MediaLibrary.GetOverview(0, 10, "", EntryType.Movie).ToArray();
+            var actualOverviewEntries = MediaLibrary.GetOverview(0, 10, "", "", EntryType.Movie).ToArray();
             AssertRecordCount(actualOverviewEntries, 1);
 
             if (resetCache)
@@ -139,7 +139,7 @@ namespace VideoPlayer.Tests.Services.Download
                 }
             };
             AssertRecordsEqual(actual, expected);
-            actualOverviewEntries = MediaLibrary.GetOverview(0, 10, "", EntryType.Movie).ToArray();
+            actualOverviewEntries = MediaLibrary.GetOverview(0, 10, "", "", EntryType.Movie).ToArray();
             AssertRecordCount(actualOverviewEntries, 1);
 
             if (resetCache)
@@ -172,7 +172,7 @@ namespace VideoPlayer.Tests.Services.Download
                 })
                 .ToArray();
             AssertRecordsEqual(actual, expected);
-            actualOverviewEntries = MediaLibrary.GetOverview(0, 10, "", EntryType.Movie).ToArray();
+            actualOverviewEntries = MediaLibrary.GetOverview(0, 10, "", "", EntryType.Movie).ToArray();
             AssertRecordCount(actualOverviewEntries, 1);
 
             if (resetCache)
@@ -249,7 +249,7 @@ namespace VideoPlayer.Tests.Services.Download
                 }
             };
             AssertRecordsEqual(actualMovie, expectedMovie);
-            actualOverviewEntries = MediaLibrary.GetOverview(0, 10, "", EntryType.Movie).ToArray();
+            actualOverviewEntries = MediaLibrary.GetOverview(0, 10, "", "", EntryType.Movie).ToArray();
             AssertRecordCount(actualOverviewEntries, 1);
 
             if (resetCache)
@@ -282,7 +282,7 @@ namespace VideoPlayer.Tests.Services.Download
                 })
                 .ToArray();
             AssertRecordsEqual(actual, expected);
-            actualOverviewEntries = MediaLibrary.GetOverview(0, 10, "", EntryType.Movie).ToArray();
+            actualOverviewEntries = MediaLibrary.GetOverview(0, 10, "", "", EntryType.Movie).ToArray();
             AssertRecordCount(actualOverviewEntries, 1);
         }
     }

@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using VideoPlayer.Service.Device;
 using VideoPlayer.Service.Library.Scanner;
+using VideoPlayer.Service.Library.Tenants;
 using VideoPlayer.Service.Playlists;
 using VideoPlayer.Service.Processor;
 
@@ -28,6 +29,8 @@ namespace VideoPlayer.ViewModels.HomePage
             RefreshCommand = new Command(() => ExecuteRefresh());
             this.libraryScanner = libraryScanner;
         }
+
+        
         #region Loading Status
         public override void ExecuteAppeared()
         {
@@ -39,7 +42,8 @@ namespace VideoPlayer.ViewModels.HomePage
         }
         protected override void ExecuteFirstAppeared()
         {
-            base.ExecuteFirstAppeared();            
+            base.ExecuteFirstAppeared();
+            LoadTenants();
             IsLoading = false;
             IsLoaded = true;
         }
@@ -103,6 +107,21 @@ namespace VideoPlayer.ViewModels.HomePage
         #region Error Messages
         public string ErrorMessages { get => GetProperty<string>(); set { SetProperty(value); ErrorsVisible = !string.IsNullOrWhiteSpace(value); } }
         public bool ErrorsVisible { get => GetProperty<bool>(); set { SetProperty(value); ContentVisible = !value; } }
+        #endregion
+        #region Tenants
+        protected virtual void LoadTenants()
+        {
+
+        }
+        public string[] Tenants { get => GetProperty<string[]>(); set => SetProperty(value); }
+        public string SelectedTenant
+        {
+            get => GetProperty<string>();
+            set
+            {
+                SetProperty(value);
+            }
+        }
         #endregion
     }
 }

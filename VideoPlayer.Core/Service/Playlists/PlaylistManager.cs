@@ -10,6 +10,7 @@ using VideoPlayer.Service.Events;
 using VideoPlayer.Service.Library;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
+using VideoPlayer.Service.Library.Tenants;
 using VideoPlayer.Service.Processor;
 using VideoPlayer.Service.Resources;
 using VideoPlayer.Service.Settings;
@@ -37,6 +38,7 @@ namespace VideoPlayer.Service.Playlists
     public class PlaylistManager: BaseService, IPlaylistManager
     {
         public PlaylistManager(
+            ITenantSelection tenantSelection,
             IMediaLibrary mediaLibrary, 
             IDownloadManager downloadManager,
             IProcessorCollection processorCollection,
@@ -52,7 +54,7 @@ namespace VideoPlayer.Service.Playlists
             General.DownloadFailed += General_DownloadFailed;
 
             NextPlaybackPlaylist = new NextPlaybackPlaylist(mediaLibrary, mediaCollectionSelector, processorCollection, downloadManager, applicationSettings, Logger);
-            NewPlaylist = new NewEntriesPlaylist(mediaLibrary, mediaCollectionSelector, downloadManager, Logger);
+            NewPlaylist = new NewEntriesPlaylist(tenantSelection, mediaLibrary, mediaCollectionSelector, downloadManager, Logger);
             Favorites = new FavoritePlaylist(mediaLibrary, mediaCollectionSelector, downloadManager,logger);
         }
 

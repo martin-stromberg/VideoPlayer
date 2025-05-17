@@ -63,5 +63,16 @@ namespace VideoPlayer.Service.Database.Models
                 SetProperty(value);
             }
         }
+
+        public string Tenant {
+            get
+            {
+                return GetProperty<string>();
+            }
+            set
+            {
+                SetProperty(value);
+            }
+        }
     }
 }

@@ -91,7 +91,7 @@ namespace VideoPlayer.Service.Library
         #endregion
         ClassifiedEntry AddOrUpdateEntry(ClassifiedEntry entry);
         ClassifiedEntry GetClassifiedEntry(long id);
-        IEnumerable<ClassifiedEntry> GetOverview(int offset, int count, string genre, params EntryType[] entryTypes);
+        IEnumerable<ClassifiedEntry> GetOverview(int offset, int count, string tenant, string currentGenre, params EntryType[] entryTypes);
         IEnumerable<ClassifiedEntry> GetClassifiedEntriesWithPicture(string name);
         IEnumerable<string> GetClassifiedEntryPictureFileNames();
         #region Genres

@@ -10,6 +10,7 @@ using VideoPlayer.Navigation;
 using VideoPlayer.Service.Library;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
+using VideoPlayer.Service.Library.Tenants;
 using VideoPlayer.Service.Processor;
 using VideoPlayer.Service.Resources;
 using VideoPlayer.ViewModels.MediaOverview.Genres;
@@ -25,13 +26,14 @@ namespace VideoPlayer.ViewModels.MediaOverview
             INavigationManager navigationManager, 
             IProcessorCollection processorCollection,
             IResourceManager resourceManager,
+            ITenantSelection tenantSelection,
             ILogger<ActorsOverviewViewModel> logger)
             : base(genreSelectionViewModel, 
                   new EntryType[] { }, 
                   mediaLibrary, 
                   navigationManager, 
                   processorCollection,
-                  resourceManager, logger)
+                  resourceManager, tenantSelection, logger)
         {
         }
 

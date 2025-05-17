@@ -60,6 +60,17 @@ namespace VideoPlayer.Service.Database
             try
             {
                 connection.CreateTables(CreateFlags.None, ModelTypes);
+
+                foreach (var entry in GetAll(typeof(DataClassifiedEntry), new Filter()
+                {
+                    Name = nameof(DataClassifiedEntry.Tenant),
+                    Value = null,
+                    Type = FilterType.Equal
+                }).Cast<DataClassifiedEntry>().ToArray())
+                {
+                    entry.Tenant = string.Empty;
+                    AddOrUpdate<DataClassifiedEntry>(entry);
+                }
             }
             finally
             {

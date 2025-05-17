@@ -13,6 +13,7 @@ using VideoPlayer.Service.Device;
 using VideoPlayer.Service.Library;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
+using VideoPlayer.Service.Library.Tenants;
 using VideoPlayer.Service.Processor;
 using VideoPlayer.Service.Resources;
 using VideoPlayer.ViewModels.MediaOverview.Genres;
@@ -28,6 +29,8 @@ namespace VideoPlayer.ViewModels.MediaOverview
     {
         private readonly EntryType[] entryTypes;
         private readonly INavigationManager navigationManager;
+        private readonly ITenantSelection tenantSelection;
+
         protected IResourceManager ResourceManager { get; }
 
         public BaseMediaOverviewViewModel(
@@ -37,6 +40,7 @@ namespace VideoPlayer.ViewModels.MediaOverview
             INavigationManager navigationManager,
             IProcessorCollection processorCollection,
             IResourceManager resourceManager,
+            ITenantSelection tenantSelection,
             ILogger logger)
             :base(logger)
         {
@@ -44,6 +48,7 @@ namespace VideoPlayer.ViewModels.MediaOverview
             MediaLibrary = mediaLibrary;
             this.navigationManager = navigationManager;
             ResourceManager = resourceManager;
+            this.tenantSelection = tenantSelection;
             genreSelectionViewModel.GenreLoaded += GenreSelectionViewModel_GenreLoaded;
             GenreSelectionContext = genreSelectionViewModel;
             Items.CollectionChanged += Items_CollectionChanged;
@@ -154,7 +159,11 @@ namespace VideoPlayer.ViewModels.MediaOverview
             var itemsFound = false;
             try
             {                
-                var items = MediaLibrary.GetOverview(offset, count, currentGenre, entryTypes);
+                var items = MediaLibrary.GetOverview(
+                    offset, count, 
+                    tenantSelection.CurrentTenant == TenantSelection.DefaultTenantName ? string.Empty:tenantSelection.CurrentTenant, 
+                    currentGenre, 
+                    entryTypes);
                 if (offset == 0)
                     Items.Clear();
                 foreach (var item in items)

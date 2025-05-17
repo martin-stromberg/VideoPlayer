@@ -307,6 +307,11 @@ namespace VideoPlayer.Service.Playlists
                 var entriesToRemove = RemoveBelongingEntries(nextEntry as TVShowEpisode)
                     .Concat(RemoveBelongingEntries(nextEntry as Movie))
                     .ToList();
+                if (nextEntry is TVShowSeason || nextEntry is TVShow)
+                {
+                    ExecuteDownloadRequest(mediaItem, applicationSettings.DownloadDueTimeNextPlaylistCache);
+                    Current.SkipNextDownload();
+                }
                 Current.Add(mediaItem, nextEntry);
                 foreach (var entry in entriesToRemove)
                 {

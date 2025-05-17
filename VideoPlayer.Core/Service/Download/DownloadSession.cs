@@ -79,6 +79,7 @@ namespace VideoPlayer.Service.Download
         }
 
         public bool Waiting { get; private set; }
+        public int TryCount { get; internal set; }
 
         private DownloadSession parentSession;
         private void ClearParent()

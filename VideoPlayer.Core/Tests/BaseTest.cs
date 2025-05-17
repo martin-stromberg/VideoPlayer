@@ -89,7 +89,7 @@ namespace VideoPlayer.Tests
         protected void InitializePlaylistManager()
         {
             IMediaCollectionSelector mediaCollectionSelector = new MediaCollectionSelector(MediaLibrary);
-            PlaylistManager = new PlaylistManager(MediaLibrary, DownloadManager, ProcessorCollection, mediaCollectionSelector, new ApplicationSettings(), null);
+            PlaylistManager = new PlaylistManager(null, MediaLibrary, DownloadManager, ProcessorCollection, mediaCollectionSelector, new ApplicationSettings(), null);
         }
 
         protected void InitializeEmptyDatabase()

@@ -158,6 +158,7 @@ namespace VideoPlayer.ViewModels.Setup
             {
                 Source.LastScan = DateTime.Now;
             }
+            Source.Tenant = Properties.First(p => p.Name == "Tenant").Value;
             if (HttpSource is not null)
             {
                 HttpSource.Uri = Properties.First(p => p.Name == "Adresse").Value;
@@ -179,6 +180,10 @@ namespace VideoPlayer.ViewModels.Setup
                 SFTPSource.RootPath = Properties.First(p => p.Name == "Relativer Pfad").Value;
             }
             SaveRequest.Invoke(this, EventArgs.Empty);
+            OriginalProperties.Clear();
+            foreach (var elementProperty in Properties)
+                OriginalProperties.Add(new ElementProperty(elementProperty.Name, elementProperty.Value));
+            HasChanged = false;
         }
         public event EventHandler SaveRequest;
         public event EventHandler RemoveRequest;
@@ -186,7 +191,7 @@ namespace VideoPlayer.ViewModels.Setup
 
         private void Check()
         {
-            foreach (var prop in Properties)
+            foreach (var prop in Properties.Where(p => p.Name != "Tenant"))
             {
                 if (string.IsNullOrWhiteSpace(prop.Value))
                     throw new ArgumentException($"Bitte gib {prop.Name} an.");
@@ -204,8 +209,9 @@ namespace VideoPlayer.ViewModels.Setup
                 {
                     PossibleValues = new string[] { "Http", "Smb", "SFTP" }
                 });
+            AddProperty(new ElementProperty("Tenant", Source?.Tenant));
             if (HttpSource is not null)
-            {
+            {                
                 AddProperty(new ElementProperty("Adresse", HttpSource.Uri));
             }
             else if (SmbSource is not null)

@@ -44,7 +44,7 @@ namespace VideoPlayer.Tests.Services.Library
                 AssertRecordCount(mediaItems, 74);
             });
 
-            var overview = MediaLibrary.GetOverview(0, 10, "", Service.Library.Models.Classified.EntryType.TVShow)
+            var overview = MediaLibrary.GetOverview(0, 10, "", "", Service.Library.Models.Classified.EntryType.TVShow)
                 .ToArray();
             var show = overview.FirstOrDefault();
             var season = MediaLibrary.GetSeasons(show.Id).FirstOrDefault();

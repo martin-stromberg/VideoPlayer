@@ -1,9 +1,12 @@
 ﻿using Microsoft.Extensions.Logging;
 using System;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using VideoPlayer.Navigation;
 using VideoPlayer.Service.Events;
+using VideoPlayer.Service.Library;
 using VideoPlayer.Service.Library.Scanner;
+using VideoPlayer.Service.Library.Tenants;
 using VideoPlayer.Service.Playlists;
 using VideoPlayer.Service.Processor;
 using VideoPlayer.Service.Resources;
@@ -13,11 +16,13 @@ namespace VideoPlayer.ViewModels.HomePage
 {
     public class HomePageViewModel: BaseHomePageViewModel, IMultiEventCollection
     {
+        private ITenantSelection tenantSelection;
         public HomePageViewModel(
             INavigationManager navigationManager,
             IPlaylistManager playlistManager, 
             IResourceManager resourceManager,
             ILibraryScanner libraryScanner,
+            ITenantSelection tenantSelection,
             IProcessorCollection processorCollection,
             ILogger<HomePageViewModel> logger,
             ILogger<NextPlayingViewModel> loggerNextPlaying,
@@ -27,10 +32,14 @@ namespace VideoPlayer.ViewModels.HomePage
         {
             Title = "Videoplayer";            
             this.navigationManager = navigationManager;
-            NextPlayingContext = new NextPlayingViewModel(playlistManager, navigationManager, resourceManager, loggerNextPlaying);
-            FavoritesContext = new FavoritesViewModel(playlistManager, navigationManager, resourceManager, loggerFavorites);
-            NewContext = new NewPlaylistViewModel(playlistManager, navigationManager, resourceManager, loggerNewPlaying);
+            this.tenantSelection = tenantSelection;
+            tenantSelection.TenantChanged += TenantSelection_TenantChanged;
+            NextPlayingContext = new NextPlayingViewModel(playlistManager, navigationManager, resourceManager, tenantSelection, loggerNextPlaying);
+            FavoritesContext = new FavoritesViewModel(playlistManager, navigationManager, resourceManager, tenantSelection, loggerFavorites);
+            NewContext = new NewPlaylistViewModel(playlistManager, navigationManager, resourceManager, tenantSelection, loggerNewPlaying);
         }
+
+        
 
         public override void ExecuteAppeared()
         {
@@ -49,8 +58,20 @@ namespace VideoPlayer.ViewModels.HomePage
             ExecuteNavigate("home");
         }
 
+        protected override void OnPropertyChanged([CallerMemberName] string propertyName = "")
+        {
+            base.OnPropertyChanged(propertyName);
+            switch(propertyName)
+            {
+                case nameof(SelectedTenant):
+                    tenantSelection.ChangeTenant(SelectedTenant);
+                    break;
+            }
+        }
+
         #region General Navigation
         private readonly INavigationManager navigationManager;
+
         protected override void ExecuteNavigate(string navigationCategory)
         {
             try
@@ -89,6 +110,16 @@ namespace VideoPlayer.ViewModels.HomePage
             return new IEventPublisher[0] { };
         }
         #endregion
-
+        protected override void LoadTenants()
+        {
+            base.LoadTenants();
+            Tenants = tenantSelection.AllTenants;
+            SelectedTenant = tenantSelection.CurrentTenant;
+        }
+        private void TenantSelection_TenantChanged(object sender, string currentTenant)
+        {
+            SelectedTenant = currentTenant;
+            tenantSelection.ChangeTenant(currentTenant);
+        }
     }
 }

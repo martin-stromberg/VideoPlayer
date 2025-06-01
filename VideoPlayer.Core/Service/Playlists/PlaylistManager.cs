@@ -34,6 +34,7 @@ namespace VideoPlayer.Service.Playlists
         void AddToFavorite(ClassifiedEntry entry);
         void RemoveFromFavorite(ClassifiedEntry entry);
         bool IsInFavorite(ClassifiedEntry entry);
+        void CheckAndUpdateDueTimes();
     }
     public class PlaylistManager: BaseService, IPlaylistManager
     {
@@ -122,6 +123,11 @@ namespace VideoPlayer.Service.Playlists
         public void ProcessMediaEnded(MediaItem currentMediaItem)
         {
             General.Continue(currentMediaItem);
+        }
+
+        public void CheckAndUpdateDueTimes()
+        {
+            NextPlaybackPlaylist.CheckAndUpdateDueTimes();
         }
 
         #region NewEntriesPlaylist

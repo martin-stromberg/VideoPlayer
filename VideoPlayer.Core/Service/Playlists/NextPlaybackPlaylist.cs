@@ -224,6 +224,8 @@ namespace VideoPlayer.Service.Playlists
         }
         internal void ProcessVideoPosition(MediaItem mediaItem, TimeSpan position, TimeSpan duration)
         {
+            if (position == TimeSpan.Zero)
+                return;
             lock (_ProcessingLock)
             {
                 _ProcessingMediaItem = mediaItem;
@@ -324,6 +326,35 @@ namespace VideoPlayer.Service.Playlists
             {
                 SaveChanges();
             }
+        }
+
+        public void CheckAndUpdateDueTimes()
+        {
+            foreach (var item in Current.Items)
+            {
+                CheckAndUpdateDueTimes(item);
+            }
+        }
+
+        private void CheckAndUpdateDueTimes(PlaylistEntry item)
+        {
+            if (item.Item is null)
+                return;            
+            switch (item.Item.CopyType)
+            {
+                case MediaItemCopyType.Download:
+                    ExecuteDownloadRequest(item.Item, applicationSettings.DownloadDueTimeDownload);
+                    break;
+                case MediaItemCopyType.Cache:
+                    ExecuteDownloadRequest(item.Item, applicationSettings.DownloadDueTimeCache);
+                    break;
+                case MediaItemCopyType.Original:
+                    ExecuteDownloadRequest(item.Item, applicationSettings.DownloadDueTimeNextPlaylistCache);
+                    break;
+            }
+            var nextItem = MediaCollectionSelector.FindNextMediaItem(item.Item);
+            if (nextItem is not null)
+                ExecuteDownloadRequest(nextItem, applicationSettings.DownloadDueTimeNextPlaylistCache);
         }
 
         private IEnumerable<PlaylistEntry> RemoveBelongingEntries(TVShowEpisode entry)

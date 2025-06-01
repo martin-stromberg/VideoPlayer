@@ -15,13 +15,13 @@ namespace VideoPlayer.Service.BaseServices
         public TimerService(string name, IProcessorCollection processorCollection, ILogger logger)
             :base(logger)
         {
-            Name = name;
+            Name = string.IsNullOrWhiteSpace(name) ? GetType().Name : name;
             ChangeProcessorCollection(processorCollection);
         }
         public TimerService(string name, ILogger logger)
             : this(name, null, logger)
         {
-            Name = name;
+            Name = string.IsNullOrWhiteSpace(name) ? GetType().Name : name;
             ChangeProcessorCollection(processorCollection);
         }
 

@@ -3,6 +3,16 @@ using VideoPlayer.Service.Library.Models.Classified;
 
 namespace VideoPlayer.Service.Download
 {
+    public class DownloadSessionEventArgs : EventArgs
+    {
+        public DownloadSessionEventArgs(DownloadSession downloadSession)
+        {
+            Session = downloadSession;
+        }
+
+        public DownloadSession Session { get; set; }
+        public bool Result { get; set; }
+    }
     public class DownloadSession
     {
         public DownloadSession()

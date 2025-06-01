@@ -267,7 +267,16 @@ namespace VideoPlayer.ViewModels.MediaOverview.Cards
         public string Genres { get => GetProperty<string>(); protected set => SetProperty(value); }
         public string Plot { get => GetProperty<string>(); protected set => SetProperty(value); }
 
-        public bool PlaybackControlsVisible { get => GetProperty<bool>(); set { SetProperty(value); } }
+        public bool PlaybackControlsVisible 
+        { 
+            get => GetProperty<bool>(); 
+            set {
+                if (MainThread.IsMainThread)
+                    SetProperty(value);
+                else 
+                    MainThread.BeginInvokeOnMainThread(() => { SetProperty(value); });
+            }
+        }
 
         private Service.Library.Models.MediaItem currentMediaItem;
 

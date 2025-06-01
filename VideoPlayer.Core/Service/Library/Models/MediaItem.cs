@@ -14,7 +14,16 @@ namespace VideoPlayer.Service.Library.Models
         Download = 201
 
     }
+    public class MediaItemEventArgs : EventArgs
+    {
+        public MediaItemEventArgs(MediaItem mediaItem)
+        {
+            MediaItem = mediaItem;
+        }
 
+        public MediaItem MediaItem { get; }
+        public bool Allowed { get; set; }
+    }
     [DataModelReference(typeof(MediaDataItem))]
     public class MediaItem: BaseServiceModel
     {

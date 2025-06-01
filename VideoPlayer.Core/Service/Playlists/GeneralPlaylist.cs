@@ -38,6 +38,7 @@ namespace VideoPlayer.Service.Playlists
             e.Session.Starting += Session_Starting;
             e.Session.Progress += Session_Progress;
             e.Session.Finished += Session_Finished;
+            Session_Starting(e.Session, e);
         }
 
 

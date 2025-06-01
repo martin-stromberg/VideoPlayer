@@ -104,7 +104,7 @@ namespace VideoPlayer.Tests
 
         protected void InitializeDownloadManager()
         {
-            DownloadManager = new DownloadManager(MediaLibrary, new ApplicationEnvironment(), null, ProcessorCollection, new ApplicationSettings(), null);
+            DownloadManager = new DownloadManager(MediaLibrary, new ApplicationEnvironment(), null, ProcessorCollection, new ApplicationSettings(), null, null);
             DownloadManager.CreatingSourceReader += DownloadManager_CreatingSourceReader;
         }
 

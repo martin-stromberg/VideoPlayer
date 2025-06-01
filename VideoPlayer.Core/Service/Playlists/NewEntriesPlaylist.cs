@@ -49,13 +49,17 @@ namespace VideoPlayer.Service.Playlists
         protected override void SaveChanges()
         {
             if (tenantSelection is not null)
-            foreach (var tenant in tenantSelection.AllTenants)
-                while (Current.Items.Count(i => i.Tenant == tenant) > 10)
+                foreach (var tenant in tenantSelection.AllTenants.Concat(new string[] { "" }))
                 {
-                    var lastEntry = Current.Items.LastOrDefault(i => i.Tenant == tenant);
-                    if (lastEntry == null)
-                        break;
-                    Current.Items.Remove(lastEntry);
+                    var entryCount = Current.Items.Count(i => i.Tenant == tenant);
+                    while (entryCount > 10)
+                    {
+                        var lastEntry = Current.Items.LastOrDefault(i => i.Tenant == tenant);
+                        if (lastEntry == null)
+                            break;
+                        Current.Items.Remove(lastEntry);
+                        entryCount = Current.Items.Count(i => i.Tenant == tenant);
+                    }
                 }
             base.SaveChanges();
         }

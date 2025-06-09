@@ -25,6 +25,7 @@ namespace VideoPlayer.Service.Library
         MediaSource GetNextScanSource();
         #endregion
         #region MediaCollection
+        MediaCollection GetNextDueCollection();
         IEnumerable<MediaCollection> GetSourceMediaCollections(long sourceId);
         MediaCollection GetMediaCollectionByPath(long id, string fullPath);
 
@@ -136,5 +137,6 @@ namespace VideoPlayer.Service.Library
         void Hold(BaseServiceModel entry);
         IEnumerable<Role> GetRoles(long id, int offset, int count);
         IEnumerable<Role> GetRolesWithoutRoleCount();
+       
     }
 }

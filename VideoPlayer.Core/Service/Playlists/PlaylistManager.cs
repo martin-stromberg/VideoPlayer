@@ -67,12 +67,12 @@ namespace VideoPlayer.Service.Playlists
         public override IEnumerable<IEventPublisher> GetPublishers()
         {
             return base.GetPublishers()
-                .Concat(new IEventPublisher[] { NewPlaylist });
+                .Concat(new IEventPublisher[] { NewPlaylist, NextPlaybackPlaylist, Favorites });
         }
         public override IEnumerable<IEventSubscriber> GetSubscribers()
         {
             return base.GetSubscribers()
-                .Concat(new IEventSubscriber[] { NewPlaylist });
+                .Concat(new IEventSubscriber[] { NewPlaylist, NextPlaybackPlaylist, Favorites });
         }
         private void General_DownloadProgress(object sender, DownloadProgressEventArgs e)
         {

@@ -100,6 +100,17 @@ namespace VideoPlayer.Service.Database.Models
                 SetProperty(value);
             }
         }
+        public DateTime NextScanDue
+        {
+            get
+            {
+                return GetProperty<DateTime>();
+            }
+            set
+            {
+                SetProperty(value);
+            }
+        }
 
         public string Tenant {
             get

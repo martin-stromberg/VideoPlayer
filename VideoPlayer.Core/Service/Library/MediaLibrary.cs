@@ -296,6 +296,16 @@ namespace VideoPlayer.Service.Library
         }
         #endregion
         #region MediaCollection
+        public MediaCollection GetNextDueCollection()
+        {
+            var collection = _Database.GetAll<MediaDataItemCollection>(0, 1, nameof(MediaDataItemCollection.NextScanDue), true).FirstOrDefault();
+            if (collection is null)
+                return null;
+            if (collection.NextScanDue > DateTime.Now) 
+                return null;
+            return GetMediaCollection(collection.Id);
+
+        }
         public IEnumerable<MediaCollection> GetSourceMediaCollections(long sourceId)
         {
             var collectionIds = _Database

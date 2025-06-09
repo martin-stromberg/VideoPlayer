@@ -27,6 +27,7 @@ namespace VideoPlayer.Service.Library.Models
                 LastMetaInformationUpdate = ((MediaDataItemCollection)DataModel).LastMetaInformationUpdate;
                 LastScanCompleted = ((MediaDataItemCollection)DataModel).LastScanCompleted;
                 Tenant = ((MediaDataItemCollection)DataModel).Tenant;
+                NextScanDue = ((MediaDataItemCollection)DataModel).NextScanDue;
             }
         }
 
@@ -132,6 +133,17 @@ namespace VideoPlayer.Service.Library.Models
                 SetProperty(value);
             }
         }
+        public DateTime NextScanDue
+        {
+            get
+            {
+                return GetProperty<DateTime>();
+            }
+            set
+            {
+                SetProperty(value);
+            }
+        }
 
         protected override void AssignChanges()
         {
@@ -146,7 +158,11 @@ namespace VideoPlayer.Service.Library.Models
             ((MediaDataItemCollection)DataModel).LastMetaInformationUpdate = LastMetaInformationUpdate;
             ((MediaDataItemCollection)DataModel).LastScanCompleted = LastScanCompleted;
             ((MediaDataItemCollection)DataModel).Tenant = Tenant;
+            ((MediaDataItemCollection)DataModel).NextScanDue = NextScanDue;
         }
-
+        public override string ToString()
+        {
+            return Path;
+        }
     }
 }

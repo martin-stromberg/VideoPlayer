@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -7,6 +8,7 @@ using System.Text;
 using System.Threading.Tasks;
 using VideoPlayer.Service.BaseServices;
 using VideoPlayer.Service.Download;
+using VideoPlayer.Service.Events;
 using VideoPlayer.Service.Library;
 using VideoPlayer.Service.Library.Models;
 using VideoPlayer.Service.Library.Models.Classified;
@@ -215,6 +217,91 @@ namespace VideoPlayer.Service.Playlists
             }
         }
         #endregion
+
+        protected override void ProcessNotification(NotificationEventArgs e)
+        {
+            base.ProcessNotification(e);
+            switch (e.Name)
+            {
+                case "EntryClassified-New":
+                    ProcessUpdatedEntry(e.Data as TVShowEpisode);
+                    ProcessUpdatedEntry(e.Data as Movie);
+                    break;
+            }
+        }
+
+        private void ProcessUpdatedEntry(Movie movie)
+        {
+            if (movie is null) return;
+        }
+
+        private void ProcessUpdatedEntry(TVShowEpisode episode)
+        {
+            if (episode is null) return;
+            var mediaItem = episode.MediaItemIds.Select(id =>
+            {
+                var mi = MediaLibrary.GetMediaItem(id);
+                if (mi.CopyType == MediaItemCopyType.Original)
+                    return mi;
+                return null;
+            }).FirstOrDefault(mi => mi is not null);
+            if (mediaItem is null) return;
+
+            var existingShowEntry = this.Current.Items.FirstOrDefault(entry =>
+            {
+                var currentSeason = MediaLibrary.GetTVShowSeason(episode.SeasonId);
+
+                var existingEpisode = entry.Entry as TVShowEpisode;
+                var existingSeason = entry.Entry as TVShowSeason;
+
+                if (existingEpisode is not null)
+                {
+                    existingSeason = MediaLibrary.GetTVShowSeason(existingEpisode.SeasonId);
+                    MediaLibrary.Release(existingSeason);                    
+                }
+                if (existingSeason is not null)
+                    return existingSeason.ShowId == currentSeason.ShowId;
+                return false;
+            }); 
+            try
+            {
+                // Prüfen, ob die vorherige Episode angesehen wurde.
+                if (existingShowEntry is null)
+                {
+                    var previousEpisode = MediaCollectionSelector.FindPreviousEntry(episode);
+                    if (previousEpisode is null) return;
+                    MediaLibrary.Release(previousEpisode);
+                    if (previousEpisode.LastWatched == DateTime.MinValue)
+                        return;
+                    AddMediaItem(mediaItem);
+                    return;
+                }
+                else
+                {   // Prüfen, ob die Staffel vor der aktuell abzuspielenden liegt
+                    var existingEpisode = existingShowEntry.Entry as TVShowEpisode;
+                    var existingSeason = existingShowEntry.Entry as TVShowSeason;
+                    if (existingSeason is null && existingEpisode is not null)
+                    {
+                        existingSeason = MediaLibrary.GetTVShowSeason(existingEpisode.SeasonId);
+                        MediaLibrary.Release(existingSeason);
+                    }
+
+                    var currentSeason = MediaLibrary.GetTVShowSeason(episode.SeasonId);
+                    MediaLibrary.Release(currentSeason);
+                    if (currentSeason.Number > existingSeason.Number)
+                        return;
+                    if (currentSeason.Number == existingSeason.Number)
+                        if (episode.Episode >= existingEpisode.Episode)
+                        return;
+                    AddMediaItem(mediaItem);
+                    return;
+                }
+            }
+            finally
+            {
+                MediaLibrary.Release(existingShowEntry);
+            }
+        }
 
         protected override Playlist InitCurrentPlaylist()
         {

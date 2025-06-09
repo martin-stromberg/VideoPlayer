@@ -191,6 +191,8 @@ namespace VideoPlayer.Service.Library.Scanner
             base.ExecuteTimerSync();
             while (ScanNextSource())
                 CheckActive();
+            while (ScanNextDueCollection())
+                CheckActive();
         }
 
         #region Forced Reload
@@ -668,6 +670,65 @@ namespace VideoPlayer.Service.Library.Scanner
             _MediaLibrary.AddOrUpdateSource(source);
         }
 
+        private bool ScanNextDueCollection()
+        {
+            var collection = _MediaLibrary.GetNextDueCollection();
+            if (collection is null)
+                return false;
+            try
+            {
+                var source = _MediaLibrary.GetSource(collection.SourceId);
+                try
+                {
+                    var reader = CreateReader(source);
+                    var rootFolder = reader.GetRoot();
+                    var folders = reader.ReadFolders(rootFolder).ToArray();
+                    var folder = string.IsNullOrWhiteSpace(collection.Path) ? rootFolder : folders.FirstOrDefault(f => f.Path == collection.Path);
+                    while (folder is null)
+                    {
+                        rootFolder = folders.FirstOrDefault(f =>
+                        {
+                            var result = collection.Path.StartsWith(f.Path);
+                            return result;
+                        });
+                        if (rootFolder is null)
+                            break;
+                        folders = reader.ReadFolders(rootFolder).ToArray();
+                        folder = folders.FirstOrDefault(f => f.Path == collection.Path);
+                    }
+                    if (folder is null)
+                    {
+                        collection.NextScanDue = DateTime.Now.AddMonths(1);
+                        _MediaLibrary.AddOrUpdateMediaCollection(collection);
+                        return true;
+                    }
+                    var parentCollection = _MediaLibrary.GetMediaCollection(collection.ParentId);
+                    try
+                    {
+                        Scan(source, reader, folder, parentCollection, true);
+                        if (collection.NextScanDue < DateTime.Now)
+                        {
+                            collection.NextScanDue = DateTime.Now.AddMonths(1);
+                            _MediaLibrary.AddOrUpdateMediaCollection(collection);
+                        }
+                    }
+                    finally
+                    {
+                        _MediaLibrary.Release(parentCollection);
+                    }
+                }
+                finally
+                {
+                    _MediaLibrary.Release(source);
+                }
+                return true;
+            }
+            finally
+            {
+                _MediaLibrary.Release(collection);
+            }
+        }
+
         private void Scan(
             MediaSource source,
             ISourceReader reader,
@@ -702,11 +763,12 @@ namespace VideoPlayer.Service.Library.Scanner
                         foreach (var file in files)
                             ProcessFile(file, collection);                        
 
-                        collection.LastScanCompleted = true;                        
+                        collection.LastScanCompleted = true;
+                        collection.NextScanDue = DateTime.Now.AddDays(6).AddHours(new Random().Next(24)).AddMinutes(new Random().Next(60)).AddSeconds(new Random().Next(60));
                         _MediaLibrary.AddOrUpdateMediaCollection(collection);
 
                         NotifyScanCompleted();
-                    }                    
+                    }     
                 }
                 finally
                 {
@@ -734,6 +796,7 @@ namespace VideoPlayer.Service.Library.Scanner
             collection.LastScanCompleted = collection.LastScanCompleted 
                 && (collection.LastAccess == folder.LastWriteTime) 
                 && (folder.LastWriteTime != DateTime.MinValue) 
+                && (collection.NextScanDue >= DateTime.Now)
                 && ((parentCollection != null && collection.Tenant == parentCollection.Tenant)
                   || (parentCollection == null && collection.Tenant == source.Tenant) );
             collection.Classified = collection.Classified && collection.LastScanCompleted;

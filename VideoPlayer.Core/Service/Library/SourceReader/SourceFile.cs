@@ -10,6 +10,9 @@
         public string Path { get; set; }
 
         public DateTime LastWriteTime { get; set; }
-
+        public override string ToString()
+        {
+            return Path;
+        }
     }
 }

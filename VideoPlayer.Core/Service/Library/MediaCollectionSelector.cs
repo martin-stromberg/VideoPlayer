@@ -13,9 +13,12 @@ namespace VideoPlayer.Service.Library
     {
         TVShowSeason FindFirstSeason(TVShow show);
         ClassifiedEntry FindFirstEpisode(TVShow show);
+        ClassifiedEntry FindFirstEpisode(TVShowSeason season);
         ClassifiedEntry FindNextEntry(ClassifiedEntry mediaItem);
         MediaItem FindNextMediaItem(MediaItem mediaItem);
         IEnumerable<ClassifiedEntry> FindNextEntries(ClassifiedEntry entry);
+        ClassifiedEntry FindPreviousEntry(TVShowEpisode episode);
+        ClassifiedEntry FindLastEpisode(TVShowSeason show);
     }
     public  class MediaCollectionSelector: IMediaCollectionSelector
     {
@@ -33,6 +36,11 @@ namespace VideoPlayer.Service.Library
                 ?? FindFirstEpisode(mediaItem as TVShow)
                 ?? FindNextCollectionMovie(mediaItem as Movie)
                 ?? FindFirstCollectionMovie(mediaItem as MovieCollection);
+        }
+
+        public ClassifiedEntry FindPreviousEntry(TVShowEpisode entry)
+        {
+            return FindPreviousEpisode(entry as TVShowEpisode);
         }
 
         public IEnumerable<ClassifiedEntry> FindNextEntries(ClassifiedEntry entry)
@@ -55,7 +63,13 @@ namespace VideoPlayer.Service.Library
             {
                 var collection = mediaLibrary.GetMovieCollection(movie.CollectionId);
                 foreach (var nextMovie in FindMovies(collection)
-                    .SkipWhile(m => m.Id != movie.Id))
+                    .SkipWhile(m =>
+                    {
+                        var skip = m.Id != movie.Id;
+                        if (skip)
+                            mediaLibrary.Release(m);
+                        return skip;
+                    }))
                     yield return nextMovie;
             }
         }
@@ -77,7 +91,13 @@ namespace VideoPlayer.Service.Library
             {
                 var season = mediaLibrary.GetTVShowSeason(episode.SeasonId);
                 foreach (var entry in FindEpisodes(season)
-                    .SkipWhile(e => e.Id != episode.Id))
+                    .SkipWhile(e =>
+                    {
+                        var skip = e.Id != episode.Id;
+                        if (skip)
+                            mediaLibrary.Release(e);
+                        return skip;
+                    }))
                     yield return entry;
             }
         }
@@ -93,15 +113,22 @@ namespace VideoPlayer.Service.Library
         {
             var entry = mediaLibrary.GetMovieByMediaItem(mediaItem.Id) as ClassifiedEntry
                 ?? mediaLibrary.GetTVShowEpisodeByMediaItem(mediaItem.Id);
+            mediaLibrary.Release(entry);
             entry = FindNextEntry(entry);
             if (entry is null) return null;
 
             return (entry as IMediaItemCollectionEntry).MediaItemIds
                 .Select(id => mediaLibrary.GetMediaItem(id))
                 .Where(mi => mi is not null)
-                .Where(mi => mi.CopyType == MediaItemCopyType.Original
-                    || mi.CopyType == MediaItemCopyType.Download
-                    || mi.CopyType == MediaItemCopyType.Cache)
+                .Where(mi =>
+                {
+                    var use = mi.CopyType == MediaItemCopyType.Original
+                        || mi.CopyType == MediaItemCopyType.Download
+                        || mi.CopyType == MediaItemCopyType.Cache;
+                    if (use)
+                        mediaLibrary.Release(mi);
+                    return use;
+                })
                 .OrderByDescending(mi => mi.CopyType)
                 .FirstOrDefault();
         }
@@ -125,8 +152,19 @@ namespace VideoPlayer.Service.Library
                 return null;
             var collection = mediaLibrary.GetMovieCollection(movie.CollectionId);
             return FindMovies(collection)
-                .SkipWhile(m => m.Id != movie.Id)
-                .SkipWhile(m => m.Id == movie.Id)
+                .SkipWhile(m =>
+                {
+                    var skip = m.Id != movie.Id;
+                    if (skip)
+                        mediaLibrary.Release(m);
+                    return skip;
+                })
+                .SkipWhile(m => {
+                    var skip = m.Id == movie.Id;
+                    if (skip)
+                        mediaLibrary.Release(m);
+                    return skip;
+                })
                 .FirstOrDefault();
         }
 
@@ -162,11 +200,19 @@ namespace VideoPlayer.Service.Library
                 .ThenBy(e => e.Name))
                 yield return episode;
         }
-        private ClassifiedEntry FindFirstEpisode(TVShowSeason season)
+        public ClassifiedEntry FindFirstEpisode(TVShowSeason season)
         {
             if (season is null) return null;
             return FindEpisodes(season)
                 .FirstOrDefault();
+        }
+        public ClassifiedEntry FindLastEpisode(TVShowSeason season)
+        {
+            if (season is null) return null;
+            return FindEpisodes(season)
+                .OrderBy(e => e.Episode)
+                .ThenBy(e => e.Part)
+                .LastOrDefault();
         }
 
         private ClassifiedEntry FindNextEpisode(TVShowEpisode episode)
@@ -180,8 +226,19 @@ namespace VideoPlayer.Service.Library
                 .ThenBy(e => e.Name)
                 .ToArray();
             episode = episodes
-                .SkipWhile(e => e.Id != episode.Id)
-                .SkipWhile(e => e.Id == episode.Id)
+                .SkipWhile(e =>
+                {
+                    var skip = e.Id != episode.Id;
+                    if (skip)
+                        mediaLibrary.Release(e);
+                    return skip;
+                })
+                .SkipWhile(e => {
+                    var skip = e.Id == episode.Id;
+                    if (skip)
+                        mediaLibrary.Release(e);
+                    return skip;
+                })
                 .FirstOrDefault();
             if (episode is not null)
                 return episode;
@@ -190,12 +247,69 @@ namespace VideoPlayer.Service.Library
             season = mediaLibrary.GetSeasons(show.Id)
                 .OrderBy(s => s.Number)
                 .ThenBy(s => s.Name)
-                .SkipWhile(s => s.Id != season.Id)
-                .SkipWhile(s => s.Id == season.Id)
+                .SkipWhile(s =>
+                {
+                    var skip = s.Id != season.Id;
+                    if (skip)
+                        mediaLibrary.Release(s);
+                    return skip;
+                })
+                .SkipWhile(s => {
+                    var skip = s.Id == season.Id;
+                    if (skip)
+                        mediaLibrary.Release(s);
+                    return skip;
+                })
                 .FirstOrDefault();
             return FindFirstEpisode(season);
         }
 
-        
+        private ClassifiedEntry FindPreviousEpisode(TVShowEpisode episode)
+        {
+            if (episode is null) return null;
+            var season = mediaLibrary.GetTVShowSeason(episode.SeasonId);
+            if (season is null) return null;
+            var episodes = mediaLibrary.GetEpisodes(season.Id)
+                .OrderByDescending(e => e.Episode)
+                .ThenBy(e => e.Part)
+                .ThenBy(e => e.Name)
+                .ToArray();
+            episode = episodes
+                .SkipWhile(e =>
+                {
+                    var skip = e.Id != episode.Id;
+                    if (skip)
+                        mediaLibrary.Release(e);
+                    return skip;
+                })
+                .SkipWhile(e => {
+                    var skip = e.Id == episode.Id;
+                    if (skip)
+                        mediaLibrary.Release(e);
+                    return skip;
+                })
+                .FirstOrDefault();
+            if (episode is not null)
+                return episode;
+
+            var show = mediaLibrary.GetTVShow(season.ShowId);
+            season = mediaLibrary.GetSeasons(show.Id)
+                .OrderByDescending(s => s.Number)
+                .ThenBy(s => s.Name)
+                .SkipWhile(s => { 
+                    var skip = s.Id != season.Id;
+                    if (skip)
+                        mediaLibrary.Release(s);
+                    return skip;
+                })
+                .SkipWhile(s => {
+                    var skip = s.Id == season.Id;
+                    if (skip)
+                        mediaLibrary.Release(s);
+                    return skip;
+                })
+                .FirstOrDefault();
+            return FindLastEpisode(season);
+        }
     }
 }

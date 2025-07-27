@@ -1,0 +1,23 @@
+﻿@page "/Admin"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@rendermode InteractiveWebAssembly
+<h3>Administration</h3>
+
+<PageTitle>Administration</PageTitle>
+
+@code {
+    private string jsVersion => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
+
+    protected override void OnInitialized()
+    {
+    }
+}
+<ul>
+    <li>
+        <a class="download-button" href="Account/Register">👤 Benuztzerkonto hinzufügen</a>
+    </li>
+    <li>
+        <a class="download-button" href="MediaSources">📁 Quellen verwalten</a>
+    </li>
+</ul>

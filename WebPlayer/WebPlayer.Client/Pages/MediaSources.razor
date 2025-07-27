@@ -1,0 +1,286 @@
+﻿@page "/MediaSources"
+@using Microsoft.AspNetCore.Authorization
+@using System.Text.Json
+@using WebPlayer.Client.Services
+@using WebPlayer.Data
+@using WebPlayerApi.Models
+@attribute [Authorize]
+@inject IAPIClient apiClient;
+@inject IMediaDirectoryAccessApi userAPI;
+@rendermode InteractiveWebAssembly
+<h3>Administration</h3>
+
+<PageTitle>Medienquellen</PageTitle>
+
+@code 
+{
+    private List<MediaDirectory> _sources = new();
+    private MediaDirectory currentSource = new();
+    private string message = string.Empty;
+    private bool editMode = false;
+    private bool showForm = false;
+    private string jsVersion => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
+
+    private MediaDirectory? accessTarget;
+    private bool accessMode = false;
+    private List<IApplicationUser> allUsers = new();
+    private Dictionary<string, bool> userSelections = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _sources = (await apiClient.GetSourcesAsync()).ToList();
+    }
+
+    #region Allgemeine Verwaltung
+    private void ShowNewForm()
+    {
+        currentSource = new();
+        showForm = true;
+        editMode = false;
+    }
+
+    private async Task SaveMediaSource()
+    {
+        try
+        {
+            currentSource.LastUpdate = DateTime.UtcNow;
+
+            if (editMode)
+            {
+                var existing = _sources.FirstOrDefault(s => s.Id == currentSource.Id);
+                if (existing is not null && await apiClient.EditSource(currentSource))
+                {
+                    existing.Name = currentSource.Name;
+                    existing.Icon = currentSource.Icon;
+                    existing.Path = currentSource.Path;
+                    existing.Servername = currentSource.Servername;
+                    existing.Port = currentSource.Port;
+                    existing.Username = currentSource.Username;
+                    existing.Password = currentSource.Password;
+                    existing.LastScan = currentSource.LastScan;
+                    existing.LastUpdate = currentSource.LastUpdate;
+                }
+                editMode = false;
+            }
+            else
+            {
+                currentSource.Id = Guid.NewGuid().ToString();
+                if (await apiClient.AddSource(currentSource))
+                    _sources.Add(currentSource);
+            }
+
+            currentSource = new(); // Formular zurücksetzen 
+            showForm = false;
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+        StateHasChanged();
+    }
+
+    private void EditSource(MediaDirectory source)
+    {
+        currentSource = new MediaDirectory
+            {
+                Id = source.Id,
+                Name = source.Name,
+                Icon = source.Icon,
+                Path = source.Path,
+                Servername = source.Servername,
+                Port = source.Port,
+                Username = source.Username,
+                Password = source.Password,
+                LastScan = source.LastScan,
+                LastUpdate = source.LastUpdate
+            };
+        editMode = true;
+        showForm = true;
+        StateHasChanged();
+    }
+
+    private async Task DeleteSource(MediaDirectory source)
+    {
+        try
+        {
+            if (await apiClient.RemoveSource(source.Id))
+                _sources.Remove(source);
+            if (editMode && currentSource.Id == source.Id)
+            {
+                currentSource = new();
+                editMode = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+        StateHasChanged();
+    }
+
+    private void CancelEdit()
+    {
+        currentSource = new();
+        editMode = false;
+        showForm = false;
+        StateHasChanged();
+    }
+    #endregion
+
+    private async Task ManageAccess(MediaDirectory dir)
+    {
+        try
+        {
+            allUsers = (await userAPI.GetAccessUsersAsync()).ToList(); // oder await bei API
+            accessTarget = dir;
+            accessMode = true;
+
+            // Dummy: vorherige Rechte abrufen (je nach Implementierung)
+            var currentAccess = (await userAPI.GetAccessUsersAsync(dir.Id)).ToList();
+            userSelections = allUsers.ToDictionary(u => u.Id, u => currentAccess.Any(c => c.Id == u.Id));
+            StateHasChanged();
+        }
+        catch(Exception ex)
+        {
+            message = $"{ex}";
+        }
+    }
+    private void CancelAccess()
+    {
+        accessTarget = null;
+        accessMode = false;
+        userSelections.Clear();
+    }
+
+    private async Task SaveAccess()
+    {
+        if (accessTarget == null) return;
+        try
+        {
+            var selectedUsers = allUsers
+                .Where(u => userSelections.TryGetValue(u.Id, out var selected) && selected)
+                .ToArray();
+
+            await userAPI.SetAccessUsersAsync(accessTarget.Id, selectedUsers.Select(u => u.Id).ToArray());
+            accessTarget = null;
+            accessMode = false;
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+        }
+    }
+    
+}
+
+@if (!string.IsNullOrWhiteSpace(message))
+{
+        <p class="mt-2 text-success">@message</p>
+}
+
+<button class="btn btn-success mb-3" @onclick="ShowNewForm">➕ Hinzufügen</button>
+
+@if(showForm)
+{
+<EditForm Model="@currentSource" OnValidSubmit="@SaveMediaSource">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <div class="mb-2">
+        <label>Name:</label>
+        <InputText class="form-control" @bind-Value="currentSource.Name" />
+    </div>
+
+    <div class="mb-2">
+        <label>Icon:</label>
+        <InputText class="form-control" @bind-Value="currentSource.Icon" />
+    </div>
+
+    <div class="mb-2">
+        <label>Pfad:</label>
+        <InputText class="form-control" @bind-Value="currentSource.Path" />
+    </div>
+
+    <div class="mb-2">
+        <label>Servername:</label>
+        <InputText class="form-control" @bind-Value="currentSource.Servername" />
+    </div>
+
+    <div class="mb-2">
+        <label>Port:</label>
+        <InputNumber class="form-control" @bind-Value="currentSource.Port" />
+    </div>
+
+    <div class="mb-2">
+        <label>Benutzername:</label>
+        <InputText class="form-control" @bind-Value="currentSource.Username" />
+    </div>
+
+    <div class="mb-2">
+        <label>Passwort:</label>
+        <InputText class="form-control" @bind-Value="currentSource.Password" />
+    </div>
+
+    <button type="submit" class="btn btn-primary">@((editMode) ? "Aktualisieren" : "Hinzufügen")</button>
+    @if (editMode)
+    {
+        <button class="btn btn-secondary ms-2" @onclick="CancelEdit">Abbrechen</button>
+    }
+</EditForm>
+}
+
+@if (accessMode)
+{
+    <div class="border rounded p-3 mt-4">
+        <h5>Zugriff für: @accessTarget?.Name</h5>
+
+        <div class="mb-2">
+            <label>Benutzer auswählen:</label>
+            @foreach (var user in allUsers)
+            {
+                <div>
+                    <input type="checkbox"
+                           @bind="userSelections[user.Id]"
+                           class="form-check-input" />
+                    <label class="form-check-label">@user.UserName</label>
+                </div>
+            }
+        </div>
+
+        <button class="btn btn-primary" @onclick="SaveAccess">Speichern</button>
+        <button class="btn btn-secondary ms-2" @onclick="CancelAccess">Abbrechen</button>
+    </div>
+}
+
+<hr />
+
+<table class="table table-striped mt-4">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Pfad</th>
+            <th>Server</th>
+            <th>Port</th>
+            <th>Letzter Scan</th>
+            <th>Aktionen</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var source in _sources)
+        {
+            <tr>
+                <td>@source.Icon</td>
+                <td>@source.Name</td>
+                <td>@source.Path</td>
+                <td>@source.Servername</td>
+                <td>@source.Port</td>
+                <td>@source.LastScan.ToLocalTime()</td>
+                <td>
+                    <button class="btn btn-sm btn-warning me-2" @onclick="() => EditSource(source)">Bearbeiten</button>
+                    <button class="btn btn-sm btn-info me-2" @onclick="() => ManageAccess(source)">Zugriff</button>
+                    <button class="btn btn-sm btn-danger" @onclick="() => DeleteSource(source)">Löschen</button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>

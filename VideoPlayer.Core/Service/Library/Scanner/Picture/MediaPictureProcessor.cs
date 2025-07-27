@@ -124,6 +124,10 @@ namespace VideoPlayer.Service.Library.Scanner.Picture
                     FinishProcess();
                 }
             }
+            catch (Exception ex)
+            {
+                Log(ex);
+            }
             finally
             {
                 DeleteOrpahnedPicturesRunning = false;

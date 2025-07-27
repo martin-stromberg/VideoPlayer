@@ -764,7 +764,7 @@ namespace VideoPlayer.Service.Library.Scanner
                             ProcessFile(file, collection);                        
 
                         collection.LastScanCompleted = true;
-                        collection.NextScanDue = DateTime.Now.AddDays(6).AddHours(new Random().Next(24)).AddMinutes(new Random().Next(60)).AddSeconds(new Random().Next(60));
+                        collection.NextScanDue = DateTime.Now.AddDays(7).AddDays(new Random().Next(7)).AddHours(new Random().Next(24)).AddMinutes(new Random().Next(60)).AddSeconds(new Random().Next(60));
                         _MediaLibrary.AddOrUpdateMediaCollection(collection);
 
                         NotifyScanCompleted();

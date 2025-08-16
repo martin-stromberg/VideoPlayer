@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Renci.SshNet;
+using System.Threading;
 using VideoWebPlayer.Data;
 
 public class RecentEntryService
@@ -111,15 +112,15 @@ public class RecentEntryService
         if (!await _db.RecentEntries.AnyAsync(e => e.TVShowId == show.Id))
         {
             _db.RecentEntries.Add(new RecentEntry
-            {MediaSourceId = show.MediaSourceId,
+            {
+                MediaSourceId = show.MediaSourceId,
                 PublishedAt = show.PremieredAt ?? show.CreatedAt,
                 Type = RecentEntryType.TVShow,
                 TVShowId = show.Id
             });
+            await _db.SaveChangesAsync();
         }
-
         await TrimEntriesAsync(show.MediaSourceId);
-        await _db.SaveChangesAsync();
     }
 
     public async Task AddTVShowSeasonAsync(TVShowSeason season)
@@ -227,10 +228,9 @@ public class RecentEntryService
                     TVShowId = season.TVShowId,
                     TVShowSeasonId = season.Id
                 });
+                await _db.SaveChangesAsync();
             }
-
             await TrimEntriesAsync(season.MediaSourceId);
-            await _db.SaveChangesAsync();
         }
     }
 
@@ -272,9 +272,8 @@ public class RecentEntryService
             TVShowSeasonId = episode.TVShowSeasonId,
             TVShowEpisodeId = episode.Id
         });
-
-        await TrimEntriesAsync(episode.MediaSourceId);
         await _db.SaveChangesAsync();
+        await TrimEntriesAsync(episode.MediaSourceId);        
     }
 
     private async Task TrimEntriesAsync(long mediaSourceId)
@@ -288,6 +287,7 @@ public class RecentEntryService
         {
             var toRemove = entries.Skip(MaxEntries).ToList();
             _db.RecentEntries.RemoveRange(toRemove);
+            await _db.SaveChangesAsync();
         }
     }
 

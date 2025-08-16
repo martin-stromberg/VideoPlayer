@@ -1,11 +1,13 @@
-@page "/moviecollection/{Id:long}"
+﻿@page "/moviecollection/{Id:long}"
 @using Microsoft.EntityFrameworkCore
+@using System.Security.Claims
 @using VideoWebPlayer.Data
 @using Microsoft.AspNetCore.Components.Authorization
-@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject AuthenticationStateProvider AuthStateProvider
 @inject ApplicationDbContext DbContext
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject HttpClient Http
 @rendermode InteractiveServer
 
 @if (!isAuthenticated)
@@ -21,11 +23,14 @@ else if (collection == null)
 else if (selectedMovie != null)
 {
     <!-- Einzelne Film-Ansicht -->
-    <div class="movie-header" style="background-image: url('@GetBannerUrl(selectedMovie)');">
+    <div class="movie-header" style="background-image: url('@GetBannerUrl(selectedMovie)'); position: relative;">
+        <button class="favorite-btn" @onclick="() => ToggleFavorite(selectedMovie)" title="Film als Favorit markieren">
+            @((IsMovieFavorite) ? "★" : "☆")
+        </button>
         <div class="collection-header-overlay">
             @if (collection?.Movies?.Count > 1)
             {
-                <button class="back-arrow" @onclick="ShowCollection" title="Zur�ck zur Sammlung">
+                <button class="back-arrow" @onclick="ShowCollection" title="Zurück zur Sammlung">
                     <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
                         <path d="M15 6l-6 6 6 6" stroke="#ffe066" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
@@ -55,14 +60,17 @@ else if (selectedMovie != null)
     {
         <div class="player-overlay">
             <video src="@GetMovieStreamUrl(selectedMovie)" controls autoplay style="width:80vw;max-width:900px;"></video>
-            <button class="close-player" @onclick="HidePlayer">�</button>
+            <button class="close-player" @onclick="HidePlayer">×</button>
         </div>
     }
 }
 else
 {
     <!-- Sammlungs-Ansicht -->
-    <div class="collection-header" style="background-image: url('@GetBannerUrl(collection)');">
+    <div class="collection-header" style="background-image: url('@GetBannerUrl(collection)'); position: relative;">
+        <button class="favorite-btn" @onclick="() => ToggleFavorite(null)" title="Sammlung als Favorit markieren">
+            @((IsCollectionFavorite) ? "★" : "☆")
+        </button>
         <div class="collection-header-overlay">
             <div class="collection-header-content">
                 <h1>@collection.Name</h1>
@@ -84,7 +92,7 @@ else
             if (name.StartsWith(collection.Name))
                 name = name.Remove(0, collection.Name.Length).TrimStart(' ', ':', '-');
             if (string.IsNullOrWhiteSpace(name) || (name.Length <= 3)) name = movie.Name;
-            <div class="media-box" @onclick="() => SelectMovie(movie)">
+            <div class="media-box" @onclick="() => SelectMovieAsync(movie)">
                 <img class="media-poster"
                      src="@GetPosterUrl(movie)"
                      alt="@movie.Name"
@@ -99,16 +107,21 @@ else
     [Parameter]
     public long Id { get; set; }
 
+    [SupplyParameterFromQuery(Name = "movie")]
+    public long? MovieId { get; set; }
+
     private MovieCollection? collection;
     private Movie? selectedMovie;
     private bool showPlayer = false;
     private bool isAuthenticated;
+    private bool IsCollectionFavorite;
+    private bool IsMovieFavorite;
 
     private ElementReference movieListRef;
 
     protected override async Task OnInitializedAsync()
     {
-        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
 
         collection = await DbContext.MovieCollections
@@ -117,9 +130,18 @@ else
                     .ThenInclude(mmi => mmi.MediaItem)
             .FirstOrDefaultAsync(mc => mc.Id == Id);
 
-        // Automatische Auswahl, wenn nur ein Film vorhanden ist
-        if (collection?.Movies?.Count == 1)
-            SelectMovie(collection.Movies.First());
+        IsCollectionFavorite = await CheckIfFavorite(collectionId: collection, movieId: null);
+
+        if (MovieId.HasValue && collection?.Movies != null)
+        {
+            var movie = collection.Movies.FirstOrDefault(m => m.Id == MovieId.Value);
+            if (movie != null)
+                await SelectMovieAsync(movie);
+        }
+        else if (collection?.Movies?.Count == 1)
+        {
+            await SelectMovieAsync(collection.Movies.First());
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -164,10 +186,11 @@ else
         return mediaItemId != null ? $"/api/mediaitems/{mediaItemId}/stream" : "";
     }
 
-    private async void SelectMovie(Movie movie)
+    private async Task SelectMovieAsync(Movie movie)
     {
         selectedMovie = movie;
         showPlayer = false;
+        IsMovieFavorite = await CheckIfFavorite(collectionId: null, movieId: selectedMovie);
     }
 
     private void ShowCollection()
@@ -176,18 +199,43 @@ else
         showPlayer = false;
     }
 
-    private void ShowFirstMovie()
+    private async Task ShowFirstMovie()
     {
         if (collection?.Movies?.Any() == true)
-            SelectMovie(collection.Movies.First());
+            await SelectMovieAsync(collection.Movies.First());
     }
 
     private string GetDownloadUrl(Movie movie)
     {
-        // Hole die MediaItemId f�r den Download
+        // Hole die MediaItemId für den Download
         var movieMediaItem = DbContext.MovieMediaItems.FirstOrDefault(mmi => mmi.MovieId == movie.Id);
         var mediaItemId = movieMediaItem?.MediaItemId;
         return mediaItemId != null ? $"/api/mediaitems/{mediaItemId}/download" : "#";
+    }
+
+    private async Task ToggleFavorite(Movie? movie)
+    {
+        var userId = (await AuthStateProvider.GetAuthenticationStateAsync()).User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (movie != null)
+        {
+            IsMovieFavorite = await DbContext.ToggleFavoriteAsync(userId, movie);
+        }
+        else
+        {
+            IsCollectionFavorite = await DbContext.ToggleFavoriteAsync(userId, collection);
+        }
+        await DbContext.SaveChangesAsync();
+    }
+
+    private async Task<bool> CheckIfFavorite(MediaBaseEntry collectionId, MediaBaseEntry movieId)
+    {
+        var userId = (await AuthStateProvider.GetAuthenticationStateAsync()).User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (movieId is not null)
+            return DbContext.IsFavorite(userId, movieId);
+        if (collectionId is not null)
+            return DbContext.IsFavorite(userId, collectionId);
+        return false;
     }
 }
 <script src="scroll-horizontal.js"></script>
@@ -195,5 +243,21 @@ else
 .btn-primary {
     /* ...deine bestehenden Styles... */
     margin-top: 1rem;
+}
+.favorite-btn {
+    position: absolute;
+    top: 1.2rem;
+    right: 1.2rem;
+    background: none;
+    border: none;
+    font-size: 2.2rem;
+    color: #ffe066;
+    cursor: pointer;
+    z-index: 20;
+    transition: color 0.2s;
+    text-shadow: 0 2px 8px #000;
+}
+.favorite-btn:hover {
+    color: #ffd700;
 }
 </style>

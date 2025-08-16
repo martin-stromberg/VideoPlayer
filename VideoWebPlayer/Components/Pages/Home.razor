@@ -1,15 +1,18 @@
 ﻿@page "/"
+@using System.Security.Claims
 @using VideoWebPlayer.Data
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthStateProvider
 @inject RecentEntryService RecentEntryService
 @inject ApplicationDbContext DbContext
+@inject HttpClient Http
 
 <PageTitle>Home</PageTitle>
 
 @code {
     private bool? isAuthenticated = null;
     private List<RecentEntry> recentEntries = new();
+    private List<FavoriteEntry> favorites = new();
 
     // Für die Anzeige: Titel, Bild und Link
     private Dictionary<long, string> movieTitles = new();
@@ -41,6 +44,9 @@
         }
 
         recentEntries = await RecentEntryService.GetRecentEntriesAsync();
+
+        var userId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        favorites = DbContext.FavoriteEntries.Where(f => f.UserId == userId).ToList();
 
         foreach (var entry in recentEntries)
         {
@@ -106,7 +112,9 @@
 }
 
 @if (isAuthenticated == true)
-{
+{    
+    <FavoritesList Favorites="favorites" DbContext="DbContext" />
+
     <h2>Neu im Programm</h2>
     <div class="recent-entries-list">
         @foreach (var entry in recentEntries)

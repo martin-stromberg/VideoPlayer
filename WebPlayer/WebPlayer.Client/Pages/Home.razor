@@ -18,6 +18,7 @@
 @inject AuthenticationStateProvider AuthProvider
 @inject IAPIClient apiClient;
 @inject IMediaDirectoryAccessApi accessApi;
+@inject HttpClient Http
 
 <PageTitle>Mediathek</PageTitle>
 
@@ -76,6 +77,30 @@ else
         }
 
     </div>
+
+    @if (favorites.Any())
+    {
+        <div class="favorites-list-horizontal">
+            @foreach (var fav in favorites)
+            {
+                <div class="favorite-box">
+                    @* Zeige je nach Typ das passende Bild und den Namen *@
+                    @if (fav.MovieCollectionId != null)
+                    {
+                        <a href="/moviecollection/@fav.MovieCollectionId">Filmsammlung</a>
+                    }
+                    else if (fav.TVShowId != null)
+                    {
+                        <a href="/tvshow/@fav.TVShowId">Serie</a>
+                    }
+                    else if (fav.MovieId != null)
+                    {
+                        <a href="/movie/@fav.MovieId">Film</a>
+                    }
+                </div>
+            }
+        </div>
+    }
 }
 
 
@@ -95,10 +120,13 @@ else
     private bool isAdmin = false;
     private bool hasReloaded = false;
     private List<string> roles;
+    private List<FavoriteEntry> favorites = new();
+
 
     protected override async Task OnInitializedAsync()
     {
         NavManager.LocationChanged += OnLocationChanged;
+        favorites = await Http.GetFromJsonAsync<List<FavoriteEntry>>("/api/favorites");
     }
 
     public void Dispose()

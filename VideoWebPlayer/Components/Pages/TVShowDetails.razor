@@ -1,6 +1,7 @@
 ﻿@page "/tvshow/{Id:long}"
 @using Microsoft.AspNetCore.Components
 @using Microsoft.EntityFrameworkCore
+@using System.Security.Claims
 @using VideoWebPlayer.Data
 @using Microsoft.AspNetCore.Components.Authorization
 @inject AuthenticationStateProvider AuthenticationStateProvider
@@ -25,6 +26,7 @@
     private bool showSeasonInfo = false;
     private bool showPlayer = false;
     private bool isAuthenticated;
+    private bool isFavorite = false; // Neu: Favoritenstatus
 
     protected override async Task OnInitializedAsync()
     {
@@ -60,24 +62,38 @@
                 selectedEpisode = episode;
             }
         }
+
+        await UpdateFavoriteMark();
+    }
+    private async Task UpdateFavoriteMark()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+
+        if (showSeasonInfo)
+            isFavorite = DbContext.IsFavorite(authState.User.FindFirstValue(ClaimTypes.NameIdentifier), (MediaBaseEntry)selectedEpisode ?? (MediaBaseEntry)selectedSeason);
+        else
+            isFavorite = DbContext.IsFavorite(authState.User.FindFirstValue(ClaimTypes.NameIdentifier), (MediaBaseEntry)selectedEpisode ?? (MediaBaseEntry)show);
     }
 
-    private void SelectSeason(TVShowSeason season)
+    private async Task SelectSeason(TVShowSeason season)
     {
         selectedSeason = season;
         selectedEpisode = null;
         showSeasonInfo = true;
+        await UpdateFavoriteMark();
     }
 
-    private void SelectEpisode(TVShowEpisode episode)
+    private async Task SelectEpisode(TVShowEpisode episode)
     {
         selectedEpisode = episode;
+        await UpdateFavoriteMark();
     }
 
-    private void ShowSeason()
+    private async Task ShowSeason()
     {
         selectedEpisode = null;
         showSeasonInfo = true;
+        await UpdateFavoriteMark();
     }
 
     private string GetBannerUrl(MediaBaseEntry entry)
@@ -106,21 +122,40 @@
         var mediaItemId = episodeMediaItem?.MediaItemId;
         return mediaItemId != null ? $"/api/mediaitems/{mediaItemId}/download" : "#";
     }
+
+    private async Task ToggleFavorite()
+    {
+        var userId = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (showSeasonInfo)
+            isFavorite = await DbContext.ToggleFavoriteAsync(userId, (MediaBaseEntry)selectedEpisode ?? (MediaBaseEntry)selectedSeason);
+        else
+            isFavorite = await DbContext.ToggleFavoriteAsync(userId, (MediaBaseEntry)selectedEpisode ?? (MediaBaseEntry)show);
+    }
+    private string GetTitle()
+    {
+        return $"{show.Name} • {selectedSeason?.Name} {selectedEpisode?.Name}";
+    }
 }
 
 @if (!isAuthenticated)
 {
+    <PageTitle>Anmeldung erforderlich</PageTitle>
     <div class="alert alert-warning">
         Bitte melden Sie sich an, um Episoden abzuspielen oder herunterzuladen.
     </div>
 }
 else if (show == null)
 {
+    <PageTitle>Unbekannt</PageTitle>
     <div class="alert alert-danger">TV-Show nicht gefunden.</div>
 }
 else
 {
-    <div class="tvshow-header" style="background-image: url('@GetBannerUrl((MediaBaseEntry)selectedEpisode ?? (showSeasonInfo ? (MediaBaseEntry)selectedSeason : (MediaBaseEntry)show))');">
+    <PageTitle>@GetTitle()</PageTitle>
+    <div class="tvshow-header" style="background-image: url('@GetBannerUrl((MediaBaseEntry)selectedEpisode ?? (showSeasonInfo ? (MediaBaseEntry)selectedSeason : (MediaBaseEntry)show))'); position: relative;">
+        <button class="favorite-btn" @onclick="ToggleFavorite" title="Serie als Favorit markieren">
+            @(isFavorite ? "★" : "☆")
+        </button>
         <div class="tvshow-header-overlay">
             @if (selectedEpisode != null)
             {
@@ -232,6 +267,8 @@ else
             </div>
         </div>
     }
+
+    <!-- Favoriten-Button (neu hinzugefügt) -->
 }
 
 <style>
@@ -542,4 +579,21 @@ else
         .episode-download-btn svg {
             display: block;
         }
+
+    .favorite-btn {
+        position: absolute;
+        top: 1.2rem;
+        right: 1.2rem;
+        background: none;
+        border: none;
+        font-size: 2.2rem;
+        color: #ffe066;
+        cursor: pointer;
+        z-index: 20;
+        transition: color 0.2s;
+        text-shadow: 0 2px 8px #000;
+    }
+    .favorite-btn:hover {
+        color: #ffd700;
+    }
 </style>

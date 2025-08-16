@@ -1,5 +1,7 @@
 ﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Conventions;
+using System.Threading;
 using VideoWebPlayer.Events;
 using VideoWebPlayer.Services;
 
@@ -51,6 +53,7 @@ namespace VideoWebPlayer.Data
         public DbSet<Picture> Pictures { get; set; }
         public DbSet<Setup> Setups { get; set; }
         public DbSet<RecentEntry> RecentEntries { get; set; }
+        public DbSet<FavoriteEntry> FavoriteEntries { get; set; }
         #endregion
         #region MediaSource Manipulation Methods
         /// <summary>
@@ -246,6 +249,64 @@ namespace VideoWebPlayer.Data
             await SaveChangesAsync(cancellationToken);
             return episode;
         }
+
+        #region Favoriten
+        public bool IsFavorite(string userId, MediaBaseEntry entry)
+        {
+            if (entry is Movie)
+                return FavoriteEntries.Any(f => f.UserId == userId && f.MovieId == entry.Id);
+            else if (entry is MovieCollection)
+                return FavoriteEntries.Any(f => f.UserId == userId && f.MovieCollectionId == entry.Id);
+            else if (entry is TVShow)
+                return FavoriteEntries.Any(f => f.UserId == userId && f.TVShowId == entry.Id);
+            else if (entry is TVShowSeason)
+                return FavoriteEntries.Any(f => f.UserId == userId && f.TVShowSeasonId == entry.Id);
+            else if (entry is TVShowEpisode)
+                return FavoriteEntries.Any(f => f.UserId == userId && f.TVShowEpisodeId == entry.Id);
+            return false;
+        }
+        public async Task AddFavoriteAsync(string userId, MediaBaseEntry entry)
+        {
+            if (IsFavorite(userId, entry))
+                return;
+            var newFav = new FavoriteEntry()
+            {
+                UserId = userId,
+                MovieId = entry is Movie ? entry.Id : null,
+                MovieCollectionId = entry is MovieCollection ? entry.Id : null,
+                TVShowId = entry is TVShow ? entry.Id : null,
+                TVShowSeasonId = entry is TVShowSeason ? entry.Id : null,
+                TVShowEpisodeId = entry is TVShowEpisode ? entry.Id : null
+            };
+            FavoriteEntries.Add(newFav);
+            await SaveChangesAsync();
+        }
+        public async Task RemoveFavoriteAsync(string userId, MediaBaseEntry entry)
+        {
+            var existing = (entry is Movie) ? FavoriteEntries.FirstOrDefault(f => f.UserId == userId && f.MovieId == entry.Id)
+                : (entry is MovieCollection) ? FavoriteEntries.FirstOrDefault(f => f.UserId == userId && f.MovieCollectionId == entry.Id)
+                : (entry is TVShow) ? FavoriteEntries.FirstOrDefault(f => f.UserId == userId && f.TVShowId == entry.Id)
+                : (entry is TVShowSeason) ? FavoriteEntries.FirstOrDefault(f => f.UserId == userId && f.TVShowSeasonId == entry.Id)
+                : (entry is TVShowEpisode) ? FavoriteEntries.FirstOrDefault(f => f.UserId == userId && f.TVShowEpisodeId == entry.Id)
+                : null;
+            if (existing is not null)
+                FavoriteEntries.Remove(existing);
+            await SaveChangesAsync();
+        }
+        public async Task<bool> ToggleFavoriteAsync(string userId, MediaBaseEntry entry)
+        {
+            if (IsFavorite(userId, entry))
+            {
+                await RemoveFavoriteAsync(userId, entry);
+                return false; // Favorit entfernt
+            }
+            else
+            {
+                await AddFavoriteAsync(userId, entry);
+                return true; // Favorit hinzugefügt
+            }
+        }
+        #endregion
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

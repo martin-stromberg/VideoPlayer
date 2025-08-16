@@ -52,41 +52,32 @@ namespace VideoWebPlayer.Services
 
         private async Task ProcessMediaItemsAsync(CancellationToken cancellationToken)
         {
-            var counter = 0;
             var items = _db.MediaItems
                 .Include(mi => mi.MediaCollection)
-                .Where(mi => mi.Changed || !mi.ClassifiedAt.HasValue);
+                .Where(mi => mi.Changed || !mi.ClassifiedAt.HasValue)
+                .ToList();
 
             _logger.LogInformation("Klassifiziere MediaItems.");
-
             foreach (var item in items)
             {
                 if (cancellationToken.IsCancellationRequested)
                     break;
                 if (item.MediaCollection != null)
-                {
                     item.MediaCollection.Changed = true;
-                }
                 item.Changed = false;
                 item.ClassifiedAt = DateTime.UtcNow;
-
-                if (counter++ == 1000)
-                {
-                    await _db.SaveChangesAsync(cancellationToken);
-                    counter = 0;
-                }
+                await _db.SaveChangesAsync(cancellationToken);
             }
-            await _db.SaveChangesAsync(cancellationToken);
         }
 
         private async Task ProcessMediaCollectionsAsync(CancellationToken cancellationToken)
         {
             var collections = _db.MediaCollections
                 .Include(mc => mc.MediaSource)
-                .Where(mc => mc.Changed || !mc.ClassifiedAt.HasValue);
+                .Where(mc => mc.Changed || !mc.ClassifiedAt.HasValue)
+                .ToList();
 
             _logger.LogInformation("Klassifiziere MediaCollections.");
-
             foreach (var collection in collections)
             {
                 if (cancellationToken.IsCancellationRequested)
@@ -104,8 +95,6 @@ namespace VideoWebPlayer.Services
                 collection.ClassifiedAt = DateTime.UtcNow;
                 await _db.SaveChangesAsync(cancellationToken);
             }
-
-            await _db.SaveChangesAsync(cancellationToken);
         }
 
         /// <summary>
@@ -141,8 +130,6 @@ namespace VideoWebPlayer.Services
             _logger.LogInformation("Verarbeite TVShow für Collection '{CollectionName}'.", collection.Name);
             var show = await CreateOrUpdateTVShow(collection, xml, cancellationToken);
             await ProcessEpisodesForTVShowAsync(show, cancellationToken);
-
-            await _db.SaveChangesAsync(cancellationToken);
         }
 
         private async Task<TVShow> CreateOrUpdateTVShow(MediaCollection collection, XElement xml, CancellationToken cancellationToken)
@@ -174,9 +161,9 @@ namespace VideoWebPlayer.Services
             {
                 existingShow.Name = showName;
                 existingShow.LoadFromXml(xml);
+                await _db.SaveChangesAsync(cancellationToken);
                 _logger.LogInformation("TVShow '{ShowName}' aktualisiert.", showName);
-            }
-            await _db.SaveChangesAsync(cancellationToken);
+            }            
             return existingShow;
         }
 
@@ -300,10 +287,9 @@ namespace VideoWebPlayer.Services
                     existingEpisode.ReleaseDate = DateTime.TryParse(xml.Element("aired")?.Value, out var aired) ? aired : (DateTime?)null;
                     existingEpisode.PremieredAt = DateTime.TryParse(xml.Element("premiered")?.Value, out var prem) ? prem : (DateTime?)null;
                     existingEpisode.Plot = xml.Element("plot")?.Value;
-                    // Weitere Felder aktualisieren
+                    await _db.SaveChangesAsync(cancellationToken);
                     _logger.LogInformation("Episode '{EpisodeTitle}' (Staffel {SeasonNo}, Episode {EpisodeNo}) aktualisiert.", episodeTitle, seasonNo, episodeNo);
-                }
-                await _db.SaveChangesAsync(cancellationToken);
+                }                
 
                 var episodeMediaItem = await _db.TVShowEpisodeMediaItems.FirstOrDefaultAsync(i => i.TVShowEpisodeId == existingEpisode.Id && i.MediaItemId == item.Id);
                 if (episodeMediaItem is null)
@@ -339,6 +325,7 @@ namespace VideoWebPlayer.Services
                             ? (show.PremieredAt < existingEpisode.PremieredAt ? show.PremieredAt : existingEpisode.PremieredAt)
                             : existingEpisode.PremieredAt;
                 }
+                await _db.SaveChangesAsync(cancellationToken);
                 await AssignPicturesToTVShowEpisodeAsync(existingEpisode, collection, item.Path, cancellationToken);
                 await AssignPicturesToTVShowSeasonAsync(show, season, collection, cancellationToken, isFirst);
                 await AssignPicturesToTVShowAsync(show, collection, cancellationToken, isFirst);
@@ -404,9 +391,9 @@ namespace VideoWebPlayer.Services
                     };
                     movie.LoadFromXml(xml); // <-- XML-Daten setzen
                     _db.Movies.Add(movie);
+                    await _db.SaveChangesAsync(cancellationToken);
                     existingMovie = movie;
                     movies.Add(movie);
-                    await _db.SaveChangesAsync(cancellationToken);
                     await _recentEntryService.AddMovieAsync(movie).ConfigureAwait(false);
                     _logger.LogInformation("Neuer Film '{MovieName}' angelegt.", movieName);
                 }
@@ -414,11 +401,10 @@ namespace VideoWebPlayer.Services
                 {
                     existingMovie.Name = movieName;
                     existingMovie.LoadFromXml(xml); // <-- XML-Daten aktualisieren
+                    await _db.SaveChangesAsync(cancellationToken);
                     movies.Add(existingMovie);
                     _logger.LogInformation("Film '{MovieName}' aktualisiert.", movieName);
                 }
-
-                await _db.SaveChangesAsync(cancellationToken);
 
                 var movieMediaItem = await _db.MovieMediaItems
                     .FirstOrDefaultAsync(mmi => mmi.MovieId == existingMovie.Id && mmi.MediaItemId == item.Id, cancellationToken);
@@ -457,27 +443,30 @@ namespace VideoWebPlayer.Services
                         CreatedAt = DateTime.UtcNow
                     };
                     _db.MovieCollections.Add(movieCollection);
+                    await _db.SaveChangesAsync(cancellationToken);
                     existingCollection = movieCollection;
-
                     // Movies zuordnen
                     foreach (var movie in movies)
+                    {
                         movie.MovieCollection = movieCollection;
-                    await _db.SaveChangesAsync(cancellationToken);
+                        await _db.SaveChangesAsync(cancellationToken);
+                    }
                     await _recentEntryService.AddMovieCollectionAsync(movieCollection).ConfigureAwait(false);
                     _logger.LogInformation("Neue MovieCollection '{CollectionName}' angelegt.", collectionName);
                 }
                 else
                 {
                     existingCollection.Name = collectionName;
-                    // Movies zuordnen
+                    await _db.SaveChangesAsync(cancellationToken);
                     foreach (var movie in movies)
+                    {
                         movie.MovieCollection = existingCollection;
+                        await _db.SaveChangesAsync(cancellationToken);
+                    }
                     _logger.LogInformation("MovieCollection '{CollectionName}' aktualisiert.", collectionName);
                 }
-                await _db.SaveChangesAsync(cancellationToken);
                 await AssignPicturesToMovieCollectionAsync(existingCollection, collection, cancellationToken);
             }
-            await _db.SaveChangesAsync(cancellationToken);
         }
 
         private async Task AssignPicturesToMovieAsync(Movie movie, MediaCollection collection, CancellationToken cancellationToken)
@@ -510,18 +499,17 @@ namespace VideoWebPlayer.Services
                         if (fileName.StartsWith(movieBaseName + "-" + type))
                         {
                             Picture? picture = await GetOrCreatePicture(img, type, cancellationToken);
-
                             if (type == "poster")
                                 movie.PosterPictureId = picture.Id;
                             else if (type == "banner")
                                 movie.BannerPictureId = picture.Id;
                             else if (type == "fanart")
                                 movie.FanartPictureId = picture.Id;
+                            await _db.SaveChangesAsync(cancellationToken);
                         }
                     }
                 }
             }
-            await _db.SaveChangesAsync(cancellationToken);
         }
 
         private async Task<Picture?> GetOrCreatePicture(MediaItem img, string type, CancellationToken cancellationToken)
@@ -579,8 +567,6 @@ namespace VideoWebPlayer.Services
                         }
 
                         Picture? picture = await GetOrCreatePicture(mediaItem, baseName, cancellationToken);
-
-
                         // Weisen das Bild der MovieCollection zu
                         switch (baseName)
                         {
@@ -598,6 +584,7 @@ namespace VideoWebPlayer.Services
                                     movieCollection.PosterPictureId = picture.Id;
                                 break;
                         }
+                        await _db.SaveChangesAsync(cancellationToken);
                     }
                 }
             }
@@ -611,6 +598,7 @@ namespace VideoWebPlayer.Services
                     .FirstOrDefaultAsync(cancellationToken);
                 if (movieCollection.PosterPictureId == null && firstMovieWithPoster?.PosterPictureId != null)
                     movieCollection.PosterPictureId = firstMovieWithPoster.PosterPictureId;
+                await _db.SaveChangesAsync(cancellationToken);
 
                 var firstMovieWithBanner = await _db.Movies
                     .Where(m => m.MovieCollectionId == movieCollection.Id && m.BannerPictureId != null)
@@ -618,6 +606,7 @@ namespace VideoWebPlayer.Services
                     .FirstOrDefaultAsync(cancellationToken);
                 if (movieCollection.BannerPictureId == null && firstMovieWithBanner?.BannerPictureId != null)
                     movieCollection.BannerPictureId = firstMovieWithBanner.BannerPictureId;
+                await _db.SaveChangesAsync(cancellationToken);
 
                 var firstMovieWithFanart= await _db.Movies
                     .Where(m => m.MovieCollectionId == movieCollection.Id && m.FanartPictureId != null)
@@ -625,8 +614,8 @@ namespace VideoWebPlayer.Services
                     .FirstOrDefaultAsync(cancellationToken);
                 if (movieCollection.FanartPictureId == null && firstMovieWithFanart?.FanartPictureId != null)
                     movieCollection.FanartPictureId = firstMovieWithFanart.FanartPictureId;
+                await _db.SaveChangesAsync(cancellationToken);
             }
-            await _db.SaveChangesAsync(cancellationToken);
         }
 
         private async Task AssignPicturesToTVShowAsync(TVShow show, MediaCollection episodeCollection, CancellationToken cancellationToken, bool isFirst)
@@ -811,10 +800,10 @@ namespace VideoWebPlayer.Services
                         if (type == "")
                             if (episode.PosterPictureId is null)
                                 episode.PosterPictureId = picture.Id;
+                        await _db.SaveChangesAsync(cancellationToken);
                     }
                 }
             }
-            await _db.SaveChangesAsync(cancellationToken);
         }
         /// <summary>
         /// Gibt das längste gemeinsame Präfix aller Strings in der Liste zurück.

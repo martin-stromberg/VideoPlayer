@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using VideoWebPlayer.Data;
 
@@ -10,9 +11,11 @@ using VideoWebPlayer.Data;
 namespace VideoWebPlayer.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250816055353_UpdateMediaModels11")]
+    partial class UpdateMediaModels11
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "9.0.8");
@@ -320,13 +323,7 @@ namespace VideoWebPlayer.Migrations
                     b.Property<long?>("MovieId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<long?>("TVShowEpisodeId")
-                        .HasColumnType("INTEGER");
-
                     b.Property<long?>("TVShowId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<long?>("TVShowSeasonId")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("UserId")

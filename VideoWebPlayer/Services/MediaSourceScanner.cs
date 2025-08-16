@@ -62,24 +62,20 @@ namespace VideoWebPlayer.Services
                     {
                         var collection = await _db.EnsureMediaCollectionExistsAsync(dir, cancellationToken);
                         entry.Id = collection.Id;
+                        await _db.SaveChangesAsync(cancellationToken);
                         _logger.LogDebug("Verzeichnis '{Path}' gescannt.", dir.Path);
                     }
                     else if (entry is MediaItem file)
                     {
                         var item = await _db.EnsureMediaItemExistsAsync(file, cancellationToken);
                         entry.Id = item.Id;
+                        await _db.SaveChangesAsync(cancellationToken);
                         _logger.LogDebug("Datei '{Path}' gescannt.", file.Path);
                     }
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Fehler beim Verarbeiten von '{EntryName}' in Quelle '{SourceName}'.", entry.Name, source.Name);
-                }
-
-                if (counter++ == 1000)
-                {
-                    await _db.SaveChangesAsync(cancellationToken);
-                    counter = 0;
                 }
             }
         }

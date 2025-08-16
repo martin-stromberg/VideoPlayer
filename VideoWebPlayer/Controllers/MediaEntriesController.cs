@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
 namespace VideoWebPlayer.Controllers
 {
@@ -21,10 +22,14 @@ namespace VideoWebPlayer.Controllers
         public async Task<ActionResult<List<MediaEntryDto>>> Get(
             [FromQuery] long? mediaSourceId,
             [FromQuery] int page = 0,
-            [FromQuery] int size = 30)
+            [FromQuery] int size = 30,
+            [FromQuery] string? search = null)
         {
-            var movieCollections = (await _db.MovieCollections
-                .Where(mc => !mediaSourceId.HasValue || mc.MediaSourceId == mediaSourceId)
+            var queryMovie = _db.MovieCollections
+                .Where(mc => !mediaSourceId.HasValue || mc.MediaSourceId == mediaSourceId);
+            if (!string.IsNullOrWhiteSpace(search))
+                queryMovie = queryMovie.Where(e => e.Name.Contains(search));
+            var movieCollections = (await queryMovie
                 .OrderBy(e => e.Name)
                 .Skip(0)
                 .Take((page + 1) * size)
@@ -40,8 +45,11 @@ namespace VideoWebPlayer.Controllers
                 })
                 .ToListAsync());
 
-            var tvShows = await _db.TVShows
-                .Where(ts => !mediaSourceId.HasValue || ts.MediaSourceId == mediaSourceId)
+            var queryShow = _db.TVShows
+                .Where(mc => !mediaSourceId.HasValue || mc.MediaSourceId == mediaSourceId);
+            if (!string.IsNullOrWhiteSpace(search))
+                queryShow = queryShow.Where(e => e.Name.Contains(search));
+            var tvShows = await queryShow
                 .OrderBy(e => e.Name)
                 .Skip(0)
                 .Take((page + 1) * size)

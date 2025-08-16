@@ -10,6 +10,22 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @rendermode InteractiveServer
 
+<style>
+    .search-bar {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1.2rem;
+        align-items: center;
+    }
+    .search-bar input[type="text"] {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+    .search-bar button {
+        flex: 0 0 auto;
+    }
+</style>
+
 <script>
     window.saveScrollPosition = function (selector) {
         var el = document.querySelector(selector);
@@ -47,6 +63,7 @@
     private const int PageSize = 30;
     private ElementReference BottomMarker;
     private bool? isAuthenticated = null;
+    private string searchText = "";
 
     [JSInvokable]
     public async Task OnBottomVisible()
@@ -58,7 +75,11 @@
     private async Task LoadNextPageAsync()
     {
         isLoading = true;
-        var newEntries = await Http.GetFromJsonAsync<List<MediaEntryDto>>($"/api/mediaentries?mediaSourceId={mediaSource?.Id}&page={Page}&size={PageSize}");
+        var url = $"/api/mediaentries?mediaSourceId={mediaSource?.Id}&page={Page}&size={PageSize}";
+        if (!string.IsNullOrWhiteSpace(searchText))
+            url += $"&search={Uri.EscapeDataString(searchText)}";
+
+        var newEntries = await Http.GetFromJsonAsync<List<MediaEntryDto>>(url);
         if (newEntries?.Any() == true)
         {
             Entries.AddRange(newEntries);
@@ -123,6 +144,22 @@
         if (!string.IsNullOrEmpty(movie.Url))
             Navigation.NavigateTo(movie.Url);
     }
+
+    private async Task SearchEntries()
+    {
+        Page = 0;
+        Entries.Clear();
+        await LoadNextPageAsync();
+        await JS.InvokeVoidAsync("observeBottom", BottomMarker, DotNetObjectReference.Create(this));
+    }
+
+    private async Task OnSearchKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SearchEntries();
+        }
+    }
 }
 
 @if (isLoading)
@@ -142,6 +179,16 @@ else if (mediaSource == null)
 else
 {
     <PageTitle>@mediaSource.Name</PageTitle>    
+
+    <div class="search-bar">
+        <input type="text"
+               class="form-control"
+               placeholder="Suche..."
+               @bind="searchText"
+               @bind:event="oninput"
+               @onkeydown="OnSearchKeyDown" />
+        <button class="btn btn-primary" @onclick="SearchEntries">Suchen</button>
+    </div>
 
     <div class="media-grid">
         @foreach (var entry in Entries)

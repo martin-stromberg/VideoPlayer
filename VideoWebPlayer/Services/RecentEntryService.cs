@@ -280,7 +280,7 @@ public class RecentEntryService
     {
         var entries = await _db.RecentEntries
             .Where(e => e.MediaSourceId == mediaSourceId)
-            .OrderByDescending(e => e.PublishedAt)
+            .OrderByDescending(e => e.CreatedAt)
             .ToListAsync();
 
         if (entries.Count > MaxEntries)
@@ -293,10 +293,10 @@ public class RecentEntryService
 
     public async Task<List<RecentEntry>> GetRecentEntriesAsync()
     {
-        //return await _db.RecentEntries
-        //    .OrderByDescending(e => e.PublishedAt)
-        //    .Take(MaxEntries)
-        //    .ToListAsync();
-        return new List<RecentEntry>();
+        return await _db.RecentEntries
+            .OrderByDescending(e => e.CreatedAt)
+            .Take(MaxEntries)
+            .ToListAsync();
+        //return new List<RecentEntry>();
     }
 }

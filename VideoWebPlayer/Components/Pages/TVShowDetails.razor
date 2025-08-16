@@ -153,7 +153,7 @@ else
 {
     <PageTitle>@GetTitle()</PageTitle>
     <div class="tvshow-header" style="background-image: url('@GetBannerUrl((MediaBaseEntry)selectedEpisode ?? (showSeasonInfo ? (MediaBaseEntry)selectedSeason : (MediaBaseEntry)show))'); position: relative;">
-        <button class="favorite-btn" @onclick="ToggleFavorite" title="Serie als Favorit markieren">
+        <button class="favorite-btn" @onclick="ToggleFavorite" title="Als Favorit markieren">
             @(isFavorite ? "★" : "☆")
         </button>
         <div class="tvshow-header-overlay">

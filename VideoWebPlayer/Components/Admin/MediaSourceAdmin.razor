@@ -1,0 +1,183 @@
+﻿@page "/admin/mediasources"
+@using Microsoft.EntityFrameworkCore
+@using VideoWebPlayer.Data
+@using VideoWebPlayer.Events
+@inject ApplicationDbContext DbContext
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+@inject VideoWebPlayer.Services.EventManager EventManager
+@rendermode InteractiveServer
+<PageTitle>Quellen verwalten</PageTitle>
+
+
+<AuthorizeView>
+    <Authorized Context="authContext">
+        @if (!isAdmin)
+        {
+            <div class="alert alert-danger">Zugriff verweigert: Nur Administratoren dürfen diese Seite sehen.</div>
+        }
+        else
+        {
+            <h1>Quellen verwalten</h1>
+
+
+
+            @if (editSource != null)
+            {
+                <EditForm Model="editSource" OnValidSubmit="SaveSource" FormName="mediaSourceForm">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary />
+                    <div class="row mb-2">
+                        <div class="col">
+                            <InputText class="form-control" @bind-Value="editSource.Name" placeholder="Name" />
+                        </div>
+                        <div class="col">
+                            <InputText class="form-control" @bind-Value="editSource.Host" placeholder="Host" />
+                        </div>
+                        <div class="col">
+                            <InputNumber class="form-control" @bind-Value="editSource.Port" placeholder="Port" />
+                        </div>
+                        <div class="col">
+                            <InputText class="form-control" @bind-Value="editSource.Path" placeholder="Pfad" />
+                        </div>
+                        <div class="col">
+                            <InputText class="form-control" @bind-Value="editSource.Username" placeholder="Benutzername" />
+                        </div>
+                        <div class="col">
+                            <InputText class="form-control" @bind-Value="editSource.Password" placeholder="Passwort" type="password" />
+                        </div>
+                        <div class="col">
+                            <button type="submit" class="btn btn-success me-2">@((editSource.Id == 0) ? "Hinzufügen" : "Speichern")</button>
+                            @if (editSource.Id != 0)
+                            {
+                                <button type="button" class="btn btn-secondary" @onclick="CancelEdit">Abbrechen</button>
+                            }
+                        </div>
+                    </div>
+                </EditForm> 
+            }
+            <button class="btn btn-success" @onclick="AddSource">Neue Quelle</button>
+
+
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Host</th>
+                        <th>Port</th>
+                        <th>Pfad</th>
+                        <th>Benutzername</th>
+                        <th>Aktionen</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var source in mediaSources)
+                    {
+                        <tr>
+                            <td>@source.Name</td>
+                            <td>@source.Host</td>
+                            <td>@source.Port</td>
+                            <td>@source.Path</td>
+                            <td>@source.Username</td>
+                            <td>
+                                <button class="btn btn-sm btn-primary me-1" @onclick="() => EditSource(source)">Bearbeiten</button>
+                                <button class="btn btn-sm btn-danger me-1" @onclick="() => DeleteSource(source)">Löschen</button>
+                                <button class="btn btn-sm btn-warning" @onclick="() => ResetScan(source)">Scan zurücksetzen</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </Authorized>
+    <NotAuthorized>
+        <div class="alert alert-warning">Bitte melden Sie sich an.</div>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private List<MediaSource> mediaSources = new();
+    private bool isAdmin = false;
+    private MediaSource? editSource;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        isAdmin = user.Identity?.IsAuthenticated == true && user.HasClaim("IsAdmin", "True");
+
+        if (isAdmin)
+        {
+            await LoadSources();
+        }
+    }
+
+    private async Task LoadSources()
+    {
+        mediaSources = await DbContext.MediaSources.OrderBy(x => x.Name).ToListAsync();
+        StateHasChanged();
+    }
+
+    private void AddSource()
+    {
+        editSource = new MediaSource();
+    }
+
+    private void EditSource(MediaSource source)
+    {
+        editSource = new MediaSource
+        {
+            Id = source.Id,
+            Name = source.Name,
+            Host = source.Host,
+            Port = source.Port,
+            Path = source.Path,
+            Username = source.Username,
+            Password = source.Password,
+            CreatedAt = source.CreatedAt,
+            LastScannedAt = source.LastScannedAt
+        };
+    }
+
+    private void CancelEdit()
+    {
+        editSource = null;
+    }
+
+    private async Task SaveSource()
+    {
+        if (editSource == null)
+            return;
+        try
+        {
+            if (editSource.Id == 0)
+            {
+                await DbContext.AddMediaSourceAsync(editSource);
+            }
+            else
+            {
+                await DbContext.UpdateMediaSourceAsync(editSource);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"{ex}");
+        }
+        await LoadSources();
+        editSource = null;
+    }
+
+    private async Task DeleteSource(MediaSource source)
+    {
+        await DbContext.DeleteMediaSourceAsync(source);
+        await LoadSources();
+    }
+
+    private async Task ResetScan(MediaSource source)
+    {
+        source.LastScannedAt = DateTime.MinValue;
+        await DbContext.UpdateMediaSourceAsync(source);
+        await LoadSources();
+    }
+}

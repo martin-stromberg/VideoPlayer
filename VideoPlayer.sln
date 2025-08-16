@@ -27,6 +27,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WebPlayer", "WebPlayer\WebP
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WebPlayer.Client", "WebPlayer\WebPlayer.Client\WebPlayer.Client.csproj", "{CED395DC-ED81-4336-A25D-0883214A241E}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VideoWebPlayer", "VideoWebPlayer\VideoWebPlayer.csproj", "{951A411D-0429-4A7D-94EE-B1F78D25FA66}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Blazortest", "Blazortest\Blazortest.csproj", "{026995DB-305E-4F50-91B8-89C8532658E2}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -85,6 +89,14 @@ Global
 		{CED395DC-ED81-4336-A25D-0883214A241E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CED395DC-ED81-4336-A25D-0883214A241E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CED395DC-ED81-4336-A25D-0883214A241E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{951A411D-0429-4A7D-94EE-B1F78D25FA66}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{951A411D-0429-4A7D-94EE-B1F78D25FA66}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{951A411D-0429-4A7D-94EE-B1F78D25FA66}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{951A411D-0429-4A7D-94EE-B1F78D25FA66}.Release|Any CPU.Build.0 = Release|Any CPU
+		{026995DB-305E-4F50-91B8-89C8532658E2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{026995DB-305E-4F50-91B8-89C8532658E2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{026995DB-305E-4F50-91B8-89C8532658E2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{026995DB-305E-4F50-91B8-89C8532658E2}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

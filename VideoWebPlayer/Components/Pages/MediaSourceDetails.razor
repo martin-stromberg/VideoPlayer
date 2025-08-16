@@ -1,0 +1,170 @@
+﻿@page "/mediasource/{Id:long}"
+@using VideoWebPlayer.Data
+@using Microsoft.EntityFrameworkCore
+@using System.Net.Http
+@using System.Net.Http.Json
+@inject ApplicationDbContext DbContext
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@inject HttpClient Http
+@inject AuthenticationStateProvider AuthStateProvider
+@rendermode InteractiveServer
+
+<script>
+    window.saveScrollPosition = function (selector) {
+        var el = document.querySelector(selector);
+        if (el) {
+            sessionStorage.setItem("scrollPos_" + selector, el.scrollLeft);
+        }
+    };
+
+    window.restoreScrollPosition = function (selector) {
+        var el = document.querySelector(selector);
+        var pos = sessionStorage.getItem("scrollPos_" + selector);
+        if (el && pos) {
+            el.scrollLeft = parseInt(pos, 10);
+        }
+    };
+
+    window.setSelectedMediaItem = function(mediaItemid) {
+        sessionStorage.setItem("selectedMediaItem", mediaItemid);
+    }
+
+    window.getSelectedMediaItem = function() {
+        var id = sessionStorage.getItem("selectedMediaItem");
+        return id ? id : "";
+    }
+</script>
+
+@code {
+    [Parameter]
+    public long Id { get; set; }
+
+    private MediaSource? mediaSource;
+    private bool isLoading = true;
+    private List<MediaEntryDto> Entries = new();
+    private int Page = 0;
+    private const int PageSize = 30;
+    private ElementReference BottomMarker;
+    private bool? isAuthenticated = null;
+
+    [JSInvokable]
+    public async Task OnBottomVisible()
+    {
+        if (!isLoading && isAuthenticated == true)
+            await LoadNextPageAsync();
+    }
+
+    private async Task LoadNextPageAsync()
+    {
+        isLoading = true;
+        var newEntries = await Http.GetFromJsonAsync<List<MediaEntryDto>>($"/api/mediaentries?mediaSourceId={mediaSource?.Id}&page={Page}&size={PageSize}");
+        if (newEntries?.Any() == true)
+        {
+            Entries.AddRange(newEntries);
+            Page++;
+        }
+        isLoading = false;
+
+        if (!int.TryParse(await JS.InvokeAsync<string>("getSelectedMediaItem"), out var selectedId))
+            selectedId = 0;
+
+        if (selectedId != 0 && !newEntries.Any(e => e.Id == selectedId))
+            await LoadNextPageAsync();
+        else
+        {
+            await JS.InvokeVoidAsync("setSelectedMediaItem", "0");
+            StateHasChanged();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLoading = true;
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        isAuthenticated = user?.Identity?.IsAuthenticated == true;
+
+        mediaSource = await DbContext.MediaSources
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == Id);
+        isLoading = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && isAuthenticated == true)
+        {
+            try
+            {
+                await LoadNextPageAsync();
+                await JS.InvokeVoidAsync("observeBottom", BottomMarker, DotNetObjectReference.Create(this));
+            }
+            catch(Exception ex)
+            {
+                Console.WriteLine($"Fehler beim Initialisieren des JavaScript-Observers: {ex.Message}");
+            }
+        }
+
+        // Scrollposition der Medienliste wiederherstellen
+        await JS.InvokeVoidAsync("restoreScrollPosition", ".media-grid");
+    }
+
+    private string GetPosterUrl(MediaEntryDto entry)
+        => entry.PictureId.HasValue
+            ? $"/api/pictures/{entry.PictureId}"
+            : "/images/placeholder.png";
+
+    private async Task OnMovieSelected(MediaEntryDto movie)
+    {
+        // Scrollposition speichern
+        await JS.InvokeVoidAsync("setSelectedMediaItem", movie.Id.ToString());
+        await JS.InvokeVoidAsync("saveScrollPosition", ".media-grid");
+        if (!string.IsNullOrEmpty(movie.Url))
+            Navigation.NavigateTo(movie.Url);
+    }
+}
+
+@if (isLoading)
+{
+    <p>Lade Daten...</p>
+}
+else if (isAuthenticated != true)
+{
+    <PageTitle>Zugriff verweigert</PageTitle>
+    <div class="alert alert-warning">Bitte melden Sie sich an, um die Inhalte zu sehen.</div>
+}
+else if (mediaSource == null)
+{
+    <PageTitle>Unbekannte Quelle</PageTitle>
+    <div class="alert alert-danger">Quelle nicht gefunden.</div>
+}
+else
+{
+    <PageTitle>@mediaSource.Name</PageTitle>    
+
+    <div class="media-grid">
+        @foreach (var entry in Entries)
+        {
+            <a class="media-box-link" href="@entry.Url">
+                <div class="media-box" @onclick="async () => await OnMovieSelected(entry)">
+                    @if (entry.ItemCount > 1)
+                    {
+                        <span class="collection-indicator" title="Enthält mehrere Filme">
+                            ⧉
+                        </span>
+                    }
+                    <img class="media-poster"
+                         src="@GetPosterUrl(entry)"
+                         alt="@entry.Title"
+                         onerror="this.onerror=null;this.src='/images/placeholder.png';" />
+                    <div class="media-title">
+                        @entry.Title
+                    </div>
+                </div>
+            </a>
+        }
+        <div @ref="BottomMarker"></div>
+    </div>
+}
+

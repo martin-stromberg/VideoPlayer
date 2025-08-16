@@ -1,0 +1,62 @@
+﻿@inherits LayoutComponentBase
+
+<!-- Kopfleiste immer ganz oben -->
+<div class="top-row p-0 navbar navbar-dark">
+    <div class="container-fluid d-flex align-items-center justify-content-between">
+        <div class="d-flex align-items-center">
+            <button id="sidebarToggle" class="btn btn-outline-light me-2" title="Menü ein-/ausklappen">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+                    <rect y="4" width="24" height="2" rx="1" fill="#ffe066"/>
+                    <rect y="11" width="24" height="2" rx="1" fill="#ffe066"/>
+                    <rect y="18" width="24" height="2" rx="1" fill="#ffe066"/>
+                </svg>
+            </button>
+            <a class="navbar-brand" href="">VideoWebPlayer</a>
+        </div>
+        <div>
+            <NavLink class="nav-link" href="/about">
+                <span class="bi bi-info-circle"></span> About
+            </NavLink>
+        </div>
+    </div>
+</div>
+
+<!-- Flex-Container für Sidebar und Inhalt -->
+<div class="layout-flex">
+    <div id="sidebar" class="sidebar sidebar-closed">
+        <NavMenu />
+    </div>
+    <main>
+        <article class="content px-4">
+            @Body
+        </article>
+    </main>
+</div>
+
+<div id="blazor-error-ui">
+    An unhandled error has occurred.
+    <a href="" class="reload">Reload</a>
+    <a class="dismiss">🗙</a>
+</div>
+
+<div id="sidebar-overlay" class="sidebar-overlay" style="display:none;"></div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var toggleBtn = document.getElementById("sidebarToggle");
+        var sidebar = document.getElementById("sidebar");
+        var overlay = document.getElementById("sidebar-overlay");
+        if (toggleBtn && sidebar && overlay) {
+            toggleBtn.addEventListener("click", function () {
+                sidebar.classList.toggle("sidebar-open");
+                sidebar.classList.toggle("sidebar-closed");
+                overlay.style.display = sidebar.classList.contains("sidebar-open") ? "block" : "none";
+            });
+            overlay.addEventListener("click", function () {
+                sidebar.classList.remove("sidebar-open");
+                sidebar.classList.add("sidebar-closed");
+                overlay.style.display = "none";
+            });
+        }
+    });
+</script>

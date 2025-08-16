@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>aspnet-VideoWebPlayer-d7482f8a-36bd-4416-9261-680904a1c426</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="8.0.19" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.19" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.8">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.8" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.19" />
+    <PackageReference Include="SSH.NET" Version="2025.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <DbSet Include="MediaSource" />
+    <DbSet Include="MediaCollection" />
+    <DbSet Include="MediaItem" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Pages\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Update="wwwroot\app.css">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Update="wwwroot\css\site.css">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Update="wwwroot\images\placeholder.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Update="wwwroot\js\scroll.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+</Project>

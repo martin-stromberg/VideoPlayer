@@ -14,5 +14,6 @@ namespace VideoWebPlayer.Data
         public string? Password { get; set; }
         public DateTime? LastScannedAt { get; set; }
         public ICollection<MediaCollection> MediaCollections { get; set; } = new List<MediaCollection>();
+        public ICollection<MediaSourceUser> MediaSourceUsers { get; set; } = new List<MediaSourceUser>();
     }
 }

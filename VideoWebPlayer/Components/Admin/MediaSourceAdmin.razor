@@ -46,13 +46,23 @@
                         <div class="col">
                             <InputText class="form-control" @bind-Value="editSource.Password" placeholder="Passwort" type="password" />
                         </div>
-                        <div class="col">
-                            <button type="submit" class="btn btn-success me-2">@((editSource.Id == 0) ? "Hinzufügen" : "Speichern")</button>
-                            @if (editSource.Id != 0)
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Freigegebene Benutzer</label>
+                        <select multiple class="form-control" style="min-height: 120px;" @onchange="OnUserSelectionChanged">
+                            @foreach (var user in allUsers)
                             {
-                                <button type="button" class="btn btn-secondary" @onclick="CancelEdit">Abbrechen</button>
+                                <option value="@user.Id" selected="@selectedUserIds.Contains(user.Id)">@user.UserName</option>
                             }
-                        </div>
+                        </select>
+                        <small class="form-text text-muted">Halte Strg oder Shift gedrückt, um mehrere Benutzer auszuwählen.</small>
+                    </div>
+                    <div class="mb-2">
+                        <button type="submit" class="btn btn-success me-2">@((editSource.Id == 0) ? "Hinzufügen" : "Speichern")</button>
+                        @if (editSource.Id != 0)
+                        {
+                            <button type="button" class="btn btn-secondary" @onclick="CancelEdit">Abbrechen</button>
+                        }
                     </div>
                 </EditForm> 
             }
@@ -99,6 +109,8 @@
     private List<MediaSource> mediaSources = new();
     private bool isAdmin = false;
     private MediaSource? editSource;
+    private List<ApplicationUser> allUsers = new();
+    private List<string> selectedUserIds = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -110,13 +122,22 @@
         if (isAdmin)
         {
             await LoadSources();
+            await LoadAllUsers();
         }
     }
 
     private async Task LoadSources()
     {
-        mediaSources = await DbContext.MediaSources.OrderBy(x => x.Name).ToListAsync();
+        mediaSources = await DbContext.MediaSources
+            .Include(x => x.MediaSourceUsers)
+            .OrderBy(x => x.Name)
+            .ToListAsync();
         StateHasChanged();
+    }
+
+    private async Task LoadAllUsers()
+    {
+        allUsers = await DbContext.Users.ToListAsync();
     }
 
     private void AddSource()
@@ -136,8 +157,10 @@
             Username = source.Username,
             Password = source.Password,
             CreatedAt = source.CreatedAt,
-            LastScannedAt = source.LastScannedAt
+            LastScannedAt = source.LastScannedAt,
+            MediaSourceUsers = new List<MediaSourceUser>(source.MediaSourceUsers ?? new List<MediaSourceUser>()),
         };
+        selectedUserIds = source.MediaSourceUsers?.Select(mu => mu.UserId).ToList() ?? new();
     }
 
     private void CancelEdit()
@@ -149,16 +172,37 @@
     {
         if (editSource == null)
             return;
+
         try
         {
             if (editSource.Id == 0)
             {
                 await DbContext.AddMediaSourceAsync(editSource);
+                // Nach dem Hinzufügen: Mapping-Entitäten anlegen
+                foreach (var userId in selectedUserIds)
+                {
+                    DbContext.MediaSourceUsers.Add(new MediaSourceUser
+                    {
+                        MediaSourceId = editSource.Id,
+                        UserId = userId
+                    });
+                }
             }
             else
             {
                 await DbContext.UpdateMediaSourceAsync(editSource);
+                var existingMappings = DbContext.MediaSourceUsers.Where(mu => mu.MediaSourceId == editSource.Id);
+                DbContext.MediaSourceUsers.RemoveRange(existingMappings);
+                foreach (var userId in selectedUserIds)
+                {
+                    DbContext.MediaSourceUsers.Add(new MediaSourceUser
+                    {
+                        MediaSourceId = editSource.Id,
+                        UserId = userId
+                    });
+                }
             }
+            await DbContext.SaveChangesAsync();
         }
         catch (Exception ex)
         {
@@ -179,5 +223,10 @@
         source.LastScannedAt = DateTime.MinValue;
         await DbContext.UpdateMediaSourceAsync(source);
         await LoadSources();
+    }
+
+    private void OnUserSelectionChanged(ChangeEventArgs e)
+    {
+        selectedUserIds = ((IEnumerable<string>)e.Value).ToList();
     }
 }

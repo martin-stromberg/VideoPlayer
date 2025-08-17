@@ -169,7 +169,10 @@ namespace VideoWebPlayer.Services
             existingShow.TVShowGenres.Clear();
             foreach (var genre in showGenres)
             {
-                if (!existingShow.TVShowGenres.Any(tg => tg.GenreId == genre.Id))
+                var existing = await _db.TVShowGenres.FirstOrDefaultAsync(mg => mg.TVShowId == existingShow.Id && mg.GenreId == genre.Id);
+                if (existing is not null)
+                    existingShow.TVShowGenres.Add(existing);
+                else
                     existingShow.TVShowGenres.Add(new TVShowGenre { TVShowId = existingShow.Id, GenreId = genre.Id });
             }            
             await _db.SaveChangesAsync(cancellationToken);
@@ -419,10 +422,12 @@ namespace VideoWebPlayer.Services
                 existingMovie.MovieGenres.Clear();
                 foreach (var genre in movieGenres)
                 {
-                    if (!existingMovie.MovieGenres.Any(mg => mg.GenreId == genre.Id))
+                    var existing = await _db.MovieGenres.FirstOrDefaultAsync(mg => mg.MovieId == existingMovie.Id && mg.GenreId == genre.Id);
+                    if (existing is not null)
+                        existingMovie.MovieGenres.Add(existing);
+                    else
                         existingMovie.MovieGenres.Add(new MovieGenre { MovieId = existingMovie.Id, GenreId = genre.Id });
-                }
-                
+                }                
                 await _db.SaveChangesAsync(cancellationToken);
 
                 var movieMediaItem = await _db.MovieMediaItems
@@ -872,7 +877,10 @@ namespace VideoWebPlayer.Services
                 movie.MovieGenres.Clear();
                 foreach (var genre in genres)
                 {
-                    if (!movie.MovieGenres.Any(mg => mg.GenreId == genre.Id))
+                    var existing = await _db.MovieGenres.FirstOrDefaultAsync(mg => mg.MovieId == movie.Id && mg.GenreId == genre.Id);
+                    if (existing is not null)
+                        movie.MovieGenres.Add(existing);
+                    else
                         movie.MovieGenres.Add(new MovieGenre { MovieId = movie.Id, GenreId = genre.Id });
                 }
                 movie.GenreNames = string.Join(",", genres.Select(g => g.Name));
@@ -892,7 +900,10 @@ namespace VideoWebPlayer.Services
                 show.TVShowGenres.Clear();
                 foreach (var genre in genres)
                 {
-                    if (!show.TVShowGenres.Any(mg => mg.GenreId == genre.Id))
+                    var existing = await _db.TVShowGenres.FirstOrDefaultAsync(mg => mg.TVShowId == show.Id && mg.GenreId == genre.Id);
+                    if (existing is not null)
+                        show.TVShowGenres.Add(existing);
+                    else
                         show.TVShowGenres.Add(new TVShowGenre { TVShowId = show.Id, GenreId = genre.Id });
                 }                
                 await _db.SaveChangesAsync(cancellationToken);

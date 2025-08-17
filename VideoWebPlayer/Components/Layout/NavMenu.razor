@@ -1,6 +1,8 @@
 ﻿@using Microsoft.EntityFrameworkCore
+@using System.Security.Claims
 @using VideoWebPlayer.Data
 @inject ApplicationDbContext DbContext
+@inject AuthenticationStateProvider AuthStateProvider
 
 @implements IDisposable
 
@@ -96,8 +98,15 @@
         currentUrl = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
         NavigationManager.LocationChanged += OnLocationChanged;
 
-        // MediaSources laden
-        mediaSources = await DbContext.MediaSources.OrderBy(x => x.Name).ToListAsync();
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        var userId = user.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+        
+        mediaSources = await DbContext.MediaSourceUsers
+            .Where(mu => mu.UserId == userId)
+            .Select(mu => mu.MediaSource)
+            .OrderBy(x => x.Name)
+            .ToListAsync();
     }
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)

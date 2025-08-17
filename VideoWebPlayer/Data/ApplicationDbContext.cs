@@ -32,6 +32,7 @@ namespace VideoWebPlayer.Data
         /// Tabelle für MediaSources (Quellen).
         /// </summary>
         public DbSet<MediaSource> MediaSources { get; set; }
+        public DbSet<MediaSourceUser> MediaSourceUsers { get; set; }
 
         /// <summary>
         /// Tabelle für MediaCollections (Sammlungen).
@@ -408,6 +409,9 @@ namespace VideoWebPlayer.Data
                 .HasOne(tg => tg.Genre)
                 .WithMany(g => g.TVShowGenres)
                 .HasForeignKey(tg => tg.GenreId);
+
+            modelBuilder.Entity<MediaSourceUser>()
+                .HasKey(msu => new { msu.MediaSourceId, msu.UserId });
         }
     }
 }

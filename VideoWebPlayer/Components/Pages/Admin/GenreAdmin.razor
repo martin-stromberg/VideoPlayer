@@ -109,55 +109,56 @@
     </div>
 }
 
-@code {
-    private List<Genre> genres = new();
-    private Genre? editGenre;
-    private string altNamesInput = "";
-    private List<Genre> uniqueGenres = new();
+    @code {
+        private List<Genre> genres = new();
+        private Genre? editGenre;
+        private string altNamesInput = "";
+        private List<Genre> uniqueGenres = new();
 
-    protected override async Task OnInitializedAsync()
-    {
-        var allGenres = await DbContext.Genres.Include(g => g.AlternateNames).ToListAsync();
-        uniqueGenres = allGenres
-            .GroupBy(g => g.Name.Trim().ToLower())
-            .Select(g => g.First())
-            .OrderBy(g => g.Name)
-            .ToList();
-    }
-
-    private void EditGenre(Genre genre)
-    {
-        editGenre = genre;
-        altNamesInput = string.Join(", ", genre.AlternateNames.Select(a => a.Name));
-    }
-
-    private async Task SaveAltNames()
-    {
-        if (editGenre == null) return;
-        var names = altNamesInput.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                                 .Select(n => n.Trim())
-                                 .Where(n => !string.IsNullOrWhiteSpace(n))
-                                 .Distinct(StringComparer.OrdinalIgnoreCase)
-                                 .ToList();
-
-        // Alle Genres mit gleichem Namen finden
-        var allGenres = await DbContext.Genres.Include(g => g.AlternateNames)
-            .Where(g => g.Name.Trim().ToLower() == editGenre.Name.Trim().ToLower())
-            .ToListAsync();
-
-        foreach (var genre in allGenres)
+        protected override async Task OnInitializedAsync()
         {
-            // Bestehende löschen
-            DbContext.GenreNames.RemoveRange(genre.AlternateNames);
-            await DbContext.SaveChangesAsync();
-
-            // Neue anlegen
-            foreach (var name in names)
-            {
-                DbContext.GenreNames.Add(new GenreName { Name = name, GenreId = genre.Id });
-            }
-            await DbContext.SaveChangesAsync();
+            var allGenres = await DbContext.Genres.Include(g => g.AlternateNames).ToListAsync();
+            uniqueGenres = allGenres
+                .GroupBy(g => g.Name.Trim().ToLower())
+                .Select(g => g.First())
+                .OrderBy(g => g.Name)
+                .ToList();
         }
+
+        private void EditGenre(Genre genre)
+        {
+            editGenre = genre;
+            altNamesInput = string.Join(", ", genre.AlternateNames.Select(a => a.Name));
+        }
+
+        private async Task SaveAltNames()
+        {
+            if (editGenre == null) return;
+            var names = altNamesInput.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                                     .Select(n => n.Trim())
+                                     .Where(n => !string.IsNullOrWhiteSpace(n))
+                                     .Distinct(StringComparer.OrdinalIgnoreCase)
+                                     .ToList();
+
+            // Alle Genres mit gleichem Namen finden
+            var allGenres = await DbContext.Genres.Include(g => g.AlternateNames)
+                .Where(g => g.Name.Trim().ToLower() == editGenre.Name.Trim().ToLower())
+                .ToListAsync();
+
+            foreach (var genre in allGenres)
+            {
+                // Bestehende löschen
+                DbContext.GenreNames.RemoveRange(genre.AlternateNames);
+                await DbContext.SaveChangesAsync();
+
+                // Neue anlegen
+                foreach (var name in names)
+                {
+                    DbContext.GenreNames.Add(new GenreName { Name = name, GenreId = genre.Id });
+                }
+                await DbContext.SaveChangesAsync();
+                await DbContext.MarkGenresAsChangedAsync();
+            }
 
         // Reload
         var allGenresReload = await DbContext.Genres.Include(g => g.AlternateNames).ToListAsync();

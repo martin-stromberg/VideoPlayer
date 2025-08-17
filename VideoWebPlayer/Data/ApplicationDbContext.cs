@@ -310,6 +310,16 @@ namespace VideoWebPlayer.Data
         }
         #endregion
 
+        public async Task MarkGenresAsChangedAsync()
+        {
+            var setup = await Setups.FirstOrDefaultAsync();
+            if (setup != null)
+            {
+                setup.GenresChanged = true;
+                await SaveChangesAsync();
+            }
+        }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);

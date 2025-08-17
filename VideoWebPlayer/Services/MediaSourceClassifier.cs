@@ -164,10 +164,11 @@ namespace VideoWebPlayer.Services
                 await _db.SaveChangesAsync(cancellationToken);
                 _logger.LogInformation("TVShow '{ShowName}' aktualisiert.", showName);
             }
-            var movieGenres = await GetOrCreateGenresAsync(existingShow.GenreNames, collection.MediaSourceId, cancellationToken);
+            var showGenres = await GetOrCreateGenresAsync(existingShow.GenreNames, collection.MediaSourceId, cancellationToken);
             existingShow.Genres.Clear();
-            foreach (var genre in movieGenres)
+            foreach (var genre in showGenres)
                 existingShow.Genres.Add(genre);
+            existingShow.GenreNames = string.Join(",", existingShow.Genres.Select(g => g.Name));
             await _db.SaveChangesAsync(cancellationToken);
             return existingShow;
         }
@@ -414,6 +415,7 @@ namespace VideoWebPlayer.Services
                 existingMovie.Genres.Clear();
                 foreach (var genre in movieGenres)
                     existingMovie.Genres.Add(genre);
+                existingMovie.GenreNames = string.Join(",", existingMovie.Genres.Select(g => g.Name));
                 await _db.SaveChangesAsync(cancellationToken);
 
                 var movieMediaItem = await _db.MovieMediaItems
@@ -863,7 +865,7 @@ namespace VideoWebPlayer.Services
                 movie.Genres.Clear();
                 foreach (var genre in genres)
                     movie.Genres.Add(genre);
-
+                movie.GenreNames = string.Join(",", movie.Genres.Select(g => g.Name));
                 await _db.SaveChangesAsync(cancellationToken);
             }
 
@@ -879,7 +881,7 @@ namespace VideoWebPlayer.Services
                 show.Genres.Clear();
                 foreach (var genre in genres)
                     show.Genres.Add(genre);
-
+                show.GenreNames = string.Join(",", show.Genres.Select(g => g.Name));
                 await _db.SaveChangesAsync(cancellationToken);
             }
         }
@@ -887,9 +889,9 @@ namespace VideoWebPlayer.Services
         // Hilfsmethode wie oben beschrieben
         private async Task<List<Genre>> GetOrCreateGenresAsync(string? genreString, long mediaSourceId, CancellationToken cancellationToken)
         {
-            var genres = new List<Genre>();
+            var resultGenres = new List<Genre>();
             if (string.IsNullOrWhiteSpace(genreString))
-                return genres;
+                return resultGenres;
 
             var genreNames = genreString.Split(',', StringSplitOptions.RemoveEmptyEntries)
                                         .Select(g => g.Trim())
@@ -898,20 +900,59 @@ namespace VideoWebPlayer.Services
 
             foreach (var name in genreNames)
             {
-                var existing = await _db.Genres.FirstOrDefaultAsync(g => g.MediaSourceId == mediaSourceId && g.Name == name, cancellationToken);
-                if (existing == null)
+                // 1. Suche Genre mit gleichem Namen in dieser Quelle
+                var genre = (await _db.Genres
+                    .Include(g => g.AlternateNames)
+                    .Where(g => g.MediaSourceId == mediaSourceId)
+                    .ToListAsync(cancellationToken))
+                    .FirstOrDefault(g => g.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+
+                // 2. Falls nicht gefunden, suche nach Alternativnamen
+                if (genre == null)
                 {
-                    var genre = new Genre { Name = name, MediaSourceId = mediaSourceId };
-                    _db.Genres.Add(genre);
+                    var newGenre = new Genre { Name = name, MediaSourceId = mediaSourceId };
+                    _db.Genres.Add(newGenre);
                     await _db.SaveChangesAsync(cancellationToken);
-                    genres.Add(genre);
+                    resultGenres.Add(newGenre);
                 }
                 else
                 {
-                    genres.Add(existing);
+                    var alternateNames = string.Join(", ", await _db.GenreNames.Where(a => a.GenreId == genre.Id && a.Name != genre.Name).Select(a => a.Name).ToListAsync());
+                    if (string.IsNullOrWhiteSpace(alternateNames))
+                    {
+                        resultGenres.Add(genre);
+                        continue;
+                    }
+                    resultGenres.AddRange(await GetOrCreateGenresAsync(alternateNames, mediaSourceId, cancellationToken));
+                    continue;
                 }
             }
-            return genres;
+
+            // Duplikate entfernen (z.B. falls mehrere Alternativen auf dasselbe Genre zeigen)
+            return resultGenres
+                .GroupBy(g => g.Id)
+                .Select(g => g.First())
+                .ToList();
+        }
+
+        internal async Task CheckReloadGenres(CancellationToken stoppingToken)
+        {
+            var setup = await _db.Setups.FirstOrDefaultAsync();
+            if (setup is null || !setup.GenresChanged)
+                return;
+            setup.GenresChanged = false;
+            await _db.SaveChangesAsync();
+            try
+            {
+                await (ReloadGenres(stoppingToken));
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, "Fehler beim Reload der Genres.");
+                setup = await _db.Setups.FirstOrDefaultAsync();
+                setup.GenresChanged = true;
+                await _db.SaveChangesAsync();
+            }            
         }
     }
 }

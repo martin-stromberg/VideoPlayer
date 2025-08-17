@@ -40,6 +40,7 @@ namespace VideoWebPlayer.Services
                         var scanner = scope.ServiceProvider.GetRequiredService<MediaSourceScanner>();
                         var classifier = scope.ServiceProvider.GetRequiredService<MediaSourceClassifier>();
 
+                        await classifier.CheckReloadGenres(stoppingToken);
                         _logger.LogInformation("Starte Scan aller Quellen.");
                         await scanner.ScanAllSourcesAsync(stoppingToken);
                         _logger.LogInformation("Scan abgeschlossen. Starte Klassifizierung.");

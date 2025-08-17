@@ -9,7 +9,7 @@ public class DataUpgradeManager
     private readonly ApplicationDbContext _db;
     private readonly MediaSourceClassifier _classifier;
     private readonly ILogger<DataUpgradeManager> logger;
-    public const int CurrentVersion = 5; // Version erhöhen
+    public const int CurrentVersion = 6; // Version erhöhen
 
     public DataUpgradeManager(ApplicationDbContext db, MediaSourceClassifier classifier, ILogger<DataUpgradeManager> logger)
     {
@@ -49,6 +49,9 @@ public class DataUpgradeManager
                 case 5:
                     await Upgrade_5(cancellationToken);
                     break;
+                case 6:
+                    await Upgrade_6(cancellationToken);
+                    break;
             }
             setup.DataVersion = nextVersion;
             await _db.SaveChangesAsync(cancellationToken);
@@ -73,6 +76,10 @@ public class DataUpgradeManager
         await MarkAllMediaItemsAsChangedAsync(cancellationToken);
     }
     private async Task Upgrade_5(CancellationToken cancellationToken)
+    {
+        await _classifier.ReloadGenres(cancellationToken);
+    }
+    private async Task Upgrade_6(CancellationToken cancellationToken)
     {
         await _classifier.ReloadGenres(cancellationToken);
     }

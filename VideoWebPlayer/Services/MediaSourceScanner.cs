@@ -64,13 +64,15 @@ namespace VideoWebPlayer.Services
                         entry.Id = collection.Id;
                         await _db.SaveChangesAsync(cancellationToken);
                         _logger.LogDebug("Verzeichnis '{Path}' gescannt.", dir.Path);
+                        counter = 0;
                     }
                     else if (entry is MediaItem file)
                     {
                         var item = await _db.EnsureMediaItemExistsAsync(file, cancellationToken);
                         entry.Id = item.Id;
                         await _db.SaveChangesAsync(cancellationToken);
-                        _logger.LogDebug("Datei '{Path}' gescannt.", file.Path);
+                        if (counter++ % 100 == 0)
+                            _logger.LogDebug("Datei '{Path}' gescannt.", file.Path);
                     }
                 }
                 catch (Exception ex)

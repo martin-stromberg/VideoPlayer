@@ -165,10 +165,13 @@ namespace VideoWebPlayer.Services
                 _logger.LogInformation("TVShow '{ShowName}' aktualisiert.", showName);
             }
             var showGenres = await GetOrCreateGenresAsync(existingShow.GenreNames, collection.MediaSourceId, cancellationToken);
-            existingShow.Genres.Clear();
+            existingShow.GenreNames = string.Join(",", showGenres.Select(g => g.Name));
+            existingShow.TVShowGenres.Clear();
             foreach (var genre in showGenres)
-                existingShow.Genres.Add(genre);
-            existingShow.GenreNames = string.Join(",", existingShow.Genres.Select(g => g.Name));
+            {
+                if (!existingShow.TVShowGenres.Any(tg => tg.GenreId == genre.Id))
+                    existingShow.TVShowGenres.Add(new TVShowGenre { TVShowId = existingShow.Id, GenreId = genre.Id });
+            }            
             await _db.SaveChangesAsync(cancellationToken);
             return existingShow;
         }
@@ -412,10 +415,14 @@ namespace VideoWebPlayer.Services
                     _logger.LogInformation("Film '{MovieName}' aktualisiert.", movieName);
                 }
                 var movieGenres = await GetOrCreateGenresAsync(existingMovie.GenreNames, collection.MediaSourceId, cancellationToken);
-                existingMovie.Genres.Clear();
+                existingMovie.GenreNames = string.Join(",", movieGenres.Select(g => g.Name));
+                existingMovie.MovieGenres.Clear();
                 foreach (var genre in movieGenres)
-                    existingMovie.Genres.Add(genre);
-                existingMovie.GenreNames = string.Join(",", existingMovie.Genres.Select(g => g.Name));
+                {
+                    if (!existingMovie.MovieGenres.Any(mg => mg.GenreId == genre.Id))
+                        existingMovie.MovieGenres.Add(new MovieGenre { MovieId = existingMovie.Id, GenreId = genre.Id });
+                }
+                
                 await _db.SaveChangesAsync(cancellationToken);
 
                 var movieMediaItem = await _db.MovieMediaItems
@@ -862,10 +869,13 @@ namespace VideoWebPlayer.Services
             {
                 // Genre-Datensätze anlegen und zuordnen
                 var genres = await GetOrCreateGenresAsync(movie.GenreNames, movie.MediaSourceId, cancellationToken);
-                movie.Genres.Clear();
+                movie.MovieGenres.Clear();
                 foreach (var genre in genres)
-                    movie.Genres.Add(genre);
-                movie.GenreNames = string.Join(",", movie.Genres.Select(g => g.Name));
+                {
+                    if (!movie.MovieGenres.Any(mg => mg.GenreId == genre.Id))
+                        movie.MovieGenres.Add(new MovieGenre { MovieId = movie.Id, GenreId = genre.Id });
+                }
+                movie.GenreNames = string.Join(",", genres.Select(g => g.Name));
                 await _db.SaveChangesAsync(cancellationToken);
             }
 
@@ -878,10 +888,13 @@ namespace VideoWebPlayer.Services
             {
                 // Genre-Datensätze anlegen und zuordnen
                 var genres = await GetOrCreateGenresAsync(show.GenreNames, show.MediaSourceId, cancellationToken);
-                show.Genres.Clear();
+                show.GenreNames = string.Join(",", genres.Select(g => g.Name));
+                show.TVShowGenres.Clear();
                 foreach (var genre in genres)
-                    show.Genres.Add(genre);
-                show.GenreNames = string.Join(",", show.Genres.Select(g => g.Name));
+                {
+                    if (!show.TVShowGenres.Any(mg => mg.GenreId == genre.Id))
+                        show.TVShowGenres.Add(new TVShowGenre { TVShowId = show.Id, GenreId = genre.Id });
+                }                
                 await _db.SaveChangesAsync(cancellationToken);
             }
         }

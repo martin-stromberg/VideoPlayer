@@ -24,6 +24,40 @@
     .search-bar button {
         flex: 0 0 auto;
     }
+    .genre-scrollbar {
+        display: flex;
+        flex-direction: row;
+        gap: 0.7rem;
+        overflow-x: auto;
+        padding: 0.5rem 0 1.2rem 0;
+        margin-bottom: 0.5rem;
+        scrollbar-width: thin;
+        scrollbar-color: #23232a #181820;
+    }
+    .genre-scrollbar::-webkit-scrollbar {
+        height: 8px;
+        background: #181820;
+    }
+    .genre-scrollbar::-webkit-scrollbar-thumb {
+        background: #23232a;
+        border-radius: 4px;
+    }
+    .genre-btn {
+        background: #23232a;
+        color: #ffe066;
+        border: none;
+        border-radius: 18px;
+        padding: 0.5rem 1.2rem;
+        font-size: 1rem;
+        cursor: pointer;
+        transition: background 0.2s, color 0.2s;
+        white-space: nowrap;
+    }
+    .genre-btn.selected, .genre-btn:hover {
+        background: #ffe066;
+        color: #23232a;
+        font-weight: bold;
+    }
 </style>
 
 <script>
@@ -64,6 +98,8 @@
     private ElementReference BottomMarker;
     private bool? isAuthenticated = null;
     private string searchText = "";
+    private List<Genre> sourceGenres = new();
+    private long? selectedGenreId = null;
 
     [JSInvokable]
     public async Task OnBottomVisible()
@@ -78,6 +114,8 @@
         var url = $"/api/mediaentries?mediaSourceId={mediaSource?.Id}&page={Page}&size={PageSize}";
         if (!string.IsNullOrWhiteSpace(searchText))
             url += $"&search={Uri.EscapeDataString(searchText)}";
+        if (selectedGenreId.HasValue)
+            url += $"&genreId={selectedGenreId.Value}";
 
         var newEntries = await Http.GetFromJsonAsync<List<MediaEntryDto>>(url);
         if (newEntries?.Any() == true)
@@ -109,6 +147,14 @@
         mediaSource = await DbContext.MediaSources
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == Id);
+
+        // Genres ohne Alternativen laden
+        sourceGenres = await DbContext.Genres
+            .Include(g => g.AlternateNames)
+            .Where(g => g.MediaSourceId == Id && !g.AlternateNames.Any())
+            .OrderBy(g => g.Name)
+            .ToListAsync();
+
         isLoading = false;
     }
 
@@ -160,6 +206,15 @@
             await SearchEntries();
         }
     }
+
+    private async Task OnGenreSelected(long? genreId)
+    {
+        selectedGenreId = genreId;
+        Page = 0;
+        Entries.Clear();
+        await LoadNextPageAsync();
+        await JS.InvokeVoidAsync("observeBottom", BottomMarker, DotNetObjectReference.Create(this));
+    }
 }
 
 @if (isLoading)
@@ -188,6 +243,20 @@ else
                @bind:event="oninput"
                @onkeydown="OnSearchKeyDown" />
         <button class="btn btn-primary" @onclick="SearchEntries">Suchen</button>
+    </div>
+
+    <div class="genre-scrollbar">
+        <button class="genre-btn @(selectedGenreId == null ? "selected" : "")"
+                @onclick="() => OnGenreSelected(null)">
+            Alle
+        </button>
+        @foreach (var genre in sourceGenres)
+        {
+            <button class="genre-btn @(selectedGenreId == genre.Id ? "selected" : "")"
+                    @onclick="() => OnGenreSelected(genre.Id)">
+                @genre.Name
+            </button>
+        }
     </div>
 
     <div class="media-grid">

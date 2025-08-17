@@ -17,7 +17,7 @@ namespace VideoWebPlayer.Data
         public string? Status { get; set; }
         public string? Studio { get; set; }
         public string? GenreNames { get; set; } // Kommagetrennt, falls mehrere Genre    
-        public ICollection<Genre> Genres { get; set; } = new List<Genre>();        
+        public ICollection<TVShowGenre> TVShowGenres { get; set; } = new List<TVShowGenre>();
 
         public void LoadFromXml(XElement xml)
         {

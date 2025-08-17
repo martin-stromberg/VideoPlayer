@@ -56,6 +56,8 @@ namespace VideoWebPlayer.Data
         public DbSet<FavoriteEntry> FavoriteEntries { get; set; }
         public DbSet<Genre> Genres { get; set; }
         public DbSet<GenreName> GenreNames { get; set; }
+        public DbSet<MovieGenre> MovieGenres { get; set; }
+        public DbSet<TVShowGenre> TVShowGenres { get; set; }
         #endregion
         #region MediaSource Manipulation Methods
         /// <summary>
@@ -383,6 +385,28 @@ namespace VideoWebPlayer.Data
                 .HasOne(x => x.MediaItem)
                 .WithMany()
                 .HasForeignKey(x => x.MediaItemId);
+
+            modelBuilder.Entity<MovieGenre>()
+                .HasKey(mg => new { mg.MovieId, mg.GenreId });
+            modelBuilder.Entity<MovieGenre>()
+                .HasOne(mg => mg.Movie)
+                .WithMany(m => m.MovieGenres)
+                .HasForeignKey(mg => mg.MovieId);
+            modelBuilder.Entity<MovieGenre>()
+                .HasOne(mg => mg.Genre)
+                .WithMany(g => g.MovieGenres)
+                .HasForeignKey(mg => mg.GenreId);
+
+            modelBuilder.Entity<TVShowGenre>()
+                .HasKey(tg => new { tg.TVShowId, tg.GenreId });
+            modelBuilder.Entity<TVShowGenre>()
+                .HasOne(tg => tg.TVShow)
+                .WithMany(t => t.TVShowGenres)
+                .HasForeignKey(tg => tg.TVShowId);
+            modelBuilder.Entity<TVShowGenre>()
+                .HasOne(tg => tg.Genre)
+                .WithMany(g => g.TVShowGenres)
+                .HasForeignKey(tg => tg.GenreId);
         }
     }
 }

@@ -23,12 +23,34 @@ namespace VideoWebPlayer.Controllers
             [FromQuery] long? mediaSourceId,
             [FromQuery] int page = 0,
             [FromQuery] int size = 30,
-            [FromQuery] string? search = null)
+            [FromQuery] string? search = null,
+            [FromQuery] long? genreId = null)
         {
+            // Genres für die Buttons: Nur Genres ohne Alternativnamen
+            var genreButtonList = await _db.Genres
+                .Include(g => g.AlternateNames)
+                .Where(g => (!mediaSourceId.HasValue || g.MediaSourceId == mediaSourceId) && !g.AlternateNames.Any())
+                .OrderBy(g => g.Name)
+                .ToListAsync();
+
+            // MovieCollections
             var queryMovie = _db.MovieCollections
                 .Where(mc => !mediaSourceId.HasValue || mc.MediaSourceId == mediaSourceId);
+
             if (!string.IsNullOrWhiteSpace(search))
                 queryMovie = queryMovie.Where(e => e.Name.Contains(search));
+
+            if (genreId.HasValue)
+            {
+                // Nur Collections, deren Movies das Genre haben
+                queryMovie = queryMovie.Where(mc =>
+                    _db.Movies.Any(m =>
+                        m.MovieCollectionId == mc.Id &&
+                        m.MovieGenres.Any(mg => mg.GenreId == genreId.Value)
+                    )
+                );
+            }
+
             var movieCollections = (await queryMovie
                 .OrderBy(e => e.Name)
                 .Skip(0)
@@ -45,10 +67,20 @@ namespace VideoWebPlayer.Controllers
                 })
                 .ToListAsync());
 
+            // TVShows
             var queryShow = _db.TVShows
-                .Where(mc => !mediaSourceId.HasValue || mc.MediaSourceId == mediaSourceId);
+                .Where(ts => !mediaSourceId.HasValue || ts.MediaSourceId == mediaSourceId);
+
             if (!string.IsNullOrWhiteSpace(search))
                 queryShow = queryShow.Where(e => e.Name.Contains(search));
+
+            if (genreId.HasValue)
+            {
+                queryShow = queryShow.Where(ts =>
+                    ts.TVShowGenres.Any(tg => tg.GenreId == genreId.Value)
+                );
+            }
+
             var tvShows = await queryShow
                 .OrderBy(e => e.Name)
                 .Skip(0)
@@ -58,7 +90,7 @@ namespace VideoWebPlayer.Controllers
                     Id = ts.Id,
                     Title = ts.Name,
                     Description = ts.Plot,
-                    Url = $"/tvshow/{ts.Id}", // Hier wird die URL gesetzt
+                    Url = $"/tvshow/{ts.Id}",
                     CreatedAt = ts.CreatedAt,
                     PictureId = ts.PosterPictureId
                 })

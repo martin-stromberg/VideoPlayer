@@ -24,7 +24,7 @@ namespace VideoWebPlayer.Data
 
         public ICollection<MovieMediaItem> MovieMediaItems { get; set; } = new List<MovieMediaItem>();
         public string? GenreNames { get; set; } // Kommagetrennt, falls mehrere Genres
-        public ICollection<Genre> Genres { get; set; } = new List<Genre>();
+        public ICollection<MovieGenre> MovieGenres { get; set; } = new List<MovieGenre>();
 
         // Optional: Komfort-Property für direkten Zugriff auf die MediaItems
         public IEnumerable<MediaItem> MediaItems => MovieMediaItems.Select(mmi => mmi.MediaItem);

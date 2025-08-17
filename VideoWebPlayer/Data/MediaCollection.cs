@@ -11,9 +11,11 @@ namespace VideoWebPlayer.Data
         public long MediaSourceId { get; set; }
         public long? ParentMediaCollectionId { get; set; }
         public DateTime? LastScannedAt { get; set; }
+        public DateTime? ScanDueAt{ get; set; }
         public MediaSource MediaSource { get; set; } = null!;
         public MediaCollection? ParentMediaCollection { get; set; }
         public ICollection<MediaCollection> ChildCollections { get; set; } = new List<MediaCollection>();
         public ICollection<MediaItem> MediaItems { get; set; } = new List<MediaItem>();
+        public bool Skip { get; internal set; }
     }
 }

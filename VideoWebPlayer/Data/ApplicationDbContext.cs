@@ -175,6 +175,7 @@ namespace VideoWebPlayer.Data
 
             if (existing != null)
             {
+                item.CreatedAt = new DateTime(item.CreatedAt.Year, item.CreatedAt.Month, item.CreatedAt.Day, item.CreatedAt.Hour, item.CreatedAt.Minute, 0, 0);
                 if (existing.CreatedAt != item.CreatedAt)
                 {
                     existing.CreatedAt = item.CreatedAt;

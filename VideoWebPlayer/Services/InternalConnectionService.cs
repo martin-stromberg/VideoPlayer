@@ -7,7 +7,7 @@ namespace VideoWebPlayer.Services
     public class InternalConnectionService
     {
         private ConcurrentDictionary<string, DateTime> _connectionAttempts = new ConcurrentDictionary<string, DateTime>();
-        protected long ConnectionId { get; set; } = DateTime.Now.Ticks;
+        protected long ConnectionId { get; set; } = DateTime.UtcNow.Ticks;
 
         public string GetUserAgent()
         {
@@ -22,7 +22,7 @@ namespace VideoWebPlayer.Services
             if (_connectionAttempts.TryGetValue(key, out var lastAttempt))
             {
                 // Check if the last attempt was within the last 5 minutes
-                return (DateTime.Now - lastAttempt).TotalMinutes < 5;
+                return (DateTime.UtcNow - lastAttempt).TotalMinutes < 5;
             }
             return false;
         }
@@ -32,7 +32,7 @@ namespace VideoWebPlayer.Services
             var key = remoteIpAddress?.ToString();
             if (string.IsNullOrEmpty(key))
                 return;
-            _connectionAttempts[key] = DateTime.Now;
+            _connectionAttempts[key] = DateTime.UtcNow;
         }
     }
 }

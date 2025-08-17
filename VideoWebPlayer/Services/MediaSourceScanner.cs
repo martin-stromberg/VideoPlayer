@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -51,27 +52,58 @@ namespace VideoWebPlayer.Services
         {
             _logger.LogInformation("Lese Root-Verzeichnis von Quelle '{SourceName}'...", source.Name);
             var counter = 0;
+            var random = new Random();
+            MediaCollection lastDirectory = null;
+            Stack<MediaCollection> directoryToConfirm = new Stack<MediaCollection>();
             foreach (var entry in _sftpReader.ReadRootDirectory(source))
             {
                 if (cancellationToken.IsCancellationRequested)
                     break;
-
+                MediaCollection folder = entry as MediaCollection;
                 try
                 {
-                    if (entry is MediaCollection dir)
+                    if (folder is not null)
                     {
-                        var collection = await _db.EnsureMediaCollectionExistsAsync(dir, cancellationToken);
+                        if (lastDirectory is not null)
+                        {
+                            if (!folder.Path.StartsWith(lastDirectory.Path))
+                            {
+                                var directoryToConfirmPeek = directoryToConfirm.Peek();
+                                while (directoryToConfirmPeek is not null && !folder.Path.StartsWith(directoryToConfirmPeek.Path))
+                                {
+                                    directoryToConfirmPeek = directoryToConfirm.Pop();
+                                    directoryToConfirmPeek = await _db.MediaCollections.FirstAsync(d => d.Id == directoryToConfirmPeek.Id);
+                                    directoryToConfirmPeek.LastScannedAt = DateTime.UtcNow;
+                                    directoryToConfirmPeek.ScanDueAt = DateTime.UtcNow.AddDays(7).AddHours(random.Next(7 * 24));
+                                    await _db.SaveChangesAsync(cancellationToken);
+
+                                    directoryToConfirmPeek = directoryToConfirm.Peek();
+                                }
+                            }
+                        }
+
+                        var collection = await _db.EnsureMediaCollectionExistsAsync(folder, cancellationToken);
                         entry.Id = collection.Id;
                         await _db.SaveChangesAsync(cancellationToken);
-                        _logger.LogDebug("Verzeichnis '{Path}' gescannt.", dir.Path);
+                        _logger.LogDebug("Verzeichnis '{Path}' gescannt.", folder.Path);
                         counter = 0;
+
+                        if (collection.ScanDueAt.HasValue && collection.ScanDueAt > DateTime.UtcNow)
+                            ((MediaCollection)entry).Skip = true;
+                        else
+                        {
+                            collection.ScanDueAt = DateTime.UtcNow.AddHours(new Random().Next(24));
+                            await _db.SaveChangesAsync(cancellationToken);
+                            lastDirectory = collection;
+                            directoryToConfirm.Push(collection);
+                        }
                     }
                     else if (entry is MediaItem file)
                     {
                         var item = await _db.EnsureMediaItemExistsAsync(file, cancellationToken);
                         entry.Id = item.Id;
                         await _db.SaveChangesAsync(cancellationToken);
-                        if (counter++ % 100 == 0)
+                        if (++counter % 100 == 0)
                             _logger.LogDebug("Datei '{Path}' gescannt.", file.Path);
                     }
                 }
@@ -79,6 +111,7 @@ namespace VideoWebPlayer.Services
                 {
                     _logger.LogError(ex, "Fehler beim Verarbeiten von '{EntryName}' in Quelle '{SourceName}'.", entry.Name, source.Name);
                 }
+                await Task.Delay(10, cancellationToken); // Kurze Pause, um Last zu reduzieren
             }
         }
     }

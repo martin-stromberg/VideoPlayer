@@ -37,7 +37,6 @@ namespace VideoWebPlayer.Services
                 ParentMediaCollectionId = null
             };
             yield return rootCollection;
-
             foreach (var entry in ReadDirectoryInternal(client, rootCollection.Path, rootCollection))
                 yield return entry;
 
@@ -89,8 +88,9 @@ namespace VideoWebPlayer.Services
                     yield return collection;
 
                     // Rekursiv Unterverzeichnisse auslesen
-                    foreach (var subEntry in ReadDirectoryInternal(client, entry.FullName, collection))
-                        yield return subEntry;
+                    if (!collection.Skip)
+                        foreach (var subEntry in ReadDirectoryInternal(client, entry.FullName, collection))
+                            yield return subEntry;
                 }
                 else if (entry.IsRegularFile)
                 {

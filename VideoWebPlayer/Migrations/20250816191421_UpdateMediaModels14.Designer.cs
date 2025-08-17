@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using VideoWebPlayer.Data;
 
@@ -10,32 +11,14 @@ using VideoWebPlayer.Data;
 namespace VideoWebPlayer.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250816191421_UpdateMediaModels14")]
+    partial class UpdateMediaModels14
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "9.0.8");
-
-            modelBuilder.Entity("GenreName", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<long>("GenreId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("GenreId");
-
-                    b.ToTable("GenreNames");
-                });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
                 {
@@ -877,17 +860,6 @@ namespace VideoWebPlayer.Migrations
                     b.ToTable("TVShowSeasons");
                 });
 
-            modelBuilder.Entity("GenreName", b =>
-                {
-                    b.HasOne("VideoWebPlayer.Data.Genre", "Genre")
-                        .WithMany("AlternateNames")
-                        .HasForeignKey("GenreId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Genre");
-                });
-
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
                 {
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole", null)
@@ -1177,11 +1149,6 @@ namespace VideoWebPlayer.Migrations
                     b.Navigation("PosterPicture");
 
                     b.Navigation("TVShow");
-                });
-
-            modelBuilder.Entity("VideoWebPlayer.Data.Genre", b =>
-                {
-                    b.Navigation("AlternateNames");
                 });
 
             modelBuilder.Entity("VideoWebPlayer.Data.MediaCollection", b =>

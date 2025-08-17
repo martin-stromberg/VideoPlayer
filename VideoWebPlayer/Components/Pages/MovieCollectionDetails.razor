@@ -168,10 +168,10 @@ else
         => movie.ReleaseDate?.Year.ToString() ?? "";
 
     private string GetGenres(MovieCollection col)
-        => string.Join(", ", col.Movies?.SelectMany(m => (m.Genres ?? "").Split(',')).Distinct() ?? Array.Empty<string>());
+        => string.Join(", ", col.Movies?.SelectMany(m => (m.GenreNames ?? "").Split(',')).Distinct() ?? Array.Empty<string>());
 
     private string GetGenres(Movie movie)
-        => movie.Genres ?? "";
+        => movie.GenreNames ?? "";
 
     private void ShowPlayer() => showPlayer = true;
     private void HidePlayer() => showPlayer = false;

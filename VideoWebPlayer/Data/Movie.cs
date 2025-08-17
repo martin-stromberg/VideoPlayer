@@ -17,13 +17,14 @@ namespace VideoWebPlayer.Data
         public DateTime? ReleaseDate { get; set; }
         public DateTime? PremieredAt { get; set; }
         public string? Country { get; set; }
-        public string? Genres { get; set; } // Kommagetrennt, falls mehrere Genres
         public string? Studios { get; set; } // Kommagetrennt, falls mehrere Studios
         public string? Director { get; set; }
         public string? Credits { get; set; } // Kommagetrennt, falls mehrere
         public string? Plot { get; set; }
 
         public ICollection<MovieMediaItem> MovieMediaItems { get; set; } = new List<MovieMediaItem>();
+        public string? GenreNames { get; set; } // Kommagetrennt, falls mehrere Genres
+        public ICollection<Genre> Genres { get; set; } = new List<Genre>();
 
         // Optional: Komfort-Property für direkten Zugriff auf die MediaItems
         public IEnumerable<MediaItem> MediaItems => MovieMediaItems.Select(mmi => mmi.MediaItem);
@@ -38,7 +39,7 @@ namespace VideoWebPlayer.Data
             ReleaseDate = DateTime.TryParse(xml.Element("releasedate")?.Value, out var rd) ? rd : null;
             PremieredAt = DateTime.TryParse(xml.Element("premiered")?.Value, out var prem) ? prem : null;
             Country = xml.Element("country")?.Value;
-            Genres = string.Join(",", xml.Elements("genre").Select(g => g.Value));
+            GenreNames = string.Join(",", xml.Elements("genre").Select(g => g.Value));
             Studios = string.Join(",", xml.Elements("studio").Select(s => s.Value));
             Director = xml.Element("director")?.Value;
             Credits = string.Join(",", xml.Elements("credits").Select(c => c.Value));

@@ -16,7 +16,8 @@ namespace VideoWebPlayer.Data
         public string? Plot { get; set; }
         public string? Status { get; set; }
         public string? Studio { get; set; }
-        public string? Genres { get; set; } // Kommagetrennt, falls mehrere Genre        
+        public string? GenreNames { get; set; } // Kommagetrennt, falls mehrere Genre    
+        public ICollection<Genre> Genres { get; set; } = new List<Genre>();        
 
         public void LoadFromXml(XElement xml)
         {
@@ -25,7 +26,7 @@ namespace VideoWebPlayer.Data
             Plot = GetElementValue(xml, "plot");
             Status = GetElementValue(xml, "status");
             Studio = GetElementValue(xml, "studio");
-            Genres = string.Join(",", xml.Elements("genre").Select(g => g.Value));
+            GenreNames = string.Join(",", xml.Elements("genre").Select(g => g.Value));
             PremieredAt = DateTime.TryParse(GetElementValue(xml, "premiered"), out var dt) ? dt : null;            
         }
 

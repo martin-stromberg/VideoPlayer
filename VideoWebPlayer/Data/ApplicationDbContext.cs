@@ -54,6 +54,8 @@ namespace VideoWebPlayer.Data
         public DbSet<Setup> Setups { get; set; }
         public DbSet<RecentEntry> RecentEntries { get; set; }
         public DbSet<FavoriteEntry> FavoriteEntries { get; set; }
+        public DbSet<Genre> Genres { get; set; }
+        public DbSet<GenreName> GenreNames { get; set; }
         #endregion
         #region MediaSource Manipulation Methods
         /// <summary>

@@ -2,15 +2,20 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using VideoWebPlayer.Data;
+using VideoWebPlayer.Services;
 
 public class DataUpgradeManager
 {
     private readonly ApplicationDbContext _db;
-    public const int CurrentVersion = 4; // Hier die aktuelle Version anpassen
+    private readonly MediaSourceClassifier _classifier;
+    private readonly ILogger<DataUpgradeManager> logger;
+    public const int CurrentVersion = 5; // Version erhöhen
 
-    public DataUpgradeManager(ApplicationDbContext db)
+    public DataUpgradeManager(ApplicationDbContext db, MediaSourceClassifier classifier, ILogger<DataUpgradeManager> logger)
     {
         _db = db;
+        _classifier = classifier;
+        this.logger = logger;
     }
 
     public async Task EnsureUpToDateAsync(CancellationToken cancellationToken)
@@ -22,10 +27,11 @@ public class DataUpgradeManager
             _db.Setups.Add(setup);
             await _db.SaveChangesAsync(cancellationToken);
         }
-
+        
         while (setup.DataVersion < CurrentVersion)
         {
             var nextVersion = setup.DataVersion + 1;
+            logger.LogInformation($"Führe Datenupgrade {nextVersion} aus.");
             switch (nextVersion)
             {
                 case 1:
@@ -40,10 +46,13 @@ public class DataUpgradeManager
                 case 4:
                     await Upgrade_4(cancellationToken);
                     break;
-                    // Weitere Upgrades hier ergänzen
+                case 5:
+                    await Upgrade_5(cancellationToken);
+                    break;
             }
             setup.DataVersion = nextVersion;
             await _db.SaveChangesAsync(cancellationToken);
+            logger.LogInformation($"Das Datenupgrade {nextVersion} wurde ausgeführt.");
         }
     }
 
@@ -62,6 +71,10 @@ public class DataUpgradeManager
     private async Task Upgrade_4(CancellationToken cancellationToken)
     {
         await MarkAllMediaItemsAsChangedAsync(cancellationToken);
+    }
+    private async Task Upgrade_5(CancellationToken cancellationToken)
+    {
+        await _classifier.ReloadGenres(cancellationToken);
     }
 
     private async Task MarkAllMediaItemsAsChangedAsync(CancellationToken cancellationToken)

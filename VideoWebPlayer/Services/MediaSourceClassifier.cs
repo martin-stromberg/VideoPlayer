@@ -163,7 +163,12 @@ namespace VideoWebPlayer.Services
                 existingShow.LoadFromXml(xml);
                 await _db.SaveChangesAsync(cancellationToken);
                 _logger.LogInformation("TVShow '{ShowName}' aktualisiert.", showName);
-            }            
+            }
+            var movieGenres = await GetOrCreateGenresAsync(existingShow.GenreNames, collection.MediaSourceId, cancellationToken);
+            existingShow.Genres.Clear();
+            foreach (var genre in movieGenres)
+                existingShow.Genres.Add(genre);
+            await _db.SaveChangesAsync(cancellationToken);
             return existingShow;
         }
 
@@ -405,6 +410,11 @@ namespace VideoWebPlayer.Services
                     movies.Add(existingMovie);
                     _logger.LogInformation("Film '{MovieName}' aktualisiert.", movieName);
                 }
+                var movieGenres = await GetOrCreateGenresAsync(existingMovie.GenreNames, collection.MediaSourceId, cancellationToken);
+                existingMovie.Genres.Clear();
+                foreach (var genre in movieGenres)
+                    existingMovie.Genres.Add(genre);
+                await _db.SaveChangesAsync(cancellationToken);
 
                 var movieMediaItem = await _db.MovieMediaItems
                     .FirstOrDefaultAsync(mmi => mmi.MovieId == existingMovie.Id && mmi.MediaItemId == item.Id, cancellationToken);
@@ -837,6 +847,71 @@ namespace VideoWebPlayer.Services
                 stream.CopyTo(memoryStream);
                 return memoryStream.ToArray();
             }
+        }
+
+        public async Task ReloadGenres(CancellationToken cancellationToken)
+        {
+            // Filme ohne GenreNames korrigieren
+            var movies = await _db.Movies
+                .Where(m => !string.IsNullOrWhiteSpace(m.GenreNames))
+                .ToListAsync(cancellationToken);
+
+            foreach (var movie in movies)
+            {
+                // Genre-Datensätze anlegen und zuordnen
+                var genres = await GetOrCreateGenresAsync(movie.GenreNames, movie.MediaSourceId, cancellationToken);
+                movie.Genres.Clear();
+                foreach (var genre in genres)
+                    movie.Genres.Add(genre);
+
+                await _db.SaveChangesAsync(cancellationToken);
+            }
+
+            // TVShows ohne GenreNames korrigieren
+            var tvshows = await _db.TVShows
+                .Where(s => !string.IsNullOrWhiteSpace(s.GenreNames))
+                .ToListAsync(cancellationToken);
+
+            foreach (var show in tvshows)
+            {
+                // Genre-Datensätze anlegen und zuordnen
+                var genres = await GetOrCreateGenresAsync(show.GenreNames, show.MediaSourceId, cancellationToken);
+                show.Genres.Clear();
+                foreach (var genre in genres)
+                    show.Genres.Add(genre);
+
+                await _db.SaveChangesAsync(cancellationToken);
+            }
+        }
+
+        // Hilfsmethode wie oben beschrieben
+        private async Task<List<Genre>> GetOrCreateGenresAsync(string? genreString, long mediaSourceId, CancellationToken cancellationToken)
+        {
+            var genres = new List<Genre>();
+            if (string.IsNullOrWhiteSpace(genreString))
+                return genres;
+
+            var genreNames = genreString.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                                        .Select(g => g.Trim())
+                                        .Where(g => !string.IsNullOrWhiteSpace(g))
+                                        .Distinct(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var name in genreNames)
+            {
+                var existing = await _db.Genres.FirstOrDefaultAsync(g => g.MediaSourceId == mediaSourceId && g.Name == name, cancellationToken);
+                if (existing == null)
+                {
+                    var genre = new Genre { Name = name, MediaSourceId = mediaSourceId };
+                    _db.Genres.Add(genre);
+                    await _db.SaveChangesAsync(cancellationToken);
+                    genres.Add(genre);
+                }
+                else
+                {
+                    genres.Add(existing);
+                }
+            }
+            return genres;
         }
     }
 }

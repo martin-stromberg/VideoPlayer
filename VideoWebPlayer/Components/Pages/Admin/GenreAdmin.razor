@@ -1,0 +1,177 @@
+@page "/admin/genres"
+@using Microsoft.EntityFrameworkCore
+@using VideoWebPlayer.Data
+@inject ApplicationDbContext DbContext
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<style>
+.genre-admin-page,
+.genre-admin-page h2,
+.genre-admin-page .table,
+.genre-admin-page .table th,
+.genre-admin-page .table td,
+.genre-admin-page .badge,
+.genre-admin-page .card,
+.genre-admin-page .form-control,
+.genre-admin-page label {
+    color: #f2f2f2 !important;
+}
+
+.genre-admin-page .card {
+    background: #23232a;
+}
+
+.genre-admin-page .table {
+    background: #23232a;
+}
+
+.genre-admin-page .badge {
+    background: #444;
+    color: #ffe066;
+}
+
+.genre-dialog-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(20,20,30,0.85);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.genre-dialog {
+    background: #23232a;
+    color: #f2f2f2;
+    border-radius: 12px;
+    box-shadow: 0 4px 32px #000a;
+    padding: 2rem 2.5rem;
+    min-width: 320px;
+    max-width: 90vw;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+.genre-dialog label {
+    color: #ffe066;
+    font-weight: 500;
+}
+.genre-dialog input.form-control {
+    background: #181820;
+    color: #f2f2f2;
+    border: 1px solid #444;
+}
+</style>
+
+<div class="genre-admin-page">
+<h2>Genre-Verwaltung</h2>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Alternative Namen</th>
+            <th>Aktionen</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var genre in uniqueGenres)
+        {
+            <tr>
+                <td>@genre.Name</td>
+                <td>
+                    @foreach (var alt in genre.AlternateNames)
+                    {
+                        <span class="badge bg-secondary">@alt.Name</span>
+                    }
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-primary" @onclick="() => EditGenre(genre)">Bearbeiten</button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@if (editGenre != null)
+{
+    <div class="genre-dialog-overlay" @onclick="CancelEdit">
+        <div class="genre-dialog" @onclick:stopPropagation>
+            <h5>Genre bearbeiten: @editGenre.Name</h5>
+            <label>Alternative Namen (kommagetrennt):</label>
+            <input class="form-control" @bind="altNamesInput" />
+            <div class="mt-3 d-flex justify-content-end gap-2">
+                <button class="btn btn-success" @onclick="SaveAltNames">Speichern</button>
+                <button class="btn btn-secondary" @onclick="CancelEdit">Abbrechen</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Genre> genres = new();
+    private Genre? editGenre;
+    private string altNamesInput = "";
+    private List<Genre> uniqueGenres = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var allGenres = await DbContext.Genres.Include(g => g.AlternateNames).ToListAsync();
+        uniqueGenres = allGenres
+            .GroupBy(g => g.Name.Trim().ToLower())
+            .Select(g => g.First())
+            .OrderBy(g => g.Name)
+            .ToList();
+    }
+
+    private void EditGenre(Genre genre)
+    {
+        editGenre = genre;
+        altNamesInput = string.Join(", ", genre.AlternateNames.Select(a => a.Name));
+    }
+
+    private async Task SaveAltNames()
+    {
+        if (editGenre == null) return;
+        var names = altNamesInput.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                                 .Select(n => n.Trim())
+                                 .Where(n => !string.IsNullOrWhiteSpace(n))
+                                 .Distinct(StringComparer.OrdinalIgnoreCase)
+                                 .ToList();
+
+        // Alle Genres mit gleichem Namen finden
+        var allGenres = await DbContext.Genres.Include(g => g.AlternateNames)
+            .Where(g => g.Name.Trim().ToLower() == editGenre.Name.Trim().ToLower())
+            .ToListAsync();
+
+        foreach (var genre in allGenres)
+        {
+            // Bestehende löschen
+            DbContext.GenreNames.RemoveRange(genre.AlternateNames);
+            await DbContext.SaveChangesAsync();
+
+            // Neue anlegen
+            foreach (var name in names)
+            {
+                DbContext.GenreNames.Add(new GenreName { Name = name, GenreId = genre.Id });
+            }
+            await DbContext.SaveChangesAsync();
+        }
+
+        // Reload
+        var allGenresReload = await DbContext.Genres.Include(g => g.AlternateNames).ToListAsync();
+        uniqueGenres = allGenresReload
+            .GroupBy(g => g.Name.Trim().ToLower())
+            .Select(g => g.First())
+            .OrderBy(g => g.Name)
+            .ToList();
+        editGenre = null;
+    }
+
+    private void CancelEdit()
+    {
+        editGenre = null;
+    }
+}
+</div>

@@ -16,22 +16,11 @@
 
         <AuthorizeView>
             <Authorized>
-                @if (mediaSources.Any() || context.User.HasClaim("IsAdmin", "True"))
+                @if (mediaSources.Any())
                 {
                     <div class="nav-item px-3">
                         <span class="nav-link disabled">Quellen</span>
                     </div>
-                }
-                @if (context.User.HasClaim("IsAdmin", "True"))
-                {
-                    <div class="nav-item px-3">
-                        <NavLink class="nav-link" href="/admin/mediasources">
-                            <span class="bi bi-folder-video"></span> Verwalten
-                        </NavLink>
-                    </div>
-                }
-                @if (mediaSources.Any())
-                {                    
                     @foreach (var source in mediaSources)
                     {
                         <div class="nav-item px-3">
@@ -72,6 +61,28 @@
                     </NavLink>
                 </div>
             </NotAuthorized>
+        </AuthorizeView>
+
+
+        <AuthorizeView>
+            @if (context.User.HasClaim("IsAdmin", "True"))
+            {
+                <div class="nav-item px-3">
+                    <span class="nav-link disabled">Verwaltung</span>
+                </div>
+
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="/admin/mediasources">
+                        <span class="bi bi-folder-video"></span> Quellen
+                    </NavLink>
+                </div>
+
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="/admin/genres">
+                        <span class="bi oi-list-rich" aria-hidden="true"></span> Genres
+                    </NavLink>
+                </div>
+            }
         </AuthorizeView>
     </nav>
 </div>

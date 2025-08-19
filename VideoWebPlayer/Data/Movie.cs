@@ -38,6 +38,7 @@ namespace VideoWebPlayer.Data
             Year = int.TryParse(xml.Element("year")?.Value, out var y) ? y : null;
             ReleaseDate = DateTime.TryParse(xml.Element("releasedate")?.Value, out var rd) ? rd : null;
             PremieredAt = DateTime.TryParse(xml.Element("premiered")?.Value, out var prem) ? prem : null;
+            EndedAt = ReleaseDate > PremieredAt ? ReleaseDate : PremieredAt; 
             Country = xml.Element("country")?.Value;
             GenreNames = string.Join(",", xml.Elements("genre").Select(g => g.Value));
             Studios = string.Join(",", xml.Elements("studio").Select(s => s.Value));

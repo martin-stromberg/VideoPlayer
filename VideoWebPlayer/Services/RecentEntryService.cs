@@ -61,7 +61,7 @@ public class RecentEntryService
         _db.RecentEntries.Add(new RecentEntry
         {
             MediaSourceId = movie.MediaSourceId,
-            PublishedAt = movie.PremieredAt ?? movie.CreatedAt,
+            PublishedAt = movie.PremieredAt ?? movie.ReleaseDate ?? movie.CreatedAt,
             Type = RecentEntryType.Movie,
             MovieId = movie.Id,
             MovieCollectionId = movie.MovieCollectionId
@@ -85,7 +85,7 @@ public class RecentEntryService
             _db.RecentEntries.Add(new RecentEntry
             {
                 MediaSourceId = collection.MediaSourceId,
-                PublishedAt = collection.CreatedAt,
+                PublishedAt = collection.PremieredAt ?? collection.ReleaseDate ?? collection.CreatedAt,
                 Type = RecentEntryType.MovieCollection,
                 MovieCollectionId = collection.Id
             });
@@ -114,7 +114,7 @@ public class RecentEntryService
             _db.RecentEntries.Add(new RecentEntry
             {
                 MediaSourceId = show.MediaSourceId,
-                PublishedAt = show.PremieredAt ?? show.CreatedAt,
+                PublishedAt = show.PremieredAt ?? show.ReleaseDate ?? show.CreatedAt,
                 Type = RecentEntryType.TVShow,
                 TVShowId = show.Id
             });
@@ -223,7 +223,7 @@ public class RecentEntryService
                 _db.RecentEntries.Add(new RecentEntry
                 {
                     MediaSourceId = season.MediaSourceId,
-                    PublishedAt = season.PremieredAt ?? season.CreatedAt,
+                    PublishedAt = season.PremieredAt ?? season.ReleaseDate ?? season.CreatedAt,
                     Type = RecentEntryType.TVShowSeason,
                     TVShowId = season.TVShowId,
                     TVShowSeasonId = season.Id

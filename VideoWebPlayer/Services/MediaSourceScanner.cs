@@ -84,18 +84,21 @@ namespace VideoWebPlayer.Services
 
                         var collection = await _db.EnsureMediaCollectionExistsAsync(folder, cancellationToken);
                         entry.Id = collection.Id;
-                        await _db.SaveChangesAsync(cancellationToken);
-                        _logger.LogDebug("Verzeichnis '{Path}' gescannt.", folder.Path);
+                        await _db.SaveChangesAsync(cancellationToken);                        
                         counter = 0;
 
                         if (collection.ScanDueAt.HasValue && collection.ScanDueAt > DateTime.UtcNow)
+                        {
                             ((MediaCollection)entry).Skip = true;
+                            _logger.LogDebug("Verzeichnis '{Path}' übersprungen.", folder.Path);
+                        }
                         else
                         {
                             collection.ScanDueAt = DateTime.UtcNow.AddHours(new Random().Next(24));
                             await _db.SaveChangesAsync(cancellationToken);
                             lastDirectory = collection;
                             directoryToConfirm.Push(collection);
+                            _logger.LogDebug("Verzeichnis '{Path}' gescannt.", folder.Path);
                         }
                     }
                     else if (entry is MediaItem file)
@@ -103,6 +106,8 @@ namespace VideoWebPlayer.Services
                         var item = await _db.EnsureMediaItemExistsAsync(file, cancellationToken);
                         entry.Id = item.Id;
                         await _db.SaveChangesAsync(cancellationToken);
+                        if (item.Changed)
+                            _logger.LogDebug("MediaItem '{Name}' muss klassifiert werden.", file.Name);
                         if (++counter % 100 == 0)
                             _logger.LogDebug("Datei '{Path}' gescannt.", file.Path);
                     }

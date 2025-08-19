@@ -185,7 +185,7 @@ namespace VideoWebPlayer.Data
                 }
                 return existing;
             }
-
+            item.CreatedAt = new DateTime(item.CreatedAt.Year, item.CreatedAt.Month, item.CreatedAt.Day, item.CreatedAt.Hour, item.CreatedAt.Minute, 0, 0);
             MediaItems.Add(item);
             await SaveChangesAsync(cancellationToken);
             return item;
@@ -321,6 +321,31 @@ namespace VideoWebPlayer.Data
             {
                 setup.GenresChanged = true;
                 await SaveChangesAsync();
+            }
+        }
+
+        public IEnumerable<Genre> GetSeasonalGenres()
+        {
+            var now = DateTime.UtcNow.Date;
+            var genres = Genres.ToList();
+
+            foreach (var genre in genres)
+            {
+                if (genre.StartDate == null || genre.EndDate == null)
+                    continue;
+
+                var start = genre.StartDate.Value;
+                var end = genre.EndDate.Value;
+
+                // Falls Enddatum in der Vergangenheit, Zeitraum um Jahre erhöhen bis aktuell
+                while (end < now)
+                {
+                    start = start.AddYears(1);
+                    end = end.AddYears(1);
+                }
+
+                if (start <= now && end >= now)
+                    yield return genre;
             }
         }
 

@@ -11,6 +11,7 @@ namespace VideoWebPlayer.Data
         public string Name { get; set; } = string.Empty;
         public DateTime? ReleaseDate { get; set; }
         public DateTime? PremieredAt { get; set; }
+        public DateTime? EndedAt { get; set; }
 
         public long MediaSourceId { get; set; }
         public long CollectionId { get; set; }

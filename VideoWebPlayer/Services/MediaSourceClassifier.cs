@@ -58,8 +58,10 @@ namespace VideoWebPlayer.Services
                 .ToList();
 
             _logger.LogInformation("Klassifiziere MediaItems.");
+            var count = items.Count;
             foreach (var item in items)
             {
+                count--;
                 if (cancellationToken.IsCancellationRequested)
                     break;
                 if (item.MediaCollection != null)
@@ -67,6 +69,9 @@ namespace VideoWebPlayer.Services
                 item.Changed = false;
                 item.ClassifiedAt = DateTime.UtcNow;
                 await _db.SaveChangesAsync(cancellationToken);
+                if (count % 100 == 0)
+                    _logger.LogInformation($"{count} MediaItems übrig.");
+                await Task.Delay(10);
             }
         }
 
@@ -210,7 +215,7 @@ namespace VideoWebPlayer.Services
                 .Include(mi => mi.MediaCollection)
                 .ToListAsync(cancellationToken);
 
-            _logger.LogInformation("Verarbeite {Count} Episoden für TVShow '{ShowName}'.", mediaItems.Count, show.Name);
+            _logger.LogInformation("Verarbeite {Count} Dateien für TVShow '{ShowName}'.", mediaItems.Count, show.Name);
 
             var isFirst = true;
 
@@ -287,6 +292,7 @@ namespace VideoWebPlayer.Services
                         Plot = xml.Element("plot")?.Value,
                         // Weitere Felder aus xml setzen
                     };
+                    episode.EndedAt = episode.ReleaseDate > episode.PremieredAt ? episode.ReleaseDate : episode.PremieredAt;
                     _db.TVShowEpisodes.Add(episode);
                     existingEpisode = episode;
                     await _db.SaveChangesAsync(cancellationToken);
@@ -298,6 +304,7 @@ namespace VideoWebPlayer.Services
                     existingEpisode.Name = episodeTitle;
                     existingEpisode.ReleaseDate = DateTime.TryParse(xml.Element("aired")?.Value, out var aired) ? aired : (DateTime?)null;
                     existingEpisode.PremieredAt = DateTime.TryParse(xml.Element("premiered")?.Value, out var prem) ? prem : (DateTime?)null;
+                    existingEpisode.EndedAt = existingEpisode.ReleaseDate > existingEpisode.PremieredAt ? existingEpisode.ReleaseDate : existingEpisode.PremieredAt;
                     existingEpisode.Plot = xml.Element("plot")?.Value;
                     await _db.SaveChangesAsync(cancellationToken);
                     _logger.LogInformation("Episode '{EpisodeTitle}' (Staffel {SeasonNo}, Episode {EpisodeNo}) aktualisiert.", episodeTitle, seasonNo, episodeNo);
@@ -336,6 +343,17 @@ namespace VideoWebPlayer.Services
                         show.PremieredAt.HasValue
                             ? (show.PremieredAt < existingEpisode.PremieredAt ? show.PremieredAt : existingEpisode.PremieredAt)
                             : existingEpisode.PremieredAt;
+                }
+                if (existingEpisode.EndedAt.HasValue)
+                {
+                    season.EndedAt =
+                        season.EndedAt.HasValue
+                            ? (season.EndedAt < existingEpisode.EndedAt ? season.EndedAt : existingEpisode.EndedAt)
+                            : existingEpisode.EndedAt;
+                    show.EndedAt =
+                        show.EndedAt.HasValue
+                            ? (show.EndedAt < existingEpisode.EndedAt ? show.EndedAt : existingEpisode.EndedAt)
+                            : existingEpisode.EndedAt;
                 }
                 await _db.SaveChangesAsync(cancellationToken);
                 await AssignPicturesToTVShowEpisodeAsync(existingEpisode, collection, item.Path, cancellationToken);
@@ -464,8 +482,11 @@ namespace VideoWebPlayer.Services
                         Name = collectionName,
                         MediaSourceId = collection.MediaSourceId,
                         CollectionId = collection.Id,
-                        CreatedAt = DateTime.UtcNow
-                    };
+                        CreatedAt = DateTime.UtcNow,
+                        ReleaseDate = movies.Min(m => m.ReleaseDate),
+                        PremieredAt = movies.Min(m => m.PremieredAt),
+                        EndedAt = movies.Max(m => m.EndedAt)
+                    }; 
                     _db.MovieCollections.Add(movieCollection);
                     await _db.SaveChangesAsync(cancellationToken);
                     existingCollection = movieCollection;
@@ -481,6 +502,9 @@ namespace VideoWebPlayer.Services
                 else
                 {
                     existingCollection.Name = collectionName;
+                    existingCollection.ReleaseDate = movies.Min(m => m.ReleaseDate);
+                    existingCollection.PremieredAt = movies.Min(m => m.PremieredAt);
+                    existingCollection.EndedAt = movies.Max(m => m.EndedAt);
                     await _db.SaveChangesAsync(cancellationToken);
                     foreach (var movie in movies)
                     {

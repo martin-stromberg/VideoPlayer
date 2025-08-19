@@ -151,7 +151,7 @@
         // Genres ohne Alternativen laden
         sourceGenres = await DbContext.Genres
             .Include(g => g.AlternateNames)
-            .Where(g => g.MediaSourceId == Id && !g.AlternateNames.Any())
+            .Where(g => g.MediaSourceId == Id && !g.IsHidden && !g.AlternateNames.Any())
             .OrderBy(g => g.Name)
             .ToListAsync();
 

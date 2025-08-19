@@ -1,0 +1,39 @@
+@using VideoWebPlayer.Data
+
+<div class="seasonal-genre-list">
+    @foreach (var entry in Entries)
+    {
+        <MediaBox Title="@entry.Name"
+                  ImageUrl="@GetImageUrl(entry)"
+                  LinkUrl="@GetLinkUrl(entry)" />
+    }
+</div>
+
+@code {
+    [Parameter] public List<MediaBaseEntry> Entries { get; set; } = new();
+
+    private string GetImageUrl(MediaBaseEntry entry)
+    {
+        if (entry.PosterPictureId.HasValue)
+            return $"/api/pictures/{entry.PosterPictureId}";
+        if (entry.BannerPictureId.HasValue)
+            return $"/api/pictures/{entry.BannerPictureId}";
+        if (entry.FanartPictureId.HasValue)
+            return $"/api/pictures/{entry.FanartPictureId}";
+        return "/images/placeholder.png";
+    }
+
+    private string GetLinkUrl(MediaBaseEntry entry)
+    {
+        var typeName = entry.GetType().Name;
+        return typeName switch
+        {
+            "Movie" => $"/movie/{entry.Id}",
+            "TVShow" => $"/tvshow/{entry.Id}",
+            "TVShowSeason" => $"/tvshow/season/{entry.Id}",
+            "TVShowEpisode" => $"/tvshow/episode/{entry.Id}",
+            "MovieCollection" => $"/moviecollection/{entry.Id}",
+            _ => "#"
+        };
+    }
+}

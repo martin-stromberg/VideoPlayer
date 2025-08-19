@@ -34,8 +34,10 @@ namespace VideoWebPlayer.Services
                 await Task.Delay(10000);
                 while (!stoppingToken.IsCancellationRequested)
                 {
+                    var duration = TimeSpan.MaxValue;
                     try
                     {
+                        var startTime = DateTime.UtcNow;
                         using var scope = _serviceProvider.CreateScope();
                         var scanner = scope.ServiceProvider.GetRequiredService<MediaSourceScanner>();
                         var classifier = scope.ServiceProvider.GetRequiredService<MediaSourceClassifier>();
@@ -46,13 +48,17 @@ namespace VideoWebPlayer.Services
                         _logger.LogInformation("Scan abgeschlossen. Starte Klassifizierung.");
                         await classifier.ClassifyAllAsync(stoppingToken);
                         _logger.LogInformation("Klassifizierung abgeschlossen.");
+                        duration = DateTime.UtcNow - startTime;
                     }
                     catch (Exception ex)
                     {
                         _logger.LogError(ex, "Fehler im MediaSourceScanService während Scan/Klassifizierung.");
                     }
-                    _logger.LogInformation("Warte 1 Stunde.");
-                    await Task.Delay(TimeSpan.FromHours(1), stoppingToken);
+                    if (duration < TimeSpan.FromHours(1))
+                    {
+                        _logger.LogInformation("Warte 1 Stunde.");
+                        await Task.Delay(TimeSpan.FromHours(1), stoppingToken);
+                    }
                 }
             }
             catch(Exception ex)

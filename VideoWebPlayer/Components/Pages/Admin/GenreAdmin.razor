@@ -72,7 +72,10 @@
         <tr>
             <th>Name</th>
             <th>Alternative Namen</th>
+            <th>Startdatum</th>
+            <th>Enddatum</th>
             <th>Aktionen</th>
+            <th>Ausgeblendet</th>
         </tr>
     </thead>
     <tbody>
@@ -86,8 +89,13 @@
                         <span class="badge bg-secondary">@alt.Name</span>
                     }
                 </td>
+                <td>@(genre.StartDate?.ToString("yyyy-MM-dd") ?? "-")</td>
+                <td>@(genre.EndDate?.ToString("yyyy-MM-dd") ?? "-")</td>
                 <td>
                     <button class="btn btn-sm btn-primary" @onclick="() => EditGenre(genre)">Bearbeiten</button>
+                </td>
+                <td>
+                    @(genre.IsHidden ? "Ja" : "Nein")
                 </td>
             </tr>
         }
@@ -101,72 +109,91 @@
             <h5>Genre bearbeiten: @editGenre.Name</h5>
             <label>Alternative Namen (kommagetrennt):</label>
             <input class="form-control" @bind="altNamesInput" />
+            <label>Startdatum (optional, für saisonale Genres):</label>
+            <InputDate class="form-control" @bind-Value="editGenre.StartDate" />
+            <label>Enddatum (optional, für saisonale Genres):</label>
+            <InputDate class="form-control" @bind-Value="editGenre.EndDate" />
+            <div>
+                <InputCheckbox class="form-check-input" @bind-Value="editGenre.IsHidden" />
+                <label class="form-check-label ms-2">Genre ist ausgeblendet</label>
+            </div>
             <div class="mt-3 d-flex justify-content-end gap-2">
-                <button class="btn btn-success" @onclick="SaveAltNames">Speichern</button>
+                <button class="btn btn-success" @onclick="SaveGenre">Speichern</button>
                 <button class="btn btn-secondary" @onclick="CancelEdit">Abbrechen</button>
             </div>
         </div>
     </div>
 }
 
-    @code {
-        private List<Genre> genres = new();
-        private Genre? editGenre;
-        private string altNamesInput = "";
-        private List<Genre> uniqueGenres = new();
+@code {
+    private List<Genre> genres = new();
+    private Genre? editGenre;
+    private string altNamesInput = "";
+    private List<Genre> uniqueGenres = new();
 
-        protected override async Task OnInitializedAsync()
-        {
-            var allGenres = await DbContext.Genres.Include(g => g.AlternateNames).ToListAsync();
-            uniqueGenres = allGenres
-                .GroupBy(g => g.Name.Trim().ToLower())
-                .Select(g => g.First())
-                .OrderBy(g => g.Name)
-                .ToList();
-        }
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadGenres();
+    }
 
-        private void EditGenre(Genre genre)
-        {
-            editGenre = genre;
-            altNamesInput = string.Join(", ", genre.AlternateNames.Select(a => a.Name));
-        }
+    private async Task ReloadGenres()
+    {
+        var allGenres = await DbContext.Genres.Include(g => g.AlternateNames).ToListAsync();
+        uniqueGenres = allGenres
+            .GroupBy(g => g.Name.Trim().ToLower())
+            .Select(g => g.First())
+            .OrderBy(g => g.Name)
+            .ToList();
+    }
 
-        private async Task SaveAltNames()
+    private void EditGenre(Genre genre)
+    {
+        // Hole das Genre frisch aus der DB, damit Änderungen nicht direkt übernommen werden
+        editGenre = new Genre
         {
-            if (editGenre == null) return;
+            Id = genre.Id,
+            Name = genre.Name,
+            StartDate = genre.StartDate,
+            EndDate = genre.EndDate,
+            IsHidden = genre.IsHidden,
+            AlternateNames = genre.AlternateNames.ToList()
+        };
+        altNamesInput = string.Join(", ", genre.AlternateNames.Select(a => a.Name));
+    }
+
+    private async Task SaveGenre()
+    {
+        if (editGenre == null) return;
+
+        // Genre aus DB holen
+        var dbGenre = await DbContext.Genres.Include(g => g.AlternateNames)
+            .FirstOrDefaultAsync(g => g.Id == editGenre.Id);
+
+        if (dbGenre != null)
+        {
+            dbGenre.StartDate = editGenre.StartDate;
+            dbGenre.EndDate = editGenre.EndDate;
+            dbGenre.IsHidden = editGenre.IsHidden;
+
+            // Alternative Namen aktualisieren
             var names = altNamesInput.Split(',', StringSplitOptions.RemoveEmptyEntries)
                                      .Select(n => n.Trim())
                                      .Where(n => !string.IsNullOrWhiteSpace(n))
                                      .Distinct(StringComparer.OrdinalIgnoreCase)
                                      .ToList();
 
-            // Alle Genres mit gleichem Namen finden
-            var allGenres = await DbContext.Genres.Include(g => g.AlternateNames)
-                .Where(g => g.Name.Trim().ToLower() == editGenre.Name.Trim().ToLower())
-                .ToListAsync();
+            DbContext.GenreNames.RemoveRange(dbGenre.AlternateNames);
+            await DbContext.SaveChangesAsync();
 
-            foreach (var genre in allGenres)
+            foreach (var name in names)
             {
-                // Bestehende löschen
-                DbContext.GenreNames.RemoveRange(genre.AlternateNames);
-                await DbContext.SaveChangesAsync();
-
-                // Neue anlegen
-                foreach (var name in names)
-                {
-                    DbContext.GenreNames.Add(new GenreName { Name = name, GenreId = genre.Id });
-                }
-                await DbContext.SaveChangesAsync();
-                await DbContext.MarkGenresAsChangedAsync();
+                DbContext.GenreNames.Add(new GenreName { Name = name, GenreId = dbGenre.Id });
             }
+            await DbContext.SaveChangesAsync();
+            await DbContext.MarkGenresAsChangedAsync();
+        }
 
-        // Reload
-        var allGenresReload = await DbContext.Genres.Include(g => g.AlternateNames).ToListAsync();
-        uniqueGenres = allGenresReload
-            .GroupBy(g => g.Name.Trim().ToLower())
-            .Select(g => g.First())
-            .OrderBy(g => g.Name)
-            .ToList();
+        await ReloadGenres();
         editGenre = null;
     }
 

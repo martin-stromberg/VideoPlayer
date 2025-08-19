@@ -1,0 +1,16 @@
+@* Wiederverwendbarer Video-Player mit Overlay *@
+@if (Show)
+{
+    <div class="player-overlay">
+        <div class="player-content">
+            <video src="@StreamUrl" controls autoplay style="max-width:900px;"></video>
+            <button class="close-player" @onclick="OnClose">&#10006;</button>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Show { get; set; }
+    [Parameter] public string StreamUrl { get; set; } = "";
+    [Parameter] public EventCallback OnClose { get; set; }
+}

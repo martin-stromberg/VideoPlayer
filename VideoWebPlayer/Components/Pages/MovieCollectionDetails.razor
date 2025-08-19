@@ -56,12 +56,11 @@ else if (selectedMovie != null)
             Video herunterladen
         </a>
     </div>
-    @if (showPlayer)
+    @if (showPlayer && selectedMovie != null)
     {
-        <div class="player-overlay">
-            <video src="@GetMovieStreamUrl(selectedMovie)" controls autoplay style="width:80vw;max-width:900px;"></video>
-            <button class="close-player" @onclick="HidePlayer">×</button>
-        </div>
+        <VideoPlayer Show="showPlayer"
+                     StreamUrl="@GetMovieStreamUrl(selectedMovie)"
+                     OnClose="HidePlayer" />
     }
 }
 else

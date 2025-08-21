@@ -54,4 +54,31 @@ public class SourcesController : ApiBaseController
             return StatusCode(500, "Internal server error");
         }
     }
+
+    [HttpGet("{id:long}")]
+    public async Task<IActionResult> GetSource(long id)
+    {
+        try
+        {
+            CheckLogedIn();
+            var sources = (await _db.MediaSources
+                .Where(ms => ms.Id == id)
+                .ToListAsync())
+                .Select(ms => Create<DtoMediaSource>(ms))
+                .FirstOrDefault();
+            if (sources is null)
+                return NotFound("Quelle nicht gefunden.");
+            return Ok(sources);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Logger.LogWarning(ex, "Zugriff verweigert beim Abrufen der Quellen");
+            return Unauthorized(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Fehler beim Abrufen der Quellen");
+            return StatusCode(500, "Internal server error");
+        }
+    }
 }

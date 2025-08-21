@@ -60,7 +60,10 @@ else if (selectedMovie != null)
     {
         <VideoPlayer Show="showPlayer"
                      StreamUrl="@GetMovieStreamUrl(selectedMovie)"
-                     OnClose="HidePlayer" />
+                     OnClose="HidePlayer"
+                     MediaType="movie"
+                     MediaId="@selectedMovie.Id"
+                     AuthToken="@Client.AuthorizationToken" />
     }
 }
 else

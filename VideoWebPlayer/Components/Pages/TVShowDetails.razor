@@ -20,6 +20,10 @@
     [SupplyParameterFromQuery(Name = "episode")]
     public long? EpisodeId { get; set; }
 
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "position")]
+    public long? Position { get; set; }
+
     private DtoTVShow? show;
     private DtoTVShowSeason? selectedSeason;
     private DtoTVShowEpisode? selectedEpisode;
@@ -27,6 +31,7 @@
     private bool showPlayer = false;
     private bool isAuthenticated;
     private bool isFavorite = false; // Neu: Favoritenstatus
+    private long resumeSeconds;
 
     protected override async Task OnInitializedAsync()
     {
@@ -57,6 +62,12 @@
             {
                 selectedEpisode = episode;
             }
+        }
+
+        if (Position.HasValue && selectedEpisode is not null)
+        {
+            AutoPlay(Position.Value);
+            Position = 0;
         }
 
         await UpdateFavoriteMark();
@@ -105,6 +116,11 @@
     private void HidePlayer()
     {
         showPlayer = false;
+    }
+    private void AutoPlay(long position)
+    {
+        resumeSeconds = position;
+        ShowPlayer();
     }
 
     private string GetEpisodeStreamUrl(DtoTVShowEpisode episode)
@@ -253,9 +269,13 @@ else
 
     @if (showPlayer && selectedEpisode != null)
     {
-        <VideoPlayer Show="showPlayer"
-                     StreamUrl="@GetEpisodeStreamUrl(selectedEpisode)"
-                     OnClose="HidePlayer" />
+    <VideoPlayer Show="showPlayer"
+                 StreamUrl="@GetEpisodeStreamUrl(selectedEpisode)"
+                 OnClose="HidePlayer"
+                 MediaType="episode"
+                 MediaId="@selectedEpisode.Id"
+                 AuthToken="@Client.AuthorizationToken"
+                 StartPositionSeconds="@(resumeSeconds)" />
     }
 
     <!-- Favoriten-Button (neu hinzugefügt) -->

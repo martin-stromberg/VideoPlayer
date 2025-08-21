@@ -129,6 +129,9 @@ public static class ServiceCollectionExtensions
         services.AddHostedService<MediaSourceScanService>();
         services.AddHttpContextAccessor();
         services.AddControllers();
+        services.AddSingleton<ContinueWatchingBuffer>();
+        services.AddScoped<ContinueWatchingService>();
+        services.AddHostedService<ContinueWatchingWorker>();
 
         // JWT-Signaturschlüssel registrieren (Base64)
         if (!string.IsNullOrWhiteSpace(jwtKey))

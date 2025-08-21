@@ -2,6 +2,7 @@
 @using System.Net.Http
 @using System.Net.Http.Json
 @using Microsoft.EntityFrameworkCore
+@using VideoWebPlayer.Client.Models
 @using VideoWebPlayer.Controllers.Models
 @using VideoWebPlayer.Data
 @inject ApplicationDbContext DbContext
@@ -92,7 +93,7 @@
     [Parameter]
     public long Id { get; set; }
 
-    private MediaSource? mediaSource;
+    private DtoMediaSource? mediaSource;
     private bool isLoading = true;
     private List<MediaEntryDto> Entries = new();
     private int Page = 0;
@@ -100,7 +101,7 @@
     private ElementReference BottomMarker;
     private bool? isAuthenticated = null;
     private string searchText = "";
-    private List<Genre> sourceGenres = new();
+    private SourceGenresDto sourceGenres = new();
     private long? selectedGenreId = null;
 
     [JSInvokable]
@@ -112,14 +113,9 @@
 
     private async Task LoadNextPageAsync()
     {
-        isLoading = true;
-        var url = $"/api/items?mediaSourceId={mediaSource?.Id}&page={Page}&size={PageSize}";
-        if (!string.IsNullOrWhiteSpace(searchText))
-            url += $"&search={Uri.EscapeDataString(searchText)}";
-        if (selectedGenreId.HasValue)
-            url += $"&genreId={selectedGenreId.Value}";
-
-        var newEntries = await Http.GetFromJsonAsync<List<MediaEntryDto>>(url);
+        if (isLoading) return;
+        isLoading = true;        
+        var newEntries = await Client.RequestSourceItems(Id, Page, PageSize, searchText, selectedGenreId.HasValue ? selectedGenreId.Value : 0);
         if (newEntries?.Any() == true)
         {
             Entries.AddRange(newEntries);
@@ -146,17 +142,8 @@
         var user = authState.User;
         isAuthenticated = user?.Identity?.IsAuthenticated == true;
 
-        mediaSource = await DbContext.MediaSources
-            .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Id == Id);
-
-        // Genres ohne Alternativen laden
-        sourceGenres = await DbContext.Genres
-            .Include(g => g.AlternateNames)
-            .Where(g => g.MediaSourceId == Id && !g.IsHidden && !g.AlternateNames.Any())
-            .OrderBy(g => g.Name)
-            .ToListAsync();
-
+        mediaSource = await Client.RequestSourceAsync(Id);
+        sourceGenres = await Client.RequestSourceGenresAsync(mediaSource.Id);
         isLoading = false;
     }
 
@@ -166,6 +153,8 @@
         {
             try
             {
+                while (isLoading)
+                    await Task.Delay(10);
                 await LoadNextPageAsync();
                 await JS.InvokeVoidAsync("observeBottom", BottomMarker, DotNetObjectReference.Create(this));
             }
@@ -252,7 +241,7 @@ else
                 @onclick="() => OnGenreSelected(null)">
             Alle
         </button>
-        @foreach (var genre in sourceGenres)
+        @foreach (var genre in sourceGenres.Genres)
         {
             <button class="genre-btn @(selectedGenreId == genre.Id ? "selected" : "")"
                     @onclick="() => OnGenreSelected(genre.Id)">

@@ -1,9 +1,17 @@
+@using Microsoft.JSInterop
+
+@inject IJSRuntime JS
+
 @* Wiederverwendbarer Video-Player mit Overlay *@
 @if (Show)
 {
     <div class="player-overlay">
         <div class="player-content">
-            <video src="@StreamUrl" controls autoplay style="max-width:900px;"></video>
+            <video @ref="_videoRef"
+                   src="@StreamUrl"
+                   controls
+                   autoplay="@AutoPlay"
+                   style="max-width:900px;"></video>
             <button class="close-player" @onclick="OnClose">&#10006;</button>
         </div>
     </div>
@@ -13,4 +21,65 @@
     [Parameter] public bool Show { get; set; }
     [Parameter] public string StreamUrl { get; set; } = "";
     [Parameter] public EventCallback OnClose { get; set; }
+
+    // Neu:
+    [Parameter] public string MediaType { get; set; } = ""; // "movie" | "episode"
+    [Parameter] public long MediaId { get; set; }
+    [Parameter] public string? AuthToken { get; set; } // Bearer-Token
+    [Parameter] public double? StartPositionSeconds { get; set; }  // neue Startposition (sekundengenau)
+    [Parameter] public bool AutoPlay { get; set; } = true;         // optional steuerbar
+
+    private ElementReference _videoRef;
+    private bool _attached;
+    private bool _startApplied;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Show && !_attached && _videoRef.Context != null && !string.IsNullOrWhiteSpace(MediaType) && MediaId > 0)
+        {
+            await JS.InvokeVoidAsync("continueWatching.attach", _videoRef, MediaType, MediaId, "", AuthToken ?? "");
+            _attached = true;
+        }
+
+        if (Show && !_startApplied && StartPositionSeconds.HasValue && StartPositionSeconds > 0 && _videoRef.Context != null)
+        {
+            await JS.InvokeVoidAsync("videoPlayer.setStartPosition", _videoRef, StartPositionSeconds.Value);
+            _startApplied = true;
+        }
+
+        if (!Show)
+        {
+            _attached = false;
+            _startApplied = false;
+        }
+    }
 }
+<script>
+window.videoPlayer = window.videoPlayer || {
+    setStartPosition: function (videoEl, seconds) {
+        if (!videoEl || !seconds || seconds <= 0) return;
+        const apply = () => {
+            try {
+                // Falls Video kürzer ist (z.B. Preload), clampen
+                if (videoEl.duration && seconds > videoEl.duration - 1)
+                    seconds = Math.max(0, videoEl.duration - 1);
+                videoEl.currentTime = seconds;
+                // Falls Autoplay pausiert wurde, wieder starten
+                if (videoEl.paused) {
+                    const p = videoEl.play();
+                    if (p && p.catch) p.catch(() => {});
+                }
+            } catch { }
+        };
+        if (videoEl.readyState >= 1) {
+            apply();
+        } else {
+            const handler = () => {
+                videoEl.removeEventListener('loadedmetadata', handler);
+                apply();
+            };
+            videoEl.addEventListener('loadedmetadata', handler);
+        }
+    }
+};
+</script>

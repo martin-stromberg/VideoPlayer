@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Controllers;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services.Authentication;
@@ -118,6 +120,7 @@ public class SourceGenresController : ApiBaseController
 
             var genres = await _db.Genres
                 .Where(g => allGenreIds.Contains(g.Id))
+                .Where(g => !g.IsHidden)
                 .ToListAsync();
 
             var result = new SourceGenresDto
@@ -142,15 +145,3 @@ public class SourceGenresController : ApiBaseController
     }
 }
 
-public class SourceGenresDto
-{
-    public long SourceId { get; set; }
-    public string SourceName { get; set; }
-    public List<GenreDto> Genres { get; set; } = new();
-}
-
-public class GenreDto
-{
-    public long Id { get; set; }
-    public string Name { get; set; }
-}

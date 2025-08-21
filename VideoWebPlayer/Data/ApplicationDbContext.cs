@@ -59,6 +59,7 @@ namespace VideoWebPlayer.Data
         public DbSet<GenreName> GenreNames { get; set; }
         public DbSet<MovieGenre> MovieGenres { get; set; }
         public DbSet<TVShowGenre> TVShowGenres { get; set; }
+        public DbSet<ContinueWatchingEntry> ContinueWatchingEntries { get; set; }
         #endregion
         #region MediaSource Manipulation Methods
         /// <summary>
@@ -437,6 +438,22 @@ namespace VideoWebPlayer.Data
 
             modelBuilder.Entity<MediaSourceUser>()
                 .HasKey(msu => new { msu.MediaSourceId, msu.UserId });
+
+            modelBuilder.Entity<ContinueWatchingEntry>(e =>
+            {
+                e.HasIndex(x => new { x.UserId, x.MovieId });
+                e.HasIndex(x => new { x.UserId, x.TVShowEpisodeId });
+
+                e.HasOne(x => x.Movie)
+                 .WithMany()
+                 .HasForeignKey(x => x.MovieId)
+                 .OnDelete(DeleteBehavior.Cascade);
+
+                e.HasOne(x => x.TVShowEpisode)
+                 .WithMany()
+                 .HasForeignKey(x => x.TVShowEpisodeId)
+                 .OnDelete(DeleteBehavior.Cascade);
+            });
         }
     }
 }

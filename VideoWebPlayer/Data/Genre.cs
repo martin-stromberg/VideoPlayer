@@ -14,5 +14,10 @@ namespace VideoWebPlayer.Data
         public ICollection<MovieGenre> MovieGenres { get; set; } // Hinzugefügt für die Beziehung zu MovieGenre
         public ICollection<TVShowGenre> TVShowGenres { get; set; } // Optional: für die Beziehung zu TVShowGenre
         public bool IsHidden { get; set; }
+
+        public override string ToString()
+        {
+            return $"{Id} {Name}";
+        }
     }
 }

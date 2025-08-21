@@ -1,0 +1,110 @@
+@using VideoWebPlayer.Client.Models
+@inject IJSRuntime JS
+@inject HttpClient Http
+@inject VideoWebPlayer.Client.VideoWebPlayerClient Client
+
+@code {
+    private List<ContinueWatchingDto> Items = new();
+
+    private readonly Dictionary<long, string> titles = new();
+    private readonly Dictionary<long, string> images = new();
+    private readonly Dictionary<long, string> links = new();
+
+    private ElementReference listRef;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Liste laden
+        var data = await Http.GetFromJsonAsync<List<ContinueWatchingDto>>("api/continue-watching")
+                   ?? new List<ContinueWatchingDto>();
+
+        Items = data;
+
+        // Werte vorbereiten
+        titles.Clear();
+        images.Clear();
+        links.Clear();
+
+        foreach (var it in Items.Where(e => e.Entry is not null))
+        {
+            titles[it.Entry.Id] = it.Title ?? "";
+            images[it.Entry.Id] = it.PosterPictureId.HasValue
+                ? $"/api/pictures/{it.PosterPictureId}?access_token={Client.AuthorizationToken}"
+                : "/images/placeholder.png";
+
+            // Link ableiten: einfache Heuristik (wie in RecentEntriesList für Movie),
+            // optional später durch genauere Auflösung ersetzen
+            if (it.MediaType == "movie")
+            {
+                // Falls es eine dedizierte Movie-Seite gibt (RecentEntries nutzt /movie/{id})
+                links[it.Entry.Id] = $"/moviecollection/{(it.Entry as DtoMovie).Collection.Id}/{it.Entry.Id}";
+            }
+            else // "episode"
+            {
+                // Fallback-Link für Episode; bei Bedarf auf /tvshow/{showId}?season={seasonId}&episode={episodeId} erweitern
+                links[it.Entry.Id] = $"/tvshow/{(it.Entry as DtoTVShowEpisode).Season.Show.Id}?season={(it.Entry as DtoTVShowEpisode).Season.Id}&episode={it.Entry.Id}&position={it.PositionSeconds}";
+            }
+        }
+
+        await base.OnInitializedAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && Items.Any())
+        {
+            await JS.InvokeVoidAsync("enableHorizontalWheelScroll", ".continue-watching-list");
+        }
+    }
+}
+
+@if (Items.Any())
+{
+    <h2>Weiterschauen</h2>
+    <div class="continue-watching-list" @ref="listRef">
+        @foreach (var it in Items)
+        {
+            if (titles.ContainsKey(it.Entry.Id))
+            {
+                <MediaBox Title="@titles[it.Entry.Id]" ImageUrl="@images[it.Entry.Id]" LinkUrl="@links[it.Entry.Id]" />
+            }
+        }
+    </div>
+}
+
+<style>
+.continue-watching-list {
+    display: flex;
+    flex-direction: row;
+    gap: 1.5rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 1rem 0;
+    margin-bottom: 2rem;
+    scrollbar-width: thin;
+    scrollbar-color: #23232a #181820;
+}
+.continue-watching-list::-webkit-scrollbar {
+    height: 8px;
+    background: #181820;
+}
+.continue-watching-list::-webkit-scrollbar-thumb {
+    background: #23232a;
+    border-radius: 4px;
+}
+.continue-watching-list::-webkit-scrollbar-thumb:hover {
+    background: #ffe066;
+}
+</style>
+
+<script>
+window.enableHorizontalWheelScroll = window.enableHorizontalWheelScroll || function (selector) {
+    var el = document.querySelector(selector);
+    if (!el) return;
+    el.addEventListener('wheel', function (e) {
+        if (e.deltaY === 0) return;
+        e.preventDefault();
+        el.scrollLeft += e.deltaY;
+    }, { passive: false });
+};
+</script>

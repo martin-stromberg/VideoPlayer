@@ -73,8 +73,8 @@ namespace FolderAPI.Controllers
                     var widthFactor = (1.0 / image.Width) * ((double)maxWidth);
                     var heightFactor = (1.0 / image.Height) * ((double)maxHeight);
                     var minFactor = (widthFactor > heightFactor) ? heightFactor : widthFactor;
-                    var newWidth = (int)(image.Width * minFactor);
-                    var newHeight = (int)(image.Height * minFactor);
+                    var newWidth = (uint)(image.Width * minFactor);
+                    var newHeight = (uint)(image.Height * minFactor);
 
                     if ((image.Width > maxWidth) || (image.Height > maxHeight))
                     {

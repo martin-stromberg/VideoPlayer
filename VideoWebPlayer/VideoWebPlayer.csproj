@@ -45,6 +45,9 @@
     <Content Update="wwwroot\images\placeholder.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
+    <Content Update="wwwroot\js\continueWatching.js">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Update="wwwroot\js\scroll.js">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>

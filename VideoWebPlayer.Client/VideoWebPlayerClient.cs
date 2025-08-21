@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Json;
 using VideoWebPlayer.Client.Models;
+using VideoWebPlayer.Controllers.Models;
 using VideoWebPlayer.Data;
 
 namespace VideoWebPlayer.Client
@@ -70,6 +71,28 @@ namespace VideoWebPlayer.Client
                 return new DtoMediaSource[0];
             }
         }
+        public async Task<DtoMediaSource> RequestSourceAsync(long sourceId)
+        {
+            try
+            {
+                return await HttpGetAsync<DtoMediaSource>($"api/Sources/{sourceId}");
+            }
+            catch
+            {
+                return null;
+            }
+        }
+        public async Task<SourceGenresDto> RequestSourceGenresAsync(long sourceId)
+        {
+try
+            {
+                return await HttpGetAsync<SourceGenresDto>($"api/SourceGenres/{sourceId}");
+            }
+            catch
+            {
+                return null;
+            }
+        }
         #endregion
 
         #region Recent Entries
@@ -92,6 +115,16 @@ namespace VideoWebPlayer.Client
         #endregion
 
         #region Media Entries
+        public async Task<List<MediaEntryDto>> RequestSourceItems(long mediaSourceId, int Page = 0, int PageSize = 30, string searchText = "", long genreId = 0)
+        {
+            var url = $"/api/items?mediaSourceId={mediaSourceId}&page={Page}&size={PageSize}";
+            if (!string.IsNullOrWhiteSpace(searchText))
+                url += $"&search={Uri.EscapeDataString(searchText)}";
+            if (genreId > 0)
+                url += $"&genreId={genreId}";
+            return await HttpGetAsync<List<MediaEntryDto>>(url);
+        }
+
         public async Task<DtoMediaEntry> RequestMovieCollectionAsync(long id)
         {
             return await HttpGetAsync<DtoMovieCollection>($"api/items/moviecollection/{id}");

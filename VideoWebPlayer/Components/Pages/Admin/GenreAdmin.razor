@@ -125,31 +125,31 @@
     </div>
 }
 
-@code {
-    private List<Genre> genres = new();
-    private Genre? editGenre;
-    private string altNamesInput = "";
-    private List<Genre> uniqueGenres = new();
+    @code {
+        private List<Genre> genres = new();
+        private Genre? editGenre;
+        private string altNamesInput = "";
+        private List<Genre> uniqueGenres = new();
 
-    protected override async Task OnInitializedAsync()
-    {
-        await ReloadGenres();
-    }
+        protected override async Task OnInitializedAsync()
+        {
+            await ReloadGenres();
+        }
 
-    private async Task ReloadGenres()
-    {
-        var allGenres = await DbContext.Genres.Include(g => g.AlternateNames).ToListAsync();
-        uniqueGenres = allGenres
-            .GroupBy(g => g.Name.Trim().ToLower())
-            .Select(g => g.First())
-            .OrderBy(g => g.Name)
-            .ToList();
-    }
+        private async Task ReloadGenres()
+        {
+            var allGenres = await DbContext.Genres.Include(g => g.AlternateNames).ToListAsync();
+            uniqueGenres = allGenres
+                .GroupBy(g => g.Name.Trim().ToLower())
+                .Select(g => g.First())
+                .OrderBy(g => g.Name)
+                .ToList();
+        }
 
-    private void EditGenre(Genre genre)
-    {
-        // Hole das Genre frisch aus der DB, damit Änderungen nicht direkt übernommen werden
-        editGenre = new Genre
+        private void EditGenre(Genre genre)
+        {
+            // Hole das Genre frisch aus der DB, damit Änderungen nicht direkt übernommen werden
+            editGenre = new Genre
         {
             Id = genre.Id,
             Name = genre.Name,
@@ -158,40 +158,42 @@
             IsHidden = genre.IsHidden,
             AlternateNames = genre.AlternateNames.ToList()
         };
-        altNamesInput = string.Join(", ", genre.AlternateNames.Select(a => a.Name));
-    }
-
-    private async Task SaveGenre()
-    {
-        if (editGenre == null) return;
-
-        // Genre aus DB holen
-        var dbGenre = await DbContext.Genres.Include(g => g.AlternateNames)
-            .FirstOrDefaultAsync(g => g.Id == editGenre.Id);
-
-        if (dbGenre != null)
-        {
-            dbGenre.StartDate = editGenre.StartDate;
-            dbGenre.EndDate = editGenre.EndDate;
-            dbGenre.IsHidden = editGenre.IsHidden;
-
-            // Alternative Namen aktualisieren
-            var names = altNamesInput.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                                     .Select(n => n.Trim())
-                                     .Where(n => !string.IsNullOrWhiteSpace(n))
-                                     .Distinct(StringComparer.OrdinalIgnoreCase)
-                                     .ToList();
-
-            DbContext.GenreNames.RemoveRange(dbGenre.AlternateNames);
-            await DbContext.SaveChangesAsync();
-
-            foreach (var name in names)
-            {
-                DbContext.GenreNames.Add(new GenreName { Name = name, GenreId = dbGenre.Id });
-            }
-            await DbContext.SaveChangesAsync();
-            await DbContext.MarkGenresAsChangedAsync();
+            altNamesInput = string.Join(", ", genre.AlternateNames.Select(a => a.Name));
         }
+
+        private async Task SaveGenre()
+        {
+            if (editGenre == null) return;
+
+            // Genre aus DB holen
+            var dbGenres = await DbContext.Genres.Include(g => g.AlternateNames)
+                .Where(g => g.Name == editGenre.Name).ToListAsync();
+            foreach (var dbGenre in dbGenres)
+            {
+                if (dbGenre != null)
+                {
+                    dbGenre.StartDate = editGenre.StartDate;
+                    dbGenre.EndDate = editGenre.EndDate;
+                    dbGenre.IsHidden = editGenre.IsHidden;
+
+                    // Alternative Namen aktualisieren
+                    var names = altNamesInput.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                                             .Select(n => n.Trim())
+                                             .Where(n => !string.IsNullOrWhiteSpace(n))
+                                             .Distinct(StringComparer.OrdinalIgnoreCase)
+                                             .ToList();
+
+                    DbContext.GenreNames.RemoveRange(dbGenre.AlternateNames);
+                    await DbContext.SaveChangesAsync();
+
+                    foreach (var name in names)
+                    {
+                        DbContext.GenreNames.Add(new GenreName { Name = name, GenreId = dbGenre.Id });
+                    }
+                    await DbContext.SaveChangesAsync();
+                    await DbContext.MarkGenresAsChangedAsync();
+                }
+            }
 
         await ReloadGenres();
         editGenre = null;

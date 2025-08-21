@@ -21,6 +21,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VideoPlayer.Scapper", "Vide
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VideoWebPlayer", "VideoWebPlayer\VideoWebPlayer.csproj", "{951A411D-0429-4A7D-94EE-B1F78D25FA66}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VideoWebPlayer.Client", "VideoWebPlayer.Client\VideoWebPlayer.Client.csproj", "{2A95DFF2-04F7-48DF-87CE-AF1B4D715523}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -67,6 +69,10 @@ Global
 		{951A411D-0429-4A7D-94EE-B1F78D25FA66}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{951A411D-0429-4A7D-94EE-B1F78D25FA66}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{951A411D-0429-4A7D-94EE-B1F78D25FA66}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2A95DFF2-04F7-48DF-87CE-AF1B4D715523}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2A95DFF2-04F7-48DF-87CE-AF1B4D715523}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2A95DFF2-04F7-48DF-87CE-AF1B4D715523}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2A95DFF2-04F7-48DF-87CE-AF1B4D715523}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

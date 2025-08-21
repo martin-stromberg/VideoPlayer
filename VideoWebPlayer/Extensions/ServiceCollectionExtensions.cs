@@ -1,0 +1,141 @@
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.IdentityModel.Tokens;
+using System;
+using System.Net.Http;
+using System.Threading.Tasks;
+using VideoWebPlayer.Client;
+using VideoWebPlayer.Components.Account;
+using VideoWebPlayer.Data;
+using VideoWebPlayer.Services;
+using VideoWebPlayer.Services.Authentication;
+
+namespace VideoWebPlayer.Extensions;
+
+public static class ServiceCollectionExtensions
+{
+    public static WebApplicationBuilder AddVideoWebPlayerServices(this WebApplicationBuilder builder)
+    {
+        var services = builder.Services;
+        var configuration = builder.Configuration;
+        var env = builder.Environment;
+
+        // Secrets laden
+        var jwtKey = configuration["Jwt:Key"];
+        var apiKey = configuration["Jwt:ApiToken"];
+        var issuer = configuration["Jwt:Issuer"] ?? "VideoWebPlayer";
+
+        // In Produktion sicherstellen, dass Secrets vorhanden sind
+        if (env.IsProduction())
+        {
+            if (string.IsNullOrWhiteSpace(jwtKey)) throw new InvalidOperationException("Fehlende Konfiguration: Jwt:Key");
+            if (string.IsNullOrWhiteSpace(apiKey)) throw new InvalidOperationException("Fehlende Konfiguration: Jwt:ApiToken");
+        }
+
+        // Blazor/Identity
+        services.AddRazorComponents().AddInteractiveServerComponents();
+        services.AddServerSideBlazor().AddCircuitOptions(o => o.DetailedErrors = true);
+
+        services.AddCascadingAuthenticationState();
+        services.AddScoped<AuthorizationTokenService>();
+        services.AddScoped<IdentityUserAccessor>();
+        services.AddScoped<IdentityRedirectManager>();
+        services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
+        services.AddSingleton<InternalConnectionService>();
+
+        services.AddAuthentication(options =>
+        {
+            options.DefaultScheme = IdentityConstants.ApplicationScheme;
+            options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
+        })
+        .AddIdentityCookies();
+
+
+        // Datenbank
+        var connectionString = configuration.GetConnectionString("DefaultConnection") ?? "Data Source=app.db";
+        services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(connectionString));
+        services.AddDatabaseDeveloperPageExceptionFilter();
+
+        services.AddIdentityCore<ApplicationUser>(options => options.SignIn.RequireConfirmedAccount = true)
+            .AddEntityFrameworkStores<ApplicationDbContext>()
+            .AddSignInManager()
+            .AddDefaultTokenProviders();
+
+        // HttpClient stabil via Factory
+        services.AddHttpClient("Internal", (sp, http) =>
+        {
+            var connectionManager = sp.GetRequiredService<InternalConnectionService>();
+            http.DefaultRequestHeaders.Add("User-Agent", connectionManager.GetUserAgent());
+            if (!string.IsNullOrWhiteSpace(apiKey))
+                http.DefaultRequestHeaders.Add("X-API-Key", apiKey);
+        });
+
+        // BaseAddress erst im scoped Kontext bestimmen (Blazor-Circuit, HTTP-Request oder Fallback)
+        services.AddScoped<HttpClient>(sp =>
+        {
+            var http = sp.GetRequiredService<IHttpClientFactory>().CreateClient("Internal");
+
+            var nav = sp.GetService<NavigationManager>();
+            if (nav is not null)
+            {
+                http.BaseAddress = new Uri(nav.BaseUri);
+                return http;
+            }
+
+            var httpContext = sp.GetService<IHttpContextAccessor>()?.HttpContext;
+            if (httpContext is not null)
+            {
+                var req = httpContext.Request;
+                http.BaseAddress = new Uri($"{req.Scheme}://{req.Host}{req.PathBase}/");
+                return http;
+            }
+
+            var baseUrl = sp.GetService<IConfiguration>()?["App:BaseUrl"];
+            if (!string.IsNullOrWhiteSpace(baseUrl))
+            {
+                http.BaseAddress = new Uri(baseUrl);
+            }
+
+            return http;
+        });
+
+        // Domänenspezifische Services
+        services.AddScoped<VideoWebPlayerClient>(sp =>
+        {
+            var authStateProvider = sp.GetRequiredService<AuthenticationStateProvider>();
+            var httpClient = sp.GetRequiredService<HttpClient>();
+            var client = new InternalVideoWebPlayerClient(
+                sp.GetRequiredService<IHttpContextAccessor>(), 
+                httpClient,                
+                sp.GetRequiredService<UserManager<ApplicationUser>>(),
+                sp.GetRequiredService<AuthorizationTokenService>(),
+                sp.GetRequiredService<ILogger<VideoWebPlayerClient>>());
+            return client;
+        });
+
+        services.AddScoped<IUserClaimsPrincipalFactory<ApplicationUser>, ApplicationUserClaimsPrincipalFactory>();
+        services.AddSingleton<EventManager>();
+        services.AddScoped<MediaSourceScanner>();
+        services.AddScoped<MediaSourceClassifier>();
+        services.AddScoped<SftpMediaSourceReader>();
+        services.AddScoped<DataUpgradeManager>();
+        services.AddScoped<RecentEntryService>();
+        services.AddTransient<IAuthService, AuthService>();
+        services.AddHostedService<MediaSourceScanService>();
+        services.AddHttpContextAccessor();
+        services.AddControllers();
+
+        // JWT-Signaturschlüssel registrieren (Base64)
+        if (!string.IsNullOrWhiteSpace(jwtKey))
+        {
+            services.AddSingleton(new SymmetricSecurityKey(Convert.FromBase64String(jwtKey)));
+        }
+
+        return builder;
+    }
+}

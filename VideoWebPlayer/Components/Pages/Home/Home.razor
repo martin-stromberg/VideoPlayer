@@ -1,0 +1,55 @@
+﻿@page "/"
+@using System.Security.Claims
+@using VideoWebPlayer.Data
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+@inject RecentEntryService RecentEntryService
+@inject ApplicationDbContext DbContext
+@inject HttpClient Http
+
+<PageTitle>Home</PageTitle>
+
+@code {
+    private bool? isAuthenticated = null;
+    private List<DtoRecentEntry> recentEntries = new();
+    private List<FavoriteEntry> favorites = new();
+
+    // Für die Anzeige: Titel, Bild und Link
+    private Dictionary<long, string> movieTitles = new();
+    private Dictionary<long, string> moviePosters = new();
+    private Dictionary<long, string> movieLinks = new();
+    private Dictionary<long, string> collectionTitles = new();
+    private Dictionary<long, string> collectionPosters = new();
+    private Dictionary<long, string> collectionLinks = new();
+    private Dictionary<long, string> showTitles = new();
+    private Dictionary<long, string> showBanners = new();
+    private Dictionary<long, string> showLinks = new();
+    private Dictionary<long, string> seasonTitles = new();
+    private Dictionary<long, string> seasonBanners = new();
+    private Dictionary<long, string> seasonLinks = new();
+    private Dictionary<long, string> episodeTitles = new();
+    private Dictionary<long, string> episodePosters = new();
+    private Dictionary<long, string> episodeLinks = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        isAuthenticated = user?.Identity?.IsAuthenticated == true;
+
+        if (user is null || !isAuthenticated.Value)
+        {
+            Navigation.NavigateTo("Account/Login", true);
+        }
+    }
+}
+
+@if (isAuthenticated == true)
+{
+    <FavoritesList />
+
+    <RecentEntriesList />
+
+    <SeasonalGenreList />
+}

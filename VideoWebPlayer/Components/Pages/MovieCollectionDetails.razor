@@ -4,10 +4,10 @@
 @using VideoWebPlayer.Data
 @using Microsoft.AspNetCore.Components.Authorization
 @inject AuthenticationStateProvider AuthStateProvider
-@inject ApplicationDbContext DbContext
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 @inject HttpClient Http
+@inject VideoWebPlayer.Client.VideoWebPlayerClient Client
 @rendermode InteractiveServer
 
 @if (!isAuthenticated)
@@ -28,7 +28,7 @@ else if (selectedMovie != null)
             @((IsMovieFavorite) ? "★" : "☆")
         </button>
         <div class="collection-header-overlay">
-            @if (collection?.Movies?.Count > 1)
+            @if (collection?.Movies?.Length > 1)
             {
                 <button class="back-arrow" @onclick="ShowCollection" title="Zurück zur Sammlung">
                     <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
@@ -109,8 +109,8 @@ else
     [SupplyParameterFromQuery(Name = "movie")]
     public long? MovieId { get; set; }
 
-    private MovieCollection? collection;
-    private Movie? selectedMovie;
+    private DtoMovieCollection? collection;
+    private DtoMovie? selectedMovie;
     private bool showPlayer = false;
     private bool isAuthenticated;
     private bool IsCollectionFavorite;
@@ -123,12 +123,7 @@ else
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
 
-        collection = await DbContext.MovieCollections
-            .Include(mc => mc.Movies)
-                .ThenInclude(m => m.MovieMediaItems)
-                    .ThenInclude(mmi => mmi.MediaItem)
-            .FirstOrDefaultAsync(mc => mc.Id == Id);
-
+        collection = await Client.RequestMovieCollectionAsync(Id) as DtoMovieCollection;
         IsCollectionFavorite = await CheckIfFavorite(collectionId: collection, movieId: null);
 
         if (MovieId.HasValue && collection?.Movies != null)
@@ -137,7 +132,7 @@ else
             if (movie != null)
                 await SelectMovieAsync(movie);
         }
-        else if (collection?.Movies?.Count == 1)
+        else if (collection?.Movies?.Length == 1)
         {
             await SelectMovieAsync(collection.Movies.First());
         }
@@ -151,41 +146,36 @@ else
         }
     }
 
-    private string GetBannerUrl(MovieCollection col)
-        => col.BannerPictureId.HasValue ? $"/api/pictures/{col.BannerPictureId}" : col.FanartPictureId.HasValue ? $"/api/pictures/{col.FanartPictureId}" : "/images/placeholder.png";
+    private string GetBannerUrl(DtoMovieCollection col)
+        => col.BannerPictureId.HasValue ? $"/api/pictures/{col.BannerPictureId}?access_token={Client.AuthorizationToken}" : col.FanartPictureId.HasValue ? $"/api/pictures/{col.FanartPictureId}?access_token={Client.AuthorizationToken}" : "/images/placeholder.png";
 
-    private string GetBannerUrl(Movie movie)
-        => movie.BannerPictureId.HasValue ? $"/api/pictures/{movie.BannerPictureId}" : movie.FanartPictureId.HasValue ? $"/api/pictures/{movie.FanartPictureId}": "/images/placeholder.png";
+    private string GetBannerUrl(DtoMovie movie)
+        => movie.BannerPictureId.HasValue ? $"/api/pictures/{movie.BannerPictureId}?access_token={Client.AuthorizationToken}" : movie.FanartPictureId.HasValue ? $"/api/pictures/{movie.FanartPictureId}?access_token={Client.AuthorizationToken}" : "/images/placeholder.png";
 
-    private string GetPosterUrl(Movie movie)
-        => movie.PosterPictureId.HasValue ? $"/api/pictures/{movie.PosterPictureId}" : movie.FanartPictureId.HasValue ? $"/api/pictures/{movie.FanartPictureId}" : "/images/placeholder.png";
+    private string GetPosterUrl(DtoMovie movie)
+        => movie.PosterPictureId.HasValue ? $"/api/pictures/{movie.PosterPictureId}?access_token={Client.AuthorizationToken}" : movie.FanartPictureId.HasValue ? $"/api/pictures/{movie.FanartPictureId}?access_token={Client.AuthorizationToken}" : "/images/placeholder.png";
 
-    private string GetYear(MovieCollection col)
+    private string GetYear(DtoMovieCollection col)
         => col.Movies?.Where(mbox => mbox.ReleaseDate != DateTime.MinValue)?.OrderBy(m => m.ReleaseDate)?.FirstOrDefault()?.ReleaseDate?.Year.ToString() ?? "";
 
-    private string GetYear(Movie movie)
+    private string GetYear(DtoMovie movie)
         => movie.ReleaseDate?.Year.ToString() ?? "";
 
-    private string GetGenres(MovieCollection col)
+    private string GetGenres(DtoMovieCollection col)
         => string.Join(", ", col.Movies?.SelectMany(m => (m.GenreNames ?? "").Split(',')).Distinct() ?? Array.Empty<string>());
 
-    private string GetGenres(Movie movie)
+    private string GetGenres(DtoMovie movie)
         => movie.GenreNames ?? "";
 
     private void ShowPlayer() => showPlayer = true;
     private void HidePlayer() => showPlayer = false;
 
-    private string GetMovieStreamUrl(Movie movie)
+    private string GetMovieStreamUrl(DtoMovie movie)
     {
-        var movieMediaItem = DbContext.MovieMediaItems.Where(mmi => mmi.MovieId == movie.Id).FirstOrDefault();
-        var mediaItem = DbContext.MediaItems.FirstOrDefault(mi => mi.Id == movieMediaItem.MediaItemId);
-        var mediaItemId = mediaItem?.Id;
-        if (mediaItemId is null)
-            HidePlayer();
-        return mediaItemId != null ? $"/api/mediaitems/{mediaItemId}/stream" : "";
+        return $"/api/items/movie/{movie.Id}/stream?access_token={Client.AuthorizationToken}";
     }
 
-    private async Task SelectMovieAsync(Movie movie)
+    private async Task SelectMovieAsync(DtoMovie movie)
     {
         selectedMovie = movie;
         showPlayer = false;
@@ -204,36 +194,29 @@ else
             await SelectMovieAsync(collection.Movies.First());
     }
 
-    private string GetDownloadUrl(Movie movie)
+    private string GetDownloadUrl(DtoMovie movie)
     {
-        // Hole die MediaItemId für den Download
-        var movieMediaItem = DbContext.MovieMediaItems.FirstOrDefault(mmi => mmi.MovieId == movie.Id);
-        var mediaItemId = movieMediaItem?.MediaItemId;
-        return mediaItemId != null ? $"/api/mediaitems/{mediaItemId}/download" : "#";
+        return $"/api/items/movie/{movie.Id}/download?access_token={Client.AuthorizationToken}";
     }
 
-    private async Task ToggleFavorite(Movie? movie)
+    private async Task ToggleFavorite(DtoMovie? movie)
     {
-        var userId = (await AuthStateProvider.GetAuthenticationStateAsync()).User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-
-        if (movie != null)
-        {
-            IsMovieFavorite = await DbContext.ToggleFavoriteAsync(userId, movie);
-        }
-        else
-        {
-            IsCollectionFavorite = await DbContext.ToggleFavoriteAsync(userId, collection);
-        }
-        await DbContext.SaveChangesAsync();
+         if (movie != null)
+         {
+            IsMovieFavorite = await Client.ToggleFavorite(movie);
+         }
+         else
+         {
+            IsCollectionFavorite = await Client.ToggleFavorite(collection);
+         }
     }
 
-    private async Task<bool> CheckIfFavorite(MediaBaseEntry collectionId, MediaBaseEntry movieId)
+    private async Task<bool> CheckIfFavorite(DtoMediaEntry collectionId, DtoMediaEntry movieId)
     {
-        var userId = (await AuthStateProvider.GetAuthenticationStateAsync()).User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (movieId is not null)
-            return DbContext.IsFavorite(userId, movieId);
+            return movieId.IsFavorite;
         if (collectionId is not null)
-            return DbContext.IsFavorite(userId, collectionId);
+            return collectionId.IsFavorite;
         return false;
     }
 }

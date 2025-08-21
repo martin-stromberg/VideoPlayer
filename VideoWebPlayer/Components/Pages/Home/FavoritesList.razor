@@ -1,0 +1,99 @@
+@using VideoWebPlayer.Data
+@inject VideoWebPlayer.Client.VideoWebPlayerClient Client
+
+@code {
+    public List<DtoFavoriteEntry> Favorites { get; set; } = new();
+
+
+    private Dictionary<long, string> favTitles = new();
+    private Dictionary<long, string> favImages = new();
+    private Dictionary<long, string> favLinks = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        Favorites = (await Client.RequestFavoritesAsync()).ToList();
+        await InitializeValues();
+        await base.OnInitializedAsync();
+    }
+
+    protected async Task InitializeValues()
+    {
+        favTitles.Clear();
+        favImages.Clear();
+        favLinks.Clear();
+
+        foreach (var fav in Favorites)
+        {
+
+            if (fav.Entry is DtoMovieCollection collection)
+            {
+                favTitles[fav.Id] = collection.Name;
+                favImages[fav.Id] = collection.PosterPictureId.HasValue ? $"/api/pictures/{collection.PosterPictureId}?access_token={Client.AuthorizationToken}" : "/images/placeholder.png";
+                favLinks[fav.Id] = $"/moviecollection/{collection.Id}";
+            }
+            else if (fav.Entry is DtoTVShow show)
+            {
+                favTitles[fav.Id] = show.Name;
+                favImages[fav.Id] = show.PosterPictureId.HasValue ? $"/api/pictures/{show.PosterPictureId}?access_token={Client.AuthorizationToken}"
+                    : show.BannerPictureId.HasValue ? $"/api/pictures/{show.BannerPictureId}?access_token={Client.AuthorizationToken}"
+                    : show.FanartPictureId.HasValue ? $"/api/pictures/{show.FanartPictureId}?access_token={Client.AuthorizationToken}"
+                    : "/images/placeholder.png";
+                favLinks[fav.Id] = $"/tvshow/{show.Id}";
+
+            }
+            else if (fav.Entry is DtoTVShowSeason season)
+            {
+                favTitles[fav.Id] = $"{season.Show.Name}-{season.Name}";
+                favImages[fav.Id] = season.PosterPictureId.HasValue ? $"/api/pictures/{season.PosterPictureId}?access_token={Client.AuthorizationToken}"
+                        : season.FanartPictureId.HasValue ? $"/api/pictures/{season.FanartPictureId}?access_token={Client.AuthorizationToken}"
+                        : season.BannerPictureId.HasValue ? $"/api/pictures/{season.BannerPictureId}?access_token={Client.AuthorizationToken}"
+                : season.Show.PosterPictureId.HasValue ? $"/api/pictures/{season.Show.PosterPictureId}?access_token={Client.AuthorizationToken}"
+                : season.Show.BannerPictureId.HasValue ? $"/api/pictures/{season.Show.BannerPictureId}?access_token={Client.AuthorizationToken}"
+                : season.Show.FanartPictureId.HasValue ? $"/api/pictures/{season.Show.FanartPictureId}?access_token={Client.AuthorizationToken}"
+                        : "/images/placeholder.png";
+                favLinks[fav.Id] = $"/tvshow/{season.Show.Id}?season={season.Id}";
+            }
+            else if (fav.Entry is DtoTVShowEpisode episode)
+            {
+                    favTitles[fav.Id] = episode.Name;
+                favImages[fav.Id] = episode.PosterPictureId.HasValue ? $"/api/pictures/{episode.PosterPictureId}?access_token={Client.AuthorizationToken}"
+                        : episode.FanartPictureId.HasValue ? $"/api/pictures/{episode.FanartPictureId}?access_token={Client.AuthorizationToken}"
+                        : episode.BannerPictureId.HasValue ? $"/api/pictures/{episode.BannerPictureId}?access_token={Client.AuthorizationToken}"
+                : episode.Season.PosterPictureId.HasValue ? $"/api/pictures/{episode.Season.PosterPictureId}?access_token={Client.AuthorizationToken}"
+                : episode.Season.FanartPictureId.HasValue ? $"/api/pictures/{episode.Season.FanartPictureId}?access_token={Client.AuthorizationToken}"
+                : episode.Season.BannerPictureId.HasValue ? $"/api/pictures/{episode.Season.BannerPictureId}?access_token={Client.AuthorizationToken}"
+                : episode.Season.Show.PosterPictureId.HasValue ? $"/api/pictures/{episode.Season.Show.PosterPictureId}?access_token={Client.AuthorizationToken}"
+                : episode.Season.Show.BannerPictureId.HasValue ? $"/api/pictures/{episode.Season.Show.BannerPictureId}?access_token={Client.AuthorizationToken}"
+                : episode.Season.Show.FanartPictureId.HasValue ? $"/api/pictures/{episode.Season.Show.FanartPictureId}?access_token={Client.AuthorizationToken}"
+                        : "/images/placeholder.png";
+                favLinks[fav.Id] = $"/tvshow/{episode.Season.Show.Id}?season={episode.Season.Id}&episode={episode.Id}";
+            }
+            else if (fav.Entry is DtoMovie movie)
+            {                
+                    favTitles[fav.Id] = movie.Name;
+                favImages[fav.Id] = movie.PosterPictureId.HasValue ? $"/api/pictures/{movie.PosterPictureId}?access_token={Client.AuthorizationToken}" : "/images/placeholder.png";
+                    favLinks[fav.Id] = $"/moviecollection/{movie.Collection.Id}?movie={movie.Id}";
+                
+            }
+        }
+    }
+}
+
+@if (Favorites.Any())
+{
+    <h2>Favoriten</h2>
+    <div class="recent-entries-list">
+        @foreach (var fav in Favorites)
+        {
+            if (favTitles.ContainsKey(fav.Id))
+            {
+                <a class="media-box-link" href="@favLinks[fav.Id]">
+                    <div class="recent-entry-box">
+                        <img class="recent-entry-img" src="@favImages[fav.Id]" alt="@favTitles[fav.Id]" />
+                        <div class="recent-entry-title">@favTitles[fav.Id]</div>
+                    </div>
+                </a>
+            }
+        }
+    </div>
+}

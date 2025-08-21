@@ -1,6 +1,8 @@
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.EntityFrameworkCore;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 
@@ -8,13 +10,19 @@ public class DataUpgradeManager
 {
     private readonly ApplicationDbContext _db;
     private readonly MediaSourceClassifier _classifier;
+    private readonly IUserStore<ApplicationUser> userStore;
+    private readonly UserManager<ApplicationUser> userManager;
+    private readonly IUserEmailStore<ApplicationUser> emailStore;
     private readonly ILogger<DataUpgradeManager> logger;
-    public const int CurrentVersion = 7; // Version erhöhen
+    public const int CurrentVersion = 8; // Version erhöhen
 
-    public DataUpgradeManager(ApplicationDbContext db, MediaSourceClassifier classifier, ILogger<DataUpgradeManager> logger)
+    public DataUpgradeManager(ApplicationDbContext db, MediaSourceClassifier classifier, IUserStore<ApplicationUser> UserStore, UserManager<ApplicationUser> UserManager, ILogger<DataUpgradeManager> logger)
     {
         _db = db;
         _classifier = classifier;
+        userStore = UserStore;
+        userManager = UserManager;
+        emailStore = (IUserEmailStore<ApplicationUser>)UserStore;
         this.logger = logger;
     }
 
@@ -55,6 +63,9 @@ public class DataUpgradeManager
                 case 7:
                     await Upgrade_7(cancellationToken);
                     break;
+                case 8:
+                    await Upgrade_8(cancellationToken);
+                    break;
             }
             setup.DataVersion = nextVersion;
             await _db.SaveChangesAsync(cancellationToken);
@@ -89,6 +100,24 @@ public class DataUpgradeManager
     private async Task Upgrade_7(CancellationToken cancellationToken)
     {
         await MarkAllMediaItemsAsChangedAsync(cancellationToken);
+    }
+    private async Task Upgrade_8(CancellationToken cancellationToken)
+    {
+        var newUser = Activator.CreateInstance<ApplicationUser>();
+        await userStore.SetUserNameAsync(newUser, "system", cancellationToken);
+        await emailStore.SetEmailAsync(newUser, "system@example.com", cancellationToken);
+        newUser.IsAdmin = true; 
+        var result = await userManager.CreateAsync(newUser, GeneratePassword());
+        if (!result.Succeeded)
+            throw new Exception($"Fehler beim Erstellen des Systembenutzers: {string.Join(", ", result.Errors.Select(e => e.Description))}");
+
+        var code = await userManager.GenerateEmailConfirmationTokenAsync(newUser);
+        var result2 = await userManager.ConfirmEmailAsync(newUser, code);
+    }
+
+    private string GeneratePassword()
+    {
+        return $"{new Guid()}dÜK${new Guid()}";
     }
 
     private async Task MarkAllMediaItemsAsChangedAsync(CancellationToken cancellationToken)

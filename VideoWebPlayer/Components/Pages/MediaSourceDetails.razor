@@ -1,13 +1,15 @@
 ﻿@page "/mediasource/{Id:long}"
-@using VideoWebPlayer.Data
-@using Microsoft.EntityFrameworkCore
 @using System.Net.Http
 @using System.Net.Http.Json
+@using Microsoft.EntityFrameworkCore
+@using VideoWebPlayer.Controllers.Models
+@using VideoWebPlayer.Data
 @inject ApplicationDbContext DbContext
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 @inject HttpClient Http
 @inject AuthenticationStateProvider AuthStateProvider
+@inject VideoWebPlayer.Client.VideoWebPlayerClient Client
 @rendermode InteractiveServer
 
 <style>
@@ -111,7 +113,7 @@
     private async Task LoadNextPageAsync()
     {
         isLoading = true;
-        var url = $"/api/mediaentries?mediaSourceId={mediaSource?.Id}&page={Page}&size={PageSize}";
+        var url = $"/api/items?mediaSourceId={mediaSource?.Id}&page={Page}&size={PageSize}";
         if (!string.IsNullOrWhiteSpace(searchText))
             url += $"&search={Uri.EscapeDataString(searchText)}";
         if (selectedGenreId.HasValue)
@@ -179,7 +181,7 @@
 
     private string GetPosterUrl(MediaEntryDto entry)
         => entry.PictureId.HasValue
-            ? $"/api/pictures/{entry.PictureId}"
+            ? $"/api/pictures/{entry.PictureId}?access_token={Client.AuthorizationToken}"
             : "/images/placeholder.png";
 
     private async Task OnMovieSelected(MediaEntryDto movie)

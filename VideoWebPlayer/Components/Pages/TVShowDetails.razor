@@ -5,7 +5,7 @@
 @using VideoWebPlayer.Data
 @using Microsoft.AspNetCore.Components.Authorization
 @inject AuthenticationStateProvider AuthenticationStateProvider
-@inject ApplicationDbContext DbContext
+@inject VideoWebPlayer.Client.VideoWebPlayerClient Client
 @rendermode InteractiveServer
 
 @code {
@@ -20,9 +20,9 @@
     [SupplyParameterFromQuery(Name = "episode")]
     public long? EpisodeId { get; set; }
 
-    private TVShow? show;
-    private TVShowSeason? selectedSeason;
-    private TVShowEpisode? selectedEpisode;
+    private DtoTVShow? show;
+    private DtoTVShowSeason? selectedSeason;
+    private DtoTVShowEpisode? selectedEpisode;
     private bool showSeasonInfo = false;
     private bool showPlayer = false;
     private bool isAuthenticated;
@@ -33,11 +33,7 @@
         var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
 
-        show = await DbContext.TVShows
-            .Include(ts => ts.Seasons)
-                .ThenInclude(s => s.Episodes)
-            .FirstOrDefaultAsync(ts => ts.Id == Id);
-
+        show = await Client.RequestTVShowAsync(Id) as DtoTVShow;
         // Standard: erste Staffel
         selectedSeason = show?.Seasons?.OrderBy(s => s.Name).FirstOrDefault();
         showSeasonInfo = false;
@@ -70,12 +66,12 @@
         var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
 
         if (showSeasonInfo)
-            isFavorite = DbContext.IsFavorite(authState.User.FindFirstValue(ClaimTypes.NameIdentifier), (MediaBaseEntry)selectedEpisode ?? (MediaBaseEntry)selectedSeason);
+            isFavorite = ((DtoMediaEntry)selectedEpisode ?? (DtoMediaEntry)selectedSeason).IsFavorite;
         else
-            isFavorite = DbContext.IsFavorite(authState.User.FindFirstValue(ClaimTypes.NameIdentifier), (MediaBaseEntry)selectedEpisode ?? (MediaBaseEntry)show);
+            isFavorite = ((DtoMediaEntry)selectedEpisode ?? (DtoMediaEntry)show).IsFavorite;
     }
 
-    private async Task SelectSeason(TVShowSeason season)
+    private async Task SelectSeason(DtoTVShowSeason season)
     {
         selectedSeason = season;
         selectedEpisode = null;
@@ -83,7 +79,7 @@
         await UpdateFavoriteMark();
     }
 
-    private async Task SelectEpisode(TVShowEpisode episode)
+    private async Task SelectEpisode(DtoTVShowEpisode episode)
     {
         selectedEpisode = episode;
         await UpdateFavoriteMark();
@@ -96,11 +92,11 @@
         await UpdateFavoriteMark();
     }
 
-    private string GetBannerUrl(MediaBaseEntry entry)
-        => entry.BannerPictureId.HasValue ? $"/api/pictures/{entry.BannerPictureId}" : entry.FanartPictureId.HasValue ? $"/api/pictures/{entry.FanartPictureId}" : "/images/placeholder.png";
+    private string GetBannerUrl(DtoMediaEntry entry)
+        => entry.BannerPictureId.HasValue ? $"/api/pictures/{entry.BannerPictureId}?access_token={Client.AuthorizationToken}" : entry.FanartPictureId.HasValue ? $"/api/pictures/{entry.FanartPictureId}?access_token={Client.AuthorizationToken}" : "/images/placeholder.png";
 
-    private string GetPosterUrl(MediaBaseEntry entry)
-        => entry.PosterPictureId.HasValue ? $"/api/pictures/{entry.PosterPictureId}" : entry.FanartPictureId.HasValue ? $"/api/pictures/{entry.FanartPictureId}" : "/images/placeholder.png";
+    private string GetPosterUrl(DtoMediaEntry entry)
+        => entry.PosterPictureId.HasValue ? $"/api/pictures/{entry.PosterPictureId}?access_token={Client.AuthorizationToken}" : entry.FanartPictureId.HasValue ? $"/api/pictures/{entry.FanartPictureId}?access_token={Client.AuthorizationToken}" : "/images/placeholder.png";
 
     private void ShowPlayer()
     {
@@ -111,25 +107,22 @@
         showPlayer = false;
     }
 
-    private string GetEpisodeStreamUrl(TVShowEpisode episode)
+    private string GetEpisodeStreamUrl(DtoTVShowEpisode episode)
     {
-        return $"/api/episodes/{episode.Id}/stream";
+        return $"/api/items/tvshowepisode/{episode.Id}/stream?access_token={Client.AuthorizationToken}";
     }
 
-    private string GetEpisodeDownloadUrl(TVShowEpisode episode)
+    private string GetEpisodeDownloadUrl(DtoTVShowEpisode episode)
     {
-        var episodeMediaItem = DbContext.TVShowEpisodeMediaItems.FirstOrDefault(mmi => mmi.TVShowEpisodeId == episode.Id);
-        var mediaItemId = episodeMediaItem?.MediaItemId;
-        return mediaItemId != null ? $"/api/mediaitems/{mediaItemId}/download" : "#";
+        return $"/api/items/tvshowepisode/{episode.Id}/download?access_token={Client.AuthorizationToken}";
     }
 
     private async Task ToggleFavorite()
     {
-        var userId = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (showSeasonInfo)
-            isFavorite = await DbContext.ToggleFavoriteAsync(userId, (MediaBaseEntry)selectedEpisode ?? (MediaBaseEntry)selectedSeason);
-        else
-            isFavorite = await DbContext.ToggleFavoriteAsync(userId, (MediaBaseEntry)selectedEpisode ?? (MediaBaseEntry)show);
+         if (showSeasonInfo)
+            isFavorite = await Client.ToggleFavorite((DtoMediaEntry)selectedEpisode ?? (DtoMediaEntry)selectedSeason);
+         else
+            isFavorite = await Client.ToggleFavorite((DtoMediaEntry)selectedEpisode ?? (DtoMediaEntry)show);
     }
     private string GetTitle()
     {
@@ -152,7 +145,7 @@ else if (show == null)
 else
 {
     <PageTitle>@GetTitle()</PageTitle>
-    <div class="tvshow-header" style="background-image: url('@GetBannerUrl((MediaBaseEntry)selectedEpisode ?? (showSeasonInfo ? (MediaBaseEntry)selectedSeason : (MediaBaseEntry)show))'); position: relative;">
+    <div class="tvshow-header" style="background-image: url('@GetBannerUrl((DtoMediaEntry)selectedEpisode ?? (showSeasonInfo ? (DtoMediaEntry)selectedSeason : (DtoMediaEntry)show))'); position: relative;">
         <button class="favorite-btn" @onclick="ToggleFavorite" title="Als Favorit markieren">
             @(isFavorite ? "★" : "☆")
         </button>

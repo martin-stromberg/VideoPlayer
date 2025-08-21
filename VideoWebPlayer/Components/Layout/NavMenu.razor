@@ -1,8 +1,11 @@
 ﻿@using Microsoft.EntityFrameworkCore
 @using System.Security.Claims
+@using VideoWebPlayer.Client
+@using VideoWebPlayer.Client.Models
 @using VideoWebPlayer.Data
 @inject ApplicationDbContext DbContext
 @inject AuthenticationStateProvider AuthStateProvider
+@inject VideoWebPlayerClient Client;
 
 @implements IDisposable
 
@@ -91,22 +94,13 @@
 
 @code {
     private string? currentUrl;
-    private List<MediaSource> mediaSources = new();
+    private List<DtoMediaSource> mediaSources = new();
 
     protected override async Task OnInitializedAsync()
     {
         currentUrl = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
         NavigationManager.LocationChanged += OnLocationChanged;
-
-        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        var user = authState.User;
-        var userId = user.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
-        
-        mediaSources = await DbContext.MediaSourceUsers
-            .Where(mu => mu.UserId == userId)
-            .Select(mu => mu.MediaSource)
-            .OrderBy(x => x.Name)
-            .ToListAsync();
+        mediaSources = (await Client.RequestSourcesAsync()).ToList();
     }
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)

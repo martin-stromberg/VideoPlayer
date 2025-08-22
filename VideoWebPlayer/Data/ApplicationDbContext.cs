@@ -60,6 +60,7 @@ namespace VideoWebPlayer.Data
         public DbSet<MovieGenre> MovieGenres { get; set; }
         public DbSet<TVShowGenre> TVShowGenres { get; set; }
         public DbSet<ContinueWatchingEntry> ContinueWatchingEntries { get; set; }
+        public DbSet<BlockedLoginIp> BlockedLoginIps { get; set; }   // NEU
         #endregion
         #region MediaSource Manipulation Methods
         /// <summary>
@@ -453,6 +454,13 @@ namespace VideoWebPlayer.Data
                  .WithMany()
                  .HasForeignKey(x => x.TVShowEpisodeId)
                  .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<BlockedLoginIp>(e =>
+            {
+                e.HasKey(x => x.Ip);
+                e.Property(x => x.Ip).HasMaxLength(64);
+                e.HasIndex(x => x.BlockedAtUtc);
             });
         }
     }

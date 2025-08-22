@@ -3,9 +3,13 @@
 @using VideoWebPlayer.Client
 @using VideoWebPlayer.Client.Models
 @using VideoWebPlayer.Data
+@using VideoWebPlayer.Services
 @inject ApplicationDbContext DbContext
 @inject AuthenticationStateProvider AuthStateProvider
-@inject VideoWebPlayerClient Client;
+@inject VideoWebPlayerClient Client
+@inject ILoginIpBlockService IpBlockService          
+@inject IJSRuntime JS                               
+@rendermode InteractiveServer
 
 @implements IDisposable
 
@@ -38,11 +42,11 @@
 
                 @if (context.User.HasClaim("IsAdmin", "True"))
                 {
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="Account/Register">
-                        <span class="bi bi-person-nav-menu" aria-hidden="true"></span> Register
-                    </NavLink>
-                </div>
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="Account/Register">
+                            <span class="bi bi-person-nav-menu" aria-hidden="true"></span> Register
+                        </NavLink>
+                    </div>
                 }
                 <div class="nav-item px-3">
                     <NavLink class="nav-link" href="Account/Manage">
@@ -68,7 +72,6 @@
             </NotAuthorized>
         </AuthorizeView>
 
-
         <AuthorizeView>
             @if (context.User.HasClaim("IsAdmin", "True"))
             {
@@ -87,6 +90,16 @@
                         <span class="bi oi-list-rich" aria-hidden="true"></span> Genres
                     </NavLink>
                 </div>
+
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link position-relative" href="/admin/security">
+                        <span class="bi bi-shield-lock"></span> Sicherheit
+                        @if (newBlockedCount > 0)
+                        {
+                            <span class="security-badge">@newBlockedCount</span>
+                        }
+                    </NavLink>
+                </div>
             }
         </AuthorizeView>
     </nav>
@@ -96,6 +109,12 @@
     private string? currentUrl;
     private List<DtoMediaSource> mediaSources = new();
 
+    // Badge-Status
+    private int newBlockedCount;
+    private DateTime? lastSecurityVisitUtc;
+    private bool badgeInitialized;
+    private const string LastVisitKey = "security.lastVisitUtc";
+
     protected override async Task OnInitializedAsync()
     {
         currentUrl = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
@@ -103,9 +122,58 @@
         mediaSources = (await Client.RequestSourcesAsync()).ToList();
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Admin-Check über AuthStateProvider
+            var state = await AuthStateProvider.GetAuthenticationStateAsync();
+            if (state.User.HasClaim("IsAdmin", "True"))
+                await LoadSecurityBadgeAsync();
+        }
+    }
+
+    private async Task LoadSecurityBadgeAsync()
+    {
+        try
+        {
+            var stored = await JS.InvokeAsync<string?>("localStorage.getItem", LastVisitKey);
+            if (DateTime.TryParse(stored, null, System.Globalization.DateTimeStyles.RoundtripKind, out var dt))
+                lastSecurityVisitUtc = dt.ToUniversalTime();
+
+            var blocked = IpBlockService.GetBlockedIps(); // liefert Liste
+            newBlockedCount = (lastSecurityVisitUtc.HasValue)
+                ? blocked.Count(b => b.BlockedAtUtc > lastSecurityVisitUtc.Value)
+                : blocked.Count();
+
+            badgeInitialized = true;
+            StateHasChanged();
+        }
+        catch
+        {
+            // Ignorieren – Badge fällt dann einfach weg
+        }
+    }
+
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
         currentUrl = NavigationManager.ToBaseRelativePath(e.Location);
+        if (currentUrl.Equals("admin/security", StringComparison.OrdinalIgnoreCase))
+        {
+            _ = MarkSecurityVisitedAsync();
+        }
+        StateHasChanged();
+    }
+
+    private async Task MarkSecurityVisitedAsync()
+    {
+        lastSecurityVisitUtc = DateTime.UtcNow;
+        try
+        {
+            await JS.InvokeVoidAsync("localStorage.setItem", LastVisitKey, lastSecurityVisitUtc.Value.ToString("o"));
+        }
+        catch { }
+        newBlockedCount = 0;
         StateHasChanged();
     }
 
@@ -114,4 +182,21 @@
         NavigationManager.LocationChanged -= OnLocationChanged;
     }
 }
+<style>
+.security-badge {
+    position: absolute;
+    top: 2px;
+    right: 6px;
+    background: #dc3545;
+    color: #fff;
+    border-radius: 999px;
+    padding: 0 6px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    line-height: 1.2rem;
+    min-width: 18px;
+    text-align: center;
+    box-shadow: 0 0 0 2px #1e1e24;
+}
+</style>
 

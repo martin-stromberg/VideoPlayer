@@ -47,6 +47,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IdentityRedirectManager>();
         services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
         services.AddSingleton<InternalConnectionService>();
+        services.AddSingleton<ILoginIpBlockService, LoginIpBlockService>(); // wieder Singleton
+
 
         services.AddAuthentication(options =>
         {

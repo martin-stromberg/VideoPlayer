@@ -71,6 +71,7 @@ namespace VideoWebPlayer.Services
                             season.Show = Create<DtoTVShow>(_db.TVShows.Where(mc => mc.Id == s.TVShowId).FirstOrDefault());
                             return season;
                         }).FirstOrDefault();
+                        episode.Name = $"{episode.Season.Show.Name} {episode.Season.Name} {episode.Number}: {episode.Name}";
                         return episode;
                     }).FirstOrDefault(),
                     PositionSeconds = (long)x.Position.TotalSeconds,

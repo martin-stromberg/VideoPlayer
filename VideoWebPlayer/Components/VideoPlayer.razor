@@ -26,12 +26,20 @@
     [Parameter] public string MediaType { get; set; } = ""; // "movie" | "episode"
     [Parameter] public long MediaId { get; set; }
     [Parameter] public string? AuthToken { get; set; } // Bearer-Token
-    [Parameter] public double? StartPositionSeconds { get; set; }  // neue Startposition (sekundengenau)
-    [Parameter] public bool AutoPlay { get; set; } = true;         // optional steuerbar
+    [Parameter] public double? StartPositionSeconds { get; set; }  // Startposition
+    [Parameter] public bool AutoPlay { get; set; } = true;
+
+    // Neues Event (optional für Parent)
+    [Parameter] public EventCallback<double> PositionChanged { get; set; }
+
+    // Öffentliche auslesbare Eigenschaft (gecachte aktuelle Position)
+    public double CurrentPositionSeconds { get; private set; }
 
     private ElementReference _videoRef;
     private bool _attached;
     private bool _startApplied;
+    private DotNetObjectReference<VideoPlayer>? _dotNetRef;
+    private bool _timeUpdateRegistered;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -41,6 +49,13 @@
             _attached = true;
         }
 
+        if (Show && !_timeUpdateRegistered && _videoRef.Context != null)
+        {
+            _dotNetRef ??= DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("videoPlayer.registerTimeUpdate", _videoRef, _dotNetRef);
+            _timeUpdateRegistered = true;
+        }
+
         if (Show && !_startApplied && StartPositionSeconds.HasValue && StartPositionSeconds > 0 && _videoRef.Context != null)
         {
             await JS.InvokeVoidAsync("videoPlayer.setStartPosition", _videoRef, StartPositionSeconds.Value);
@@ -48,10 +63,51 @@
         }
 
         if (!Show)
+            await CleanupAsync();
+    }
+
+    private async Task CleanupAsync()
+    {
+        if (_timeUpdateRegistered && _videoRef.Context != null)
         {
-            _attached = false;
-            _startApplied = false;
+            try { await JS.InvokeVoidAsync("videoPlayer.unregisterTimeUpdate", _videoRef); } catch { }
         }
+        _timeUpdateRegistered = false;
+        _attached = false;
+        _startApplied = false;
+        CurrentPositionSeconds = 0;
+    }
+
+    [JSInvokable]
+    public async Task UpdatePosition(double seconds)
+    {
+        // Minimieren unnötiger Renders
+        if (Math.Abs(CurrentPositionSeconds - seconds) >= 0.25)
+        {
+            CurrentPositionSeconds = seconds;
+            if (PositionChanged.HasDelegate)
+                await PositionChanged.InvokeAsync(seconds);
+            // Kein StateHasChanged() nötig, außer UI zeigt Wert an.
+        }
+    }
+
+    // Optional: direkter Abruf (falls Parent aktiv pullen will)
+    public async ValueTask<double> GetCurrentPositionSecondsAsync()
+    {
+        if (_videoRef.Context == null) return CurrentPositionSeconds;
+        try
+        {
+            var v = await JS.InvokeAsync<double>("videoPlayer.getCurrentPosition", _videoRef);
+            CurrentPositionSeconds = v;
+            return v;
+        }
+        catch { return CurrentPositionSeconds; }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await CleanupAsync();
+        _dotNetRef?.Dispose();
     }
 }
 <script>
@@ -60,16 +116,14 @@ window.videoPlayer = window.videoPlayer || {
         if (!videoEl || !seconds || seconds <= 0) return;
         const apply = () => {
             try {
-                // Falls Video kürzer ist (z.B. Preload), clampen
                 if (videoEl.duration && seconds > videoEl.duration - 1)
                     seconds = Math.max(0, videoEl.duration - 1);
                 videoEl.currentTime = seconds;
-                // Falls Autoplay pausiert wurde, wieder starten
                 if (videoEl.paused) {
                     const p = videoEl.play();
                     if (p && p.catch) p.catch(() => {});
                 }
-            } catch { }
+            } catch {}
         };
         if (videoEl.readyState >= 1) {
             apply();
@@ -80,6 +134,26 @@ window.videoPlayer = window.videoPlayer || {
             };
             videoEl.addEventListener('loadedmetadata', handler);
         }
+    },
+    registerTimeUpdate: function(videoEl, dotNetRef) {
+        if (!videoEl || !dotNetRef) return;
+        const handler = () => {
+            try {
+                dotNetRef.invokeMethodAsync('UpdatePosition', videoEl.currentTime || 0);
+            } catch {}
+        };
+        videoEl._timeUpdateHandler = handler;
+        videoEl.addEventListener('timeupdate', handler);
+    },
+    unregisterTimeUpdate: function(videoEl) {
+        if (videoEl && videoEl._timeUpdateHandler) {
+            videoEl.removeEventListener('timeupdate', videoEl._timeUpdateHandler);
+            delete videoEl._timeUpdateHandler;
+        }
+    },
+    getCurrentPosition: function(videoEl) {
+        if (!videoEl) return 0;
+        return videoEl.currentTime || 0;
     }
 };
 </script>

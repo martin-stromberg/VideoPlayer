@@ -58,12 +58,15 @@ else if (selectedMovie != null)
     </div>
     @if (showPlayer && selectedMovie != null)
     {
-        <VideoPlayer Show="showPlayer"
+        <VideoPlayer @ref="_player"
+                     Show="showPlayer"
                      StreamUrl="@GetMovieStreamUrl(selectedMovie)"
                      OnClose="HidePlayer"
                      MediaType="movie"
                      MediaId="@selectedMovie.Id"
-                     AuthToken="@Client.AuthorizationToken" />
+                     AuthToken="@Client.AuthorizationToken"
+                     StartPositionSeconds="@(resumeSeconds)"
+                     PositionChanged="OnPositionChanged" />
     }
 }
 else
@@ -106,11 +109,11 @@ else
 }
 
 @code {
+    [Parameter] public long Id { get; set; }
+    [SupplyParameterFromQuery(Name = "movie")] public long? MovieId { get; set; }
     [Parameter]
-    public long Id { get; set; }
-
-    [SupplyParameterFromQuery(Name = "movie")]
-    public long? MovieId { get; set; }
+    [SupplyParameterFromQuery(Name = "position")]
+    public long? Position { get; set; }
 
     private DtoMovieCollection? collection;
     private DtoMovie? selectedMovie;
@@ -118,6 +121,10 @@ else
     private bool isAuthenticated;
     private bool IsCollectionFavorite;
     private bool IsMovieFavorite;
+    private long resumeSeconds;
+
+    // Referenz auf VideoPlayer für Positions-Abfrage
+    private VideoPlayer? _player;
 
     private ElementReference movieListRef;
 
@@ -138,6 +145,12 @@ else
         else if (collection?.Movies?.Length == 1)
         {
             await SelectMovieAsync(collection.Movies.First());
+        }
+
+        if (Position.HasValue && selectedMovie is not null)
+        {
+            AutoPlay(Position.Value);
+            Position = 0;
         }
     }
 
@@ -171,16 +184,37 @@ else
         => movie.GenreNames ?? "";
 
     private void ShowPlayer() => showPlayer = true;
-    private void HidePlayer() => showPlayer = false;
+
+    // Neu: aktuelle Position beim Schließen sichern
+    private async Task HidePlayer()
+    {
+        if (_player != null)
+        {
+            try
+            {
+                // Letzten Wert direkt abfragen (falls TimeUpdate kurz vor Close nicht mehr feuert)
+                var pos = await _player.GetCurrentPositionSecondsAsync();
+                resumeSeconds = (long)Math.Floor(pos);
+            }
+            catch { }
+        }
+        showPlayer = false;
+        StateHasChanged();
+    }
+
+    private void AutoPlay(long position)
+    {
+        resumeSeconds = position;
+        ShowPlayer();
+    }
 
     private string GetMovieStreamUrl(DtoMovie movie)
-    {
-        return $"/api/items/movie/{movie.Id}/stream?access_token={Client.AuthorizationToken}";
-    }
+        => $"/api/items/movie/{movie.Id}/stream?access_token={Client.AuthorizationToken}";
 
     private async Task SelectMovieAsync(DtoMovie movie)
     {
         selectedMovie = movie;
+        resumeSeconds = 0;
         showPlayer = false;
         IsMovieFavorite = await CheckIfFavorite(collectionId: null, movieId: selectedMovie);
     }
@@ -198,20 +232,18 @@ else
     }
 
     private string GetDownloadUrl(DtoMovie movie)
-    {
-        return $"/api/items/movie/{movie.Id}/download?access_token={Client.AuthorizationToken}";
-    }
+        => $"/api/items/movie/{movie.Id}/download?access_token={Client.AuthorizationToken}";
 
     private async Task ToggleFavorite(DtoMovie? movie)
     {
-         if (movie != null)
-         {
+        if (movie != null)
+        {
             IsMovieFavorite = await Client.ToggleFavorite(movie);
-         }
-         else
-         {
+        }
+        else
+        {
             IsCollectionFavorite = await Client.ToggleFavorite(collection);
-         }
+        }
     }
 
     private async Task<bool> CheckIfFavorite(DtoMediaEntry collectionId, DtoMediaEntry movieId)
@@ -222,11 +254,16 @@ else
             return collectionId.IsFavorite;
         return false;
     }
+
+    // PositionChanged Callback vom Player – hält resumeSeconds laufend aktuell
+    private void OnPositionChanged(double seconds)
+    {
+        resumeSeconds = (long)Math.Floor(seconds);
+    }
 }
 <script src="scroll-horizontal.js"></script>
 <style>
 .btn-primary {
-    /* ...deine bestehenden Styles... */
     margin-top: 1rem;
 }
 .favorite-btn {

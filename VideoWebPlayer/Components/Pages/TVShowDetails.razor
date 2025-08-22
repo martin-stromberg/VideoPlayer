@@ -9,20 +9,10 @@
 @rendermode InteractiveServer
 
 @code {
-    [Parameter]
-    public long Id { get; set; }
-
-    [Parameter]
-    [SupplyParameterFromQuery(Name = "season")]
-    public long? SeasonId { get; set; }
-
-    [Parameter]
-    [SupplyParameterFromQuery(Name = "episode")]
-    public long? EpisodeId { get; set; }
-
-    [Parameter]
-    [SupplyParameterFromQuery(Name = "position")]
-    public long? Position { get; set; }
+    [Parameter] public long Id { get; set; }
+    [Parameter][SupplyParameterFromQuery(Name = "season")] public long? SeasonId { get; set; }
+    [Parameter][SupplyParameterFromQuery(Name = "episode")] public long? EpisodeId { get; set; }
+    [Parameter][SupplyParameterFromQuery(Name = "position")] public long? Position { get; set; }
 
     private DtoTVShow? show;
     private DtoTVShowSeason? selectedSeason;
@@ -30,8 +20,11 @@
     private bool showSeasonInfo = false;
     private bool showPlayer = false;
     private bool isAuthenticated;
-    private bool isFavorite = false; // Neu: Favoritenstatus
+    private bool isFavorite = false;
     private long resumeSeconds;
+
+    // Neu: Player-Referenz für Positionsabfrage
+    private VideoPlayer? _player;
 
     protected override async Task OnInitializedAsync()
     {
@@ -39,11 +32,9 @@
         isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
 
         show = await Client.RequestTVShowAsync(Id) as DtoTVShow;
-        // Standard: erste Staffel
         selectedSeason = show?.Seasons?.OrderBy(s => s.Name).FirstOrDefault();
         showSeasonInfo = false;
 
-        // Falls SeasonId gesetzt ist, wähle die entsprechende Staffel
         if (SeasonId.HasValue && show?.Seasons != null)
         {
             var season = show.Seasons.FirstOrDefault(s => s.Id == SeasonId.Value);
@@ -54,14 +45,11 @@
             }
         }
 
-        // Falls EpisodeId gesetzt ist, wähle die entsprechende Episode
         if (EpisodeId.HasValue && selectedSeason?.Episodes != null)
         {
             var episode = selectedSeason.Episodes.FirstOrDefault(e => e.Id == EpisodeId.Value);
             if (episode != null)
-            {
                 selectedEpisode = episode;
-            }
         }
 
         if (Position.HasValue && selectedEpisode is not null)
@@ -72,10 +60,9 @@
 
         await UpdateFavoriteMark();
     }
+
     private async Task UpdateFavoriteMark()
     {
-        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-
         if (showSeasonInfo)
             isFavorite = ((DtoMediaEntry)selectedEpisode ?? (DtoMediaEntry)selectedSeason).IsFavorite;
         else
@@ -92,6 +79,7 @@
 
     private async Task SelectEpisode(DtoTVShowEpisode episode)
     {
+        resumeSeconds = 0;
         selectedEpisode = episode;
         await UpdateFavoriteMark();
     }
@@ -109,14 +97,23 @@
     private string GetPosterUrl(DtoMediaEntry entry)
         => entry.PosterPictureId.HasValue ? $"/api/pictures/{entry.PosterPictureId}?access_token={Client.AuthorizationToken}" : entry.FanartPictureId.HasValue ? $"/api/pictures/{entry.FanartPictureId}?access_token={Client.AuthorizationToken}" : "/images/placeholder.png";
 
-    private void ShowPlayer()
+    private void ShowPlayer() => showPlayer = true;
+
+    private async Task HidePlayer()
     {
-        showPlayer = true;
-    }
-    private void HidePlayer()
-    {
+        if (_player != null)
+        {
+            try
+            {
+                var pos = await _player.GetCurrentPositionSecondsAsync();
+                resumeSeconds = (long)Math.Floor(pos);
+            }
+            catch { }
+        }
         showPlayer = false;
+        StateHasChanged();
     }
+
     private void AutoPlay(long position)
     {
         resumeSeconds = position;
@@ -124,25 +121,26 @@
     }
 
     private string GetEpisodeStreamUrl(DtoTVShowEpisode episode)
-    {
-        return $"/api/items/tvshowepisode/{episode.Id}/stream?access_token={Client.AuthorizationToken}";
-    }
+        => $"/api/items/tvshowepisode/{episode.Id}/stream?access_token={Client.AuthorizationToken}";
 
     private string GetEpisodeDownloadUrl(DtoTVShowEpisode episode)
-    {
-        return $"/api/items/tvshowepisode/{episode.Id}/download?access_token={Client.AuthorizationToken}";
-    }
+        => $"/api/items/tvshowepisode/{episode.Id}/download?access_token={Client.AuthorizationToken}";
 
     private async Task ToggleFavorite()
     {
-         if (showSeasonInfo)
+        if (showSeasonInfo)
             isFavorite = await Client.ToggleFavorite((DtoMediaEntry)selectedEpisode ?? (DtoMediaEntry)selectedSeason);
-         else
+        else
             isFavorite = await Client.ToggleFavorite((DtoMediaEntry)selectedEpisode ?? (DtoMediaEntry)show);
     }
+
     private string GetTitle()
+        => $"{show?.Name} • {selectedSeason?.Name} {selectedEpisode?.Name}";
+
+    // Neu: Laufende Aktualisierung (optional, falls benötigt)
+    private void OnPositionChanged(double seconds)
     {
-        return $"{show.Name} • {selectedSeason?.Name} {selectedEpisode?.Name}";
+        resumeSeconds = (long)Math.Floor(seconds);
     }
 }
 
@@ -173,7 +171,7 @@ else
                 </button>
                 <button class="back-arrow" @onclick="ShowSeason" title="Zurück zur Staffel">
                     <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-                        <path d="M15 6l-6 6 6 6" stroke="#ffe066" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M15 6l-6 6 6 6" stroke="#ffe066" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
                     </svg>
                 </button>
             }
@@ -210,36 +208,29 @@ else
     </div>
 
     <div class="tvshow-content-flex">
-        <!-- Staffel-Auswahl -->
         @if (show.Seasons?.Any() == true)
         {
             <div class="season-select-bar">
-                        <select class="form-select" @onchange="OnSeasonChanged">
-                            @foreach (var season in show.Seasons.OrderBy(s => s.Name))
-                            {
-                                <option value="@season.Id" selected="@(season.Id == selectedSeason?.Id)">
-                                    @season.Name
-                            </option>
-                            }
-                        </select>
-
-                        @code {
-                            private void OnSeasonChanged(ChangeEventArgs e)
-                            {
-                                if (long.TryParse(e.Value?.ToString(), out var seasonId))
-                                {
-                                    var season = show.Seasons.FirstOrDefault(s => s.Id == seasonId);
-                                    if (season != null)
-                                    {
-                                        SelectSeason(season);
-                                    }
-                                }
-                            }
+                <select class="form-select" @onchange="OnSeasonChanged">
+                    @foreach (var season in show.Seasons.OrderBy(s => s.Name))
+                    {
+                        <option value="@season.Id" selected="@(season.Id == selectedSeason?.Id)">@season.Name</option>
+                    }
+                </select>
+                @code {
+                    private async Task OnSeasonChanged(ChangeEventArgs e)
+                    {
+                        if (long.TryParse(e.Value?.ToString(), out var seasonId))
+                        {
+                            var season = show.Seasons.FirstOrDefault(s => s.Id == seasonId);
+                            if (season != null)
+                                await SelectSeason(season);
                         }
+                    }
+                }
             </div>
         }
 
-        <!-- Episodenliste -->
         @if (selectedSeason != null)
         {
             <div class="episode-list">
@@ -257,8 +248,8 @@ else
                            title="Episode herunterladen"
                            @onclick:stopPropagation>
                             <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-                                <circle cx="12" cy="12" r="10" stroke="#ffe066" stroke-width="2" fill="none"/>
-                                <path d="M12 7v7m0 0l-3-3m3 3l3-3M7 17h10" stroke="#ffe066" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                <circle cx="12" cy="12" r="10" stroke="#ffe066" stroke-width="2" fill="none" />
+                                <path d="M12 7v7m0 0l-3-3m3 3l3-3M7 17h10" stroke="#ffe066" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                             </svg>
                         </a>
                     </div>
@@ -269,16 +260,16 @@ else
 
     @if (showPlayer && selectedEpisode != null)
     {
-    <VideoPlayer Show="showPlayer"
-                 StreamUrl="@GetEpisodeStreamUrl(selectedEpisode)"
-                 OnClose="HidePlayer"
-                 MediaType="episode"
-                 MediaId="@selectedEpisode.Id"
-                 AuthToken="@Client.AuthorizationToken"
-                 StartPositionSeconds="@(resumeSeconds)" />
+        <VideoPlayer @ref="_player"
+                     Show="showPlayer"
+                     StreamUrl="@GetEpisodeStreamUrl(selectedEpisode)"
+                     OnClose="HidePlayer"
+                     MediaType="episode"
+                     MediaId="@selectedEpisode.Id"
+                     AuthToken="@Client.AuthorizationToken"
+                     StartPositionSeconds="@(resumeSeconds)"
+                     PositionChanged="OnPositionChanged" />
     }
-
-    <!-- Favoriten-Button (neu hinzugefügt) -->
 }
 
 <style>

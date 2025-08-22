@@ -48,7 +48,7 @@ namespace VideoWebPlayer.Services
             var userId = await GetUserIdAsync(user, ct);
             if (userId == null) return new();
 
-            var list =(await _db.ContinueWatchingEntries
+            var list = (await _db.ContinueWatchingEntries
                 .AsNoTracking()
                 .Where(x => x.UserId == userId)
                 .OrderByDescending(x => x.UpdatedAt)
@@ -146,8 +146,12 @@ namespace VideoWebPlayer.Services
             var entry = await _db.ContinueWatchingEntries
                 .FirstOrDefaultAsync(x => x.UserId == userId && x.MovieId == nextMovieId && x.TVShowEpisodeId == nextEpisodeId, ct);
 
+            // Nur wenn ein NEUER Eintrag erzeugt wird: vorhandene Einträge derselben Filmsammlung / Serie entfernen
             if (entry == null)
             {
+                await RemoveExtsingMovieCollectionEntry(userId, nextMovieId, ct);
+                await RemoveExistingTVShowEntry(userId, nextEpisodeId, ct);
+
                 entry = new ContinueWatchingEntry
                 {
                     UserId = userId,
@@ -167,6 +171,65 @@ namespace VideoWebPlayer.Services
             }
 
             await _db.SaveChangesAsync(ct);
+        }
+
+        private async Task RemoveExistingTVShowEntry(string userId, long? nextEpisodeId, CancellationToken ct)
+        {
+            if (!nextEpisodeId.HasValue) return;
+            // Serien-ID über Episode -> Season -> Show ermitteln
+            var showId = await (
+                from e in _db.TVShowEpisodes
+                join s in _db.TVShowSeasons on e.TVShowSeasonId equals s.Id
+                where e.Id == nextEpisodeId.Value
+                select s.TVShowId
+            ).FirstOrDefaultAsync(ct);
+
+            if (showId != 0)
+            {
+                // Alle anderen Episoden-Einträge derselben Serie entfernen
+                var obsoleteEpisodeEntries = await (
+                    from cw in _db.ContinueWatchingEntries
+                    join e in _db.TVShowEpisodes on cw.TVShowEpisodeId equals e.Id
+                    join s in _db.TVShowSeasons on e.TVShowSeasonId equals s.Id
+                    where cw.UserId == userId
+                          && cw.TVShowEpisodeId != null
+                          && cw.TVShowEpisodeId != nextEpisodeId.Value
+                          && s.TVShowId == showId
+                    select cw
+                ).ToListAsync(ct);
+
+                if (obsoleteEpisodeEntries.Count > 0)
+                    _db.ContinueWatchingEntries.RemoveRange(obsoleteEpisodeEntries);
+            }
+        }
+
+        private async Task RemoveExtsingMovieCollectionEntry(string userId, long? nextMovieId, CancellationToken ct)
+        {
+            if (!nextMovieId.HasValue)
+                return;
+
+            // Filmsammlung ermitteln
+            var collectionId = await _db.Movies
+                .Where(m => m.Id == nextMovieId.Value)
+                .Select(m => m.MovieCollectionId)
+                .FirstOrDefaultAsync(ct);
+
+            if (collectionId.HasValue)
+            {
+                // Alle anderen ContinueWatching-Einträge des Users aus derselben Sammlung entfernen
+                var obsoleteMovieEntries = await (
+                    from cw in _db.ContinueWatchingEntries
+                    join m in _db.Movies on cw.MovieId equals m.Id
+                    where cw.UserId == userId
+                          && cw.MovieId != null
+                          && cw.MovieId != nextMovieId.Value
+                          && m.MovieCollectionId == collectionId.Value
+                    select cw
+                ).ToListAsync(ct);
+
+                if (obsoleteMovieEntries.Count > 0)
+                    _db.ContinueWatchingEntries.RemoveRange(obsoleteMovieEntries);
+            }
         }
 
         private async Task<string?> GetUserIdAsync(ClaimsPrincipal principal, CancellationToken ct)
@@ -200,15 +263,34 @@ namespace VideoWebPlayer.Services
             var current = await _db.TVShowEpisodes.AsNoTracking().FirstOrDefaultAsync(e => e.Id == currentEpisodeId, ct);
             if (current == null) return null;
 
+            var season = await _db.TVShowSeasons.FirstOrDefaultAsync(s => s.Id == current.TVShowSeasonId, ct);
+            if (season is null) return null;
+
             var next = await _db.TVShowEpisodes.AsNoTracking()
-                .Where(e => e.TVShowSeasonId == current.TVShowSeasonId && e.Id > currentEpisodeId)
-                .OrderBy(e => e.Id)
+                .Where(e => e.TVShowSeasonId == current.TVShowSeasonId && e.Id != current.Id && e.ReleaseDate >= current.ReleaseDate)
+                .OrderBy(e => e.ReleaseDate)
+                .ThenBy(e => e.Number)
                 .Select(e => e.Id)
                 .FirstOrDefaultAsync(ct);
+
+            if (next == 0)
+            {
+                var nextSeason = (await _db.TVShowSeasons.Where(s => s.TVShowId == season.TVShowId)
+                    .OrderBy(s => s.Name)
+                    .ToListAsync(ct))
+                    .SkipWhile(s => s.Id != season.Id)
+                    .SkipWhile(s => s.Id == season.Id)
+                    .FirstOrDefault();
+                if (nextSeason is null) return null;
+                next = await _db.TVShowEpisodes.AsNoTracking()
+                    .Where(e => e.TVShowSeasonId == nextSeason.Id)
+                    .OrderBy(e => e.ReleaseDate)
+                    .ThenBy(e => e.Number)
+                    .Select(e => e.Id)
+                    .FirstOrDefaultAsync(ct);
+            }
 
             return next == 0 ? null : await _db.TVShowEpisodes.FindAsync(new object[] { next }, ct);
         }
     }
-
-    
 }

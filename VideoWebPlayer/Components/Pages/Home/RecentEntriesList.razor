@@ -49,11 +49,12 @@
 
         foreach (var entry in RecentEntries)
         {
-            if (entry.Entry is DtoMovie)
+            if (entry.Entry is DtoMovie movie)
             {
+                var collection = movie.Collection;
                 movieTitles[entry.Id] = entry.Entry.Name;
                 moviePosters[entry.Id] = entry.Entry.PosterPictureId.HasValue ? $"/api/pictures/{entry.Entry.PosterPictureId}?access_token={Client.AuthorizationToken}" : "/images/placeholder.png";
-                movieLinks[entry.Id] = $"/movie/{entry.Entry.Id}";
+                movieLinks[entry.Id] = $"/moviecollection/{collection.Id}?movie={entry.Entry.Id}";
             }
             if (entry.Entry is DtoMovieCollection)
             {

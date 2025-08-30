@@ -135,90 +135,100 @@ public class ItemsController : ApiBaseController
     }
 
     [HttpGet("recent")]
-    public async Task<ActionResult<RecentEntry>> GetRecent()
+    public async Task<ActionResult<List<DtoRecentEntry>>> GetRecent()
     {
         try
         {
             CheckLogedIn();
-            var result = await recentEntryService.GetRecentEntriesAsync();
-            return Ok(result.Select(rec =>
+            var recent = await recentEntryService.GetRecentEntriesAsync();
+            var dtoList = new List<DtoRecentEntry>();
+            foreach (var rec in recent)
             {
-                var result = Create<DtoRecentEntry>(rec);
-                switch(rec.Type)
+                try
                 {
-                    case RecentEntryType.Movie:
-                        result.Entry = _db.Movies
-                            .Where(m => m.Id == rec.MovieId)
-                            .ToList()
-                            .Select(m =>
-                            {
-                                var movie = Create<DtoMovie>(m);
-                                movie.Collection = _db.MovieCollections
-                                    .Where(mc => mc.Id == m.MovieCollectionId)
-                                    .ToList()
-                                    .Select(mc => Create<DtoMovieCollection>(mc))
-                                    .FirstOrDefault();
-                                return movie;
-                            })
-                            .FirstOrDefault();
-                        break;
-                    case RecentEntryType.MovieCollection:
-                        result.Entry = _db.MovieCollections
-                            .Where(mc => mc.Id == rec.MovieCollectionId)
-                            .ToList()
-                            .Select(mc => Create<DtoMovieCollection>(mc))
-                            .FirstOrDefault();
-                        break;
-                    case RecentEntryType.TVShow:
-                        result.Entry = _db.TVShows
-                            .Where(ts => ts.Id == rec.TVShowId)
-                            .ToList()
-                            .Select(ts => Create<DtoTVShow>(ts))
-                            .FirstOrDefault();
-                        break;
-                    case RecentEntryType.TVShowSeason:
-                        result.Entry = _db.TVShowSeasons
-                            .Where(ts => ts.Id == rec.TVShowSeasonId)
-                            .ToList()
-                            .Select(ts =>
-                            {
-                                var season = Create<DtoTVShowSeason>(ts);
-                                season.Show = _db.TVShows
-                                    .Where(s => s.Id == ts.TVShowId)
-                                    .ToList()
-                                    .Select(s => Create<DtoTVShow>(s))
-                                    .FirstOrDefault();
-                                return season;
-                            })
-                            .FirstOrDefault();
-                        break;
-                    case RecentEntryType.TVShowEpisode:
-                        result.Entry = _db.TVShowEpisodes
-                            .Where(tse => tse.Id == rec.TVShowEpisodeId)
-                            .ToList()
-                            .Select(tse =>
-                            {
-                                var episode = Create<DtoTVShowEpisode>(tse);
-                                episode.Season = _db.TVShowSeasons
-                                    .Where(ts => ts.Id == tse.TVShowSeasonId)
-                                    .ToList()
-                                    .Select(ts =>
-                                    {
-                                        var season = Create<DtoTVShowSeason>(ts);
-                                        season.Show = _db.TVShows
-                                            .Where(s => s.Id == ts.TVShowId)
-                                            .Select(s => Create<DtoTVShow>(s))
-                                            .FirstOrDefault();
-                                        return season;
-                                    })
-                                    .FirstOrDefault();
-                                return episode;
-                            })
-                            .FirstOrDefault();
-                        break;
+                    var dto = Create<DtoRecentEntry>(rec);
+                    switch (rec.Type)
+                    {
+                        case RecentEntryType.Movie:
+                            dto.Entry = _db.Movies
+                                .Where(m => m.Id == rec.MovieId)
+                                .ToList()
+                                .Select(m =>
+                                {
+                                    var movie = Create<DtoMovie>(m);
+                                    movie.Collection = _db.MovieCollections
+                                        .Where(mc => mc.Id == m.MovieCollectionId)
+                                        .ToList()
+                                        .Select(mc => Create<DtoMovieCollection>(mc))
+                                        .FirstOrDefault();
+                                    return movie;
+                                })
+                                .FirstOrDefault();
+                            break;
+                        case RecentEntryType.MovieCollection:
+                            dto.Entry = _db.MovieCollections
+                                .Where(mc => mc.Id == rec.MovieCollectionId)
+                                .ToList()
+                                .Select(mc => Create<DtoMovieCollection>(mc))
+                                .FirstOrDefault();
+                            break;
+                        case RecentEntryType.TVShow:
+                            dto.Entry = _db.TVShows
+                                .Where(ts => ts.Id == rec.TVShowId)
+                                .ToList()
+                                .Select(ts => Create<DtoTVShow>(ts))
+                                .FirstOrDefault();
+                            break;
+                        case RecentEntryType.TVShowSeason:
+                            dto.Entry = _db.TVShowSeasons
+                                .Where(ts => ts.Id == rec.TVShowSeasonId)
+                                .ToList()
+                                .Select(ts =>
+                                {
+                                    var season = Create<DtoTVShowSeason>(ts);
+                                    season.Show = _db.TVShows
+                                        .Where(s => s.Id == ts.TVShowId)
+                                        .ToList()
+                                        .Select(s => Create<DtoTVShow>(s))
+                                        .FirstOrDefault();
+                                    return season;
+                                })
+                                .FirstOrDefault();
+                            break;
+                        case RecentEntryType.TVShowEpisode:
+                            dto.Entry = _db.TVShowEpisodes
+                                .Where(tse => tse.Id == rec.TVShowEpisodeId)
+                                .ToList()
+                                .Select(tse =>
+                                {
+                                    var episode = Create<DtoTVShowEpisode>(tse);
+                                    episode.Season = _db.TVShowSeasons
+                                        .Where(ts => ts.Id == tse.TVShowSeasonId)
+                                        .ToList()
+                                        .Select(ts =>
+                                        {
+                                            var season = Create<DtoTVShowSeason>(ts);
+                                            season.Show = _db.TVShows
+                                                .Where(s => s.Id == ts.TVShowId)
+                                                .Select(s => Create<DtoTVShow>(s))
+                                                .FirstOrDefault();
+                                            return season;
+                                        })
+                                        .FirstOrDefault();
+                                    return episode;
+                                })
+                                .FirstOrDefault();
+                            break;
+                    }
+                    if (dto.Entry != null)
+                        dtoList.Add(dto);
                 }
-                return result;
-            }).ToList());
+                catch (Exception innerEx)
+                {
+                    Logger.LogWarning(innerEx, "Fehler beim Verarbeiten eines RecentEntry (Id={Id})", rec.Id);
+                }
+            }
+            return Ok(dtoList);
         }
         catch (UnauthorizedAccessException ex)
         {

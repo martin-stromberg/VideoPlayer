@@ -1,6 +1,7 @@
 @using Microsoft.EntityFrameworkCore
 @using VideoWebPlayer.Data
 @inject ApplicationDbContext DbContext
+@inject VideoWebPlayer.Client.VideoWebPlayerClient Client
 @inject AuthenticationStateProvider AuthStateProvider;
 
 <style>
@@ -39,7 +40,7 @@
             if (entries.Any())
             {
                 <h3>@genre.Name</h3>
-                <MediaBaseEntryList Entries="entries" />
+                <MediaBaseEntryList Entries="entries" AuthorizationToken="@authToken" />
             }
         }
     }
@@ -47,6 +48,7 @@
 
 @code {
     private string? userId;
+    private string? authToken;
     private List<Genre> activeGenres = new();
     private Dictionary<long, List<MediaBaseEntry>> mediaEntriesByGenre = new();
 
@@ -57,7 +59,7 @@
 
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         userId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-
+        authToken = Client.AuthorizationToken;
 
         // Für jedes Genre die zugehörigen Filme und Serien laden
         foreach (var genre in activeGenres)

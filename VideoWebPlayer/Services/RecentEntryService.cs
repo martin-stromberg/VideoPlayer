@@ -2,15 +2,18 @@ using Microsoft.EntityFrameworkCore;
 using Renci.SshNet;
 using System.Threading;
 using VideoWebPlayer.Data;
+using VideoWebPlayer.Services.Authentication;
 
 public class RecentEntryService
 {
     private readonly ApplicationDbContext _db;
+    private readonly IAuthService authService;
     private const int MaxEntries = 10;
 
-    public RecentEntryService(ApplicationDbContext db)
+    public RecentEntryService(ApplicationDbContext db, IAuthService authService)
     {
-        _db = db;        
+        _db = db;
+        this.authService = authService;
     }
 
     private async Task ClearCorruptEntriesAsync()
@@ -293,7 +296,9 @@ public class RecentEntryService
 
     public async Task<List<RecentEntry>> GetRecentEntriesAsync()
     {
-        return await _db.RecentEntries
+        var mediaSourceIds = await _db.MediaSourceUsers.Where(msu => msu.UserId == authService.CurrentUser.Id).Select(msu => msu.MediaSourceId).ToArrayAsync();        
+        return await _db.RecentEntries           
+            .Where(m => mediaSourceIds.Contains(m.MediaSourceId))
             .OrderByDescending(e => e.CreatedAt)
             .Take(MaxEntries)
             .ToListAsync();

@@ -158,7 +158,77 @@ else if (show == null)
 }
 else
 {
-    <PageTitle>@GetTitle()</PageTitle>
+    <PageTitle>@(show is null ? "Lädt..." : GetPageTitle())</PageTitle>
+
+    <HeadContent>
+        @if (show != null)
+        {
+            <meta name="description" content="@MetaDescription" />
+            <meta name="robots" content="index,follow" />
+            <meta property="og:type" content="video.tv_show" />
+            <meta property="og:title" content="@GetOgTitle()" />
+            <meta property="og:description" content="@MetaDescription" />
+            <meta property="og:url" content="@CanonicalUrl" />
+            @if (!string.IsNullOrEmpty(ShareImageUrl))
+            {
+                <meta property="og:image" content="@ShareImageUrl" />
+                <meta name="twitter:card" content="summary_large_image" />
+                <meta name="twitter:image" content="@ShareImageUrl" />
+            }
+            <meta name="twitter:title" content="@GetOgTitle()" />
+            <meta name="twitter:description" content="@MetaDescription" />
+            <link rel="canonical" href="@CanonicalUrl" />
+        }
+    </HeadContent>
+
+    @code {
+        private string CanonicalUrl => nav.ToAbsoluteUri($"/tvshow/{Id}" +
+            (selectedSeason != null ? $"?season={selectedSeason.Id}" : "") +
+            (selectedEpisode != null ? $"{(selectedSeason!=null?"&":"?")}episode={selectedEpisode.Id}" : "")).ToString();
+
+        [Inject] private NavigationManager nav { get; set; }
+
+        private string GetPageTitle()
+            => selectedEpisode != null
+                ? $"{show!.Name} – {selectedSeason?.Name} – {selectedEpisode.Name}"
+                : selectedSeason != null
+                    ? $"{show!.Name} – {selectedSeason.Name}"
+                    : show!.Name;
+
+        private string GetOgTitle()
+            => GetPageTitle();
+
+        private string MetaDescription {
+            get {
+                var raw = selectedEpisode?.Plot
+                          ?? selectedSeason?.Show?.Plot
+                          ?? show?.Plot
+                          ?? show?.GenreNames
+                          ?? show?.Name
+                          ?? "";
+                if (string.IsNullOrWhiteSpace(raw)) return show?.Name ?? "";
+                raw = System.Text.RegularExpressions.Regex.Replace(raw, "<.*?>", ""); // falls HTML
+                return raw.Length > 200 ? raw[..200] + "…" : raw;
+            }
+        }
+
+        private string ShareImageUrl {
+            get {
+                // Für OpenGraph/Twitter besser kein Token im Query (Bots haben keinen).
+                // Falls Auth nötig: eigenen anonymen Proxy/Thumb-Endpunkt schaffen.
+                var picId = selectedEpisode?.PosterPictureId
+                            ?? selectedSeason?.PosterPictureId
+                            ?? show?.PosterPictureId
+                            ?? selectedEpisode?.FanartPictureId
+                            ?? show?.FanartPictureId
+                            ?? null;
+                if (picId is null) return null;
+                // Falls Bilder Auth benötigen: optional öffentlichen Thumb-Endpunkt implementieren.
+                return nav.ToAbsoluteUri($"/api/pictures/{picId}").ToString();
+            }
+        }
+    }
+
     <div class="tvshow-header" style="background-image: url('@GetBannerUrl((DtoMediaEntry)selectedEpisode ?? (showSeasonInfo ? (DtoMediaEntry)selectedSeason : (DtoMediaEntry)show))'); position: relative;">
         <button class="favorite-btn" @onclick="ToggleFavorite" title="Als Favorit markieren">
             @(isFavorite ? "★" : "☆")

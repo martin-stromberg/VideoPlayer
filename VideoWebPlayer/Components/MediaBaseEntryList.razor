@@ -11,15 +11,15 @@
 
 @code {
     [Parameter] public List<MediaBaseEntry> Entries { get; set; } = new();
-
+    [Parameter] public string AuthorizationToken { get; set; } = string.Empty;
     private string GetImageUrl(MediaBaseEntry entry)
     {
         if (entry.PosterPictureId.HasValue)
-            return $"/api/pictures/{entry.PosterPictureId}";
+            return $"/api/pictures/{entry.PosterPictureId}?access_token={AuthorizationToken}";
         if (entry.BannerPictureId.HasValue)
-            return $"/api/pictures/{entry.BannerPictureId}";
+            return $"/api/pictures/{entry.BannerPictureId}?access_token={AuthorizationToken}";
         if (entry.FanartPictureId.HasValue)
-            return $"/api/pictures/{entry.FanartPictureId}";
+            return $"/api/pictures/{entry.FanartPictureId}?access_token={AuthorizationToken}";
         return "/images/placeholder.png";
     }
 

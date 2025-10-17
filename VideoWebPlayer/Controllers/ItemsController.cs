@@ -65,8 +65,10 @@ public class ItemsController : ApiBaseController
                     )
                 );
             }
+            var mediaSourceIds = await _db.MediaSourceUsers.Where(msu => msu.UserId == CurrentUser.Id).Select(msu => msu.MediaSourceId).ToArrayAsync();
 
             var movieCollections = (await queryMovie
+                .Where(m => mediaSourceIds.Contains(m.MediaSourceId))
                 .OrderBy(e => e.Name)
                 .Skip(0)
                 .Take((page + 1) * size)
@@ -98,6 +100,7 @@ public class ItemsController : ApiBaseController
             }
 
             var tvShows = await queryShow
+                .Where(m => mediaSourceIds.Contains(m.MediaSourceId))
                 .OrderBy(e => e.Name)
                 .Skip(0)
                 .Take((page + 1) * size)

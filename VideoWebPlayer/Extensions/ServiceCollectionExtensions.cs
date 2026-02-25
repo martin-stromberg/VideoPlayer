@@ -57,6 +57,40 @@ public static class ServiceCollectionExtensions
         })
         .AddIdentityCookies();
 
+        services.ConfigureApplicationCookie(options =>
+        {
+            options.Cookie.Name = "VideoWebPlayer.Auth";
+
+            options.Cookie.HttpOnly = true;
+            options.Cookie.SameSite = SameSiteMode.Lax;
+
+            // safer default for proxied deployments: use scheme of incoming request
+            options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+
+            options.Cookie.Path = "/";
+
+            options.LoginPath = "/Account/Login";
+            options.LogoutPath = "/Account/Logout";
+            options.AccessDeniedPath = "/Account/AccessDenied";
+
+            options.ExpireTimeSpan = TimeSpan.FromDays(14);
+            options.SlidingExpiration = true;
+        });
+
+        builder.Services.AddAntiforgery(options =>
+        {
+            options.Cookie.Name = "VideoWebPlayer.Antiforgery";
+            options.Cookie.HttpOnly = true;
+            options.Cookie.SameSite = SameSiteMode.Lax;
+            options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        });
+
+        // Optional: externe / 2FA Cookies ebenfalls anpassen
+        //services.ConfigureExternalCookie(options =>
+        //{
+        //    options.Cookie.Name = "VideoWebPlayer.External";
+        //    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+        //});
 
         // Datenbank
         var connectionString = configuration.GetConnectionString("DefaultConnection") ?? "Data Source=app.db";

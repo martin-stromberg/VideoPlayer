@@ -6,6 +6,9 @@ using VideoWebPlayer.Data;
 
 namespace VideoWebPlayer.Services
 {
+    /// <summary>
+    /// Provides access to continue-watching entries and buffering logic.
+    /// </summary>
     public class ContinueWatchingService
     {
         private static readonly TimeSpan MinStart = TimeSpan.FromSeconds(5);
@@ -16,6 +19,13 @@ namespace VideoWebPlayer.Services
         private readonly ILogger<ContinueWatchingService> _logger;
         private readonly ContinueWatchingBuffer _buffer;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="ContinueWatchingService"/> class.
+        /// </summary>
+        /// <param name="db">Application database context.</param>
+        /// <param name="userManager">User manager for identity lookups.</param>
+        /// <param name="logger">Logger instance.</param>
+        /// <param name="buffer">In-memory buffer for progress entries.</param>
         public ContinueWatchingService(ApplicationDbContext db,
                                        UserManager<ApplicationUser> userManager,
                                        ILogger<ContinueWatchingService> logger,
@@ -27,6 +37,12 @@ namespace VideoWebPlayer.Services
             _buffer = buffer;
         }
 
+        /// <summary>
+        /// Creates a DTO by copying matching properties from a source object.
+        /// </summary>
+        /// <typeparam name="T">The DTO type.</typeparam>
+        /// <param name="ms">The source model instance.</param>
+        /// <returns>The populated DTO.</returns>
         protected T Create<T>(object ms)
         {
             var sourceType = ms.GetType();
@@ -43,6 +59,12 @@ namespace VideoWebPlayer.Services
             return record;
         }
 
+        /// <summary>
+        /// Gets the continue-watching list for the specified user.
+        /// </summary>
+        /// <param name="user">The user principal.</param>
+        /// <param name="ct">A cancellation token.</param>
+        /// <returns>The list of continue-watching entries.</returns>
         public async Task<List<ContinueWatchingDto>> GetListAsync(ClaimsPrincipal user, CancellationToken ct = default)
         {
             var userId = await GetUserIdAsync(user, ct);
@@ -88,7 +110,15 @@ namespace VideoWebPlayer.Services
             return list;
         }
 
-        // NEU: nur puffern (überschreibt vorhandenen Zwischenspeicher-Eintrag für denselben Key)
+        /// <summary>
+        /// Buffers progress for later processing.
+        /// </summary>
+        /// <param name="user">The user instance.</param>
+        /// <param name="movieId">The movie identifier.</param>
+        /// <param name="episodeId">The episode identifier.</param>
+        /// <param name="position">The playback position.</param>
+        /// <param name="duration">The media duration.</param>
+        /// <param name="ct">A cancellation token.</param>
         public Task ReportProgressAsync(ApplicationUser user,
                                         long? movieId,
                                         long? episodeId,
@@ -104,7 +134,15 @@ namespace VideoWebPlayer.Services
             return Task.CompletedTask;
         }
 
-        // Vom Worker aufgerufen: verarbeitet einen Snapshot wie bisher
+        /// <summary>
+        /// Processes a buffered progress entry and updates storage.
+        /// </summary>
+        /// <param name="userId">The user identifier.</param>
+        /// <param name="movieId">The movie identifier.</param>
+        /// <param name="episodeId">The episode identifier.</param>
+        /// <param name="position">The playback position.</param>
+        /// <param name="duration">The media duration.</param>
+        /// <param name="ct">A cancellation token.</param>
         public async Task ProcessBufferedEntryAsync(string userId,
                                                    long? movieId,
                                                    long? episodeId,

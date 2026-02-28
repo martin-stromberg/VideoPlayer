@@ -1,13 +1,14 @@
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Runtime.InteropServices;
 using VideoWebPlayer.Controllers;
 using VideoWebPlayer.Controllers.Models;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Services.Authentication;
 
+/// <summary>
+/// Provides media item discovery and streaming endpoints.
+/// </summary>
 [ApiController]
 [Route("api/[controller]")]
 [BearerTokenCheck]
@@ -17,6 +18,14 @@ public class ItemsController : ApiBaseController
     private readonly SftpMediaSourceReader _sftpReader;
     private readonly RecentEntryService recentEntryService;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ItemsController"/> class.
+    /// </summary>
+    /// <param name="db">Database context.</param>
+    /// <param name="sftpReader">SFTP reader.</param>
+    /// <param name="recentEntryService">Recent entry service.</param>
+    /// <param name="authService">Authentication service.</param>
+    /// <param name="logger">Logger instance.</param>
     public ItemsController(
         ApplicationDbContext db, 
         SftpMediaSourceReader sftpReader,
@@ -30,6 +39,9 @@ public class ItemsController : ApiBaseController
         this.recentEntryService = recentEntryService;
     }
 
+    /// <summary>
+    /// Gets media entries for a source with optional filtering.
+    /// </summary>
     [HttpGet]
     public async Task<ActionResult<List<MediaEntryDto>>> Get(
             [FromQuery] long? mediaSourceId,
@@ -41,15 +53,9 @@ public class ItemsController : ApiBaseController
         try
         {
             CheckLogedIn();
-            // Genres für die Buttons: Nur Genres ohne Alternativnamen
-            var genreButtonList = await _db.Genres
-                .Include(g => g.AlternateNames)
-                .Where(g => (!mediaSourceId.HasValue || g.MediaSourceId == mediaSourceId) && !g.AlternateNames.Any())
-                .OrderBy(g => g.Name)
-                .ToListAsync();
-
             // MovieCollections
             var queryMovie = _db.MovieCollections
+                .AsNoTracking()
                 .Where(mc => !mediaSourceId.HasValue || mc.MediaSourceId == mediaSourceId);
 
             if (!string.IsNullOrWhiteSpace(search))
@@ -65,7 +71,11 @@ public class ItemsController : ApiBaseController
                     )
                 );
             }
-            var mediaSourceIds = await _db.MediaSourceUsers.Where(msu => msu.UserId == CurrentUser.Id).Select(msu => msu.MediaSourceId).ToArrayAsync();
+            var mediaSourceIds = await _db.MediaSourceUsers
+                .AsNoTracking()
+                .Where(msu => msu.UserId == CurrentUser.Id)
+                .Select(msu => msu.MediaSourceId)
+                .ToArrayAsync();
 
             var movieCollections = (await queryMovie
                 .Where(m => mediaSourceIds.Contains(m.MediaSourceId))
@@ -87,6 +97,7 @@ public class ItemsController : ApiBaseController
 
             // TVShows
             var queryShow = _db.TVShows
+                .AsNoTracking()
                 .Where(ts => !mediaSourceId.HasValue || ts.MediaSourceId == mediaSourceId);
 
             if (!string.IsNullOrWhiteSpace(search))
@@ -137,6 +148,9 @@ public class ItemsController : ApiBaseController
         }
     }
 
+    /// <summary>
+    /// Gets recently watched media entries.
+    /// </summary>
     [HttpGet("recent")]
     public async Task<ActionResult<List<DtoRecentEntry>>> GetRecent()
     {
@@ -249,13 +263,13 @@ public class ItemsController : ApiBaseController
     {
         var entry = type switch
         {
-            "movie" => await _db.Movies
+            "movie" => await _db.Movies.AsNoTracking()
                 .FirstOrDefaultAsync(mc => mc.Id == id) as MediaBaseEntry,
-            "moviecollection" => await _db.MovieCollections.FirstOrDefaultAsync(mc => mc.Id == id) as MediaBaseEntry,
-            "tvshow" => await _db.TVShows
+            "moviecollection" => await _db.MovieCollections.AsNoTracking().FirstOrDefaultAsync(mc => mc.Id == id) as MediaBaseEntry,
+            "tvshow" => await _db.TVShows.AsNoTracking()
                 .FirstOrDefaultAsync(ts => ts.Id == id) as MediaBaseEntry,
-            "tvshowseason" => await _db.TVShowSeasons.FirstOrDefaultAsync(ts => ts.Id == id) as MediaBaseEntry,
-            "tvshowepisode" => await _db.TVShowEpisodes.FirstOrDefaultAsync(tse => tse.Id == id) as MediaBaseEntry,
+            "tvshowseason" => await _db.TVShowSeasons.AsNoTracking().FirstOrDefaultAsync(ts => ts.Id == id) as MediaBaseEntry,
+            "tvshowepisode" => await _db.TVShowEpisodes.AsNoTracking().FirstOrDefaultAsync(tse => tse.Id == id) as MediaBaseEntry,
             _ => null
         };
         if (entry == null)
@@ -274,25 +288,28 @@ public class ItemsController : ApiBaseController
         if (!source.MediaSourceUsers.Any(u => u.UserId == CurrentUser.Id))
             throw new UnauthorizedAccessException("Fehlende Berechtigung für Medienquelle");
 
-        var mediaItems = type switch
+        var mediaItem = type switch
         {
             "movie" => await _db.MovieMediaItems
                 .Include(mi => mi.MediaItem)
                 .Where(mi => mi.MovieId == entry.Id)
                 .Select(mi => mi.MediaItem)
-                .ToListAsync(),
+                .FirstOrDefaultAsync(),
             "tvshowepisode" => await _db.TVShowEpisodeMediaItems
                 .Include(mi => mi.MediaItem)
                 .Where(mi => mi.TVShowEpisodeId == entry.Id)
                 .Select(mi => mi.MediaItem)
-                .ToListAsync(),
-            _ => new List<MediaItem>()
+                .FirstOrDefaultAsync(),
+            _ => null
         };
-        if (mediaItems.Count == 0)
+        if (mediaItem is null)
             throw new RecordNotFoundException("Keine Medienitems für diesen Eintrag gefunden");
-        return mediaItems.FirstOrDefault();
+        return mediaItem;
     }
 
+    /// <summary>
+    /// Streams a media item by type and identifier.
+    /// </summary>
     [HttpGet("{type}/{id}/stream")]
     public async Task<IActionResult> StreamMediaItem(string type, long id)
     {
@@ -345,6 +362,9 @@ public class ItemsController : ApiBaseController
         }
     }
 
+    /// <summary>
+    /// Downloads a media item by type and identifier.
+    /// </summary>
     [HttpGet("{type}/{id}/download")]
     public async Task<IActionResult> Download(string type, long id)
     {
@@ -376,6 +396,9 @@ public class ItemsController : ApiBaseController
         }
     }
 
+    /// <summary>
+    /// Gets media details for a movie collection or TV show.
+    /// </summary>
     [HttpGet("{type}/{id}")]
     public async Task<IActionResult> Get(string type, long id)
     {

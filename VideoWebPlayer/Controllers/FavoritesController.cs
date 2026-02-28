@@ -1,48 +1,53 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.EntityFrameworkCore;
 using VideoWebPlayer.Controllers;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services.Authentication;
 
+/// <summary>
+/// Provides endpoints for managing user favorites.
+/// </summary>
 [ApiController]
 [Route("api/favorites")]
 [BearerTokenCheck]
 public class FavoritesController : ApiBaseController
 {
     private readonly ApplicationDbContext _db;
-    private readonly IAuthService _authService;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="FavoritesController"/> class.
+    /// </summary>
+    /// <param name="db">Database context.</param>
+    /// <param name="authService">Authentication service.</param>
+    /// <param name="logger">Logger instance.</param>
     public FavoritesController(ApplicationDbContext db, IAuthService authService, ILogger<FavoritesController> logger)
         :base(authService, logger)
     {
         _db = db;
-        _authService = authService;
     }
 
     private async Task<FavoriteEntry> GetFavoriteEntryAsync(DtoMediaEntry entry)
     {
-        var favorites = await _db.FavoriteEntries
-                .Where(f => f.UserId == CurrentUser.Id)
-                .ToListAsync();
-        var exists = favorites.FirstOrDefault(f => {
-            if (entry is DtoMovie)
-                return f.MovieId == entry.Id;
-            if (entry is DtoMovieCollection)
-                return f.MovieCollectionId == entry.Id;
-            if (entry is DtoTVShow)
-                return f.TVShowId == entry.Id;
-            if (entry is DtoTVShowSeason)
-                return f.TVShowSeasonId == entry.Id;
-            if (entry is DtoTVShowEpisode)
-                return f.TVShowEpisodeId == entry.Id;
-            return false;
-        });
-        return exists;
+        var query = _db.FavoriteEntries.AsNoTracking().Where(f => f.UserId == CurrentUser.Id);
+        if (entry is DtoMovie)
+            return await query.FirstOrDefaultAsync(f => f.MovieId == entry.Id);
+        if (entry is DtoMovieCollection)
+            return await query.FirstOrDefaultAsync(f => f.MovieCollectionId == entry.Id);
+        if (entry is DtoTVShow)
+            return await query.FirstOrDefaultAsync(f => f.TVShowId == entry.Id);
+        if (entry is DtoTVShowSeason)
+            return await query.FirstOrDefaultAsync(f => f.TVShowSeasonId == entry.Id);
+        if (entry is DtoTVShowEpisode)
+            return await query.FirstOrDefaultAsync(f => f.TVShowEpisodeId == entry.Id);
+        return null;
     }
 
+    /// <summary>
+    /// Gets the favorites for the current user.
+    /// </summary>
+    /// <returns>The favorites list.</returns>
     [HttpGet]
     public async Task<IActionResult> GetFavorites()
     {
@@ -50,6 +55,7 @@ public class FavoritesController : ApiBaseController
         {
             CheckLogedIn();
             var favorites = await _db.FavoriteEntries
+                .AsNoTracking()
                 .Where(f => f.UserId == CurrentUser.Id)
                 .ToListAsync();
             var result = favorites.Select(rec =>
@@ -107,6 +113,11 @@ public class FavoritesController : ApiBaseController
         }
     }
 
+    /// <summary>
+    /// Adds a favorite entry for the current user.
+    /// </summary>
+    /// <param name="entry">The favorite entry.</param>
+    /// <returns>The action result.</returns>
     [HttpPost("add")]
     public async Task<IActionResult> AddFavorite([FromBody] FavoriteEntry entry)
     {
@@ -131,6 +142,11 @@ public class FavoritesController : ApiBaseController
         }
     }
 
+    /// <summary>
+    /// Removes a favorite entry for the current user.
+    /// </summary>
+    /// <param name="entry">The favorite entry.</param>
+    /// <returns>The action result.</returns>
     [HttpPost("remove")]
     public async Task<IActionResult> RemoveFavorite([FromBody] FavoriteEntry entry)
     {
@@ -161,6 +177,11 @@ public class FavoritesController : ApiBaseController
         }
     }
 
+    /// <summary>
+    /// Toggles a favorite entry for the current user.
+    /// </summary>
+    /// <param name="entry">The media entry to toggle.</param>
+    /// <returns><c>true</c> if the entry is now favorited.</returns>
     [HttpPost("toggle")]
     public async Task<IActionResult> ToggleFavorite([FromBody] DtoMediaEntry entry)
     {

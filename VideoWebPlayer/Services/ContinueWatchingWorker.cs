@@ -3,12 +3,21 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace VideoWebPlayer.Services
 {
+    /// <summary>
+    /// Background worker that persists buffered continue-watching progress entries.
+    /// </summary>
     public class ContinueWatchingWorker : BackgroundService
     {
         private readonly ContinueWatchingBuffer _buffer;
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly ILogger<ContinueWatchingWorker> _logger;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="ContinueWatchingWorker"/> class.
+        /// </summary>
+        /// <param name="buffer">The progress buffer.</param>
+        /// <param name="scopeFactory">Scope factory for resolving services.</param>
+        /// <param name="logger">Logger instance.</param>
         public ContinueWatchingWorker(ContinueWatchingBuffer buffer, IServiceScopeFactory scopeFactory, ILogger<ContinueWatchingWorker> logger)
         {
             _buffer = buffer;
@@ -16,6 +25,11 @@ namespace VideoWebPlayer.Services
             _logger = logger;
         }
 
+        /// <summary>
+        /// Executes the background processing loop.
+        /// </summary>
+        /// <param name="stoppingToken">Cancellation token to stop processing.</param>
+        /// <returns>A task that represents the background operation.</returns>
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             while (!stoppingToken.IsCancellationRequested)

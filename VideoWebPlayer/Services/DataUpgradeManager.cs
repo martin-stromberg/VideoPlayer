@@ -6,6 +6,9 @@ using System.Threading.Tasks;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 
+/// <summary>
+/// Handles data schema upgrades and migrations for the application.
+/// </summary>
 public class DataUpgradeManager
 {
     private readonly ApplicationDbContext _db;
@@ -14,8 +17,19 @@ public class DataUpgradeManager
     private readonly UserManager<ApplicationUser> userManager;
     private readonly IUserEmailStore<ApplicationUser> emailStore;
     private readonly ILogger<DataUpgradeManager> logger;
+    /// <summary>
+    /// Gets the current data version.
+    /// </summary>
     public const int CurrentVersion = 8; // Version erhöhen
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DataUpgradeManager"/> class.
+    /// </summary>
+    /// <param name="db">Database context.</param>
+    /// <param name="classifier">Media source classifier.</param>
+    /// <param name="UserStore">User store for identity operations.</param>
+    /// <param name="UserManager">User manager for identity operations.</param>
+    /// <param name="logger">Logger instance.</param>
     public DataUpgradeManager(ApplicationDbContext db, MediaSourceClassifier classifier, IUserStore<ApplicationUser> UserStore, UserManager<ApplicationUser> UserManager, ILogger<DataUpgradeManager> logger)
     {
         _db = db;
@@ -26,6 +40,10 @@ public class DataUpgradeManager
         this.logger = logger;
     }
 
+    /// <summary>
+    /// Runs pending data upgrades to bring the database to the current version.
+    /// </summary>
+    /// <param name="cancellationToken">A cancellation token.</param>
     public async Task EnsureUpToDateAsync(CancellationToken cancellationToken)
     {
         var setup = await _db.Setups.FirstOrDefaultAsync(cancellationToken);

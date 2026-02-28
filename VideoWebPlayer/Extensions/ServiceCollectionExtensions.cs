@@ -17,8 +17,16 @@ using VideoWebPlayer.Services.Authentication;
 
 namespace VideoWebPlayer.Extensions;
 
+/// <summary>
+/// Extension methods for configuring VideoWebPlayer services.
+/// </summary>
 public static class ServiceCollectionExtensions
 {
+    /// <summary>
+    /// Registers VideoWebPlayer services and middleware dependencies.
+    /// </summary>
+    /// <param name="builder">The application builder.</param>
+    /// <returns>The same builder instance.</returns>
     public static WebApplicationBuilder AddVideoWebPlayerServices(this WebApplicationBuilder builder)
     {
         var services = builder.Services;
@@ -46,6 +54,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IdentityUserAccessor>();
         services.AddScoped<IdentityRedirectManager>();
         services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
+        services.AddMemoryCache();
         services.AddSingleton<InternalConnectionService>();
         services.AddSingleton<ILoginIpBlockService, LoginIpBlockService>(); // wieder Singleton
 

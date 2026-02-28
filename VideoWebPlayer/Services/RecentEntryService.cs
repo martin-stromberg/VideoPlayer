@@ -4,12 +4,20 @@ using System.Threading;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services.Authentication;
 
+/// <summary>
+/// Manages recent entries for media items.
+/// </summary>
 public class RecentEntryService
 {
     private readonly ApplicationDbContext _db;
     private readonly IAuthService authService;
     private const int MaxEntries = 10;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="RecentEntryService"/> class.
+    /// </summary>
+    /// <param name="db">Database context.</param>
+    /// <param name="authService">Authentication service.</param>
     public RecentEntryService(ApplicationDbContext db, IAuthService authService)
     {
         _db = db;
@@ -47,6 +55,10 @@ public class RecentEntryService
         await _db.SaveChangesAsync();
     }
 
+    /// <summary>
+    /// Adds a recent entry for a movie.
+    /// </summary>
+    /// <param name="movie">The movie entry.</param>
     public async Task AddMovieAsync(Movie movie)
     {
         await ClearCorruptEntriesAsync();
@@ -74,6 +86,10 @@ public class RecentEntryService
         await _db.SaveChangesAsync();
     }
 
+    /// <summary>
+    /// Adds a recent entry for a movie collection.
+    /// </summary>
+    /// <param name="collection">The movie collection.</param>
     public async Task AddMovieCollectionAsync(MovieCollection collection)
     {
         await ClearCorruptEntriesAsync();
@@ -98,6 +114,10 @@ public class RecentEntryService
         await _db.SaveChangesAsync();
     }
 
+    /// <summary>
+    /// Adds a recent entry for a TV show.
+    /// </summary>
+    /// <param name="show">The TV show.</param>
     public async Task AddTVShowAsync(TVShow show)
     {
         await ClearCorruptEntriesAsync();
@@ -126,6 +146,10 @@ public class RecentEntryService
         await TrimEntriesAsync(show.MediaSourceId);
     }
 
+    /// <summary>
+    /// Adds a recent entry for a TV show season.
+    /// </summary>
+    /// <param name="season">The TV show season.</param>
     public async Task AddTVShowSeasonAsync(TVShowSeason season)
     {
         await ClearCorruptEntriesAsync();
@@ -237,6 +261,10 @@ public class RecentEntryService
         }
     }
 
+    /// <summary>
+    /// Adds a recent entry for a TV show episode.
+    /// </summary>
+    /// <param name="episode">The TV show episode.</param>
     public async Task AddTVShowEpisodeAsync(TVShowEpisode episode)
     {
         await ClearCorruptEntriesAsync();
@@ -294,6 +322,10 @@ public class RecentEntryService
         }
     }
 
+    /// <summary>
+    /// Gets the recent entries for the current user.
+    /// </summary>
+    /// <returns>The recent entries.</returns>
     public async Task<List<RecentEntry>> GetRecentEntriesAsync()
     {
         var mediaSourceIds = await _db.MediaSourceUsers.Where(msu => msu.UserId == authService.CurrentUser.Id).Select(msu => msu.MediaSourceId).ToArrayAsync();        

@@ -380,3 +380,6 @@ FodyWeavers.xsd
 /WebPlayer/WebPlayer.Client/wwwroot/appsettings.Development.json
 /WebPlayer/WebPlayer.Client/wwwroot/appsettings.Production.json
 /VideoWebPlayer/Data/WebVideoPlayer.db
+*.db-shm
+*.db-wal
+*dotnet-tools.json

@@ -6,8 +6,16 @@ using VideoWebPlayer.Data;
 
 namespace VideoWebPlayer.Extensions;
 
+/// <summary>
+/// Extension methods for configuring the VideoWebPlayer application pipeline.
+/// </summary>
 public static class WebApplicationExtensions
 {
+    /// <summary>
+    /// Applies pending database migrations on application startup.
+    /// </summary>
+    /// <param name="app">The web application instance.</param>
+    /// <returns>The same <see cref="WebApplication"/> instance.</returns>
     public static WebApplication MigrateDatabase(this WebApplication app)
     {
         // DB-Migration beim Start
@@ -18,6 +26,11 @@ public static class WebApplicationExtensions
             return app;
         }
     }
+    /// <summary>
+    /// Configures middleware and endpoints for the VideoWebPlayer application.
+    /// </summary>
+    /// <param name="app">The web application instance.</param>
+    /// <returns>The same <see cref="WebApplication"/> instance.</returns>
     public static WebApplication UseVideoWebPlayer(this WebApplication app)
     {
         // Fehler-/Sicherheitskonfiguration

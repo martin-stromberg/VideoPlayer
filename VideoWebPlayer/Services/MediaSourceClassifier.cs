@@ -27,6 +27,13 @@ namespace VideoWebPlayer.Services
         private static readonly string[] TVShowPictureTypes = new[] { "poster", "banner", "fanart", "thumb", "" };
         private static readonly string[] TVShowImageExtensions = new[] { ".jpg", ".jpeg", ".png", ".webp" };
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="MediaSourceClassifier"/> class.
+        /// </summary>
+        /// <param name="db">Application database context.</param>
+        /// <param name="sftpReader">SFTP reader for remote sources.</param>
+        /// <param name="recentEntryService">Recent entry service.</param>
+        /// <param name="logger">Logger instance.</param>
         public MediaSourceClassifier(
             ApplicationDbContext db,
             SftpMediaSourceReader sftpReader,
@@ -54,7 +61,7 @@ namespace VideoWebPlayer.Services
         {
             var items = _db.MediaItems
                 .Include(mi => mi.MediaCollection)
-                .Where(mi => mi.Changed || !mi.ClassifiedAt.HasValue)
+                .Where(mi => mi.MediaCollection.Classifyable && (mi.Changed || !mi.ClassifiedAt.HasValue))
                 .ToList();
 
             _logger.LogInformation("Klassifiziere MediaItems.");
@@ -77,29 +84,37 @@ namespace VideoWebPlayer.Services
 
         private async Task ProcessMediaCollectionsAsync(CancellationToken cancellationToken)
         {
-            var collections = _db.MediaCollections
-                .Include(mc => mc.MediaSource)
-                .Where(mc => mc.Changed || !mc.ClassifiedAt.HasValue)
-                .ToList();
-
-            _logger.LogInformation("Klassifiziere MediaCollections.");
-            foreach (var collection in collections)
+            List<MediaCollection>? collections = null;
+            do
             {
-                if (cancellationToken.IsCancellationRequested)
-                    break;
+                collections = _db.MediaCollections
+                    .Include(mc => mc.MediaSource)
+                    .Where(mc => mc.Classifyable && (mc.Changed || !mc.ClassifiedAt.HasValue))
+                    .OrderByDescending(mc => mc.Id)
+                    .ToList();
 
-                _logger.LogInformation("Verarbeite Collection '{CollectionName}' (ID: {CollectionId})", collection.Name, collection.Id);
+                _logger.LogInformation("Klassifiziere MediaCollections.");
+                foreach (var collection in collections)
+                {
+                    if (cancellationToken.IsCancellationRequested)
+                        break;
 
-                // 1. TVShow-Verarbeitung
-                await ProcessCollectionAsTVShowAsync(collection, cancellationToken);
+                    _logger.LogInformation("Verarbeite Collection '{CollectionName}' (ID: {CollectionId})", collection.Name, collection.Id);
 
-                // 2. Movie-Verarbeitung (falls TVShow nicht zutrifft oder zusätzlich nötig)
-                await ProcessCollectionAsMovieAsync(collection, cancellationToken);
+                    // 1. TVShow-Verarbeitung
+                    await ProcessCollectionAsTVShowAsync(collection, cancellationToken);
 
-                collection.Changed = false;
-                collection.ClassifiedAt = DateTime.UtcNow;
-                await _db.SaveChangesAsync(cancellationToken);
+                    // 2. Movie-Verarbeitung (falls TVShow nicht zutrifft oder zusätzlich nötig)
+                    await ProcessCollectionAsMovieAsync(collection, cancellationToken);
+
+                    collection.Changed = false;
+                    collection.ClassifiedAt = DateTime.UtcNow;
+                    if (collection.ParentMediaCollection != null)
+                        collection.ParentMediaCollection.Changed = true;
+                    await _db.SaveChangesAsync(cancellationToken);
+                }
             }
+            while (collections is not null && collections.Any());
         }
 
         /// <summary>
@@ -563,6 +578,11 @@ namespace VideoWebPlayer.Services
         private async Task<Picture?> GetOrCreatePicture(MediaItem img, string type, CancellationToken cancellationToken)
         {
             var ext = Path.GetExtension(img.Path);
+            if (img.MediaCollection is null)
+            {
+                img.MediaCollection = await _db.MediaCollections
+                    .FirstOrDefaultAsync(mc => mc.Id == img.MediaCollectionId, cancellationToken);
+            }
             var picture = await _db.Pictures.FirstOrDefaultAsync(p => p.MediaItemId == img.Id && p.Type == type, cancellationToken);
             if (picture == null)
             {
@@ -577,12 +597,15 @@ namespace VideoWebPlayer.Services
                 _db.Pictures.Add(picture);
                 await _db.SaveChangesAsync(cancellationToken);
             }
-            if (picture.Data is null || picture.Data.Length == 0)
+            if ((picture.Data is null || picture.Data.Length == 0) && img.MediaCollection is not null)
             {
                 var imageBytes = await _sftpReader.ReadFileStreamAsync(img.MediaCollection, Path.GetFileName(img.Path));
-                picture.Data = ConvertStreamToByteArray(imageBytes);
-                picture.ContentType = $"image/{ext}";
-                await _db.SaveChangesAsync(cancellationToken);
+                if (imageBytes is not null)
+                {
+                    picture.Data = ConvertStreamToByteArray(imageBytes);
+                    picture.ContentType = $"image/{ext}";
+                    await _db.SaveChangesAsync(cancellationToken);
+                }
             }
             if (string.IsNullOrWhiteSpace(picture.ContentType))
             {
@@ -887,6 +910,10 @@ namespace VideoWebPlayer.Services
             }
         }
 
+        /// <summary>
+        /// Rebuilds genre mappings for movies and TV shows.
+        /// </summary>
+        /// <param name="cancellationToken">A cancellation token.</param>
         public async Task ReloadGenres(CancellationToken cancellationToken)
         {
             // Filme ohne GenreNames korrigieren

@@ -5,6 +5,9 @@ using VideoWebPlayer.Data;
 
 namespace VideoWebPlayer.Services.Authentication
 {
+    /// <summary>
+    /// Internal client that injects an authorization token for the current HTTP user.
+    /// </summary>
     public class InternalVideoWebPlayerClient : VideoWebPlayerClient
     {
         private readonly IHttpContextAccessor httpContextAccessor;
@@ -12,6 +15,14 @@ namespace VideoWebPlayer.Services.Authentication
         private readonly AuthorizationTokenService authtorizationTokenService;
         private bool _impersonating;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="InternalVideoWebPlayerClient"/> class.
+        /// </summary>
+        /// <param name="httpContextAccessor">HTTP context accessor.</param>
+        /// <param name="httpClient">The underlying HTTP client.</param>
+        /// <param name="userManager">User manager for identity lookups.</param>
+        /// <param name="authtorizationTokenService">Token service used to issue JWTs.</param>
+        /// <param name="logger">Logger instance.</param>
         public InternalVideoWebPlayerClient(
             IHttpContextAccessor httpContextAccessor,
             HttpClient httpClient, 
@@ -23,12 +34,25 @@ namespace VideoWebPlayer.Services.Authentication
             this.userManager = userManager;
             this.authtorizationTokenService = authtorizationTokenService;
         }
+        /// <summary>
+        /// Issues an authenticated GET request to the specified endpoint.
+        /// </summary>
+        /// <typeparam name="T">The response payload type.</typeparam>
+        /// <param name="endPoint">The endpoint to call.</param>
+        /// <returns>The deserialized response.</returns>
         protected override async Task<T> HttpGetAsync<T>(string endPoint)
         {
             if (string.IsNullOrWhiteSpace(AuthorizationToken))
                 await ImpersonateAsync(httpContextAccessor.HttpContext?.User ?? new ClaimsPrincipal());
             return await base.HttpGetAsync<T>(endPoint);
         }
+        /// <summary>
+        /// Issues an authenticated POST request to the specified endpoint.
+        /// </summary>
+        /// <typeparam name="T">The response payload type.</typeparam>
+        /// <param name="endPoint">The endpoint to call.</param>
+        /// <param name="args">The HTTP content payload.</param>
+        /// <returns>The deserialized response.</returns>
         protected override async Task<T> HttpPostAsync<T>(string endPoint, HttpContent args)
         {
             if (string.IsNullOrWhiteSpace(AuthorizationToken))

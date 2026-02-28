@@ -14,19 +14,10 @@ namespace VideoWebPlayer.Services
     public class SftpMediaSourceReader
     {
         /// <summary>
-        /// Liest das Rootverzeichnis der angegebenen MediaSource aus und gibt MediaCollections und MediaItems als IEnumerable zurück.
-        /// Für den Root-Pfad wird immer eine MediaCollection erzeugt und als erstes ausgegeben.
+        /// Liest das Rootverzeichnis der angegebenen MediaSource aus und liefert nur die Root-Collection.
         /// </summary>
-        public IEnumerable<MediaEntry> ReadRootDirectory(MediaSource source)
+        public virtual IEnumerable<MediaEntry> ReadRootDirectory(MediaSource source)
         {
-            using var client = new SftpClient(
-                source.Host,
-                source.Port,
-                source.Username,
-                source.Password);
-
-            client.Connect();
-
             // Root-Collection erzeugen
             var rootCollection = new MediaCollection
             {
@@ -37,8 +28,52 @@ namespace VideoWebPlayer.Services
                 ParentMediaCollectionId = null
             };
             yield return rootCollection;
-            foreach (var entry in ReadDirectoryInternal(client, rootCollection.Path, rootCollection))
-                yield return entry;
+        }
+
+        /// <summary>
+        /// Liest die erste Ebene eines Verzeichnisses und liefert direkte Unterverzeichnisse und Dateien.
+        /// </summary>
+        /// <param name="collection">Die MediaCollection, deren Inhalt gelesen wird.</param>
+        /// <returns>Direkte Unterverzeichnisse und Dateien.</returns>
+        public virtual IEnumerable<MediaEntry> ReadDirectoryEntries(MediaCollection collection)
+        {
+            using var client = new SftpClient(
+                collection.MediaSource.Host,
+                collection.MediaSource.Port,
+                collection.MediaSource.Username,
+                collection.MediaSource.Password);
+
+            client.Connect();
+
+            var entries = client.ListDirectory(collection.Path);
+            foreach (var entry in entries)
+            {
+                if (entry.Name == "." || entry.Name == "..")
+                    continue;
+
+                if (entry.IsDirectory)
+                {
+                    yield return new MediaCollection
+                    {
+                        Name = entry.Name,
+                        Path = entry.FullName,
+                        CreatedAt = entry.LastWriteTimeUtc,
+                        MediaSource = collection.MediaSource,
+                        MediaSourceId = (int)collection.MediaSourceId,
+                        ParentMediaCollectionId = collection.Id
+                    };
+                }
+                else if (entry.IsRegularFile)
+                {
+                    yield return new MediaItem
+                    {
+                        Name = entry.Name,
+                        Path = entry.FullName,
+                        CreatedAt = entry.LastWriteTimeUtc,
+                        MediaCollectionId = (int)collection.Id
+                    };
+                }
+            }
 
             client.Disconnect();
         }
@@ -105,7 +140,13 @@ namespace VideoWebPlayer.Services
             }
         }
 
-        public async Task<bool> FileExistsAsync(MediaCollection collection, string fileName)
+        /// <summary>
+        /// Checks whether a file exists in the given media collection.
+        /// </summary>
+        /// <param name="collection">The media collection.</param>
+        /// <param name="fileName">The file name to look for.</param>
+        /// <returns><c>true</c> if the file exists; otherwise <c>false</c>.</returns>
+        public virtual async Task<bool> FileExistsAsync(MediaCollection collection, string fileName)
         {
             using var client = new SftpClient(
                 collection.MediaSource.Host,
@@ -127,7 +168,13 @@ namespace VideoWebPlayer.Services
             return false;
         }
 
-        public async Task<string?> ReadFileAsync(MediaCollection collection, string fileName)
+        /// <summary>
+        /// Reads the content of a file within the given media collection.
+        /// </summary>
+        /// <param name="collection">The media collection.</param>
+        /// <param name="fileName">The file name to read.</param>
+        /// <returns>The file content, or <c>null</c> if the file does not exist.</returns>
+        public virtual async Task<string?> ReadFileAsync(MediaCollection collection, string fileName)
         {
             using var client = new SftpClient(
                 collection.MediaSource.Host,
@@ -151,7 +198,13 @@ namespace VideoWebPlayer.Services
             return null;
         }
 
-        public async Task<Stream?> ReadFileStreamAsync(MediaCollection collection, string fileName)
+        /// <summary>
+        /// Reads a file as a stream from the given media collection.
+        /// </summary>
+        /// <param name="collection">The media collection.</param>
+        /// <param name="fileName">The file name to read.</param>
+        /// <returns>The file stream, or <c>null</c> if the file does not exist.</returns>
+        public virtual async Task<Stream?> ReadFileStreamAsync(MediaCollection collection, string fileName)
         {
             using var client = new SftpClient(
                 collection.MediaSource.Host,

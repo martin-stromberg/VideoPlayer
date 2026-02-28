@@ -30,6 +30,9 @@ namespace VideoWebPlayer.Data
         /// Zeitpunkt der letzten Klassifizierung
         /// </summary>
         public DateTime? ClassifiedAt { get; set; }
+        /// <summary>
+        /// Gets or sets a value indicating whether the entry has changed.
+        /// </summary>
         public bool Changed { get; set; }
     }
 }

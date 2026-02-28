@@ -6,13 +6,43 @@ using VideoWebPlayer.Data;
 
 namespace VideoWebPlayer.Services
 {
+    /// <summary>
+    /// Tracks failed login attempts and blocks abusive IP addresses.
+    /// </summary>
     public interface ILoginIpBlockService
     {
+        /// <summary>
+        /// Determines whether the specified IP address is currently blocked.
+        /// </summary>
+        /// <param name="ip">The IP address.</param>
+        /// <returns><c>true</c> if blocked; otherwise <c>false</c>.</returns>
         bool IsBlocked(IPAddress? ip);
+        /// <summary>
+        /// Records a failed login attempt for the specified IP address.
+        /// </summary>
+        /// <param name="ip">The IP address.</param>
         void RegisterFailure(IPAddress? ip);
+        /// <summary>
+        /// Records a successful login attempt for the specified IP address.
+        /// </summary>
+        /// <param name="ip">The IP address.</param>
         void RegisterSuccess(IPAddress? ip);
+        /// <summary>
+        /// Gets the failure count for the specified IP address.
+        /// </summary>
+        /// <param name="ip">The IP address.</param>
+        /// <returns>The number of recorded failures.</returns>
         int GetFailureCount(IPAddress? ip);
+        /// <summary>
+        /// Returns the currently blocked IP entries.
+        /// </summary>
+        /// <returns>The blocked IP entries.</returns>
         IEnumerable<BlockedLoginIp> GetBlockedIps();
+        /// <summary>
+        /// Removes the specified IP address from the block list.
+        /// </summary>
+        /// <param name="ip">The IP address to unblock.</param>
+        /// <returns><c>true</c> when the IP was unblocked; otherwise <c>false</c>.</returns>
         bool Unblock(string ip);
     }
 

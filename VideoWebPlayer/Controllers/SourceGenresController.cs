@@ -1,28 +1,35 @@
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.EntityFrameworkCore;
-using System.Security.Claims;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Controllers;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services.Authentication;
 
+/// <summary>
+/// Provides endpoints for retrieving genres per media source.
+/// </summary>
 [ApiController]
 [Route("api/[controller]")]
 [BearerTokenCheck]
 public class SourceGenresController : ApiBaseController
 {
-    private readonly IAuthService _authService;
     private readonly ApplicationDbContext _db;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SourceGenresController"/> class.
+    /// </summary>
+    /// <param name="authService">Authentication service.</param>
+    /// <param name="db">Database context.</param>
+    /// <param name="logger">Logger instance.</param>
     public SourceGenresController(IAuthService authService, ApplicationDbContext db, ILogger<SourceGenresController> logger)
         :base(authService, logger)
     {
-        _authService = authService;
         _db = db;
     }
 
+    /// <summary>
+    /// Gets genres grouped by source for the current user.
+    /// </summary>
     [HttpGet]
     public async Task<IActionResult> GetGenresPerSource()
     {
@@ -31,11 +38,13 @@ public class SourceGenresController : ApiBaseController
             CheckLogedIn();
 
             var sourceIds = await _db.MediaSourceUsers
+                .AsNoTracking()
                 .Where(msu => msu.UserId == CurrentUser.Id)
                 .Select(msu => msu.MediaSourceId)
                 .ToListAsync();
 
             var sources = await _db.MediaSources
+                .AsNoTracking()
                 .Where(ms => sourceIds.Contains(ms.Id))
                 .ToListAsync();
 
@@ -44,6 +53,7 @@ public class SourceGenresController : ApiBaseController
             {
                 // Genres aus Movies dieser Quelle sammeln
                 var movieGenreNames = await _db.MovieGenres
+                    .AsNoTracking()
                     .Where(mg => mg.Movie.MediaSourceId == source.Id)
                     .Select(mg => mg.GenreId)
                     .Distinct()
@@ -51,6 +61,7 @@ public class SourceGenresController : ApiBaseController
 
                 // Genres aus TVShows dieser Quelle sammeln
                 var tvShowGenreNames = await _db.TVShowGenres
+                    .AsNoTracking()
                     .Where(tvg => tvg.TVShow.MediaSourceId == source.Id)
                     .Select(tvg => tvg.GenreId)
                     .Distinct()
@@ -59,6 +70,7 @@ public class SourceGenresController : ApiBaseController
                 var allGenreNames = movieGenreNames.Concat(tvShowGenreNames).Distinct().ToList();
 
                 var genres = await _db.Genres
+                    .AsNoTracking()
                     .Where(g => allGenreNames.Contains(g.Id))
                     .ToListAsync();
 
@@ -84,6 +96,10 @@ public class SourceGenresController : ApiBaseController
         }
     }
 
+    /// <summary>
+    /// Gets genres for a specific source.
+    /// </summary>
+    /// <param name="sourceId">The source identifier.</param>
     [HttpGet("{sourceId:long}")]
     public async Task<IActionResult> GetGenresForSource(long sourceId)
     {
@@ -93,17 +109,19 @@ public class SourceGenresController : ApiBaseController
 
             // Prüfe, ob die Quelle für den Benutzer freigeschaltet ist
             var isAllowed = await _db.MediaSourceUsers
+                .AsNoTracking()
                 .AnyAsync(msu => msu.UserId == CurrentUser.Id && msu.MediaSourceId == sourceId);
 
             if (!isAllowed)
                 return Forbid("Kein Zugriff auf diese Quelle.");
 
-            var source = await _db.MediaSources.FirstOrDefaultAsync(ms => ms.Id == sourceId);
+            var source = await _db.MediaSources.AsNoTracking().FirstOrDefaultAsync(ms => ms.Id == sourceId);
             if (source == null)
                 return NotFound("Quelle nicht gefunden.");
 
             // Genres aus Movies dieser Quelle sammeln
             var movieGenreIds = await _db.MovieGenres
+                .AsNoTracking()
                 .Where(mg => mg.Movie.MediaSourceId == sourceId)
                 .Select(mg => mg.GenreId)
                 .Distinct()
@@ -111,6 +129,7 @@ public class SourceGenresController : ApiBaseController
 
             // Genres aus TVShows dieser Quelle sammeln
             var tvShowGenreIds = await _db.TVShowGenres
+                .AsNoTracking()
                 .Where(tvg => tvg.TVShow.MediaSourceId == sourceId)
                 .Select(tvg => tvg.GenreId)
                 .Distinct()
@@ -119,6 +138,7 @@ public class SourceGenresController : ApiBaseController
             var allGenreIds = movieGenreIds.Concat(tvShowGenreIds).Distinct().ToList();
 
             var genres = await _db.Genres
+                .AsNoTracking()
                 .Where(g => allGenreIds.Contains(g.Id))
                 .Where(g => !g.IsHidden)
                 .ToListAsync();

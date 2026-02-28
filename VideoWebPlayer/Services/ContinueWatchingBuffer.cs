@@ -3,15 +3,39 @@ using System.Threading.Channels;
 
 namespace VideoWebPlayer.Services
 {
+    /// <summary>
+    /// Buffers continue-watching progress updates for background processing.
+    /// </summary>
     public sealed class ContinueWatchingBuffer
     {
+        /// <summary>
+        /// Represents a snapshot of playback progress for a user and media entry.
+        /// </summary>
         public sealed class ProgressEntry
         {
+            /// <summary>
+            /// Gets the user identifier associated with the progress entry.
+            /// </summary>
             public required string UserId { get; init; }
+            /// <summary>
+            /// Gets the movie identifier, when the entry refers to a movie.
+            /// </summary>
             public long? MovieId { get; init; }
+            /// <summary>
+            /// Gets the episode identifier, when the entry refers to a TV show episode.
+            /// </summary>
             public long? EpisodeId { get; init; }
+            /// <summary>
+            /// Gets the current playback position.
+            /// </summary>
             public TimeSpan Position { get; init; }
+            /// <summary>
+            /// Gets the total duration of the media item.
+            /// </summary>
             public TimeSpan Duration { get; init; }
+            /// <summary>
+            /// Gets the timestamp when the entry was last updated.
+            /// </summary>
             public DateTime UpdatedAt { get; init; } = DateTime.UtcNow;
         }
 
@@ -24,7 +48,14 @@ namespace VideoWebPlayer.Services
         private static string MakeKey(string userId, long? movieId, long? episodeId)
             => $"{userId}|m:{movieId?.ToString() ?? "-"}|e:{episodeId?.ToString() ?? "-"}";
 
-        // Erzeugt oder aktualisiert den Eintrag; bei neuer Key schreibt er den Key einmal in die Queue
+        /// <summary>
+        /// Enqueues or updates a progress entry and schedules it for processing.
+        /// </summary>
+        /// <param name="userId">The user identifier.</param>
+        /// <param name="movieId">The movie identifier.</param>
+        /// <param name="episodeId">The episode identifier.</param>
+        /// <param name="position">The playback position.</param>
+        /// <param name="duration">The total duration.</param>
         public void EnqueueOrUpdate(string userId, long? movieId, long? episodeId, TimeSpan position, TimeSpan duration)
         {
             var key = MakeKey(userId, movieId, episodeId);
@@ -48,7 +79,11 @@ namespace VideoWebPlayer.Services
             }
         }
 
-        // Liefert den aktuellen Snapshot für einen Key und entfernt ihn
+        /// <summary>
+        /// Reads the next progress entry snapshot and removes it from the buffer.
+        /// </summary>
+        /// <param name="ct">A cancellation token.</param>
+        /// <returns>The next progress entry or <c>null</c> if none is available.</returns>
         public async Task<ProgressEntry?> ReadNextAsync(CancellationToken ct)
         {
             var key = await _keysChannel.Reader.ReadAsync(ct);

@@ -6,9 +6,16 @@ using System.Collections.Concurrent;
 using System.Net;
 using VideoWebPlayer.Services;
 
+/// <summary>
+/// Validates that requests originate from allowed internal connections.
+/// </summary>
 public class ConnectionCheckAttribute : ActionFilterAttribute
 {
     
+    /// <summary>
+    /// Validates connection headers before the action executes.
+    /// </summary>
+    /// <param name="context">The action executing context.</param>
     public override void OnActionExecuting(ActionExecutingContext context)
     {
         var internalConnectionService = context.HttpContext.RequestServices.GetService<InternalConnectionService>();

@@ -9,10 +9,17 @@ public class ApiTokenCheckAttribute : ActionFilterAttribute
 {
     private const string HeaderName = "X-API-Key";
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ApiTokenCheckAttribute"/> class.
+    /// </summary>
     public ApiTokenCheckAttribute()
     {
     }
 
+    /// <summary>
+    /// Validates the API token header before the action executes.
+    /// </summary>
+    /// <param name="context">The action executing context.</param>
     public override void OnActionExecuting(ActionExecutingContext context)
     {
         var logger = context.HttpContext.RequestServices.GetService(typeof(ILogger<ApiTokenCheckAttribute>)) as ILogger<ApiTokenCheckAttribute>;

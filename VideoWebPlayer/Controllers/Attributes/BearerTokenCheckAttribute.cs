@@ -4,13 +4,23 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 
+/// <summary>
+/// Validates bearer tokens provided in the request.
+/// </summary>
 public class BearerTokenCheckAttribute : ActionFilterAttribute
 {
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="BearerTokenCheckAttribute"/> class.
+    /// </summary>
     public BearerTokenCheckAttribute()
     {
     }
 
+    /// <summary>
+    /// Validates the bearer token before the action executes.
+    /// </summary>
+    /// <param name="context">The action executing context.</param>
     public override void OnActionExecuting(ActionExecutingContext context)
     {
         var _jwtKey = context.HttpContext.RequestServices.GetService<SymmetricSecurityKey>();

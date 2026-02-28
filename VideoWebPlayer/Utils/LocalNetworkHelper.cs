@@ -3,8 +3,16 @@ using System.Net.Sockets;
 
 namespace VideoWebPlayer.Utils
 {
+    /// <summary>
+    /// Helper utilities for detecting local network addresses.
+    /// </summary>
     public static class LocalNetworkHelper
     {
+        /// <summary>
+        /// Determines whether the provided IP address is within local network ranges.
+        /// </summary>
+        /// <param name="ip">The IP address to evaluate.</param>
+        /// <returns><c>true</c> when the address is local; otherwise <c>false</c>.</returns>
         public static bool IsLocalIpAddress(IPAddress ip)
         {
             if (IPAddress.IsLoopback(ip))

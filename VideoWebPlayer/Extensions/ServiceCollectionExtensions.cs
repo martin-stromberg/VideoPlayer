@@ -17,8 +17,16 @@ using VideoWebPlayer.Services.Authentication;
 
 namespace VideoWebPlayer.Extensions;
 
+/// <summary>
+/// Extension methods for configuring VideoWebPlayer services.
+/// </summary>
 public static class ServiceCollectionExtensions
 {
+    /// <summary>
+    /// Registers VideoWebPlayer services and middleware dependencies.
+    /// </summary>
+    /// <param name="builder">The application builder.</param>
+    /// <returns>The same builder instance.</returns>
     public static WebApplicationBuilder AddVideoWebPlayerServices(this WebApplicationBuilder builder)
     {
         var services = builder.Services;
@@ -46,6 +54,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IdentityUserAccessor>();
         services.AddScoped<IdentityRedirectManager>();
         services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
+        services.AddMemoryCache();
         services.AddSingleton<InternalConnectionService>();
         services.AddSingleton<ILoginIpBlockService, LoginIpBlockService>(); // wieder Singleton
 
@@ -57,6 +66,40 @@ public static class ServiceCollectionExtensions
         })
         .AddIdentityCookies();
 
+        services.ConfigureApplicationCookie(options =>
+        {
+            options.Cookie.Name = "VideoWebPlayer.Auth";
+
+            options.Cookie.HttpOnly = true;
+            options.Cookie.SameSite = SameSiteMode.Lax;
+
+            // safer default for proxied deployments: use scheme of incoming request
+            options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+
+            options.Cookie.Path = "/";
+
+            options.LoginPath = "/Account/Login";
+            options.LogoutPath = "/Account/Logout";
+            options.AccessDeniedPath = "/Account/AccessDenied";
+
+            options.ExpireTimeSpan = TimeSpan.FromDays(14);
+            options.SlidingExpiration = true;
+        });
+
+        builder.Services.AddAntiforgery(options =>
+        {
+            options.Cookie.Name = "VideoWebPlayer.Antiforgery";
+            options.Cookie.HttpOnly = true;
+            options.Cookie.SameSite = SameSiteMode.Lax;
+            options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        });
+
+        // Optional: externe / 2FA Cookies ebenfalls anpassen
+        //services.ConfigureExternalCookie(options =>
+        //{
+        //    options.Cookie.Name = "VideoWebPlayer.External";
+        //    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+        //});
 
         // Datenbank
         var connectionString = configuration.GetConnectionString("DefaultConnection") ?? "Data Source=app.db";

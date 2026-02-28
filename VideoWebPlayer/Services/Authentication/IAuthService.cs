@@ -8,25 +8,54 @@ using VideoWebPlayer.Data;
 
 namespace VideoWebPlayer.Services.Authentication
 {
+    /// <summary>
+    /// Provides authentication operations and access to the current user.
+    /// </summary>
     public interface IAuthService
     {
+        /// <summary>
+        /// Gets the current authenticated user, if available.
+        /// </summary>
         public ApplicationUser? CurrentUser { get; }
 
+        /// <summary>
+        /// Creates an impersonation token for the specified request.
+        /// </summary>
+        /// <param name="request">The impersonation request.</param>
+        /// <returns>The issued authorization token.</returns>
         Task<AuthorizationToken> ImpersonateAsync(ImpersonateRequest request);
+        /// <summary>
+        /// Logs in a user and returns an authorization token.
+        /// </summary>
+        /// <param name="request">The authentication request.</param>
+        /// <returns>The issued authorization token.</returns>
         Task<AuthorizationToken> LoginAsync(AuthenticationRequest request);
     }
 
+    /// <summary>
+    /// Creates JWT authorization tokens for authenticated users.
+    /// </summary>
     public class AuthorizationTokenService
     {
         private readonly SymmetricSecurityKey _jwtKey;
         private readonly IConfiguration _config;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="AuthorizationTokenService"/> class.
+        /// </summary>
+        /// <param name="jwtKey">The symmetric security key for signing tokens.</param>
+        /// <param name="config">The configuration provider.</param>
         public AuthorizationTokenService(SymmetricSecurityKey jwtKey, IConfiguration config)
         {
             this._jwtKey = jwtKey;
             _config = config;
         }
 
+        /// <summary>
+        /// Creates a signed authorization token for the specified user.
+        /// </summary>
+        /// <param name="user">The user to create a token for.</param>
+        /// <returns>The generated authorization token, or <c>null</c> when user is null.</returns>
         public AuthorizationToken CreateToken(ApplicationUser user)
         {
             if (user is null) return null;
@@ -55,6 +84,9 @@ namespace VideoWebPlayer.Services.Authentication
         }
     }
 
+    /// <summary>
+    /// Implements authentication and impersonation workflows.
+    /// </summary>
     public class AuthService : IAuthService
     {
         private readonly AuthorizationTokenService authtorizationTokenService;
@@ -63,6 +95,15 @@ namespace VideoWebPlayer.Services.Authentication
         private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly ILogger<AuthService> _logger;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="AuthService"/> class.
+        /// </summary>
+        /// <param name="authtorizationTokenService">Token service used to issue JWTs.</param>
+        /// <param name="userManager">User manager for identity lookups.</param>
+        /// <param name="signInManager">Sign-in manager for credential validation.</param>
+        /// <param name="configuration">Configuration provider.</param>
+        /// <param name="httpContextAccessor">HTTP context accessor.</param>
+        /// <param name="logger">Logger instance.</param>
         public AuthService(
             AuthorizationTokenService authtorizationTokenService,
             UserManager<ApplicationUser> userManager,
@@ -80,6 +121,9 @@ namespace VideoWebPlayer.Services.Authentication
         }
 
 
+        /// <summary>
+        /// Gets the current authenticated user from the HTTP context.
+        /// </summary>
         public ApplicationUser? CurrentUser
         {
             get
@@ -87,6 +131,9 @@ namespace VideoWebPlayer.Services.Authentication
                 return _userManager.GetUserAsync(_httpContextAccessor?.HttpContext?.User).Result;
             }
         }
+        /// <summary>
+        /// Gets a value indicating whether the current user is an administrator.
+        /// </summary>
         protected bool IsAdmin
         {
             get
@@ -95,12 +142,21 @@ namespace VideoWebPlayer.Services.Authentication
             }
         }
 
+        /// <summary>
+        /// Ensures the current user has administrator privileges.
+        /// </summary>
+        /// <exception cref="UnauthorizedAccessException">Thrown when the user is not an administrator.</exception>
         protected void CheckAdmin()
         {
             if (!IsAdmin)
                 throw new UnauthorizedAccessException("Nur Administratoren dürfen diesen Funktion nutzen.");
         }
 
+        /// <summary>
+        /// Validates credentials and issues an authorization token.
+        /// </summary>
+        /// <param name="request">The authentication request.</param>
+        /// <returns>The issued authorization token.</returns>
         public async Task<AuthorizationToken> LoginAsync(AuthenticationRequest request)
         {
             var user = await _userManager.FindByEmailAsync(request.Email);
@@ -113,6 +169,11 @@ namespace VideoWebPlayer.Services.Authentication
             return authtorizationTokenService.CreateToken(user);
         }
         
+        /// <summary>
+        /// Issues an authorization token for the specified user as an admin-only operation.
+        /// </summary>
+        /// <param name="request">The impersonation request.</param>
+        /// <returns>The issued authorization token.</returns>
         public async Task<AuthorizationToken> ImpersonateAsync(ImpersonateRequest request)
         {
             CheckAdmin();

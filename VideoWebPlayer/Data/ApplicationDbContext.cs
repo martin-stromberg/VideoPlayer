@@ -32,6 +32,9 @@ namespace VideoWebPlayer.Data
         /// Tabelle für MediaSources (Quellen).
         /// </summary>
         public DbSet<MediaSource> MediaSources { get; set; }
+        /// <summary>
+        /// Tabelle für MediaSource-User-Zuordnungen.
+        /// </summary>
         public DbSet<MediaSourceUser> MediaSourceUsers { get; set; }
 
         /// <summary>
@@ -44,22 +47,73 @@ namespace VideoWebPlayer.Data
         /// </summary>
         public DbSet<MediaItem> MediaItems { get; set; }
 
+        /// <summary>
+        /// Tabelle für MovieCollections.
+        /// </summary>
         public DbSet<MovieCollection> MovieCollections { get; set; }
+        /// <summary>
+        /// Tabelle für Movies.
+        /// </summary>
         public DbSet<Movie> Movies { get; set; }
+        /// <summary>
+        /// Tabelle für TVShows.
+        /// </summary>
         public DbSet<TVShow> TVShows { get; set; }
+        /// <summary>
+        /// Tabelle für TVShow-Seasons.
+        /// </summary>
         public DbSet<TVShowSeason> TVShowSeasons { get; set; }
+        /// <summary>
+        /// Tabelle für TVShow-Episodes.
+        /// </summary>
         public DbSet<TVShowEpisode> TVShowEpisodes { get; set; }
+        /// <summary>
+        /// Tabelle für Movie-MediaItem-Verknüpfungen.
+        /// </summary>
         public DbSet<MovieMediaItem> MovieMediaItems { get; set; }
+        /// <summary>
+        /// Tabelle für TVShowEpisode-MediaItem-Verknüpfungen.
+        /// </summary>
         public DbSet<TVShowEpisodeMediaItem> TVShowEpisodeMediaItems { get; set; }
+        /// <summary>
+        /// Tabelle für Bilder.
+        /// </summary>
         public DbSet<Picture> Pictures { get; set; }
+        /// <summary>
+        /// Tabelle für Setup-Einträge.
+        /// </summary>
         public DbSet<Setup> Setups { get; set; }
+        /// <summary>
+        /// Tabelle für RecentEntries.
+        /// </summary>
         public DbSet<RecentEntry> RecentEntries { get; set; }
+        /// <summary>
+        /// Tabelle für Favoriten.
+        /// </summary>
         public DbSet<FavoriteEntry> FavoriteEntries { get; set; }
+        /// <summary>
+        /// Tabelle für Genres.
+        /// </summary>
         public DbSet<Genre> Genres { get; set; }
+        /// <summary>
+        /// Tabelle für alternative Genre-Namen.
+        /// </summary>
         public DbSet<GenreName> GenreNames { get; set; }
+        /// <summary>
+        /// Tabelle für Movie-Genre-Verknüpfungen.
+        /// </summary>
         public DbSet<MovieGenre> MovieGenres { get; set; }
+        /// <summary>
+        /// Tabelle für TVShow-Genre-Verknüpfungen.
+        /// </summary>
         public DbSet<TVShowGenre> TVShowGenres { get; set; }
+        /// <summary>
+        /// Tabelle für ContinueWatching-Einträge.
+        /// </summary>
         public DbSet<ContinueWatchingEntry> ContinueWatchingEntries { get; set; }
+        /// <summary>
+        /// Tabelle für gesperrte Login-IPs.
+        /// </summary>
         public DbSet<BlockedLoginIp> BlockedLoginIps { get; set; }   // NEU
         #endregion
         #region MediaSource Manipulation Methods
@@ -193,6 +247,12 @@ namespace VideoWebPlayer.Data
             return item;
         }
 
+        /// <summary>
+        /// Ensures a movie collection exists for the specified source and name.
+        /// </summary>
+        /// <param name="collection">The collection to ensure.</param>
+        /// <param name="cancellationToken">A cancellation token.</param>
+        /// <returns>The existing or created collection.</returns>
         public async Task<MovieCollection> EnsureMovieCollectionExistsAsync(MovieCollection collection, CancellationToken cancellationToken = default)
         {
             var existing = await MovieCollections
@@ -206,6 +266,12 @@ namespace VideoWebPlayer.Data
             return collection;
         }
 
+        /// <summary>
+        /// Ensures a movie exists for the specified source and name.
+        /// </summary>
+        /// <param name="movie">The movie to ensure.</param>
+        /// <param name="cancellationToken">A cancellation token.</param>
+        /// <returns>The existing or created movie.</returns>
         public async Task<Movie> EnsureMovieExistsAsync(Movie movie, CancellationToken cancellationToken = default)
         {
             var existing = await Movies
@@ -219,6 +285,12 @@ namespace VideoWebPlayer.Data
             return movie;
         }
 
+        /// <summary>
+        /// Ensures a TV show exists for the specified source and name.
+        /// </summary>
+        /// <param name="show">The TV show to ensure.</param>
+        /// <param name="cancellationToken">A cancellation token.</param>
+        /// <returns>The existing or created TV show.</returns>
         public async Task<TVShow> EnsureTVShowExistsAsync(TVShow show, CancellationToken cancellationToken = default)
         {
             var existing = await TVShows
@@ -232,6 +304,12 @@ namespace VideoWebPlayer.Data
             return show;
         }
 
+        /// <summary>
+        /// Ensures a TV show season exists for the specified show and name.
+        /// </summary>
+        /// <param name="season">The season to ensure.</param>
+        /// <param name="cancellationToken">A cancellation token.</param>
+        /// <returns>The existing or created season.</returns>
         public async Task<TVShowSeason> EnsureTVShowSeasonExistsAsync(TVShowSeason season, CancellationToken cancellationToken = default)
         {
             var existing = await TVShowSeasons
@@ -245,6 +323,12 @@ namespace VideoWebPlayer.Data
             return season;
         }
 
+        /// <summary>
+        /// Ensures a TV show episode exists for the specified season and name.
+        /// </summary>
+        /// <param name="episode">The episode to ensure.</param>
+        /// <param name="cancellationToken">A cancellation token.</param>
+        /// <returns>The existing or created episode.</returns>
         public async Task<TVShowEpisode> EnsureTVShowEpisodeExistsAsync(TVShowEpisode episode, CancellationToken cancellationToken = default)
         {
             var existing = await TVShowEpisodes
@@ -259,6 +343,12 @@ namespace VideoWebPlayer.Data
         }
 
         #region Favoriten
+        /// <summary>
+        /// Checks whether the specified entry is a favorite for the user.
+        /// </summary>
+        /// <param name="userId">The user identifier.</param>
+        /// <param name="entry">The media entry.</param>
+        /// <returns><c>true</c> when the entry is a favorite.</returns>
         public bool IsFavorite(string userId, MediaBaseEntry entry)
         {
             if (entry is Movie)
@@ -273,6 +363,11 @@ namespace VideoWebPlayer.Data
                 return FavoriteEntries.Any(f => f.UserId == userId && f.TVShowEpisodeId == entry.Id);
             return false;
         }
+        /// <summary>
+        /// Adds a favorite entry for the user if it does not already exist.
+        /// </summary>
+        /// <param name="userId">The user identifier.</param>
+        /// <param name="entry">The media entry.</param>
         public async Task AddFavoriteAsync(string userId, MediaBaseEntry entry)
         {
             if (IsFavorite(userId, entry))
@@ -289,6 +384,11 @@ namespace VideoWebPlayer.Data
             FavoriteEntries.Add(newFav);
             await SaveChangesAsync();
         }
+        /// <summary>
+        /// Removes a favorite entry for the user.
+        /// </summary>
+        /// <param name="userId">The user identifier.</param>
+        /// <param name="entry">The media entry.</param>
         public async Task RemoveFavoriteAsync(string userId, MediaBaseEntry entry)
         {
             var existing = (entry is Movie) ? FavoriteEntries.FirstOrDefault(f => f.UserId == userId && f.MovieId == entry.Id)
@@ -301,6 +401,12 @@ namespace VideoWebPlayer.Data
                 FavoriteEntries.Remove(existing);
             await SaveChangesAsync();
         }
+        /// <summary>
+        /// Toggles favorite state for the specified entry.
+        /// </summary>
+        /// <param name="userId">The user identifier.</param>
+        /// <param name="entry">The media entry.</param>
+        /// <returns><c>true</c> if added as favorite; otherwise <c>false</c>.</returns>
         public async Task<bool> ToggleFavoriteAsync(string userId, MediaBaseEntry entry)
         {
             if (IsFavorite(userId, entry))
@@ -316,6 +422,9 @@ namespace VideoWebPlayer.Data
         }
         #endregion
 
+        /// <summary>
+        /// Marks genres as changed to trigger refresh logic.
+        /// </summary>
         public async Task MarkGenresAsChangedAsync()
         {
             var setup = await Setups.FirstOrDefaultAsync();
@@ -326,6 +435,10 @@ namespace VideoWebPlayer.Data
             }
         }
 
+        /// <summary>
+        /// Returns genres that are currently in their seasonal visibility window.
+        /// </summary>
+        /// <returns>The seasonal genres.</returns>
         public IEnumerable<Genre> GetSeasonalGenres()
         {
             var now = DateTime.UtcNow.Date;
@@ -351,6 +464,10 @@ namespace VideoWebPlayer.Data
             }
         }
 
+        /// <summary>
+        /// Configures model relationships and constraints.
+        /// </summary>
+        /// <param name="modelBuilder">The model builder.</param>
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);

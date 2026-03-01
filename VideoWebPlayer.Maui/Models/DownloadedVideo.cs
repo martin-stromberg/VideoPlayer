@@ -39,6 +39,12 @@ public class DownloadedVideo
     public DownloadStatus Status { get; set; }
     
     public double ProgressPercent { get; set; }
+    
+    // Abspielposition in Sekunden
+    public double PlaybackPositionSeconds { get; set; }
+    
+    // Gesamtdauer in Sekunden
+    public double DurationSeconds { get; set; }
 }
 
 public enum DownloadRetentionType

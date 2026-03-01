@@ -1,6 +1,7 @@
 using VideoWebPlayer.Maui.ViewModels;
 using VideoWebPlayer.Maui.Services;
 using VideoWebPlayer.Maui.Models;
+using VideoWebPlayer.Client;
 using CommunityToolkit.Maui.Core.Primitives;
 using CommunityToolkit.Maui.Views;
 
@@ -11,6 +12,9 @@ public partial class MovieCollectionDetailsPage : ContentPage
     private readonly MovieCollectionDetailsViewModel _viewModel;
     private VideoRequest? _currentVideoRequest;
     private TimeSpan _lastPosition;
+    private System.Timers.Timer? _positionUpdateTimer;
+    private bool _isLocalFile;
+    private bool _isDisposed = false;
 
     public MovieCollectionDetailsPage(long collectionId)
     {
@@ -20,6 +24,10 @@ public partial class MovieCollectionDetailsPage : ContentPage
         
         // Registriere Download-Completed Event
         DownloadQueue.Instance.DownloadCompleted += OnDownloadCompleted;
+        
+        // Position-Update Timer (alle 5 Sekunden)
+        _positionUpdateTimer = new System.Timers.Timer(5000);
+        _positionUpdateTimer.Elapsed += OnPositionUpdateTimerElapsed;
     }
 
     protected override async void OnAppearing()
@@ -40,6 +48,32 @@ public partial class MovieCollectionDetailsPage : ContentPage
     {
         base.OnDisappearing();
         
+        if (_isDisposed) return;
+        _isDisposed = true;
+        
+        // Stoppe Timer sofort
+        _positionUpdateTimer?.Stop();
+        
+        // Stoppe Video Player SOFORT (synchron)
+        if (VideoPlayer != null && VideoPlayer.CurrentState != MediaElementState.None)
+        {
+            VideoPlayer.Pause(); // Pause statt Stop, damit Position erhalten bleibt
+            VideoPlayer.Source = null; // Gebe Ressource frei
+        }
+        
+        // Speichere Position asynchron (nicht blockierend)
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await SaveCurrentPosition();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error saving position on disappear: {ex.Message}");
+            }
+        });
+        
         // Cleanup
         if (_currentVideoRequest != null)
         {
@@ -48,8 +82,9 @@ public partial class MovieCollectionDetailsPage : ContentPage
         
         DownloadQueue.Instance.DownloadCompleted -= OnDownloadCompleted;
         
-        // Stoppe Video Player
-        VideoPlayer.Stop();
+        // Dispose Timer
+        _positionUpdateTimer?.Dispose();
+        _positionUpdateTimer = null;
     }
 
     private void OnMovieSelected(object? sender, SelectionChangedEventArgs e)
@@ -113,6 +148,9 @@ public partial class MovieCollectionDetailsPage : ContentPage
                     _lastPosition = VideoPlayer.Position;
                 }
 
+                // Merke ob lokale Datei
+                _isLocalFile = sourceInfo.SourceType == VideoSourceType.LocalFile;
+
                 // Setze neue Quelle
                 if (sourceInfo.SourceType == VideoSourceType.LocalFile)
                 {
@@ -130,8 +168,14 @@ public partial class MovieCollectionDetailsPage : ContentPage
                 PlayButton.IsVisible = false;
                 BannerImage.IsVisible = false;
 
-                // Setze Position zurück wenn vorhanden
-                if (_lastPosition > TimeSpan.Zero)
+                // Setze Resume-Position wenn vorhanden
+                if (sourceInfo.ResumePosition.HasValue && sourceInfo.ResumePosition.Value > TimeSpan.Zero)
+                {
+                    _lastPosition = sourceInfo.ResumePosition.Value;
+                    VideoPlayer.SeekTo(sourceInfo.ResumePosition.Value);
+                    System.Diagnostics.Debug.WriteLine($"Resuming from position: {sourceInfo.ResumePosition.Value}");
+                }
+                else if (_lastPosition > TimeSpan.Zero)
                 {
                     VideoPlayer.SeekTo(_lastPosition);
                 }
@@ -165,6 +209,22 @@ public partial class MovieCollectionDetailsPage : ContentPage
     private void OnMediaStateChanged(object? sender, MediaStateChangedEventArgs e)
     {
         System.Diagnostics.Debug.WriteLine($"Media state changed: {e.NewState}");
+        
+        // Starte/Stoppe Timer basierend auf State
+        if (e.NewState == MediaElementState.Playing)
+        {
+            _positionUpdateTimer?.Start();
+        }
+        else
+        {
+            _positionUpdateTimer?.Stop();
+            
+            // Speichere Position bei Pause oder Stop
+            if (e.NewState == MediaElementState.Paused || e.NewState == MediaElementState.Stopped)
+            {
+                _ = SaveCurrentPosition();
+            }
+        }
         
         // Wenn Video stoppt, zeige wieder Play Button und Banner
         if (e.NewState == MediaElementState.Stopped)
@@ -221,6 +281,72 @@ public partial class MovieCollectionDetailsPage : ContentPage
         catch (Exception ex)
         {
             await DisplayAlert("Fehler", $"Download konnte nicht gestartet werden: {ex.Message}", "OK");
+        }
+    }
+
+    private async void OnPositionUpdateTimerElapsed(object? sender, System.Timers.ElapsedEventArgs e)
+    {
+        await SaveCurrentPosition();
+    }
+
+    private async Task SaveCurrentPosition()
+    {
+        if (_currentVideoRequest == null || VideoPlayer.CurrentState == MediaElementState.None)
+            return;
+
+        try
+        {
+            var position = VideoPlayer.Position;
+            var duration = VideoPlayer.Duration;
+            
+            if (position <= TimeSpan.Zero || duration <= TimeSpan.Zero)
+                return;
+
+            var positionSeconds = position.TotalSeconds;
+            var durationSeconds = duration.TotalSeconds;
+
+            if (_isLocalFile)
+            {
+                // Lokale Datei: Speichere in DB
+                await DownloadManager.Instance.UpdatePlaybackPositionAsync(
+                    _currentVideoRequest.VideoId,
+                    _currentVideoRequest.VideoType,
+                    positionSeconds,
+                    durationSeconds
+                );
+            }
+            else
+            {
+                // Stream: Sende an Server
+                await SendPositionToServerAsync(
+                    _currentVideoRequest.VideoId,
+                    _currentVideoRequest.VideoType,
+                    positionSeconds,
+                    durationSeconds
+                );
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error saving position: {ex.Message}");
+        }
+    }
+
+    private async Task SendPositionToServerAsync(long videoId, string videoType, double positionSeconds, double durationSeconds)
+    {
+        try
+        {
+            var client = App.ServiceProvider?.GetService<VideoWebPlayerClient>();
+            if (client == null) return;
+
+            // TODO: Implementiere API-Endpoint POST /api/playback/position
+            // Payload: { VideoId, VideoType, PositionSeconds, DurationSeconds }
+            
+            System.Diagnostics.Debug.WriteLine($"Sending position to server: {positionSeconds}s / {durationSeconds}s for {videoType} {videoId}");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error sending position to server: {ex.Message}");
         }
     }
 }

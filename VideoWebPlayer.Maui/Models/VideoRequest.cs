@@ -28,6 +28,8 @@ public class VideoSourceInfo
     public VideoSourceType SourceType { get; set; }
     
     public TimeSpan? ResumePosition { get; set; }
+    
+    public TimeSpan? Duration { get; set; }
 }
 
 public enum VideoSourceType

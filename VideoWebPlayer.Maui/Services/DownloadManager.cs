@@ -1,5 +1,6 @@
 using SQLite;
 using VideoWebPlayer.Maui.Models;
+using VideoWebPlayer.Client;
 
 namespace VideoWebPlayer.Maui.Services;
 
@@ -52,22 +53,30 @@ public class DownloadManager
             
             if (download != null && download.Status == DownloadStatus.Completed && File.Exists(download.LocalFilePath))
             {
-                // Lokale Datei verfügbar
+                // Lokale Datei verfügbar mit gespeicherter Position
                 request.SetSource(new VideoSourceInfo
                 {
                     SourcePath = download.LocalFilePath,
-                    SourceType = VideoSourceType.LocalFile
+                    SourceType = VideoSourceType.LocalFile,
+                    ResumePosition = download.PlaybackPositionSeconds > 0 
+                        ? TimeSpan.FromSeconds(download.PlaybackPositionSeconds) 
+                        : null,
+                    Duration = download.DurationSeconds > 0 
+                        ? TimeSpan.FromSeconds(download.DurationSeconds) 
+                        : null
                 });
                 return;
             }
             
-            // Stream-URL vom Server
+            // Stream-URL vom Server - hole Position vom Server
             var streamUrl = BuildStreamUrl(request.VideoId, request.VideoType);
+            var resumePosition = await FetchResumePositionFromServerAsync(request.VideoId, request.VideoType);
             
             request.SetSource(new VideoSourceInfo
             {
                 SourcePath = streamUrl,
-                SourceType = VideoSourceType.StreamUrl
+                SourceType = VideoSourceType.StreamUrl,
+                ResumePosition = resumePosition
             });
             
             // Füge zur Download-Queue hinzu (Cache) - nur wenn noch nicht vorhanden
@@ -79,6 +88,26 @@ public class DownloadManager
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Error resolving video source: {ex.Message}");
+        }
+    }
+    
+    private async Task<TimeSpan?> FetchResumePositionFromServerAsync(long videoId, string videoType)
+    {
+        try
+        {
+            // Hole Resume-Position vom Server (Continue-Watching API)
+            var client = App.ServiceProvider?.GetService<VideoWebPlayerClient>();
+            if (client == null) return null;
+            
+            // API-Call zum Holen der Position
+            // TODO: Implementiere API-Endpoint /api/playback/position/{videoType}/{videoId}
+            // Für jetzt: Return null (wird später implementiert)
+            return null;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error fetching resume position from server: {ex.Message}");
+            return null;
         }
     }
     
@@ -186,7 +215,9 @@ public class DownloadManager
                 ExpiresAt = task.ExpiresAt,
                 Title = task.Title,
                 Status = DownloadStatus.Completed,
-                ProgressPercent = 100
+                ProgressPercent = 100,
+                PlaybackPositionSeconds = 0,
+                DurationSeconds = 0
             };
             
             await _database.InsertAsync(download);
@@ -196,6 +227,35 @@ public class DownloadManager
         {
             _dbLock.Release();
         }
+    }
+    
+    public async Task UpdatePlaybackPositionAsync(long videoId, string videoType, double positionSeconds, double durationSeconds)
+    {
+        await _dbLock.WaitAsync();
+        try
+        {
+            var download = await _database.Table<DownloadedVideo>()
+                .Where(d => d.VideoId == videoId && d.VideoType == videoType)
+                .FirstOrDefaultAsync();
+            
+            if (download != null)
+            {
+                download.PlaybackPositionSeconds = positionSeconds;
+                download.DurationSeconds = durationSeconds;
+                await _database.UpdateAsync(download);
+                System.Diagnostics.Debug.WriteLine($"Updated playback position: {positionSeconds}s / {durationSeconds}s for {videoType} {videoId}");
+            }
+        }
+        finally
+        {
+            _dbLock.Release();
+        }
+    }
+    
+    public async Task<double?> GetPlaybackPositionAsync(long videoId, string videoType)
+    {
+        var download = await GetDownloadAsync(videoId, videoType);
+        return download?.PlaybackPositionSeconds;
     }
     
     public async Task CleanupExpiredDownloadsAsync()

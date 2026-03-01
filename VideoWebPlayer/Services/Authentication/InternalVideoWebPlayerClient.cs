@@ -18,14 +18,14 @@ namespace VideoWebPlayer.Services.Authentication
         /// <summary>
         /// Initializes a new instance of the <see cref="InternalVideoWebPlayerClient"/> class.
         /// </summary>
-        /// <param name="httpContextAccessor">HTTP context accessor.</param>
         /// <param name="httpClient">The underlying HTTP client.</param>
+        /// <param name="httpContextAccessor">HTTP context accessor.</param>
         /// <param name="userManager">User manager for identity lookups.</param>
         /// <param name="authtorizationTokenService">Token service used to issue JWTs.</param>
         /// <param name="logger">Logger instance.</param>
         public InternalVideoWebPlayerClient(
+            HttpClient httpClient,
             IHttpContextAccessor httpContextAccessor,
-            HttpClient httpClient, 
             UserManager<ApplicationUser> userManager, 
             AuthorizationTokenService authtorizationTokenService, 
             ILogger<VideoWebPlayerClient> logger) : base(httpClient, logger)

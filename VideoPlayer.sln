@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
-VisualStudioVersion = 18.3.11520.95 d18.3
+VisualStudioVersion = 18.3.11520.95
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FolderAPI", "FolderAPI\FolderAPI.csproj", "{0D6ECFCA-47E1-405A-B4F7-CE7C610C0034}"
 EndProject
@@ -24,6 +24,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VideoWebPlayer.Client", "VideoWebPlayer.Client\VideoWebPlayer.Client.csproj", "{2A95DFF2-04F7-48DF-87CE-AF1B4D715523}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VideoWebPlayer.Tests", "VideoWebPlayer.Tests\VideoWebPlayer.Tests.csproj", "{59F959EE-57E3-6546-4620-F489165BB43D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VideoWebPlayer.Maui", "VideoWebPlayer.Maui\VideoWebPlayer.Maui.csproj", "{EC080583-F95B-43C9-B2A1-0CB5D7EF7B30}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -79,6 +81,10 @@ Global
 		{59F959EE-57E3-6546-4620-F489165BB43D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{59F959EE-57E3-6546-4620-F489165BB43D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{59F959EE-57E3-6546-4620-F489165BB43D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EC080583-F95B-43C9-B2A1-0CB5D7EF7B30}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EC080583-F95B-43C9-B2A1-0CB5D7EF7B30}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EC080583-F95B-43C9-B2A1-0CB5D7EF7B30}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EC080583-F95B-43C9-B2A1-0CB5D7EF7B30}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

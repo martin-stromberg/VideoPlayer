@@ -34,15 +34,15 @@
 
             // Link ableiten: einfache Heuristik (wie in RecentEntriesList für Movie),
             // optional später durch genauere Auflösung ersetzen
-            if (it.MediaType == "movie")
+            if (it.MediaType == "movie" && it.Entry is DtoMovie movie && movie.Collection is not null)
             {
                 // Falls es eine dedizierte Movie-Seite gibt (RecentEntries nutzt /movie/{id})
-                links[it.Entry.Id] = $"/moviecollection/{(it.Entry as DtoMovie).Collection.Id}?movie={it.Entry.Id}&position={it.PositionSeconds}";
+                links[it.Entry.Id] = $"/moviecollection/{movie.Collection.Id}?movie={it.Entry.Id}&position={it.PositionSeconds}";
             }
-            else // "episode"
+            else if (it.MediaType == "episode" && it.Entry is DtoTVShowEpisode episode && episode.Season?.Show is not null)
             {
                 // Fallback-Link für Episode; bei Bedarf auf /tvshow/{showId}?season={seasonId}&episode={episodeId} erweitern
-                links[it.Entry.Id] = $"/tvshow/{(it.Entry as DtoTVShowEpisode).Season.Show.Id}?season={(it.Entry as DtoTVShowEpisode).Season.Id}&episode={it.Entry.Id}&position={it.PositionSeconds}";
+                links[it.Entry.Id] = $"/tvshow/{episode.Season.Show.Id}?season={episode.Season.Id}&episode={it.Entry.Id}&position={it.PositionSeconds}";
             }
         }
 

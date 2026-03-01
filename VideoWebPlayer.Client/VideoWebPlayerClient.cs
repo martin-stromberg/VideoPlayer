@@ -1,11 +1,11 @@
-﻿
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Json;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Controllers.Models;
 using VideoWebPlayer.Data;
+using Microsoft.Extensions.Configuration;
 
 namespace VideoWebPlayer.Client
 {
@@ -18,6 +18,7 @@ namespace VideoWebPlayer.Client
             this.httpClient = httpClient;
             Logger = logger;
         }
+
         protected virtual async Task<T> HttpGetAsync<T>(string endPoint)
         {
             var response = await httpClient.GetAsync(endPoint);
@@ -29,6 +30,7 @@ namespace VideoWebPlayer.Client
                 PropertyNameCaseInsensitive = true
             }) ?? throw new InvalidOperationException("Deserialization returned null.");
         }
+        
         protected virtual async Task<T> HttpPostAsync<T>(string endPoint, HttpContent args)
         {
             var response = await httpClient.PostAsync(endPoint, args);
@@ -42,21 +44,56 @@ namespace VideoWebPlayer.Client
         }
 
         #region Authentication
-        public void Authenticate(string email, string password)
+        /// <summary>
+        /// Authenticates the user and stores the authorization token.
+        /// </summary>
+        public async Task<AuthorizationToken?> AuthenticateAsync(string email, string password)
         {
-            throw new NotImplementedException();
+            var request = new AuthenticationRequest { Email = email, Password = password };
+            var json = System.Text.Json.JsonSerializer.Serialize(request);
+            var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+            var token = await HttpPostAsync<AuthorizationToken>("api/auth/login", content);
+            SetAuthorizationToken(token);
+            return token;
         }
-        public void SetAuthorizationToken(AuthorizationToken token)
+        
+        public virtual void SetAuthorizationToken(AuthorizationToken token)
         {
             if (token is not null)
-            httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token.token);
+            {
+                httpClient.DefaultRequestHeaders.Authorization = 
+                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token.token);
+            }
         }
-        public string AuthorizationToken
+        
+        public string? AuthorizationToken
         {
-            get => httpClient.DefaultRequestHeaders.Authorization?.Parameter;
+            get
+            {
+                return httpClient.DefaultRequestHeaders.Authorization?.Parameter;
+            }
         }
+        
         public bool Initializing { get; set; }
         protected ILogger<VideoWebPlayerClient> Logger { get; }
+        #endregion
+
+        #region HealthCheck
+        /// <summary>
+        /// Checks if the server is reachable and healthy.
+        /// </summary>
+        public async Task<bool> HealthCheckAsync()
+        {
+            try
+            {
+                var response = await httpClient.GetAsync("api/health");
+                return response.IsSuccessStatusCode;
+            }
+            catch
+            {
+                return false;
+            }
+        }
         #endregion
 
         #region Sources
@@ -71,7 +108,7 @@ namespace VideoWebPlayer.Client
                 return new DtoMediaSource[0];
             }
         }
-        public async Task<DtoMediaSource> RequestSourceAsync(long sourceId)
+        public async Task<DtoMediaSource?> RequestSourceAsync(long sourceId)
         {
             try
             {
@@ -82,9 +119,9 @@ namespace VideoWebPlayer.Client
                 return null;
             }
         }
-        public async Task<SourceGenresDto> RequestSourceGenresAsync(long sourceId)
+        public async Task<SourceGenresDto?> RequestSourceGenresAsync(long sourceId)
         {
-try
+            try
             {
                 return await HttpGetAsync<SourceGenresDto>($"api/SourceGenres/{sourceId}");
             }
@@ -99,6 +136,20 @@ try
         public async Task<IEnumerable<DtoRecentEntry>> RequestRecentEntriesAsync()
         {
             return await HttpGetAsync<DtoRecentEntry[]>("api/items/recent");
+        }
+        #endregion
+
+        #region Continue Watching
+        public async Task<IEnumerable<ContinueWatchingDto>> RequestContinueWatchingAsync()
+        {
+            try
+            {
+                return await HttpGetAsync<ContinueWatchingDto[]>("api/continue-watching");
+            }
+            catch
+            {
+                return Array.Empty<ContinueWatchingDto>();
+            }
         }
         #endregion
 

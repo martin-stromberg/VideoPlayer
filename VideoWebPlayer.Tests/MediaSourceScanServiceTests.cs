@@ -207,13 +207,14 @@ public class MediaSourceScanServiceTests
         cts.Cancel();
         await runTask;
 
+        var ct = TestContext.Current.CancellationToken;
         using (var scope = serviceProvider.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var mediaItemCount = await db.MediaItems.CountAsync();
+            var mediaItemCount = await db.MediaItems.CountAsync(ct);
             Assert.Equal(seasons * episodesPerSeason * 3 + 1, mediaItemCount);
-            Assert.Equal(seasons, await db.TVShowSeasons.CountAsync());
-            Assert.Equal(expectedEpisodeCount, await db.TVShowEpisodes.CountAsync());
+            Assert.Equal(seasons, await db.TVShowSeasons.CountAsync(ct));
+            Assert.Equal(expectedEpisodeCount, await db.TVShowEpisodes.CountAsync(ct));
         }
 
         Assert.Contains(messages, message => message.Contains("Klassifizierung abgeschlossen."));
@@ -361,12 +362,12 @@ public class MediaSourceScanServiceTests
         var classifier = runScope.ServiceProvider.GetRequiredService<MediaSourceClassifier>();
 
         // 1) Scan all sources -> root collection should be added
-        var ct = CancellationToken.None;
+        var ct = TestContext.Current.CancellationToken;
         await scanner.ScanAllSourcesAsync(ct);
         using (var s = serviceProvider.CreateScope())
         {
             var db = s.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            Assert.True(await db.MediaCollections.AnyAsync(c => c.Path == rootPath));
+            Assert.True(await db.MediaCollections.AnyAsync(c => c.Path == rootPath, ct));
         }
 
         // 2) First incremental scan -> should add the series folder
@@ -376,7 +377,7 @@ public class MediaSourceScanServiceTests
         using (var s = serviceProvider.CreateScope())
         {
             var db = s.ServiceProvider.GetRequiredService<ApplicationDbContext>();            
-            Assert.True(await db.MediaCollections.AnyAsync(c => c.Path == showPath));            
+            Assert.True(await db.MediaCollections.AnyAsync(c => c.Path == showPath, ct));            
         }
 
         // 3) Scan next -> should add season collections for all seasons
@@ -386,12 +387,12 @@ public class MediaSourceScanServiceTests
         {
             var db = s.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             // files in show (tvshow.nfo) should have been added when scanning the show            
-            Assert.True(await db.MediaItems.AnyAsync(i => i.Path == $"{showPath}/tvshow.nfo"));
-            Assert.True(await db.MediaItems.AnyAsync(i => i.Path == $"{showPath}/poster.jpg"));
+            Assert.True(await db.MediaItems.AnyAsync(i => i.Path == $"{showPath}/tvshow.nfo", ct));
+            Assert.True(await db.MediaItems.AnyAsync(i => i.Path == $"{showPath}/poster.jpg", ct));
             for (int si = 1; si <= seasons; si++)
             {
                 var seasonPath = $"{rootPath}/{showName}/Season{si:00}";
-                Assert.True(await db.MediaCollections.AnyAsync(c => c.Path == seasonPath));
+                Assert.True(await db.MediaCollections.AnyAsync(c => c.Path == seasonPath, ct));
             }
         }
 
@@ -405,11 +406,11 @@ public class MediaSourceScanServiceTests
                 var db = s.ServiceProvider.GetRequiredService<ApplicationDbContext>();
                 var seasonPath = $"{rootPath}/{showName}/Season{si:00}";
                 // each season should contain at least one mp4 media item
-                Assert.True(await db.MediaItems.AnyAsync(i => i.Path.StartsWith(seasonPath) && i.Path.EndsWith(".mp4")),
+                Assert.True(await db.MediaItems.AnyAsync(i => i.Path.StartsWith(seasonPath) && i.Path.EndsWith(".mp4"), ct),
                     $"No media items found for {seasonPath}");
-                Assert.True(await db.MediaItems.AnyAsync(i => i.Path.StartsWith(seasonPath) && i.Path.EndsWith("-thumb.jpg")),
+                Assert.True(await db.MediaItems.AnyAsync(i => i.Path.StartsWith(seasonPath) && i.Path.EndsWith("-thumb.jpg"), ct),
                     $"No thumb file found for {seasonPath}");
-                Assert.True(await db.MediaItems.AnyAsync(i => i.Path.StartsWith(seasonPath) && i.Path.EndsWith(".nfo")),
+                Assert.True(await db.MediaItems.AnyAsync(i => i.Path.StartsWith(seasonPath) && i.Path.EndsWith(".nfo"), ct),
                     $"No media items found for {seasonPath}");
             }
         }
@@ -423,9 +424,9 @@ public class MediaSourceScanServiceTests
         using (var s = serviceProvider.CreateScope())
         {
             var db = s.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            Assert.Equal(1, await db.TVShows.CountAsync());
-            Assert.Equal(seasons, await db.TVShowSeasons.CountAsync());
-            Assert.Equal(expectedEpisodeCount, await db.TVShowEpisodes.CountAsync());
+            Assert.Equal(1, await db.TVShows.CountAsync(ct));
+            Assert.Equal(seasons, await db.TVShowSeasons.CountAsync(ct));
+            Assert.Equal(expectedEpisodeCount, await db.TVShowEpisodes.CountAsync(ct));
         }
 
         // 7) Add sixth season and run ScanAllSourcesAsync - root should be marked for scanning
@@ -436,9 +437,9 @@ public class MediaSourceScanServiceTests
         using (var s = serviceProvider.CreateScope())
         {
             var db = s.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var root = await db.MediaCollections.FirstOrDefaultAsync(c => c.Path == rootPath);
-            var source = await db.MediaSources.FirstOrDefaultAsync(ms => ms.Path == rootPath);
-            source = await db.MediaSources.FirstOrDefaultAsync();
+            var root = await db.MediaCollections.FirstOrDefaultAsync(c => c.Path == rootPath, ct);
+            var source = await db.MediaSources.FirstOrDefaultAsync(ms => ms.Path == rootPath, ct);
+            source = await db.MediaSources.FirstOrDefaultAsync(ct);
 
             Assert.NotNull(root);
             Assert.NotNull(root!.ScanDueAt);
@@ -459,7 +460,7 @@ public class MediaSourceScanServiceTests
         using (var s = serviceProvider.CreateScope())
         {
             var db = s.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var showCollection = await db.MediaCollections.FirstOrDefaultAsync(c => c.Path == showPath);
+            var showCollection = await db.MediaCollections.FirstOrDefaultAsync(c => c.Path == showPath, ct);
             Assert.NotNull(showCollection);
             Assert.NotNull(showCollection!.ScanDueAt);
             Assert.Equal(pickTime, showCollection.ScanDueAt.Value);
@@ -472,7 +473,7 @@ public class MediaSourceScanServiceTests
         using (var s = serviceProvider.CreateScope())
         {
             var db = s.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            Assert.True(await db.MediaCollections.AnyAsync(c => c.Path == sixthSeasonPath));
+            Assert.True(await db.MediaCollections.AnyAsync(c => c.Path == sixthSeasonPath, ct));
         }
 
         // 10) Next scan should add episodes (media items) for the sixth season
@@ -481,9 +482,9 @@ public class MediaSourceScanServiceTests
         using (var s = serviceProvider.CreateScope())
         {
             var db = s.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            Assert.True(await db.MediaItems.AnyAsync(i => i.Path.StartsWith(sixthSeasonPath) && i.Path.EndsWith(".mp4")));
-            Assert.True(await db.MediaItems.AnyAsync(i => i.Path.StartsWith(sixthSeasonPath) && i.Path.EndsWith(".nfo")));
-            Assert.True(await db.MediaItems.AnyAsync(i => i.Path.StartsWith(sixthSeasonPath) && i.Path.EndsWith("-thumb.jpg")));
+            Assert.True(await db.MediaItems.AnyAsync(i => i.Path.StartsWith(sixthSeasonPath) && i.Path.EndsWith(".mp4"), ct));
+            Assert.True(await db.MediaItems.AnyAsync(i => i.Path.StartsWith(sixthSeasonPath) && i.Path.EndsWith(".nfo"), ct));
+            Assert.True(await db.MediaItems.AnyAsync(i => i.Path.StartsWith(sixthSeasonPath) && i.Path.EndsWith("-thumb.jpg"), ct));
         }
 
         // 11) After processing the sixth season, next scan should return false
@@ -495,8 +496,8 @@ public class MediaSourceScanServiceTests
         using (var s = serviceProvider.CreateScope())
         {
             var db = s.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            Assert.Equal(seasons + 1, await db.TVShowSeasons.CountAsync());
-            Assert.Equal((seasons + 1) * episodesPerSeason, await db.TVShowEpisodes.CountAsync());
+            Assert.Equal(seasons + 1, await db.TVShowSeasons.CountAsync(ct));
+            Assert.Equal((seasons + 1) * episodesPerSeason, await db.TVShowEpisodes.CountAsync(ct));
         }
     }
 }

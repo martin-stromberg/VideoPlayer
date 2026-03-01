@@ -1,11 +1,9 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Linq;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using VideoWebPlayer.Data;
-using System.Collections.Concurrent;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.Helpers;

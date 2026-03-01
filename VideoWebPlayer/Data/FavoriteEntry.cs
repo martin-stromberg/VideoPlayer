@@ -18,7 +18,7 @@ namespace VideoWebPlayer.Data
         /// Gets or sets the user identifier.
         /// </summary>
         [Required]
-        public string UserId { get; set; } // Identity-User
+        public required string UserId { get; set; } // Identity-User
 
         /// <summary>
         /// Gets or sets the movie collection identifier.

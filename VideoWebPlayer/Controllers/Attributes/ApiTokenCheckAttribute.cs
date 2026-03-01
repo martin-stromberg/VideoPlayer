@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 /// <summary>
 /// Prüft, ob der API-Key im Request angegeben ist.
+/// Akzeptiert mehrere konfigurierte API-Tokens (für verschiedene Clients).
 /// </summary>
 public class ApiTokenCheckAttribute : ActionFilterAttribute
 {
@@ -18,12 +19,20 @@ public class ApiTokenCheckAttribute : ActionFilterAttribute
 
     /// <summary>
     /// Validates the API token header before the action executes.
+    /// Akzeptiert: Jwt:ApiToken (allgemein), Jwt:ApiToken:Web, Jwt:ApiToken:Maui
     /// </summary>
     /// <param name="context">The action executing context.</param>
     public override void OnActionExecuting(ActionExecutingContext context)
     {
         var logger = context.HttpContext.RequestServices.GetService(typeof(ILogger<ApiTokenCheckAttribute>)) as ILogger<ApiTokenCheckAttribute>;
-        var apiTokenKey = context.HttpContext.RequestServices.GetService<IConfiguration>()["Jwt:ApiToken"];
+        var config = context.HttpContext.RequestServices.GetService<IConfiguration>();
+
+        if (config == null)
+        {
+            logger?.LogError("Configuration service not available.");
+            context.Result = new UnauthorizedResult();
+            return;
+        }
 
         if (!context.HttpContext.Request.Headers.TryGetValue(HeaderName, out var tokenHeader) || tokenHeader.Count == 0)
         {
@@ -33,13 +42,33 @@ public class ApiTokenCheckAttribute : ActionFilterAttribute
         }
 
         var requestToken = tokenHeader.ToString();
-        if (!string.Equals(requestToken, apiTokenKey, StringComparison.Ordinal))
+
+        // Prüfe mehrere konfigurierte Tokens
+        var validTokens = new List<string>();
+        
+        // Allgemeiner Token
+        var apiToken = config["Jwt:ApiToken"];
+        if (!string.IsNullOrWhiteSpace(apiToken))
+            validTokens.Add(apiToken);
+        
+        // Web-spezifischer Token
+        var webToken = config["Jwt:ApiToken:Web"];
+        if (!string.IsNullOrWhiteSpace(webToken))
+            validTokens.Add(webToken);
+        
+        // MAUI-spezifischer Token
+        var mauiToken = config["Jwt:ApiToken:Maui"];
+        if (!string.IsNullOrWhiteSpace(mauiToken))
+            validTokens.Add(mauiToken);
+
+        // Prüfe, ob der Request-Token einem der gültigen Tokens entspricht
+        if (validTokens.Any(token => string.Equals(requestToken, token, StringComparison.Ordinal)))
         {
-            logger?.LogWarning("Ungültiger API-Token: {Token}", requestToken);
-            context.Result = new UnauthorizedResult();
+            base.OnActionExecuting(context);
             return;
         }
 
-        base.OnActionExecuting(context);
+        logger?.LogWarning("Ungültiger API-Token: {Token}", requestToken);
+        context.Result = new UnauthorizedResult();
     }
 }

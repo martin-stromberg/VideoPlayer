@@ -20,4 +20,11 @@ builder.AddVideoWebPlayerServices();
 var app = builder.Build();
 app.MigrateDatabase();
 app.UseVideoWebPlayer();
+
+// Start UDP Discovery Listener
+var udpPort = 5001; // Discovery port
+var serverAddress = $"http://{app.Configuration["Host:Address"] ?? "localhost"}:{app.Configuration["Host:Port"] ?? "5000"}";
+var udpListener = new UdpDiscoveryListener(udpPort, serverAddress);
+udpListener.Start();
+
 app.Run();

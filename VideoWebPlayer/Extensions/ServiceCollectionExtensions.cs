@@ -35,14 +35,15 @@ public static class ServiceCollectionExtensions
 
         // Secrets laden
         var jwtKey = configuration["Jwt:Key"];
-        var apiKey = configuration["Jwt:ApiToken"];
+        // Versuche zuerst den Web-spezifischen Token, dann den allgemeinen
+        var apiKey = configuration["Jwt:ApiToken:Web"] ?? configuration["Jwt:ApiToken"];
         var issuer = configuration["Jwt:Issuer"] ?? "VideoWebPlayer";
 
         // In Produktion sicherstellen, dass Secrets vorhanden sind
         if (env.IsProduction())
         {
             if (string.IsNullOrWhiteSpace(jwtKey)) throw new InvalidOperationException("Fehlende Konfiguration: Jwt:Key");
-            if (string.IsNullOrWhiteSpace(apiKey)) throw new InvalidOperationException("Fehlende Konfiguration: Jwt:ApiToken");
+            if (string.IsNullOrWhiteSpace(apiKey)) throw new InvalidOperationException("Fehlende Konfiguration: Jwt:ApiToken oder Jwt:ApiToken:Web");
         }
 
         // Blazor/Identity
@@ -153,10 +154,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<VideoWebPlayerClient>(sp =>
         {
             var authStateProvider = sp.GetRequiredService<AuthenticationStateProvider>();
-            var httpClient = sp.GetRequiredService<HttpClient>();
             var client = new InternalVideoWebPlayerClient(
+                sp.GetRequiredService<HttpClient>(),
                 sp.GetRequiredService<IHttpContextAccessor>(), 
-                httpClient,                
                 sp.GetRequiredService<UserManager<ApplicationUser>>(),
                 sp.GetRequiredService<AuthorizationTokenService>(),
                 sp.GetRequiredService<ILogger<VideoWebPlayerClient>>());

@@ -14,6 +14,8 @@ using VideoWebPlayer.Components.Account;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Services.Authentication;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using System.Security.Claims;
 
 namespace VideoWebPlayer.Extensions;
 
@@ -51,6 +53,7 @@ public static class ServiceCollectionExtensions
         services.AddServerSideBlazor().AddCircuitOptions(o => o.DetailedErrors = true);
 
         services.AddCascadingAuthenticationState();
+        services.AddAuthorization();
         services.AddScoped<AuthorizationTokenService>();
         services.AddScoped<IdentityUserAccessor>();
         services.AddScoped<IdentityRedirectManager>();
@@ -60,12 +63,47 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ILoginIpBlockService, LoginIpBlockService>(); // wieder Singleton
 
 
-        services.AddAuthentication(options =>
+        var authenticationBuilder = services.AddAuthentication(options =>
         {
             options.DefaultScheme = IdentityConstants.ApplicationScheme;
             options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
-        })
-        .AddIdentityCookies();
+        });
+
+        authenticationBuilder.AddIdentityCookies();
+
+        authenticationBuilder.AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
+        {
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true,
+                ValidIssuer = issuer,
+                ValidAudience = issuer,
+                IssuerSigningKey = string.IsNullOrWhiteSpace(jwtKey)
+                    ? null
+                    : new SymmetricSecurityKey(Convert.FromBase64String(jwtKey)),
+                NameClaimType = ClaimTypes.NameIdentifier
+            };
+
+            options.Events = new JwtBearerEvents
+            {
+                OnMessageReceived = context =>
+                {
+                    // SignalR sendet bei WebSockets token typischerweise als access_token in Query
+                    var accessToken = context.Request.Query["access_token"];
+                    var path = context.HttpContext.Request.Path;
+
+                    if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs/mediaupdate"))
+                    {
+                        context.Token = accessToken;
+                    }
+
+                    return Task.CompletedTask;
+                }
+            };
+        });
 
         services.ConfigureApplicationCookie(options =>
         {
@@ -177,6 +215,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ContinueWatchingBuffer>();
         services.AddScoped<ContinueWatchingService>();
         services.AddHostedService<ContinueWatchingWorker>();
+        
+        // SignalR
+        services.AddSignalR();
 
         // JWT-Signaturschlüssel registrieren (Base64)
         if (!string.IsNullOrWhiteSpace(jwtKey))

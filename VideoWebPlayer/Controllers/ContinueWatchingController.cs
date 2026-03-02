@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using VideoWebPlayer.Client.Models;
+using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Services.Authentication;
 
@@ -65,7 +66,7 @@ namespace VideoWebPlayer.Controllers
 
             var mediaType = req.MediaType.Trim().ToLowerInvariant();
             var movieId = mediaType == "movie" ? req.MediaId : (long?)null;
-            var episodeId = mediaType == "episode" ? req.MediaId : (long?)null;
+            var episodeId = mediaType == "episode" || mediaType == nameof(TVShowEpisode).ToLower() ? req.MediaId : (long?)null;
             if (movieId is null && episodeId is null)
                 return BadRequest("Unbekannter MediaType. Erwartet: 'movie' oder 'episode'.");
             await _service.ReportProgressAsync(CurrentUser, movieId, episodeId, TimeSpan.FromSeconds(req.PositionSeconds), TimeSpan.FromSeconds(req.DurationSeconds), ct);

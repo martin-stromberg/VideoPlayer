@@ -44,6 +44,7 @@ namespace VideoWebPlayer.Maui
             builder.Services.AddSingleton<Services.ISettingsService, Services.SettingsService>();
             builder.Services.AddSingleton<Services.IConnectionService, Services.ConnectionService>();
             builder.Services.AddSingleton<Services.IAuthService, Services.AuthService>();
+            builder.Services.AddSingleton<Services.SignalRService>();
 
             builder.Services.AddTransient<SettingsPage>();
             builder.Services.AddTransient<LoginPage>();

@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
 using System.Runtime.CompilerServices;
 using Microsoft.Maui.Storage;
 using VideoWebPlayer.Client;
@@ -19,6 +20,7 @@ public class HomePageViewModel : INotifyPropertyChanged
     public MediaCarouselViewModel ContinueWatching { get; }
     public MediaCarouselViewModel Favorites { get; }
     public MediaCarouselViewModel RecentEntries { get; }
+    public MediaCarouselViewModel Downloads { get; }
     public ObservableCollection<MediaSourceViewModel> Sources { get; } = new();
 
     public bool IsLoading
@@ -55,6 +57,7 @@ public class HomePageViewModel : INotifyPropertyChanged
         ContinueWatching = new MediaCarouselViewModel { Title = "Weiterschauen" };
         Favorites = new MediaCarouselViewModel { Title = "Favoriten" };
         RecentEntries = new MediaCarouselViewModel { Title = "Neu im Programm" };
+        Downloads = new MediaCarouselViewModel { Title = "Heruntergeladene Videos" };
 
         _client = App.ServiceProvider?.GetService<VideoWebPlayerClient>();
         
@@ -80,15 +83,26 @@ public class HomePageViewModel : INotifyPropertyChanged
 
     public async Task LoadDataAsync()
     {
+        System.Diagnostics.Debug.WriteLine("LoadDataAsync started");
+        
+        // Lade Downloads immer (auch ohne Server)
+        await LoadDownloadsAsync();
+        
+        System.Diagnostics.Debug.WriteLine($"Downloads loaded. Count: {Downloads.Items.Count}");
+        
         if (_client == null || string.IsNullOrWhiteSpace(_baseAddress))
         {
+            System.Diagnostics.Debug.WriteLine("No client or base address - switching to offline mode");
             IsOfflineMode = true;
             return;
         }
 
         // Lade nur beim ersten Aufruf, nicht bei jedem OnAppearing
         if (_isLoaded)
+        {
+            System.Diagnostics.Debug.WriteLine("Already loaded - skipping");
             return;
+        }
 
         IsLoading = true;
 
@@ -121,6 +135,12 @@ public class HomePageViewModel : INotifyPropertyChanged
         }
     }
 
+    public async Task RefreshDataAsync()
+    {
+        _isLoaded = false;
+        await LoadDataAsync();
+    }
+    
     public void RefreshData()
     {
         _isLoaded = false;
@@ -363,6 +383,86 @@ public class HomePageViewModel : INotifyPropertyChanged
         finally
         {
             RecentEntries.IsLoading = false;
+        }
+    }
+
+    private async Task LoadDownloadsAsync()
+    {
+        try
+        {
+            Downloads.IsLoading = true;
+            
+            // WICHTIG: Erst auf Main Thread clearen
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                Downloads.Items.Clear();
+            });
+            
+            // Lade Downloads aus lokaler Datenbank (kein Server-Zugriff)
+            var downloadedVideos = await Services.DownloadManager.Instance.GetAllDownloadsAsync();
+            
+            System.Diagnostics.Debug.WriteLine($"[LoadDownloadsAsync] Found {downloadedVideos.Count} downloaded videos in database");
+            
+            foreach (var download in downloadedVideos.Take(10))
+            {
+                System.Diagnostics.Debug.WriteLine($"[LoadDownloadsAsync] Processing download: {download.Title} ({download.VideoType}) - VideoId: {download.VideoId}");
+                
+                // Erstelle MediaItem auf Main Thread
+                await MainThread.InvokeOnMainThreadAsync(() =>
+                {
+                    var mediaItem = new MediaItemViewModel
+                    {
+                        Title = download.Title,
+                        // Verwende SolidColorBrush als Dummy-Image
+                        ImageSource = ImageSource.FromFile("dotnet_bot.png"), // Default MAUI icon als Fallback
+                        EntryId = download.VideoId,
+                        MediaType = download.VideoType.Equals(Models.MediaTypes.Movie, StringComparison.OrdinalIgnoreCase) ? "movie" : "episode"
+                    };
+                    
+                    Downloads.Items.Add(mediaItem);
+                    System.Diagnostics.Debug.WriteLine($"[LoadDownloadsAsync] Added to Items. New count: {Downloads.Items.Count}");
+                });
+                
+                // Lade Bild asynchron NACH dem Hinzufügen
+                if (!string.IsNullOrEmpty(download.LocalPosterImagePath) && File.Exists(download.LocalPosterImagePath))
+                {
+                    _ = LoadLocalImageAsync(download.LocalPosterImagePath, Downloads.Items[Downloads.Items.Count - 1]);
+                }
+            }
+            
+            System.Diagnostics.Debug.WriteLine($"[LoadDownloadsAsync] Final Downloads.Items.Count: {Downloads.Items.Count}");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[LoadDownloadsAsync] Error loading downloads: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"[LoadDownloadsAsync] Stack trace: {ex.StackTrace}");
+        }
+        finally
+        {
+            Downloads.IsLoading = false;
+        }
+    }
+    
+    private async Task LoadLocalImageAsync(string imagePath, MediaItemViewModel mediaItem)
+    {
+        try
+        {
+            var imageBytes = await File.ReadAllBytesAsync(imagePath);
+            var imageSource = new StreamImageSource
+            {
+                Stream = (token) => Task.FromResult((Stream)new MemoryStream(imageBytes))
+            };
+            
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                mediaItem.ImageSource = imageSource;
+            });
+            
+            System.Diagnostics.Debug.WriteLine($"[LoadLocalImageAsync] Loaded image for: {mediaItem.Title}");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[LoadLocalImageAsync] Error loading local image: {ex.Message}");
         }
     }
 

@@ -1,8 +1,11 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Linq.Expressions;
+using VideoWebPlayer.Hubs;
 
 namespace VideoWebPlayer.Services
 {
@@ -14,6 +17,7 @@ namespace VideoWebPlayer.Services
         private readonly IServiceProvider _serviceProvider;
         private readonly EventManager _eventManager;
         private readonly ILogger<MediaSourceScanService> _logger;
+        private readonly IHubContext<MediaUpdateHub> _hubContext;
         private readonly TimeSpan _initialDelay;
         private readonly TimeSpan _loopDelay;
         private readonly bool _skipUpgrade;
@@ -24,10 +28,12 @@ namespace VideoWebPlayer.Services
         /// </summary>
         /// <param name="serviceProvider">Service provider used to create scopes.</param>
         /// <param name="eventManager">Event manager instance.</param>
+        /// <param name="hubContext">SignalR hub context for push notifications.</param>
         /// <param name="logger">Logger instance.</param>
         public MediaSourceScanService(
             IServiceProvider serviceProvider,
             EventManager eventManager,
+            IHubContext<MediaUpdateHub> hubContext,
             ILogger<MediaSourceScanService> logger,
             TimeSpan? initialDelay = null,
             TimeSpan? loopDelay = null,
@@ -36,6 +42,7 @@ namespace VideoWebPlayer.Services
         {
             _serviceProvider = serviceProvider;
             _eventManager = eventManager;
+            _hubContext = hubContext;
             _logger = logger;
             _initialDelay = initialDelay ?? TimeSpan.FromSeconds(10);
             _loopDelay = loopDelay ?? TimeSpan.FromMinutes(1);
@@ -81,8 +88,43 @@ namespace VideoWebPlayer.Services
                         if (now - lastAllSourcesRun >= TimeSpan.FromHours(1))
                         {
                             _logger.LogInformation("Starte Scan aller Quellen.");
+                            
+                            // Zähle Items vor dem Scan
+                            int itemsBeforeScan = 0;
+                            using (var countScope = _serviceProvider.CreateScope())
+                            {
+                                var db = countScope.ServiceProvider.GetRequiredService<Data.ApplicationDbContext>();
+                                itemsBeforeScan = await db.MediaItems.CountAsync(stoppingToken);
+                            }
+                            
                             await scanner.ScanAllSourcesAsync(stoppingToken);
-                            _logger.LogInformation("Scan aller Quellen abgeschlossen.");
+                            
+                            // Zähle Items nach dem Scan
+                            int itemsAfterScan = 0;
+                            using (var countScope = _serviceProvider.CreateScope())
+                            {
+                                var db = countScope.ServiceProvider.GetRequiredService<Data.ApplicationDbContext>();
+                                itemsAfterScan = await db.MediaItems.CountAsync(stoppingToken);
+                            }
+                            
+                            int newItemsCount = itemsAfterScan - itemsBeforeScan;
+                            _logger.LogInformation("Scan aller Quellen abgeschlossen. {NewItems} neue Items gefunden.", newItemsCount);
+                            
+                            // Sende SignalR-Update wenn neue Items gefunden wurden
+                            if (newItemsCount > 0)
+                            {
+                                try
+                                {
+                                    await _hubContext.Clients.All
+                                        .SendAsync("NewVideosScanned", 0L, newItemsCount, cancellationToken: stoppingToken);
+                                    _logger.LogInformation("SignalR: NewVideosScanned sent to all clients (Count: {Count})", newItemsCount);
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger.LogWarning(ex, "Failed to send SignalR update for NewVideosScanned");
+                                }
+                            }
+                            
                             lastAllSourcesRun = now;
                         }
 
@@ -90,6 +132,7 @@ namespace VideoWebPlayer.Services
                         {
                             _logger.LogInformation("Prüfe, ob Genres neu geladen werden müssen.");
                             await classifier.CheckReloadGenres(stoppingToken);
+                            
                             var foundCollection = await scanner.ScanNextMediaCollection(stoppingToken);
                             if (foundCollection)
                             {
@@ -97,9 +140,33 @@ namespace VideoWebPlayer.Services
                             }
                             if (!foundCollection)
                             {
-                                _logger.LogInformation("Scan abgeschlossen. Starte Klassifizierung.");
+                                // Zähle unclassifizierte Items vor Klassifizierung
+                                int unclassifiedBefore = 0;
+                                using (var countScope = _serviceProvider.CreateScope())
+                                {
+                                    var db = countScope.ServiceProvider.GetRequiredService<Data.ApplicationDbContext>();
+                                    unclassifiedBefore = await db.MediaCollections
+                                        .CountAsync(mc => mc.Classifyable && (mc.Changed || !mc.ClassifiedAt.HasValue), stoppingToken);
+                                }
+                                
+                                _logger.LogInformation("Scan abgeschlossen. Starte Klassifizierung ({UnclassifiedCount} unclassifizierte Collections).", unclassifiedBefore);
                                 await classifier.ClassifyAllAsync(stoppingToken);
                                 _logger.LogInformation("Klassifizierung abgeschlossen.");
+                                
+                                // Sende SignalR-Update wenn neue Klassifizierungen durchgeführt wurden
+                                if (unclassifiedBefore > 0)
+                                {
+                                    try
+                                    {
+                                        await _hubContext.Clients.All
+                                            .SendAsync("NewVideosScanned", 0L, unclassifiedBefore, cancellationToken: stoppingToken);
+                                        _logger.LogInformation("SignalR: NewVideosScanned sent after classification (Count: {Count})", unclassifiedBefore);
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        _logger.LogWarning(ex, "Failed to send SignalR update after classification");
+                                    }
+                                }
                             }
 
                             lastTenMinuteRun = now;

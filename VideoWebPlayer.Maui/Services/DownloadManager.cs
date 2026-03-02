@@ -189,6 +189,22 @@ public class DownloadManager
         }
     }
     
+    public async Task<List<DownloadedVideo>> GetAllDownloadsAsync()
+    {
+        await _dbLock.WaitAsync();
+        try
+        {
+            return await _database.Table<DownloadedVideo>()
+                .Where(d => d.Status == DownloadStatus.Completed)
+                .OrderByDescending(d => d.DownloadedAt)
+                .ToListAsync();
+        }
+        finally
+        {
+            _dbLock.Release();
+        }
+    }
+    
     public async Task QueueDownloadAsync(VideoRequest request, DownloadRetentionType retentionType)
     {
         // Prüfe ob bereits in Datenbank vorhanden (completed Downloads)

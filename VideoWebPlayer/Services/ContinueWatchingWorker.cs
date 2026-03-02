@@ -32,28 +32,46 @@ namespace VideoWebPlayer.Services
         /// <returns>A task that represents the background operation.</returns>
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
+            _logger.LogInformation("[ContinueWatchingWorker] Started");
+            
             while (!stoppingToken.IsCancellationRequested)
             {
                 try
                 {
+                    _logger.LogDebug("[ContinueWatchingWorker] Waiting for next entry...");
+                    
                     var entry = await _buffer.ReadNextAsync(stoppingToken);
-                    if (entry is null) continue;
+                    
+                    if (entry is null)
+                    {
+                        _logger.LogDebug("[ContinueWatchingWorker] Received null entry (duplicate key) - skipping");
+                        continue;
+                    }
+
+                    _logger.LogInformation(
+                        "[ContinueWatchingWorker] Processing entry for user {UserId}, Movie: {MovieId}, Episode: {EpisodeId}, Position: {Position}s",
+                        entry.UserId, entry.MovieId, entry.EpisodeId, entry.Position.TotalSeconds);
 
                     using var scope = _scopeFactory.CreateScope();
                     var service = scope.ServiceProvider.GetRequiredService<ContinueWatchingService>();
 
                     await service.ProcessBufferedEntryAsync(entry.UserId, entry.MovieId, entry.EpisodeId, entry.Position, entry.Duration, stoppingToken);
+                    
+                    _logger.LogDebug("[ContinueWatchingWorker] Entry processed successfully");
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                 {
+                    _logger.LogInformation("[ContinueWatchingWorker] Stopping (cancellation requested)");
                     break;
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Fehler im ContinueWatchingWorker bei der Verarbeitung eines Eintrags.");
+                    _logger.LogError(ex, "[ContinueWatchingWorker] Fehler bei der Verarbeitung eines Eintrags.");
                     await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken);
                 }
             }
+            
+            _logger.LogInformation("[ContinueWatchingWorker] Stopped");
         }
     }
 }

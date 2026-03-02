@@ -69,25 +69,42 @@ namespace VideoWebPlayer.Services
                 UpdatedAt = DateTime.UtcNow
             };
 
-            if (_latestByKey.TryAdd(key, entry))
-            {
-                _ = _keysChannel.Writer.TryWrite(key);
-            }
-            else
-            {
-                _latestByKey[key] = entry; // nur aktualisieren, nicht erneut enqueuen
-            }
+            var wasNew = !_latestByKey.ContainsKey(key);
+            
+            // Aktualisiere oder füge hinzu
+            _latestByKey[key] = entry;
+            
+            // Schreibe Key IMMER in Channel (auch bei Update)
+            // Der Worker entfernt den Entry aus dem Dictionary nach Verarbeitung
+            // Duplikate im Channel sind OK - TryRemove gibt beim 2. Mal null zurück
+            var written = _keysChannel.Writer.TryWrite(key);
+            
+            System.Diagnostics.Debug.WriteLine(
+                $"[ContinueWatchingBuffer] {(wasNew ? "New" : "Update")} entry for key {key}. " +
+                $"Position: {position.TotalSeconds:F1}s. Channel write: {(written ? "OK" : "FAILED")}. " +
+                $"Buffer size: {_latestByKey.Count}");
         }
 
         /// <summary>
         /// Reads the next progress entry snapshot and removes it from the buffer.
         /// </summary>
         /// <param name="ct">A cancellation token.</param>
-        /// <returns>The next progress entry or <c>null</c> if none is available.</returns>
+        /// <returns>The next progress entry or <c>null</c> if the key was already processed.</returns>
         public async Task<ProgressEntry?> ReadNextAsync(CancellationToken ct)
         {
             var key = await _keysChannel.Reader.ReadAsync(ct);
-            return _latestByKey.TryRemove(key, out var entry) ? entry : null;
+            
+            // TryRemove kann null zurückgeben wenn Key bereits verarbeitet wurde (Duplikat)
+            // Das ist OK und kein Fehler - einfach zum nächsten Key weitergehen
+            var removed = _latestByKey.TryRemove(key, out var entry);
+            
+            System.Diagnostics.Debug.WriteLine(
+                $"[ContinueWatchingBuffer] Read key {key}. " +
+                $"Found: {removed}. " +
+                $"Position: {(entry != null ? entry.Position.TotalSeconds.ToString("F1") : "N/A")}s. " +
+                $"Remaining in buffer: {_latestByKey.Count}");
+            
+            return removed ? entry : null;
         }
     }
 }

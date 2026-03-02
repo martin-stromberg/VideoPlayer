@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using VideoWebPlayer.Components;
 using VideoWebPlayer.Data;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 
 namespace VideoWebPlayer.Extensions;
 
@@ -52,11 +53,18 @@ public static class WebApplicationExtensions
         app.UseStaticFiles();
         app.UseAntiforgery();
 
+        app.UseAuthentication();
+        app.UseAuthorization();
+
 
         app.MapRazorComponents<App>()
            .AddInteractiveServerRenderMode();
 
         app.MapControllers();
+        
+        // SignalR Hub (JWT-authentifiziert)
+        app.MapHub<VideoWebPlayer.Hubs.MediaUpdateHub>("/hubs/mediaupdate")
+            .RequireAuthorization(policy => policy.AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme).RequireAuthenticatedUser());
 
         // Identity /Account Razor Endpoints
         app.MapAdditionalIdentityEndpoints();

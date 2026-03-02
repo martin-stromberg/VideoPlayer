@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
+using System.Collections.Concurrent;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Json;
@@ -12,6 +13,7 @@ namespace VideoWebPlayer.Client
     public class VideoWebPlayerClient
     {
         private readonly HttpClient httpClient;
+        private readonly ConcurrentDictionary<string, ProgressSendState> progressStates = new();
         
         /// <summary>
         /// Event wird ausgelöst, wenn ein 401 Unauthorized empfangen wird (Token abgelaufen).
@@ -22,6 +24,21 @@ namespace VideoWebPlayer.Client
         {
             this.httpClient = httpClient;
             Logger = logger;
+        }
+
+        private sealed class ProgressSendState
+        {
+            public readonly object Gate = new();
+            public bool IsSending { get; set; }
+            public ProgressPayload? Buffered { get; set; }
+        }
+
+        private sealed class ProgressPayload
+        {
+            public required string MediaType { get; init; }
+            public required long MediaId { get; init; }
+            public required long PositionSeconds { get; init; }
+            public required long DurationSeconds { get; init; }
         }
 
         protected virtual async Task<T> HttpGetAsync<T>(string endPoint)
@@ -221,21 +238,97 @@ namespace VideoWebPlayer.Client
         
         /// <summary>
         /// Reports playback progress for the current user.
+        /// Coalescing: Für ein MediaItem läuft nur ein Request gleichzeitig.
+        /// Währenddessen wird genau eine letzte Meldung gepuffert (überschreibend).
         /// </summary>
         public async Task ReportPlaybackProgressAsync(string mediaType, long mediaId, long positionSeconds, long durationSeconds)
         {
-            var payload = new
+            var key = $"{mediaType}:{mediaId}";
+            var payload = new ProgressPayload
             {
                 MediaType = mediaType,
                 MediaId = mediaId,
                 PositionSeconds = positionSeconds,
                 DurationSeconds = durationSeconds
             };
-            
-            var json = System.Text.Json.JsonSerializer.Serialize(payload);
+
+            var state = progressStates.GetOrAdd(key, _ => new ProgressSendState());
+
+            bool shouldSendNow;
+            lock (state.Gate)
+            {
+                if (!state.IsSending)
+                {
+                    state.IsSending = true;
+                    shouldSendNow = true;
+                }
+                else
+                {
+                    state.Buffered = payload;
+                    shouldSendNow = false;
+                }
+            }
+
+            if (!shouldSendNow)
+                return;
+
+            var current = payload;
+            try
+            {
+                while (true)
+                {
+                    await SendPlaybackProgressCoreAsync(current);
+
+                    ProgressPayload? next;
+                    lock (state.Gate)
+                    {
+                        next = state.Buffered;
+                        state.Buffered = null;
+
+                        if (next is null)
+                        {
+                            state.IsSending = false;
+                            break;
+                        }
+                    }
+
+                    current = next;
+                }
+            }
+            finally
+            {
+                lock (state.Gate)
+                {
+                    if (!state.IsSending && state.Buffered is null)
+                    {
+                        progressStates.TryRemove(key, out _);
+                    }
+                }
+            }
+        }
+
+        private async Task SendPlaybackProgressCoreAsync(ProgressPayload payload)
+        {
+            var body = new
+            {
+                MediaType = payload.MediaType,
+                MediaId = payload.MediaId,
+                PositionSeconds = payload.PositionSeconds,
+                DurationSeconds = payload.DurationSeconds
+            };
+
+            var json = System.Text.Json.JsonSerializer.Serialize(body);
             var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
-            
+
             var response = await httpClient.PostAsync("api/continue-watching/progress", content);
+
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                Logger?.LogWarning("Received 401 Unauthorized from continue-watching/progress. Token might be expired.");
+                UnauthorizedReceived?.Invoke(this, EventArgs.Empty);
+                throw new HttpRequestException("Unauthorized: api/continue-watching/progress");
+            }
+
             if (!response.IsSuccessStatusCode)
             {
                 throw new HttpRequestException($"Failed to report progress: {response.ReasonPhrase}");

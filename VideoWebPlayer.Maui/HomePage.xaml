@@ -133,45 +133,58 @@
 
 				<!-- Neu im Programm Section -->
 				<components:MediaCarousel BindingContext="{Binding RecentEntries}" />
+				
+				<!-- Heruntergeladene Videos Section -->
+				<components:MediaCarousel BindingContext="{Binding Downloads}" />
 			</VerticalStackLayout>
 		</ScrollView>
 		
 		<!-- Offline Mode Message -->
 		<VerticalStackLayout Grid.Row="1" Grid.Column="1" 
 		                     IsVisible="{Binding IsOfflineMode}"
-		                     VerticalOptions="Center"
-		                     HorizontalOptions="Center"
+		                     VerticalOptions="Start"
+		                     HorizontalOptions="Fill"
 		                     Spacing="20"
 		                     Padding="40">
-			<!-- Offline Icon (WiFi Off) -->
-			<Grid WidthRequest="100" HeightRequest="100" HorizontalOptions="Center">
-				<!-- WiFi Symbol with slash -->
-				<Label Text="📡"
-				       FontSize="80"
-				       TextColor="#666666"
+			
+			<!-- Offline Message -->
+			<VerticalStackLayout VerticalOptions="Center"
+			                     HorizontalOptions="Center"
+			                     Spacing="20"
+			                     Padding="0,40">
+				<!-- Offline Icon (WiFi Off) -->
+				<Grid WidthRequest="100" HeightRequest="100" HorizontalOptions="Center">
+					<!-- WiFi Symbol with slash -->
+					<Label Text="📡"
+					       FontSize="80"
+					       TextColor="#666666"
+					       HorizontalOptions="Center"
+					       VerticalOptions="Center"
+					       Opacity="0.5" />
+					<BoxView Color="#FF6B6B"
+					         HeightRequest="4"
+					         WidthRequest="120"
+					         Rotation="45"
+					         HorizontalOptions="Center"
+					         VerticalOptions="Center" />
+				</Grid>
+				
+				<Label Text="Offline-Modus"
+				       FontSize="28"
+				       FontAttributes="Bold"
+				       TextColor="#FFDDAA"
+				       HorizontalOptions="Center" />
+				
+				<Label Text="Der Server ist nicht erreichbar. Bitte überprüfen Sie Ihre Internetverbindung oder die Server-Einstellungen."
+				       FontSize="16"
+				       TextColor="#CCCCCC"
 				       HorizontalOptions="Center"
-				       VerticalOptions="Center"
-				       Opacity="0.5" />
-				<BoxView Color="#FF6B6B"
-				         HeightRequest="4"
-				         WidthRequest="120"
-				         Rotation="45"
-				         HorizontalOptions="Center"
-				         VerticalOptions="Center" />
-			</Grid>
+				       HorizontalTextAlignment="Center"
+				       LineBreakMode="WordWrap" />
+			</VerticalStackLayout>
 			
-			<Label Text="Offline-Modus"
-			       FontSize="28"
-			       FontAttributes="Bold"
-			       TextColor="#FFDDAA"
-			       HorizontalOptions="Center" />
-			
-			<Label Text="Der Server ist nicht erreichbar. Bitte überprüfen Sie Ihre Internetverbindung oder die Server-Einstellungen."
-			       FontSize="16"
-			       TextColor="#CCCCCC"
-			       HorizontalOptions="Center"
-			       HorizontalTextAlignment="Center"
-			       LineBreakMode="WordWrap" />
+			<!-- Heruntergeladene Videos Section (auch im Offline-Modus) -->
+			<components:MediaCarousel BindingContext="{Binding Downloads}" />
 		</VerticalStackLayout>
 
 		<!-- Footer -->

@@ -11,7 +11,7 @@
             <HorizontalStackLayout BindableLayout.ItemsSource="{Binding Items}" Spacing="15" Padding="20,0,20,0">
                 <BindableLayout.ItemTemplate>
                     <DataTemplate x:DataType="viewmodels:MediaItemViewModel">
-                        <Border WidthRequest="180" HeightRequest="270" StrokeThickness="0" Padding="0" Margin="0" BackgroundColor="Transparent">
+                        <Border WidthRequest="180" HeightRequest="270" StrokeThickness="0" Padding="0" Margin="0" BackgroundColor="#23232a">
                             <Border.StrokeShape>
                                 <RoundRectangle CornerRadius="8" />
                             </Border.StrokeShape>

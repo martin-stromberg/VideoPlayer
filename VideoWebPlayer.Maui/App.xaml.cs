@@ -65,6 +65,49 @@ namespace VideoWebPlayer.Maui
             {
                 client.UnauthorizedReceived += OnUnauthorizedReceived;
             }
+            
+            // Initialisiere SignalR
+            _ = InitializeSignalRAsync(services);
+        }
+        
+        private async Task InitializeSignalRAsync(IServiceProvider services)
+        {
+            try
+            {
+                var signalRService = services.GetService<Services.SignalRService>();
+                var authService = services.GetService<Services.IAuthService>();
+                var settingsService = services.GetService<Services.ISettingsService>();
+                
+                if (signalRService == null || authService == null || settingsService == null)
+                    return;
+                
+                // Warte bis Server-Adresse und Credentials vorhanden
+                await Task.Delay(2000); // Warte auf Login
+                
+                if (!authService.HasCredentials() || !settingsService.HasServerAddress())
+                {
+                    System.Diagnostics.Debug.WriteLine("[SignalR] No credentials or server address - skipping");
+                    return;
+                }
+                
+                var serverAddress = settingsService.ServerAddress;
+                var token = Preferences.Default.Get("AuthToken", string.Empty);
+                
+                if (string.IsNullOrEmpty(token))
+                {
+                    System.Diagnostics.Debug.WriteLine("[SignalR] No auth token - skipping");
+                    return;
+                }
+                
+                // Verbinde zu SignalR Hub
+                await signalRService.ConnectAsync(serverAddress ?? string.Empty, token);
+                
+                System.Diagnostics.Debug.WriteLine("[SignalR] Initialization completed");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SignalR] Initialization failed: {ex.Message}");
+            }
         }
         
         private async void OnUnauthorizedReceived(object? sender, EventArgs e)

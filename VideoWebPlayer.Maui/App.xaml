@@ -12,6 +12,7 @@
             </ResourceDictionary.MergedDictionaries>
             
             <converters:IsNotNullConverter x:Key="IsNotNullConverter" />
+            <converters:IsNullConverter x:Key="IsNullConverter" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

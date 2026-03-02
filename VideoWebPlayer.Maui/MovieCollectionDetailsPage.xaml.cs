@@ -123,7 +123,7 @@ public partial class MovieCollectionDetailsPage : ContentPage
             // Neues Request erstellen
             _currentVideoRequest = await DownloadManager.Instance.RequestVideoAsync(
                 movie.EntryId ?? 0,
-                "Movie",
+                MediaTypes.Movie,
                 movie.Title ?? "Film"
             );
 
@@ -214,6 +214,15 @@ public partial class MovieCollectionDetailsPage : ContentPage
         if (e.NewState == MediaElementState.Playing)
         {
             _positionUpdateTimer?.Start();
+            
+            // Verstecke Fehlermeldung wenn Video erfolgreich spielt
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                if (ErrorLabel != null)
+                {
+                    ErrorLabel.IsVisible = false;
+                }
+            });
         }
         else
         {
@@ -239,6 +248,39 @@ public partial class MovieCollectionDetailsPage : ContentPage
         }
     }
 
+    private void OnMediaFailed(object? sender, MediaFailedEventArgs e)
+    {
+        System.Diagnostics.Debug.WriteLine($"Media failed: {e.ErrorMessage}");
+        
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            try
+            {
+                // Verstecke Video Player
+                VideoPlayer.IsVisible = false;
+                VideoPlayer.Source = null;
+                
+                // Zeige Play Button und Banner
+                PlayButton.IsVisible = true;
+                BannerImage.IsVisible = true;
+                
+                // Zeige Fehlermeldung im Banner
+                if (ErrorLabel != null)
+                {
+                    ErrorLabel.Text = $"⚠ Wiedergabe fehlgeschlagen: {e.ErrorMessage ?? "Unbekannter Fehler"}";
+                    ErrorLabel.IsVisible = true;
+                }
+                
+                // Stoppe Timer
+                _positionUpdateTimer?.Stop();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error handling media failure: {ex.Message}");
+            }
+        });
+    }
+
     private async void OnDownloadMovieTapped(object? sender, EventArgs e)
     {
         if (_viewModel.SelectedMovie == null)
@@ -252,7 +294,7 @@ public partial class MovieCollectionDetailsPage : ContentPage
             var movieId = _viewModel.SelectedMovie.EntryId ?? 0;
             
             // Prüfe ob bereits heruntergeladen
-            var existing = await DownloadManager.Instance.GetDownloadAsync(movieId, "Movie");
+            var existing = await DownloadManager.Instance.GetDownloadAsync(movieId, MediaTypes.Movie);
             
             if (existing != null && existing.Status == DownloadStatus.Completed)
             {
@@ -270,7 +312,7 @@ public partial class MovieCollectionDetailsPage : ContentPage
             var request = new VideoRequest
             {
                 VideoId = movieId,
-                VideoType = "Movie",
+                VideoType = MediaTypes.Movie,
                 Title = _viewModel.SelectedMovie.Title ?? "Film"
             };
             
@@ -337,12 +379,20 @@ public partial class MovieCollectionDetailsPage : ContentPage
         try
         {
             var client = App.ServiceProvider?.GetService<VideoWebPlayerClient>();
-            if (client == null) return;
+            if (client == null)
+            {
+                System.Diagnostics.Debug.WriteLine("VideoWebPlayerClient not available");
+                return;
+            }
 
-            // TODO: Implementiere API-Endpoint POST /api/playback/position
-            // Payload: { VideoId, VideoType, PositionSeconds, DurationSeconds }
+            await client.ReportPlaybackProgressAsync(
+                videoType,
+                videoId,
+                (long)positionSeconds,
+                (long)durationSeconds
+            );
             
-            System.Diagnostics.Debug.WriteLine($"Sending position to server: {positionSeconds}s / {durationSeconds}s for {videoType} {videoId}");
+            System.Diagnostics.Debug.WriteLine($"Successfully sent position to server: {positionSeconds}s / {durationSeconds}s for {videoType} {videoId}");
         }
         catch (Exception ex)
         {

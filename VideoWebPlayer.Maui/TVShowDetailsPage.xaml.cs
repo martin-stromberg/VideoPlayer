@@ -91,15 +91,55 @@ public partial class TVShowDetailsPage : ContentPage
 
     private async void OnPlayTapped(object? sender, EventArgs e)
     {
-        // Spiele erste Episode der ausgewählten Staffel
-        var firstEpisode = _viewModel.Episodes.FirstOrDefault();
-        if (firstEpisode == null)
+        // Spiele ausgewählte Episode oder erste Episode der Staffel
+        var episodeToPlay = _viewModel.SelectedEpisode ?? _viewModel.Episodes.FirstOrDefault();
+        
+        if (episodeToPlay == null)
         {
             await DisplayAlert("Keine Episode", "Keine Episode zum Abspielen verfügbar.", "OK");
             return;
         }
 
-        await PlayEpisodeAsync(firstEpisode);
+        await PlayEpisodeAsync(episodeToPlay);
+    }
+    
+    private void OnEpisodeSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        // Wenn eine neue Episode ausgewählt wird während Video läuft, stoppe Wiedergabe
+        if (VideoPlayer != null && VideoPlayer.CurrentState != MediaElementState.None && VideoPlayer.CurrentState != MediaElementState.Stopped)
+        {
+            try
+            {
+                // Speichere Position des aktuellen Videos
+                _ = SaveCurrentPosition();
+                
+                // Stoppe Video Player
+                VideoPlayer.Pause();
+                VideoPlayer.Source = null;
+                
+                // Zeige Play Button und Banner wieder
+                _ = MainThread.InvokeOnMainThreadAsync(() =>
+                {
+                    VideoPlayer.IsVisible = false;
+                    PlayButton.IsVisible = true;
+                    BannerImage.IsVisible = true;
+                });
+                
+                // Stoppe Timer
+                _positionUpdateTimer?.Stop();
+                
+                // Reset Position
+                _lastPosition = TimeSpan.Zero;
+                
+                System.Diagnostics.Debug.WriteLine("Video stopped due to episode selection change");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error stopping video on episode selection: {ex.Message}");
+            }
+        }
+        
+        // ViewModel kümmert sich um das Laden der Episode-Infos (Banner, Plot)
     }
 
     private async Task PlayEpisodeAsync(TVShowEpisodeViewModel episode)
@@ -115,7 +155,7 @@ public partial class TVShowDetailsPage : ContentPage
             // Neues Request erstellen
             _currentVideoRequest = await DownloadManager.Instance.RequestVideoAsync(
                 episode.EpisodeId,
-                "Episode",
+                MediaTypes.Episode,
                 episode.Title ?? "Episode"
             );
 
@@ -206,6 +246,15 @@ public partial class TVShowDetailsPage : ContentPage
         if (e.NewState == MediaElementState.Playing)
         {
             _positionUpdateTimer?.Start();
+            
+            // Verstecke Fehlermeldung wenn Video erfolgreich spielt
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                if (ErrorLabel != null)
+                {
+                    ErrorLabel.IsVisible = false;
+                }
+            });
         }
         else
         {
@@ -231,6 +280,39 @@ public partial class TVShowDetailsPage : ContentPage
         }
     }
 
+    private void OnMediaFailed(object? sender, MediaFailedEventArgs e)
+    {
+        System.Diagnostics.Debug.WriteLine($"Media failed: {e.ErrorMessage}");
+        
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            try
+            {
+                // Verstecke Video Player
+                VideoPlayer.IsVisible = false;
+                VideoPlayer.Source = null;
+                
+                // Zeige Play Button und Banner
+                PlayButton.IsVisible = true;
+                BannerImage.IsVisible = true;
+                
+                // Zeige Fehlermeldung im Banner
+                if (ErrorLabel != null)
+                {
+                    ErrorLabel.Text = $"⚠ Wiedergabe fehlgeschlagen: {e.ErrorMessage ?? "Unbekannter Fehler"}";
+                    ErrorLabel.IsVisible = true;
+                }
+                
+                // Stoppe Timer
+                _positionUpdateTimer?.Stop();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error handling media failure: {ex.Message}");
+            }
+        });
+    }
+
     private async void OnDownloadEpisodeTapped(object? sender, TappedEventArgs e)
     {
         if (sender is Border border && border.BindingContext is TVShowEpisodeViewModel episode)
@@ -238,7 +320,7 @@ public partial class TVShowDetailsPage : ContentPage
             try
             {
                 // Prüfe ob bereits heruntergeladen
-                var existing = await DownloadManager.Instance.GetDownloadAsync(episode.EpisodeId, "Episode");
+                var existing = await DownloadManager.Instance.GetDownloadAsync(episode.EpisodeId, MediaTypes.Episode);
                 
                 if (existing != null && existing.Status == DownloadStatus.Completed)
                 {
@@ -256,7 +338,7 @@ public partial class TVShowDetailsPage : ContentPage
                 var request = new VideoRequest
                 {
                     VideoId = episode.EpisodeId,
-                    VideoType = "Episode",
+                    VideoType = MediaTypes.Episode,
                     Title = episode.Title ?? "Episode"
                 };
                 
@@ -324,12 +406,20 @@ public partial class TVShowDetailsPage : ContentPage
         try
         {
             var client = App.ServiceProvider?.GetService<VideoWebPlayerClient>();
-            if (client == null) return;
+            if (client == null)
+            {
+                System.Diagnostics.Debug.WriteLine("VideoWebPlayerClient not available");
+                return;
+            }
 
-            // TODO: Implementiere API-Endpoint POST /api/playback/position
-            // Payload: { VideoId, VideoType, PositionSeconds, DurationSeconds }
+            await client.ReportPlaybackProgressAsync(
+                videoType,
+                videoId,
+                (long)positionSeconds,
+                (long)durationSeconds
+            );
             
-            System.Diagnostics.Debug.WriteLine($"Sending position to server: {positionSeconds}s / {durationSeconds}s for {videoType} {videoId}");
+            System.Diagnostics.Debug.WriteLine($"Successfully sent position to server: {positionSeconds}s / {durationSeconds}s for {videoType} {videoId}");
         }
         catch (Exception ex)
         {

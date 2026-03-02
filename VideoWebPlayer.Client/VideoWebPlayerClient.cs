@@ -12,6 +12,11 @@ namespace VideoWebPlayer.Client
     public class VideoWebPlayerClient
     {
         private readonly HttpClient httpClient;
+        
+        /// <summary>
+        /// Event wird ausgelöst, wenn ein 401 Unauthorized empfangen wird (Token abgelaufen).
+        /// </summary>
+        public event EventHandler? UnauthorizedReceived;
 
         public VideoWebPlayerClient(HttpClient httpClient, ILogger<VideoWebPlayerClient> logger)
         {
@@ -22,6 +27,15 @@ namespace VideoWebPlayer.Client
         protected virtual async Task<T> HttpGetAsync<T>(string endPoint)
         {
             var response = await httpClient.GetAsync(endPoint);
+            
+            // Prüfe auf 401 Unauthorized
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                Logger?.LogWarning("Received 401 Unauthorized from {EndPoint}. Token might be expired.", endPoint);
+                UnauthorizedReceived?.Invoke(this, EventArgs.Empty);
+                throw new HttpRequestException($"Unauthorized: {endPoint}");
+            }
+            
             var content = await response.Content.ReadAsStringAsync();
             if (!response.IsSuccessStatusCode)
                 throw new HttpRequestException($"Failed to GET from {endPoint}: {response.ReasonPhrase}");
@@ -34,6 +48,15 @@ namespace VideoWebPlayer.Client
         protected virtual async Task<T> HttpPostAsync<T>(string endPoint, HttpContent args)
         {
             var response = await httpClient.PostAsync(endPoint, args);
+            
+            // Prüfe auf 401 Unauthorized
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                Logger?.LogWarning("Received 401 Unauthorized from {EndPoint}. Token might be expired.", endPoint);
+                UnauthorizedReceived?.Invoke(this, EventArgs.Empty);
+                throw new HttpRequestException($"Unauthorized: {endPoint}");
+            }
+            
             var content = await response.Content.ReadAsStringAsync();
             if (!response.IsSuccessStatusCode)
                 throw new HttpRequestException($"Failed to POST from {endPoint}: {response.ReasonPhrase}");
@@ -185,6 +208,39 @@ namespace VideoWebPlayer.Client
             return await HttpGetAsync<DtoTVShow>($"api/items/tvshow/{id}");
         }
         
+        #endregion
+        
+        #region Continue Watching
+        /// <summary>
+        /// Gets the current user's continue-watching list.
+        /// </summary>
+        public async Task<List<ContinueWatchingDto>> GetContinueWatchingAsync()
+        {
+            return await HttpGetAsync<List<ContinueWatchingDto>>("api/continue-watching");
+        }
+        
+        /// <summary>
+        /// Reports playback progress for the current user.
+        /// </summary>
+        public async Task ReportPlaybackProgressAsync(string mediaType, long mediaId, long positionSeconds, long durationSeconds)
+        {
+            var payload = new
+            {
+                MediaType = mediaType,
+                MediaId = mediaId,
+                PositionSeconds = positionSeconds,
+                DurationSeconds = durationSeconds
+            };
+            
+            var json = System.Text.Json.JsonSerializer.Serialize(payload);
+            var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+            
+            var response = await httpClient.PostAsync("api/continue-watching/progress", content);
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new HttpRequestException($"Failed to report progress: {response.ReasonPhrase}");
+            }
+        }
         #endregion
     }
 }

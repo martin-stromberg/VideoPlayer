@@ -45,7 +45,8 @@
                                           IsVisible="False"
                                           ShouldAutoPlay="True"
                                           ShouldShowPlaybackControls="True"
-                                          StateChanged="OnMediaStateChanged" />
+                                          StateChanged="OnMediaStateChanged"
+                                          MediaFailed="OnMediaFailed" />
                         
                         <!-- Play Button (verborgen wenn Video läuft) -->
                         <Border x:Name="PlayButton"
@@ -74,16 +75,32 @@
                                    VerticalOptions="Center"
                                    Margin="5,0,0,0" />
                         </Border>
+                        
+                        <!-- Fehlermeldung (unten im Banner) -->
+                        <Label x:Name="ErrorLabel"
+                               IsVisible="False"
+                               BackgroundColor="#D32F2F"
+                               TextColor="White"
+                               Padding="10"
+                               FontSize="12"
+                               LineBreakMode="WordWrap"
+                               VerticalOptions="End"
+                               HorizontalOptions="Fill" />
                     </Grid>
                 </Border>
                 <StackLayout Orientation="Horizontal" Spacing="10">
                     <Label Text="{Binding ReleaseYear}" FontSize="14" TextColor="#333333" FontAttributes="Bold" IsVisible="{Binding ReleaseYear, Converter={StaticResource IsNotNullConverter}}" />
                     <Label Text="|" FontSize="14" TextColor="#333333" IsVisible="{Binding ReleaseYear, Converter={StaticResource IsNotNullConverter}}" />
                     <Label Text="{Binding GenreNames}" FontSize="14" TextColor="#333333" FontAttributes="Bold" />
+                    <Label Text="|" FontSize="14" TextColor="#333333" IsVisible="{Binding SelectedEpisodeName, Converter={StaticResource IsNotNullConverter}}" />
+                    <Label Text="{Binding SelectedEpisodeName}" FontSize="14" TextColor="#333333" FontAttributes="Bold" IsVisible="{Binding SelectedEpisodeName, Converter={StaticResource IsNotNullConverter}}" />
                 </StackLayout>
                 <Label Text="{Binding Plot}" FontSize="14" TextColor="#555555" LineBreakMode="WordWrap" />
                 <Picker Title="Staffel wählen" ItemsSource="{Binding Seasons}" ItemDisplayBinding="{Binding Name}" SelectedIndex="{Binding SelectedSeasonIndex}" TitleColor="#000000" TextColor="#FFDDAA" BackgroundColor="#23232a" />
-                <CollectionView ItemsSource="{Binding Episodes}" SelectionMode="Single">
+                <CollectionView ItemsSource="{Binding Episodes}" 
+                                SelectionMode="Single"
+                                SelectedItem="{Binding SelectedEpisode}"
+                                SelectionChanged="OnEpisodeSelectionChanged">
                     <CollectionView.ItemsLayout>
                         <LinearItemsLayout Orientation="Vertical" ItemSpacing="5" />
                     </CollectionView.ItemsLayout>

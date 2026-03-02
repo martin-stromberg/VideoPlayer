@@ -46,7 +46,8 @@
                                           IsVisible="False"
                                           ShouldAutoPlay="True"
                                           ShouldShowPlaybackControls="True"
-                                          StateChanged="OnMediaStateChanged" />
+                                          StateChanged="OnMediaStateChanged"
+                                          MediaFailed="OnMediaFailed" />
                         
                         <!-- Play Button (verborgen wenn Video läuft, nur wenn Film ausgewählt) -->
                         <Border x:Name="PlayButton"
@@ -76,6 +77,17 @@
                                    VerticalOptions="Center"
                                    Margin="5,0,0,0" />
                         </Border>
+                        
+                        <!-- Fehlermeldung (unten im Banner) -->
+                        <Label x:Name="ErrorLabel"
+                               IsVisible="False"
+                               BackgroundColor="#D32F2F"
+                               TextColor="White"
+                               Padding="10"
+                               FontSize="12"
+                               LineBreakMode="WordWrap"
+                               VerticalOptions="End"
+                               HorizontalOptions="Fill" />
                     </Grid>
                 </Border>
 

@@ -36,7 +36,6 @@ public partial class LoginPage : ContentPage
         var ok = await _auth.LoginAsync(user!, pass!);
         if (ok)
         {
-            _auth.SaveCredentials(user!, pass!);
             await Navigation.PopModalAsync();
         }
         else

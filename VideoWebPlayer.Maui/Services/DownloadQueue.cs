@@ -184,6 +184,20 @@ public class DownloadTask
     public string LocalFilePath { get; set; } = string.Empty;
     public DownloadRetentionType RetentionType { get; set; }
     public DateTime ExpiresAt { get; set; }
+    
+    // Video-Metadaten
+    public string? Plot { get; set; }
+    public string? GenreNames { get; set; }
+    public string? ReleaseYear { get; set; }
+    
+    // Episode-Informationen
+    public int? EpisodeNumber { get; set; }
+    public int? SeasonNumber { get; set; }
+    public string? TVShowName { get; set; }
+    
+    // Bild-URLs (Server)
+    public string? PosterImageUrl { get; set; }
+    public string? BannerImageUrl { get; set; }
 }
 
 public class DownloadProgressEventArgs : EventArgs

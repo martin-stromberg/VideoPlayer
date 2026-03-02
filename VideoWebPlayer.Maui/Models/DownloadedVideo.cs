@@ -28,6 +28,20 @@ public class DownloadedVideo
     
     public string Title { get; set; } = string.Empty;
     
+    // Video-Informationen
+    public string? Plot { get; set; }
+    public string? GenreNames { get; set; }
+    public string? ReleaseYear { get; set; }
+    
+    // Episode-spezifische Informationen
+    public int? EpisodeNumber { get; set; }
+    public int? SeasonNumber { get; set; }
+    public string? TVShowName { get; set; }
+    
+    // Lokale Bild-Pfade
+    public string? LocalPosterImagePath { get; set; }
+    public string? LocalBannerImagePath { get; set; }
+    
     public long? MovieId { get; set; }
     
     public long? EpisodeId { get; set; }

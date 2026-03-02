@@ -41,6 +41,14 @@ public class MauiVideoWebPlayerClient : VideoWebPlayerClient
             _logger?.LogWarning(ex, "Fehler beim Laden des Authorization Token aus Preferences.");
         }
     }
+    
+    /// <summary>
+    /// Lädt den Token neu aus Preferences (z.B. nach Login).
+    /// </summary>
+    public void ReloadAuthToken()
+    {
+        LoadAuthTokenFromPreferences();
+    }
 
     /// <summary>
     /// Überschreibt SetAuthorizationToken, um den Token auch in Preferences zu speichern.

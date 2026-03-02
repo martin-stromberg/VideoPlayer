@@ -23,9 +23,48 @@ public class TVShowDetailsViewModel : INotifyPropertyChanged
     private ImageSource? _displayBannerSource;
     private Color _displayBannerBackgroundColor = Colors.Transparent;
     private int _selectedSeasonIndex = -1;
+    private TVShowEpisodeViewModel? _selectedEpisode;
     private bool _isInitialLoad = true;
+    private string? _selectedEpisodeName;
 
     public long TVShowId { get; }
+
+    public TVShowEpisodeViewModel? SelectedEpisode
+    {
+        get => _selectedEpisode;
+        set
+        {
+            if (_selectedEpisode != value)
+            {
+                _selectedEpisode = value;
+                OnPropertyChanged();
+                
+                // Wenn Episode ausgewählt, lade Episode-Banner und -Informationen
+                if (_selectedEpisode != null && !_isInitialLoad)
+                {
+                    _ = LoadEpisodeBannerAndInfoAsync(_selectedEpisode);
+                }
+                else if (_selectedEpisode == null)
+                {
+                    // Keine Episode ausgewählt → Episode-Name löschen
+                    SelectedEpisodeName = null;
+                }
+            }
+        }
+    }
+    
+    public string? SelectedEpisodeName
+    {
+        get => _selectedEpisodeName;
+        set
+        {
+            if (_selectedEpisodeName != value)
+            {
+                _selectedEpisodeName = value;
+                OnPropertyChanged();
+            }
+        }
+    }
 
     public string? Title
     {
@@ -131,10 +170,14 @@ public class TVShowDetailsViewModel : INotifyPropertyChanged
                 OnPropertyChanged(nameof(SelectedSeason));
                 OnPropertyChanged(nameof(Episodes));
                 
-                // Wenn nicht der initiale Load und Index ändert sich, lade Season Banner
+                // Wenn nicht der initiale Load und Index ändert sich
                 if (!_isInitialLoad && oldIndex != -1)
                 {
-                    _ = LoadSeasonBannerAsync();
+                    // Wähle automatisch erste Episode der neuen Staffel aus
+                    if (Episodes.Count > 0)
+                    {
+                        SelectedEpisode = Episodes[0];
+                    }
                 }
             }
         }
@@ -380,6 +423,45 @@ public class TVShowDetailsViewModel : INotifyPropertyChanged
             {
                 DisplayBannerSource = _showBannerSource;
             });
+        }
+    }
+    
+    private async Task LoadEpisodeBannerAndInfoAsync(TVShowEpisodeViewModel episode)
+    {
+        try
+        {
+            // Aktualisiere Plot und Episode-Name
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                Plot = episode.Plot;
+                SelectedEpisodeName = episode.EpisodeNumber > 0 
+                    ? $"E{episode.EpisodeNumber:D2}: {episode.Title}" 
+                    : episode.Title;
+            });
+            
+            // Lade Episode Banner (wenn vorhanden, sonst Season/Show Banner)
+            if (!string.IsNullOrEmpty(episode.ImageUrl) && _httpClient != null)
+            {
+                var imageBytes = await _httpClient.GetByteArrayAsync(episode.ImageUrl);
+                
+                // Extrahiere erste Pixel-Farbe
+                var backgroundColor = await ExtractFirstPixelColorAsync(imageBytes);
+                
+                var imageSource = new StreamImageSource
+                {
+                    Stream = (token) => Task.FromResult((Stream)new MemoryStream(imageBytes))
+                };
+
+                await MainThread.InvokeOnMainThreadAsync(() =>
+                {
+                    DisplayBannerSource = imageSource;
+                    DisplayBannerBackgroundColor = backgroundColor;
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading episode banner: {ex.Message}");
         }
     }
 

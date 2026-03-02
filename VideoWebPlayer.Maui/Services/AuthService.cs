@@ -14,9 +14,16 @@ public class AuthService : IAuthService
 
     public bool HasCredentials()
     {
-        var u = Preferences.Default.Get(UserKey, string.Empty);
-        var p = Preferences.Default.Get(PasswordKey, string.Empty);
-        return !string.IsNullOrWhiteSpace(u) && !string.IsNullOrWhiteSpace(p);
+        var username = Preferences.Default.Get(UserKey, string.Empty);
+        var password = Preferences.Default.Get(PasswordKey, string.Empty);
+        return !string.IsNullOrWhiteSpace(username) && !string.IsNullOrWhiteSpace(password);
+    }
+    
+    public (string username, string password) GetCredentials()
+    {
+        var username = Preferences.Default.Get(UserKey, string.Empty);
+        var password = Preferences.Default.Get(PasswordKey, string.Empty);
+        return (username, password);
     }
 
     public void SaveCredentials(string username, string password)
@@ -40,24 +47,35 @@ public class AuthService : IAuthService
 
         try
         {
-            var httpClient = new HttpClient { BaseAddress = new Uri(serverAddress) };
-            httpClient.DefaultRequestHeaders.Add("X-API-Key", ApiToken);
-            
-            var logger = new Microsoft.Extensions.Logging.Abstractions.NullLogger<VideoWebPlayerClient>();
-            
-            var client = new VideoWebPlayerClient(httpClient, logger);
+            // Verwende den DI-registrierten MauiVideoWebPlayerClient
+            var client = App.ServiceProvider?.GetService<VideoWebPlayerClient>();
+            if (client == null)
+            {
+                // Fallback: Erstelle temporären Client für Login
+                var httpClient = new HttpClient { BaseAddress = new Uri(serverAddress) };
+                httpClient.DefaultRequestHeaders.Add("X-API-Key", ApiToken);
+                var logger = new Microsoft.Extensions.Logging.Abstractions.NullLogger<VideoWebPlayerClient>();
+                client = new VideoWebPlayerClient(httpClient, logger);
+            }
             
             var token = await client.AuthenticateAsync(username, password);
             if (token != null && !string.IsNullOrWhiteSpace(token.token))
             {
                 Preferences.Default.Set(TokenKey, token.token);
+                
+                // Lade Token neu in den DI-Client
+                if (client is MauiVideoWebPlayerClient mauiClient)
+                {
+                    mauiClient.ReloadAuthToken();
+                }
+                
                 SaveCredentials(username, password);
                 return true;
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // ignore, login failed
+            System.Diagnostics.Debug.WriteLine($"Login failed: {ex.Message}");
         }
         return false;
     }

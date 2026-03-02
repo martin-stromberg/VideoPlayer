@@ -59,8 +59,89 @@ namespace VideoWebPlayer.Maui
 
         public void InitializeAfterServices(IServiceProvider services)
         {
-            // Do NOT set Application.Current.MainPage here!
-            // All navigation must use the returned Window/Page
+            // Registriere Handler für abgelaufene Tokens
+            var client = services.GetService<VideoWebPlayer.Client.VideoWebPlayerClient>();
+            if (client != null)
+            {
+                client.UnauthorizedReceived += OnUnauthorizedReceived;
+            }
+        }
+        
+        private async void OnUnauthorizedReceived(object? sender, EventArgs e)
+        {
+            System.Diagnostics.Debug.WriteLine("Token expired - attempting re-authentication");
+            
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                try
+                {
+                    var authService = ServiceProvider?.GetService<Services.IAuthService>();
+                    var settingsService = ServiceProvider?.GetService<Services.ISettingsService>();
+                    
+                    if (authService == null || settingsService == null)
+                        return;
+                    
+                    // Versuche Auto-Login mit gespeicherten Credentials
+                    if (authService.HasCredentials())
+                    {
+                        var credentials = authService.GetCredentials();
+                        var serverAddress = settingsService.ServerAddress;
+                        
+                        if (!string.IsNullOrWhiteSpace(serverAddress))
+                        {
+                            Preferences.Default.Set("ServerAddress", serverAddress);
+                        }
+                        
+                        var success = await authService.LoginAsync(credentials.username, credentials.password);
+                        
+                        if (success)
+                        {
+                            System.Diagnostics.Debug.WriteLine("Re-authentication successful");
+                            return; // Erfolgreich re-authenticated
+                        }
+                    }
+                    
+                    // Re-Authentication fehlgeschlagen -> Offline-Modus
+                    System.Diagnostics.Debug.WriteLine("Re-authentication failed - switching to offline mode");
+                    await SwitchToOfflineModeAsync();
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error during re-authentication: {ex.Message}");
+                    await SwitchToOfflineModeAsync();
+                }
+            });
+        }
+        
+        private async Task SwitchToOfflineModeAsync()
+        {
+            try
+            {
+                var homePage = ServiceProvider?.GetService<HomePage>() ?? new HomePage();
+                
+                if (homePage.BindingContext is ViewModels.HomePageViewModel homeViewModel)
+                {
+                    homeViewModel.SetOfflineMode(true);
+                }
+                
+                if (Current?.Windows.Count > 0)
+                {
+                    Current.Windows[0].Page = new NavigationPage(homePage);
+                }
+                
+                // Zeige Benachrichtigung
+                if (Current?.MainPage != null)
+                {
+                    await Current.MainPage.DisplayAlert(
+                        "Offline-Modus", 
+                        "Die Sitzung ist abgelaufen und die erneute Anmeldung ist fehlgeschlagen. Die App läuft jetzt im Offline-Modus.", 
+                        "OK");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error switching to offline mode: {ex.Message}");
+            }
         }
     }
 }

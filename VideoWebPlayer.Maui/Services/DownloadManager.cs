@@ -1,6 +1,7 @@
 using SQLite;
 using VideoWebPlayer.Maui.Models;
 using VideoWebPlayer.Client;
+using VideoWebPlayer.Client.Models;
 
 namespace VideoWebPlayer.Maui.Services;
 
@@ -95,13 +96,30 @@ public class DownloadManager
     {
         try
         {
-            // Hole Resume-Position vom Server (Continue-Watching API)
             var client = App.ServiceProvider?.GetService<VideoWebPlayerClient>();
-            if (client == null) return null;
+            if (client == null)
+            {
+                System.Diagnostics.Debug.WriteLine("VideoWebPlayerClient not available");
+                return null;
+            }
             
-            // API-Call zum Holen der Position
-            // TODO: Implementiere API-Endpoint /api/playback/position/{videoType}/{videoId}
-            // Für jetzt: Return null (wird später implementiert)
+            // Hole Continue-Watching Liste
+            var entries = await client.GetContinueWatchingAsync();
+            if (entries == null || entries.Count == 0)
+                return null;
+            
+            // Suche nach passendem Eintrag basierend auf MediaType und Entry.Id
+            var entry = entries.FirstOrDefault(e => 
+                e.MediaType.Equals(videoType, StringComparison.OrdinalIgnoreCase) && 
+                e.Entry?.Id == videoId
+            );
+            
+            if (entry != null && entry.PositionSeconds > 0)
+            {
+                System.Diagnostics.Debug.WriteLine($"Found resume position from server: {entry.PositionSeconds}s for {videoType} {videoId}");
+                return TimeSpan.FromSeconds(entry.PositionSeconds);
+            }
+            
             return null;
         }
         catch (Exception ex)
@@ -109,6 +127,15 @@ public class DownloadManager
             System.Diagnostics.Debug.WriteLine($"Error fetching resume position from server: {ex.Message}");
             return null;
         }
+    }
+    
+    // Helper-Klasse für Deserialisierung
+    private class ContinueWatchingEntry
+    {
+        public long? MovieId { get; set; }
+        public long? EpisodeId { get; set; }
+        public long PositionSeconds { get; set; }
+        public long DurationSeconds { get; set; }
     }
     
     private string BuildStreamUrl(long videoId, string videoType)
@@ -125,13 +152,17 @@ public class DownloadManager
         var authToken = Preferences.Default.Get("AuthToken", string.Empty);
         
         string streamUrl;
-        if (videoType == "Movie")
+        if (videoType.Equals(MediaTypes.Movie, StringComparison.OrdinalIgnoreCase))
         {
-            streamUrl = $"{serverAddress}/api/items/movie/{videoId}/stream";
+            streamUrl = $"{serverAddress}/api/items/{videoType}/{videoId}/stream";
         }
-        else // Episode
+        else if (videoType.Equals(MediaTypes.Episode, StringComparison.OrdinalIgnoreCase))
         {
-            streamUrl = $"{serverAddress}/api/items/episode/{videoId}/stream";
+            streamUrl = $"{serverAddress}/api/items/{videoType}/{videoId}/stream";
+        }
+        else
+        {
+            throw new ArgumentException($"Unknown video type: {videoType}", nameof(videoType));
         }
         
         // Füge Auth-Token als Query-Parameter hinzu (falls vorhanden)
@@ -184,6 +215,10 @@ public class DownloadManager
             : DateTime.Now.AddDays(7);
         
         var streamUrl = BuildStreamUrl(request.VideoId, request.VideoType);
+        
+        // Lade Metadaten vom Server
+        var metadata = await FetchVideoMetadataAsync(request.VideoId, request.VideoType);
+        
         var downloadTask = new DownloadTask
         {
             VideoId = request.VideoId,
@@ -192,11 +227,102 @@ public class DownloadManager
             StreamUrl = streamUrl,
             LocalFilePath = localPath,
             RetentionType = retentionType,
-            ExpiresAt = expiresAt
+            ExpiresAt = expiresAt,
+            Plot = metadata?.Plot,
+            GenreNames = metadata?.GenreNames,
+            ReleaseYear = metadata?.ReleaseYear,
+            EpisodeNumber = metadata?.EpisodeNumber,
+            SeasonNumber = metadata?.SeasonNumber,
+            TVShowName = metadata?.TVShowName,
+            PosterImageUrl = metadata?.PosterImageUrl,
+            BannerImageUrl = metadata?.BannerImageUrl
         };
         
         // Zur Queue hinzufügen (nur Arbeitsspeicher)
         DownloadQueue.Instance.EnqueueDownload(downloadTask);
+    }
+    
+    private async Task<VideoMetadata?> FetchVideoMetadataAsync(long videoId, string videoType)
+    {
+        try
+        {
+            var client = App.ServiceProvider?.GetService<VideoWebPlayerClient>();
+            if (client == null)
+            {
+                System.Diagnostics.Debug.WriteLine("VideoWebPlayerClient not available");
+                return null;
+            }
+            
+            var serverAddress = Preferences.Default.Get("ServerAddress", string.Empty);
+            if (string.IsNullOrWhiteSpace(serverAddress))
+                return null;
+            
+            if (!serverAddress.StartsWith("http"))
+            {
+                serverAddress = $"http://{serverAddress}";
+            }
+            serverAddress = serverAddress.TrimEnd('/');
+            
+            var metadata = new VideoMetadata();
+            
+            if (videoType.Equals(MediaTypes.Movie, StringComparison.OrdinalIgnoreCase))
+            {
+                // Lade Movie Collection Details
+                var movieCollection = await client.RequestMovieCollectionAsync(videoId) as dynamic;
+                if (movieCollection != null)
+                {
+                    try
+                    {
+                        metadata.Plot = movieCollection.Plot;
+                        metadata.GenreNames = movieCollection.GenreNames;
+                        
+                        if (movieCollection.ReleaseDate != null)
+                        {
+                            metadata.ReleaseYear = movieCollection.ReleaseDate?.Year.ToString();
+                        }
+                        
+                        if (movieCollection.PosterPictureId != null)
+                        {
+                            metadata.PosterImageUrl = $"{serverAddress}/api/pictures/{movieCollection.PosterPictureId}";
+                        }
+                        if (movieCollection.BannerPictureId != null)
+                        {
+                            metadata.BannerImageUrl = $"{serverAddress}/api/pictures/{movieCollection.BannerPictureId}";
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Error accessing movie collection properties: {ex.Message}");
+                    }
+                }
+            }
+            else if (videoType.Equals(MediaTypes.Episode, StringComparison.OrdinalIgnoreCase))
+            {
+                // Für Episode müssen wir die TV Show laden um an die Episode-Details zu kommen
+                // Das ist komplexer, da wir erst die TVShow-ID benötigen
+                // TODO: Implementiere Episode-Metadaten-Abruf
+                System.Diagnostics.Debug.WriteLine("Episode metadata fetch not yet implemented");
+            }
+            
+            return metadata;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error fetching video metadata: {ex.Message}");
+            return null;
+        }
+    }
+    
+    private class VideoMetadata
+    {
+        public string? Plot { get; set; }
+        public string? GenreNames { get; set; }
+        public string? ReleaseYear { get; set; }
+        public int? EpisodeNumber { get; set; }
+        public int? SeasonNumber { get; set; }
+        public string? TVShowName { get; set; }
+        public string? PosterImageUrl { get; set; }
+        public string? BannerImageUrl { get; set; }
     }
     
     public async Task SaveCompletedDownloadAsync(DownloadTask task, long fileSizeBytes)
@@ -204,6 +330,23 @@ public class DownloadManager
         await _dbLock.WaitAsync();
         try
         {
+            // Lade und speichere Bilder lokal
+            string? localPosterPath = null;
+            string? localBannerPath = null;
+            
+            var imagesDirectory = Path.Combine(FileSystem.AppDataDirectory, "images");
+            Directory.CreateDirectory(imagesDirectory);
+            
+            if (!string.IsNullOrEmpty(task.PosterImageUrl))
+            {
+                localPosterPath = await DownloadImageAsync(task.PosterImageUrl, imagesDirectory, $"poster_{task.VideoType}_{task.VideoId}");
+            }
+            
+            if (!string.IsNullOrEmpty(task.BannerImageUrl))
+            {
+                localBannerPath = await DownloadImageAsync(task.BannerImageUrl, imagesDirectory, $"banner_{task.VideoType}_{task.VideoId}");
+            }
+            
             var download = new DownloadedVideo
             {
                 VideoId = task.VideoId,
@@ -217,15 +360,59 @@ public class DownloadManager
                 Status = DownloadStatus.Completed,
                 ProgressPercent = 100,
                 PlaybackPositionSeconds = 0,
-                DurationSeconds = 0
+                DurationSeconds = 0,
+                Plot = task.Plot,
+                GenreNames = task.GenreNames,
+                ReleaseYear = task.ReleaseYear,
+                EpisodeNumber = task.EpisodeNumber,
+                SeasonNumber = task.SeasonNumber,
+                TVShowName = task.TVShowName,
+                LocalPosterImagePath = localPosterPath,
+                LocalBannerImagePath = localBannerPath
             };
             
             await _database.InsertAsync(download);
-            System.Diagnostics.Debug.WriteLine($"Saved completed download to database: {task.Title}");
+            System.Diagnostics.Debug.WriteLine($"Saved completed download to database with metadata: {task.Title}");
         }
         finally
         {
             _dbLock.Release();
+        }
+    }
+    
+    private async Task<string?> DownloadImageAsync(string imageUrl, string directory, string baseFileName)
+    {
+        try
+        {
+            using var httpClient = new HttpClient();
+            var token = Preferences.Default.Get("AuthToken", string.Empty);
+            if (!string.IsNullOrEmpty(token))
+            {
+                httpClient.DefaultRequestHeaders.Authorization = 
+                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            }
+            
+            var imageBytes = await httpClient.GetByteArrayAsync(imageUrl);
+            
+            // Bestimme Dateiendung aus URL oder Content-Type
+            var extension = Path.GetExtension(imageUrl);
+            if (string.IsNullOrEmpty(extension) || extension.Contains('?'))
+            {
+                extension = ".jpg"; // Default
+            }
+            
+            var fileName = $"{baseFileName}{extension}";
+            var localPath = Path.Combine(directory, fileName);
+            
+            await File.WriteAllBytesAsync(localPath, imageBytes);
+            
+            System.Diagnostics.Debug.WriteLine($"Downloaded image to: {localPath}");
+            return localPath;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error downloading image {imageUrl}: {ex.Message}");
+            return null;
         }
     }
     
@@ -273,9 +460,22 @@ public class DownloadManager
             {
                 try
                 {
+                    // Lösche Video-Datei
                     if (File.Exists(download.LocalFilePath))
                     {
                         File.Delete(download.LocalFilePath);
+                    }
+                    
+                    // Lösche Poster-Bild
+                    if (!string.IsNullOrEmpty(download.LocalPosterImagePath) && File.Exists(download.LocalPosterImagePath))
+                    {
+                        File.Delete(download.LocalPosterImagePath);
+                    }
+                    
+                    // Lösche Banner-Bild
+                    if (!string.IsNullOrEmpty(download.LocalBannerImagePath) && File.Exists(download.LocalBannerImagePath))
+                    {
+                        File.Delete(download.LocalBannerImagePath);
                     }
                     
                     await _database.DeleteAsync(download);

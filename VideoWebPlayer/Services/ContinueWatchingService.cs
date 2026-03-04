@@ -1,10 +1,8 @@
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Data;
-using VideoWebPlayer.Hubs;
 
 namespace VideoWebPlayer.Services
 {
@@ -20,7 +18,7 @@ namespace VideoWebPlayer.Services
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly ILogger<ContinueWatchingService> _logger;
         private readonly ContinueWatchingBuffer _buffer;
-        private readonly IHubContext<MediaUpdateHub> _hubContext;
+        private readonly MediaUpdateNotificationService _notificationService;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="ContinueWatchingService"/> class.
@@ -29,18 +27,18 @@ namespace VideoWebPlayer.Services
         /// <param name="userManager">User manager for identity lookups.</param>
         /// <param name="logger">Logger instance.</param>
         /// <param name="buffer">In-memory buffer for progress entries.</param>
-        /// <param name="hubContext">SignalR hub context for push notifications.</param>
+        /// <param name="notificationService">Service for sending SignalR notifications.</param>
         public ContinueWatchingService(ApplicationDbContext db,
                                        UserManager<ApplicationUser> userManager,
                                        ILogger<ContinueWatchingService> logger,
                                        ContinueWatchingBuffer buffer,
-                                       IHubContext<MediaUpdateHub> hubContext)
+                                       MediaUpdateNotificationService notificationService)
         {
             _db = db;
             _userManager = userManager;
             _logger = logger;
             _buffer = buffer;
-            _hubContext = hubContext;
+            _notificationService = notificationService;
         }
 
         /// <summary>
@@ -218,17 +216,7 @@ namespace VideoWebPlayer.Services
             await _db.SaveChangesAsync(ct);
 
             // Sende SignalR-Update an User
-            try
-            {
-                //await _hubContext.Clients.All.SendAsync("ContinueWatchingUpdated", cancellationToken: ct);
-                await _hubContext.Clients.User(userId)
-                    .SendAsync("ContinueWatchingUpdated", cancellationToken: ct);
-                _logger.LogInformation("SignalR: ContinueWatchingUpdated sent to user {UserId}", userId);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to send SignalR update for ContinueWatchingUpdated");
-            }
+            await _notificationService.NotifyContinueWatchingUpdatedAsync(userId, ct);
         }
 
         private async Task RemoveExistingTVShowEntry(string userId, long? nextEpisodeId, CancellationToken ct)

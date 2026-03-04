@@ -3,13 +3,14 @@ using Microsoft.Maui.Storage;
 using VideoWebPlayer.Client;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Maui.ViewModels;
+using VideoWebPlayer.Maui.Services.Events;
 
 namespace VideoWebPlayer.Maui;
 
 public partial class HomePage : ContentPage
 {
     private readonly HomePageViewModel _viewModel;
-    private readonly Services.SignalRService? _signalRService;
+    private readonly ISubscribeNotificationEvent? _eventSubscriber;
 
     public HomePage()
     {
@@ -17,15 +18,17 @@ public partial class HomePage : ContentPage
         _viewModel = new HomePageViewModel();
         BindingContext = _viewModel;
         
-        // Registriere SignalR Event-Handler
-        _signalRService = App.ServiceProvider?.GetService<Services.SignalRService>();
-        if (_signalRService != null)
+        // Subscribe to notification events
+        _eventSubscriber = App.ServiceProvider?.GetService<ISubscribeNotificationEvent>();
+        if (_eventSubscriber != null)
         {
-            _signalRService.ContinueWatchingUpdated += OnContinueWatchingUpdated;
-            _signalRService.FavoritesChanged += OnFavoritesChanged;
-            _signalRService.NewVideosScanned += OnNewVideosScanned;
+            _eventSubscriber.Subscribe<ContinueWatchingUpdatedEvent>(OnContinueWatchingUpdated);
+            _eventSubscriber.Subscribe<FavoritesChangedEvent>(OnFavoritesChanged);
+            _eventSubscriber.Subscribe<NewVideosScannedEvent>(OnNewVideosScanned);
+            _eventSubscriber.Subscribe<DownloadCompletedEvent>(OnDownloadCompleted);
+            _eventSubscriber.Subscribe<DownloadDeletedEvent>(OnDownloadDeleted);
             
-            System.Diagnostics.Debug.WriteLine("[HomePage] SignalR event handlers registered");
+            System.Diagnostics.Debug.WriteLine("[HomePage] Subscribed to notification events");
         }
     }
 
@@ -55,7 +58,7 @@ public partial class HomePage : ContentPage
         {
             System.Diagnostics.Debug.WriteLine($"[HomePage] Error in OnAppearing: {ex.Message}");
             System.Diagnostics.Debug.WriteLine($"[HomePage] Stack trace: {ex.StackTrace}");
-            await DisplayAlertAsync("Fehler", $"Daten konnten nicht geladen werden: {ex.Message}", "OK");
+            await DisplayAlert("Fehler", $"Daten konnten nicht geladen werden: {ex.Message}", "OK");
         }
     }
 
@@ -89,9 +92,9 @@ public partial class HomePage : ContentPage
         }
     }
     
-    private async void OnContinueWatchingUpdated(object? sender, EventArgs e)
+    private async void OnContinueWatchingUpdated(ContinueWatchingUpdatedEvent e)
     {
-        System.Diagnostics.Debug.WriteLine("[HomePage] SignalR: Continue-Watching updated - refreshing list");
+        System.Diagnostics.Debug.WriteLine("[HomePage] Event: Continue-Watching updated - refreshing list");
         
         await MainThread.InvokeOnMainThreadAsync(async () =>
         {
@@ -106,9 +109,9 @@ public partial class HomePage : ContentPage
         });
     }
     
-    private async void OnFavoritesChanged(object? sender, EventArgs e)
+    private async void OnFavoritesChanged(FavoritesChangedEvent e)
     {
-        System.Diagnostics.Debug.WriteLine("[HomePage] SignalR: Favorites changed - refreshing list");
+        System.Diagnostics.Debug.WriteLine("[HomePage] Event: Favorites changed - refreshing list");
         
         await MainThread.InvokeOnMainThreadAsync(async () =>
         {
@@ -123,22 +126,78 @@ public partial class HomePage : ContentPage
         });
     }
     
-    private async void OnNewVideosScanned(object? sender, Services.NewVideosScannedEventArgs e)
+    private async void OnNewVideosScanned(NewVideosScannedEvent e)
     {
-        System.Diagnostics.Debug.WriteLine($"[HomePage] SignalR: New videos scanned (Source {e.SourceId}, Count {e.Count}) - refreshing recent entries");
+        System.Diagnostics.Debug.WriteLine($"[HomePage] Event: New videos scanned (Source {e.SourceId}, Count {e.Count}) - refreshing recent entries");
         
         await MainThread.InvokeOnMainThreadAsync(async () =>
         {
             try
             {
                 await _viewModel.RefreshDataAsync();
-                
-                // Optional: Zeige Toast-Benachrichtigung
-                // await DisplayAlert("Neue Videos", $"{e.Count} neue Videos wurden gefunden!", "OK");
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[HomePage] Error refreshing recent entries: {ex.Message}");
+            }
+        });
+    }
+
+    private async void OnDownloadCompleted(DownloadCompletedEvent e)
+    {
+        System.Diagnostics.Debug.WriteLine($"[HomePage] Event: Download completed - {e.Download.Title}");
+        
+        await MainThread.InvokeOnMainThreadAsync(() =>
+        {
+            try
+            {
+                // Füge das neue Download zur Liste hinzu
+                var mediaItem = new MediaItemViewModel
+                {
+                    Title = e.Download.Title,
+                    ImageSource = !string.IsNullOrEmpty(e.Download.LocalPosterImagePath) && System.IO.File.Exists(e.Download.LocalPosterImagePath)
+                        ? ImageSource.FromFile(e.Download.LocalPosterImagePath)
+                        : ImageSource.FromFile("dotnet_bot.png"),
+                    EntryId = e.Download.VideoId,
+                    MediaType = e.Download.VideoType.Equals(Models.MediaTypes.Movie, StringComparison.OrdinalIgnoreCase) 
+                        ? Models.MediaTypes.Movie 
+                        : Models.MediaTypes.Episode
+                };
+                
+                _viewModel.Downloads.Items.Insert(0, mediaItem); // Füge am Anfang ein
+                System.Diagnostics.Debug.WriteLine($"[HomePage] Added new download to list: {e.Download.Title}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[HomePage] Error adding download: {ex.Message}");
+            }
+        });
+    }
+
+    private async void OnDownloadDeleted(DownloadDeletedEvent e)
+    {
+        System.Diagnostics.Debug.WriteLine($"[HomePage] Event: Download deleted - {e.Title}");
+        
+        await MainThread.InvokeOnMainThreadAsync(() =>
+        {
+            try
+            {
+                // Finde und entferne das Item aus der Downloads-Collection
+                var itemToRemove = _viewModel.Downloads.Items.FirstOrDefault(item =>
+                    item.EntryId == e.VideoId &&
+                    item.MediaType == (e.VideoType.Equals(Models.MediaTypes.Movie, StringComparison.OrdinalIgnoreCase)
+                        ? Models.MediaTypes.Movie
+                        : Models.MediaTypes.Episode));
+
+                if (itemToRemove != null)
+                {
+                    _viewModel.Downloads.Items.Remove(itemToRemove);
+                    System.Diagnostics.Debug.WriteLine($"[HomePage] Removed download from list: {e.Title}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[HomePage] Error removing download: {ex.Message}");
             }
         });
     }

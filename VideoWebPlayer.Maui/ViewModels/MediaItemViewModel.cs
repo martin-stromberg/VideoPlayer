@@ -1,5 +1,8 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Windows.Input;
+using VideoWebPlayer.Maui.Services;
+using VideoWebPlayer.Maui.Models;
 
 namespace VideoWebPlayer.Maui.ViewModels;
 
@@ -86,6 +89,46 @@ public class MediaItemViewModel : INotifyPropertyChanged
             {
                 _mediaType = value;
                 OnPropertyChanged();
+            }
+        }
+    }
+
+    public ICommand DeleteDownloadCommand { get; }
+
+    public MediaItemViewModel()
+    {
+        DeleteDownloadCommand = new Command(async () => await OnDeleteDownloadAsync());
+    }
+
+    private async Task OnDeleteDownloadAsync()
+    {
+        if (Application.Current?.MainPage == null)
+            return;
+
+        // Zeige Bestätigungsdialog
+        var result = await Application.Current.MainPage.DisplayAlert(
+            "Download löschen?",
+            $"'{Title}' und die lokalen Dateien werden gelöscht.",
+            "Löschen",
+            "Abbrechen");
+
+        if (result)
+        {
+            try
+            {
+                // Lösche die Download-Datei
+                await DownloadManager.Instance.DeleteDownloadAsync(
+                    EntryId ?? 0,
+                    MediaType ?? "movie");
+
+                System.Diagnostics.Debug.WriteLine($"[MediaItemViewModel] Deleted: {Title}");
+            }
+            catch (Exception ex)
+            {
+                await Application.Current?.MainPage?.DisplayAlert(
+                    "Fehler",
+                    $"Download konnte nicht gelöscht werden: {ex.Message}",
+                    "OK");
             }
         }
     }

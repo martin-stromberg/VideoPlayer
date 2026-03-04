@@ -2,6 +2,7 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:viewmodels="clr-namespace:VideoWebPlayer.Maui.ViewModels"
+             xmlns:components="clr-namespace:VideoWebPlayer.Maui.Components"
              xmlns:mct="clr-namespace:CommunityToolkit.Maui.Views;assembly=CommunityToolkit.Maui"
              x:Class="VideoWebPlayer.Maui.MovieCollectionDetailsPage"
              x:DataType="viewmodels:MovieCollectionDetailsViewModel"
@@ -30,66 +31,8 @@
         <Image Grid.Row="1" Grid.Column="2" Source="background_content_right.png" Aspect="Fill" />
         <ScrollView Grid.Row="1" Grid.Column="1">
             <VerticalStackLayout Spacing="20" Padding="20,10,20,20">
-                <!-- Banner mit Hintergrundfarbe -->
-                <Border HeightRequest="200" StrokeThickness="0" BackgroundColor="{Binding DisplayBannerBackgroundColor}">
-                    <Border.StrokeShape>
-                        <RoundRectangle CornerRadius="8" />
-                    </Border.StrokeShape>
-                    <Grid>
-                        <!-- Banner Image (verborgen wenn Video läuft) -->
-                        <Image x:Name="BannerImage"
-                               Source="{Binding DisplayBannerSource}" 
-                               Aspect="AspectFit" />
-                        
-                        <!-- Video Player (verborgen bis Play gedrückt) -->
-                        <mct:MediaElement x:Name="VideoPlayer"
-                                          IsVisible="False"
-                                          ShouldAutoPlay="True"
-                                          ShouldShowPlaybackControls="True"
-                                          StateChanged="OnMediaStateChanged"
-                                          MediaFailed="OnMediaFailed" />
-                        
-                        <!-- Play Button (verborgen wenn Video läuft, nur wenn Film ausgewählt) -->
-                        <Border x:Name="PlayButton"
-                                BackgroundColor="#FFB84D"
-                                WidthRequest="80"
-                                HeightRequest="80"
-                                HorizontalOptions="Center"
-                                VerticalOptions="Center"
-                                Opacity="0.9"
-                                IsVisible="{Binding SelectedMovie, Converter={StaticResource IsNotNullConverter}}">
-                            <Border.StrokeShape>
-                                <RoundRectangle CornerRadius="40" />
-                            </Border.StrokeShape>
-                            <Border.Shadow>
-                                <Shadow Brush="#000000"
-                                        Offset="4,4"
-                                        Radius="8"
-                                        Opacity="0.5" />
-                            </Border.Shadow>
-                            <Border.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="OnPlayTapped" />
-                            </Border.GestureRecognizers>
-                            <Label Text="▶"
-                                   FontSize="40"
-                                   TextColor="#000000"
-                                   HorizontalOptions="Center"
-                                   VerticalOptions="Center"
-                                   Margin="5,0,0,0" />
-                        </Border>
-                        
-                        <!-- Fehlermeldung (unten im Banner) -->
-                        <Label x:Name="ErrorLabel"
-                               IsVisible="False"
-                               BackgroundColor="#D32F2F"
-                               TextColor="White"
-                               Padding="10"
-                               FontSize="12"
-                               LineBreakMode="WordWrap"
-                               VerticalOptions="End"
-                               HorizontalOptions="Fill" />
-                    </Grid>
-                </Border>
+                <!-- MediaBannerPlayer Component -->
+                <components:MediaBannerPlayer />
 
                 <!-- Film Details (nur wenn ein Film ausgewählt ist) -->
                 <VerticalStackLayout Spacing="10" IsVisible="{Binding SelectedMovie, Converter={StaticResource IsNotNullConverter}}">
@@ -140,6 +83,10 @@
         <Image Grid.Row="2" Grid.Column="0" Source="background_footer_left.png" Aspect="Fill" />
         <Image Grid.Row="2" Grid.Column="1" Source="background_footer_middle.png" Aspect="Fill" />
         <Image Grid.Row="2" Grid.Column="2" Source="background_footer_right.png" Aspect="Fill" />
+        
+        <!-- NotificationTicker -->
+        <components:NotificationTicker Grid.Row="2" Grid.Column="1" 
+                                       Margin="20,0" />
     </Grid>
 </ContentPage>
 

@@ -5,10 +5,11 @@ using Microsoft.Maui.Storage;
 using SkiaSharp;
 using VideoWebPlayer.Client;
 using VideoWebPlayer.Client.Models;
+using VideoWebPlayer.Maui.Components;
 
 namespace VideoWebPlayer.Maui.ViewModels;
 
-public class TVShowDetailsViewModel : INotifyPropertyChanged
+public class TVShowDetailsViewModel : INotifyPropertyChanged, IMediaBannerViewModel
 {
     private readonly VideoWebPlayerClient? _client;
     private readonly HttpClient _httpClient;
@@ -23,34 +24,55 @@ public class TVShowDetailsViewModel : INotifyPropertyChanged
     private ImageSource? _displayBannerSource;
     private Color _displayBannerBackgroundColor = Colors.Transparent;
     private int _selectedSeasonIndex = -1;
+    private int _selectedEpisodeIndex = -1;
     private TVShowEpisodeViewModel? _selectedEpisode;
     private bool _isInitialLoad = true;
     private string? _selectedEpisodeName;
 
     public long TVShowId { get; }
 
-    public TVShowEpisodeViewModel? SelectedEpisode
+    public int SelectedSeasonIndex
     {
-        get => _selectedEpisode;
+        get => _selectedSeasonIndex;
         set
         {
-            if (_selectedEpisode != value)
+            if (_selectedSeasonIndex != value)
             {
-                _selectedEpisode = value;
+                _selectedSeasonIndex = value;
                 OnPropertyChanged();
                 
+                // Wenn Staffel wechselt, resetiere Episode und lade neue Staffel-Episodes
+                SelectedEpisodeIndex = -1;
+                OnPropertyChanged(nameof(Episodes));
+            }
+        }
+    }
+
+    public int SelectedEpisodeIndex
+    {
+        get => _selectedEpisodeIndex;
+        set
+        {
+            if (_selectedEpisodeIndex != value)
+            {
+                _selectedEpisodeIndex = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(SelectedEpisode));
+                
                 // Wenn Episode ausgewählt, lade Episode-Banner und -Informationen
-                if (_selectedEpisode != null && !_isInitialLoad)
+                if (SelectedEpisode != null && !_isInitialLoad)
                 {
-                    _ = LoadEpisodeBannerAndInfoAsync(_selectedEpisode);
-                }
-                else if (_selectedEpisode == null)
-                {
-                    // Keine Episode ausgewählt → Episode-Name löschen
-                    SelectedEpisodeName = null;
+                    _ = LoadEpisodeBannerAndInfoAsync(SelectedEpisode);
                 }
             }
         }
+    }
+
+    public TVShowEpisodeViewModel? SelectedEpisode
+    {
+        get => _selectedEpisodeIndex >= 0 && _selectedEpisodeIndex < Episodes.Count
+            ? Episodes[_selectedEpisodeIndex]
+            : null;
     }
     
     public string? SelectedEpisodeName
@@ -157,33 +179,8 @@ public class TVShowDetailsViewModel : INotifyPropertyChanged
         }
     }
 
-    public int SelectedSeasonIndex
-    {
-        get => _selectedSeasonIndex;
-        set
-        {
-            if (_selectedSeasonIndex != value)
-            {
-                var oldIndex = _selectedSeasonIndex;
-                _selectedSeasonIndex = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(SelectedSeason));
-                OnPropertyChanged(nameof(Episodes));
-                
-                // Wenn nicht der initiale Load und Index ändert sich
-                if (!_isInitialLoad && oldIndex != -1)
-                {
-                    // Wähle automatisch erste Episode der neuen Staffel aus
-                    if (Episodes.Count > 0)
-                    {
-                        SelectedEpisode = Episodes[0];
-                    }
-                }
-            }
-        }
-    }
-
     public ObservableCollection<DtoTVShowSeason> Seasons { get; } = new();
+    
     public DtoTVShowSeason? SelectedSeason => SelectedSeasonIndex >= 0 && SelectedSeasonIndex < Seasons.Count 
         ? Seasons[SelectedSeasonIndex] 
         : null;
@@ -218,7 +215,7 @@ public class TVShowDetailsViewModel : INotifyPropertyChanged
         }
     }
 
-    public async Task LoadDataAsync(long? initialSeasonId = null)
+    public async Task LoadDataAsync(long? initialSeasonId = null, long? initialEpisodeId = null)
     {
         if (_client == null || string.IsNullOrWhiteSpace(_baseAddress))
             return;
@@ -286,6 +283,22 @@ public class TVShowDetailsViewModel : INotifyPropertyChanged
                         // Wähle die erste Staffel automatisch → Show Banner behalten
                         SelectedSeasonIndex = 0;
                         _isInitialLoad = false; // Nach dem ersten Load ist es nicht mehr initial
+                    }
+
+                    // Episode auswählen (falls angegeben)
+                    if (initialEpisodeId.HasValue && Episodes.Count > 0)
+                    {
+                        var episodeIndex = Episodes.ToList().FindIndex(e => e.EpisodeId == initialEpisodeId.Value);
+                        if (episodeIndex >= 0)
+                        {
+                            SelectedEpisodeIndex = episodeIndex;
+                            System.Diagnostics.Debug.WriteLine($"[TVShowDetailsViewModel] Episode {initialEpisodeId} loaded at index {episodeIndex}");
+                        }
+                    }
+                    else if (Episodes.Count > 0)
+                    {
+                        // Wähle erste Episode
+                        SelectedEpisodeIndex = 0;
                     }
                 }
             }
@@ -524,6 +537,19 @@ public class TVShowDetailsViewModel : INotifyPropertyChanged
         {
             System.Diagnostics.Debug.WriteLine($"Error loading episode image {imageUrl}: {ex.Message}");
         }
+    }
+
+    public bool ShouldShowPlayButton => true;
+    
+    public async Task<(long VideoId, string VideoType, string Title)?> GetVideoInfoForPlaybackAsync()
+    {
+        // Spiele ausgewählte Episode oder erste Episode
+        var episode = SelectedEpisode ?? Episodes.FirstOrDefault();
+        
+        if (episode == null)
+            return null;
+
+        return (episode.EpisodeId, Models.MediaTypes.Episode, episode.Title ?? "Unknown Episode");
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

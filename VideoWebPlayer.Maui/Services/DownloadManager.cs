@@ -2,6 +2,7 @@ using SQLite;
 using VideoWebPlayer.Maui.Models;
 using VideoWebPlayer.Client;
 using VideoWebPlayer.Client.Models;
+using VideoWebPlayer.Maui.Services.Events;
 
 namespace VideoWebPlayer.Maui.Services;
 
@@ -14,8 +15,19 @@ public class DownloadManager
     private readonly SQLiteAsyncConnection _database;
     private readonly string _downloadDirectory;
     private readonly SemaphoreSlim _dbLock = new(1, 1);
+    private IPublishNotificationEvent? _eventPublisher;
     
     public static DownloadManager Instance => _instance ??= new DownloadManager();
+
+    /// <summary>
+    /// Sets the event publisher for download events.
+    /// Should be called during app initialization.
+    /// </summary>
+    public void SetEventPublisher(IPublishNotificationEvent eventPublisher)
+    {
+        _eventPublisher = eventPublisher;
+        System.Diagnostics.Debug.WriteLine("[DownloadManager] Event publisher configured");
+    }
     
     private DownloadManager()
     {
@@ -26,8 +38,66 @@ public class DownloadManager
         _downloadDirectory = Path.Combine(FileSystem.AppDataDirectory, "videos");
         Directory.CreateDirectory(_downloadDirectory);
         
+        // Führe Migration durch
+        _ = Task.Run(async () => await MigrateAsync());
+        
         // Registriere Cleanup-Task
         _ = Task.Run(async () => await SchedulePeriodicCleanupAsync());
+    }
+
+    private static string NormalizeVideoType(string videoType)
+    {
+        if (string.IsNullOrWhiteSpace(videoType))
+            return videoType;
+
+        var t = videoType.Trim();
+
+        // Legacy / UI aliases
+        if (t.Equals("episode", StringComparison.OrdinalIgnoreCase))
+            return MediaTypes.Episode;
+
+        if (t.Equals("movie", StringComparison.OrdinalIgnoreCase) || t.Equals("Movie", StringComparison.OrdinalIgnoreCase))
+            return MediaTypes.Movie;
+
+        if (t.Equals(MediaTypes.Episode, StringComparison.OrdinalIgnoreCase))
+            return MediaTypes.Episode;
+
+        if (t.Equals(MediaTypes.Movie, StringComparison.OrdinalIgnoreCase))
+            return MediaTypes.Movie;
+
+        return t.ToLowerInvariant();
+    }
+
+    private async Task MigrateAsync()
+    {
+        try
+        {
+            // Überprüfe ob die Spalten existieren, falls nicht füge sie hinzu
+            var tableInfo = await _database.GetTableInfoAsync(nameof(DownloadedVideo));
+            
+            var hasLocalPosterPath = tableInfo.Any(c => c.Name == nameof(DownloadedVideo.LocalPosterImagePath));
+            var hasLocalBannerPath = tableInfo.Any(c => c.Name == nameof(DownloadedVideo.LocalBannerImagePath));
+            
+            if (!hasLocalPosterPath)
+            {
+                await _database.ExecuteAsync($"ALTER TABLE {nameof(DownloadedVideo)} ADD COLUMN {nameof(DownloadedVideo.LocalPosterImagePath)} TEXT");
+                System.Diagnostics.Debug.WriteLine("[DownloadManager] Added LocalPosterImagePath column");
+            }
+            
+            if (!hasLocalBannerPath)
+            {
+                await _database.ExecuteAsync($"ALTER TABLE {nameof(DownloadedVideo)} ADD COLUMN {nameof(DownloadedVideo.LocalBannerImagePath)} TEXT");
+                System.Diagnostics.Debug.WriteLine("[DownloadManager] Added LocalBannerImagePath column");
+            }
+
+            // Normalisiere VideoType in bestehenden DBs (Legacy: "Movie"/"TVShowEpisode"/"episode")
+            await _database.ExecuteAsync($"UPDATE {nameof(DownloadedVideo)} SET VideoType = lower(VideoType) WHERE VideoType IS NOT NULL");
+            await _database.ExecuteAsync($"UPDATE {nameof(DownloadedVideo)} SET VideoType = '{MediaTypes.Episode}' WHERE lower(VideoType) = 'episode'");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[DownloadManager] Migration error: {ex.Message}");
+        }
     }
     
     public async Task<VideoRequest> RequestVideoAsync(long videoId, string videoType, string title)
@@ -140,6 +210,8 @@ public class DownloadManager
     
     private string BuildStreamUrl(long videoId, string videoType)
     {
+        videoType = NormalizeVideoType(videoType);
+
         var serverAddress = Preferences.Default.Get("ServerAddress", string.Empty);
         if (!serverAddress.StartsWith("http"))
         {
@@ -176,12 +248,18 @@ public class DownloadManager
     
     public async Task<DownloadedVideo?> GetDownloadAsync(long videoId, string videoType)
     {
+        videoType = NormalizeVideoType(videoType);
+
         await _dbLock.WaitAsync();
         try
         {
-            return await _database.Table<DownloadedVideo>()
-                .Where(d => d.VideoId == videoId && d.VideoType == videoType)
-                .FirstOrDefaultAsync();
+            // Robust gegen Legacy-Daten ("Movie" vs "movie" etc.)
+            var candidates = await _database.Table<DownloadedVideo>()
+                .Where(d => d.VideoId == videoId)
+                .ToListAsync();
+
+            return candidates.FirstOrDefault(d =>
+                string.Equals(NormalizeVideoType(d.VideoType), videoType, StringComparison.OrdinalIgnoreCase));
         }
         finally
         {
@@ -207,6 +285,8 @@ public class DownloadManager
     
     public async Task QueueDownloadAsync(VideoRequest request, DownloadRetentionType retentionType)
     {
+        request.VideoType = NormalizeVideoType(request.VideoType);
+
         // Prüfe ob bereits in Datenbank vorhanden (completed Downloads)
         var existing = await GetDownloadAsync(request.VideoId, request.VideoType);
         if (existing != null && existing.Status == DownloadStatus.Completed)
@@ -238,7 +318,7 @@ public class DownloadManager
         var downloadTask = new DownloadTask
         {
             VideoId = request.VideoId,
-            VideoType = request.VideoType,
+            VideoType = NormalizeVideoType(request.VideoType),
             Title = request.Title,
             StreamUrl = streamUrl,
             LocalFilePath = localPath,
@@ -283,41 +363,77 @@ public class DownloadManager
             
             if (videoType.Equals(MediaTypes.Movie, StringComparison.OrdinalIgnoreCase))
             {
-                // Lade Movie Collection Details
-                var movieCollection = await client.RequestMovieCollectionAsync(videoId) as dynamic;
-                if (movieCollection != null)
+                // Lade Movie Details
+                var movie = await client.RequestMovieAsync(videoId);
+                if (movie != null)
                 {
                     try
                     {
-                        metadata.Plot = movieCollection.Plot;
-                        metadata.GenreNames = movieCollection.GenreNames;
+                        metadata.Plot = movie.Plot;
+                        metadata.GenreNames = movie.GenreNames;
                         
-                        if (movieCollection.ReleaseDate != null)
+                        if (movie.ReleaseDate != null)
                         {
-                            metadata.ReleaseYear = movieCollection.ReleaseDate?.Year.ToString();
+                            metadata.ReleaseYear = movie.ReleaseDate?.Year.ToString();
                         }
                         
-                        if (movieCollection.PosterPictureId != null)
+                        // Nutze Fanart > Banner > Poster für Poster (in dieser Reihenfolge)
+                        if (movie.FanartPictureId.HasValue)
                         {
-                            metadata.PosterImageUrl = $"{serverAddress}/api/pictures/{movieCollection.PosterPictureId}";
+                            metadata.PosterImageUrl = $"{serverAddress}/api/pictures/{movie.FanartPictureId}";
                         }
-                        if (movieCollection.BannerPictureId != null)
+                        else if (movie.BannerPictureId.HasValue)
                         {
-                            metadata.BannerImageUrl = $"{serverAddress}/api/pictures/{movieCollection.BannerPictureId}";
+                            metadata.BannerImageUrl = $"{serverAddress}/api/pictures/{movie.BannerPictureId}";
+                            metadata.PosterImageUrl = $"{serverAddress}/api/pictures/{movie.BannerPictureId}";
+                        }
+                        else if (movie.PosterPictureId.HasValue)
+                        {
+                            metadata.PosterImageUrl = $"{serverAddress}/api/pictures/{movie.PosterPictureId}";
                         }
                     }
                     catch (Exception ex)
                     {
-                        System.Diagnostics.Debug.WriteLine($"Error accessing movie collection properties: {ex.Message}");
+                        System.Diagnostics.Debug.WriteLine($"Error accessing movie properties: {ex.Message}");
                     }
                 }
             }
             else if (videoType.Equals(MediaTypes.Episode, StringComparison.OrdinalIgnoreCase))
             {
-                // Für Episode müssen wir die TV Show laden um an die Episode-Details zu kommen
-                // Das ist komplexer, da wir erst die TVShow-ID benötigen
-                // TODO: Implementiere Episode-Metadaten-Abruf
-                System.Diagnostics.Debug.WriteLine("Episode metadata fetch not yet implemented");
+                // Lade Episode Details (mit Fanart)
+                var episode = await client.RequestTVShowEpisodeAsync(videoId);
+                if (episode != null)
+                {
+                    try
+                    {
+                        metadata.Plot = episode.Plot;
+                        metadata.EpisodeNumber = episode.Number;
+                        
+                        // Nutze Fanart für Episodes (nicht Poster)
+                        if (episode.FanartPictureId.HasValue)
+                        {
+                            metadata.BannerImageUrl = $"{serverAddress}/api/pictures/{episode.FanartPictureId}";
+                        }
+                        else if (episode.PosterPictureId.HasValue)
+                        {
+                            metadata.BannerImageUrl = $"{serverAddress}/api/pictures/{episode.PosterPictureId}";
+                        }
+                        
+                        // Versuche Season-Information zu laden
+                        if (episode.Season != null)
+                        {
+                            metadata.SeasonNumber = episode.Season.Number;
+                            if (episode.Season.Show != null)
+                            {
+                                metadata.TVShowName = episode.Season.Show.Name;
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Error accessing episode properties: {ex.Message}");
+                    }
+                }
             }
             
             return metadata;
@@ -389,6 +505,9 @@ public class DownloadManager
             
             await _database.InsertAsync(download);
             System.Diagnostics.Debug.WriteLine($"Saved completed download to database with metadata: {task.Title}");
+
+            // Publish download completed event
+            _eventPublisher?.Publish(new DownloadCompletedEvent(download));
         }
         finally
         {
@@ -434,6 +553,9 @@ public class DownloadManager
     
     public async Task UpdatePlaybackPositionAsync(long videoId, string videoType, double positionSeconds, double durationSeconds)
     {
+        System.Diagnostics.Debug.WriteLine($"[DownloadManager] UpdatePlaybackPositionAsync called: {videoType} {videoId} - {positionSeconds}s / {durationSeconds}s");
+        
+        // Speichere Position lokal
         await _dbLock.WaitAsync();
         try
         {
@@ -446,12 +568,41 @@ public class DownloadManager
                 download.PlaybackPositionSeconds = positionSeconds;
                 download.DurationSeconds = durationSeconds;
                 await _database.UpdateAsync(download);
-                System.Diagnostics.Debug.WriteLine($"Updated playback position: {positionSeconds}s / {durationSeconds}s for {videoType} {videoId}");
+                System.Diagnostics.Debug.WriteLine($"[DownloadManager] Updated playback position locally: {positionSeconds}s / {durationSeconds}s for {videoType} {videoId}");
             }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"[DownloadManager] Download not found in database for {videoType} {videoId}");
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[DownloadManager] Error updating local position: {ex.Message}");
         }
         finally
         {
             _dbLock.Release();
+        }
+
+        // Sende Position auch an Server (nur wenn VideoWebPlayerClient verfügbar ist)
+        try
+        {
+            var client = App.ServiceProvider?.GetService<VideoWebPlayerClient>();
+            if (client != null)
+            {
+                System.Diagnostics.Debug.WriteLine($"[DownloadManager] Sending position to server for {videoType} {videoId}");
+                await client.ReportPlaybackProgressAsync(videoType, videoId, (long)positionSeconds, (long)durationSeconds);
+                System.Diagnostics.Debug.WriteLine($"[DownloadManager] Successfully sent position to server");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"[DownloadManager] VideoWebPlayerClient not available");
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[DownloadManager] Error reporting to server (non-blocking): {ex.Message}");
+            // Nicht werfen - dies ist ein non-blocking Operation
         }
     }
     
@@ -459,6 +610,78 @@ public class DownloadManager
     {
         var download = await GetDownloadAsync(videoId, videoType);
         return download?.PlaybackPositionSeconds;
+    }
+    
+    /// <summary>
+    /// Deletes a download and all associated files.
+    /// </summary>
+    /// <param name="videoId">The video ID.</param>
+    /// <param name="videoType">The video type (movie or episode).</param>
+    /// <returns>True if the download was deleted, false if it was not found.</returns>
+    public async Task<bool> DeleteDownloadAsync(long videoId, string videoType)
+    {
+        videoType = NormalizeVideoType(videoType);
+
+        await _dbLock.WaitAsync();
+        try
+        {
+            var download = await _database.Table<DownloadedVideo>()
+                .Where(d => d.VideoId == videoId)
+                .ToListAsync();
+
+            var match = download.FirstOrDefault(d =>
+                string.Equals(NormalizeVideoType(d.VideoType), videoType, StringComparison.OrdinalIgnoreCase));
+
+            if (match == null)
+            {
+                System.Diagnostics.Debug.WriteLine($"Download not found: {videoType} {videoId}");
+                return false;
+            }
+
+            // Store info for event before deletion
+            var title = match.Title;
+
+            try
+            {
+                // Lösche Video-Datei
+                if (File.Exists(match.LocalFilePath))
+                {
+                    File.Delete(match.LocalFilePath);
+                    System.Diagnostics.Debug.WriteLine($"Deleted video file: {match.LocalFilePath}");
+                }
+
+                // Lösche Poster-Bild
+                if (!string.IsNullOrEmpty(match.LocalPosterImagePath) && File.Exists(match.LocalPosterImagePath))
+                {
+                    File.Delete(match.LocalPosterImagePath);
+                    System.Diagnostics.Debug.WriteLine($"Deleted poster image: {match.LocalPosterImagePath}");
+                }
+
+                // Lösche Banner-Bild
+                if (!string.IsNullOrEmpty(match.LocalBannerImagePath) && File.Exists(match.LocalBannerImagePath))
+                {
+                    File.Delete(match.LocalBannerImagePath);
+                    System.Diagnostics.Debug.WriteLine($"Deleted banner image: {match.LocalBannerImagePath}");
+                }
+
+                await _database.DeleteAsync(match);
+                System.Diagnostics.Debug.WriteLine($"Deleted download from database: {title}");
+
+                // Publish download deleted event
+                _eventPublisher?.Publish(new DownloadDeletedEvent(videoId, videoType, title));
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error deleting download: {ex.Message}");
+                throw;
+            }
+        }
+        finally
+        {
+            _dbLock.Release();
+        }
     }
     
     public async Task CleanupExpiredDownloadsAsync()
@@ -476,6 +699,11 @@ public class DownloadManager
             {
                 try
                 {
+                    // Store info for event before deletion
+                    var videoId = download.VideoId;
+                    var videoType = download.VideoType;
+                    var title = download.Title;
+
                     // Lösche Video-Datei
                     if (File.Exists(download.LocalFilePath))
                     {
@@ -495,6 +723,10 @@ public class DownloadManager
                     }
                     
                     await _database.DeleteAsync(download);
+                    System.Diagnostics.Debug.WriteLine($"Cleaned up expired download: {title}");
+
+                    // Publish download deleted event
+                    _eventPublisher?.Publish(new DownloadDeletedEvent(videoId, videoType, title));
                 }
                 catch (Exception ex)
                 {

@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using Microsoft.Maui.Storage;
 using VideoWebPlayer.Client;
 using VideoWebPlayer.Client.Models;
+using VideoWebPlayer.Maui.Models;
 
 namespace VideoWebPlayer.Maui.ViewModels;
 
@@ -133,6 +134,12 @@ public class HomePageViewModel : INotifyPropertyChanged
         {
             IsLoading = false;
         }
+    }
+
+    public async Task RefreshDownloadsAsync()
+    {
+        // Lade nur Downloads neu, ohne die ganze Seite zu reloaden
+        await LoadDownloadsAsync();
     }
 
     public async Task RefreshDataAsync()
@@ -416,7 +423,7 @@ public class HomePageViewModel : INotifyPropertyChanged
                         // Verwende SolidColorBrush als Dummy-Image
                         ImageSource = ImageSource.FromFile("dotnet_bot.png"), // Default MAUI icon als Fallback
                         EntryId = download.VideoId,
-                        MediaType = download.VideoType.Equals(Models.MediaTypes.Movie, StringComparison.OrdinalIgnoreCase) ? "movie" : "episode"
+                        MediaType = download.VideoType.Equals(Models.MediaTypes.Movie, StringComparison.OrdinalIgnoreCase) ? MediaTypes.Movie : MediaTypes.Episode
                     };
                     
                     Downloads.Items.Add(mediaItem);
@@ -427,6 +434,10 @@ public class HomePageViewModel : INotifyPropertyChanged
                 if (!string.IsNullOrEmpty(download.LocalPosterImagePath) && File.Exists(download.LocalPosterImagePath))
                 {
                     _ = LoadLocalImageAsync(download.LocalPosterImagePath, Downloads.Items[Downloads.Items.Count - 1]);
+                }
+                else if (!string.IsNullOrEmpty(download.LocalBannerImagePath) && File.Exists(download.LocalBannerImagePath))
+                {
+                    _ = LoadLocalImageAsync(download.LocalBannerImagePath, Downloads.Items[Downloads.Items.Count - 1]);
                 }
             }
             

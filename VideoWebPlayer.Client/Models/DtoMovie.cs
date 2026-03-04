@@ -42,6 +42,7 @@ public class DtoTVShow : DtoMediaEntry
 }
 public class DtoTVShowSeason : DtoMediaEntry
 {
+    public int Number { get; set; }
     public DtoTVShow? Show { get; set; }
     [IgnoreAssignProperty]
     public DtoTVShowEpisode[] Episodes { get; set; } = [];

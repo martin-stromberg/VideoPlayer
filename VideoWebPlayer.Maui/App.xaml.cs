@@ -65,6 +65,14 @@ namespace VideoWebPlayer.Maui
             {
                 client.UnauthorizedReceived += OnUnauthorizedReceived;
             }
+
+            // Configure DownloadManager with event publisher
+            var eventPublisher = services.GetService<VideoWebPlayer.Maui.Services.Events.IPublishNotificationEvent>();
+            if (eventPublisher != null)
+            {
+                Services.DownloadManager.Instance.SetEventPublisher(eventPublisher);
+                System.Diagnostics.Debug.WriteLine("[App] DownloadManager configured with event publisher");
+            }
             
             // Initialisiere SignalR
             _ = InitializeSignalRAsync(services);

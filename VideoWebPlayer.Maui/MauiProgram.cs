@@ -3,6 +3,7 @@ using Microsoft.Maui.Storage;
 using CommunityToolkit.Maui;
 using VideoWebPlayer.Client;
 using VideoWebPlayer.Maui.Services;
+using VideoWebPlayer.Maui.Services.Events;
 
 namespace VideoWebPlayer.Maui
 {
@@ -14,7 +15,7 @@ namespace VideoWebPlayer.Maui
             builder
                 .UseMauiApp<App>()
                 .UseMauiCommunityToolkit()
-                .UseMauiCommunityToolkitMediaElement();
+                .UseMauiCommunityToolkitMediaElement(true);
 
             // Registriere HttpClient mit MauiVideoWebPlayerClient
             // Die BaseAddress wird zur Laufzeit aus Preferences gesetzt
@@ -45,6 +46,15 @@ namespace VideoWebPlayer.Maui
             builder.Services.AddSingleton<Services.IConnectionService, Services.ConnectionService>();
             builder.Services.AddSingleton<Services.IAuthService, Services.AuthService>();
             builder.Services.AddSingleton<Services.SignalRService>();
+            
+            // Register Notification Event Service
+            builder.Services.AddSingleton<NotificationEventService>(sp =>
+            {
+                var signalRService = sp.GetService<SignalRService>();
+                return new NotificationEventService(signalRService);
+            });
+            builder.Services.AddSingleton<IPublishNotificationEvent>(sp => sp.GetRequiredService<NotificationEventService>());
+            builder.Services.AddSingleton<ISubscribeNotificationEvent>(sp => sp.GetRequiredService<NotificationEventService>());
 
             builder.Services.AddTransient<SettingsPage>();
             builder.Services.AddTransient<LoginPage>();

@@ -19,6 +19,7 @@ public class ContinueWatchingServiceSignalRTests
     private readonly Mock<IHubContext<MediaUpdateHub>> _mockHubContext;
     private readonly Mock<IHubClients> _mockClients;
     private readonly Mock<IClientProxy> _mockClientProxy;
+    private readonly MediaUpdateNotificationService _notificationService;
     private readonly ContinueWatchingService _service;
     private readonly string _testUserId = "test-user-123";
     private readonly List<string> _signalRCallLog = new();
@@ -54,7 +55,11 @@ public class ContinueWatchingServiceSignalRTests
         _mockHubContext = new Mock<IHubContext<MediaUpdateHub>>();
         _mockHubContext.Setup(x => x.Clients).Returns(_mockClients.Object);
 
-        // ContinueWatchingService mit Mock
+        // MediaUpdateNotificationService mit Mock
+        var notificationLogger = Mock.Of<ILogger<MediaUpdateNotificationService>>();
+        _notificationService = new MediaUpdateNotificationService(_mockHubContext.Object, notificationLogger);
+
+        // ContinueWatchingService mit NotificationService
         var userManager = CreateMockUserManager();
         var logger = Mock.Of<ILogger<ContinueWatchingService>>();
         var buffer = new ContinueWatchingBuffer();
@@ -64,7 +69,7 @@ public class ContinueWatchingServiceSignalRTests
             userManager,
             logger,
             buffer,
-            _mockHubContext.Object);
+            _notificationService);
     }
     
     private static Microsoft.AspNetCore.Identity.UserManager<ApplicationUser> CreateMockUserManager()

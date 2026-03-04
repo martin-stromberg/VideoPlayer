@@ -436,6 +436,36 @@ public class ItemsController : ApiBaseController
                 }).ToArray();
                 return Ok(show);
             }
+            else if (entry is TVShowEpisode dbSeason)
+            {
+                var episode = Create<DtoTVShowEpisode>(entry);
+                episode.IsFavorite = _db.FavoriteEntries.Any(f => f.UserId == CurrentUser.Id && f.TVShowEpisodeId == episode.Id);
+                episode.Season = _db.TVShowSeasons.Where(m => m.Id == dbSeason.TVShowSeasonId).ToList().Select(m =>
+                {
+                    var season = Create<DtoTVShowSeason>(m);
+                    season.IsFavorite = _db.FavoriteEntries.Any(f => f.UserId == CurrentUser.Id && f.TVShowSeasonId == season.Id);                    
+                    season.Show = _db.TVShows.Where(s => s.Id == m.TVShowId).ToList().Select(s =>
+                    {
+                        var show = Create<DtoTVShow>(s);
+                        show.IsFavorite = _db.FavoriteEntries.Any(f => f.UserId == CurrentUser.Id && f.TVShowId == show.Id);
+                        return show;
+                    }).FirstOrDefault();
+                    return season;
+                }).First();
+                return Ok(episode);
+            }
+            else if (entry is Movie dbMovie)
+            {
+                var movie = Create<DtoMovie>(dbMovie);
+                movie.IsFavorite = _db.FavoriteEntries.Any(f => f.UserId == CurrentUser.Id && f.MovieId == movie.Id);
+                movie.Collection = _db.MovieCollections.Where(mc => mc.Id == dbMovie.MovieCollectionId).ToList().Select(mc =>
+                {
+                    var collection = Create<DtoMovieCollection>(mc);
+                    collection.IsFavorite = _db.FavoriteEntries.Any(f => f.UserId == CurrentUser.Id && f.MovieCollectionId == collection.Id);
+                    return collection;
+                }).FirstOrDefault();
+                return Ok(movie);
+            }
             return NotFound();
         }
         catch (UnauthorizedAccessException ex)

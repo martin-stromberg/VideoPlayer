@@ -1,4 +1,7 @@
 using VideoWebPlayer.Maui.ViewModels;
+using VideoWebPlayer.Maui.Services;
+using VideoWebPlayer.Maui.Models;
+using CommunityToolkit.Maui.Core;
 
 namespace VideoWebPlayer.Maui.Components;
 
@@ -9,7 +12,7 @@ public partial class MediaCarousel : ContentView
         InitializeComponent();
     }
 
-    private async void OnItemTapped(object sender, EventArgs e)
+    private async void OnItemTapped(object sender, TappedEventArgs e)
     {
         if (sender is BindableObject bindable && bindable.BindingContext is MediaItemViewModel item)
         {
@@ -32,6 +35,14 @@ public partial class MediaCarousel : ContentView
                     await Application.Current.Windows[0].Page?.Navigation.PushAsync(detailPage);
                 }
             }
+        }
+    }
+
+    private void TouchBehavior_LongPressCompleted(object sender, LongPressCompletedEventArgs e)
+    {
+        if (sender is BindableObject bindable && bindable.BindingContext is MediaItemViewModel item)
+        {
+            item.DeleteDownloadCommand?.Execute(e.LongPressCommandParameter);
         }
     }
 }

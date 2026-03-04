@@ -67,16 +67,16 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="CommunityToolkit.Maui" Version="9.2.0" />
-		<PackageReference Include="CommunityToolkit.Maui.MediaElement" Version="4.1.2" />
-		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.0" />
-		<PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="10.0.0" />
-		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
-		<PackageReference Include="Microsoft.Maui.Essentials" Version="10.0.20" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
-		<PackageReference Include="SkiaSharp" Version="3.116.1" />
+		<PackageReference Include="CommunityToolkit.Maui" Version="14.0.1" />
+		<PackageReference Include="CommunityToolkit.Maui.MediaElement" Version="8.0.1" />
+		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.3" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="10.0.3" />
+		<PackageReference Include="Microsoft.Maui.Controls" Version="10.0.41" />
+		<PackageReference Include="Microsoft.Maui.Essentials" Version="10.0.41" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.3" />
+		<PackageReference Include="SkiaSharp" Version="3.119.2" />
 		<PackageReference Include="sqlite-net-pcl" Version="1.9.172" />
-		<PackageReference Include="SQLitePCLRaw.bundle_green" Version="2.1.10" />
+		<PackageReference Include="SQLitePCLRaw.bundle_green" Version="2.1.11" />
 		<PackageReference Include="Zeroconf" Version="3.7.16" />
 	</ItemGroup>
 
@@ -85,7 +85,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <MauiXaml Update="Components\MediaBannerPlayer.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </MauiXaml>
     <MauiXaml Update="Components\MediaCarousel.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </MauiXaml>
+    <MauiXaml Update="Components\NotificationTicker.xaml">
       <Generator>MSBuild:Compile</Generator>
     </MauiXaml>
     <MauiXaml Update="SourceOverviewPage.xaml">

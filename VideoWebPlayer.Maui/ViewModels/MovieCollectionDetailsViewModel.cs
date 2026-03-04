@@ -5,10 +5,11 @@ using Microsoft.Maui.Storage;
 using SkiaSharp;
 using VideoWebPlayer.Client;
 using VideoWebPlayer.Client.Models;
+using VideoWebPlayer.Maui.Components;
 
 namespace VideoWebPlayer.Maui.ViewModels;
 
-public class MovieCollectionDetailsViewModel : INotifyPropertyChanged
+public class MovieCollectionDetailsViewModel : INotifyPropertyChanged, IMediaBannerViewModel
 {
     private readonly VideoWebPlayerClient? _client;
     private readonly HttpClient _httpClient;
@@ -228,9 +229,9 @@ public class MovieCollectionDetailsViewModel : INotifyPropertyChanged
                         var movieIndex = Movies.ToList().FindIndex(m => m.EntryId == initialMovieId.Value);
                         SelectedMovieIndex = movieIndex >= 0 ? movieIndex : 0;
                     }
-                    else if (Movies.Count == 1)
+                    else
                     {
-                        // Nur ein Film → automatisch auswählen
+                        // Wähle automatisch den ersten Film (egal wie viele es gibt)
                         SelectedMovieIndex = 0;
                     }
                 }
@@ -414,6 +415,37 @@ public class MovieCollectionDetailsViewModel : INotifyPropertyChanged
         {
             System.Diagnostics.Debug.WriteLine($"Error loading movie image {imageUrl}: {ex.Message}");
         }
+    }
+
+    public bool ShouldShowPlayButton => SelectedMovie != null;
+    
+    public async Task<(long VideoId, string VideoType, string Title)?> GetVideoInfoForPlaybackAsync()
+    {
+        var movie = SelectedMovie;
+        
+        System.Diagnostics.Debug.WriteLine($"[MovieCollectionDetailsViewModel] GetVideoInfoForPlaybackAsync called");
+        System.Diagnostics.Debug.WriteLine($"[MovieCollectionDetailsViewModel] SelectedMovie: {movie?.Title ?? "null"}");
+        System.Diagnostics.Debug.WriteLine($"[MovieCollectionDetailsViewModel] SelectedMovieIndex: {SelectedMovieIndex}");
+        System.Diagnostics.Debug.WriteLine($"[MovieCollectionDetailsViewModel] Movies.Count: {Movies.Count}");
+        
+        if (movie == null)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MovieCollectionDetailsViewModel] SelectedMovie is null!");
+            return null;
+        }
+        
+        System.Diagnostics.Debug.WriteLine($"[MovieCollectionDetailsViewModel] EntryId: {movie.EntryId}");
+        
+        if (!movie.EntryId.HasValue)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MovieCollectionDetailsViewModel] EntryId has no value!");
+            return null;
+        }
+
+        var result = (movie.EntryId.Value, Models.MediaTypes.Movie, movie.Title ?? "Unknown Movie");
+        System.Diagnostics.Debug.WriteLine($"[MovieCollectionDetailsViewModel] Returning: VideoId={result.Item1}, VideoType={result.Item2}, Title={result.Item3}");
+        
+        return result;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

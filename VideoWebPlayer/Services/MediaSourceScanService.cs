@@ -1,11 +1,9 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Linq.Expressions;
-using VideoWebPlayer.Hubs;
 
 namespace VideoWebPlayer.Services
 {
@@ -17,7 +15,7 @@ namespace VideoWebPlayer.Services
         private readonly IServiceProvider _serviceProvider;
         private readonly EventManager _eventManager;
         private readonly ILogger<MediaSourceScanService> _logger;
-        private readonly IHubContext<MediaUpdateHub> _hubContext;
+        private readonly MediaUpdateNotificationService _notificationService;
         private readonly TimeSpan _initialDelay;
         private readonly TimeSpan _loopDelay;
         private readonly bool _skipUpgrade;
@@ -28,12 +26,12 @@ namespace VideoWebPlayer.Services
         /// </summary>
         /// <param name="serviceProvider">Service provider used to create scopes.</param>
         /// <param name="eventManager">Event manager instance.</param>
-        /// <param name="hubContext">SignalR hub context for push notifications.</param>
+        /// <param name="notificationService">Service for sending SignalR notifications.</param>
         /// <param name="logger">Logger instance.</param>
         public MediaSourceScanService(
             IServiceProvider serviceProvider,
             EventManager eventManager,
-            IHubContext<MediaUpdateHub> hubContext,
+            MediaUpdateNotificationService notificationService,
             ILogger<MediaSourceScanService> logger,
             TimeSpan? initialDelay = null,
             TimeSpan? loopDelay = null,
@@ -42,7 +40,7 @@ namespace VideoWebPlayer.Services
         {
             _serviceProvider = serviceProvider;
             _eventManager = eventManager;
-            _hubContext = hubContext;
+            _notificationService = notificationService;
             _logger = logger;
             _initialDelay = initialDelay ?? TimeSpan.FromSeconds(10);
             _loopDelay = loopDelay ?? TimeSpan.FromMinutes(1);
@@ -110,20 +108,8 @@ namespace VideoWebPlayer.Services
                             int newItemsCount = itemsAfterScan - itemsBeforeScan;
                             _logger.LogInformation("Scan aller Quellen abgeschlossen. {NewItems} neue Items gefunden.", newItemsCount);
                             
-                            // Sende SignalR-Update wenn neue Items gefunden wurden
-                            if (newItemsCount > 0)
-                            {
-                                try
-                                {
-                                    await _hubContext.Clients.All
-                                        .SendAsync("NewVideosScanned", 0L, newItemsCount, cancellationToken: stoppingToken);
-                                    _logger.LogInformation("SignalR: NewVideosScanned sent to all clients (Count: {Count})", newItemsCount);
-                                }
-                                catch (Exception ex)
-                                {
-                                    _logger.LogWarning(ex, "Failed to send SignalR update for NewVideosScanned");
-                                }
-                            }
+                            // Sende SignalR-Update über NotificationService
+                            await _notificationService.NotifyNewVideosScannedAsync(0L, newItemsCount, stoppingToken);
                             
                             lastAllSourcesRun = now;
                         }
@@ -153,20 +139,8 @@ namespace VideoWebPlayer.Services
                                 await classifier.ClassifyAllAsync(stoppingToken);
                                 _logger.LogInformation("Klassifizierung abgeschlossen.");
                                 
-                                // Sende SignalR-Update wenn neue Klassifizierungen durchgeführt wurden
-                                if (unclassifiedBefore > 0)
-                                {
-                                    try
-                                    {
-                                        await _hubContext.Clients.All
-                                            .SendAsync("NewVideosScanned", 0L, unclassifiedBefore, cancellationToken: stoppingToken);
-                                        _logger.LogInformation("SignalR: NewVideosScanned sent after classification (Count: {Count})", unclassifiedBefore);
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        _logger.LogWarning(ex, "Failed to send SignalR update after classification");
-                                    }
-                                }
+                                // Sende SignalR-Update über NotificationService
+                                await _notificationService.NotifyNewVideosScannedAsync(0L, unclassifiedBefore, stoppingToken);
                             }
 
                             lastTenMinuteRun = now;

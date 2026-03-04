@@ -220,9 +220,34 @@ namespace VideoWebPlayer.Client
         {
             return await HttpGetAsync<DtoMovieCollection>($"api/items/moviecollection/{id}");
         }
+
+        public async Task<DtoMovie?> RequestMovieAsync(long id)
+        {
+            try
+            {
+                return await HttpGetAsync<DtoMovie>($"api/items/movie/{id}");
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         public async Task<DtoMediaEntry> RequestTVShowAsync(long id)
         {
             return await HttpGetAsync<DtoTVShow>($"api/items/tvshow/{id}");
+        }
+
+        public async Task<DtoTVShowEpisode?> RequestTVShowEpisodeAsync(long id)
+        {
+            try
+            {
+                return await HttpGetAsync<DtoTVShowEpisode>($"api/items/tvshowepisode/{id}");
+            }
+            catch
+            {
+                return null;
+            }
         }
         
         #endregion

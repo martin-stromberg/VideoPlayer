@@ -191,6 +191,10 @@
 		<Image Grid.Row="2" Grid.Column="0" Source="background_footer_left.png" Aspect="Fill" />
 		<Image Grid.Row="2" Grid.Column="1" Source="background_footer_middle.png" Aspect="Fill" />
 		<Image Grid.Row="2" Grid.Column="2" Source="background_footer_right.png" Aspect="Fill" />
+		
+		<!-- Notification Ticker -->
+		<components:NotificationTicker Grid.Row="2" Grid.Column="1" 
+		                                Margin="20,0" />
 	</Grid>
 
 </ContentPage>

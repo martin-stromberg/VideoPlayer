@@ -214,6 +214,7 @@ public static class ServiceCollectionExtensions
         services.AddControllers();
         services.AddSingleton<ContinueWatchingBuffer>();
         services.AddScoped<ContinueWatchingService>();
+        services.AddSingleton<MediaUpdateNotificationService>();
         services.AddHostedService<ContinueWatchingWorker>();
         
         // SignalR

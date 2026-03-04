@@ -178,6 +178,18 @@ namespace VideoWebPlayer.Services
                     if (nextEpisode != null)
                         await UpsertAsync(userId, nextMovieId: null, nextEpisodeId: nextEpisode.Id, TimeSpan.Zero, duration: null, ct);
                 }
+
+                // Wenn wir wirklich etwas entfernt haben, aber kein nächstes Medium gefunden wurde,
+                // muss trotzdem ein Update raus.
+                if (existing != null)
+                {
+                    var hasNext = movieId.HasValue
+                        ? (await GetNextMovieAsync(movieId.Value, ct)) != null
+                        : (episodeId.HasValue && (await GetNextEpisodeAsync(episodeId.Value, ct)) != null);
+
+                    if (!hasNext)
+                        await _notificationService.NotifyContinueWatchingUpdatedAsync(userId, ct);
+                }
                 return;
             }
 
@@ -189,11 +201,28 @@ namespace VideoWebPlayer.Services
             var entry = await _db.ContinueWatchingEntries
                 .FirstOrDefaultAsync(x => x.UserId == userId && x.MovieId == nextMovieId && x.TVShowEpisodeId == nextEpisodeId, ct);
 
+            static bool DurationChanged(TimeSpan? a, TimeSpan? b)
+            {
+                if (a is null && b is null) return false;
+                if (a is null || b is null) return true;
+                return Math.Abs((a.Value - b.Value).TotalSeconds) >= 1;
+            }
+
+            static bool PositionChanged(TimeSpan a, TimeSpan b)
+                => Math.Abs((a - b).TotalSeconds) >= 1;
+
+            var listChanged = false;
+
             // Nur wenn ein NEUER Eintrag erzeugt wird: vorhandene Einträge derselben Filmsammlung / Serie entfernen
             if (entry == null)
             {
                 await RemoveExtsingMovieCollectionEntry(userId, nextMovieId, ct);
                 await RemoveExistingTVShowEntry(userId, nextEpisodeId, ct);
+
+                // Wenn die obigen Methoden Entries entfernen, ändert sich die Liste auch ohne neuen Eintrag.
+                // (ChangeTracker enthält dann Deletes)
+                if (_db.ChangeTracker.Entries<ContinueWatchingEntry>().Any(e => e.State == EntityState.Deleted))
+                    listChanged = true;
 
                 entry = new ContinueWatchingEntry
                 {
@@ -205,17 +234,26 @@ namespace VideoWebPlayer.Services
                     UpdatedAt = DateTime.UtcNow
                 };
                 _db.ContinueWatchingEntries.Add(entry);
+                listChanged = true;
             }
             else
             {
-                entry.Position = position;
-                entry.Duration = duration;
-                entry.UpdatedAt = DateTime.UtcNow;
+                // Nur updaten, wenn sich wirklich etwas geändert hat.
+                // Sonst würde UpdatedAt die Sortierung ändern und unnötige Notifications auslösen.
+                if (PositionChanged(entry.Position, position) || DurationChanged(entry.Duration, duration))
+                {
+                    entry.Position = position;
+                    entry.Duration = duration;
+                    entry.UpdatedAt = DateTime.UtcNow;
+                }
             }
 
             await _db.SaveChangesAsync(ct);
 
-            // Sende SignalR-Update an User
+            if (!listChanged)
+                return;
+
+            // Sende SignalR-Update an User nur wenn sich wirklich etwas geändert hat
             await _notificationService.NotifyContinueWatchingUpdatedAsync(userId, ct);
         }
 

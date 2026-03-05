@@ -91,6 +91,20 @@ public partial class HomePage : ContentPage
             await Navigation.PushAsync(sourcePage);
         }
     }
+
+	private async void OnSettingsClicked(object sender, EventArgs e)
+	{
+		try
+		{
+			var settings = App.ServiceProvider?.GetService<Services.ISettingsService>();
+			var page = App.ServiceProvider?.GetService<SettingsPage>() ?? new SettingsPage(settings);
+			await Navigation.PushAsync(page);
+		}
+		catch (Exception ex)
+		{
+			System.Diagnostics.Debug.WriteLine($"[HomePage] Error opening settings: {ex.Message}");
+		}
+	}
     
     private async void OnContinueWatchingUpdated(ContinueWatchingUpdatedEvent e)
     {

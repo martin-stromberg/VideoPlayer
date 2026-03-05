@@ -40,6 +40,12 @@ public partial class TVShowDetailsPage : ContentPage
         DownloadQueue.Instance.DownloadCompleted -= OnDownloadCompleted;
     }
 
+	private async void OnBackClicked(object? sender, EventArgs e)
+	{
+		if (Navigation.NavigationStack.Count > 1)
+			await Navigation.PopAsync();
+	}
+
     private void OnEpisodeSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (sender is CollectionView cv && e.CurrentSelection.Count > 0)

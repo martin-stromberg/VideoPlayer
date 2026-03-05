@@ -16,6 +16,9 @@ public class DownloadManager
     private readonly string _downloadDirectory;
     private readonly SemaphoreSlim _dbLock = new(1, 1);
     private IPublishNotificationEvent? _eventPublisher;
+
+    private readonly SemaphoreSlim _watchlistSyncLock = new(1, 1);
+    private DateTime _lastWatchlistSyncUtc = DateTime.MinValue;
     
     public static DownloadManager Instance => _instance ??= new DownloadManager();
 
@@ -43,6 +46,17 @@ public class DownloadManager
         
         // Registriere Cleanup-Task
         _ = Task.Run(async () => await SchedulePeriodicCleanupAsync());
+
+        // Reagiere auf Continue-Watching Updates und starte Prefetch-Downloads
+        try
+        {
+            var subscriber = App.ServiceProvider?.GetService<ISubscribeNotificationEvent>();
+            subscriber?.Subscribe<ContinueWatchingUpdatedEvent>(OnContinueWatchingUpdated);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[DownloadManager] Failed to subscribe to ContinueWatchingUpdatedEvent: {ex.Message}");
+        }
     }
 
     private static string NormalizeVideoType(string videoType)
@@ -66,6 +80,79 @@ public class DownloadManager
             return MediaTypes.Movie;
 
         return t.ToLowerInvariant();
+    }
+
+    private void OnContinueWatchingUpdated(ContinueWatchingUpdatedEvent e)
+    {
+        // Fire-and-forget; intern gedrosselt/gesperrt
+        _ = Task.Run(SyncContinueWatchingPrefetchDownloadsAsync);
+    }
+
+    private async Task SyncContinueWatchingPrefetchDownloadsAsync()
+    {
+        // Verhindert parallele Läufe
+        if (!await _watchlistSyncLock.WaitAsync(0))
+            return;
+
+        try
+        {
+            // Simple Throttle, weil das Event ggf. häufig kommt
+            if ((DateTime.UtcNow - _lastWatchlistSyncUtc) < TimeSpan.FromSeconds(10))
+                return;
+            _lastWatchlistSyncUtc = DateTime.UtcNow;
+
+            var client = App.ServiceProvider?.GetService<VideoWebPlayerClient>();
+            if (client == null)
+                return;
+
+            List<ContinueWatchingDto> list;
+            try
+            {
+                list = await client.GetContinueWatchingAsync();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[DownloadManager] ContinueWatching fetch failed: {ex.Message}");
+                return;
+            }
+
+            foreach (var item in list)
+            {
+                var entryId = item.Entry?.Id;
+                if (!entryId.HasValue)
+                    continue;
+
+                var videoType = NormalizeVideoType(item.MediaType);
+                var title = item.Title ?? item.Entry?.Name ?? $"{videoType} {entryId.Value}";
+
+                // Wenn bereits als Datei vorhanden => nichts tun
+                var existing = await GetDownloadAsync(entryId.Value, videoType);
+                if (existing != null && existing.Status == DownloadStatus.Completed && File.Exists(existing.LocalFilePath))
+                    continue;
+
+                // Wenn bereits in Queue => nichts tun
+                if (DownloadQueue.Instance.IsInQueue(entryId.Value, videoType))
+                    continue;
+
+                // Prefetch als Watchlist-Download (3 Tage)
+                var request = new VideoRequest
+                {
+                    VideoId = entryId.Value,
+                    VideoType = videoType,
+                    Title = title
+                };
+
+                await QueueDownloadAsync(request, DownloadRetentionType.Watchlist);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[DownloadManager] Watchlist sync failed: {ex.Message}");
+        }
+        finally
+        {
+            _watchlistSyncLock.Release();
+        }
     }
 
     private async Task MigrateAsync()
@@ -291,8 +378,22 @@ public class DownloadManager
         var existing = await GetDownloadAsync(request.VideoId, request.VideoType);
         if (existing != null && existing.Status == DownloadStatus.Completed)
         {
-            System.Diagnostics.Debug.WriteLine($"Download already exists: {request.Title}");
-            return;
+            if (File.Exists(existing.LocalFilePath))
+            {
+                System.Diagnostics.Debug.WriteLine($"Download already exists: {request.Title}");
+                return;
+            }
+
+            // DB-Eintrag ist completed, aber Datei fehlt -> Eintrag entfernen, damit neu geladen werden kann
+            await _dbLock.WaitAsync();
+            try
+            {
+                await _database.DeleteAsync(existing);
+            }
+            finally
+            {
+                _dbLock.Release();
+            }
         }
         
         // Prüfe ob bereits in Queue (Arbeitsspeicher)
@@ -306,9 +407,17 @@ public class DownloadManager
         var fileName = $"{request.VideoType}_{request.VideoId}_{DateTime.Now.Ticks}.mp4";
         var localPath = Path.Combine(_downloadDirectory, fileName);
         
-        var expiresAt = retentionType == DownloadRetentionType.Cache 
-            ? DateTime.Now.AddDays(1)
-            : DateTime.Now.AddDays(7);
+        var settings = App.ServiceProvider?.GetService<ISettingsService>();
+        var playbackCacheDays = settings?.PlaybackCacheRetentionDays ?? 1;
+        var watchlistCacheDays = settings?.WatchlistCacheRetentionDays ?? 3;
+        var downloadDays = settings?.DownloadRetentionDays ?? 7;
+
+        var expiresAt = retentionType switch
+        {
+            DownloadRetentionType.Cache => DateTime.Now.AddDays(playbackCacheDays),
+            DownloadRetentionType.Watchlist => DateTime.Now.AddDays(watchlistCacheDays),
+            _ => DateTime.Now.AddDays(downloadDays)
+        };
         
         var streamUrl = BuildStreamUrl(request.VideoId, request.VideoType);
         

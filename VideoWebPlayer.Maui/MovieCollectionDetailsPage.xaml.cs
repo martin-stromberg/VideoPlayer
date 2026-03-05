@@ -38,6 +38,12 @@ public partial class MovieCollectionDetailsPage : ContentPage
         DownloadQueue.Instance.DownloadCompleted -= OnDownloadCompleted;
     }
 
+	private async void OnBackClicked(object? sender, EventArgs e)
+	{
+		if (Navigation.NavigationStack.Count > 1)
+			await Navigation.PopAsync();
+	}
+
     private void OnMovieSelected(object? sender, SelectionChangedEventArgs e)
     {
         if (sender is CollectionView cv && e.CurrentSelection.Count > 0)

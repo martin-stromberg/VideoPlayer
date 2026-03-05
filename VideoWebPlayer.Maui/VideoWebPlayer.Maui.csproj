@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
 		<TargetFrameworks>net10.0-android</TargetFrameworks>
@@ -85,6 +85,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Ensure these pages are not included twice (implicit include + explicit include) -->
+    <MauiXaml Remove="SettingsPage.xaml" />
+
     <MauiXaml Update="Components\MediaBannerPlayer.xaml">
       <Generator>MSBuild:Compile</Generator>
     </MauiXaml>
@@ -92,6 +95,9 @@
       <Generator>MSBuild:Compile</Generator>
     </MauiXaml>
     <MauiXaml Update="Components\NotificationTicker.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </MauiXaml>
+    <MauiXaml Include="SettingsPage.xaml">
       <Generator>MSBuild:Compile</Generator>
     </MauiXaml>
     <MauiXaml Update="SourceOverviewPage.xaml">

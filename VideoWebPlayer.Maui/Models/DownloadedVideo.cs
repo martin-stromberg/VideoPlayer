@@ -64,7 +64,8 @@ public class DownloadedVideo
 public enum DownloadRetentionType
 {
     Cache = 0,      // 1 Tag
-    Download = 1    // 7 Tage
+    Download = 1,   // 7 Tage
+    Watchlist = 2   // 3 Tage (Continue-Watching)
 }
 
 public enum DownloadStatus

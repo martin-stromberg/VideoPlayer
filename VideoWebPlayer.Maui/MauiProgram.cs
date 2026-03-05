@@ -56,6 +56,7 @@ namespace VideoWebPlayer.Maui
             builder.Services.AddSingleton<IPublishNotificationEvent>(sp => sp.GetRequiredService<NotificationEventService>());
             builder.Services.AddSingleton<ISubscribeNotificationEvent>(sp => sp.GetRequiredService<NotificationEventService>());
 
+            builder.Services.AddTransient<ServerSetupPage>();
             builder.Services.AddTransient<SettingsPage>();
             builder.Services.AddTransient<LoginPage>();
             builder.Services.AddTransient<LoadingPage>();

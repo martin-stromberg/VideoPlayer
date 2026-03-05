@@ -42,7 +42,7 @@ namespace VideoWebPlayer.Maui
                     // Ensure server address
                     while (!_settings.HasServerAddress())
                     {
-                        var settingsPage = _services.GetService(typeof(SettingsPage)) as SettingsPage ?? new SettingsPage(_settings);
+                        var settingsPage = _services.GetService(typeof(ServerSetupPage)) as ServerSetupPage ?? new ServerSetupPage(_settings);
                         await nav.PushModalAsync(new NavigationPage(settingsPage));
                         if (!_settings.HasServerAddress())
                         {
@@ -91,7 +91,7 @@ namespace VideoWebPlayer.Maui
                         else
                         {
                             // show settings again to allow correction
-                            var settingsPage = _services.GetService(typeof(SettingsPage)) as SettingsPage ?? new SettingsPage(_settings);
+                            var settingsPage = _services.GetService(typeof(ServerSetupPage)) as ServerSetupPage ?? new ServerSetupPage(_settings);
                             await nav.PushModalAsync(new NavigationPage(settingsPage));
                             // loop continues
                             continue;

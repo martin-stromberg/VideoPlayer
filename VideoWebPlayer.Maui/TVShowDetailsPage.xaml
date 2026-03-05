@@ -7,30 +7,22 @@
              x:Class="VideoWebPlayer.Maui.TVShowDetailsPage"
              x:DataType="viewmodels:TVShowDetailsViewModel"
              BackgroundColor="#000000">
-    <Grid BackgroundColor="#181820" Padding="0">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="100" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="47" />
-        </Grid.RowDefinitions>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="100" />
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="100" />
-        </Grid.ColumnDefinitions>
-        <Image Grid.Row="0" Grid.Column="0" Source="background_header_left.png" Aspect="Fill" />
-        <Image Grid.Row="0" Grid.Column="1" Source="background_header_middle.png" Aspect="Fill" />
-        <Image Grid.Row="0" Grid.Column="2" Source="background_header_right.png" Aspect="Fill" />
-        <Label Grid.Row="0" Grid.Column="1" Text="{Binding Title}" FontSize="28" FontAttributes="Bold" TextColor="#FFDDAA" Padding="20,20,20,15" FontFamily="OpenSansSemibold">
-            <Label.Shadow>
-                <Shadow Brush="#000000" Offset="5,5" Radius="6" />
-            </Label.Shadow>
-        </Label>
-        <Image Grid.Row="1" Grid.Column="0" Source="background_content_left.png" Aspect="Fill" />
-        <Image Grid.Row="1" Grid.Column="1" Source="background_content_middle.png" Aspect="Fill" />
-        <Image Grid.Row="1" Grid.Column="2" Source="background_content_right.png" Aspect="Fill" />
-        <ScrollView Grid.Row="1" Grid.Column="1">
-            <VerticalStackLayout Spacing="20" Padding="20,10,20,20">
+    <components:PageChrome HeaderTitle="{Binding Title}">
+		<components:PageChrome.HeaderActions>
+			<Button Text="←"
+			        FontSize="18"
+			        BackgroundColor="#FFB84D"
+			        TextColor="#000000"
+			        CornerRadius="8"
+			        Padding="15,8"
+			        Clicked="OnBackClicked"
+			        HorizontalOptions="End"
+			        VerticalOptions="Center" />
+		</components:PageChrome.HeaderActions>
+
+		<components:PageChrome.Body>
+			<ScrollView>
+				<VerticalStackLayout Spacing="20" Padding="20,10,20,20">
                 <!-- MediaBannerPlayer Component -->
                 <components:MediaBannerPlayer />
                 
@@ -86,14 +78,12 @@
                         </DataTemplate>
                     </CollectionView.ItemTemplate>
                 </CollectionView>
-            </VerticalStackLayout>
-        </ScrollView>
-        <Image Grid.Row="2" Grid.Column="0" Source="background_footer_left.png" Aspect="Fill" />
-        <Image Grid.Row="2" Grid.Column="1" Source="background_footer_middle.png" Aspect="Fill" />
-        <Image Grid.Row="2" Grid.Column="2" Source="background_footer_right.png" Aspect="Fill" />
-        
-        <!-- NotificationTicker -->
-        <components:NotificationTicker Grid.Row="2" Grid.Column="1" 
-                                       Margin="20,0" />
-    </Grid>
+                </VerticalStackLayout>
+			</ScrollView>
+		</components:PageChrome.Body>
+
+		<components:PageChrome.Footer>
+			<components:NotificationTicker Margin="20,0" />
+		</components:PageChrome.Footer>
+	</components:PageChrome>
 </ContentPage>

@@ -9,7 +9,36 @@ public class SettingsService : ISettingsService
 {
     private const string ServerKey = "ServerAddress";
 
+    private const string PlaybackCacheDaysKey = "PlaybackCacheRetentionDays";
+    private const string WatchlistCacheDaysKey = "WatchlistCacheRetentionDays";
+    private const string DownloadRetentionDaysKey = "DownloadRetentionDays";
+
     public string? ServerAddress => Preferences.Default.Get(ServerKey, string.Empty);
+
+    public int PlaybackCacheRetentionDays
+    {
+        get => ClampDays(Preferences.Default.Get(PlaybackCacheDaysKey, 1));
+        set => Preferences.Default.Set(PlaybackCacheDaysKey, ClampDays(value));
+    }
+
+    public int WatchlistCacheRetentionDays
+    {
+        get => ClampDays(Preferences.Default.Get(WatchlistCacheDaysKey, 3));
+        set => Preferences.Default.Set(WatchlistCacheDaysKey, ClampDays(value));
+    }
+
+    public int DownloadRetentionDays
+    {
+        get => ClampDays(Preferences.Default.Get(DownloadRetentionDaysKey, 7));
+        set => Preferences.Default.Set(DownloadRetentionDaysKey, ClampDays(value));
+    }
+
+    private static int ClampDays(int days)
+    {
+        if (days < 1) return 1;
+        if (days > 365) return 365;
+        return days;
+    }
 
     public bool HasServerAddress()
     {

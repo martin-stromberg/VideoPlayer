@@ -7,194 +7,142 @@
              x:DataType="viewmodels:HomePageViewModel"
              BackgroundColor="#000000">
 
-	<Grid BackgroundColor="#181820" Padding="0">
-		<Grid.RowDefinitions>
-			<RowDefinition Height="100" />
-			<!-- Header -->
-			<RowDefinition Height="*" />
-			<!-- Content -->
-			<RowDefinition Height="47" />
-			<!-- Footer -->
-		</Grid.RowDefinitions>
-		<Grid.ColumnDefinitions>
-			<ColumnDefinition Width="100" />
-			<!-- Left -->
-			<ColumnDefinition Width="*" />
-			<!-- Middle -->
-			<ColumnDefinition Width="100" />
-			<!-- Right -->
-		</Grid.ColumnDefinitions>
-		<!-- Header -->
-		<Image Grid.Row="0" Grid.Column="0" Source="background_header_left.png" Aspect="Fill" />
-		<Image Grid.Row="0" Grid.Column="1" Source="background_header_middle.png" Aspect="Fill" />
-		<Image Grid.Row="0" Grid.Column="2" Source="background_header_right.png" Aspect="Fill" />
-		
-		<Grid Grid.Row="0" Grid.Column="1">
-			<Label Text="Media Player"
-			       FontSize="36"
-			       FontAttributes="Bold"
-			       TextColor="#FFDDAA"
-			       Padding="20,20,20,15"
-			       FontFamily="OpenSansSemibold"
-			       HorizontalOptions="Start"
-			       VerticalOptions="Center">
-				<Label.Shadow>
-					<Shadow Brush="#000000"
-					        Offset="5,5"
-					        Radius="6" />
-				</Label.Shadow>
-			</Label>
-			
-			<!-- Sources Icons (Online Mode) -->
-			<CollectionView ItemsSource="{Binding Sources}"
-			                SelectionMode="None"
-			                HorizontalOptions="End"
-			                VerticalOptions="Center"
-			                Margin="20"
-			                IsVisible="{Binding IsOnline}">
-				<CollectionView.ItemsLayout>
-					<LinearItemsLayout Orientation="Horizontal" ItemSpacing="10" />
-				</CollectionView.ItemsLayout>
-				<CollectionView.ItemTemplate>
-					<DataTemplate x:DataType="viewmodels:MediaSourceViewModel">
-						<Border BackgroundColor="#FFB84D"
-						        StrokeThickness="0"
-						        WidthRequest="50"
-						        HeightRequest="50">
-							<Border.StrokeShape>
-								<RoundRectangle CornerRadius="25" />
-							</Border.StrokeShape>
-							<Border.Shadow>
-								<Shadow Brush="#000000"
-								        Offset="2,2"
-								        Radius="4"
-								        Opacity="0.3" />
-							</Border.Shadow>
-							<Border.GestureRecognizers>
-								<TapGestureRecognizer Tapped="OnSourceTapped" />
-							</Border.GestureRecognizers>
-							<Label Text="📁"
-							       FontSize="24"
-							       HorizontalOptions="Center"
-							       VerticalOptions="Center" />
-						</Border>
-					</DataTemplate>
-				</CollectionView.ItemTemplate>
-			</CollectionView>
-			
-			<!-- Offline Indicator with Reconnect Button -->
-			<HorizontalStackLayout HorizontalOptions="End"
-			                       VerticalOptions="Center"
-			                       Padding="20"
-			                       Spacing="15"
-			                       IsVisible="{Binding IsOfflineMode}">
-				<Label Text="&#x1F6AB;"
-				       FontSize="24"
-				       TextColor="#FF6B6B" />
-				<Label Text="Offline"
-				       FontSize="16"
-				       TextColor="#FF6B6B"
-				       FontAttributes="Bold"
-				       VerticalOptions="Center" />
-				
-				<!-- Reconnect Button -->
-				<Button Text="🔄 Verbinden"
-				        FontSize="14"
+	<components:PageChrome HeaderTitle="Media Player">
+		<components:PageChrome.HeaderActions>
+			<Grid ColumnDefinitions="Auto,Auto,Auto" ColumnSpacing="15" HorizontalOptions="End" VerticalOptions="Center">
+				<Button Grid.Column="0"
+				        Text="⚙"
+				        FontSize="18"
 				        BackgroundColor="#FFB84D"
 				        TextColor="#000000"
 				        CornerRadius="8"
-				        Padding="15,5"
-				        Clicked="OnReconnectClicked"
-				        VerticalOptions="Center">
-					<Button.Shadow>
-						<Shadow Brush="#000000"
-						        Offset="2,2"
-						        Radius="4"
-						        Opacity="0.3" />
-					</Button.Shadow>
-				</Button>
-			</HorizontalStackLayout>
-		</Grid>
+				        Padding="15,8"
+				        Clicked="OnSettingsClicked"
+				        VerticalOptions="Center" />
 
+				<CollectionView Grid.Column="1"
+				                ItemsSource="{Binding Sources}"
+				                SelectionMode="None"
+				                HorizontalOptions="End"
+				                VerticalOptions="Center"
+				                IsVisible="{Binding IsOnline}">
+					<CollectionView.ItemsLayout>
+						<LinearItemsLayout Orientation="Horizontal" ItemSpacing="10" />
+					</CollectionView.ItemsLayout>
+					<CollectionView.ItemTemplate>
+						<DataTemplate x:DataType="viewmodels:MediaSourceViewModel">
+							<Border BackgroundColor="#FFB84D"
+							        StrokeThickness="0"
+							        WidthRequest="50"
+							        HeightRequest="50">
+								<Border.StrokeShape>
+									<RoundRectangle CornerRadius="25" />
+								</Border.StrokeShape>
+								<Border.Shadow>
+									<Shadow Brush="#000000"
+									        Offset="2,2"
+									        Radius="4"
+									        Opacity="0.3" />
+								</Border.Shadow>
+								<Border.GestureRecognizers>
+									<TapGestureRecognizer Tapped="OnSourceTapped" />
+								</Border.GestureRecognizers>
+								<Label Text="📁"
+								       FontSize="24"
+								       HorizontalOptions="Center"
+								       VerticalOptions="Center" />
+							</Border>
+						</DataTemplate>
+					</CollectionView.ItemTemplate>
+				</CollectionView>
 
-		<!-- Content -->
-		<Image Grid.Row="1" Grid.Column="0" Source="background_content_left.png" Aspect="Fill" />
-		<Image Grid.Row="1" Grid.Column="1" Source="background_content_middle.png" Aspect="Fill" />
-		<Image Grid.Row="1" Grid.Column="2" Source="background_content_right.png" Aspect="Fill" />
-		
-		<!-- Online Content -->
-		<ScrollView Grid.Row="1" Grid.Column="1" IsVisible="{Binding IsOnline}">
-			<VerticalStackLayout Spacing="35" Padding="0,10,0,20">
-				<!-- Weiterschauen Section -->
-				<components:MediaCarousel BindingContext="{Binding ContinueWatching}" />
+				<HorizontalStackLayout Grid.Column="2"
+				                       HorizontalOptions="End"
+				                       VerticalOptions="Center"
+				                       Spacing="15"
+				                       IsVisible="{Binding IsOfflineMode}">
+					<Label Text="&#x1F6AB;"
+					       FontSize="24"
+					       TextColor="#FF6B6B" />
+					<Label Text="Offline"
+					       FontSize="16"
+					       TextColor="#FF6B6B"
+					       FontAttributes="Bold"
+					       VerticalOptions="Center" />
 
-				<!-- Favoriten Section -->
-				<components:MediaCarousel BindingContext="{Binding Favorites}" />
+					<Button Text="🔄 Verbinden"
+					        FontSize="14"
+					        BackgroundColor="#FFB84D"
+					        TextColor="#000000"
+					        CornerRadius="8"
+					        Padding="15,5"
+					        Clicked="OnReconnectClicked"
+					        VerticalOptions="Center">
+						<Button.Shadow>
+							<Shadow Brush="#000000"
+							        Offset="2,2"
+							        Radius="4"
+							        Opacity="0.3" />
+						</Button.Shadow>
+					</Button>
+				</HorizontalStackLayout>
+			</Grid>
+		</components:PageChrome.HeaderActions>
 
-				<!-- Neu im Programm Section -->
-				<components:MediaCarousel BindingContext="{Binding RecentEntries}" />
-				
-				<!-- Heruntergeladene Videos Section -->
-				<components:MediaCarousel BindingContext="{Binding Downloads}" />
-			</VerticalStackLayout>
-		</ScrollView>
-		
-		<!-- Offline Mode Message -->
-		<VerticalStackLayout Grid.Row="1" Grid.Column="1" 
-		                     IsVisible="{Binding IsOfflineMode}"
-		                     VerticalOptions="Start"
-		                     HorizontalOptions="Fill"
-		                     Spacing="20"
-		                     Padding="40">
-			
-			<!-- Offline Message -->
-			<VerticalStackLayout VerticalOptions="Center"
-			                     HorizontalOptions="Center"
-			                     Spacing="20"
-			                     Padding="0,40">
-				<!-- Offline Icon (WiFi Off) -->
-				<Grid WidthRequest="100" HeightRequest="100" HorizontalOptions="Center">
-					<!-- WiFi Symbol with slash -->
-					<Label Text="📡"
-					       FontSize="80"
-					       TextColor="#666666"
-					       HorizontalOptions="Center"
-					       VerticalOptions="Center"
-					       Opacity="0.5" />
-					<BoxView Color="#FF6B6B"
-					         HeightRequest="4"
-					         WidthRequest="120"
-					         Rotation="45"
-					         HorizontalOptions="Center"
-					         VerticalOptions="Center" />
-				</Grid>
-				
-				<Label Text="Offline-Modus"
-				       FontSize="28"
-				       FontAttributes="Bold"
-				       TextColor="#FFDDAA"
-				       HorizontalOptions="Center" />
-				
-				<Label Text="Der Server ist nicht erreichbar. Bitte überprüfen Sie Ihre Internetverbindung oder die Server-Einstellungen."
-				       FontSize="16"
-				       TextColor="#CCCCCC"
-				       HorizontalOptions="Center"
-				       HorizontalTextAlignment="Center"
-				       LineBreakMode="WordWrap" />
-			</VerticalStackLayout>
-			
-			<!-- Heruntergeladene Videos Section (auch im Offline-Modus) -->
-			<components:MediaCarousel BindingContext="{Binding Downloads}" />
-		</VerticalStackLayout>
+		<components:PageChrome.Body>
+			<Grid>
+				<ScrollView IsVisible="{Binding IsOnline}">
+					<VerticalStackLayout Spacing="35" Padding="0,10,0,20">
+						<components:MediaCarousel BindingContext="{Binding ContinueWatching}" />
+						<components:MediaCarousel BindingContext="{Binding Favorites}" />
+						<components:MediaCarousel BindingContext="{Binding RecentEntries}" />
+						<components:MediaCarousel BindingContext="{Binding Downloads}" />
+					</VerticalStackLayout>
+				</ScrollView>
 
-		<!-- Footer -->
-		<Image Grid.Row="2" Grid.Column="0" Source="background_footer_left.png" Aspect="Fill" />
-		<Image Grid.Row="2" Grid.Column="1" Source="background_footer_middle.png" Aspect="Fill" />
-		<Image Grid.Row="2" Grid.Column="2" Source="background_footer_right.png" Aspect="Fill" />
-		
-		<!-- Notification Ticker -->
-		<components:NotificationTicker Grid.Row="2" Grid.Column="1" 
-		                                Margin="20,0" />
-	</Grid>
+				<VerticalStackLayout IsVisible="{Binding IsOfflineMode}"
+				                     VerticalOptions="Start"
+				                     HorizontalOptions="Fill"
+				                     Spacing="20"
+				                     Padding="40">
+					<VerticalStackLayout VerticalOptions="Center"
+					                     HorizontalOptions="Center"
+					                     Spacing="20"
+					                     Padding="0,40">
+						<Grid WidthRequest="100" HeightRequest="100" HorizontalOptions="Center">
+							<Label Text="📡"
+							       FontSize="80"
+							       TextColor="#666666"
+							       HorizontalOptions="Center"
+							       VerticalOptions="Center"
+							       Opacity="0.5" />
+							<BoxView Color="#FF6B6B"
+							         HeightRequest="4"
+							         WidthRequest="120"
+							         Rotation="45"
+							         HorizontalOptions="Center"
+							         VerticalOptions="Center" />
+						</Grid>
+						<Label Text="Offline-Modus"
+						       FontSize="28"
+						       FontAttributes="Bold"
+						       TextColor="#FFDDAA"
+						       HorizontalOptions="Center" />
+						<Label Text="Der Server ist nicht erreichbar. Bitte überprüfen Sie Ihre Internetverbindung oder die Server-Einstellungen."
+						       FontSize="16"
+						       TextColor="#CCCCCC"
+						       HorizontalOptions="Center"
+						       HorizontalTextAlignment="Center"
+						       LineBreakMode="WordWrap" />
+					</VerticalStackLayout>
+					<components:MediaCarousel BindingContext="{Binding Downloads}" />
+				</VerticalStackLayout>
+			</Grid>
+		</components:PageChrome.Body>
+
+		<components:PageChrome.Footer>
+			<components:NotificationTicker Margin="20,0" />
+		</components:PageChrome.Footer>
+	</components:PageChrome>
 
 </ContentPage>

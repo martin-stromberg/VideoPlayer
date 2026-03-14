@@ -4,6 +4,15 @@ using System.Runtime.CompilerServices;
 
 namespace VideoWebPlayer.Maui.ViewModels;
 
+public enum CarouselKind
+{
+    ContinueWatching,
+    Favorites,
+    RecentEntries,
+    Downloads,
+    Other
+}
+
 public class MediaCarouselViewModel : INotifyPropertyChanged
 {
     private string? _title;
@@ -22,6 +31,11 @@ public class MediaCarouselViewModel : INotifyPropertyChanged
             }
         }
     }
+
+    /// <summary>
+    /// Typ des Karussells, bestimmt Verhalten wie LongPress verarbeitet wird.
+    /// </summary>
+    public CarouselKind Kind { get; set; } = CarouselKind.Other;
 
     public bool IsLoading
     {
@@ -44,6 +58,36 @@ public class MediaCarouselViewModel : INotifyPropertyChanged
     {
         Items = new ObservableCollection<MediaItemViewModel>();
         Items.CollectionChanged += (s, e) => OnPropertyChanged(nameof(HasItems));
+    }
+
+    /// <summary>
+    /// Wird ausgelöst, wenn ein LongPress auf ein Element verarbeitet werden soll.
+    /// Der Empfänger erhält das betroffene MediaItemViewModel.
+    /// </summary>
+    public class MediaItemPressedEventArgs : EventArgs
+    {
+        public MediaItemViewModel Item { get; }
+        public MediaItemPressedEventArgs(MediaItemViewModel item) => Item = item;
+    }
+
+    public event EventHandler<MediaItemPressedEventArgs>? ItemPressed;
+
+    /// <summary>
+    /// Führt ein LongPress für das übergebene Element aus. Das ViewModel entscheidet,
+    /// ob das Event verarbeitet werden soll; falls ja, wird ItemPressed ausgelöst.
+    /// </summary>
+    public void ExecuteLongPress(MediaItemViewModel item)
+    {
+        if (item == null)
+            return;
+
+        // Erlaubt nur für bestimmte Carousel-Kindertypen
+        var allow = Kind == CarouselKind.Favorites || Kind == CarouselKind.ContinueWatching || Kind == CarouselKind.Downloads;
+
+        if (allow)
+        {
+            ItemPressed?.Invoke(this, new MediaItemPressedEventArgs(item));
+        }
     }
 
     /// <summary>

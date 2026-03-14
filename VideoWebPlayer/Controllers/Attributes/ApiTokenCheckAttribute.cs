@@ -41,28 +41,38 @@ public class ApiTokenCheckAttribute : ActionFilterAttribute
             return;
         }
 
-        var requestToken = tokenHeader.ToString();
+        // Normalize request token (accept optional Bearer prefix)
+        string requestToken = string.Empty;
+        if (tokenHeader.Count > 0)
+            requestToken = tokenHeader.ToString().Trim();
+        if (requestToken.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+            requestToken = requestToken.Substring(7).Trim();
 
-        // Prüfe mehrere konfigurierte Tokens
-        var validTokens = new List<string>();
-        
+        // Prüfe mehrere konfigurierte Tokens (jede Konfig-Einstellung kann mehrere, kommaseparierte Tokens enthalten)
+        var validTokens = new HashSet<string>(StringComparer.Ordinal);
+
+        void AddTokensFromConfig(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+                return;
+            var parts = raw.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var p in parts)
+            {
+                var t = p.Trim();
+                if (!string.IsNullOrEmpty(t))
+                    validTokens.Add(t);
+            }
+        }
+
         // Allgemeiner Token
-        var apiToken = config["Jwt:ApiToken"];
-        if (!string.IsNullOrWhiteSpace(apiToken))
-            validTokens.Add(apiToken);
-        
+        AddTokensFromConfig(config["Jwt:ApiToken"]);
         // Web-spezifischer Token
-        var webToken = config["Jwt:ApiToken:Web"];
-        if (!string.IsNullOrWhiteSpace(webToken))
-            validTokens.Add(webToken);
-        
+        AddTokensFromConfig(config["Jwt:ApiToken:Web"]);
         // MAUI-spezifischer Token
-        var mauiToken = config["Jwt:ApiToken:Maui"];
-        if (!string.IsNullOrWhiteSpace(mauiToken))
-            validTokens.Add(mauiToken);
+        AddTokensFromConfig(config["Jwt:ApiToken:Maui"]);
 
         // Prüfe, ob der Request-Token einem der gültigen Tokens entspricht
-        if (validTokens.Any(token => string.Equals(requestToken, token, StringComparison.Ordinal)))
+        if (validTokens.Contains(requestToken))
         {
             base.OnActionExecuting(context);
             return;

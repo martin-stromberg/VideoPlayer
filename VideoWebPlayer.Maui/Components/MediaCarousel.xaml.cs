@@ -69,7 +69,16 @@ public partial class MediaCarousel : ContentView
     {
         if (sender is BindableObject bindable && bindable.BindingContext is MediaItemViewModel item)
         {
-            item.DeleteDownloadCommand?.Execute(e.LongPressCommandParameter);
+            // Delegate handling to the carousel's viewmodel so it can decide what to do
+            if (BindingContext is MediaCarouselViewModel vm)
+            {
+                vm.ExecuteLongPress(item);
+            }
+            else
+            {
+                // fallback: execute download delete command if present
+                item.DeleteDownloadCommand?.Execute(e.LongPressCommandParameter);
+            }
         }
     }
 }

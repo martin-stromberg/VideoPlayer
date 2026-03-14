@@ -54,10 +54,15 @@ public class HomePageViewModel : INotifyPropertyChanged
 
     public HomePageViewModel()
     {
-        ContinueWatching = new MediaCarouselViewModel { Title = "Weiterschauen" };
-        Favorites = new MediaCarouselViewModel { Title = "Favoriten" };
-        RecentEntries = new MediaCarouselViewModel { Title = "Neu im Programm" };
-        Downloads = new MediaCarouselViewModel { Title = "Heruntergeladene Videos" };
+        ContinueWatching = new MediaCarouselViewModel { Title = "Weiterschauen", Kind = CarouselKind.ContinueWatching };
+        Favorites = new MediaCarouselViewModel { Title = "Favoriten", Kind = CarouselKind.Favorites };
+        RecentEntries = new MediaCarouselViewModel { Title = "Neu im Programm", Kind = CarouselKind.RecentEntries };
+        Downloads = new MediaCarouselViewModel { Title = "Heruntergeladene Videos", Kind = CarouselKind.Downloads };
+
+        // Subscribe to long-press events so this ViewModel can handle item actions
+        ContinueWatching.ItemPressed += OnCarousel_ItemPressed;
+        Favorites.ItemPressed += OnCarousel_ItemPressed;
+        Downloads.ItemPressed += OnCarousel_ItemPressed;
 
         _client = App.ServiceProvider?.GetService<VideoWebPlayerClient>();
     }
@@ -698,4 +703,48 @@ public class HomePageViewModel : INotifyPropertyChanged
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
+
+    private async void OnCarousel_ItemPressed(object? sender, MediaCarouselViewModel.MediaItemPressedEventArgs e)
+    {
+        if (e?.Item == null) return;
+
+        try
+        {
+            if (sender == Downloads)
+            {
+                // Remove download and update UI
+                var entryId = e.Item.EntryId ?? 0;
+                var mediaType = e.Item.MediaType ?? "movie";
+                await Services.DownloadManager.Instance.DeleteDownloadAsync(entryId, mediaType);
+                await MainThread.InvokeOnMainThreadAsync(() => Downloads.Items.Remove(e.Item));
+            }
+            else if (sender == Favorites)
+            {
+                if (_client != null && e.Item.EntryId.HasValue)
+                {
+                    // Toggle favorite on server; if result is false, it was removed
+                    var dto = new DtoMediaEntry { Id = e.Item.EntryId.Value, Name = e.Item.Title ?? string.Empty };
+                    bool isNowFavorite = await _client.ToggleFavorite(dto).ConfigureAwait(false);
+                    if (!isNowFavorite)
+                    {
+                        await MainThread.InvokeOnMainThreadAsync(() => Favorites.Items.Remove(e.Item));
+                    }
+                }
+                else
+                {
+                    await MainThread.InvokeOnMainThreadAsync(() => Favorites.Items.Remove(e.Item));
+                }
+            }
+            else if (sender == ContinueWatching)
+            {
+                // Locally remove from continue-watching list
+                await MainThread.InvokeOnMainThreadAsync(() => ContinueWatching.Items.Remove(e.Item));
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[HomePageViewModel] Error handling ItemPressed: {ex.Message}");
+        }
+    }
 }
+

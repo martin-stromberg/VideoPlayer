@@ -80,7 +80,7 @@ namespace VideoWebPlayer.Client
             }) ?? throw new InvalidOperationException("Deserialization returned null.");
         }
         
-        protected virtual async Task<T> HttpPostAsync<T>(string endPoint, HttpContent args)
+        protected virtual async Task<T> HttpPostAsync<T>(string endPoint, HttpContent args, bool skipReauthorize = false)
         {
             async Task<HttpResponseMessage> DoRequestAsync() => await httpClient.PostAsync(endPoint, args);
 
@@ -89,6 +89,12 @@ namespace VideoWebPlayer.Client
             if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
             {
                 Logger?.LogWarning("Received 401 Unauthorized from {EndPoint}. Token might be expired.", endPoint);
+                if (skipReauthorize)
+                {
+                    // We're in the login call itself; do not attempt to re-authorize.
+                    Logger?.LogWarning("Skipping reauthorization for login request to {EndPoint}.", endPoint);
+                    throw new HttpRequestException($"Unauthorized: {endPoint}");
+                }
 
                 if (await HandleUnauthorized())
                 {
@@ -125,7 +131,7 @@ namespace VideoWebPlayer.Client
             var request = new AuthenticationRequest { Email = email, Password = password };
             var json = System.Text.Json.JsonSerializer.Serialize(request);
             var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
-            var token = await HttpPostAsync<AuthorizationToken>("api/auth/login", content);
+            var token = await HttpPostAsync<AuthorizationToken>("api/auth/login", content, skipReauthorize: true);
             SetAuthorizationToken(token);
             return token;
         }

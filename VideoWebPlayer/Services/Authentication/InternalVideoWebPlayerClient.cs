@@ -53,11 +53,11 @@ namespace VideoWebPlayer.Services.Authentication
         /// <param name="endPoint">The endpoint to call.</param>
         /// <param name="args">The HTTP content payload.</param>
         /// <returns>The deserialized response.</returns>
-        protected override async Task<T> HttpPostAsync<T>(string endPoint, HttpContent args)
+        protected override async Task<T> HttpPostAsync<T>(string endPoint, HttpContent args, bool skipReauthorize = false)
         {
             if (string.IsNullOrWhiteSpace(AuthorizationToken))
                 await ImpersonateAsync(httpContextAccessor.HttpContext?.User ?? new ClaimsPrincipal());
-            return await base.HttpPostAsync<T>(endPoint, args);
+            return await base.HttpPostAsync<T>(endPoint, args, skipReauthorize);
         }
         private async Task ImpersonateAsync(ClaimsPrincipal user)
         {

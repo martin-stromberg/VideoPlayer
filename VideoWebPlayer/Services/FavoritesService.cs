@@ -119,6 +119,38 @@ public sealed class FavoritesService : IFavoritesService
 			return await query.FirstOrDefaultAsync(f => f.TVShowSeasonId == entry.Id, cancellationToken);
 		if (entry is DtoTVShowEpisode)
 			return await query.FirstOrDefaultAsync(f => f.TVShowEpisodeId == entry.Id, cancellationToken);
+		if (entry is DtoMediaEntry)
+		{
+			var mediaItem = await _db.GetRelationsForMediaItemAsync(entry.Id, cancellationToken);
+			if (mediaItem.Movie is not null)
+				return await query.FirstOrDefaultAsync(f => f.MovieId == mediaItem.Movie.Id, cancellationToken);
+			if (mediaItem.MovieCollection is not null)
+				return await query.FirstOrDefaultAsync(f => f.MovieCollectionId == mediaItem.MovieCollection.Id, cancellationToken);
+			if (mediaItem.TVShow is not null)
+				return await query.FirstOrDefaultAsync(f => f.TVShowId == mediaItem.TVShow.Id, cancellationToken);
+			if (mediaItem.TVShowSeason is not null)
+				return await query.FirstOrDefaultAsync(f => f.TVShowSeasonId == mediaItem.TVShowSeason.Id, cancellationToken);
+			if (mediaItem.TVShowEpisode is not null)
+				return await query.FirstOrDefaultAsync(f => f.TVShowEpisodeId == mediaItem.TVShowEpisode.Id, cancellationToken);
+
+			var show = await _db.TVShows.AsNoTracking().FirstOrDefaultAsync(s => s.Id == entry.Id, cancellationToken);
+			if (show is not null)
+			{
+				var seasonIds = await _db.TVShowSeasons.AsNoTracking().Where(s => s.TVShowId == show.Id).Select(s => (long?)s.Id).ToArrayAsync(cancellationToken);
+                var result = await query.FirstOrDefaultAsync(f => f.TVShowSeasonId != null && seasonIds.Contains(f.TVShowSeasonId));
+				if (result != null)
+					return result;
+
+                var episodeIds = await _db.TVShowEpisodes.AsNoTracking().Where(e => seasonIds.Contains(e.TVShowSeasonId)).Select(e => (long?)e.Id).ToArrayAsync(cancellationToken);
+				return await query.FirstOrDefaultAsync(f => f.TVShowEpisodeId != null && episodeIds.Contains(f.TVShowEpisodeId), cancellationToken);
+            }
+			var movieCollection = await _db.MovieCollections.AsNoTracking().FirstOrDefaultAsync(mc => mc.Id == entry.Id, cancellationToken);
+			if (movieCollection is not null)
+			{
+                var movieIds = await _db.Movies.AsNoTracking().Where(m => m.MovieCollectionId == movieCollection.Id).Select(m => (long?)m.Id).ToArrayAsync(cancellationToken);
+                return await query.FirstOrDefaultAsync(f => f.MovieId != null && movieIds.Contains(f.MovieId), cancellationToken);
+			}
+        }
 		return null;
 	}
 

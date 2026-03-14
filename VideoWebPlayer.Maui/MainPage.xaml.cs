@@ -134,15 +134,39 @@ namespace VideoWebPlayer.Maui
         {
             try
             {
-                var success = await _viewModel.TryReconnectAsync();
-                if (success)
+                // Use ConnectionService workflow to attempt full connection + login if possible
+                var state = await _connection.StartConnectionWorkflowAsync(_viewModel, _services);
+
+                var nav = this.Navigation;
+
+                if (state == ConnectionState.NeedsServerSetup)
                 {
-                    await DisplayAlert("Verbindung wiederhergestellt", "Die Verbindung zum Server wurde erfolgreich wiederhergestellt.", "OK");
+                    var settingsPage = _services.GetService(typeof(ServerSetupPage)) as ServerSetupPage ?? new ServerSetupPage(_settings);
+                    await nav.PushModalAsync(new NavigationPage(settingsPage));
+                    return;
                 }
-                else
+
+                if (state == ConnectionState.NeedsLogin)
                 {
-                    await DisplayAlert("Verbindung fehlgeschlagen", "Die Verbindung zum Server konnte nicht hergestellt werden. Bitte überprüfen Sie Ihre Internetverbindung und die Server-Einstellungen.", "OK");
+                    var loginPage = _services.GetService(typeof(LoginPage)) as LoginPage ?? new LoginPage(_auth);
+                    await nav.PushModalAsync(new NavigationPage(loginPage));
+                    return;
                 }
+
+                if (state == ConnectionState.Offline)
+                {
+                    await DisplayAlert("Verbindung fehlgeschlagen", "Der Server ist nicht erreichbar. Bitte überprüfen Sie Ihre Einstellungen oder starten Sie die App im Offline-Modus.", "OK");
+                    return;
+                }
+
+                // Connected
+                (Application.Current as App)?.InitializeAfterStartupWorkflowOnline(_services);
+                try
+                {
+                    await ShowHomeAsync();
+                }
+                catch { }
+                await DisplayAlert("Verbunden", "Die Verbindung zum Server wurde wiederhergestellt.", "OK");
             }
             catch (Exception ex)
             {
@@ -241,91 +265,50 @@ namespace VideoWebPlayer.Maui
 
             try
             {
-                while (true)
+                // Use the ConnectionService to run the connection workflow and update the ViewModel flags
+                var state = await _connection.StartConnectionWorkflowAsync(_viewModel, _services);
+
+                if (state == ConnectionState.NeedsServerSetup)
                 {
-                    // Ensure server address
-                    while (!_settings.HasServerAddress())
-                    {
-                        var settingsPage = _services.GetService(typeof(ServerSetupPage)) as ServerSetupPage ?? new ServerSetupPage(_settings);
-                        await nav.PushModalAsync(new NavigationPage(settingsPage));
-                        if (!_settings.HasServerAddress())
-                        {
-                            // user exited
-                            return;
-                        }
-                    }
-
-                    // Try connecting
-                    var loading = new LoadingPage("Verbinde mit Server...");
-                    await nav.PushModalAsync(new NavigationPage(loading));
-                    bool connected = false;
-                    try
-                    {
-                        connected = await _connection.TryConnectAsync(_settings.ServerAddress ?? string.Empty);
-                    }
-                    finally
-                    {
-                        await nav.PopModalAsync();
-                    }
-
-                    if (!connected)
-                    {
-                        // Offer offline mode
-                        bool continueOffline = await DisplayAlertAsync(
-                            "Keine Verbindung", 
-                            "Der Server ist nicht erreichbar. Möchten Sie im Offline-Modus fortfahren?", 
-                            "Offline fortfahren", 
-                            "Einstellungen öffnen");
-                        
-                        if (continueOffline)
-                        {
-                            // Start in offline mode
-                            var offlineHome = _services.GetService(typeof(HomePage)) as HomePage ?? new HomePage();
-                            if (offlineHome.BindingContext is HomePageViewModel homeViewModel)
-                            {
-                                homeViewModel.SetOfflineMode(true);
-                            }
-                            
-                            if (Application.Current?.Windows.Count > 0)
-                            {
-                                Application.Current.Windows[0].Page = new NavigationPage(offlineHome);
-                            }
-                            break;
-                        }
-                        else
-                        {
-                            // show settings again to allow correction
-                            var settingsPage = _services.GetService(typeof(ServerSetupPage)) as ServerSetupPage ?? new ServerSetupPage(_settings);
-                            await nav.PushModalAsync(new NavigationPage(settingsPage));
-                            // loop continues
-                            continue;
-                        }
-                    }
-
-                    // Connected. Ensure user is authenticated
-                    while (!_auth.HasCredentials())
-                    {
-                        var loginPage = _services.GetService(typeof(LoginPage)) as LoginPage ?? new LoginPage(_auth);
-                        await nav.PushModalAsync(new NavigationPage(loginPage));
-                        if (!_auth.HasCredentials())
-                        {
-                            // user cancelled login
-                            return;
-                        }
-                    }
-
-				// Startup workflow completed in online mode -> start online-only background services.
-				(Application.Current as App)?.InitializeAfterStartupWorkflowOnline(_services);
-
-                    // success -> show the Home UI inside this MainPage
-                    try
-                    {
-                        // Show Home UI and refresh data on the main thread
-                        await ShowHomeAsync();
-                    }
-                    catch { }
-                    break;
+                    var settingsPage = _services.GetService(typeof(ServerSetupPage)) as ServerSetupPage ?? new ServerSetupPage(_settings);
+                    await nav.PushModalAsync(new NavigationPage(settingsPage));
+                    // allow user to correct settings and retry
+                    return;
                 }
+
+                if (state == ConnectionState.NeedsLogin)
+                {
+                    var loginPage = _services.GetService(typeof(LoginPage)) as LoginPage ?? new LoginPage(_auth);
+                    await nav.PushModalAsync(new NavigationPage(loginPage));
+                    // After login, higher level should trigger retry if needed
+                    return;
+                }
+
+                if (state == ConnectionState.Offline)
+                {
+                    // show offline home
+                    var offlineHome = _services.GetService(typeof(HomePage)) as HomePage ?? new HomePage();
+                    if (offlineHome.BindingContext is HomePageViewModel homeViewModel)
+                    {
+                        homeViewModel.SetOfflineMode(true);
+                    }
+
+                    if (Application.Current?.Windows.Count > 0)
+                    {
+                        Application.Current.Windows[0].Page = new NavigationPage(offlineHome);
+                    }
+                    return;
+                }
+
+                // Connected -> initialize online services
+                (Application.Current as App)?.InitializeAfterStartupWorkflowOnline(_services);
+
+                // success -> show the Home UI inside this MainPage
+                try
+                {
+                    await ShowHomeAsync();
+                }
+                catch { }
             }
             catch (Exception ex)
             {

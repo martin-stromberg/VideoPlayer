@@ -391,6 +391,90 @@ namespace VideoWebPlayer.Data
             await SaveChangesAsync(cancellationToken);
             return episode;
         }
+
+        /// <summary>
+        /// Ergebnisobjekt mit den möglichen zugehörigen Entitäten für ein MediaItem.
+        /// </summary>
+        public class MediaItemRelationResult
+        {
+            /// <summary>
+            /// The media collection that contains the media item, if any.
+            /// </summary>
+            public MediaCollection? MediaCollection { get; set; }
+
+            /// <summary>
+            /// The movie linked to the media item, if any.
+            /// </summary>
+            public Movie? Movie { get; set; }
+
+            /// <summary>
+            /// The movie collection that contains the movie, if any.
+            /// </summary>
+            public MovieCollection? MovieCollection { get; set; }
+
+            /// <summary>
+            /// The TV show associated with the media item (via episode -> season -> show), if any.
+            /// </summary>
+            public TVShow? TVShow { get; set; }
+
+            /// <summary>
+            /// The TV show season associated with the media item, if any.
+            /// </summary>
+            public TVShowSeason? TVShowSeason { get; set; }
+
+            /// <summary>
+            /// The TV show episode associated with the media item, if any.
+            /// </summary>
+            public TVShowEpisode? TVShowEpisode { get; set; }
+        }
+
+        /// <summary>
+        /// Lädt die zu einer MediaItem-Id gehörenden übergeordneten Entitäten (MediaCollection, Movie (+MovieCollection) oder TVShow/Season/Episode).
+        /// Gibt ein <see cref="MediaItemRelationResult"/> mit gefüllten Properties zurück (nicht gefundene bleiben null).
+        /// </summary>
+        public async Task<MediaItemRelationResult> GetRelationsForMediaItemAsync(long mediaItemId, CancellationToken cancellationToken = default)
+        {
+            var result = new MediaItemRelationResult();
+
+            // Lade MediaItem mit zugehöriger MediaCollection
+            var mediaItem = await MediaItems
+                .Include(mi => mi.MediaCollection)
+                .FirstOrDefaultAsync(mi => mi.Id == mediaItemId, cancellationToken);
+
+            if (mediaItem == null)
+                return result;
+
+            result.MediaCollection = mediaItem.MediaCollection;
+
+            // Prüfe, ob das MediaItem mit einem Movie verknüpft ist
+            var movieLink = await MovieMediaItems
+                .Include(mmi => mmi.Movie)
+                    .ThenInclude(m => m.MovieCollection)
+                .FirstOrDefaultAsync(mmi => mmi.MediaItemId == mediaItemId, cancellationToken);
+
+            if (movieLink != null)
+            {
+                result.Movie = movieLink.Movie;
+                result.MovieCollection = movieLink.Movie?.MovieCollection;
+                return result;
+            }
+
+            // Prüfe, ob das MediaItem mit einer TVShowEpisode verknüpft ist
+            var episodeLink = await TVShowEpisodeMediaItems
+                .Include(ei => ei.TVShowEpisode)
+                    .ThenInclude(ep => ep.TVShowSeason)
+                        .ThenInclude(s => s.TVShow)
+                .FirstOrDefaultAsync(ei => ei.MediaItemId == mediaItemId, cancellationToken);
+
+            if (episodeLink != null)
+            {
+                result.TVShowEpisode = episodeLink.TVShowEpisode;
+                result.TVShowSeason = episodeLink.TVShowEpisode?.TVShowSeason;
+                result.TVShow = episodeLink.TVShowEpisode?.TVShowSeason?.TVShow;
+            }
+
+            return result;
+        }
         /// <summary>
         /// Configures model relationships and constraints.
         /// </summary>

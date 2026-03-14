@@ -91,6 +91,15 @@
                     </VerticalStackLayout>
                     <components:MediaCarousel BindingContext="{Binding Downloads}" />
                 </VerticalStackLayout>
+                <!-- Connecting overlay -->
+                <AbsoluteLayout IsVisible="{Binding IsLoading}" BackgroundColor="#80000000" Padding="20">
+                    <Frame AbsoluteLayout.LayoutBounds="0.5,0.5,0.8,0.2" AbsoluteLayout.LayoutFlags="All" CornerRadius="12" BackgroundColor="#111111" HasShadow="True">
+                        <HorizontalStackLayout Spacing="15" VerticalOptions="Center" HorizontalOptions="Center">
+                            <ActivityIndicator IsRunning="True" Color="#FFDDAA" WidthRequest="36" HeightRequest="36" />
+                            <Label Text="Verbindung wird hergestellt..." TextColor="#FFFFFF" FontSize="16" VerticalOptions="Center" />
+                        </HorizontalStackLayout>
+                    </Frame>
+                </AbsoluteLayout>
             </Grid>
         </components:PageChrome.Body>
 

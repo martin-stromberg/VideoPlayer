@@ -1,0 +1,18 @@
+{
+  "profiles": {
+    "Development (Client+Server)": {
+      "commandName": "Project",
+      "nativeDebugging": false,
+      "environmentVariables": {
+        "VIDEOWEBPLAYER_PROFILE": "development"
+      }
+    },
+    "Development (Client)": {
+      "commandName": "Project",
+      "nativeDebugging": false,
+      "environmentVariables": {
+        "VIDEOWEBPLAYER_PROFILE": "development_client"
+      }
+    }
+  }
+}

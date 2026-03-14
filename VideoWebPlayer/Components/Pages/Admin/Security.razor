@@ -1,0 +1,97 @@
+@page "/admin/security"
+@using VideoWebPlayer.Services
+@using VideoWebPlayer.Data
+@inject ILoginIpBlockService IpBlockService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IJSRuntime JS
+@rendermode InteractiveServer
+
+<PageTitle>Sicherheit</PageTitle>
+
+@if (!isAdmin)
+{
+    <div class="alert alert-danger">Nicht autorisiert.</div>
+}
+else
+{
+    <h1>Sicherheit – Gesperrte IP-Adressen</h1>
+
+    <div class="mb-3">
+        <button class="btn btn-sm btn-outline-secondary" @onclick="Reload">Aktualisieren</button>
+    </div>
+
+    @if (blockedIps.Count == 0)
+    {
+        <div class="alert alert-info">Derzeit keine gesperrten IP-Adressen.</div>
+    }
+    else
+    {
+        <table class="table table-sm table-striped align-middle">
+            <thead>
+                <tr>
+                    <th>IP</th>
+                    <th>Ges sperrt seit (UTC)</th>
+                    <th>Fehlversuche</th>
+                    <th style="width:120px;"></th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var ip in blockedIps)
+            {
+                <tr>
+                    <td>@ip.Ip</td>
+                    <td>@ip.BlockedAtUtc.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                    <td>@ip.Failures</td>
+                    <td>
+                        <button class="btn btn-sm btn-danger"
+                                @onclick="() => Unblock(ip.Ip)">
+                            Entsperren
+                        </button>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    private bool isAdmin;
+    private List<BlockedLoginIp> blockedIps = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = auth.User;
+        isAdmin = user.HasClaim("IsAdmin", "True");
+        if (isAdmin)
+            Load();
+    }
+
+    private void Load()
+    {
+        blockedIps = IpBlockService.GetBlockedIps().ToList();
+    }
+
+    private Task Reload()
+    {
+        Load();
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private void Unblock(string ip)
+    {
+        if (IpBlockService.Unblock(ip))
+        {
+            blockedIps.RemoveAll(b => b.Ip == ip);
+            StateHasChanged();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            await JS.InvokeVoidAsync("localStorage.setItem", "security.lastVisitUtc", DateTime.UtcNow.ToString("o"));
+    }
+}

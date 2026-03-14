@@ -1,0 +1,45 @@
+namespace VideoWebPlayer.Data
+{
+    /// <summary>
+    /// Represents a stored picture for media metadata.
+    /// </summary>
+    public class Picture
+    {
+        /// <summary>
+        /// Gets or sets the picture identifier.
+        /// </summary>
+        public long Id { get; set; }
+        /// <summary>
+        /// Gets or sets the media item identifier that stores the image file.
+        /// </summary>
+        public long MediaItemId { get; set; } // Verweis auf die eigentliche Bilddatei
+        /// <summary>
+        /// Gets or sets the picture type (poster, banner, fanart, thumb).
+        /// </summary>
+        public string Type { get; set; } // z.B. "poster", "banner", "fanart", "thumb"
+        /// <summary>
+        /// Gets or sets the image width.
+        /// </summary>
+        public int? Width { get; set; }
+        /// <summary>
+        /// Gets or sets the image height.
+        /// </summary>
+        public int? Height { get; set; }
+        /// <summary>
+        /// Gets or sets the optional description.
+        /// </summary>
+        public string? Description { get; set; }
+        /// <summary>
+        /// Gets or sets the media item navigation property.
+        /// </summary>
+        public MediaItem MediaItem { get; set; }
+        /// <summary>
+        /// Gets or sets the image data.
+        /// </summary>
+        public byte[] Data { get; set; }
+        /// <summary>
+        /// Gets or sets the content type.
+        /// </summary>
+        public string ContentType { get; set; }
+    }
+}

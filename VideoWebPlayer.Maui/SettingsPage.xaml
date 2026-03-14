@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:components="clr-namespace:VideoWebPlayer.Maui.Components"
+             x:Class="VideoWebPlayer.Maui.SettingsPage"
+             Title="Einstellungen"
+             BackgroundColor="#000000">
+
+	<components:PageChrome HeaderTitle="Einstellungen">
+		<components:PageChrome.HeaderActions>
+			<Button Text="←"
+			        FontSize="18"
+			        BackgroundColor="#FFB84D"
+			        TextColor="#000000"
+			        CornerRadius="8"
+			        Padding="15,8"
+			        Clicked="OnBackClicked"
+			        HorizontalOptions="End"
+			        VerticalOptions="Center" />
+		</components:PageChrome.HeaderActions>
+
+		<components:PageChrome.Body>
+			<ScrollView>
+				<VerticalStackLayout Spacing="20" Padding="40,20">
+					<Label Text="Aufbewahrung"
+					       FontSize="22"
+					       FontAttributes="Bold"
+					       TextColor="#222222"
+					       FontFamily="OpenSansSemibold" />
+
+					<Grid ColumnDefinitions="*,120" RowDefinitions="Auto,Auto,Auto" RowSpacing="12" ColumnSpacing="12">
+						<Label Grid.Row="0" Grid.Column="0" Text="Cache durch Abspielen (Tage)" TextColor="#222222" VerticalOptions="Center" />
+						<Entry Grid.Row="0" Grid.Column="1" x:Name="PlaybackCacheDaysEntry" Keyboard="Numeric" TextColor="#000000" BackgroundColor="#FFF7D6" />
+
+						<Label Grid.Row="1" Grid.Column="0" Text="Cache Weiterschauen (Tage)" TextColor="#222222" VerticalOptions="Center" />
+						<Entry Grid.Row="1" Grid.Column="1" x:Name="WatchlistCacheDaysEntry" Keyboard="Numeric" TextColor="#000000" BackgroundColor="#FFF7D6" />
+
+						<Label Grid.Row="2" Grid.Column="0" Text="Reguläre Downloads (Tage)" TextColor="#222222" VerticalOptions="Center" />
+						<Entry Grid.Row="2" Grid.Column="1" x:Name="DownloadDaysEntry" Keyboard="Numeric" TextColor="#000000" BackgroundColor="#FFF7D6" />
+					</Grid>
+
+					<Button Text="Speichern"
+					        BackgroundColor="#FFB84D"
+					        TextColor="#000000"
+					        CornerRadius="8"
+					        Padding="15,10"
+					        Clicked="OnSaveClicked"
+					        HorizontalOptions="Start" />
+
+					<Label x:Name="StatusLabel" TextColor="#666666" />
+				</VerticalStackLayout>
+			</ScrollView>
+		</components:PageChrome.Body>
+	</components:PageChrome>
+
+</ContentPage>

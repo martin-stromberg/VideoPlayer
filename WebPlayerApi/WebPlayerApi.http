@@ -1,0 +1,6 @@
+@WebPlayerApi_HostAddress = http://localhost:5073
+
+GET {{WebPlayerApi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

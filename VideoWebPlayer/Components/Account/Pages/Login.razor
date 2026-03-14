@@ -1,0 +1,26 @@
+﻿@page "/Account/Login"
+
+@using VideoWebPlayer.Components.Account.Pages.Shared
+
+<PageTitle>Log in</PageTitle>
+
+<h1>Log in</h1>
+<div class="row">
+    <div class="col-md-4">
+        @if (!string.IsNullOrEmpty(Error))
+        {
+            <div class="alert alert-danger" role="alert">
+                @Error
+            </div>
+        }
+        <LoginForm ReturnUrl="@ReturnUrl" />
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    [SupplyParameterFromQuery]
+    private string? Error { get; set; }
+}

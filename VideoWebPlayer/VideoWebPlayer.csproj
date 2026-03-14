@@ -1,0 +1,92 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>aspnet-VideoWebPlayer-d7482f8a-36bd-4416-9261-680904a1c426</UserSecretsId>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <WarningsAsErrors>1591</WarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.5" />
+    <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="10.0.5" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.5" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.5">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.5" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.5">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="SSH.NET" Version="2025.1.0" />
+    <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+    <PackageReference Include="Serilog.Settings.Configuration" Version="10.0.0" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
+    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.16.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <DbSet Include="MediaSource" />
+    <DbSet Include="MediaCollection" />
+    <DbSet Include="MediaItem" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Components\Admin\" />
+    <Folder Include="Components\Pages\System\" />
+    <Folder Include="Pages\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\VideoWebPlayer.Client\VideoWebPlayer.Client.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Update="wwwroot\app.css">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Update="wwwroot\css\site.css">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Update="wwwroot\images\placeholder.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Update="wwwroot\js\continueWatching.js">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Update="wwwroot\js\scroll.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Update="DemoDataSets\*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
+  <Target Name="CopyStandardSourcesDemoData" AfterTargets="Build;Publish">
+    <PropertyGroup>
+      <_StandardSourcesCandidate1>$(MSBuildThisFileDirectory)..\StandardSources.json</_StandardSourcesCandidate1>
+      <_StandardSourcesCandidate2>$(MSBuildThisFileDirectory)..\..\StandardSources.json</_StandardSourcesCandidate2>
+
+      <_StandardSourcesSourceFile Condition="Exists('$(_StandardSourcesCandidate1)')">$(_StandardSourcesCandidate1)</_StandardSourcesSourceFile>
+      <_StandardSourcesSourceFile Condition="'$(_StandardSourcesSourceFile)' == '' and Exists('$(_StandardSourcesCandidate2)')">$(_StandardSourcesCandidate2)</_StandardSourcesSourceFile>
+
+      <_DemoDataOutputBase Condition="'$(PublishDir)' != ''">$(PublishDir)</_DemoDataOutputBase>
+      <_DemoDataOutputBase Condition="'$(PublishDir)' == ''">$(OutDir)</_DemoDataOutputBase>
+      <_DemoDataOutputDir>$(_DemoDataOutputBase)DemoDataSets\</_DemoDataOutputDir>
+    </PropertyGroup>
+
+    <Message Text="StandardSources.json nicht gefunden (erwartet: '$(_StandardSourcesCandidate1)' oder '$(_StandardSourcesCandidate2)'). Kopieren wird übersprungen." Importance="Low" Condition="'$(_StandardSourcesSourceFile)' == ''" />
+    <MakeDir Directories="$(_DemoDataOutputDir)" Condition="'$(_StandardSourcesSourceFile)' != ''" />
+    <Copy SourceFiles="$(_StandardSourcesSourceFile)" DestinationFiles="$(_DemoDataOutputDir)StandardSources.json" SkipUnchangedFiles="true" Condition="'$(_StandardSourcesSourceFile)' != ''" />
+  </Target>
+
+</Project>

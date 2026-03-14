@@ -4,6 +4,9 @@ public interface IAuthService
 {
     bool HasCredentials();
     (string username, string password) GetCredentials();
-    Task<bool> LoginAsync(string username, string password, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Attempts to login and returns a tuple(success, errorMessage). On success errorMessage is null.
+    /// </summary>
+    Task<(bool success, string? errorMessage)> LoginAsync(string username, string password, CancellationToken cancellationToken = default);
     void ClearCredentials();
 }

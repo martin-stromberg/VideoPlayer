@@ -7,6 +7,58 @@ namespace VideoWebPlayer.Maui
     {
         public static IServiceProvider? ServiceProvider { get; set; }
         private bool _startupInitialized;
+		private bool _onlineInitialized;
+
+		public static Task SafeDisplayAlertAsync(string title, string message, string cancel)
+			=> SafeDisplayAlertAsync(title, message, accept: null, cancel, defaultAcceptResult: true);
+
+		public static Task<bool> SafeDisplayAlertAsync(string title, string message, string accept, string cancel)
+			=> SafeDisplayAlertAsync(title, message, accept, cancel, defaultAcceptResult: false);
+
+		private static async Task<bool> SafeDisplayAlertAsync(
+			string title,
+			string message,
+			string? accept,
+			string cancel,
+			bool defaultAcceptResult)
+		{
+			try
+			{
+				return await MainThread.InvokeOnMainThreadAsync(async () =>
+				{
+					var page = Current?.MainPage;
+					if (page is null)
+						return defaultAcceptResult;
+
+					// On Windows, showing a dialog before the page is fully attached can throw:
+					// "This element does not have a XamlRoot".
+					var start = DateTime.UtcNow;
+					while ((page.Handler is null || page.Window is null) && DateTime.UtcNow - start < TimeSpan.FromSeconds(2))
+						await Task.Delay(50);
+
+					try
+					{
+						if (accept is null)
+						{
+							await page.DisplayAlert(title, message, cancel);
+							return defaultAcceptResult;
+						}
+
+						return await page.DisplayAlert(title, message, accept, cancel);
+					}
+					catch (Exception ex)
+					{
+						System.Diagnostics.Debug.WriteLine($"[App] DisplayAlert failed: {ex.Message}");
+						return defaultAcceptResult;
+					}
+				});
+			}
+			catch (Exception ex)
+			{
+				System.Diagnostics.Debug.WriteLine($"[App] SafeDisplayAlertAsync failed: {ex.Message}");
+				return defaultAcceptResult;
+			}
+		}
 
         public App()
         {
@@ -36,10 +88,11 @@ namespace VideoWebPlayer.Maui
 
         protected override Window CreateWindow(IActivationState? activationState)
         {
-            // Always return a Window with a ContentPage to satisfy MAUI startup requirements
-            // Do NOT set Application.Current.MainPage anywhere else in the app
-            var main = ServiceProvider?.GetService<MainPage>() ?? Microsoft.Extensions.DependencyInjection.ActivatorUtilities.CreateInstance<MainPage>(ServiceProvider!);
-            var window = new Window(new NavigationPage(main))
+            // Use AppShell as the root when available so the Shell flyout is shown on mobile.
+            // Fall back to the previous NavigationPage(MainPage) behavior when Shell is not registered.
+            object root = ServiceProvider?.GetService<AppShell>() ?? ActivatorUtilities.CreateInstance<AppShell>(ServiceProvider!);
+            // Always return a Window with the chosen root element
+            var window = new Window((Page)root)
             {
                 // Titelleiste entfernen
                 Title = string.Empty
@@ -59,12 +112,10 @@ namespace VideoWebPlayer.Maui
 
         public void InitializeAfterServices(IServiceProvider services)
         {
-            // Registriere Handler für abgelaufene Tokens
-            var client = services.GetService<VideoWebPlayer.Client.VideoWebPlayerClient>();
-            if (client != null)
-            {
-                client.UnauthorizedReceived += OnUnauthorizedReceived;
-            }
+			// Ensure this only runs once per app instance.
+			if (_startupInitialized)
+				return;
+			_startupInitialized = true;
 
             // Configure DownloadManager with event publisher
             var eventPublisher = services.GetService<VideoWebPlayer.Maui.Services.Events.IPublishNotificationEvent>();
@@ -73,10 +124,33 @@ namespace VideoWebPlayer.Maui
                 Services.DownloadManager.Instance.SetEventPublisher(eventPublisher);
                 System.Diagnostics.Debug.WriteLine("[App] DownloadManager configured with event publisher");
             }
-            
-            // Initialisiere SignalR
-            _ = InitializeSignalRAsync(services);
         }
+
+		public void InitializeAfterStartupWorkflowOnline(IServiceProvider services)
+		{
+			// This can be triggered after the startup workflow (server setup + connect + login)
+			// and may also be called again after a token refresh.
+			if (!_onlineInitialized)
+			{
+				_onlineInitialized = true;
+				try
+				{
+					var coordinator = services.GetService<Services.WatchlistDownloadCoordinatorService>();
+					if (coordinator != null)
+					{
+						_ = coordinator.RunOnStartupAsync();
+						System.Diagnostics.Debug.WriteLine("[App] WatchlistDownloadCoordinatorService started");
+					}
+				}
+				catch (Exception ex)
+				{
+					System.Diagnostics.Debug.WriteLine($"[App] WatchlistDownloadCoordinatorService start failed: {ex.Message}");
+				}
+			}
+
+			// Always attempt to (re)initialize SignalR when we are in online mode.
+			_ = InitializeSignalRAsync(services);
+		}
         
         private async Task InitializeSignalRAsync(IServiceProvider services)
         {
@@ -88,24 +162,41 @@ namespace VideoWebPlayer.Maui
                 
                 if (signalRService == null || authService == null || settingsService == null)
                     return;
-                
-                // Warte bis Server-Adresse und Credentials vorhanden
-                await Task.Delay(2000); // Warte auf Login
-                
-                if (!authService.HasCredentials() || !settingsService.HasServerAddress())
-                {
-                    System.Diagnostics.Debug.WriteLine("[SignalR] No credentials or server address - skipping");
-                    return;
-                }
+
+				// Wait until server address + credentials are available.
+				// `InitializeAfterServices` can run before the startup workflow finishes (first app launch/login),
+				// so we poll for a short time instead of returning early.
+				var waitStart = DateTime.UtcNow;
+				while ((!authService.HasCredentials() || !settingsService.HasServerAddress())
+					&& DateTime.UtcNow - waitStart < TimeSpan.FromSeconds(30))
+				{
+					await Task.Delay(500);
+				}
+
+				if (!authService.HasCredentials() || !settingsService.HasServerAddress())
+				{
+					System.Diagnostics.Debug.WriteLine("[SignalR] No credentials or server address - skipping");
+					return;
+				}
                 
                 var serverAddress = settingsService.ServerAddress;
-                var token = Preferences.Default.Get("AuthToken", string.Empty);
-                
-                if (string.IsNullOrEmpty(token))
-                {
-                    System.Diagnostics.Debug.WriteLine("[SignalR] No auth token - skipping");
-                    return;
-                }
+				var token = settingsService.GetAuthToken() ?? string.Empty;
+				if (string.IsNullOrEmpty(token))
+				{
+					// Token is usually written during/after login - wait a bit.
+					var tokenWaitStart = DateTime.UtcNow;
+					while (string.IsNullOrEmpty(token) && DateTime.UtcNow - tokenWaitStart < TimeSpan.FromSeconds(30))
+					{
+						await Task.Delay(500);
+						token = settingsService.GetAuthToken() ?? string.Empty;
+					}
+				}
+
+				if (string.IsNullOrEmpty(token))
+				{
+					System.Diagnostics.Debug.WriteLine("[SignalR] No auth token - skipping");
+					return;
+				}
                 
                 // Verbinde zu SignalR Hub
                 await signalRService.ConnectAsync(serverAddress ?? string.Empty, token);
@@ -136,19 +227,24 @@ namespace VideoWebPlayer.Maui
                     if (authService.HasCredentials())
                     {
                         var credentials = authService.GetCredentials();
-                        var serverAddress = settingsService.ServerAddress;
+							var serverAddress = settingsService.ServerAddress;
+							if (!string.IsNullOrWhiteSpace(serverAddress))
+							{
+								settingsService.SetServerAddress(serverAddress);
+							}
                         
-                        if (!string.IsNullOrWhiteSpace(serverAddress))
-                        {
-                            Preferences.Default.Set("ServerAddress", serverAddress);
-                        }
-                        
-                        var success = await authService.LoginAsync(credentials.username, credentials.password);
-                        
+                        var (success, error) = await authService.LoginAsync(credentials.username, credentials.password);
+
                         if (success)
                         {
                             System.Diagnostics.Debug.WriteLine("Re-authentication successful");
+                            // Ensure online-only services (SignalR, coordinator) are running with the refreshed token.
+                            InitializeAfterStartupWorkflowOnline(ServiceProvider!);
                             return; // Erfolgreich re-authenticated
+                        }
+                        else
+                        {
+                            System.Diagnostics.Debug.WriteLine($"Re-authentication failed: {error}");
                         }
                     }
                     
@@ -181,13 +277,10 @@ namespace VideoWebPlayer.Maui
                 }
                 
                 // Zeige Benachrichtigung
-                if (Current?.MainPage != null)
-                {
-                    await Current.MainPage.DisplayAlert(
-                        "Offline-Modus", 
-                        "Die Sitzung ist abgelaufen und die erneute Anmeldung ist fehlgeschlagen. Die App läuft jetzt im Offline-Modus.", 
-                        "OK");
-                }
+				await SafeDisplayAlertAsync(
+					"Offline-Modus",
+					"Die Sitzung ist abgelaufen und die erneute Anmeldung ist fehlgeschlagen. Die App läuft jetzt im Offline-Modus.",
+					"OK");
             }
             catch (Exception ex)
             {

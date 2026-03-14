@@ -1,0 +1,36 @@
+# CodeReviewAgent Workflow (GitHub Actions)
+#
+# Dieser Workflow automatisiert Codereview und Architekturvorschläge mit dem CodeReviewAgent.
+# Legt Review-Kommentare und Verbesserungsdateien an und verweist auf docs/improvements/.
+
+name: CodeReviewAgent Review
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+jobs:
+  codereview:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      # Hier würde ein Schritt folgen, der den CodeReviewAgent ausführt
+      # und die Analyseergebnisse als Kommentar oder Datei bereitstellt.
+      # Beispiel (Platzhalter):
+      - name: Run CodeReviewAgent (Platzhalter)
+        run: |
+          echo "Automatisiertes Codereview und Architekturvorschläge werden hier ausgeführt."
+          # Integration des eigentlichen Agenten/Tools erforderlich
+      - name: Upload improvements docs
+        uses: actions/upload-artifact@v4
+        with:
+          name: improvements-docs
+          path: docs/improvements/
+
+# Hinweise:
+# - Die eigentliche Integration des CodeReviewAgent muss als Tool/Skript erfolgen.
+# - Die Datei docs/improvements/CodeReviewAgent-Workflow.md beschreibt den Prozess.
+# - Optional: Automatisches Erstellen von Issues für größere Refactorings.

@@ -9,6 +9,7 @@ using System.Text.Json;
 using VideoWebPlayer.Components.Account.Pages;
 using VideoWebPlayer.Components.Account.Pages.Manage;
 using VideoWebPlayer.Data;
+using VideoWebPlayer.Services;
 
 namespace Microsoft.AspNetCore.Routing
 {
@@ -38,8 +39,57 @@ namespace Microsoft.AspNetCore.Routing
 
                 var properties = signInManager.ConfigureExternalAuthenticationProperties(provider, redirectUrl);
                 return TypedResults.Challenge(properties, [provider]);
-            });
+            }).DisableAntiforgery();
 
+            // Login endpoint - no antiforgery required
+            accountGroup.MapPost("/LoginProcess", async (
+                HttpContext context,
+                [FromServices] SignInManager<ApplicationUser> signInManager,
+                [FromServices] ILoginIpBlockService loginIpBlockService,
+                [FromForm] string email,
+                [FromForm] string password,
+                [FromForm] string? rememberMe,
+                [FromForm] string? returnUrl) =>
+            {
+                var remoteIp = context.Connection.RemoteIpAddress;
+
+                if (remoteIp != null && loginIpBlockService.IsBlocked(remoteIp))
+                {
+                    var errorQuery = QueryString.Create("error", "Invalid login attempt.");
+                    return TypedResults.LocalRedirect($"~/Account/Login{errorQuery}");
+                }
+
+                var rememberMeFlag = !string.IsNullOrEmpty(rememberMe);
+                var result = await signInManager.PasswordSignInAsync(email, password, rememberMeFlag, lockoutOnFailure: false);
+
+                if (result.Succeeded)
+                {
+                    return TypedResults.LocalRedirect($"~/{returnUrl ?? ""}");
+                }
+                else if (result.RequiresTwoFactor)
+                {
+                    var query = QueryString.Create(new Dictionary<string, string>
+                    {
+                        ["returnUrl"] = returnUrl ?? "",
+                        ["rememberMe"] = rememberMeFlag.ToString()
+                    });
+                    return TypedResults.LocalRedirect($"~/Account/LoginWith2fa{query}");
+                }
+                else if (result.IsLockedOut)
+                {
+                    return TypedResults.LocalRedirect("~/Account/Lockout");
+                }
+                else
+                {
+                    if (remoteIp != null)
+                        loginIpBlockService.RegisterFailure(remoteIp);
+
+                    var errorQuery = QueryString.Create("error", "Invalid login attempt.");
+                    return TypedResults.LocalRedirect($"~/Account/Login{errorQuery}");
+                }
+            }).DisableAntiforgery();
+
+            // Logout - no antiforgery required
             accountGroup.MapPost("/Logout", async (
                 ClaimsPrincipal user,
                 SignInManager<ApplicationUser> signInManager,
@@ -47,7 +97,7 @@ namespace Microsoft.AspNetCore.Routing
             {
                 await signInManager.SignOutAsync();
                 return TypedResults.LocalRedirect($"~/{returnUrl}");
-            });
+            }).DisableAntiforgery();
 
             var manageGroup = accountGroup.MapGroup("/Manage").RequireAuthorization();
 
@@ -66,7 +116,7 @@ namespace Microsoft.AspNetCore.Routing
 
                 var properties = signInManager.ConfigureExternalAuthenticationProperties(provider, redirectUrl, signInManager.UserManager.GetUserId(context.User));
                 return TypedResults.Challenge(properties, [provider]);
-            });
+            }).DisableAntiforgery();
 
             var loggerFactory = endpoints.ServiceProvider.GetRequiredService<ILoggerFactory>();
             var downloadLogger = loggerFactory.CreateLogger("DownloadPersonalData");
@@ -105,7 +155,7 @@ namespace Microsoft.AspNetCore.Routing
 
                 context.Response.Headers.TryAdd("Content-Disposition", "attachment; filename=PersonalData.json");
                 return TypedResults.File(fileBytes, contentType: "application/json", fileDownloadName: "PersonalData.json");
-            });
+            }).DisableAntiforgery();
 
             return accountGroup;
         }

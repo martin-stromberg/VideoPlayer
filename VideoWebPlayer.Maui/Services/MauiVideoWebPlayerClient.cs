@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using Microsoft.Maui.Storage;
 using VideoWebPlayer.Client;
 using VideoWebPlayer.Client.Models;
 
@@ -8,37 +7,70 @@ namespace VideoWebPlayer.Maui.Services;
 /// <summary>
 /// MAUI-spezifische VideoWebPlayerClient, die Token-Verwaltung mit Preferences übernimmt.
 /// </summary>
-public class MauiVideoWebPlayerClient : VideoWebPlayerClient
-{
-    private const string AuthTokenKey = "AuthToken";
-    private readonly ILogger<MauiVideoWebPlayerClient> _logger;
-
-    public MauiVideoWebPlayerClient(HttpClient httpClient, ILogger<MauiVideoWebPlayerClient> logger) 
-        : base(httpClient, logger)
+    public class MauiVideoWebPlayerClient : VideoWebPlayerClient
     {
-        _logger = logger;
-        
-        // Lade den gespeicherten Token beim Starten
-        LoadAuthTokenFromPreferences();
+        private readonly ILogger<MauiVideoWebPlayerClient> _logger;
+    private readonly IAuthService _authService;
+    private readonly ISettingsService _settings;
+
+        public MauiVideoWebPlayerClient(HttpClient httpClient, ISettingsService settings, ILogger<MauiVideoWebPlayerClient> logger, IAuthService authService)
+            : base(httpClient, logger)
+        {
+            _logger = logger;
+        _authService = authService;
+        _settings = settings;
+
+            // Lade den gespeicherten Token beim Starten
+            LoadAuthTokenFromSettings();
+        }
+
+    protected override async Task<bool> HandleUnauthorized()
+    {
+        var handled = await base.HandleUnauthorized();
+        // Reagiere auf Unauthorized-Ereignisse für diese Client-Instanz
+        // und versuche bei gespeicherten Credentials eine stille Anmeldung mit diesem Client.
+        if (_authService is null)
+            return false;
+        if (!_authService.HasCredentials())
+            return false;
+        try
+        {
+            var (user, pass) = _authService.GetCredentials();
+            // Versuche, mit diesem Client direkt zu authentifizieren und
+            // setze anschließend den neuen Token auf dieser Instanz.
+            var token = await AuthenticateAsync(user, pass);
+            if (token is not null && !string.IsNullOrWhiteSpace(token.token))
+            {
+                SetAuthorizationToken(token);
+                _logger?.LogInformation("Silent re-login succeeded and token applied to MauiVideoWebPlayerClient.");
+                return true;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Silent re-login failed.");
+        }
+        return false;
     }
 
     /// <summary>
     /// Lädt den gespeicherten Authorization Token aus Preferences und setzt ihn im HttpClient.
     /// </summary>
-    private void LoadAuthTokenFromPreferences()
+    private void LoadAuthTokenFromSettings()
     {
         try
         {
-            var token = Preferences.Default.Get(AuthTokenKey, string.Empty);
+            var token = _settings.GetAuthToken();
             if (!string.IsNullOrWhiteSpace(token))
             {
                 SetAuthorizationToken(new AuthorizationToken { token = token });
-                _logger?.LogInformation("Authorization Token aus Preferences geladen.");
+				// Intentionally no persistence here (SetAuthorizationToken is overridden below).
+                _logger?.LogInformation("Authorization Token aus Settings geladen.");
             }
         }
         catch (Exception ex)
         {
-            _logger?.LogWarning(ex, "Fehler beim Laden des Authorization Token aus Preferences.");
+            _logger?.LogWarning(ex, "Fehler beim Laden des Authorization Token aus Settings.");
         }
     }
     
@@ -47,7 +79,7 @@ public class MauiVideoWebPlayerClient : VideoWebPlayerClient
     /// </summary>
     public void ReloadAuthToken()
     {
-        LoadAuthTokenFromPreferences();
+        LoadAuthTokenFromSettings();
     }
 
     /// <summary>
@@ -61,12 +93,12 @@ public class MauiVideoWebPlayerClient : VideoWebPlayerClient
         {
             try
             {
-                Preferences.Default.Set(AuthTokenKey, token.token);
-                _logger?.LogInformation("Authorization Token in Preferences gespeichert.");
+				_settings.SetAuthToken(token.token);
+				_logger?.LogInformation("Authorization Token in Settings gespeichert.");
             }
             catch (Exception ex)
             {
-                _logger?.LogWarning(ex, "Fehler beim Speichern des Authorization Token in Preferences.");
+				_logger?.LogWarning(ex, "Fehler beim Speichern des Authorization Token in Settings.");
             }
         }
     }
@@ -78,7 +110,7 @@ public class MauiVideoWebPlayerClient : VideoWebPlayerClient
     {
         try
         {
-            Preferences.Default.Remove(AuthTokenKey);
+            _settings.ClearAuthToken();
             SetAuthorizationToken(new AuthorizationToken { token = string.Empty });
             _logger?.LogInformation("Authorization Token gelöscht.");
         }

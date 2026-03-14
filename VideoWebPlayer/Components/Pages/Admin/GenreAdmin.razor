@@ -1,8 +1,15 @@
 @page "/admin/genres"
 @using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Forms
+@using System.IO
+@using System.Security.Cryptography
+@using System.Text
 @using VideoWebPlayer.Data
+@using VideoWebPlayer.Services
 @inject ApplicationDbContext DbContext
+@inject IGenreService GenreService
 @inject NavigationManager Navigation
+@inject IWebHostEnvironment Env
 @rendermode InteractiveServer
 
 <style>
@@ -70,6 +77,7 @@
 <table class="table">
     <thead>
         <tr>
+            <th>Bild</th>
             <th>Name</th>
             <th>Alternative Namen</th>
             <th>Startdatum</th>
@@ -82,6 +90,15 @@
         @foreach (var genre in uniqueGenres)
         {
             <tr>
+                <td style="width: 56px;">
+                    @{
+                        var iconUrl = GetGenreImageUrl(genre.Name);
+                    }
+                    @if (!string.IsNullOrWhiteSpace(iconUrl))
+                    {
+                        <img src="@iconUrl" alt="@genre.Name" style="width: 40px; height: 40px; object-fit: cover; border-radius: 6px;" />
+                    }
+                </td>
                 <td>@genre.Name</td>
                 <td>
                     @foreach (var alt in genre.AlternateNames)
@@ -107,6 +124,20 @@
     <div class="genre-dialog-overlay" @onclick="CancelEdit">
         <div class="genre-dialog" @onclick:stopPropagation>
             <h5>Genre bearbeiten: @editGenre.Name</h5>
+            <label>Bild (optional):</label>
+            <div class="d-flex align-items-center gap-3">
+                @if (!string.IsNullOrWhiteSpace(iconPreviewUrl))
+                {
+                    <img src="@iconPreviewUrl" alt="@editGenre.Name" style="width: 72px; height: 72px; object-fit: cover; border-radius: 10px;" />
+                }
+                <div class="d-flex flex-column gap-2">
+                    <InputFile OnChange="OnIconFileChanged" accept="image/png,image/jpeg,image/webp,image/gif" />
+                    @if (hasPendingIcon)
+                    {
+                        <small class="text-warning">Neues Bild ausgewählt – wird beim Speichern übernommen.</small>
+                    }
+                </div>
+            </div>
             <label>Alternative Namen (kommagetrennt):</label>
             <input class="form-control" @bind="altNamesInput" />
             <label>Startdatum (optional, für saisonale Genres):</label>
@@ -130,6 +161,11 @@
         private Genre? editGenre;
         private string altNamesInput = "";
         private List<Genre> uniqueGenres = new();
+
+        private string? iconPreviewUrl;
+        private bool hasPendingIcon;
+        private byte[]? pendingIconBytes;
+        private string? pendingIconContentType;
 
         protected override async Task OnInitializedAsync()
         {
@@ -159,6 +195,32 @@
             AlternateNames = genre.AlternateNames.ToList()
         };
             altNamesInput = string.Join(", ", genre.AlternateNames.Select(a => a.Name));
+
+            hasPendingIcon = false;
+            pendingIconBytes = null;
+            pendingIconContentType = null;
+            iconPreviewUrl = GetGenreImageUrl(genre.Name, forceCacheBust: true);
+        }
+
+        private async Task OnIconFileChanged(InputFileChangeEventArgs e)
+        {
+            var file = e.File;
+            if (file == null)
+                return;
+
+            // 5 MB Limit for icons
+            await using var stream = file.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+
+            pendingIconBytes = ms.ToArray();
+            pendingIconContentType = file.ContentType;
+            hasPendingIcon = pendingIconBytes.Length > 0;
+
+            if (hasPendingIcon && !string.IsNullOrWhiteSpace(pendingIconContentType))
+            {
+                iconPreviewUrl = $"data:{pendingIconContentType};base64,{Convert.ToBase64String(pendingIconBytes)}";
+            }
         }
 
         private async Task SaveGenre()
@@ -191,8 +253,17 @@
                         DbContext.GenreNames.Add(new GenreName { Name = name, GenreId = dbGenre.Id });
                     }
                     await DbContext.SaveChangesAsync();
-                    await DbContext.MarkGenresAsChangedAsync();
+					await GenreService.MarkGenresAsChangedAsync();
                 }
+            }
+
+            if (hasPendingIcon && pendingIconBytes is not null && pendingIconBytes.Length > 0)
+            {
+                await SaveGenreIconAsync(editGenre.Name, pendingIconBytes, pendingIconContentType);
+                iconPreviewUrl = GetGenreImageUrl(editGenre.Name, forceCacheBust: true);
+                hasPendingIcon = false;
+                pendingIconBytes = null;
+                pendingIconContentType = null;
             }
 
         await ReloadGenres();
@@ -203,5 +274,63 @@
     {
         editGenre = null;
     }
+
+        private async Task SaveGenreIconAsync(string genreName, byte[] bytes, string? contentType)
+        {
+            var extension = contentType switch
+            {
+                "image/png" => ".png",
+                "image/jpeg" => ".jpg",
+                "image/webp" => ".webp",
+                "image/gif" => ".gif",
+                _ => null
+            };
+
+            if (string.IsNullOrWhiteSpace(extension))
+                return;
+
+            var key = GetGenreImageKey(genreName);
+            var iconsDir = Path.Combine(Env.WebRootPath, "images", "genres");
+            Directory.CreateDirectory(iconsDir);
+
+            foreach (var existingExt in new[] { ".png", ".jpg", ".jpeg", ".webp", ".gif" })
+            {
+                var existingPath = Path.Combine(iconsDir, $"{key}{existingExt}");
+                if (System.IO.File.Exists(existingPath))
+                    System.IO.File.Delete(existingPath);
+            }
+
+            var newPath = Path.Combine(iconsDir, $"{key}{extension}");
+            await System.IO.File.WriteAllBytesAsync(newPath, bytes);
+        }
+
+        private string? GetGenreImageUrl(string genreName, bool forceCacheBust = false)
+        {
+            if (string.IsNullOrWhiteSpace(genreName))
+                return null;
+
+            var key = GetGenreImageKey(genreName);
+            var iconsDir = Path.Combine(Env.WebRootPath, "images", "genres");
+
+            // Try a small set of common extensions
+            foreach (var ext in new[] { ".png", ".jpg", ".jpeg", ".webp", ".gif" })
+            {
+                var absPath = Path.Combine(iconsDir, $"{key}{ext}");
+                if (System.IO.File.Exists(absPath))
+                {
+                    var url = $"/images/genres/{key}{ext}";
+                    return forceCacheBust ? $"{url}?v={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}" : url;
+                }
+            }
+
+            return null;
+        }
+
+        private static string GetGenreImageKey(string genreName)
+        {
+            var normalized = genreName.Trim().ToLowerInvariant();
+            var hash = SHA256.HashData(Encoding.UTF8.GetBytes(normalized));
+            return Convert.ToHexString(hash).ToLowerInvariant();
+        }
 }
 </div>

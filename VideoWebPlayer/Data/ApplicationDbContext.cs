@@ -1,6 +1,5 @@
-ï»¿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Metadata.Conventions;
 using System.Threading;
 using VideoWebPlayer.Events;
 using VideoWebPlayer.Services;
@@ -8,20 +7,20 @@ using VideoWebPlayer.Services;
 namespace VideoWebPlayer.Data
 {
     /// <summary>
-    /// Der zentrale Datenbankkontext fÃ¼r die Anwendung.
-    /// Verwaltet IdentitÃ¤t, MediaSources, MediaCollections und MediaItems.
-    /// Kapselt auÃŸerdem Event-Publishing fÃ¼r CRUD-Operationen.
+    /// Der zentrale Datenbankkontext für die Anwendung.
+    /// Verwaltet Identität, MediaSources, MediaCollections und MediaItems.
+    /// Kapselt außerdem Event-Publishing für CRUD-Operationen.
     /// </summary>
     public partial class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     {
-        // Instanz des EventManagers fÃ¼r die Event-basierte Architektur
+        // Instanz des EventManagers für die Event-basierte Architektur
         private readonly EventManager _eventManager;
 
         /// <summary>
         /// Erstellt eine neue Instanz des ApplicationDbContext.
         /// </summary>
-        /// <param name="options">Konfigurationsoptionen fÃ¼r den DbContext.</param>
-        /// <param name="eventManager">EventManager fÃ¼r das Publizieren von Events.</param>
+        /// <param name="options">Konfigurationsoptionen für den DbContext.</param>
+        /// <param name="eventManager">EventManager für das Publizieren von Events.</param>
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options, EventManager eventManager)
             : base(options)
         {
@@ -29,96 +28,101 @@ namespace VideoWebPlayer.Data
         }
         #region DbSet Properties
         /// <summary>
-        /// Tabelle fÃ¼r MediaSources (Quellen).
+        /// Tabelle für MediaSources (Quellen).
         /// </summary>
         public DbSet<MediaSource> MediaSources { get; set; }
         /// <summary>
-        /// Tabelle fÃ¼r MediaSource-User-Zuordnungen.
+        /// Tabelle für MediaSource-User-Zuordnungen.
         /// </summary>
         public DbSet<MediaSourceUser> MediaSourceUsers { get; set; }
 
         /// <summary>
-        /// Tabelle fÃ¼r MediaCollections (Sammlungen).
+        /// Tabelle für MediaCollections (Sammlungen).
         /// </summary>
         public DbSet<MediaCollection> MediaCollections { get; set; }
 
         /// <summary>
-        /// Tabelle fÃ¼r MediaItems (Medienobjekte).
+        /// Tabelle für MediaItems (Medienobjekte).
         /// </summary>
         public DbSet<MediaItem> MediaItems { get; set; }
 
         /// <summary>
-        /// Tabelle fÃ¼r MovieCollections.
+        /// Tabelle für MovieCollections.
         /// </summary>
         public DbSet<MovieCollection> MovieCollections { get; set; }
         /// <summary>
-        /// Tabelle fÃ¼r Movies.
+        /// Tabelle für Movies.
         /// </summary>
         public DbSet<Movie> Movies { get; set; }
         /// <summary>
-        /// Tabelle fÃ¼r TVShows.
+        /// Tabelle für TVShows.
         /// </summary>
         public DbSet<TVShow> TVShows { get; set; }
         /// <summary>
-        /// Tabelle fÃ¼r TVShow-Seasons.
+        /// Tabelle für TVShow-Seasons.
         /// </summary>
         public DbSet<TVShowSeason> TVShowSeasons { get; set; }
         /// <summary>
-        /// Tabelle fÃ¼r TVShow-Episodes.
+        /// Tabelle für TVShow-Episodes.
         /// </summary>
         public DbSet<TVShowEpisode> TVShowEpisodes { get; set; }
         /// <summary>
-        /// Tabelle fÃ¼r Movie-MediaItem-VerknÃ¼pfungen.
+        /// Tabelle für Movie-MediaItem-Verknüpfungen.
         /// </summary>
         public DbSet<MovieMediaItem> MovieMediaItems { get; set; }
         /// <summary>
-        /// Tabelle fÃ¼r TVShowEpisode-MediaItem-VerknÃ¼pfungen.
+        /// Tabelle für TVShowEpisode-MediaItem-Verknüpfungen.
         /// </summary>
         public DbSet<TVShowEpisodeMediaItem> TVShowEpisodeMediaItems { get; set; }
         /// <summary>
-        /// Tabelle fÃ¼r Bilder.
+        /// Tabelle für Bilder.
         /// </summary>
         public DbSet<Picture> Pictures { get; set; }
+
+		/// <summary>
+		/// Table for uploaded source icon images.
+		/// </summary>
+		public DbSet<MediaSourceIcon> MediaSourceIcons { get; set; }
         /// <summary>
-        /// Tabelle fÃ¼r Setup-EintrÃ¤ge.
+        /// Tabelle für Setup-Einträge.
         /// </summary>
         public DbSet<Setup> Setups { get; set; }
         /// <summary>
-        /// Tabelle fÃ¼r RecentEntries.
+        /// Tabelle für RecentEntries.
         /// </summary>
         public DbSet<RecentEntry> RecentEntries { get; set; }
         /// <summary>
-        /// Tabelle fÃ¼r Favoriten.
+        /// Tabelle für Favoriten.
         /// </summary>
         public DbSet<FavoriteEntry> FavoriteEntries { get; set; }
         /// <summary>
-        /// Tabelle fÃ¼r Genres.
+        /// Tabelle für Genres.
         /// </summary>
         public DbSet<Genre> Genres { get; set; }
         /// <summary>
-        /// Tabelle fÃ¼r alternative Genre-Namen.
+        /// Tabelle für alternative Genre-Namen.
         /// </summary>
         public DbSet<GenreName> GenreNames { get; set; }
         /// <summary>
-        /// Tabelle fÃ¼r Movie-Genre-VerknÃ¼pfungen.
+        /// Tabelle für Movie-Genre-Verknüpfungen.
         /// </summary>
         public DbSet<MovieGenre> MovieGenres { get; set; }
         /// <summary>
-        /// Tabelle fÃ¼r TVShow-Genre-VerknÃ¼pfungen.
+        /// Tabelle für TVShow-Genre-Verknüpfungen.
         /// </summary>
         public DbSet<TVShowGenre> TVShowGenres { get; set; }
         /// <summary>
-        /// Tabelle fÃ¼r ContinueWatching-EintrÃ¤ge.
+        /// Tabelle für ContinueWatching-Einträge.
         /// </summary>
         public DbSet<ContinueWatchingEntry> ContinueWatchingEntries { get; set; }
         /// <summary>
-        /// Tabelle fÃ¼r gesperrte Login-IPs.
+        /// Tabelle für gesperrte Login-IPs.
         /// </summary>
         public DbSet<BlockedLoginIp> BlockedLoginIps { get; set; }   // NEU
         #endregion
         #region MediaSource Manipulation Methods
         /// <summary>
-        /// FÃ¼gt eine neue MediaSource hinzu, speichert sie und publiziert ein Event.
+        /// Fügt eine neue MediaSource hinzu, speichert sie und publiziert ein Event.
         /// </summary>
         /// <param name="source">Die neue MediaSource.</param>
         public async Task AddMediaSourceAsync(MediaSource source)
@@ -145,10 +149,10 @@ namespace VideoWebPlayer.Data
         }
 
         /// <summary>
-        /// LÃ¶scht eine MediaSource sowie alle zugehÃ¶rigen MediaCollections und MediaItems rekursiv.
-        /// Publiziert nach erfolgreichem LÃ¶schen ein Event.
+        /// Löscht eine MediaSource sowie alle zugehörigen MediaCollections und MediaItems rekursiv.
+        /// Publiziert nach erfolgreichem Löschen ein Event.
         /// </summary>
-        /// <param name="source">Die zu lÃ¶schende MediaSource.</param>
+        /// <param name="source">Die zu löschende MediaSource.</param>
         public async Task DeleteMediaSourceAsync(MediaSource source)
         {
             var existingSource = await MediaSources.FindAsync(source.Id);
@@ -159,10 +163,7 @@ namespace VideoWebPlayer.Data
                     .Where(c => c.MediaSourceId == source.Id)
                     .ToListAsync();
 
-                foreach (var collection in collections)
-                {
-                    await DeleteMediaCollectionRecursiveAsync(collection);
-                }
+                await DeleteMediaCollectionsForSourceAsync(collections);
 
                 MediaSources.Remove(existingSource);
                 await SaveChangesAsync();
@@ -172,34 +173,83 @@ namespace VideoWebPlayer.Data
         }
 
         /// <summary>
-        /// LÃ¶scht eine MediaCollection, alle untergeordneten Collections und alle zugehÃ¶rigen MediaItems rekursiv.
+        /// Löscht eine MediaCollection, alle untergeordneten Collections und alle zugehörigen MediaItems rekursiv.
         /// </summary>
-        /// <param name="collection">Die zu lÃ¶schende MediaCollection.</param>
-        private async Task DeleteMediaCollectionRecursiveAsync(MediaCollection collection)
+        /// <param name="collection">Die zu löschende MediaCollection.</param>
+        private async Task DeleteMediaCollectionsForSourceAsync(List<MediaCollection> collections)
         {
-            // LÃ¶sche alle MediaItems dieser Collection
+            if (collections.Count == 0)
+                return;
+
+            // Iterativer Post-Order Traversal (stack-safe) zum Löschen (Children -> Parent)
+            var collectionsById = collections.ToDictionary(c => c.Id);
+            var childrenByParentId = collections
+                .Where(c => c.ParentMediaCollectionId.HasValue)
+                .GroupBy(c => c.ParentMediaCollectionId!.Value)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            var deleteOrder = new List<MediaCollection>(collections.Count);
+            var visited = new HashSet<long>();
+
+            IEnumerable<MediaCollection> roots = collections.Where(c =>
+                !c.ParentMediaCollectionId.HasValue ||
+                !collectionsById.ContainsKey(c.ParentMediaCollectionId.Value));
+
+            void Traverse(MediaCollection root)
+            {
+                var stack = new Stack<(MediaCollection Collection, bool Expanded)>();
+                stack.Push((root, false));
+
+                while (stack.Count > 0)
+                {
+                    var (current, expanded) = stack.Pop();
+
+                    if (expanded)
+                    {
+                        deleteOrder.Add(current);
+                        continue;
+                    }
+
+                    if (!visited.Add(current.Id))
+                        continue;
+
+                    stack.Push((current, true));
+
+                    if (childrenByParentId.TryGetValue(current.Id, out var children))
+                    {
+                        foreach (var child in children)
+                            stack.Push((child, false));
+                    }
+                }
+            }
+
+            foreach (var root in roots)
+                Traverse(root);
+
+            // Falls es "hängende" Nodes gibt (z.B. fehlerhafte Parent-Referenzen), trotzdem löschen.
+            foreach (var c in collections)
+            {
+                if (!visited.Contains(c.Id))
+                    Traverse(c);
+            }
+
+            var collectionIds = collections.Select(c => c.Id).ToList();
+
+            // Lösche alle MediaItems dieser Collections
             var items = await MediaItems
-                .Where(i => i.MediaCollectionId == collection.Id)
+                .Where(i => collectionIds.Contains(i.MediaCollectionId))
                 .ToListAsync();
             MediaItems.RemoveRange(items);
 
-            // Hole und lÃ¶sche alle Unter-Collections rekursiv
-            var childCollections = await MediaCollections
-                .Where(c => c.ParentMediaCollectionId == collection.Id)
-                .ToListAsync();
-
-            foreach (var child in childCollections)
-            {
-                await DeleteMediaCollectionRecursiveAsync(child);
-            }
-
-            MediaCollections.Remove(collection);
+            // Lösche Collections children-first
+            foreach (var collection in deleteOrder)
+                MediaCollections.Remove(collection);
         }
         #endregion
 
         /// <summary>
         /// Stellt sicher, dass eine MediaCollection mit gegebener MediaSourceId und Path existiert.
-        /// Gibt die bestehende Collection zurÃ¼ck oder legt sie neu an.
+        /// Gibt die bestehende Collection zurück oder legt sie neu an.
         /// </summary>
         public async Task<MediaCollection> EnsureMediaCollectionExistsAsync(MediaCollection collection, CancellationToken cancellationToken = default)
         {
@@ -219,7 +269,7 @@ namespace VideoWebPlayer.Data
 
         /// <summary>
         /// Stellt sicher, dass ein MediaItem mit gegebener MediaCollectionId und Path existiert.
-        /// Gibt das bestehende Item zurÃ¼ck oder legt es neu an.
+        /// Gibt das bestehende Item zurück oder legt es neu an.
         /// Wird ein bestehendes Item gefunden und das CreatedAt-Datum ist unterschiedlich, wird es aktualisiert und Changed auf true gesetzt.
         /// </summary>
         public async Task<MediaItem> EnsureMediaItemExistsAsync(MediaItem item, CancellationToken cancellationToken = default)
@@ -341,129 +391,6 @@ namespace VideoWebPlayer.Data
             await SaveChangesAsync(cancellationToken);
             return episode;
         }
-
-        #region Favoriten
-        /// <summary>
-        /// Checks whether the specified entry is a favorite for the user.
-        /// </summary>
-        /// <param name="userId">The user identifier.</param>
-        /// <param name="entry">The media entry.</param>
-        /// <returns><c>true</c> when the entry is a favorite.</returns>
-        public bool IsFavorite(string userId, MediaBaseEntry entry)
-        {
-            if (entry is Movie)
-                return FavoriteEntries.Any(f => f.UserId == userId && f.MovieId == entry.Id);
-            else if (entry is MovieCollection)
-                return FavoriteEntries.Any(f => f.UserId == userId && f.MovieCollectionId == entry.Id);
-            else if (entry is TVShow)
-                return FavoriteEntries.Any(f => f.UserId == userId && f.TVShowId == entry.Id);
-            else if (entry is TVShowSeason)
-                return FavoriteEntries.Any(f => f.UserId == userId && f.TVShowSeasonId == entry.Id);
-            else if (entry is TVShowEpisode)
-                return FavoriteEntries.Any(f => f.UserId == userId && f.TVShowEpisodeId == entry.Id);
-            return false;
-        }
-        /// <summary>
-        /// Adds a favorite entry for the user if it does not already exist.
-        /// </summary>
-        /// <param name="userId">The user identifier.</param>
-        /// <param name="entry">The media entry.</param>
-        public async Task AddFavoriteAsync(string userId, MediaBaseEntry entry)
-        {
-            if (IsFavorite(userId, entry))
-                return;
-            var newFav = new FavoriteEntry()
-            {
-                UserId = userId,
-                MovieId = entry is Movie ? entry.Id : null,
-                MovieCollectionId = entry is MovieCollection ? entry.Id : null,
-                TVShowId = entry is TVShow ? entry.Id : null,
-                TVShowSeasonId = entry is TVShowSeason ? entry.Id : null,
-                TVShowEpisodeId = entry is TVShowEpisode ? entry.Id : null
-            };
-            FavoriteEntries.Add(newFav);
-            await SaveChangesAsync();
-        }
-        /// <summary>
-        /// Removes a favorite entry for the user.
-        /// </summary>
-        /// <param name="userId">The user identifier.</param>
-        /// <param name="entry">The media entry.</param>
-        public async Task RemoveFavoriteAsync(string userId, MediaBaseEntry entry)
-        {
-            var existing = (entry is Movie) ? FavoriteEntries.FirstOrDefault(f => f.UserId == userId && f.MovieId == entry.Id)
-                : (entry is MovieCollection) ? FavoriteEntries.FirstOrDefault(f => f.UserId == userId && f.MovieCollectionId == entry.Id)
-                : (entry is TVShow) ? FavoriteEntries.FirstOrDefault(f => f.UserId == userId && f.TVShowId == entry.Id)
-                : (entry is TVShowSeason) ? FavoriteEntries.FirstOrDefault(f => f.UserId == userId && f.TVShowSeasonId == entry.Id)
-                : (entry is TVShowEpisode) ? FavoriteEntries.FirstOrDefault(f => f.UserId == userId && f.TVShowEpisodeId == entry.Id)
-                : null;
-            if (existing is not null)
-                FavoriteEntries.Remove(existing);
-            await SaveChangesAsync();
-        }
-        /// <summary>
-        /// Toggles favorite state for the specified entry.
-        /// </summary>
-        /// <param name="userId">The user identifier.</param>
-        /// <param name="entry">The media entry.</param>
-        /// <returns><c>true</c> if added as favorite; otherwise <c>false</c>.</returns>
-        public async Task<bool> ToggleFavoriteAsync(string userId, MediaBaseEntry entry)
-        {
-            if (IsFavorite(userId, entry))
-            {
-                await RemoveFavoriteAsync(userId, entry);
-                return false; // Favorit entfernt
-            }
-            else
-            {
-                await AddFavoriteAsync(userId, entry);
-                return true; // Favorit hinzugefÃ¼gt
-            }
-        }
-        #endregion
-
-        /// <summary>
-        /// Marks genres as changed to trigger refresh logic.
-        /// </summary>
-        public async Task MarkGenresAsChangedAsync()
-        {
-            var setup = await Setups.FirstOrDefaultAsync();
-            if (setup != null)
-            {
-                setup.GenresChanged = true;
-                await SaveChangesAsync();
-            }
-        }
-
-        /// <summary>
-        /// Returns genres that are currently in their seasonal visibility window.
-        /// </summary>
-        /// <returns>The seasonal genres.</returns>
-        public IEnumerable<Genre> GetSeasonalGenres()
-        {
-            var now = DateTime.UtcNow.Date;
-            var genres = Genres.ToList();
-
-            foreach (var genre in genres)
-            {
-                if (genre.StartDate == null || genre.EndDate == null)
-                    continue;
-
-                var start = genre.StartDate.Value;
-                var end = genre.EndDate.Value;
-
-                // Falls Enddatum in der Vergangenheit, Zeitraum um Jahre erhÃ¶hen bis aktuell
-                while (end < now)
-                {
-                    start = start.AddYears(1);
-                    end = end.AddYears(1);
-                }
-
-                if (start <= now && end >= now)
-                    yield return genre;
-            }
-        }
-
         /// <summary>
         /// Configures model relationships and constraints.
         /// </summary>
@@ -472,113 +399,7 @@ namespace VideoWebPlayer.Data
         {
             base.OnModelCreating(modelBuilder);
 
-            // MediaCollection â†’ MediaSource (viele zu eins)
-            modelBuilder.Entity<MediaCollection>()
-                .HasOne(mc => mc.MediaSource)
-                .WithMany(ms => ms.MediaCollections)
-                .HasForeignKey(mc => mc.MediaSourceId);
-
-            // MediaCollection â†’ ParentMediaCollection (rekursive Beziehung, viele zu eins)
-            modelBuilder.Entity<MediaCollection>()
-                .HasOne(mc => mc.ParentMediaCollection)
-                .WithMany(mc => mc.ChildCollections)
-                .HasForeignKey(mc => mc.ParentMediaCollectionId)
-                .OnDelete(DeleteBehavior.Restrict); // oder Cascade, je nach gewÃ¼nschtem Verhalten
-
-            // MediaItem â†’ MediaCollection (viele zu eins)
-            modelBuilder.Entity<MediaItem>()
-                .HasOne(mi => mi.MediaCollection)
-                .WithMany(mc => mc.MediaItems)
-                .HasForeignKey(mi => mi.MediaCollectionId);
-
-            modelBuilder.Entity<Movie>()
-                .HasOne(m => m.MovieCollection)
-                .WithMany(mc => mc.Movies)
-                .HasForeignKey(m => m.MovieCollectionId);
-
-            modelBuilder.Entity<TVShowSeason>()
-                .HasOne(s => s.TVShow)
-                .WithMany(t => t.Seasons)
-                .HasForeignKey(s => s.TVShowId);
-
-            modelBuilder.Entity<TVShowEpisode>()
-                .HasOne(e => e.TVShowSeason)
-                .WithMany(s => s.Episodes)
-                .HasForeignKey(e => e.TVShowSeasonId);
-
-            modelBuilder.Entity<MovieMediaItem>()
-                .HasKey(x => new { x.MovieId, x.MediaItemId });
-
-            modelBuilder.Entity<MovieMediaItem>()
-                .HasOne(x => x.Movie)
-                .WithMany()
-                .HasForeignKey(x => x.MovieId);
-
-            modelBuilder.Entity<MovieMediaItem>()
-                .HasOne(x => x.MediaItem)
-                .WithMany()
-                .HasForeignKey(x => x.MediaItemId);
-
-            modelBuilder.Entity<TVShowEpisodeMediaItem>()
-                .HasKey(x => new { x.TVShowEpisodeId, x.MediaItemId });
-
-            modelBuilder.Entity<TVShowEpisodeMediaItem>()
-                .HasOne(x => x.TVShowEpisode)
-                .WithMany()
-                .HasForeignKey(x => x.TVShowEpisodeId);
-
-            modelBuilder.Entity<TVShowEpisodeMediaItem>()
-                .HasOne(x => x.MediaItem)
-                .WithMany()
-                .HasForeignKey(x => x.MediaItemId);
-
-            modelBuilder.Entity<MovieGenre>()
-                .HasKey(mg => new { mg.MovieId, mg.GenreId });
-            modelBuilder.Entity<MovieGenre>()
-                .HasOne(mg => mg.Movie)
-                .WithMany(m => m.MovieGenres)
-                .HasForeignKey(mg => mg.MovieId);
-            modelBuilder.Entity<MovieGenre>()
-                .HasOne(mg => mg.Genre)
-                .WithMany(g => g.MovieGenres)
-                .HasForeignKey(mg => mg.GenreId);
-
-            modelBuilder.Entity<TVShowGenre>()
-                .HasKey(tg => new { tg.TVShowId, tg.GenreId });
-            modelBuilder.Entity<TVShowGenre>()
-                .HasOne(tg => tg.TVShow)
-                .WithMany(t => t.TVShowGenres)
-                .HasForeignKey(tg => tg.TVShowId);
-            modelBuilder.Entity<TVShowGenre>()
-                .HasOne(tg => tg.Genre)
-                .WithMany(g => g.TVShowGenres)
-                .HasForeignKey(tg => tg.GenreId);
-
-            modelBuilder.Entity<MediaSourceUser>()
-                .HasKey(msu => new { msu.MediaSourceId, msu.UserId });
-
-            modelBuilder.Entity<ContinueWatchingEntry>(e =>
-            {
-                e.HasIndex(x => new { x.UserId, x.MovieId });
-                e.HasIndex(x => new { x.UserId, x.TVShowEpisodeId });
-
-                e.HasOne(x => x.Movie)
-                 .WithMany()
-                 .HasForeignKey(x => x.MovieId)
-                 .OnDelete(DeleteBehavior.Cascade);
-
-                e.HasOne(x => x.TVShowEpisode)
-                 .WithMany()
-                 .HasForeignKey(x => x.TVShowEpisodeId)
-                 .OnDelete(DeleteBehavior.Cascade);
-            });
-
-            modelBuilder.Entity<BlockedLoginIp>(e =>
-            {
-                e.HasKey(x => x.Ip);
-                e.Property(x => x.Ip).HasMaxLength(64);
-                e.HasIndex(x => x.BlockedAtUtc);
-            });
+            modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
         }
     }
 }

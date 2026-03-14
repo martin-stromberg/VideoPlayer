@@ -245,6 +245,7 @@ namespace VideoWebPlayer.Services
                     entry.Position = position;
                     entry.Duration = duration;
                     entry.UpdatedAt = DateTime.UtcNow;
+                    listChanged = true;
                 }
             }
 

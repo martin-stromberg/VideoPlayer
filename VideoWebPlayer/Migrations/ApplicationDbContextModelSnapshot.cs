@@ -265,6 +265,12 @@ namespace VideoWebPlayer.Migrations
                     b.Property<bool>("GenresChanged")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("MediaCollectionScanIntervalDays")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ScanProcessIntervalMinutes")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.ToTable("Setups");
@@ -608,6 +614,9 @@ namespace VideoWebPlayer.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<long?>("IconPictureId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTime?>("LastScannedAt")
                         .HasColumnType("TEXT");
 
@@ -630,7 +639,28 @@ namespace VideoWebPlayer.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("IconPictureId");
+
                     b.ToTable("MediaSources");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.MediaSourceIcon", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<byte[]>("Data")
+                        .IsRequired()
+                        .HasColumnType("BLOB");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("MediaSourceIcons");
                 });
 
             modelBuilder.Entity("VideoWebPlayer.Data.Movie", b =>
@@ -1234,6 +1264,15 @@ namespace VideoWebPlayer.Migrations
                         .HasForeignKey("TVShowEpisodeId");
 
                     b.Navigation("MediaCollection");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.MediaSource", b =>
+                {
+                    b.HasOne("VideoWebPlayer.Data.MediaSourceIcon", "IconPicture")
+                        .WithMany()
+                        .HasForeignKey("IconPictureId");
+
+                    b.Navigation("IconPicture");
                 });
 
             modelBuilder.Entity("VideoWebPlayer.Data.Movie", b =>

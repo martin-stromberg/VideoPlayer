@@ -14,6 +14,8 @@ public class MediaItemViewModel : INotifyPropertyChanged
     private long? _entryId;
     private string? _mediaType;
     private Color _backgroundColor = Colors.Transparent;
+    private long? _seasonId;
+    private long? _episodeId;
 
     public string? Title
     {
@@ -40,6 +42,9 @@ public class MediaItemViewModel : INotifyPropertyChanged
             }
         }
     }
+
+    // Optional: store the original poster picture id so callers can request images via API client
+    public long? PosterPictureId { get; set; }
 
     public ImageSource? ImageSource
     {
@@ -93,6 +98,37 @@ public class MediaItemViewModel : INotifyPropertyChanged
         }
     }
 
+    public long? SeasonId
+    {
+        get => _seasonId;
+        set
+        {
+            if (_seasonId != value)
+            {
+                _seasonId = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public long? EpisodeId
+    {
+        get => _episodeId;
+        set
+        {
+            if (_episodeId != value)
+            {
+                _episodeId = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gibt an, ob dieses Element aus dem lokalen Cache stammt und noch nicht durch Live-Daten ersetzt wurde.
+    /// </summary>
+    public bool IsFromCache { get; set; }
+
     public ICommand DeleteDownloadCommand { get; }
 
     public MediaItemViewModel()
@@ -102,15 +138,12 @@ public class MediaItemViewModel : INotifyPropertyChanged
 
     private async Task OnDeleteDownloadAsync()
     {
-        if (Application.Current?.MainPage == null)
-            return;
-
-        // Zeige Bestätigungsdialog
-        var result = await Application.Current.MainPage.DisplayAlert(
-            "Download löschen?",
-            $"'{Title}' und die lokalen Dateien werden gelöscht.",
-            "Löschen",
-            "Abbrechen");
+		// Zeige Bestätigungsdialog
+		var result = await VideoWebPlayer.Maui.App.SafeDisplayAlertAsync(
+			"Download löschen?",
+			$"'{Title}' und die lokalen Dateien werden gelöscht.",
+			"Löschen",
+			"Abbrechen");
 
         if (result)
         {
@@ -125,10 +158,10 @@ public class MediaItemViewModel : INotifyPropertyChanged
             }
             catch (Exception ex)
             {
-                await Application.Current?.MainPage?.DisplayAlert(
-                    "Fehler",
-                    $"Download konnte nicht gelöscht werden: {ex.Message}",
-                    "OK");
+				await VideoWebPlayer.Maui.App.SafeDisplayAlertAsync(
+					"Fehler",
+					$"Download konnte nicht gelöscht werden: {ex.Message}",
+					"OK");
             }
         }
     }

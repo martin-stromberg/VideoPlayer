@@ -13,6 +13,8 @@ public class TVShowEpisodeViewModel : INotifyPropertyChanged
     private long _episodeId;
     private int _episodeNumber;
     private int _seasonNumber;
+    private bool _isDownloaded;
+    private bool _isFavorite;
 
     public string? Title
     {
@@ -52,6 +54,9 @@ public class TVShowEpisodeViewModel : INotifyPropertyChanged
             }
         }
     }
+
+    // Optional: store the original poster picture id so callers can request images via API client
+    public long? PosterPictureId { get; set; }
 
     public ImageSource? ImageSource
     {
@@ -104,6 +109,35 @@ public class TVShowEpisodeViewModel : INotifyPropertyChanged
             }
         }
     }
+
+    public bool IsDownloaded
+    {
+        get => _isDownloaded;
+        set
+        {
+            if (_isDownloaded != value)
+            {
+                _isDownloaded = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public bool IsFavorite
+    {
+        get => _isFavorite;
+        set
+        {
+            if (_isFavorite != value)
+            {
+                _isFavorite = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(FavoriteStarText));
+            }
+        }
+    }
+
+    public string FavoriteStarText => IsFavorite ? "★" : "☆";
 
     public event PropertyChangedEventHandler? PropertyChanged;
 

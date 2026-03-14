@@ -6,11 +6,22 @@ namespace VideoWebPlayer.Maui.Services;
 
 public class AuthService : IAuthService
 {
+    private readonly ISettingsService _settings;
+
     private const string UserKey = "Username";
-    private const string PasswordKey = "Password";
+    private const string PasswordKey = "Passkey";
     private const string TokenKey = "AuthToken";
     
     private const string ApiToken = "00saHJj4IrjWNUytUZDUwXHqq6EiCKMJPyKh9c6hykPT3NyS3d2CVUkb8E8TMWQWJ7y6sOSpC";
+
+	public AuthService() : this(new SettingsService())
+	{
+	}
+
+	public AuthService(ISettingsService settings)
+	{
+		_settings = settings;
+	}
 
     public bool HasCredentials()
     {
@@ -36,14 +47,14 @@ public class AuthService : IAuthService
     {
         Preferences.Default.Remove(UserKey);
         Preferences.Default.Remove(PasswordKey);
-        Preferences.Default.Remove(TokenKey);
+		_settings.ClearAuthToken();
     }
 
-    public async Task<bool> LoginAsync(string username, string password, CancellationToken cancellationToken = default)
+    public async Task<(bool success, string? errorMessage)> LoginAsync(string username, string password, CancellationToken cancellationToken = default)
     {
-        var serverAddress = Preferences.Default.Get("ServerAddress", string.Empty);
+        var serverAddress = _settings.ServerAddress;
         if (string.IsNullOrWhiteSpace(serverAddress))
-            return false;
+            return (false, "Keine Serveradresse gesetzt. Bitte Server in den Einstellungen angeben.");
 
         try
         {
@@ -61,22 +72,27 @@ public class AuthService : IAuthService
             var token = await client.AuthenticateAsync(username, password);
             if (token != null && !string.IsNullOrWhiteSpace(token.token))
             {
-                Preferences.Default.Set(TokenKey, token.token);
-                
+                _settings.SetAuthToken(token.token);
+
                 // Lade Token neu in den DI-Client
                 if (client is MauiVideoWebPlayerClient mauiClient)
                 {
                     mauiClient.ReloadAuthToken();
                 }
-                
+
                 SaveCredentials(username, password);
-                return true;
+                return (true, null);
+            }
+            else
+            {
+                // Authentication failed but no exception -> invalid credentials
+                return (false, "Ungültiger Benutzername oder Passwort.");
             }
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Login failed: {ex.Message}");
+            return (false, $"Fehler bei der Anmeldung: {ex.Message}");
         }
-        return false;
     }
 }

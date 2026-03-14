@@ -7,6 +7,9 @@ public class MediaSourceViewModel : INotifyPropertyChanged
 {
     private long _id;
     private string? _name;
+	private string? _icon;
+	private long? _iconPictureId;
+	private ImageSource? _iconImageSource;
 
     public long Id
     {
@@ -33,6 +36,45 @@ public class MediaSourceViewModel : INotifyPropertyChanged
             }
         }
     }
+
+	public string? Icon
+	{
+		get => _icon;
+		set
+		{
+			if (_icon != value)
+			{
+				_icon = value;
+				OnPropertyChanged();
+			}
+		}
+	}
+
+	public long? IconPictureId
+	{
+		get => _iconPictureId;
+		set
+		{
+			if (_iconPictureId != value)
+			{
+				_iconPictureId = value;
+				OnPropertyChanged();
+			}
+		}
+	}
+
+	public ImageSource? IconImageSource
+	{
+		get => _iconImageSource;
+		set
+		{
+			if (_iconImageSource != value)
+			{
+				_iconImageSource = value;
+				OnPropertyChanged();
+			}
+		}
+	}
 
     public event PropertyChangedEventHandler? PropertyChanged;
 

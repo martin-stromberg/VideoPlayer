@@ -6,14 +6,13 @@ using Microsoft.Maui.Storage;
 using VideoWebPlayer.Client;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Maui.Models;
+using VideoWebPlayer.Maui.Services;
 
 namespace VideoWebPlayer.Maui.ViewModels;
 
 public class HomePageViewModel : INotifyPropertyChanged
 {
     private readonly VideoWebPlayerClient? _client;
-    private readonly HttpClient _httpClient;
-    private readonly string _baseAddress;
     private bool _isLoading;
     private bool _isLoaded = false;
     private bool _isOfflineMode = false;
@@ -61,24 +60,58 @@ public class HomePageViewModel : INotifyPropertyChanged
         Downloads = new MediaCarouselViewModel { Title = "Heruntergeladene Videos" };
 
         _client = App.ServiceProvider?.GetService<VideoWebPlayerClient>();
-        
-        // Erstelle einen HttpClient mit Bearer Token für Bild-Requests
-        _httpClient = new HttpClient();
-        var token = _client?.AuthorizationToken;
-        if (!string.IsNullOrWhiteSpace(token))
-        {
-            _httpClient.DefaultRequestHeaders.Authorization = 
-                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-        }
+    }
 
-        _baseAddress = Preferences.Default.Get("ServerAddress", string.Empty);
-        if (!string.IsNullOrWhiteSpace(_baseAddress))
+    /// <summary>
+    /// Lädt gecachte Einträge für alle Karussells aus der Datenbank und zeigt sie sofort an.
+    /// </summary>
+    private async Task LoadFromCacheAsync()
+    {
+        await Task.WhenAll(
+            PopulateCarouselFromCacheAsync(ContinueWatching, "ContinueWatching"),
+            PopulateCarouselFromCacheAsync(Favorites, "Favorites"),
+            PopulateCarouselFromCacheAsync(RecentEntries, "RecentEntries")
+        );
+    }
+
+    private async Task PopulateCarouselFromCacheAsync(MediaCarouselViewModel carousel, string carouselName)
+    {
+        try
         {
-            if (!_baseAddress.StartsWith("http://") && !_baseAddress.StartsWith("https://"))
+            var cached = await ElementCacheService.Instance.GetCachedItemsAsync(carouselName);
+            if (cached.Count == 0) return;
+
+            var toAdd = cached.Select(c => new MediaItemViewModel
             {
-                _baseAddress = $"http://{_baseAddress}";
+                Title = c.Title,
+                ImageUrl = c.ImageUrl,
+                ImageSource = "placeholder.png",
+                EntryId = c.EntryId,
+                MediaType = c.MediaType,
+                SeasonId = c.SeasonId,
+                EpisodeId = c.EpisodeId,
+                PosterPictureId = c.PosterPictureId,
+                IsFromCache = true
+            }).ToList();
+
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                for (int i = 0; i < toAdd.Count; i++)
+                    carousel.AddItem(toAdd[i], i);
+            });
+
+            // Lade Bilder im Hintergrund nach
+            if (_client != null)
+            {
+                foreach (var item in toAdd.Where(i => i.PosterPictureId.HasValue && i.PosterPictureId > 0))
+                    _ = LoadImageAsync(item.PosterPictureId!.Value, item);
             }
-            _baseAddress = _baseAddress.TrimEnd('/');
+
+            System.Diagnostics.Debug.WriteLine($"[HomePageViewModel] Loaded {toAdd.Count} cached items for '{carouselName}'");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[HomePageViewModel] Cache load error for '{carouselName}': {ex.Message}");
         }
     }
 
@@ -91,7 +124,7 @@ public class HomePageViewModel : INotifyPropertyChanged
         
         System.Diagnostics.Debug.WriteLine($"Downloads loaded. Count: {Downloads.Items.Count}");
         
-        if (_client == null || string.IsNullOrWhiteSpace(_baseAddress))
+        if (_client == null)
         {
             System.Diagnostics.Debug.WriteLine("No client or base address - switching to offline mode");
             IsOfflineMode = true;
@@ -105,14 +138,17 @@ public class HomePageViewModel : INotifyPropertyChanged
             return;
         }
 
+        // Zeige gecachte Einträge sofort an, bevor der Server antwortet
+        await LoadFromCacheAsync();
+
         IsLoading = true;
 
         try
         {
-            // Lösche bestehende Items vor dem Neuladen
-            ContinueWatching.Items.Clear();
-            Favorites.Items.Clear();
-            RecentEntries.Items.Clear();
+            // Beginne Aktualisierung der Karussells (nicht mehr vorhandene Elemente werden durch EndUpdate entfernt)
+            ContinueWatching.BeginUpdate();
+            Favorites.BeginUpdate();
+            RecentEntries.BeginUpdate();
             Sources.Clear();
             
             await Task.WhenAll(
@@ -147,6 +183,12 @@ public class HomePageViewModel : INotifyPropertyChanged
         _isLoaded = false;
         await LoadDataAsync();
     }
+
+	public async Task RefreshFavoritesAsync()
+	{
+		Favorites.BeginUpdate();
+		await LoadFavoritesAsync();
+	}
     
     public void RefreshData()
     {
@@ -160,7 +202,7 @@ public class HomePageViewModel : INotifyPropertyChanged
 
     public async Task<bool> TryReconnectAsync()
     {
-        if (_client == null || string.IsNullOrWhiteSpace(_baseAddress))
+        if (_client == null)
             return false;
 
         IsLoading = true;
@@ -194,61 +236,48 @@ public class HomePageViewModel : INotifyPropertyChanged
     private async Task LoadContinueWatchingAsync()
     {
         if (_client == null) return;
-        
+
         try
         {
-            ContinueWatching.IsLoading = true;
-            var items = await _client.RequestContinueWatchingAsync();
-            
+            await MainThread.InvokeOnMainThreadAsync(() => ContinueWatching.IsLoading = true);
+
+            var items = await _client.RequestContinueWatchingAsync().ConfigureAwait(false);
+
+            var toAdd = new List<MediaItemViewModel>();
+            var seen = new HashSet<string>();
             foreach (var item in items.Take(10))
             {
                 if (item?.Entry == null) continue;
-                
-                var posterUrl = item.PosterPictureId.HasValue 
-                    ? $"{_baseAddress}/api/pictures/{item.PosterPictureId}"
-                    : null;
 
-                // Bestimme den MediaType basierend auf dem Entry-Typ
-                string? mediaType = null;
-                if (item.Entry is DtoTVShowEpisode)
+                // Build a unique key for the entry to avoid duplicates (mediaType|targetId|season|episode)
+                var (targetId, mediaType, _, title, seasonId, episodeId) = GetEntryDetails(item.Entry, item.PosterPictureId);
+                var key = $"{mediaType ?? ""}|{targetId}|{seasonId?.ToString() ?? "0"}|{episodeId?.ToString() ?? "0"}";
+                if (!seen.Add(key))
                 {
-                    mediaType = "episode";
-                    // Für Episoden navigieren wir zur Show
-                    var episode = item.Entry as DtoTVShowEpisode;
-                    if (episode?.Season?.Show != null)
-                    {
-                        item.Entry = episode.Season.Show;
-                        mediaType = "show";
-                    }
-                }
-                else if (item.Entry is DtoMovie movie)
-                {
-                    mediaType = "movie";
-                    // Für Filme navigieren wir zur Collection
-                    if (movie.Collection != null)
-                    {
-                        item.Entry = movie.Collection;
-                        mediaType = "collection";
-                    }
+                    // duplicate entry, skip
+                    System.Diagnostics.Debug.WriteLine($"Skipping duplicate continue-watching entry: {key} ({item?.Title ?? title})");
+                    continue;
                 }
 
-                var mediaItem = new MediaItemViewModel
-                {
-                    Title = item.Title ?? item.Entry.Name,
-                    ImageUrl = posterUrl,
-                    ImageSource = "placeholder.png",
-                    EntryId = item.Entry.Id,
-                    MediaType = mediaType
-                };
+                var mediaItem = CreateMediaItemViewModel(item);
+                toAdd.Add(mediaItem);
 
-                // Lade Bild asynchron
-                if (!string.IsNullOrEmpty(posterUrl))
+                if (item.PosterPictureId.HasValue && item.PosterPictureId > 0)
                 {
-                    _ = LoadImageAsync(posterUrl, mediaItem);
+                    _ = LoadImageAsync(item.PosterPictureId.Value, mediaItem);
                 }
-
-                ContinueWatching.Items.Add(mediaItem);
             }
+
+            List<MediaItemViewModel> continueWatchingSnapshot = null!;
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                for (int idx = 0; idx < toAdd.Count; idx++)
+                    ContinueWatching.AddItem(toAdd[idx], idx);
+                ContinueWatching.EndUpdate();
+                continueWatchingSnapshot = ContinueWatching.Items.ToList();
+            });
+
+            _ = Task.Run(() => ElementCacheService.Instance.SaveCachedItemsAsync("ContinueWatching", continueWatchingSnapshot));
         }
         catch (Exception ex)
         {
@@ -256,76 +285,51 @@ public class HomePageViewModel : INotifyPropertyChanged
         }
         finally
         {
-            ContinueWatching.IsLoading = false;
+            await MainThread.InvokeOnMainThreadAsync(() => ContinueWatching.IsLoading = false);
         }
+    }
+
+    private MediaItemViewModel CreateMediaItemViewModel(ContinueWatchingDto item)
+    {
+        var (targetId, mediaType, posterUrl, title, seasonId, episodeId) = GetEntryDetails(item.Entry, item.PosterPictureId);
+        var mediaItem = CreateMediaItemViewModel(item.Title ?? title, posterUrl, targetId, mediaType, seasonId, episodeId);
+
+        if (item.PosterPictureId.HasValue && item.PosterPictureId > 0)
+        {
+            _ = LoadImageAsync(item.PosterPictureId.Value, mediaItem);
+        }
+
+        return mediaItem;
     }
 
     private async Task LoadFavoritesAsync()
     {
         if (_client == null) return;
-        
+
         try
         {
-            Favorites.IsLoading = true;
-            var items = await _client.RequestFavoritesAsync();
-            
+            await MainThread.InvokeOnMainThreadAsync(() => Favorites.IsLoading = true);
+
+            var items = await _client.RequestFavoritesAsync().ConfigureAwait(false);
+            var toAdd = new List<MediaItemViewModel>();
+
             foreach (var item in items.Take(10))
             {
                 if (item?.Entry == null) continue;
-                
-                var posterUrl = item.Entry.PosterPictureId.HasValue 
-                    ? $"{_baseAddress}/api/pictures/{item.Entry.PosterPictureId}"
-                    : null;
-
-                // Bestimme den MediaType und navigiere zum richtigen Entry
-                string? mediaType = null;
-                var targetEntry = item.Entry;
-                
-                if (item.Entry is DtoTVShow)
-                {
-                    mediaType = "show";
-                }
-                else if (item.Entry is DtoMovieCollection)
-                {
-                    mediaType = "collection";
-                }
-                else if (item.Entry is DtoMovie movie)
-                {
-                    // Für Filme navigieren wir zur Collection
-                    if (movie.Collection != null)
-                    {
-                        targetEntry = movie.Collection;
-                        mediaType = "collection";
-                        
-                        // Verwende Collection Poster wenn vorhanden
-                        if (movie.Collection.PosterPictureId.HasValue)
-                        {
-                            posterUrl = $"{_baseAddress}/api/pictures/{movie.Collection.PosterPictureId}";
-                        }
-                    }
-                    else
-                    {
-                        mediaType = "movie";
-                    }
-                }
-
-                var mediaItem = new MediaItemViewModel
-                {
-                    Title = targetEntry.Name,
-                    ImageUrl = posterUrl,
-                    ImageSource = "placeholder.png",
-                    EntryId = targetEntry.Id,
-                    MediaType = mediaType
-                };
-
-                // Lade Bild asynchron
-                if (!string.IsNullOrEmpty(posterUrl))
-                {
-                    _ = LoadImageAsync(posterUrl, mediaItem);
-                }
-
-                Favorites.Items.Add(mediaItem);
+                var mediaItem = CreateMediaItemViewModel(item);
+                toAdd.Add(mediaItem);
             }
+
+            List<MediaItemViewModel> favoritesSnapshot = null!;
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                for (int idx = 0; idx < toAdd.Count; idx++)
+                    Favorites.AddItem(toAdd[idx], idx);
+                Favorites.EndUpdate();
+                favoritesSnapshot = Favorites.Items.ToList();
+            });
+
+            _ = Task.Run(() => ElementCacheService.Instance.SaveCachedItemsAsync("Favorites", favoritesSnapshot));
         }
         catch (Exception ex)
         {
@@ -333,55 +337,51 @@ public class HomePageViewModel : INotifyPropertyChanged
         }
         finally
         {
-            Favorites.IsLoading = false;
+            await MainThread.InvokeOnMainThreadAsync(() => Favorites.IsLoading = false);
         }
+    }
+
+    private MediaItemViewModel CreateMediaItemViewModel(Data.DtoFavoriteEntry item)
+    {
+        var (targetId, mediaType, posterUrl, title, seasonId, episodeId) = GetEntryDetails(item.Entry, item.Entry.PosterPictureId);
+        var mediaItem = CreateMediaItemViewModel(title, posterUrl, targetId, mediaType, seasonId, episodeId);
+
+        if (item.Entry.PosterPictureId.HasValue && item.Entry.PosterPictureId > 0)
+        {
+            _ = LoadImageAsync(item.Entry.PosterPictureId.Value, mediaItem);
+        }
+
+        return mediaItem;
     }
 
     private async Task LoadRecentEntriesAsync()
     {
         if (_client == null) return;
-        
+
         try
         {
-            RecentEntries.IsLoading = true;
-            var items = await _client.RequestRecentEntriesAsync();
-            
+            await MainThread.InvokeOnMainThreadAsync(() => RecentEntries.IsLoading = true);
+
+            var items = await _client.RequestRecentEntriesAsync().ConfigureAwait(false);
+            var toAdd = new List<MediaItemViewModel>();
+
             foreach (var item in items.Take(10))
             {
                 if (item?.Entry == null) continue;
-                
-                var posterUrl = item.Entry.PosterPictureId.HasValue 
-                    ? $"{_baseAddress}/api/pictures/{item.Entry.PosterPictureId}"
-                    : null;
-
-                // Bestimme den MediaType
-                string? mediaType = null;
-                if (item.Entry is DtoTVShow)
-                {
-                    mediaType = "show";
-                }
-                else if (item.Entry is DtoMovieCollection)
-                {
-                    mediaType = "collection";
-                }
-
-                var mediaItem = new MediaItemViewModel
-                {
-                    Title = item.Entry.Name,
-                    ImageUrl = posterUrl,
-                    ImageSource = "placeholder.png",
-                    EntryId = item.Entry.Id,
-                    MediaType = mediaType
-                };
-
-                // Lade Bild asynchron
-                if (!string.IsNullOrEmpty(posterUrl))
-                {
-                    _ = LoadImageAsync(posterUrl, mediaItem);
-                }
-
-                RecentEntries.Items.Add(mediaItem);
+                var mediaItem = CreateMediaItemViewModel(item);
+                toAdd.Add(mediaItem);
             }
+
+            List<MediaItemViewModel> recentEntriesSnapshot = null!;
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                for (int idx = 0; idx < toAdd.Count; idx++)
+                    RecentEntries.AddItem(toAdd[idx], idx);
+                RecentEntries.EndUpdate();
+                recentEntriesSnapshot = RecentEntries.Items.ToList();
+            });
+
+            _ = Task.Run(() => ElementCacheService.Instance.SaveCachedItemsAsync("RecentEntries", recentEntriesSnapshot));
         }
         catch (Exception ex)
         {
@@ -389,8 +389,41 @@ public class HomePageViewModel : INotifyPropertyChanged
         }
         finally
         {
-            RecentEntries.IsLoading = false;
+            await MainThread.InvokeOnMainThreadAsync(() => RecentEntries.IsLoading = false);
         }
+    }
+    /// <summary>
+    /// Erstellt ein MediaItemViewModel basierend auf den Details eines DtoRecentEntry-Objekts.
+    /// </summary>
+    /// <remarks>Falls die Poster-URL nicht null oder leer ist, wird ein asynchroner Bildladevorgang für das MediaItemViewModel gestartet.</remarks>
+    /// <param name="item">Die Daten des aktuellen Eintrags, die verwendet werden, um die Details für das MediaItemViewModel zu extrahieren.</param>
+    /// <returns>Eine MediaItemViewModel-Instanz, die mit den aus dem bereitgestellten aktuellen Eintrag extrahierten Details gefüllt ist.</returns>
+    private MediaItemViewModel CreateMediaItemViewModel(DtoRecentEntry item)
+    {
+        var (targetId, mediaType, posterUrl, title, seasonId, episodeId) = GetEntryDetails(item.Entry, item.Entry.PosterPictureId);
+        var mediaItem = CreateMediaItemViewModel(title, posterUrl, targetId, mediaType, seasonId, episodeId);
+
+        if (item.Entry.PosterPictureId.HasValue && item.Entry.PosterPictureId > 0)
+        {
+            _ = LoadImageAsync(item.Entry.PosterPictureId.Value, mediaItem);
+        }
+        return mediaItem;
+    }
+    /// <summary>
+	/// Erstellt ein MediaItemViewModel mit den gegebenen Parametern.
+	/// </summary>
+	private MediaItemViewModel CreateMediaItemViewModel(string title, string? imageUrl, long entryId, string? mediaType, long? seasonId = null, long? episodeId = null)
+    {
+        return new MediaItemViewModel
+        {
+            Title = title,
+            ImageUrl = imageUrl,
+            ImageSource = "placeholder.png",
+            EntryId = entryId,
+            MediaType = mediaType,
+            SeasonId = seasonId,
+            EpisodeId = episodeId
+        };
     }
 
     private async Task LoadDownloadsAsync()
@@ -398,50 +431,61 @@ public class HomePageViewModel : INotifyPropertyChanged
         try
         {
             Downloads.IsLoading = true;
-            
-            // WICHTIG: Erst auf Main Thread clearen
-            await MainThread.InvokeOnMainThreadAsync(() =>
-            {
-                Downloads.Items.Clear();
-            });
-            
-            // Lade Downloads aus lokaler Datenbank (kein Server-Zugriff)
-            var downloadedVideos = await Services.DownloadManager.Instance.GetAllDownloadsAsync();
-            
+
+            // Clear and load on background, update UI in a single batch to avoid UI thread stalls
+            var downloadedVideos = await Services.DownloadManager.Instance.GetAllDownloadsAsync().ConfigureAwait(false);
+
             System.Diagnostics.Debug.WriteLine($"[LoadDownloadsAsync] Found {downloadedVideos.Count} downloaded videos in database");
-            
+
+            var toAdd = new List<MediaItemViewModel>();
+            var imageLoadTasks = new List<Task>();
+
             foreach (var download in downloadedVideos.Take(10))
             {
-                System.Diagnostics.Debug.WriteLine($"[LoadDownloadsAsync] Processing download: {download.Title} ({download.VideoType}) - VideoId: {download.VideoId}");
-                
-                // Erstelle MediaItem auf Main Thread
-                await MainThread.InvokeOnMainThreadAsync(() =>
+                System.Diagnostics.Debug.WriteLine($"[LoadDownloadsAsync] Preparing download: {download.Title} ({download.VideoType}) - VideoId: {download.VideoId}");
+
+                var mediaItem = new MediaItemViewModel
                 {
-                    var mediaItem = new MediaItemViewModel
-                    {
-                        Title = download.Title,
-                        // Verwende SolidColorBrush als Dummy-Image
-                        ImageSource = ImageSource.FromFile("dotnet_bot.png"), // Default MAUI icon als Fallback
-                        EntryId = download.VideoId,
-                        MediaType = download.VideoType.Equals(Models.MediaTypes.Movie, StringComparison.OrdinalIgnoreCase) ? MediaTypes.Movie : MediaTypes.Episode
-                    };
-                    
-                    Downloads.Items.Add(mediaItem);
-                    System.Diagnostics.Debug.WriteLine($"[LoadDownloadsAsync] Added to Items. New count: {Downloads.Items.Count}");
-                });
-                
-                // Lade Bild asynchron NACH dem Hinzufügen
+                    Title = download.Title,
+                    ImageSource = ImageSource.FromFile("dotnet_bot.png"),
+                    EntryId = download.VideoId,
+                    MediaType = download.VideoType.Equals(Models.MediaTypes.Movie, StringComparison.OrdinalIgnoreCase) ? MediaTypes.Movie : MediaTypes.Episode
+                };
+
+                toAdd.Add(mediaItem);
+
+                // schedule local image load without blocking UI thread
                 if (!string.IsNullOrEmpty(download.LocalPosterImagePath) && File.Exists(download.LocalPosterImagePath))
                 {
-                    _ = LoadLocalImageAsync(download.LocalPosterImagePath, Downloads.Items[Downloads.Items.Count - 1]);
+                    imageLoadTasks.Add(LoadLocalImageAsync(download.LocalPosterImagePath, mediaItem));
                 }
                 else if (!string.IsNullOrEmpty(download.LocalBannerImagePath) && File.Exists(download.LocalBannerImagePath))
                 {
-                    _ = LoadLocalImageAsync(download.LocalBannerImagePath, Downloads.Items[Downloads.Items.Count - 1]);
+                    imageLoadTasks.Add(LoadLocalImageAsync(download.LocalBannerImagePath, mediaItem));
                 }
             }
-            
-            System.Diagnostics.Debug.WriteLine($"[LoadDownloadsAsync] Final Downloads.Items.Count: {Downloads.Items.Count}");
+
+            // Update UI in one batch
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                Downloads.Items.Clear();
+                foreach (var mi in toAdd)
+                    Downloads.Items.Add(mi);
+                System.Diagnostics.Debug.WriteLine($"[LoadDownloadsAsync] Added {toAdd.Count} downloads to UI");
+            });
+
+            // Run image loads in background (they will update UI per-item when done)
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.WhenAll(imageLoadTasks);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[LoadDownloadsAsync] Image load tasks error: {ex.Message}");
+                }
+            });
         }
         catch (Exception ex)
         {
@@ -480,23 +524,36 @@ public class HomePageViewModel : INotifyPropertyChanged
     private async Task LoadSourcesAsync()
     {
         if (_client == null) return;
-        
+
         try
         {
-            var sources = await _client.RequestSourcesAsync();
-            
+            var sources = await _client.RequestSourcesAsync().ConfigureAwait(false);
+
             if (sources != null)
             {
+                var toAdd = new List<MediaSourceViewModel>();
                 foreach (var source in sources)
                 {
                     var sourceItem = new MediaSourceViewModel
                     {
                         Id = source.Id,
-                        Name = source.Name
+                        Name = source.Name,
+                        Icon = "📁",
+                        IconPictureId = source.IconPictureId
                     };
-                    
-                    Sources.Add(sourceItem);
+                    toAdd.Add(sourceItem);
+
+                    if (sourceItem.IconPictureId.HasValue)
+                    {
+                        _ = LoadSourceIconAsync(sourceItem.IconPictureId.Value, sourceItem);
+                    }
                 }
+
+                await MainThread.InvokeOnMainThreadAsync(() =>
+                {
+                    foreach (var s in toAdd)
+                        Sources.Add(s);
+                });
             }
         }
         catch (Exception ex)
@@ -505,14 +562,119 @@ public class HomePageViewModel : INotifyPropertyChanged
         }
     }
 
-    private async Task LoadImageAsync(string imageUrl, MediaItemViewModel mediaItem)
+	private async Task LoadSourceIconAsync(long pictureId, MediaSourceViewModel source)
+	{
+		try
+		{
+			if (pictureId <= 0 || _client is null)
+				return;
+
+			var imageBytes = await _client.GetSourcePictureAsync(pictureId);
+			var imageSource = new StreamImageSource
+			{
+				Stream = (token) => Task.FromResult((Stream)new MemoryStream(imageBytes))
+			};
+
+			await MainThread.InvokeOnMainThreadAsync(() =>
+			{
+				source.IconImageSource = imageSource;
+			});
+		}
+		catch (Exception ex)
+		{
+			System.Diagnostics.Debug.WriteLine($"Error loading source icon {pictureId}: {ex.Message}");
+		}
+	}
+
+	/// <summary>
+	/// Bestimmt das Navigationsziel und den MediaType für einen Entry.
+	/// Für Episoden und Seasons wird zur Show navigiert, für Movies zur Collection.
+	/// </summary>
+	private (long targetId, string? mediaType, string? posterUrl, string title, long? seasonId, long? episodeId) GetEntryDetails(object entry, long? pictureId)
+	{
+		string? mediaType = null;
+		long targetId = 0;
+		string title = string.Empty;
+		long? seasonId = null;
+		long? episodeId = null;
+		var posterUrl = pictureId.HasValue ? $"api/pictures/{pictureId}" : null;
+
+		if (entry is DtoTVShow show)
+		{
+			mediaType = "show";
+			targetId = show.Id;
+			title = show.Name;
+		}
+		else if (entry is DtoMovieCollection collection)
+		{
+			mediaType = "collection";
+			targetId = collection.Id;
+			title = collection.Name;
+		}
+		else if (entry is DtoTVShowSeason season)
+		{
+			if (season.Show != null)
+			{
+				mediaType = "show";
+				targetId = season.Show.Id;
+				title = season.Show.Name;
+				seasonId = season.Id;
+				// Verwende Show-Poster nur als Fallback, wenn die Staffel kein eigenes Poster hat
+				if (!posterUrl?.Contains("pictures") == true && season.Show.PosterPictureId.HasValue)
+				{
+					posterUrl = $"api/pictures/{season.Show.PosterPictureId}";
+				}
+			}
+		}
+		else if (entry is DtoTVShowEpisode episode)
+		{
+			if (episode.Season?.Show != null)
+			{
+				mediaType = "show";
+				targetId = episode.Season.Show.Id;
+				title = episode.Season.Show.Name;
+				seasonId = episode.Season.Id;
+				episodeId = episode.Id;
+				// Verwende Show-Poster nur als Fallback, wenn die Episode kein eigenes Poster hat
+				if (!posterUrl?.Contains("pictures") == true && episode.Season.Show.PosterPictureId.HasValue)
+				{
+					posterUrl = $"api/pictures/{episode.Season.Show.PosterPictureId}";
+				}
+			}
+		}
+		else if (entry is DtoMovie movie)
+		{
+			if (movie.Collection != null)
+			{
+				mediaType = "collection";
+				targetId = movie.Collection.Id;
+				title = movie.Collection.Name;
+				if (movie.Collection.PosterPictureId.HasValue)
+				{
+					posterUrl = $"api/pictures/{movie.Collection.PosterPictureId}";
+				}
+			}
+			else
+			{
+				mediaType = "movie";
+				targetId = movie.Id;
+				title = movie.Name;
+			}
+		}
+
+		return (targetId, mediaType, posterUrl, title, seasonId, episodeId);
+	}
+
+	
+
+	private async Task LoadImageAsync(long pictureId, MediaItemViewModel mediaItem)
     {
         try
         {
-            if (string.IsNullOrEmpty(imageUrl) || _httpClient == null)
+            if (pictureId <= 0 || _client is null)
                 return;
 
-            var imageBytes = await _httpClient.GetByteArrayAsync(imageUrl);
+            var imageBytes = await _client.GetPictureAsync(pictureId);
             var stream = new MemoryStream(imageBytes);
             var imageSource = new StreamImageSource
             {
@@ -526,7 +688,7 @@ public class HomePageViewModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error loading image {imageUrl}: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Error loading image {pictureId}: {ex.Message}");
         }
     }
 

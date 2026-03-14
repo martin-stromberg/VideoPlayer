@@ -58,6 +58,22 @@ public partial class ServerSetupPage : ContentPage
 		{
 			await Navigation.PopModalAsync();
 		}
+
+        // If the main page exists, request a retry of the startup workflow so
+        // the app will attempt to connect / login with the newly saved address.
+        try
+        {
+            var mainPage = Application.Current?.Windows?.FirstOrDefault()?.Page;
+            // If the root is a NavigationPage, the MainPage instance is its CurrentPage
+            if (mainPage is NavigationPage navPage)
+                mainPage = navPage.CurrentPage;
+
+            if (mainPage is MainPage mp)
+            {
+                mp.RetryStartupWorkflow();
+            }
+        }
+        catch { }
 	}
 
 	private async Task DiscoverAsync()

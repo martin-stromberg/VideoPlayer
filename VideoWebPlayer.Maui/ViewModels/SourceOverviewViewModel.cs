@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
-using Microsoft.Maui.Storage;
 using SkiaSharp;
 using VideoWebPlayer.Client;
 using VideoWebPlayer.Client.Models;
@@ -11,8 +10,6 @@ namespace VideoWebPlayer.Maui.ViewModels;
 public class SourceOverviewViewModel : INotifyPropertyChanged
 {
     private readonly VideoWebPlayerClient? _client;
-    private readonly HttpClient _httpClient;
-    private readonly string _baseAddress;
     private bool _isLoading;
     private bool _isLoadingMore;
     private GenreViewModel? _selectedGenre;
@@ -72,29 +69,11 @@ public class SourceOverviewViewModel : INotifyPropertyChanged
         SourceName = sourceName;
 
         _client = App.ServiceProvider?.GetService<VideoWebPlayerClient>();
-
-        _httpClient = new HttpClient();
-        var token = _client?.AuthorizationToken;
-        if (!string.IsNullOrWhiteSpace(token))
-        {
-            _httpClient.DefaultRequestHeaders.Authorization =
-                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-        }
-
-        _baseAddress = Preferences.Default.Get("ServerAddress", string.Empty);
-        if (!string.IsNullOrWhiteSpace(_baseAddress))
-        {
-            if (!_baseAddress.StartsWith("http://") && !_baseAddress.StartsWith("https://"))
-            {
-                _baseAddress = $"http://{_baseAddress}";
-            }
-            _baseAddress = _baseAddress.TrimEnd('/');
-        }
     }
 
     public async Task LoadGenresAsync()
     {
-        if (_client == null || string.IsNullOrWhiteSpace(_baseAddress))
+        if (_client == null)
             return;
 
         IsLoading = true;
@@ -142,7 +121,7 @@ public class SourceOverviewViewModel : INotifyPropertyChanged
 
     private async Task LoadItemsForGenreAsync()
     {
-        if (SelectedGenre == null || _client == null || string.IsNullOrWhiteSpace(_baseAddress))
+        if (SelectedGenre == null || _client == null)
             return;
 
         IsLoading = true;
@@ -201,9 +180,8 @@ public class SourceOverviewViewModel : INotifyPropertyChanged
 
                 if (item.PictureId.HasValue)
                 {
-                    var posterUrl = $"{_baseAddress}/api/pictures/{item.PictureId}";
-                    mediaItem.ImageUrl = posterUrl;
-                    _ = LoadItemImageAsync(posterUrl, mediaItem);
+                    mediaItem.PosterPictureId = item.PictureId;
+                    _ = LoadItemImageAsync(item.PictureId.Value, mediaItem);
                 }
 
                 // Füge Items direkt hinzu (ObservableCollection ist bereits thread-safe)
@@ -271,18 +249,20 @@ public class SourceOverviewViewModel : INotifyPropertyChanged
         return Colors.Transparent;
     }
 
-    private async Task LoadItemImageAsync(string imageUrl, MediaItemViewModel mediaItem)
+    private async Task LoadItemImageAsync(long pictureId, MediaItemViewModel mediaItem)
     {
         try
         {
-            if (string.IsNullOrEmpty(imageUrl) || _httpClient == null)
+            if (_client == null)
                 return;
 
-            var imageBytes = await _httpClient.GetByteArrayAsync(imageUrl);
-            
+            var imageBytes = await _client.GetPictureAsync(pictureId);
+            if (imageBytes == null || imageBytes.Length == 0)
+                return;
+
             // Extrahiere Hintergrundfarbe
             var backgroundColor = await ExtractAverageColorAsync(imageBytes);
-            
+
             var imageSource = new StreamImageSource
             {
                 Stream = (token) => Task.FromResult((Stream)new MemoryStream(imageBytes))
@@ -296,7 +276,7 @@ public class SourceOverviewViewModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error loading item image {imageUrl}: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Error loading item image for picture {pictureId}: {ex.Message}");
         }
     }
 

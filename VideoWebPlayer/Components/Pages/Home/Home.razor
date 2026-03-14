@@ -1,5 +1,6 @@
 ﻿@page "/"
 @using System.Security.Claims
+@using VideoWebPlayer.Components.Account.Pages.Shared
 @using VideoWebPlayer.Data
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthStateProvider
@@ -35,14 +36,13 @@
     {
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         var user = authState.User;
-
         isAuthenticated = user?.Identity?.IsAuthenticated == true;
-
-        if (user is null || !isAuthenticated.Value)
-        {
-            Navigation.NavigateTo("Account/Login", true);
-        }
     }
+}
+
+@if (isAuthenticated == false)
+{
+    <LoginForm/>
 }
 
 @if (isAuthenticated == true)

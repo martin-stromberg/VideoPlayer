@@ -10,15 +10,28 @@
 	<components:PageChrome HeaderTitle="Media Player">
 		<components:PageChrome.HeaderActions>
 			<Grid ColumnDefinitions="Auto,Auto,Auto" ColumnSpacing="15" HorizontalOptions="End" VerticalOptions="Center">
-				<Button Grid.Column="0"
-				        Text="⚙"
-				        FontSize="18"
-				        BackgroundColor="#FFB84D"
-				        TextColor="#000000"
-				        CornerRadius="8"
-				        Padding="15,8"
-				        Clicked="OnSettingsClicked"
-				        VerticalOptions="Center" />
+             <!-- Settings button: visible on Windows/Desktop -->
+				<Button x:Name="SettingsButton" Grid.Column="0"
+						Text="⚙"
+						FontSize="18"
+						BackgroundColor="#FFB84D"
+						TextColor="#000000"
+						CornerRadius="8"
+						Padding="15,8"
+						Clicked="OnSettingsClicked"
+						VerticalOptions="Center" />
+
+				<!-- Hamburger menu: visible on Android/iOS -->
+				<Button x:Name="HamburgerButton" Grid.Column="0"
+						Text="☰"
+						FontSize="18"
+						BackgroundColor="#FFB84D"
+						TextColor="#000000"
+						CornerRadius="8"
+						Padding="15,8"
+						Clicked="OnHamburgerClicked"
+						VerticalOptions="Center"
+						IsVisible="False" />
 
 				<CollectionView Grid.Column="1"
 				                ItemsSource="{Binding Sources}"
@@ -47,10 +60,31 @@
 								<Border.GestureRecognizers>
 									<TapGestureRecognizer Tapped="OnSourceTapped" />
 								</Border.GestureRecognizers>
-								<Label Text="📁"
+							<Grid>
+								<Label Text="{Binding Icon, TargetNullValue=📁}"
 								       FontSize="24"
 								       HorizontalOptions="Center"
-								       VerticalOptions="Center" />
+								       VerticalOptions="Center"
+								       IsVisible="False">
+									<Label.Triggers>
+										<DataTrigger TargetType="Label" Binding="{Binding IconImageSource}" Value="{x:Null}">
+											<Setter Property="IsVisible" Value="True" />
+										</DataTrigger>
+									</Label.Triggers>
+								</Label>
+								<Image Source="{Binding IconImageSource}"
+								       WidthRequest="34"
+								       HeightRequest="34"
+								       Aspect="AspectFit"
+								       HorizontalOptions="Center"
+								       VerticalOptions="Center">
+									<Image.Triggers>
+										<DataTrigger TargetType="Image" Binding="{Binding IconImageSource}" Value="{x:Null}">
+											<Setter Property="IsVisible" Value="False" />
+										</DataTrigger>
+									</Image.Triggers>
+								</Image>
+							</Grid>
 							</Border>
 						</DataTemplate>
 					</CollectionView.ItemTemplate>

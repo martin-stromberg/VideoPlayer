@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace VideoWebPlayer.Services
 {
@@ -11,6 +12,7 @@ namespace VideoWebPlayer.Services
     {
         // Speichert für jeden Event-Typ eine Liste der zugehörigen Handler (Subscriber).
         private readonly Dictionary<Type, List<Delegate>> _subscribers = new();
+        private readonly object _lock = new();
 
         /// <summary>
         /// Registriert einen Handler für einen bestimmten Event-Typ.
@@ -20,9 +22,38 @@ namespace VideoWebPlayer.Services
         public void Subscribe<TEvent>(Action<TEvent> handler)
         {
             var type = typeof(TEvent);
-            if (!_subscribers.ContainsKey(type))
-                _subscribers[type] = new List<Delegate>();
-            _subscribers[type].Add(handler);
+            lock (_lock)
+            {
+                if (!_subscribers.ContainsKey(type))
+                    _subscribers[type] = new List<Delegate>();
+                _subscribers[type].Add(handler);
+            }
+        }
+
+        /// <summary>
+        /// Registriert einen Handler für einen bestimmten Event-Typ und liefert ein IDisposable zum Abmelden.
+        /// </summary>
+        public IDisposable SubscribeDisposable<TEvent>(Action<TEvent> handler)
+        {
+            Subscribe(handler);
+            return new Subscription(() => Unsubscribe(handler));
+        }
+
+        /// <summary>
+        /// Entfernt einen zuvor registrierten Handler für einen bestimmten Event-Typ.
+        /// </summary>
+        public void Unsubscribe<TEvent>(Action<TEvent> handler)
+        {
+            var type = typeof(TEvent);
+            lock (_lock)
+            {
+                if (!_subscribers.TryGetValue(type, out var handlers))
+                    return;
+
+                handlers.Remove(handler);
+                if (handlers.Count == 0)
+                    _subscribers.Remove(type);
+            }
         }
 
         /// <summary>
@@ -33,12 +64,35 @@ namespace VideoWebPlayer.Services
         public void Publish<TEvent>(TEvent evt)
         {
             var type = typeof(TEvent);
-            if (_subscribers.TryGetValue(type, out var handlers))
+            List<Delegate>? handlersCopy = null;
+
+            lock (_lock)
             {
-                foreach (var handler in handlers)
-                {
-                    ((Action<TEvent>)handler)?.Invoke(evt);
-                }
+                if (_subscribers.TryGetValue(type, out var handlers))
+                    handlersCopy = handlers.ToList();
+            }
+
+            if (handlersCopy == null)
+                return;
+
+            foreach (var handler in handlersCopy)
+                ((Action<TEvent>)handler)?.Invoke(evt);
+        }
+
+        private sealed class Subscription : IDisposable
+        {
+            private readonly Action _dispose;
+            private bool _isDisposed;
+
+            public Subscription(Action dispose) => _dispose = dispose;
+
+            public void Dispose()
+            {
+                if (_isDisposed)
+                    return;
+
+                _isDisposed = true;
+                _dispose();
             }
         }
     }

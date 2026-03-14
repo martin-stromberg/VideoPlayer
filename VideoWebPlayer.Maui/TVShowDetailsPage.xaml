@@ -9,20 +9,40 @@
              BackgroundColor="#000000">
     <components:PageChrome HeaderTitle="{Binding Title}">
 		<components:PageChrome.HeaderActions>
-			<Button Text="←"
-			        FontSize="18"
-			        BackgroundColor="#FFB84D"
-			        TextColor="#000000"
-			        CornerRadius="8"
-			        Padding="15,8"
-			        Clicked="OnBackClicked"
-			        HorizontalOptions="End"
-			        VerticalOptions="Center" />
+			<HorizontalStackLayout Spacing="10"
+			                      HorizontalOptions="End"
+			                      VerticalOptions="Center">
+				<Button Text="←"
+				        FontSize="18"
+				        BackgroundColor="#FFB84D"
+				        TextColor="#000000"
+				        CornerRadius="8"
+				        Padding="15,8"
+				        Clicked="OnBackClicked" />
+
+				<Button Text="{Binding SelectionFavoriteStarText}"
+				        FontSize="18"
+				        CornerRadius="8"
+				        Padding="15,8"
+				        Clicked="OnToggleShowFavoriteClicked">
+					<Button.Triggers>
+						<DataTrigger TargetType="Button" Binding="{Binding IsSelectionFavorite}" Value="True">
+							<Setter Property="BackgroundColor" Value="#FFB84D" />
+							<Setter Property="TextColor" Value="#000000" />
+						</DataTrigger>
+						<DataTrigger TargetType="Button" Binding="{Binding IsSelectionFavorite}" Value="False">
+							<Setter Property="BackgroundColor" Value="#23232a" />
+							<Setter Property="TextColor" Value="#FFB84D" />
+						</DataTrigger>
+					</Button.Triggers>
+				</Button>
+			</HorizontalStackLayout>
 		</components:PageChrome.HeaderActions>
 
-		<components:PageChrome.Body>
-			<ScrollView>
-				<VerticalStackLayout Spacing="20" Padding="20,10,20,20">
+        <components:PageChrome.Body>
+			<!-- Add bottom padding so content doesn't overlap the fixed footer and avoid vertical stretching -->
+			<ScrollView Padding="0,0,0,80">
+				<VerticalStackLayout Spacing="20" Padding="20,10,20,20" VerticalOptions="Start">
                 <!-- MediaBannerPlayer Component -->
                 <components:MediaBannerPlayer />
                 
@@ -34,11 +54,12 @@
                     <Label Text="{Binding SelectedEpisodeName}" FontSize="14" TextColor="#333333" FontAttributes="Bold" IsVisible="{Binding SelectedEpisodeName, Converter={StaticResource IsNotNullConverter}}" />
                 </StackLayout>
                 <Label Text="{Binding Plot}" FontSize="14" TextColor="#555555" LineBreakMode="WordWrap" />
-                <Picker Title="Staffel wählen" ItemsSource="{Binding Seasons}" ItemDisplayBinding="{Binding Name}" SelectedIndex="{Binding SelectedSeasonIndex}" TitleColor="#000000" TextColor="#FFDDAA" BackgroundColor="#23232a" />
+				<Picker Title="Staffel wählen" ItemsSource="{Binding Seasons}" ItemDisplayBinding="{Binding Name}" SelectedIndex="{Binding SelectedSeasonIndex}" TitleColor="#000000" TextColor="#FFDDAA" BackgroundColor="#23232a" />
                 <CollectionView ItemsSource="{Binding Episodes}" 
-                                SelectionMode="Single"
-                                SelectedItem="{Binding SelectedEpisode}"
-                                SelectionChanged="OnEpisodeSelectionChanged">
+								SelectionMode="Single"
+								SelectedItem="{Binding SelectedEpisode}"
+								SelectionChanged="OnEpisodeSelectionChanged"
+								VerticalOptions="Start">
                     <CollectionView.ItemsLayout>
                         <LinearItemsLayout Orientation="Vertical" ItemSpacing="5" />
                     </CollectionView.ItemsLayout>
@@ -48,31 +69,62 @@
                                 <Border.StrokeShape>
                                     <RoundRectangle CornerRadius="8" />
                                 </Border.StrokeShape>
-                                <Grid ColumnDefinitions="120,*,Auto" ColumnSpacing="15">
+							<Grid ColumnDefinitions="120,*,Auto" ColumnSpacing="15">
                                     <Image Grid.Column="0" Source="{Binding ImageSource}" Aspect="AspectFill" HeightRequest="80" />
                                     <VerticalStackLayout Grid.Column="1" Spacing="5">
                                         <Label Text="{Binding Title}" FontSize="16" FontAttributes="Bold" TextColor="#FFDDAA" />
                                         <Label Text="{Binding Plot}" FontSize="12" TextColor="#CCCCCC" LineBreakMode="WordWrap" MaxLines="3" />
                                     </VerticalStackLayout>
                                     
-                                    <!-- Download Button -->
-                                    <Border Grid.Column="2" 
-                                            BackgroundColor="#4CAF50"
-                                            WidthRequest="40"
-                                            HeightRequest="40"
-                                            VerticalOptions="Center">
-                                        <Border.StrokeShape>
-                                            <RoundRectangle CornerRadius="20" />
-                                        </Border.StrokeShape>
-                                        <Border.GestureRecognizers>
-                                            <TapGestureRecognizer Tapped="OnDownloadEpisodeTapped" />
-                                        </Border.GestureRecognizers>
-                                        <Label Text="⬇"
-                                               FontSize="24"
-                                               TextColor="White"
-                                               HorizontalOptions="Center"
-                                               VerticalOptions="Center" />
-                                    </Border>
+								<HorizontalStackLayout Grid.Column="2"
+								                      Spacing="10"
+								                      VerticalOptions="Center">
+									<!-- Download Button -->
+									<Grid WidthRequest="40"
+									      HeightRequest="40"
+									      VerticalOptions="Center">
+										<!-- Download -->
+										<Border BackgroundColor="#4CAF50">
+											<Border.StrokeShape>
+												<RoundRectangle CornerRadius="20" />
+											</Border.StrokeShape>
+											<Border.GestureRecognizers>
+												<TapGestureRecognizer Tapped="OnDownloadEpisodeTapped" />
+											</Border.GestureRecognizers>
+											<Border.Triggers>
+												<DataTrigger TargetType="Border" Binding="{Binding IsDownloaded}" Value="True">
+													<Setter Property="IsVisible" Value="False" />
+												</DataTrigger>
+											</Border.Triggers>
+											<Label Text="⬇"
+											       FontSize="24"
+											       TextColor="White"
+											       HorizontalOptions="Center"
+											       VerticalOptions="Center" />
+										</Border>
+
+										<!-- Remove download -->
+										<Border BackgroundColor="#E53935"
+										        IsVisible="False">
+											<Border.StrokeShape>
+												<RoundRectangle CornerRadius="20" />
+											</Border.StrokeShape>
+											<Border.GestureRecognizers>
+												<TapGestureRecognizer Tapped="OnRemoveDownloadEpisodeTapped" />
+											</Border.GestureRecognizers>
+											<Border.Triggers>
+												<DataTrigger TargetType="Border" Binding="{Binding IsDownloaded}" Value="True">
+													<Setter Property="IsVisible" Value="True" />
+												</DataTrigger>
+											</Border.Triggers>
+											<Label Text="🗑"
+											       FontSize="20"
+											       TextColor="White"
+											       HorizontalOptions="Center"
+											       VerticalOptions="Center" />
+										</Border>
+									</Grid>
+								</HorizontalStackLayout>
                                 </Grid>
                             </Border>
                         </DataTemplate>

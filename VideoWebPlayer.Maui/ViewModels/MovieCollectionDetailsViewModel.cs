@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
-using Microsoft.Maui.Storage;
 using SkiaSharp;
 using VideoWebPlayer.Client;
 using VideoWebPlayer.Client.Models;
@@ -12,8 +11,6 @@ namespace VideoWebPlayer.Maui.ViewModels;
 public class MovieCollectionDetailsViewModel : INotifyPropertyChanged, IMediaBannerViewModel
 {
     private readonly VideoWebPlayerClient? _client;
-    private readonly HttpClient _httpClient;
-    private readonly string _baseAddress;
     private bool _isLoading;
     private string? _title;
     private string? _plot;
@@ -23,6 +20,7 @@ public class MovieCollectionDetailsViewModel : INotifyPropertyChanged, IMediaBan
     private ImageSource? _displayBannerSource;
     private Color _displayBannerBackgroundColor = Colors.Transparent;
     private int _selectedMovieIndex = -1;
+    private bool _isSelectedMovieFavorite;
 
     public long CollectionId { get; }
 
@@ -127,6 +125,8 @@ public class MovieCollectionDetailsViewModel : INotifyPropertyChanged, IMediaBan
                 _selectedMovieIndex = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(SelectedMovie));
+
+                UpdateSelectedMovieFavorite();
                 
                 if (_selectedMovieIndex >= 0)
                 {
@@ -135,6 +135,22 @@ public class MovieCollectionDetailsViewModel : INotifyPropertyChanged, IMediaBan
             }
         }
     }
+
+    public bool IsSelectedMovieFavorite
+    {
+        get => _isSelectedMovieFavorite;
+        set
+        {
+            if (_isSelectedMovieFavorite != value)
+            {
+                _isSelectedMovieFavorite = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(SelectedMovieFavoriteStarText));
+            }
+        }
+    }
+
+    public string SelectedMovieFavoriteStarText => IsSelectedMovieFavorite ? "★" : "☆";
 
     public ObservableCollection<MediaItemViewModel> Movies { get; } = new();
     
@@ -149,31 +165,13 @@ public class MovieCollectionDetailsViewModel : INotifyPropertyChanged, IMediaBan
     public MovieCollectionDetailsViewModel(long collectionId)
     {
         CollectionId = collectionId;
-        
-        _client = App.ServiceProvider?.GetService<VideoWebPlayerClient>();
-        
-        _httpClient = new HttpClient();
-        var token = _client?.AuthorizationToken;
-        if (!string.IsNullOrWhiteSpace(token))
-        {
-            _httpClient.DefaultRequestHeaders.Authorization = 
-                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-        }
 
-        _baseAddress = Preferences.Default.Get("ServerAddress", string.Empty);
-        if (!string.IsNullOrWhiteSpace(_baseAddress))
-        {
-            if (!_baseAddress.StartsWith("http://") && !_baseAddress.StartsWith("https://"))
-            {
-                _baseAddress = $"http://{_baseAddress}";
-            }
-            _baseAddress = _baseAddress.TrimEnd('/');
-        }
+        _client = App.ServiceProvider?.GetService<VideoWebPlayerClient>();
     }
 
     public async Task LoadDataAsync(long? initialMovieId = null)
     {
-        if (_client == null || string.IsNullOrWhiteSpace(_baseAddress))
+        if (_client == null)
             return;
 
         IsLoading = true;
@@ -186,11 +184,10 @@ public class MovieCollectionDetailsViewModel : INotifyPropertyChanged, IMediaBan
             {
                 Title = collection.Name;
 
-                // Lade Collection Banner
+                // Lade Collection Banner über API-Client
                 if (collection.BannerPictureId.HasValue)
                 {
-                    var collectionBannerUrl = $"{_baseAddress}/api/pictures/{collection.BannerPictureId}";
-                    await LoadCollectionBannerAsync(collectionBannerUrl);
+                    await LoadCollectionBannerAsync(collection.BannerPictureId.Value);
                 }
 
                 Movies.Clear();
@@ -207,9 +204,9 @@ public class MovieCollectionDetailsViewModel : INotifyPropertyChanged, IMediaBan
 
                         if (movie.PosterPictureId.HasValue)
                         {
-                            var posterUrl = $"{_baseAddress}/api/pictures/{movie.PosterPictureId}";
-                            movieVm.ImageUrl = posterUrl;
-                            _ = LoadMoviePosterImageAsync(posterUrl, movieVm);
+                            // store picture id and load via API client
+                            movieVm.PosterPictureId = movie.PosterPictureId;
+                            _ = LoadMoviePosterImageAsync(movie.PosterPictureId.Value, movieVm);
                         }
 
                         Movies.Add(movieVm);
@@ -234,6 +231,8 @@ public class MovieCollectionDetailsViewModel : INotifyPropertyChanged, IMediaBan
                         // Wähle automatisch den ersten Film (egal wie viele es gibt)
                         SelectedMovieIndex = 0;
                     }
+
+                    UpdateSelectedMovieFavorite();
                 }
             }
         }
@@ -244,6 +243,49 @@ public class MovieCollectionDetailsViewModel : INotifyPropertyChanged, IMediaBan
         finally
         {
             IsLoading = false;
+        }
+    }
+
+    private void UpdateSelectedMovieFavorite()
+    {
+        var movieId = SelectedMovie?.EntryId;
+        if (!movieId.HasValue)
+        {
+            IsSelectedMovieFavorite = false;
+            return;
+        }
+
+        if (_movieDetailsCache.TryGetValue(movieId.Value, out var movie))
+        {
+            IsSelectedMovieFavorite = movie.IsFavorite;
+        }
+        else
+        {
+            IsSelectedMovieFavorite = false;
+        }
+    }
+
+    public async Task ToggleSelectedMovieFavoriteAsync()
+    {
+        if (_client == null)
+            return;
+
+        var movieId = SelectedMovie?.EntryId;
+        if (!movieId.HasValue)
+            return;
+
+        try
+        {
+            var isFav = await _client.ToggleFavorite(new DtoMovie { Id = movieId.Value, Name = SelectedMovie?.Title ?? string.Empty });
+            if (_movieDetailsCache.TryGetValue(movieId.Value, out var movie))
+            {
+                movie.IsFavorite = isFav;
+            }
+            IsSelectedMovieFavorite = isFav;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MovieCollectionDetailsViewModel] Error toggling movie favorite: {ex.Message}");
         }
     }
 
@@ -290,16 +332,19 @@ public class MovieCollectionDetailsViewModel : INotifyPropertyChanged, IMediaBan
         return Colors.Transparent;
     }
 
-    private async Task LoadCollectionBannerAsync(string imageUrl)
+    private async Task LoadCollectionBannerAsync(long pictureId)
     {
         try
         {
-            if (string.IsNullOrEmpty(imageUrl) || _httpClient == null)
+            if (_client == null)
                 return;
 
-            var imageBytes = await _httpClient.GetByteArrayAsync(imageUrl);
+            var imageBytes = await _client.GetPictureAsync(pictureId);
+            if (imageBytes == null || imageBytes.Length == 0)
+                return;
+
             var backgroundColor = await ExtractAverageColorAsync(imageBytes);
-            
+
             var imageSource = new StreamImageSource
             {
                 Stream = (token) => Task.FromResult((Stream)new MemoryStream(imageBytes))
@@ -314,7 +359,7 @@ public class MovieCollectionDetailsViewModel : INotifyPropertyChanged, IMediaBan
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error loading collection banner image {imageUrl}: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Error loading collection banner image {pictureId}: {ex.Message}");
         }
     }
 
@@ -354,13 +399,14 @@ public class MovieCollectionDetailsViewModel : INotifyPropertyChanged, IMediaBan
             
             if (imageId.HasValue)
             {
-                var movieImageUrl = $"{_baseAddress}/api/pictures/{imageId}";
-                
-                if (!string.IsNullOrEmpty(movieImageUrl) && _httpClient != null)
+                if (_client == null)
+                    return;
+
+                var imageBytes = await _client.GetPictureAsync(imageId.Value);
+                if (imageBytes != null && imageBytes.Length > 0)
                 {
-                    var imageBytes = await _httpClient.GetByteArrayAsync(movieImageUrl);
                     var backgroundColor = await ExtractAverageColorAsync(imageBytes);
-                    
+
                     var imageSource = new StreamImageSource
                     {
                         Stream = (token) => Task.FromResult((Stream)new MemoryStream(imageBytes))
@@ -393,14 +439,17 @@ public class MovieCollectionDetailsViewModel : INotifyPropertyChanged, IMediaBan
         }
     }
 
-    private async Task LoadMoviePosterImageAsync(string imageUrl, MediaItemViewModel movie)
+    private async Task LoadMoviePosterImageAsync(long pictureId, MediaItemViewModel movie)
     {
         try
         {
-            if (string.IsNullOrEmpty(imageUrl) || _httpClient == null)
+            if (_client == null)
                 return;
 
-            var imageBytes = await _httpClient.GetByteArrayAsync(imageUrl);
+            var imageBytes = await _client.GetPictureAsync(pictureId);
+            if (imageBytes == null || imageBytes.Length == 0)
+                return;
+
             var imageSource = new StreamImageSource
             {
                 Stream = (token) => Task.FromResult((Stream)new MemoryStream(imageBytes))
@@ -413,7 +462,7 @@ public class MovieCollectionDetailsViewModel : INotifyPropertyChanged, IMediaBan
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error loading movie image {imageUrl}: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Error loading movie image for picture {pictureId}: {ex.Message}");
         }
     }
 

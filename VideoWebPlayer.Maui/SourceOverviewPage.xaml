@@ -4,29 +4,25 @@
              xmlns:viewmodels="clr-namespace:VideoWebPlayer.Maui.ViewModels"
              x:Class="VideoWebPlayer.Maui.SourceOverviewPage"
              x:DataType="viewmodels:SourceOverviewViewModel"
+             Title="{Binding SourceName}"
              BackgroundColor="#000000">
     <Grid BackgroundColor="#181820" Padding="0">
         <Grid.RowDefinitions>
-            <RowDefinition Height="100" />
-            <RowDefinition Height="Auto" />
+            <RowDefinition Height="10" />
+            <RowDefinition Height="50" />
             <RowDefinition Height="*" />
             <RowDefinition Height="47" />
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="100" />
+            <ColumnDefinition Width="10" />
             <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="100" />
+            <ColumnDefinition Width="10" />
         </Grid.ColumnDefinitions>
 
         <!-- Header -->
         <Image Grid.Row="0" Grid.Column="0" Source="background_header_left.png" Aspect="Fill" />
         <Image Grid.Row="0" Grid.Column="1" Source="background_header_middle.png" Aspect="Fill" />
         <Image Grid.Row="0" Grid.Column="2" Source="background_header_right.png" Aspect="Fill" />
-        <Label Grid.Row="0" Grid.Column="1" Text="{Binding SourceName}" FontSize="28" FontAttributes="Bold" TextColor="#FFDDAA" Padding="20,20,20,15" FontFamily="OpenSansSemibold">
-            <Label.Shadow>
-                <Shadow Brush="#000000" Offset="5,5" Radius="6" />
-            </Label.Shadow>
-        </Label>
 
         <!-- Content -->
         <Image Grid.Row="1" Grid.RowSpan="2" Grid.Column="0" Source="background_content_left.png" Aspect="Fill" />
@@ -34,29 +30,33 @@
         <Image Grid.Row="1" Grid.RowSpan="2" Grid.Column="2" Source="background_content_right.png" Aspect="Fill" />
 
         <!-- Genres Bar -->
-        <BoxView Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="1" BackgroundColor="#23232a" HeightRequest="70" />
+        <BoxView Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="1" BackgroundColor="Transparent" HeightRequest="70" />
 
         <CollectionView Grid.Row="1" Grid.Column="1" 
+                        BackgroundColor="Transparent"
                         ItemsSource="{Binding Genres}"
                         SelectionMode="Single"
                         SelectedItem="{Binding SelectedGenre}"
-                        Margin="10,15">
+                        Margin="0,0">
             <CollectionView.ItemsLayout>
                 <LinearItemsLayout Orientation="Horizontal" ItemSpacing="10" />
             </CollectionView.ItemsLayout>
             <CollectionView.ItemTemplate>
                 <DataTemplate x:DataType="viewmodels:GenreViewModel">
-                    <Border BackgroundColor="#FFB84D"
+                    <Border BackgroundColor="#FFB84D"                            
                             StrokeThickness="0"
-                            Padding="20,10">
+                            MinimumWidthRequest="100"
+                            Padding="10,10">
                         <Border.StrokeShape>
-                            <RoundRectangle CornerRadius="20" />
+                            <RoundRectangle CornerRadius="20" HeightRequest="20" MaximumHeightRequest="20" BackgroundColor="Red" />
                         </Border.StrokeShape>
                         <Label Text="{Binding Name}"
                                FontSize="14"
                                TextColor="#000000"
                                FontAttributes="Bold"
-                               VerticalOptions="Center" />
+                               BackgroundColor="Transparent"
+                               VerticalOptions="Center"
+                               HorizontalOptions="Center"/>
                     </Border>
                 </DataTemplate>
             </CollectionView.ItemTemplate>

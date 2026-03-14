@@ -28,5 +28,20 @@
 	</array>
 	<key>XSAppIconAssets</key>
 	<string>Assets.xcassets/appicon.appiconset</string>
+	<key>CFBundleIdentifier</key>
+	<string>de.MartinStromberg.MediaPlayer</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+		<string>fetch</string>
+		<string>processing</string>
+	</array>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
+	<key>CFBundleDisplayName</key>
+	<string>Videos</string>
 </dict>
 </plist>

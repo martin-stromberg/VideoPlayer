@@ -1,5 +1,6 @@
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Storage;
+using Microsoft.Maui.Devices;
 using VideoWebPlayer.Client;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Maui.ViewModels;
@@ -17,7 +18,7 @@ public partial class HomePage : ContentPage
         InitializeComponent();
         _viewModel = new HomePageViewModel();
         BindingContext = _viewModel;
-        
+
         // Subscribe to notification events
         _eventSubscriber = App.ServiceProvider?.GetService<ISubscribeNotificationEvent>();
         if (_eventSubscriber != null)
@@ -27,14 +28,64 @@ public partial class HomePage : ContentPage
             _eventSubscriber.Subscribe<NewVideosScannedEvent>(OnNewVideosScanned);
             _eventSubscriber.Subscribe<DownloadCompletedEvent>(OnDownloadCompleted);
             _eventSubscriber.Subscribe<DownloadDeletedEvent>(OnDownloadDeleted);
-            
+
             System.Diagnostics.Debug.WriteLine("[HomePage] Subscribed to notification events");
         }
+
+        // Platform-specific UI adjustments are applied in OnAppearing because Shell.Current
+        // may not be available yet in the constructor.
     }
 
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+
+        // Ensure Shell nav bar is visible so the flyout (hamburger) is shown on iOS/Android
+        try
+        {
+            if (Shell.Current != null)
+            {
+                // Show the shell navigation bar for this page
+                Shell.SetNavBarIsVisible(this, true);
+
+                // Ensure a flyout icon exists so iOS shows the hamburger in the nav bar
+                if (Shell.Current.FlyoutIcon == null)
+                {
+                    // use a bundled icon if available
+                    try { Shell.Current.FlyoutIcon = "dotnet_bot.png"; } catch { }
+                }
+            }
+        }
+        catch { }
+
+        // Adjust UI for platform: show hamburger on mobile
+        try
+        {
+            var hb = this.FindByName<Button>("HamburgerButton");
+            var sb = this.FindByName<Button>("SettingsButton");
+            if (DeviceInfo.Platform == DevicePlatform.Android || DeviceInfo.Platform == DevicePlatform.iOS)
+            {
+                hb?.SetValue(VisualElement.IsVisibleProperty, true);
+                sb?.SetValue(VisualElement.IsVisibleProperty, false);
+            }
+            else
+            {
+                hb?.SetValue(VisualElement.IsVisibleProperty, false);
+                sb?.SetValue(VisualElement.IsVisibleProperty, true);
+            }
+
+            // If we are hosted inside Shell with a flyout, hide the page-level buttons
+            try
+            {
+                if (Shell.Current != null && Shell.Current.FlyoutBehavior != FlyoutBehavior.Disabled)
+                {
+                    hb?.SetValue(VisualElement.IsVisibleProperty, false);
+                    sb?.SetValue(VisualElement.IsVisibleProperty, false);
+                }
+            }
+            catch { }
+        }
+        catch { }
 
         try
         {
@@ -46,7 +97,7 @@ public partial class HomePage : ContentPage
             {
                 System.Diagnostics.Debug.WriteLine($"[HomePage] - {download.Title} ({download.VideoType}) - Status: {download.Status}");
             }
-            
+
             // Lade Downloads immer (unabhängig vom Modus)
             // Andere Daten nur wenn Online
             await _viewModel.LoadDataAsync();
@@ -131,7 +182,7 @@ public partial class HomePage : ContentPage
         {
             try
             {
-                await _viewModel.RefreshDataAsync();
+				await _viewModel.RefreshFavoritesAsync();
             }
             catch (Exception ex)
             {
@@ -214,5 +265,10 @@ public partial class HomePage : ContentPage
                 System.Diagnostics.Debug.WriteLine($"[HomePage] Error removing download: {ex.Message}");
             }
         });
+    }
+
+    private void OnHamburgerClicked(object sender, EventArgs e)
+    {
+
     }
 }

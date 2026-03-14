@@ -48,9 +48,17 @@
 		<UserSecretsId>9f5d6149-61e4-4f11-8936-36a481900357</UserSecretsId>
 	</PropertyGroup>
 
+	<PropertyGroup Condition="'$(TargetFramework)'=='net10.0-ios'">
+	  <CodesignKey>Apple Development: Created via API (466MVK852A)</CodesignKey>
+	  <CodesignProvision>VS: WildCard Development</CodesignProvision>
+	</PropertyGroup>
+
 	<ItemGroup>
 		<!-- App Icon -->
+		<!-- App Icon -->
 		<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#512BD4" />
+		<!-- keep app.png available for other resources -->
+		<MauiImage Include="..\Images\app.png" />
 
 		<!-- Splash Screen -->
 		<MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#512BD4" BaseSize="128,128" />

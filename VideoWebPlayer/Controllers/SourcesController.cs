@@ -83,12 +83,12 @@ public class SourcesController : ApiBaseController
 
             var source = await _db.MediaSources
                 .AsNoTracking()
-                .Where(ms => ms.Id == id)
-                .Select(ms => Create<DtoMediaSource>(ms))
-                .FirstOrDefaultAsync();
+                .FirstOrDefaultAsync(ms => ms.Id == id);
             if (source is null)
                 return NotFound("Quelle nicht gefunden.");
-            return Ok(source);
+
+            var dto = Create<DtoMediaSource>(source);
+            return Ok(dto);
         }
         catch (UnauthorizedAccessException ex)
         {

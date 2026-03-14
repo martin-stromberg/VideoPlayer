@@ -14,8 +14,10 @@ using VideoWebPlayer.Components.Account;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Services.Authentication;
+using VideoWebPlayer.Services.DemoData;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using System.Security.Claims;
+using VideoWebPlayer.ViewModels;
 
 namespace VideoWebPlayer.Extensions;
 
@@ -125,13 +127,8 @@ public static class ServiceCollectionExtensions
             options.SlidingExpiration = true;
         });
 
-        builder.Services.AddAntiforgery(options =>
-        {
-            options.Cookie.Name = "VideoWebPlayer.Antiforgery";
-            options.Cookie.HttpOnly = true;
-            options.Cookie.SameSite = SameSiteMode.Lax;
-            options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
-        });
+        // Add antiforgery service (middleware will be configured in app startup)
+        builder.Services.AddAntiforgery();
 
         // Optional: externe / 2FA Cookies ebenfalls anpassen
         //services.ConfigureExternalCookie(options =>
@@ -205,8 +202,11 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<EventManager>();
         services.AddScoped<MediaSourceScanner>();
         services.AddScoped<MediaSourceClassifier>();
+        services.AddScoped<IFavoritesService, FavoritesService>();
+		services.AddScoped<IGenreService, GenreService>();
         services.AddScoped<SftpMediaSourceReader>();
         services.AddScoped<DataUpgradeManager>();
+        services.AddScoped<ProgramSettingsService>();
         services.AddScoped<RecentEntryService>();
         services.AddTransient<IAuthService, AuthService>();
         services.AddHostedService<MediaSourceScanService>();
@@ -216,6 +216,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ContinueWatchingService>();
         services.AddSingleton<MediaUpdateNotificationService>();
         services.AddHostedService<ContinueWatchingWorker>();
+		services.AddScoped<IDemoDataSetService, FileSystemDemoDataSetService>();
+
+        services.AddScoped<MediaSourceDetailsViewModel>();
         
         // SignalR
         services.AddSignalR();

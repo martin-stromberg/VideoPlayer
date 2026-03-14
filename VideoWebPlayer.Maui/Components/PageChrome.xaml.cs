@@ -5,7 +5,6 @@ namespace VideoWebPlayer.Maui.Components;
 
 public class PageChrome : ContentView
 {
-	private readonly Label _titleLabel;
 	private readonly ContentView _headerActionsHost;
 	private readonly ContentView _bodyHost;
 	private readonly ContentView _footerHost;
@@ -52,23 +51,6 @@ public class PageChrome : ContentView
 
 	public PageChrome()
 	{
-		_titleLabel = new Label
-		{
-			FontSize = 36,
-			FontAttributes = FontAttributes.Bold,
-			TextColor = Color.FromArgb("#FFDDAA"),
-			Padding = new Thickness(20, 20, 20, 15),
-			FontFamily = "OpenSansSemibold",
-			HorizontalOptions = LayoutOptions.Start,
-			VerticalOptions = LayoutOptions.Center,
-			Shadow = new Shadow
-			{
-				Brush = Brush.Black,
-				Offset = new Point(5, 5),
-				Radius = 6
-			}
-		};
-
 		_headerActionsHost = new ContentView
 		{
 			HorizontalOptions = LayoutOptions.End,
@@ -80,12 +62,12 @@ public class PageChrome : ContentView
 		_footerHost = new ContentView();
 
 		var root = new Grid { BackgroundColor = Color.FromArgb("#181820"), Padding = 0 };
-		root.RowDefinitions.Add(new RowDefinition { Height = 100 });
+		root.RowDefinitions.Add(new RowDefinition { Height = 10 });
 		root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Star });
 		root.RowDefinitions.Add(new RowDefinition { Height = 47 });
-		root.ColumnDefinitions.Add(new ColumnDefinition { Width = 100 });
+		root.ColumnDefinitions.Add(new ColumnDefinition { Width = 10 });
 		root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
-		root.ColumnDefinitions.Add(new ColumnDefinition { Width = 100 });
+		root.ColumnDefinitions.Add(new ColumnDefinition { Width = 10 });
 
 		// Header background
 		root.Add(new Image { Source = "background_header_left.png", Aspect = Aspect.Fill }, 0, 0);
@@ -93,7 +75,6 @@ public class PageChrome : ContentView
 		root.Add(new Image { Source = "background_header_right.png", Aspect = Aspect.Fill }, 2, 0);
 
 		var headerGrid = new Grid();
-		headerGrid.Add(_titleLabel);
 		headerGrid.Add(_headerActionsHost);
 		root.Add(headerGrid, 1, 0);
 
@@ -113,7 +94,7 @@ public class PageChrome : ContentView
 	}
 
 	private void OnHeaderTitleChanged(string? newTitle)
-		=> _titleLabel.Text = newTitle ?? string.Empty;
+		=> this.HeaderTitle = newTitle ?? string.Empty;
 
 	private void OnHeaderActionsChanged(View? view)
 		=> _headerActionsHost.Content = view;

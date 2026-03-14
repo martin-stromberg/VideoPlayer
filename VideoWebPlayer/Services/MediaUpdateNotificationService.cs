@@ -69,6 +69,25 @@ namespace VideoWebPlayer.Services
             }
         }
 
+		/// <summary>
+		/// Notifies a specific user that their favorites list has been updated.
+		/// </summary>
+		/// <param name="userId">The user identifier.</param>
+		/// <param name="ct">A cancellation token.</param>
+		public async Task NotifyFavoritesChangedAsync(string userId, CancellationToken ct = default)
+		{
+			try
+			{
+				await _hubContext.Clients.User(userId)
+					.SendAsync("FavoritesChanged", cancellationToken: ct);
+				_logger.LogInformation("SignalR: FavoritesChanged sent to user {UserId}", userId);
+			}
+			catch (Exception ex)
+			{
+				_logger.LogWarning(ex, "Failed to send SignalR update for FavoritesChanged to user {UserId}", userId);
+			}
+		}
+
         /// <summary>
         /// Notifies all clients that media content has been updated.
         /// </summary>

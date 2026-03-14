@@ -19,10 +19,11 @@ namespace VideoWebPlayer.Maui
 
             // Registriere HttpClient mit MauiVideoWebPlayerClient
             // Die BaseAddress wird zur Laufzeit aus Preferences gesetzt
-            builder.Services.AddHttpClient<MauiVideoWebPlayerClient>((client) =>
+            builder.Services.AddHttpClient<MauiVideoWebPlayerClient>((sp, client) =>
             {
-                // Versuche die BaseAddress aus Preferences zu laden
-                var serverAddress = Preferences.Default.Get("ServerAddress", string.Empty);
+                // Versuche die BaseAddress aus SettingsService (profil-/umgebungsabhängig) zu laden
+				var settings = sp.GetRequiredService<Services.ISettingsService>();
+				var serverAddress = settings.ServerAddress?.ToLower() ?? string.Empty;
                 if (!string.IsNullOrWhiteSpace(serverAddress))
                 {
                     // Stelle sicher, dass die URL mit http:// oder https:// beginnt
@@ -35,7 +36,8 @@ namespace VideoWebPlayer.Maui
                 }
                 
                 // Setze den API-Token im Header (hardkodiert für MAUI)
-                client.DefaultRequestHeaders.Add("X-API-Key", "00saHJj4IrjWNUytUZDUwXHqq6EiCKMJPyKh9c6hykPT3NyS3d2CVUkb8E8TMWQWJ7y6sOSpC");
+                //client.DefaultRequestHeaders.Add("X-API-Key", "00saHJj4IrjWNUytUZDUwXHqq6EiCKMJPyKh9c6hykPT3NyS3d2CVUkb8E8TMWQWJ7y6sOSpC");
+                client.DefaultRequestHeaders.Add("X-API-Key", "i/F8htcJc/1lneQydb9lAQl4Ot39ONEph7Z!EJrQbrWIgkhBqHeHhoSupRjM=z5JRcHxrT0vsEdfDBb3-RWi2ZXlQN40k7spEUmJ5KZ9aek6jIy!uANtI?5Jw0o!fPi2vufj3Wuu1aXt?G6ADOf76w5s1/MAdQE20XFWGvTg1n=Z4=td7uxeZ!v1o2mDu9oSQryuKqgRdA3bLyMZ2GJ0CwKfLur?k=YC9uvYhJ62LQcQS!k!trSMLY7FIgF!bx05");
             });
 
             // Registriere MauiVideoWebPlayerClient auch als VideoWebPlayerClient für Dependency Injection
@@ -46,6 +48,7 @@ namespace VideoWebPlayer.Maui
             builder.Services.AddSingleton<Services.IConnectionService, Services.ConnectionService>();
             builder.Services.AddSingleton<Services.IAuthService, Services.AuthService>();
             builder.Services.AddSingleton<Services.SignalRService>();
+			builder.Services.AddSingleton<Services.WatchlistDownloadCoordinatorService>();
             
             // Register Notification Event Service
             builder.Services.AddSingleton<NotificationEventService>(sp =>
@@ -74,9 +77,9 @@ namespace VideoWebPlayer.Maui
 #endif
 
             var mauiApp = builder.Build();
-
-            // expose the built service provider to the running App and trigger startup workflow
+            // expose the built service provider to the running App
             App.ServiceProvider = mauiApp.Services;
+
             MainThread.BeginInvokeOnMainThread(() =>
             {
                 (Application.Current as App)?.InitializeAfterServices(App.ServiceProvider!);

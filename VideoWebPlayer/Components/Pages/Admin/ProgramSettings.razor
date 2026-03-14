@@ -1,0 +1,96 @@
+@page "/admin/program-settings"
+@using System.ComponentModel.DataAnnotations
+@using VideoWebPlayer.Services
+@inject ProgramSettingsService SettingsService
+@inject AuthenticationStateProvider AuthStateProvider
+@rendermode InteractiveServer
+
+<PageTitle>Programmeinstellungen</PageTitle>
+
+@if (!isAdmin)
+{
+    <div class="alert alert-danger">Nicht autorisiert.</div>
+}
+else if (model is null)
+{
+    <div class="alert alert-info">Lade…</div>
+}
+else
+{
+    <h1>Programmeinstellungen</h1>
+
+    @if (!string.IsNullOrWhiteSpace(statusMessage))
+    {
+        <div class="alert alert-success">@statusMessage</div>
+    }
+
+    <EditForm Model="model" OnValidSubmit="SaveAsync">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="mb-3">
+            <label class="form-label">Scanprozess-Intervall (Minuten)</label>
+            <InputNumber class="form-control" @bind-Value="model.ScanProcessIntervalMinutes" />
+            <div class="form-text">Standard: 60 Minuten</div>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">MediaCollection Scan-Intervall (Tage)</label>
+            <InputNumber class="form-control" @bind-Value="model.MediaCollectionScanIntervalDays" />
+            <div class="form-text">Standard: 7 Tage</div>
+        </div>
+
+        <button type="submit" class="btn btn-primary" disabled="@isSaving">Speichern</button>
+    </EditForm>
+}
+
+@code {
+    private bool isAdmin;
+    private bool isSaving;
+    private string? statusMessage;
+    private SettingsModel? model;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = auth.User;
+        isAdmin = user.HasClaim("IsAdmin", "True");
+
+        if (!isAdmin)
+            return;
+
+        var setup = await SettingsService.GetOrCreateSetupAsync();
+        model = new SettingsModel
+        {
+            ScanProcessIntervalMinutes = setup.ScanProcessIntervalMinutes,
+            MediaCollectionScanIntervalDays = setup.MediaCollectionScanIntervalDays,
+        };
+    }
+
+    private async Task SaveAsync()
+    {
+        if (model is null)
+            return;
+
+        isSaving = true;
+        statusMessage = null;
+        try
+        {
+            await SettingsService.UpdateScanIntervalsAsync(model.ScanProcessIntervalMinutes, model.MediaCollectionScanIntervalDays);
+            statusMessage = "Gespeichert.";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private sealed class SettingsModel
+    {
+        [Range(1, 24 * 60)]
+        public int ScanProcessIntervalMinutes { get; set; } = 60;
+
+        [Range(1, 365)]
+        public int MediaCollectionScanIntervalDays { get; set; } = 7;
+    }
+}

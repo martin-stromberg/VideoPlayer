@@ -1,0 +1,13 @@
+@* Wiederverwendbare Box für ein Media-Element *@
+<a class="media-box-link" href="@LinkUrl">
+    <div class="recent-entry-box">
+        <img class="recent-entry-img" src="@ImageUrl" alt="@Title" />
+        <div class="recent-entry-title">@Title</div>
+    </div>
+</a>
+
+@code {
+    [Parameter] public string Title { get; set; } = string.Empty;
+    [Parameter] public string ImageUrl { get; set; } = "/images/placeholder.png";
+    [Parameter] public string LinkUrl { get; set; } = "#";
+}

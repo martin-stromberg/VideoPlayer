@@ -1,0 +1,352 @@
+@page "/admin/mediasources/new"
+@page "/admin/mediasources/{Id:long}"
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Forms
+@using VideoWebPlayer.Data
+@inject ApplicationDbContext DbContext
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+@inject VideoWebPlayer.Client.VideoWebPlayerClient Client
+@inject ILogger<MediaSourceAdminDetails> Logger
+@rendermode InteractiveServer
+
+<PageTitle>Quelle bearbeiten</PageTitle>
+
+<AuthorizeView>
+    <Authorized Context="authContext">
+        @if (!isAdmin)
+        {
+            <div class="alert alert-danger">Zugriff verweigert: Nur Administratoren dürfen diese Seite sehen.</div>
+        }
+        else if (isLoading)
+        {
+            <p>Lade Daten...</p>
+        }
+        else if (editSource is null)
+        {
+            <div class="alert alert-danger">Quelle nicht gefunden.</div>
+            <button class="btn btn-secondary" @onclick="Back">Zurück</button>
+        }
+        else
+        {
+            <h1>@(IsNew ? "Neue Quelle" : "Quelle bearbeiten")</h1>
+
+            <div class="mb-3">
+                <button class="btn btn-secondary me-2" @onclick="Back">Zurück</button>
+                @if (!IsNew)
+                {
+                    <button class="btn btn-primary me-2" @onclick="OpenExplorer">Dateiexplorer</button>
+                    <button class="btn btn-danger" @onclick="Delete">Löschen</button>
+                }
+            </div>
+
+            <EditForm Model="editSource" OnValidSubmit="Save" FormName="mediaSourceDetailsForm">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+
+                <div class="row mb-2">
+                    <div class="col">
+                        <label class="form-label" for="source-name">Name</label>
+                        <InputText id="source-name" class="form-control" @bind-Value="editSource.Name" placeholder="Name" />
+                    </div>
+                    <div class="col">
+                        <label class="form-label" for="source-icon-file">Icon-Bild</label>
+                        <InputFile id="source-icon-file" class="form-control" OnChange="OnIconFileChanged" accept="image/*" />
+                        <small class="form-text text-muted">Optional: Icon-Bild für die Quelle (wird gespeichert).</small>
+
+                        @if (!IsNew && editSource.IconPictureId.HasValue)
+                        {
+                            <div class="mt-2">
+                                <img class="source-icon-preview"
+                                     src="@GetIconUrl(editSource.IconPictureId.Value)"
+                                     alt="Icon"
+                                     onerror="this.onerror=null;this.style.display='none';" />
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <div class="row mb-2">
+                    <div class="col">
+                        <label class="form-label" for="source-host">Host</label>
+                        <InputText id="source-host" class="form-control" @bind-Value="editSource.Host" placeholder="Host" />
+                    </div>
+                    <div class="col">
+                        <label class="form-label" for="source-port">Port</label>
+                        <InputNumber id="source-port" class="form-control" @bind-Value="editSource.Port" placeholder="Port" />
+                    </div>
+                    <div class="col">
+                        <label class="form-label" for="source-path">Pfad</label>
+                        <InputText id="source-path" class="form-control" @bind-Value="editSource.Path" placeholder="Pfad" />
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col">
+                        <label class="form-label" for="source-username">Benutzername</label>
+                        <InputText id="source-username" class="form-control" @bind-Value="editSource.Username" placeholder="Benutzername" />
+                    </div>
+                    <div class="col">
+                        <label class="form-label" for="source-password">Passwort</label>
+                        <InputText id="source-password" class="form-control" @bind-Value="editSource.Password" placeholder="Passwort" type="password" />
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Freigegebene Benutzer</label>
+                    <div class="d-flex flex-column gap-1">
+                        @foreach (var user in allUsers)
+                        {
+                            var isChecked = selectedUserIds.Contains(user.Id);
+                            <label class="form-check">
+                                <input class="form-check-input" type="checkbox" checked="@isChecked" @onchange="e => ToggleUser(user.Id, e)" />
+                                <span class="form-check-label">@user.UserName</span>
+                            </label>
+                        }
+                    </div>
+                </div>
+
+                <div class="mb-2">
+                    <button type="submit" class="btn btn-success me-2">@(IsNew ? "Anlegen" : "Speichern")</button>
+                    <button type="button" class="btn btn-secondary" @onclick="Back">Abbrechen</button>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(errorMessage))
+                {
+                    <div class="alert alert-danger mt-3">@errorMessage</div>
+                }
+            </EditForm>
+        }
+    </Authorized>
+    <NotAuthorized>
+        <div class="alert alert-warning">Bitte melden Sie sich an.</div>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    [Parameter]
+    public long Id { get; set; }
+
+    private bool IsNew => Id == 0;
+
+    private bool isAdmin;
+    private bool isLoading = true;
+
+    private MediaSource? editSource;
+    private List<ApplicationUser> allUsers = new();
+    private List<string> selectedUserIds = new();
+
+    private byte[]? iconBytes;
+    private string? iconContentType;
+
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        isAdmin = user.Identity?.IsAuthenticated == true && user.HasClaim("IsAdmin", "True");
+        if (!isAdmin)
+        {
+            isLoading = false;
+            return;
+        }
+
+        try
+        {
+            allUsers = await DbContext.Users
+                .OrderBy(u => u.UserName)
+                .ToListAsync();
+
+            if (IsNew)
+            {
+                editSource = new MediaSource { Port = 22 };
+                selectedUserIds = new();
+            }
+            else
+            {
+                var source = await DbContext.MediaSources
+                    .Include(x => x.MediaSourceUsers)
+                    .FirstOrDefaultAsync(x => x.Id == Id);
+
+                if (source is null)
+                {
+                    editSource = null;
+                    return;
+                }
+
+                editSource = new MediaSource
+                {
+                    Id = source.Id,
+                    Name = source.Name,
+                    Host = source.Host,
+                    Port = source.Port,
+                    Path = source.Path,
+                    Username = source.Username,
+                    Password = source.Password,
+                    IconPictureId = source.IconPictureId,
+                    CreatedAt = source.CreatedAt,
+                    LastScannedAt = source.LastScannedAt,
+                    MediaSourceUsers = new List<MediaSourceUser>(source.MediaSourceUsers ?? new List<MediaSourceUser>()),
+                };
+
+                selectedUserIds = source.MediaSourceUsers?.Select(mu => mu.UserId).ToList() ?? new();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Fehler beim Laden der Quelle (Id={Id}).", Id);
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void Back()
+    {
+        Navigation.NavigateTo("/admin/mediasources");
+    }
+
+    private void OpenExplorer()
+    {
+        if (IsNew)
+            return;
+        Navigation.NavigateTo($"/admin/mediasources/{Id}/explorer");
+    }
+
+    private string GetIconUrl(long iconPictureId)
+        => $"/api/sourceicons/{iconPictureId}?access_token={Client.AuthorizationToken}";
+
+    private void ToggleUser(string userId, ChangeEventArgs e)
+    {
+        var isChecked = e.Value is bool b && b;
+        if (isChecked)
+        {
+            if (!selectedUserIds.Contains(userId))
+                selectedUserIds.Add(userId);
+        }
+        else
+        {
+            selectedUserIds.Remove(userId);
+        }
+    }
+
+    private async Task OnIconFileChanged(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file == null)
+            return;
+
+        await using var stream = file.OpenReadStream(maxAllowedSize: 2 * 1024 * 1024);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+        iconBytes = ms.ToArray();
+        iconContentType = file.ContentType;
+    }
+
+    private async Task Save()
+    {
+        if (editSource is null)
+            return;
+
+        errorMessage = null;
+
+        try
+        {
+            long? oldIconPictureId = null;
+            if (iconBytes is { Length: > 0 })
+            {
+                oldIconPictureId = editSource.IconPictureId;
+
+                var picture = new MediaSourceIcon
+                {
+                    Data = iconBytes,
+                    ContentType = iconContentType ?? "image/png"
+                };
+
+                DbContext.MediaSourceIcons.Add(picture);
+                await DbContext.SaveChangesAsync();
+                editSource.IconPictureId = picture.Id;
+
+                iconBytes = null;
+                iconContentType = null;
+            }
+
+            if (IsNew)
+            {
+                await DbContext.AddMediaSourceAsync(editSource);
+
+                foreach (var userId in selectedUserIds)
+                {
+                    DbContext.MediaSourceUsers.Add(new MediaSourceUser
+                    {
+                        MediaSourceId = editSource.Id,
+                        UserId = userId
+                    });
+                }
+            }
+            else
+            {
+                await DbContext.UpdateMediaSourceAsync(editSource);
+
+                var existingMappings = DbContext.MediaSourceUsers.Where(mu => mu.MediaSourceId == editSource.Id);
+                DbContext.MediaSourceUsers.RemoveRange(existingMappings);
+                foreach (var userId in selectedUserIds)
+                {
+                    DbContext.MediaSourceUsers.Add(new MediaSourceUser
+                    {
+                        MediaSourceId = editSource.Id,
+                        UserId = userId
+                    });
+                }
+            }
+
+            await DbContext.SaveChangesAsync();
+
+            if (oldIconPictureId.HasValue)
+            {
+                DbContext.MediaSourceIcons.Remove(new MediaSourceIcon { Id = oldIconPictureId.Value });
+                await DbContext.SaveChangesAsync();
+            }
+
+            Back();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Fehler beim Speichern der Quelle (Id={Id}).", editSource.Id);
+            errorMessage = ex.Message;
+        }
+    }
+
+    private async Task Delete()
+    {
+        if (editSource is null || IsNew)
+            return;
+
+        try
+        {
+            await DbContext.DeleteMediaSourceAsync(editSource);
+            Back();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Fehler beim Löschen der Quelle (Id={Id}).", editSource.Id);
+            errorMessage = ex.Message;
+        }
+    }
+
+}
+
+<style>
+    .source-icon-preview {
+        width: 64px;
+        height: 64px;
+        object-fit: contain;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.06);
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+    }
+</style>

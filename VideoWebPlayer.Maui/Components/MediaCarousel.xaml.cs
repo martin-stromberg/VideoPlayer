@@ -7,9 +7,34 @@ namespace VideoWebPlayer.Maui.Components;
 
 public partial class MediaCarousel : ContentView
 {
+    // Default item size (can be adjusted based on device)
+    public double ItemWidth { get; set; } = 140;
+    public double ItemHeight { get; set; } = 210;
+
     public MediaCarousel()
     {
         InitializeComponent();
+
+        // Adjust default sizes for smaller devices
+        try
+        {
+            if (DeviceInfo.Platform == DevicePlatform.iOS || DeviceInfo.Platform == DevicePlatform.Android)
+            {
+                var width = DeviceDisplay.MainDisplayInfo.Width / DeviceDisplay.MainDisplayInfo.Density;
+                // On small screens reduce item size
+                if (width <= 768) // e.g. iPad mini width in portrait may be <= 768
+                {
+                    ItemWidth = 120;
+                    ItemHeight = 180;
+                }
+                else
+                {
+                    ItemWidth = 160;
+                    ItemHeight = 240;
+                }
+            }
+        }
+        catch { }
     }
 
     private async void OnItemTapped(object sender, TappedEventArgs e)
@@ -19,11 +44,13 @@ public partial class MediaCarousel : ContentView
             if (item.EntryId.HasValue)
             {
                 Page? detailPage = null;
-                
+
                 // Navigiere basierend auf dem MediaType
-                if (item.MediaType == "show")
+                // Falls MediaType null ist (z.B. bei Favoriten mit Seasons/Episodes), 
+                // versuche zur Show zu navigieren
+                if (item.MediaType == "show" || string.IsNullOrEmpty(item.MediaType))
                 {
-                    detailPage = new TVShowDetailsPage(item.EntryId.Value);
+                    detailPage = new TVShowDetailsPage(item.EntryId.Value, item.SeasonId, item.EpisodeId);
                 }
                 else if (item.MediaType == "collection")
                 {

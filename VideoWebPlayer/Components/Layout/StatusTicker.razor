@@ -1,0 +1,40 @@
+@using VideoWebPlayer.Events
+@using VideoWebPlayer.Services
+@inject EventManager EventManager
+@inject IJSRuntime JS
+@rendermode InteractiveServer
+
+@implements IDisposable
+
+<div id="status-ticker" class="status-ticker" aria-label="Statusmeldungen">
+    <div id="status-ticker-track" class="status-ticker-track"></div>
+</div>
+
+@code {
+    private IDisposable? _subscription;
+
+    protected override void OnInitialized()
+    {
+        _subscription = EventManager.SubscribeDisposable<BackgroundProcessingStatusEvent>(OnStatusMessage);
+    }
+
+    private void OnStatusMessage(BackgroundProcessingStatusEvent evt)
+    {
+        _ = InvokeAsync(async () =>
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("statusTicker.enqueue", evt.Message);
+            }
+            catch
+            {
+                // ignore (e.g. circuit disposed)
+            }
+        });
+    }
+
+    public void Dispose()
+    {
+        _subscription?.Dispose();
+    }
+}

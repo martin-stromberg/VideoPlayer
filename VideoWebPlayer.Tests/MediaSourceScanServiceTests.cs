@@ -33,12 +33,14 @@ public class MediaSourceScanServiceTests
         services.AddSingleton<EventManager>();
         services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(connectionString));
         services.AddSingleton<SftpMediaSourceReader>();
+        services.AddScoped<ProgramSettingsService>();
         services.AddScoped<MediaSourceScanner>();
         services.AddScoped<RecentEntryService>();
         services.AddScoped<MediaSourceClassifier>();
         services.AddSingleton<IAuthService, TestAuthService>();
         services.AddSingleton<ILogger<MediaSourceScanner>>(NullLogger<MediaSourceScanner>.Instance);
         services.AddSingleton<ILogger<MediaSourceClassifier>>(NullLogger<MediaSourceClassifier>.Instance);
+        services.AddSingleton<ILogger<ProgramSettingsService>>(NullLogger<ProgramSettingsService>.Instance);
 
         var serviceProvider = services.BuildServiceProvider();
 
@@ -91,12 +93,14 @@ public class MediaSourceScanServiceTests
         services.AddSingleton<EventManager>();
         services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(connectionString));
         services.AddSingleton<SftpMediaSourceReader>(new FakeSftpMediaSourceReader(rootPath, fileName));
+        services.AddScoped<ProgramSettingsService>();
         services.AddScoped<MediaSourceScanner>();
         services.AddScoped<RecentEntryService>();
         services.AddScoped<MediaSourceClassifier>();
         services.AddSingleton<IAuthService, TestAuthService>();
         services.AddSingleton<ILogger<MediaSourceScanner>>(NullLogger<MediaSourceScanner>.Instance);
         services.AddSingleton<ILogger<MediaSourceClassifier>>(NullLogger<MediaSourceClassifier>.Instance);
+        services.AddSingleton<ILogger<ProgramSettingsService>>(NullLogger<ProgramSettingsService>.Instance);
 
         var serviceProvider = services.BuildServiceProvider();
 
@@ -162,12 +166,14 @@ public class MediaSourceScanServiceTests
         services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(connectionString));
         services.AddSingleton<SftpMediaSourceReader>(
             new SeriesSftpMediaSourceReader(rootPath, showName, seasons, episodesPerSeason));
+        services.AddScoped<ProgramSettingsService>();
         services.AddScoped<MediaSourceScanner>();
         services.AddScoped<RecentEntryService>();
         services.AddScoped<MediaSourceClassifier>();
         services.AddSingleton<IAuthService, TestAuthService>();
         services.AddSingleton<ILogger<MediaSourceScanner>>(NullLogger<MediaSourceScanner>.Instance);
         services.AddSingleton<ILogger<MediaSourceClassifier>>(NullLogger<MediaSourceClassifier>.Instance);
+        services.AddSingleton<ILogger<ProgramSettingsService>>(NullLogger<ProgramSettingsService>.Instance);
 
         var serviceProvider = services.BuildServiceProvider();
 
@@ -212,7 +218,8 @@ public class MediaSourceScanServiceTests
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var mediaItemCount = await db.MediaItems.CountAsync(ct);
-            Assert.Equal(seasons * episodesPerSeason * 3 + 1, mediaItemCount);
+            // +2 for show-level files (tvshow.nfo + poster.jpg) created by `SeriesSftpMediaSourceReader`
+            Assert.Equal(seasons * episodesPerSeason * 3 + 2, mediaItemCount);
             Assert.Equal(seasons, await db.TVShowSeasons.CountAsync(ct));
             Assert.Equal(expectedEpisodeCount, await db.TVShowEpisodes.CountAsync(ct));
         }
@@ -246,12 +253,14 @@ public class MediaSourceScanServiceTests
         services.AddSingleton<EventManager>();
         services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(connectionString));
         services.AddSingleton<SftpMediaSourceReader>(reader);
+        services.AddScoped<ProgramSettingsService>();
         services.AddScoped<MediaSourceScanner>();
         services.AddScoped<RecentEntryService>();
         services.AddScoped<MediaSourceClassifier>();
         services.AddSingleton<IAuthService, TestAuthService>();
         services.AddSingleton<ILogger<MediaSourceScanner>>(NullLogger<MediaSourceScanner>.Instance);
         services.AddSingleton<ILogger<MediaSourceClassifier>>(NullLogger<MediaSourceClassifier>.Instance);
+        services.AddSingleton<ILogger<ProgramSettingsService>>(NullLogger<ProgramSettingsService>.Instance);
 
         var serviceProvider = services.BuildServiceProvider();
 
@@ -294,11 +303,17 @@ public class MediaSourceScanServiceTests
         var newSeasonPath = $"{rootPath}/{showName}/Season{(seasons + 1).ToString("00")}";
         await TestHelpers.WaitForMediaCollectionAsync(serviceProvider, newSeasonPath, TimeSpan.FromSeconds(waitTimeSec));
 
+		// Ensure the new season collection has been scanned and at least one episode file exists (otherwise episode counts can be flaky)
+		var newSeasonFirstEpisodePath = $"{newSeasonPath}/S{seasons + 1:00}E01.mp4";
+		await TestHelpers.WaitForMediaItemAsync(serviceProvider, newSeasonFirstEpisodePath, TimeSpan.FromSeconds(waitTimeSec));
+		await TestHelpers.WaitForMediaItemClassifiedAsync(serviceProvider, newSeasonFirstEpisodePath, TimeSpan.FromSeconds(waitTimeSec));
+
         // Dump DB state into the test messages to help debugging if counts don't match
         await TestHelpers.DumpDatabaseStateAsync(serviceProvider, messages);
 
         var updatedEpisodeCount = (seasons + 1) * episodesPerSeason;
-        var updatedMediaItemCount = (seasons + 1) * episodesPerSeason * 3 + 1;
+        // +2 for show-level files (tvshow.nfo + poster.jpg) created by `SeriesSftpMediaSourceReader`
+        var updatedMediaItemCount = (seasons + 1) * episodesPerSeason * 3 + 2;
 
         await TestHelpers.WaitForMessageCountAsync(messages, "Klassifizierung abgeschlossen.", 2, TimeSpan.FromSeconds(waitTimeSec));
         await TestHelpers.WaitForTvShowEpisodeCountAsync(serviceProvider, updatedEpisodeCount, TimeSpan.FromSeconds(waitTimeSec));
@@ -332,12 +347,14 @@ public class MediaSourceScanServiceTests
         services.AddSingleton<EventManager>();
         services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(connectionString));
         services.AddSingleton<SftpMediaSourceReader>(reader);
+        services.AddScoped<ProgramSettingsService>();
         services.AddScoped<MediaSourceScanner>();
         services.AddScoped<RecentEntryService>();
         services.AddScoped<MediaSourceClassifier>();
         services.AddSingleton<IAuthService, TestAuthService>();
         services.AddSingleton<ILogger<MediaSourceScanner>>(NullLogger<MediaSourceScanner>.Instance);
         services.AddSingleton<ILogger<MediaSourceClassifier>>(NullLogger<MediaSourceClassifier>.Instance);
+        services.AddSingleton<ILogger<ProgramSettingsService>>(NullLogger<ProgramSettingsService>.Instance);
 
         var serviceProvider = services.BuildServiceProvider();
 

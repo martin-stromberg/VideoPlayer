@@ -44,6 +44,11 @@ public partial class MovieCollectionDetailsPage : ContentPage
 			await Navigation.PopAsync();
 	}
 
+	private async void OnToggleMovieFavoriteClicked(object? sender, EventArgs e)
+	{
+		await _viewModel.ToggleSelectedMovieFavoriteAsync();
+	}
+
     private void OnMovieSelected(object? sender, SelectionChangedEventArgs e)
     {
         if (sender is CollectionView cv && e.CurrentSelection.Count > 0)

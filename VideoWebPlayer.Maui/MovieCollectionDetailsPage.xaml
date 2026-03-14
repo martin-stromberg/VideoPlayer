@@ -36,11 +36,30 @@
                     <Label Text="{Binding Plot}" FontSize="14" TextColor="#555555" LineBreakMode="WordWrap" />
                     
                     <!-- Download Button für ausgewählten Film -->
-                    <Button Text="⬇ Film herunterladen (7 Tage)"
-                            BackgroundColor="#4CAF50"
-                            TextColor="White"
-                            Clicked="OnDownloadMovieTapped"
-                            HorizontalOptions="Start" />
+					<HorizontalStackLayout Spacing="10">
+						<Button Text="⬇ Film herunterladen (7 Tage)"
+						        BackgroundColor="#4CAF50"
+						        TextColor="White"
+						        Clicked="OnDownloadMovieTapped"
+						        HorizontalOptions="Start" />
+						<Button Text="{Binding SelectedMovieFavoriteStarText}"
+						        FontSize="18"
+						        CornerRadius="8"
+						        Padding="15,8"
+						        Clicked="OnToggleMovieFavoriteClicked"
+						        VerticalOptions="Center">
+							<Button.Triggers>
+								<DataTrigger TargetType="Button" Binding="{Binding IsSelectedMovieFavorite}" Value="True">
+									<Setter Property="BackgroundColor" Value="#FFB84D" />
+									<Setter Property="TextColor" Value="#000000" />
+								</DataTrigger>
+								<DataTrigger TargetType="Button" Binding="{Binding IsSelectedMovieFavorite}" Value="False">
+									<Setter Property="BackgroundColor" Value="#23232a" />
+									<Setter Property="TextColor" Value="#FFB84D" />
+								</DataTrigger>
+							</Button.Triggers>
+						</Button>
+					</HorizontalStackLayout>
                 </VerticalStackLayout>
 
                 <!-- Filme Liste (nur wenn mehr als 1 Film) -->

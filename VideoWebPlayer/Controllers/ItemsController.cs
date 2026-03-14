@@ -57,9 +57,11 @@ public class ItemsController : ApiBaseController
             var queryMovie = _db.MovieCollections
                 .AsNoTracking()
                 .Where(mc => !mediaSourceId.HasValue || mc.MediaSourceId == mediaSourceId);
+            var foundMovies = queryMovie.ToList();
 
             if (!string.IsNullOrWhiteSpace(search))
                 queryMovie = queryMovie.Where(e => e.Name.Contains(search));
+            foundMovies = queryMovie.ToList();
 
             if (genreId.HasValue)
             {
@@ -71,6 +73,7 @@ public class ItemsController : ApiBaseController
                     )
                 );
             }
+
             var mediaSourceIds = await _db.MediaSourceUsers
                 .AsNoTracking()
                 .Where(msu => msu.UserId == CurrentUser.Id)

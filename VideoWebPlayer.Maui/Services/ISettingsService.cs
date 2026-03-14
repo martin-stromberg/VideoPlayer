@@ -7,6 +7,10 @@ public interface ISettingsService
     void SetServerAddress(string address);
     void ClearServerAddress();
 
+	string? GetAuthToken();
+	void SetAuthToken(string token);
+	void ClearAuthToken();
+
     int PlaybackCacheRetentionDays { get; set; }
     int WatchlistCacheRetentionDays { get; set; }
     int DownloadRetentionDays { get; set; }

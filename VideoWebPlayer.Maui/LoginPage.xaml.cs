@@ -33,14 +33,27 @@ public partial class LoginPage : ContentPage
         }
 
         StatusLabel.Text = "Anmeldung...";
-        var ok = await _auth.LoginAsync(user!, pass!);
+        var (ok, error) = await _auth.LoginAsync(user!, pass!);
         if (ok)
         {
             await Navigation.PopModalAsync();
+            // Ensure the startup workflow continues (in case it was waiting for credentials).
+            try
+            {
+                var mainPage = Application.Current?.Windows?.FirstOrDefault()?.Page;
+                if (mainPage is NavigationPage navPage)
+                    mainPage = navPage.CurrentPage;
+
+                if (mainPage is MainPage mp)
+                {
+                    mp.RetryStartupWorkflow();
+                }
+            }
+            catch { }
         }
         else
         {
-            StatusLabel.Text = "Anmeldung fehlgeschlagen.";
+            StatusLabel.Text = string.IsNullOrWhiteSpace(error) ? "Anmeldung fehlgeschlagen." : error;
         }
     }
 

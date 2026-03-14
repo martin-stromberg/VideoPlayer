@@ -8,29 +8,36 @@ namespace VideoWebPlayer.Maui.Services;
 public class SettingsService : ISettingsService
 {
     private const string ServerKey = "ServerAddress";
+    private const string AuthTokenKey = "AuthToken";
 
     private const string PlaybackCacheDaysKey = "PlaybackCacheRetentionDays";
     private const string WatchlistCacheDaysKey = "WatchlistCacheRetentionDays";
     private const string DownloadRetentionDaysKey = "DownloadRetentionDays";
 
-    public string? ServerAddress => Preferences.Default.Get(ServerKey, string.Empty);
+    private string GetPrefixedKey(string key)
+    {
+        var prefix = ProfileManager.Instance.GetPreferencesPrefix();
+        return prefix + key;
+    }
+
+    public string? ServerAddress => Preferences.Default.Get(GetPrefixedKey(ServerKey), string.Empty);
 
     public int PlaybackCacheRetentionDays
     {
-        get => ClampDays(Preferences.Default.Get(PlaybackCacheDaysKey, 1));
-        set => Preferences.Default.Set(PlaybackCacheDaysKey, ClampDays(value));
+        get => ClampDays(Preferences.Default.Get(GetPrefixedKey(PlaybackCacheDaysKey), 1));
+        set => Preferences.Default.Set(GetPrefixedKey(PlaybackCacheDaysKey), ClampDays(value));
     }
 
     public int WatchlistCacheRetentionDays
     {
-        get => ClampDays(Preferences.Default.Get(WatchlistCacheDaysKey, 3));
-        set => Preferences.Default.Set(WatchlistCacheDaysKey, ClampDays(value));
+        get => ClampDays(Preferences.Default.Get(GetPrefixedKey(WatchlistCacheDaysKey), 3));
+        set => Preferences.Default.Set(GetPrefixedKey(WatchlistCacheDaysKey), ClampDays(value));
     }
 
     public int DownloadRetentionDays
     {
-        get => ClampDays(Preferences.Default.Get(DownloadRetentionDaysKey, 7));
-        set => Preferences.Default.Set(DownloadRetentionDaysKey, ClampDays(value));
+        get => ClampDays(Preferences.Default.Get(GetPrefixedKey(DownloadRetentionDaysKey), 7));
+        set => Preferences.Default.Set(GetPrefixedKey(DownloadRetentionDaysKey), ClampDays(value));
     }
 
     private static int ClampDays(int days)
@@ -42,18 +49,42 @@ public class SettingsService : ISettingsService
 
     public bool HasServerAddress()
     {
-        var value = Preferences.Default.Get(ServerKey, string.Empty);
+        var value = Preferences.Default.Get(GetPrefixedKey(ServerKey), string.Empty);
         return !string.IsNullOrWhiteSpace(value);
     }
 
     public void SetServerAddress(string address)
     {
-        Preferences.Default.Set(ServerKey, address ?? string.Empty);
+        Preferences.Default.Set(GetPrefixedKey(ServerKey), address ?? string.Empty);
     }
 
     public void ClearServerAddress()
     {
-        Preferences.Default.Remove(ServerKey);
+        Preferences.Default.Remove(GetPrefixedKey(ServerKey));
+    }
+
+    /// <summary>
+    /// Gets the authentication token for the current profile.
+    /// </summary>
+    public string? GetAuthToken()
+    {
+        return Preferences.Default.Get(GetPrefixedKey(AuthTokenKey), string.Empty);
+    }
+
+    /// <summary>
+    /// Sets the authentication token for the current profile.
+    /// </summary>
+    public void SetAuthToken(string token)
+    {
+        Preferences.Default.Set(GetPrefixedKey(AuthTokenKey), token ?? string.Empty);
+    }
+
+    /// <summary>
+    /// Clears the authentication token for the current profile.
+    /// </summary>
+    public void ClearAuthToken()
+    {
+        Preferences.Default.Remove(GetPrefixedKey(AuthTokenKey));
     }
 
     // mDNS Discovery (Zeroconf)

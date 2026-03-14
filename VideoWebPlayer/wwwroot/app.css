@@ -2,6 +2,7 @@ html, body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
     background: #181820;
     color: #eaeaea;
+    overflow-x: hidden;
 }
 
 a, .btn-link {
@@ -21,13 +22,59 @@ a, .btn-link {
 .layout-flex {
     display: flex;
     min-height: 100vh;
+    width: 100%;
+    overflow-x: hidden;
+}
+
+.layout-flex > main {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-x: hidden;
 }
 
 .content {
     flex: 1 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: hidden;
     padding-top: 1.1rem;
+    padding-bottom: 3.25rem;
     background: #181820;
     color: #e0e0e0;
+}
+
+.status-ticker {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2.5rem;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    background: rgba(10, 10, 16, 0.92);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    z-index: 1100;
+}
+
+.status-ticker-track {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+.status-ticker-item {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    white-space: nowrap;
+    padding: 0.25rem 0.75rem;
+    margin: 0 0 5px 0;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #ffe066;
+    font-size: 0.95rem;
+    line-height: 1;
 }
 
 h1:focus {
@@ -62,9 +109,18 @@ h1:focus {
 
 .media-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
     gap: 1.5rem;
     margin-top: 2rem;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
+    justify-items: center;
+}
+
+.media-grid > * {
+    min-width: 0;
 }
 
 .collection-header,
@@ -186,6 +242,8 @@ h1:focus {
     gap: 1.5rem;
     overflow-x: auto;
     overflow-y: hidden;
+    width: 100%;
+    min-width: 0;
     padding: 1rem 0 2rem 0;
     margin: 1rem 0;
     background: #181820;
@@ -214,7 +272,8 @@ h1:focus {
         margin-bottom:1rem;
     }
     .media-box {
-        min-width: 220px;
+        width: 100%;
+        min-width: 0;
         max-width: 220px;
         height: 350px;
         background: #23232a;
@@ -229,6 +288,12 @@ h1:focus {
         box-sizing: border-box;
         position: relative;
     }
+
+.movie-list-horizontal .media-box {
+    width: 220px;
+    min-width: 220px;
+    max-width: 220px;
+}
 
 .media-box-link {
     text-decoration: none;

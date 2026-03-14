@@ -1,12 +1,14 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
+using System.Net;
 using System.Net.Http.Json;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text.Json;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Controllers.Models;
 using VideoWebPlayer.Data;
-using Microsoft.Extensions.Configuration;
 
 namespace VideoWebPlayer.Client
 {
@@ -15,11 +17,6 @@ namespace VideoWebPlayer.Client
         private readonly HttpClient httpClient;
         private readonly ConcurrentDictionary<string, ProgressSendState> progressStates = new();
         
-        /// <summary>
-        /// Event wird ausgelöst, wenn ein 401 Unauthorized empfangen wird (Token abgelaufen).
-        /// </summary>
-        public event EventHandler? UnauthorizedReceived;
-
         public VideoWebPlayerClient(HttpClient httpClient, ILogger<VideoWebPlayerClient> logger)
         {
             this.httpClient = httpClient;
@@ -41,18 +38,39 @@ namespace VideoWebPlayer.Client
             public required long DurationSeconds { get; init; }
         }
 
+        protected virtual Task<bool> HandleUnauthorized()
+        {
+            return Task.FromResult(false);
+        }
+
         protected virtual async Task<T> HttpGetAsync<T>(string endPoint)
         {
-            var response = await httpClient.GetAsync(endPoint);
-            
+            async Task<HttpResponseMessage> DoRequestAsync() => await httpClient.GetAsync(endPoint);
+
+            var response = await DoRequestAsync();
+
             // Prüfe auf 401 Unauthorized
             if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
             {
                 Logger?.LogWarning("Received 401 Unauthorized from {EndPoint}. Token might be expired.", endPoint);
-                UnauthorizedReceived?.Invoke(this, EventArgs.Empty);
-                throw new HttpRequestException($"Unauthorized: {endPoint}");
+
+                if (await HandleUnauthorized())
+                {
+                    response = await DoRequestAsync();
+                    if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                    {
+                        // Wenn nach Erneuerung weiterhin Unauthorized kommt, gib das weiter.
+                        Logger?.LogWarning("Retry after token refresh still returned 401 for {EndPoint}.", endPoint);
+                        throw new HttpRequestException($"Unauthorized: {endPoint}");
+                    }
+                }
+                else
+                {
+                    // Kein neuer Token innerhalb der Wartezeit
+                    throw new HttpRequestException($"Unauthorized: {endPoint}");
+                }
             }
-            
+
             var content = await response.Content.ReadAsStringAsync();
             if (!response.IsSuccessStatusCode)
                 throw new HttpRequestException($"Failed to GET from {endPoint}: {response.ReasonPhrase}");
@@ -64,14 +82,29 @@ namespace VideoWebPlayer.Client
         
         protected virtual async Task<T> HttpPostAsync<T>(string endPoint, HttpContent args)
         {
-            var response = await httpClient.PostAsync(endPoint, args);
-            
+            async Task<HttpResponseMessage> DoRequestAsync() => await httpClient.PostAsync(endPoint, args);
+
+            var response = await DoRequestAsync();            
             // Prüfe auf 401 Unauthorized
             if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
             {
                 Logger?.LogWarning("Received 401 Unauthorized from {EndPoint}. Token might be expired.", endPoint);
-                UnauthorizedReceived?.Invoke(this, EventArgs.Empty);
-                throw new HttpRequestException($"Unauthorized: {endPoint}");
+
+                if (await HandleUnauthorized())
+                {
+                    response = await DoRequestAsync();
+                    if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                    {
+                        // Wenn nach Erneuerung weiterhin Unauthorized kommt, gib das weiter.
+                        Logger?.LogWarning("Retry after token refresh still returned 401 for {EndPoint}.", endPoint);
+                        throw new HttpRequestException($"Unauthorized: {endPoint}");
+                    }
+                }
+                else
+                {
+                    // Kein neuer Token innerhalb der Wartezeit
+                    throw new HttpRequestException($"Unauthorized: {endPoint}");
+                }
             }
             
             var content = await response.Content.ReadAsStringAsync();
@@ -344,20 +377,77 @@ namespace VideoWebPlayer.Client
 
             var json = System.Text.Json.JsonSerializer.Serialize(body);
             var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
-
-            var response = await httpClient.PostAsync("api/continue-watching/progress", content);
+            var endPoint = "api/continue-watching/progress";
+            async Task<HttpResponseMessage> DoRequestAsync() => await httpClient.PostAsync(endPoint, content);
+            var response = await DoRequestAsync();
 
             if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
             {
                 Logger?.LogWarning("Received 401 Unauthorized from continue-watching/progress. Token might be expired.");
-                UnauthorizedReceived?.Invoke(this, EventArgs.Empty);
-                throw new HttpRequestException("Unauthorized: api/continue-watching/progress");
+                if (await HandleUnauthorized())
+                {
+                    response = await DoRequestAsync();
+                    if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                    {
+                        // Wenn nach Erneuerung weiterhin Unauthorized kommt, gib das weiter.
+                        Logger?.LogWarning("Retry after token refresh still returned 401 for {EndPoint}.", endPoint);
+                        throw new HttpRequestException($"Unauthorized: {endPoint}");
+                    }
+                }
+                else
+                {
+                    // Kein neuer Token innerhalb der Wartezeit
+                    throw new HttpRequestException($"Unauthorized: {endPoint}");
+                }
             }
 
             if (!response.IsSuccessStatusCode)
             {
                 throw new HttpRequestException($"Failed to report progress: {response.ReasonPhrase}");
             }
+        }
+        /// <summary>
+        /// Fetches the picture data for a given picture ID.
+        /// </summary>
+        /// <param name="pictureId">The ID of the picture to fetch.</param>
+        /// <returns>A byte array containing the picture data, or an empty array if the picture could not be fetched.</returns>
+        public async Task<byte[]> GetPictureAsync(long pictureId)
+        {
+            try
+            {
+                var response = await httpClient.GetAsync($"api/pictures/{pictureId}");
+                if (response.IsSuccessStatusCode)
+                {
+                    return await response.Content.ReadAsByteArrayAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger?.LogError(ex, "Error fetching picture with ID {PictureId}", pictureId);
+            }
+            return Array.Empty<byte>();
+        }
+        /// <summary>
+        /// Fetches the source picture data for a given picture ID.
+        /// </summary>
+        /// <param name="pictureId">The ID of the source picture to fetch.</param>
+        /// <returns>A byte array containing the source picture data, or an empty array if the picture could not be fetched.</returns>
+        public async Task<byte[]> GetSourcePictureAsync(long pictureId)
+        {
+            try
+            {
+                var iconUrl = $"api/sourceicons/{pictureId}";
+                var response = await httpClient.GetAsync(iconUrl);
+                if (response.IsSuccessStatusCode)
+                {
+                    return await response.Content.ReadAsByteArrayAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger?.LogError(ex, "Error fetching source picture with ID {PictureId}", pictureId);
+            }
+            return Array.Empty<byte>();
         }
         #endregion
     }

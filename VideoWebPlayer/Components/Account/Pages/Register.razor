@@ -5,7 +5,9 @@
 @using System.Text.Encodings.Web
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.AspNetCore.WebUtilities
+@using Microsoft.EntityFrameworkCore
 @using VideoWebPlayer.Data
+@using VideoWebPlayer.Services.DemoData
 
 @inject UserManager<ApplicationUser> UserManager
 @inject IUserStore<ApplicationUser> UserStore
@@ -13,6 +15,7 @@
 @inject ILogger<Register> Logger
 @inject NavigationManager NavigationManager
 @inject IdentityRedirectManager RedirectManager
+@inject IDemoDataSetService DemoDataSetService
 
 <PageTitle>Register</PageTitle>
 
@@ -41,13 +44,29 @@
                 <label for="confirm-password">Confirm Password</label>
                 <ValidationMessage For="() => Input.ConfirmPassword" class="text-danger" />
             </div>
+            @if (isFirstUser && demoDataSets.Count > 0)
+            {
+                <div class="form-floating mb-3">
+                    <InputSelect id="demo-data-set" @bind-Value="Input.DemoDataSetId" class="form-select">
+                        <option value="">(Keine Demodaten anlegen)</option>
+                        @foreach (var set in demoDataSets)
+                        {
+                            <option value="@set.Id">@set.Name</option>
+                        }
+                    </InputSelect>
+                    <label for="demo-data-set">Demodatenbestand</label>
+                </div>
+            }
             <button type="submit" class="w-100 btn btn-lg btn-primary">Register</button>
         </EditForm>
     </div>
 </div>
 
 @code {
+    private const string SystemUserNormalizedName = "SYSTEM";
     private IEnumerable<IdentityError>? identityErrors;
+    private bool isFirstUser;
+    private IReadOnlyList<DemoDataSetInfo> demoDataSets = Array.Empty<DemoDataSetInfo>();
 
     [SupplyParameterFromForm]
     private InputModel Input { get; set; } = new();
@@ -56,6 +75,14 @@
     private string? ReturnUrl { get; set; }
 
     private string? Message => identityErrors is null ? null : $"Error: {string.Join(", ", identityErrors.Select(error => error.Description))}";
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        isFirstUser = !await UserManager.Users.AnyAsync(u => u.NormalizedUserName != SystemUserNormalizedName);
+        if (isFirstUser)
+            demoDataSets = await DemoDataSetService.GetAvailableAsync();
+    }
 
     public async Task RegisterUser(EditContext editContext)
     {
@@ -66,8 +93,8 @@
         await emailStore.SetEmailAsync(user, Input.Email, CancellationToken.None);
 
         // Prüfen, ob dies der erste Benutzer ist
-        var userCount = UserManager.Users.Count();
-        if (userCount == 0)
+        var isFirst = !await UserManager.Users.AnyAsync(u => u.NormalizedUserName != SystemUserNormalizedName);
+        if (isFirst)
         {
             user.IsAdmin = true;
         }
@@ -78,6 +105,21 @@
         {
             identityErrors = result.Errors;
             return;
+        }
+
+
+        if (isFirst && !string.IsNullOrWhiteSpace(Input.DemoDataSetId))
+        {
+            try
+            {
+                await DemoDataSetService.ApplyAsync(Input.DemoDataSetId, user);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Fehler beim Anlegen der Demodaten '{DemoDataSetId}'.", Input.DemoDataSetId);
+                identityErrors = new[] { new IdentityError { Description = "Die Demodaten konnten nicht angelegt werden." } };
+                return;
+            }
         }
 
         Logger.LogInformation("User created a new account with password.");
@@ -139,5 +181,9 @@
         [Display(Name = "Confirm password")]
         [Compare("Password", ErrorMessage = "The password and confirmation password do not match.")]
         public string ConfirmPassword { get; set; } = "";
+
+
+        [Display(Name = "Demodatenbestand")]
+        public string? DemoDataSetId { get; set; }
     }
 }

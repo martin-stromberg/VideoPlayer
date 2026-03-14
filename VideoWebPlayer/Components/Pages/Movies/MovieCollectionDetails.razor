@@ -1,0 +1,283 @@
+@page "/moviecollection/{Id:long}"
+@using Microsoft.EntityFrameworkCore
+@using System.Security.Claims
+@using VideoWebPlayer.Data
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@inject HttpClient Http
+@inject VideoWebPlayer.Client.VideoWebPlayerClient Client
+@rendermode InteractiveServer
+
+@if (!isAuthenticated)
+{
+    <div class="alert alert-warning">
+        Bitte melden Sie sich an, um Filme abzuspielen oder herunterzuladen.
+    </div>
+}
+else if (collection == null)
+{
+    <div class="alert alert-danger">Sammlung nicht gefunden.</div>
+}
+else if (selectedMovie != null)
+{
+    <!-- Einzelne Film-Ansicht -->
+    <div class="movie-header" style="background-image: url('@GetBannerUrl(selectedMovie)'); position: relative;">
+        <button class="favorite-btn" @onclick="() => ToggleFavorite(selectedMovie)" title="Film als Favorit markieren">
+            @((IsMovieFavorite) ? "★" : "☆")
+        </button>
+        <div class="collection-header-overlay">
+            @if (collection?.Movies?.Length > 1)
+            {
+                <button class="back-arrow" @onclick="ShowCollection" title="Zurück zur Sammlung">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+                        <path d="M15 6l-6 6 6 6" stroke="#ffe066" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+            }
+            <div class="collection-header-content">
+                <h1>@selectedMovie.Name</h1>
+                <div class="collection-meta">
+                    <span class="collection-year">@GetYear(selectedMovie)</span>
+                    <span class="collection-genres">@GetGenres(selectedMovie)</span>
+                </div>
+                <div class="collection-plot">@selectedMovie.Plot</div>
+            </div>
+            <button class="play-button" @onclick="ShowPlayer">
+                <span>&#9654;</span>
+            </button>
+        </div>
+    </div>
+    <div style="text-align:start; margin-bottom:1.5rem;">
+        <a class="btn btn-primary"
+           href="@GetDownloadUrl(selectedMovie)"
+           download>
+            Video herunterladen
+        </a>
+    </div>
+    @if (showPlayer && selectedMovie != null)
+    {
+        <VideoPlayer @ref="_player"
+                     Show="showPlayer"
+                     StreamUrl="@GetMovieStreamUrl(selectedMovie)"
+                     OnClose="HidePlayer"
+                     MediaType="movie"
+                     MediaId="@selectedMovie.Id"
+                     AuthToken="@Client.AuthorizationToken"
+                     StartPositionSeconds="@(resumeSeconds)"
+                     PositionChanged="OnPositionChanged" />
+    }
+}
+else
+{
+    <!-- Sammlungs-Ansicht -->
+    <div class="collection-header" style="background-image: url('@GetBannerUrl(collection)'); position: relative;">
+        <button class="favorite-btn" @onclick="() => ToggleFavorite(null)" title="Sammlung als Favorit markieren">
+            @((IsCollectionFavorite) ? "★" : "☆")
+        </button>
+        <div class="collection-header-overlay">
+            <div class="collection-header-content">
+                <h1>@collection.Name</h1>
+                <div class="collection-meta">
+                    <span class="collection-year">@GetYear(collection)</span>
+                    <span class="collection-genres">@GetGenres(collection)</span>
+                </div>
+                <div class="collection-plot"></div>
+            </div>
+            <button class="play-button" @onclick="ShowFirstMovie">
+                <span>&#9654;</span>
+            </button>
+        </div>
+    </div>
+    <div class="movie-list-horizontal" id="movieListHorizontal">
+        @foreach (var movie in collection.Movies.OrderBy(m => m.ReleaseDate).ThenBy(m => m.PremieredAt).ThenBy(m => m.Name))
+        {
+            var name = movie.Name;
+            if (name.StartsWith(collection.Name))
+                name = name.Remove(0, collection.Name.Length).TrimStart(' ', ':', '-');
+            if (string.IsNullOrWhiteSpace(name) || (name.Length <= 3)) name = movie.Name;
+            <div class="media-box" @onclick="() => SelectMovieAsync(movie)">
+                <img class="media-poster"
+                     src="@GetPosterUrl(movie)"
+                     alt="@movie.Name"
+                     onerror="this.onerror=null;this.src='/images/placeholder.png';" />
+                <div class="media-title" title="@movie.Name">@name</div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public long Id { get; set; }
+    [SupplyParameterFromQuery(Name = "movie")] public long? MovieId { get; set; }
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "position")]
+    public long? Position { get; set; }
+
+    private DtoMovieCollection? collection;
+    private DtoMovie? selectedMovie;
+    private bool showPlayer = false;
+    private bool isAuthenticated;
+    private bool IsCollectionFavorite;
+    private bool IsMovieFavorite;
+    private long resumeSeconds;
+
+    // Referenz auf VideoPlayer für Positions-Abfrage
+    private VideoPlayer? _player;
+
+    private ElementReference movieListRef;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
+
+        collection = await Client.RequestMovieCollectionAsync(Id) as DtoMovieCollection;
+        IsCollectionFavorite = await CheckIfFavorite(collectionId: collection, movieId: null);
+
+        if (MovieId.HasValue && collection?.Movies != null)
+        {
+            var movie = collection.Movies.FirstOrDefault(m => m.Id == MovieId.Value);
+            if (movie != null)
+                await SelectMovieAsync(movie);
+        }
+        else if (collection?.Movies?.Length == 1)
+        {
+            await SelectMovieAsync(collection.Movies.First());
+        }
+
+        if (Position.HasValue && selectedMovie is not null)
+        {
+            AutoPlay(Position.Value);
+            Position = 0;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Die Sammlung wird mittlerweile vertikal dargestellt (kein Horizontal-Scroll mehr)
+        await Task.CompletedTask;
+    }
+
+    private string GetBannerUrl(DtoMovieCollection col)
+        => col.BannerPictureId.HasValue ? $"/api/pictures/{col.BannerPictureId}?access_token={Client.AuthorizationToken}" : col.FanartPictureId.HasValue ? $"/api/pictures/{col.FanartPictureId}?access_token={Client.AuthorizationToken}" : "/images/placeholder.png";
+
+    private string GetBannerUrl(DtoMovie movie)
+        => movie.BannerPictureId.HasValue ? $"/api/pictures/{movie.BannerPictureId}?access_token={Client.AuthorizationToken}" : movie.FanartPictureId.HasValue ? $"/api/pictures/{movie.FanartPictureId}?access_token={Client.AuthorizationToken}" : "/images/placeholder.png";
+
+    private string GetPosterUrl(DtoMovie movie)
+        => movie.PosterPictureId.HasValue ? $"/api/pictures/{movie.PosterPictureId}?access_token={Client.AuthorizationToken}" : movie.FanartPictureId.HasValue ? $"/api/pictures/{movie.FanartPictureId}?access_token={Client.AuthorizationToken}" : "/images/placeholder.png";
+
+    private string GetYear(DtoMovieCollection col)
+        => col.Movies?.Where(mbox => mbox.ReleaseDate != DateTime.MinValue)?.OrderBy(m => m.ReleaseDate)?.FirstOrDefault()?.ReleaseDate?.Year.ToString() ?? "";
+
+    private string GetYear(DtoMovie movie)
+        => movie.ReleaseDate?.Year.ToString() ?? "";
+
+    private string GetGenres(DtoMovieCollection col)
+        => string.Join(", ", col.Movies?.SelectMany(m => (m.GenreNames ?? "").Split(',')).Distinct() ?? Array.Empty<string>());
+
+    private string GetGenres(DtoMovie movie)
+        => movie.GenreNames ?? "";
+
+    private void ShowPlayer() => showPlayer = true;
+
+    // Neu: aktuelle Position beim Schließen sichern
+    private async Task HidePlayer()
+    {
+        if (_player != null)
+        {
+            try
+            {
+                // Letzten Wert direkt abfragen (falls TimeUpdate kurz vor Close nicht mehr feuert)
+                var pos = await _player.GetCurrentPositionSecondsAsync();
+                resumeSeconds = (long)Math.Floor(pos);
+            }
+            catch { }
+        }
+        showPlayer = false;
+        StateHasChanged();
+    }
+
+    private void AutoPlay(long position)
+    {
+        resumeSeconds = position;
+        ShowPlayer();
+    }
+
+    private string GetMovieStreamUrl(DtoMovie movie)
+        => $"/api/items/movie/{movie.Id}/stream?access_token={Client.AuthorizationToken}";
+
+    private async Task SelectMovieAsync(DtoMovie movie)
+    {
+        selectedMovie = movie;
+        resumeSeconds = 0;
+        showPlayer = false;
+        IsMovieFavorite = await CheckIfFavorite(collectionId: null, movieId: selectedMovie);
+    }
+
+    private void ShowCollection()
+    {
+        selectedMovie = null;
+        showPlayer = false;
+    }
+
+    private async Task ShowFirstMovie()
+    {
+        if (collection?.Movies?.Any() == true)
+            await SelectMovieAsync(collection.Movies.First());
+    }
+
+    private string GetDownloadUrl(DtoMovie movie)
+        => $"/api/items/movie/{movie.Id}/download?access_token={Client.AuthorizationToken}";
+
+    private async Task ToggleFavorite(DtoMovie? movie)
+    {
+        if (movie != null)
+        {
+            IsMovieFavorite = await Client.ToggleFavorite(movie);
+        }
+        else
+        {
+            IsCollectionFavorite = await Client.ToggleFavorite(collection);
+        }
+    }
+
+    private async Task<bool> CheckIfFavorite(DtoMediaEntry collectionId, DtoMediaEntry movieId)
+    {
+        if (movieId is not null)
+            return movieId.IsFavorite;
+        if (collectionId is not null)
+            return collectionId.IsFavorite;
+        return false;
+    }
+
+    // PositionChanged Callback vom Player – hält resumeSeconds laufend aktuell
+    private void OnPositionChanged(double seconds)
+    {
+        resumeSeconds = (long)Math.Floor(seconds);
+    }
+}
+<script src="scroll-horizontal.js"></script>
+<style>
+.btn-primary {
+    margin-top: 1rem;
+}
+.favorite-btn {
+    position: absolute;
+    top: 1.2rem;
+    right: 1.2rem;
+    background: none;
+    border: none;
+    font-size: 2.2rem;
+    color: #ffe066;
+    cursor: pointer;
+    z-index: 20;
+    transition: color 0.2s;
+    text-shadow: 0 2px 8px #000;
+}
+.favorite-btn:hover {
+    color: #ffd700;
+}
+</style>

@@ -26,6 +26,7 @@ public class NotificationEventService : IPublishNotificationEvent, ISubscribeNot
             _signalRService.ContinueWatchingUpdated += OnContinueWatchingUpdated;
             _signalRService.FavoritesChanged += OnFavoritesChanged;
             _signalRService.NewVideosScanned += OnNewVideosScanned;
+            _signalRService.StatusChanged += OnStatusChanged;
 
             System.Diagnostics.Debug.WriteLine("[NotificationEventService] Registered SignalR event handlers");
         }
@@ -153,5 +154,10 @@ public class NotificationEventService : IPublishNotificationEvent, ISubscribeNot
         Publish(new NewVideosScannedEvent(e.SourceId, e.Count));
     }
 
+    private void OnStatusChanged(object? sender, StatusChangedEventArgs e)
+    {
+        System.Diagnostics.Debug.WriteLine($"[NotificationEventService] SignalR: StatusChanged received (Message: {e.Message})");
+        Publish(new StatusChangedEvent(e.Message));
+    }
     #endregion
 }

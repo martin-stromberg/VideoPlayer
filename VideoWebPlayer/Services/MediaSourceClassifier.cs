@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Renci.SshNet;
@@ -9,6 +10,7 @@ using System.Threading.Tasks;
 using System.Xml.Linq;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Events;
+using VideoWebPlayer.Hubs;
 using static System.Net.Mime.MediaTypeNames;
 
 namespace VideoWebPlayer.Services
@@ -22,6 +24,7 @@ namespace VideoWebPlayer.Services
         private readonly SftpMediaSourceReader _sftpReader;
         private readonly RecentEntryService _recentEntryService;
         private readonly EventManager _eventManager;
+        private readonly MediaUpdateNotificationService _notificationService;
         private readonly ILogger<MediaSourceClassifier> _logger;
 
 		private static int _classificationRunning;
@@ -48,12 +51,14 @@ namespace VideoWebPlayer.Services
             SftpMediaSourceReader sftpReader,
             RecentEntryService recentEntryService,
             EventManager eventManager,
+            MediaUpdateNotificationService notificationService,
             ILogger<MediaSourceClassifier> logger)
         {
             _db = db;
             _sftpReader = sftpReader;
             _recentEntryService = recentEntryService;
             _eventManager = eventManager;
+            _notificationService = notificationService;
             _logger = logger;
         }
 
@@ -253,6 +258,7 @@ namespace VideoWebPlayer.Services
         {
             _logger.LogInformation(message);
             _eventManager.Publish(new BackgroundProcessingStatusEvent(message, DateTimeOffset.UtcNow));
+            _ = _notificationService.NotifyStatusAsync(message);
         }
 
         private Task ProcessMediaItemsAsync(CancellationToken cancellationToken)

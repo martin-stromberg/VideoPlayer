@@ -25,6 +25,7 @@ public class SignalRService : IAsyncDisposable
     /// Event wird ausgelöst wenn neue Videos gescannt wurden.
     /// </summary>
     public event EventHandler<NewVideosScannedEventArgs>? NewVideosScanned;
+    public event EventHandler<StatusChangedEventArgs>? StatusChanged;
 
     /// <summary>
     /// Verbindet mit dem SignalR Hub.
@@ -74,6 +75,11 @@ public class SignalRService : IAsyncDisposable
             {
                 System.Diagnostics.Debug.WriteLine($"[SignalR] NewVideosScanned received: Source {sourceId}, Count {count}");
                 NewVideosScanned?.Invoke(this, new NewVideosScannedEventArgs(sourceId, count));
+            });
+            _connection.On<string>("StatusChanged", (message) =>
+            {
+                System.Diagnostics.Debug.WriteLine($"[SignalR] StatusChanged received: {message}");
+                StatusChanged?.Invoke(this, new StatusChangedEventArgs(message));
             });
 
             // Reconnection-Handler
@@ -181,4 +187,15 @@ public class NewVideosScannedEventArgs : EventArgs
         SourceId = sourceId;
         Count = count;
     }
+}
+/// <summary>
+/// Event-Args für StatusChanged Event.
+/// </summary>
+public class StatusChangedEventArgs: EventArgs
+{
+    public StatusChangedEventArgs(string message)
+    {
+        Message = message;
+    }
+    public string Message { get; }
 }

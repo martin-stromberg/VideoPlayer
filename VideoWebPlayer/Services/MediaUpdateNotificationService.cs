@@ -27,6 +27,23 @@ namespace VideoWebPlayer.Services
         /// <summary>
         /// Notifies all clients that new videos have been scanned.
         /// </summary>
+        /// <param name="ct">A cancellation token.</param>
+        public async Task NotifyStatusAsync(string message, CancellationToken ct = default)
+        {
+            try
+            {
+                await _hubContext.Clients.All.SendAsync("StatusChanged", message, cancellationToken: ct);
+                _logger.LogInformation("SignalR: StatusChanged sent (message: {message})", message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send SignalR notification for StatusChanged");
+            }
+        }
+
+        /// <summary>
+        /// Notifies all clients that new videos have been scanned.
+        /// </summary>
         /// <param name="sourceId">The media source identifier.</param>
         /// <param name="count">The number of new videos scanned.</param>
         /// <param name="ct">A cancellation token.</param>

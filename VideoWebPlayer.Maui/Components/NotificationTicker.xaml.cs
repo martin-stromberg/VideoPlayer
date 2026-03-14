@@ -49,6 +49,7 @@ public partial class NotificationTicker : ContentView
             _eventSubscriber.Subscribe<DownloadDeletedEvent>(OnDownloadDeleted);
             _eventSubscriber.Subscribe<ContinueWatchingUpdatedEvent>(OnContinueWatchingUpdated);
             _eventSubscriber.Subscribe<NewVideosScannedEvent>(OnNewVideosScanned);
+            _eventSubscriber.Subscribe<StatusChangedEvent>(OnStatusChanged);
 
             System.Diagnostics.Debug.WriteLine("[NotificationTicker] Subscribed to notification events");
         }
@@ -57,6 +58,12 @@ public partial class NotificationTicker : ContentView
         DownloadQueue.Instance.DownloadProgress -= OnDownloadProgress; // Entferne zuerst existierende Handler
         DownloadQueue.Instance.DownloadProgress += OnDownloadProgress;
         System.Diagnostics.Debug.WriteLine("[NotificationTicker] Subscribed to download progress events");
+    }
+
+    private void OnStatusChanged(StatusChangedEvent e)
+    {
+        var message = $"ℹ️ {e.Message}";
+        QueueMessage(message);
     }
 
     private void OnDownloadCompleted(DownloadCompletedEvent e)

@@ -48,7 +48,7 @@ namespace VideoWebPlayer.Services
             var entries = client.ListDirectory(collection.Path);
             foreach (var entry in entries)
             {
-                if (entry.Name == "." || entry.Name == "..")
+                if (IsIgnoredEntry(entry.Name))
                     continue;
 
                 if (entry.IsDirectory)
@@ -106,7 +106,7 @@ namespace VideoWebPlayer.Services
 
             foreach (var entry in entries)
             {
-                if (entry.Name == "." || entry.Name == "..")
+                if (IsIgnoredEntry(entry.Name))
                     continue;
 
                 if (entry.IsDirectory)
@@ -250,6 +250,14 @@ namespace VideoWebPlayer.Services
 
             var stream = client.OpenRead(fullPath);
             return new SftpStreamWrapper(stream, client);
+        }
+
+        /// <summary>
+        /// Prüft, ob ein Verzeichniseintrag beim Einlesen übergangen wird (Navigationseinträge und versteckte Einträge wie '.actors').
+        /// </summary>
+        private static bool IsIgnoredEntry(string name)
+        {
+            return name.StartsWith('.');
         }
 
         private static string CombineSftpPath(string part1, string part2)

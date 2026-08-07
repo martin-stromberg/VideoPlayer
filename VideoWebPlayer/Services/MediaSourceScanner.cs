@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Renci.SshNet.Common;
 using VideoWebPlayer.Data;
 
 namespace VideoWebPlayer.Services
@@ -202,7 +203,25 @@ namespace VideoWebPlayer.Services
 
             _logger.LogInformation("Scanne Collection '{Path}'.", next.Path);
 
-            foreach (var entry in _sftpReader.ReadDirectoryEntries(next))
+            List<MediaEntry> entries;
+            try
+            {
+                entries = _sftpReader.ReadDirectoryEntries(next).ToList();
+            }
+            catch (Exception ex) when (ex is SftpPathNotFoundException or SftpPermissionDeniedException)
+            {
+                _logger.LogWarning(ex, "Collection '{Path}' konnte nicht gelesen werden und wird übersprungen.", next.Path);
+
+                next.LastScannedAt = nowUtc;
+                next.ScanDueAt = nowUtc.Add(mediaCollectionScanInterval);
+                next.Classifyable = true;
+                await _db.SaveChangesAsync(cancellationToken);
+
+                await UpdateParentClassifyableAsync(next.ParentMediaCollectionId, cancellationToken);
+                return;
+            }
+
+            foreach (var entry in entries)
             {
                 if (cancellationToken.IsCancellationRequested)
                     break;

@@ -1,5 +1,7 @@
 name: Staging Branch CI
 
+# CI/CD Pipeline for staging branch - validates code quality and creates pre-releases
+
 on:
   push:
     branches: [ staging ]
@@ -115,7 +117,7 @@ jobs:
   create-prerelease:
     runs-on: ubuntu-latest
     needs: [full-integration-tests, quality-gates]
-    if: always() && needs.full-integration-tests.result == 'success' && needs.quality_gates.result == 'success'
+    if: always() && needs.full-integration-tests.result == 'success' && needs.quality-gates.result == 'success'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

@@ -43,7 +43,7 @@ jobs:
     outputs:
       next_version: ${{ steps.semver.outputs.next_version }}
       bump: ${{ steps.semver.outputs.bump }}
-      rc_version: ${{ steps.semver.outputs.next_version }}-RC.${{ github.run_number }}
+      rc_version: ${{ steps.semver.outputs.rc_version }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

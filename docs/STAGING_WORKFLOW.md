@@ -62,7 +62,7 @@ This project implements a two-stage CI/CD process with a dedicated `staging` bra
 - Linux release.zip
 - Automated PR to main branch
 
-**Version format**: `v{major}.{minor}.{patch}-RC.{run_number}`
+**Version format**: `v{major}.{minor}.{patch}-RC.{n}` (n je Version ab 1)
 
 ### Stage 3: Final Release
 
@@ -175,8 +175,9 @@ Die Staging-Pipeline berechnet die naechste Version mit `.github/scripts/compute
   - `BREAKING CHANGE` oder `<type>!:` → major
   - `feat:` / `feat(scope):` → minor
   - alles andere → patch
-- RC-Suffix mit GitHub-Run-Number
-- Beispiel: stabil `v1.2.3` + `feat:` → `v1.3.0-RC.42`
+- Der RC-Zaehler wird pro Zielversion gefuehrt (hoechster vorhandener RC-Tag dieser Version + 1) und beginnt
+  fuer jede neue Version wieder bei 1 — nicht die GitHub-Run-Number
+- Beispiel: stabil `v1.2.3` + `feat:` → `v1.3.0-RC.1`, naechster Push → `v1.3.0-RC.2`
 
 ### Release Version
 Die Main-Pipeline liest den letzten von `main` aus erreichbaren RC-Tag und entfernt das RC-Suffix:

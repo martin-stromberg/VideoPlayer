@@ -200,12 +200,12 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Restore dependencies
-        run: dotnet restore VideoPlayer.sln
+        run: dotnet restore VideoWebPlayer/VideoWebPlayer.csproj
 
       - name: Build release artifacts
         run: |
-          dotnet publish VideoWebPlayer/VideoWebPlayer.csproj --configuration Release --runtime win-x64 --self-contained -o artifacts/windows
-          dotnet publish VideoWebPlayer/VideoWebPlayer.csproj --configuration Release --runtime linux-x64 --self-contained -o artifacts/linux
+          dotnet publish VideoWebPlayer/VideoWebPlayer.csproj --configuration Release --runtime win-x64 --self-contained -o artifacts/windows /p:NoWarn=NU1903
+          dotnet publish VideoWebPlayer/VideoWebPlayer.csproj --configuration Release --runtime linux-x64 --self-contained -o artifacts/linux /p:NoWarn=NU1903
 
       - name: Create release zip (Windows)
         run: |

@@ -11,8 +11,35 @@ permissions:
   pull-requests: write
 
 jobs:
+  detect-backmerge:
+    # Ein reiner Back-Merge (main -> staging nach einem Release) bringt keinen neuen
+    # Code: der Tree ist identisch zu main. Tests, Quality-Gates und Prerelease
+    # werden dann uebersprungen.
+    runs-on: ubuntu-latest
+    outputs:
+      is_backmerge: ${{ steps.check.outputs.is_backmerge }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check whether push is a pure back-merge from main
+        id: check
+        run: |
+          git fetch origin main --no-tags
+          if git diff --quiet origin/main HEAD; then
+            echo "is_backmerge=true" >> $GITHUB_OUTPUT
+            echo "::notice::Reiner Back-Merge von main erkannt (Tree identisch) - Tests, Quality-Gates und Prerelease werden uebersprungen."
+          else
+            echo "is_backmerge=false" >> $GITHUB_OUTPUT
+            echo "Aenderungen gegenueber main vorhanden - vollstaendige Pipeline laeuft."
+          fi
+
   version:
     runs-on: ubuntu-latest
+    needs: detect-backmerge
+    if: needs.detect-backmerge.outputs.is_backmerge != 'true'
     outputs:
       next_version: ${{ steps.semver.outputs.next_version }}
       bump: ${{ steps.semver.outputs.bump }}
@@ -29,6 +56,8 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
+    needs: detect-backmerge
+    if: needs.detect-backmerge.outputs.is_backmerge != 'true'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -48,7 +77,7 @@ jobs:
 
   full-integration-tests:
     runs-on: ubuntu-latest
-    needs: build
+    needs: [detect-backmerge, build]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -76,7 +105,7 @@ jobs:
 
   code-coverage:
     runs-on: ubuntu-latest
-    needs: build
+    needs: [detect-backmerge, build]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -106,8 +135,8 @@ jobs:
 
   quality-gates:
     runs-on: ubuntu-latest
-    needs: [build, code-coverage]
-    if: always()
+    needs: [detect-backmerge, build, code-coverage]
+    if: always() && needs.detect-backmerge.outputs.is_backmerge != 'true' && needs.build.result == 'success'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -132,8 +161,8 @@ jobs:
 
   create-prerelease:
     runs-on: ubuntu-latest
-    needs: [version, full-integration-tests, quality-gates]
-    if: needs.full-integration-tests.result == 'success' && needs.quality-gates.result == 'success'
+    needs: [detect-backmerge, version, full-integration-tests, quality-gates]
+    if: needs.detect-backmerge.outputs.is_backmerge != 'true' && needs.full-integration-tests.result == 'success' && needs.quality-gates.result == 'success'
     env:
       RC_VERSION: ${{ needs.version.outputs.rc_version }}
     steps:

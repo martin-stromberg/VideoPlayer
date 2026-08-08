@@ -40,8 +40,15 @@ jobs:
       - name: Check if main is behind staging
         id: diff
         run: |
-          $count = git rev-list origin/main..HEAD --count
-          "commits_ahead=$count" | Add-Content -Path $env:GITHUB_OUTPUT
+          # Bei einem reinen Back-Merge (Tree identisch zu main) gibt es nichts zu promoten.
+          $changed = git diff --name-only origin/main HEAD
+          if ([string]::IsNullOrWhiteSpace(($changed -join ''))) {
+            Write-Host "Tree ist identisch zu main (Back-Merge) - keine Promotion notwendig."
+            "commits_ahead=0" | Add-Content -Path $env:GITHUB_OUTPUT
+          } else {
+            $count = git rev-list origin/main..HEAD --count
+            "commits_ahead=$count" | Add-Content -Path $env:GITHUB_OUTPUT
+          }
         shell: pwsh
 
       - name: Ensure automated-promotion label exists

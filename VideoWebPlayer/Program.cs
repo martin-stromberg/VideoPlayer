@@ -26,6 +26,7 @@ builder.Host.UseSerilog((ctx, services, cfg) =>
 	   .Enrich.FromLogContext());
 
 builder.AddVideoWebPlayerServices();
+builder.AddVideoWebPlayerAutoUpdate();
 
 var app = builder.Build();
 app.MigrateDatabase();

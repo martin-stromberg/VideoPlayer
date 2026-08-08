@@ -41,10 +41,10 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Restore dependencies
-        run: dotnet restore VideoPlayer.sln --exclude "VideoWebPlayer.Maui"
+        run: dotnet restore VideoWebPlayer/VideoWebPlayer.csproj
 
       - name: Build solution
-        run: dotnet build VideoPlayer.sln --configuration Release --no-restore --exclude "VideoWebPlayer.Maui"
+        run: dotnet build VideoWebPlayer/VideoWebPlayer.csproj --configuration Release --no-restore
 
       - name: Update version to release version
         run: |
@@ -104,7 +104,7 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Restore dependencies
-        run: dotnet restore VideoPlayer.sln --exclude "VideoWebPlayer.Maui"
+        run: dotnet restore VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj
 
       - name: Run final test suite
         run: dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=final-test-results.trx"

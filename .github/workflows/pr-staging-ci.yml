@@ -19,10 +19,13 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Restore dependencies
-        run: dotnet restore VideoPlayer.sln --exclude "VideoWebPlayer.Maui"
+        run: dotnet restore VideoWebPlayer/VideoWebPlayer.csproj
+
+      - name: Restore dependencies for tests
+        run: dotnet restore VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj
 
       - name: Build solution
-        run: dotnet build VideoPlayer.sln --configuration Release --no-restore --exclude "VideoWebPlayer.Maui"
+        run: dotnet build VideoWebPlayer/VideoWebPlayer.csproj --configuration Release --no-restore
 
   unit-tests:
     runs-on: ubuntu-latest
@@ -37,7 +40,7 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Restore dependencies
-        run: dotnet restore VideoPlayer.sln --exclude "VideoWebPlayer.Maui"
+        run: dotnet restore VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj
 
       - name: Run unit tests
         run: dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results.trx"
@@ -66,7 +69,7 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Restore dependencies
-        run: dotnet restore VideoPlayer.sln --exclude "VideoWebPlayer.Maui"
+        run: dotnet restore VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj
 
       - name: Run integration tests
         run: dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release --no-build --verbosity normal --filter "Category=Integration" --logger "trx;LogFileName=integration-test-results.trx"
@@ -115,13 +118,13 @@ jobs:
         run: dotnet tool install -g dotnet-format
 
       - name: Check code formatting
-        run: dotnet format VideoPlayer.sln --verify-no-changes --verbosity diagnostic --exclude "VideoWebPlayer.Maui"
+        run: dotnet format VideoWebPlayer/VideoWebPlayer.csproj --verify-no-changes --verbosity diagnostic
 
       - name: Restore dependencies
-        run: dotnet restore VideoPlayer.sln --exclude "VideoWebPlayer.Maui"
+        run: dotnet restore VideoWebPlayer/VideoWebPlayer.csproj
 
       - name: Run static analysis
-        run: dotnet build VideoPlayer.sln --configuration Release --no-restore --exclude "VideoWebPlayer.Maui" /p:AnalysisLevel=latest
+        run: dotnet build VideoWebPlayer/VideoWebPlayer.csproj --configuration Release --no-restore /p:AnalysisLevel=latest
 
   lint-check:
     runs-on: ubuntu-latest
@@ -136,10 +139,10 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Restore dependencies
-        run: dotnet restore VideoPlayer.sln --exclude "VideoWebPlayer.Maui"
+        run: dotnet restore VideoWebPlayer/VideoWebPlayer.csproj
 
       - name: Check for compiler warnings as errors
-        run: dotnet build VideoPlayer.sln --configuration Release --no-restore --exclude "VideoWebPlayer.Maui" /p:TreatWarningsAsErrors=true
+        run: dotnet build VideoWebPlayer/VideoWebPlayer.csproj --configuration Release --no-restore /p:TreatWarningsAsErrors=true
 
   summary:
     runs-on: ubuntu-latest

@@ -185,6 +185,11 @@ Die Main-Pipeline liest den letzten von `main` aus erreichbaren RC-Tag und entfe
 - Existiert der stabile Tag bereits, wird der Release-Lauf mit einer Warnung uebersprungen statt zu scheitern
 
 ### Back-Merge main → staging
+Ein reiner Back-Merge (Tree identisch zu `main`) wird in `staging-ci.yml` im Job `detect-backmerge` erkannt;
+Tests, Quality-Gates und Prerelease werden dann uebersprungen, und `staging-to-main-promotion.yml` erstellt
+keinen Promotion-PR. Die PR-Checks des Back-Merge-PRs (`pr-staging-ci.yml`) laufen weiterhin, damit die
+Branch-Protection auf `staging` erfuellt ist.
+
 Nach einem erfolgreichen Release erstellt `main-release.yml` automatisch einen PR von `main` nach `staging`
 (Label `automated-backmerge`). Erst dadurch kennt `staging` den released Stand inkl. Release-Tag, sodass der
 naechste Push auf `staging` die Version semantisch weiterzaehlt und nicht nur den RC-Zaehler erhoeht.

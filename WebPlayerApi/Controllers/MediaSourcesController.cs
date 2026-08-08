@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using WebPlayerApi.Models;
 using WebPlayerApi.Services;
 
@@ -6,6 +7,7 @@ namespace WebPlayerApi.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize(Roles = "admin")]
     public class MediaSourcesController : Controller
     {
         private readonly ISourceService _mediaService;

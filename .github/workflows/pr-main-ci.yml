@@ -1,0 +1,158 @@
+name: PR CI for Main
+
+on:
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore VideoWebPlayer/VideoWebPlayer.csproj
+
+      - name: Build solution
+        run: dotnet build VideoWebPlayer/VideoWebPlayer.csproj --configuration Release --no-restore /p:NoWarn=NU1903
+
+  unit-tests:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies for tests
+        run: dotnet restore VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj
+
+      - name: Build solution
+        run: dotnet build VideoWebPlayer/VideoWebPlayer.csproj --configuration Release --no-restore /p:NoWarn=NU1903
+
+      - name: Build test project
+        run: dotnet build VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release /p:NoWarn=NU1903
+
+      - name: Run unit tests
+        run: dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results.trx"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: '**/test-results.trx'
+
+  integration-tests:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj
+
+      - name: Build test project
+        run: dotnet build VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release /p:NoWarn=NU1903
+
+      - name: Run integration tests
+        run: dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release --no-build --verbosity normal --filter "Category=Integration" --logger "trx;LogFileName=integration-test-results.trx"
+
+      - name: Upload integration test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: '**/integration-test-results.trx'
+
+  security-scan:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore VideoWebPlayer/VideoWebPlayer.csproj
+
+      - name: Check for vulnerable dependencies
+        run: |
+          cd VideoWebPlayer
+          dotnet list package --vulnerable --include-transitive
+
+  code-quality:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore VideoWebPlayer/VideoWebPlayer.csproj
+
+      - name: Run static analysis
+        run: dotnet build VideoWebPlayer/VideoWebPlayer.csproj --configuration Release --no-restore /p:AnalysisLevel=latest /p:NoWarn=NU1903
+
+  lint-check:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore VideoWebPlayer/VideoWebPlayer.csproj
+
+      - name: Build with warnings as errors
+        run: dotnet build VideoWebPlayer/VideoWebPlayer.csproj --configuration Release --no-restore /p:TreatWarningsAsErrors=true /p:NoWarn=NU1903 /p:GenerateFullPaths=false
+        continue-on-error: true
+
+  summary:
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests, security-scan, code-quality, lint-check]
+    if: always()
+    steps:
+      - name: Display summary
+        run: |
+          echo "## PR Validation Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Unit Tests: ${{ needs.unit-tests.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Integration Tests: ${{ needs.integration-tests.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Security Scan: ${{ needs.security-scan.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Code Quality: ${{ needs.code-quality.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Lint Check: ${{ needs.lint-check.result }}" >> $GITHUB_STEP_SUMMARY

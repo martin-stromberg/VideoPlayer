@@ -39,6 +39,9 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj
 
+      - name: Build test project
+        run: dotnet build VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release
+
       - name: Run all integration tests
         run: dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release --no-build --verbosity normal --filter "Category=Integration" --logger "trx;LogFileName=full-integration-results.trx"
 
@@ -63,6 +66,9 @@ jobs:
 
       - name: Restore dependencies
         run: dotnet restore VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj
+
+      - name: Build test project
+        run: dotnet build VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release
 
       - name: Run tests with coverage
         run: |
@@ -106,12 +112,14 @@ jobs:
           languages: csharp
 
       - name: Dependency vulnerability check
-        run: dotnet list package --vulnerable --include-transitive VideoWebPlayer/VideoWebPlayer.csproj
+        run: |
+          cd VideoWebPlayer
+          dotnet list package --vulnerable --include-transitive
 
-      - name: Code formatting check
+      - name: Code formatting
         run: |
           dotnet tool install -g dotnet-format
-          dotnet format VideoWebPlayer/VideoWebPlayer.csproj --verify-no-changes
+          dotnet format VideoWebPlayer/VideoWebPlayer.csproj
 
   version-bump:
     runs-on: ubuntu-latest

@@ -106,6 +106,9 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj
 
+      - name: Build test project
+        run: dotnet build VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release
+
       - name: Run final test suite
         run: dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=final-test-results.trx"
 

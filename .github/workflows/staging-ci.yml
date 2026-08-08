@@ -1,5 +1,7 @@
 name: Staging Branch CI
 
+# CI/CD Pipeline for staging branch - validates code quality and creates pre-releases
+
 on:
   push:
     branches: [ staging ]

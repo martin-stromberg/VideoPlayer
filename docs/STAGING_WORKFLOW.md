@@ -52,9 +52,9 @@ This project implements a two-stage CI/CD process with a dedicated `staging` bra
 - ✅ Code coverage analysis (minimum 70% threshold)
 - ✅ Comprehensive security analysis
 - ✅ Code quality gates
-- ✅ Version bumping (automatic prerelease version)
+- ✅ Version bumping (semantisch, Conventional Commits)
 - ✅ Pre-release artifact creation
-- ✅ Automated PR creation to main
+- ✅ Automated PR creation to main (Workflow `staging-to-main-promotion.yml`)
 
 **Artifacts created**:
 - Pre-release GitHub release (e.g., v1.2.3-RC.4)
@@ -71,11 +71,13 @@ This project implements a two-stage CI/CD process with a dedicated `staging` bra
 **Workflow**: `.github/workflows/main-release.yml`
 
 **Process**:
-- ✅ Extract version from staging tag
+- ✅ Extract version from staging RC tag (RC-Suffix entfernt)
+- ✅ Skip, falls der stabile Tag bereits existiert
 - ✅ Build final release artifacts
 - ✅ Run final test suite
-- ✅ Create GitHub release
-- ✅ Tag release
+- ✅ Create GitHub release (erzeugt den Tag)
+- ✅ Verify release tag
+- ✅ Back-Merge-PR `main` → `staging`
 
 **Artifacts created**:
 - Stable GitHub release (e.g., v1.2.3)
@@ -167,15 +169,25 @@ git push origin feature/your-feature-name
 ## Version Management
 
 ### Automatic Version Bumping
-The staging pipeline automatically bumps versions using this scheme:
-- Base version extracted from previous tag
-- Patch version incremented
-- RC suffix added with GitHub run number
-- Example: `v1.2.3` → `v1.2.4-RC.42`
+Die Staging-Pipeline berechnet die naechste Version mit `.github/scripts/compute-version.sh`:
+- Basis ist der letzte **stabile** Tag (`vX.Y.Z` ohne Suffix)
+- Der Bump ergibt sich aus den Conventional Commits zwischen diesem Tag und `HEAD`:
+  - `BREAKING CHANGE` oder `<type>!:` → major
+  - `feat:` / `feat(scope):` → minor
+  - alles andere → patch
+- RC-Suffix mit GitHub-Run-Number
+- Beispiel: stabil `v1.2.3` + `feat:` → `v1.3.0-RC.42`
 
 ### Release Version
-The main pipeline removes the RC suffix:
-- Example: `v1.2.4-RC.42` → `v1.2.4`
+Die Main-Pipeline liest den letzten von `main` aus erreichbaren RC-Tag und entfernt das RC-Suffix:
+- Beispiel: `v1.2.4-RC.42` → `v1.2.4`
+- Der Release-Tag wird ausschliesslich durch die Release-Action erzeugt (kein zusaetzliches `git tag`), daher keine "tag already exists"-Fehler
+- Existiert der stabile Tag bereits, wird der Release-Lauf mit einer Warnung uebersprungen statt zu scheitern
+
+### Back-Merge main → staging
+Nach einem erfolgreichen Release erstellt `main-release.yml` automatisch einen PR von `main` nach `staging`
+(Label `automated-backmerge`). Erst dadurch kennt `staging` den released Stand inkl. Release-Tag, sodass der
+naechste Push auf `staging` die Version semantisch weiterzaehlt und nicht nur den RC-Zaehler erhoeht.
 
 ### Manual Version Override
 If manual version control is needed:
@@ -212,7 +224,9 @@ If version bumping fails:
 
 ## CI Workflow Files
 
+- `.github/scripts/compute-version.sh` - Semantische Versionsberechnung (von staging & main genutzt)
 - `.github/workflows/pr-staging-ci.yml` - PR validation for staging
+- `.github/workflows/staging-to-main-promotion.yml` - Automatischer PR staging -> main
 - `.github/workflows/staging-ci.yml` - Staging branch validation and prerelease
 - `.github/workflows/main-release.yml` - Main branch release process
 - `.github/workflows/codereviewagent.yml` - Code review automation (updated)

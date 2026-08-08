@@ -13,28 +13,51 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       release_version: ${{ steps.get_version.outputs.release_version }}
+      already_released: ${{ steps.get_version.outputs.already_released }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Get version from git tag
+      - name: Get release version from RC tag
         id: get_version
         run: |
-          # Get the latest tag
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0-RC.1")
-          
-          # Remove 'v' prefix and -RC suffix to get clean version
-          CLEAN_VERSION=${LATEST_TAG#v}
-          RELEASE_VERSION=${CLEAN_VERSION%-RC*}
-          
-          echo "release_version=$RELEASE_VERSION" >> $GITHUB_OUTPUT
-          echo "Extracted release version: $RELEASE_VERSION from tag: $LATEST_TAG"
+          # Letzten RC-Tag verwenden, der von HEAD aus erreichbar ist (der von staging
+          # promotete Release-Kandidat). Fallback: global letzter RC-Tag.
+          RC_TAG=$(git tag --merged HEAD -l 'v*-RC.*' | sort -V | tail -n 1)
+          if [ -z "$RC_TAG" ]; then
+            RC_TAG=$(git tag -l 'v*-RC.*' | sort -V | tail -n 1)
+          fi
+
+          if [ -n "$RC_TAG" ]; then
+            CLEAN_VERSION=${RC_TAG#v}
+            RELEASE_VERSION=${CLEAN_VERSION%-RC*}
+          else
+            # Kein RC-Tag vorhanden: semantischen Bump aus der Historie berechnen.
+            bash .github/scripts/compute-version.sh >/dev/null
+            RELEASE_VERSION=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' | grep -Ev -- '-' | sort -V | tail -n 1)
+            RELEASE_VERSION=${RELEASE_VERSION#v}
+            RELEASE_VERSION=${RELEASE_VERSION:-1.0.0}
+          fi
+
+          if git rev-parse -q --verify "refs/tags/v${RELEASE_VERSION}" >/dev/null; then
+            ALREADY_RELEASED=true
+            echo "::warning::Version v${RELEASE_VERSION} ist bereits released (Tag existiert). Release wird uebersprungen."
+          else
+            ALREADY_RELEASED=false
+          fi
+
+          {
+            echo "release_version=$RELEASE_VERSION"
+            echo "already_released=$ALREADY_RELEASED"
+          } >> $GITHUB_OUTPUT
+          echo "Release-Version: $RELEASE_VERSION (aus Tag: ${RC_TAG:-<keiner>})"
 
   build-release:
     runs-on: ubuntu-latest
     needs: extract-version
+    if: needs.extract-version.outputs.already_released == 'false'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -98,6 +121,7 @@ jobs:
   final-tests:
     runs-on: ubuntu-latest
     needs: extract-version
+    if: needs.extract-version.outputs.already_released == 'false'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -130,7 +154,7 @@ jobs:
   create-github-release:
     runs-on: ubuntu-latest
     needs: [extract-version, build-release, final-tests]
-    if: success()
+    if: success() && needs.extract-version.outputs.already_released == 'false'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -143,10 +167,11 @@ jobs:
           path: artifacts
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ needs.extract-version.outputs.release_version }}
           name: Release v${{ needs.extract-version.outputs.release_version }}
+          target_commitish: ${{ github.sha }}
           draft: false
           prerelease: false
           files: |
@@ -175,19 +200,68 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  tag-release:
+  verify-release-tag:
     runs-on: ubuntu-latest
     needs: [extract-version, create-github-release]
-    if: success()
+    if: success() && needs.extract-version.outputs.already_released == 'false'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Create and push tag
+      - name: Verify release tag exists
         run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git tag -a v${{ needs.extract-version.outputs.release_version }} -m "Release v${{ needs.extract-version.outputs.release_version }}"
-          git push origin v${{ needs.extract-version.outputs.release_version }}
+          # Der Tag wird von der Release-Action erzeugt; hier wird nur geprueft,
+          # dass er vorhanden ist (kein zweites, konfliktbehaftetes Anlegen).
+          TAG="v${{ needs.extract-version.outputs.release_version }}"
+          git fetch origin "refs/tags/${TAG}:refs/tags/${TAG}" --no-tags
+          git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null
+          echo "Tag ${TAG} vorhanden."
+
+  backmerge-to-staging:
+    # Nach dem Release wird main via PR zurueck nach staging gemergt, damit der
+    # Release-Tag/-Stand auf staging bekannt ist und der naechste Staging-Push die
+    # Version semantisch (statt nur den RC-Zaehler) weiterzaehlt.
+    runs-on: ubuntu-latest
+    needs: [extract-version, create-github-release]
+    if: always() && needs.create-github-release.result == 'success'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if staging is behind main
+        id: diff
+        run: |
+          git fetch origin staging --no-tags
+          COUNT=$(git rev-list origin/staging..HEAD --count)
+          echo "commits_ahead=$COUNT" >> $GITHUB_OUTPUT
+          echo "main ist $COUNT Commit(s) vor staging."
+
+      - name: Ensure automated-backmerge label exists
+        if: steps.diff.outputs.commits_ahead != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh label create automated-backmerge --color "1D76DB" --description "Automatischer Back-Merge von main nach staging" --force
+
+      - name: Create back-merge pull request
+        if: steps.diff.outputs.commits_ahead != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ needs.extract-version.outputs.release_version }}
+        run: |
+          EXISTING=$(gh pr list --base staging --head main --state open --json number --jq 'length')
+          if [ "$EXISTING" != "0" ]; then
+            echo "Es existiert bereits ein offener Back-Merge-PR main -> staging."
+            exit 0
+          fi
+          gh pr create \
+            --base staging \
+            --head main \
+            --title "Back-Merge: Release v${RELEASE_VERSION} von main nach staging" \
+            --body "Automatischer Back-Merge nach dem Release **v${RELEASE_VERSION}**.
+
+          Dadurch kennt \`staging\` den released Stand inkl. Tag \`v${RELEASE_VERSION}\`, sodass der naechste Push auf staging die Version anhand der semantischen Regeln (Conventional Commits) hochzaehlt und nicht nur den RC-Zaehler." \
+            --label "automated-backmerge"

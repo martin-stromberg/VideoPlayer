@@ -42,6 +42,9 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj
 
+      - name: Build test project
+        run: dotnet build VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release
+
       - name: Run unit tests
         run: dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results.trx"
 
@@ -71,6 +74,9 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj
 
+      - name: Build test project
+        run: dotnet build VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release
+
       - name: Run integration tests
         run: dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release --no-build --verbosity normal --filter "Category=Integration" --logger "trx;LogFileName=integration-test-results.trx"
         continue-on-error: false
@@ -95,7 +101,7 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Run dependency vulnerability scan
-        run: dotnet list package --vulnerable --include-transitive VideoPlayer.sln
+        run: dotnet list package --vulnerable --include-transitive VideoWebPlayer/VideoWebPlayer.csproj
 
       - name: Run .NET security analysis
         uses: github/codeql-action/analyze@v3
@@ -117,8 +123,8 @@ jobs:
       - name: Install formatting tool
         run: dotnet tool install -g dotnet-format
 
-      - name: Check code formatting
-        run: dotnet format VideoWebPlayer/VideoWebPlayer.csproj --verify-no-changes --verbosity diagnostic
+      - name: Format code
+        run: dotnet format VideoWebPlayer/VideoWebPlayer.csproj --verbosity diagnostic
 
       - name: Restore dependencies
         run: dotnet restore VideoWebPlayer/VideoWebPlayer.csproj

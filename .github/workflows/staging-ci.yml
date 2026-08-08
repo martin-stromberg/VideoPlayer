@@ -171,8 +171,6 @@ jobs:
             Download the appropriate zip file for your platform and extract it.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-<<<<<<< HEAD
-=======
 
   auto-pr-to-main:
     runs-on: ubuntu-latest
@@ -213,4 +211,3 @@ jobs:
           base: main
           labels: automated, release
           draft: false
->>>>>>> origin/staging

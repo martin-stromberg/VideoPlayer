@@ -1,0 +1,275 @@
+name: Staging Branch CI
+
+on:
+  push:
+    branches: [ staging ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore VideoPlayer.sln
+
+      - name: Build solution
+        run: dotnet build VideoPlayer.sln --configuration Release --no-restore
+
+  full-integration-tests:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore VideoPlayer.sln
+
+      - name: Run all integration tests
+        run: dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release --no-build --verbosity normal --filter "Category=Integration" --logger "trx;LogFileName=full-integration-results.trx"
+
+      - name: Upload integration test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-integration-test-results
+          path: '**/full-integration-results.trx'
+
+  code-coverage:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore VideoPlayer.sln
+
+      - name: Run tests with coverage
+        run: |
+          dotnet tool install -g dotnet-coverage
+          dotnet-coverage collect 'dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release --no-build' -f cobertura -o 'coverage/'
+
+      - name: Generate coverage report
+        run: |
+          dotnet tool install -g ReportGenerator
+          reportgenerator -reports:**/coverage.cobertura.xml -targetdir:coverage-report -reporttypes:Html
+
+      - name: Check coverage threshold
+        run: |
+          dotnet tool install -g dotnet-coverage
+          dotnet-coverage summarize **/coverage.cobertura.xml --threshold 70
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage-report/
+
+  quality-gates:
+    runs-on: ubuntu-latest
+    needs: [build, code-coverage]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore VideoPlayer.sln
+
+      - name: Security analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          languages: csharp
+
+      - name: Dependency vulnerability check
+        run: dotnet list package --vulnerable --include-transitive VideoPlayer.sln
+
+      - name: Code formatting check
+        run: |
+          dotnet tool install -g dotnet-format
+          dotnet format VideoPlayer.sln --verify-no-changes
+
+  version-bump:
+    runs-on: ubuntu-latest
+    needs: [full-integration-tests, quality-gates]
+    if: success()
+    outputs:
+      new_version: ${{ steps.version_bump.outputs.new_version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install semantic release tools
+        run: |
+          dotnet tool install -g dotnet-version
+          npm install -g semantic-release @semantic-release/git @semantic-release/changelog @semantic-release/exec
+
+      - name: Bump version (prerelease)
+        id: version_bump
+        run: |
+          # Get current version from git tags or default to 1.0.0
+          CURRENT_VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "1.0.0")
+          
+          # Remove 'v' prefix and any -RC suffix if present
+          CLEAN_VERSION=${CURRENT_VERSION#v}
+          CLEAN_VERSION=${CLEAN_VERSION%-RC*}
+          
+          # Increment patch version
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CLEAN_VERSION"
+          NEW_PATCH=$((PATCH + 1))
+          NEW_VERSION="${MAJOR}.${MINOR}.${NEW_PATCH}-RC.${{ github.run_number }}"
+          
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "Bumped version from $CURRENT_VERSION to $NEW_VERSION"
+
+      - name: Update version in project files
+        run: |
+          NEW_VERSION="${{ steps.version_bump.outputs.new_version }}"
+          # Extract version without RC suffix for AssemblyVersion
+          BASE_VERSION=${NEW_VERSION%-RC*}
+          
+          # Update AssemblyVersion in relevant project files
+          find . -name "*.csproj" -type f -exec sed -i "s/<AssemblyVersion>.*<\/AssemblyVersion>/<AssemblyVersion>${BASE_VERSION}<\/AssemblyVersion>/g" {} \;
+          find . -name "*.csproj" -type f -exec sed -i "s/<FileVersion>.*<\/FileVersion>/<FileVersion>${BASE_VERSION}<\/FileVersion>/g" {} \;
+          
+          # Add or update Version element if it doesn't exist
+          for proj in $(find . -name "*.csproj" -type f); do
+            if ! grep -q "<Version>" "$proj"; then
+              sed -i "/<PropertyGroup>/a\    <Version>${NEW_VERSION}</Version>" "$proj"
+            else
+              sed -i "s/<Version>.*<\/Version>/<Version>${NEW_VERSION}<\/Version>/g" "$proj"
+            fi
+          done
+
+      - name: Commit version changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add .
+          git commit -m "chore: bump version to ${{ steps.version_bump.outputs.new_version }} [skip ci]"
+          git push
+
+  create-prerelease:
+    runs-on: ubuntu-latest
+    needs: version-bump
+    if: success()
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore VideoPlayer.sln
+
+      - name: Build release artifacts
+        run: |
+          dotnet publish VideoWebPlayer/VideoWebPlayer.csproj --configuration Release --runtime win-x64 --self-contained -o artifacts/windows
+          dotnet publish VideoWebPlayer/VideoWebPlayer.csproj --configuration Release --runtime linux-x64 --self-contained -o artifacts/linux
+
+      - name: Create release zip (Windows)
+        run: |
+          cd artifacts/windows
+          zip -r ../../release-windows.zip .
+
+      - name: Create release zip (Linux)
+        run: |
+          cd artifacts/linux
+          zip -r ../../release-linux.zip .
+
+      - name: Create prerelease
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ needs.version-bump.outputs.new_version }}
+          name: Pre-release v${{ needs.version-bump.outputs.new_version }}
+          draft: false
+          prerelease: true
+          files: |
+            release-windows.zip
+            release-linux.zip
+          body: |
+            ## Pre-release v${{ needs.version-bump.outputs.new_version }}
+            
+            This is a pre-release from the staging branch. All quality gates have passed.
+            
+            ### Changes
+            - See commit history for details
+            
+            ### Artifacts
+            - Windows: release-windows.zip
+            - Linux: release-linux.zip
+            
+            ### Installation
+            Download the appropriate zip file for your platform and extract it.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  auto-pr-to-main:
+    runs-on: ubuntu-latest
+    needs: [version-bump, create-prerelease]
+    if: success()
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create PR to main
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: staging-to-main-${{ needs.version-bump.outputs.new_version }}
+          title: "Release v${{ needs.version-bump.outputs.new_version }} to main"
+          body: |
+            ## Automated PR: Release v${{ needs.version-bump.outputs.new_version }}
+            
+            This PR was automatically created after successful staging validation.
+            
+            ### Pre-release: v${{ needs.version-bump.outputs.new_version }}
+            All quality gates have passed:
+            - ✅ Full integration tests
+            - ✅ Code coverage meets threshold
+            - ✅ Security checks passed
+            - ✅ Code quality checks passed
+            
+            ### Ready for release
+            Merge this PR to trigger the final release process and create the stable release.
+          base: main
+          labels: automated, release
+          draft: false

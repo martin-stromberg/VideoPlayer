@@ -169,16 +169,3 @@ jobs:
             Download the appropriate zip file for your platform and extract it.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  manual-pr-reminder:
-    runs-on: ubuntu-latest
-    needs: [create-prerelease]
-    if: success() && needs.create-prerelease.result == 'success'
-    steps:
-      - name: Create manual PR reminder
-        run: |
-          echo "🎉 Staging validation successful!"
-          echo "Pre-release v1.0.0-RC.${{ github.run_number }} created"
-          echo ""
-          echo "Next step: Create a PR from staging to main manually"
-          echo "GitHub: https://github.com/martin-stromberg/VideoPlayer/compare/main...staging"

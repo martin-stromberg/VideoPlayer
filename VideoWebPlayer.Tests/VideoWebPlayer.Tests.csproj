@@ -20,4 +20,12 @@
     <ProjectReference Include="..\VideoWebPlayer\VideoWebPlayer.csproj" />
   </ItemGroup>
 
+  <!-- msTools.Updater ist nicht auf NuGet veroeffentlicht; die DLL aus dem release.zip liegt unter lib/. -->
+  <ItemGroup>
+    <Reference Include="msTools.Updater">
+      <HintPath>..\lib\msTools.Updater\msTools.Updater.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
 </Project>

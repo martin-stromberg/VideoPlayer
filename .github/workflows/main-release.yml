@@ -96,6 +96,26 @@ jobs:
         run: |
           dotnet publish VideoWebPlayer/VideoWebPlayer.csproj --configuration Release --runtime linux-x64 --self-contained -o artifacts/linux /p:Version=${{ needs.extract-version.outputs.release_version }} /p:NoWarn=NU1903
 
+      # Der Updater (msTools.Updater) liest die installierte Version aus release-metadata.json
+      # im Anwendungsverzeichnis; ohne diese Datei ist keine Versionsermittlung moeglich.
+      - name: Create release metadata
+        run: |
+          RELEASE_VERSION="${{ needs.extract-version.outputs.release_version }}"
+          PUBLISHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          for target in windows:win-x64 linux:linux-x64; do
+            DIR="artifacts/${target%%:*}"
+            RID="${target##*:}"
+            cat > "$DIR/release-metadata.json" <<JSON
+          {
+            "version": "${RELEASE_VERSION}",
+            "publishedAt": "${PUBLISHED_AT}",
+            "commitSha": "${{ github.sha }}",
+            "repository": "${{ github.repository }}",
+            "runtimeIdentifier": "${RID}"
+          }
+          JSON
+          done
+
       - name: Create release zip (Windows)
         run: |
           cd artifacts/windows
@@ -105,6 +125,14 @@ jobs:
         run: |
           cd artifacts/linux
           zip -r ../../release-linux-${{ needs.extract-version.outputs.release_version }}.zip .
+
+      # Manifest-Asset, das msTools.Updater im GitHub-Release erwartet.
+      - name: Create update manifest
+        run: |
+          bash .github/scripts/create-update-manifest.sh \
+            "${{ needs.extract-version.outputs.release_version }}" \
+            "${{ github.repository }}" \
+            update.json
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
@@ -117,6 +145,12 @@ jobs:
         with:
           name: release-linux
           path: release-linux-${{ needs.extract-version.outputs.release_version }}.zip
+
+      - name: Upload update manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: update-manifest
+          path: update.json
 
   final-tests:
     runs-on: ubuntu-latest
@@ -177,6 +211,7 @@ jobs:
           files: |
             artifacts/release-windows/release-windows-${{ needs.extract-version.outputs.release_version }}.zip
             artifacts/release-linux/release-linux-${{ needs.extract-version.outputs.release_version }}.zip
+            artifacts/update-manifest/update.json
           body: |
             ## Release v${{ needs.extract-version.outputs.release_version }}
             

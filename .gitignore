@@ -383,3 +383,7 @@ FodyWeavers.xsd
 *.db-shm
 *.db-wal
 *dotnet-tools.json
+
+# Runtime-Verzeichnisse der automatischen Programmupdates
+/VideoWebPlayer/Updates/
+/VideoWebPlayer/Backups/

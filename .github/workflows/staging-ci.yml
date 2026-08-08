@@ -184,7 +184,7 @@ jobs:
 
       - name: Ensure main branch is up to date
         run: |
-          git fetch origin main:main --depth=0
+          git fetch origin main --no-tags
           git checkout main
           git pull origin main
           git checkout staging

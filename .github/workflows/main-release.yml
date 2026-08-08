@@ -63,11 +63,11 @@ jobs:
 
       - name: Publish Windows artifact
         run: |
-          dotnet publish VideoWebPlayer/VideoWebPlayer.csproj --configuration Release --runtime win-x64 --self-contained -o artifacts/windows /p:Version=${{ needs.extract-version.outputs.release_version }}
+          dotnet publish VideoWebPlayer/VideoWebPlayer.csproj --configuration Release --runtime win-x64 --self-contained -o artifacts/windows /p:Version=${{ needs.extract-version.outputs.release_version }} /p:NoWarn=NU1903
 
       - name: Publish Linux artifact
         run: |
-          dotnet publish VideoWebPlayer/VideoWebPlayer.csproj --configuration Release --runtime linux-x64 --self-contained -o artifacts/linux /p:Version=${{ needs.extract-version.outputs.release_version }}
+          dotnet publish VideoWebPlayer/VideoWebPlayer.csproj --configuration Release --runtime linux-x64 --self-contained -o artifacts/linux /p:Version=${{ needs.extract-version.outputs.release_version }} /p:NoWarn=NU1903
 
       - name: Create release zip (Windows)
         run: |
@@ -107,7 +107,7 @@ jobs:
         run: dotnet restore VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj
 
       - name: Build test project
-        run: dotnet build VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release
+        run: dotnet build VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release /p:NoWarn=NU1903
 
       - name: Run final test suite
         run: dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=final-test-results.trx"

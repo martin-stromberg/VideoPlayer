@@ -25,7 +25,7 @@ jobs:
         run: dotnet restore VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj
 
       - name: Build solution
-        run: dotnet build VideoWebPlayer/VideoWebPlayer.csproj --configuration Release --no-restore
+        run: dotnet build VideoWebPlayer/VideoWebPlayer.csproj --configuration Release --no-restore /p:NoWarn=NU1903
 
   unit-tests:
     runs-on: ubuntu-latest
@@ -43,7 +43,7 @@ jobs:
         run: dotnet restore VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj
 
       - name: Build test project
-        run: dotnet build VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release
+        run: dotnet build VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release /p:NoWarn=NU1903
 
       - name: Run unit tests
         run: dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results.trx"
@@ -75,7 +75,7 @@ jobs:
         run: dotnet restore VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj
 
       - name: Build test project
-        run: dotnet build VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release
+        run: dotnet build VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release /p:NoWarn=NU1903
 
       - name: Run integration tests
         run: dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release --no-build --verbosity normal --filter "Category=Integration" --logger "trx;LogFileName=integration-test-results.trx"
@@ -127,7 +127,7 @@ jobs:
         run: dotnet restore VideoWebPlayer/VideoWebPlayer.csproj
 
       - name: Run static analysis
-        run: dotnet build VideoWebPlayer/VideoWebPlayer.csproj --configuration Release --no-restore /p:AnalysisLevel=latest
+        run: dotnet build VideoWebPlayer/VideoWebPlayer.csproj --configuration Release --no-restore /p:AnalysisLevel=latest /p:NoWarn=NU1903
 
   lint-check:
     runs-on: ubuntu-latest

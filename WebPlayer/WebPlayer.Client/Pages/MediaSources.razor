@@ -1,12 +1,14 @@
 ﻿@page "/MediaSources"
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
 @using System.Text.Json
 @using WebPlayer.Client.Services
 @using WebPlayer.Data
 @using WebPlayerApi.Models
-@attribute [Authorize]
+@attribute [Authorize(Roles = "admin")]
 @inject IAPIClient apiClient;
 @inject IMediaDirectoryAccessApi userAPI;
+@inject AuthenticationStateProvider AuthStateProvider;
 @rendermode InteractiveWebAssembly
 <h3>Administration</h3>
 
@@ -170,7 +172,32 @@
             message = ex.Message;
         }
     }
-    
+
+    private async Task ResetScanStatus(MediaDirectory source)
+    {
+        try
+        {
+            if (await apiClient.ForceReloadSourceAsync(source.Id))
+            {
+                message = $"Scan für Quelle '{source.Name}' wurde zurückgesetzt und wird neu gestartet.";
+                var existing = _sources.FirstOrDefault(s => s.Id == source.Id);
+                if (existing is not null)
+                {
+                    existing.LastScan = DateTime.MinValue;
+                }
+            }
+            else
+            {
+                message = "Fehler beim Zurücksetzen des Scanstatus.";
+            }
+        }
+        catch (Exception ex)
+        {
+            message = $"Fehler: {ex.Message}";
+        }
+        StateHasChanged();
+    }
+
 }
 
 @if (!string.IsNullOrWhiteSpace(message))
@@ -278,6 +305,7 @@
                 <td>
                     <button class="btn btn-sm btn-warning me-2" @onclick="() => EditSource(source)">Bearbeiten</button>
                     <button class="btn btn-sm btn-info me-2" @onclick="() => ManageAccess(source)">Zugriff</button>
+                    <button class="btn btn-sm btn-success me-2" @onclick="() => ResetScanStatus(source)">Scan neu starten</button>
                     <button class="btn btn-sm btn-danger" @onclick="() => DeleteSource(source)">Löschen</button>
                 </td>
             </tr>

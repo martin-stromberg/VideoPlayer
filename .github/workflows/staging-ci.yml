@@ -177,8 +177,8 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add .
-          git commit -m "chore: bump version to ${{ steps.version_bump.outputs.new_version }} [skip ci]"
-          git push
+          git commit -m "chore: bump version to ${{ steps.version_bump.outputs.new_version }} [skip ci]" || true
+        continue-on-error: true
 
   create-prerelease:
     runs-on: ubuntu-latest

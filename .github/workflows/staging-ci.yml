@@ -182,6 +182,13 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Ensure main branch is up to date
+        run: |
+          git fetch origin main:main --depth=0
+          git checkout main
+          git pull origin main
+          git checkout staging
+
       - name: Create PR to main
         uses: peter-evans/create-pull-request@v6
         with:

@@ -44,7 +44,7 @@ jobs:
         run: dotnet restore VideoWebPlayer/VideoWebPlayer.csproj
 
       - name: Build solution
-        run: dotnet build VideoWebPlayer/VideoWebPlayer.csproj --configuration Release --no-restore
+        run: dotnet build VideoWebPlayer/VideoWebPlayer.csproj --configuration Release --no-restore /p:NoWarn=NU1903
 
       - name: Update version to release version
         run: |

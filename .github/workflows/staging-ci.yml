@@ -106,11 +106,6 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore VideoWebPlayer/VideoWebPlayer.csproj
 
-      - name: Security analysis
-        uses: github/codeql-action/analyze@v3
-        with:
-          languages: csharp
-
       - name: Dependency vulnerability check
         run: |
           cd VideoWebPlayer

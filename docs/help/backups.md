@@ -10,7 +10,7 @@ Nur angemeldete Benutzer mit Administrationsrechten können die Seite und die Ba
 
 ## Manuelles Backup
 
-Mit `Backup erstellen` wird sofort ein neues Backup erzeugt. Das Backup enthält die Daten aus der Anwendungsdatenbank inklusive Benutzer- und Identity-Daten. Genre-Icons aus `wwwroot/images/genres` werden mitgesichert, wenn das Verzeichnis vorhanden ist.
+Mit `Backup erstellen` wird ein neues Backup im Hintergrund gestartet. Die Seite zeigt den Status des laufenden Backups an und aktualisiert ihn automatisch. Das Backup enthält die Daten aus der Anwendungsdatenbank inklusive Benutzer- und Identity-Daten. Genre-Icons aus `wwwroot/images/genres` werden mitgesichert, wenn das Verzeichnis vorhanden ist.
 
 Manuell erstellte Backups werden nicht automatisch durch die GVS-Aufbewahrung gelöscht.
 
@@ -51,7 +51,9 @@ Ein Restore ersetzt die aktuellen Anwendungsdaten durch die Daten aus dem ausgew
 1. Das Wiederherstellen-Symbol beim gewünschten Backup auswählen.
 2. Die Sicherheitsabfrage aktiv bestätigen und `Restore starten` ausführen.
 
-Während des Restores werden schreibende Hintergrundprozesse in der Anwendung pausiert oder am Start neuer Schreiboperationen gehindert. Laufende Operationen werden abgewartet, bevor Daten gelöscht und aus dem Backup wiederhergestellt werden.
+Der Restore läuft im Hintergrund. Die Backup-Seite zeigt währenddessen den Fortschritt zweistufig an: aktueller Datenbestand `w von x` und aktueller Datensatz `y von z`.
+
+Während des Restores werden schreibende Hintergrundprozesse in der Anwendung pausiert oder am Start neuer Schreiboperationen gehindert. Laufende Operationen werden abgewartet, bevor Daten gelöscht und aus dem Backup wiederhergestellt werden. Inhaltsseiten werden während der Wiederherstellung nicht regulär geladen. API-Anfragen auf Inhaltsdaten erhalten stattdessen eine Statusantwort mit Hinweis auf den laufenden Restore.
 
 ## Admin-Konto-Erhalt
 
@@ -69,7 +71,7 @@ Die Seite zeigt eine Historie der letzten Backup-, Restore- und Löschaktionen. 
 ## Bekannte technische Hinweise
 
 - Gesichert werden Datenbankdaten und optionale Genre-Icons. Echte Mediendateien aus Medienquellen, Logs, Demo-/Seed-Dateien und externe Speicherorte werden nicht gesichert.
-- Das Backup-Format ist ein ZIP mit `manifest.json`, `data.json` und optionalen Dateien unter `files/`.
+- Das Backup-Format ist ein ZIP mit `manifest.json`, `index.json`, Entitätsdateien unter `entities/` und optionalen Dateien unter `files/`.
 - Hochgeladene ZIPs werden gegen ungültige Manifestdaten und unsichere Pfade validiert.
 - Die Restore-Sperre wirkt innerhalb der laufenden Anwendung. Sie ist keine Cluster- oder Mehrprozess-Sperre für mehrere App-Instanzen.
 - Backups sind nicht verschlüsselt und nicht passwortgeschützt. Der Speicherpfad sollte entsprechend geschützt werden.

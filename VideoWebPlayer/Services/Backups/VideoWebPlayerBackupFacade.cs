@@ -62,10 +62,15 @@ public sealed class VideoWebPlayerBackupFacade
     /// <summary>
     /// Restores a backup and records history.
     /// </summary>
-    public async Task<BackupOperationResult> RestoreAsync(string fileName, string? userId, bool confirmRestore, CancellationToken cancellationToken = default)
+    public async Task<BackupOperationResult> RestoreAsync(
+        string fileName,
+        string? userId,
+        bool confirmRestore,
+        IProgress<BackupRestoreProgress>? progress = null,
+        CancellationToken cancellationToken = default)
     {
         var started = DateTime.UtcNow;
-        var result = await _backupService.RestoreBackupAsync(new BackupRestoreRequest(fileName, userId, confirmRestore), cancellationToken);
+        var result = await _backupService.RestoreBackupAsync(new BackupRestoreRequest(fileName, userId, confirmRestore, progress), cancellationToken);
         await _historyService.AddAsync("Restore", result, userId, started, cancellationToken);
         return result;
     }

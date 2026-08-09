@@ -85,6 +85,42 @@ public sealed class VideoWebPlayerBackupDataProviderTests
     }
 
     [Fact]
+    public async Task RestoreAsync_ReportsDataSetAndRecordProgress()
+    {
+        using var temp = new TempDirectory();
+        await using var sourceConnection = new SqliteConnection("Data Source=:memory:");
+        await sourceConnection.OpenAsync(TestContext.Current.CancellationToken);
+        await using var sourceDb = CreateDb(sourceConnection);
+        await sourceDb.Database.EnsureCreatedAsync(TestContext.Current.CancellationToken);
+        sourceDb.MediaSources.AddRange(
+            new MediaSource { Id = 101, Name = "Source A", Path = "/source-a", Host = "localhost", Port = 22 },
+            new MediaSource { Id = 102, Name = "Source B", Path = "/source-b", Host = "localhost", Port = 22 });
+        await sourceDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        await using var exported = await ExportProviderPayloadAsync(
+            CreateProvider(sourceDb, temp.Path),
+            TestContext.Current.CancellationToken);
+
+        await using var targetConnection = new SqliteConnection("Data Source=:memory:");
+        await targetConnection.OpenAsync(TestContext.Current.CancellationToken);
+        await using var targetDb = CreateDb(targetConnection);
+        await targetDb.Database.EnsureCreatedAsync(TestContext.Current.CancellationToken);
+        var progress = new CapturingProgress();
+
+        await CreateProvider(targetDb, temp.Path).RestoreAsync(
+            exported.Index,
+            new BackupRestoreContext(null, exported.OpenAsync, progress),
+            TestContext.Current.CancellationToken);
+
+        Assert.Contains(progress.Values, x =>
+            x.DataSetName == "MediaSources"
+            && x.DataSetNumber > 0
+            && x.DataSetTotal >= x.DataSetNumber
+            && x.RecordNumber == 2
+            && x.RecordTotal == 2);
+    }
+
+    [Fact]
     public async Task RestoreAsync_PreservesExecutingAdminWhenBackupDoesNotContainUser()
     {
         using var temp = new TempDirectory();
@@ -112,6 +148,62 @@ public sealed class VideoWebPlayerBackupDataProviderTests
         var admin = await targetDb.Users.SingleAsync(x => x.Id == "admin", TestContext.Current.CancellationToken);
         Assert.True(admin.IsAdmin);
         Assert.Equal(string.Empty, admin.Sources);
+    }
+
+    [Fact]
+    public async Task RestoreAsync_MapsRestoredUserConflictingWithExecutingAdminUserName()
+    {
+        using var temp = new TempDirectory();
+        await using var payloadConnection = new SqliteConnection("Data Source=:memory:");
+        await payloadConnection.OpenAsync(TestContext.Current.CancellationToken);
+        await using var payloadDb = CreateDb(payloadConnection);
+        await payloadDb.Database.EnsureCreatedAsync(TestContext.Current.CancellationToken);
+        payloadDb.Users.Add(new ApplicationUser
+        {
+            Id = "backup-user",
+            UserName = "admin@example.test",
+            NormalizedUserName = "ADMIN@EXAMPLE.TEST",
+            Email = "admin@example.test",
+            NormalizedEmail = "ADMIN@EXAMPLE.TEST",
+            Sources = "[101]",
+            IsAdmin = false
+        });
+        payloadDb.MediaSources.Add(new MediaSource { Id = 101, Name = "Source", Path = "/source", Host = "localhost", Port = 22 });
+        payloadDb.MediaSourceUsers.Add(new MediaSourceUser { MediaSourceId = 101, UserId = "backup-user" });
+        await payloadDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+        await using var payload = await ExportProviderPayloadAsync(
+            CreateProvider(payloadDb, temp.Path),
+            TestContext.Current.CancellationToken);
+
+        await using var targetConnection = new SqliteConnection("Data Source=:memory:");
+        await targetConnection.OpenAsync(TestContext.Current.CancellationToken);
+        await using var targetDb = CreateDb(targetConnection);
+        await targetDb.Database.EnsureCreatedAsync(TestContext.Current.CancellationToken);
+        targetDb.Users.Add(new ApplicationUser
+        {
+            Id = "admin",
+            UserName = "admin@example.test",
+            NormalizedUserName = "ADMIN@EXAMPLE.TEST",
+            Email = "admin@example.test",
+            NormalizedEmail = "ADMIN@EXAMPLE.TEST",
+            IsAdmin = true,
+            Sources = "[1]"
+        });
+        await targetDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        await CreateProvider(targetDb, temp.Path).RestoreAsync(
+            payload.Index,
+            new BackupRestoreContext("admin", payload.OpenAsync),
+            TestContext.Current.CancellationToken);
+
+        targetDb.ChangeTracker.Clear();
+        var admin = await targetDb.Users.SingleAsync(TestContext.Current.CancellationToken);
+        Assert.Equal("admin", admin.Id);
+        Assert.True(admin.IsAdmin);
+        Assert.Equal("[101]", admin.Sources);
+        var mediaSourceUser = await targetDb.MediaSourceUsers.SingleAsync(TestContext.Current.CancellationToken);
+        Assert.Equal("admin", mediaSourceUser.UserId);
+        Assert.Equal(101, mediaSourceUser.MediaSourceId);
     }
 
     [Fact]
@@ -373,6 +465,16 @@ public sealed class VideoWebPlayerBackupDataProviderTests
         {
             Index.Dispose();
             return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class CapturingProgress : IProgress<BackupRestoreProgress>
+    {
+        public List<BackupRestoreProgress> Values { get; } = new();
+
+        public void Report(BackupRestoreProgress value)
+        {
+            Values.Add(value);
         }
     }
 

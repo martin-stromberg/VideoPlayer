@@ -29,4 +29,17 @@ public sealed class BackupsControllerAuthorizationTests
             .Single();
         Assert.Equal("download/{fileName}", httpGet.Template);
     }
+
+    [Fact]
+    public void CreateEndpoint_UsesServerSidePostWithAntiforgeryValidation()
+    {
+        var method = typeof(BackupsController).GetMethod(nameof(BackupsController.Create));
+
+        Assert.NotNull(method);
+        var httpPost = method.GetCustomAttributes(typeof(HttpPostAttribute), inherit: true)
+            .OfType<HttpPostAttribute>()
+            .Single();
+        Assert.Equal("create", httpPost.Template);
+        Assert.Contains(method.GetCustomAttributes(typeof(ValidateAntiForgeryTokenAttribute), inherit: true), x => x is ValidateAntiForgeryTokenAttribute);
+    }
 }

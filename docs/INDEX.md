@@ -50,6 +50,15 @@ Dedizierte Dokumentationen für einzelne Komponenten befinden sich direkt bei de
 - `VideoWebPlayer.Maui/Services/Events/README.md` - Event-System Details
 - `VideoWebPlayer.Maui/Components/NotificationTicker.README.md` - Ticker-Komponente
 
+## 🛠️ Administrationshilfen
+
+Diese Dokumente beschreiben Bedienabläufe für Administratoren.
+
+| Dokument | Beschreibung | Status |
+|----------|--------------|--------|
+| [Backups](./help/backups.md) | Backup-Erstellung, Restore, Upload, Download, Löschung und GVS-Aufbewahrung | ✅ Vollständig |
+| [Updates](./help/updates.md) | Update-Status, manuelle Prüfung/Installation, automatische Installation, Prerelease-Freigabe und Backup vor Installation | ✅ Vollständig |
+
 ## 📖 Legende
 
 | Symbol | Bedeutung |

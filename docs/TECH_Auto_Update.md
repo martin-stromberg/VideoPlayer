@@ -24,6 +24,35 @@ Registriert wird der Updater über `builder.AddVideoWebPlayerAutoUpdate()`
 gebunden werden kann: die GitHub-Quelle (`martin-stromberg/VideoPlayer`) und der systemd-Unit-Name
 `VideoWebPlayer-AutoUpdate`.
 
+## Admin-Oberfläche
+
+Administratoren verwalten Updates unter `/admin/updates`. Die Seite ist wie die übrigen Adminseiten über den
+Claim `IsAdmin=True` sichtbar und die serverseitigen Aktionsendpunkte sind zusätzlich mit der Policy
+`AdminOnly` geschützt.
+
+Die Oberfläche zeigt den aktuellen `msTools.Updater`-Status mit installierter und verfügbarer Version, letzter
+Prüfung, Download-/Installationsdetails, Sperrinformationen und Fehlern. Die Buttons lösen eine sofortige
+Prüfung oder eine Installation der bekannten neuen Version aus. Während laufender Aktionen oder bei aktivem
+Updater-Lock werden manuelle Aktionen server- und clientseitig blockiert.
+
+Beim Aktivieren von Prerelease-Versionen muss die Sicherheitsabfrage in der Seite bestätigt werden. Ohne diese
+Bestätigung wird die Einstellung nicht gespeichert.
+
+## Persistente Update-Einstellungen
+
+Die Tabelle `UpdateSettings` speichert die administrativ änderbaren Updatewerte. `appsettings.json` liefert nur
+Initialwerte, solange noch keine DB-Zeile existiert. Änderungen aus der UI werden unmittelbar in die
+runtime-mutierbaren `AutoUpdateOptions` übertragen:
+
+- automatische Prüfung und Prüfintervall,
+- Prerelease-Akzeptanz,
+- automatische Installation und automatischer Download,
+- Dienstname für den Neustart,
+- Backup vor Installation, Abbruch bei Backupfehler und Update-Backup-Aufbewahrung.
+
+Die EF-Migration `AddUpdateSettings` liegt regulär unter `VideoWebPlayer/Migrations/`. Die neue Programmversion
+wendet sie beim Start über `app.MigrateDatabase()` an.
+
 ## Konfiguration (appsettings.json)
 
 ```json
@@ -54,7 +83,7 @@ gebunden werden kann: die GitHub-Quelle (`martin-stromberg/VideoPlayer`) und der
 | `DownloadPath` | Ablage für Update-Pakete, Status- und Lock-Dateien (relativ zum Content-Root). |
 | `SourceCheck.Interval` | Prüfintervall in Minuten; optional zusätzlich `SourceCheck.TimeRanges`. |
 | `Backup.Path` | Ablageort der Sicherungen (relativ zum Content-Root oder absoluter Pfad). |
-| `Backup.RetainedBackupCount` | Anzahl der aufbewahrten Sicherungen; ältere werden nach einer neuen Sicherung gelöscht (`0` = alle behalten). |
+| `Backup.RetainedBackupCount` | Anzahl der aufbewahrten Sicherungen der Generation `ProgramUpdate` in der bestehenden Backup-Infrastruktur. |
 | `Backup.CancelInstallationOnFailure` | Bricht die Installation ab, wenn die Sicherung fehlschlägt oder kein Backup-Dienst registriert ist. |
 
 Zusätzlich unterstützt die Bibliothek u. a. `ServiceName`, `ExecutablePath`, `ScheduledInstallTime`,
@@ -68,18 +97,18 @@ Zusätzlich unterstützt die Bibliothek u. a. `ServiceName`, `ExecutablePath`, `
 1. Ist `Backup.Enabled` false, wird die Installation ohne Sicherung fortgesetzt.
 2. Andernfalls wird ein optional registrierter `IUpdateBackupService` aufgelöst, das Zielverzeichnis erzeugt und
    der Export angefordert.
-3. Nach einer erfolgreichen Sicherung werden die ältesten Dateien im Zielverzeichnis gelöscht, bis nur noch
-   `RetainedBackupCount` Dateien vorhanden sind.
+3. Die Retention erfolgt durch die verwendete Backup-Infrastruktur. Der Coordinator löscht keine Dateien pauschal
+   im konfigurierten Zielverzeichnis.
 4. Schlägt die Sicherung fehl (oder ist kein `IUpdateBackupService` registriert), wird die Installation bei
    `CancelInstallationOnFailure` abgebrochen (`args.Cancel = true`).
 
-`IUpdateBackupService` ist der Anschlusspunkt für die Backup-Funktionalität aus Issue #77
-(`msTools.Backup`). Solange keine Implementierung registriert ist, protokolliert die Anwendung eine Warnung und
-installiert – bei Standardkonfiguration – kein Update.
-
-```csharp
-builder.Services.AddScoped<IUpdateBackupService, MyBackupService>();
-```
+`VideoWebPlayerUpdateBackupService` ist als `IUpdateBackupService` registriert und nutzt dieselbe
+`msTools.Backup.IBackupService`-Infrastruktur wie das manuelle Web-Backup. Das Backup wird mit der Generation
+`ProgramUpdate` erstellt, in der Backup-Historie als `ProgramUpdateBackup` protokolliert und anschließend über
+die bestehende Backup-Retention bereinigt. `RetainedUpdateBackupCount` aus den Update-Einstellungen wird dabei
+auf `BackupRetentionOptions.ProgramUpdateCount` gemappt; `Manual`- und Upload-Backups bleiben davon unberührt.
+Schlägt das Backup fehl, bricht die Installation bei aktivierter
+Option `CancelInstallationOnFailure` ab und der Fehler wird im Updater-Status sichtbar.
 
 ## Release-Artefakte
 

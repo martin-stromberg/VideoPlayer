@@ -8,7 +8,7 @@ namespace VideoWebPlayer.Services.Updates;
 public interface IUpdateBackupService
 {
     /// <summary>
-    /// Creates a full data export inside the requested directory.
+    /// Creates a full data export for the requested update event.
     /// </summary>
     /// <param name="request">Describes where the backup is stored and which update triggered it.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
@@ -19,7 +19,7 @@ public interface IUpdateBackupService
 /// <summary>
 /// Describes a requested backup.
 /// </summary>
-/// <param name="TargetDirectory">The absolute directory the backup file must be created in. It exists when the request is issued.</param>
+/// <param name="TargetDirectory">The absolute directory for providers that write update backups themselves. It exists when the request is issued. Providers that delegate to an existing backup infrastructure may ignore it.</param>
 /// <param name="Reason">A short, human readable description of what triggered the backup.</param>
 public sealed record UpdateBackupRequest(string TargetDirectory, string Reason);
 

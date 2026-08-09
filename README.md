@@ -81,6 +81,7 @@
 
 #### Administration
 - ✅ Administrative Backup-Verwaltung mit Hintergrund-Backups, Hintergrund-Restore mit Fortschritt, automatischer GVS-Aufbewahrung, Upload, Download und Löschen
+- ✅ Administrative Update-Verwaltung mit persistenten Update-Einstellungen, manueller Prüfung/Installation, Prerelease-Sicherheitsabfrage und Backup vor der Installation
 
 ### Frontend (.NET MAUI App)
 
@@ -246,6 +247,8 @@ VideoWebPlayer.sln
 | [MediaElement Error Handling](./Docs/TECH_MediaElement_Error_Handling.md) | Video-Player Fehlerbehandlung |
 | [Notification Ticker](./Docs/TECH_Notification_Ticker.md) | Footer-Lauftext-Komponente |
 | [Backups](./docs/help/backups.md) | Administrative Backup-Verwaltung, automatische GVS-Backups, Hintergrund-Restore und Inhaltsblockade während Wiederherstellung |
+| [Updates](./docs/help/updates.md) | Administrative Update-Verwaltung, manuelle Prüfung und Installation, Prerelease-Freigabe und Backup vor Installation |
+| [Automatisierte Programmupdates](./docs/TECH_Auto_Update.md) | Update-Admin-UI, automatische Installation, Prerelease-Warnung, Backup vor Installation und EF-Migration |
 
 ### 📋 API-Dokumentation
 

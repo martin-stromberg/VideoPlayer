@@ -23,8 +23,7 @@ public sealed class UpdateBackupOptions
     public string Path { get; set; } = "Backups";
 
     /// <summary>
-    /// Gets or sets the number of backups kept in <see cref="Path"/>. Older backups are deleted after a new
-    /// backup has been created. A value of zero or less keeps all backups.
+    /// Gets or sets the number of program update backups retained by the backup infrastructure.
     /// </summary>
     public int RetainedBackupCount { get; set; } = 5;
 

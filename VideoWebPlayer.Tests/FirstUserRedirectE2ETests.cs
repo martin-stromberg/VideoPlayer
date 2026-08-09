@@ -56,6 +56,24 @@ public sealed class FirstUserRedirectE2ETests : IDisposable
         Assert.Contains("/admin/backups", decodedQuery);
     }
 
+    [Fact]
+    public async Task HomePage_WithoutUsers_RedirectsToRegisterPreservingReturnUrl()
+    {
+        var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("text/html"));
+
+        var response = await client.GetAsync("/");
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var location = response.Headers.Location;
+        Assert.NotNull(location);
+        Assert.Equal("/Account/Register", location.AbsolutePath);
+
+        var decodedQuery = System.Net.WebUtility.UrlDecode(location.Query);
+        Assert.Contains("ReturnUrl=", decodedQuery);
+        Assert.EndsWith("/", decodedQuery);
+    }
+
     public void Dispose()
     {
         _factory.Dispose();

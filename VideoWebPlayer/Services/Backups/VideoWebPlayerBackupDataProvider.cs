@@ -94,6 +94,7 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
             throw new InvalidDataException(string.Join(" ", validation.Errors));
 
         var tables = GetTables();
+        ReportRestoreProgress(context, null, 0, tables.Count, 0, 0, "Restore wird vorbereitet.");
         var tableMap = tables.ToDictionary(x => x.Name, StringComparer.OrdinalIgnoreCase);
         var connection = _db.Database.GetDbConnection();
         await EnsureOpenAsync(connection, cancellationToken);
@@ -121,15 +122,31 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
             foreach (var table in tables.AsEnumerable().Reverse())
                 await ExecuteNonQueryAsync(connection, dbTransaction, $"DELETE FROM {QuoteTable(table)};", cancellationToken);
 
-            foreach (var table in tables)
+            for (var tableIndex = 0; tableIndex < tables.Count; tableIndex++)
             {
+                var table = tables[tableIndex];
+                var dataSetNumber = tableIndex + 1;
                 var tablePayload = payload.Tables.FirstOrDefault(x => string.Equals(x.Name, table.Name, StringComparison.OrdinalIgnoreCase));
                 if (tablePayload is null)
                     continue;
 
+                ReportRestoreProgress(context, table.Name, dataSetNumber, tables.Count, 0, 0, "Datenbestand wird gelesen.");
                 var tableData = await ReadTablePayloadAsync(tablePayload, context.OpenPayloadEntryAsync, cancellationToken);
-                foreach (var row in tableData.Rows)
+                var rows = tableData.Rows ?? new List<Dictionary<string, JsonElement?>>();
+                ReportRestoreProgress(context, table.Name, dataSetNumber, tables.Count, 0, rows.Count, "Datenbestand wird wiederhergestellt.");
+                for (var rowIndex = 0; rowIndex < rows.Count; rowIndex++)
+                {
+                    var row = rows[rowIndex];
                     await InsertRowAsync(connection, dbTransaction, table, tablePayload.Columns, row, cancellationToken);
+                    ReportRestoreProgress(
+                        context,
+                        table.Name,
+                        dataSetNumber,
+                        tables.Count,
+                        rowIndex + 1,
+                        rows.Count,
+                        "Datensatz wurde wiederhergestellt.");
+                }
             }
 
             if (!string.IsNullOrWhiteSpace(context.UserId) && tableMap.TryGetValue(UsersTableName, out usersTable))
@@ -142,6 +159,7 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
             await transaction.CommitAsync(cancellationToken);
             committed = true;
             stagedFiles.Accept();
+            ReportRestoreProgress(context, null, tables.Count, tables.Count, 0, 0, "Restore wurde abgeschlossen.");
         }
         catch
         {
@@ -159,6 +177,24 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
             if (sqlite)
                 await ExecuteNonQueryAsync(connection, null, "PRAGMA foreign_keys = ON;", cancellationToken);
         }
+    }
+
+    private static void ReportRestoreProgress(
+        BackupRestoreContext context,
+        string? dataSetName,
+        int dataSetNumber,
+        int dataSetTotal,
+        int recordNumber,
+        int recordTotal,
+        string message)
+    {
+        context.Progress?.Report(new BackupRestoreProgress(
+            dataSetName,
+            dataSetNumber,
+            dataSetTotal,
+            recordNumber,
+            recordTotal,
+            message));
     }
 
     private async Task<List<FilePayload>> ExportGenreIconFilesAsync(BackupExportContext context, CancellationToken cancellationToken)

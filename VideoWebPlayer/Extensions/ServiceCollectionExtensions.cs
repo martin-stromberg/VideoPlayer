@@ -222,6 +222,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAutomaticBackupRunner, VideoWebPlayerAutomaticBackupRunner>();
         services.AddScoped<VideoWebPlayerBackupFacade>();
         services.AddSingleton<ManualBackupJobService>();
+        services.AddSingleton<RestoreBackupJobService>();
         services.AddScoped<RecentEntryService>();
         services.AddTransient<IAuthService, AuthService>();
         services.AddHostedService<MediaSourceScanService>();

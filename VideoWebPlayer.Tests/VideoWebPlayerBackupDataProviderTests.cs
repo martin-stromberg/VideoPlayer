@@ -85,6 +85,42 @@ public sealed class VideoWebPlayerBackupDataProviderTests
     }
 
     [Fact]
+    public async Task RestoreAsync_ReportsDataSetAndRecordProgress()
+    {
+        using var temp = new TempDirectory();
+        await using var sourceConnection = new SqliteConnection("Data Source=:memory:");
+        await sourceConnection.OpenAsync(TestContext.Current.CancellationToken);
+        await using var sourceDb = CreateDb(sourceConnection);
+        await sourceDb.Database.EnsureCreatedAsync(TestContext.Current.CancellationToken);
+        sourceDb.MediaSources.AddRange(
+            new MediaSource { Id = 101, Name = "Source A", Path = "/source-a", Host = "localhost", Port = 22 },
+            new MediaSource { Id = 102, Name = "Source B", Path = "/source-b", Host = "localhost", Port = 22 });
+        await sourceDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        await using var exported = await ExportProviderPayloadAsync(
+            CreateProvider(sourceDb, temp.Path),
+            TestContext.Current.CancellationToken);
+
+        await using var targetConnection = new SqliteConnection("Data Source=:memory:");
+        await targetConnection.OpenAsync(TestContext.Current.CancellationToken);
+        await using var targetDb = CreateDb(targetConnection);
+        await targetDb.Database.EnsureCreatedAsync(TestContext.Current.CancellationToken);
+        var progress = new CapturingProgress();
+
+        await CreateProvider(targetDb, temp.Path).RestoreAsync(
+            exported.Index,
+            new BackupRestoreContext(null, exported.OpenAsync, progress),
+            TestContext.Current.CancellationToken);
+
+        Assert.Contains(progress.Values, x =>
+            x.DataSetName == "MediaSources"
+            && x.DataSetNumber > 0
+            && x.DataSetTotal >= x.DataSetNumber
+            && x.RecordNumber == 2
+            && x.RecordTotal == 2);
+    }
+
+    [Fact]
     public async Task RestoreAsync_PreservesExecutingAdminWhenBackupDoesNotContainUser()
     {
         using var temp = new TempDirectory();
@@ -373,6 +409,16 @@ public sealed class VideoWebPlayerBackupDataProviderTests
         {
             Index.Dispose();
             return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class CapturingProgress : IProgress<BackupRestoreProgress>
+    {
+        public List<BackupRestoreProgress> Values { get; } = new();
+
+        public void Report(BackupRestoreProgress value)
+        {
+            Values.Add(value);
         }
     }
 

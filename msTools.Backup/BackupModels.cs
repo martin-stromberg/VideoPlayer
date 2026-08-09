@@ -100,14 +100,30 @@ public sealed record BackupCreateRequest(BackupGeneration Generation, string App
 /// <summary>
 /// Describes a restore request.
 /// </summary>
-public sealed record BackupRestoreRequest(string FileName, string? UserId, bool ConfirmRestore);
+public sealed record BackupRestoreRequest(
+    string FileName,
+    string? UserId,
+    bool ConfirmRestore,
+    IProgress<BackupRestoreProgress>? Progress = null);
 
 /// <summary>
 /// Contains host context for restore operations.
 /// </summary>
 public sealed record BackupRestoreContext(
     string? UserId,
-    Func<string, CancellationToken, Task<Stream>>? OpenPayloadEntryAsync = null);
+    Func<string, CancellationToken, Task<Stream>>? OpenPayloadEntryAsync = null,
+    IProgress<BackupRestoreProgress>? Progress = null);
+
+/// <summary>
+/// Describes two-level restore progress.
+/// </summary>
+public sealed record BackupRestoreProgress(
+    string? DataSetName,
+    int DataSetNumber,
+    int DataSetTotal,
+    int RecordNumber,
+    int RecordTotal,
+    string Message);
 
 /// <summary>
 /// Describes the result of a backup operation.

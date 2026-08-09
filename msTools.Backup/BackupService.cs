@@ -119,7 +119,8 @@ public sealed class BackupService : IBackupService
                 dataStream,
                 new BackupRestoreContext(
                     request.UserId,
-                    (entryName, token) => OpenPayloadEntryAsync(archive, entryName, token)),
+                    (entryName, token) => OpenPayloadEntryAsync(archive, entryName, token),
+                    request.Progress),
                 cancellationToken);
 
             var descriptor = (await _store.ListAsync(cancellationToken))

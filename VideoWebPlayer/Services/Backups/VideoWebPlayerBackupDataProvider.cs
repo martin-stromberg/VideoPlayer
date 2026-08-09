@@ -41,73 +41,55 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
     /// <inheritdoc />
     public async Task ExportAsync(Stream target, BackupExportContext context, CancellationToken cancellationToken)
     {
-        var payload = new DatabaseBackupPayload
+        var index = new DatabaseBackupIndex
         {
             ProviderId = ProviderId,
             SchemaVersion = CurrentSchemaVersion,
             CreatedAtUtc = context.CreatedAtUtc,
-            Tables = new List<TablePayload>(),
+            Tables = new List<TableIndex>(),
             Files = await ExportGenreIconFilesAsync(context, cancellationToken)
         };
 
-        var connection = _db.Database.GetDbConnection();
-        await EnsureOpenAsync(connection, cancellationToken);
-
         foreach (var table in GetTables())
         {
-            var tablePayload = new TablePayload
+            var entryName = CreateEntityEntryName(table);
+            index.Tables.Add(new TableIndex
             {
                 Name = table.Name,
                 Schema = table.Schema,
-                Columns = table.Columns.Select(x => x.Name).ToList()
-            };
+                Columns = table.Columns.Select(x => x.Name).ToList(),
+                EntryName = entryName
+            });
 
-            await using var command = connection.CreateCommand();
-            command.CommandText = $"SELECT {string.Join(", ", table.Columns.Select(x => QuoteIdentifier(x.Name)))} FROM {QuoteTable(table)}";
-            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-            while (await reader.ReadAsync(cancellationToken))
-            {
-                var row = new Dictionary<string, JsonElement?>(StringComparer.OrdinalIgnoreCase);
-                for (var i = 0; i < table.Columns.Count; i++)
-                {
-                    var value = await reader.IsDBNullAsync(i, cancellationToken)
-                        ? null
-                        : reader.GetValue(i);
-                    row[table.Columns[i].Name] = value is null
-                        ? null
-                        : JsonSerializer.SerializeToElement(value, value.GetType(), JsonOptions);
-                }
-
-                tablePayload.Rows.Add(row);
-            }
-
-            payload.Tables.Add(tablePayload);
+            context.FileAttachments.Add(new BackupFileAttachment(
+                entryName,
+                (stream, token) => WriteTablePayloadAsync(stream, table, token)));
         }
 
-        await JsonSerializer.SerializeAsync(target, payload, JsonOptions, cancellationToken);
+        await JsonSerializer.SerializeAsync(target, index, JsonOptions, cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<BackupValidationResult> ValidateAsync(Stream source, CancellationToken cancellationToken)
+    public async Task<BackupValidationResult> ValidateAsync(Stream source, BackupValidationContext context, CancellationToken cancellationToken)
     {
         try
         {
-            var payload = await JsonSerializer.DeserializeAsync<DatabaseBackupPayload>(source, JsonOptions, cancellationToken);
-            return ValidatePayload(payload);
+            var index = await JsonSerializer.DeserializeAsync<DatabaseBackupIndex>(source, JsonOptions, cancellationToken);
+            return await ValidatePayloadAsync(index, context.OpenPayloadEntryAsync, cancellationToken);
         }
         catch (JsonException ex)
         {
-            return BackupValidationResult.Invalid($"data.json ist kein gültiges JSON: {ex.Message}");
+            return BackupValidationResult.Invalid($"index.json ist kein gültiges JSON: {ex.Message}");
         }
     }
 
     /// <inheritdoc />
     public async Task RestoreAsync(Stream source, BackupRestoreContext context, CancellationToken cancellationToken)
     {
-        var payload = await JsonSerializer.DeserializeAsync<DatabaseBackupPayload>(source, JsonOptions, cancellationToken)
-            ?? throw new InvalidDataException("data.json ist leer.");
+        var payload = await JsonSerializer.DeserializeAsync<DatabaseBackupIndex>(source, JsonOptions, cancellationToken)
+            ?? throw new InvalidDataException("index.json ist leer.");
 
-        var validation = ValidatePayload(payload);
+        var validation = await ValidatePayloadAsync(payload, context.OpenPayloadEntryAsync, cancellationToken);
         if (!validation.IsValid)
             throw new InvalidDataException(string.Join(" ", validation.Errors));
 
@@ -145,7 +127,8 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
                 if (tablePayload is null)
                     continue;
 
-                foreach (var row in tablePayload.Rows)
+                var tableData = await ReadTablePayloadAsync(tablePayload, context.OpenPayloadEntryAsync, cancellationToken);
+                foreach (var row in tableData.Rows)
                     await InsertRowAsync(connection, dbTransaction, table, tablePayload.Columns, row, cancellationToken);
             }
 
@@ -216,29 +199,80 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
         return files;
     }
 
-    private BackupValidationResult ValidatePayload(DatabaseBackupPayload? payload)
+    private async Task WriteTablePayloadAsync(Stream target, TableMetadata table, CancellationToken cancellationToken)
+    {
+        var connection = _db.Database.GetDbConnection();
+        await EnsureOpenAsync(connection, cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"SELECT {string.Join(", ", table.Columns.Select(x => QuoteIdentifier(x.Name)))} FROM {QuoteTable(table)}";
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        await using var writer = new Utf8JsonWriter(target, new JsonWriterOptions { Indented = true });
+        writer.WriteStartObject();
+        writer.WritePropertyName("rows");
+        writer.WriteStartArray();
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var row = new Dictionary<string, JsonElement?>(StringComparer.OrdinalIgnoreCase);
+            for (var i = 0; i < table.Columns.Count; i++)
+            {
+                var value = await reader.IsDBNullAsync(i, cancellationToken)
+                    ? null
+                    : reader.GetValue(i);
+                row[table.Columns[i].Name] = value is null
+                    ? null
+                    : JsonSerializer.SerializeToElement(value, value.GetType(), JsonOptions);
+            }
+
+            JsonSerializer.Serialize(writer, row, JsonOptions);
+        }
+
+        writer.WriteEndArray();
+        writer.WriteEndObject();
+        await writer.FlushAsync(cancellationToken);
+    }
+
+    private static async Task<TableDataPayload> ReadTablePayloadAsync(
+        TableIndex table,
+        Func<string, CancellationToken, Task<Stream>>? openPayloadEntryAsync,
+        CancellationToken cancellationToken)
+    {
+        if (openPayloadEntryAsync is null)
+            throw new InvalidDataException($"Entitätsdatei {table.EntryName} kann nicht geöffnet werden.");
+
+        await using var stream = await openPayloadEntryAsync(table.EntryName, cancellationToken);
+        return await JsonSerializer.DeserializeAsync<TableDataPayload>(stream, JsonOptions, cancellationToken)
+            ?? throw new InvalidDataException($"Entitätsdatei {table.EntryName} ist leer.");
+    }
+
+    private async Task<BackupValidationResult> ValidatePayloadAsync(
+        DatabaseBackupIndex? payload,
+        Func<string, CancellationToken, Task<Stream>>? openPayloadEntryAsync,
+        CancellationToken cancellationToken)
     {
         if (payload is null)
-            return BackupValidationResult.Invalid("data.json ist leer.");
+            return BackupValidationResult.Invalid("index.json ist leer.");
 
         var errors = new List<string>();
         if (!string.Equals(payload.ProviderId, ProviderId, StringComparison.Ordinal))
-            errors.Add("data.json gehört nicht zum VideoWebPlayer-Provider.");
+            errors.Add("index.json gehört nicht zum VideoWebPlayer-Provider.");
         if (payload.SchemaVersion != CurrentSchemaVersion)
             errors.Add($"Nicht unterstützte Daten-Schemaversion: {payload.SchemaVersion}.");
         if (payload.Tables is null)
-            errors.Add("data.json enthält keine Tabellenliste.");
+            errors.Add("index.json enthält keine Tabellenliste.");
         if (payload.Files is null)
-            errors.Add("data.json enthält keine Dateiliste.");
+            errors.Add("index.json enthält keine Dateiliste.");
 
         var expectedTables = GetTables();
         var expectedByName = expectedTables.ToDictionary(x => x.Name, StringComparer.OrdinalIgnoreCase);
-        var payloadByName = new Dictionary<string, TablePayload>(StringComparer.OrdinalIgnoreCase);
-        foreach (var table in payload.Tables ?? new List<TablePayload>())
+        var payloadByName = new Dictionary<string, TableIndex>(StringComparer.OrdinalIgnoreCase);
+        foreach (var table in payload.Tables ?? new List<TableIndex>())
         {
             if (string.IsNullOrWhiteSpace(table.Name))
             {
-                errors.Add("data.json enthält eine Tabelle ohne Namen.");
+                errors.Add("index.json enthält eine Tabelle ohne Namen.");
                 continue;
             }
 
@@ -256,8 +290,10 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
 
             if (table.Columns is null)
                 errors.Add($"Tabelle {table.Name} enthält keine Spaltenliste.");
-            if (table.Rows is null)
-                errors.Add($"Tabelle {table.Name} enthält keine Zeilenliste.");
+            if (!IsSafeEntityEntryName(table.EntryName))
+                errors.Add($"Entitätsdatei {table.EntryName} für Tabelle {table.Name} ist ungültig.");
+            if (!string.Equals(table.EntryName, CreateEntityEntryName(expected), StringComparison.Ordinal))
+                errors.Add($"Entitätsdatei {table.EntryName} passt nicht zu Tabelle {table.Name}.");
 
             var expectedColumns = expected.Columns.Select(x => x.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
             var actualColumns = (table.Columns ?? new List<string>()).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -266,7 +302,21 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
             foreach (var unexpected in actualColumns.Except(expectedColumns, StringComparer.OrdinalIgnoreCase))
                 errors.Add($"Spalte {expected.Name}.{unexpected} ist unbekannt.");
 
-            var rows = table.Rows ?? new List<Dictionary<string, JsonElement?>>();
+            if (errors.Count > 0 || openPayloadEntryAsync is null)
+                continue;
+
+            TableDataPayload tableData;
+            try
+            {
+                tableData = await ReadTablePayloadAsync(table, openPayloadEntryAsync, cancellationToken);
+            }
+            catch (Exception ex) when (ex is JsonException or IOException or InvalidDataException or FileNotFoundException)
+            {
+                errors.Add($"Entitätsdatei {table.EntryName} ist nicht lesbar: {ex.Message}");
+                continue;
+            }
+
+            var rows = tableData.Rows ?? new List<Dictionary<string, JsonElement?>>();
             for (var rowIndex = 0; rowIndex < rows.Count; rowIndex++)
             {
                 if (rows[rowIndex] is null)
@@ -280,6 +330,9 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
                     errors.Add($"Zeile {rowIndex + 1} in Tabelle {expected.Name} enthält unbekannte Spalte {unknown}.");
             }
         }
+
+        if ((payload.Tables ?? new List<TableIndex>()).Count > 0 && openPayloadEntryAsync is null)
+            errors.Add("Entitätsdateien können nicht geöffnet werden.");
 
         foreach (var unexpected in payloadByName.Keys.Except(expectedByName.Keys, StringComparer.OrdinalIgnoreCase))
             errors.Add($"Tabelle {unexpected} ist unbekannt.");
@@ -530,6 +583,28 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
         return parts.Length > 1 && parts.All(part => part != "." && part != "..");
     }
 
+    private static bool IsSafeEntityEntryName(string entryName)
+    {
+        if (string.IsNullOrWhiteSpace(entryName) || entryName.Contains(':') || entryName.Contains('\\') || !entryName.StartsWith("entities/", StringComparison.Ordinal))
+            return false;
+
+        var parts = entryName.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length > 1 && parts.All(part => part != "." && part != "..") && entryName.EndsWith(".json", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string CreateEntityEntryName(TableMetadata table)
+        => $"entities/{CreateSafeEntrySegment(table.Schema is null ? table.Name : $"{table.Schema}-{table.Name}")}.json";
+
+    private static string CreateSafeEntrySegment(string value)
+    {
+        var chars = value
+            .Select(ch => char.IsLetterOrDigit(ch) || ch is '-' or '_' or '.' ? ch : '-')
+            .ToArray();
+
+        var result = new string(chars).Trim('.', '-');
+        return string.IsNullOrWhiteSpace(result) ? "entity" : result;
+    }
+
     private List<TableMetadata> GetTables()
     {
         return _db.Model.GetEntityTypes()
@@ -562,20 +637,25 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
     private static string QuoteIdentifier(string identifier)
         => $"\"{identifier.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
 
-    private sealed class DatabaseBackupPayload
+    private sealed class DatabaseBackupIndex
     {
         public string ProviderId { get; set; } = string.Empty;
         public int SchemaVersion { get; set; }
         public DateTimeOffset CreatedAtUtc { get; set; }
-        public List<TablePayload> Tables { get; set; } = new();
+        public List<TableIndex> Tables { get; set; } = new();
         public List<FilePayload> Files { get; set; } = new();
     }
 
-    private sealed class TablePayload
+    private sealed class TableIndex
     {
         public string Name { get; set; } = string.Empty;
         public string? Schema { get; set; }
         public List<string> Columns { get; set; } = new();
+        public string EntryName { get; set; } = string.Empty;
+    }
+
+    private sealed class TableDataPayload
+    {
         public List<Dictionary<string, JsonElement?>> Rows { get; set; } = new();
     }
 

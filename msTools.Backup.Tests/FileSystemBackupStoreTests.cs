@@ -20,7 +20,7 @@ public sealed class FileSystemBackupStoreTests
         Assert.True(File.Exists(descriptor.Path));
         using var archive = ZipFile.OpenRead(descriptor.Path);
         Assert.NotNull(archive.GetEntry("manifest.json"));
-        Assert.NotNull(archive.GetEntry("data.json"));
+        Assert.NotNull(archive.GetEntry("index.json"));
     }
 
     [Fact]
@@ -43,7 +43,7 @@ public sealed class FileSystemBackupStoreTests
             TestContext.Current.CancellationToken);
 
         Assert.NotNull(manifest);
-        Assert.Contains("data.json", manifest.PayloadEntries);
+        Assert.Contains("index.json", manifest.PayloadEntries);
         Assert.Contains("files/icons/action.png", manifest.PayloadEntries);
     }
 
@@ -67,7 +67,7 @@ public sealed class FileSystemBackupStoreTests
         await using var stream = new MemoryStream();
         using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
         {
-            archive.CreateEntry("data.json");
+            archive.CreateEntry("index.json");
         }
 
         stream.Position = 0;
@@ -97,7 +97,7 @@ public sealed class FileSystemBackupStoreTests
                 }, cancellationToken: TestContext.Current.CancellationToken);
             }
 
-            var dataEntry = archive.CreateEntry("data.json");
+            var dataEntry = archive.CreateEntry("index.json");
             await using var data = dataEntry.Open();
             await data.WriteAsync(Encoding.UTF8.GetBytes("{}"), TestContext.Current.CancellationToken);
         }
@@ -130,7 +130,7 @@ public sealed class FileSystemBackupStoreTests
                 }, cancellationToken: TestContext.Current.CancellationToken);
             }
 
-            archive.CreateEntry("data.json");
+            archive.CreateEntry("index.json");
         }
 
         stream.Position = 0;
@@ -161,7 +161,7 @@ public sealed class FileSystemBackupStoreTests
                 }, cancellationToken: TestContext.Current.CancellationToken);
             }
 
-            archive.CreateEntry("data.json");
+            archive.CreateEntry("index.json");
             archive.CreateEntry("files/../evil.txt");
         }
 
@@ -266,7 +266,7 @@ public sealed class FileSystemBackupStoreTests
         public async Task ExportAsync(Stream target, BackupExportContext context, CancellationToken cancellationToken)
             => await target.WriteAsync(Encoding.UTF8.GetBytes("{\"ok\":true}"), cancellationToken);
 
-        public Task<BackupValidationResult> ValidateAsync(Stream source, CancellationToken cancellationToken)
+        public Task<BackupValidationResult> ValidateAsync(Stream source, BackupValidationContext context, CancellationToken cancellationToken)
             => Task.FromResult(BackupValidationResult.Valid);
 
         public Task RestoreAsync(Stream source, BackupRestoreContext context, CancellationToken cancellationToken)
@@ -280,7 +280,7 @@ public sealed class FileSystemBackupStoreTests
         public Task ExportAsync(Stream target, BackupExportContext context, CancellationToken cancellationToken)
             => throw new InvalidOperationException("export failed");
 
-        public Task<BackupValidationResult> ValidateAsync(Stream source, CancellationToken cancellationToken)
+        public Task<BackupValidationResult> ValidateAsync(Stream source, BackupValidationContext context, CancellationToken cancellationToken)
             => Task.FromResult(BackupValidationResult.Valid);
 
         public Task RestoreAsync(Stream source, BackupRestoreContext context, CancellationToken cancellationToken)
@@ -300,7 +300,7 @@ public sealed class FileSystemBackupStoreTests
             await target.WriteAsync(Encoding.UTF8.GetBytes("{\"ok\":true,\"files\":[{\"relativePath\":\"icons/action.png\",\"entryName\":\"files/icons/action.png\"}]}"), cancellationToken);
         }
 
-        public Task<BackupValidationResult> ValidateAsync(Stream source, CancellationToken cancellationToken)
+        public Task<BackupValidationResult> ValidateAsync(Stream source, BackupValidationContext context, CancellationToken cancellationToken)
             => Task.FromResult(BackupValidationResult.Valid);
 
         public Task RestoreAsync(Stream source, BackupRestoreContext context, CancellationToken cancellationToken)

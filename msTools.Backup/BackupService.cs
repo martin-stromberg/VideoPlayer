@@ -112,25 +112,14 @@ public sealed class BackupService : IBackupService
             await using var restoreLease = await _restoreGuard.EnterRestoreAsync(cancellationToken);
             await using var stream = await _store.OpenReadAsync(request.FileName, cancellationToken);
             using var archive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: false);
-            var entry = archive.GetEntry("data.json") ?? throw new InvalidDataException("data.json fehlt.");
+            var entry = archive.GetEntry("index.json") ?? throw new InvalidDataException("index.json fehlt.");
 
             await using var dataStream = entry.Open();
             await _dataProvider.RestoreAsync(
                 dataStream,
                 new BackupRestoreContext(
                     request.UserId,
-                    (entryName, token) =>
-                    {
-                        token.ThrowIfCancellationRequested();
-                        var normalized = entryName.Replace('\\', '/');
-                        if (!IsSafePayloadEntryName(normalized))
-                            throw new InvalidDataException($"Ungültiger Payload-Eintrag: {entryName}");
-
-                        var payloadEntry = archive.GetEntry(normalized)
-                            ?? throw new FileNotFoundException("Payload-Eintrag wurde im Backup nicht gefunden.", normalized);
-
-                        return Task.FromResult(payloadEntry.Open());
-                    }),
+                    (entryName, token) => OpenPayloadEntryAsync(archive, entryName, token)),
                 cancellationToken);
 
             var descriptor = (await _store.ListAsync(cancellationToken))
@@ -155,10 +144,28 @@ public sealed class BackupService : IBackupService
 
     private static bool IsSafePayloadEntryName(string name)
     {
-        if (string.IsNullOrWhiteSpace(name) || name.Contains(':') || name.Contains('\\') || !name.StartsWith("files/", StringComparison.Ordinal))
+        if (string.IsNullOrWhiteSpace(name) || name.Contains(':') || name.Contains('\\'))
             return false;
 
         var parts = name.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        return parts.Length > 1 && parts.All(part => part != "." && part != "..");
+        return parts.Length > 0
+            && !name.EndsWith("/", StringComparison.Ordinal)
+            && parts.All(part => part != "." && part != "..")
+            && (string.Equals(name, "index.json", StringComparison.Ordinal)
+                || name.StartsWith("entities/", StringComparison.Ordinal)
+                || name.StartsWith("files/", StringComparison.Ordinal));
+    }
+
+    private static Task<Stream> OpenPayloadEntryAsync(ZipArchive archive, string entryName, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var normalized = entryName.Replace('\\', '/');
+        if (!IsSafePayloadEntryName(normalized))
+            throw new InvalidDataException($"Ungültiger Payload-Eintrag: {entryName}");
+
+        var payloadEntry = archive.GetEntry(normalized)
+            ?? throw new FileNotFoundException("Payload-Eintrag wurde im Backup nicht gefunden.", normalized);
+
+        return Task.FromResult(payloadEntry.Open());
     }
 }

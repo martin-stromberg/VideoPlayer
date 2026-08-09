@@ -33,7 +33,7 @@ public sealed class VideoWebPlayerBackupDataProviderTests
               "schemaVersion": 1,
               "createdAtUtc": "2026-08-09T12:00:00Z",
               "tables": [
-                { "name": "AspNetUsers", "schema": null, "columns": [], "rows": [] }
+                { "name": "AspNetUsers", "schema": null, "columns": [], "entryName": "entities/AspNetUsers.json" }
               ],
               "files": []
             }
@@ -61,12 +61,9 @@ public sealed class VideoWebPlayerBackupDataProviderTests
         sourceDb.MediaItems.Add(item);
         await sourceDb.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        await using var exported = new MemoryStream();
-        await CreateProvider(sourceDb, temp.Path).ExportAsync(
-            exported,
-            new BackupExportContext(BackupGeneration.Manual, DateTimeOffset.UtcNow),
+        await using var exported = await ExportProviderPayloadAsync(
+            CreateProvider(sourceDb, temp.Path),
             TestContext.Current.CancellationToken);
-        exported.Position = 0;
 
         await using var targetConnection = new SqliteConnection("Data Source=:memory:");
         await targetConnection.OpenAsync(TestContext.Current.CancellationToken);
@@ -76,8 +73,8 @@ public sealed class VideoWebPlayerBackupDataProviderTests
         await targetDb.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await CreateProvider(targetDb, temp.Path).RestoreAsync(
-            exported,
-            new BackupRestoreContext(null),
+            exported.Index,
+            new BackupRestoreContext(null, exported.OpenAsync),
             TestContext.Current.CancellationToken);
 
         targetDb.ChangeTracker.Clear();
@@ -95,12 +92,9 @@ public sealed class VideoWebPlayerBackupDataProviderTests
         await payloadConnection.OpenAsync(TestContext.Current.CancellationToken);
         await using var payloadDb = CreateDb(payloadConnection);
         await payloadDb.Database.EnsureCreatedAsync(TestContext.Current.CancellationToken);
-        await using var payload = new MemoryStream();
-        await CreateProvider(payloadDb, temp.Path).ExportAsync(
-            payload,
-            new BackupExportContext(BackupGeneration.Manual, DateTimeOffset.UtcNow),
+        await using var payload = await ExportProviderPayloadAsync(
+            CreateProvider(payloadDb, temp.Path),
             TestContext.Current.CancellationToken);
-        payload.Position = 0;
 
         await using var targetConnection = new SqliteConnection("Data Source=:memory:");
         await targetConnection.OpenAsync(TestContext.Current.CancellationToken);
@@ -110,8 +104,8 @@ public sealed class VideoWebPlayerBackupDataProviderTests
         await targetDb.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await CreateProvider(targetDb, temp.Path).RestoreAsync(
-            payload,
-            new BackupRestoreContext("admin"),
+            payload.Index,
+            new BackupRestoreContext("admin", payload.OpenAsync),
             TestContext.Current.CancellationToken);
 
         targetDb.ChangeTracker.Clear();
@@ -130,12 +124,9 @@ public sealed class VideoWebPlayerBackupDataProviderTests
         await payloadDb.Database.EnsureCreatedAsync(TestContext.Current.CancellationToken);
         payloadDb.Users.Add(new ApplicationUser { Id = "admin", UserName = "backup@example.test", IsAdmin = false, Sources = "[2]" });
         await payloadDb.SaveChangesAsync(TestContext.Current.CancellationToken);
-        await using var payload = new MemoryStream();
-        await CreateProvider(payloadDb, temp.Path).ExportAsync(
-            payload,
-            new BackupExportContext(BackupGeneration.Manual, DateTimeOffset.UtcNow),
+        await using var payload = await ExportProviderPayloadAsync(
+            CreateProvider(payloadDb, temp.Path),
             TestContext.Current.CancellationToken);
-        payload.Position = 0;
 
         await using var targetConnection = new SqliteConnection("Data Source=:memory:");
         await targetConnection.OpenAsync(TestContext.Current.CancellationToken);
@@ -143,8 +134,8 @@ public sealed class VideoWebPlayerBackupDataProviderTests
         await targetDb.Database.EnsureCreatedAsync(TestContext.Current.CancellationToken);
 
         await CreateProvider(targetDb, temp.Path).RestoreAsync(
-            payload,
-            new BackupRestoreContext("admin"),
+            payload.Index,
+            new BackupRestoreContext("admin", payload.OpenAsync),
             TestContext.Current.CancellationToken);
 
         targetDb.ChangeTracker.Clear();
@@ -167,12 +158,9 @@ public sealed class VideoWebPlayerBackupDataProviderTests
         payloadDb.MediaSources.Add(new MediaSource { Id = 101, Name = "Source", Path = "/source", Host = "localhost", Port = 22 });
         payloadDb.MediaSourceUsers.Add(new MediaSourceUser { MediaSourceId = 101, UserId = "user-1" });
         await payloadDb.SaveChangesAsync(TestContext.Current.CancellationToken);
-        await using var payload = new MemoryStream();
-        await CreateProvider(payloadDb, temp.Path).ExportAsync(
-            payload,
-            new BackupExportContext(BackupGeneration.Manual, DateTimeOffset.UtcNow),
+        await using var payload = await ExportProviderPayloadAsync(
+            CreateProvider(payloadDb, temp.Path),
             TestContext.Current.CancellationToken);
-        payload.Position = 0;
 
         await using var targetConnection = new SqliteConnection("Data Source=:memory:");
         await targetConnection.OpenAsync(TestContext.Current.CancellationToken);
@@ -188,8 +176,8 @@ public sealed class VideoWebPlayerBackupDataProviderTests
         await targetDb.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await CreateProvider(targetDb, temp.Path).RestoreAsync(
-            payload,
-            new BackupRestoreContext(null),
+            payload.Index,
+            new BackupRestoreContext(null, payload.OpenAsync),
             TestContext.Current.CancellationToken);
 
         targetDb.ChangeTracker.Clear();
@@ -223,12 +211,13 @@ public sealed class VideoWebPlayerBackupDataProviderTests
         var json = Encoding.UTF8.GetString(exported.ToArray());
         Assert.Contains("\"entryName\"", json);
         Assert.Contains("\"files/action.png\"", json);
+        Assert.Contains("\"entities/", json);
         Assert.DoesNotContain("base64Content", json, StringComparison.OrdinalIgnoreCase);
-        Assert.Single(context.FileAttachments);
-        Assert.Equal("files/action.png", context.FileAttachments[0].EntryName);
+        var fileAttachment = Assert.Single(context.FileAttachments, x => x.EntryName.StartsWith("files/", StringComparison.Ordinal));
+        Assert.Equal("files/action.png", fileAttachment.EntryName);
 
         await using var attachment = new MemoryStream();
-        await context.FileAttachments[0].WriteAsync(attachment, TestContext.Current.CancellationToken);
+        await fileAttachment.WriteAsync(attachment, TestContext.Current.CancellationToken);
         Assert.Equal(iconBytes, attachment.ToArray());
     }
 
@@ -246,12 +235,9 @@ public sealed class VideoWebPlayerBackupDataProviderTests
         await using var sourceDb = CreateDb(sourceConnection);
         await sourceDb.Database.EnsureCreatedAsync(TestContext.Current.CancellationToken);
 
-        await using var exported = new MemoryStream();
-        var exportContext = new BackupExportContext(BackupGeneration.Manual, DateTimeOffset.UtcNow);
-        await CreateProvider(sourceDb, sourceTemp.Path).ExportAsync(exported, exportContext, TestContext.Current.CancellationToken);
-        exported.Position = 0;
-
-        var payloadEntries = await MaterializeAttachmentsAsync(exportContext, TestContext.Current.CancellationToken);
+        await using var exported = await ExportProviderPayloadAsync(
+            CreateProvider(sourceDb, sourceTemp.Path),
+            TestContext.Current.CancellationToken);
 
         using var targetTemp = new TempDirectory();
         var targetIconDirectory = Path.Combine(targetTemp.Path, "wwwroot", "images", "genres");
@@ -264,10 +250,10 @@ public sealed class VideoWebPlayerBackupDataProviderTests
         await targetDb.Database.EnsureCreatedAsync(TestContext.Current.CancellationToken);
 
         await CreateProvider(targetDb, targetTemp.Path).RestoreAsync(
-            exported,
+            exported.Index,
             new BackupRestoreContext(
                 null,
-                (entryName, _) => Task.FromResult<Stream>(new MemoryStream(payloadEntries[entryName]))),
+                exported.OpenAsync),
             TestContext.Current.CancellationToken);
 
         Assert.Equal(iconBytes, await File.ReadAllBytesAsync(Path.Combine(targetIconDirectory, "action.png"), TestContext.Current.CancellationToken));
@@ -287,10 +273,9 @@ public sealed class VideoWebPlayerBackupDataProviderTests
         await using var sourceDb = CreateDb(sourceConnection);
         await sourceDb.Database.EnsureCreatedAsync(TestContext.Current.CancellationToken);
 
-        await using var exported = new MemoryStream();
-        var exportContext = new BackupExportContext(BackupGeneration.Manual, DateTimeOffset.UtcNow);
-        await CreateProvider(sourceDb, sourceTemp.Path).ExportAsync(exported, exportContext, TestContext.Current.CancellationToken);
-        exported.Position = 0;
+        await using var exported = await ExportProviderPayloadAsync(
+            CreateProvider(sourceDb, sourceTemp.Path),
+            TestContext.Current.CancellationToken);
 
         using var targetTemp = new TempDirectory();
         var targetIconDirectory = Path.Combine(targetTemp.Path, "wwwroot", "images", "genres");
@@ -307,10 +292,16 @@ public sealed class VideoWebPlayerBackupDataProviderTests
 
         await Assert.ThrowsAsync<FileNotFoundException>(
             () => CreateProvider(targetDb, targetTemp.Path).RestoreAsync(
-                exported,
+                exported.Index,
                 new BackupRestoreContext(
                     null,
-                    (entryName, _) => throw new FileNotFoundException(entryName)),
+                    (entryName, _) =>
+                    {
+                        if (entryName.StartsWith("files/", StringComparison.Ordinal))
+                            throw new FileNotFoundException(entryName);
+
+                        return exported.OpenAsync(entryName, TestContext.Current.CancellationToken);
+                    }),
                 TestContext.Current.CancellationToken));
 
         Assert.True(File.Exists(existingPath));
@@ -346,6 +337,43 @@ public sealed class VideoWebPlayerBackupDataProviderTests
         }
 
         return result;
+    }
+
+    private static async Task<ExportedPayload> ExportProviderPayloadAsync(
+        VideoWebPlayerBackupDataProvider provider,
+        CancellationToken cancellationToken)
+    {
+        var index = new MemoryStream();
+        var context = new BackupExportContext(BackupGeneration.Manual, DateTimeOffset.UtcNow);
+        await provider.ExportAsync(index, context, cancellationToken);
+        index.Position = 0;
+        var attachments = await MaterializeAttachmentsAsync(context, cancellationToken);
+        return new ExportedPayload(index, attachments);
+    }
+
+    private sealed class ExportedPayload : IAsyncDisposable
+    {
+        private readonly Dictionary<string, byte[]> _attachments;
+
+        public ExportedPayload(MemoryStream index, Dictionary<string, byte[]> attachments)
+        {
+            Index = index;
+            _attachments = attachments;
+        }
+
+        public MemoryStream Index { get; }
+
+        public Task<Stream> OpenAsync(string entryName, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<Stream>(new MemoryStream(_attachments[entryName]));
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            Index.Dispose();
+            return ValueTask.CompletedTask;
+        }
     }
 
     private sealed class TestWebHostEnvironment : IWebHostEnvironment

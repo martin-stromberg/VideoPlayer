@@ -8,9 +8,11 @@
 @using VideoWebPlayer.Services.Backups
 @inject VideoWebPlayerBackupFacade BackupFacade
 @inject BackupSettingsService SettingsService
+@inject ManualBackupJobService ManualBackupJobs
 @inject IBackgroundProcessingGate BackgroundGate
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager NavigationManager
+@implements IDisposable
 @rendermode InteractiveServer
 
 <PageTitle>Backups</PageTitle>
@@ -42,10 +44,21 @@ else
         <div class="alert alert-warning">Ein Restore läuft. Schreibende Hintergrundprozesse sind angehalten.</div>
     }
 
+    @if (manualBackupJob is not null && manualBackupJob.Status != ManualBackupJobStatus.Idle)
+    {
+        <div class="alert @GetManualBackupAlertClass(manualBackupJob)" role="status">
+            <strong>Manuelles Backup:</strong> @GetManualBackupStatusText(manualBackupJob)
+            @if (!string.IsNullOrWhiteSpace(manualBackupJob.Error))
+            {
+                <span>@manualBackupJob.Error</span>
+            }
+        </div>
+    }
+
     <div class="mb-3 d-flex gap-2 flex-wrap">
         <form method="post" action="/admin/backups/api/create">
             <AntiforgeryToken />
-            <button class="btn btn-primary" type="submit" disabled="@isBusy">Backup erstellen</button>
+            <button class="btn btn-primary" type="submit" disabled="@(isBusy || manualBackupJob?.IsActive == true)">Backup erstellen</button>
         </form>
         <button class="btn btn-outline-secondary" @onclick="ReloadAsync" disabled="@isBusy">Aktualisieren</button>
     </div>
@@ -223,6 +236,9 @@ else
     private SettingsModel? settingsModel;
     private List<BackupDescriptor> backups = new();
     private List<BackupOperationHistory> history = new();
+    private ManualBackupJobSnapshot? manualBackupJob;
+    private PeriodicTimer? manualBackupStatusTimer;
+    private CancellationTokenSource? manualBackupStatusCts;
 
     protected override async Task OnInitializedAsync()
     {
@@ -237,6 +253,7 @@ else
         ApplyQueryMessages();
         await LoadSettingsAsync();
         await ReloadAsync();
+        StartManualBackupStatusPolling();
     }
 
     private void ApplyQueryMessages()
@@ -264,17 +281,46 @@ else
 
     private async Task ReloadAsync()
     {
+        manualBackupJob = ManualBackupJobs.GetSnapshot();
         backups = (await BackupFacade.ListBackupsAsync()).ToList();
         history = await BackupFacade.GetHistoryAsync();
     }
 
-    private async Task CreateBackupAsync()
+    private void StartManualBackupStatusPolling()
     {
-        await RunOperationAsync(async () =>
+        manualBackupStatusCts = new CancellationTokenSource();
+        manualBackupStatusTimer = new PeriodicTimer(TimeSpan.FromSeconds(3));
+        _ = PollManualBackupStatusAsync(manualBackupStatusCts.Token);
+    }
+
+    private async Task PollManualBackupStatusAsync(CancellationToken cancellationToken)
+    {
+        if (manualBackupStatusTimer is null)
+            return;
+
+        try
         {
-            var result = await BackupFacade.CreateManualBackupAsync(userId);
-            ApplyResult(result);
-        });
+            while (await manualBackupStatusTimer.WaitForNextTickAsync(cancellationToken))
+            {
+                await InvokeAsync(async () =>
+                {
+                    var previousStatus = manualBackupJob?.Status ?? ManualBackupJobStatus.Idle;
+                    manualBackupJob = ManualBackupJobs.GetSnapshot();
+
+                    if (manualBackupJob.Status is ManualBackupJobStatus.Succeeded or ManualBackupJobStatus.Failed
+                        && previousStatus != manualBackupJob.Status)
+                    {
+                        backups = (await BackupFacade.ListBackupsAsync()).ToList();
+                        history = await BackupFacade.GetHistoryAsync();
+                    }
+
+                    StateHasChanged();
+                });
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
     }
 
     private async Task UploadAsync(InputFileChangeEventArgs args)
@@ -421,6 +467,35 @@ else
         return $"{value:0.##} {units[unit]}";
     }
 
+    private static string GetManualBackupAlertClass(ManualBackupJobSnapshot snapshot) => snapshot.Status switch
+    {
+        ManualBackupJobStatus.Failed => "alert-danger",
+        ManualBackupJobStatus.Succeeded => "alert-success",
+        _ => "alert-info"
+    };
+
+    private static string GetManualBackupStatusText(ManualBackupJobSnapshot snapshot)
+    {
+        var status = snapshot.Status switch
+        {
+            ManualBackupJobStatus.Queued => "wartet auf Ausführung.",
+            ManualBackupJobStatus.Running => "läuft im Hintergrund.",
+            ManualBackupJobStatus.Succeeded => "abgeschlossen.",
+            ManualBackupJobStatus.Failed => "fehlgeschlagen.",
+            _ => "kein aktives Backup."
+        };
+
+        if (snapshot.StartedAtUtc is null)
+            return status;
+
+        var started = snapshot.StartedAtUtc.Value.ToLocalTime().ToString("g");
+        if (snapshot.CompletedAtUtc is null)
+            return $"{status} Gestartet: {started}";
+
+        var completed = snapshot.CompletedAtUtc.Value.ToLocalTime().ToString("g");
+        return $"{status} Gestartet: {started}, beendet: {completed}";
+    }
+
     private sealed class SettingsModel
     {
         [Required]
@@ -439,5 +514,12 @@ else
 
         [Range(1048576, long.MaxValue)]
         public long MaxUploadSizeBytes { get; set; } = 512L * 1024L * 1024L;
+    }
+
+    public void Dispose()
+    {
+        manualBackupStatusCts?.Cancel();
+        manualBackupStatusTimer?.Dispose();
+        manualBackupStatusCts?.Dispose();
     }
 }

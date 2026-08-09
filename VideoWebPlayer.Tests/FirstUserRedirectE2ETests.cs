@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HttpsPolicy;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -71,6 +72,48 @@ public sealed class FirstUserRedirectE2ETests : IDisposable
 
         var decodedQuery = System.Net.WebUtility.UrlDecode(location.Query);
         Assert.Contains("ReturnUrl=", decodedQuery);
+        Assert.EndsWith("/", decodedQuery);
+    }
+
+    [Fact]
+    public async Task RegisterFirstUser_SubmitsAndRedirectsToHome()
+    {
+        var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = true });
+        client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("text/html"));
+
+        // 1. Startseite -> Weiterleitung auf Registrierung
+        var homeResponse = await client.GetAsync("/");
+        Assert.Equal(HttpStatusCode.Redirect, homeResponse.StatusCode);
+        var registerUrl = homeResponse.Headers.Location;
+        Assert.NotNull(registerUrl);
+        Assert.Equal("/Account/Register", registerUrl.AbsolutePath);
+
+        // 2. Registrierungsseite laden und Antiforgery-Token extrahieren
+        var registerResponse = await client.GetAsync(registerUrl);
+        Assert.Equal(HttpStatusCode.OK, registerResponse.StatusCode);
+        var html = await registerResponse.Content.ReadAsStringAsync();
+        var match = Regex.Match(html, "name=\"__RequestVerificationToken\" value=\"([^\"]+)\"");
+        Assert.True(match.Success, "Antiforgery token not found in register form");
+        var token = match.Groups[1].Value;
+
+        // 3. Registrierungsformular absenden
+        var form = new FormUrlEncodedContent(new Dictionary<string, string?>
+        {
+            ["Input.Email"] = $"e2e-{Guid.NewGuid()}@example.com",
+            ["Input.Password"] = "Test123!",
+            ["Input.ConfirmPassword"] = "Test123!",
+            ["_handler"] = "register",
+            ["__RequestVerificationToken"] = token,
+        });
+
+        var postResponse = await client.PostAsync(registerUrl, form);
+        Assert.Equal(HttpStatusCode.Redirect, postResponse.StatusCode);
+        var afterRegister = postResponse.Headers.Location;
+        Assert.NotNull(afterRegister);
+        Assert.Equal("/Account/RegisterConfirmation", afterRegister.AbsolutePath);
+
+        var decodedQuery = System.Net.WebUtility.UrlDecode(afterRegister.Query);
+        Assert.Contains("returnUrl=", decodedQuery);
         Assert.EndsWith("/", decodedQuery);
     }
 

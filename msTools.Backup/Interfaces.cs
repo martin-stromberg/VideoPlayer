@@ -18,7 +18,7 @@ public interface IBackupDataProvider
     /// <summary>
     /// Validates host payload data.
     /// </summary>
-    Task<BackupValidationResult> ValidateAsync(Stream source, CancellationToken cancellationToken);
+    Task<BackupValidationResult> ValidateAsync(Stream source, BackupValidationContext context, CancellationToken cancellationToken);
 
     /// <summary>
     /// Restores host data from the source stream.
@@ -32,10 +32,16 @@ public interface IBackupDataProvider
 public sealed record BackupExportContext(BackupGeneration Generation, DateTimeOffset CreatedAtUtc)
 {
     /// <summary>
-    /// Gets file payload entries that should be written next to data.json in the ZIP.
+    /// Gets payload entries that should be written next to index.json in the ZIP.
     /// </summary>
     public IList<BackupFileAttachment> FileAttachments { get; } = new List<BackupFileAttachment>();
 }
+
+/// <summary>
+/// Contains context for payload validation.
+/// </summary>
+public sealed record BackupValidationContext(
+    Func<string, CancellationToken, Task<Stream>>? OpenPayloadEntryAsync = null);
 
 /// <summary>
 /// Coordinates host-side restore exclusivity.

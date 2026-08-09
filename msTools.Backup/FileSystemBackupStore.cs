@@ -68,14 +68,14 @@ public sealed class FileSystemBackupStore : IBackupStore
             using (var archive = new ZipArchive(fileStream, ZipArchiveMode.Create, leaveOpen: false))
             {
                 var exportContext = new BackupExportContext(request.Generation, createdAt);
-                var payloadEntries = new List<string> { "data.json" };
+                var payloadEntries = new List<string> { "index.json" };
                 var seenEntries = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
                 {
                     "manifest.json",
-                    "data.json"
+                    "index.json"
                 };
 
-                var dataEntry = archive.CreateEntry("data.json", CompressionLevel.Optimal);
+                var dataEntry = archive.CreateEntry("index.json", CompressionLevel.Optimal);
                 await using (var dataStream = dataEntry.Open())
                     await _dataProvider.ExportAsync(dataStream, exportContext, cancellationToken);
 
@@ -83,7 +83,7 @@ public sealed class FileSystemBackupStore : IBackupStore
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     var entryName = NormalizeEntryName(attachment.EntryName);
-                    if (!IsSafeAttachmentEntryName(entryName))
+                    if (!IsSafePayloadEntryName(entryName))
                         throw new InvalidOperationException($"Ungültiger Datei-Payload-Eintrag: {attachment.EntryName}");
                     if (!seenEntries.Add(entryName))
                         throw new InvalidOperationException($"Doppelter ZIP-Eintrag: {entryName}");
@@ -149,15 +149,18 @@ public sealed class FileSystemBackupStore : IBackupStore
                     errors.AddRange(archiveShapeValidation.Errors);
             }
 
-            var dataEntry = archive.GetEntry("data.json");
+            var dataEntry = archive.GetEntry("index.json");
             if (dataEntry is null)
             {
-                errors.Add("data.json fehlt.");
+                errors.Add("index.json fehlt.");
             }
             else if (errors.Count == 0)
             {
                 await using var dataStream = dataEntry.Open();
-                var providerValidation = await _dataProvider.ValidateAsync(dataStream, cancellationToken);
+                var providerValidation = await _dataProvider.ValidateAsync(
+                    dataStream,
+                    new BackupValidationContext((entryName, token) => OpenPayloadEntryAsync(archive, entryName, token)),
+                    cancellationToken);
                 if (!providerValidation.IsValid)
                     errors.AddRange(providerValidation.Errors);
             }
@@ -322,8 +325,8 @@ public sealed class FileSystemBackupStore : IBackupStore
             errors.Add($"Nicht unterstützte Formatversion: {manifest.FormatVersion}.");
         if (!string.Equals(manifest.ProviderId, _dataProvider.ProviderId, StringComparison.Ordinal))
             errors.Add("Die Providerkennung passt nicht zu dieser Anwendung.");
-        if (archive.GetEntry("data.json") is null)
-            errors.Add("data.json fehlt.");
+        if (archive.GetEntry("index.json") is null)
+            errors.Add("index.json fehlt.");
 
         var payloadEntries = manifest.PayloadEntries ?? new List<string>();
         if (payloadEntries.Count == 0)
@@ -344,16 +347,15 @@ public sealed class FileSystemBackupStore : IBackupStore
                 if (!seenPayloadEntries.Add(payloadEntry))
                     errors.Add($"Doppelter Manifest-Payload-Eintrag: {payloadEntry}");
 
-                if (!string.Equals(payloadEntry, "data.json", StringComparison.Ordinal)
-                    && !payloadEntry.StartsWith("files/", StringComparison.Ordinal))
-                    errors.Add($"Manifest-Payload-Eintrag {payloadEntry} liegt nicht unter files/.");
+                if (!IsKnownPayloadEntryName(payloadEntry))
+                    errors.Add($"Manifest-Payload-Eintrag {payloadEntry} liegt nicht unter einem bekannten Payload-Pfad.");
 
                 if (archive.GetEntry(payloadEntry) is null)
                     errors.Add($"Manifest-Payload-Eintrag {payloadEntry} fehlt im ZIP.");
             }
 
-            if (!seenPayloadEntries.Contains("data.json"))
-                errors.Add("Manifest referenziert data.json nicht.");
+            if (!seenPayloadEntries.Contains("index.json"))
+                errors.Add("Manifest referenziert index.json nicht.");
 
             foreach (var entry in archive.Entries)
             {
@@ -418,11 +420,28 @@ public sealed class FileSystemBackupStore : IBackupStore
     private static string NormalizeEntryName(string name)
         => name.Replace('\\', '/');
 
-    private static bool IsSafeAttachmentEntryName(string name)
+    private static bool IsSafePayloadEntryName(string name)
         => IsSafeEntryName(name)
-            && name.StartsWith("files/", StringComparison.Ordinal)
-            && name.Length > "files/".Length
+            && IsKnownPayloadEntryName(name)
             && !name.EndsWith("/", StringComparison.Ordinal);
+
+    private static bool IsKnownPayloadEntryName(string name)
+        => string.Equals(name, "index.json", StringComparison.Ordinal)
+            || (name.StartsWith("files/", StringComparison.Ordinal) && name.Length > "files/".Length)
+            || (name.StartsWith("entities/", StringComparison.Ordinal) && name.Length > "entities/".Length);
+
+    private static Task<Stream> OpenPayloadEntryAsync(ZipArchive archive, string entryName, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var normalized = NormalizeEntryName(entryName);
+        if (!IsSafePayloadEntryName(normalized))
+            throw new InvalidDataException($"Ungültiger Payload-Eintrag: {entryName}");
+
+        var payloadEntry = archive.GetEntry(normalized)
+            ?? throw new FileNotFoundException("Payload-Eintrag wurde im Backup nicht gefunden.", normalized);
+
+        return Task.FromResult(payloadEntry.Open());
+    }
 
     private static void TryDelete(string path)
     {

@@ -16,7 +16,7 @@ namespace VideoWebPlayer.Controllers;
 public sealed class BackupsController : ControllerBase
 {
     private readonly IBackupService _backupService;
-    private readonly VideoWebPlayerBackupFacade _backupFacade;
+    private readonly ManualBackupJobService _manualBackupJobs;
     private readonly IAntiforgery _antiforgery;
     private readonly ILogger<BackupsController> _logger;
 
@@ -25,12 +25,12 @@ public sealed class BackupsController : ControllerBase
     /// </summary>
     public BackupsController(
         IBackupService backupService,
-        VideoWebPlayerBackupFacade backupFacade,
+        ManualBackupJobService manualBackupJobs,
         IAntiforgery antiforgery,
         ILogger<BackupsController> logger)
     {
         _backupService = backupService;
-        _backupFacade = backupFacade;
+        _manualBackupJobs = manualBackupJobs;
         _antiforgery = antiforgery;
         _logger = logger;
     }
@@ -44,15 +44,14 @@ public sealed class BackupsController : ControllerBase
         await _antiforgery.ValidateRequestAsync(HttpContext);
 
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        _logger.LogInformation("Manual backup creation requested by user {UserId}.", userId);
+        _logger.LogInformation("Manual backup job requested by user {UserId}.", userId);
 
-        var result = await _backupFacade.CreateManualBackupAsync(userId, cancellationToken);
-        var parameter = result.Succeeded ? "backupStatus" : "backupError";
-        var message = result.Succeeded
-            ? result.Message
-            : string.Join(" ", result.Errors.DefaultIfEmpty(result.Message));
+        var result = _manualBackupJobs.StartManualBackup(userId);
+        var message = result.Started
+            ? "Backup wurde im Hintergrund gestartet."
+            : "Es läuft bereits ein manuelles Backup.";
 
-        return Redirect($"/admin/backups?{parameter}={Uri.EscapeDataString(message)}");
+        return Redirect($"/admin/backups?backupStatus={Uri.EscapeDataString(message)}");
     }
 
     /// <summary>

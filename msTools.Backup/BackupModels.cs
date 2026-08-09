@@ -47,11 +47,11 @@ public sealed class BackupManifest
     /// <summary>
     /// Gets or sets the payload entries contained in the ZIP file.
     /// </summary>
-    public List<string> PayloadEntries { get; set; } = new() { "data.json" };
+    public List<string> PayloadEntries { get; set; } = new() { "index.json" };
 }
 
 /// <summary>
-/// Describes an additional file payload entry written to a backup ZIP.
+/// Describes an additional payload entry written to a backup ZIP.
 /// </summary>
 public sealed record BackupFileAttachment(
     string EntryName,

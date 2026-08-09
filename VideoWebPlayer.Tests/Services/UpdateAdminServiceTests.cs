@@ -60,6 +60,44 @@ public sealed class UpdateAdminServiceTests
     }
 
     [Fact]
+    public async Task InstallAsync_WhenDownloadIsSkipped_DoesNotInstall()
+    {
+        var commandHandler = new Mock<IAutoUpdateCommandHandler>();
+        commandHandler
+            .Setup(x => x.DownloadAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AutoUpdateResult(AutoUpdateOutcome.Skipped, AutoUpdateState.UpdateAvailable, "skipped", null!));
+
+        var service = CreateService(Status(AutoUpdateState.UpdateAvailable, availableVersion: "1.2.3"), commandHandler.Object);
+
+        var result = await service.InstallAsync(TestContext.Current.CancellationToken);
+
+        Assert.False(result.Succeeded);
+        Assert.True(result.IsBlocked);
+        Assert.Equal("skipped", result.Message);
+        commandHandler.Verify(x => x.DownloadAsync(It.IsAny<CancellationToken>()), Times.Once);
+        commandHandler.Verify(x => x.InstallAsync(true, It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task InstallAsync_WhenDownloadIsCanceled_DoesNotInstall()
+    {
+        var commandHandler = new Mock<IAutoUpdateCommandHandler>();
+        commandHandler
+            .Setup(x => x.DownloadAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AutoUpdateResult(AutoUpdateOutcome.Canceled, AutoUpdateState.UpdateAvailable, "canceled", null!));
+
+        var service = CreateService(Status(AutoUpdateState.UpdateAvailable, availableVersion: "1.2.3"), commandHandler.Object);
+
+        var result = await service.InstallAsync(TestContext.Current.CancellationToken);
+
+        Assert.False(result.Succeeded);
+        Assert.True(result.IsBlocked);
+        Assert.Equal("canceled", result.Message);
+        commandHandler.Verify(x => x.DownloadAsync(It.IsAny<CancellationToken>()), Times.Once);
+        commandHandler.Verify(x => x.InstallAsync(true, It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task ManualActions_WhenStatusLocked_AreBlocked()
     {
         var commandHandler = new Mock<IAutoUpdateCommandHandler>(MockBehavior.Strict);

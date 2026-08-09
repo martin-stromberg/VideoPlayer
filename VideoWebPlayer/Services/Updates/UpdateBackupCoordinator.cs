@@ -60,7 +60,6 @@ public sealed class UpdateBackupCoordinator
 
         try
         {
-            Directory.CreateDirectory(targetDirectory);
             var result = await backupService.CreateBackupAsync(new UpdateBackupRequest(targetDirectory, reason), cancellationToken);
             if (!result.Succeeded)
             {

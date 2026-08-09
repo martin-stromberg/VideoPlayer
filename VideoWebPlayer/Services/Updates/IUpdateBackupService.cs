@@ -19,7 +19,7 @@ public interface IUpdateBackupService
 /// <summary>
 /// Describes a requested backup.
 /// </summary>
-/// <param name="TargetDirectory">The absolute directory for providers that write update backups themselves. It exists when the request is issued. Providers that delegate to an existing backup infrastructure may ignore it.</param>
+/// <param name="TargetDirectory">The absolute directory for providers that write update backups themselves. Providers that use it are responsible for creating it. Providers that delegate to an existing backup infrastructure may ignore it.</param>
 /// <param name="Reason">A short, human readable description of what triggered the backup.</param>
 public sealed record UpdateBackupRequest(string TargetDirectory, string Reason);
 

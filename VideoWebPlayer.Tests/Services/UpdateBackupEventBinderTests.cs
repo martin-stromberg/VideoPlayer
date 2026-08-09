@@ -38,6 +38,7 @@ public class UpdateBackupEventBinderTests : IDisposable
             .Setup(service => service.CreateBackupAsync(It.IsAny<UpdateBackupRequest>(), It.IsAny<CancellationToken>()))
             .Returns((UpdateBackupRequest request, CancellationToken _) =>
             {
+                Directory.CreateDirectory(request.TargetDirectory);
                 var path = Path.Combine(request.TargetDirectory, "backup.zip");
                 File.WriteAllText(path, "backup");
                 return Task.FromResult(UpdateBackupResult.Success(path));

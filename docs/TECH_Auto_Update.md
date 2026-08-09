@@ -95,8 +95,9 @@ Zusätzlich unterstützt die Bibliothek u. a. `ServiceName`, `ExecutablePath`, `
 (`IAutoUpdateEventAggregator.BeforeInstall`) und lässt über `UpdateBackupCoordinator` eine Sicherung erstellen:
 
 1. Ist `Backup.Enabled` false, wird die Installation ohne Sicherung fortgesetzt.
-2. Andernfalls wird ein optional registrierter `IUpdateBackupService` aufgelöst, das Zielverzeichnis erzeugt und
-   der Export angefordert.
+2. Andernfalls wird ein optional registrierter `IUpdateBackupService` aufgelöst und mit dem konfigurierten
+   Zielpfad aufgerufen. Provider, die diesen Pfad selbst beschreiben, legen das Zielverzeichnis eigenständig an;
+   der Standardadapter nutzt die bestehende `msTools.Backup`-Konfiguration.
 3. Die Retention erfolgt durch die verwendete Backup-Infrastruktur. Der Coordinator löscht keine Dateien pauschal
    im konfigurierten Zielverzeichnis.
 4. Schlägt die Sicherung fehl (oder ist kein `IUpdateBackupService` registriert), wird die Installation bei

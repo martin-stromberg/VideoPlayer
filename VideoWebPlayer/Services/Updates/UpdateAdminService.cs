@@ -82,7 +82,7 @@ public sealed class UpdateAdminService
             if (status.State == AutoUpdateState.UpdateAvailable)
             {
                 var download = await _commands.DownloadAsync(cancellationToken);
-                if (download.Outcome == AutoUpdateOutcome.Failed)
+                if (download.Outcome != AutoUpdateOutcome.Success)
                     return ToActionResult(download);
             }
 

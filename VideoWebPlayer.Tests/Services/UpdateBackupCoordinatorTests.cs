@@ -69,6 +69,8 @@ public class UpdateBackupCoordinatorTests : IDisposable
     public async Task CreateBackupAsync_PassesExistingConfiguredDirectory()
     {
         string? requestedDirectory = null;
+        var configuredDirectory = Path.Combine(_contentRoot, "Sicherungen");
+        Directory.CreateDirectory(configuredDirectory);
         var backupService = CreateBackupService(request =>
         {
             requestedDirectory = request.TargetDirectory;
@@ -82,6 +84,28 @@ public class UpdateBackupCoordinatorTests : IDisposable
         Assert.True(mayProceed);
         Assert.Equal(Path.Combine(_contentRoot, "Sicherungen"), requestedDirectory);
         Assert.True(Directory.Exists(requestedDirectory));
+    }
+
+    [Fact]
+    public async Task CreateBackupAsync_DoesNotCreateConfiguredDirectoryBeforeCallingProvider()
+    {
+        var blockingFile = Path.Combine(_contentRoot, "blocked");
+        Directory.CreateDirectory(_contentRoot);
+        File.WriteAllText(blockingFile, "not a directory");
+        var configuredPath = Path.Combine("blocked", "Updates");
+        string? requestedDirectory = null;
+        var backupService = CreateBackupService(request =>
+        {
+            requestedDirectory = request.TargetDirectory;
+            return UpdateBackupResult.Success(Path.Combine(_contentRoot, "real-backup.zip"));
+        });
+
+        var coordinator = CreateCoordinator(new UpdateBackupOptions { Path = configuredPath }, backupService);
+
+        var mayProceed = await coordinator.CreateBackupAsync("test");
+
+        Assert.True(mayProceed);
+        Assert.Equal(Path.Combine(_contentRoot, configuredPath), requestedDirectory);
     }
 
     [Fact]

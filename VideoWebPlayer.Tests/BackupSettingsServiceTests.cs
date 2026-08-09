@@ -53,7 +53,36 @@ public sealed class BackupSettingsServiceTests
         Assert.Equal(9, backupOptions.Retention.SonCount);
         Assert.Equal(8, backupOptions.Retention.FatherCount);
         Assert.Equal(7, backupOptions.Retention.GrandfatherCount);
+        Assert.Equal(5, backupOptions.Retention.ProgramUpdateCount);
         Assert.Equal(4 * 1024 * 1024, backupOptions.MaxUploadSizeBytes);
+    }
+
+    [Fact]
+    public async Task GetOptionsAsync_MapsUpdateBackupRetentionFromUpdateSettings()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase($"backup-settings-{Guid.NewGuid():N}")
+            .Options;
+
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["AutoUpdate:Backup:RetainedBackupCount"] = "4"
+            })
+            .Build();
+
+        await using var db = new ApplicationDbContext(options, new EventManager());
+        db.UpdateSettings.Add(new UpdateSettings
+        {
+            Id = 1,
+            RetainedUpdateBackupCount = 2
+        });
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var service = new BackupSettingsService(db, configuration);
+        var backupOptions = await service.GetOptionsAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, backupOptions.Retention.ProgramUpdateCount);
     }
 
     [Fact]

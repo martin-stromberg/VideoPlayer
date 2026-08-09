@@ -127,6 +127,10 @@ namespace VideoWebPlayer.Data
         /// Tabelle fuer Backup- und Restore-Historie.
         /// </summary>
         public DbSet<BackupOperationHistory> BackupOperationHistories { get; set; }
+        /// <summary>
+        /// Tabelle fuer Update-Einstellungen.
+        /// </summary>
+        public DbSet<UpdateSettings> UpdateSettings { get; set; }
         #endregion
         #region MediaSource Manipulation Methods
         /// <summary>

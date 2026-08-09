@@ -1,7 +1,7 @@
 namespace msTools.Backup;
 
 /// <summary>
-/// Applies grandfather-father-son retention to automatic backups.
+/// Applies retention to managed backup generations.
 /// </summary>
 public sealed class BackupRetentionService : IBackupRetentionService
 {
@@ -21,6 +21,7 @@ public sealed class BackupRetentionService : IBackupRetentionService
         await DeleteExpiredAsync(descriptors, BackupGeneration.Son, Math.Max(0, options.SonCount), cancellationToken);
         await DeleteExpiredAsync(descriptors, BackupGeneration.Father, Math.Max(0, options.FatherCount), cancellationToken);
         await DeleteExpiredAsync(descriptors, BackupGeneration.Grandfather, Math.Max(0, options.GrandfatherCount), cancellationToken);
+        await DeleteExpiredAsync(descriptors, BackupGeneration.ProgramUpdate, Math.Max(0, options.ProgramUpdateCount), cancellationToken);
     }
 
     private async Task DeleteExpiredAsync(

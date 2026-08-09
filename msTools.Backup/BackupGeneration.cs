@@ -11,6 +11,11 @@ public enum BackupGeneration
     Manual,
 
     /// <summary>
+    /// Backup created before a program update is installed.
+    /// </summary>
+    ProgramUpdate,
+
+    /// <summary>
     /// Backup imported by upload.
     /// </summary>
     Uploaded,

@@ -19,6 +19,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using System.Security.Claims;
 using msTools.Backup;
 using VideoWebPlayer.Services.Backups;
+using VideoWebPlayer.Services.Updates;
 using VideoWebPlayer.ViewModels;
 
 namespace VideoWebPlayer.Extensions;
@@ -227,6 +228,11 @@ public static class ServiceCollectionExtensions
         services.AddScoped<VideoWebPlayerBackupFacade>();
         services.AddSingleton<ManualBackupJobService>();
         services.AddSingleton<RestoreBackupJobService>();
+        services.AddSingleton<VideoWebPlayerUpdateSourceFactory>();
+        services.AddScoped<UpdateSettingsService>();
+        services.AddScoped<IUpdateSettingsService>(sp => sp.GetRequiredService<UpdateSettingsService>());
+        services.AddScoped<UpdateAdminService>();
+        services.AddScoped<IUpdateBackupService, VideoWebPlayerUpdateBackupService>();
         services.AddScoped<RecentEntryService>();
         services.AddTransient<IAuthService, AuthService>();
         services.AddHostedService<MediaSourceScanService>();

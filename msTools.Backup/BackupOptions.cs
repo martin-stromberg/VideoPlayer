@@ -26,7 +26,7 @@ public sealed class BackupOptions
     public BackupScheduleOptions Schedule { get; set; } = new();
 
     /// <summary>
-    /// Gets the grandfather-father-son retention options.
+    /// Gets the backup retention options.
     /// </summary>
     public BackupRetentionOptions Retention { get; set; } = new();
 }
@@ -63,7 +63,7 @@ public sealed class BackupScheduleOptions
 }
 
 /// <summary>
-/// Configures how many automatic backups are retained per generation.
+/// Configures how many backups are retained per managed generation.
 /// </summary>
 public sealed class BackupRetentionOptions
 {
@@ -81,4 +81,9 @@ public sealed class BackupRetentionOptions
     /// Gets or sets the retained grandfather backup count.
     /// </summary>
     public int GrandfatherCount { get; set; } = 12;
+
+    /// <summary>
+    /// Gets or sets the retained program update backup count.
+    /// </summary>
+    public int ProgramUpdateCount { get; set; } = 5;
 }

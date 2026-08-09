@@ -1,16 +1,13 @@
-using Microsoft.Extensions.Options;
-
 namespace VideoWebPlayer.Services.Updates;
 
 /// <summary>
 /// Coordinates the data backup that is created before a program update is installed: resolves the optional
-/// <see cref="IUpdateBackupService"/>, provides the configured target directory and enforces the configured
-/// number of retained backups.
+/// <see cref="IUpdateBackupService"/> and provides the configured target directory for backup providers that
+/// write update backups themselves.
 /// </summary>
 public sealed class UpdateBackupCoordinator
 {
     private readonly IServiceProvider _services;
-    private readonly IOptions<UpdateBackupOptions> _options;
     private readonly IHostEnvironment _environment;
     private readonly ILogger<UpdateBackupCoordinator> _logger;
 
@@ -18,17 +15,14 @@ public sealed class UpdateBackupCoordinator
     /// Creates a new instance.
     /// </summary>
     /// <param name="services">Used to resolve the optional <see cref="IUpdateBackupService"/> in its own scope.</param>
-    /// <param name="options">The backup configuration.</param>
     /// <param name="environment">Used to resolve a relative backup path against the content root.</param>
     /// <param name="logger">Logger instance.</param>
     public UpdateBackupCoordinator(
         IServiceProvider services,
-        IOptions<UpdateBackupOptions> options,
         IHostEnvironment environment,
         ILogger<UpdateBackupCoordinator> logger)
     {
         _services = services;
-        _options = options;
         _environment = environment;
         _logger = logger;
     }
@@ -44,14 +38,15 @@ public sealed class UpdateBackupCoordinator
     /// </returns>
     public async Task<bool> CreateBackupAsync(string reason, CancellationToken cancellationToken = default)
     {
-        var options = _options.Value;
+        using var scope = _services.CreateScope();
+        var settingsService = scope.ServiceProvider.GetRequiredService<IUpdateSettingsService>();
+        var options = await settingsService.GetBackupOptionsAsync(cancellationToken);
         if (!options.Enabled)
         {
             _logger.LogInformation("Update-Backup ist deaktiviert; es wird keine Sicherung erstellt.");
             return true;
         }
 
-        using var scope = _services.CreateScope();
         var backupService = scope.ServiceProvider.GetService<IUpdateBackupService>();
         if (backupService is null)
         {
@@ -65,7 +60,6 @@ public sealed class UpdateBackupCoordinator
 
         try
         {
-            Directory.CreateDirectory(targetDirectory);
             var result = await backupService.CreateBackupAsync(new UpdateBackupRequest(targetDirectory, reason), cancellationToken);
             if (!result.Succeeded)
             {
@@ -74,7 +68,6 @@ public sealed class UpdateBackupCoordinator
             }
 
             _logger.LogInformation("Sicherung vor dem Update erstellt: {BackupFile}", result.BackupFilePath);
-            ApplyRetention(targetDirectory, options.RetainedBackupCount);
             return true;
         }
         catch (Exception ex)
@@ -95,36 +88,5 @@ public sealed class UpdateBackupCoordinator
         return Path.IsPathRooted(configuredPath)
             ? configuredPath
             : Path.Combine(_environment.ContentRootPath, configuredPath);
-    }
-
-    /// <summary>
-    /// Deletes the oldest backup files so that at most <paramref name="retainedBackupCount"/> files remain.
-    /// </summary>
-    /// <param name="directory">The backup directory.</param>
-    /// <param name="retainedBackupCount">The number of backups to keep; zero or less keeps all backups.</param>
-    private void ApplyRetention(string directory, int retainedBackupCount)
-    {
-        if (retainedBackupCount <= 0)
-        {
-            return;
-        }
-
-        var obsoleteBackups = new DirectoryInfo(directory)
-            .GetFiles("*", SearchOption.TopDirectoryOnly)
-            .OrderByDescending(file => file.LastWriteTimeUtc)
-            .Skip(retainedBackupCount);
-
-        foreach (var backup in obsoleteBackups)
-        {
-            try
-            {
-                backup.Delete();
-                _logger.LogInformation("Alte Sicherung gelöscht: {BackupFile}", backup.FullName);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Alte Sicherung konnte nicht gelöscht werden: {BackupFile}", backup.FullName);
-            }
-        }
     }
 }

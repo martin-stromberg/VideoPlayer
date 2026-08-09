@@ -9,8 +9,10 @@ namespace VideoWebPlayer.Services.Backups;
 /// </summary>
 public sealed class BackupSettingsService : IBackupOptionsProvider
 {
+    private const int UpdateSettingsRowId = 1;
     private const long PreviousDefaultMaxUploadSizeBytes = 512L * 1024L * 1024L;
     private const long DefaultMaxUploadSizeBytes = 5L * 1024L * 1024L * 1024L;
+    private const int DefaultProgramUpdateRetentionCount = 5;
 
     private readonly ApplicationDbContext _db;
     private readonly IConfiguration _configuration;
@@ -83,6 +85,7 @@ public sealed class BackupSettingsService : IBackupOptionsProvider
     public async Task<BackupOptions> GetOptionsAsync(CancellationToken cancellationToken)
     {
         var settings = await GetOrCreateAsync(cancellationToken);
+        var programUpdateRetentionCount = await GetProgramUpdateRetentionCountAsync(cancellationToken);
         return new BackupOptions
         {
             StoragePath = settings.StoragePath,
@@ -100,9 +103,21 @@ public sealed class BackupSettingsService : IBackupOptionsProvider
             {
                 SonCount = settings.SonRetentionCount,
                 FatherCount = settings.FatherRetentionCount,
-                GrandfatherCount = settings.GrandfatherRetentionCount
+                GrandfatherCount = settings.GrandfatherRetentionCount,
+                ProgramUpdateCount = programUpdateRetentionCount
             }
         };
+    }
+
+    private async Task<int> GetProgramUpdateRetentionCountAsync(CancellationToken cancellationToken)
+    {
+        var updateSettings = await _db.UpdateSettings
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == UpdateSettingsRowId, cancellationToken);
+
+        return updateSettings is null
+            ? Math.Max(0, _configuration.GetValue("AutoUpdate:Backup:RetainedBackupCount", DefaultProgramUpdateRetentionCount))
+            : Math.Max(0, updateSettings.RetainedUpdateBackupCount);
     }
 
     private long GetConfiguredMaxUploadSizeBytes()

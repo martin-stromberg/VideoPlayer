@@ -123,14 +123,46 @@ public sealed class FileSystemBackupStore : IBackupStore
     /// <inheritdoc />
     public async Task<BackupValidationResult> ValidateAsync(Stream source, CancellationToken cancellationToken)
     {
-        var errors = new List<string>();
-        await using var copy = new MemoryStream();
-        await source.CopyToAsync(copy, cancellationToken);
-        copy.Position = 0;
+        if (source.CanSeek)
+        {
+            var originalPosition = source.Position;
+            try
+            {
+                return await ValidateSeekableAsync(source, cancellationToken);
+            }
+            finally
+            {
+                source.Position = originalPosition;
+            }
+        }
 
+        var tempPath = Path.Combine(Path.GetTempPath(), $"backup-validation-{Guid.NewGuid():N}.tmp");
         try
         {
-            using var archive = new ZipArchive(copy, ZipArchiveMode.Read, leaveOpen: true);
+            await using var temp = new FileStream(
+                tempPath,
+                FileMode.CreateNew,
+                FileAccess.ReadWrite,
+                FileShare.None,
+                81920,
+                FileOptions.Asynchronous | FileOptions.DeleteOnClose);
+
+            await source.CopyToAsync(temp, cancellationToken);
+            temp.Position = 0;
+            return await ValidateSeekableAsync(temp, cancellationToken);
+        }
+        finally
+        {
+            TryDelete(tempPath);
+        }
+    }
+
+    private async Task<BackupValidationResult> ValidateSeekableAsync(Stream source, CancellationToken cancellationToken)
+    {
+        var errors = new List<string>();
+        try
+        {
+            using var archive = new ZipArchive(source, ZipArchiveMode.Read, leaveOpen: true);
             foreach (var entry in archive.Entries)
             {
                 if (!IsSafeEntryName(entry.FullName))

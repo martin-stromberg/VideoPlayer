@@ -38,7 +38,7 @@ public sealed class BackupSettings
     /// <summary>
     /// Gets or sets the maximum upload size in bytes.
     /// </summary>
-    public long MaxUploadSizeBytes { get; set; } = 512L * 1024L * 1024L;
+    public long MaxUploadSizeBytes { get; set; } = 5L * 1024L * 1024L * 1024L;
 
     /// <summary>
     /// Gets or sets the last update timestamp.

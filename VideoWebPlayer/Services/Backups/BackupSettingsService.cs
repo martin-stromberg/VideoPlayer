@@ -9,6 +9,9 @@ namespace VideoWebPlayer.Services.Backups;
 /// </summary>
 public sealed class BackupSettingsService : IBackupOptionsProvider
 {
+    private const long PreviousDefaultMaxUploadSizeBytes = 512L * 1024L * 1024L;
+    private const long DefaultMaxUploadSizeBytes = 5L * 1024L * 1024L * 1024L;
+
     private readonly ApplicationDbContext _db;
     private readonly IConfiguration _configuration;
 
@@ -28,13 +31,24 @@ public sealed class BackupSettingsService : IBackupOptionsProvider
     {
         var settings = await _db.BackupSettings.FirstOrDefaultAsync(cancellationToken);
         if (settings is not null)
+        {
+            var configuredMaxUploadSizeBytes = GetConfiguredMaxUploadSizeBytes();
+            if (settings.MaxUploadSizeBytes == PreviousDefaultMaxUploadSizeBytes
+                && configuredMaxUploadSizeBytes > settings.MaxUploadSizeBytes)
+            {
+                settings.MaxUploadSizeBytes = configuredMaxUploadSizeBytes;
+                settings.UpdatedAtUtc = DateTime.UtcNow;
+                await _db.SaveChangesAsync(cancellationToken);
+            }
+
             return settings;
+        }
 
         settings = new BackupSettings
         {
             StoragePath = _configuration["Backups:Path"] ?? Path.Combine("Data", "Backups"),
             AutomaticBackupsEnabled = _configuration.GetValue("Backups:AutomaticBackupsEnabled", false),
-            MaxUploadSizeBytes = _configuration.GetValue("Backups:MaxUploadSizeBytes", 512L * 1024L * 1024L),
+            MaxUploadSizeBytes = GetConfiguredMaxUploadSizeBytes(),
             SonRetentionCount = _configuration.GetValue("Backups:Retention:SonCount", 7),
             FatherRetentionCount = _configuration.GetValue("Backups:Retention:FatherCount", 4),
             GrandfatherRetentionCount = _configuration.GetValue("Backups:Retention:GrandfatherCount", 12),
@@ -90,4 +104,7 @@ public sealed class BackupSettingsService : IBackupOptionsProvider
             }
         };
     }
+
+    private long GetConfiguredMaxUploadSizeBytes()
+        => _configuration.GetValue("Backups:MaxUploadSizeBytes", DefaultMaxUploadSizeBytes);
 }

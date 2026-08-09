@@ -55,4 +55,32 @@ public sealed class BackupSettingsServiceTests
         Assert.Equal(7, backupOptions.Retention.GrandfatherCount);
         Assert.Equal(4 * 1024 * 1024, backupOptions.MaxUploadSizeBytes);
     }
+
+    [Fact]
+    public async Task GetOptionsAsync_RaisesPersistedLegacyUploadLimitToConfiguredDefault()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase($"backup-settings-{Guid.NewGuid():N}")
+            .Options;
+
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Backups:MaxUploadSizeBytes"] = "5368709120"
+            })
+            .Build();
+
+        await using var db = new ApplicationDbContext(options, new EventManager());
+        db.BackupSettings.Add(new BackupSettings
+        {
+            StoragePath = "Data/Backups",
+            MaxUploadSizeBytes = 512L * 1024L * 1024L
+        });
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var service = new BackupSettingsService(db, configuration);
+        var backupOptions = await service.GetOptionsAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(5368709120, backupOptions.MaxUploadSizeBytes);
+    }
 }

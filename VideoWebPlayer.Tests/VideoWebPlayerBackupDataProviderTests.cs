@@ -151,6 +151,62 @@ public sealed class VideoWebPlayerBackupDataProviderTests
     }
 
     [Fact]
+    public async Task RestoreAsync_MapsRestoredUserConflictingWithExecutingAdminUserName()
+    {
+        using var temp = new TempDirectory();
+        await using var payloadConnection = new SqliteConnection("Data Source=:memory:");
+        await payloadConnection.OpenAsync(TestContext.Current.CancellationToken);
+        await using var payloadDb = CreateDb(payloadConnection);
+        await payloadDb.Database.EnsureCreatedAsync(TestContext.Current.CancellationToken);
+        payloadDb.Users.Add(new ApplicationUser
+        {
+            Id = "backup-user",
+            UserName = "admin@example.test",
+            NormalizedUserName = "ADMIN@EXAMPLE.TEST",
+            Email = "admin@example.test",
+            NormalizedEmail = "ADMIN@EXAMPLE.TEST",
+            Sources = "[101]",
+            IsAdmin = false
+        });
+        payloadDb.MediaSources.Add(new MediaSource { Id = 101, Name = "Source", Path = "/source", Host = "localhost", Port = 22 });
+        payloadDb.MediaSourceUsers.Add(new MediaSourceUser { MediaSourceId = 101, UserId = "backup-user" });
+        await payloadDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+        await using var payload = await ExportProviderPayloadAsync(
+            CreateProvider(payloadDb, temp.Path),
+            TestContext.Current.CancellationToken);
+
+        await using var targetConnection = new SqliteConnection("Data Source=:memory:");
+        await targetConnection.OpenAsync(TestContext.Current.CancellationToken);
+        await using var targetDb = CreateDb(targetConnection);
+        await targetDb.Database.EnsureCreatedAsync(TestContext.Current.CancellationToken);
+        targetDb.Users.Add(new ApplicationUser
+        {
+            Id = "admin",
+            UserName = "admin@example.test",
+            NormalizedUserName = "ADMIN@EXAMPLE.TEST",
+            Email = "admin@example.test",
+            NormalizedEmail = "ADMIN@EXAMPLE.TEST",
+            IsAdmin = true,
+            Sources = "[1]"
+        });
+        await targetDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        await CreateProvider(targetDb, temp.Path).RestoreAsync(
+            payload.Index,
+            new BackupRestoreContext("admin", payload.OpenAsync),
+            TestContext.Current.CancellationToken);
+
+        targetDb.ChangeTracker.Clear();
+        var admin = await targetDb.Users.SingleAsync(TestContext.Current.CancellationToken);
+        Assert.Equal("admin", admin.Id);
+        Assert.True(admin.IsAdmin);
+        Assert.Equal("[101]", admin.Sources);
+        var mediaSourceUser = await targetDb.MediaSourceUsers.SingleAsync(TestContext.Current.CancellationToken);
+        Assert.Equal("admin", mediaSourceUser.UserId);
+        Assert.Equal(101, mediaSourceUser.MediaSourceId);
+    }
+
+    [Fact]
     public async Task RestoreAsync_ForcesExecutingAdminFlagWhenBackupContainsUser()
     {
         using var temp = new TempDirectory();

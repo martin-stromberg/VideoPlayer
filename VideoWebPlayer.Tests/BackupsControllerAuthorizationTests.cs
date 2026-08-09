@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using VideoWebPlayer.Controllers;
 using Xunit;
@@ -40,5 +41,23 @@ public sealed class BackupsControllerAuthorizationTests
             .OfType<HttpPostAttribute>()
             .Single();
         Assert.Equal("create", httpPost.Template);
+    }
+
+    [Fact]
+    public void UploadEndpoint_IsExposedAsUnlimitedServerSidePost()
+    {
+        var method = typeof(BackupsController).GetMethod(nameof(BackupsController.Upload));
+
+        Assert.NotNull(method);
+        var httpPost = method.GetCustomAttributes(typeof(HttpPostAttribute), inherit: true)
+            .OfType<HttpPostAttribute>()
+            .Single();
+        Assert.Equal("upload", httpPost.Template);
+
+        Assert.NotEmpty(method.GetCustomAttributes(typeof(DisableRequestSizeLimitAttribute), inherit: true));
+        var formLimits = method.GetCustomAttributes(typeof(RequestFormLimitsAttribute), inherit: true)
+            .OfType<RequestFormLimitsAttribute>()
+            .Single();
+        Assert.Equal(long.MaxValue, formLimits.MultipartBodyLengthLimit);
     }
 }

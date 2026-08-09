@@ -1,11 +1,14 @@
 @page "/admin/backups"
 @using System.ComponentModel.DataAnnotations
 @using System.Security.Claims
+@using Microsoft.AspNetCore.Antiforgery
 @using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.AspNetCore.WebUtilities
 @using msTools.Backup
 @using VideoWebPlayer.Data
 @using VideoWebPlayer.Services.Backups
+@inject IAntiforgery Antiforgery
+@inject IHttpContextAccessor HttpContextAccessor
 @inject VideoWebPlayerBackupFacade BackupFacade
 @inject BackupSettingsService SettingsService
 @inject ManualBackupJobService ManualBackupJobs
@@ -77,7 +80,10 @@ else
 
     <div class="mb-3 d-flex gap-2 flex-wrap">
         <form method="post" action="/admin/backups/api/create">
-            <AntiforgeryToken />
+            @if (!string.IsNullOrWhiteSpace(antiforgeryRequestToken))
+            {
+                <input type="hidden" name="__RequestVerificationToken" value="@antiforgeryRequestToken" />
+            }
             <button class="btn btn-primary" type="submit" disabled="@(isBusy || IsRestoreActive || manualBackupJob?.IsActive == true)">Backup erstellen</button>
         </form>
         <button class="btn btn-outline-secondary" @onclick="ReloadAsync" disabled="@(isBusy && !IsRestoreActive)">Aktualisieren</button>
@@ -167,10 +173,17 @@ else
     }
 
     <h2 class="h4">Backup hochladen</h2>
-    <div class="mb-4">
-        <InputFile OnChange="UploadAsync" accept=".zip,application/zip" disabled="@(isBusy || IsRestoreActive)" />
+    <form class="mb-4" method="post" action="/admin/backups/api/upload" enctype="multipart/form-data">
+        @if (!string.IsNullOrWhiteSpace(antiforgeryRequestToken))
+        {
+            <input type="hidden" name="__RequestVerificationToken" value="@antiforgeryRequestToken" />
+        }
+        <div class="d-flex gap-2 flex-wrap align-items-center">
+            <input class="form-control" type="file" name="backupFile" accept=".zip,application/zip" disabled="@(isBusy || IsRestoreActive)" />
+            <button class="btn btn-primary" type="submit" disabled="@(isBusy || IsRestoreActive)">Backup hochladen</button>
+        </div>
         <div class="form-text">Maximal @FormatBytes(settingsModel.MaxUploadSizeBytes). Nur gültige Backup-ZIP-Dateien werden übernommen.</div>
-    </div>
+    </form>
 
     <h2 class="h4">Einstellungen</h2>
     <EditForm Model="settingsModel" OnValidSubmit="SaveSettingsAsync">
@@ -260,6 +273,7 @@ else
     private RestoreBackupJobSnapshot? restoreJob;
     private PeriodicTimer? backupStatusTimer;
     private CancellationTokenSource? backupStatusCts;
+    private string? antiforgeryRequestToken;
 
     private bool IsRestoreActive => restoreJob?.IsActive == true;
 
@@ -273,10 +287,19 @@ else
         if (!isAdmin)
             return;
 
+        antiforgeryRequestToken = CreateAntiforgeryRequestToken();
         ApplyQueryMessages();
         await LoadSettingsAsync();
         await ReloadAsync();
         StartBackupStatusPolling();
+    }
+
+    private string? CreateAntiforgeryRequestToken()
+    {
+        var httpContext = HttpContextAccessor.HttpContext;
+        return httpContext is null
+            ? null
+            : Antiforgery.GetAndStoreTokens(httpContext).RequestToken;
     }
 
     private void ApplyQueryMessages()
@@ -352,26 +375,6 @@ else
         catch (OperationCanceledException)
         {
         }
-    }
-
-    private async Task UploadAsync(InputFileChangeEventArgs args)
-    {
-        if (settingsModel is null)
-            return;
-
-        var file = args.File;
-        if (file.Size > settingsModel.MaxUploadSizeBytes)
-        {
-            errorMessage = "Die Datei ist größer als das konfigurierte Upload-Limit.";
-            return;
-        }
-
-        await RunOperationAsync(async () =>
-        {
-            await using var stream = file.OpenReadStream(settingsModel.MaxUploadSizeBytes);
-            var result = await BackupFacade.ImportUploadAsync(stream, file.Name, userId);
-            ApplyResult(result);
-        });
     }
 
     private void SelectRestore(string fileName)

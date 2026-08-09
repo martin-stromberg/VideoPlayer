@@ -103,6 +103,8 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
         if (!string.IsNullOrWhiteSpace(context.UserId) && tableMap.TryGetValue(UsersTableName, out var usersTable))
             currentAdminRow = await ReadUserRowAsync(connection, usersTable, context.UserId, cancellationToken);
 
+        var userIdMap = await CreateRestoreUserIdMapAsync(payload, context, currentAdminRow, cancellationToken);
+
         await using var stagedFiles = await StagedGenreIconRestore.PrepareAsync(
             _environment.WebRootPath,
             payload.Files,
@@ -137,6 +139,7 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
                 for (var rowIndex = 0; rowIndex < rows.Count; rowIndex++)
                 {
                     var row = rows[rowIndex];
+                    ApplyRestoreUserIdMap(table, row, userIdMap);
                     await InsertRowAsync(connection, dbTransaction, table, tablePayload.Columns, row, cancellationToken);
                     ReportRestoreProgress(
                         context,
@@ -150,7 +153,7 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
             }
 
             if (!string.IsNullOrWhiteSpace(context.UserId) && tableMap.TryGetValue(UsersTableName, out usersTable))
-                await EnsureAdminAccountAsync(connection, dbTransaction, usersTable, context.UserId, currentAdminRow, cancellationToken);
+                await EnsureAdminAccountAsync(connection, dbTransaction, usersTable, tables, context.UserId, currentAdminRow, cancellationToken);
 
             if (sqlite)
                 await EnsureNoSqliteForeignKeyViolationsAsync(connection, dbTransaction, cancellationToken);
@@ -388,10 +391,103 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
         return errors.Count == 0 ? BackupValidationResult.Valid : new BackupValidationResult(false, errors);
     }
 
+    private static async Task<Dictionary<string, string>> CreateRestoreUserIdMapAsync(
+        DatabaseBackupIndex payload,
+        BackupRestoreContext context,
+        Dictionary<string, object?>? currentAdminRow,
+        CancellationToken cancellationToken)
+    {
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (string.IsNullOrWhiteSpace(context.UserId) || currentAdminRow is null)
+            return result;
+
+        var usersPayload = payload.Tables.FirstOrDefault(x => string.Equals(x.Name, UsersTableName, StringComparison.OrdinalIgnoreCase));
+        if (usersPayload is null)
+            return result;
+
+        var currentNormalizedUserName = GetString(currentAdminRow, "NormalizedUserName");
+        var currentNormalizedEmail = GetString(currentAdminRow, "NormalizedEmail");
+        if (string.IsNullOrWhiteSpace(currentNormalizedUserName) && string.IsNullOrWhiteSpace(currentNormalizedEmail))
+            return result;
+
+        var users = await ReadTablePayloadAsync(usersPayload, context.OpenPayloadEntryAsync, cancellationToken);
+        foreach (var row in users.Rows ?? new List<Dictionary<string, JsonElement?>>())
+        {
+            var backupUserId = GetString(row, "Id");
+            if (string.IsNullOrWhiteSpace(backupUserId) || string.Equals(backupUserId, context.UserId, StringComparison.Ordinal))
+                continue;
+
+            var sameUserName = !string.IsNullOrWhiteSpace(currentNormalizedUserName)
+                && string.Equals(GetString(row, "NormalizedUserName"), currentNormalizedUserName, StringComparison.Ordinal);
+            var sameEmail = !string.IsNullOrWhiteSpace(currentNormalizedEmail)
+                && string.Equals(GetString(row, "NormalizedEmail"), currentNormalizedEmail, StringComparison.Ordinal);
+
+            if (sameUserName || sameEmail)
+            {
+                result[backupUserId] = context.UserId;
+                break;
+            }
+        }
+
+        return result;
+    }
+
+    private static void ApplyRestoreUserIdMap(
+        TableMetadata table,
+        Dictionary<string, JsonElement?> row,
+        IReadOnlyDictionary<string, string> userIdMap)
+    {
+        if (userIdMap.Count == 0)
+            return;
+
+        if (string.Equals(table.Name, UsersTableName, StringComparison.OrdinalIgnoreCase)
+            && TryMapJsonString(row, "Id", userIdMap, out var mappedUserId))
+        {
+            row["Id"] = ToJsonElement(mappedUserId);
+            if (row.ContainsKey("IsAdmin"))
+                row["IsAdmin"] = ToJsonElement(true);
+        }
+
+        if (TryMapJsonString(row, "UserId", userIdMap, out mappedUserId))
+            row["UserId"] = ToJsonElement(mappedUserId);
+    }
+
+    private static bool TryMapJsonString(
+        Dictionary<string, JsonElement?> row,
+        string column,
+        IReadOnlyDictionary<string, string> map,
+        out string mappedValue)
+    {
+        mappedValue = string.Empty;
+        var value = GetString(row, column);
+        return !string.IsNullOrWhiteSpace(value) && map.TryGetValue(value, out mappedValue);
+    }
+
+    private static string? GetString(Dictionary<string, object?> row, string column)
+        => row.TryGetValue(column, out var value) && value is not null && value != DBNull.Value
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private static string? GetString(Dictionary<string, JsonElement?> row, string column)
+    {
+        if (!row.TryGetValue(column, out var value)
+            || value is null
+            || value.Value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+            return null;
+
+        return value.Value.ValueKind == JsonValueKind.String
+            ? value.Value.GetString()
+            : value.Value.GetRawText();
+    }
+
+    private static JsonElement ToJsonElement<T>(T value)
+        => JsonSerializer.SerializeToElement(value, JsonOptions);
+
     private async Task EnsureAdminAccountAsync(
         DbConnection connection,
         DbTransaction transaction,
         TableMetadata usersTable,
+        List<TableMetadata> allTables,
         string userId,
         Dictionary<string, object?>? currentAdminRow,
         CancellationToken cancellationToken)
@@ -406,9 +502,108 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
         if (currentAdminRow is null)
             return;
 
+        await DeleteConflictingUsersAsync(connection, transaction, usersTable, allTables, userId, currentAdminRow, cancellationToken);
+
         currentAdminRow["Sources"] = string.Empty;
         currentAdminRow["IsAdmin"] = true;
         await InsertObjectRowAsync(connection, transaction, usersTable, currentAdminRow, cancellationToken);
+    }
+
+    private static async Task DeleteConflictingUsersAsync(
+        DbConnection connection,
+        DbTransaction transaction,
+        TableMetadata usersTable,
+        List<TableMetadata> allTables,
+        string userId,
+        Dictionary<string, object?> currentAdminRow,
+        CancellationToken cancellationToken)
+    {
+        var conflictColumns = new[] { "NormalizedUserName", "NormalizedEmail" }
+            .Where(column => usersTable.Columns.Any(x => string.Equals(x.Name, column, StringComparison.OrdinalIgnoreCase))
+                && currentAdminRow.TryGetValue(column, out var value)
+                && value is not null
+                && value != DBNull.Value
+                && !string.IsNullOrWhiteSpace(Convert.ToString(value, CultureInfo.InvariantCulture)))
+            .ToList();
+
+        if (conflictColumns.Count == 0)
+            return;
+
+        var conflictingUserIds = await ReadConflictingUserIdsAsync(
+            connection,
+            transaction,
+            usersTable,
+            userId,
+            currentAdminRow,
+            conflictColumns,
+            cancellationToken);
+
+        if (conflictingUserIds.Count == 0)
+            return;
+
+        foreach (var table in allTables)
+        {
+            if (string.Equals(table.Name, usersTable.Name, StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (!table.Columns.Any(x => string.Equals(x.Name, "UserId", StringComparison.OrdinalIgnoreCase)))
+                continue;
+
+            await DeleteRowsForUsersAsync(connection, transaction, table, "UserId", conflictingUserIds, cancellationToken);
+        }
+
+        await DeleteRowsForUsersAsync(connection, transaction, usersTable, "Id", conflictingUserIds, cancellationToken);
+    }
+
+    private static async Task<List<string>> ReadConflictingUserIdsAsync(
+        DbConnection connection,
+        DbTransaction transaction,
+        TableMetadata usersTable,
+        string userId,
+        Dictionary<string, object?> currentAdminRow,
+        List<string> conflictColumns,
+        CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = $"""
+            SELECT {QuoteIdentifier("Id")}
+            FROM {QuoteTable(usersTable)}
+            WHERE {QuoteIdentifier("Id")} <> @id
+              AND ({string.Join(" OR ", conflictColumns.Select((column, index) => $"{QuoteIdentifier(column)} = @conflict{index}"))});
+            """;
+        AddParameter(command, "@id", userId);
+        for (var i = 0; i < conflictColumns.Count; i++)
+            AddParameter(command, $"@conflict{i}", currentAdminRow[conflictColumns[i]] ?? DBNull.Value);
+
+        var result = new List<string>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            if (!await reader.IsDBNullAsync(0, cancellationToken))
+                result.Add(reader.GetString(0));
+        }
+
+        return result;
+    }
+
+    private static async Task DeleteRowsForUsersAsync(
+        DbConnection connection,
+        DbTransaction transaction,
+        TableMetadata table,
+        string userIdColumn,
+        List<string> userIds,
+        CancellationToken cancellationToken)
+    {
+        if (userIds.Count == 0)
+            return;
+
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = $"DELETE FROM {QuoteTable(table)} WHERE {QuoteIdentifier(userIdColumn)} IN ({string.Join(", ", userIds.Select((_, index) => $"@user{index}"))});";
+        for (var i = 0; i < userIds.Count; i++)
+            AddParameter(command, $"@user{i}", userIds[i]);
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
     private static async Task<int> CountUserAsync(

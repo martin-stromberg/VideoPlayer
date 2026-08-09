@@ -141,6 +141,20 @@ public sealed class FileSystemBackupStoreTests
     }
 
     [Fact]
+    public async Task ValidateAsync_AcceptsNonSeekableZipStream()
+    {
+        using var temp = new TempDirectory();
+        var store = CreateStore(temp.Path);
+        var created = await store.SaveBackupAsync(new BackupCreateRequest(BackupGeneration.Manual, "Tests"), TestContext.Current.CancellationToken);
+        var backupBytes = await File.ReadAllBytesAsync(created.Path, TestContext.Current.CancellationToken);
+        await using var stream = new NonSeekableReadStream(backupBytes);
+
+        var result = await store.ValidateAsync(stream, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsValid);
+    }
+
+    [Fact]
     public async Task ValidateAsync_RejectsUnsafeManifestPayloadEntry()
     {
         using var temp = new TempDirectory();

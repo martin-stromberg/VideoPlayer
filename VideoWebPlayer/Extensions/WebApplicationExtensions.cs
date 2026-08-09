@@ -4,6 +4,7 @@ using Microsoft.Extensions.Hosting;
 using VideoWebPlayer.Components;
 using VideoWebPlayer.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using msTools.Backup;
 
 namespace VideoWebPlayer.Extensions;
 
@@ -47,13 +48,14 @@ public static class WebApplicationExtensions
 
         app.UseHttpsRedirection();
 
-        // Früh einschränken
+        // Frï¿½h einschrï¿½nken
         app.UseWhitelistIp();
 
         app.UseStaticFiles();
 
         app.UseAuthentication();
         app.UseAuthorization();
+        app.UseBackups();
         app.UseAntiforgery();
 
 

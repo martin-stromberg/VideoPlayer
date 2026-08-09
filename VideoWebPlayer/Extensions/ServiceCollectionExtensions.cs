@@ -17,6 +17,8 @@ using VideoWebPlayer.Services.Authentication;
 using VideoWebPlayer.Services.DemoData;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using System.Security.Claims;
+using msTools.Backup;
+using VideoWebPlayer.Services.Backups;
 using VideoWebPlayer.ViewModels;
 
 namespace VideoWebPlayer.Extensions;
@@ -55,7 +57,10 @@ public static class ServiceCollectionExtensions
         services.AddServerSideBlazor().AddCircuitOptions(o => o.DetailedErrors = true);
 
         services.AddCascadingAuthenticationState();
-        services.AddAuthorization();
+        services.AddAuthorization(options =>
+        {
+            options.AddPolicy("AdminOnly", policy => policy.RequireClaim("IsAdmin", "True"));
+        });
         services.AddScoped<AuthorizationTokenService>();
         services.AddScoped<IdentityUserAccessor>();
         services.AddScoped<IdentityRedirectManager>();
@@ -185,7 +190,7 @@ public static class ServiceCollectionExtensions
             return http;
         });
 
-        // Domänenspezifische Services
+        // Domaenenspezifische Services
         services.AddScoped<VideoWebPlayerClient>(sp =>
         {
             var authStateProvider = sp.GetRequiredService<AuthenticationStateProvider>();
@@ -207,6 +212,15 @@ public static class ServiceCollectionExtensions
         services.AddScoped<SftpMediaSourceReader>();
         services.AddScoped<DataUpgradeManager>();
         services.AddScoped<ProgramSettingsService>();
+        services.AddBackups(configuration.GetSection("Backups"));
+        services.AddScoped<IBackupDataProvider, VideoWebPlayerBackupDataProvider>();
+        services.AddSingleton<IBackgroundProcessingGate, BackgroundProcessingGate>();
+        services.AddSingleton<IBackupRestoreGuard, VideoWebPlayerBackupRestoreGuard>();
+        services.AddScoped<BackupSettingsService>();
+        services.AddScoped<IBackupOptionsProvider, BackupSettingsService>();
+        services.AddScoped<BackupOperationHistoryService>();
+        services.AddScoped<IAutomaticBackupRunner, VideoWebPlayerAutomaticBackupRunner>();
+        services.AddScoped<VideoWebPlayerBackupFacade>();
         services.AddScoped<RecentEntryService>();
         services.AddTransient<IAuthService, AuthService>();
         services.AddHostedService<MediaSourceScanService>();
@@ -223,7 +237,7 @@ public static class ServiceCollectionExtensions
         // SignalR
         services.AddSignalR();
 
-        // JWT-Signaturschlüssel registrieren (Base64)
+        // JWT-Signaturschluessel registrieren (Base64)
         if (!string.IsNullOrWhiteSpace(jwtKey))
         {
             services.AddSingleton(new SymmetricSecurityKey(Convert.FromBase64String(jwtKey)));

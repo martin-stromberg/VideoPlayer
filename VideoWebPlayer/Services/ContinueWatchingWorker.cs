@@ -54,7 +54,9 @@ namespace VideoWebPlayer.Services
 
                     using var scope = _scopeFactory.CreateScope();
                     var service = scope.ServiceProvider.GetRequiredService<ContinueWatchingService>();
+                    var gate = scope.ServiceProvider.GetService<VideoWebPlayer.Services.Backups.IBackgroundProcessingGate>();
 
+                    await using var processingLease = gate is null ? null : await gate.EnterOperationAsync("ContinueWatching", stoppingToken);
                     await service.ProcessBufferedEntryAsync(entry.UserId, entry.MovieId, entry.EpisodeId, entry.Position, entry.Duration, stoppingToken);
                     
                     _logger.LogDebug("[ContinueWatchingWorker] Entry processed successfully");

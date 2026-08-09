@@ -16,7 +16,7 @@ using static System.Net.Mime.MediaTypeNames;
 namespace VideoWebPlayer.Services
 {
     /// <summary>
-    /// Verantwortlich für die Klassifizierung und Verarbeitung der gescannten MediaItems und MediaCollections.
+    /// Verantwortlich fï¿½r die Klassifizierung und Verarbeitung der gescannten MediaItems und MediaCollections.
     /// </summary>
     public class MediaSourceClassifier
     {
@@ -24,7 +24,7 @@ namespace VideoWebPlayer.Services
         private readonly SftpMediaSourceReader _sftpReader;
         private readonly RecentEntryService _recentEntryService;
         private readonly EventManager _eventManager;
-        private readonly MediaUpdateNotificationService _notificationService;
+        private readonly MediaUpdateNotificationService? _notificationService;
         private readonly ILogger<MediaSourceClassifier> _logger;
 
 		private static int _classificationRunning;
@@ -51,8 +51,8 @@ namespace VideoWebPlayer.Services
             SftpMediaSourceReader sftpReader,
             RecentEntryService recentEntryService,
             EventManager eventManager,
-            MediaUpdateNotificationService notificationService,
-            ILogger<MediaSourceClassifier> logger)
+            ILogger<MediaSourceClassifier> logger,
+            MediaUpdateNotificationService? notificationService = null)
         {
             _db = db;
             _sftpReader = sftpReader;
@@ -63,13 +63,13 @@ namespace VideoWebPlayer.Services
         }
 
         /// <summary>
-        /// Führt die Klassifizierung aller relevanten MediaItems und MediaCollections durch.
+        /// Fï¿½hrt die Klassifizierung aller relevanten MediaItems und MediaCollections durch.
         /// </summary>
         public async Task ClassifyAllAsync(CancellationToken cancellationToken)
         {
 			if (!TryBeginClassification())
 			{
-				_logger.LogInformation("Klassifizierung läuft bereits, überspringe ClassifyAllAsync.");
+				_logger.LogInformation("Klassifizierung lï¿½uft bereits, ï¿½berspringe ClassifyAllAsync.");
 				return;
 			}
 
@@ -87,13 +87,13 @@ namespace VideoWebPlayer.Services
         }
 
         /// <summary>
-        /// Führt nur die Klassifizierung der relevanten MediaItems durch.
+        /// Fï¿½hrt nur die Klassifizierung der relevanten MediaItems durch.
         /// </summary>
         public async Task ClassifyMediaItemsAsync(CancellationToken cancellationToken)
         {
 			if (!TryBeginClassification())
 			{
-				_logger.LogInformation("Klassifizierung läuft bereits, überspringe ClassifyMediaItemsAsync.");
+				_logger.LogInformation("Klassifizierung lï¿½uft bereits, ï¿½berspringe ClassifyMediaItemsAsync.");
 				return;
 			}
 
@@ -110,13 +110,13 @@ namespace VideoWebPlayer.Services
         }
 
         /// <summary>
-        /// Führt nur die Klassifizierung der relevanten MediaCollections durch.
+        /// Fï¿½hrt nur die Klassifizierung der relevanten MediaCollections durch.
         /// </summary>
         public async Task ClassifyMediaCollectionsAsync(CancellationToken cancellationToken)
         {
 			if (!TryBeginClassification())
 			{
-				_logger.LogInformation("Klassifizierung läuft bereits, überspringe ClassifyMediaCollectionsAsync.");
+				_logger.LogInformation("Klassifizierung lï¿½uft bereits, ï¿½berspringe ClassifyMediaCollectionsAsync.");
 				return;
 			}
 
@@ -133,7 +133,7 @@ namespace VideoWebPlayer.Services
         }
 
         /// <summary>
-        /// Führt die Klassifizierung für eine bestimmte Collection inkl. ihrer Unter-Collections durch.
+        /// Fï¿½hrt die Klassifizierung fï¿½r eine bestimmte Collection inkl. ihrer Unter-Collections durch.
         /// </summary>
         /// <param name="rootMediaCollectionId">Root-Collection (Startpunkt).</param>
         /// <param name="cancellationToken">Cancellation token.</param>
@@ -141,7 +141,7 @@ namespace VideoWebPlayer.Services
         {
 			if (!TryBeginClassificationForCollectionTree(rootMediaCollectionId))
 			{
-				_logger.LogInformation("Klassifizierung läuft bereits, CollectionId {CollectionId} wurde in Queue gepackt.", rootMediaCollectionId);
+				_logger.LogInformation("Klassifizierung lï¿½uft bereits, CollectionId {CollectionId} wurde in Queue gepackt.", rootMediaCollectionId);
 				return false;
 			}
 
@@ -219,12 +219,12 @@ namespace VideoWebPlayer.Services
 		private async Task ClassifyCollectionTreeCoreAsync(long rootMediaCollectionId, CancellationToken cancellationToken)
 		{
 			var collectionIds = await GetCollectionTreeIdsAsync(rootMediaCollectionId, cancellationToken);
-			_logger.LogInformation("Starte Klassifizierung für Collection-Tree (Root={RootId}, Count={Count}).", rootMediaCollectionId, collectionIds.Count);
+			_logger.LogInformation("Starte Klassifizierung fï¿½r Collection-Tree (Root={RootId}, Count={Count}).", rootMediaCollectionId, collectionIds.Count);
 
 			await ProcessMediaItemsAsync(collectionIds, cancellationToken);
 			await ProcessMediaCollectionsAsync(collectionIds, cancellationToken);
 
-			_logger.LogInformation("Klassifizierung für Collection-Tree abgeschlossen (Root={RootId}).", rootMediaCollectionId);
+			_logger.LogInformation("Klassifizierung fï¿½r Collection-Tree abgeschlossen (Root={RootId}).", rootMediaCollectionId);
 		}
 
         private async Task<HashSet<long>> GetCollectionTreeIdsAsync(long rootMediaCollectionId, CancellationToken cancellationToken)
@@ -258,7 +258,7 @@ namespace VideoWebPlayer.Services
         {
             _logger.LogInformation(message);
             _eventManager.Publish(new BackgroundProcessingStatusEvent(message, DateTimeOffset.UtcNow));
-            _ = _notificationService.NotifyStatusAsync(message);
+            _ = _notificationService?.NotifyStatusAsync(message);
         }
 
         private Task ProcessMediaItemsAsync(CancellationToken cancellationToken)
@@ -294,7 +294,7 @@ namespace VideoWebPlayer.Services
                 item.ClassifiedAt = DateTime.UtcNow;
                 await _db.SaveChangesAsync(cancellationToken);
                 if (count % 100 == 0)
-                    PublishStatus($"Klassifizierung: {count} Dateien übrig.");
+                    PublishStatus($"Klassifizierung: {count} Dateien ï¿½brig.");
                 await Task.Delay(10);
             }
         }
@@ -319,14 +319,14 @@ namespace VideoWebPlayer.Services
                         break;
 
                     if (count % 100 == 0)
-                        PublishStatus($"Klassifizierung: {count} Verzeichnisse übrig.");
+                        PublishStatus($"Klassifizierung: {count} Verzeichnisse ï¿½brig.");
 
                     _logger.LogInformation("Verarbeite Collection '{CollectionName}' (ID: {CollectionId})", collection.Name, collection.Id);
 
                     // 1. TVShow-Verarbeitung
                     await ProcessCollectionAsTVShowAsync(collection, cancellationToken);
 
-                    // 2. Movie-Verarbeitung (falls TVShow nicht zutrifft oder zusätzlich nötig)
+                    // 2. Movie-Verarbeitung (falls TVShow nicht zutrifft oder zusï¿½tzlich nï¿½tig)
                     await ProcessCollectionAsMovieAsync(collection, cancellationToken);
 
                     collection.Changed = false;
@@ -360,7 +360,7 @@ namespace VideoWebPlayer.Services
                         break;
 
                     if (count % 100 == 0)
-                        PublishStatus($"Klassifizierung: {count} Verzeichnisse übrig.");
+                        PublishStatus($"Klassifizierung: {count} Verzeichnisse ï¿½brig.");
 
                     _logger.LogInformation("Verarbeite Collection '{CollectionName}' (ID: {CollectionId})", collection.Name, collection.Id);
 
@@ -378,7 +378,7 @@ namespace VideoWebPlayer.Services
         }
 
         /// <summary>
-        /// Prüft und verarbeitet eine Collection als TVShow (z.B. wenn tvshow.nfo existiert).
+        /// Prï¿½ft und verarbeitet eine Collection als TVShow (z.B. wenn tvshow.nfo existiert).
         /// </summary>
         private async Task ProcessCollectionAsTVShowAsync(MediaCollection collection, CancellationToken cancellationToken)
         {
@@ -403,11 +403,11 @@ namespace VideoWebPlayer.Services
             }
             catch
             {
-                _logger.LogWarning("tvshow.nfo in Collection '{CollectionName}' ist kein gültiges XML.", collection.Name);
+                _logger.LogWarning("tvshow.nfo in Collection '{CollectionName}' ist kein gï¿½ltiges XML.", collection.Name);
                 return;
             }
 
-            _logger.LogInformation("Verarbeite TVShow für Collection '{CollectionName}'.", collection.Name);
+            _logger.LogInformation("Verarbeite TVShow fï¿½r Collection '{CollectionName}'.", collection.Name);
             var show = await CreateOrUpdateTVShow(collection, xml, cancellationToken);
             await ProcessEpisodesForTVShowAsync(show, cancellationToken);
         }
@@ -417,7 +417,7 @@ namespace VideoWebPlayer.Services
             // Parse die relevanten Infos aus dem XML
             string showName = xml.Element("title")?.Value ?? collection.Name;
 
-            // Prüfe, ob es bereits einen TVShow-Datensatz zu dieser Collection gibt
+            // Prï¿½fe, ob es bereits einen TVShow-Datensatz zu dieser Collection gibt
             var existingShow = await _db.TVShows
                 .FirstOrDefaultAsync(s => s.MediaSourceId == collection.MediaSourceId && s.Name == showName, cancellationToken);
 
@@ -459,7 +459,7 @@ namespace VideoWebPlayer.Services
             return existingShow;
         }
 
-        // Dummy-Parser für ShowName aus NFO (bitte durch echtes XML-Parsing ersetzen)
+        // Dummy-Parser fï¿½r ShowName aus NFO (bitte durch echtes XML-Parsing ersetzen)
         private string? ParseShowNameFromNfo(string nfoContent)
         {
             try
@@ -490,7 +490,7 @@ namespace VideoWebPlayer.Services
                 .Include(mi => mi.MediaCollection)
                 .ToListAsync(cancellationToken);
 
-            _logger.LogInformation("Verarbeite {Count} Dateien für TVShow '{ShowName}'.", mediaItems.Count, show.Name);
+            _logger.LogInformation("Verarbeite {Count} Dateien fï¿½r TVShow '{ShowName}'.", mediaItems.Count, show.Name);
 
             var isFirst = true;
 
@@ -504,7 +504,7 @@ namespace VideoWebPlayer.Services
                 var nfoFileName = System.IO.Path.ChangeExtension(System.IO.Path.GetFileName(item.Path), ".nfo");
                 var collection = item.MediaCollection;
 
-                // Prüfen, ob NFO existiert
+                // Prï¿½fen, ob NFO existiert
                 bool nfoExists = await _sftpReader.FileExistsAsync(collection, nfoFileName);
                 if (!nfoExists)
                     continue;
@@ -524,7 +524,7 @@ namespace VideoWebPlayer.Services
                 var seasonName = seasonNo == 0 ? "Specials" : $"Staffel {seasonNo.ToString().PadLeft(2, '0')}";
                 int episodeNo = int.TryParse(xml.Element("episode")?.Value, out var e) ? e : 0;
                 if (episodeNo == 0)
-                    continue; // Keine Episode-Nummer, überspringen
+                    continue; // Keine Episode-Nummer, ï¿½berspringen
 
                 // Staffel suchen oder anlegen
                 var season = await _db.TVShowSeasons
@@ -543,7 +543,7 @@ namespace VideoWebPlayer.Services
                     _db.TVShowSeasons.Add(season);
                     await _db.SaveChangesAsync(cancellationToken);
                     await _recentEntryService.AddTVShowSeasonAsync(season).ConfigureAwait(false);
-                    PublishStatus($"Neue Staffel '{seasonName}' für TVShow '{show.Name}' angelegt.");
+                    PublishStatus($"Neue Staffel '{seasonName}' fï¿½r TVShow '{show.Name}' angelegt.");
                 }
 
                 // Episode suchen oder anlegen
@@ -640,7 +640,7 @@ namespace VideoWebPlayer.Services
 
 
         /// <summary>
-        /// Prüft und verarbeitet eine Collection als Movie-Collection.
+        /// Prï¿½ft und verarbeitet eine Collection als Movie-Collection.
         /// </summary>
         private async Task ProcessCollectionAsMovieAsync(MediaCollection collection, CancellationToken cancellationToken)
         {
@@ -658,7 +658,7 @@ namespace VideoWebPlayer.Services
                 // NFO-Dateiname bestimmen
                 var nfoFileName = System.IO.Path.ChangeExtension(System.IO.Path.GetFileName(item.Path), ".nfo");
 
-                // Prüfen, ob NFO existiert
+                // Prï¿½fen, ob NFO existiert
                 bool nfoExists = await _sftpReader.FileExistsAsync(collection, nfoFileName);
                 if (!nfoExists)
                     continue;
@@ -673,7 +673,7 @@ namespace VideoWebPlayer.Services
                 try { xml = XElement.Parse(nfoContent); }
                 catch { continue; }
 
-                // Prüfen, ob es sich um einen Movie handelt
+                // Prï¿½fen, ob es sich um einen Movie handelt
                 if (!string.Equals(xml.Name.LocalName, "movie", StringComparison.OrdinalIgnoreCase))
                     continue;
 
@@ -885,7 +885,7 @@ namespace VideoWebPlayer.Services
                     bool exists = await _sftpReader.FileExistsAsync(collection, fileName);
                     if (exists)
                     {
-                        // Prüfe, ob das Bild bereits als MediaItem existiert
+                        // Prï¿½fe, ob das Bild bereits als MediaItem existiert
                         var mediaItem = (await _db.MediaItems
                             .Where(mi => mi.MediaCollectionId == collection.Id && mi.Path.EndsWith(fileName))
                             .ToListAsync(cancellationToken)
@@ -893,7 +893,7 @@ namespace VideoWebPlayer.Services
 
                         if (mediaItem == null)
                         {
-                            // Optional: MediaItem anlegen, falls gewünscht
+                            // Optional: MediaItem anlegen, falls gewï¿½nscht
                             continue;
                         }
 
@@ -982,7 +982,7 @@ namespace VideoWebPlayer.Services
                 collection = collection.ParentMediaCollection;
             }
 
-            // 2. Fallback: Von Staffel übernehmen, falls kein Bild gefunden
+            // 2. Fallback: Von Staffel ï¿½bernehmen, falls kein Bild gefunden
             if (!pictureIds.ContainsKey("poster") || !pictureIds.ContainsKey("banner") || !pictureIds.ContainsKey("fanart"))
             {
                 var firstSeasonWithBanner = await _db.TVShowSeasons
@@ -1057,7 +1057,7 @@ namespace VideoWebPlayer.Services
                 collection = collection.ParentMediaCollection;
             }
 
-            // 2. Fallback: Von Episode übernehmen, falls kein Bild gefunden
+            // 2. Fallback: Von Episode ï¿½bernehmen, falls kein Bild gefunden
             if (!pictureIds.ContainsKey("poster") || !pictureIds.ContainsKey("banner") || !pictureIds.ContainsKey("fanart"))
             {
                 var firstEpisodeWithBanner = await _db.TVShowEpisodes
@@ -1137,7 +1137,7 @@ namespace VideoWebPlayer.Services
             }
         }
         /// <summary>
-        /// Gibt das längste gemeinsame Präfix aller Strings in der Liste zurück.
+        /// Gibt das lï¿½ngste gemeinsame Prï¿½fix aller Strings in der Liste zurï¿½ck.
         /// </summary>
         private static string GetCommonPrefix(List<string> strings)
         {
@@ -1183,7 +1183,7 @@ namespace VideoWebPlayer.Services
 
             foreach (var movie in movies)
             {
-                // Genre-Datensätze anlegen und zuordnen
+                // Genre-Datensï¿½tze anlegen und zuordnen
                 var genres = await GetOrCreateGenresAsync(movie.GenreNames, movie.MediaSourceId, cancellationToken);
                 movie.MovieGenres.Clear();
                 foreach (var genre in genres)
@@ -1205,7 +1205,7 @@ namespace VideoWebPlayer.Services
 
             foreach (var show in tvshows)
             {
-                // Genre-Datensätze anlegen und zuordnen
+                // Genre-Datensï¿½tze anlegen und zuordnen
                 var genres = await GetOrCreateGenresAsync(show.GenreNames, show.MediaSourceId, cancellationToken);
                 show.GenreNames = string.Join(",", genres.Select(g => g.Name));
                 show.TVShowGenres.Clear();

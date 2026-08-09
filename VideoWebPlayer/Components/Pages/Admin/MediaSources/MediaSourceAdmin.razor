@@ -8,6 +8,7 @@
 @inject VideoWebPlayer.Services.MediaSourceScanner MediaSourceScanner
 @inject VideoWebPlayer.Services.MediaSourceClassifier MediaSourceClassifier
 @inject ILogger<MediaSourceAdmin> Logger
+@inject VideoWebPlayer.Services.Backups.IBackgroundProcessingGate BackgroundGate
 @rendermode InteractiveServer
 
 <PageTitle>Quellen verwalten</PageTitle>
@@ -155,6 +156,12 @@
         if (isFullScanRunning)
             return;
 
+        if (BackgroundGate.IsPausedForRestore)
+        {
+            fullScanStatus = "Restore laeuft. Der Komplettscan ist derzeit gesperrt.";
+            return;
+        }
+
         isFullScanRunning = true;
         fullScanScannedCollections = 0;
         fullScanStatus = "Starte Komplettscan: ScanAllSourcesAsync...";
@@ -162,6 +169,7 @@
 
         try
         {
+            await using var processingLease = await BackgroundGate.EnterOperationAsync("Manueller Komplettscan", CancellationToken.None);
             await MediaSourceScanner.ScanAllSourcesAsync(CancellationToken.None);
 
             fullScanStatus = "Komplettscan: ScanNextMediaCollection...";

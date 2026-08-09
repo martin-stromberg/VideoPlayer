@@ -7,20 +7,20 @@ using VideoWebPlayer.Services;
 namespace VideoWebPlayer.Data
 {
     /// <summary>
-    /// Der zentrale Datenbankkontext für die Anwendung.
-    /// Verwaltet Identität, MediaSources, MediaCollections und MediaItems.
-    /// Kapselt außerdem Event-Publishing für CRUD-Operationen.
+    /// Der zentrale Datenbankkontext fï¿½r die Anwendung.
+    /// Verwaltet Identitï¿½t, MediaSources, MediaCollections und MediaItems.
+    /// Kapselt auï¿½erdem Event-Publishing fï¿½r CRUD-Operationen.
     /// </summary>
     public partial class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     {
-        // Instanz des EventManagers für die Event-basierte Architektur
+        // Instanz des EventManagers fï¿½r die Event-basierte Architektur
         private readonly EventManager _eventManager;
 
         /// <summary>
         /// Erstellt eine neue Instanz des ApplicationDbContext.
         /// </summary>
-        /// <param name="options">Konfigurationsoptionen für den DbContext.</param>
-        /// <param name="eventManager">EventManager für das Publizieren von Events.</param>
+        /// <param name="options">Konfigurationsoptionen fï¿½r den DbContext.</param>
+        /// <param name="eventManager">EventManager fï¿½r das Publizieren von Events.</param>
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options, EventManager eventManager)
             : base(options)
         {
@@ -28,54 +28,54 @@ namespace VideoWebPlayer.Data
         }
         #region DbSet Properties
         /// <summary>
-        /// Tabelle für MediaSources (Quellen).
+        /// Tabelle fï¿½r MediaSources (Quellen).
         /// </summary>
         public DbSet<MediaSource> MediaSources { get; set; }
         /// <summary>
-        /// Tabelle für MediaSource-User-Zuordnungen.
+        /// Tabelle fï¿½r MediaSource-User-Zuordnungen.
         /// </summary>
         public DbSet<MediaSourceUser> MediaSourceUsers { get; set; }
 
         /// <summary>
-        /// Tabelle für MediaCollections (Sammlungen).
+        /// Tabelle fï¿½r MediaCollections (Sammlungen).
         /// </summary>
         public DbSet<MediaCollection> MediaCollections { get; set; }
 
         /// <summary>
-        /// Tabelle für MediaItems (Medienobjekte).
+        /// Tabelle fï¿½r MediaItems (Medienobjekte).
         /// </summary>
         public DbSet<MediaItem> MediaItems { get; set; }
 
         /// <summary>
-        /// Tabelle für MovieCollections.
+        /// Tabelle fï¿½r MovieCollections.
         /// </summary>
         public DbSet<MovieCollection> MovieCollections { get; set; }
         /// <summary>
-        /// Tabelle für Movies.
+        /// Tabelle fï¿½r Movies.
         /// </summary>
         public DbSet<Movie> Movies { get; set; }
         /// <summary>
-        /// Tabelle für TVShows.
+        /// Tabelle fï¿½r TVShows.
         /// </summary>
         public DbSet<TVShow> TVShows { get; set; }
         /// <summary>
-        /// Tabelle für TVShow-Seasons.
+        /// Tabelle fï¿½r TVShow-Seasons.
         /// </summary>
         public DbSet<TVShowSeason> TVShowSeasons { get; set; }
         /// <summary>
-        /// Tabelle für TVShow-Episodes.
+        /// Tabelle fï¿½r TVShow-Episodes.
         /// </summary>
         public DbSet<TVShowEpisode> TVShowEpisodes { get; set; }
         /// <summary>
-        /// Tabelle für Movie-MediaItem-Verknüpfungen.
+        /// Tabelle fï¿½r Movie-MediaItem-Verknï¿½pfungen.
         /// </summary>
         public DbSet<MovieMediaItem> MovieMediaItems { get; set; }
         /// <summary>
-        /// Tabelle für TVShowEpisode-MediaItem-Verknüpfungen.
+        /// Tabelle fï¿½r TVShowEpisode-MediaItem-Verknï¿½pfungen.
         /// </summary>
         public DbSet<TVShowEpisodeMediaItem> TVShowEpisodeMediaItems { get; set; }
         /// <summary>
-        /// Tabelle für Bilder.
+        /// Tabelle fï¿½r Bilder.
         /// </summary>
         public DbSet<Picture> Pictures { get; set; }
 
@@ -84,45 +84,53 @@ namespace VideoWebPlayer.Data
 		/// </summary>
 		public DbSet<MediaSourceIcon> MediaSourceIcons { get; set; }
         /// <summary>
-        /// Tabelle für Setup-Einträge.
+        /// Tabelle fï¿½r Setup-Eintrï¿½ge.
         /// </summary>
         public DbSet<Setup> Setups { get; set; }
         /// <summary>
-        /// Tabelle für RecentEntries.
+        /// Tabelle fï¿½r RecentEntries.
         /// </summary>
         public DbSet<RecentEntry> RecentEntries { get; set; }
         /// <summary>
-        /// Tabelle für Favoriten.
+        /// Tabelle fï¿½r Favoriten.
         /// </summary>
         public DbSet<FavoriteEntry> FavoriteEntries { get; set; }
         /// <summary>
-        /// Tabelle für Genres.
+        /// Tabelle fï¿½r Genres.
         /// </summary>
         public DbSet<Genre> Genres { get; set; }
         /// <summary>
-        /// Tabelle für alternative Genre-Namen.
+        /// Tabelle fï¿½r alternative Genre-Namen.
         /// </summary>
         public DbSet<GenreName> GenreNames { get; set; }
         /// <summary>
-        /// Tabelle für Movie-Genre-Verknüpfungen.
+        /// Tabelle fï¿½r Movie-Genre-Verknï¿½pfungen.
         /// </summary>
         public DbSet<MovieGenre> MovieGenres { get; set; }
         /// <summary>
-        /// Tabelle für TVShow-Genre-Verknüpfungen.
+        /// Tabelle fï¿½r TVShow-Genre-Verknï¿½pfungen.
         /// </summary>
         public DbSet<TVShowGenre> TVShowGenres { get; set; }
         /// <summary>
-        /// Tabelle für ContinueWatching-Einträge.
+        /// Tabelle fï¿½r ContinueWatching-Eintrï¿½ge.
         /// </summary>
         public DbSet<ContinueWatchingEntry> ContinueWatchingEntries { get; set; }
         /// <summary>
-        /// Tabelle für gesperrte Login-IPs.
+        /// Tabelle fï¿½r gesperrte Login-IPs.
         /// </summary>
         public DbSet<BlockedLoginIp> BlockedLoginIps { get; set; }   // NEU
+        /// <summary>
+        /// Tabelle fuer Backup-Einstellungen.
+        /// </summary>
+        public DbSet<BackupSettings> BackupSettings { get; set; }
+        /// <summary>
+        /// Tabelle fuer Backup- und Restore-Historie.
+        /// </summary>
+        public DbSet<BackupOperationHistory> BackupOperationHistories { get; set; }
         #endregion
         #region MediaSource Manipulation Methods
         /// <summary>
-        /// Fügt eine neue MediaSource hinzu, speichert sie und publiziert ein Event.
+        /// Fï¿½gt eine neue MediaSource hinzu, speichert sie und publiziert ein Event.
         /// </summary>
         /// <param name="source">Die neue MediaSource.</param>
         public async Task AddMediaSourceAsync(MediaSource source)
@@ -149,10 +157,10 @@ namespace VideoWebPlayer.Data
         }
 
         /// <summary>
-        /// Löscht eine MediaSource sowie alle zugehörigen MediaCollections und MediaItems rekursiv.
-        /// Publiziert nach erfolgreichem Löschen ein Event.
+        /// Lï¿½scht eine MediaSource sowie alle zugehï¿½rigen MediaCollections und MediaItems rekursiv.
+        /// Publiziert nach erfolgreichem Lï¿½schen ein Event.
         /// </summary>
-        /// <param name="source">Die zu löschende MediaSource.</param>
+        /// <param name="source">Die zu lï¿½schende MediaSource.</param>
         public async Task DeleteMediaSourceAsync(MediaSource source)
         {
             var existingSource = await MediaSources.FindAsync(source.Id);
@@ -173,15 +181,15 @@ namespace VideoWebPlayer.Data
         }
 
         /// <summary>
-        /// Löscht eine MediaCollection, alle untergeordneten Collections und alle zugehörigen MediaItems rekursiv.
+        /// Lï¿½scht eine MediaCollection, alle untergeordneten Collections und alle zugehï¿½rigen MediaItems rekursiv.
         /// </summary>
-        /// <param name="collection">Die zu löschende MediaCollection.</param>
+        /// <param name="collection">Die zu lï¿½schende MediaCollection.</param>
         private async Task DeleteMediaCollectionsForSourceAsync(List<MediaCollection> collections)
         {
             if (collections.Count == 0)
                 return;
 
-            // Iterativer Post-Order Traversal (stack-safe) zum Löschen (Children -> Parent)
+            // Iterativer Post-Order Traversal (stack-safe) zum Lï¿½schen (Children -> Parent)
             var collectionsById = collections.ToDictionary(c => c.Id);
             var childrenByParentId = collections
                 .Where(c => c.ParentMediaCollectionId.HasValue)
@@ -226,7 +234,7 @@ namespace VideoWebPlayer.Data
             foreach (var root in roots)
                 Traverse(root);
 
-            // Falls es "hängende" Nodes gibt (z.B. fehlerhafte Parent-Referenzen), trotzdem löschen.
+            // Falls es "hï¿½ngende" Nodes gibt (z.B. fehlerhafte Parent-Referenzen), trotzdem lï¿½schen.
             foreach (var c in collections)
             {
                 if (!visited.Contains(c.Id))
@@ -235,13 +243,13 @@ namespace VideoWebPlayer.Data
 
             var collectionIds = collections.Select(c => c.Id).ToList();
 
-            // Lösche alle MediaItems dieser Collections
+            // Lï¿½sche alle MediaItems dieser Collections
             var items = await MediaItems
                 .Where(i => collectionIds.Contains(i.MediaCollectionId))
                 .ToListAsync();
             MediaItems.RemoveRange(items);
 
-            // Lösche Collections children-first
+            // Lï¿½sche Collections children-first
             foreach (var collection in deleteOrder)
                 MediaCollections.Remove(collection);
         }
@@ -249,7 +257,7 @@ namespace VideoWebPlayer.Data
 
         /// <summary>
         /// Stellt sicher, dass eine MediaCollection mit gegebener MediaSourceId und Path existiert.
-        /// Gibt die bestehende Collection zurück oder legt sie neu an.
+        /// Gibt die bestehende Collection zurï¿½ck oder legt sie neu an.
         /// </summary>
         public async Task<MediaCollection> EnsureMediaCollectionExistsAsync(MediaCollection collection, CancellationToken cancellationToken = default)
         {
@@ -269,7 +277,7 @@ namespace VideoWebPlayer.Data
 
         /// <summary>
         /// Stellt sicher, dass ein MediaItem mit gegebener MediaCollectionId und Path existiert.
-        /// Gibt das bestehende Item zurück oder legt es neu an.
+        /// Gibt das bestehende Item zurï¿½ck oder legt es neu an.
         /// Wird ein bestehendes Item gefunden und das CreatedAt-Datum ist unterschiedlich, wird es aktualisiert und Changed auf true gesetzt.
         /// </summary>
         public async Task<MediaItem> EnsureMediaItemExistsAsync(MediaItem item, CancellationToken cancellationToken = default)
@@ -393,7 +401,7 @@ namespace VideoWebPlayer.Data
         }
 
         /// <summary>
-        /// Ergebnisobjekt mit den möglichen zugehörigen Entitäten für ein MediaItem.
+        /// Ergebnisobjekt mit den mï¿½glichen zugehï¿½rigen Entitï¿½ten fï¿½r ein MediaItem.
         /// </summary>
         public class MediaItemRelationResult
         {
@@ -429,14 +437,14 @@ namespace VideoWebPlayer.Data
         }
 
         /// <summary>
-        /// Lädt die zu einer MediaItem-Id gehörenden übergeordneten Entitäten (MediaCollection, Movie (+MovieCollection) oder TVShow/Season/Episode).
-        /// Gibt ein <see cref="MediaItemRelationResult"/> mit gefüllten Properties zurück (nicht gefundene bleiben null).
+        /// Lï¿½dt die zu einer MediaItem-Id gehï¿½renden ï¿½bergeordneten Entitï¿½ten (MediaCollection, Movie (+MovieCollection) oder TVShow/Season/Episode).
+        /// Gibt ein <see cref="MediaItemRelationResult"/> mit gefï¿½llten Properties zurï¿½ck (nicht gefundene bleiben null).
         /// </summary>
         public async Task<MediaItemRelationResult> GetRelationsForMediaItemAsync(long mediaItemId, CancellationToken cancellationToken = default)
         {
             var result = new MediaItemRelationResult();
 
-            // Lade MediaItem mit zugehöriger MediaCollection
+            // Lade MediaItem mit zugehï¿½riger MediaCollection
             var mediaItem = await MediaItems
                 .Include(mi => mi.MediaCollection)
                 .FirstOrDefaultAsync(mi => mi.Id == mediaItemId, cancellationToken);
@@ -446,7 +454,7 @@ namespace VideoWebPlayer.Data
 
             result.MediaCollection = mediaItem.MediaCollection;
 
-            // Prüfe, ob das MediaItem mit einem Movie verknüpft ist
+            // Prï¿½fe, ob das MediaItem mit einem Movie verknï¿½pft ist
             var movieLink = await MovieMediaItems
                 .Include(mmi => mmi.Movie)
                     .ThenInclude(m => m.MovieCollection)
@@ -459,7 +467,7 @@ namespace VideoWebPlayer.Data
                 return result;
             }
 
-            // Prüfe, ob das MediaItem mit einer TVShowEpisode verknüpft ist
+            // Prï¿½fe, ob das MediaItem mit einer TVShowEpisode verknï¿½pft ist
             var episodeLink = await TVShowEpisodeMediaItems
                 .Include(ei => ei.TVShowEpisode)
                     .ThenInclude(ep => ep.TVShowSeason)

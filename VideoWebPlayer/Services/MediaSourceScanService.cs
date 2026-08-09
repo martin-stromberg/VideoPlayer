@@ -83,6 +83,7 @@ namespace VideoWebPlayer.Services
                         using var innerScope = _serviceProvider.CreateScope();
                         var scanner = innerScope.ServiceProvider.GetRequiredService<MediaSourceScanner>();
                         var classifier = innerScope.ServiceProvider.GetRequiredService<MediaSourceClassifier>();
+                        var gate = innerScope.ServiceProvider.GetService<VideoWebPlayer.Services.Backups.IBackgroundProcessingGate>();
                         var settings = settingsScope.ServiceProvider.GetRequiredService<ProgramSettingsService>();
                         var (scanProcessInterval, _) = await settings.GetScanIntervalsAsync(stoppingToken);
 
@@ -91,11 +92,12 @@ namespace VideoWebPlayer.Services
 
                         if (now - lastRun >= scanProcessInterval)
                         {
+                            await using var processingLease = gate is null ? null : await gate.EnterOperationAsync("Automatischer Scanprozess", stoppingToken);
                             _logger.LogInformation("Starte Scanprozess (Intervall: {Interval}).", scanProcessInterval);
 
                             _logger.LogInformation("Starte Scan aller Quellen.");
 
-                            // Zähle Items vor dem Scan
+                            // Zï¿½hle Items vor dem Scan
                             int itemsBeforeScan;
                             {
                                 var db = innerScope.ServiceProvider.GetRequiredService<Data.ApplicationDbContext>();
@@ -104,7 +106,7 @@ namespace VideoWebPlayer.Services
 
                             await scanner.ScanAllSourcesAsync(stoppingToken);
 
-                            // Zähle Items nach dem Scan
+                            // Zï¿½hle Items nach dem Scan
                             int itemsAfterScan;
                             {
                                 var db = innerScope.ServiceProvider.GetRequiredService<Data.ApplicationDbContext>();
@@ -114,10 +116,10 @@ namespace VideoWebPlayer.Services
                             int newItemsCount = itemsAfterScan - itemsBeforeScan;
                             _logger.LogInformation("Scan aller Quellen abgeschlossen. {NewItems} neue Items gefunden.", newItemsCount);
 
-                            // Sende SignalR-Update über NotificationService
+                            // Sende SignalR-Update ï¿½ber NotificationService
                             await _notificationService.NotifyNewVideosScannedAsync(0L, newItemsCount, stoppingToken);
 
-                            _logger.LogInformation("Prüfe, ob Genres neu geladen werden müssen.");
+                            _logger.LogInformation("Prï¿½fe, ob Genres neu geladen werden mï¿½ssen.");
                             await classifier.CheckReloadGenres(stoppingToken);
 
                             const int maxCollectionsPerRun = 64;
@@ -126,7 +128,7 @@ namespace VideoWebPlayer.Services
                             while (scannedCollections < maxCollectionsPerRun && await scanner.ScanNextMediaCollection(stoppingToken))
                             {
                                 scannedCollections++;
-                                _logger.LogInformation("Eine Collection wurde gescannt (ScanNextMediaCollection gab 'true' zurück).");
+                                _logger.LogInformation("Eine Collection wurde gescannt (ScanNextMediaCollection gab 'true' zurï¿½ck).");
                             }
 
                             if (scannedCollections > 0)
@@ -151,13 +153,13 @@ namespace VideoWebPlayer.Services
 								_logger.LogInformation("Klassifizierung der Collections abgeschlossen.");
 								_logger.LogInformation("Klassifizierung abgeschlossen.");
 
-								// Sende SignalR-Update über NotificationService
+								// Sende SignalR-Update ï¿½ber NotificationService
 								await _notificationService.NotifyNewVideosScannedAsync(0L, unclassifiedBefore, stoppingToken);
 							}
                             }
                             else
                             {
-                                // Zähle unclassifizierte Items vor Klassifizierung
+                                // Zï¿½hle unclassifizierte Items vor Klassifizierung
                                 int unclassifiedBefore;
                                 {
                                     var db = innerScope.ServiceProvider.GetRequiredService<Data.ApplicationDbContext>();
@@ -170,7 +172,7 @@ namespace VideoWebPlayer.Services
                                 _logger.LogInformation("Klassifizierung der Collections abgeschlossen.");
                                 _logger.LogInformation("Klassifizierung abgeschlossen.");
 
-                                // Sende SignalR-Update über NotificationService
+                                // Sende SignalR-Update ï¿½ber NotificationService
                                 await _notificationService.NotifyNewVideosScannedAsync(0L, unclassifiedBefore, stoppingToken);
                             }
 
@@ -183,7 +185,7 @@ namespace VideoWebPlayer.Services
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Fehler im MediaSourceScanService während Scan/Klassifizierung.");
+                        _logger.LogError(ex, "Fehler im MediaSourceScanService wï¿½hrend Scan/Klassifizierung.");
                     }
 
                     if (_loopDelay > TimeSpan.Zero)

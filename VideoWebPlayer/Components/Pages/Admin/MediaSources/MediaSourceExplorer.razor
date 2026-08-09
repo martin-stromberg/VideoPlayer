@@ -7,6 +7,7 @@
 @inject VideoWebPlayer.Services.MediaSourceScanner MediaSourceScanner
 @inject VideoWebPlayer.Services.MediaSourceClassifier MediaSourceClassifier
 @inject ILogger<MediaSourceExplorer> Logger
+@inject VideoWebPlayer.Services.Backups.IBackgroundProcessingGate BackgroundGate
 @rendermode InteractiveServer
 
 <PageTitle>Dateiexplorer</PageTitle>
@@ -242,6 +243,12 @@
         if (isRescanRunning || currentCollection is null)
             return;
 
+        if (BackgroundGate.IsPausedForRestore)
+        {
+            rescanStatus = "Restore laeuft. Neu erfassen ist derzeit gesperrt.";
+            return;
+        }
+
         isRescanRunning = true;
         rescanScannedCollections = 0;
         rescanStatus = "Neu erfassen: ScanDueAt auf MinValue und Komplettscan der Collection...";
@@ -249,6 +256,7 @@
 
         try
         {
+            await using var processingLease = await BackgroundGate.EnterOperationAsync("Manueller Collection-Scan", CancellationToken.None);
             rescanScannedCollections = await MediaSourceScanner.ScanCollectionTreeAsync(currentCollection.Id, CancellationToken.None);
 
             rescanStatus = "Neu erfassen: Klassifizierung (nur diese Collection + Unterordner)...";

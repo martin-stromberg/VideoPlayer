@@ -2,6 +2,31 @@ name: Dark Pattern Code Review
 
 on:
   push:
+    branches: [ main, master, develop, staging ]
+    paths:
+      - '**/*.cs'
+      - '**/*.js'
+      - '**/*.ts'
+      - '**/*.jsx'
+      - '**/*.tsx'
+      - '**/*.py'
+      - '**/*.java'
+      - '**/*.kt'
+      - '**/*.swift'
+      - '**/*.go'
+      - '**/*.php'
+      - '**/*.rb'
+      - '**/*.cpp'
+      - '**/*.c'
+      - '**/*.h'
+      - '**/*.xaml'
+      - '**/*.xml'
+      - '**/*.html'
+      - '**/*.css'
+      - '**/*.scss'
+      - '**/*.md'
+  pull_request:
+    branches: [ main, master, develop, staging ]
     paths:
       - '**/*.cs'
       - '**/*.js'

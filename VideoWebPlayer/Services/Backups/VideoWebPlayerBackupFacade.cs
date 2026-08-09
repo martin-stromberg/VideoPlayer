@@ -67,6 +67,17 @@ public sealed class VideoWebPlayerBackupFacade
     }
 
     /// <summary>
+    /// Deletes a stored backup and records history.
+    /// </summary>
+    public async Task<BackupOperationResult> DeleteAsync(string fileName, string? userId, CancellationToken cancellationToken = default)
+    {
+        var started = DateTime.UtcNow;
+        var result = await _backupService.DeleteBackupAsync(fileName, cancellationToken);
+        await _historyService.AddAsync("Löschen", result, userId, started, cancellationToken);
+        return result;
+    }
+
+    /// <summary>
     /// Gets persisted backup settings.
     /// </summary>
     public Task<BackupSettings> GetSettingsAsync(CancellationToken cancellationToken = default)

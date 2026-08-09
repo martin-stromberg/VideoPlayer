@@ -154,6 +154,55 @@ public sealed class VideoWebPlayerBackupDataProviderTests
     }
 
     [Fact]
+    public async Task RestoreAsync_RemovesMediaSourceUsersAddedAfterBackup()
+    {
+        using var temp = new TempDirectory();
+        await using var payloadConnection = new SqliteConnection("Data Source=:memory:");
+        await payloadConnection.OpenAsync(TestContext.Current.CancellationToken);
+        await using var payloadDb = CreateDb(payloadConnection);
+        await payloadDb.Database.EnsureCreatedAsync(TestContext.Current.CancellationToken);
+        payloadDb.Users.AddRange(
+            new ApplicationUser { Id = "user-1", UserName = "one@example.test" },
+            new ApplicationUser { Id = "user-2", UserName = "two@example.test" });
+        payloadDb.MediaSources.Add(new MediaSource { Id = 101, Name = "Source", Path = "/source", Host = "localhost", Port = 22 });
+        payloadDb.MediaSourceUsers.Add(new MediaSourceUser { MediaSourceId = 101, UserId = "user-1" });
+        await payloadDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+        await using var payload = new MemoryStream();
+        await CreateProvider(payloadDb, temp.Path).ExportAsync(
+            payload,
+            new BackupExportContext(BackupGeneration.Manual, DateTimeOffset.UtcNow),
+            TestContext.Current.CancellationToken);
+        payload.Position = 0;
+
+        await using var targetConnection = new SqliteConnection("Data Source=:memory:");
+        await targetConnection.OpenAsync(TestContext.Current.CancellationToken);
+        await using var targetDb = CreateDb(targetConnection);
+        await targetDb.Database.EnsureCreatedAsync(TestContext.Current.CancellationToken);
+        targetDb.Users.AddRange(
+            new ApplicationUser { Id = "user-1", UserName = "one@example.test" },
+            new ApplicationUser { Id = "user-2", UserName = "two@example.test" });
+        targetDb.MediaSources.Add(new MediaSource { Id = 101, Name = "Source", Path = "/source", Host = "localhost", Port = 22 });
+        targetDb.MediaSourceUsers.AddRange(
+            new MediaSourceUser { MediaSourceId = 101, UserId = "user-1" },
+            new MediaSourceUser { MediaSourceId = 101, UserId = "user-2" });
+        await targetDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        await CreateProvider(targetDb, temp.Path).RestoreAsync(
+            payload,
+            new BackupRestoreContext(null),
+            TestContext.Current.CancellationToken);
+
+        targetDb.ChangeTracker.Clear();
+        var restoredUsers = await targetDb.MediaSourceUsers
+            .Where(x => x.MediaSourceId == 101)
+            .Select(x => x.UserId)
+            .OrderBy(x => x)
+            .ToListAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(new[] { "user-1" }, restoredUsers);
+    }
+
+    [Fact]
     public async Task ExportAsync_WritesGenreIconsAsFileEntryReferences()
     {
         using var temp = new TempDirectory();

@@ -62,7 +62,7 @@ public sealed class BackgroundProcessingGate : IBackgroundProcessingGate
         lock (_sync)
         {
             if (_restoreInProgress)
-                throw new InvalidOperationException("Es laeuft bereits ein Restore.");
+                throw new InvalidOperationException("Es läuft bereits ein Restore.");
 
             _restoreInProgress = true;
             _paused = true;

@@ -126,6 +126,11 @@ public interface IBackupService
     Task<Stream> OpenBackupReadAsync(string fileName, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Deletes a stored backup.
+    /// </summary>
+    Task<BackupOperationResult> DeleteBackupAsync(string fileName, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Restores a backup.
     /// </summary>
     Task<BackupOperationResult> RestoreBackupAsync(BackupRestoreRequest request, CancellationToken cancellationToken);

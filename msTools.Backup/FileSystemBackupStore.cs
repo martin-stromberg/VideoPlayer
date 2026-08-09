@@ -84,7 +84,7 @@ public sealed class FileSystemBackupStore : IBackupStore
                     cancellationToken.ThrowIfCancellationRequested();
                     var entryName = NormalizeEntryName(attachment.EntryName);
                     if (!IsSafeAttachmentEntryName(entryName))
-                        throw new InvalidOperationException($"Ungueltiger Datei-Payload-Eintrag: {attachment.EntryName}");
+                        throw new InvalidOperationException($"Ungültiger Datei-Payload-Eintrag: {attachment.EntryName}");
                     if (!seenEntries.Add(entryName))
                         throw new InvalidOperationException($"Doppelter ZIP-Eintrag: {entryName}");
 
@@ -140,7 +140,7 @@ public sealed class FileSystemBackupStore : IBackupStore
             var manifest = await ReadManifestAsync(archive, cancellationToken);
             if (manifest is null)
             {
-                errors.Add("manifest.json fehlt oder ist ungueltig.");
+                errors.Add("manifest.json fehlt oder ist ungültig.");
             }
             else
             {
@@ -164,7 +164,7 @@ public sealed class FileSystemBackupStore : IBackupStore
         }
         catch (InvalidDataException ex)
         {
-            errors.Add($"Datei ist kein gueltiges ZIP-Archiv: {ex.Message}");
+            errors.Add($"Datei ist kein gültiges ZIP-Archiv: {ex.Message}");
         }
         catch (JsonException ex)
         {
@@ -228,7 +228,7 @@ public sealed class FileSystemBackupStore : IBackupStore
 
             total += read;
             if (maxBytes > 0 && total > maxBytes)
-                throw new InvalidOperationException("Die hochgeladene Datei ist zu gross.");
+                throw new InvalidOperationException("Die hochgeladene Datei ist zu groß.");
 
             await target.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
         }
@@ -252,7 +252,7 @@ public sealed class FileSystemBackupStore : IBackupStore
     {
         var safeName = Path.GetFileName(fileName);
         if (!string.Equals(safeName, fileName, StringComparison.Ordinal))
-            throw new InvalidOperationException("Ungueltiger Dateiname.");
+            throw new InvalidOperationException("Ungültiger Dateiname.");
 
         var directory = await GetStorageDirectoryAsync(cancellationToken);
         var path = Path.Combine(directory, safeName);
@@ -288,7 +288,7 @@ public sealed class FileSystemBackupStore : IBackupStore
             using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
             var manifest = await ReadManifestAsync(archive, cancellationToken);
             if (manifest is null)
-                return InvalidDescriptor(file, "manifest.json fehlt oder ist ungueltig.");
+                return InvalidDescriptor(file, "manifest.json fehlt oder ist ungültig.");
 
             var validation = await ValidateArchiveShapeAsync(archive, manifest, cancellationToken);
             return new BackupDescriptor(
@@ -319,7 +319,7 @@ public sealed class FileSystemBackupStore : IBackupStore
         }
 
         if (manifest.FormatVersion != 1)
-            errors.Add($"Nicht unterstuetzte Formatversion: {manifest.FormatVersion}.");
+            errors.Add($"Nicht unterstützte Formatversion: {manifest.FormatVersion}.");
         if (!string.Equals(manifest.ProviderId, _dataProvider.ProviderId, StringComparison.Ordinal))
             errors.Add("Die Providerkennung passt nicht zu dieser Anwendung.");
         if (archive.GetEntry("data.json") is null)
@@ -328,7 +328,7 @@ public sealed class FileSystemBackupStore : IBackupStore
         var payloadEntries = manifest.PayloadEntries ?? new List<string>();
         if (payloadEntries.Count == 0)
         {
-            errors.Add("Manifest enthaelt keine Payload-Eintraege.");
+            errors.Add("Manifest enthält keine Payload-Einträge.");
         }
         else
         {

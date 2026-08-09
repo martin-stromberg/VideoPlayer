@@ -77,10 +77,28 @@ public sealed class BackupService : IBackupService
         => _store.OpenReadAsync(fileName, cancellationToken);
 
     /// <inheritdoc />
+    public async Task<BackupOperationResult> DeleteBackupAsync(string fileName, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var descriptor = (await _store.ListAsync(cancellationToken))
+                .FirstOrDefault(x => string.Equals(x.FileName, fileName, StringComparison.OrdinalIgnoreCase));
+
+            await _store.DeleteAsync(fileName, cancellationToken);
+            return BackupOperationResult.Success("Backup wurde gelöscht.", descriptor);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Backup deletion failed for {FileName}.", fileName);
+            return BackupOperationResult.Failure("Backup konnte nicht gelöscht werden.", ex.Message);
+        }
+    }
+
+    /// <inheritdoc />
     public async Task<BackupOperationResult> RestoreBackupAsync(BackupRestoreRequest request, CancellationToken cancellationToken)
     {
         if (!request.ConfirmRestore)
-            return BackupOperationResult.Failure("Restore wurde nicht bestaetigt.");
+            return BackupOperationResult.Failure("Restore wurde nicht bestätigt.");
 
         try
         {
@@ -106,7 +124,7 @@ public sealed class BackupService : IBackupService
                         token.ThrowIfCancellationRequested();
                         var normalized = entryName.Replace('\\', '/');
                         if (!IsSafePayloadEntryName(normalized))
-                            throw new InvalidDataException($"Ungueltiger Payload-Eintrag: {entryName}");
+                            throw new InvalidDataException($"Ungültiger Payload-Eintrag: {entryName}");
 
                         var payloadEntry = archive.GetEntry(normalized)
                             ?? throw new FileNotFoundException("Payload-Eintrag wurde im Backup nicht gefunden.", normalized);

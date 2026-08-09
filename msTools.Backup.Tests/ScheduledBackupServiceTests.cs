@@ -89,6 +89,9 @@ public sealed class ScheduledBackupServiceTests
         public Task<Stream> OpenBackupReadAsync(string fileName, CancellationToken cancellationToken)
             => throw new NotSupportedException();
 
+        public Task<BackupOperationResult> DeleteBackupAsync(string fileName, CancellationToken cancellationToken)
+            => throw new NotSupportedException();
+
         public Task<BackupOperationResult> RestoreBackupAsync(BackupRestoreRequest request, CancellationToken cancellationToken)
             => throw new NotSupportedException();
 

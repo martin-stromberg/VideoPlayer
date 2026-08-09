@@ -97,7 +97,7 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
         }
         catch (JsonException ex)
         {
-            return BackupValidationResult.Invalid($"data.json ist kein gueltiges JSON: {ex.Message}");
+            return BackupValidationResult.Invalid($"data.json ist kein gültiges JSON: {ex.Message}");
         }
     }
 
@@ -223,13 +223,13 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
 
         var errors = new List<string>();
         if (!string.Equals(payload.ProviderId, ProviderId, StringComparison.Ordinal))
-            errors.Add("data.json gehoert nicht zum VideoWebPlayer-Provider.");
+            errors.Add("data.json gehört nicht zum VideoWebPlayer-Provider.");
         if (payload.SchemaVersion != CurrentSchemaVersion)
-            errors.Add($"Nicht unterstuetzte Daten-Schemaversion: {payload.SchemaVersion}.");
+            errors.Add($"Nicht unterstützte Daten-Schemaversion: {payload.SchemaVersion}.");
         if (payload.Tables is null)
-            errors.Add("data.json enthaelt keine Tabellenliste.");
+            errors.Add("data.json enthält keine Tabellenliste.");
         if (payload.Files is null)
-            errors.Add("data.json enthaelt keine Dateiliste.");
+            errors.Add("data.json enthält keine Dateiliste.");
 
         var expectedTables = GetTables();
         var expectedByName = expectedTables.ToDictionary(x => x.Name, StringComparer.OrdinalIgnoreCase);
@@ -238,7 +238,7 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
         {
             if (string.IsNullOrWhiteSpace(table.Name))
             {
-                errors.Add("data.json enthaelt eine Tabelle ohne Namen.");
+                errors.Add("data.json enthält eine Tabelle ohne Namen.");
                 continue;
             }
 
@@ -255,9 +255,9 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
             }
 
             if (table.Columns is null)
-                errors.Add($"Tabelle {table.Name} enthaelt keine Spaltenliste.");
+                errors.Add($"Tabelle {table.Name} enthält keine Spaltenliste.");
             if (table.Rows is null)
-                errors.Add($"Tabelle {table.Name} enthaelt keine Zeilenliste.");
+                errors.Add($"Tabelle {table.Name} enthält keine Zeilenliste.");
 
             var expectedColumns = expected.Columns.Select(x => x.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
             var actualColumns = (table.Columns ?? new List<string>()).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -271,13 +271,13 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
             {
                 if (rows[rowIndex] is null)
                 {
-                    errors.Add($"Zeile {rowIndex + 1} in Tabelle {expected.Name} ist ungueltig.");
+                    errors.Add($"Zeile {rowIndex + 1} in Tabelle {expected.Name} ist ungültig.");
                     continue;
                 }
 
                 var unknownRowColumns = rows[rowIndex].Keys.Except(expectedColumns, StringComparer.OrdinalIgnoreCase).ToList();
                 foreach (var unknown in unknownRowColumns)
-                    errors.Add($"Zeile {rowIndex + 1} in Tabelle {expected.Name} enthaelt unbekannte Spalte {unknown}.");
+                    errors.Add($"Zeile {rowIndex + 1} in Tabelle {expected.Name} enthält unbekannte Spalte {unknown}.");
             }
         }
 
@@ -287,9 +287,9 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
         foreach (var file in payload.Files ?? new List<FilePayload>())
         {
             if (!IsSafeRelativePath(file.RelativePath))
-                errors.Add($"Dateipfad {file.RelativePath} ist ungueltig.");
+                errors.Add($"Dateipfad {file.RelativePath} ist ungültig.");
             if (!IsSafeFileEntryName(file.EntryName))
-                errors.Add($"ZIP-Eintrag {file.EntryName} fuer Datei {file.RelativePath} ist ungueltig.");
+                errors.Add($"ZIP-Eintrag {file.EntryName} für Datei {file.RelativePath} ist ungültig.");
             if (IsSafeRelativePath(file.RelativePath)
                 && IsSafeFileEntryName(file.EntryName)
                 && !string.Equals(file.EntryName, $"files/{file.RelativePath.Replace('\\', '/')}", StringComparison.Ordinal))
@@ -619,19 +619,19 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 if (!IsSafeRelativePath(file.RelativePath))
-                    throw new InvalidDataException($"Dateipfad {file.RelativePath} ist ungueltig.");
+                    throw new InvalidDataException($"Dateipfad {file.RelativePath} ist ungültig.");
 
                 if (!IsSafeFileEntryName(file.EntryName))
-                    throw new InvalidDataException($"ZIP-Eintrag {file.EntryName} fuer Datei {file.RelativePath} ist ungueltig.");
+                    throw new InvalidDataException($"ZIP-Eintrag {file.EntryName} für Datei {file.RelativePath} ist ungültig.");
                 if (!string.Equals(file.EntryName, $"files/{file.RelativePath.Replace('\\', '/')}", StringComparison.Ordinal))
                     throw new InvalidDataException($"ZIP-Eintrag {file.EntryName} passt nicht zu Datei {file.RelativePath}.");
                 if (openPayloadEntryAsync is null)
-                    throw new InvalidDataException($"Payload-Eintrag {file.EntryName} kann nicht geoeffnet werden.");
+                    throw new InvalidDataException($"Payload-Eintrag {file.EntryName} kann nicht geöffnet werden.");
 
                 var parts = file.RelativePath.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
                 var targetPath = Path.GetFullPath(Path.Combine(new[] { stagingDirectory }.Concat(parts).ToArray()));
                 if (!IsWithinDirectory(targetPath, stagingDirectory))
-                    throw new InvalidDataException($"Dateipfad {file.RelativePath} ist ungueltig.");
+                    throw new InvalidDataException($"Dateipfad {file.RelativePath} ist ungültig.");
 
                 Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
                 await using var source = await openPayloadEntryAsync(file.EntryName, cancellationToken);

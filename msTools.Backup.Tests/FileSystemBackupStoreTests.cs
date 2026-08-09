@@ -215,6 +215,19 @@ public sealed class FileSystemBackupStoreTests
         Assert.Empty(Directory.EnumerateFiles(temp.Path, "*.tmp"));
     }
 
+    [Fact]
+    public async Task DeleteAsync_RemovesStoredBackup()
+    {
+        using var temp = new TempDirectory();
+        var store = CreateStore(temp.Path);
+        var descriptor = await store.SaveBackupAsync(new BackupCreateRequest(BackupGeneration.Manual, "Tests"), TestContext.Current.CancellationToken);
+
+        await store.DeleteAsync(descriptor.FileName, TestContext.Current.CancellationToken);
+
+        Assert.False(File.Exists(descriptor.Path));
+        Assert.Empty(await store.ListAsync(TestContext.Current.CancellationToken));
+    }
+
     private static FileSystemBackupStore CreateStore(
         string path,
         long maxUploadSizeBytes = 512L * 1024L * 1024L,

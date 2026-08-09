@@ -80,7 +80,7 @@
 - ✅ Multi-Device-Synchronisation
 
 #### Administration
-- ✅ Administrative Backup-Verwaltung mit manuellen Backups, automatischer GVS-Aufbewahrung, Upload, Download und Restore
+- ✅ Administrative Backup-Verwaltung mit manuellen Backups, automatischer GVS-Aufbewahrung, Upload, Download, Löschen und Restore
 
 ### Frontend (.NET MAUI App)
 
@@ -245,7 +245,7 @@ VideoWebPlayer.sln
 | [Episode Selection](./Docs/TECH_Episode_Selection.md) | Smart Episode Selection & Play Button |
 | [MediaElement Error Handling](./Docs/TECH_MediaElement_Error_Handling.md) | Video-Player Fehlerbehandlung |
 | [Notification Ticker](./Docs/TECH_Notification_Ticker.md) | Footer-Lauftext-Komponente |
-| [Backups](./docs/help/backups.md) | Administrative Backup-Verwaltung, automatische GVS-Backups und Restore |
+| [Backups](./docs/help/backups.md) | Administrative Backup-Verwaltung, automatische GVS-Backups, Löschen und Restore |
 
 ### 📋 API-Dokumentation
 

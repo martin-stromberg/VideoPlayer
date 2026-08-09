@@ -6,30 +6,6 @@
 @inject VideoWebPlayer.Client.VideoWebPlayerClient Client
 @inject AuthenticationStateProvider AuthStateProvider;
 
-<style>
-.seasonal-genre-list {
-    display: flex;
-    flex-direction: row;
-    gap: 1.5rem;
-    overflow-x: auto;
-    padding: 1rem 0;
-    margin-bottom: 2rem;
-    scrollbar-width: thin;
-    scrollbar-color: #23232a #181820;
-}
-.seasonal-genre-list::-webkit-scrollbar {
-    height: 8px;
-    background: #181820;
-}
-.seasonal-genre-list::-webkit-scrollbar-thumb {
-    background: #23232a;
-    border-radius: 4px;
-}
-.seasonal-genre-list::-webkit-scrollbar-thumb:hover {
-    background: #ffe066;
-}
-</style>
-
 <div>
     @if (activeGenres.Any())
     {
@@ -41,8 +17,10 @@
 
             if (entries.Any())
             {
-                <h3>@genre.Name</h3>
-                <MediaBaseEntryList Entries="entries" AuthorizationToken="@authToken" />
+                <section class="media-section" aria-labelledby="@($"genre-{genre.Id}")">
+                    <h3 id="@($"genre-{genre.Id}")">@genre.Name</h3>
+                    <MediaBaseEntryList Entries="entries" AuthorizationToken="@authToken" />
+                </section>
             }
         }
     }

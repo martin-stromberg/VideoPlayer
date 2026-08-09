@@ -1,15 +1,10 @@
 ﻿@inherits LayoutComponentBase
 
-<!-- Kopfleiste immer ganz oben -->
 <div class="top-row p-0 navbar navbar-dark">
     <div class="container-fluid d-flex align-items-center justify-content-between">
         <div class="d-flex align-items-center">
-            <button id="sidebarToggle" class="btn btn-outline-light me-2" title="Menü ein-/ausklappen">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-                    <rect y="4" width="24" height="2" rx="1" fill="#ffe066"/>
-                    <rect y="11" width="24" height="2" rx="1" fill="#ffe066"/>
-                    <rect y="18" width="24" height="2" rx="1" fill="#ffe066"/>
-                </svg>
+            <button id="sidebarToggle" class="btn btn-outline-light layout-menu-button me-2" title="Menü ein-/ausklappen" aria-label="Menü ein-/ausklappen">
+                <span class="layout-menu-icon" aria-hidden="true"></span>
             </button>
             <a class="navbar-brand" href="">Martins Videosammlung</a>
         </div>
@@ -21,7 +16,6 @@
     </div>
 </div>
 
-<!-- Flex-Container für Sidebar und Inhalt -->
 <div class="layout-flex">
     <div id="sidebar" class="sidebar sidebar-closed">
         <NavMenu />

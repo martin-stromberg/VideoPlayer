@@ -62,11 +62,21 @@
 
 @if (isAuthenticated == true)
 {
-    <ContinueWatchingList />
+    <div class="home-shell">
+        <section class="home-hero" aria-labelledby="home-title">
+            <div class="home-hero-content">
+                <span class="hero-kicker">Private Media Library</span>
+                <h1 id="home-title">Martins Videosammlung</h1>
+                <p>Filme, Serien, Favoriten und angefangene Wiedergaben in einer dunklen, medienzentrierten Oberfläche.</p>
+            </div>
+        </section>
 
-    <FavoritesList />
+        <ContinueWatchingList />
 
-    <SeasonalGenreList />
+        <FavoritesList />
 
-    <RecentEntriesList />
+        <SeasonalGenreList />
+
+        <RecentEntriesList />
+    </div>
 }

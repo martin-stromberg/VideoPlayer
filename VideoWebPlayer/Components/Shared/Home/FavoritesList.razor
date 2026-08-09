@@ -81,19 +81,16 @@
 
 @if (Favorites.Any())
 {
-    <h2>Favoriten</h2>
-    <div class="recent-entries-list">
-        @foreach (var fav in Favorites)
-        {
-            if (favTitles.ContainsKey(fav.Id))
+    <section class="media-section" aria-labelledby="favorites-title">
+        <h2 id="favorites-title">Favoriten</h2>
+        <div class="recent-entries-list">
+            @foreach (var fav in Favorites)
             {
-                <a class="media-box-link" href="@favLinks[fav.Id]">
-                    <div class="recent-entry-box">
-                        <img class="recent-entry-img" src="@favImages[fav.Id]" alt="@favTitles[fav.Id]" />
-                        <div class="recent-entry-title">@favTitles[fav.Id]</div>
-                    </div>
-                </a>
+                if (favTitles.ContainsKey(fav.Id))
+                {
+                    <MediaBox Title="@favTitles[fav.Id]" ImageUrl="@favImages[fav.Id]" LinkUrl="@favLinks[fav.Id]" />
+                }
             }
-        }
-    </div>
+        </div>
+    </section>
 }

@@ -33,7 +33,7 @@
 
 ## Übersicht
 
-**VideoWebPlayer** ist eine Full-Stack-Lösung für die Verwaltung, Kategorisierung und das Streaming von privaten Video-Bibliotheken. Die Anwendung besteht aus einem ASP.NET Core Blazor-Backend und einer .NET MAUI Cross-Platform-App für mobile Endgeräte.
+**VideoWebPlayer** ist eine Full-Stack-Lösung für die Verwaltung, Kategorisierung und das Streaming von privaten Video-Bibliotheken. Die Anwendung besteht aus einer responsiven ASP.NET Core Blazor-Weboberfläche, einem Blazor-Backend und einer .NET MAUI Cross-Platform-App für mobile Endgeräte.
 
 ### Hauptmerkmale
 
@@ -43,6 +43,7 @@
 - 📥 **Offline-Downloads** - Vollständige Offline-Unterstützung in der MAUI-App
 - 🎯 **Intelligente Wiedergabe** - Continue-Watching, automatische Episodenfortschaltung
 - 🌐 **Mehrere Quellen** - FTP, SFTP und lokale Medienbibliotheken
+- 🎨 **Überarbeitete Medienbibliothek** - Modernes, responsives Layout für Dashboard, Filme, Serien und Wiedergabe
 
 ---
 
@@ -227,6 +228,7 @@ VideoWebPlayer.sln
 | [Installation & Setup](./Docs/GUIDE_Installation.md) | Vollständige Installations- und Konfigurationsanleitung |
 | [Benutzerhandbuch](./Docs/GUIDE_User_Manual.md) | Anleitung zur Nutzung der Anwendung |
 | [Feature-Übersicht](./Docs/GUIDE_Features.md) | Detaillierte Beschreibung aller Features |
+| [Medienbibliothek](./docs/help/medienbibliothek.md) | Bedienung der überarbeiteten Weboberfläche |
 
 ### 🔧 Technische Dokumentation
 

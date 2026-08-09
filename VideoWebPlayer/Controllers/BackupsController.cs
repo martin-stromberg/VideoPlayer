@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using msTools.Backup;
@@ -16,6 +17,7 @@ public sealed class BackupsController : ControllerBase
 {
     private readonly IBackupService _backupService;
     private readonly VideoWebPlayerBackupFacade _backupFacade;
+    private readonly IAntiforgery _antiforgery;
     private readonly ILogger<BackupsController> _logger;
 
     /// <summary>
@@ -24,10 +26,12 @@ public sealed class BackupsController : ControllerBase
     public BackupsController(
         IBackupService backupService,
         VideoWebPlayerBackupFacade backupFacade,
+        IAntiforgery antiforgery,
         ILogger<BackupsController> logger)
     {
         _backupService = backupService;
         _backupFacade = backupFacade;
+        _antiforgery = antiforgery;
         _logger = logger;
     }
 
@@ -35,9 +39,10 @@ public sealed class BackupsController : ControllerBase
     /// Creates a manual backup from a regular server-side form post.
     /// </summary>
     [HttpPost("create")]
-    [ValidateAntiForgeryToken]
     public async Task<IActionResult> Create(CancellationToken cancellationToken)
     {
+        await _antiforgery.ValidateRequestAsync(HttpContext);
+
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         _logger.LogInformation("Manual backup creation requested by user {UserId}.", userId);
 

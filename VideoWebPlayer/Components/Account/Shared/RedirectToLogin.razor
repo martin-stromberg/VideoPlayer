@@ -1,8 +1,17 @@
-﻿@inject NavigationManager NavigationManager
+﻿@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using VideoWebPlayer.Data
+@inject NavigationManager NavigationManager
+@inject UserManager<ApplicationUser> UserManager
 
 @code {
-    protected override void OnInitialized()
+    private const string SystemUserNormalizedName = "SYSTEM";
+
+    protected override async Task OnInitializedAsync()
     {
-        NavigationManager.NavigateTo($"Account/Login?returnUrl={Uri.EscapeDataString(NavigationManager.Uri)}", forceLoad: true);
+        var anyUser = await UserManager.Users.AnyAsync(u => u.NormalizedUserName != SystemUserNormalizedName);
+        var target = anyUser ? "Account/Login" : "Account/Register";
+        var returnUrlKey = anyUser ? "returnUrl" : "ReturnUrl";
+        NavigationManager.NavigateTo($"{target}?{returnUrlKey}={Uri.EscapeDataString(NavigationManager.Uri)}", forceLoad: true);
     }
 }

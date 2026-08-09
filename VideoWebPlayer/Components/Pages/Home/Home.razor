@@ -1,5 +1,6 @@
 ﻿@page "/"
 @using System.Security.Claims
+@using Microsoft.EntityFrameworkCore
 @using VideoWebPlayer.Components.Account.Pages.Shared
 @using VideoWebPlayer.Data
 @inject NavigationManager Navigation
@@ -32,11 +33,25 @@
     private Dictionary<long, string> episodePosters = new();
     private Dictionary<long, string> episodeLinks = new();
 
+    private const string SystemUserNormalizedName = "SYSTEM";
+
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         var user = authState.User;
         isAuthenticated = user?.Identity?.IsAuthenticated == true;
+
+        if (isAuthenticated != true)
+        {
+            var anyUser = await DbContext.Users.AnyAsync(u => u.NormalizedUserName != SystemUserNormalizedName);
+            if (!anyUser)
+            {
+                var returnUrl = Navigation.ToBaseRelativePath(Navigation.Uri);
+                if (string.IsNullOrEmpty(returnUrl))
+                    returnUrl = "/";
+                Navigation.NavigateTo($"Account/Register?ReturnUrl={Uri.EscapeDataString(returnUrl)}", forceLoad: true);
+            }
+        }
     }
 }
 

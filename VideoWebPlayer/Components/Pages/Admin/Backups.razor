@@ -2,6 +2,7 @@
 @using System.ComponentModel.DataAnnotations
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.WebUtilities
 @using msTools.Backup
 @using VideoWebPlayer.Data
 @using VideoWebPlayer.Services.Backups
@@ -9,6 +10,7 @@
 @inject BackupSettingsService SettingsService
 @inject IBackgroundProcessingGate BackgroundGate
 @inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 
 <PageTitle>Backups</PageTitle>
@@ -41,7 +43,10 @@ else
     }
 
     <div class="mb-3 d-flex gap-2 flex-wrap">
-        <button class="btn btn-primary" @onclick="CreateBackupAsync" disabled="@isBusy">Backup erstellen</button>
+        <form method="post" action="/admin/backups/api/create">
+            <AntiforgeryToken />
+            <button class="btn btn-primary" type="submit" disabled="@isBusy">Backup erstellen</button>
+        </form>
         <button class="btn btn-outline-secondary" @onclick="ReloadAsync" disabled="@isBusy">Aktualisieren</button>
     </div>
 
@@ -229,8 +234,18 @@ else
         if (!isAdmin)
             return;
 
+        ApplyQueryMessages();
         await LoadSettingsAsync();
         await ReloadAsync();
+    }
+
+    private void ApplyQueryMessages()
+    {
+        var query = QueryHelpers.ParseQuery(NavigationManager.ToAbsoluteUri(NavigationManager.Uri).Query);
+        if (query.TryGetValue("backupStatus", out var status))
+            successMessage = status.ToString();
+        if (query.TryGetValue("backupError", out var error))
+            errorMessage = error.ToString();
     }
 
     private async Task LoadSettingsAsync()

@@ -11,6 +11,7 @@ public sealed class VideoWebPlayerBackupFacade
     private readonly IBackupService _backupService;
     private readonly BackupSettingsService _settingsService;
     private readonly BackupOperationHistoryService _historyService;
+    private readonly ILogger<VideoWebPlayerBackupFacade> _logger;
 
     /// <summary>
     /// Creates a new backup facade.
@@ -18,11 +19,13 @@ public sealed class VideoWebPlayerBackupFacade
     public VideoWebPlayerBackupFacade(
         IBackupService backupService,
         BackupSettingsService settingsService,
-        BackupOperationHistoryService historyService)
+        BackupOperationHistoryService historyService,
+        ILogger<VideoWebPlayerBackupFacade> logger)
     {
         _backupService = backupService;
         _settingsService = settingsService;
         _historyService = historyService;
+        _logger = logger;
     }
 
     /// <summary>
@@ -37,6 +40,7 @@ public sealed class VideoWebPlayerBackupFacade
     public async Task<BackupOperationResult> CreateManualBackupAsync(string? userId, CancellationToken cancellationToken = default)
     {
         var started = DateTime.UtcNow;
+        _logger.LogInformation("Starting manual backup for user {UserId}.", userId);
         var result = await _backupService.CreateBackupAsync(new BackupCreateRequest(BackupGeneration.Manual, "VideoWebPlayer"), cancellationToken);
         await _historyService.AddAsync("Backup", result, userId, started, cancellationToken);
         if (result.Succeeded)

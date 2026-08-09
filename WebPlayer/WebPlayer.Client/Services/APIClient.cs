@@ -9,7 +9,6 @@ namespace WebPlayer.Client.Services
         private readonly IHttpClientFactory httpClientFactory;
         private readonly AuthenticationStateProvider authProvider;
         private const string BaseUriSources = "api/MediaSources/";
-        private const string UriExtensionReload = "{0}/reload";
         private const string BaseUriMediaItems = "api/MediaItems/";
         private const string UriExtensionMediaItemDetails = "details/{0}";
 
@@ -72,7 +71,7 @@ namespace WebPlayer.Client.Services
         }
         public async Task<bool> ForceReloadSourceAsync(string sourceId)
         {
-            var response = await CreateHttpClient().PostAsync($"{BaseUriSources}{string.Format(UriExtensionReload, sourceId)}", new StringContent(""));
+            var response = await CreateHttpClient().PostAsync($"{BaseUriSources}{sourceId}/reload", new StringContent(""));
             return response.IsSuccessStatusCode;
         }
 

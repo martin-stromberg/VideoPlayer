@@ -28,6 +28,7 @@ Diese Dokumentationen richten sich an Entwickler und beschreiben die technische 
 | Dokument | Beschreibung | Status |
 |----------|--------------|--------|
 | [SignalR-Implementation](./TECH_SignalR_Implementation.md) | Echtzeit-Update-System | ✅ Vollständig |
+| [Automatisierte Programmupdates](./TECH_Auto_Update.md) | Selbst-Update via msTools.Updater inkl. Sicherung vor der Installation | ✅ Vollständig |
 | [Media-Kategorisierung](./TECH_Media_Classification.md) | Automatische Video-Klassifizierung | ⏳ Geplant |
 | [REST API Reference](./TECH_API_Reference.md) | API-Endpoints und Verwendung | ⏳ Geplant |
 | [SignalR Hub Events](./TECH_SignalR_Events.md) | SignalR Event-Reference | ⏳ Geplant |

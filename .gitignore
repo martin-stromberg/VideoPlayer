@@ -256,6 +256,8 @@ Generated_Code/
 # because we have git ;-)
 _UpgradeReport_Files/
 Backup*/
+!VideoWebPlayer/Services/Backups/
+!VideoWebPlayer/Services/Backups/**
 UpgradeLog*.XML
 UpgradeLog*.htm
 ServiceFabricBackup/

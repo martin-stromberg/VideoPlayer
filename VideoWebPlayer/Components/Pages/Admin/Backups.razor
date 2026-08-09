@@ -1,0 +1,372 @@
+@page "/admin/backups"
+@using System.ComponentModel.DataAnnotations
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Forms
+@using msTools.Backup
+@using VideoWebPlayer.Data
+@using VideoWebPlayer.Services.Backups
+@inject VideoWebPlayerBackupFacade BackupFacade
+@inject BackupSettingsService SettingsService
+@inject IBackgroundProcessingGate BackgroundGate
+@inject AuthenticationStateProvider AuthStateProvider
+@rendermode InteractiveServer
+
+<PageTitle>Backups</PageTitle>
+
+@if (!isAdmin)
+{
+    <div class="alert alert-danger">Nicht autorisiert.</div>
+}
+else if (settingsModel is null)
+{
+    <div class="alert alert-info">Lade...</div>
+}
+else
+{
+    <h1>Backups</h1>
+
+    @if (!string.IsNullOrWhiteSpace(successMessage))
+    {
+        <div class="alert alert-success">@successMessage</div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+
+    @if (BackgroundGate.IsPausedForRestore)
+    {
+        <div class="alert alert-warning">Ein Restore laeuft. Schreibende Hintergrundprozesse sind angehalten.</div>
+    }
+
+    <div class="mb-3 d-flex gap-2 flex-wrap">
+        <button class="btn btn-primary" @onclick="CreateBackupAsync" disabled="@isBusy">Backup erstellen</button>
+        <button class="btn btn-outline-secondary" @onclick="ReloadAsync" disabled="@isBusy">Aktualisieren</button>
+    </div>
+
+    <h2 class="h4">Vorhandene Backups</h2>
+    @if (backups.Count == 0)
+    {
+        <div class="alert alert-secondary">Keine Backups vorhanden.</div>
+    }
+    else
+    {
+        <table class="table table-dark table-striped align-middle">
+            <thead>
+                <tr>
+                    <th>Datei</th>
+                    <th>Generation</th>
+                    <th>Erstellt</th>
+                    <th>Groesse</th>
+                    <th>Status</th>
+                    <th>Aktionen</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var backup in backups)
+                {
+                    <tr>
+                        <td>@backup.FileName</td>
+                        <td>@backup.Generation</td>
+                        <td>@backup.CreatedAtUtc.ToLocalTime().ToString("g")</td>
+                        <td>@FormatBytes(backup.SizeBytes)</td>
+                        <td>
+                            @if (backup.IsValid)
+                            {
+                                <span class="badge bg-success">Gueltig</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-danger" title="@string.Join("; ", backup.ValidationErrors)">Ungueltig</span>
+                            }
+                        </td>
+                        <td>
+                            <a class="btn btn-sm btn-outline-light" href="@($"/admin/backups/api/download/{Uri.EscapeDataString(backup.FileName)}")">Download</a>
+                            <button class="btn btn-sm btn-warning ms-1" disabled="@(!backup.IsValid || isBusy)" @onclick="() => SelectRestore(backup.FileName)">Restore</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(restoreFileName))
+    {
+        <div class="border rounded p-3 mb-4">
+            <h2 class="h5">Restore bestaetigen</h2>
+            <p>Die vorhandenen Daten werden ersetzt. Das eigene Admin-Konto bleibt erhalten.</p>
+            <div class="form-check mb-2">
+                <InputCheckbox class="form-check-input" @bind-Value="confirmRestore" />
+                <label class="form-check-label">Restore fuer @restoreFileName serverseitig bestaetigen</label>
+            </div>
+            <button class="btn btn-danger" disabled="@(!confirmRestore || isBusy)" @onclick="RestoreAsync">Restore starten</button>
+            <button class="btn btn-secondary ms-2" disabled="@isBusy" @onclick="CancelRestore">Abbrechen</button>
+        </div>
+    }
+
+    <h2 class="h4">Backup hochladen</h2>
+    <div class="mb-4">
+        <InputFile OnChange="UploadAsync" accept=".zip,application/zip" disabled="@isBusy" />
+        <div class="form-text">Maximal @FormatBytes(settingsModel.MaxUploadSizeBytes). Nur gueltige Backup-ZIP-Dateien werden uebernommen.</div>
+    </div>
+
+    <h2 class="h4">Einstellungen</h2>
+    <EditForm Model="settingsModel" OnValidSubmit="SaveSettingsAsync">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="mb-3">
+            <label class="form-label">Speicherpfad</label>
+            <InputText class="form-control" @bind-Value="settingsModel.StoragePath" />
+        </div>
+
+        <div class="form-check mb-3">
+            <InputCheckbox class="form-check-input" @bind-Value="settingsModel.AutomaticBackupsEnabled" />
+            <label class="form-check-label">Automatische GVS-Backups aktivieren</label>
+        </div>
+
+        <div class="row">
+            <div class="col-md-4 mb-3">
+                <label class="form-label">Sohn-Aufbewahrung</label>
+                <InputNumber class="form-control" @bind-Value="settingsModel.SonRetentionCount" />
+            </div>
+            <div class="col-md-4 mb-3">
+                <label class="form-label">Vater-Aufbewahrung</label>
+                <InputNumber class="form-control" @bind-Value="settingsModel.FatherRetentionCount" />
+            </div>
+            <div class="col-md-4 mb-3">
+                <label class="form-label">Grossvater-Aufbewahrung</label>
+                <InputNumber class="form-control" @bind-Value="settingsModel.GrandfatherRetentionCount" />
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Upload-Limit in Bytes</label>
+            <InputNumber class="form-control" @bind-Value="settingsModel.MaxUploadSizeBytes" />
+        </div>
+
+        <button class="btn btn-primary" type="submit" disabled="@isBusy">Einstellungen speichern</button>
+    </EditForm>
+
+    <h2 class="h4 mt-4">Historie</h2>
+    @if (history.Count == 0)
+    {
+        <div class="alert alert-secondary">Keine Backup-Aktionen protokolliert.</div>
+    }
+    else
+    {
+        <table class="table table-dark table-striped">
+            <thead>
+                <tr>
+                    <th>Start</th>
+                    <th>Aktion</th>
+                    <th>Datei</th>
+                    <th>Ergebnis</th>
+                    <th>Meldung</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var entry in history)
+                {
+                    <tr>
+                        <td>@entry.StartedAtUtc.ToLocalTime().ToString("g")</td>
+                        <td>@entry.Operation</td>
+                        <td>@entry.FileName</td>
+                        <td>@(entry.Succeeded ? "Erfolgreich" : "Fehler")</td>
+                        <td>@entry.Message</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    private bool isAdmin;
+    private bool isBusy;
+    private string? userId;
+    private string? successMessage;
+    private string? errorMessage;
+    private string? restoreFileName;
+    private bool confirmRestore;
+    private SettingsModel? settingsModel;
+    private List<BackupDescriptor> backups = new();
+    private List<BackupOperationHistory> history = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = auth.User;
+        isAdmin = user.Identity?.IsAuthenticated == true && user.HasClaim("IsAdmin", "True");
+        userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (!isAdmin)
+            return;
+
+        await LoadSettingsAsync();
+        await ReloadAsync();
+    }
+
+    private async Task LoadSettingsAsync()
+    {
+        var settings = await BackupFacade.GetSettingsAsync();
+        settingsModel = new SettingsModel
+        {
+            StoragePath = settings.StoragePath,
+            AutomaticBackupsEnabled = settings.AutomaticBackupsEnabled,
+            SonRetentionCount = settings.SonRetentionCount,
+            FatherRetentionCount = settings.FatherRetentionCount,
+            GrandfatherRetentionCount = settings.GrandfatherRetentionCount,
+            MaxUploadSizeBytes = settings.MaxUploadSizeBytes
+        };
+    }
+
+    private async Task ReloadAsync()
+    {
+        backups = (await BackupFacade.ListBackupsAsync()).ToList();
+        history = await BackupFacade.GetHistoryAsync();
+    }
+
+    private async Task CreateBackupAsync()
+    {
+        await RunOperationAsync(async () =>
+        {
+            var result = await BackupFacade.CreateManualBackupAsync(userId);
+            ApplyResult(result);
+        });
+    }
+
+    private async Task UploadAsync(InputFileChangeEventArgs args)
+    {
+        if (settingsModel is null)
+            return;
+
+        var file = args.File;
+        if (file.Size > settingsModel.MaxUploadSizeBytes)
+        {
+            errorMessage = "Die Datei ist groesser als das konfigurierte Upload-Limit.";
+            return;
+        }
+
+        await RunOperationAsync(async () =>
+        {
+            await using var stream = file.OpenReadStream(settingsModel.MaxUploadSizeBytes);
+            var result = await BackupFacade.ImportUploadAsync(stream, file.Name, userId);
+            ApplyResult(result);
+        });
+    }
+
+    private void SelectRestore(string fileName)
+    {
+        restoreFileName = fileName;
+        confirmRestore = false;
+        successMessage = null;
+        errorMessage = null;
+    }
+
+    private void CancelRestore()
+    {
+        restoreFileName = null;
+        confirmRestore = false;
+    }
+
+    private async Task RestoreAsync()
+    {
+        if (string.IsNullOrWhiteSpace(restoreFileName))
+            return;
+
+        var fileName = restoreFileName;
+        await RunOperationAsync(async () =>
+        {
+            var result = await BackupFacade.RestoreAsync(fileName, userId, confirmRestore);
+            ApplyResult(result);
+            if (result.Succeeded)
+                CancelRestore();
+        });
+    }
+
+    private async Task SaveSettingsAsync()
+    {
+        if (settingsModel is null)
+            return;
+
+        await RunOperationAsync(async () =>
+        {
+            await BackupFacade.UpdateSettingsAsync(new BackupSettings
+            {
+                StoragePath = settingsModel.StoragePath,
+                AutomaticBackupsEnabled = settingsModel.AutomaticBackupsEnabled,
+                SonRetentionCount = settingsModel.SonRetentionCount,
+                FatherRetentionCount = settingsModel.FatherRetentionCount,
+                GrandfatherRetentionCount = settingsModel.GrandfatherRetentionCount,
+                MaxUploadSizeBytes = settingsModel.MaxUploadSizeBytes
+            });
+            successMessage = "Einstellungen wurden gespeichert.";
+        });
+    }
+
+    private async Task RunOperationAsync(Func<Task> operation)
+    {
+        isBusy = true;
+        successMessage = null;
+        errorMessage = null;
+
+        try
+        {
+            await operation();
+            await LoadSettingsAsync();
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private void ApplyResult(BackupOperationResult result)
+    {
+        if (result.Succeeded)
+            successMessage = result.Message;
+        else
+            errorMessage = string.Join(" ", result.Errors.DefaultIfEmpty(result.Message));
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        string[] units = { "B", "KB", "MB", "GB" };
+        var value = (double)bytes;
+        var unit = 0;
+        while (value >= 1024 && unit < units.Length - 1)
+        {
+            value /= 1024;
+            unit++;
+        }
+
+        return $"{value:0.##} {units[unit]}";
+    }
+
+    private sealed class SettingsModel
+    {
+        [Required]
+        public string StoragePath { get; set; } = Path.Combine("Data", "Backups");
+
+        public bool AutomaticBackupsEnabled { get; set; }
+
+        [Range(0, 365)]
+        public int SonRetentionCount { get; set; } = 7;
+
+        [Range(0, 365)]
+        public int FatherRetentionCount { get; set; } = 4;
+
+        [Range(0, 365)]
+        public int GrandfatherRetentionCount { get; set; } = 12;
+
+        [Range(1048576, long.MaxValue)]
+        public long MaxUploadSizeBytes { get; set; } = 512L * 1024L * 1024L;
+    }
+}

@@ -79,6 +79,9 @@
 - ✅ Live-Updates der Medienbibliothek
 - ✅ Multi-Device-Synchronisation
 
+#### Administration
+- ✅ Administrative Backup-Verwaltung mit manuellen Backups, automatischer GVS-Aufbewahrung, Upload, Download und Restore
+
 ### Frontend (.NET MAUI App)
 
 #### Cross-Platform Support
@@ -119,6 +122,7 @@
 | Real-Time | SignalR | .NET 10 |
 | Authentication | ASP.NET Identity | .NET 10 |
 | FTP/SFTP | FluentFTP, SSH.NET | Latest |
+| Backups | msTools.Backup | Projektbibliothek |
 
 ### Frontend (MAUI)
 
@@ -137,6 +141,7 @@
 | Serialization | Newtonsoft.Json |
 | HTTP Client | System.Net.Http |
 | Dependency Injection | Microsoft.Extensions.DependencyInjection |
+| Backups | msTools.Backup |
 
 ---
 
@@ -240,6 +245,7 @@ VideoWebPlayer.sln
 | [Episode Selection](./Docs/TECH_Episode_Selection.md) | Smart Episode Selection & Play Button |
 | [MediaElement Error Handling](./Docs/TECH_MediaElement_Error_Handling.md) | Video-Player Fehlerbehandlung |
 | [Notification Ticker](./Docs/TECH_Notification_Ticker.md) | Footer-Lauftext-Komponente |
+| [Backups](./docs/help/backups.md) | Administrative Backup-Verwaltung, automatische GVS-Backups und Restore |
 
 ### 📋 API-Dokumentation
 
@@ -254,6 +260,8 @@ VideoWebPlayer.sln
 
 ```
 VideoWebPlayer/
+├── msTools.Backup/              # Wiederverwendbare Backup-Bibliothek
+├── msTools.Backup.Tests/        # Tests der Backup-Bibliothek
 ├── VideoWebPlayer/              # ASP.NET Core Blazor Backend
 │   ├── Components/              # Blazor-Komponenten
 │   ├── Controllers/             # API-Controller

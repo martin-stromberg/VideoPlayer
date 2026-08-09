@@ -43,6 +43,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\msTools.Backup\msTools.Backup.csproj" />
     <ProjectReference Include="..\VideoWebPlayer.Client\VideoWebPlayer.Client.csproj" />
   </ItemGroup>
 

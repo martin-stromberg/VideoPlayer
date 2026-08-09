@@ -134,7 +134,11 @@ public static class ServiceCollectionExtensions
         });
 
         // Add antiforgery service (middleware will be configured in app startup)
-        builder.Services.AddAntiforgery();
+        builder.Services.AddAntiforgery(options =>
+        {
+            options.Cookie.SameSite = SameSiteMode.Lax;
+            options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        });
 
         // Optional: externe / 2FA Cookies ebenfalls anpassen
         //services.ConfigureExternalCookie(options =>

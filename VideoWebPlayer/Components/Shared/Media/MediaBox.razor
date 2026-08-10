@@ -1,8 +1,15 @@
 @* Wiederverwendbare Box für ein Media-Element *@
 <a class="media-box-link" href="@LinkUrl">
-    <div class="recent-entry-box">
-        <img class="recent-entry-img" src="@ImageUrl" alt="@Title" />
-        <div class="recent-entry-title">@Title</div>
+    <div class="media-box" title="@Title">
+        <img class="media-poster"
+             src="@ImageUrl"
+             alt="@Title"
+             loading="lazy"
+             onerror="this.onerror=null;this.src='/images/placeholder.png';" />
+        <span class="media-quick-play" aria-hidden="true">&#9654;</span>
+        <div class="media-card-overlay">
+            <span class="media-title-text">@Title</span>
+        </div>
     </div>
 </a>
 

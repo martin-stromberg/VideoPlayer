@@ -11,8 +11,11 @@
                    src="@StreamUrl"
                    controls
                    autoplay="@AutoPlay"
-                   style="max-width:900px;"></video>
-            <button class="close-player" @onclick="OnClose">&#10006;</button>
+                   style="max-width:1200px;"></video>
+            <div class="player-progress-rail" aria-hidden="true">
+                <div class="player-progress-fill" style="width:@ProgressPercent%"></div>
+            </div>
+            <button class="close-player" @onclick="OnClose" title="Player schließen" aria-label="Player schließen">&#10006;</button>
         </div>
     </div>
 }
@@ -40,6 +43,10 @@
     private bool _startApplied;
     private DotNetObjectReference<VideoPlayer>? _dotNetRef;
     private bool _timeUpdateRegistered;
+    private double DurationSeconds { get; set; }
+    private double ProgressPercent => DurationSeconds > 0
+        ? Math.Clamp(CurrentPositionSeconds / DurationSeconds * 100d, 0d, 100d)
+        : 0d;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -72,6 +79,10 @@
         {
             try { await JS.InvokeVoidAsync("videoPlayer.unregisterTimeUpdate", _videoRef); } catch { }
         }
+        if (_attached && _videoRef.Context != null)
+        {
+            try { await JS.InvokeVoidAsync("continueWatching.detach", _videoRef); } catch { }
+        }
         _timeUpdateRegistered = false;
         _attached = false;
         _startApplied = false;
@@ -79,15 +90,16 @@
     }
 
     [JSInvokable]
-    public async Task UpdatePosition(double seconds)
+    public async Task UpdatePosition(double seconds, double duration)
     {
         // Minimieren unnötiger Renders
         if (Math.Abs(CurrentPositionSeconds - seconds) >= 0.25)
         {
             CurrentPositionSeconds = seconds;
+            DurationSeconds = duration;
             if (PositionChanged.HasDelegate)
                 await PositionChanged.InvokeAsync(seconds);
-            // Kein StateHasChanged() nötig, außer UI zeigt Wert an.
+            StateHasChanged();
         }
     }
 
@@ -137,9 +149,10 @@ window.videoPlayer = window.videoPlayer || {
     },
     registerTimeUpdate: function(videoEl, dotNetRef) {
         if (!videoEl || !dotNetRef) return;
+        this.unregisterTimeUpdate(videoEl);
         const handler = () => {
             try {
-                dotNetRef.invokeMethodAsync('UpdatePosition', videoEl.currentTime || 0);
+                dotNetRef.invokeMethodAsync('UpdatePosition', videoEl.currentTime || 0, videoEl.duration || 0);
             } catch {}
         };
         videoEl._timeUpdateHandler = handler;

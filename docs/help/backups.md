@@ -1,6 +1,6 @@
 # Backups im VideoWebPlayer
 
-Diese Hilfe richtet sich an Administratoren. Die Backup-Funktion ist im Verwaltungsbereich unter `Backups` verfügbar und erlaubt das Erstellen, Herunterladen, Hochladen, Löschen und Wiederherstellen von Backups.
+Diese Hilfe richtet sich an Administratoren. Die Backup-Funktion ist im Einrichtungsbereich unter `Einrichtung` > `Backups` verfügbar und erlaubt das Erstellen, Herunterladen, Hochladen, Löschen und Wiederherstellen von Backups.
 
 ## Backup-Seite
 
@@ -72,6 +72,7 @@ Die Seite zeigt eine Historie der letzten Backup-, Restore- und Löschaktionen. 
 
 - Gesichert werden Datenbankdaten und optionale Genre-Icons. Echte Mediendateien aus Medienquellen, Logs, Demo-/Seed-Dateien und externe Speicherorte werden nicht gesichert.
 - Das Backup-Format ist ein ZIP mit `manifest.json`, `index.json`, Entitätsdateien unter `entities/` und optionalen Dateien unter `files/`.
+- Backups aus älteren Versionen ohne `UpdateSettings`-Tabelle oder ohne Anwendungstitel in `Setups` können wiederhergestellt werden. Fehlende Werte werden beim Restore mit aktuellen Standardwerten ergänzt.
 - Hochgeladene ZIPs werden gegen ungültige Manifestdaten und unsichere Pfade validiert.
 - Die Restore-Sperre wirkt innerhalb der laufenden Anwendung. Sie ist keine Cluster- oder Mehrprozess-Sperre für mehrere App-Instanzen.
 - Backups sind nicht verschlüsselt und nicht passwortgeschützt. Der Speicherpfad sollte entsprechend geschützt werden.

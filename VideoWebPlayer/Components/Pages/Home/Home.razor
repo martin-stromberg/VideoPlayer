@@ -8,6 +8,7 @@
 @inject RecentEntryService RecentEntryService
 @inject ApplicationDbContext DbContext
 @inject HttpClient Http
+@inject VideoWebPlayer.Services.ProgramSettingsService SettingsService
 
 <PageTitle>Home</PageTitle>
 
@@ -32,12 +33,14 @@
     private Dictionary<long, string> episodeTitles = new();
     private Dictionary<long, string> episodePosters = new();
     private Dictionary<long, string> episodeLinks = new();
+    private string applicationTitle = "Martins Videosammlung";
 
     private const string SystemUserNormalizedName = "SYSTEM";
 
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        applicationTitle = await SettingsService.GetApplicationTitleAsync();
         var user = authState.User;
         isAuthenticated = user?.Identity?.IsAuthenticated == true;
 
@@ -66,7 +69,7 @@
         <section class="home-hero" aria-labelledby="home-title">
             <div class="home-hero-content">
                 <span class="hero-kicker">Private Media Library</span>
-                <h1 id="home-title">Martins Videosammlung</h1>
+                <h1 id="home-title">@applicationTitle</h1>
                 <p>Filme, Serien, Favoriten und angefangene Wiedergaben in einer dunklen, medienzentrierten Oberfläche.</p>
             </div>
         </section>

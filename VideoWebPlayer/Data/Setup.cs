@@ -17,6 +17,11 @@ public class Setup
     public bool GenresChanged { get; set; }
 
     /// <summary>
+    /// Gets or sets the application title shown in the navigation and on the home screen.
+    /// </summary>
+    public string ApplicationTitle { get; set; } = "Martins Videosammlung";
+
+    /// <summary>
     /// Gets or sets the interval (in minutes) at which the scan process should run.
     /// Default: 60 minutes.
     /// </summary>

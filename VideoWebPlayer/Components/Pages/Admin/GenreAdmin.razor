@@ -1,191 +1,190 @@
 @page "/admin/genres"
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.AspNetCore.Components.Forms
-@using System.IO
 @using System.Security.Cryptography
 @using System.Text
 @using VideoWebPlayer.Data
 @using VideoWebPlayer.Services
 @inject ApplicationDbContext DbContext
 @inject IGenreService GenreService
-@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
 @inject IWebHostEnvironment Env
 @rendermode InteractiveServer
 
-<style>
-.genre-admin-page,
-.genre-admin-page h2,
-.genre-admin-page .table,
-.genre-admin-page .table th,
-.genre-admin-page .table td,
-.genre-admin-page .badge,
-.genre-admin-page .card,
-.genre-admin-page .form-control,
-.genre-admin-page label {
-    color: #f2f2f2 !important;
-}
+<PageTitle>Genres</PageTitle>
 
-.genre-admin-page .card {
-    background: #23232a;
-}
-
-.genre-admin-page .table {
-    background: #23232a;
-}
-
-.genre-admin-page .badge {
-    background: #444;
-    color: #ffe066;
-}
-
-.genre-dialog-overlay {
-    position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(20,20,30,0.85);
-    z-index: 1000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-.genre-dialog {
-    background: #23232a;
-    color: #f2f2f2;
-    border-radius: 12px;
-    box-shadow: 0 4px 32px #000a;
-    padding: 2rem 2.5rem;
-    min-width: 320px;
-    max-width: 90vw;
-    max-height: 90vh;
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-.genre-dialog label {
-    color: #ffe066;
-    font-weight: 500;
-}
-.genre-dialog input.form-control {
-    background: #181820;
-    color: #f2f2f2;
-    border: 1px solid #444;
-}
-</style>
-
-<div class="genre-admin-page">
-<h2>Genre-Verwaltung</h2>
-
-<table class="table">
-    <thead>
-        <tr>
-            <th>Bild</th>
-            <th>Name</th>
-            <th>Alternative Namen</th>
-            <th>Startdatum</th>
-            <th>Enddatum</th>
-            <th>Aktionen</th>
-            <th>Ausgeblendet</th>
-        </tr>
-    </thead>
-    <tbody>
-        @foreach (var genre in uniqueGenres)
-        {
-            <tr>
-                <td style="width: 56px;">
-                    @{
-                        var iconUrl = GetGenreImageUrl(genre.Name);
-                    }
-                    @if (!string.IsNullOrWhiteSpace(iconUrl))
-                    {
-                        <img src="@iconUrl" alt="@genre.Name" style="width: 40px; height: 40px; object-fit: cover; border-radius: 6px;" />
-                    }
-                </td>
-                <td>@genre.Name</td>
-                <td>
-                    @foreach (var alt in genre.AlternateNames)
-                    {
-                        <span class="badge bg-secondary">@alt.Name</span>
-                    }
-                </td>
-                <td>@(genre.StartDate?.ToString("yyyy-MM-dd") ?? "-")</td>
-                <td>@(genre.EndDate?.ToString("yyyy-MM-dd") ?? "-")</td>
-                <td>
-                    <button class="btn btn-sm btn-primary" @onclick="() => EditGenre(genre)">Bearbeiten</button>
-                </td>
-                <td>
-                    @(genre.IsHidden ? "Ja" : "Nein")
-                </td>
-            </tr>
-        }
-    </tbody>
-</table>
-
-@if (editGenre != null)
+@if (!isAdmin)
 {
-    <div class="genre-dialog-overlay" @onclick="CancelEdit">
-        <div class="genre-dialog" @onclick:stopPropagation>
-            <h5>Genre bearbeiten: @editGenre.Name</h5>
-            <label>Bild (optional):</label>
-            <div class="d-flex align-items-center gap-3">
-                @if (!string.IsNullOrWhiteSpace(iconPreviewUrl))
-                {
-                    <img src="@iconPreviewUrl" alt="@editGenre.Name" style="width: 72px; height: 72px; object-fit: cover; border-radius: 10px;" />
-                }
-                <div class="d-flex flex-column gap-2">
-                    <InputFile OnChange="OnIconFileChanged" accept="image/png,image/jpeg,image/webp,image/gif" />
-                    @if (hasPendingIcon)
-                    {
-                        <small class="text-warning">Neues Bild ausgewählt – wird beim Speichern übernommen.</small>
-                    }
+    <div class="alert alert-danger">Nicht autorisiert.</div>
+}
+else
+{
+    <section class="admin-console admin-genres-page">
+        <header class="admin-page-header">
+            <div>
+                <span class="admin-kicker">Einrichtung</span>
+                <h1>Genres</h1>
+                <p>Genre-Metadaten, saisonale Sichtbarkeit und Bilder pflegen.</p>
+            </div>
+            <a class="btn btn-outline-light" href="/admin">Zurueck</a>
+        </header>
+
+        <div class="admin-card admin-card-wide">
+            <div class="admin-card-header">
+                <h2>Genre-Verwaltung</h2>
+                <span class="admin-chip">@uniqueGenres.Count Eintraege</span>
+            </div>
+
+            @if (uniqueGenres.Count == 0)
+            {
+                <div class="admin-empty-state">
+                    <strong>Keine Genres vorhanden</strong>
+                    <span>Beim naechsten Scan werden Genres automatisch angelegt.</span>
+                </div>
+            }
+            else
+            {
+                <div class="admin-table-wrap">
+                    <table class="table table-dark table-striped align-middle">
+                        <thead>
+                            <tr>
+                                <th>Bild</th>
+                                <th>Name</th>
+                                <th>Alternative Namen</th>
+                                <th>Saison</th>
+                                <th>Status</th>
+                                <th>Aktionen</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var genre in uniqueGenres)
+                            {
+                                <tr>
+                                    <td style="width: 64px;">
+                                        @{
+                                            var iconUrl = GetGenreImageUrl(genre.Name);
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(iconUrl))
+                                        {
+                                            <img class="admin-thumb" src="@iconUrl" alt="@genre.Name" />
+                                        }
+                                        else
+                                        {
+                                            <span class="admin-icon admin-icon-muted">GN</span>
+                                        }
+                                    </td>
+                                    <td>@genre.Name</td>
+                                    <td>
+                                        <div class="admin-chip-list">
+                                            @foreach (var alt in genre.AlternateNames)
+                                            {
+                                                <span class="admin-chip">@alt.Name</span>
+                                            }
+                                        </div>
+                                    </td>
+                                    <td class="admin-mono">@(genre.StartDate?.ToString("yyyy-MM-dd") ?? "-") bis @(genre.EndDate?.ToString("yyyy-MM-dd") ?? "-")</td>
+                                    <td>
+                                        <span class="admin-chip @(genre.IsHidden ? "admin-chip-warning" : "admin-chip-success")">@(genre.IsHidden ? "Ausgeblendet" : "Sichtbar")</span>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-primary" @onclick="() => EditGenre(genre)">Bearbeiten</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+
+        @if (editGenre != null)
+        {
+            <div class="admin-dialog-overlay" @onclick="CancelEdit">
+                <div class="admin-dialog" @onclick:stopPropagation>
+                    <header class="admin-card-header">
+                        <h2>@editGenre.Name</h2>
+                        <button class="btn btn-sm btn-outline-light" @onclick="CancelEdit">Schliessen</button>
+                    </header>
+
+                    <div class="admin-dialog-preview">
+                        @if (!string.IsNullOrWhiteSpace(iconPreviewUrl))
+                        {
+                            <img class="admin-preview-image" src="@iconPreviewUrl" alt="@editGenre.Name" />
+                        }
+                        else
+                        {
+                            <span class="admin-icon admin-icon-large">GN</span>
+                        }
+                        <div>
+                            <label class="form-label">Bild</label>
+                            <InputFile OnChange="OnIconFileChanged" accept="image/png,image/jpeg,image/webp,image/gif" />
+                            @if (hasPendingIcon)
+                            {
+                                <div class="form-text text-warning">Neues Bild wird beim Speichern uebernommen.</div>
+                            }
+                        </div>
+                    </div>
+
+                    <label class="form-label">Alternative Namen</label>
+                    <input class="form-control" @bind="altNamesInput" />
+
+                    <div class="admin-settings-grid">
+                        <div>
+                            <label class="form-label">Startdatum</label>
+                            <InputDate class="form-control" @bind-Value="editGenre.StartDate" />
+                        </div>
+                        <div>
+                            <label class="form-label">Enddatum</label>
+                            <InputDate class="form-control" @bind-Value="editGenre.EndDate" />
+                        </div>
+                    </div>
+
+                    <label class="admin-toggle-row">
+                        <InputCheckbox class="form-check-input" @bind-Value="editGenre.IsHidden" />
+                        <span>Genre ausblenden</span>
+                    </label>
+
+                    <div class="admin-actions">
+                        <button class="btn btn-primary" @onclick="SaveGenre">Speichern</button>
+                        <button class="btn btn-ghost" @onclick="CancelEdit">Abbrechen</button>
+                    </div>
                 </div>
             </div>
-            <label>Alternative Namen (kommagetrennt):</label>
-            <input class="form-control" @bind="altNamesInput" />
-            <label>Startdatum (optional, für saisonale Genres):</label>
-            <InputDate class="form-control" @bind-Value="editGenre.StartDate" />
-            <label>Enddatum (optional, für saisonale Genres):</label>
-            <InputDate class="form-control" @bind-Value="editGenre.EndDate" />
-            <div>
-                <InputCheckbox class="form-check-input" @bind-Value="editGenre.IsHidden" />
-                <label class="form-check-label ms-2">Genre ist ausgeblendet</label>
-            </div>
-            <div class="mt-3 d-flex justify-content-end gap-2">
-                <button class="btn btn-success" @onclick="SaveGenre">Speichern</button>
-                <button class="btn btn-secondary" @onclick="CancelEdit">Abbrechen</button>
-            </div>
-        </div>
-    </div>
+        }
+    </section>
 }
 
-    @code {
-        private List<Genre> genres = new();
-        private Genre? editGenre;
-        private string altNamesInput = "";
-        private List<Genre> uniqueGenres = new();
+@code {
+    private bool isAdmin;
+    private Genre? editGenre;
+    private string altNamesInput = "";
+    private List<Genre> uniqueGenres = new();
+    private string? iconPreviewUrl;
+    private bool hasPendingIcon;
+    private byte[]? pendingIconBytes;
+    private string? pendingIconContentType;
 
-        private string? iconPreviewUrl;
-        private bool hasPendingIcon;
-        private byte[]? pendingIconBytes;
-        private string? pendingIconContentType;
-
-        protected override async Task OnInitializedAsync()
-        {
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        isAdmin = auth.User.Identity?.IsAuthenticated == true && auth.User.HasClaim("IsAdmin", "True");
+        if (isAdmin)
             await ReloadGenres();
-        }
+    }
 
-        private async Task ReloadGenres()
-        {
-            var allGenres = await DbContext.Genres.Include(g => g.AlternateNames).ToListAsync();
-            uniqueGenres = allGenres
-                .GroupBy(g => g.Name.Trim().ToLower())
-                .Select(g => g.First())
-                .OrderBy(g => g.Name)
-                .ToList();
-        }
+    private async Task ReloadGenres()
+    {
+        var allGenres = await DbContext.Genres.Include(g => g.AlternateNames).ToListAsync();
+        uniqueGenres = allGenres
+            .GroupBy(g => g.Name.Trim().ToLower())
+            .Select(g => g.First())
+            .OrderBy(g => g.Name)
+            .ToList();
+    }
 
-        private void EditGenre(Genre genre)
-        {
-            // Hole das Genre frisch aus der DB, damit Änderungen nicht direkt übernommen werden
-            editGenre = new Genre
+    private void EditGenre(Genre genre)
+    {
+        editGenre = new Genre
         {
             Id = genre.Id,
             Name = genre.Name,
@@ -194,77 +193,60 @@
             IsHidden = genre.IsHidden,
             AlternateNames = genre.AlternateNames.ToList()
         };
-            altNamesInput = string.Join(", ", genre.AlternateNames.Select(a => a.Name));
+        altNamesInput = string.Join(", ", genre.AlternateNames.Select(a => a.Name));
+        hasPendingIcon = false;
+        pendingIconBytes = null;
+        pendingIconContentType = null;
+        iconPreviewUrl = GetGenreImageUrl(genre.Name, forceCacheBust: true);
+    }
 
-            hasPendingIcon = false;
-            pendingIconBytes = null;
-            pendingIconContentType = null;
-            iconPreviewUrl = GetGenreImageUrl(genre.Name, forceCacheBust: true);
+    private async Task OnIconFileChanged(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        await using var stream = file.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+
+        pendingIconBytes = ms.ToArray();
+        pendingIconContentType = file.ContentType;
+        hasPendingIcon = pendingIconBytes.Length > 0;
+
+        if (hasPendingIcon && !string.IsNullOrWhiteSpace(pendingIconContentType))
+            iconPreviewUrl = $"data:{pendingIconContentType};base64,{Convert.ToBase64String(pendingIconBytes)}";
+    }
+
+    private async Task SaveGenre()
+    {
+        if (editGenre == null)
+            return;
+
+        var dbGenres = await DbContext.Genres.Include(g => g.AlternateNames)
+            .Where(g => g.Name == editGenre.Name).ToListAsync();
+
+        foreach (var dbGenre in dbGenres)
+        {
+            dbGenre.StartDate = editGenre.StartDate;
+            dbGenre.EndDate = editGenre.EndDate;
+            dbGenre.IsHidden = editGenre.IsHidden;
+
+            var names = altNamesInput.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(n => n.Trim())
+                .Where(n => !string.IsNullOrWhiteSpace(n))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            DbContext.GenreNames.RemoveRange(dbGenre.AlternateNames);
+            await DbContext.SaveChangesAsync();
+
+            foreach (var name in names)
+                DbContext.GenreNames.Add(new GenreName { Name = name, GenreId = dbGenre.Id });
+
+            await DbContext.SaveChangesAsync();
+            await GenreService.MarkGenresAsChangedAsync();
         }
 
-        private async Task OnIconFileChanged(InputFileChangeEventArgs e)
-        {
-            var file = e.File;
-            if (file == null)
-                return;
-
-            // 5 MB Limit for icons
-            await using var stream = file.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024);
-            using var ms = new MemoryStream();
-            await stream.CopyToAsync(ms);
-
-            pendingIconBytes = ms.ToArray();
-            pendingIconContentType = file.ContentType;
-            hasPendingIcon = pendingIconBytes.Length > 0;
-
-            if (hasPendingIcon && !string.IsNullOrWhiteSpace(pendingIconContentType))
-            {
-                iconPreviewUrl = $"data:{pendingIconContentType};base64,{Convert.ToBase64String(pendingIconBytes)}";
-            }
-        }
-
-        private async Task SaveGenre()
-        {
-            if (editGenre == null) return;
-
-            // Genre aus DB holen
-            var dbGenres = await DbContext.Genres.Include(g => g.AlternateNames)
-                .Where(g => g.Name == editGenre.Name).ToListAsync();
-            foreach (var dbGenre in dbGenres)
-            {
-                if (dbGenre != null)
-                {
-                    dbGenre.StartDate = editGenre.StartDate;
-                    dbGenre.EndDate = editGenre.EndDate;
-                    dbGenre.IsHidden = editGenre.IsHidden;
-
-                    // Alternative Namen aktualisieren
-                    var names = altNamesInput.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                                             .Select(n => n.Trim())
-                                             .Where(n => !string.IsNullOrWhiteSpace(n))
-                                             .Distinct(StringComparer.OrdinalIgnoreCase)
-                                             .ToList();
-
-                    DbContext.GenreNames.RemoveRange(dbGenre.AlternateNames);
-                    await DbContext.SaveChangesAsync();
-
-                    foreach (var name in names)
-                    {
-                        DbContext.GenreNames.Add(new GenreName { Name = name, GenreId = dbGenre.Id });
-                    }
-                    await DbContext.SaveChangesAsync();
-					await GenreService.MarkGenresAsChangedAsync();
-                }
-            }
-
-            if (hasPendingIcon && pendingIconBytes is not null && pendingIconBytes.Length > 0)
-            {
-                await SaveGenreIconAsync(editGenre.Name, pendingIconBytes, pendingIconContentType);
-                iconPreviewUrl = GetGenreImageUrl(editGenre.Name, forceCacheBust: true);
-                hasPendingIcon = false;
-                pendingIconBytes = null;
-                pendingIconContentType = null;
-            }
+        if (hasPendingIcon && pendingIconBytes is not null && pendingIconBytes.Length > 0)
+            await SaveGenreIconAsync(editGenre.Name, pendingIconBytes, pendingIconContentType);
 
         await ReloadGenres();
         editGenre = null;
@@ -275,62 +257,58 @@
         editGenre = null;
     }
 
-        private async Task SaveGenreIconAsync(string genreName, byte[] bytes, string? contentType)
+    private async Task SaveGenreIconAsync(string genreName, byte[] bytes, string? contentType)
+    {
+        var extension = contentType switch
         {
-            var extension = contentType switch
-            {
-                "image/png" => ".png",
-                "image/jpeg" => ".jpg",
-                "image/webp" => ".webp",
-                "image/gif" => ".gif",
-                _ => null
-            };
+            "image/png" => ".png",
+            "image/jpeg" => ".jpg",
+            "image/webp" => ".webp",
+            "image/gif" => ".gif",
+            _ => null
+        };
 
-            if (string.IsNullOrWhiteSpace(extension))
-                return;
+        if (string.IsNullOrWhiteSpace(extension))
+            return;
 
-            var key = GetGenreImageKey(genreName);
-            var iconsDir = Path.Combine(Env.WebRootPath, "images", "genres");
-            Directory.CreateDirectory(iconsDir);
+        var key = GetGenreImageKey(genreName);
+        var iconsDir = Path.Combine(Env.WebRootPath, "images", "genres");
+        Directory.CreateDirectory(iconsDir);
 
-            foreach (var existingExt in new[] { ".png", ".jpg", ".jpeg", ".webp", ".gif" })
-            {
-                var existingPath = Path.Combine(iconsDir, $"{key}{existingExt}");
-                if (System.IO.File.Exists(existingPath))
-                    System.IO.File.Delete(existingPath);
-            }
-
-            var newPath = Path.Combine(iconsDir, $"{key}{extension}");
-            await System.IO.File.WriteAllBytesAsync(newPath, bytes);
+        foreach (var existingExt in new[] { ".png", ".jpg", ".jpeg", ".webp", ".gif" })
+        {
+            var existingPath = Path.Combine(iconsDir, $"{key}{existingExt}");
+            if (System.IO.File.Exists(existingPath))
+                System.IO.File.Delete(existingPath);
         }
 
-        private string? GetGenreImageUrl(string genreName, bool forceCacheBust = false)
-        {
-            if (string.IsNullOrWhiteSpace(genreName))
-                return null;
+        await System.IO.File.WriteAllBytesAsync(Path.Combine(iconsDir, $"{key}{extension}"), bytes);
+    }
 
-            var key = GetGenreImageKey(genreName);
-            var iconsDir = Path.Combine(Env.WebRootPath, "images", "genres");
-
-            // Try a small set of common extensions
-            foreach (var ext in new[] { ".png", ".jpg", ".jpeg", ".webp", ".gif" })
-            {
-                var absPath = Path.Combine(iconsDir, $"{key}{ext}");
-                if (System.IO.File.Exists(absPath))
-                {
-                    var url = $"/images/genres/{key}{ext}";
-                    return forceCacheBust ? $"{url}?v={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}" : url;
-                }
-            }
-
+    private string? GetGenreImageUrl(string genreName, bool forceCacheBust = false)
+    {
+        if (string.IsNullOrWhiteSpace(genreName))
             return null;
+
+        var key = GetGenreImageKey(genreName);
+        var iconsDir = Path.Combine(Env.WebRootPath, "images", "genres");
+        foreach (var ext in new[] { ".png", ".jpg", ".jpeg", ".webp", ".gif" })
+        {
+            var absPath = Path.Combine(iconsDir, $"{key}{ext}");
+            if (System.IO.File.Exists(absPath))
+            {
+                var url = $"/images/genres/{key}{ext}";
+                return forceCacheBust ? $"{url}?v={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}" : url;
+            }
         }
 
-        private static string GetGenreImageKey(string genreName)
-        {
-            var normalized = genreName.Trim().ToLowerInvariant();
-            var hash = SHA256.HashData(Encoding.UTF8.GetBytes(normalized));
-            return Convert.ToHexString(hash).ToLowerInvariant();
-        }
+        return null;
+    }
+
+    private static string GetGenreImageKey(string genreName)
+    {
+        var normalized = genreName.Trim().ToLowerInvariant();
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(normalized));
+        return Convert.ToHexString(hash).ToLowerInvariant();
+    }
 }
-</div>

@@ -14,45 +14,74 @@
 }
 else
 {
-    <h1>Sicherheit – Gesperrte IP-Adressen</h1>
+    <section class="admin-console admin-security-page">
+        <header class="admin-page-header">
+            <div>
+                <span class="admin-kicker">Einrichtung</span>
+                <h1>Sicherheit</h1>
+                <p>Gesperrte IP-Adressen und fehlgeschlagene Anmeldeversuche.</p>
+            </div>
+            <div class="admin-header-actions">
+                <button class="btn btn-outline-light" @onclick="Reload">Aktualisieren</button>
+                <a class="btn btn-ghost" href="/admin">Zurueck</a>
+            </div>
+        </header>
 
-    <div class="mb-3">
-        <button class="btn btn-sm btn-outline-secondary" @onclick="Reload">Aktualisieren</button>
-    </div>
+        <div class="admin-stats-grid">
+            <div class="admin-stat-card">
+                <span class="admin-stat-label">Gesperrt</span>
+                <strong>@blockedIps.Count</strong>
+                <small>IP-Adressen</small>
+            </div>
+            <div class="admin-stat-card">
+                <span class="admin-stat-label">Fehlversuche</span>
+                <strong>@blockedIps.Sum(x => x.Failures)</strong>
+                <small>seit letzter Bereinigung</small>
+            </div>
+        </div>
 
-    @if (blockedIps.Count == 0)
-    {
-        <div class="alert alert-info">Derzeit keine gesperrten IP-Adressen.</div>
-    }
-    else
-    {
-        <table class="table table-sm table-striped align-middle">
-            <thead>
-                <tr>
-                    <th>IP</th>
-                    <th>Ges sperrt seit (UTC)</th>
-                    <th>Fehlversuche</th>
-                    <th style="width:120px;"></th>
-                </tr>
-            </thead>
-            <tbody>
-            @foreach (var ip in blockedIps)
+        <div class="admin-card admin-card-wide">
+            <div class="admin-card-header">
+                <h2>Gesperrte IP-Adressen</h2>
+            </div>
+
+            @if (blockedIps.Count == 0)
             {
-                <tr>
-                    <td>@ip.Ip</td>
-                    <td>@ip.BlockedAtUtc.ToString("yyyy-MM-dd HH:mm:ss")</td>
-                    <td>@ip.Failures</td>
-                    <td>
-                        <button class="btn btn-sm btn-danger"
-                                @onclick="() => Unblock(ip.Ip)">
-                            Entsperren
-                        </button>
-                    </td>
-                </tr>
+                <div class="admin-empty-state">
+                    <strong>Keine Sperren aktiv</strong>
+                    <span>Derzeit sind keine IP-Adressen blockiert.</span>
+                </div>
             }
-            </tbody>
-        </table>
-    }
+            else
+            {
+                <div class="admin-table-wrap">
+                    <table class="table table-dark table-striped align-middle">
+                        <thead>
+                            <tr>
+                                <th>IP</th>
+                                <th>Gesperrt seit (UTC)</th>
+                                <th>Fehlversuche</th>
+                                <th>Aktionen</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var ip in blockedIps)
+                            {
+                                <tr>
+                                    <td class="admin-mono">@ip.Ip</td>
+                                    <td class="admin-mono">@ip.BlockedAtUtc.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                    <td>@ip.Failures</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => Unblock(ip.Ip)">Entsperren</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </section>
 }
 
 @code {

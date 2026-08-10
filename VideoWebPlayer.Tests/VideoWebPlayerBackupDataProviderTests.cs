@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -118,6 +119,47 @@ public sealed class VideoWebPlayerBackupDataProviderTests
             && x.DataSetTotal >= x.DataSetNumber
             && x.RecordNumber == 2
             && x.RecordTotal == 2);
+    }
+
+    [Fact]
+    public async Task RestoreAsync_AcceptsLegacyPayloadWithoutUpdateSettings()
+    {
+        using var temp = new TempDirectory();
+        await using var sourceConnection = new SqliteConnection("Data Source=:memory:");
+        await sourceConnection.OpenAsync(TestContext.Current.CancellationToken);
+        await using var sourceDb = CreateDb(sourceConnection);
+        await sourceDb.Database.EnsureCreatedAsync(TestContext.Current.CancellationToken);
+        sourceDb.Setups.Add(new Setup
+        {
+            Id = 1,
+            ApplicationTitle = "Legacy Title",
+            ScanProcessIntervalMinutes = 15,
+            MediaCollectionScanIntervalDays = 3
+        });
+        sourceDb.MediaSources.Add(new MediaSource { Id = 12, Name = "Legacy", Path = "/legacy", Host = "localhost", Port = 22 });
+        await sourceDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        await using var exported = await ExportProviderPayloadAsync(
+            CreateProvider(sourceDb, temp.Path),
+            TestContext.Current.CancellationToken);
+
+        var legacyIndex = CreateLegacyIndexWithoutUpdateSettings(exported.Index);
+
+        await using var targetConnection = new SqliteConnection("Data Source=:memory:");
+        await targetConnection.OpenAsync(TestContext.Current.CancellationToken);
+        await using var targetDb = CreateDb(targetConnection);
+        await targetDb.Database.EnsureCreatedAsync(TestContext.Current.CancellationToken);
+
+        await CreateProvider(targetDb, temp.Path).RestoreAsync(
+            legacyIndex,
+            new BackupRestoreContext(null, (entryName, token) => OpenLegacyPayloadAsync(exported, entryName, token)),
+            TestContext.Current.CancellationToken);
+
+        targetDb.ChangeTracker.Clear();
+        Assert.True(await targetDb.MediaSources.AnyAsync(x => x.Id == 12, TestContext.Current.CancellationToken));
+        var setup = await targetDb.Setups.SingleAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(15, setup.ScanProcessIntervalMinutes);
+        Assert.Equal("Martins Videosammlung", setup.ApplicationTitle);
     }
 
     [Fact]
@@ -441,6 +483,52 @@ public sealed class VideoWebPlayerBackupDataProviderTests
         index.Position = 0;
         var attachments = await MaterializeAttachmentsAsync(context, cancellationToken);
         return new ExportedPayload(index, attachments);
+    }
+
+    private static MemoryStream CreateLegacyIndexWithoutUpdateSettings(MemoryStream index)
+    {
+        index.Position = 0;
+        var root = JsonNode.Parse(index)!;
+        var tables = root["tables"]!.AsArray();
+
+        for (var i = tables.Count - 1; i >= 0; i--)
+        {
+            var table = tables[i]!;
+            var tableName = table["name"]?.GetValue<string>();
+            if (string.Equals(tableName, "UpdateSettings", StringComparison.OrdinalIgnoreCase))
+            {
+                tables.RemoveAt(i);
+                continue;
+            }
+
+            if (string.Equals(tableName, "Setups", StringComparison.OrdinalIgnoreCase))
+            {
+                var columns = table["columns"]!.AsArray();
+                for (var columnIndex = columns.Count - 1; columnIndex >= 0; columnIndex--)
+                {
+                    if (string.Equals(columns[columnIndex]?.GetValue<string>(), "ApplicationTitle", StringComparison.OrdinalIgnoreCase))
+                        columns.RemoveAt(columnIndex);
+                }
+            }
+        }
+
+        return new MemoryStream(Encoding.UTF8.GetBytes(root.ToJsonString()));
+    }
+
+    private static async Task<Stream> OpenLegacyPayloadAsync(ExportedPayload exported, string entryName, CancellationToken cancellationToken)
+    {
+        var stream = await exported.OpenAsync(entryName, cancellationToken);
+        if (!entryName.Contains("Setups", StringComparison.OrdinalIgnoreCase))
+            return stream;
+
+        await using (stream)
+        {
+            var root = JsonNode.Parse(stream)!;
+            foreach (var row in root["rows"]!.AsArray())
+                row!.AsObject().Remove("ApplicationTitle");
+
+            return new MemoryStream(Encoding.UTF8.GetBytes(root.ToJsonString()));
+        }
     }
 
     private sealed class ExportedPayload : IAsyncDisposable

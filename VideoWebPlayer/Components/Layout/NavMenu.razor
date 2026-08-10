@@ -43,13 +43,12 @@
                 @if (context.User.HasClaim("IsAdmin", "True"))
                 {
                     <div class="nav-item px-3">
-                        <NavLink class="nav-link" href="Account/Register">
-                            <span class="bi bi-person-nav-menu" aria-hidden="true"></span> Register
-                        </NavLink>
-                    </div>
-                    <div class="nav-item px-3">
-                        <NavLink class="nav-link" href="/admin/program-settings">
-                            <span class="bi bi-gear"></span> Programmeinstellungen
+                        <NavLink class="nav-link" href="/admin">
+                            <span class="bi bi-gear"></span> Einrichtung
+                            @if (newBlockedCount > 0)
+                            {
+                                <span class="security-badge">@newBlockedCount</span>
+                            }
                         </NavLink>
                     </div>
                 }
@@ -77,47 +76,6 @@
             </NotAuthorized>
         </AuthorizeView>
 
-        <AuthorizeView>
-            @if (context.User.HasClaim("IsAdmin", "True"))
-            {
-                <div class="nav-item px-3">
-                    <span class="nav-link disabled">Verwaltung</span>
-                </div>
-
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="/admin/mediasources">
-                        <span class="bi bi-folder-video"></span> Quellen
-                    </NavLink>
-                </div>
-
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="/admin/genres">
-                        <span class="bi oi-list-rich" aria-hidden="true"></span> Genres
-                    </NavLink>
-                </div>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="/admin/backups">
-                        <span class="bi bi-archive"></span> Backups
-                    </NavLink>
-                </div>
-
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="/admin/updates">
-                        <span class="bi bi-arrow-clockwise"></span> Updates
-                    </NavLink>
-                </div>
-
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link position-relative" href="/admin/security">
-                        <span class="bi bi-shield-lock"></span> Sicherheit
-                        @if (newBlockedCount > 0)
-                        {
-                            <span class="security-badge">@newBlockedCount</span>
-                        }
-                    </NavLink>
-                </div>
-            }
-        </AuthorizeView>
     </nav>
 </div>
 

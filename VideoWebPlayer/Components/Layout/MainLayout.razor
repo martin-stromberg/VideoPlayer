@@ -1,12 +1,13 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
+@inject VideoWebPlayer.Services.ProgramSettingsService SettingsService
 
 <div class="top-row p-0 navbar navbar-dark">
     <div class="container-fluid d-flex align-items-center justify-content-between">
         <div class="d-flex align-items-center">
-            <button id="sidebarToggle" class="btn btn-outline-light layout-menu-button me-2" title="Menü ein-/ausklappen" aria-label="Menü ein-/ausklappen">
+            <button id="sidebarToggle" class="btn btn-outline-light layout-menu-button me-2" title="Menue ein-/ausklappen" aria-label="Menue ein-/ausklappen">
                 <span class="layout-menu-icon" aria-hidden="true"></span>
             </button>
-            <a class="navbar-brand" href="">Martins Videosammlung</a>
+            <a class="navbar-brand" href="">@applicationTitle</a>
         </div>
         <div>
             <NavLink class="nav-link" href="/about">
@@ -32,7 +33,7 @@
 <div id="blazor-error-ui">
     An unhandled error has occurred.
     <a href="" class="reload">Reload</a>
-    <a class="dismiss">🗙</a>
+    <a class="dismiss">x</a>
 </div>
 
 <div id="sidebar-overlay" class="sidebar-overlay" style="display:none;"></div>
@@ -56,3 +57,12 @@
         }
     });
 </script>
+
+@code {
+    private string applicationTitle = "Martins Videosammlung";
+
+    protected override async Task OnInitializedAsync()
+    {
+        applicationTitle = await SettingsService.GetApplicationTitleAsync();
+    }
+}

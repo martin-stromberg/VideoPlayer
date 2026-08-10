@@ -25,6 +25,7 @@ else if (model is null || status is null)
 }
 else
 {
+    <section class="admin-console admin-update-page">
     <h1>Updates</h1>
 
     @if (!string.IsNullOrWhiteSpace(successMessage))
@@ -153,6 +154,7 @@ else
 
         <button class="btn btn-primary" type="submit" disabled="@isBusy">Einstellungen speichern</button>
     </EditForm>
+    </section>
 }
 
 @code {

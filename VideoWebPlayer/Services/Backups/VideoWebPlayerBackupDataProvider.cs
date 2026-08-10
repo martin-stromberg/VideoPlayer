@@ -17,6 +17,16 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
 {
     private const int CurrentSchemaVersion = 1;
     private const string UsersTableName = "AspNetUsers";
+    private static readonly HashSet<string> OptionalRestoreTables = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "UpdateSettings"
+    };
+
+    private static readonly HashSet<string> OptionalRestoreColumns = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Setups.ApplicationTitle"
+    };
+
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };
     private readonly ApplicationDbContext _db;
     private readonly IWebHostEnvironment _environment;
@@ -323,6 +333,9 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
         {
             if (!payloadByName.TryGetValue(expected.Name, out var table))
             {
+                if (OptionalRestoreTables.Contains(expected.Name))
+                    continue;
+
                 errors.Add($"Tabelle {expected.Name} fehlt.");
                 continue;
             }
@@ -337,7 +350,13 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
             var expectedColumns = expected.Columns.Select(x => x.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
             var actualColumns = (table.Columns ?? new List<string>()).ToHashSet(StringComparer.OrdinalIgnoreCase);
             foreach (var missing in expectedColumns.Except(actualColumns, StringComparer.OrdinalIgnoreCase))
+            {
+                if (IsOptionalRestoreColumn(expected.Name, missing))
+                    continue;
+
                 errors.Add($"Spalte {expected.Name}.{missing} fehlt.");
+            }
+
             foreach (var unexpected in actualColumns.Except(expectedColumns, StringComparer.OrdinalIgnoreCase))
                 errors.Add($"Spalte {expected.Name}.{unexpected} ist unbekannt.");
 
@@ -688,16 +707,34 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
     {
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = BuildInsertCommand(table, columns);
+        var insertColumns = AddOptionalRestoreDefaults(table, columns, row);
+        command.CommandText = BuildInsertCommand(table, insertColumns);
 
-        for (var i = 0; i < columns.Count; i++)
+        for (var i = 0; i < insertColumns.Count; i++)
         {
-            var column = table.Columns.First(x => string.Equals(x.Name, columns[i], StringComparison.OrdinalIgnoreCase));
-            row.TryGetValue(columns[i], out var value);
+            var column = table.Columns.First(x => string.Equals(x.Name, insertColumns[i], StringComparison.OrdinalIgnoreCase));
+            row.TryGetValue(insertColumns[i], out var value);
             AddParameter(command, $"@p{i}", ToDbValue(value, column.ClrType));
         }
 
         await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private static List<string> AddOptionalRestoreDefaults(
+        TableMetadata table,
+        List<string> columns,
+        Dictionary<string, JsonElement?> row)
+    {
+        var insertColumns = columns.ToList();
+        if (string.Equals(table.Name, "Setups", StringComparison.OrdinalIgnoreCase)
+            && !insertColumns.Contains("ApplicationTitle", StringComparer.OrdinalIgnoreCase)
+            && table.Columns.Any(x => string.Equals(x.Name, "ApplicationTitle", StringComparison.OrdinalIgnoreCase)))
+        {
+            insertColumns.Add("ApplicationTitle");
+            row["ApplicationTitle"] = JsonSerializer.SerializeToElement("Martins Videosammlung", JsonOptions);
+        }
+
+        return insertColumns;
     }
 
     private static string BuildInsertCommand(TableMetadata table, List<string> columns)
@@ -804,6 +841,9 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
         var parts = relativePath.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
         return parts.Length > 0 && parts.All(part => part != "." && part != "..");
     }
+
+    private static bool IsOptionalRestoreColumn(string tableName, string columnName)
+        => OptionalRestoreColumns.Contains($"{tableName}.{columnName}");
 
     private static bool IsSafeFileEntryName(string entryName)
     {

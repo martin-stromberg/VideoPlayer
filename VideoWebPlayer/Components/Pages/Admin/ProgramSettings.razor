@@ -5,7 +5,7 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @rendermode InteractiveServer
 
-<PageTitle>Programmeinstellungen</PageTitle>
+<PageTitle>Allgemein</PageTitle>
 
 @if (!isAdmin)
 {
@@ -17,31 +17,62 @@ else if (model is null)
 }
 else
 {
-    <h1>Programmeinstellungen</h1>
+    <section class="admin-console admin-form-page">
+        <header class="admin-page-header">
+            <div>
+                <span class="admin-kicker">Einrichtung</span>
+                <h1>Allgemein</h1>
+                <p>Anwendungstitel und Scan-Verhalten konfigurieren.</p>
+            </div>
+            <a class="btn btn-outline-light" href="/admin">Zurueck</a>
+        </header>
 
     @if (!string.IsNullOrWhiteSpace(statusMessage))
     {
         <div class="alert alert-success">@statusMessage</div>
     }
 
-    <EditForm Model="model" OnValidSubmit="SaveAsync">
-        <DataAnnotationsValidator />
-        <ValidationSummary />
+        <EditForm Model="model" OnValidSubmit="SaveAsync">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
 
-        <div class="mb-3">
-            <label class="form-label">Scanprozess-Intervall (Minuten)</label>
-            <InputNumber class="form-control" @bind-Value="model.ScanProcessIntervalMinutes" />
-            <div class="form-text">Standard: 60 Minuten</div>
-        </div>
+            <div class="admin-card admin-card-wide">
+                <h2>Anwendung</h2>
+                <div class="mb-3">
+                    <label class="form-label">Anwendungstitel</label>
+                    <InputText class="form-control" @bind-Value="model.ApplicationTitle" />
+                    <div class="form-text">Dieser Titel erscheint in der Navigation und auf der Startseite.</div>
+                </div>
+            </div>
 
-        <div class="mb-3">
-            <label class="form-label">MediaCollection Scan-Intervall (Tage)</label>
-            <InputNumber class="form-control" @bind-Value="model.MediaCollectionScanIntervalDays" />
-            <div class="form-text">Standard: 7 Tage</div>
-        </div>
+            <div class="admin-card admin-card-wide">
+                <h2>Scan-Einstellungen</h2>
+                <div class="admin-settings-grid">
+                    <div>
+                        <label class="form-label">Scanprozess-Intervall</label>
+                        <div class="admin-input-with-unit">
+                            <InputNumber class="form-control" @bind-Value="model.ScanProcessIntervalMinutes" />
+                            <span>Min.</span>
+                        </div>
+                        <div class="form-text">Standard: 60 Minuten</div>
+                    </div>
 
-        <button type="submit" class="btn btn-primary" disabled="@isSaving">Speichern</button>
-    </EditForm>
+                    <div>
+                        <label class="form-label">Sammlungs-Scan</label>
+                        <div class="admin-input-with-unit">
+                            <InputNumber class="form-control" @bind-Value="model.MediaCollectionScanIntervalDays" />
+                            <span>Tage</span>
+                        </div>
+                        <div class="form-text">Standard: 7 Tage</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="admin-actions">
+                <button type="submit" class="btn btn-primary" disabled="@isSaving">Speichern</button>
+            </div>
+        </EditForm>
+    </section>
 }
 
 @code {
@@ -62,6 +93,7 @@ else
         var setup = await SettingsService.GetOrCreateSetupAsync();
         model = new SettingsModel
         {
+            ApplicationTitle = setup.ApplicationTitle,
             ScanProcessIntervalMinutes = setup.ScanProcessIntervalMinutes,
             MediaCollectionScanIntervalDays = setup.MediaCollectionScanIntervalDays,
         };
@@ -76,7 +108,10 @@ else
         statusMessage = null;
         try
         {
-            await SettingsService.UpdateScanIntervalsAsync(model.ScanProcessIntervalMinutes, model.MediaCollectionScanIntervalDays);
+            await SettingsService.UpdateGeneralSettingsAsync(
+                model.ApplicationTitle,
+                model.ScanProcessIntervalMinutes,
+                model.MediaCollectionScanIntervalDays);
             statusMessage = "Gespeichert.";
         }
         finally
@@ -87,6 +122,10 @@ else
 
     private sealed class SettingsModel
     {
+        [Required]
+        [MaxLength(120)]
+        public string ApplicationTitle { get; set; } = "Martins Videosammlung";
+
         [Range(1, 24 * 60)]
         public int ScanProcessIntervalMinutes { get; set; } = 60;
 

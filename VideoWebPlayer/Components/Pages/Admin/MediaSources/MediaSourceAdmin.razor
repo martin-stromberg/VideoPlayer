@@ -21,7 +21,15 @@
         }
         else
         {
-            <h1>Quellen verwalten</h1>
+            <section class="admin-console admin-sources-page">
+            <header class="admin-page-header">
+                <div>
+                    <span class="admin-kicker">Einrichtung</span>
+                    <h1>Quellen</h1>
+                    <p>Speicherorte, Zugangsdaten und Scanstatus verwalten.</p>
+                </div>
+                <a class="btn btn-outline-light" href="/admin">Zurueck</a>
+            </header>
 
             <div class="mb-3">
                 <button class="btn btn-success me-2" @onclick="CreateNew">Neu</button>
@@ -88,6 +96,7 @@
                     </tbody>
                 </table>
             }
+            </section>
         }
     </Authorized>
     <NotAuthorized>

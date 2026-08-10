@@ -81,6 +81,8 @@
 - ✅ Multi-Device-Synchronisation
 
 #### Administration
+- ✅ Zentraler Einrichtungsbereich mit Quellen, Backups, Updates, Sicherheit, Genres, Anwenderanlage und allgemeinen Programmeinstellungen
+- ✅ Konfigurierbarer Anwendungstitel für Navigation und Startseite
 - ✅ Administrative Backup-Verwaltung mit Hintergrund-Backups, Hintergrund-Restore mit Fortschritt, automatischer GVS-Aufbewahrung, Upload, Download und Löschen
 - ✅ Administrative Update-Verwaltung mit persistenten Update-Einstellungen, manueller Prüfung/Installation, Prerelease-Sicherheitsabfrage und Backup vor der Installation
 
@@ -248,6 +250,7 @@ VideoWebPlayer.sln
 | [Episode Selection](./Docs/TECH_Episode_Selection.md) | Smart Episode Selection & Play Button |
 | [MediaElement Error Handling](./Docs/TECH_MediaElement_Error_Handling.md) | Video-Player Fehlerbehandlung |
 | [Notification Ticker](./Docs/TECH_Notification_Ticker.md) | Footer-Lauftext-Komponente |
+| [Einrichtung](./docs/help/einrichtung.md) | Zentraler Administrationsbereich für Quellen, Backups, Updates, Sicherheit, Genres, Anwender und allgemeine Einstellungen |
 | [Backups](./docs/help/backups.md) | Administrative Backup-Verwaltung, automatische GVS-Backups, Hintergrund-Restore und Inhaltsblockade während Wiederherstellung |
 | [Updates](./docs/help/updates.md) | Administrative Update-Verwaltung, manuelle Prüfung und Installation, Prerelease-Freigabe und Backup vor Installation |
 | [Automatisierte Programmupdates](./docs/TECH_Auto_Update.md) | Update-Admin-UI, automatische Installation, Prerelease-Warnung, Backup vor Installation und EF-Migration |

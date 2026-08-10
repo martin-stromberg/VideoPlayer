@@ -1,6 +1,6 @@
 # Updates im VideoWebPlayer
 
-Diese Hilfe richtet sich an Administratoren. Die Update-Funktion ist im Verwaltungsbereich unter `Updates` verfügbar und erlaubt das Prüfen, Installieren und Konfigurieren von Programmupdates.
+Diese Hilfe richtet sich an Administratoren. Die Update-Funktion ist im Einrichtungsbereich unter `Einrichtung` > `Updates` verfügbar und erlaubt das Prüfen, Installieren und Konfigurieren von Programmupdates.
 
 Nur angemeldete Benutzer mit Administrationsrechten können die Seite und die zugehörigen Aktionen verwenden.
 
@@ -101,5 +101,6 @@ Eine aktive Update-Sperre verhindert parallele Prüf-, Download- oder Installati
 
 ## Verwandte Dokumentation
 
+- [Einrichtung](./einrichtung.md)
 - [Backups](./backups.md)
 - [Technische Dokumentation zu automatisierten Programmupdates](../TECH_Auto_Update.md)

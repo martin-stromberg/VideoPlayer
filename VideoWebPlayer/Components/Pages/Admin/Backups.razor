@@ -31,6 +31,7 @@ else if (settingsModel is null)
 }
 else
 {
+    <section class="admin-console admin-backup-page">
     <h1>Backups</h1>
 
     @if (!string.IsNullOrWhiteSpace(successMessage))
@@ -254,6 +255,7 @@ else
             </tbody>
         </table>
     }
+    </section>
 }
 
 @code {

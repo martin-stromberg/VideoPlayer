@@ -1,0 +1,68 @@
+@page "/admin"
+@inject AuthenticationStateProvider AuthStateProvider
+@rendermode InteractiveServer
+
+<PageTitle>Einrichtung</PageTitle>
+
+@if (!isAdmin)
+{
+    <div class="alert alert-danger">Nicht autorisiert.</div>
+}
+else
+{
+    <section class="admin-console admin-dashboard">
+        <header class="admin-hero">
+            <span class="admin-kicker">Administration</span>
+            <h1>Einrichtung</h1>
+            <p>Zentrale Verwaltung fuer Quellen, Backups, Updates, Sicherheit und Anwendungseinstellungen.</p>
+        </header>
+
+        <div class="admin-dashboard-grid">
+            <NavLink class="admin-tile admin-tile-primary" href="/admin/mediasources">
+                <span class="admin-icon">QS</span>
+                <strong>Quellen</strong>
+                <small>Speicherorte, Zugangsdaten und Scans verwalten</small>
+            </NavLink>
+            <NavLink class="admin-tile" href="/admin/backups">
+                <span class="admin-icon">BK</span>
+                <strong>Backups</strong>
+                <small>Datensicherung, Restore und GFS-Aufbewahrung</small>
+            </NavLink>
+            <NavLink class="admin-tile" href="/admin/updates">
+                <span class="admin-icon">UP</span>
+                <strong>Updates</strong>
+                <small>Versionen pruefen, installieren und absichern</small>
+            </NavLink>
+            <NavLink class="admin-tile" href="/admin/security">
+                <span class="admin-icon">SI</span>
+                <strong>Sicherheit</strong>
+                <small>Gesperrte IP-Adressen pruefen und freigeben</small>
+            </NavLink>
+            <NavLink class="admin-tile" href="/admin/genres">
+                <span class="admin-icon">GN</span>
+                <strong>Genres</strong>
+                <small>Genre-Metadaten, Bilder und Sichtbarkeit pflegen</small>
+            </NavLink>
+            <NavLink class="admin-tile" href="/admin/program-settings">
+                <span class="admin-icon">AL</span>
+                <strong>Allgemein</strong>
+                <small>Anwendungstitel und Scan-Einstellungen konfigurieren</small>
+            </NavLink>
+            <NavLink class="admin-tile" href="/Account/Register">
+                <span class="admin-icon">AN</span>
+                <strong>Anwender</strong>
+                <small>Neue Benutzerkonten registrieren</small>
+            </NavLink>
+        </div>
+    </section>
+}
+
+@code {
+    private bool isAdmin;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        isAdmin = auth.User.Identity?.IsAuthenticated == true && auth.User.HasClaim("IsAdmin", "True");
+    }
+}

@@ -4,11 +4,11 @@ Status: Keine Befunde
 
 ## Gepruefter Umfang
 
-- Neuer zentraler Admin-Einstieg `Einrichtung` und entfernte Einzelaufrufe im Hauptmenue.
-- Modernisierte Admin-Seiten fuer Backups, Updates, Quellen, Sicherheit, Genres und Allgemein.
-- Konfigurierbarer Anwendungstitel inklusive EF-Migration und Anzeige in Layout und Startseite.
-- Restore-Kompatibilitaet fuer Legacy-Backups ohne `UpdateSettings`-Tabelle und ohne `Setups.ApplicationTitle`.
-- Neue Dokumentation unter `docs/help/einrichtung.md` sowie Aktualisierungen in README, Backup- und Update-Hilfe.
+- `StatusMessage` ist bei interaktiver Navigation ohne `HttpContext` null-sicher.
+- Logout aus dem Hauptmenue fuehrt explizit zu `Account/Login`.
+- Der Logout-Endpunkt behandelt leere Return-URLs mit Login-Fallback.
+- Die Backup-Administration zeigt Bestand, Einstellungen, Upload und Historie in Kachel- beziehungsweise Listenansichten.
+- Der vorhandene Hotfix fuer den zentralen Einrichtungseinstieg und das ausgelagerte Sidebar-JavaScript wurde integriert.
 
 ## Befunde
 
@@ -16,13 +16,11 @@ Keine.
 
 ## Bewertung
 
-- Die neue Admin-Struktur reduziert die Navigation auf den vorgesehenen Einstieg `Einrichtung`; Benutzerregistrierung und allgemeine Einstellungen sind dort weiterhin fuer Administratoren erreichbar.
-- Der Anwendungstitel wird aus den Programmeinstellungen geladen und bei leeren Altwerten auf den bisherigen Standard zurueckgesetzt.
-- Legacy-Backups werden beim Restore validiert, ohne `UpdateSettings` als harte Pflichttabelle zu behandeln. Fehlende neue Setup-Spalten erhalten Restore-Defaults.
-- Die geprueften Aenderungen enthalten keine offensichtlichen Build-, Runtime- oder Datenverlustregressionen.
+- Die geprueften Aenderungen sind eng auf die offenen Kundenrueckmeldungen begrenzt.
+- Die bestehende Account-/Backup-Logik bleibt erhalten; geaendert wurden Navigation, Null-Schutz und Darstellung.
+- Es wurden keine neuen offenen Code-Befunde festgestellt.
 
 ## Testbezug
 
-- `dotnet build VideoWebPlayer\VideoWebPlayer.csproj --no-restore`: erfolgreich.
-- `dotnet test VideoWebPlayer.Tests\VideoWebPlayer.Tests.csproj --no-restore`: erfolgreich.
-- Der neue Regressionstest `RestoreAsync_AcceptsLegacyPayloadWithoutUpdateSettings` deckt den gemeldeten Backup-Upload-/Restore-Fehler ab.
+- `dotnet build`: erfolgreich.
+- `dotnet test --no-build`: erfolgreich.

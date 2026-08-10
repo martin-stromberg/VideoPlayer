@@ -79,7 +79,7 @@ else
         </div>
     }
 
-    <div class="mb-3 d-flex gap-2 flex-wrap">
+    <div class="admin-actions mb-3">
         <form method="post" action="/admin/backups/api/create">
             @if (!string.IsNullOrWhiteSpace(antiforgeryRequestToken))
             {
@@ -90,64 +90,90 @@ else
         <button class="btn btn-outline-secondary" @onclick="ReloadAsync" disabled="@(isBusy && !IsRestoreActive)">Aktualisieren</button>
     </div>
 
-    <h2 class="h4">Vorhandene Backups</h2>
+    <div class="admin-stats-grid backup-summary-grid">
+        <div class="admin-stat-card">
+            <span class="admin-stat-label">Bestand</span>
+            <strong>@backups.Count</strong>
+            <small>@ValidBackupCount gültig, @InvalidBackupCount fehlerhaft</small>
+        </div>
+        <div class="admin-stat-card">
+            <span class="admin-stat-label">Speicher</span>
+            <strong>@FormatBytes(TotalBackupSizeBytes)</strong>
+            <small>@(LatestBackup is null ? "Noch kein Backup erstellt" : $"Letztes Backup: {LatestBackup.CreatedAtUtc.ToLocalTime():g}")</small>
+        </div>
+        <div class="admin-stat-card">
+            <span class="admin-stat-label">Automatik</span>
+            <strong>@(settingsModel.AutomaticBackupsEnabled ? "Aktiv" : "Aus")</strong>
+            <small>GVS: @settingsModel.SonRetentionCount / @settingsModel.FatherRetentionCount / @settingsModel.GrandfatherRetentionCount</small>
+        </div>
+    </div>
+
+    <section class="admin-section">
+    <div class="admin-card-header">
+        <div>
+            <span class="admin-kicker">Archiv</span>
+            <h2 class="h4">Vorhandene Backups</h2>
+        </div>
+    </div>
     @if (backups.Count == 0)
     {
-        <div class="alert alert-secondary">Keine Backups vorhanden.</div>
+        <div class="admin-empty-state">
+            <strong>Keine Backups vorhanden.</strong>
+            <span>Erstellen Sie ein manuelles Backup oder aktivieren Sie die automatische Sicherung.</span>
+        </div>
     }
     else
     {
-        <table class="table table-dark table-striped align-middle">
-            <thead>
-                <tr>
-                    <th>Datei</th>
-                    <th>Generation</th>
-                    <th>Erstellt</th>
-                    <th>Größe</th>
-                    <th>Status</th>
-                    <th>Aktionen</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var backup in backups)
-                {
-                    <tr>
-                        <td>@backup.FileName</td>
-                        <td>@backup.Generation</td>
-                        <td>@backup.CreatedAtUtc.ToLocalTime().ToString("g")</td>
-                        <td>@FormatBytes(backup.SizeBytes)</td>
-                        <td>
-                            @if (backup.IsValid)
-                            {
-                                <span class="badge bg-success">Gültig</span>
-                            }
-                            else
-                            {
-                                <span class="badge bg-danger" title="@string.Join("; ", backup.ValidationErrors)">Ungültig</span>
-                            }
-                        </td>
-                        <td>
-                            <div class="btn-group btn-group-sm" role="group" aria-label="Backup-Aktionen">
-                                <a class="btn btn-outline-light" href="@($"/admin/backups/api/download/{Uri.EscapeDataString(backup.FileName)}")" title="Backup herunterladen" aria-label="Backup herunterladen">
-                                    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M7 10l5 5 5-5" /><path d="M12 15V3" /></svg>
-                                </a>
-                                <button class="btn btn-warning" disabled="@(!backup.IsValid || isBusy || IsRestoreActive)" @onclick="() => SelectRestore(backup.FileName)" title="Backup wiederherstellen" aria-label="Backup wiederherstellen">
-                                    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></svg>
-                                </button>
-                                <button class="btn btn-outline-danger" disabled="@(isBusy || IsRestoreActive)" @onclick="() => SelectDelete(backup.FileName)" title="Backup löschen" aria-label="Backup löschen">
-                                    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /></svg>
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
+        <div class="backup-card-grid">
+            @foreach (var backup in backups)
+            {
+                <article class="backup-file-card">
+                    <div class="backup-file-card-header">
+                        <span class="admin-icon admin-icon-muted">ZIP</span>
+                        @if (backup.IsValid)
+                        {
+                            <span class="badge bg-success">Gültig</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-danger" title="@string.Join("; ", backup.ValidationErrors)">Ungültig</span>
+                        }
+                    </div>
+                    <strong class="backup-file-name">@backup.FileName</strong>
+                    <dl class="backup-meta-grid">
+                        <div>
+                            <dt>Generation</dt>
+                            <dd>@backup.Generation</dd>
+                        </div>
+                        <div>
+                            <dt>Erstellt</dt>
+                            <dd>@backup.CreatedAtUtc.ToLocalTime().ToString("g")</dd>
+                        </div>
+                        <div>
+                            <dt>Größe</dt>
+                            <dd>@FormatBytes(backup.SizeBytes)</dd>
+                        </div>
+                    </dl>
+                    <div class="backup-card-actions" role="group" aria-label="Backup-Aktionen">
+                        <a class="btn btn-outline-light" href="@($"/admin/backups/api/download/{Uri.EscapeDataString(backup.FileName)}")" title="Backup herunterladen" aria-label="Backup herunterladen">
+                            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M7 10l5 5 5-5" /><path d="M12 15V3" /></svg>
+                        </a>
+                        <button class="btn btn-warning" disabled="@(!backup.IsValid || isBusy || IsRestoreActive)" @onclick="() => SelectRestore(backup.FileName)" title="Backup wiederherstellen" aria-label="Backup wiederherstellen">
+                            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></svg>
+                        </button>
+                        <button class="btn btn-outline-danger" disabled="@(isBusy || IsRestoreActive)" @onclick="() => SelectDelete(backup.FileName)" title="Backup löschen" aria-label="Backup löschen">
+                            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /></svg>
+                        </button>
+                    </div>
+                </article>
+            }
+        </div>
     }
+    </section>
 
     @if (!string.IsNullOrWhiteSpace(restoreFileName))
     {
-        <div class="border rounded p-3 mb-4">
+        <div class="admin-card admin-card-wide">
             <h2 class="h5">Restore bestätigen</h2>
             <p>Die vorhandenen Daten werden ersetzt. Das eigene Admin-Konto bleibt erhalten.</p>
             <div class="form-check mb-2">
@@ -161,7 +187,7 @@ else
 
     @if (!string.IsNullOrWhiteSpace(deleteFileName))
     {
-        <div class="border rounded p-3 mb-4">
+        <div class="admin-card admin-card-wide">
             <h2 class="h5">Backup löschen</h2>
             <p>@deleteFileName wird dauerhaft gelöscht.</p>
             <div class="form-check mb-2">
@@ -173,88 +199,113 @@ else
         </div>
     }
 
-    <h2 class="h4">Backup hochladen</h2>
-    <form class="mb-4" method="post" action="/admin/backups/api/upload" enctype="multipart/form-data">
+    <section class="admin-section">
+    <div class="admin-card-header">
+        <div>
+            <span class="admin-kicker">Import</span>
+            <h2 class="h4">Backup hochladen</h2>
+        </div>
+    </div>
+    <form method="post" action="/admin/backups/api/upload" enctype="multipart/form-data">
         @if (!string.IsNullOrWhiteSpace(antiforgeryRequestToken))
         {
             <input type="hidden" name="__RequestVerificationToken" value="@antiforgeryRequestToken" />
         }
-        <div class="d-flex gap-2 flex-wrap align-items-center">
+        <div class="backup-upload-row">
             <input class="form-control" type="file" name="backupFile" accept=".zip,application/zip" disabled="@(isBusy || IsRestoreActive)" />
             <button class="btn btn-primary" type="submit" disabled="@(isBusy || IsRestoreActive)">Backup hochladen</button>
         </div>
         <div class="form-text">Maximal @FormatBytes(settingsModel.MaxUploadSizeBytes). Nur gültige Backup-ZIP-Dateien werden übernommen.</div>
     </form>
+    </section>
 
-    <h2 class="h4">Einstellungen</h2>
+    <section class="admin-section">
+    <div class="admin-card-header">
+        <div>
+            <span class="admin-kicker">Konfiguration</span>
+            <h2 class="h4">Einstellungen</h2>
+        </div>
+    </div>
     <EditForm Model="settingsModel" OnValidSubmit="SaveSettingsAsync">
         <DataAnnotationsValidator />
         <ValidationSummary />
 
-        <div class="mb-3">
+        <div class="backup-settings-grid">
+        <div class="backup-setting-card backup-setting-card-wide">
             <label class="form-label">Speicherpfad</label>
             <InputText class="form-control" @bind-Value="settingsModel.StoragePath" />
         </div>
 
-        <div class="form-check mb-3">
+        <label class="backup-setting-card backup-toggle-card">
             <InputCheckbox class="form-check-input" @bind-Value="settingsModel.AutomaticBackupsEnabled" />
-            <label class="form-check-label">Automatische GVS-Backups aktivieren</label>
-        </div>
+            <span>
+                <strong>Automatische GVS-Backups</strong>
+                <small>Regelmäßige Sicherungen nach dem Generationenprinzip erstellen.</small>
+            </span>
+        </label>
 
-        <div class="row">
-            <div class="col-md-4 mb-3">
+            <div class="backup-setting-card">
+                <span class="admin-icon admin-icon-muted">SO</span>
                 <label class="form-label">Sohn-Aufbewahrung</label>
                 <InputNumber class="form-control" @bind-Value="settingsModel.SonRetentionCount" />
+                <small>Tägliche Sicherungen</small>
             </div>
-            <div class="col-md-4 mb-3">
+            <div class="backup-setting-card">
+                <span class="admin-icon admin-icon-muted">VA</span>
                 <label class="form-label">Vater-Aufbewahrung</label>
                 <InputNumber class="form-control" @bind-Value="settingsModel.FatherRetentionCount" />
+                <small>Wöchentliche Sicherungen</small>
             </div>
-            <div class="col-md-4 mb-3">
+            <div class="backup-setting-card">
+                <span class="admin-icon admin-icon-muted">GV</span>
                 <label class="form-label">Großvater-Aufbewahrung</label>
                 <InputNumber class="form-control" @bind-Value="settingsModel.GrandfatherRetentionCount" />
+                <small>Monatliche Sicherungen</small>
             </div>
-        </div>
 
-        <div class="mb-3">
+        <div class="backup-setting-card backup-setting-card-wide">
             <label class="form-label">Upload-Limit in Bytes</label>
             <InputNumber class="form-control" @bind-Value="settingsModel.MaxUploadSizeBytes" />
+            <small>Aktuell: @FormatBytes(settingsModel.MaxUploadSizeBytes)</small>
+        </div>
         </div>
 
         <button class="btn btn-primary" type="submit" disabled="@(isBusy || IsRestoreActive)">Einstellungen speichern</button>
     </EditForm>
+    </section>
 
-    <h2 class="h4 mt-4">Historie</h2>
+    <section class="admin-section">
+    <div class="admin-card-header">
+        <div>
+            <span class="admin-kicker">Protokoll</span>
+            <h2 class="h4">Historie</h2>
+        </div>
+    </div>
     @if (history.Count == 0)
     {
-        <div class="alert alert-secondary">Keine Backup-Aktionen protokolliert.</div>
+        <div class="admin-empty-state">
+            <strong>Keine Backup-Aktionen protokolliert.</strong>
+            <span>Neue Sicherungs- und Restore-Aktionen erscheinen hier.</span>
+        </div>
     }
     else
     {
-        <table class="table table-dark table-striped">
-            <thead>
-                <tr>
-                    <th>Start</th>
-                    <th>Aktion</th>
-                    <th>Datei</th>
-                    <th>Ergebnis</th>
-                    <th>Meldung</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var entry in history)
-                {
-                    <tr>
-                        <td>@entry.StartedAtUtc.ToLocalTime().ToString("g")</td>
-                        <td>@entry.Operation</td>
-                        <td>@entry.FileName</td>
-                        <td>@(entry.Succeeded ? "Erfolgreich" : "Fehler")</td>
-                        <td>@entry.Message</td>
-                    </tr>
-                }
-            </tbody>
-        </table>
+        <div class="backup-history-list">
+            @foreach (var entry in history)
+            {
+                <article class="backup-history-item">
+                    <div>
+                        <span class="admin-stat-label">@entry.StartedAtUtc.ToLocalTime().ToString("g")</span>
+                        <strong>@entry.Operation</strong>
+                        <small>@entry.FileName</small>
+                    </div>
+                    <span class="badge @(entry.Succeeded ? "bg-success" : "bg-danger")">@(entry.Succeeded ? "Erfolgreich" : "Fehler")</span>
+                    <p>@entry.Message</p>
+                </article>
+            }
+        </div>
     }
+    </section>
     </section>
 }
 
@@ -278,6 +329,10 @@ else
     private string? antiforgeryRequestToken;
 
     private bool IsRestoreActive => restoreJob?.IsActive == true;
+    private int ValidBackupCount => backups.Count(backup => backup.IsValid);
+    private int InvalidBackupCount => backups.Count - ValidBackupCount;
+    private long TotalBackupSizeBytes => backups.Sum(backup => backup.SizeBytes);
+    private BackupDescriptor? LatestBackup => backups.OrderByDescending(backup => backup.CreatedAtUtc).FirstOrDefault();
 
     protected override async Task OnInitializedAsync()
     {

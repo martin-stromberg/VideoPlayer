@@ -572,6 +572,124 @@ input[type="text"]:focus {
     color: var(--admin-text);
 }
 
+.admin-section {
+    display: grid;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.backup-summary-grid {
+    margin-bottom: 1rem;
+}
+
+.backup-card-grid,
+.backup-settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+    gap: 1rem;
+}
+
+.backup-file-card,
+.backup-setting-card,
+.backup-history-item {
+    min-width: 0;
+    display: grid;
+    gap: 0.85rem;
+    padding: 1rem;
+    border: 1px solid var(--admin-border);
+    border-radius: var(--vp-radius);
+    background: var(--admin-surface-low);
+}
+
+.backup-file-card-header,
+.backup-card-actions,
+.backup-upload-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.backup-file-name {
+    overflow-wrap: anywhere;
+    color: var(--admin-primary);
+}
+
+.backup-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin: 0;
+}
+
+.backup-meta-grid div {
+    min-width: 0;
+}
+
+.backup-meta-grid dt,
+.backup-setting-card small,
+.backup-history-item small {
+    color: var(--admin-muted);
+    font-size: 0.8rem;
+}
+
+.backup-meta-grid dd {
+    margin: 0.15rem 0 0;
+    overflow-wrap: anywhere;
+    color: var(--admin-text);
+    font-family: "JetBrains Mono", Consolas, monospace;
+    font-size: 0.9rem;
+}
+
+.backup-card-actions {
+    justify-content: flex-start;
+}
+
+.backup-card-actions .btn,
+.backup-upload-row .btn {
+    min-height: 2.5rem;
+}
+
+.backup-upload-row .form-control {
+    flex: 1 1 18rem;
+}
+
+.backup-setting-card {
+    align-content: start;
+}
+
+.backup-setting-card-wide {
+    grid-column: 1 / -1;
+}
+
+.backup-toggle-card {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    cursor: pointer;
+}
+
+.backup-toggle-card strong {
+    display: block;
+}
+
+.backup-history-list {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.backup-history-item {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+}
+
+.backup-history-item p {
+    grid-column: 1 / -1;
+    margin: 0;
+}
+
 .admin-mono,
 .admin-console input[type="number"] {
     font-family: "JetBrains Mono", Consolas, monospace;

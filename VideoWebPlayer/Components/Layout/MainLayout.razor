@@ -38,26 +38,6 @@
 
 <div id="sidebar-overlay" class="sidebar-overlay" style="display:none;"></div>
 
-<script>
-    document.addEventListener("DOMContentLoaded", function () {
-        var toggleBtn = document.getElementById("sidebarToggle");
-        var sidebar = document.getElementById("sidebar");
-        var overlay = document.getElementById("sidebar-overlay");
-        if (toggleBtn && sidebar && overlay) {
-            toggleBtn.addEventListener("click", function () {
-                sidebar.classList.toggle("sidebar-open");
-                sidebar.classList.toggle("sidebar-closed");
-                overlay.style.display = sidebar.classList.contains("sidebar-open") ? "block" : "none";
-            });
-            overlay.addEventListener("click", function () {
-                sidebar.classList.remove("sidebar-open");
-                sidebar.classList.add("sidebar-closed");
-                overlay.style.display = "none";
-            });
-        }
-    });
-</script>
-
 @code {
     private string applicationTitle = "Martins Videosammlung";
 

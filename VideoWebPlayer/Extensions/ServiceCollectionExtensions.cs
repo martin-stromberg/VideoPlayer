@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using System;
 using System.Net.Http;
@@ -19,6 +20,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using System.Security.Claims;
 using msTools.Backup;
 using VideoWebPlayer.Services.Backups;
+using VideoWebPlayer.Services.EpisodeBackgroundImage;
 using VideoWebPlayer.Services.Updates;
 using VideoWebPlayer.ViewModels;
 
@@ -234,6 +236,12 @@ public static class ServiceCollectionExtensions
         services.AddScoped<UpdateAdminService>();
         services.AddScoped<IUpdateBackupService, VideoWebPlayerUpdateBackupService>();
         services.AddScoped<RecentEntryService>();
+        services.AddSingleton<IValidateOptions<EpisodeBackgroundImageOptions>, EpisodeBackgroundImageOptionsValidator>();
+        services.AddOptions<EpisodeBackgroundImageOptions>()
+            .Bind(configuration.GetSection("EpisodeBackgroundImage"))
+            .ValidateOnStart();
+        services.AddScoped<EpisodeBackgroundImageGenerator>();
+        services.AddScoped<EpisodeBackgroundImageService>();
         services.AddTransient<IAuthService, AuthService>();
         services.AddHostedService<MediaSourceScanService>();
         services.AddHttpContextAccessor();

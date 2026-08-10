@@ -1064,6 +1064,15 @@ input[type="text"]:focus {
     overflow: hidden;
 }
 
+.tvshow-header.background-with-overlay::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.4);
+    z-index: 1;
+    pointer-events: none;
+}
+
 .collection-header-overlay,
 .tvshow-header-overlay {
     width: 100%;

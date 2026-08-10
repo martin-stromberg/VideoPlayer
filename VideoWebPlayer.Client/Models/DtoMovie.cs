@@ -52,6 +52,7 @@ public class DtoTVShowEpisode : DtoMediaEntry
     public DtoTVShowSeason? Season { get; set; }
     public int Number { get; set; }
     public string? Plot { get; set; }
+    public long? GeneratedBackgroundPictureId { get; set; }
 }
 public class DtoPicture
 {

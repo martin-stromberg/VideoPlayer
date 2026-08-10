@@ -11,6 +11,7 @@ using System.Xml.Linq;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Events;
 using VideoWebPlayer.Hubs;
+using VideoWebPlayer.Services.EpisodeBackgroundImage;
 using static System.Net.Mime.MediaTypeNames;
 
 namespace VideoWebPlayer.Services
@@ -25,6 +26,7 @@ namespace VideoWebPlayer.Services
         private readonly RecentEntryService _recentEntryService;
         private readonly EventManager _eventManager;
         private readonly MediaUpdateNotificationService? _notificationService;
+        private readonly EpisodeBackgroundImageService _episodeBackgroundImageService;
         private readonly ILogger<MediaSourceClassifier> _logger;
 
 		private static int _classificationRunning;
@@ -51,6 +53,7 @@ namespace VideoWebPlayer.Services
             SftpMediaSourceReader sftpReader,
             RecentEntryService recentEntryService,
             EventManager eventManager,
+            EpisodeBackgroundImageService episodeBackgroundImageService,
             ILogger<MediaSourceClassifier> logger,
             MediaUpdateNotificationService? notificationService = null)
         {
@@ -58,6 +61,7 @@ namespace VideoWebPlayer.Services
             _sftpReader = sftpReader;
             _recentEntryService = recentEntryService;
             _eventManager = eventManager;
+            _episodeBackgroundImageService = episodeBackgroundImageService;
             _notificationService = notificationService;
             _logger = logger;
         }
@@ -1124,7 +1128,10 @@ namespace VideoWebPlayer.Services
                         if (type == "banner")
                             episode.BannerPictureId = picture.Id;
                         if (type == "fanart")
+                        {
                             episode.FanartPictureId = picture.Id;
+                            await _episodeBackgroundImageService.MarkBackgroundImageForUpdateAsync(episode.Id, cancellationToken);
+                        }
                         if (type == "thumb")
                             if (episode.PosterPictureId is null)
                                 episode.PosterPictureId = picture.Id;

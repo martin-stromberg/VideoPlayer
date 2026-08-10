@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services.Authentication;
@@ -46,6 +47,24 @@ namespace VideoWebPlayer.Controllers
         /// Legacy alias for <see cref="CheckLoggedIn"/>.
         /// </summary>
         protected void CheckLogedIn() => CheckLoggedIn();
+
+        /// <summary>
+        /// Loads the shared placeholder image from wwwroot, using the given cache to avoid repeated disk reads.
+        /// </summary>
+        /// <param name="cache">The memory cache instance used to cache the placeholder bytes.</param>
+        /// <returns>The placeholder image bytes, or <c>null</c> if the placeholder file does not exist.</returns>
+        protected static async Task<byte[]?> GetPlaceholderBytesAsync(IMemoryCache cache)
+        {
+            var placeholderPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot/images/placeholder.png");
+            if (!System.IO.File.Exists(placeholderPath))
+                return null;
+
+            return await cache.GetOrCreateAsync("ApiBaseController.Placeholder", async entry =>
+            {
+                entry.SetAbsoluteExpiration(TimeSpan.FromMinutes(10));
+                return await System.IO.File.ReadAllBytesAsync(placeholderPath);
+            });
+        }
 
         /// <summary>
         /// Creates a DTO by copying matching properties from a source object.

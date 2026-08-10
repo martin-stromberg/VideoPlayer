@@ -254,7 +254,8 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
         await EnsureOpenAsync(connection, cancellationToken);
 
         await using var command = connection.CreateCommand();
-        command.CommandText = $"SELECT {string.Join(", ", table.Columns.Select(x => QuoteIdentifier(x.Name)))} FROM {QuoteTable(table)}";
+        var columnList = string.Join(", ", table.Columns.Select(x => BuildColumnSelectExpression(table, x)));
+        command.CommandText = $"SELECT {columnList} FROM {QuoteTable(table)}{BuildTableFilter(table)}";
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
         await using var writer = new Utf8JsonWriter(target, new JsonWriterOptions { Indented = true });
@@ -281,6 +282,30 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
         writer.WriteEndArray();
         writer.WriteEndObject();
         await writer.FlushAsync(cancellationToken);
+    }
+
+    private static string BuildColumnSelectExpression(TableMetadata table, ColumnMetadata column)
+    {
+        if (string.Equals(table.Name, "TVShowEpisodes", StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.Equals(column.Name, "GeneratedBackgroundPictureId", StringComparison.OrdinalIgnoreCase))
+                return $"NULL AS {QuoteIdentifier(column.Name)}";
+            if (string.Equals(column.Name, "BackgroundImageRequiresUpdate", StringComparison.OrdinalIgnoreCase))
+                return $"1 AS {QuoteIdentifier(column.Name)}";
+        }
+
+        return QuoteIdentifier(column.Name);
+    }
+
+    private static string BuildTableFilter(TableMetadata table)
+    {
+        if (string.Equals(table.Name, "Pictures", StringComparison.OrdinalIgnoreCase)
+            && table.Columns.Any(x => string.Equals(x.Name, "IsGeneratedBackground", StringComparison.OrdinalIgnoreCase)))
+        {
+            return $" WHERE {QuoteIdentifier("IsGeneratedBackground")} = 0";
+        }
+
+        return string.Empty;
     }
 
     private static async Task<TableDataPayload> ReadTablePayloadAsync(

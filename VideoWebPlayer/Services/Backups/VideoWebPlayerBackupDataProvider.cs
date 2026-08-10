@@ -24,7 +24,18 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
 
     private static readonly HashSet<string> OptionalRestoreColumns = new(StringComparer.OrdinalIgnoreCase)
     {
-        "Setups.ApplicationTitle"
+        "Setups.ApplicationTitle",
+        $"{nameof(ApplicationDbContext.TVShowEpisodes)}.{nameof(TVShowEpisode.GeneratedBackgroundPictureId)}",
+        $"{nameof(ApplicationDbContext.TVShowEpisodes)}.{nameof(TVShowEpisode.BackgroundImageRequiresUpdate)}",
+        $"{nameof(ApplicationDbContext.TVShowEpisodes)}.{nameof(TVShowEpisode.BackgroundImageGeneratedAt)}",
+        $"{nameof(ApplicationDbContext.Pictures)}.{nameof(Picture.IsGeneratedBackground)}",
+        $"{nameof(ApplicationDbContext.Pictures)}.{nameof(Picture.EpisodeId)}"
+    };
+
+    private static readonly (string Table, string Column, bool DefaultValue)[] OptionalRestoreBoolDefaults =
+    {
+        (nameof(ApplicationDbContext.TVShowEpisodes), nameof(TVShowEpisode.BackgroundImageRequiresUpdate), false),
+        (nameof(ApplicationDbContext.Pictures), nameof(Picture.IsGeneratedBackground), false)
     };
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };
@@ -286,11 +297,11 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
 
     private static string BuildColumnSelectExpression(TableMetadata table, ColumnMetadata column)
     {
-        if (string.Equals(table.Name, "TVShowEpisodes", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(table.Name, nameof(ApplicationDbContext.TVShowEpisodes), StringComparison.OrdinalIgnoreCase))
         {
-            if (string.Equals(column.Name, "GeneratedBackgroundPictureId", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(column.Name, nameof(TVShowEpisode.GeneratedBackgroundPictureId), StringComparison.OrdinalIgnoreCase))
                 return $"NULL AS {QuoteIdentifier(column.Name)}";
-            if (string.Equals(column.Name, "BackgroundImageRequiresUpdate", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(column.Name, nameof(TVShowEpisode.BackgroundImageRequiresUpdate), StringComparison.OrdinalIgnoreCase))
                 return $"1 AS {QuoteIdentifier(column.Name)}";
         }
 
@@ -299,10 +310,10 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
 
     private static string BuildTableFilter(TableMetadata table)
     {
-        if (string.Equals(table.Name, "Pictures", StringComparison.OrdinalIgnoreCase)
-            && table.Columns.Any(x => string.Equals(x.Name, "IsGeneratedBackground", StringComparison.OrdinalIgnoreCase)))
+        if (string.Equals(table.Name, nameof(ApplicationDbContext.Pictures), StringComparison.OrdinalIgnoreCase)
+            && table.Columns.Any(x => string.Equals(x.Name, nameof(Picture.IsGeneratedBackground), StringComparison.OrdinalIgnoreCase)))
         {
-            return $" WHERE {QuoteIdentifier("IsGeneratedBackground")} = 0";
+            return $" WHERE {QuoteIdentifier(nameof(Picture.IsGeneratedBackground))} = 0";
         }
 
         return string.Empty;
@@ -757,6 +768,19 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
         {
             insertColumns.Add("ApplicationTitle");
             row["ApplicationTitle"] = JsonSerializer.SerializeToElement("Martins Videosammlung", JsonOptions);
+        }
+
+        foreach (var (tableName, columnName, defaultValue) in OptionalRestoreBoolDefaults)
+        {
+            if (!string.Equals(table.Name, tableName, StringComparison.OrdinalIgnoreCase)
+                || insertColumns.Contains(columnName, StringComparer.OrdinalIgnoreCase)
+                || !table.Columns.Any(x => string.Equals(x.Name, columnName, StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            insertColumns.Add(columnName);
+            row[columnName] = JsonSerializer.SerializeToElement(defaultValue, JsonOptions);
         }
 
         return insertColumns;

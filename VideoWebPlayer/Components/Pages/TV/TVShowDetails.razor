@@ -89,11 +89,20 @@
 
     private string GetHeaderBackgroundUrl()
         => HasGeneratedBackgroundImage()
-            ? $"/api/episodes/{selectedEpisode!.Id}/background-image?access_token={Client.AuthorizationToken}"
+            ? BuildEpisodeBackgroundImageUrl(selectedEpisode!.Id, Client.AuthorizationToken)
             : GetBannerUrl((DtoMediaEntry)selectedEpisode ?? (showSeasonInfo ? (DtoMediaEntry)selectedSeason : (DtoMediaEntry)show));
 
     private bool HasGeneratedBackgroundImage()
         => selectedEpisode is not null && (selectedEpisode.GeneratedBackgroundPictureId ?? 0) > 0;
+
+    /// <summary>
+    /// Builds the URL for a generated episode background image, including the access token
+    /// required by <see cref="Controllers.Attributes.BearerTokenCheckAttribute"/> for direct
+    /// browser requests (e.g. CSS background-image). Internal and pure so it can be regression-tested
+    /// without reflection or a rendered component.
+    /// </summary>
+    internal static string BuildEpisodeBackgroundImageUrl(long episodeId, string? accessToken)
+        => $"/api/episodes/{episodeId}/background-image?access_token={accessToken}";
 
     private async Task UpdateFavoriteMark()
     {
@@ -140,6 +149,7 @@
         selectedEpisode = season.Episodes?.OrderBy(e => e.Number).FirstOrDefault();
         resumeSeconds = 0;
         showSeasonInfo = true;
+        await EnsureEpisodeBackgroundImageAsync();
         await UpdateFavoriteMark();
     }
 

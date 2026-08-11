@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Data.Sqlite;
@@ -442,6 +443,237 @@ public sealed class VideoWebPlayerBackupDataProviderTests
         Assert.Equal("old", await File.ReadAllTextAsync(existingPath, TestContext.Current.CancellationToken));
         Assert.Equal(1, await targetDb.MediaSources.CountAsync(TestContext.Current.CancellationToken));
     }
+
+    [Fact]
+    public async Task ExportAsync_ExcludesGeneratedBackgroundPictures()
+    {
+        using var temp = new TempDirectory();
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
+        await using var db = CreateDb(connection);
+        await db.Database.EnsureCreatedAsync(TestContext.Current.CancellationToken);
+
+        var (userPicture, generatedPicture, episode) = await SeedGeneratedBackgroundScenarioAsync(db);
+
+        var provider = CreateProvider(db, temp.Path);
+        await using var exported = await ExportProviderPayloadAsync(provider, TestContext.Current.CancellationToken);
+
+        var pictureIds = await ReadRowLongPropertyAsync(exported, "entities/Pictures.json", "Id");
+        Assert.Contains(userPicture.Id, pictureIds);
+        Assert.DoesNotContain(generatedPicture.Id, pictureIds);
+
+        var episodeRow = await ReadSingleRowAsync(exported, "entities/TVShowEpisodes.json", "Id", episode.Id);
+        Assert.Equal(JsonValueKind.Null, episodeRow.GetProperty("GeneratedBackgroundPictureId").ValueKind);
+        Assert.True(GetBoolValue(episodeRow.GetProperty("BackgroundImageRequiresUpdate")));
+    }
+
+    [Fact]
+    public async Task RestoreAsync_DoesNotViolateForeignKeys_WhenGeneratedBackgroundImageWasExcluded()
+    {
+        using var temp = new TempDirectory();
+        await using var sourceConnection = new SqliteConnection("Data Source=:memory:");
+        await sourceConnection.OpenAsync(TestContext.Current.CancellationToken);
+        await using var sourceDb = CreateDb(sourceConnection);
+        await sourceDb.Database.EnsureCreatedAsync(TestContext.Current.CancellationToken);
+
+        var (_, _, episode) = await SeedGeneratedBackgroundScenarioAsync(sourceDb);
+
+        await using var exported = await ExportProviderPayloadAsync(
+            CreateProvider(sourceDb, temp.Path),
+            TestContext.Current.CancellationToken);
+
+        await using var targetConnection = new SqliteConnection("Data Source=:memory:");
+        await targetConnection.OpenAsync(TestContext.Current.CancellationToken);
+        await using var targetDb = CreateDb(targetConnection);
+        await targetDb.Database.EnsureCreatedAsync(TestContext.Current.CancellationToken);
+
+        await CreateProvider(targetDb, temp.Path).RestoreAsync(
+            exported.Index,
+            new BackupRestoreContext(null, exported.OpenAsync),
+            TestContext.Current.CancellationToken);
+
+        targetDb.ChangeTracker.Clear();
+        var restoredEpisode = await targetDb.TVShowEpisodes.SingleAsync(e => e.Id == episode.Id, TestContext.Current.CancellationToken);
+        Assert.Null(restoredEpisode.GeneratedBackgroundPictureId);
+        Assert.True(restoredEpisode.BackgroundImageRequiresUpdate);
+        Assert.False(await targetDb.Pictures.AnyAsync(p => p.IsGeneratedBackground, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task RestoreAsync_AcceptsLegacyPayloadWithoutEpisodeBackgroundImageColumns()
+    {
+        using var temp = new TempDirectory();
+        await using var sourceConnection = new SqliteConnection("Data Source=:memory:");
+        await sourceConnection.OpenAsync(TestContext.Current.CancellationToken);
+        await using var sourceDb = CreateDb(sourceConnection);
+        await sourceDb.Database.EnsureCreatedAsync(TestContext.Current.CancellationToken);
+
+        var (userPicture, _, episode) = await SeedGeneratedBackgroundScenarioAsync(sourceDb);
+
+        await using var exported = await ExportProviderPayloadAsync(
+            CreateProvider(sourceDb, temp.Path),
+            TestContext.Current.CancellationToken);
+
+        var legacyIndex = CreateLegacyIndexWithoutEpisodeBackgroundImageColumns(exported.Index);
+
+        await using var targetConnection = new SqliteConnection("Data Source=:memory:");
+        await targetConnection.OpenAsync(TestContext.Current.CancellationToken);
+        await using var targetDb = CreateDb(targetConnection);
+        await targetDb.Database.EnsureCreatedAsync(TestContext.Current.CancellationToken);
+
+        await CreateProvider(targetDb, temp.Path).RestoreAsync(
+            legacyIndex,
+            new BackupRestoreContext(
+                null,
+                (entryName, token) => OpenLegacyPayloadWithoutEpisodeBackgroundImageColumnsAsync(exported, entryName, token)),
+            TestContext.Current.CancellationToken);
+
+        targetDb.ChangeTracker.Clear();
+        var restoredEpisode = await targetDb.TVShowEpisodes.SingleAsync(e => e.Id == episode.Id, TestContext.Current.CancellationToken);
+        Assert.Null(restoredEpisode.GeneratedBackgroundPictureId);
+        Assert.False(restoredEpisode.BackgroundImageRequiresUpdate);
+        Assert.Null(restoredEpisode.BackgroundImageGeneratedAt);
+
+        var restoredPicture = await targetDb.Pictures.SingleAsync(p => p.Id == userPicture.Id, TestContext.Current.CancellationToken);
+        Assert.False(restoredPicture.IsGeneratedBackground);
+        Assert.Null(restoredPicture.EpisodeId);
+    }
+
+    private static readonly (string Table, string Column)[] EpisodeBackgroundImageLegacyColumns =
+    {
+        (nameof(ApplicationDbContext.TVShowEpisodes), nameof(TVShowEpisode.GeneratedBackgroundPictureId)),
+        (nameof(ApplicationDbContext.TVShowEpisodes), nameof(TVShowEpisode.BackgroundImageRequiresUpdate)),
+        (nameof(ApplicationDbContext.TVShowEpisodes), nameof(TVShowEpisode.BackgroundImageGeneratedAt)),
+        (nameof(ApplicationDbContext.Pictures), nameof(Picture.IsGeneratedBackground)),
+        (nameof(ApplicationDbContext.Pictures), nameof(Picture.EpisodeId))
+    };
+
+    private static MemoryStream CreateLegacyIndexWithoutEpisodeBackgroundImageColumns(MemoryStream index)
+    {
+        index.Position = 0;
+        var root = JsonNode.Parse(index)!;
+        var tables = root["tables"]!.AsArray();
+
+        foreach (var table in tables)
+        {
+            var tableName = table!["name"]?.GetValue<string>();
+            var columns = table["columns"]!.AsArray();
+            for (var columnIndex = columns.Count - 1; columnIndex >= 0; columnIndex--)
+            {
+                var columnName = columns[columnIndex]?.GetValue<string>();
+                if (EpisodeBackgroundImageLegacyColumns.Any(x =>
+                        string.Equals(x.Table, tableName, StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(x.Column, columnName, StringComparison.OrdinalIgnoreCase)))
+                {
+                    columns.RemoveAt(columnIndex);
+                }
+            }
+        }
+
+        return new MemoryStream(Encoding.UTF8.GetBytes(root.ToJsonString()));
+    }
+
+    private static async Task<Stream> OpenLegacyPayloadWithoutEpisodeBackgroundImageColumnsAsync(
+        ExportedPayload exported,
+        string entryName,
+        CancellationToken cancellationToken)
+    {
+        var stream = await exported.OpenAsync(entryName, cancellationToken);
+        var columnsToRemove = EpisodeBackgroundImageLegacyColumns
+            .Where(x => entryName.Contains(x.Table, StringComparison.OrdinalIgnoreCase))
+            .Select(x => x.Column)
+            .ToList();
+        if (columnsToRemove.Count == 0)
+            return stream;
+
+        await using (stream)
+        {
+            var root = JsonNode.Parse(stream)!;
+            foreach (var row in root["rows"]!.AsArray())
+            {
+                foreach (var column in columnsToRemove)
+                    row!.AsObject().Remove(column);
+            }
+
+            return new MemoryStream(Encoding.UTF8.GetBytes(root.ToJsonString()));
+        }
+    }
+
+    private static async Task<(Picture UserPicture, Picture GeneratedPicture, TVShowEpisode Episode)> SeedGeneratedBackgroundScenarioAsync(ApplicationDbContext db)
+    {
+        var source = new MediaSource { Name = "Source", Path = "/source", Host = "localhost", Port = 22 };
+        db.MediaSources.Add(source);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var collection = new MediaCollection { Name = "Collection", Path = "/source/collection", MediaSourceId = source.Id, CreatedAt = DateTime.UtcNow };
+        db.MediaCollections.Add(collection);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var mediaItem = new MediaItem { Name = "fanart.jpg", Path = "/source/collection/fanart.jpg", MediaCollectionId = collection.Id, CreatedAt = DateTime.UtcNow };
+        db.MediaItems.Add(mediaItem);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var userPicture = new Picture { MediaItemId = mediaItem.Id, Type = "fanart", Data = new byte[] { 1 }, ContentType = "image/jpeg", IsGeneratedBackground = false };
+        db.Pictures.Add(userPicture);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var generatedPicture = new Picture { MediaItemId = mediaItem.Id, Type = "background", Data = new byte[] { 2 }, ContentType = "image/jpeg", IsGeneratedBackground = true };
+        db.Pictures.Add(generatedPicture);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        generatedPicture.EpisodeId = null;
+
+        var show = new TVShow { Name = "Show", MediaSourceId = source.Id, CollectionId = collection.Id, CreatedAt = DateTime.UtcNow };
+        db.TVShows.Add(show);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var season = new TVShowSeason { Name = "Staffel 01", TVShowId = show.Id, CreatedAt = DateTime.UtcNow };
+        db.TVShowSeasons.Add(season);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var episode = new TVShowEpisode
+        {
+            Name = "Episode",
+            Number = 1,
+            TVShowSeasonId = season.Id,
+            CreatedAt = DateTime.UtcNow,
+            GeneratedBackgroundPictureId = generatedPicture.Id,
+            BackgroundImageRequiresUpdate = false,
+            BackgroundImageGeneratedAt = DateTime.UtcNow
+        };
+        db.TVShowEpisodes.Add(episode);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        generatedPicture.EpisodeId = episode.Id;
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        return (userPicture, generatedPicture, episode);
+    }
+
+    private static async Task<List<long>> ReadRowLongPropertyAsync(ExportedPayload exported, string entryName, string propertyName)
+    {
+        await using var stream = await exported.OpenAsync(entryName, TestContext.Current.CancellationToken);
+        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: TestContext.Current.CancellationToken);
+        return document.RootElement.GetProperty("rows").EnumerateArray()
+            .Select(row => row.GetProperty(propertyName).GetInt64())
+            .ToList();
+    }
+
+    private static async Task<JsonElement> ReadSingleRowAsync(ExportedPayload exported, string entryName, string keyProperty, long keyValue)
+    {
+        await using var stream = await exported.OpenAsync(entryName, TestContext.Current.CancellationToken);
+        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: TestContext.Current.CancellationToken);
+        return document.RootElement.GetProperty("rows").EnumerateArray()
+            .Single(row => row.GetProperty(keyProperty).GetInt64() == keyValue)
+            .Clone();
+    }
+
+    private static bool GetBoolValue(JsonElement element) => element.ValueKind switch
+    {
+        JsonValueKind.True => true,
+        JsonValueKind.False => false,
+        JsonValueKind.Number => element.GetInt64() != 0,
+        _ => throw new InvalidOperationException($"Unerwarteter Werttyp: {element.ValueKind}")
+    };
 
     private static ApplicationDbContext CreateDb(SqliteConnection connection)
     {

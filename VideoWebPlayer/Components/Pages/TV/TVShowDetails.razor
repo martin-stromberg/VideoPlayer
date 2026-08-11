@@ -1,9 +1,7 @@
 @page "/tvshow/{Id:long}"
 @using Microsoft.AspNetCore.Components
 @using Microsoft.AspNetCore.Components.Web
-@using Microsoft.EntityFrameworkCore
 @using System.Security.Claims
-@using VideoWebPlayer.Data
 @using Microsoft.AspNetCore.Components.Authorization
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject VideoWebPlayer.Client.VideoWebPlayerClient Client
@@ -61,6 +59,20 @@
 
         await UpdateFavoriteMark();
     }
+
+    private string GetHeaderBackgroundUrl()
+        => selectedEpisode is not null
+            ? BuildEpisodeBackgroundImageUrl(selectedEpisode.Id, Client.AuthorizationToken)
+            : GetBannerUrl(showSeasonInfo ? (DtoMediaEntry)selectedSeason : (DtoMediaEntry)show);
+
+    /// <summary>
+    /// Builds the URL for a generated episode background image, including the access token
+    /// required by <see cref="Controllers.Attributes.BearerTokenCheckAttribute"/> for direct
+    /// browser requests (e.g. CSS background-image). Internal and pure so it can be regression-tested
+    /// without reflection or a rendered component.
+    /// </summary>
+    internal static string BuildEpisodeBackgroundImageUrl(long episodeId, string? accessToken)
+        => $"/api/episodes/{episodeId}/background-image?access_token={accessToken}";
 
     private async Task UpdateFavoriteMark()
     {
@@ -270,7 +282,7 @@ else
         }
     }
 
-    <div class="tvshow-header" style="background-image: url('@GetBannerUrl((DtoMediaEntry)selectedEpisode ?? (showSeasonInfo ? (DtoMediaEntry)selectedSeason : (DtoMediaEntry)show))'); position: relative;">
+    <div class="tvshow-header" style="background-image: url('@GetHeaderBackgroundUrl()'); position: relative;">
         <button class="favorite-btn" @onclick="ToggleFavorite" title="Als Favorit markieren">
             @(isFavorite ? "★" : "☆")
         </button>

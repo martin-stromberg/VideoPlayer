@@ -32,17 +32,34 @@ namespace VideoWebPlayer.Data
         public string? Plot { get; set; }
 
         /// <summary>
+        /// Gets or sets the identifier of the generated background image.
+        /// </summary>
+        public long? GeneratedBackgroundPictureId { get; set; }
+        /// <summary>
+        /// Gets or sets a value indicating whether the generated background image needs to be regenerated.
+        /// </summary>
+        public bool BackgroundImageRequiresUpdate { get; set; }
+        /// <summary>
+        /// Gets or sets the timestamp of the last successful background image generation.
+        /// </summary>
+        public DateTime? BackgroundImageGeneratedAt { get; set; }
+        /// <summary>
+        /// Gets or sets the generated background image.
+        /// </summary>
+        public Picture? GeneratedBackgroundPicture { get; set; }
+
+        /// <summary>
         /// Gets or sets the media item link entries.
         /// </summary>
         public ICollection<TVShowEpisodeMediaItem> TVShowEpisodeMediaItems { get; set; } = new List<TVShowEpisodeMediaItem>();
 
-        // Komfort-Property für direkten Zugriff auf die MediaItems
+        // Komfort-Property fï¿½r direkten Zugriff auf die MediaItems
         /// <summary>
         /// Gets the media items for the episode.
         /// </summary>
         public IEnumerable<MediaItem> MediaItems => TVShowEpisodeMediaItems.Select(ei => ei.MediaItem);
 
-        // Beispiel für das Setzen der Eigenschaften aus XML
+        // Beispiel fï¿½r das Setzen der Eigenschaften aus XML
         /// <summary>
         /// Loads metadata from an episode NFO XML document.
         /// </summary>
@@ -53,7 +70,7 @@ namespace VideoWebPlayer.Data
             ReleaseDate = DateTime.TryParse(xml.Element("aired")?.Value, out var aired) ? aired : null;
             PremieredAt = DateTime.TryParse(xml.Element("premiered")?.Value, out var prem) ? prem : null;
             Plot = xml.Element("plot")?.Value;
-            // Weitere Felder nach Bedarf ergänzen
+            // Weitere Felder nach Bedarf ergï¿½nzen
         }
     }
 }

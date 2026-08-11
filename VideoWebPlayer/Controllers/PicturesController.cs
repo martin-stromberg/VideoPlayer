@@ -44,17 +44,10 @@ public class PicturesController : ApiBaseController
             if (picture != null && picture.Data.Length > 0)
                 return File(picture.Data, picture.ContentType ?? "image/jpg");
 
-            var placeholderPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot/images/placeholder.png");
-            if (System.IO.File.Exists(placeholderPath))
-            {
-                var bytes = await _cache.GetOrCreateAsync("PicturesController.Placeholder", async entry =>
-                {
-                    entry.SetAbsoluteExpiration(TimeSpan.FromMinutes(10));
-                    return await System.IO.File.ReadAllBytesAsync(placeholderPath);
-                });
-                if (bytes is not null)
-                    return File(bytes, "image/png");
-            }
+            var placeholderBytes = await GetPlaceholderBytesAsync(_cache);
+            if (placeholderBytes is not null)
+                return File(placeholderBytes, "image/png");
+
             return NotFound();
         }
         catch (UnauthorizedAccessException ex)

@@ -24,7 +24,18 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
 
     private static readonly HashSet<string> OptionalRestoreColumns = new(StringComparer.OrdinalIgnoreCase)
     {
-        "Setups.ApplicationTitle"
+        "Setups.ApplicationTitle",
+        $"{nameof(ApplicationDbContext.TVShowEpisodes)}.{nameof(TVShowEpisode.GeneratedBackgroundPictureId)}",
+        $"{nameof(ApplicationDbContext.TVShowEpisodes)}.{nameof(TVShowEpisode.BackgroundImageRequiresUpdate)}",
+        $"{nameof(ApplicationDbContext.TVShowEpisodes)}.{nameof(TVShowEpisode.BackgroundImageGeneratedAt)}",
+        $"{nameof(ApplicationDbContext.Pictures)}.{nameof(Picture.IsGeneratedBackground)}",
+        $"{nameof(ApplicationDbContext.Pictures)}.{nameof(Picture.EpisodeId)}"
+    };
+
+    private static readonly (string Table, string Column, bool DefaultValue)[] OptionalRestoreBoolDefaults =
+    {
+        (nameof(ApplicationDbContext.TVShowEpisodes), nameof(TVShowEpisode.BackgroundImageRequiresUpdate), false),
+        (nameof(ApplicationDbContext.Pictures), nameof(Picture.IsGeneratedBackground), false)
     };
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };
@@ -254,7 +265,8 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
         await EnsureOpenAsync(connection, cancellationToken);
 
         await using var command = connection.CreateCommand();
-        command.CommandText = $"SELECT {string.Join(", ", table.Columns.Select(x => QuoteIdentifier(x.Name)))} FROM {QuoteTable(table)}";
+        var columnList = string.Join(", ", table.Columns.Select(x => BuildColumnSelectExpression(table, x)));
+        command.CommandText = $"SELECT {columnList} FROM {QuoteTable(table)}{BuildTableFilter(table)}";
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
         await using var writer = new Utf8JsonWriter(target, new JsonWriterOptions { Indented = true });
@@ -281,6 +293,30 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
         writer.WriteEndArray();
         writer.WriteEndObject();
         await writer.FlushAsync(cancellationToken);
+    }
+
+    private static string BuildColumnSelectExpression(TableMetadata table, ColumnMetadata column)
+    {
+        if (string.Equals(table.Name, nameof(ApplicationDbContext.TVShowEpisodes), StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.Equals(column.Name, nameof(TVShowEpisode.GeneratedBackgroundPictureId), StringComparison.OrdinalIgnoreCase))
+                return $"NULL AS {QuoteIdentifier(column.Name)}";
+            if (string.Equals(column.Name, nameof(TVShowEpisode.BackgroundImageRequiresUpdate), StringComparison.OrdinalIgnoreCase))
+                return $"1 AS {QuoteIdentifier(column.Name)}";
+        }
+
+        return QuoteIdentifier(column.Name);
+    }
+
+    private static string BuildTableFilter(TableMetadata table)
+    {
+        if (string.Equals(table.Name, nameof(ApplicationDbContext.Pictures), StringComparison.OrdinalIgnoreCase)
+            && table.Columns.Any(x => string.Equals(x.Name, nameof(Picture.IsGeneratedBackground), StringComparison.OrdinalIgnoreCase)))
+        {
+            return $" WHERE {QuoteIdentifier(nameof(Picture.IsGeneratedBackground))} = 0";
+        }
+
+        return string.Empty;
     }
 
     private static async Task<TableDataPayload> ReadTablePayloadAsync(
@@ -732,6 +768,19 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
         {
             insertColumns.Add("ApplicationTitle");
             row["ApplicationTitle"] = JsonSerializer.SerializeToElement("Martins Videosammlung", JsonOptions);
+        }
+
+        foreach (var (tableName, columnName, defaultValue) in OptionalRestoreBoolDefaults)
+        {
+            if (!string.Equals(table.Name, tableName, StringComparison.OrdinalIgnoreCase)
+                || insertColumns.Contains(columnName, StringComparer.OrdinalIgnoreCase)
+                || !table.Columns.Any(x => string.Equals(x.Name, columnName, StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            insertColumns.Add(columnName);
+            row[columnName] = JsonSerializer.SerializeToElement(defaultValue, JsonOptions);
         }
 
         return insertColumns;

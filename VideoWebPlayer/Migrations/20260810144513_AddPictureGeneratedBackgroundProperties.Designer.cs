@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using VideoWebPlayer.Data;
 
@@ -10,9 +11,11 @@ using VideoWebPlayer.Data;
 namespace VideoWebPlayer.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260810144513_AddPictureGeneratedBackgroundProperties")]
+    partial class AddPictureGeneratedBackgroundProperties
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.10");
@@ -900,7 +903,7 @@ namespace VideoWebPlayer.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("TEXT");
 
-                    b.Property<long?>("EpisodeId")
+                    b.Property<long?>("EpisodeIdReference")
                         .HasColumnType("INTEGER");
 
                     b.Property<int?>("Height")
@@ -923,7 +926,7 @@ namespace VideoWebPlayer.Migrations
 
                     b.HasIndex("MediaItemId");
 
-                    b.HasIndex("EpisodeId", "IsGeneratedBackground");
+                    b.HasIndex("EpisodeIdReference", "IsGeneratedBackground");
 
                     b.ToTable("Pictures");
                 });
@@ -1033,7 +1036,7 @@ namespace VideoWebPlayer.Migrations
                     b.Property<long?>("FanartPictureId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<long?>("GeneratedBackgroundPictureId")
+                    b.Property<long?>("GeneratedBackgroundImageId")
                         .HasColumnType("INTEGER");
 
                     b.Property<long>("MediaSourceId")
@@ -1067,7 +1070,7 @@ namespace VideoWebPlayer.Migrations
 
                     b.HasIndex("FanartPictureId");
 
-                    b.HasIndex("GeneratedBackgroundPictureId");
+                    b.HasIndex("GeneratedBackgroundImageId");
 
                     b.HasIndex("PosterPictureId");
 
@@ -1511,9 +1514,9 @@ namespace VideoWebPlayer.Migrations
                         .WithMany()
                         .HasForeignKey("FanartPictureId");
 
-                    b.HasOne("VideoWebPlayer.Data.Picture", "GeneratedBackgroundPicture")
+                    b.HasOne("VideoWebPlayer.Data.Picture", "GeneratedBackgroundImage")
                         .WithMany()
-                        .HasForeignKey("GeneratedBackgroundPictureId");
+                        .HasForeignKey("GeneratedBackgroundImageId");
 
                     b.HasOne("VideoWebPlayer.Data.Picture", "PosterPicture")
                         .WithMany()
@@ -1529,7 +1532,7 @@ namespace VideoWebPlayer.Migrations
 
                     b.Navigation("FanartPicture");
 
-                    b.Navigation("GeneratedBackgroundPicture");
+                    b.Navigation("GeneratedBackgroundImage");
 
                     b.Navigation("PosterPicture");
 

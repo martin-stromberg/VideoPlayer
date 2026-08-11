@@ -9,11 +9,13 @@ using Microsoft.Extensions.Logging.Abstractions;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Services.Authentication;
+using VideoWebPlayer.Services.EpisodeBackgroundImage;
 using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
 
+[Collection(MediaSourceClassifierCollection.Name)]
 public class MediaSourceScanServiceTests
 {
     [Fact]
@@ -37,6 +39,13 @@ public class MediaSourceScanServiceTests
         services.AddScoped<MediaSourceScanner>();
         services.AddScoped<RecentEntryService>();
         services.AddScoped<MediaSourceClassifier>();
+        services.AddMemoryCache();
+        services.AddScoped<EpisodeBackgroundImageGenerator>();
+        services.AddScoped<EpisodeBackgroundImageService>();
+        services.AddSingleton<Microsoft.Extensions.Options.IOptions<EpisodeBackgroundImageOptions>>(
+            Microsoft.Extensions.Options.Options.Create(new EpisodeBackgroundImageOptions()));
+        services.AddSingleton<ILogger<EpisodeBackgroundImageGenerator>>(NullLogger<EpisodeBackgroundImageGenerator>.Instance);
+        services.AddSingleton<ILogger<EpisodeBackgroundImageService>>(NullLogger<EpisodeBackgroundImageService>.Instance);
         services.AddSingleton<IAuthService, TestAuthService>();
         services.AddSingleton<ILogger<MediaSourceScanner>>(NullLogger<MediaSourceScanner>.Instance);
         services.AddSingleton<ILogger<MediaSourceClassifier>>(NullLogger<MediaSourceClassifier>.Instance);
@@ -97,6 +106,13 @@ public class MediaSourceScanServiceTests
         services.AddScoped<MediaSourceScanner>();
         services.AddScoped<RecentEntryService>();
         services.AddScoped<MediaSourceClassifier>();
+        services.AddMemoryCache();
+        services.AddScoped<EpisodeBackgroundImageGenerator>();
+        services.AddScoped<EpisodeBackgroundImageService>();
+        services.AddSingleton<Microsoft.Extensions.Options.IOptions<EpisodeBackgroundImageOptions>>(
+            Microsoft.Extensions.Options.Options.Create(new EpisodeBackgroundImageOptions()));
+        services.AddSingleton<ILogger<EpisodeBackgroundImageGenerator>>(NullLogger<EpisodeBackgroundImageGenerator>.Instance);
+        services.AddSingleton<ILogger<EpisodeBackgroundImageService>>(NullLogger<EpisodeBackgroundImageService>.Instance);
         services.AddSingleton<IAuthService, TestAuthService>();
         services.AddSingleton<ILogger<MediaSourceScanner>>(NullLogger<MediaSourceScanner>.Instance);
         services.AddSingleton<ILogger<MediaSourceClassifier>>(NullLogger<MediaSourceClassifier>.Instance);
@@ -170,6 +186,13 @@ public class MediaSourceScanServiceTests
         services.AddScoped<MediaSourceScanner>();
         services.AddScoped<RecentEntryService>();
         services.AddScoped<MediaSourceClassifier>();
+        services.AddMemoryCache();
+        services.AddScoped<EpisodeBackgroundImageGenerator>();
+        services.AddScoped<EpisodeBackgroundImageService>();
+        services.AddSingleton<Microsoft.Extensions.Options.IOptions<EpisodeBackgroundImageOptions>>(
+            Microsoft.Extensions.Options.Options.Create(new EpisodeBackgroundImageOptions()));
+        services.AddSingleton<ILogger<EpisodeBackgroundImageGenerator>>(NullLogger<EpisodeBackgroundImageGenerator>.Instance);
+        services.AddSingleton<ILogger<EpisodeBackgroundImageService>>(NullLogger<EpisodeBackgroundImageService>.Instance);
         services.AddSingleton<IAuthService, TestAuthService>();
         services.AddSingleton<ILogger<MediaSourceScanner>>(NullLogger<MediaSourceScanner>.Instance);
         services.AddSingleton<ILogger<MediaSourceClassifier>>(NullLogger<MediaSourceClassifier>.Instance);
@@ -257,6 +280,13 @@ public class MediaSourceScanServiceTests
         services.AddScoped<MediaSourceScanner>();
         services.AddScoped<RecentEntryService>();
         services.AddScoped<MediaSourceClassifier>();
+        services.AddMemoryCache();
+        services.AddScoped<EpisodeBackgroundImageGenerator>();
+        services.AddScoped<EpisodeBackgroundImageService>();
+        services.AddSingleton<Microsoft.Extensions.Options.IOptions<EpisodeBackgroundImageOptions>>(
+            Microsoft.Extensions.Options.Options.Create(new EpisodeBackgroundImageOptions()));
+        services.AddSingleton<ILogger<EpisodeBackgroundImageGenerator>>(NullLogger<EpisodeBackgroundImageGenerator>.Instance);
+        services.AddSingleton<ILogger<EpisodeBackgroundImageService>>(NullLogger<EpisodeBackgroundImageService>.Instance);
         services.AddSingleton<IAuthService, TestAuthService>();
         services.AddSingleton<ILogger<MediaSourceScanner>>(NullLogger<MediaSourceScanner>.Instance);
         services.AddSingleton<ILogger<MediaSourceClassifier>>(NullLogger<MediaSourceClassifier>.Instance);
@@ -351,6 +381,13 @@ public class MediaSourceScanServiceTests
         services.AddScoped<MediaSourceScanner>();
         services.AddScoped<RecentEntryService>();
         services.AddScoped<MediaSourceClassifier>();
+        services.AddMemoryCache();
+        services.AddScoped<EpisodeBackgroundImageGenerator>();
+        services.AddScoped<EpisodeBackgroundImageService>();
+        services.AddSingleton<Microsoft.Extensions.Options.IOptions<EpisodeBackgroundImageOptions>>(
+            Microsoft.Extensions.Options.Options.Create(new EpisodeBackgroundImageOptions()));
+        services.AddSingleton<ILogger<EpisodeBackgroundImageGenerator>>(NullLogger<EpisodeBackgroundImageGenerator>.Instance);
+        services.AddSingleton<ILogger<EpisodeBackgroundImageService>>(NullLogger<EpisodeBackgroundImageService>.Instance);
         services.AddSingleton<IAuthService, TestAuthService>();
         services.AddSingleton<ILogger<MediaSourceScanner>>(NullLogger<MediaSourceScanner>.Instance);
         services.AddSingleton<ILogger<MediaSourceClassifier>>(NullLogger<MediaSourceClassifier>.Instance);

@@ -75,6 +75,12 @@
 - ✅ Adaptive Bitrate-Unterstützung
 - ✅ Position-Synchronisation über Geräte
 
+#### Episode-Anzeige
+- ✅ Dynamisch generierte Episoden-Hintergrundbilder
+- ✅ Automatische Fanart-Verarbeitung (Skalierung, Farbextraktion, Overlay), mit Poster als Fallback-Quelle
+- ✅ In-Memory Caching für optimale Performance
+- ✅ Automatische Regenerierung bei Fanart- oder Poster-Updates
+
 #### Echtzeit-Updates
 - ✅ SignalR-basierte Push-Notifications
 - ✅ Live-Updates der Medienbibliothek
@@ -127,6 +133,8 @@
 | Authentication | ASP.NET Identity | .NET 10 |
 | FTP/SFTP | FluentFTP, SSH.NET | Latest |
 | Backups | msTools.Backup | Projektbibliothek |
+| Image Processing | SixLabors.ImageSharp | 3.1.11 |
+| Async Utilities | Nito.AsyncEx | 5.1.2 |
 
 ### Frontend (MAUI)
 

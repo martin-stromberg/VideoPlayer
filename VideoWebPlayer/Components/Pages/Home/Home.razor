@@ -8,6 +8,7 @@
 @inject RecentEntryService RecentEntryService
 @inject ApplicationDbContext DbContext
 @inject HttpClient Http
+@inject VideoWebPlayer.Client.VideoWebPlayerClient Client
 @inject VideoWebPlayer.Services.ProgramSettingsService SettingsService
 
 <PageTitle>Home</PageTitle>
@@ -34,6 +35,7 @@
     private Dictionary<long, string> episodePosters = new();
     private Dictionary<long, string> episodeLinks = new();
     private string applicationTitle = "Martins Videosammlung";
+    private string? heroBackgroundStyle;
 
     private const string SystemUserNormalizedName = "SYSTEM";
 
@@ -55,6 +57,12 @@
                 Navigation.NavigateTo($"Account/Register?ReturnUrl={Uri.EscapeDataString(returnUrl)}", forceLoad: true);
             }
         }
+
+        if (isAuthenticated == true)
+        {
+            await Client.EnsureAuthorizationTokenAsync(user);
+            heroBackgroundStyle = $"--home-hero-image: url('/api/pictures/hero-background?access_token={Client.AuthorizationToken}');";
+        }
     }
 }
 
@@ -66,7 +74,7 @@
 @if (isAuthenticated == true)
 {
     <div class="home-shell">
-        <section class="home-hero" aria-labelledby="home-title">
+        <section class="home-hero" aria-labelledby="home-title" style="@heroBackgroundStyle">
             <div class="home-hero-content">
                 <span class="hero-kicker">Private Media Library</span>
                 <h1 id="home-title">@applicationTitle</h1>

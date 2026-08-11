@@ -35,6 +35,17 @@ namespace VideoWebPlayer.Services.Authentication
             this.authtorizationTokenService = authtorizationTokenService;
         }
         /// <summary>
+        /// Ensures an authorization token is available for the given user.
+        /// </summary>
+        /// <param name="user">The user to impersonate. If null, the current HTTP context user is used.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        public override async Task EnsureAuthorizationTokenAsync(ClaimsPrincipal? user, CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(AuthorizationToken))
+                await ImpersonateAsync(user ?? httpContextAccessor.HttpContext?.User ?? new ClaimsPrincipal());
+        }
+
+        /// <summary>
         /// Issues an authenticated GET request to the specified endpoint.
         /// </summary>
         /// <typeparam name="T">The response payload type.</typeparam>

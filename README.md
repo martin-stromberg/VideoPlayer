@@ -68,6 +68,7 @@
 - ✅ Favoriten-System
 - ✅ Continue-Watching mit Positionsspeicherung
 - ✅ Recent Entries Timeline
+- ✅ Dynamisches Hero-Hintergrundbild auf der Startseite
 
 #### Streaming & Playback
 - ✅ Direktes Video-Streaming vom Server
@@ -255,6 +256,7 @@ VideoWebPlayer.sln
 
 | Dokument | Beschreibung |
 |----------|--------------|
+| [Startseite – Hero-Hintergrund](./docs/help/startseite-hero-hintergrund.md) | Zusammengesetztes Hintergrundbild aus der „Weiterschauen"-Liste |
 | [Episode Selection](./Docs/TECH_Episode_Selection.md) | Smart Episode Selection & Play Button |
 | [MediaElement Error Handling](./Docs/TECH_MediaElement_Error_Handling.md) | Video-Player Fehlerbehandlung |
 | [Notification Ticker](./Docs/TECH_Notification_Ticker.md) | Footer-Lauftext-Komponente |

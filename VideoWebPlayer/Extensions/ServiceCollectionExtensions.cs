@@ -21,6 +21,7 @@ using System.Security.Claims;
 using msTools.Backup;
 using VideoWebPlayer.Services.Backups;
 using VideoWebPlayer.Services.EpisodeBackgroundImage;
+using VideoWebPlayer.Services.HomeBackgroundImage;
 using VideoWebPlayer.Services.Updates;
 using VideoWebPlayer.ViewModels;
 
@@ -242,6 +243,7 @@ public static class ServiceCollectionExtensions
             .ValidateOnStart();
         services.AddScoped<EpisodeBackgroundImageGenerator>();
         services.AddScoped<EpisodeBackgroundImageService>();
+        services.AddScoped<HomeBackgroundImageGenerator>();
         services.AddTransient<IAuthService, AuthService>();
         services.AddHostedService<MediaSourceScanService>();
         services.AddHttpContextAccessor();

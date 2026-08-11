@@ -73,11 +73,11 @@ namespace VideoWebPlayer.Services.EpisodeBackgroundImage
                 if (existingPicture is not null)
                     return existingPicture;
 
-                var fanartPicture = await TryLoadFanartPictureAsync(currentEpisode, cancellationToken);
-                if (fanartPicture is null)
+                var sourcePicture = await TryLoadBackgroundSourcePictureAsync(currentEpisode, cancellationToken);
+                if (sourcePicture is null)
                     return null;
 
-                return await GenerateAndPersistBackgroundPictureAsync(currentEpisode, fanartPicture, cancellationToken);
+                return await GenerateAndPersistBackgroundPictureAsync(currentEpisode, sourcePicture, cancellationToken);
             }
         }
 
@@ -112,31 +112,44 @@ namespace VideoWebPlayer.Services.EpisodeBackgroundImage
             => _db.Pictures.AsNoTracking().FirstOrDefaultAsync(p => p.Id == pictureId, cancellationToken);
 
         /// <summary>
-        /// Loads the episode's fanart picture, if present, and validates that it has usable image data.
+        /// Loads the episode's fanart picture, if present and usable; otherwise falls back to the
+        /// episode's poster picture. Returns <c>null</c> if neither is available or has usable image data.
         /// </summary>
-        private async Task<Picture?> TryLoadFanartPictureAsync(TVShowEpisode episode, CancellationToken cancellationToken)
+        /// <param name="episode">The episode to load a background source picture for.</param>
+        /// <param name="cancellationToken">A cancellation token.</param>
+        /// <returns>The fanart or poster <see cref="Picture"/> to use as background source, or <c>null</c> if none is available.</returns>
+        private async Task<Picture?> TryLoadBackgroundSourcePictureAsync(TVShowEpisode episode, CancellationToken cancellationToken)
         {
-            if (!episode.FanartPictureId.HasValue)
+            if (!episode.FanartPictureId.HasValue && !episode.PosterPictureId.HasValue)
                 return null;
 
-            var fanartPicture = await _db.Pictures.AsNoTracking()
+            var fanartPicture = !episode.FanartPictureId.HasValue ? null : await _db.Pictures.AsNoTracking()
                 .FirstOrDefaultAsync(p => p.Id == episode.FanartPictureId.Value, cancellationToken);
-            return fanartPicture is null || fanartPicture.Data is null || fanartPicture.Data.Length == 0
+            if (fanartPicture is not null && fanartPicture.Data is not null && fanartPicture.Data.Length > 0)
+                return fanartPicture;
+
+            var posterPicture = !episode.PosterPictureId.HasValue ? null : await _db.Pictures.AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == episode.PosterPictureId.Value, cancellationToken);
+            return posterPicture is null || posterPicture.Data is null || posterPicture.Data.Length == 0
                 ? null
-                : fanartPicture;
+                : posterPicture;
         }
 
         /// <summary>
-        /// Generates a new background picture from the given fanart, persists it, removes the obsolete
-        /// generated picture (if any) and updates the episode's background image state.
+        /// Generates a new background picture from the given source picture (fanart or poster), persists it,
+        /// removes the obsolete generated picture (if any) and updates the episode's background image state.
         /// </summary>
-        private async Task<Picture?> GenerateAndPersistBackgroundPictureAsync(TVShowEpisode episode, Picture fanartPicture, CancellationToken cancellationToken)
+        /// <param name="episode">The episode the background picture is generated for.</param>
+        /// <param name="sourcePicture">The fanart or poster picture to generate the background from.</param>
+        /// <param name="cancellationToken">A cancellation token.</param>
+        /// <returns>The generated and persisted <see cref="Picture"/>, or <c>null</c> if generation failed.</returns>
+        private async Task<Picture?> GenerateAndPersistBackgroundPictureAsync(TVShowEpisode episode, Picture sourcePicture, CancellationToken cancellationToken)
         {
-            var generated = await TryGenerateBackgroundPictureAsync(episode, fanartPicture, cancellationToken);
+            var generated = await TryGenerateBackgroundPictureAsync(episode, sourcePicture, cancellationToken);
             if (generated is null)
                 return null;
 
-            generated.MediaItemId = fanartPicture.MediaItemId;
+            generated.MediaItemId = sourcePicture.MediaItemId;
             generated.EpisodeId = episode.Id;
 
             await RemoveObsoleteGeneratedPictureAsync(episode, cancellationToken);
@@ -153,11 +166,11 @@ namespace VideoWebPlayer.Services.EpisodeBackgroundImage
             return generated;
         }
 
-        private async Task<Picture?> TryGenerateBackgroundPictureAsync(TVShowEpisode episode, Picture fanartPicture, CancellationToken cancellationToken)
+        private async Task<Picture?> TryGenerateBackgroundPictureAsync(TVShowEpisode episode, Picture sourcePicture, CancellationToken cancellationToken)
         {
             try
             {
-                return await _generator.GenerateBackgroundImageAsync(episode, fanartPicture.Data, cancellationToken);
+                return await _generator.GenerateBackgroundImageAsync(episode, sourcePicture.Data, cancellationToken);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

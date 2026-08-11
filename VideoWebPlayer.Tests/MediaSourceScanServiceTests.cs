@@ -15,6 +15,7 @@ using Xunit;
 
 namespace VideoWebPlayer.Tests;
 
+[Collection(MediaSourceClassifierCollection.Name)]
 public class MediaSourceScanServiceTests
 {
     [Fact]

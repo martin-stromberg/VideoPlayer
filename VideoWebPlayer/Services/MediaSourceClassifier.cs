@@ -1122,27 +1122,39 @@ namespace VideoWebPlayer.Services
                             continue;
 
                         Picture? picture = await GetOrCreatePicture(mediaItem, type, cancellationToken);
-                        
+
                         if (type == "poster")
-                            episode.PosterPictureId = picture.Id;
+                        {
+                            await SetPictureAndMarkBackgroundForUpdateAsync(episode, picture, (e, p) => e.PosterPictureId = p.Id, cancellationToken);
+                        }
                         if (type == "banner")
                             episode.BannerPictureId = picture.Id;
                         if (type == "fanart")
                         {
-                            episode.FanartPictureId = picture.Id;
-                            await _episodeBackgroundImageService.MarkBackgroundImageForUpdateAsync(episode.Id, cancellationToken);
+                            await SetPictureAndMarkBackgroundForUpdateAsync(episode, picture, (e, p) => e.FanartPictureId = p.Id, cancellationToken);
                         }
                         if (type == "thumb")
                             if (episode.PosterPictureId is null)
-                                episode.PosterPictureId = picture.Id;
+                            {
+                                await SetPictureAndMarkBackgroundForUpdateAsync(episode, picture, (e, p) => e.PosterPictureId = p.Id, cancellationToken);
+                            }
                         if (type == "")
                             if (episode.PosterPictureId is null)
-                                episode.PosterPictureId = picture.Id;
+                            {
+                                await SetPictureAndMarkBackgroundForUpdateAsync(episode, picture, (e, p) => e.PosterPictureId = p.Id, cancellationToken);
+                            }
                         await _db.SaveChangesAsync(cancellationToken);
                     }
                 }
             }
         }
+
+        private async Task SetPictureAndMarkBackgroundForUpdateAsync(TVShowEpisode episode, Picture picture, Action<TVShowEpisode, Picture> assign, CancellationToken cancellationToken)
+        {
+            assign(episode, picture);
+            await _episodeBackgroundImageService.MarkBackgroundImageForUpdateAsync(episode.Id, cancellationToken);
+        }
+
         /// <summary>
         /// Gibt das l�ngste gemeinsame Pr�fix aller Strings in der Liste zur�ck.
         /// </summary>

@@ -8,12 +8,12 @@
 
 **Mögliche Ursachen:**
 
-1. **Episode hat kein Fanart**
-   - Das Feature generiert Hintergrundbilder nur aus vorhandenen Fanarts
-   - Lösung: Fanart für die Episode hinzufügen (via Scanner oder manuell)
+1. **Episode hat weder Fanart noch Poster**
+   - Das Feature generiert Hintergrundbilder aus dem Fanart; ist keines vorhanden, wird ersatzweise das Poster verwendet
+   - Lösung: Fanart oder Poster für die Episode hinzufügen (via Scanner oder manuell)
 
 2. **Generierung war bei erstem Aufruf fehlgeschlagen**
-   - Bildverarbeitung konnte Fanart nicht laden oder verarbeiten
+   - Bildverarbeitung konnte Fanart/Poster nicht laden oder verarbeiten
    - Logs überprüfen: `EpisodeBackgroundImageGenerator` mit Error-Level
    - Lösung: `BackgroundImageRequiresUpdate` für die Episode auf `true` setzen (via DB-Query) → Neugenierung beim nächsten Aufruf
 

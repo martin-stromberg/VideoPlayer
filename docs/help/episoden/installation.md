@@ -128,7 +128,7 @@ Die Services sollten registriert und injizierbar sein. Dies wird automatisch bei
 
 1. Melden Sie sich an
 2. Navigieren Sie zu einer TV-Show mit Episoden
-3. Wählen Sie eine Episode mit Fanart
+3. Wählen Sie eine Episode mit Fanart oder Poster
 4. Kontrollieren Sie die Entwickler-Konsole des Browsers (F12)
 5. Der API-Call `GET /api/episodes/{episodeId}/background-image` sollte erfolgen
 6. Status 200 mit Bild-Daten oder Status 404/500 (falls Fehler)
@@ -193,7 +193,7 @@ Pro Bild: ~300–400 KB, aber visuelle Qualität maximal.
 - **Lösung:** `Program.cs` überprüfen auf Service-Registrierungen; Anwendung neu starten
 
 **Problem:** Generierte Bilder erscheinen nicht
-- **Lösung:** Logs überprüfen; Episode ein Fanart haben; `EpisodeBackgroundImageGenerator` lädt korrekt
+- **Lösung:** Logs überprüfen; Episode muss Fanart oder Poster haben; `EpisodeBackgroundImageGenerator` lädt korrekt
 
 **Problem:** Zu hohe Datenbankgröße
 - **Lösung:** `MaxWidth`/`MaxHeight` oder `JpegQuality` reduzieren; Alte generierte Bilder manuell löschen (Query mit `IsGeneratedBackground = true`)

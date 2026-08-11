@@ -4,11 +4,15 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Moq;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 using VideoWebPlayer.Controllers;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Services.Authentication;
+using VideoWebPlayer.Services.EpisodeBackgroundImage;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
@@ -25,7 +29,7 @@ public sealed class EpisodesControllerBackgroundImageTests
             var episode = await CreateEpisodeAsync(db);
             var controller = CreateController(db, loggedIn: false);
 
-            var result = await controller.GetBackgroundImage(episode.Id);
+            var result = await controller.GetBackgroundImage(episode.Id, TestContext.Current.CancellationToken);
 
             Assert.IsType<UnauthorizedObjectResult>(result);
         }
@@ -40,7 +44,7 @@ public sealed class EpisodesControllerBackgroundImageTests
         {
             var controller = CreateController(db, loggedIn: true);
 
-            var result = await controller.GetBackgroundImage(episodeId: 999999);
+            var result = await controller.GetBackgroundImage(episodeId: 999999, TestContext.Current.CancellationToken);
 
             Assert.IsType<NotFoundResult>(result);
         }
@@ -60,7 +64,7 @@ public sealed class EpisodesControllerBackgroundImageTests
 
             var controller = CreateController(db, loggedIn: true);
 
-            var result = await controller.GetBackgroundImage(episode.Id);
+            var result = await controller.GetBackgroundImage(episode.Id, TestContext.Current.CancellationToken);
 
             var fileResult = Assert.IsType<FileContentResult>(result);
             Assert.Equal(generated.Data, fileResult.FileContents);
@@ -82,11 +86,87 @@ public sealed class EpisodesControllerBackgroundImageTests
 
             var controller = CreateController(db, loggedIn: true);
 
-            var result = await controller.GetBackgroundImage(episode.Id);
+            var result = await controller.GetBackgroundImage(episode.Id, TestContext.Current.CancellationToken);
 
             var fileResult = Assert.IsType<FileContentResult>(result);
             Assert.Equal(banner.Data, fileResult.FileContents);
             Assert.Equal("image/png", fileResult.ContentType);
+        }
+    }
+
+    [Fact]
+    public async Task GetBackgroundImage_WhenFanartSetButNoGeneratedImage_GeneratesAndPersistsBackgroundImage()
+    {
+        var (db, keeper) = CreateDb();
+        using (keeper)
+        await using (db)
+        {
+            var episode = await CreateEpisodeAsync(db);
+            var fanart = await CreatePictureAsync(db, isGeneratedBackground: false, data: CreateTestImageBytes(), contentType: "image/png");
+            episode.FanartPictureId = fanart.Id;
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+            var controller = CreateController(db, loggedIn: true);
+
+            var result = await controller.GetBackgroundImage(episode.Id, TestContext.Current.CancellationToken);
+
+            var fileResult = Assert.IsType<FileContentResult>(result);
+            Assert.Equal("image/jpeg", fileResult.ContentType);
+            Assert.NotEmpty(fileResult.FileContents);
+            Assert.NotEqual(fanart.Data, fileResult.FileContents);
+
+            var reloadedEpisode = await db.TVShowEpisodes.AsNoTracking().FirstAsync(e => e.Id == episode.Id, TestContext.Current.CancellationToken);
+            Assert.NotNull(reloadedEpisode.GeneratedBackgroundPictureId);
+        }
+    }
+
+    [Fact]
+    public async Task GetBackgroundImage_WhenSuccessful_SetsCacheControlAndETagHeaders()
+    {
+        var (db, keeper) = CreateDb();
+        using (keeper)
+        await using (db)
+        {
+            var episode = await CreateEpisodeAsync(db);
+            var generated = await CreatePictureAsync(db, isGeneratedBackground: true, data: new byte[] { 9, 9, 9 }, contentType: "image/jpeg");
+            episode.GeneratedBackgroundPictureId = generated.Id;
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+            var controller = CreateController(db, loggedIn: true);
+
+            var result = await controller.GetBackgroundImage(episode.Id, TestContext.Current.CancellationToken);
+
+            Assert.IsType<FileContentResult>(result);
+            Assert.Equal("public, max-age=3600, must-revalidate", controller.Response.Headers["Cache-Control"].ToString());
+            Assert.False(string.IsNullOrEmpty(controller.Response.Headers["ETag"].ToString()));
+        }
+    }
+
+    [Fact]
+    public async Task GetBackgroundImage_WhenIfNoneMatchMatchesETag_ReturnsNotModified()
+    {
+        var (db, keeper) = CreateDb();
+        using (keeper)
+        await using (db)
+        {
+            var episode = await CreateEpisodeAsync(db);
+            var generated = await CreatePictureAsync(db, isGeneratedBackground: true, data: new byte[] { 9, 9, 9 }, contentType: "image/jpeg");
+            episode.GeneratedBackgroundPictureId = generated.Id;
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+            var firstController = CreateController(db, loggedIn: true);
+            var firstResult = await firstController.GetBackgroundImage(episode.Id, TestContext.Current.CancellationToken);
+            Assert.IsType<FileContentResult>(firstResult);
+            var etag = firstController.Response.Headers["ETag"].ToString();
+            Assert.False(string.IsNullOrEmpty(etag));
+
+            var secondController = CreateController(db, loggedIn: true);
+            secondController.Request.Headers["If-None-Match"] = etag;
+
+            var secondResult = await secondController.GetBackgroundImage(episode.Id, TestContext.Current.CancellationToken);
+
+            var statusResult = Assert.IsType<StatusCodeResult>(secondResult);
+            Assert.Equal(304, statusResult.StatusCode);
         }
     }
 
@@ -100,7 +180,7 @@ public sealed class EpisodesControllerBackgroundImageTests
             var episode = await CreateEpisodeAsync(db);
             var controller = CreateController(db, loggedIn: true);
 
-            var result = await controller.GetBackgroundImage(episode.Id);
+            var result = await controller.GetBackgroundImage(episode.Id, TestContext.Current.CancellationToken);
 
             var fileResult = Assert.IsType<FileContentResult>(result);
             Assert.Equal("image/png", fileResult.ContentType);
@@ -113,9 +193,17 @@ public sealed class EpisodesControllerBackgroundImageTests
         var authService = new Mock<IAuthService>();
         authService.Setup(x => x.CurrentUser).Returns(loggedIn ? new ApplicationUser { UserName = "tester" } : null);
         var cache = new MemoryCache(new MemoryCacheOptions());
-        var controller = new EpisodesController(db, cache, authService.Object, NullLogger<EpisodesController>.Instance);
+        var backgroundImageService = CreateBackgroundImageService(db, cache);
+        var controller = new EpisodesController(db, cache, backgroundImageService, authService.Object, NullLogger<EpisodesController>.Instance);
         controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() };
         return controller;
+    }
+
+    private static EpisodeBackgroundImageService CreateBackgroundImageService(ApplicationDbContext db, IMemoryCache cache)
+    {
+        var options = Options.Create(new EpisodeBackgroundImageOptions());
+        var generator = new EpisodeBackgroundImageGenerator(options, NullLogger<EpisodeBackgroundImageGenerator>.Instance);
+        return new EpisodeBackgroundImageService(db, generator, cache, options, NullLogger<EpisodeBackgroundImageService>.Instance);
     }
 
     private static (ApplicationDbContext Db, SqliteConnection Keeper) CreateDb()
@@ -163,5 +251,13 @@ public sealed class EpisodesControllerBackgroundImageTests
         db.Pictures.Add(picture);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         return picture;
+    }
+
+    private static byte[] CreateTestImageBytes()
+    {
+        using var image = new Image<Rgba32>(64, 64, Color.Teal.ToPixel<Rgba32>());
+        using var stream = new MemoryStream();
+        image.SaveAsPng(stream);
+        return stream.ToArray();
     }
 }

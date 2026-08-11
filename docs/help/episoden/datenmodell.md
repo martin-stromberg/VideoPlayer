@@ -9,7 +9,7 @@
 | Eigenschaft | Datentyp | Beschreibung |
 |-------------|----------|--------------|
 | `GeneratedBackgroundPictureId` | `long?` | Foreign Key zur `Picture` Tabelle. Referenz zum generierten Hintergrundbild. `null`, wenn noch kein Hintergrundbild generiert wurde. |
-| `BackgroundImageRequiresUpdate` | `bool` | Flag, das angibt, ob das Hintergrundbild neu generiert werden muss. Wird auf `true` gesetzt, wenn der Scanner ein neues Fanart findet. Standard: `false`. |
+| `BackgroundImageRequiresUpdate` | `bool` | Flag, das angibt, ob das Hintergrundbild neu generiert werden muss. Wird auf `true` gesetzt, wenn der Scanner ein neues Fanart oder Poster findet. Standard: `false`. |
 | `BackgroundImageGeneratedAt` | `DateTime?` | Zeitstempel der letzten erfolgreichen Hintergrundbild-Generierung. `null`, wenn noch nicht generiert. |
 | `GeneratedBackgroundPicture` | `Picture?` | Navigation Property zum generierten Picture-Objekt. Ermöglicht Zugriff auf das Bild über EF Core ohne explizites Laden. |
 
@@ -62,7 +62,7 @@ Picture
 **Beziehungsbeschreibung:**
 - Eine Episode kann höchstens ein generiertes Hintergrundbild haben (0 oder 1)
 - Ein generiertes Picture gehört zu genau einer Episode
-- Die Beziehung ist von Episode's Seite optional (Episode ohne Fanart hat kein Hintergrundbild)
+- Die Beziehung ist von Episode's Seite optional (Episode ohne Fanart und ohne Poster hat kein Hintergrundbild)
 - Von Picture's Seite ist `EpisodeId` optional nullable für Backcompat
 
 ## Indizes
@@ -125,7 +125,7 @@ Nach dem Restore fehlen generierte Bilder (da nicht im Backup). Beim nächsten A
 |------------------|--------------|
 | `GeneratedBackgroundPictureId` muss null sein oder auf existierendes Picture mit `IsGeneratedBackground = true` verweisen | Foreign Key Constraint (EF Core) |
 | Wenn `IsGeneratedBackground = true`, sollte `EpisodeId` gesetzt sein | Service-Validierung bei Erstellung |
-| `BackgroundImageRequiresUpdate` kann nur true sein, wenn `FanartPictureId` der Episode gesetzt ist | Implizit: Service generiert nur bei Fanart vorhanden |
+| Generierung erfolgt nur, wenn `FanartPictureId` oder `PosterPictureId` der Episode gesetzt ist und nutzbare Bilddaten liefert | Implizit: Service generiert nur bei Fanart oder Poster vorhanden (Fanart hat Vorrang) |
 | Generierte Pictures sollten nicht gelöscht werden (nur beim Neugenieren) | Service handhabt Löschung in `RemoveObsoleteGeneratedPictureAsync()` |
 
 ## Schema-Diagramm

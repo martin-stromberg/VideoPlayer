@@ -1,16 +1,10 @@
 @page "/tvshow/{Id:long}"
 @using Microsoft.AspNetCore.Components
 @using Microsoft.AspNetCore.Components.Web
-@using Microsoft.EntityFrameworkCore
 @using System.Security.Claims
-@using VideoWebPlayer.Data
-@using VideoWebPlayer.Services.EpisodeBackgroundImage
 @using Microsoft.AspNetCore.Components.Authorization
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject VideoWebPlayer.Client.VideoWebPlayerClient Client
-@inject ApplicationDbContext Db
-@inject EpisodeBackgroundImageService BackgroundImageService
-@inject ILogger<TVShowDetails> Logger
 @rendermode InteractiveServer
 
 @code {
@@ -63,37 +57,13 @@
             Position = 0;
         }
 
-        await EnsureEpisodeBackgroundImageAsync();
         await UpdateFavoriteMark();
     }
 
-    private async Task EnsureEpisodeBackgroundImageAsync()
-    {
-        if (selectedEpisode is null)
-            return;
-
-        try
-        {
-            var episode = await Db.TVShowEpisodes.AsNoTracking().FirstOrDefaultAsync(e => e.Id == selectedEpisode.Id);
-            if (episode is null)
-                return;
-
-            var picture = await BackgroundImageService.EnsureBackgroundImageAsync(episode, CancellationToken.None);
-            selectedEpisode.GeneratedBackgroundPictureId = picture?.Id;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogWarning(ex, "Hintergrundbild für Episode {EpisodeId} konnte nicht sichergestellt werden.", selectedEpisode?.Id);
-        }
-    }
-
     private string GetHeaderBackgroundUrl()
-        => HasGeneratedBackgroundImage()
-            ? BuildEpisodeBackgroundImageUrl(selectedEpisode!.Id, Client.AuthorizationToken)
-            : GetBannerUrl((DtoMediaEntry)selectedEpisode ?? (showSeasonInfo ? (DtoMediaEntry)selectedSeason : (DtoMediaEntry)show));
-
-    private bool HasGeneratedBackgroundImage()
-        => selectedEpisode is not null && (selectedEpisode.GeneratedBackgroundPictureId ?? 0) > 0;
+        => selectedEpisode is not null
+            ? BuildEpisodeBackgroundImageUrl(selectedEpisode.Id, Client.AuthorizationToken)
+            : GetBannerUrl(showSeasonInfo ? (DtoMediaEntry)selectedSeason : (DtoMediaEntry)show);
 
     /// <summary>
     /// Builds the URL for a generated episode background image, including the access token
@@ -149,7 +119,6 @@
         selectedEpisode = season.Episodes?.OrderBy(e => e.Number).FirstOrDefault();
         resumeSeconds = 0;
         showSeasonInfo = true;
-        await EnsureEpisodeBackgroundImageAsync();
         await UpdateFavoriteMark();
     }
 
@@ -157,7 +126,6 @@
     {
         resumeSeconds = 0;
         selectedEpisode = episode;
-        await EnsureEpisodeBackgroundImageAsync();
         await UpdateFavoriteMark();
     }
 
@@ -314,7 +282,7 @@ else
         }
     }
 
-    <div class="tvshow-header @(HasGeneratedBackgroundImage() ? "background-with-overlay" : "")" style="background-image: url('@GetHeaderBackgroundUrl()'); position: relative;">
+    <div class="tvshow-header" style="background-image: url('@GetHeaderBackgroundUrl()'); position: relative;">
         <button class="favorite-btn" @onclick="ToggleFavorite" title="Als Favorit markieren">
             @(isFavorite ? "★" : "☆")
         </button>

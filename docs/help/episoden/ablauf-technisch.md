@@ -4,40 +4,38 @@
 
 ## Übersicht
 
-Die Hintergrundbild-Generierung für Episoden folgt einem Lazy-Loading-Pattern mit Thread-Safety durch AsyncLock. Der Prozess erstreckt sich über mehrere Komponenten: UI-Component, Service-Layer, Generator und Datenbank. Parallele Requests auf die gleiche Episode werden synchronisiert, um redundante Generierungen zu vermeiden.
+Die Hintergrundbild-Generierung für Episoden folgt einem Lazy-Loading-Pattern mit Thread-Safety durch AsyncLock. Der Prozess erstreckt sich über mehrere Komponenten: API-Controller, Service-Layer, Generator und Datenbank. Parallele Requests auf die gleiche Episode werden synchronisiert, um redundante Generierungen zu vermeiden.
+
+**Architekturregel:** Razor-Komponenten greifen niemals direkt auf Services zu — jeglicher Zugriff läuft über die API. `TVShowDetails.razor` injiziert daher weder `EpisodeBackgroundImageService` noch ruft es dessen Methoden auf; die Komponente rendert lediglich die Bild-URL des API-Endpoints (siehe Abschnitt „UI-Rendering"). Die Generierung wird ausschließlich vom `EpisodesController` beim Abruf des Bildes angestoßen.
 
 ## Ablauf: Episode-Detailseite laden und Hintergrundbild sicherstellen
 
-### 1. UI-Component lädt Episode
+### 1. Browser ruft Hintergrundbild-Endpoint auf
 
-**Komponente:** `TVShowDetails.razor` (OnInitializedAsync)
+**Komponente:** `TVShowDetails.razor` rendert den Header mit `style="background-image: url('@GetHeaderBackgroundUrl()')"`. Der Browser lädt dieses Bild als eigenständigen HTTP-Request — unabhängig vom initialen Seiten-Rendering der Blazor-Komponente.
 
-Beim Laden der Episode-Detailseite wird die `EnsureEpisodeBackgroundImageAsync()` Methode aufgerufen:
+**Endpoint:** `EpisodesController.GetBackgroundImage(long episodeId, CancellationToken cancellationToken)`
+
+Der Endpoint lädt die Episode und stößt die Generierung direkt an:
 
 ```csharp
-private async Task EnsureEpisodeBackgroundImageAsync()
+[HttpGet("{episodeId}/background-image")]
+public async Task<IActionResult> GetBackgroundImage(long episodeId, CancellationToken cancellationToken)
 {
-    if (selectedEpisode is null)
-        return;
+    CheckLogedIn();
 
-    try
-    {
-        var episode = await Db.TVShowEpisodes.AsNoTracking()
-            .FirstOrDefaultAsync(e => e.Id == selectedEpisode.Id);
-        if (episode is null)
-            return;
+    var episode = await _db.TVShowEpisodes.AsNoTracking()
+        .FirstOrDefaultAsync(e => e.Id == episodeId, cancellationToken);
+    if (episode is null)
+        return NotFound();
 
-        var picture = await BackgroundImageService
-            .EnsureBackgroundImageAsync(episode, CancellationToken.None);
-        selectedEpisode.GeneratedBackgroundPictureId = picture?.Id;
-    }
-    catch (Exception ex)
-    {
-        Logger.LogWarning(ex, "Hintergrundbild für Episode {EpisodeId} konnte nicht sichergestellt werden.", 
-            selectedEpisode?.Id);
-    }
+    var picture = await _backgroundImageService.EnsureBackgroundImageAsync(episode, cancellationToken);
+    picture ??= await GetFallbackPictureAsync(episode);
+    // ... liefert picture, Fallback (Banner/Fanart) oder Placeholder aus
 }
 ```
+
+**Entscheidung synchron vs. 202 Accepted:** Die Generierung erfolgt synchron innerhalb des Requests. Da der Bild-Request als separater HTTP-Aufruf (CSS `background-image`) erfolgt und nicht das initiale Seiten-Rendering blockiert, ist die Latenz von bis zu ~1 Sekunde bei der ersten Generierung tolerierbar; ein zweistufiger Ablauf mit `202 Accepted` und clientseitigem Retry würde unnötige Komplexität hinzufügen, ohne die Ladezeit der Seite selbst zu verbessern.
 
 ### 2. Service prüft Existenz und Cache
 
@@ -61,10 +59,10 @@ Im geschützten Lock-Block wird:
 
 1. Episode neu aus DB geladen (Optimistic Lock, um parallele Änderungen zu berücksichtigen)
 2. Nochmals geprüft, ob Bild bereits vorhanden (Double-Check)
-3. Fanart-Bild geladen: `TryLoadFanartPictureAsync()`
-   - Prüft: Ist `FanartPictureId` gesetzt?
-   - Lädt Bild-Binärdaten aus `Picture.Data`
-   - Falls kein Fanart: `null` zurückgeben → Keine Generierung
+3. Quellbild geladen: `TryLoadBackgroundSourcePictureAsync()`
+   - Prüft zuerst: Ist `FanartPictureId` gesetzt und liefert gültige Bilddaten?
+   - Falls nicht: Fällt auf `PosterPictureId` zurück (gleiche Prüfung)
+   - Falls weder Fanart noch Poster nutzbare Bilddaten liefern: `null` zurückgeben → Keine Generierung
 4. Generierung aufgerufen: `GenerateAndPersistBackgroundPictureAsync()`
 
 ### 4. Bildgenerierung
@@ -73,9 +71,9 @@ Im geschützten Lock-Block wird:
 
 Der Generator führt folgende Schritte aus:
 
-1. **ResizeImage()** — Skaliert Fanart auf max 1920×1080, erhält Seitenverhältnis
+1. **ResizeImage()** — Skaliert das Quellbild (Fanart oder Poster) auf max 1920×1080, erhält Seitenverhältnis
 2. **GetDominantColor()** — Berechnet dominante Farbe mittels 8×8 Pixel-Sampling-Grid
-3. **CreateCanvasWithScaledImage()** — Erstellt 1920×1080 Canvas gefüllt mit dominanter Farbe, platziert skaliertes Fanart zentriert
+3. **CreateCanvasWithScaledImage()** — Erstellt 1920×1080 Canvas gefüllt mit dominanter Farbe, platziert skaliertes Quellbild zentriert
 4. **ApplyTintOverlay()** — Wendet 40% schwarzes Overlay an für Textlesbarkeit
 5. **Als JPEG speichern** — Quality 85%, Returns `Picture` Objekt mit Binärdaten
 
@@ -104,38 +102,35 @@ Nach erfolgreicher Generierung:
 
 **Komponente:** `TVShowDetails.razor`
 
-Die Component prüft, ob Hintergrundbild vorhanden ist:
+Die Komponente greift nicht mehr direkt auf `EpisodeBackgroundImageService` zu (Architekturregel: Razor-Komponenten dürfen niemals direkt auf Services zugreifen). Solange eine Episode ausgewählt ist, wird die Bild-URL immer auf den API-Endpoint gesetzt — der Endpoint entscheidet serverseitig, ob das generierte Bild, ein Fallback (Banner/Fanart) oder der Placeholder ausgeliefert wird:
 
 ```csharp
 private string GetHeaderBackgroundUrl()
-    => HasGeneratedBackgroundImage()
-        ? $"/api/episodes/{selectedEpisode!.Id}/background-image?access_token={Client.AuthorizationToken}"
-        : GetBannerUrl(/* Fallback */);
-
-private bool HasGeneratedBackgroundImage()
-    => selectedEpisode is not null && (selectedEpisode.GeneratedBackgroundPictureId ?? 0) > 0;
+    => selectedEpisode is not null
+        ? BuildEpisodeBackgroundImageUrl(selectedEpisode.Id, Client.AuthorizationToken)
+        : GetBannerUrl(/* Fallback auf Staffel- oder Show-Ebene */);
 ```
 
 Header-Markup mit Hintergrundbild:
 
 ```html
-<div class="tvshow-header background-with-overlay" 
+<div class="tvshow-header" 
      style="background-image: url('@GetHeaderBackgroundUrl()'); position: relative;">
     <!-- ... Inhalte ... -->
 </div>
 ```
 
-CSS-Klasse `background-with-overlay` wendet Transparenz an (opacity: 0.4 oder ähnlich).
+Die Komponente fügt bewusst **keine** zusätzliche CSS-Verdunkelung über `.tvshow-header` hinzu (kein `background-with-overlay`-Modifier mehr). Der Tint-Schleier (siehe `ApplyTintOverlay()` oben) wird bereits serverseitig in das generierte Bild eingebacken; eine zusätzliche CSS-Ebene würde Episoden-Header gegenüber Film-/Staffel-/Collection-Headern spürbar dunkler erscheinen lassen, die nur den gemeinsamen Gradient-Overlay `.tvshow-header-overlay` erhalten.
 
-## Ablauf: Fanart-Update nach Media-Scanner
+## Ablauf: Fanart- oder Poster-Update nach Media-Scanner
 
-### 1. Scanner findet neues Fanart
+### 1. Scanner findet neues Fanart oder Poster
 
 **Komponente:** `MediaSourceClassifier.AssignPicturesToTVShowEpisodeAsync()`
 
 1. Neue Picture wird erstellt/aktualisiert (vom Scanner)
-2. `Episode.FanartPictureId = newFanartId` gesetzt
-3. Service aufgerufen: `EpisodeBackgroundImageService.MarkBackgroundImageForUpdateAsync(episodeId, cancellationToken)`
+2. `Episode.FanartPictureId` bzw. `Episode.PosterPictureId` wird gesetzt
+3. Service aufgerufen: `EpisodeBackgroundImageService.MarkBackgroundImageForUpdateAsync(episodeId, cancellationToken)` — sowohl bei neuem Fanart als auch bei neuem Poster, da Letzteres als Fallback-Quelle dient
 
 ### 2. Service markiert für Regenerierung
 
@@ -154,33 +149,37 @@ Beim nächsten Zugriff auf die Episode wird `EnsureBackgroundImageAsync()` aufge
 
 ### Endpoint: `GET /api/episodes/{episodeId}/background-image`
 
-**Komponente:** `EpisodesController.GetBackgroundImageAsync(long episodeId)`
+**Komponente:** `EpisodesController.GetBackgroundImage(long episodeId, CancellationToken cancellationToken)`
 
-1. Episode und GeneratedBackgroundPictureId laden
-2. Prüfe: Ist Picture vorhanden und `IsGeneratedBackground == true`?
-3. Falls ja:
+1. Login-Prüfung (`CheckLogedIn()`)
+2. Episode laden; falls unbekannt: `404 Not Found`
+3. `EpisodeBackgroundImageService.EnsureBackgroundImageAsync()` aufrufen — generiert das Bild bei Bedarf synchron (lazy, mit Cache/Lock wie oben beschrieben) und liefert das bestehende oder frisch generierte `Picture` zurück
+4. Falls kein generiertes Bild verfügbar ist (kein Fanart/Poster oder Generierung fehlgeschlagen): Fallback auf Banner oder Fanart der Episode laden
+5. Falls ein Bild (generiert oder Fallback) mit Daten vorhanden ist:
    - Response mit Status 200 OK
-   - Content-Type: `image/jpeg`
-   - Cache-Control-Header: `public, max-age=31536000` (1 Jahr, da Bilder unveränderlich)
+   - Content-Type aus `Picture.ContentType` (z. B. `image/jpeg`)
+   - Cache-Control-Header: `public, max-age=3600, must-revalidate` sowie ein `ETag`-Header auf Basis der `Picture.Id`. Da die URL nicht versioniert ist und sich das ausgelieferte Bild einer Episode durch `MarkBackgroundImageForUpdateAsync()` (bei Poster-/Fanart-/Thumb-Änderung) nun regenerieren kann, wird bewusst nur eine Stunde statt unbegrenzt lange gecacht; per `If-None-Match` kann der Client danach günstig mit `304 Not Modified` bedient werden, solange sich die `Picture.Id` nicht geändert hat
    - Bild-Binärdaten aus `Picture.Data` zurückgeben
-4. Falls nein:
-   - Fallback: Banner oder Fanart der Episode laden
-   - Oder Placeholder-Bild aus `wwwroot/images/placeholder.png` zurückgeben
+6. Andernfalls: Placeholder-Bild aus `wwwroot/images/placeholder.png` zurückgeben (ohne Cache-Control-Header)
+
+**Latenz:** Die erste Anfrage für eine Episode ohne bestehendes generiertes Bild löst die synchrone Generierung aus (bis zu ~1 Sekunde). Da der Bild-Request als eigenständiger Browser-Request (CSS `background-image`) erfolgt, blockiert dies nicht das Rendering der Seite selbst.
 
 ## Diagramm: Generierungsablauf
 
 ```mermaid
 flowchart TD
-    A[TVShowDetails.razor: OnInitializedAsync] -->|ruft auf| B["EnsureBackgroundImageAsync()"]
+    A[Browser: GET .../background-image] -->|ruft auf| B0["EpisodesController.GetBackgroundImage()"]
+    B0 -->|ruft auf| B["EnsureBackgroundImageAsync()"]
     B -->|prüft Cache| C{"Generiert<br/>bereits?"}
     C -->|Ja| D["TryGetExistingPictureAsync()"]
     D -->|Bild gefunden| E["Picture zurückgeben"]
-    E -->|Rendering| F["Header mit Bild"]
+    E -->|200 OK + Cache-Control| F["Bild-Response"]
     C -->|Nein| G["AsyncLock akquirieren"]
     G -->|Double-Check| H{"Parallel<br/>generiert?"}
     H -->|Ja| D
-    H -->|Nein| I["TryLoadFanartPictureAsync()"]
-    I -->|Fanart vorhanden| J["EpisodeBackgroundImageGenerator<br/>GenerateBackgroundImageAsync()"]
+    H -->|Nein| I["TryLoadBackgroundSourcePictureAsync()"]
+    I -->|Fanart nutzbar| J["EpisodeBackgroundImageGenerator<br/>GenerateBackgroundImageAsync()"]
+    I -->|Kein Fanart, Poster nutzbar| J
     J -->|Skalierung| K["ResizeImage()"]
     K -->|Dominante Farbe| L["GetDominantColor()"]
     L -->|Canvas erstellen| M["CreateCanvasWithScaledImage()"]
@@ -189,8 +188,8 @@ flowchart TD
     O -->|in DB speichern| P["GenerateAndPersistBackgroundPictureAsync()"]
     P -->|Cache speichern| Q["CachePictureId()"]
     Q -->|Lock freigeben| E
-    I -->|Fanart fehlt| R["null zurückgeben"]
-    R -->|Fallback| S["GetBannerUrl() verwenden"]
+    I -->|Weder Fanart noch Poster nutzbar| R["null zurückgeben"]
+    R -->|Fallback| S["GetFallbackPictureAsync() im Controller"]
     S --> F
 ```
 
@@ -213,10 +212,10 @@ flowchart TD
 
 | Szenario | Fehlerfall | Verhalten |
 |----------|-----------|-----------|
-| Fanart nicht vorhanden | `FanartPictureId` ist null | `null` zurückgeben → Fallback auf Banner/Fanart |
-| Fanart-Daten ungültig | `Picture.Data` ist null/leer | `null` zurückgeben → Fallback |
+| Weder Fanart noch Poster vorhanden | `FanartPictureId` und `PosterPictureId` sind null | `null` zurückgeben → Fallback auf Banner/Fanart |
+| Fanart- und Poster-Daten ungültig | `Picture.Data` bei beiden null/leer | `null` zurückgeben → Fallback |
 | Bildverarbeitung schlägt fehl | Exception in Generator | Exception geloggt (wenn EnableLogging=true), `null` zurückgeben → Fallback |
-| DB-Fehler beim Speichern | `SaveChangesAsync()` Exception | Exception propagiert, Component loggt Warning, Episode-Seite lädt trotzdem |
+| DB-Fehler beim Speichern | `SaveChangesAsync()` Exception | Exception propagiert bis in `EpisodesController.GetBackgroundImage()`, dort als `500 Internal Server Error` geloggt und beantwortet; Episode-Seite selbst bleibt unberührt, da der Bild-Request unabhängig vom Seiten-Rendering läuft |
 | Cache-Hit nach Fehler | GeneratedBackgroundPictureId gesetzt, aber Picture gelöscht | `null` → Fallback |
 
 Alle Fehler sind graceful: Die Episode wird weiterhin angezeigt, nur ohne generiertes Hintergrundbild.

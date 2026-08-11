@@ -37,20 +37,21 @@ namespace VideoWebPlayer.Services.EpisodeBackgroundImage
         }
 
         /// <summary>
-        /// Generates the full background image for an episode from raw fanart image data.
+        /// Generates the full background image for an episode from raw source image data
+        /// (the episode's fanart, or its poster as a fallback when no fanart is available).
         /// </summary>
         /// <param name="episode">The episode the background image is generated for.</param>
-        /// <param name="fanartData">The raw fanart image bytes.</param>
+        /// <param name="sourceImageData">The raw fanart or poster image bytes.</param>
         /// <param name="cancellationToken">A cancellation token.</param>
         /// <returns>The generated <see cref="Picture"/>, or <c>null</c> if generation failed.</returns>
-        public Task<Picture?> GenerateBackgroundImageAsync(TVShowEpisode episode, byte[] fanartData, CancellationToken cancellationToken)
+        public Task<Picture?> GenerateBackgroundImageAsync(TVShowEpisode episode, byte[] sourceImageData, CancellationToken cancellationToken)
         {
             try
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var resized = ResizeImage(fanartData, _options.MaxWidth, _options.MaxHeight);
-                var dominantColor = GetDominantColor(fanartData);
+                var resized = ResizeImage(sourceImageData, _options.MaxWidth, _options.MaxHeight);
+                var dominantColor = GetDominantColor(sourceImageData);
                 var canvas = CreateCanvasWithScaledImage(resized, _options.MaxWidth, _options.MaxHeight, dominantColor);
                 var tintColor = Color.ParseHex(_options.TintColor);
                 var tinted = ApplyTintOverlay(canvas, tintColor, _options.TintOpacity);

@@ -77,9 +77,9 @@
 
 #### Episode-Anzeige
 - ✅ Dynamisch generierte Episoden-Hintergrundbilder
-- ✅ Automatische Fanart-Verarbeitung (Skalierung, Farbextraktion, Overlay)
+- ✅ Automatische Fanart-Verarbeitung (Skalierung, Farbextraktion, Overlay), mit Poster als Fallback-Quelle
 - ✅ In-Memory Caching für optimale Performance
-- ✅ Automatische Regenerierung bei Fanart-Updates
+- ✅ Automatische Regenerierung bei Fanart- oder Poster-Updates
 
 #### Echtzeit-Updates
 - ✅ SignalR-basierte Push-Notifications

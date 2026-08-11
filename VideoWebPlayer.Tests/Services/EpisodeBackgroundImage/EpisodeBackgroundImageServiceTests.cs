@@ -180,6 +180,70 @@ public class EpisodeBackgroundImageServiceTests
         }
     }
 
+    [Fact]
+    public async Task Test_EnsureBackgroundImage_UsesPoster_WhenFanartMissing()
+    {
+        var (db, keeper, _) = CreateMockDbContext();
+        using (keeper)
+        await using (db)
+        {
+            var episode = await CreateTestEpisodeAsync(db, withFanart: false, withPoster: true);
+            var cache = new MemoryCache(new MemoryCacheOptions());
+            var service = CreateService(db, cache);
+
+            var picture = await service.EnsureBackgroundImageAsync(episode, TestContext.Current.CancellationToken);
+
+            Assert.NotNull(picture);
+            Assert.True(picture!.IsGeneratedBackground);
+
+            var reloaded = await db.TVShowEpisodes.AsNoTracking().FirstAsync(e => e.Id == episode.Id, TestContext.Current.CancellationToken);
+            Assert.Equal(picture.Id, reloaded.GeneratedBackgroundPictureId);
+        }
+    }
+
+    [Fact]
+    public async Task Test_EnsureBackgroundImage_ReturnsNull_WhenNeitherFanartNorPosterAvailable()
+    {
+        var (db, keeper, _) = CreateMockDbContext();
+        using (keeper)
+        await using (db)
+        {
+            var episode = await CreateTestEpisodeAsync(db, withFanart: false, withPoster: false);
+            var cache = new MemoryCache(new MemoryCacheOptions());
+            var service = CreateService(db, cache);
+
+            var picture = await service.EnsureBackgroundImageAsync(episode, TestContext.Current.CancellationToken);
+
+            Assert.Null(picture);
+            var reloaded = await db.TVShowEpisodes.AsNoTracking().FirstAsync(e => e.Id == episode.Id, TestContext.Current.CancellationToken);
+            Assert.Null(reloaded.GeneratedBackgroundPictureId);
+        }
+    }
+
+    [Fact]
+    public async Task Test_EnsureBackgroundImage_PrefersFanart_OverPoster_WhenBothAvailable()
+    {
+        var (db, keeper, _) = CreateMockDbContext();
+        using (keeper)
+        await using (db)
+        {
+            var episode = await CreateTestEpisodeAsync(
+                db,
+                withFanart: true,
+                fanartData: CreateTestImageBytes(SixLabors.ImageSharp.Color.Teal),
+                withPoster: true,
+                posterData: CreateTestImageBytes(SixLabors.ImageSharp.Color.Red));
+            var cache = new MemoryCache(new MemoryCacheOptions());
+            var service = CreateService(db, cache);
+
+            var picture = await service.EnsureBackgroundImageAsync(episode, TestContext.Current.CancellationToken);
+
+            Assert.NotNull(picture);
+            var fanart = await db.Pictures.AsNoTracking().FirstAsync(p => p.Id == episode.FanartPictureId!.Value, TestContext.Current.CancellationToken);
+            Assert.Equal(fanart.MediaItemId, picture!.MediaItemId);
+        }
+    }
+
     private static (ApplicationDbContext Db, SqliteConnection Keeper, string ConnectionString) CreateMockDbContext()
     {
         var connectionString = $"Data Source=file:epbgimg-tests-{Guid.NewGuid():N}?mode=memory&cache=shared";
@@ -205,7 +269,12 @@ public class EpisodeBackgroundImageServiceTests
         return new EpisodeBackgroundImageService(db, generator, cache, resolvedOptions, NullLogger<EpisodeBackgroundImageService>.Instance);
     }
 
-    private static async Task<TVShowEpisode> CreateTestEpisodeAsync(ApplicationDbContext db, bool withFanart, byte[]? fanartData = null)
+    private static async Task<TVShowEpisode> CreateTestEpisodeAsync(
+        ApplicationDbContext db,
+        bool withFanart,
+        byte[]? fanartData = null,
+        bool withPoster = false,
+        byte[]? posterData = null)
     {
         var show = new TVShow { Name = "Testshow", CreatedAt = DateTime.UtcNow };
         db.TVShows.Add(show);
@@ -221,6 +290,12 @@ public class EpisodeBackgroundImageServiceTests
         {
             var fanartPicture = await CreateTestPictureAsync(db, "fanart", fanartData ?? CreateTestImageBytes());
             episode.FanartPictureId = fanartPicture.Id;
+        }
+
+        if (withPoster)
+        {
+            var posterPicture = await CreateTestPictureAsync(db, "poster", posterData ?? CreateTestImageBytes());
+            episode.PosterPictureId = posterPicture.Id;
         }
 
         db.TVShowEpisodes.Add(episode);

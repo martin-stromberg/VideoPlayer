@@ -60,6 +60,7 @@
 
         if (isAuthenticated == true)
         {
+            await Client.EnsureAuthorizationTokenAsync(user);
             heroBackgroundStyle = $"--home-hero-image: url('/api/pictures/hero-background?access_token={Client.AuthorizationToken}');";
         }
     }

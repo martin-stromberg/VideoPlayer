@@ -171,6 +171,10 @@ else
         {
             <button class="genre-btn @(Vm.SelectedGenreId == genre.Id ? "selected" : "")"
                     @onclick="() => OnGenreSelected(genre.Id)">
+                @if (!string.IsNullOrWhiteSpace(genre.IconUrl))
+                {
+                    <img class="genre-icon" src="@genre.IconUrl" alt="" />
+                }
                 @genre.Name
             </button>
         }

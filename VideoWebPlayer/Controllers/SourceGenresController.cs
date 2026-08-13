@@ -1,5 +1,9 @@
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.IO;
+using System.Security.Cryptography;
+using System.Text;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Controllers;
 using VideoWebPlayer.Data;
@@ -14,17 +18,20 @@ using VideoWebPlayer.Services.Authentication;
 public class SourceGenresController : ApiBaseController
 {
     private readonly ApplicationDbContext _db;
+    private readonly IWebHostEnvironment _env;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SourceGenresController"/> class.
     /// </summary>
     /// <param name="authService">Authentication service.</param>
     /// <param name="db">Database context.</param>
+    /// <param name="env">Web host environment.</param>
     /// <param name="logger">Logger instance.</param>
-    public SourceGenresController(IAuthService authService, ApplicationDbContext db, ILogger<SourceGenresController> logger)
+    public SourceGenresController(IAuthService authService, ApplicationDbContext db, IWebHostEnvironment env, ILogger<SourceGenresController> logger)
         :base(authService, logger)
     {
         _db = db;
+        _env = env;
     }
 
     /// <summary>
@@ -78,7 +85,7 @@ public class SourceGenresController : ApiBaseController
                 {
                     SourceId = source.Id,
                     SourceName = source.Name,
-                    Genres = genres.Select(g => new GenreDto { Id = g.Id, Name = g.Name }).ToList()
+                    Genres = genres.Select(g => new GenreDto { Id = g.Id, Name = g.Name, IconUrl = GetGenreImageUrl(g.Name) }).ToList()
                 });
             }
 
@@ -107,7 +114,7 @@ public class SourceGenresController : ApiBaseController
         {
             CheckLogedIn();
 
-            // Prüfe, ob die Quelle für den Benutzer freigeschaltet ist
+            // Pr?fe, ob die Quelle f?r den Benutzer freigeschaltet ist
             var isAllowed = await _db.MediaSourceUsers
                 .AsNoTracking()
                 .AnyAsync(msu => msu.UserId == CurrentUser.Id && msu.MediaSourceId == sourceId);
@@ -147,21 +154,46 @@ public class SourceGenresController : ApiBaseController
             {
                 SourceId = source.Id,
                 SourceName = source.Name,
-                Genres = genres.Select(g => new GenreDto { Id = g.Id, Name = g.Name }).OrderBy(g => g.Name).ToList()
+                Genres = genres.Select(g => new GenreDto { Id = g.Id, Name = g.Name, IconUrl = GetGenreImageUrl(g.Name) }).OrderBy(g => g.Name).ToList()
             };
 
             return Ok(result);
         }
         catch (UnauthorizedAccessException ex)
         {
-            Logger.LogWarning(ex, "Zugriff verweigert beim Abrufen der Genres für Quelle");
+            Logger.LogWarning(ex, "Zugriff verweigert beim Abrufen der Genres f?r Quelle");
             return Unauthorized(ex.Message);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Fehler beim Abrufen der Genres für Quelle");
+            Logger.LogError(ex, "Fehler beim Abrufen der Genres f?r Quelle");
             return StatusCode(500, "Internal server error");
         }
     }
-}
 
+    private string? GetGenreImageUrl(string genreName)
+    {
+        if (string.IsNullOrWhiteSpace(genreName))
+            return null;
+
+        var key = GetGenreImageKey(genreName);
+        var iconsDir = Path.Combine(_env.WebRootPath, "images", "genres");
+        foreach (var ext in new[] { ".png", ".jpg", ".jpeg", ".webp", ".gif" })
+        {
+            var absPath = Path.Combine(iconsDir, $"{key}{ext}");
+            if (System.IO.File.Exists(absPath))
+            {
+                return $"/images/genres/{key}{ext}";
+            }
+        }
+
+        return null;
+    }
+
+    private static string GetGenreImageKey(string genreName)
+    {
+        var normalized = genreName.Trim().ToLowerInvariant();
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(normalized));
+        return Convert.ToHexString(hash).ToLowerInvariant();
+    }
+}

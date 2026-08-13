@@ -152,6 +152,15 @@ namespace VideoWebPlayer.Client
                 return httpClient.DefaultRequestHeaders.Authorization?.Parameter;
             }
         }
+
+        /// <summary>
+        /// Ensures an authorization token is available for the current user.
+        /// The default implementation does nothing; derived classes may impersonate.
+        /// </summary>
+        public virtual Task EnsureAuthorizationTokenAsync(ClaimsPrincipal? user, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
         
         public bool Initializing { get; set; }
         protected ILogger<VideoWebPlayerClient> Logger { get; }

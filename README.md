@@ -33,7 +33,7 @@
 
 ## Übersicht
 
-**VideoWebPlayer** ist eine Full-Stack-Lösung für die Verwaltung, Kategorisierung und das Streaming von privaten Video-Bibliotheken. Die Anwendung besteht aus einem ASP.NET Core Blazor-Backend und einer .NET MAUI Cross-Platform-App für mobile Endgeräte.
+**VideoWebPlayer** ist eine Full-Stack-Lösung für die Verwaltung, Kategorisierung und das Streaming von privaten Video-Bibliotheken. Die Anwendung besteht aus einer responsiven ASP.NET Core Blazor-Weboberfläche, einem Blazor-Backend und einer .NET MAUI Cross-Platform-App für mobile Endgeräte.
 
 ### Hauptmerkmale
 
@@ -43,6 +43,7 @@
 - 📥 **Offline-Downloads** - Vollständige Offline-Unterstützung in der MAUI-App
 - 🎯 **Intelligente Wiedergabe** - Continue-Watching, automatische Episodenfortschaltung
 - 🌐 **Mehrere Quellen** - FTP, SFTP und lokale Medienbibliotheken
+- 🎨 **Überarbeitete Medienbibliothek** - Modernes, responsives Layout für Dashboard, Filme, Serien und Wiedergabe
 
 ---
 
@@ -67,6 +68,7 @@
 - ✅ Favoriten-System
 - ✅ Continue-Watching mit Positionsspeicherung
 - ✅ Recent Entries Timeline
+- ✅ Dynamisches Hero-Hintergrundbild auf der Startseite
 
 #### Streaming & Playback
 - ✅ Direktes Video-Streaming vom Server
@@ -74,10 +76,22 @@
 - ✅ Adaptive Bitrate-Unterstützung
 - ✅ Position-Synchronisation über Geräte
 
+#### Episode-Anzeige
+- ✅ Dynamisch generierte Episoden-Hintergrundbilder
+- ✅ Automatische Fanart-Verarbeitung (Skalierung, Farbextraktion, Overlay), mit Poster als Fallback-Quelle
+- ✅ In-Memory Caching für optimale Performance
+- ✅ Automatische Regenerierung bei Fanart- oder Poster-Updates
+
 #### Echtzeit-Updates
 - ✅ SignalR-basierte Push-Notifications
 - ✅ Live-Updates der Medienbibliothek
 - ✅ Multi-Device-Synchronisation
+
+#### Administration
+- ✅ Zentraler Einrichtungsbereich mit Quellen, Backups, Updates, Sicherheit, Genres, Anwenderanlage und allgemeinen Programmeinstellungen
+- ✅ Konfigurierbarer Anwendungstitel für Navigation und Startseite
+- ✅ Administrative Backup-Verwaltung mit Hintergrund-Backups, Hintergrund-Restore mit Fortschritt, automatischer GVS-Aufbewahrung, Upload, Download und Löschen
+- ✅ Administrative Update-Verwaltung mit persistenten Update-Einstellungen, manueller Prüfung/Installation, Prerelease-Sicherheitsabfrage und Backup vor der Installation
 
 ### Frontend (.NET MAUI App)
 
@@ -119,6 +133,9 @@
 | Real-Time | SignalR | .NET 10 |
 | Authentication | ASP.NET Identity | .NET 10 |
 | FTP/SFTP | FluentFTP, SSH.NET | Latest |
+| Backups | msTools.Backup | Projektbibliothek |
+| Image Processing | SixLabors.ImageSharp | 3.1.11 |
+| Async Utilities | Nito.AsyncEx | 5.1.2 |
 
 ### Frontend (MAUI)
 
@@ -137,6 +154,7 @@
 | Serialization | Newtonsoft.Json |
 | HTTP Client | System.Net.Http |
 | Dependency Injection | Microsoft.Extensions.DependencyInjection |
+| Backups | msTools.Backup |
 
 ---
 
@@ -221,6 +239,7 @@ VideoWebPlayer.sln
 | [Installation & Setup](./Docs/GUIDE_Installation.md) | Vollständige Installations- und Konfigurationsanleitung |
 | [Benutzerhandbuch](./Docs/GUIDE_User_Manual.md) | Anleitung zur Nutzung der Anwendung |
 | [Feature-Übersicht](./Docs/GUIDE_Features.md) | Detaillierte Beschreibung aller Features |
+| [Medienbibliothek](./docs/help/medienbibliothek.md) | Bedienung der überarbeiteten Weboberfläche |
 
 ### 🔧 Technische Dokumentation
 
@@ -237,9 +256,14 @@ VideoWebPlayer.sln
 
 | Dokument | Beschreibung |
 |----------|--------------|
+| [Startseite – Hero-Hintergrund](./docs/help/startseite-hero-hintergrund.md) | Zusammengesetztes Hintergrundbild aus der „Weiterschauen"-Liste |
 | [Episode Selection](./Docs/TECH_Episode_Selection.md) | Smart Episode Selection & Play Button |
 | [MediaElement Error Handling](./Docs/TECH_MediaElement_Error_Handling.md) | Video-Player Fehlerbehandlung |
 | [Notification Ticker](./Docs/TECH_Notification_Ticker.md) | Footer-Lauftext-Komponente |
+| [Einrichtung](./docs/help/einrichtung.md) | Zentraler Administrationsbereich für Quellen, Backups, Updates, Sicherheit, Genres, Anwender und allgemeine Einstellungen |
+| [Backups](./docs/help/backups.md) | Administrative Backup-Verwaltung, automatische GVS-Backups, Hintergrund-Restore und Inhaltsblockade während Wiederherstellung |
+| [Updates](./docs/help/updates.md) | Administrative Update-Verwaltung, manuelle Prüfung und Installation, Prerelease-Freigabe und Backup vor Installation |
+| [Automatisierte Programmupdates](./docs/TECH_Auto_Update.md) | Update-Admin-UI, automatische Installation, Prerelease-Warnung, Backup vor Installation und EF-Migration |
 
 ### 📋 API-Dokumentation
 
@@ -254,6 +278,8 @@ VideoWebPlayer.sln
 
 ```
 VideoWebPlayer/
+├── msTools.Backup/              # Wiederverwendbare Backup-Bibliothek
+├── msTools.Backup.Tests/        # Tests der Backup-Bibliothek
 ├── VideoWebPlayer/              # ASP.NET Core Blazor Backend
 │   ├── Components/              # Blazor-Komponenten
 │   ├── Controllers/             # API-Controller

@@ -9,8 +9,30 @@ permissions:
   pull-requests: write
 
 jobs:
+  detect-backmerge:
+    # Back-Merge-PRs (main -> staging nach einem Release) enthalten nur bereits
+    # auf main released Code. Tests und Quality-Checks werden dann uebersprungen;
+    # uebersprungene Jobs gelten fuer die Branch-Protection als erfolgreich.
+    runs-on: ubuntu-latest
+    outputs:
+      is_backmerge: ${{ steps.check.outputs.is_backmerge }}
+    steps:
+      - name: Check whether PR is a back-merge from main
+        id: check
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          if [ "$HEAD_REF" = "main" ]; then
+            echo "is_backmerge=true" >> $GITHUB_OUTPUT
+            echo "::notice::Back-Merge-PR von main erkannt - Tests und Quality-Checks werden uebersprungen."
+          else
+            echo "is_backmerge=false" >> $GITHUB_OUTPUT
+          fi
+
   build:
     runs-on: ubuntu-latest
+    needs: detect-backmerge
+    if: needs.detect-backmerge.outputs.is_backmerge != 'true'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -33,7 +55,7 @@ jobs:
 
   unit-tests:
     runs-on: ubuntu-latest
-    needs: build
+    needs: [detect-backmerge, build]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -65,7 +87,7 @@ jobs:
 
   integration-tests:
     runs-on: ubuntu-latest
-    needs: build
+    needs: [detect-backmerge, build]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -94,7 +116,7 @@ jobs:
 
   security-scan:
     runs-on: ubuntu-latest
-    needs: build
+    needs: [detect-backmerge, build]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -111,7 +133,7 @@ jobs:
 
   code-quality:
     runs-on: ubuntu-latest
-    needs: build
+    needs: [detect-backmerge, build]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -135,7 +157,7 @@ jobs:
 
   lint-check:
     runs-on: ubuntu-latest
-    needs: build
+    needs: [detect-backmerge, build]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -154,10 +176,18 @@ jobs:
 
   summary:
     runs-on: ubuntu-latest
-    needs: [build, unit-tests, integration-tests, security-scan, code-quality, lint-check]
+    needs: [detect-backmerge, build, unit-tests, integration-tests, security-scan, code-quality, lint-check]
     if: always()
     steps:
+      - name: Back-merge summary
+        if: needs.detect-backmerge.outputs.is_backmerge == 'true'
+        run: |
+          echo "## PR CI Summary for Staging" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Back-Merge von \`main\` - Tests und Quality-Checks uebersprungen (Code ist auf main bereits released und validiert)." >> $GITHUB_STEP_SUMMARY
+
       - name: PR CI Summary
+        if: needs.detect-backmerge.outputs.is_backmerge != 'true'
         run: |
           echo "## PR CI Summary for Staging" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY

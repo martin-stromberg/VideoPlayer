@@ -10,6 +10,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="VideoWebPlayer.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.10" />
     <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="10.0.10" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.10" />
@@ -22,6 +26,8 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
+    <PackageReference Include="Nito.AsyncEx" Version="5.1.2" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.11" />
     <PackageReference Include="SSH.NET" Version="2025.1.0" />
     <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
     <PackageReference Include="Serilog.Settings.Configuration" Version="10.0.1" />
@@ -43,7 +49,16 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\msTools.Backup\msTools.Backup.csproj" />
     <ProjectReference Include="..\VideoWebPlayer.Client\VideoWebPlayer.Client.csproj" />
+  </ItemGroup>
+
+  <!-- msTools.Updater ist nicht auf NuGet veroeffentlicht; die DLL aus dem release.zip liegt unter lib/. -->
+  <ItemGroup>
+    <Reference Include="msTools.Updater">
+      <HintPath>..\lib\msTools.Updater\msTools.Updater.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
   </ItemGroup>
 
   <ItemGroup>

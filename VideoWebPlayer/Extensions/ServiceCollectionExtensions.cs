@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using System;
 using System.Net.Http;
@@ -17,6 +18,11 @@ using VideoWebPlayer.Services.Authentication;
 using VideoWebPlayer.Services.DemoData;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using System.Security.Claims;
+using msTools.Backup;
+using VideoWebPlayer.Services.Backups;
+using VideoWebPlayer.Services.EpisodeBackgroundImage;
+using VideoWebPlayer.Services.HomeBackgroundImage;
+using VideoWebPlayer.Services.Updates;
 using VideoWebPlayer.ViewModels;
 
 namespace VideoWebPlayer.Extensions;
@@ -55,7 +61,10 @@ public static class ServiceCollectionExtensions
         services.AddServerSideBlazor().AddCircuitOptions(o => o.DetailedErrors = true);
 
         services.AddCascadingAuthenticationState();
-        services.AddAuthorization();
+        services.AddAuthorization(options =>
+        {
+            options.AddPolicy("AdminOnly", policy => policy.RequireClaim("IsAdmin", "True"));
+        });
         services.AddScoped<AuthorizationTokenService>();
         services.AddScoped<IdentityUserAccessor>();
         services.AddScoped<IdentityRedirectManager>();
@@ -128,7 +137,11 @@ public static class ServiceCollectionExtensions
         });
 
         // Add antiforgery service (middleware will be configured in app startup)
-        builder.Services.AddAntiforgery();
+        builder.Services.AddAntiforgery(options =>
+        {
+            options.Cookie.SameSite = SameSiteMode.Lax;
+            options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        });
 
         // Optional: externe / 2FA Cookies ebenfalls anpassen
         //services.ConfigureExternalCookie(options =>
@@ -185,7 +198,7 @@ public static class ServiceCollectionExtensions
             return http;
         });
 
-        // Domänenspezifische Services
+        // Domaenenspezifische Services
         services.AddScoped<VideoWebPlayerClient>(sp =>
         {
             var authStateProvider = sp.GetRequiredService<AuthenticationStateProvider>();
@@ -207,7 +220,30 @@ public static class ServiceCollectionExtensions
         services.AddScoped<SftpMediaSourceReader>();
         services.AddScoped<DataUpgradeManager>();
         services.AddScoped<ProgramSettingsService>();
+        services.AddBackups(configuration.GetSection("Backups"));
+        services.AddScoped<IBackupDataProvider, VideoWebPlayerBackupDataProvider>();
+        services.AddSingleton<IBackgroundProcessingGate, BackgroundProcessingGate>();
+        services.AddSingleton<IBackupRestoreGuard, VideoWebPlayerBackupRestoreGuard>();
+        services.AddScoped<BackupSettingsService>();
+        services.AddScoped<IBackupOptionsProvider, BackupSettingsService>();
+        services.AddScoped<BackupOperationHistoryService>();
+        services.AddScoped<IAutomaticBackupRunner, VideoWebPlayerAutomaticBackupRunner>();
+        services.AddScoped<VideoWebPlayerBackupFacade>();
+        services.AddSingleton<ManualBackupJobService>();
+        services.AddSingleton<RestoreBackupJobService>();
+        services.AddSingleton<VideoWebPlayerUpdateSourceFactory>();
+        services.AddScoped<UpdateSettingsService>();
+        services.AddScoped<IUpdateSettingsService>(sp => sp.GetRequiredService<UpdateSettingsService>());
+        services.AddScoped<UpdateAdminService>();
+        services.AddScoped<IUpdateBackupService, VideoWebPlayerUpdateBackupService>();
         services.AddScoped<RecentEntryService>();
+        services.AddSingleton<IValidateOptions<EpisodeBackgroundImageOptions>, EpisodeBackgroundImageOptionsValidator>();
+        services.AddOptions<EpisodeBackgroundImageOptions>()
+            .Bind(configuration.GetSection("EpisodeBackgroundImage"))
+            .ValidateOnStart();
+        services.AddScoped<EpisodeBackgroundImageGenerator>();
+        services.AddScoped<EpisodeBackgroundImageService>();
+        services.AddScoped<HomeBackgroundImageGenerator>();
         services.AddTransient<IAuthService, AuthService>();
         services.AddHostedService<MediaSourceScanService>();
         services.AddHttpContextAccessor();
@@ -223,7 +259,7 @@ public static class ServiceCollectionExtensions
         // SignalR
         services.AddSignalR();
 
-        // JWT-Signaturschlüssel registrieren (Base64)
+        // JWT-Signaturschluessel registrieren (Base64)
         if (!string.IsNullOrWhiteSpace(jwtKey))
         {
             services.AddSingleton(new SymmetricSecurityKey(Convert.FromBase64String(jwtKey)));

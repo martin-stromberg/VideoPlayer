@@ -28,6 +28,7 @@ Diese Dokumentationen richten sich an Entwickler und beschreiben die technische 
 | Dokument | Beschreibung | Status |
 |----------|--------------|--------|
 | [SignalR-Implementation](./TECH_SignalR_Implementation.md) | Echtzeit-Update-System | ✅ Vollständig |
+| [Automatisierte Programmupdates](./TECH_Auto_Update.md) | Selbst-Update via msTools.Updater inkl. Sicherung vor der Installation | ✅ Vollständig |
 | [Media-Kategorisierung](./TECH_Media_Classification.md) | Automatische Video-Klassifizierung | ⏳ Geplant |
 | [REST API Reference](./TECH_API_Reference.md) | API-Endpoints und Verwendung | ⏳ Geplant |
 | [SignalR Hub Events](./TECH_SignalR_Events.md) | SignalR Event-Reference | ⏳ Geplant |
@@ -48,6 +49,15 @@ Dedizierte Dokumentationen für einzelne Komponenten befinden sich direkt bei de
 
 - `VideoWebPlayer.Maui/Services/Events/README.md` - Event-System Details
 - `VideoWebPlayer.Maui/Components/NotificationTicker.README.md` - Ticker-Komponente
+
+## 🛠️ Administrationshilfen
+
+Diese Dokumente beschreiben Bedienabläufe für Administratoren.
+
+| Dokument | Beschreibung | Status |
+|----------|--------------|--------|
+| [Backups](./help/backups.md) | Backup-Erstellung, Restore, Upload, Download, Löschung und GVS-Aufbewahrung | ✅ Vollständig |
+| [Updates](./help/updates.md) | Update-Status, manuelle Prüfung/Installation, automatische Installation, Prerelease-Freigabe und Backup vor Installation | ✅ Vollständig |
 
 ## 📖 Legende
 

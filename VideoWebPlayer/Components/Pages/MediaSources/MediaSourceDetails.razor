@@ -6,63 +6,6 @@
 @inject MediaSourceDetailsViewModel Vm
 @rendermode InteractiveServer
 
-<style>
-    .search-bar {
-        display: flex;
-        gap: 0.5rem;
-        margin-bottom: 1.2rem;
-        align-items: center;
-    }
-    .search-bar input[type="text"] {
-        flex: 1 1 auto;
-        min-width: 0;
-    }
-    .search-bar button {
-        flex: 0 0 auto;
-    }
-    .genre-scrollbar {
-        display: flex;
-        flex-direction: row;
-        flex-wrap: nowrap;
-        gap: 0.7rem;
-        overflow-x: auto;
-        overflow-y: hidden;
-        max-width: 100%;
-        min-width: 0;
-        padding: 0.5rem 0 1.2rem 0;
-        margin-bottom: 0.5rem;
-        scrollbar-width: thin;
-        scrollbar-color: #23232a #181820;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-gutter: stable;
-    }
-    .genre-scrollbar::-webkit-scrollbar {
-        height: 8px;
-        background: #181820;
-    }
-    .genre-scrollbar::-webkit-scrollbar-thumb {
-        background: #23232a;
-        border-radius: 4px;
-    }
-    .genre-btn {
-        background: #23232a;
-        color: #ffe066;
-        border: none;
-        border-radius: 18px;
-        padding: 0.5rem 1.2rem;
-        font-size: 1rem;
-        cursor: pointer;
-        transition: background 0.2s, color 0.2s;
-        white-space: nowrap;
-        flex: 0 0 auto;
-    }
-    .genre-btn.selected, .genre-btn:hover {
-        background: #ffe066;
-        color: #23232a;
-        font-weight: bold;
-    }
-</style>
-
 <script>
     window.saveScrollPosition = function (selector) {
         var el = document.querySelector(selector);
@@ -204,6 +147,11 @@ else
 {
     <PageTitle>@Vm.MediaSource.Name</PageTitle>    
 
+    <section class="media-section">
+        <span class="section-kicker">Quelle</span>
+        <h1>@Vm.MediaSource.Name</h1>
+    </section>
+
     <div class="search-bar">
         <input type="text"
                class="form-control"
@@ -232,7 +180,7 @@ else
         @foreach (var entry in Vm.Entries)
         {
             <a class="media-box-link" href="@entry.Url">
-                <div class="media-box" @onclick="async () => await OnMovieSelected(entry)">
+                <div class="media-box" @onclick="async () => await OnMovieSelected(entry)" title="@entry.Title">
                     @if (entry.ItemCount > 1)
                     {
                         <span class="collection-indicator" title="Enthält mehrere Filme">
@@ -242,9 +190,11 @@ else
                     <img class="media-poster"
                          src="@GetPosterUrl(entry)"
                          alt="@entry.Title"
+                         loading="lazy"
                          onerror="this.onerror=null;this.src='/images/placeholder.png';" />
-                    <div class="media-title">
-                        @entry.Title
+                    <span class="media-quick-play" aria-hidden="true">&#9654;</span>
+                    <div class="media-card-overlay">
+                        <span class="media-title-text">@entry.Title</span>
                     </div>
                 </div>
             </a>

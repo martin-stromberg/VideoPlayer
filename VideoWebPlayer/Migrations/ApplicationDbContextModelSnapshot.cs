@@ -15,7 +15,7 @@ namespace VideoWebPlayer.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "10.0.3");
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.10");
 
             modelBuilder.Entity("GenreName", b =>
                 {
@@ -259,6 +259,10 @@ namespace VideoWebPlayer.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("ApplicationTitle")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("DataVersion")
                         .HasColumnType("INTEGER");
 
@@ -380,6 +384,82 @@ namespace VideoWebPlayer.Migrations
                         .HasDatabaseName("UserNameIndex");
 
                     b.ToTable("AspNetUsers", (string)null);
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.BackupOperationHistory", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("CompletedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FileName")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Generation")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Operation")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("StartedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Succeeded")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("UserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("BackupOperationHistories");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.BackupSettings", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("AutomaticBackupsEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("FatherRetentionCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("GrandfatherRetentionCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("MaxUploadSizeBytes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SonRetentionCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("StoragePath")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("BackupSettings");
                 });
 
             modelBuilder.Entity("VideoWebPlayer.Data.BlockedLoginIp", b =>
@@ -820,7 +900,13 @@ namespace VideoWebPlayer.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("TEXT");
 
+                    b.Property<long?>("EpisodeId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int?>("Height")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsGeneratedBackground")
                         .HasColumnType("INTEGER");
 
                     b.Property<long>("MediaItemId")
@@ -836,6 +922,8 @@ namespace VideoWebPlayer.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("MediaItemId");
+
+                    b.HasIndex("EpisodeId", "IsGeneratedBackground");
 
                     b.ToTable("Pictures");
                 });
@@ -918,6 +1006,12 @@ namespace VideoWebPlayer.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<DateTime?>("BackgroundImageGeneratedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("BackgroundImageRequiresUpdate")
+                        .HasColumnType("INTEGER");
+
                     b.Property<long?>("BannerPictureId")
                         .HasColumnType("INTEGER");
 
@@ -937,6 +1031,9 @@ namespace VideoWebPlayer.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<long?>("FanartPictureId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("GeneratedBackgroundPictureId")
                         .HasColumnType("INTEGER");
 
                     b.Property<long>("MediaSourceId")
@@ -969,6 +1066,8 @@ namespace VideoWebPlayer.Migrations
                     b.HasIndex("BannerPictureId");
 
                     b.HasIndex("FanartPictureId");
+
+                    b.HasIndex("GeneratedBackgroundPictureId");
 
                     b.HasIndex("PosterPictureId");
 
@@ -1034,6 +1133,53 @@ namespace VideoWebPlayer.Migrations
                     b.HasIndex("TVShowId");
 
                     b.ToTable("TVShowSeasons");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.UpdateSettings", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("AllowPrereleaseUpdates")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("AutomaticChecksEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("AutomaticDownloadEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("AutomaticInstallationEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("CancelInstallationOnBackupFailure")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("CheckIntervalMinutes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("CreateBackupBeforeInstallation")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("RetainedUpdateBackupCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ServiceName")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UpdateBackupPath")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("UpdateSettings");
                 });
 
             modelBuilder.Entity("GenreName", b =>
@@ -1365,6 +1511,10 @@ namespace VideoWebPlayer.Migrations
                         .WithMany()
                         .HasForeignKey("FanartPictureId");
 
+                    b.HasOne("VideoWebPlayer.Data.Picture", "GeneratedBackgroundPicture")
+                        .WithMany()
+                        .HasForeignKey("GeneratedBackgroundPictureId");
+
                     b.HasOne("VideoWebPlayer.Data.Picture", "PosterPicture")
                         .WithMany()
                         .HasForeignKey("PosterPictureId");
@@ -1378,6 +1528,8 @@ namespace VideoWebPlayer.Migrations
                     b.Navigation("BannerPicture");
 
                     b.Navigation("FanartPicture");
+
+                    b.Navigation("GeneratedBackgroundPicture");
 
                     b.Navigation("PosterPicture");
 

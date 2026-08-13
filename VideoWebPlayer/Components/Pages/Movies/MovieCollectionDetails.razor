@@ -1,4 +1,5 @@
 @page "/moviecollection/{Id:long}"
+@using Microsoft.AspNetCore.Components.Web
 @using Microsoft.EntityFrameworkCore
 @using System.Security.Claims
 @using VideoWebPlayer.Data
@@ -49,7 +50,7 @@ else if (selectedMovie != null)
             </button>
         </div>
     </div>
-    <div style="text-align:start; margin-bottom:1.5rem;">
+    <div class="media-section">
         <a class="btn btn-primary"
            href="@GetDownloadUrl(selectedMovie)"
            download>
@@ -97,12 +98,21 @@ else
             if (name.StartsWith(collection.Name))
                 name = name.Remove(0, collection.Name.Length).TrimStart(' ', ':', '-');
             if (string.IsNullOrWhiteSpace(name) || (name.Length <= 3)) name = movie.Name;
-            <div class="media-box" @onclick="() => SelectMovieAsync(movie)">
+            <div class="media-box"
+                 role="button"
+                 tabindex="0"
+                 @onclick="() => SelectMovieAsync(movie)"
+                 @onkeydown="args => SelectMovieByKeyboard(args, movie)"
+                 title="@movie.Name">
                 <img class="media-poster"
                      src="@GetPosterUrl(movie)"
                      alt="@movie.Name"
+                     loading="lazy"
                      onerror="this.onerror=null;this.src='/images/placeholder.png';" />
-                <div class="media-title" title="@movie.Name">@name</div>
+                <span class="media-quick-play" aria-hidden="true">&#9654;</span>
+                <div class="media-card-overlay">
+                    <span class="media-title-text">@name</span>
+                </div>
             </div>
         }
     </div>
@@ -217,6 +227,12 @@ else
         IsMovieFavorite = await CheckIfFavorite(collectionId: null, movieId: selectedMovie);
     }
 
+    private async Task SelectMovieByKeyboard(KeyboardEventArgs args, DtoMovie movie)
+    {
+        if (args.Key is "Enter" or " " or "Spacebar")
+            await SelectMovieAsync(movie);
+    }
+
     private void ShowCollection()
     {
         selectedMovie = null;
@@ -260,24 +276,3 @@ else
     }
 }
 <script src="scroll-horizontal.js"></script>
-<style>
-.btn-primary {
-    margin-top: 1rem;
-}
-.favorite-btn {
-    position: absolute;
-    top: 1.2rem;
-    right: 1.2rem;
-    background: none;
-    border: none;
-    font-size: 2.2rem;
-    color: #ffe066;
-    cursor: pointer;
-    z-index: 20;
-    transition: color 0.2s;
-    text-shadow: 0 2px 8px #000;
-}
-.favorite-btn:hover {
-    color: #ffd700;
-}
-</style>

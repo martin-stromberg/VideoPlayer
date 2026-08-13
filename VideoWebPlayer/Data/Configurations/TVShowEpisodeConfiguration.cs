@@ -15,6 +15,11 @@ namespace VideoWebPlayer.Data.Configurations
                 .HasOne(e => e.TVShowSeason)
                 .WithMany(s => s.Episodes)
                 .HasForeignKey(e => e.TVShowSeasonId);
+
+            builder
+                .HasOne(e => e.GeneratedBackgroundPicture)
+                .WithMany()
+                .HasForeignKey(e => e.GeneratedBackgroundPictureId);
         }
     }
 }

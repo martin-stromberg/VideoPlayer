@@ -60,42 +60,19 @@
 
 @if (Items.Any())
 {
-    <h2>Weiterschauen</h2>
-    <div class="continue-watching-list" @ref="listRef">
-        @foreach (var it in Items)
-        {
-            if (titles.ContainsKey(it.Entry.Id))
+    <section class="media-section" aria-labelledby="continue-watching-title">
+        <h2 id="continue-watching-title">Weiterschauen</h2>
+        <div class="continue-watching-list" @ref="listRef">
+            @foreach (var it in Items)
             {
-                <MediaBox Title="@titles[it.Entry.Id]" ImageUrl="@images[it.Entry.Id]" LinkUrl="@links[it.Entry.Id]" />
+                if (titles.ContainsKey(it.Entry.Id))
+                {
+                    <MediaBox Title="@titles[it.Entry.Id]" ImageUrl="@images[it.Entry.Id]" LinkUrl="@links[it.Entry.Id]" />
+                }
             }
-        }
-    </div>
+        </div>
+    </section>
 }
-
-<style>
-.continue-watching-list {
-    display: flex;
-    flex-direction: row;
-    gap: 1.5rem;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding: 1rem 0;
-    margin-bottom: 2rem;
-    scrollbar-width: thin;
-    scrollbar-color: #23232a #181820;
-}
-.continue-watching-list::-webkit-scrollbar {
-    height: 8px;
-    background: #181820;
-}
-.continue-watching-list::-webkit-scrollbar-thumb {
-    background: #23232a;
-    border-radius: 4px;
-}
-.continue-watching-list::-webkit-scrollbar-thumb:hover {
-    background: #ffe066;
-}
-</style>
 
 <script>
 window.enableHorizontalWheelScroll = window.enableHorizontalWheelScroll || function (selector) {

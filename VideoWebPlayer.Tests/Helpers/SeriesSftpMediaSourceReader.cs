@@ -158,6 +158,17 @@ public sealed class SeriesSftpMediaSourceReader : SftpMediaSourceReader
         });
     }
 
+    public void AddEpisodePictureFile(string showName, int seasonNo, int episodeNo, string type)
+    {
+        var baseName = $"S{seasonNo:00}E{episodeNo:00}";
+        _rootFolder.ChildFolders[showName].ChildFolders[$"Season{seasonNo:00}"].Files.Add(new SourceFile()
+        {
+            Name = $"{baseName}-{type}.jpg",
+            CreatedAt = DateTime.UtcNow,
+            Data = GetDummyPicture()
+        });
+    }
+
     public override IEnumerable<MediaEntry> ReadRootDirectory(MediaSource source)
     {
         yield return new MediaCollection

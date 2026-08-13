@@ -26,15 +26,19 @@ builder.Host.UseSerilog((ctx, services, cfg) =>
 	   .Enrich.FromLogContext());
 
 builder.AddVideoWebPlayerServices();
+builder.AddVideoWebPlayerAutoUpdate();
 
 var app = builder.Build();
 app.MigrateDatabase();
 app.UseVideoWebPlayer();
 
-// Start UDP Discovery Listener
-var udpPort = 5001; // Discovery port
-var serverAddress = $"http://{app.Configuration["Host:Address"] ?? "localhost"}:{app.Configuration["Host:Port"] ?? "5000"}";
-var udpListener = new UdpDiscoveryListener(udpPort, serverAddress);
-udpListener.Start();
+// Start UDP Discovery Listener (im Test nicht starten, damit E2E-Tests keinen fixen Port belegen)
+if (!app.Environment.IsEnvironment("Testing"))
+{
+    var udpPort = 5001; // Discovery port
+    var serverAddress = $"http://{app.Configuration["Host:Address"] ?? "localhost"}:{app.Configuration["Host:Port"] ?? "5000"}";
+    var udpListener = new UdpDiscoveryListener(udpPort, serverAddress);
+    udpListener.Start();
+}
 
 app.Run();

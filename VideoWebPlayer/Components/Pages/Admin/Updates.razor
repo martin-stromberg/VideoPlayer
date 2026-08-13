@@ -1,0 +1,392 @@
+@page "/admin/updates"
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Antiforgery
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.WebUtilities
+@using msTools.Updater
+@using VideoWebPlayer.Services.Updates
+@inject IAntiforgery Antiforgery
+@inject IHttpContextAccessor HttpContextAccessor
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager NavigationManager
+@inject UpdateAdminService UpdateAdmin
+@implements IDisposable
+@rendermode InteractiveServer
+
+<PageTitle>Updates</PageTitle>
+
+@if (!isAdmin)
+{
+    <div class="alert alert-danger">Nicht autorisiert.</div>
+}
+else if (model is null || status is null)
+{
+    <div class="alert alert-info">Lade...</div>
+}
+else
+{
+    <section class="admin-console admin-update-page">
+    <h1>Updates</h1>
+
+    @if (!string.IsNullOrWhiteSpace(successMessage))
+    {
+        <div class="alert alert-success">@successMessage</div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+
+    <div class="alert @GetStatusAlertClass(status)" role="status">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div>
+                <strong>@GetStatusText(status)</strong>
+                @if (!string.IsNullOrWhiteSpace(status.AvailableVersion))
+                {
+                    <span> Version @status.AvailableVersion</span>
+                }
+            </div>
+            <span class="badge @GetStatusBadgeClass(status)">@status.State</span>
+        </div>
+        @if (!string.IsNullOrWhiteSpace(status.LastError))
+        {
+            <div class="mt-2">@status.LastError</div>
+        }
+        @if (status.IsLocked)
+        {
+            <div class="mt-2">Update-Sperre aktiv seit @FormatDate(status.LockCreatedAt).</div>
+        }
+    </div>
+
+    <div class="mb-3 d-flex gap-2 flex-wrap">
+        <form method="post" action="/admin/updates/api/check">
+            @if (!string.IsNullOrWhiteSpace(antiforgeryRequestToken))
+            {
+                <input type="hidden" name="__RequestVerificationToken" value="@antiforgeryRequestToken" />
+            }
+            <button class="btn btn-primary" type="submit" disabled="@(isBusy || IsActionBlocked)">Jetzt pruefen</button>
+        </form>
+        <form method="post" action="/admin/updates/api/install">
+            @if (!string.IsNullOrWhiteSpace(antiforgeryRequestToken))
+            {
+                <input type="hidden" name="__RequestVerificationToken" value="@antiforgeryRequestToken" />
+            }
+            <button class="btn btn-warning" type="submit" disabled="@(isBusy || IsActionBlocked || !UpdateAdminService.IsInstallable(status))">Update installieren</button>
+        </form>
+        <button class="btn btn-outline-secondary" @onclick="ReloadAsync" disabled="@isBusy">Aktualisieren</button>
+    </div>
+
+    <h2 class="h4">Statusdetails</h2>
+    <table class="table table-dark table-striped align-middle">
+        <tbody>
+            <tr><th>Installierte Version</th><td>@Empty(status.InstalledVersion)</td></tr>
+            <tr><th>Verfuegbare Version</th><td>@Empty(status.AvailableVersion)</td></tr>
+            <tr><th>Prerelease</th><td>@(status.LastCheckResult?.IsPrerelease == true ? "Ja" : "Nein")</td></tr>
+            <tr><th>Veroeffentlicht</th><td>@FormatDate(status.LastCheckResult?.PublishedAt)</td></tr>
+            <tr><th>Letzte Pruefung</th><td>@FormatDate(status.LastCheckedAt)</td></tr>
+            <tr><th>Letzter Download</th><td>@FormatDownload(status.LastDownloadResult)</td></tr>
+            <tr><th>Letzte Installation</th><td>@FormatInstall(status.LastInstallResult)</td></tr>
+            <tr><th>Letztes Pruefergebnis</th><td>@Empty(status.LastCheckResult?.AvailableVersion)</td></tr>
+        </tbody>
+    </table>
+
+    <h2 class="h4">Einstellungen</h2>
+    <EditForm Model="model" OnValidSubmit="SaveAsync">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="form-check mb-3">
+            <InputCheckbox class="form-check-input" @bind-Value="model.AutomaticChecksEnabled" />
+            <label class="form-check-label">Automatische Pruefung aktivieren</label>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Pruefintervall in Minuten</label>
+            <InputNumber class="form-control" @bind-Value="model.CheckIntervalMinutes" />
+        </div>
+
+        <div class="form-check mb-2">
+            <InputCheckbox class="form-check-input" @bind-Value="model.AllowPrereleaseUpdates" />
+            <label class="form-check-label">Prerelease-Versionen akzeptieren</label>
+        </div>
+        @if (model.AllowPrereleaseUpdates && !prereleaseWasEnabled)
+        {
+            <div class="alert alert-warning">
+                <div>Prerelease-Versionen koennen experimentell sein.</div>
+                <div class="form-check mt-2">
+                    <InputCheckbox class="form-check-input" @bind-Value="confirmPrerelease" />
+                    <label class="form-check-label">Prerelease-Aktivierung bestaetigen</label>
+                </div>
+            </div>
+        }
+
+        <div class="form-check mb-3">
+            <InputCheckbox class="form-check-input" @bind-Value="model.AutomaticInstallationEnabled" />
+            <label class="form-check-label">Neue Version automatisch installieren</label>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Dienstname fuer Neustart</label>
+            <InputText class="form-control" @bind-Value="model.ServiceName" />
+        </div>
+
+        <div class="form-check mb-3">
+            <InputCheckbox class="form-check-input" @bind-Value="model.CreateBackupBeforeInstallation" />
+            <label class="form-check-label">Backup vor Installation erstellen</label>
+        </div>
+
+        <div class="form-check mb-3">
+            <InputCheckbox class="form-check-input" @bind-Value="model.CancelInstallationOnBackupFailure" />
+            <label class="form-check-label">Installation bei Backupfehler abbrechen</label>
+        </div>
+
+        <div class="row">
+            <div class="col-md-8 mb-3">
+                <label class="form-label">Update-Backup-Pfad</label>
+                <InputText class="form-control" @bind-Value="model.UpdateBackupPath" />
+            </div>
+            <div class="col-md-4 mb-3">
+                <label class="form-label">Aufbewahrung Update-Backups</label>
+                <InputNumber class="form-control" @bind-Value="model.RetainedUpdateBackupCount" />
+            </div>
+        </div>
+
+        <button class="btn btn-primary" type="submit" disabled="@isBusy">Einstellungen speichern</button>
+    </EditForm>
+    </section>
+}
+
+@code {
+    private bool isAdmin;
+    private bool isBusy;
+    private bool prereleaseWasEnabled;
+    private bool confirmPrerelease;
+    private string? successMessage;
+    private string? errorMessage;
+    private string? antiforgeryRequestToken;
+    private SettingsModel? model;
+    private AutoUpdateStatusSnapshot? status;
+    private PeriodicTimer? timer;
+    private CancellationTokenSource? timerCts;
+
+    private bool IsActionBlocked => status is null || UpdateAdminService.IsBusy(status);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = auth.User;
+        isAdmin = user.Identity?.IsAuthenticated == true && user.HasClaim("IsAdmin", "True");
+        if (!isAdmin)
+            return;
+
+        antiforgeryRequestToken = CreateAntiforgeryRequestToken();
+        ApplyQueryMessages();
+        await ReloadAsync();
+        StartPolling();
+    }
+
+    private string? CreateAntiforgeryRequestToken()
+    {
+        var httpContext = HttpContextAccessor.HttpContext;
+        return httpContext is null
+            ? null
+            : Antiforgery.GetAndStoreTokens(httpContext).RequestToken;
+    }
+
+    private void ApplyQueryMessages()
+    {
+        var query = QueryHelpers.ParseQuery(NavigationManager.ToAbsoluteUri(NavigationManager.Uri).Query);
+        if (query.TryGetValue("updateStatus", out var statusMessage))
+            successMessage = statusMessage.ToString();
+        if (query.TryGetValue("updateError", out var error))
+            errorMessage = error.ToString();
+    }
+
+    private async Task ReloadAsync()
+    {
+        var snapshot = await UpdateAdmin.GetSnapshotAsync();
+        status = snapshot.Status;
+        model = new SettingsModel
+        {
+            AutomaticChecksEnabled = snapshot.Settings.AutomaticChecksEnabled,
+            CheckIntervalMinutes = snapshot.Settings.CheckIntervalMinutes,
+            AllowPrereleaseUpdates = snapshot.Settings.AllowPrereleaseUpdates,
+            AutomaticInstallationEnabled = snapshot.Settings.AutomaticInstallationEnabled,
+            ServiceName = snapshot.Settings.ServiceName,
+            CreateBackupBeforeInstallation = snapshot.Settings.CreateBackupBeforeInstallation,
+            CancelInstallationOnBackupFailure = snapshot.Settings.CancelInstallationOnBackupFailure,
+            UpdateBackupPath = snapshot.Settings.UpdateBackupPath,
+            RetainedUpdateBackupCount = snapshot.Settings.RetainedUpdateBackupCount
+        };
+        prereleaseWasEnabled = model.AllowPrereleaseUpdates;
+        confirmPrerelease = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (model is null)
+            return;
+
+        if (model.AllowPrereleaseUpdates && !prereleaseWasEnabled && !confirmPrerelease)
+        {
+            model.AllowPrereleaseUpdates = false;
+            errorMessage = "Prerelease-Versionen wurden nicht aktiviert, weil die Sicherheitsabfrage nicht bestaetigt wurde.";
+            return;
+        }
+
+        isBusy = true;
+        successMessage = null;
+        errorMessage = null;
+        try
+        {
+            await UpdateAdmin.UpdateSettingsAsync(new UpdateSettingsUpdate(
+                model.AutomaticChecksEnabled,
+                model.CheckIntervalMinutes,
+                model.AllowPrereleaseUpdates,
+                model.AutomaticInstallationEnabled,
+                AutomaticDownloadEnabled: true,
+                model.ServiceName,
+                model.CreateBackupBeforeInstallation,
+                model.CancelInstallationOnBackupFailure,
+                model.UpdateBackupPath,
+                model.RetainedUpdateBackupCount));
+            successMessage = "Einstellungen wurden gespeichert.";
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private void StartPolling()
+    {
+        timerCts = new CancellationTokenSource();
+        timer = new PeriodicTimer(TimeSpan.FromSeconds(3));
+        _ = PollAsync(timerCts.Token);
+    }
+
+    private async Task PollAsync(CancellationToken cancellationToken)
+    {
+        if (timer is null)
+            return;
+
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await InvokeAsync(async () =>
+                {
+                    var snapshot = await UpdateAdmin.GetSnapshotAsync(cancellationToken);
+                    status = snapshot.Status;
+                    StateHasChanged();
+                });
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private static string GetStatusAlertClass(AutoUpdateStatusSnapshot snapshot) => snapshot.State switch
+    {
+        AutoUpdateState.Failed => "alert-danger",
+        AutoUpdateState.UpdateAvailable or AutoUpdateState.ReadyToInstall => "alert-warning",
+        AutoUpdateState.Installing or AutoUpdateState.Downloading or AutoUpdateState.Checking => "alert-info",
+        AutoUpdateState.Disabled => "alert-secondary",
+        AutoUpdateState.Success => "alert-success",
+        _ => "alert-light"
+    };
+
+    private static string GetStatusBadgeClass(AutoUpdateStatusSnapshot snapshot) => snapshot.State switch
+    {
+        AutoUpdateState.Failed => "bg-danger",
+        AutoUpdateState.UpdateAvailable or AutoUpdateState.ReadyToInstall => "bg-warning text-dark",
+        AutoUpdateState.Installing or AutoUpdateState.Downloading or AutoUpdateState.Checking => "bg-info text-dark",
+        AutoUpdateState.Disabled => "bg-secondary",
+        AutoUpdateState.Success => "bg-success",
+        _ => "bg-light text-dark"
+    };
+
+    private static string GetStatusText(AutoUpdateStatusSnapshot snapshot) => snapshot.State switch
+    {
+        AutoUpdateState.Checking => "Pruefung laeuft.",
+        AutoUpdateState.UpdateAvailable => "Neue Version verfuegbar.",
+        AutoUpdateState.Downloading => "Download laeuft.",
+        AutoUpdateState.ReadyToInstall => "Update ist bereit zur Installation.",
+        AutoUpdateState.Installing => "Installation laeuft.",
+        AutoUpdateState.Success => "Letzte Update-Aktion erfolgreich.",
+        AutoUpdateState.Failed => "Update fehlgeschlagen.",
+        AutoUpdateState.Disabled => "Automatische Updates sind deaktiviert.",
+        _ => "Anwendung ist aktuell oder wartet auf die naechste Pruefung."
+    };
+
+    private static string FormatDate(DateTimeOffset? value)
+        => value?.ToLocalTime().ToString("g") ?? "-";
+
+    private static string FormatDownload(AutoUpdateDownloadResult? result)
+        => result is null
+            ? "-"
+            : $"{Path.GetFileName(result.LocalPath)} ({FormatBytes(result.SizeBytes)}, Checksum {(result.ChecksumValid ? "ok" : "ungueltig")})";
+
+    private static string FormatInstall(AutoUpdateInstallResult? result)
+        => result is null
+            ? "-"
+            : $"{result.Version}, gestartet {result.StartedAt.ToLocalTime():g}";
+
+    private static string FormatBytes(long bytes)
+    {
+        string[] units = ["B", "KB", "MB", "GB"];
+        var value = (double)bytes;
+        var unit = 0;
+        while (value >= 1024 && unit < units.Length - 1)
+        {
+            value /= 1024;
+            unit++;
+        }
+
+        return $"{value:0.##} {units[unit]}";
+    }
+
+    private static string Empty(string? value)
+        => string.IsNullOrWhiteSpace(value) ? "-" : value;
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        timerCts?.Cancel();
+        timer?.Dispose();
+        timerCts?.Dispose();
+    }
+
+    private sealed class SettingsModel
+    {
+        public bool AutomaticChecksEnabled { get; set; } = true;
+
+        [Range(1, 24 * 60)]
+        public int CheckIntervalMinutes { get; set; } = 360;
+
+        public bool AllowPrereleaseUpdates { get; set; }
+
+        public bool AutomaticInstallationEnabled { get; set; }
+
+        [MaxLength(200)]
+        public string? ServiceName { get; set; }
+
+        public bool CreateBackupBeforeInstallation { get; set; } = true;
+
+        public bool CancelInstallationOnBackupFailure { get; set; } = true;
+
+        [Required]
+        [MaxLength(1024)]
+        public string UpdateBackupPath { get; set; } = "Backups";
+
+        [Range(0, 365)]
+        public int RetainedUpdateBackupCount { get; set; } = 5;
+    }
+}

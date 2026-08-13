@@ -45,6 +45,12 @@ public sealed class ProgramSettingsService
                 changed = true;
             }
 
+            if (string.IsNullOrWhiteSpace(setup.ApplicationTitle))
+            {
+                setup.ApplicationTitle = "Martins Videosammlung";
+                changed = true;
+            }
+
             if (changed)
                 await _db.SaveChangesAsync(cancellationToken);
 
@@ -82,6 +88,42 @@ public sealed class ProgramSettingsService
     {
         var setup = await GetOrCreateSetupAsync(cancellationToken);
 
+        setup.ScanProcessIntervalMinutes = Math.Max(1, scanProcessIntervalMinutes);
+        setup.MediaCollectionScanIntervalDays = Math.Max(1, mediaCollectionScanIntervalDays);
+
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Gets the configured application title.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task<string> GetApplicationTitleAsync(CancellationToken cancellationToken = default)
+    {
+        var setup = await GetOrCreateSetupAsync(cancellationToken);
+        return string.IsNullOrWhiteSpace(setup.ApplicationTitle)
+            ? "Martins Videosammlung"
+            : setup.ApplicationTitle;
+    }
+
+    /// <summary>
+    /// Updates the application title and scan-related program settings.
+    /// </summary>
+    /// <param name="applicationTitle">Application title shown in the UI.</param>
+    /// <param name="scanProcessIntervalMinutes">Interval for the scan process in minutes.</param>
+    /// <param name="mediaCollectionScanIntervalDays">Interval for re-scanning media collections in days.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task UpdateGeneralSettingsAsync(
+        string applicationTitle,
+        int scanProcessIntervalMinutes,
+        int mediaCollectionScanIntervalDays,
+        CancellationToken cancellationToken = default)
+    {
+        var setup = await GetOrCreateSetupAsync(cancellationToken);
+
+        setup.ApplicationTitle = string.IsNullOrWhiteSpace(applicationTitle)
+            ? "Martins Videosammlung"
+            : applicationTitle.Trim();
         setup.ScanProcessIntervalMinutes = Math.Max(1, scanProcessIntervalMinutes);
         setup.MediaCollectionScanIntervalDays = Math.Max(1, mediaCollectionScanIntervalDays);
 

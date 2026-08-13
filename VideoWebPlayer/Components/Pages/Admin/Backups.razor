@@ -1,0 +1,661 @@
+@page "/admin/backups"
+@using System.ComponentModel.DataAnnotations
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Antiforgery
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.WebUtilities
+@using msTools.Backup
+@using VideoWebPlayer.Data
+@using VideoWebPlayer.Services.Backups
+@inject IAntiforgery Antiforgery
+@inject IHttpContextAccessor HttpContextAccessor
+@inject VideoWebPlayerBackupFacade BackupFacade
+@inject BackupSettingsService SettingsService
+@inject ManualBackupJobService ManualBackupJobs
+@inject RestoreBackupJobService RestoreJobs
+@inject IBackgroundProcessingGate BackgroundGate
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager NavigationManager
+@implements IDisposable
+@rendermode InteractiveServer
+
+<PageTitle>Backups</PageTitle>
+
+@if (!isAdmin)
+{
+    <div class="alert alert-danger">Nicht autorisiert.</div>
+}
+else if (settingsModel is null)
+{
+    <div class="alert alert-info">Lade...</div>
+}
+else
+{
+    <section class="admin-console admin-backup-page">
+    <h1>Backups</h1>
+
+    @if (!string.IsNullOrWhiteSpace(successMessage))
+    {
+        <div class="alert alert-success">@successMessage</div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+
+    @if (BackgroundGate.IsPausedForRestore)
+    {
+        <div class="alert alert-warning">Ein Restore läuft. Schreibende Hintergrundprozesse sind angehalten.</div>
+    }
+
+    @if (restoreJob is not null && restoreJob.Status != RestoreBackupJobStatus.Idle)
+    {
+        <div class="alert @GetRestoreAlertClass(restoreJob)" role="status">
+            <strong>Wiederherstellung:</strong> @GetRestoreStatusText(restoreJob)
+            @if (restoreJob.Progress.DataSetTotal > 0)
+            {
+                <div>Datenbestand @restoreJob.Progress.DataSetNumber von @restoreJob.Progress.DataSetTotal@if (!string.IsNullOrWhiteSpace(restoreJob.Progress.DataSetName)) { <span>: @restoreJob.Progress.DataSetName</span> }</div>
+            }
+            @if (restoreJob.Progress.RecordTotal > 0)
+            {
+                <div>Datensatz @restoreJob.Progress.RecordNumber von @restoreJob.Progress.RecordTotal</div>
+            }
+            @if (!string.IsNullOrWhiteSpace(restoreJob.Error))
+            {
+                <span>@restoreJob.Error</span>
+            }
+        </div>
+    }
+
+    @if (manualBackupJob is not null && manualBackupJob.Status != ManualBackupJobStatus.Idle)
+    {
+        <div class="alert @GetManualBackupAlertClass(manualBackupJob)" role="status">
+            <strong>Manuelles Backup:</strong> @GetManualBackupStatusText(manualBackupJob)
+            @if (!string.IsNullOrWhiteSpace(manualBackupJob.Error))
+            {
+                <span>@manualBackupJob.Error</span>
+            }
+        </div>
+    }
+
+    <div class="admin-actions mb-3">
+        <form method="post" action="/admin/backups/api/create">
+            @if (!string.IsNullOrWhiteSpace(antiforgeryRequestToken))
+            {
+                <input type="hidden" name="__RequestVerificationToken" value="@antiforgeryRequestToken" />
+            }
+            <button class="btn btn-primary" type="submit" disabled="@(isBusy || IsRestoreActive || manualBackupJob?.IsActive == true)">Backup erstellen</button>
+        </form>
+        <button class="btn btn-outline-secondary" @onclick="ReloadAsync" disabled="@(isBusy && !IsRestoreActive)">Aktualisieren</button>
+    </div>
+
+    <div class="admin-stats-grid backup-summary-grid">
+        <div class="admin-stat-card">
+            <span class="admin-stat-label">Bestand</span>
+            <strong>@backups.Count</strong>
+            <small>@ValidBackupCount gültig, @InvalidBackupCount fehlerhaft</small>
+        </div>
+        <div class="admin-stat-card">
+            <span class="admin-stat-label">Speicher</span>
+            <strong>@FormatBytes(TotalBackupSizeBytes)</strong>
+            <small>@(LatestBackup is null ? "Noch kein Backup erstellt" : $"Letztes Backup: {LatestBackup.CreatedAtUtc.ToLocalTime():g}")</small>
+        </div>
+        <div class="admin-stat-card">
+            <span class="admin-stat-label">Automatik</span>
+            <strong>@(settingsModel.AutomaticBackupsEnabled ? "Aktiv" : "Aus")</strong>
+            <small>GVS: @settingsModel.SonRetentionCount / @settingsModel.FatherRetentionCount / @settingsModel.GrandfatherRetentionCount</small>
+        </div>
+    </div>
+
+    <section class="admin-section">
+    <div class="admin-card-header">
+        <div>
+            <span class="admin-kicker">Archiv</span>
+            <h2 class="h4">Vorhandene Backups</h2>
+        </div>
+    </div>
+    @if (backups.Count == 0)
+    {
+        <div class="admin-empty-state">
+            <strong>Keine Backups vorhanden.</strong>
+            <span>Erstellen Sie ein manuelles Backup oder aktivieren Sie die automatische Sicherung.</span>
+        </div>
+    }
+    else
+    {
+        <div class="backup-card-grid">
+            @foreach (var backup in backups)
+            {
+                <article class="backup-file-card">
+                    <div class="backup-file-card-header">
+                        <span class="admin-icon admin-icon-muted">ZIP</span>
+                        @if (backup.IsValid)
+                        {
+                            <span class="badge bg-success">Gültig</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-danger" title="@string.Join("; ", backup.ValidationErrors)">Ungültig</span>
+                        }
+                    </div>
+                    <strong class="backup-file-name">@backup.FileName</strong>
+                    <dl class="backup-meta-grid">
+                        <div>
+                            <dt>Generation</dt>
+                            <dd>@backup.Generation</dd>
+                        </div>
+                        <div>
+                            <dt>Erstellt</dt>
+                            <dd>@backup.CreatedAtUtc.ToLocalTime().ToString("g")</dd>
+                        </div>
+                        <div>
+                            <dt>Größe</dt>
+                            <dd>@FormatBytes(backup.SizeBytes)</dd>
+                        </div>
+                    </dl>
+                    <div class="backup-card-actions" role="group" aria-label="Backup-Aktionen">
+                        <a class="btn btn-outline-light" href="@($"/admin/backups/api/download/{Uri.EscapeDataString(backup.FileName)}")" title="Backup herunterladen" aria-label="Backup herunterladen">
+                            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M7 10l5 5 5-5" /><path d="M12 15V3" /></svg>
+                        </a>
+                        <button class="btn btn-warning" disabled="@(!backup.IsValid || isBusy || IsRestoreActive)" @onclick="() => SelectRestore(backup.FileName)" title="Backup wiederherstellen" aria-label="Backup wiederherstellen">
+                            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></svg>
+                        </button>
+                        <button class="btn btn-outline-danger" disabled="@(isBusy || IsRestoreActive)" @onclick="() => SelectDelete(backup.FileName)" title="Backup löschen" aria-label="Backup löschen">
+                            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /></svg>
+                        </button>
+                    </div>
+                </article>
+            }
+        </div>
+    }
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(restoreFileName))
+    {
+        <div class="admin-card admin-card-wide">
+            <h2 class="h5">Restore bestätigen</h2>
+            <p>Die vorhandenen Daten werden ersetzt. Das eigene Admin-Konto bleibt erhalten.</p>
+            <div class="form-check mb-2">
+                <InputCheckbox class="form-check-input" @bind-Value="confirmRestore" />
+                <label class="form-check-label">Restore für @restoreFileName serverseitig bestätigen</label>
+            </div>
+            <button class="btn btn-danger" disabled="@(!confirmRestore || isBusy || IsRestoreActive)" @onclick="RestoreAsync">Restore starten</button>
+            <button class="btn btn-secondary ms-2" disabled="@(isBusy || IsRestoreActive)" @onclick="CancelRestore">Abbrechen</button>
+        </div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(deleteFileName))
+    {
+        <div class="admin-card admin-card-wide">
+            <h2 class="h5">Backup löschen</h2>
+            <p>@deleteFileName wird dauerhaft gelöscht.</p>
+            <div class="form-check mb-2">
+                <InputCheckbox class="form-check-input" @bind-Value="confirmDelete" />
+                <label class="form-check-label">Löschen serverseitig bestätigen</label>
+            </div>
+            <button class="btn btn-danger" disabled="@(!confirmDelete || isBusy || IsRestoreActive)" @onclick="DeleteAsync">Backup löschen</button>
+            <button class="btn btn-secondary ms-2" disabled="@(isBusy || IsRestoreActive)" @onclick="CancelDelete">Abbrechen</button>
+        </div>
+    }
+
+    <section class="admin-section">
+    <div class="admin-card-header">
+        <div>
+            <span class="admin-kicker">Import</span>
+            <h2 class="h4">Backup hochladen</h2>
+        </div>
+    </div>
+    <form method="post" action="/admin/backups/api/upload" enctype="multipart/form-data">
+        @if (!string.IsNullOrWhiteSpace(antiforgeryRequestToken))
+        {
+            <input type="hidden" name="__RequestVerificationToken" value="@antiforgeryRequestToken" />
+        }
+        <div class="backup-upload-row">
+            <input class="form-control" type="file" name="backupFile" accept=".zip,application/zip" disabled="@(isBusy || IsRestoreActive)" />
+            <button class="btn btn-primary" type="submit" disabled="@(isBusy || IsRestoreActive)">Backup hochladen</button>
+        </div>
+        <div class="form-text">Maximal @FormatBytes(settingsModel.MaxUploadSizeBytes). Nur gültige Backup-ZIP-Dateien werden übernommen.</div>
+    </form>
+    </section>
+
+    <section class="admin-section">
+    <div class="admin-card-header">
+        <div>
+            <span class="admin-kicker">Konfiguration</span>
+            <h2 class="h4">Einstellungen</h2>
+        </div>
+    </div>
+    <EditForm Model="settingsModel" OnValidSubmit="SaveSettingsAsync">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="backup-settings-grid">
+        <div class="backup-setting-card backup-setting-card-wide">
+            <label class="form-label">Speicherpfad</label>
+            <InputText class="form-control" @bind-Value="settingsModel.StoragePath" />
+        </div>
+
+        <label class="backup-setting-card backup-toggle-card">
+            <InputCheckbox class="form-check-input" @bind-Value="settingsModel.AutomaticBackupsEnabled" />
+            <span>
+                <strong>Automatische GVS-Backups</strong>
+                <small>Regelmäßige Sicherungen nach dem Generationenprinzip erstellen.</small>
+            </span>
+        </label>
+
+            <div class="backup-setting-card">
+                <span class="admin-icon admin-icon-muted">SO</span>
+                <label class="form-label">Sohn-Aufbewahrung</label>
+                <InputNumber class="form-control" @bind-Value="settingsModel.SonRetentionCount" />
+                <small>Tägliche Sicherungen</small>
+            </div>
+            <div class="backup-setting-card">
+                <span class="admin-icon admin-icon-muted">VA</span>
+                <label class="form-label">Vater-Aufbewahrung</label>
+                <InputNumber class="form-control" @bind-Value="settingsModel.FatherRetentionCount" />
+                <small>Wöchentliche Sicherungen</small>
+            </div>
+            <div class="backup-setting-card">
+                <span class="admin-icon admin-icon-muted">GV</span>
+                <label class="form-label">Großvater-Aufbewahrung</label>
+                <InputNumber class="form-control" @bind-Value="settingsModel.GrandfatherRetentionCount" />
+                <small>Monatliche Sicherungen</small>
+            </div>
+
+        <div class="backup-setting-card backup-setting-card-wide">
+            <label class="form-label">Upload-Limit in Bytes</label>
+            <InputNumber class="form-control" @bind-Value="settingsModel.MaxUploadSizeBytes" />
+            <small>Aktuell: @FormatBytes(settingsModel.MaxUploadSizeBytes)</small>
+        </div>
+        </div>
+
+        <button class="btn btn-primary" type="submit" disabled="@(isBusy || IsRestoreActive)">Einstellungen speichern</button>
+    </EditForm>
+    </section>
+
+    <section class="admin-section">
+    <div class="admin-card-header">
+        <div>
+            <span class="admin-kicker">Protokoll</span>
+            <h2 class="h4">Historie</h2>
+        </div>
+    </div>
+    @if (history.Count == 0)
+    {
+        <div class="admin-empty-state">
+            <strong>Keine Backup-Aktionen protokolliert.</strong>
+            <span>Neue Sicherungs- und Restore-Aktionen erscheinen hier.</span>
+        </div>
+    }
+    else
+    {
+        <div class="backup-history-list">
+            @foreach (var entry in history)
+            {
+                <article class="backup-history-item">
+                    <div>
+                        <span class="admin-stat-label">@entry.StartedAtUtc.ToLocalTime().ToString("g")</span>
+                        <strong>@entry.Operation</strong>
+                        <small>@entry.FileName</small>
+                    </div>
+                    <span class="badge @(entry.Succeeded ? "bg-success" : "bg-danger")">@(entry.Succeeded ? "Erfolgreich" : "Fehler")</span>
+                    <p>@entry.Message</p>
+                </article>
+            }
+        </div>
+    }
+    </section>
+    </section>
+}
+
+@code {
+    private bool isAdmin;
+    private bool isBusy;
+    private string? userId;
+    private string? successMessage;
+    private string? errorMessage;
+    private string? restoreFileName;
+    private string? deleteFileName;
+    private bool confirmRestore;
+    private bool confirmDelete;
+    private SettingsModel? settingsModel;
+    private List<BackupDescriptor> backups = new();
+    private List<BackupOperationHistory> history = new();
+    private ManualBackupJobSnapshot? manualBackupJob;
+    private RestoreBackupJobSnapshot? restoreJob;
+    private PeriodicTimer? backupStatusTimer;
+    private CancellationTokenSource? backupStatusCts;
+    private string? antiforgeryRequestToken;
+
+    private bool IsRestoreActive => restoreJob?.IsActive == true;
+    private int ValidBackupCount => backups.Count(backup => backup.IsValid);
+    private int InvalidBackupCount => backups.Count - ValidBackupCount;
+    private long TotalBackupSizeBytes => backups.Sum(backup => backup.SizeBytes);
+    private BackupDescriptor? LatestBackup => backups.OrderByDescending(backup => backup.CreatedAtUtc).FirstOrDefault();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = auth.User;
+        isAdmin = user.Identity?.IsAuthenticated == true && user.HasClaim("IsAdmin", "True");
+        userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (!isAdmin)
+            return;
+
+        antiforgeryRequestToken = CreateAntiforgeryRequestToken();
+        ApplyQueryMessages();
+        await LoadSettingsAsync();
+        await ReloadAsync();
+        StartBackupStatusPolling();
+    }
+
+    private string? CreateAntiforgeryRequestToken()
+    {
+        var httpContext = HttpContextAccessor.HttpContext;
+        return httpContext is null
+            ? null
+            : Antiforgery.GetAndStoreTokens(httpContext).RequestToken;
+    }
+
+    private void ApplyQueryMessages()
+    {
+        var query = QueryHelpers.ParseQuery(NavigationManager.ToAbsoluteUri(NavigationManager.Uri).Query);
+        if (query.TryGetValue("backupStatus", out var status))
+            successMessage = status.ToString();
+        if (query.TryGetValue("backupError", out var error))
+            errorMessage = error.ToString();
+    }
+
+    private async Task LoadSettingsAsync()
+    {
+        var settings = await BackupFacade.GetSettingsAsync();
+        settingsModel = new SettingsModel
+        {
+            StoragePath = settings.StoragePath,
+            AutomaticBackupsEnabled = settings.AutomaticBackupsEnabled,
+            SonRetentionCount = settings.SonRetentionCount,
+            FatherRetentionCount = settings.FatherRetentionCount,
+            GrandfatherRetentionCount = settings.GrandfatherRetentionCount,
+            MaxUploadSizeBytes = settings.MaxUploadSizeBytes
+        };
+    }
+
+    private async Task ReloadAsync()
+    {
+        manualBackupJob = ManualBackupJobs.GetSnapshot();
+        restoreJob = RestoreJobs.GetSnapshot();
+        if (restoreJob.IsActive)
+            return;
+
+        backups = (await BackupFacade.ListBackupsAsync()).ToList();
+        history = await BackupFacade.GetHistoryAsync();
+    }
+
+    private void StartBackupStatusPolling()
+    {
+        backupStatusCts = new CancellationTokenSource();
+        backupStatusTimer = new PeriodicTimer(TimeSpan.FromSeconds(3));
+        _ = PollBackupStatusAsync(backupStatusCts.Token);
+    }
+
+    private async Task PollBackupStatusAsync(CancellationToken cancellationToken)
+    {
+        if (backupStatusTimer is null)
+            return;
+
+        try
+        {
+            while (await backupStatusTimer.WaitForNextTickAsync(cancellationToken))
+            {
+                await InvokeAsync(async () =>
+                {
+                    var previousStatus = manualBackupJob?.Status ?? ManualBackupJobStatus.Idle;
+                    var previousRestoreStatus = restoreJob?.Status ?? RestoreBackupJobStatus.Idle;
+                    manualBackupJob = ManualBackupJobs.GetSnapshot();
+                    restoreJob = RestoreJobs.GetSnapshot();
+
+                    if ((manualBackupJob.Status is ManualBackupJobStatus.Succeeded or ManualBackupJobStatus.Failed
+                            && previousStatus != manualBackupJob.Status)
+                        || (restoreJob.Status is RestoreBackupJobStatus.Succeeded or RestoreBackupJobStatus.Failed
+                            && previousRestoreStatus != restoreJob.Status))
+                    {
+                        backups = (await BackupFacade.ListBackupsAsync()).ToList();
+                        history = await BackupFacade.GetHistoryAsync();
+                    }
+
+                    StateHasChanged();
+                });
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private void SelectRestore(string fileName)
+    {
+        restoreFileName = fileName;
+        CancelDelete();
+        confirmRestore = false;
+        successMessage = null;
+        errorMessage = null;
+    }
+
+    private void CancelRestore()
+    {
+        restoreFileName = null;
+        confirmRestore = false;
+    }
+
+    private void SelectDelete(string fileName)
+    {
+        deleteFileName = fileName;
+        CancelRestore();
+        confirmDelete = false;
+        successMessage = null;
+        errorMessage = null;
+    }
+
+    private void CancelDelete()
+    {
+        deleteFileName = null;
+        confirmDelete = false;
+    }
+
+    private async Task RestoreAsync()
+    {
+        if (string.IsNullOrWhiteSpace(restoreFileName))
+            return;
+
+        var fileName = restoreFileName;
+        await RunOperationAsync(async () =>
+        {
+            var result = RestoreJobs.StartRestore(fileName, userId, confirmRestore);
+            restoreJob = result.Snapshot;
+            if (result.Started)
+            {
+                successMessage = "Restore wurde im Hintergrund gestartet.";
+                CancelRestore();
+            }
+            else
+            {
+                errorMessage = "Es läuft bereits ein Restore.";
+            }
+        });
+    }
+
+    private async Task SaveSettingsAsync()
+    {
+        if (settingsModel is null)
+            return;
+
+        await RunOperationAsync(async () =>
+        {
+            await BackupFacade.UpdateSettingsAsync(new BackupSettings
+            {
+                StoragePath = settingsModel.StoragePath,
+                AutomaticBackupsEnabled = settingsModel.AutomaticBackupsEnabled,
+                SonRetentionCount = settingsModel.SonRetentionCount,
+                FatherRetentionCount = settingsModel.FatherRetentionCount,
+                GrandfatherRetentionCount = settingsModel.GrandfatherRetentionCount,
+                MaxUploadSizeBytes = settingsModel.MaxUploadSizeBytes
+            });
+            successMessage = "Einstellungen wurden gespeichert.";
+        });
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (string.IsNullOrWhiteSpace(deleteFileName) || !confirmDelete)
+            return;
+
+        var fileName = deleteFileName;
+        await RunOperationAsync(async () =>
+        {
+            var result = await BackupFacade.DeleteAsync(fileName, userId);
+            ApplyResult(result);
+            if (result.Succeeded)
+                CancelDelete();
+        });
+    }
+
+    private async Task RunOperationAsync(Func<Task> operation)
+    {
+        isBusy = true;
+        successMessage = null;
+        errorMessage = null;
+
+        try
+        {
+            await operation();
+            manualBackupJob = ManualBackupJobs.GetSnapshot();
+            restoreJob = RestoreJobs.GetSnapshot();
+            if (!restoreJob.IsActive)
+            {
+                await LoadSettingsAsync();
+                backups = (await BackupFacade.ListBackupsAsync()).ToList();
+                history = await BackupFacade.GetHistoryAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private void ApplyResult(BackupOperationResult result)
+    {
+        if (result.Succeeded)
+            successMessage = result.Message;
+        else
+            errorMessage = string.Join(" ", result.Errors.DefaultIfEmpty(result.Message));
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        string[] units = { "B", "KB", "MB", "GB" };
+        var value = (double)bytes;
+        var unit = 0;
+        while (value >= 1024 && unit < units.Length - 1)
+        {
+            value /= 1024;
+            unit++;
+        }
+
+        return $"{value:0.##} {units[unit]}";
+    }
+
+    private static string GetManualBackupAlertClass(ManualBackupJobSnapshot snapshot) => snapshot.Status switch
+    {
+        ManualBackupJobStatus.Failed => "alert-danger",
+        ManualBackupJobStatus.Succeeded => "alert-success",
+        _ => "alert-info"
+    };
+
+    private static string GetManualBackupStatusText(ManualBackupJobSnapshot snapshot)
+    {
+        var status = snapshot.Status switch
+        {
+            ManualBackupJobStatus.Queued => "wartet auf Ausführung.",
+            ManualBackupJobStatus.Running => "läuft im Hintergrund.",
+            ManualBackupJobStatus.Succeeded => "abgeschlossen.",
+            ManualBackupJobStatus.Failed => "fehlgeschlagen.",
+            _ => "kein aktives Backup."
+        };
+
+        if (snapshot.StartedAtUtc is null)
+            return status;
+
+        var started = snapshot.StartedAtUtc.Value.ToLocalTime().ToString("g");
+        if (snapshot.CompletedAtUtc is null)
+            return $"{status} Gestartet: {started}";
+
+        var completed = snapshot.CompletedAtUtc.Value.ToLocalTime().ToString("g");
+        return $"{status} Gestartet: {started}, beendet: {completed}";
+    }
+
+    private static string GetRestoreAlertClass(RestoreBackupJobSnapshot snapshot) => snapshot.Status switch
+    {
+        RestoreBackupJobStatus.Failed => "alert-danger",
+        RestoreBackupJobStatus.Succeeded => "alert-success",
+        _ => "alert-warning"
+    };
+
+    private static string GetRestoreStatusText(RestoreBackupJobSnapshot snapshot)
+    {
+        var status = snapshot.Status switch
+        {
+            RestoreBackupJobStatus.Queued => "wartet auf Ausführung.",
+            RestoreBackupJobStatus.Running => "läuft im Hintergrund.",
+            RestoreBackupJobStatus.Succeeded => "abgeschlossen.",
+            RestoreBackupJobStatus.Failed => "fehlgeschlagen.",
+            _ => "kein aktiver Restore."
+        };
+
+        if (!string.IsNullOrWhiteSpace(snapshot.Message))
+            status = $"{status} {snapshot.Message}";
+
+        if (snapshot.StartedAtUtc is null)
+            return status;
+
+        var started = snapshot.StartedAtUtc.Value.ToLocalTime().ToString("g");
+        if (snapshot.CompletedAtUtc is null)
+            return $"{status} Gestartet: {started}";
+
+        var completed = snapshot.CompletedAtUtc.Value.ToLocalTime().ToString("g");
+        return $"{status} Gestartet: {started}, beendet: {completed}";
+    }
+
+    private sealed class SettingsModel
+    {
+        [Required]
+        public string StoragePath { get; set; } = Path.Combine("Data", "Backups");
+
+        public bool AutomaticBackupsEnabled { get; set; }
+
+        [Range(0, 365)]
+        public int SonRetentionCount { get; set; } = 7;
+
+        [Range(0, 365)]
+        public int FatherRetentionCount { get; set; } = 4;
+
+        [Range(0, 365)]
+        public int GrandfatherRetentionCount { get; set; } = 12;
+
+        [Range(1048576, long.MaxValue)]
+        public long MaxUploadSizeBytes { get; set; } = 512L * 1024L * 1024L;
+    }
+
+    public void Dispose()
+    {
+        backupStatusCts?.Cancel();
+        backupStatusTimer?.Dispose();
+        backupStatusCts?.Dispose();
+    }
+}

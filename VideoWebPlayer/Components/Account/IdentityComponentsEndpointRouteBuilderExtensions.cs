@@ -96,7 +96,10 @@ namespace Microsoft.AspNetCore.Routing
                 [FromForm] string returnUrl) =>
             {
                 await signInManager.SignOutAsync();
-                return TypedResults.LocalRedirect($"~/{returnUrl}");
+                var target = string.IsNullOrWhiteSpace(returnUrl)
+                    ? "Account/Login"
+                    : returnUrl.TrimStart('/');
+                return TypedResults.LocalRedirect($"~/{target}");
             }).DisableAntiforgery();
 
             var manageGroup = accountGroup.MapGroup("/Manage").RequireAuthorization();

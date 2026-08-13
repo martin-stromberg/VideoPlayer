@@ -62,7 +62,7 @@ This project implements a two-stage CI/CD process with a dedicated `staging` bra
 - Linux release.zip
 - Automated PR to main branch
 
-**Version format**: `v{major}.{minor}.{patch}-RC.{run_number}`
+**Version format**: `v{major}.{minor}.{patch}-RC.{n}` (n je Version ab 1)
 
 ### Stage 3: Final Release
 
@@ -175,8 +175,9 @@ Die Staging-Pipeline berechnet die naechste Version mit `.github/scripts/compute
   - `BREAKING CHANGE` oder `<type>!:` → major
   - `feat:` / `feat(scope):` → minor
   - alles andere → patch
-- RC-Suffix mit GitHub-Run-Number
-- Beispiel: stabil `v1.2.3` + `feat:` → `v1.3.0-RC.42`
+- Der RC-Zaehler wird pro Zielversion gefuehrt (hoechster vorhandener RC-Tag dieser Version + 1) und beginnt
+  fuer jede neue Version wieder bei 1 — nicht die GitHub-Run-Number
+- Beispiel: stabil `v1.2.3` + `feat:` → `v1.3.0-RC.1`, naechster Push → `v1.3.0-RC.2`
 
 ### Release Version
 Die Main-Pipeline liest den letzten von `main` aus erreichbaren RC-Tag und entfernt das RC-Suffix:
@@ -187,8 +188,8 @@ Die Main-Pipeline liest den letzten von `main` aus erreichbaren RC-Tag und entfe
 ### Back-Merge main → staging
 Ein reiner Back-Merge (Tree identisch zu `main`) wird in `staging-ci.yml` im Job `detect-backmerge` erkannt;
 Tests, Quality-Gates und Prerelease werden dann uebersprungen, und `staging-to-main-promotion.yml` erstellt
-keinen Promotion-PR. Die PR-Checks des Back-Merge-PRs (`pr-staging-ci.yml`) laufen weiterhin, damit die
-Branch-Protection auf `staging` erfuellt ist.
+keinen Promotion-PR. Auch `pr-staging-ci.yml` ueberspringt bei einem Back-Merge-PR (Head-Branch `main`)
+Build, Tests und Quality-Checks; uebersprungene Jobs gelten fuer die Branch-Protection als erfolgreich.
 
 Nach einem erfolgreichen Release erstellt `main-release.yml` automatisch einen PR von `main` nach `staging`
 (Label `automated-backmerge`). Erst dadurch kennt `staging` den released Stand inkl. Release-Tag, sodass der

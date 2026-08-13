@@ -1236,6 +1236,14 @@ input[type="text"]:focus {
     border-color: var(--vp-primary);
 }
 
+.genre-icon {
+    width: 1.2em;
+    height: 1.2em;
+    margin-right: 0.5rem;
+    object-fit: contain;
+    vertical-align: middle;
+}
+
 .tvshow-content-flex {
     display: flex;
     flex-direction: column;

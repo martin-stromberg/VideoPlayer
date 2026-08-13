@@ -1,0 +1,281 @@
+@page "/admin/users"
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using VideoWebPlayer.Data
+@inject UserManager<ApplicationUser> UserManager
+@inject ApplicationDbContext DbContext
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+
+<PageTitle>Anwender verwalten</PageTitle>
+
+<AuthorizeView>
+    <Authorized Context="_">
+        @if (!isAdmin)
+        {
+            <div class="alert alert-danger">Zugriff verweigert: Nur Administratoren dürfen diese Seite sehen.</div>
+        }
+        else
+        {
+            <section class="admin-console admin-users-page">
+                <header class="admin-page-header">
+                    <div>
+                        <span class="admin-kicker">Einrichtung</span>
+                        <h1>Anwender</h1>
+                        <p>Benutzerkonten einsehen, anlegen, sperren, freigeben und löschen.</p>
+                    </div>
+                    <a class="btn btn-outline-light" href="/admin">Zurueck</a>
+                </header>
+
+                @if (!string.IsNullOrWhiteSpace(statusMessage))
+                {
+                    <div class="alert @statusMessageClass" role="alert">@statusMessage</div>
+                }
+
+                <div class="mb-3">
+                    <button class="btn btn-success" @onclick="() => showAddForm = !showAddForm">
+                        @(showAddForm ? "Abbrechen" : "Neuen Benutzer registrieren")
+                    </button>
+                </div>
+
+                @if (showAddForm)
+                {
+                    <div class="admin-card mb-4">
+                        <h2>Neues Benutzerkonto</h2>
+                        <EditForm Model="Input" OnValidSubmit="RegisterUser" FormName="user-create">
+                            <DataAnnotationsValidator />
+                            <ValidationSummary class="text-danger" role="alert" />
+                            <div class="form-floating mb-3">
+                                <InputText @bind-Value="Input.Email" class="form-control" autocomplete="username" aria-required="true" placeholder="name@example.com" />
+                                <label for="email">E-Mail</label>
+                                <ValidationMessage For="() => Input.Email" class="text-danger" />
+                            </div>
+                            <div class="form-floating mb-3">
+                                <InputText type="password" @bind-Value="Input.Password" class="form-control" autocomplete="new-password" aria-required="true" placeholder="password" />
+                                <label for="password">Passwort</label>
+                                <ValidationMessage For="() => Input.Password" class="text-danger" />
+                            </div>
+                            <div class="form-floating mb-3">
+                                <InputText type="password" @bind-Value="Input.ConfirmPassword" class="form-control" autocomplete="new-password" aria-required="true" placeholder="password" />
+                                <label for="confirm-password">Passwort wiederholen</label>
+                                <ValidationMessage For="() => Input.ConfirmPassword" class="text-danger" />
+                            </div>
+                            <button type="submit" class="btn btn-primary">Registrieren</button>
+                        </EditForm>
+                    </div>
+                }
+
+                @if (users.Count == 0)
+                {
+                    <div class="alert alert-secondary">Keine Benutzerkonten vorhanden.</div>
+                }
+                else
+                {
+                    <table class="table table-dark table-striped">
+                        <thead>
+                            <tr>
+                                <th>E-Mail</th>
+                                <th>Administrator</th>
+                                <th>Gesperrt</th>
+                                <th>Aktionen</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var user in users)
+                            {
+                                <tr>
+                                    <td>@user.Email</td>
+                                    <td>@(user.IsAdmin ? "Ja" : "Nein")</td>
+                                    <td>@(IsLockedOut(user) ? "Ja" : "Nein")</td>
+                                    <td>
+                                        @if (CanManage(user))
+                                        {
+                                            @if (IsLockedOut(user))
+                                            {
+                                                <button class="btn btn-sm btn-success me-1" @onclick="() => UnlockUser(user)">Freigeben</button>
+                                            }
+                                            else
+                                            {
+                                                <button class="btn btn-sm btn-warning me-1" @onclick="() => LockUser(user)">Sperren</button>
+                                            }
+                                            <button class="btn btn-sm btn-danger" @onclick="() => DeleteUser(user)">Löschen</button>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </section>
+        }
+    </Authorized>
+    <NotAuthorized>
+        <div class="alert alert-warning">Bitte melden Sie sich an.</div>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private const string SystemUserNormalizedName = "SYSTEM";
+    private List<ApplicationUser> users = new();
+    private bool isAdmin;
+    private bool showAddForm;
+    private string? currentUserId;
+    private string? statusMessage;
+
+    private InputModel Input { get; set; } = new();
+
+    private string statusMessageClass => statusMessage is not null && statusMessage.StartsWith("Fehler", StringComparison.OrdinalIgnoreCase)
+        ? "alert-danger"
+        : "alert-success";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        isAdmin = user.Identity?.IsAuthenticated == true && user.HasClaim("IsAdmin", "True");
+        currentUserId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        if (isAdmin)
+        {
+            await LoadUsers();
+        }
+    }
+
+    private async Task LoadUsers()
+    {
+        users = await UserManager.Users
+            .Where(u => u.NormalizedUserName != SystemUserNormalizedName)
+            .OrderBy(u => u.Email)
+            .ToListAsync();
+    }
+
+    private bool IsLockedOut(ApplicationUser user)
+        => user.LockoutEnd is not null && user.LockoutEnd >= DateTimeOffset.UtcNow;
+
+    private bool CanManage(ApplicationUser user)
+        => user.Id != currentUserId && user.NormalizedUserName != SystemUserNormalizedName;
+
+    private async Task RegisterUser(EditContext editContext)
+    {
+        statusMessage = null;
+
+        var existing = await UserManager.FindByEmailAsync(Input.Email);
+        if (existing is not null)
+        {
+            statusMessage = "Fehler: Diese E-Mail-Adresse ist bereits registriert.";
+            return;
+        }
+
+        var user = new ApplicationUser
+        {
+            UserName = Input.Email,
+            Email = Input.Email,
+            EmailConfirmed = true,
+            IsAdmin = false
+        };
+
+        var result = await UserManager.CreateAsync(user, Input.Password);
+        if (result.Succeeded)
+        {
+            statusMessage = "Benutzer wurde erfolgreich registriert.";
+            showAddForm = false;
+            Input = new InputModel();
+            await LoadUsers();
+        }
+        else
+        {
+            statusMessage = "Fehler: " + string.Join(", ", result.Errors.Select(e => e.Description));
+        }
+    }
+
+    private async Task LockUser(ApplicationUser user)
+    {
+        statusMessage = null;
+
+        await UserManager.SetLockoutEnabledAsync(user, true);
+        var result = await UserManager.SetLockoutEndDateAsync(user, DateTimeOffset.UtcNow.AddYears(100));
+
+        if (result.Succeeded)
+        {
+            await LoadUsers();
+        }
+        else
+        {
+            statusMessage = "Fehler: " + string.Join(", ", result.Errors.Select(e => e.Description));
+        }
+    }
+
+    private async Task UnlockUser(ApplicationUser user)
+    {
+        statusMessage = null;
+
+        var result = await UserManager.SetLockoutEndDateAsync(user, null);
+
+        if (result.Succeeded)
+        {
+            await LoadUsers();
+        }
+        else
+        {
+            statusMessage = "Fehler: " + string.Join(", ", result.Errors.Select(e => e.Description));
+        }
+    }
+
+    private async Task DeleteUser(ApplicationUser user)
+    {
+        statusMessage = null;
+
+        var mediaSourceUsers = await DbContext.MediaSourceUsers.Where(x => x.UserId == user.Id).ToListAsync();
+        var favorites = await DbContext.FavoriteEntries.Where(x => x.UserId == user.Id).ToListAsync();
+        var continueWatching = await DbContext.ContinueWatchingEntries.Where(x => x.UserId == user.Id).ToListAsync();
+        var backupOperations = await DbContext.BackupOperationHistories.Where(x => x.UserId == user.Id).ToListAsync();
+
+        DbContext.MediaSourceUsers.RemoveRange(mediaSourceUsers);
+        DbContext.FavoriteEntries.RemoveRange(favorites);
+        DbContext.ContinueWatchingEntries.RemoveRange(continueWatching);
+
+        foreach (var operation in backupOperations)
+        {
+            operation.UserId = null;
+        }
+
+        await DbContext.SaveChangesAsync();
+
+        var result = await UserManager.DeleteAsync(user);
+        if (result.Succeeded)
+        {
+            statusMessage = "Benutzer wurde gelöscht.";
+            await LoadUsers();
+        }
+        else
+        {
+            statusMessage = "Fehler: " + string.Join(", ", result.Errors.Select(e => e.Description));
+        }
+    }
+
+    private class InputModel
+    {
+        [Required]
+        [EmailAddress]
+        [Display(Name = "E-Mail")]
+        public string Email { get; set; } = "";
+
+        [Required]
+        [StringLength(100, ErrorMessage = "Das {0} muss mindestens {2} und maximal {1} Zeichen lang sein.", MinimumLength = 6)]
+        [DataType(DataType.Password)]
+        [Display(Name = "Passwort")]
+        public string Password { get; set; } = "";
+
+        [DataType(DataType.Password)]
+        [Display(Name = "Passwort wiederholen")]
+        [Compare("Password", ErrorMessage = "Die Passwörter stimmen nicht überein.")]
+        public string ConfirmPassword { get; set; } = "";
+    }
+}

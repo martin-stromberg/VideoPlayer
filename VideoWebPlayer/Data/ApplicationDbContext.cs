@@ -165,23 +165,99 @@ namespace VideoWebPlayer.Data
         /// Publiziert nach erfolgreichem L�schen ein Event.
         /// </summary>
         /// <param name="source">Die zu l�schende MediaSource.</param>
-        public async Task DeleteMediaSourceAsync(MediaSource source)
+        public async Task DeleteMediaSourceAsync(MediaSource source, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
-            var existingSource = await MediaSources.FindAsync(source.Id);
-            if (existingSource != null)
-            {
-                // Hole alle Collections der Quelle
-                var collections = await MediaCollections
-                    .Where(c => c.MediaSourceId == source.Id)
-                    .ToListAsync();
+            ArgumentNullException.ThrowIfNull(source);
 
-                await DeleteMediaCollectionsForSourceAsync(collections);
+            var existingSource = await MediaSources.FindAsync(new object[] { source.Id }, cancellationToken);
+            if (existingSource is null)
+                return;
+
+            await using var transaction = await Database.BeginTransactionAsync(cancellationToken);
+
+            var step = 0;
+            const int TotalSteps = 13;
+
+            void Report()
+            {
+                step++;
+                progress?.Report((double)step / TotalSteps);
+            }
+
+            try
+            {
+                await MovieMediaItems
+                    .Where(mmi => mmi.MediaItem.MediaCollection.MediaSourceId == source.Id)
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
+                await TVShowEpisodeMediaItems
+                    .Where(ei => ei.MediaItem.MediaCollection.MediaSourceId == source.Id)
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
+                await MediaItems
+                    .Where(mi => mi.MediaCollection.MediaSourceId == source.Id)
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
+                await MediaCollections
+                    .Where(mc => mc.MediaSourceId == source.Id)
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
+                await TVShowGenres
+                    .Where(tg => tg.TVShow.MediaSourceId == source.Id)
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
+                await TVShowEpisodes
+                    .Where(e => e.TVShowSeason.TVShow.MediaSourceId == source.Id)
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
+                await TVShowSeasons
+                    .Where(s => s.TVShow.MediaSourceId == source.Id)
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
+                await TVShows
+                    .Where(t => t.MediaSourceId == source.Id)
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
+                await MovieGenres
+                    .Where(mg => mg.Movie.MediaSourceId == source.Id)
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
+                await Movies
+                    .Where(m => m.MediaSourceId == source.Id)
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
+                await MovieCollections
+                    .Where(mc => mc.MediaSourceId == source.Id)
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
+                await MediaSourceUsers
+                    .Where(msu => msu.MediaSourceId == source.Id)
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
 
                 MediaSources.Remove(existingSource);
-                await SaveChangesAsync();
+                await SaveChangesAsync(cancellationToken);
+                Report();
+
+                await transaction.CommitAsync(cancellationToken);
                 _eventManager.Publish(new MediaSourceDeletedEvent(source));
             }
-            
+            catch
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                throw;
+            }
         }
 
         /// <summary>

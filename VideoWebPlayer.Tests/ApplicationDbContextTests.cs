@@ -295,7 +295,7 @@ public class ApplicationDbContextTests
             Data = [0x01],
             ContentType = "image/png"
         });
-        db.Pictures.Add(new Picture
+        var backgroundPicture = new Picture
         {
             MediaItemId = mediaItem.Id,
             EpisodeId = episode.Id,
@@ -303,7 +303,12 @@ public class ApplicationDbContextTests
             Data = [0x02],
             ContentType = "image/png",
             IsGeneratedBackground = true
-        });
+        };
+        db.Pictures.Add(backgroundPicture);
+        await db.SaveChangesAsync(ct);
+
+        episode.GeneratedBackgroundPictureId = backgroundPicture.Id;
+        db.TVShowEpisodes.Update(episode);
         await db.SaveChangesAsync(ct);
 
         db.ContinueWatchingEntries.Add(new ContinueWatchingEntry

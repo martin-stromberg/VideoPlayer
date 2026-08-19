@@ -188,14 +188,6 @@ namespace VideoWebPlayer.Data
 
             try
             {
-                await Pictures
-                    .Where(p => p.MediaItem.MediaCollection.MediaSourceId == source.Id ||
-                                (p.EpisodeId != null &&
-                                 TVShowEpisodes.Any(e => e.Id == p.EpisodeId.Value &&
-                                                         e.TVShowSeason.TVShow.MediaSourceId == source.Id)))
-                    .ExecuteDeleteAsync(cancellationToken);
-                Report();
-
                 await ContinueWatchingEntries
                     .Where(cwe => (cwe.Movie != null && cwe.Movie.MediaSourceId == source.Id) ||
                                   (cwe.TVShowEpisode != null && cwe.TVShowEpisode.TVShowSeason.TVShow.MediaSourceId == source.Id))
@@ -226,6 +218,31 @@ namespace VideoWebPlayer.Data
                     .ExecuteDeleteAsync(cancellationToken);
                 Report();
 
+                await TVShowGenres
+                    .Where(tg => tg.TVShow.MediaSourceId == source.Id)
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
+                await MovieGenres
+                    .Where(mg => mg.Movie.MediaSourceId == source.Id)
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
+                await TVShowEpisodes
+                    .Where(e => e.TVShowSeason.TVShow.MediaSourceId == source.Id)
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
+                await Pictures
+                    .Where(p => p.MediaItem.MediaCollection.MediaSourceId == source.Id ||
+                                (p.EpisodeId != null &&
+                                 TVShowEpisodes.Any(e => e.Id == p.EpisodeId.Value &&
+                                                         e.TVShowSeason.TVShow.MediaSourceId == source.Id)) ||
+                                TVShowEpisodes.Any(e => e.TVShowSeason.TVShow.MediaSourceId == source.Id &&
+                                                        e.GeneratedBackgroundPictureId == p.Id))
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
                 await MediaItems
                     .Where(mi => mi.MediaCollection.MediaSourceId == source.Id)
                     .ExecuteDeleteAsync(cancellationToken);
@@ -236,16 +253,6 @@ namespace VideoWebPlayer.Data
                     .ExecuteDeleteAsync(cancellationToken);
                 Report();
 
-                await TVShowGenres
-                    .Where(tg => tg.TVShow.MediaSourceId == source.Id)
-                    .ExecuteDeleteAsync(cancellationToken);
-                Report();
-
-                await TVShowEpisodes
-                    .Where(e => e.TVShowSeason.TVShow.MediaSourceId == source.Id)
-                    .ExecuteDeleteAsync(cancellationToken);
-                Report();
-
                 await TVShowSeasons
                     .Where(s => s.TVShow.MediaSourceId == source.Id)
                     .ExecuteDeleteAsync(cancellationToken);
@@ -253,11 +260,6 @@ namespace VideoWebPlayer.Data
 
                 await TVShows
                     .Where(t => t.MediaSourceId == source.Id)
-                    .ExecuteDeleteAsync(cancellationToken);
-                Report();
-
-                await MovieGenres
-                    .Where(mg => mg.Movie.MediaSourceId == source.Id)
                     .ExecuteDeleteAsync(cancellationToken);
                 Report();
 

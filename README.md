@@ -11,6 +11,9 @@
 <h4 align="center">Eine moderne Video-Management- und Streaming-Plattform für Ihre private Mediathek</h4>
 
 <p align="center">
+  <a href="./LICENSE">
+    <img src="https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-blue">
+  </a>
   <a href="https://paypal.me/martinstromberg">
     <img src="https://img.shields.io/badge/$-donate-ff69b4.svg?maxAge=2592000&amp;style=flat">
   </a>
@@ -339,14 +342,6 @@ Contributions sind willkommen! Bitte erstellen Sie einen Issue oder Pull Request
 
 - **Issues**: [GitHub Issues](https://github.com/Muesli84/VideoPlayer/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/Muesli84/VideoPlayer/discussions)
-
-### ☕ Spenden
-
-Unterstützen Sie die Entwicklung:
-
-<a href="https://www.buymeacoffee.com/mstromberg" target="_blank">
-  <img src="https://cdn.buymeacoffee.com/buttons/v2/default-green.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" >
-</a>
 
 ---
 

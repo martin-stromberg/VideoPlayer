@@ -175,8 +175,10 @@ namespace VideoWebPlayer.Data
 
             await using var transaction = await Database.BeginTransactionAsync(cancellationToken);
 
+            Entry(existingSource).State = EntityState.Detached;
+
             var step = 0;
-            const int TotalSteps = 13;
+            const int TotalSteps = 15;
 
             void Report()
             {
@@ -241,13 +243,24 @@ namespace VideoWebPlayer.Data
                     .ExecuteDeleteAsync(cancellationToken);
                 Report();
 
+                await GenreNames
+                    .Where(gn => gn.Genre.MediaSourceId == source.Id)
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
+                await Genres
+                    .Where(g => g.MediaSourceId == source.Id)
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
                 await MediaSourceUsers
                     .Where(msu => msu.MediaSourceId == source.Id)
                     .ExecuteDeleteAsync(cancellationToken);
                 Report();
 
-                MediaSources.Remove(existingSource);
-                await SaveChangesAsync(cancellationToken);
+                await MediaSources
+                    .Where(ms => ms.Id == source.Id)
+                    .ExecuteDeleteAsync(cancellationToken);
                 Report();
 
                 await transaction.CommitAsync(cancellationToken);

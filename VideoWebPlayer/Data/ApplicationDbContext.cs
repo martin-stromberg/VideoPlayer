@@ -178,7 +178,7 @@ namespace VideoWebPlayer.Data
             Entry(existingSource).State = EntityState.Detached;
 
             var step = 0;
-            const int TotalSteps = 15;
+            const int TotalSteps = 19;
 
             void Report()
             {
@@ -188,6 +188,34 @@ namespace VideoWebPlayer.Data
 
             try
             {
+                await Pictures
+                    .Where(p => p.MediaItem.MediaCollection.MediaSourceId == source.Id ||
+                                (p.EpisodeId != null &&
+                                 TVShowEpisodes.Any(e => e.Id == p.EpisodeId.Value &&
+                                                         e.TVShowSeason.TVShow.MediaSourceId == source.Id)))
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
+                await ContinueWatchingEntries
+                    .Where(cwe => (cwe.Movie != null && cwe.Movie.MediaSourceId == source.Id) ||
+                                  (cwe.TVShowEpisode != null && cwe.TVShowEpisode.TVShowSeason.TVShow.MediaSourceId == source.Id))
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
+                await FavoriteEntries
+                    .Where(fe => Movies.Any(m => m.MediaSourceId == source.Id && m.Id == fe.MovieId) ||
+                                MovieCollections.Any(mc => mc.MediaSourceId == source.Id && mc.Id == fe.MovieCollectionId) ||
+                                TVShows.Any(t => t.MediaSourceId == source.Id && t.Id == fe.TVShowId) ||
+                                TVShowSeasons.Any(s => s.TVShow.MediaSourceId == source.Id && s.Id == fe.TVShowSeasonId) ||
+                                TVShowEpisodes.Any(e => e.TVShowSeason.TVShow.MediaSourceId == source.Id && e.Id == fe.TVShowEpisodeId))
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
+                await RecentEntries
+                    .Where(re => re.MediaSourceId == source.Id)
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
                 await MovieMediaItems
                     .Where(mmi => mmi.MediaItem.MediaCollection.MediaSourceId == source.Id)
                     .ExecuteDeleteAsync(cancellationToken);

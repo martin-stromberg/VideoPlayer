@@ -288,6 +288,59 @@ public class ApplicationDbContextTests
         db.MediaSourceUsers.Add(new MediaSourceUser { MediaSourceId = source.Id, UserId = user.Id });
         await db.SaveChangesAsync(ct);
 
+        db.Pictures.Add(new Picture
+        {
+            MediaItemId = mediaItem.Id,
+            Type = "poster",
+            Data = [0x01],
+            ContentType = "image/png"
+        });
+        db.Pictures.Add(new Picture
+        {
+            MediaItemId = mediaItem.Id,
+            EpisodeId = episode.Id,
+            Type = "thumb",
+            Data = [0x02],
+            ContentType = "image/png",
+            IsGeneratedBackground = true
+        });
+        await db.SaveChangesAsync(ct);
+
+        db.ContinueWatchingEntries.Add(new ContinueWatchingEntry
+        {
+            UserId = user.Id,
+            MovieId = movie.Id,
+            TVShowEpisodeId = episode.Id,
+            Position = TimeSpan.Zero,
+            UpdatedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync(ct);
+
+        db.FavoriteEntries.Add(new FavoriteEntry
+        {
+            UserId = user.Id,
+            MovieId = movie.Id,
+            TVShowEpisodeId = episode.Id,
+            CreatedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync(ct);
+
+        db.RecentEntries.Add(new RecentEntry
+        {
+            MediaSourceId = source.Id,
+            MovieId = movie.Id,
+            PublishedAt = DateTime.UtcNow,
+            CreatedAt = DateTime.UtcNow
+        });
+        db.RecentEntries.Add(new RecentEntry
+        {
+            MediaSourceId = source.Id,
+            TVShowEpisodeId = episode.Id,
+            PublishedAt = DateTime.UtcNow,
+            CreatedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync(ct);
+
         return new DeleteTestContext
         {
             Connection = connection,
@@ -421,5 +474,25 @@ public class ApplicationDbContextTests
 
         Assert.Null(await ctx.Db.MediaSources.FindAsync(new object[] { ctx.Source.Id }, ct));
         Assert.Equal(1.0, progressValues.Last(), 3);
+    }
+
+    [Fact]
+    public async Task DeleteMediaSourceAsync_RemovesPicturesAndActivityEntries()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var ctx = await SeedFullSourceAsync("source-activity", ct);
+
+        Assert.Equal(2, await ctx.Db.Pictures.CountAsync(ct));
+        Assert.Single(await ctx.Db.ContinueWatchingEntries.ToListAsync(ct));
+        Assert.Single(await ctx.Db.FavoriteEntries.ToListAsync(ct));
+        Assert.Equal(2, await ctx.Db.RecentEntries.CountAsync(ct));
+
+        await ctx.Db.DeleteMediaSourceAsync(ctx.Source, null, ct);
+
+        Assert.Null(await ctx.Db.MediaSources.FindAsync(new object[] { ctx.Source.Id }, ct));
+        Assert.Empty(await ctx.Db.Pictures.ToListAsync(ct));
+        Assert.Empty(await ctx.Db.ContinueWatchingEntries.ToListAsync(ct));
+        Assert.Empty(await ctx.Db.FavoriteEntries.ToListAsync(ct));
+        Assert.Empty(await ctx.Db.RecentEntries.ToListAsync(ct));
     }
 }

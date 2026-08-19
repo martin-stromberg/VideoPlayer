@@ -14,9 +14,6 @@
   <a href="./LICENSE">
     <img src="https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-blue">
   </a>
-  <a href="https://paypal.me/martinstromberg">
-    <img src="https://img.shields.io/badge/$-donate-ff69b4.svg?maxAge=2592000&amp;style=flat">
-  </a>
   <img src="https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet">
   <img src="https://img.shields.io/badge/MAUI-latest-512BD4?logo=dotnet">
   <img src="https://img.shields.io/badge/Blazor-latest-512BD4?logo=blazor">
@@ -361,7 +358,6 @@ Kontakt für kommerzielle Lizenzanfragen: mstromberg84+videoplayer@gmail.com
 
 **Martin Stromberg**
 - GitHub: [@Muesli84](https://github.com/Muesli84)
-- Spenden: [PayPal](https://paypal.me/martinstromberg)
 
 ---
 

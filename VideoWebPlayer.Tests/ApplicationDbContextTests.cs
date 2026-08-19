@@ -2,6 +2,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using VideoWebPlayer.Data;
+using VideoWebPlayer.Events;
 using VideoWebPlayer.Services;
 using Xunit;
 
@@ -150,6 +151,275 @@ public class ApplicationDbContextTests
         Assert.Empty(await db.Genres.Where(g => g.MediaSourceId == source.Id).ToListAsync(ct));
         Assert.Empty(await db.MediaSourceUsers.Where(msu => msu.MediaSourceId == source.Id).ToListAsync(ct));
         Assert.NotEmpty(progressValues);
+        Assert.Equal(1.0, progressValues.Last(), 3);
+    }
+
+    private sealed class DeleteTestContext : IDisposable
+    {
+        public SqliteConnection Connection { get; set; } = null!;
+        public IServiceScope Scope { get; set; } = null!;
+        public ApplicationDbContext Db { get; set; } = null!;
+        public EventManager EventManager { get; set; } = null!;
+        public MediaSource Source { get; set; } = null!;
+        public ApplicationUser User { get; set; } = null!;
+
+        public void Dispose()
+        {
+            Scope?.Dispose();
+            Connection?.Dispose();
+        }
+    }
+
+    private async Task<DeleteTestContext> SeedFullSourceAsync(string dbName, CancellationToken ct)
+    {
+        var connectionString = $"Data Source=file:{dbName}?mode=memory&cache=shared";
+        var connection = new SqliteConnection(connectionString);
+        connection.Open();
+
+        var services = new ServiceCollection();
+        services.AddSingleton<EventManager>();
+        services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(connectionString));
+        var serviceProvider = services.BuildServiceProvider();
+
+        var scope = serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var eventManager = scope.ServiceProvider.GetRequiredService<EventManager>();
+        await db.Database.EnsureCreatedAsync(ct);
+
+        var user = new ApplicationUser { Id = "user1", UserName = "user1" };
+        db.Users.Add(user);
+        await db.SaveChangesAsync(ct);
+
+        var source = new MediaSource
+        {
+            Name = "Test Source",
+            Path = "/media",
+            Host = "localhost",
+            Port = 22,
+            CreatedAt = DateTime.UtcNow
+        };
+        db.MediaSources.Add(source);
+        await db.SaveChangesAsync(ct);
+
+        var collection = new MediaCollection
+        {
+            Name = "Root",
+            Path = "/media",
+            MediaSourceId = source.Id,
+            CreatedAt = DateTime.UtcNow
+        };
+        db.MediaCollections.Add(collection);
+        await db.SaveChangesAsync(ct);
+
+        var mediaItem = new MediaItem
+        {
+            Name = "movie.mp4",
+            Path = "/media/movie.mp4",
+            MediaCollection = collection,
+            MediaCollectionId = collection.Id,
+            CreatedAt = DateTime.UtcNow
+        };
+        db.MediaItems.Add(mediaItem);
+        await db.SaveChangesAsync(ct);
+
+        var movieCollection = new MovieCollection
+        {
+            Name = "Action",
+            MediaSourceId = source.Id,
+            CreatedAt = DateTime.UtcNow
+        };
+        db.MovieCollections.Add(movieCollection);
+        await db.SaveChangesAsync(ct);
+
+        var movie = new Movie
+        {
+            Name = "Test Movie",
+            MediaSourceId = source.Id,
+            MovieCollection = movieCollection,
+            MovieCollectionId = movieCollection.Id,
+            CreatedAt = DateTime.UtcNow
+        };
+        db.Movies.Add(movie);
+        await db.SaveChangesAsync(ct);
+
+        db.MovieMediaItems.Add(new MovieMediaItem { MovieId = movie.Id, MediaItemId = mediaItem.Id });
+        await db.SaveChangesAsync(ct);
+
+        var genre = new Genre { Name = "Action", MediaSourceId = source.Id };
+        db.Genres.Add(genre);
+        await db.SaveChangesAsync(ct);
+
+        db.GenreNames.Add(new GenreName { Name = "Action-Alt", GenreId = genre.Id });
+        db.MovieGenres.Add(new MovieGenre { MovieId = movie.Id, GenreId = genre.Id });
+        await db.SaveChangesAsync(ct);
+
+        var tvShow = new TVShow
+        {
+            Name = "Test Show",
+            MediaSourceId = source.Id,
+            CreatedAt = DateTime.UtcNow
+        };
+        db.TVShows.Add(tvShow);
+        await db.SaveChangesAsync(ct);
+
+        var season = new TVShowSeason
+        {
+            Name = "Season 1",
+            TVShow = tvShow,
+            TVShowId = tvShow.Id,
+            CreatedAt = DateTime.UtcNow
+        };
+        db.TVShowSeasons.Add(season);
+        await db.SaveChangesAsync(ct);
+
+        var episode = new TVShowEpisode
+        {
+            Name = "Episode 1",
+            Number = 1,
+            TVShowSeason = season,
+            TVShowSeasonId = season.Id,
+            CreatedAt = DateTime.UtcNow
+        };
+        db.TVShowEpisodes.Add(episode);
+        await db.SaveChangesAsync(ct);
+
+        db.TVShowEpisodeMediaItems.Add(new TVShowEpisodeMediaItem { TVShowEpisodeId = episode.Id, MediaItemId = mediaItem.Id });
+        db.TVShowGenres.Add(new TVShowGenre { TVShowId = tvShow.Id, GenreId = genre.Id });
+        db.MediaSourceUsers.Add(new MediaSourceUser { MediaSourceId = source.Id, UserId = user.Id });
+        await db.SaveChangesAsync(ct);
+
+        return new DeleteTestContext
+        {
+            Connection = connection,
+            Scope = scope,
+            Db = db,
+            EventManager = eventManager,
+            Source = source,
+            User = user
+        };
+    }
+
+    private async Task<DeleteTestContext> SeedSourceOnlyAsync(string dbName, CancellationToken ct)
+    {
+        var connectionString = $"Data Source=file:{dbName}?mode=memory&cache=shared";
+        var connection = new SqliteConnection(connectionString);
+        connection.Open();
+
+        var services = new ServiceCollection();
+        services.AddSingleton<EventManager>();
+        services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(connectionString));
+        var serviceProvider = services.BuildServiceProvider();
+
+        var scope = serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var eventManager = scope.ServiceProvider.GetRequiredService<EventManager>();
+        await db.Database.EnsureCreatedAsync(ct);
+
+        var source = new MediaSource
+        {
+            Name = "Isolated Source",
+            Path = "/other",
+            Host = "otherhost",
+            Port = 23,
+            CreatedAt = DateTime.UtcNow
+        };
+        db.MediaSources.Add(source);
+        await db.SaveChangesAsync(ct);
+
+        return new DeleteTestContext
+        {
+            Connection = connection,
+            Scope = scope,
+            Db = db,
+            EventManager = eventManager,
+            Source = source,
+            User = null!
+        };
+    }
+
+    [Fact]
+    public async Task DeleteMediaSourceAsync_DoesNotAffectOtherSources()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        using var ctx1 = await SeedFullSourceAsync("source-iso-1", ct);
+        using var ctx2 = await SeedFullSourceAsync("source-iso-2", ct);
+
+        await ctx1.Db.DeleteMediaSourceAsync(ctx1.Source, null, ct);
+
+        Assert.Null(await ctx1.Db.MediaSources.FindAsync(new object[] { ctx1.Source.Id }, ct));
+        Assert.Empty(await ctx1.Db.Movies.ToListAsync(ct));
+        Assert.Empty(await ctx1.Db.TVShows.ToListAsync(ct));
+        Assert.Empty(await ctx1.Db.Genres.ToListAsync(ct));
+        Assert.Empty(await ctx1.Db.MediaItems.ToListAsync(ct));
+
+        Assert.NotNull(await ctx2.Db.MediaSources.FindAsync(new object[] { ctx2.Source.Id }, ct));
+        Assert.Single(await ctx2.Db.Movies.ToListAsync(ct));
+        Assert.Single(await ctx2.Db.TVShows.ToListAsync(ct));
+        Assert.Single(await ctx2.Db.Genres.ToListAsync(ct));
+        Assert.Single(await ctx2.Db.MediaItems.ToListAsync(ct));
+        Assert.Single(await ctx2.Db.MediaCollections.ToListAsync(ct));
+        Assert.Single(await ctx2.Db.MovieCollections.ToListAsync(ct));
+        Assert.Single(await ctx2.Db.TVShowSeasons.ToListAsync(ct));
+        Assert.Single(await ctx2.Db.TVShowEpisodes.ToListAsync(ct));
+        Assert.Single(await ctx2.Db.MovieMediaItems.ToListAsync(ct));
+        Assert.Single(await ctx2.Db.TVShowEpisodeMediaItems.ToListAsync(ct));
+        Assert.Single(await ctx2.Db.GenreNames.ToListAsync(ct));
+        Assert.Single(await ctx2.Db.MovieGenres.ToListAsync(ct));
+        Assert.Single(await ctx2.Db.TVShowGenres.ToListAsync(ct));
+        Assert.Single(await ctx2.Db.MediaSourceUsers.ToListAsync(ct));
+    }
+
+    [Fact]
+    public async Task DeleteMediaSourceAsync_PublishesMediaSourceDeletedEvent()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var ctx = await SeedFullSourceAsync("source-event", ct);
+
+        MediaSourceDeletedEvent? published = null;
+        ctx.EventManager.Subscribe<MediaSourceDeletedEvent>(e => published = e);
+
+        await ctx.Db.DeleteMediaSourceAsync(ctx.Source, null, ct);
+
+        Assert.NotNull(published);
+        Assert.Equal(ctx.Source.Id, published.Source.Id);
+    }
+
+    [Fact]
+    public async Task DeleteMediaSourceAsync_ThrowsArgumentNullException()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var ctx = await SeedSourceOnlyAsync("source-null", ct);
+
+        await Assert.ThrowsAsync<ArgumentNullException>(async () =>
+            await ctx.Db.DeleteMediaSourceAsync(null!, null, ct));
+    }
+
+    [Fact]
+    public async Task DeleteMediaSourceAsync_SkipsNonExistingSource()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var ctx = await SeedSourceOnlyAsync("source-missing", ct);
+
+        var progressValues = new List<double>();
+        var missing = new MediaSource { Id = 999 };
+
+        await ctx.Db.DeleteMediaSourceAsync(missing, new Progress<double>(p => progressValues.Add(p)), ct);
+
+        Assert.Empty(progressValues);
+        Assert.NotNull(await ctx.Db.MediaSources.FindAsync(new object[] { ctx.Source.Id }, ct));
+    }
+
+    [Fact]
+    public async Task DeleteMediaSourceAsync_CanDeleteSourceWithoutRelatedEntities()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var ctx = await SeedSourceOnlyAsync("source-minimal", ct);
+
+        var progressValues = new List<double>();
+        await ctx.Db.DeleteMediaSourceAsync(ctx.Source, new Progress<double>(p => progressValues.Add(p)), ct);
+
+        Assert.Null(await ctx.Db.MediaSources.FindAsync(new object[] { ctx.Source.Id }, ct));
         Assert.Equal(1.0, progressValues.Last(), 3);
     }
 }

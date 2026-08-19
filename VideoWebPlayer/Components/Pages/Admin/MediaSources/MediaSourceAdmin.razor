@@ -193,7 +193,7 @@
         catch (Exception ex)
         {
             Logger.LogError(ex, "Fehler beim Löschen der Quelle (Id={Id}).", source.Id);
-            errorMessage = "Die Quelle konnte nicht gelöscht werden.";
+            errorMessage = $"Die Quelle konnte nicht gelöscht werden: {ex.Message}";
             deletionStates[source.Id] = new DeletionState(false, 0);
         }
     }

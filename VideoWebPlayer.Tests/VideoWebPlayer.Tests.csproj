@@ -1,12 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <IsTestProject>true</IsTestProject>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <Copyright>Copyright (c) Martin Stromberg</Copyright>
+    <Authors>Martin Stromberg</Authors>
   </PropertyGroup>
-
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.10" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.10" />
@@ -17,11 +18,9 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.10" />
   </ItemGroup>
-
   <ItemGroup>
     <ProjectReference Include="..\VideoWebPlayer\VideoWebPlayer.csproj" />
   </ItemGroup>
-
   <!-- msTools.Updater ist nicht auf NuGet veroeffentlicht; die DLL aus dem release.zip liegt unter lib/. -->
   <ItemGroup>
     <Reference Include="msTools.Updater">
@@ -29,5 +28,9 @@
       <Private>true</Private>
     </Reference>
   </ItemGroup>
-
+  <ItemGroup>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="../LICENSE" Pack="true" PackagePath="\" />
+  </ItemGroup>
 </Project>

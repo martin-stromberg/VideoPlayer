@@ -11,8 +11,8 @@
 <h4 align="center">Eine moderne Video-Management- und Streaming-Plattform für Ihre private Mediathek</h4>
 
 <p align="center">
-  <a href="https://paypal.me/martinstromberg">
-    <img src="https://img.shields.io/badge/$-donate-ff69b4.svg?maxAge=2592000&amp;style=flat">
+  <a href="./LICENSE">
+    <img src="https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-blue">
   </a>
   <img src="https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet">
   <img src="https://img.shields.io/badge/MAUI-latest-512BD4?logo=dotnet">
@@ -340,19 +340,17 @@ Contributions sind willkommen! Bitte erstellen Sie einen Issue oder Pull Request
 - **Issues**: [GitHub Issues](https://github.com/Muesli84/VideoPlayer/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/Muesli84/VideoPlayer/discussions)
 
-### ☕ Spenden
-
-Unterstützen Sie die Entwicklung:
-
-<a href="https://www.buymeacoffee.com/mstromberg" target="_blank">
-  <img src="https://cdn.buymeacoffee.com/buttons/v2/default-green.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" >
-</a>
-
 ---
 
 ## Lizenz
 
-Dieses Projekt ist unter der **MIT License** lizenziert - siehe [LICENSE](LICENSE) für Details.
+Dieses Projekt steht unter der **PolyForm Noncommercial License 1.0.0**.  
+Die Software darf frei für private, persönliche, nicht‑kommerzielle oder edukative Zwecke genutzt, verändert und weitergegeben werden.
+
+Jegliche **kommerzielle Nutzung** – einschließlich direkter oder indirekter Einnahmeerzielung, gewerblicher Nutzung, Nutzung in Unternehmen oder Nutzung zur Erzielung finanzieller Vorteile – ist **ohne vorherige schriftliche Zustimmung des Urhebers untersagt**.
+
+Für kommerzielle Nutzung ist ein separater Lizenzvertrag erforderlich.  
+Kontakt für kommerzielle Lizenzanfragen: mstromberg84+videoplayer@gmail.com
 
 ---
 
@@ -360,7 +358,6 @@ Dieses Projekt ist unter der **MIT License** lizenziert - siehe [LICENSE](LICENS
 
 **Martin Stromberg**
 - GitHub: [@Muesli84](https://github.com/Muesli84)
-- Spenden: [PayPal](https://paypal.me/martinstromberg)
 
 ---
 

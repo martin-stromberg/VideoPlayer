@@ -1,13 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
-
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <NoDefaultLaunchSettingsFile>true</NoDefaultLaunchSettingsFile>
     <StaticWebAssetProjectMode>Default</StaticWebAssetProjectMode>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <Copyright>Copyright (c) Martin Stromberg</Copyright>
+    <Authors>Martin Stromberg</Authors>
   </PropertyGroup>
-
   <ItemGroup>
     <PackageReference Include="BlazorIntersectionObserver" Version="3.1.0" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="8.0.11" />
@@ -17,15 +18,17 @@
     <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.1" />
     <PackageReference Include="Microsoft.Extensions.Identity.Stores" Version="8.0.11" />
   </ItemGroup>
-
   <ItemGroup>
     <ProjectReference Include="..\..\WebPlayerApi.Common\WebPlayerApi.Common.csproj" />
   </ItemGroup>
-
   <ItemGroup>
     <Content Update="wwwroot\appsettings.Production.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
-
+  <ItemGroup>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="../../LICENSE" Pack="true" PackagePath="\" />
+  </ItemGroup>
 </Project>

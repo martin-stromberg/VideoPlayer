@@ -352,7 +352,13 @@ Unterstützen Sie die Entwicklung:
 
 ## Lizenz
 
-Dieses Projekt ist unter der **MIT License** lizenziert - siehe [LICENSE](LICENSE) für Details.
+Dieses Projekt steht unter der **PolyForm Noncommercial License 1.0.0**.  
+Die Software darf frei für private, persönliche, nicht‑kommerzielle oder edukative Zwecke genutzt, verändert und weitergegeben werden.
+
+Jegliche **kommerzielle Nutzung** – einschließlich direkter oder indirekter Einnahmeerzielung, gewerblicher Nutzung, Nutzung in Unternehmen oder Nutzung zur Erzielung finanzieller Vorteile – ist **ohne vorherige schriftliche Zustimmung des Urhebers untersagt**.
+
+Für kommerzielle Nutzung ist ein separater Lizenzvertrag erforderlich.  
+Kontakt für kommerzielle Lizenzanfragen: mstromberg84+videoplayer@gmail.com
 
 ---
 

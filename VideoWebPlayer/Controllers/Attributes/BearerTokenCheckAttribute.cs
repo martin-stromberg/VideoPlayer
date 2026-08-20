@@ -24,7 +24,7 @@ public class BearerTokenCheckAttribute : ActionFilterAttribute
     public override void OnActionExecuting(ActionExecutingContext context)
     {
         var _jwtKey = context.HttpContext.RequestServices.GetService<SymmetricSecurityKey>();
-        var _issuer = context.HttpContext.RequestServices.GetService<IConfiguration>()["Jwt:Issuer"];
+        var _issuer = context.HttpContext.RequestServices.GetService<IConfiguration>()["Jwt:Issuer"] ?? "VideoWebPlayer";
         var authHeader = context.HttpContext.Request.Headers["Authorization"].FirstOrDefault();
         if (string.IsNullOrWhiteSpace(authHeader))
         {

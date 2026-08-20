@@ -35,8 +35,13 @@
                 <button class="btn btn-secondary me-2" @onclick="Back">Zurück</button>
                 @if (!IsNew)
                 {
-                    <button class="btn btn-primary me-2" @onclick="OpenExplorer">Dateiexplorer</button>
-                    <button class="btn btn-danger" @onclick="Delete">Löschen</button>
+                    <button class="btn btn-primary me-2" @onclick="OpenExplorer" disabled="@isDeleting">Dateiexplorer</button>
+                    <button class="btn btn-danger me-2" @onclick="Delete" disabled="@isDeleting">Löschen</button>
+                }
+                @if (isDeleting)
+                {
+                    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                    <span class="ms-2">Quelle wird gelöscht...</span>
                 }
             </div>
 
@@ -140,6 +145,7 @@
     private string? iconContentType;
 
     private string? errorMessage;
+    private bool isDeleting;
 
     protected override async Task OnInitializedAsync()
     {
@@ -326,15 +332,23 @@
         if (editSource is null || IsNew)
             return;
 
+        errorMessage = null;
+        isDeleting = true;
+        await InvokeAsync(StateHasChanged);
+
         try
         {
-            await DbContext.DeleteMediaSourceAsync(editSource);
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            await Client.EnsureAuthorizationTokenAsync(authState.User);
+            await Client.DeleteSourceAsync(editSource.Id);
             Back();
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Fehler beim Löschen der Quelle (Id={Id}).", editSource.Id);
             errorMessage = ex.Message;
+            isDeleting = false;
+            await InvokeAsync(StateHasChanged);
         }
     }
 

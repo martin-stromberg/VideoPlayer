@@ -47,6 +47,13 @@
                 </div>
             }
 
+            @if (!string.IsNullOrWhiteSpace(errorMessage))
+            {
+                <div class="alert alert-danger" role="alert">
+                    @errorMessage
+                </div>
+            }
+
             @if (mediaSources.Count == 0)
             {
                 <div class="alert alert-secondary">Noch keine Quellen vorhanden.</div>
@@ -88,8 +95,13 @@
                                 <td>@source.Path</td>
                                 <td>@source.Username</td>
                                 <td>
-                                    <button class="btn btn-sm btn-danger me-1" @onclick:stopPropagation="true" @onclick="() => DeleteSource(source)">Löschen</button>
-                                    <button class="btn btn-sm btn-warning" @onclick:stopPropagation="true" @onclick="() => ResetScan(source)">Scan zurücksetzen</button>
+                                    <button class="btn btn-sm btn-danger me-1" disabled="@IsDeleting(source.Id)" @onclick:stopPropagation="true" @onclick="() => DeleteSource(source)">Löschen</button>
+                                    <button class="btn btn-sm btn-warning" disabled="@IsDeleting(source.Id)" @onclick:stopPropagation="true" @onclick="() => ResetScan(source)">Scan zurücksetzen</button>
+                                    @if (IsDeleting(source.Id))
+                                    {
+                                        <span class="spinner-border spinner-border-sm ms-2" role="status" aria-hidden="true"></span>
+                                        <span class="visually-hidden">Löschen...</span>
+                                    }
                                 </td>
                             </tr>
                         }
@@ -107,6 +119,10 @@
 @code {
     private List<MediaSource> mediaSources = new();
     private bool isAdmin;
+    private string? errorMessage;
+
+    private record DeletionState(bool IsDeleting, double Progress);
+    private readonly Dictionary<long, DeletionState> deletionStates = new();
 
     private bool isFullScanRunning;
     private string? fullScanStatus;
@@ -134,6 +150,9 @@
         StateHasChanged();
     }
 
+    private bool IsDeleting(long sourceId)
+        => deletionStates.TryGetValue(sourceId, out var state) && state.IsDeleting;
+
     private void OpenDetails(long id)
     {
         Navigation.NavigateTo($"/admin/mediasources/{id}");
@@ -149,8 +168,24 @@
 
     private async Task DeleteSource(MediaSource source)
     {
-        await DbContext.DeleteMediaSourceAsync(source);
-        await LoadSources();
+        errorMessage = null;
+        deletionStates[source.Id] = new DeletionState(true, 0);
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            await Client.EnsureAuthorizationTokenAsync(authState.User);
+            await Client.DeleteSourceAsync(source.Id);
+            deletionStates.Remove(source.Id);
+            await LoadSources();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Fehler beim Löschen der Quelle (Id={Id}).", source.Id);
+            errorMessage = $"Die Quelle konnte nicht gelöscht werden: {ex.Message}";
+            deletionStates[source.Id] = new DeletionState(false, 0);
+        }
     }
 
     private async Task ResetScan(MediaSource source)

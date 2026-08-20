@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Identity;
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using VideoWebPlayer.Client;
 using VideoWebPlayer.Data;
@@ -91,13 +92,36 @@ namespace VideoWebPlayer.Services.Authentication
                     if (string.IsNullOrWhiteSpace(AuthorizationToken))
                     {
                         var currentUser = await userManager.GetUserAsync(user);
+                        if (currentUser is null)
+                        {
+                            var userId = user.FindFirstValue(ClaimTypes.NameIdentifier)
+                                ?? user.FindFirstValue(JwtRegisteredClaimNames.Sub);
+                            if (!string.IsNullOrWhiteSpace(userId))
+                                currentUser = await userManager.FindByIdAsync(userId);
+                        }
+                        if (currentUser is null)
+                        {
+                            var email = user.FindFirstValue(ClaimTypes.Email);
+                            if (!string.IsNullOrWhiteSpace(email))
+                                currentUser = await userManager.FindByEmailAsync(email);
+                        }
+                        if (currentUser is null)
+                        {
+                            var name = user.FindFirstValue(ClaimTypes.Name);
+                            if (!string.IsNullOrWhiteSpace(name))
+                                currentUser = await userManager.FindByNameAsync(name);
+                        }
+                        if (currentUser is null)
+                            throw new InvalidOperationException($"Could not resolve user from principal. Claims: {string.Join(", ", user.Claims.Select(c => $"{c.Type}={c.Value}"))}");
+
                         var token = authtorizationTokenService.CreateToken(currentUser);
                         base.SetAuthorizationToken(token);
                     }
                 }
                 catch (Exception ex)
                 {
-                    Logger.LogError(ex, $"Could not impersonate current user.");
+                    Logger.LogError(ex, "Could not impersonate current user.");
+                    throw;
                 }
                 finally
                 {

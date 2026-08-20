@@ -500,4 +500,51 @@ public class ApplicationDbContextTests
         Assert.Empty(await ctx.Db.FavoriteEntries.ToListAsync(ct));
         Assert.Empty(await ctx.Db.RecentEntries.ToListAsync(ct));
     }
+
+    [Fact]
+    public async Task DeleteMediaSourceAsync_RemovesPicturesAssignedToMediaBaseEntries()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var ctx = await SeedFullSourceAsync("source-pictures-on-entries", ct);
+
+        var mediaItem = await ctx.Db.MediaItems.FirstAsync(ct);
+        var movie = await ctx.Db.Movies.FirstAsync(ct);
+        var tvShow = await ctx.Db.TVShows.FirstAsync(ct);
+        var season = await ctx.Db.TVShowSeasons.FirstAsync(ct);
+        var movieCollection = await ctx.Db.MovieCollections.FirstAsync(ct);
+        var episode = await ctx.Db.TVShowEpisodes.FirstAsync(ct);
+
+        var moviePoster = new Picture { MediaItemId = mediaItem.Id, Type = "poster", Data = [0x11], ContentType = "image/png" };
+        var movieBanner = new Picture { MediaItemId = mediaItem.Id, Type = "banner", Data = [0x12], ContentType = "image/png" };
+        var movieFanart = new Picture { MediaItemId = mediaItem.Id, Type = "fanart", Data = [0x13], ContentType = "image/png" };
+        var tvShowPoster = new Picture { MediaItemId = mediaItem.Id, Type = "poster", Data = [0x21], ContentType = "image/png" };
+        var seasonBanner = new Picture { MediaItemId = mediaItem.Id, Type = "banner", Data = [0x31], ContentType = "image/png" };
+        var collectionFanart = new Picture { MediaItemId = mediaItem.Id, Type = "fanart", Data = [0x41], ContentType = "image/png" };
+        var episodePoster = new Picture { MediaItemId = mediaItem.Id, Type = "poster", Data = [0x51], ContentType = "image/png" };
+
+        ctx.Db.Pictures.AddRange(moviePoster, movieBanner, movieFanart, tvShowPoster, seasonBanner, collectionFanart, episodePoster);
+        await ctx.Db.SaveChangesAsync(ct);
+
+        movie.PosterPictureId = moviePoster.Id;
+        movie.BannerPictureId = movieBanner.Id;
+        movie.FanartPictureId = movieFanart.Id;
+        tvShow.PosterPictureId = tvShowPoster.Id;
+        season.BannerPictureId = seasonBanner.Id;
+        movieCollection.FanartPictureId = collectionFanart.Id;
+        episode.PosterPictureId = episodePoster.Id;
+        await ctx.Db.SaveChangesAsync(ct);
+
+        var pictureCountBefore = await ctx.Db.Pictures.CountAsync(ct);
+        Assert.Equal(9, pictureCountBefore);
+
+        await ctx.Db.DeleteMediaSourceAsync(ctx.Source, null, ct);
+
+        Assert.Null(await ctx.Db.MediaSources.FindAsync(new object[] { ctx.Source.Id }, ct));
+        Assert.Empty(await ctx.Db.Pictures.ToListAsync(ct));
+        Assert.Empty(await ctx.Db.Movies.ToListAsync(ct));
+        Assert.Empty(await ctx.Db.TVShows.ToListAsync(ct));
+        Assert.Empty(await ctx.Db.TVShowSeasons.ToListAsync(ct));
+        Assert.Empty(await ctx.Db.TVShowEpisodes.ToListAsync(ct));
+        Assert.Empty(await ctx.Db.MovieCollections.ToListAsync(ct));
+    }
 }

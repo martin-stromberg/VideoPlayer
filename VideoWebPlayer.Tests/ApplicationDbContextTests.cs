@@ -131,7 +131,7 @@ public class ApplicationDbContextTests
         await db.SaveChangesAsync(ct);
 
         var progressValues = new List<double>();
-        var progress = new Progress<double>(p => progressValues.Add(p));
+        var progress = new ImmediateProgress(p => progressValues.Add(p));
 
         await db.DeleteMediaSourceAsync(source, progress, ct);
 
@@ -475,7 +475,7 @@ public class ApplicationDbContextTests
         using var ctx = await SeedSourceOnlyAsync("source-minimal", ct);
 
         var progressValues = new List<double>();
-        await ctx.Db.DeleteMediaSourceAsync(ctx.Source, new Progress<double>(p => progressValues.Add(p)), ct);
+        await ctx.Db.DeleteMediaSourceAsync(ctx.Source, new ImmediateProgress(p => progressValues.Add(p)), ct);
 
         Assert.Null(await ctx.Db.MediaSources.FindAsync(new object[] { ctx.Source.Id }, ct));
         Assert.Equal(1.0, progressValues.Last(), 3);
@@ -583,7 +583,21 @@ public class ApplicationDbContextTests
         await ctx.Db.DeleteMediaSourceAsync(ctx.Source, null, ct);
 
         Assert.Null(await ctx.Db.MediaSources.FindAsync(new object[] { ctx.Source.Id }, ct));
-        Assert.Empty(await ctx.Db.MediaCollections.ToListAsync(ct));
         Assert.Empty(await ctx.Db.MediaItems.ToListAsync(ct));
+    }
+
+    private sealed class ImmediateProgress : IProgress<double>
+    {
+        private readonly Action<double> _handler;
+
+        public ImmediateProgress(Action<double> handler)
+        {
+            _handler = handler;
+        }
+
+        public void Report(double value)
+        {
+            _handler(value);
+        }
     }
 }

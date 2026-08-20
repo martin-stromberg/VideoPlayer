@@ -28,6 +28,11 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
         $"{nameof(ApplicationDbContext.TVShowEpisodes)}.{nameof(TVShowEpisode.GeneratedBackgroundPictureId)}",
         $"{nameof(ApplicationDbContext.TVShowEpisodes)}.{nameof(TVShowEpisode.BackgroundImageRequiresUpdate)}",
         $"{nameof(ApplicationDbContext.TVShowEpisodes)}.{nameof(TVShowEpisode.BackgroundImageGeneratedAt)}",
+        $"{nameof(ApplicationDbContext.TVShowEpisodes)}.{nameof(TVShowEpisode.IsManuallyEdited)}",
+        $"{nameof(ApplicationDbContext.TVShows)}.{nameof(TVShow.IsManuallyEdited)}",
+        $"{nameof(ApplicationDbContext.TVShowSeasons)}.{nameof(TVShowSeason.IsManuallyEdited)}",
+        $"{nameof(ApplicationDbContext.Movies)}.{nameof(Movie.IsManuallyEdited)}",
+        $"{nameof(ApplicationDbContext.MovieCollections)}.{nameof(MovieCollection.IsManuallyEdited)}",
         $"{nameof(ApplicationDbContext.Pictures)}.{nameof(Picture.IsGeneratedBackground)}",
         $"{nameof(ApplicationDbContext.Pictures)}.{nameof(Picture.EpisodeId)}"
     };
@@ -35,6 +40,11 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
     private static readonly (string Table, string Column, bool DefaultValue)[] OptionalRestoreBoolDefaults =
     {
         (nameof(ApplicationDbContext.TVShowEpisodes), nameof(TVShowEpisode.BackgroundImageRequiresUpdate), false),
+        (nameof(ApplicationDbContext.TVShowEpisodes), nameof(TVShowEpisode.IsManuallyEdited), false),
+        (nameof(ApplicationDbContext.TVShows), nameof(TVShow.IsManuallyEdited), false),
+        (nameof(ApplicationDbContext.TVShowSeasons), nameof(TVShowSeason.IsManuallyEdited), false),
+        (nameof(ApplicationDbContext.Movies), nameof(Movie.IsManuallyEdited), false),
+        (nameof(ApplicationDbContext.MovieCollections), nameof(MovieCollection.IsManuallyEdited), false),
         (nameof(ApplicationDbContext.Pictures), nameof(Picture.IsGeneratedBackground), false)
     };
 

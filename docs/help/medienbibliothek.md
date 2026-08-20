@@ -20,6 +20,13 @@ Die Startseite bündelt die wichtigsten Inhalte:
 
 Eine Medienkarte öffnet die zugehörige Sammlung, Serie oder Detailansicht.
 
+## Metadaten bearbeiten
+
+Administratoren können Metadaten direkt in den Detailansichten bearbeiten.
+Eine vollständige Beschreibung des Editiermodus, der typabhängigen Datumsfelder,
+der Genre-Auswahl und des Schutzes vor Scan-Überschreibungen steht in der
+[Hilfe zum Medienmetadaten-Editiermodus](./medien-editiermodus.md).
+
 ## Filme
 
 In einer Filmsammlung wählst du einen Film über sein Poster aus. Auf der

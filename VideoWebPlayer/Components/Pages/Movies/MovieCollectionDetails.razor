@@ -1,13 +1,7 @@
 @page "/moviecollection/{Id:long}"
 @using Microsoft.AspNetCore.Components.Web
-@using Microsoft.EntityFrameworkCore
-@using System.Security.Claims
-@using VideoWebPlayer.Data
 @using Microsoft.AspNetCore.Components.Authorization
 @inject AuthenticationStateProvider AuthStateProvider
-@inject NavigationManager Navigation
-@inject IJSRuntime JS
-@inject HttpClient Http
 @inject VideoWebPlayer.Client.VideoWebPlayerClient Client
 @rendermode InteractiveServer
 
@@ -19,44 +13,57 @@
 }
 else if (collection == null)
 {
-    <div class="alert alert-danger">Sammlung nicht gefunden.</div>
+    <div class="alert alert-danger">@(loadError ?? "Sammlung nicht gefunden.")</div>
 }
 else if (selectedMovie != null)
 {
-    <!-- Einzelne Film-Ansicht -->
     <div class="movie-header" style="background-image: url('@GetBannerUrl(selectedMovie)'); position: relative;">
         <button class="favorite-btn" @onclick="() => ToggleFavorite(selectedMovie)" title="Film als Favorit markieren">
             @((IsMovieFavorite) ? "★" : "☆")
         </button>
+        @RenderActionButtons()
         <div class="collection-header-overlay">
             @if (collection?.Movies?.Length > 1)
             {
-                <button class="back-arrow" @onclick="ShowCollection" title="Zurück zur Sammlung">
+                <button class="back-arrow" @onclick="ShowCollection" title="Zurueck zur Sammlung">
                     <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
                         <path d="M15 6l-6 6 6 6" stroke="#ffe066" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
                 </button>
             }
             <div class="collection-header-content">
-                <h1>@selectedMovie.Name</h1>
-                <div class="collection-meta">
-                    <span class="collection-year">@GetYear(selectedMovie)</span>
-                    <span class="collection-genres">@GetGenres(selectedMovie)</span>
-                </div>
-                <div class="collection-plot">@selectedMovie.Plot</div>
+                @if (isEditing)
+                {
+                    @RenderEditForm()
+                }
+                else
+                {
+                    <h1>@selectedMovie.Name</h1>
+                    <div class="collection-meta">
+                        <span class="collection-year">@GetYear(selectedMovie)</span>
+                        <span class="collection-genres">@GetGenres(selectedMovie)</span>
+                    </div>
+                    <div class="collection-plot">@selectedMovie.Plot</div>
+                }
             </div>
-            <button class="play-button" @onclick="ShowPlayer">
-                <span>&#9654;</span>
-            </button>
+            @if (!isEditing)
+            {
+                <button class="play-button" @onclick="ShowPlayer">
+                    <span>&#9654;</span>
+                </button>
+            }
         </div>
     </div>
-    <div class="media-section">
-        <a class="btn btn-primary"
-           href="@GetDownloadUrl(selectedMovie)"
-           download>
-            Video herunterladen
-        </a>
-    </div>
+    @if (!isEditing)
+    {
+        <div class="media-section">
+            <a class="btn btn-primary"
+               href="@GetDownloadUrl(selectedMovie)"
+               download>
+                Video herunterladen
+            </a>
+        </div>
+    }
     @if (showPlayer && selectedMovie != null)
     {
         <VideoPlayer @ref="_player"
@@ -72,23 +79,33 @@ else if (selectedMovie != null)
 }
 else
 {
-    <!-- Sammlungs-Ansicht -->
     <div class="collection-header" style="background-image: url('@GetBannerUrl(collection)'); position: relative;">
         <button class="favorite-btn" @onclick="() => ToggleFavorite(null)" title="Sammlung als Favorit markieren">
             @((IsCollectionFavorite) ? "★" : "☆")
         </button>
+        @RenderActionButtons()
         <div class="collection-header-overlay">
             <div class="collection-header-content">
-                <h1>@collection.Name</h1>
-                <div class="collection-meta">
-                    <span class="collection-year">@GetYear(collection)</span>
-                    <span class="collection-genres">@GetGenres(collection)</span>
-                </div>
-                <div class="collection-plot"></div>
+                @if (isEditing)
+                {
+                    @RenderEditForm()
+                }
+                else
+                {
+                    <h1>@collection.Name</h1>
+                    <div class="collection-meta">
+                        <span class="collection-year">@GetYear(collection)</span>
+                        <span class="collection-genres">@GetGenres(collection)</span>
+                    </div>
+                    <div class="collection-plot"></div>
+                }
             </div>
-            <button class="play-button" @onclick="ShowFirstMovie">
-                <span>&#9654;</span>
-            </button>
+            @if (!isEditing)
+            {
+                <button class="play-button" @onclick="ShowFirstMovie">
+                    <span>&#9654;</span>
+                </button>
+            }
         </div>
     </div>
     <div class="movie-list-horizontal" id="movieListHorizontal">
@@ -118,45 +135,86 @@ else
     </div>
 }
 
+@if (showDiscardDialog)
+{
+    <div class="metadata-dialog-overlay">
+        <div class="metadata-dialog">
+            <h2>Aenderungen verwerfen?</h2>
+            <div class="metadata-dialog-actions">
+                <button class="btn btn-primary" @onclick="DiscardAndContinueAsync">Aenderungen verwerfen</button>
+                <button class="btn btn-ghost" @onclick="ContinueEditing">Weiter bearbeiten</button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     [Parameter] public long Id { get; set; }
     [SupplyParameterFromQuery(Name = "movie")] public long? MovieId { get; set; }
-    [Parameter]
-    [SupplyParameterFromQuery(Name = "position")]
-    public long? Position { get; set; }
+    [Parameter][SupplyParameterFromQuery(Name = "position")] public long? Position { get; set; }
 
     private DtoMovieCollection? collection;
     private DtoMovie? selectedMovie;
-    private bool showPlayer = false;
+    private List<DtoGenreOption> genreOptions = [];
+    private bool showPlayer;
     private bool isAuthenticated;
+    private bool isAdmin;
     private bool IsCollectionFavorite;
     private bool IsMovieFavorite;
     private long resumeSeconds;
-
-    // Referenz auf VideoPlayer für Positions-Abfrage
     private VideoPlayer? _player;
 
-    private ElementReference movieListRef;
+    private bool isEditing;
+    private bool isDirty;
+    private bool editSupportsPlot;
+    private bool editSupportsGenres;
+    private string editObjectType = "";
+    private long editId;
+    private MetadataEditModel editModel = new();
+    private EditContext? editContext;
+    private string? editError;
+    private string? loadError;
+    private HashSet<string> editGenres = new(StringComparer.OrdinalIgnoreCase);
+    private bool showDiscardDialog;
+    private Func<Task>? pendingDiscardAction;
 
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
+        isAdmin = isAuthenticated && authState.User.HasClaim("IsAdmin", "True");
 
-        collection = await Client.RequestMovieCollectionAsync(Id) as DtoMovieCollection;
+        if (!isAuthenticated)
+            return;
+
+        try
+        {
+            collection = await Client.RequestMovieCollectionAsync(Id) as DtoMovieCollection;
+            genreOptions = await Client.RequestGenreOptionsAsync();
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("Could not resolve user from principal", StringComparison.Ordinal))
+        {
+            isAuthenticated = false;
+            loadError = "Bitte melden Sie sich erneut an, um die Sammlung zu oeffnen.";
+            return;
+        }
+        catch
+        {
+            loadError = "Die Sammlung konnte nicht geladen werden.";
+            return;
+        }
+
+        if (collection is null)
+            return;
+
         IsCollectionFavorite = await CheckIfFavorite(collectionId: collection, movieId: null);
 
         if (MovieId.HasValue && collection?.Movies != null)
         {
             var movie = collection.Movies.FirstOrDefault(m => m.Id == MovieId.Value);
             if (movie != null)
-                await SelectMovieAsync(movie);
+                await SelectMovieCoreAsync(movie, false);
         }
-        else if (collection?.Movies?.Length == 1)
-        {
-            await SelectMovieAsync(collection.Movies.First());
-        }
-
         if (Position.HasValue && selectedMovie is not null)
         {
             AutoPlay(Position.Value);
@@ -164,11 +222,68 @@ else
         }
     }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    private RenderFragment RenderActionButtons() => builder =>
     {
-        // Die Sammlung wird mittlerweile vertikal dargestellt (kein Horizontal-Scroll mehr)
-        await Task.CompletedTask;
-    }
+        if (!isAdmin)
+            return;
+
+        var seq = 0;
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", "metadata-action-bar");
+        if (isEditing)
+        {
+            builder.OpenElement(seq++, "button");
+            builder.AddAttribute(seq++, "class", "metadata-icon-btn");
+            builder.AddAttribute(seq++, "title", "Speichern");
+            builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, SaveEditAsync));
+            builder.AddContent(seq++, "✓");
+            builder.CloseElement();
+            builder.OpenElement(seq++, "button");
+            builder.AddAttribute(seq++, "class", "metadata-icon-btn");
+            builder.AddAttribute(seq++, "title", "Abbrechen");
+            builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, CancelEditAsync));
+            builder.AddContent(seq++, "×");
+            builder.CloseElement();
+        }
+        else
+        {
+            builder.OpenElement(seq++, "button");
+            builder.AddAttribute(seq++, "class", "metadata-icon-btn");
+            builder.AddAttribute(seq++, "title", "Bearbeiten");
+            builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, BeginEditCurrent));
+            builder.AddContent(seq++, "✎");
+            builder.CloseElement();
+        }
+        builder.CloseElement();
+    };
+
+    private RenderFragment RenderEditForm() => @<EditForm EditContext="@editContext" OnSubmit="@SaveEditAsync" class="metadata-edit-form">
+        <DataAnnotationsValidator />
+        @if (!string.IsNullOrWhiteSpace(editError))
+        {
+            <div class="metadata-edit-error">@editError</div>
+        }
+        <InputText class="form-control metadata-title-input" @bind-Value="editModel.Name" maxlength="512" />
+        <ValidationMessage For="@(() => editModel.Name)" />
+        <InputDate class="form-control metadata-date-input" @bind-Value="editModel.Date" />
+        @if (editSupportsGenres)
+        {
+            <div class="genre-scrollbar metadata-genre-scrollbar">
+                @foreach (var genre in OrderedGenreOptions())
+                {
+                    <button type="button" class="genre-btn @(editGenres.Contains(genre.Name) ? "selected" : "")" @onclick="() => ToggleEditGenre(genre.Name)">
+                        @genre.Name
+                    </button>
+                }
+            </div>
+            <InputText class="form-control" @bind-Value="editModel.NewGenres" placeholder="Weitere Genres" />
+        }
+        @if (editSupportsPlot)
+        {
+            <InputTextArea class="form-control metadata-plot-input" @bind-Value="editModel.Plot" maxlength="10000" />
+            <ValidationMessage For="@(() => editModel.Plot)" />
+        }
+    </EditForm>;
 
     private string GetBannerUrl(DtoMovieCollection col)
         => col.BannerPictureId.HasValue ? $"/api/pictures/{col.BannerPictureId}?access_token={Client.AuthorizationToken}" : col.FanartPictureId.HasValue ? $"/api/pictures/{col.FanartPictureId}?access_token={Client.AuthorizationToken}" : "/images/placeholder.png";
@@ -180,27 +295,25 @@ else
         => movie.PosterPictureId.HasValue ? $"/api/pictures/{movie.PosterPictureId}?access_token={Client.AuthorizationToken}" : movie.FanartPictureId.HasValue ? $"/api/pictures/{movie.FanartPictureId}?access_token={Client.AuthorizationToken}" : "/images/placeholder.png";
 
     private string GetYear(DtoMovieCollection col)
-        => col.Movies?.Where(mbox => mbox.ReleaseDate != DateTime.MinValue)?.OrderBy(m => m.ReleaseDate)?.FirstOrDefault()?.ReleaseDate?.Year.ToString() ?? "";
+        => col.ReleaseDate?.Year.ToString() ?? col.Movies?.Where(m => m.ReleaseDate != DateTime.MinValue)?.OrderBy(m => m.ReleaseDate)?.FirstOrDefault()?.ReleaseDate?.Year.ToString() ?? "";
 
     private string GetYear(DtoMovie movie)
         => movie.ReleaseDate?.Year.ToString() ?? "";
 
     private string GetGenres(DtoMovieCollection col)
-        => string.Join(", ", col.Movies?.SelectMany(m => (m.GenreNames ?? "").Split(',')).Distinct() ?? Array.Empty<string>());
+        => string.Join(", ", col.Movies?.SelectMany(m => SplitGenres(m.GenreNames)).Distinct(StringComparer.OrdinalIgnoreCase) ?? []);
 
     private string GetGenres(DtoMovie movie)
         => movie.GenreNames ?? "";
 
     private void ShowPlayer() => showPlayer = true;
 
-    // Neu: aktuelle Position beim Schließen sichern
     private async Task HidePlayer()
     {
         if (_player != null)
         {
             try
             {
-                // Letzten Wert direkt abfragen (falls TimeUpdate kurz vor Close nicht mehr feuert)
                 var pos = await _player.GetCurrentPositionSecondsAsync();
                 resumeSeconds = (long)Math.Floor(pos);
             }
@@ -220,11 +333,16 @@ else
         => $"/api/items/movie/{movie.Id}/stream?access_token={Client.AuthorizationToken}";
 
     private async Task SelectMovieAsync(DtoMovie movie)
+        => await RunWithDirtyCheckAsync(async () => await SelectMovieCoreAsync(movie, isEditing));
+
+    private async Task SelectMovieCoreAsync(DtoMovie movie, bool editAfterSwitch)
     {
         selectedMovie = movie;
         resumeSeconds = 0;
         showPlayer = false;
         IsMovieFavorite = await CheckIfFavorite(collectionId: null, movieId: selectedMovie);
+        if (editAfterSwitch)
+            BeginEdit(movie);
     }
 
     private async Task SelectMovieByKeyboard(KeyboardEventArgs args, DtoMovie movie)
@@ -233,11 +351,15 @@ else
             await SelectMovieAsync(movie);
     }
 
-    private void ShowCollection()
-    {
-        selectedMovie = null;
-        showPlayer = false;
-    }
+    private async Task ShowCollection()
+        => await RunWithDirtyCheckAsync(() =>
+        {
+            selectedMovie = null;
+            showPlayer = false;
+            if (isEditing && collection is not null)
+                BeginEdit(collection);
+            return Task.CompletedTask;
+        });
 
     private async Task ShowFirstMovie()
     {
@@ -251,28 +373,178 @@ else
     private async Task ToggleFavorite(DtoMovie? movie)
     {
         if (movie != null)
-        {
             IsMovieFavorite = await Client.ToggleFavorite(movie);
-        }
-        else
-        {
+        else if (collection != null)
             IsCollectionFavorite = await Client.ToggleFavorite(collection);
-        }
     }
 
-    private async Task<bool> CheckIfFavorite(DtoMediaEntry collectionId, DtoMediaEntry movieId)
+    private Task<bool> CheckIfFavorite(DtoMediaEntry? collectionId, DtoMediaEntry? movieId)
     {
         if (movieId is not null)
-            return movieId.IsFavorite;
+            return Task.FromResult(movieId.IsFavorite);
         if (collectionId is not null)
-            return collectionId.IsFavorite;
-        return false;
+            return Task.FromResult(collectionId.IsFavorite);
+        return Task.FromResult(false);
     }
 
-    // PositionChanged Callback vom Player – hält resumeSeconds laufend aktuell
+    private void BeginEditCurrent()
+    {
+        if (selectedMovie is not null)
+            BeginEdit(selectedMovie);
+        else if (collection is not null)
+            BeginEdit(collection);
+    }
+
+    private void BeginEdit(DtoMediaEntry target)
+    {
+        editObjectType = target is DtoMovie ? "movie" : "moviecollection";
+        editId = target.Id;
+        editSupportsPlot = target is DtoMovie;
+        editSupportsGenres = target is DtoMovie;
+        editModel = new MetadataEditModel
+        {
+            Name = target.Name,
+            Date = target.ReleaseDate,
+            Plot = (target as DtoMovie)?.Plot ?? "",
+        };
+        editContext = new EditContext(editModel);
+        editContext.OnFieldChanged += OnEditFieldChanged;
+        editGenres = new HashSet<string>(SplitGenres((target as DtoMovie)?.GenreNames), StringComparer.OrdinalIgnoreCase);
+        editError = null;
+        isEditing = true;
+        isDirty = false;
+    }
+
+    private async Task SaveEditAsync()
+    {
+        if (!isEditing || editContext is null || !editContext.Validate())
+            return;
+
+        editError = null;
+        var genres = editGenres.Concat(SplitGenres(editModel.NewGenres)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        try
+        {
+            await Client.SaveMetadataAsync(new MediaMetadataUpdateRequest
+            {
+                ObjectType = editObjectType,
+                Id = editId,
+                Name = editModel.Name.Trim(),
+                ReleaseDate = editModel.Date,
+                PremieredAt = null,
+                Plot = editSupportsPlot ? editModel.Plot : null,
+                GenreNames = editSupportsGenres ? genres : []
+            });
+        }
+        catch (Exception ex)
+        {
+            editError = ex.Message;
+            return;
+        }
+
+        await ReloadCollectionAsync();
+        isEditing = false;
+        isDirty = false;
+    }
+
+    private async Task ReloadCollectionAsync()
+    {
+        var movieId = selectedMovie?.Id;
+        collection = await Client.RequestMovieCollectionAsync(Id) as DtoMovieCollection;
+        if (collection is null)
+            return;
+        selectedMovie = movieId.HasValue ? collection.Movies.FirstOrDefault(m => m.Id == movieId.Value) : null;
+        IsCollectionFavorite = await CheckIfFavorite(collectionId: collection, movieId: null);
+        if (selectedMovie is not null)
+            IsMovieFavorite = await CheckIfFavorite(collectionId: null, movieId: selectedMovie);
+        genreOptions = await Client.RequestGenreOptionsAsync();
+    }
+
+    private async Task CancelEditAsync()
+    {
+        if (!isDirty)
+        {
+            ClearEditState();
+            return;
+        }
+
+        pendingDiscardAction = () =>
+        {
+            ClearEditState();
+            return Task.CompletedTask;
+        };
+        showDiscardDialog = true;
+    }
+
+    private async Task RunWithDirtyCheckAsync(Func<Task> action)
+    {
+        if (isEditing && isDirty)
+        {
+            pendingDiscardAction = action;
+            showDiscardDialog = true;
+            return;
+        }
+
+        await action();
+    }
+
+    private async Task DiscardAndContinueAsync()
+    {
+        var action = pendingDiscardAction;
+        showDiscardDialog = false;
+        pendingDiscardAction = null;
+        ClearEditState();
+        if (action is not null)
+            await action();
+    }
+
+    private void ContinueEditing()
+    {
+        pendingDiscardAction = null;
+        showDiscardDialog = false;
+    }
+
+    private void ClearEditState()
+    {
+        isEditing = false;
+        isDirty = false;
+        editObjectType = "";
+        editId = 0;
+        editGenres.Clear();
+        editError = null;
+        editContext = null;
+        editModel = new MetadataEditModel();
+    }
+
+    private void OnEditFieldChanged(object? sender, FieldChangedEventArgs e)
+    {
+        editError = null;
+        isDirty = true;
+    }
+
+    private void ToggleEditGenre(string name)
+    {
+        if (!editGenres.Add(name))
+            editGenres.Remove(name);
+        editError = null;
+        isDirty = true;
+    }
+
+    private static IEnumerable<string> SplitGenres(string? value)
+        => (value ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(g => !string.IsNullOrWhiteSpace(g));
+
+    private static string FormatDate(DateTime? value)
+        => value?.ToString("yyyy-MM-dd") ?? "";
+
+    private IEnumerable<DtoGenreOption> OrderedGenreOptions()
+        => genreOptions
+            .OrderByDescending(g => editGenres.Contains(g.Name))
+            .ThenBy(g => g.Name, StringComparer.OrdinalIgnoreCase);
+
     private void OnPositionChanged(double seconds)
     {
         resumeSeconds = (long)Math.Floor(seconds);
     }
 }
+
 <script src="scroll-horizontal.js"></script>

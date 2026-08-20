@@ -1,201 +1,11 @@
 @page "/tvshow/{Id:long}"
 @using Microsoft.AspNetCore.Components
 @using Microsoft.AspNetCore.Components.Web
-@using System.Security.Claims
 @using Microsoft.AspNetCore.Components.Authorization
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject VideoWebPlayer.Client.VideoWebPlayerClient Client
+@inject NavigationManager nav
 @rendermode InteractiveServer
-
-@code {
-    [Parameter] public long Id { get; set; }
-    [Parameter][SupplyParameterFromQuery(Name = "season")] public long? SeasonId { get; set; }
-    [Parameter][SupplyParameterFromQuery(Name = "episode")] public long? EpisodeId { get; set; }
-    [Parameter][SupplyParameterFromQuery(Name = "position")] public long? Position { get; set; }
-
-    private DtoTVShow? show;
-    private DtoTVShowSeason? selectedSeason;
-    private DtoTVShowEpisode? selectedEpisode;
-    private bool showSeasonInfo = false;
-    private bool showPlayer = false;
-    private bool isAuthenticated;
-    private bool isFavorite = false;
-    private long resumeSeconds;
-
-    // Neu: Player-Referenz für Positionsabfrage
-    private VideoPlayer? _player;
-
-    protected override async Task OnInitializedAsync()
-    {
-        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-        isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
-
-        show = await Client.RequestTVShowAsync(Id) as DtoTVShow;
-        selectedSeason = show?.Seasons?.OrderBy(s => s.Name).FirstOrDefault();
-        showSeasonInfo = false;
-
-        if (SeasonId.HasValue && show?.Seasons != null)
-        {
-            var season = show.Seasons.FirstOrDefault(s => s.Id == SeasonId.Value);
-            if (season != null)
-            {
-                selectedSeason = season;
-                showSeasonInfo = true;
-            }
-        }
-
-        if (EpisodeId.HasValue && selectedSeason?.Episodes != null)
-        {
-            var episode = selectedSeason.Episodes.FirstOrDefault(e => e.Id == EpisodeId.Value);
-            if (episode != null)
-                selectedEpisode = episode;
-        }
-
-        if (Position.HasValue && selectedEpisode is not null)
-        {
-            AutoPlay(Position.Value);
-            Position = 0;
-        }
-
-        await UpdateFavoriteMark();
-    }
-
-    private string GetHeaderBackgroundUrl()
-        => selectedEpisode is not null
-            ? BuildEpisodeBackgroundImageUrl(selectedEpisode.Id, Client.AuthorizationToken)
-            : GetBannerUrl(showSeasonInfo ? (DtoMediaEntry)selectedSeason : (DtoMediaEntry)show);
-
-    /// <summary>
-    /// Builds the URL for a generated episode background image, including the access token
-    /// required by <see cref="Controllers.Attributes.BearerTokenCheckAttribute"/> for direct
-    /// browser requests (e.g. CSS background-image). Internal and pure so it can be regression-tested
-    /// without reflection or a rendered component.
-    /// </summary>
-    internal static string BuildEpisodeBackgroundImageUrl(long episodeId, string? accessToken)
-        => $"/api/episodes/{episodeId}/background-image?access_token={accessToken}";
-
-    private async Task UpdateFavoriteMark()
-    {
-        var target = GetFavoriteTarget();
-        isFavorite = target?.IsFavorite ?? false;
-    }
-
-    private DtoMediaEntry? GetFavoriteTarget()
-    {
-        if (show is null)
-            return null;
-
-        if (selectedEpisode is not null)
-        {
-            if (selectedEpisode.Number == 1)
-            {
-                if (TryParseSeasonNumber(selectedSeason?.Name) == 1)
-                    return show;
-
-                return selectedSeason;
-            }
-
-            return selectedEpisode;
-        }
-
-        if (showSeasonInfo && selectedSeason is not null)
-            return selectedSeason;
-
-        return show;
-    }
-
-    private static int? TryParseSeasonNumber(string? seasonName)
-    {
-        if (string.IsNullOrWhiteSpace(seasonName))
-            return null;
-
-        var match = System.Text.RegularExpressions.Regex.Match(seasonName, @"\d+");
-        return match.Success && int.TryParse(match.Value, out var n) ? n : null;
-    }
-
-    private async Task SelectSeason(DtoTVShowSeason season)
-    {
-        selectedSeason = season;
-        selectedEpisode = season.Episodes?.OrderBy(e => e.Number).FirstOrDefault();
-        resumeSeconds = 0;
-        showSeasonInfo = true;
-        await UpdateFavoriteMark();
-    }
-
-    private async Task SelectEpisode(DtoTVShowEpisode episode)
-    {
-        resumeSeconds = 0;
-        selectedEpisode = episode;
-        await UpdateFavoriteMark();
-    }
-
-    private async Task SelectEpisodeByKeyboard(KeyboardEventArgs args, DtoTVShowEpisode episode)
-    {
-        if (args.Key is "Enter" or " " or "Spacebar")
-            await SelectEpisode(episode);
-    }
-
-    private async Task ShowSeason()
-    {
-        selectedEpisode = null;
-        showSeasonInfo = true;
-        await UpdateFavoriteMark();
-    }
-
-    private string GetBannerUrl(DtoMediaEntry entry)
-        => entry.BannerPictureId.HasValue ? $"/api/pictures/{entry.BannerPictureId}?access_token={Client.AuthorizationToken}" : entry.FanartPictureId.HasValue ? $"/api/pictures/{entry.FanartPictureId}?access_token={Client.AuthorizationToken}" : "/images/placeholder.png";
-
-    private string GetPosterUrl(DtoMediaEntry entry)
-        => entry.PosterPictureId.HasValue ? $"/api/pictures/{entry.PosterPictureId}?access_token={Client.AuthorizationToken}" : entry.FanartPictureId.HasValue ? $"/api/pictures/{entry.FanartPictureId}?access_token={Client.AuthorizationToken}" : "/images/placeholder.png";
-
-    private void ShowPlayer() => showPlayer = true;
-
-    private async Task HidePlayer()
-    {
-        if (_player != null)
-        {
-            try
-            {
-                var pos = await _player.GetCurrentPositionSecondsAsync();
-                resumeSeconds = (long)Math.Floor(pos);
-            }
-            catch { }
-        }
-        showPlayer = false;
-        StateHasChanged();
-    }
-
-    private void AutoPlay(long position)
-    {
-        resumeSeconds = position;
-        ShowPlayer();
-    }
-
-    private string GetEpisodeStreamUrl(DtoTVShowEpisode episode)
-        => $"/api/items/tvshowepisode/{episode.Id}/stream?access_token={Client.AuthorizationToken}";
-
-    private string GetEpisodeDownloadUrl(DtoTVShowEpisode episode)
-        => $"/api/items/tvshowepisode/{episode.Id}/download?access_token={Client.AuthorizationToken}";
-
-    private async Task ToggleFavorite()
-    {
-        var target = GetFavoriteTarget();
-        if (target is null)
-            return;
-
-        isFavorite = await Client.ToggleFavorite(target);
-        target.IsFavorite = isFavorite;
-    }
-
-    private string GetTitle()
-        => $"{show?.Name} • {selectedSeason?.Name} {selectedEpisode?.Name}";
-
-    // Neu: Laufende Aktualisierung (optional, falls benötigt)
-    private void OnPositionChanged(double seconds)
-    {
-        resumeSeconds = (long)Math.Floor(seconds);
-    }
-}
 
 @if (!isAuthenticated)
 {
@@ -207,110 +17,88 @@
 else if (show == null)
 {
     <PageTitle>Unbekannt</PageTitle>
-    <div class="alert alert-danger">TV-Show nicht gefunden.</div>
+    <div class="alert alert-danger">@(loadError ?? "TV-Show nicht gefunden.")</div>
 }
 else
 {
-    <PageTitle>@(show is null ? "Lädt..." : GetPageTitle())</PageTitle>
+    <PageTitle>@GetPageTitle()</PageTitle>
 
     <HeadContent>
-        @if (show != null)
+        <meta name="description" content="@MetaDescription" />
+        <meta name="robots" content="index,follow" />
+        <meta property="og:type" content="video.tv_show" />
+        <meta property="og:title" content="@GetPageTitle()" />
+        <meta property="og:description" content="@MetaDescription" />
+        <meta property="og:url" content="@CanonicalUrl" />
+        @if (!string.IsNullOrEmpty(ShareImageUrl))
         {
-            <meta name="description" content="@MetaDescription" />
-            <meta name="robots" content="index,follow" />
-            <meta property="og:type" content="video.tv_show" />
-            <meta property="og:title" content="@GetOgTitle()" />
-            <meta property="og:description" content="@MetaDescription" />
-            <meta property="og:url" content="@CanonicalUrl" />
-            @if (!string.IsNullOrEmpty(ShareImageUrl))
-            {
-                <meta property="og:image" content="@ShareImageUrl" />
-                <meta name="twitter:card" content="summary_large_image" />
-                <meta name="twitter:image" content="@ShareImageUrl" />
-            }
-            <meta name="twitter:title" content="@GetOgTitle()" />
-            <meta name="twitter:description" content="@MetaDescription" />
-            <link rel="canonical" href="@CanonicalUrl" />
+            <meta property="og:image" content="@ShareImageUrl" />
+            <meta name="twitter:card" content="summary_large_image" />
+            <meta name="twitter:image" content="@ShareImageUrl" />
         }
+        <meta name="twitter:title" content="@GetPageTitle()" />
+        <meta name="twitter:description" content="@MetaDescription" />
+        <link rel="canonical" href="@CanonicalUrl" />
     </HeadContent>
-
-    @code {
-        private string CanonicalUrl => nav.ToAbsoluteUri($"/tvshow/{Id}" +
-            (selectedSeason != null ? $"?season={selectedSeason.Id}" : "") +
-            (selectedEpisode != null ? $"{(selectedSeason!=null?"&":"?")}episode={selectedEpisode.Id}" : "")).ToString();
-
-        [Inject] private NavigationManager nav { get; set; }
-
-        private string GetPageTitle()
-            => selectedEpisode != null
-                ? $"{show!.Name} – {selectedSeason?.Name} – {selectedEpisode.Name}"
-                : selectedSeason != null
-                    ? $"{show!.Name} – {selectedSeason.Name}"
-                    : show!.Name;
-
-        private string GetOgTitle()
-            => GetPageTitle();
-
-        private string MetaDescription {
-            get {
-                var raw = selectedEpisode?.Plot
-                          ?? selectedSeason?.Show?.Plot
-                          ?? show?.Plot
-                          ?? show?.GenreNames
-                          ?? show?.Name
-                          ?? "";
-                if (string.IsNullOrWhiteSpace(raw)) return show?.Name ?? "";
-                raw = System.Text.RegularExpressions.Regex.Replace(raw, "<.*?>", ""); // falls HTML
-                return raw.Length > 200 ? raw[..200] + "…" : raw;
-            }
-        }
-
-        private string ShareImageUrl {
-            get {
-                // Für OpenGraph/Twitter besser kein Token im Query (Bots haben keinen).
-                // Falls Auth nötig: eigenen anonymen Proxy/Thumb-Endpunkt schaffen.
-                var picId = selectedEpisode?.PosterPictureId
-                            ?? selectedSeason?.PosterPictureId
-                            ?? show?.PosterPictureId
-                            ?? selectedEpisode?.FanartPictureId
-                            ?? show?.FanartPictureId
-                            ?? null;
-                if (picId is null) return null;
-                // Falls Bilder Auth benötigen: optional öffentlichen Thumb-Endpunkt implementieren.
-                return nav.ToAbsoluteUri($"/api/pictures/{picId}").ToString();
-            }
-        }
-    }
 
     <div class="tvshow-header" style="background-image: url('@GetHeaderBackgroundUrl()'); position: relative;">
         <button class="favorite-btn" @onclick="ToggleFavorite" title="Als Favorit markieren">
             @(isFavorite ? "★" : "☆")
         </button>
+        @if (isAdmin)
+        {
+            <div class="metadata-action-bar">
+                @if (isEditing)
+                {
+                    <button class="metadata-icon-btn" @onclick="SaveEditAsync" title="Speichern">✓</button>
+                    <button class="metadata-icon-btn" @onclick="CancelEditAsync" title="Abbrechen">×</button>
+                }
+                else
+                {
+                    <button class="metadata-icon-btn" @onclick="BeginEditCurrent" title="Bearbeiten">✎</button>
+                }
+            </div>
+        }
         <div class="tvshow-header-overlay">
             @if (selectedEpisode != null)
             {
-                <button class="play-button" @onclick="ShowPlayer" title="Abspielen">
-                    <span>&#9654;</span>
+                @if (!isEditing)
+                {
+                    <button class="play-button" @onclick="ShowPlayer" title="Abspielen">
+                        <span>&#9654;</span>
+                    </button>
+                }
+                <button class="back-arrow" @onclick="ShowSeason" title="Zurueck zur Staffel">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+                        <path d="M15 6l-6 6 6 6" stroke="#ffe066" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
                 </button>
-                <button class="back-arrow" @onclick="ShowSeason" title="Zurück zur Staffel">
+            }
+            else if (isEditing && editObjectType != "tvshow")
+            {
+                <button class="back-arrow" @onclick="EditShowAsync" title="Serie bearbeiten">
                     <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
                         <path d="M15 6l-6 6 6 6" stroke="#ffe066" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
                     </svg>
                 </button>
             }
             <div class="tvshow-header-content">
-                @if (selectedEpisode != null)
+                @if (isEditing)
+                {
+                    @RenderEditForm()
+                }
+                else if (selectedEpisode != null)
                 {
                     <h1>@selectedEpisode.Name</h1>
                     <div class="tvshow-meta">
-                        <span class="tvshow-year">@selectedEpisode.ReleaseDate?.Year</span>
+                        <span class="tvshow-year">@GetEpisodeDisplayDate(selectedEpisode)?.Year</span>
                         <span class="tvshow-episode-number">Episode @selectedEpisode.Number</span>
                     </div>
                     <div class="tvshow-plot">@selectedEpisode.Plot</div>
                 }
                 else if (showSeasonInfo && selectedSeason != null)
                 {
-                    <h1>@show.Name – @selectedSeason.Name</h1>
+                    <h1>@show.Name - @selectedSeason.Name</h1>
                     <div class="tvshow-meta">
                         <span class="tvshow-year">@selectedSeason.PremieredAt?.Year</span>
                         <span class="tvshow-episode-count">@(selectedSeason.Episodes?.Count() ?? 0) Episoden</span>
@@ -321,7 +109,7 @@ else
                 {
                     <h1>@show.Name</h1>
                     <div class="tvshow-meta">
-                        <span class="tvshow-year">@show.PremieredAt?.Year</span>
+                        <span class="tvshow-year">@GetShowDisplayDate()?.Year</span>
                         <span class="tvshow-genres">@show.GenreNames</span>
                     </div>
                     <div class="tvshow-plot">@show.Plot</div>
@@ -333,23 +121,16 @@ else
     <div class="tvshow-content-flex">
         @if (show.Seasons?.Any() == true)
         {
-            <div class="season-select-bar">
+            <div class="season-select-bar metadata-season-row">
                 <select class="form-select" @onchange="OnSeasonChanged">
                     @foreach (var season in show.Seasons.OrderBy(s => s.Name))
                     {
                         <option value="@season.Id" selected="@(season.Id == selectedSeason?.Id)">@season.Name</option>
                     }
                 </select>
-                @code {
-                    private async Task OnSeasonChanged(ChangeEventArgs e)
-                    {
-                        if (long.TryParse(e.Value?.ToString(), out var seasonId))
-                        {
-                            var season = show.Seasons.FirstOrDefault(s => s.Id == seasonId);
-                            if (season != null)
-                                await SelectSeason(season);
-                        }
-                    }
+                @if (isAdmin && isEditing)
+                {
+                    <button class="metadata-icon-btn metadata-inline-edit" @onclick="EditSelectedSeasonAsync" title="Staffel bearbeiten">✎</button>
                 }
             </div>
         }
@@ -393,6 +174,533 @@ else
                      StartPositionSeconds="@(resumeSeconds)"
                      PositionChanged="OnPositionChanged" />
     }
+
+    @if (showDiscardDialog)
+    {
+        <div class="metadata-dialog-overlay">
+            <div class="metadata-dialog">
+                <h2>Aenderungen verwerfen?</h2>
+                <div class="metadata-dialog-actions">
+                    <button class="btn btn-primary" @onclick="DiscardAndContinueAsync">Aenderungen verwerfen</button>
+                    <button class="btn btn-ghost" @onclick="ContinueEditing">Weiter bearbeiten</button>
+                </div>
+            </div>
+        </div>
+    }
 }
 
+@code {
+    [Parameter] public long Id { get; set; }
+    [Parameter][SupplyParameterFromQuery(Name = "season")] public long? SeasonId { get; set; }
+    [Parameter][SupplyParameterFromQuery(Name = "episode")] public long? EpisodeId { get; set; }
+    [Parameter][SupplyParameterFromQuery(Name = "position")] public long? Position { get; set; }
 
+    private DtoTVShow? show;
+    private DtoTVShowSeason? selectedSeason;
+    private DtoTVShowEpisode? selectedEpisode;
+    private List<DtoGenreOption> genreOptions = [];
+    private bool showSeasonInfo;
+    private bool showPlayer;
+    private bool isAuthenticated;
+    private bool isAdmin;
+    private bool isFavorite;
+    private long resumeSeconds;
+    private VideoPlayer? _player;
+
+    private bool isEditing;
+    private bool isDirty;
+    private bool editSupportsPlot;
+    private bool editSupportsGenres;
+    private bool editUsesPremieredAt;
+    private string editObjectType = "";
+    private long editId;
+    private MetadataEditModel editModel = new();
+    private EditContext? editContext;
+    private string? editError;
+    private string? loadError;
+    private HashSet<string> editGenres = new(StringComparer.OrdinalIgnoreCase);
+    private bool showDiscardDialog;
+    private Func<Task>? pendingDiscardAction;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
+        isAdmin = isAuthenticated && authState.User.HasClaim("IsAdmin", "True");
+
+        if (!isAuthenticated)
+            return;
+
+        try
+        {
+            show = await Client.RequestTVShowAsync(Id) as DtoTVShow;
+            genreOptions = await Client.RequestGenreOptionsAsync();
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("Could not resolve user from principal", StringComparison.Ordinal))
+        {
+            isAuthenticated = false;
+            loadError = "Bitte melden Sie sich erneut an, um die Serie zu oeffnen.";
+            return;
+        }
+        catch
+        {
+            loadError = "Die Serie konnte nicht geladen werden.";
+            return;
+        }
+
+        if (show is null)
+            return;
+
+        selectedSeason = show?.Seasons?.OrderBy(s => s.Name).FirstOrDefault();
+
+        if (SeasonId.HasValue && show?.Seasons != null)
+        {
+            var season = show.Seasons.FirstOrDefault(s => s.Id == SeasonId.Value);
+            if (season != null)
+            {
+                selectedSeason = season;
+                showSeasonInfo = true;
+            }
+        }
+
+        if (EpisodeId.HasValue && selectedSeason?.Episodes != null)
+        {
+            var episode = selectedSeason.Episodes.FirstOrDefault(e => e.Id == EpisodeId.Value);
+            if (episode != null)
+                selectedEpisode = episode;
+        }
+
+        if (Position.HasValue && selectedEpisode is not null)
+        {
+            AutoPlay(Position.Value);
+            Position = 0;
+        }
+
+        await UpdateFavoriteMark();
+    }
+
+    private RenderFragment RenderEditForm() => @<EditForm EditContext="@editContext" OnSubmit="@SaveEditAsync" class="metadata-edit-form">
+        <DataAnnotationsValidator />
+        @if (!string.IsNullOrWhiteSpace(editError))
+        {
+            <div class="metadata-edit-error">@editError</div>
+        }
+        <InputText class="form-control metadata-title-input" @bind-Value="editModel.Name" maxlength="512" />
+        <ValidationMessage For="@(() => editModel.Name)" />
+        <InputDate class="form-control metadata-date-input" @bind-Value="editModel.Date" />
+        @if (editSupportsGenres)
+        {
+            <div class="genre-scrollbar metadata-genre-scrollbar">
+                @foreach (var genre in OrderedGenreOptions())
+                {
+                    <button type="button" class="genre-btn @(editGenres.Contains(genre.Name) ? "selected" : "")" @onclick="() => ToggleEditGenre(genre.Name)">
+                        @genre.Name
+                    </button>
+                }
+            </div>
+            <InputText class="form-control" @bind-Value="editModel.NewGenres" placeholder="Weitere Genres" />
+        }
+        @if (editSupportsPlot)
+        {
+            <InputTextArea class="form-control metadata-plot-input" @bind-Value="editModel.Plot" maxlength="10000" />
+            <ValidationMessage For="@(() => editModel.Plot)" />
+        }
+    </EditForm>;
+
+    private string CanonicalUrl => nav.ToAbsoluteUri($"/tvshow/{Id}" +
+        (selectedSeason != null ? $"?season={selectedSeason.Id}" : "") +
+        (selectedEpisode != null ? $"{(selectedSeason != null ? "&" : "?")}episode={selectedEpisode.Id}" : "")).ToString();
+
+    private string GetPageTitle()
+        => selectedEpisode != null
+            ? $"{show!.Name} - {selectedSeason?.Name} - {selectedEpisode.Name}"
+            : selectedSeason != null
+                ? $"{show!.Name} - {selectedSeason.Name}"
+                : show!.Name;
+
+    private string MetaDescription
+    {
+        get
+        {
+            var raw = selectedEpisode?.Plot
+                      ?? selectedSeason?.Show?.Plot
+                      ?? show?.Plot
+                      ?? show?.GenreNames
+                      ?? show?.Name
+                      ?? "";
+            if (string.IsNullOrWhiteSpace(raw)) return show?.Name ?? "";
+            raw = System.Text.RegularExpressions.Regex.Replace(raw, "<.*?>", "");
+            return raw.Length > 200 ? raw[..200] + "..." : raw;
+        }
+    }
+
+    private string? ShareImageUrl
+    {
+        get
+        {
+            var picId = selectedEpisode?.PosterPictureId
+                        ?? selectedSeason?.PosterPictureId
+                        ?? show?.PosterPictureId
+                        ?? selectedEpisode?.FanartPictureId
+                        ?? show?.FanartPictureId;
+            return picId is null ? null : nav.ToAbsoluteUri($"/api/pictures/{picId}").ToString();
+        }
+    }
+
+    private string GetHeaderBackgroundUrl()
+        => selectedEpisode is not null
+            ? BuildEpisodeBackgroundImageUrl(selectedEpisode.Id, Client.AuthorizationToken)
+            : GetBannerUrl(showSeasonInfo ? (DtoMediaEntry?)selectedSeason : show);
+
+    internal static string BuildEpisodeBackgroundImageUrl(long episodeId, string? accessToken)
+        => $"/api/episodes/{episodeId}/background-image?access_token={accessToken}";
+
+    private async Task UpdateFavoriteMark()
+    {
+        var target = GetFavoriteTarget();
+        isFavorite = target?.IsFavorite ?? false;
+    }
+
+    private DtoMediaEntry? GetFavoriteTarget()
+    {
+        if (show is null)
+            return null;
+
+        if (selectedEpisode is not null)
+        {
+            if (selectedEpisode.Number == 1)
+            {
+                if (TryParseSeasonNumber(selectedSeason?.Name) == 1)
+                    return show;
+                return selectedSeason;
+            }
+            return selectedEpisode;
+        }
+
+        if (showSeasonInfo && selectedSeason is not null)
+            return selectedSeason;
+
+        return show;
+    }
+
+    private static int? TryParseSeasonNumber(string? seasonName)
+    {
+        if (string.IsNullOrWhiteSpace(seasonName))
+            return null;
+        var match = System.Text.RegularExpressions.Regex.Match(seasonName, @"\d+");
+        return match.Success && int.TryParse(match.Value, out var n) ? n : null;
+    }
+
+    private async Task SelectSeason(DtoTVShowSeason season)
+        => await RunWithDirtyCheckAsync(async () => await SelectSeasonCoreAsync(season, isEditing));
+
+    private async Task SelectSeasonCoreAsync(DtoTVShowSeason season, bool editAfterSwitch)
+    {
+        selectedSeason = season;
+        selectedEpisode = editAfterSwitch ? null : season.Episodes?.OrderBy(e => e.Number).FirstOrDefault();
+        resumeSeconds = 0;
+        showSeasonInfo = true;
+        showPlayer = false;
+        await UpdateFavoriteMark();
+        if (editAfterSwitch && selectedSeason is not null)
+            BeginEdit(selectedSeason);
+    }
+
+    private async Task SelectEpisode(DtoTVShowEpisode episode)
+        => await RunWithDirtyCheckAsync(async () => await SelectEpisodeCoreAsync(episode, isEditing));
+
+    private async Task SelectEpisodeCoreAsync(DtoTVShowEpisode episode, bool editAfterSwitch)
+    {
+        resumeSeconds = 0;
+        selectedEpisode = episode;
+        showPlayer = false;
+        await UpdateFavoriteMark();
+        if (editAfterSwitch)
+            BeginEdit(episode);
+    }
+
+    private async Task SelectEpisodeByKeyboard(KeyboardEventArgs args, DtoTVShowEpisode episode)
+    {
+        if (args.Key is "Enter" or " " or "Spacebar")
+            await SelectEpisode(episode);
+    }
+
+    private async Task ShowSeason()
+        => await RunWithDirtyCheckAsync(async () =>
+        {
+            selectedEpisode = null;
+            showSeasonInfo = true;
+            await UpdateFavoriteMark();
+            if (isEditing && selectedSeason is not null)
+                BeginEdit(selectedSeason);
+        });
+
+    private async Task OnSeasonChanged(ChangeEventArgs e)
+    {
+        if (long.TryParse(e.Value?.ToString(), out var seasonId))
+        {
+            var season = show?.Seasons.FirstOrDefault(s => s.Id == seasonId);
+            if (season != null)
+                await SelectSeason(season);
+        }
+    }
+
+    private Task EditSelectedSeasonAsync()
+    {
+        if (selectedSeason is not null)
+        {
+            selectedEpisode = null;
+            showSeasonInfo = true;
+            showPlayer = false;
+            BeginEdit(selectedSeason);
+        }
+        return Task.CompletedTask;
+    }
+
+    private async Task EditShowAsync()
+        => await RunWithDirtyCheckAsync(() =>
+        {
+            selectedEpisode = null;
+            showSeasonInfo = false;
+            BeginEdit(show!);
+            return Task.CompletedTask;
+        });
+
+    private void BeginEditCurrent()
+    {
+        var target = selectedEpisode as DtoMediaEntry
+            ?? (showSeasonInfo ? selectedSeason as DtoMediaEntry : null)
+            ?? show as DtoMediaEntry;
+        if (target is not null)
+            BeginEdit(target);
+    }
+
+    private void BeginEdit(DtoMediaEntry target)
+    {
+        editObjectType = target switch
+        {
+            DtoTVShow => "tvshow",
+            DtoTVShowSeason => "tvshowseason",
+            DtoTVShowEpisode => "tvshowepisode",
+            _ => ""
+        };
+        editId = target.Id;
+        editUsesPremieredAt = target is DtoTVShowSeason;
+        editSupportsPlot = target is DtoTVShow or DtoTVShowEpisode;
+        editSupportsGenres = target is DtoTVShow;
+        editModel = new MetadataEditModel
+        {
+            Name = target.Name,
+            Date = GetEditDate(target),
+            Plot = target switch
+            {
+                DtoTVShow tvShow => tvShow.Plot ?? "",
+                DtoTVShowEpisode episode => episode.Plot ?? "",
+                _ => ""
+            },
+        };
+        editContext = new EditContext(editModel);
+        editContext.OnFieldChanged += OnEditFieldChanged;
+        editGenres = new HashSet<string>(SplitGenres((target as DtoTVShow)?.GenreNames), StringComparer.OrdinalIgnoreCase);
+        editError = null;
+        isEditing = true;
+        isDirty = false;
+    }
+
+    private async Task SaveEditAsync()
+    {
+        if (!isEditing || editContext is null || !editContext.Validate())
+            return;
+
+        editError = null;
+        var genres = editGenres.Concat(SplitGenres(editModel.NewGenres)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        try
+        {
+            await Client.SaveMetadataAsync(new MediaMetadataUpdateRequest
+            {
+                ObjectType = editObjectType,
+                Id = editId,
+                Name = editModel.Name.Trim(),
+                ReleaseDate = editUsesPremieredAt ? null : editModel.Date,
+                PremieredAt = editUsesPremieredAt ? editModel.Date : null,
+                Plot = editSupportsPlot ? editModel.Plot : null,
+                GenreNames = editSupportsGenres ? genres : []
+            });
+        }
+        catch (Exception ex)
+        {
+            editError = ex.Message;
+            return;
+        }
+
+        await ReloadShowAsync();
+        isEditing = false;
+        isDirty = false;
+    }
+
+    private async Task ReloadShowAsync()
+    {
+        var seasonId = selectedSeason?.Id;
+        var episodeId = editObjectType == "tvshowepisode" ? selectedEpisode?.Id : null;
+        var keepSeasonContext = editObjectType == "tvshowseason";
+        var keepShowContext = editObjectType == "tvshow";
+        show = await Client.RequestTVShowAsync(Id) as DtoTVShow;
+        if (show is null)
+            return;
+        selectedSeason = seasonId.HasValue
+            ? show.Seasons.FirstOrDefault(s => s.Id == seasonId.Value)
+            : show.Seasons.OrderBy(s => s.Name).FirstOrDefault();
+        selectedEpisode = episodeId.HasValue
+            ? selectedSeason?.Episodes.FirstOrDefault(e => e.Id == episodeId.Value)
+            : null;
+        showSeasonInfo = keepSeasonContext || (!keepShowContext && selectedSeason is not null);
+        await UpdateFavoriteMark();
+        genreOptions = await Client.RequestGenreOptionsAsync();
+    }
+
+    private async Task CancelEditAsync()
+    {
+        if (!isDirty)
+        {
+            ClearEditState();
+            return;
+        }
+
+        pendingDiscardAction = () =>
+        {
+            ClearEditState();
+            return Task.CompletedTask;
+        };
+        showDiscardDialog = true;
+    }
+
+    private async Task RunWithDirtyCheckAsync(Func<Task> action)
+    {
+        if (isEditing && isDirty)
+        {
+            pendingDiscardAction = action;
+            showDiscardDialog = true;
+            return;
+        }
+
+        await action();
+    }
+
+    private async Task DiscardAndContinueAsync()
+    {
+        var action = pendingDiscardAction;
+        showDiscardDialog = false;
+        pendingDiscardAction = null;
+        ClearEditState();
+        if (action is not null)
+            await action();
+    }
+
+    private void ContinueEditing()
+    {
+        pendingDiscardAction = null;
+        showDiscardDialog = false;
+    }
+
+    private void ClearEditState()
+    {
+        isEditing = false;
+        isDirty = false;
+        editObjectType = "";
+        editId = 0;
+        editGenres.Clear();
+        editError = null;
+        editContext = null;
+        editModel = new MetadataEditModel();
+    }
+
+    private void OnEditFieldChanged(object? sender, FieldChangedEventArgs e)
+    {
+        editError = null;
+        isDirty = true;
+    }
+
+    private void ToggleEditGenre(string name)
+    {
+        if (!editGenres.Add(name))
+            editGenres.Remove(name);
+        editError = null;
+        isDirty = true;
+    }
+
+    private static IEnumerable<string> SplitGenres(string? value)
+        => (value ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(g => !string.IsNullOrWhiteSpace(g));
+
+    private static string FormatDate(DateTime? value)
+        => value?.ToString("yyyy-MM-dd") ?? "";
+
+    private IEnumerable<DtoGenreOption> OrderedGenreOptions()
+        => genreOptions
+            .OrderByDescending(g => editGenres.Contains(g.Name))
+            .ThenBy(g => g.Name, StringComparer.OrdinalIgnoreCase);
+
+    private static DateTime? GetEditDate(DtoMediaEntry target)
+        => target switch
+        {
+            DtoTVShowSeason => target.PremieredAt,
+            DtoTVShowEpisode => target.ReleaseDate ?? target.PremieredAt,
+            _ => target.ReleaseDate
+        };
+
+    private static DateTime? GetEpisodeDisplayDate(DtoTVShowEpisode episode)
+        => episode.ReleaseDate ?? episode.PremieredAt;
+
+    private DateTime? GetShowDisplayDate()
+        => show?.ReleaseDate ?? show?.PremieredAt;
+
+    private string GetBannerUrl(DtoMediaEntry? entry)
+        => entry?.BannerPictureId.HasValue == true ? $"/api/pictures/{entry.BannerPictureId}?access_token={Client.AuthorizationToken}" : entry?.FanartPictureId.HasValue == true ? $"/api/pictures/{entry.FanartPictureId}?access_token={Client.AuthorizationToken}" : "/images/placeholder.png";
+
+    private string GetPosterUrl(DtoMediaEntry entry)
+        => entry.PosterPictureId.HasValue ? $"/api/pictures/{entry.PosterPictureId}?access_token={Client.AuthorizationToken}" : entry.FanartPictureId.HasValue ? $"/api/pictures/{entry.FanartPictureId}?access_token={Client.AuthorizationToken}" : "/images/placeholder.png";
+
+    private void ShowPlayer() => showPlayer = true;
+
+    private async Task HidePlayer()
+    {
+        if (_player != null)
+        {
+            try
+            {
+                var pos = await _player.GetCurrentPositionSecondsAsync();
+                resumeSeconds = (long)Math.Floor(pos);
+            }
+            catch { }
+        }
+        showPlayer = false;
+        StateHasChanged();
+    }
+
+    private void AutoPlay(long position)
+    {
+        resumeSeconds = position;
+        ShowPlayer();
+    }
+
+    private string GetEpisodeStreamUrl(DtoTVShowEpisode episode)
+        => $"/api/items/tvshowepisode/{episode.Id}/stream?access_token={Client.AuthorizationToken}";
+
+    private string GetEpisodeDownloadUrl(DtoTVShowEpisode episode)
+        => $"/api/items/tvshowepisode/{episode.Id}/download?access_token={Client.AuthorizationToken}";
+
+    private async Task ToggleFavorite()
+    {
+        var target = GetFavoriteTarget();
+        if (target is null)
+            return;
+
+        isFavorite = await Client.ToggleFavorite(target);
+        target.IsFavorite = isFavorite;
+    }
+
+    private void OnPositionChanged(double seconds)
+    {
+        resumeSeconds = (long)Math.Floor(seconds);
+    }
+}

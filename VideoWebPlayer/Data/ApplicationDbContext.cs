@@ -165,30 +165,151 @@ namespace VideoWebPlayer.Data
         /// Publiziert nach erfolgreichem L�schen ein Event.
         /// </summary>
         /// <param name="source">Die zu l�schende MediaSource.</param>
-        public async Task DeleteMediaSourceAsync(MediaSource source)
+        public async Task DeleteMediaSourceAsync(MediaSource source, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
-            var existingSource = await MediaSources.FindAsync(source.Id);
-            if (existingSource != null)
+            ArgumentNullException.ThrowIfNull(source);
+
+            var existingSource = await MediaSources.FindAsync(new object[] { source.Id }, cancellationToken);
+            if (existingSource is null)
+                return;
+
+            await using var transaction = await Database.BeginTransactionAsync(cancellationToken);
+
+            Entry(existingSource).State = EntityState.Detached;
+
+            var step = 0;
+            const int TotalSteps = 19;
+
+            void Report()
             {
-                // Hole alle Collections der Quelle
+                step++;
+                progress?.Report((double)step / TotalSteps);
+            }
+
+            try
+            {
+                await ContinueWatchingEntries
+                    .Where(cwe => (cwe.Movie != null && cwe.Movie.MediaSourceId == source.Id) ||
+                                  (cwe.TVShowEpisode != null && cwe.TVShowEpisode.TVShowSeason.TVShow.MediaSourceId == source.Id))
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
+                await FavoriteEntries
+                    .Where(fe => Movies.Any(m => m.MediaSourceId == source.Id && m.Id == fe.MovieId) ||
+                                MovieCollections.Any(mc => mc.MediaSourceId == source.Id && mc.Id == fe.MovieCollectionId) ||
+                                TVShows.Any(t => t.MediaSourceId == source.Id && t.Id == fe.TVShowId) ||
+                                TVShowSeasons.Any(s => s.TVShow.MediaSourceId == source.Id && s.Id == fe.TVShowSeasonId) ||
+                                TVShowEpisodes.Any(e => e.TVShowSeason.TVShow.MediaSourceId == source.Id && e.Id == fe.TVShowEpisodeId))
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
+                await RecentEntries
+                    .Where(re => re.MediaSourceId == source.Id)
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
+                await MovieMediaItems
+                    .Where(mmi => mmi.MediaItem.MediaCollection.MediaSourceId == source.Id)
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
+                await TVShowEpisodeMediaItems
+                    .Where(ei => ei.MediaItem.MediaCollection.MediaSourceId == source.Id)
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
+                await TVShowGenres
+                    .Where(tg => tg.TVShow.MediaSourceId == source.Id)
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
+                await MovieGenres
+                    .Where(mg => mg.Movie.MediaSourceId == source.Id)
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
+                await Pictures
+                    .Where(p => p.EpisodeId != null &&
+                                TVShowEpisodes.Any(e => e.Id == p.EpisodeId.Value &&
+                                                        e.TVShowSeason.TVShow.MediaSourceId == source.Id))
+                    .ExecuteUpdateAsync(s => s.SetProperty(p => p.EpisodeId, (long?)null), cancellationToken);
+                Report();
+
+                await TVShowEpisodes
+                    .Where(e => e.TVShowSeason.TVShow.MediaSourceId == source.Id)
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
+                await Movies
+                    .Where(m => m.MediaSourceId == source.Id)
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
+                await TVShowSeasons
+                    .Where(s => s.TVShow.MediaSourceId == source.Id)
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
+                await TVShows
+                    .Where(t => t.MediaSourceId == source.Id)
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
+                await MovieCollections
+                    .Where(mc => mc.MediaSourceId == source.Id)
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
+                await Pictures
+                    .Where(p => p.MediaItem.MediaCollection.MediaSourceId == source.Id)
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
                 var collections = await MediaCollections
-                    .Where(c => c.MediaSourceId == source.Id)
-                    .ToListAsync();
+                    .Where(mc => mc.MediaSourceId == source.Id)
+                    .ToListAsync(cancellationToken);
+                if (collections.Count > 0)
+                {
+                    await DeleteMediaCollectionsForSourceAsync(collections, cancellationToken);
+                    await SaveChangesAsync(cancellationToken);
+                }
+                Report();
 
-                await DeleteMediaCollectionsForSourceAsync(collections);
+                await GenreNames
+                    .Where(gn => gn.Genre.MediaSourceId == source.Id)
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
 
-                MediaSources.Remove(existingSource);
-                await SaveChangesAsync();
+                await Genres
+                    .Where(g => g.MediaSourceId == source.Id)
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
+                await MediaSourceUsers
+                    .Where(msu => msu.MediaSourceId == source.Id)
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
+                await MediaSources
+                    .Where(ms => ms.Id == source.Id)
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
+                await transaction.CommitAsync(cancellationToken);
                 _eventManager.Publish(new MediaSourceDeletedEvent(source));
             }
-            
+            catch
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                throw;
+            }
         }
 
         /// <summary>
         /// L�scht eine MediaCollection, alle untergeordneten Collections und alle zugeh�rigen MediaItems rekursiv.
         /// </summary>
         /// <param name="collection">Die zu l�schende MediaCollection.</param>
-        private async Task DeleteMediaCollectionsForSourceAsync(List<MediaCollection> collections)
+        private async Task DeleteMediaCollectionsForSourceAsync(List<MediaCollection> collections, CancellationToken cancellationToken = default)
         {
             if (collections.Count == 0)
                 return;
@@ -250,7 +371,7 @@ namespace VideoWebPlayer.Data
             // L�sche alle MediaItems dieser Collections
             var items = await MediaItems
                 .Where(i => collectionIds.Contains(i.MediaCollectionId))
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
             MediaItems.RemoveRange(items);
 
             // L�sche Collections children-first

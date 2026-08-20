@@ -60,19 +60,21 @@ namespace VideoWebPlayer.Services.Authentication
         {
             if (user is null) return null;
             // JWT generieren
+            var issuer = _config["Jwt:Issuer"] ?? "VideoWebPlayer";
             var claims = new[]
             {
             new Claim(JwtRegisteredClaimNames.Sub, user.Id),
             new Claim(ClaimTypes.NameIdentifier, user.Id),
             new Claim(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty),
-            new Claim(ClaimTypes.Name, user.UserName ?? string.Empty)
+            new Claim(ClaimTypes.Name, user.UserName ?? string.Empty),
+            new Claim("IsAdmin", user.IsAdmin.ToString())
         };
 
             var creds = new SigningCredentials(_jwtKey, SecurityAlgorithms.HmacSha256);
 
             var token = new JwtSecurityToken(
-                issuer: _config["Jwt:Issuer"],
-                audience: _config["Jwt:Issuer"],
+                issuer: issuer,
+                audience: issuer,
                 claims,
                 expires: DateTime.Now.AddHours(12),
                 signingCredentials: creds);

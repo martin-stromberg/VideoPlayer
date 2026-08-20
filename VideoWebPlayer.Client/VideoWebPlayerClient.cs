@@ -115,7 +115,10 @@ namespace VideoWebPlayer.Client
             
             var content = await response.Content.ReadAsStringAsync();
             if (!response.IsSuccessStatusCode)
-                throw new HttpRequestException($"Failed to POST from {endPoint}: {response.ReasonPhrase}");
+                throw new HttpRequestException(
+                    string.IsNullOrWhiteSpace(content)
+                        ? $"Failed to POST from {endPoint}: {response.ReasonPhrase}"
+                        : content);
             return System.Text.Json.JsonSerializer.Deserialize<T>(content, new System.Text.Json.JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
@@ -296,6 +299,26 @@ namespace VideoWebPlayer.Client
             {
                 return null;
             }
+        }
+
+        public async Task<List<DtoGenreOption>> RequestGenreOptionsAsync()
+        {
+            try
+            {
+                return await HttpGetAsync<List<DtoGenreOption>>("api/items/genres");
+            }
+            catch
+            {
+                return [];
+            }
+        }
+
+        public async Task SaveMetadataAsync(MediaMetadataUpdateRequest request)
+        {
+            var json = JsonSerializer.Serialize(request);
+            _ = await HttpPostAsync<bool>(
+                "api/items/metadata",
+                new StringContent(json, System.Text.Encoding.UTF8, "application/json"));
         }
         
         #endregion

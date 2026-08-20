@@ -11,6 +11,7 @@ public class DtoMediaEntry
 {
     public long Id { get; set; }
     public string Name { get; set; } = string.Empty;
+    public long MediaSourceId { get; set; }
     public DateTime? ReleaseDate { get; set; }
     public DateTime? PremieredAt { get; set; }
     public DateTime? EndedAt { get; set; }
@@ -21,6 +22,24 @@ public class DtoMediaEntry
     public DtoPicture? BannerPicture { get; set; }
     public DtoPicture? FanartPicture { get; set; }
     public bool IsFavorite { get; set; }
+    public bool IsManuallyEdited { get; set; }
+}
+
+public sealed class DtoGenreOption
+{
+    public long Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+}
+
+public sealed class MediaMetadataUpdateRequest
+{
+    public string ObjectType { get; set; } = string.Empty;
+    public long Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public DateTime? ReleaseDate { get; set; }
+    public DateTime? PremieredAt { get; set; }
+    public string? Plot { get; set; }
+    public string[] GenreNames { get; set; } = [];
 }
 public class DtoMovie: DtoMediaEntry
 {

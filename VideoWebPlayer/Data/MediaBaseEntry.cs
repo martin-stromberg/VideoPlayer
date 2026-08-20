@@ -3,7 +3,7 @@ using System;
 namespace VideoWebPlayer.Data
 {
     /// <summary>
-    /// Basisklasse für alle Medieneinträge (z.B. Movie, TVShow, TVShowSeason, TVShowEpisode, MovieCollection).
+    /// Base class for all media entries, for example Movie, TVShow, TVShowSeason, TVShowEpisode, and MovieCollection.
     /// </summary>
     public abstract class MediaBaseEntry
     {
@@ -49,6 +49,10 @@ namespace VideoWebPlayer.Data
         /// Gets or sets a value indicating whether the entry has changed.
         /// </summary>
         public bool Changed { get; set; }
+        /// <summary>
+        /// Gets or sets a value indicating whether user-edited metadata is protected from scans.
+        /// </summary>
+        public bool IsManuallyEdited { get; set; }
 
         /// <summary>
         /// Gets or sets the poster picture identifier.

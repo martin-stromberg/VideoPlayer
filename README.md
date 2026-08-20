@@ -92,6 +92,7 @@
 - ✅ Konfigurierbarer Anwendungstitel für Navigation und Startseite
 - ✅ Administrative Backup-Verwaltung mit Hintergrund-Backups, Hintergrund-Restore mit Fortschritt, automatischer GVS-Aufbewahrung, Upload, Download und Löschen
 - ✅ Administrative Update-Verwaltung mit persistenten Update-Einstellungen, manueller Prüfung/Installation, Prerelease-Sicherheitsabfrage und Backup vor der Installation
+- ✅ Administrativer Editiermodus für Medienmetadaten mit dauerhaftem Schutz vor Scan-Überschreibung
 
 ### Frontend (.NET MAUI App)
 
@@ -240,6 +241,7 @@ VideoWebPlayer.sln
 | [Benutzerhandbuch](./Docs/GUIDE_User_Manual.md) | Anleitung zur Nutzung der Anwendung |
 | [Feature-Übersicht](./Docs/GUIDE_Features.md) | Detaillierte Beschreibung aller Features |
 | [Medienbibliothek](./docs/help/medienbibliothek.md) | Bedienung der überarbeiteten Weboberfläche |
+| [Medienmetadaten bearbeiten](./docs/help/medien-editiermodus.md) | Administrativer Editiermodus und Schutz vor Scan-Überschreibung |
 
 ### 🔧 Technische Dokumentation
 

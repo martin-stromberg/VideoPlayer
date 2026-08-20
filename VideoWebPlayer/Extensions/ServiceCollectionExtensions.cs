@@ -215,6 +215,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<EventManager>();
         services.AddScoped<MediaSourceScanner>();
         services.AddScoped<MediaSourceClassifier>();
+        services.AddScoped<MediaMetadataEditorService>();
         services.AddScoped<IFavoritesService, FavoritesService>();
 		services.AddScoped<IGenreService, GenreService>();
         services.AddScoped<SftpMediaSourceReader>();

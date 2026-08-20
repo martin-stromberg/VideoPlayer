@@ -103,6 +103,120 @@ public class MediaSourceClassifierBackgroundImageTests
         Assert.False(episode.BackgroundImageRequiresUpdate);
     }
 
+    [Fact]
+    public async Task ClassifyAllAsync_DoesNotOverwriteManuallyEditedSeriesMetadata()
+    {
+        var connectionString = "Data Source=file:classifier-manual-metadata?mode=memory&cache=shared";
+        using var keeperConnection = new SqliteConnection(connectionString);
+        keeperConnection.Open();
+
+        var rootPath = "/media";
+        var showName = "TestShow";
+        var reader = new SeriesSftpMediaSourceReader(rootPath, showName, seasonCount: 1, episodesPerSeason: 1);
+
+        var serviceProvider = BuildServiceProvider(connectionString, reader);
+        await SeedMediaSourceAsync(serviceProvider, rootPath);
+
+        var ct = TestContext.Current.CancellationToken;
+        using var scope = serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var scanner = scope.ServiceProvider.GetRequiredService<MediaSourceScanner>();
+        var classifier = scope.ServiceProvider.GetRequiredService<MediaSourceClassifier>();
+
+        await ScanShowAndSeasonAsync(scanner, ct);
+        await classifier.ClassifyAllAsync(ct);
+
+        var show = await db.TVShows.SingleAsync(ct);
+        var season = await db.TVShowSeasons.SingleAsync(ct);
+        var episode = await db.TVShowEpisodes.SingleAsync(ct);
+        show.Name = "Manual Show";
+        show.Plot = "Manual show plot";
+        show.ReleaseDate = new DateTime(2023, 1, 2);
+        show.IsManuallyEdited = true;
+        season.Name = "Manual Season";
+        season.PremieredAt = new DateTime(2023, 2, 3);
+        season.IsManuallyEdited = true;
+        episode.Name = "Manual Episode";
+        episode.Plot = "Manual episode plot";
+        episode.PremieredAt = new DateTime(2023, 3, 4);
+        episode.IsManuallyEdited = true;
+
+        foreach (var item in db.MediaItems)
+            item.Changed = true;
+        foreach (var collection in db.MediaCollections)
+            collection.Changed = true;
+        await db.SaveChangesAsync(ct);
+
+        await classifier.ClassifyAllAsync(ct);
+
+        Assert.Equal("Manual Show", show.Name);
+        Assert.Equal("Manual show plot", show.Plot);
+        Assert.Equal(new DateTime(2023, 1, 2), show.ReleaseDate);
+        Assert.Equal("Manual Season", season.Name);
+        Assert.Equal(new DateTime(2023, 2, 3), season.PremieredAt);
+        Assert.Equal("Manual Episode", episode.Name);
+        Assert.Equal("Manual episode plot", episode.Plot);
+        Assert.Equal(new DateTime(2023, 3, 4), episode.PremieredAt);
+    }
+
+    [Fact]
+    public async Task ClassifyAllAsync_ReusesManuallyRenamedSeriesSeasonAndEpisode()
+    {
+        var connectionString = "Data Source=file:classifier-manual-rename?mode=memory&cache=shared";
+        using var keeperConnection = new SqliteConnection(connectionString);
+        keeperConnection.Open();
+
+        var rootPath = "/media";
+        var showName = "TestShow";
+        var reader = new SeriesSftpMediaSourceReader(rootPath, showName, seasonCount: 1, episodesPerSeason: 1);
+
+        var serviceProvider = BuildServiceProvider(connectionString, reader);
+        await SeedMediaSourceAsync(serviceProvider, rootPath);
+
+        var ct = TestContext.Current.CancellationToken;
+        using var scope = serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var scanner = scope.ServiceProvider.GetRequiredService<MediaSourceScanner>();
+        var classifier = scope.ServiceProvider.GetRequiredService<MediaSourceClassifier>();
+
+        await ScanShowAndSeasonAsync(scanner, ct);
+        await classifier.ClassifyAllAsync(ct);
+
+        var show = await db.TVShows.SingleAsync(ct);
+        var season = await db.TVShowSeasons.SingleAsync(ct);
+        var episode = await db.TVShowEpisodes.SingleAsync(ct);
+        var showId = show.Id;
+        var seasonId = season.Id;
+        var episodeId = episode.Id;
+
+        show.Name = "Manual Show";
+        show.IsManuallyEdited = true;
+        season.Name = "Manual Season";
+        season.IsManuallyEdited = true;
+        episode.Name = "Manual Episode";
+        episode.IsManuallyEdited = true;
+
+        foreach (var item in db.MediaItems)
+            item.Changed = true;
+        foreach (var collection in db.MediaCollections)
+            collection.Changed = true;
+        await db.SaveChangesAsync(ct);
+
+        await classifier.ClassifyAllAsync(ct);
+
+        Assert.Single(await db.TVShows.ToListAsync(ct));
+        Assert.Single(await db.TVShowSeasons.ToListAsync(ct));
+        Assert.Single(await db.TVShowEpisodes.ToListAsync(ct));
+        Assert.Single(await db.TVShowEpisodeMediaItems.ToListAsync(ct));
+
+        Assert.Equal(showId, show.Id);
+        Assert.Equal(seasonId, season.Id);
+        Assert.Equal(episodeId, episode.Id);
+        Assert.Equal("Manual Show", show.Name);
+        Assert.Equal("Manual Season", season.Name);
+        Assert.Equal("Manual Episode", episode.Name);
+    }
+
     private static async Task ScanShowAndSeasonAsync(MediaSourceScanner scanner, CancellationToken cancellationToken)
     {
         await scanner.ScanAllSourcesAsync(cancellationToken);

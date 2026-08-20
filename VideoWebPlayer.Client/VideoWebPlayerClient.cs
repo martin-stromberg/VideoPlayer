@@ -464,6 +464,22 @@ namespace VideoWebPlayer.Client
             }
             return Array.Empty<byte>();
         }
+        /// <summary>
+        /// Deletes a media source via the admin API.
+        /// </summary>
+        /// <param name="sourceId">The source identifier.</param>
+        public async Task DeleteSourceAsync(long sourceId)
+        {
+            var endPoint = $"api/admin/sources/{sourceId}";
+            var response = await httpClient.DeleteAsync(endPoint);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var content = await response.Content.ReadAsStringAsync();
+                throw new HttpRequestException($"Failed to delete source {sourceId}: {content}");
+            }
+        }
+
         #endregion
     }
 }

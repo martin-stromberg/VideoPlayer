@@ -158,7 +158,8 @@ public sealed class MediaSourceDeleteE2ETests : IAsyncLifetime
         {
             UserName = "admin@test.com",
             Email = "admin@test.com",
-            EmailConfirmed = true
+            EmailConfirmed = true,
+            IsAdmin = true
         };
         var createResult = await userManager.CreateAsync(admin, "P@ssw0rd123!");
         if (!createResult.Succeeded)

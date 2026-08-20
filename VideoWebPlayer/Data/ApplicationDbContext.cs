@@ -178,7 +178,7 @@ namespace VideoWebPlayer.Data
             Entry(existingSource).State = EntityState.Detached;
 
             var step = 0;
-            const int TotalSteps = 20;
+            const int TotalSteps = 19;
 
             void Report()
             {
@@ -265,14 +265,14 @@ namespace VideoWebPlayer.Data
                     .ExecuteDeleteAsync(cancellationToken);
                 Report();
 
-                await MediaItems
-                    .Where(mi => mi.MediaCollection.MediaSourceId == source.Id)
-                    .ExecuteDeleteAsync(cancellationToken);
-                Report();
-
-                await MediaCollections
+                var collections = await MediaCollections
                     .Where(mc => mc.MediaSourceId == source.Id)
-                    .ExecuteDeleteAsync(cancellationToken);
+                    .ToListAsync(cancellationToken);
+                if (collections.Count > 0)
+                {
+                    await DeleteMediaCollectionsForSourceAsync(collections, cancellationToken);
+                    await SaveChangesAsync(cancellationToken);
+                }
                 Report();
 
                 await GenreNames
@@ -309,7 +309,7 @@ namespace VideoWebPlayer.Data
         /// L�scht eine MediaCollection, alle untergeordneten Collections und alle zugeh�rigen MediaItems rekursiv.
         /// </summary>
         /// <param name="collection">Die zu l�schende MediaCollection.</param>
-        private async Task DeleteMediaCollectionsForSourceAsync(List<MediaCollection> collections)
+        private async Task DeleteMediaCollectionsForSourceAsync(List<MediaCollection> collections, CancellationToken cancellationToken = default)
         {
             if (collections.Count == 0)
                 return;
@@ -371,7 +371,7 @@ namespace VideoWebPlayer.Data
             // L�sche alle MediaItems dieser Collections
             var items = await MediaItems
                 .Where(i => collectionIds.Contains(i.MediaCollectionId))
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
             MediaItems.RemoveRange(items);
 
             // L�sche Collections children-first

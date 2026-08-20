@@ -547,4 +547,43 @@ public class ApplicationDbContextTests
         Assert.Empty(await ctx.Db.TVShowEpisodes.ToListAsync(ct));
         Assert.Empty(await ctx.Db.MovieCollections.ToListAsync(ct));
     }
+
+    [Fact]
+    public async Task DeleteMediaSourceAsync_RemovesNestedMediaCollections()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var ctx = await SeedFullSourceAsync("source-nested-collections", ct);
+
+        var parent = await ctx.Db.MediaCollections.FirstAsync(mc => mc.MediaSourceId == ctx.Source.Id, ct);
+        var child = new MediaCollection
+        {
+            Name = "Child",
+            Path = "/media/child",
+            MediaSourceId = ctx.Source.Id,
+            ParentMediaCollectionId = parent.Id,
+            CreatedAt = DateTime.UtcNow
+        };
+        ctx.Db.MediaCollections.Add(child);
+        await ctx.Db.SaveChangesAsync(ct);
+
+        var mediaItem = new MediaItem
+        {
+            Name = "child.mp4",
+            Path = "/media/child/child.mp4",
+            MediaCollection = child,
+            MediaCollectionId = child.Id,
+            CreatedAt = DateTime.UtcNow
+        };
+        ctx.Db.MediaItems.Add(mediaItem);
+        await ctx.Db.SaveChangesAsync(ct);
+
+        Assert.Equal(2, await ctx.Db.MediaCollections.CountAsync(ct));
+        Assert.Equal(2, await ctx.Db.MediaItems.CountAsync(ct));
+
+        await ctx.Db.DeleteMediaSourceAsync(ctx.Source, null, ct);
+
+        Assert.Null(await ctx.Db.MediaSources.FindAsync(new object[] { ctx.Source.Id }, ct));
+        Assert.Empty(await ctx.Db.MediaCollections.ToListAsync(ct));
+        Assert.Empty(await ctx.Db.MediaItems.ToListAsync(ct));
+    }
 }

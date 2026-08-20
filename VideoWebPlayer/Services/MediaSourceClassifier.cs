@@ -28,6 +28,7 @@ namespace VideoWebPlayer.Services
         private readonly MediaUpdateNotificationService? _notificationService;
         private readonly EpisodeBackgroundImageService _episodeBackgroundImageService;
         private readonly ILogger<MediaSourceClassifier> _logger;
+        private readonly IMediaMetadataWriteCoordinator? _writeCoordinator;
 
 		private static int _classificationRunning;
 		private static readonly object _classificationQueueLock = new();
@@ -55,7 +56,8 @@ namespace VideoWebPlayer.Services
             EventManager eventManager,
             EpisodeBackgroundImageService episodeBackgroundImageService,
             ILogger<MediaSourceClassifier> logger,
-            MediaUpdateNotificationService? notificationService = null)
+            MediaUpdateNotificationService? notificationService = null,
+            IMediaMetadataWriteCoordinator? writeCoordinator = null)
         {
             _db = db;
             _sftpReader = sftpReader;
@@ -64,6 +66,7 @@ namespace VideoWebPlayer.Services
             _episodeBackgroundImageService = episodeBackgroundImageService;
             _notificationService = notificationService;
             _logger = logger;
+            _writeCoordinator = writeCoordinator;
         }
 
         /// <summary>
@@ -79,6 +82,7 @@ namespace VideoWebPlayer.Services
 
 			try
 			{
+            await using var writeLease = await EnterMetadataWriteAsync(cancellationToken);
             _logger.LogInformation("Starte Klassifizierung aller MediaItems und MediaCollections.");
             await ProcessMediaItemsAsync(cancellationToken);
             await ProcessMediaCollectionsAsync(cancellationToken);
@@ -103,6 +107,7 @@ namespace VideoWebPlayer.Services
 
 			try
 			{
+            await using var writeLease = await EnterMetadataWriteAsync(cancellationToken);
             _logger.LogInformation("Starte Klassifizierung der MediaItems.");
             await ProcessMediaItemsAsync(cancellationToken);
             _logger.LogInformation("Klassifizierung der MediaItems abgeschlossen.");
@@ -126,6 +131,7 @@ namespace VideoWebPlayer.Services
 
 			try
 			{
+            await using var writeLease = await EnterMetadataWriteAsync(cancellationToken);
             _logger.LogInformation("Starte Klassifizierung der MediaCollections.");
             await ProcessMediaCollectionsAsync(cancellationToken);
             _logger.LogInformation("Klassifizierung der MediaCollections abgeschlossen.");
@@ -162,6 +168,9 @@ namespace VideoWebPlayer.Services
 
 		private static bool TryBeginClassification()
 			=> Interlocked.CompareExchange(ref _classificationRunning, 1, 0) == 0;
+
+        private async Task<IAsyncDisposable?> EnterMetadataWriteAsync(CancellationToken cancellationToken)
+            => _writeCoordinator is null ? null : await _writeCoordinator.EnterAsync(cancellationToken);
 
 		private async Task FinishClassificationAsync(CancellationToken cancellationToken)
 		{
@@ -222,6 +231,7 @@ namespace VideoWebPlayer.Services
 
 		private async Task ClassifyCollectionTreeCoreAsync(long rootMediaCollectionId, CancellationToken cancellationToken)
 		{
+			await using var writeLease = await EnterMetadataWriteAsync(cancellationToken);
 			var collectionIds = await GetCollectionTreeIdsAsync(rootMediaCollectionId, cancellationToken);
 			_logger.LogInformation("Starte Klassifizierung f�r Collection-Tree (Root={RootId}, Count={Count}).", rootMediaCollectionId, collectionIds.Count);
 

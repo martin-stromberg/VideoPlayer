@@ -170,10 +170,8 @@ else
     private bool editSupportsGenres;
     private string editObjectType = "";
     private long editId;
-    private string editName = "";
-    private DateTime? editDate;
-    private string editPlot = "";
-    private string editNewGenres = "";
+    private MetadataEditModel editModel = new();
+    private EditContext? editContext;
     private string? editError;
     private HashSet<string> editGenres = new(StringComparer.OrdinalIgnoreCase);
     private bool showDiscardDialog;
@@ -237,62 +235,33 @@ else
         builder.CloseElement();
     };
 
-    private RenderFragment RenderEditForm() => builder =>
-    {
-        var seq = 0;
-        builder.OpenElement(seq++, "div");
-        builder.AddAttribute(seq++, "class", "metadata-edit-form");
-        if (!string.IsNullOrWhiteSpace(editError))
+    private RenderFragment RenderEditForm() => @<EditForm EditContext="@editContext" OnSubmit="@SaveEditAsync" class="metadata-edit-form">
+        <DataAnnotationsValidator />
+        @if (!string.IsNullOrWhiteSpace(editError))
         {
-            builder.OpenElement(seq++, "div");
-            builder.AddAttribute(seq++, "class", "metadata-edit-error");
-            builder.AddContent(seq++, editError);
-            builder.CloseElement();
+            <div class="metadata-edit-error">@editError</div>
         }
-        builder.OpenElement(seq++, "input");
-        builder.AddAttribute(seq++, "class", "form-control metadata-title-input");
-        builder.AddAttribute(seq++, "value", editName);
-        builder.AddAttribute(seq++, "maxlength", "512");
-        builder.AddAttribute(seq++, "oninput", EventCallback.Factory.Create<ChangeEventArgs>(this, OnEditNameChanged));
-        builder.CloseElement();
-        builder.OpenElement(seq++, "input");
-        builder.AddAttribute(seq++, "class", "form-control metadata-date-input");
-        builder.AddAttribute(seq++, "type", "date");
-        builder.AddAttribute(seq++, "value", FormatDate(editDate));
-        builder.AddAttribute(seq++, "onchange", EventCallback.Factory.Create<ChangeEventArgs>(this, OnEditDateChanged));
-        builder.CloseElement();
-        if (editSupportsGenres)
+        <InputText class="form-control metadata-title-input" @bind-Value="editModel.Name" maxlength="512" />
+        <ValidationMessage For="@(() => editModel.Name)" />
+        <InputDate class="form-control metadata-date-input" @bind-Value="editModel.Date" />
+        @if (editSupportsGenres)
         {
-            builder.OpenElement(seq++, "div");
-            builder.AddAttribute(seq++, "class", "genre-scrollbar metadata-genre-scrollbar");
-            foreach (var genre in genreOptions)
-            {
-                builder.OpenElement(seq++, "button");
-                builder.AddAttribute(seq++, "type", "button");
-                builder.AddAttribute(seq++, "class", $"genre-btn {(editGenres.Contains(genre.Name) ? "selected" : "")}");
-                builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => ToggleEditGenre(genre.Name)));
-                builder.AddContent(seq++, genre.Name);
-                builder.CloseElement();
-            }
-            builder.CloseElement();
-            builder.OpenElement(seq++, "input");
-            builder.AddAttribute(seq++, "class", "form-control");
-            builder.AddAttribute(seq++, "value", editNewGenres);
-            builder.AddAttribute(seq++, "placeholder", "Weitere Genres");
-            builder.AddAttribute(seq++, "oninput", EventCallback.Factory.Create<ChangeEventArgs>(this, OnEditNewGenresChanged));
-            builder.CloseElement();
+            <div class="genre-scrollbar metadata-genre-scrollbar">
+                @foreach (var genre in genreOptions)
+                {
+                    <button type="button" class="genre-btn @(editGenres.Contains(genre.Name) ? "selected" : "")" @onclick="() => ToggleEditGenre(genre.Name)">
+                        @genre.Name
+                    </button>
+                }
+            </div>
+            <InputText class="form-control" @bind-Value="editModel.NewGenres" placeholder="Weitere Genres" />
         }
-        if (editSupportsPlot)
+        @if (editSupportsPlot)
         {
-            builder.OpenElement(seq++, "textarea");
-            builder.AddAttribute(seq++, "class", "form-control metadata-plot-input");
-            builder.AddAttribute(seq++, "value", editPlot);
-            builder.AddAttribute(seq++, "maxlength", "10000");
-            builder.AddAttribute(seq++, "oninput", EventCallback.Factory.Create<ChangeEventArgs>(this, OnEditPlotChanged));
-            builder.CloseElement();
+            <InputTextArea class="form-control metadata-plot-input" @bind-Value="editModel.Plot" maxlength="10000" />
+            <ValidationMessage For="@(() => editModel.Plot)" />
         }
-        builder.CloseElement();
-    };
+    </EditForm>;
 
     private string GetBannerUrl(DtoMovieCollection col)
         => col.BannerPictureId.HasValue ? $"/api/pictures/{col.BannerPictureId}?access_token={Client.AuthorizationToken}" : col.FanartPictureId.HasValue ? $"/api/pictures/{col.FanartPictureId}?access_token={Client.AuthorizationToken}" : "/images/placeholder.png";
@@ -408,13 +377,17 @@ else
     {
         editObjectType = target is DtoMovie ? "movie" : "moviecollection";
         editId = target.Id;
-        editName = target.Name;
-        editDate = target.ReleaseDate;
         editSupportsPlot = target is DtoMovie;
         editSupportsGenres = target is DtoMovie;
-        editPlot = (target as DtoMovie)?.Plot ?? "";
+        editModel = new MetadataEditModel
+        {
+            Name = target.Name,
+            Date = target.ReleaseDate,
+            Plot = (target as DtoMovie)?.Plot ?? "",
+        };
+        editContext = new EditContext(editModel);
+        editContext.OnFieldChanged += OnEditFieldChanged;
         editGenres = new HashSet<string>(SplitGenres((target as DtoMovie)?.GenreNames), StringComparer.OrdinalIgnoreCase);
-        editNewGenres = "";
         editError = null;
         isEditing = true;
         isDirty = false;
@@ -422,21 +395,21 @@ else
 
     private async Task SaveEditAsync()
     {
-        if (!isEditing || string.IsNullOrWhiteSpace(editName))
+        if (!isEditing || editContext is null || !editContext.Validate())
             return;
 
         editError = null;
-        var genres = editGenres.Concat(SplitGenres(editNewGenres)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var genres = editGenres.Concat(SplitGenres(editModel.NewGenres)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         try
         {
             await Client.SaveMetadataAsync(new MediaMetadataUpdateRequest
             {
                 ObjectType = editObjectType,
                 Id = editId,
-                Name = editName.Trim(),
-                ReleaseDate = editDate,
+                Name = editModel.Name.Trim(),
+                ReleaseDate = editModel.Date,
                 PremieredAt = null,
-                Plot = editSupportsPlot ? editPlot : null,
+                Plot = editSupportsPlot ? editModel.Plot : null,
                 GenreNames = editSupportsGenres ? genres : []
             });
         }
@@ -515,34 +488,13 @@ else
         editObjectType = "";
         editId = 0;
         editGenres.Clear();
-        editNewGenres = "";
         editError = null;
+        editContext = null;
+        editModel = new MetadataEditModel();
     }
 
-    private void OnEditNameChanged(ChangeEventArgs e)
+    private void OnEditFieldChanged(object? sender, FieldChangedEventArgs e)
     {
-        editName = e.Value?.ToString() ?? "";
-        editError = null;
-        isDirty = true;
-    }
-
-    private void OnEditDateChanged(ChangeEventArgs e)
-    {
-        editDate = DateTime.TryParse(e.Value?.ToString(), out var value) ? value.Date : null;
-        editError = null;
-        isDirty = true;
-    }
-
-    private void OnEditPlotChanged(ChangeEventArgs e)
-    {
-        editPlot = e.Value?.ToString() ?? "";
-        editError = null;
-        isDirty = true;
-    }
-
-    private void OnEditNewGenresChanged(ChangeEventArgs e)
-    {
-        editNewGenres = e.Value?.ToString() ?? "";
         editError = null;
         isDirty = true;
     }

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
+using VideoWebPlayer.Services.Backups;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.Services;
@@ -284,6 +285,65 @@ public sealed class MediaMetadataEditorServiceTests
         Assert.Contains("512", ex.Message);
     }
 
+    [Fact]
+    public async Task UpdateAsync_EntersBackgroundProcessingGate()
+    {
+        await using var db = CreateDb();
+        db.Movies.Add(new Movie
+        {
+            Id = 60,
+            MediaSourceId = 1,
+            Name = "Old Movie",
+            CreatedAt = DateTime.UtcNow,
+        });
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var gate = new CountingBackgroundProcessingGate();
+        var service = new MediaMetadataEditorService(db, gate);
+
+        await service.UpdateAsync(new MediaMetadataUpdateRequest
+        {
+            ObjectType = "movie",
+            Id = 60,
+            Name = "New Movie",
+        }, TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, gate.EnterCount);
+        Assert.Equal(1, gate.DisposeCount);
+        Assert.Equal("Metadaten speichern", gate.LastName);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WaitsForExclusiveMetadataWriteCoordinator()
+    {
+        await using var db = CreateDb();
+        db.Movies.Add(new Movie
+        {
+            Id = 70,
+            MediaSourceId = 1,
+            Name = "Old Movie",
+            CreatedAt = DateTime.UtcNow,
+        });
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var coordinator = new MediaMetadataWriteCoordinator();
+        await using var activeScanLease = await coordinator.EnterAsync(TestContext.Current.CancellationToken);
+        var service = new MediaMetadataEditorService(db, writeCoordinator: coordinator);
+
+        var updateTask = service.UpdateAsync(new MediaMetadataUpdateRequest
+        {
+            ObjectType = "movie",
+            Id = 70,
+            Name = "New Movie",
+        }, TestContext.Current.CancellationToken);
+
+        await Task.Delay(50, TestContext.Current.CancellationToken);
+        Assert.False(updateTask.IsCompleted);
+
+        await activeScanLease.DisposeAsync();
+        await updateTask;
+
+        Assert.Equal("New Movie", (await db.Movies.SingleAsync(m => m.Id == 70, TestContext.Current.CancellationToken)).Name);
+    }
+
     private static ApplicationDbContext CreateDb()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -291,5 +351,44 @@ public sealed class MediaMetadataEditorServiceTests
             .Options;
 
         return new ApplicationDbContext(options, new EventManager());
+    }
+
+    private sealed class CountingBackgroundProcessingGate : IBackgroundProcessingGate
+    {
+        public bool IsPausedForRestore => false;
+
+        public int ActiveOperationCount => 0;
+
+        public int EnterCount { get; private set; }
+
+        public int DisposeCount { get; private set; }
+
+        public string? LastName { get; private set; }
+
+        public Task<IAsyncDisposable> EnterOperationAsync(string name, CancellationToken cancellationToken)
+        {
+            EnterCount++;
+            LastName = name;
+            return Task.FromResult<IAsyncDisposable>(new Lease(this));
+        }
+
+        public Task<IAsyncDisposable> PauseForRestoreAsync(CancellationToken cancellationToken)
+            => throw new NotSupportedException();
+
+        private sealed class Lease : IAsyncDisposable
+        {
+            private readonly CountingBackgroundProcessingGate _gate;
+
+            public Lease(CountingBackgroundProcessingGate gate)
+            {
+                _gate = gate;
+            }
+
+            public ValueTask DisposeAsync()
+            {
+                _gate.DisposeCount++;
+                return ValueTask.CompletedTask;
+            }
+        }
     }
 }

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using VideoWebPlayer.Data;
+using VideoWebPlayer.Services.Backups;
 
 namespace VideoWebPlayer.Services;
 
@@ -11,14 +12,21 @@ public sealed class MediaMetadataEditorService
     private const int MaxNameLength = 512;
     private const int MaxPlotLength = 10000;
     private readonly ApplicationDbContext _db;
+    private readonly IBackgroundProcessingGate? _backgroundGate;
+    private readonly IMediaMetadataWriteCoordinator? _writeCoordinator;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MediaMetadataEditorService"/> class.
     /// </summary>
     /// <param name="db">Application database context.</param>
-    public MediaMetadataEditorService(ApplicationDbContext db)
+    public MediaMetadataEditorService(
+        ApplicationDbContext db,
+        IBackgroundProcessingGate? backgroundGate = null,
+        IMediaMetadataWriteCoordinator? writeCoordinator = null)
     {
         _db = db;
+        _backgroundGate = backgroundGate;
+        _writeCoordinator = writeCoordinator;
     }
 
     /// <summary>
@@ -48,6 +56,13 @@ public sealed class MediaMetadataEditorService
     /// <param name="cancellationToken">A cancellation token.</param>
     public async Task UpdateAsync(MediaMetadataUpdateRequest request, CancellationToken cancellationToken = default)
     {
+        await using var processingLease = _backgroundGate is null
+            ? null
+            : await _backgroundGate.EnterOperationAsync("Metadaten speichern", cancellationToken);
+        await using var writeLease = _writeCoordinator is null
+            ? null
+            : await _writeCoordinator.EnterAsync(cancellationToken);
+
         ValidateCommon(request);
 
         switch (NormalizeType(request.ObjectType))

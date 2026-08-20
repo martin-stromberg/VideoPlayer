@@ -39,6 +39,41 @@ public sealed class MetadataEditorUiStateTests
         Assert.Contains("ShowFirstMovie", content);
     }
 
+    [Theory]
+    [InlineData("TVShowDetails.razor")]
+    [InlineData("MovieCollectionDetails.razor")]
+    public async Task DetailsPage_OrdersAssignedGenresFirst(string fileName)
+    {
+        var content = await ReadComponentAsync(fileName);
+
+        Assert.Contains("@foreach (var genre in OrderedGenreOptions())", content);
+        Assert.Contains("OrderByDescending(g => editGenres.Contains(g.Name))", content);
+    }
+
+    [Fact]
+    public async Task TVShowDetails_UsesEpisodeReleaseDateAndHidesSeasonEditUntilEditing()
+    {
+        var content = await ReadComponentAsync("TVShowDetails.razor");
+
+        Assert.Contains("@GetEpisodeDisplayDate(selectedEpisode)?.Year", content);
+        Assert.Contains("DtoTVShowEpisode => target.ReleaseDate ?? target.PremieredAt", content);
+        Assert.Contains("editUsesPremieredAt = target is DtoTVShowSeason;", content);
+        Assert.Contains("@if (isAdmin && isEditing)", content);
+    }
+
+    [Theory]
+    [InlineData("TVShowDetails.razor")]
+    [InlineData("MovieCollectionDetails.razor")]
+    public async Task DetailsPage_DoesNotLoadInternalClientWithoutAuthenticatedUser(string fileName)
+    {
+        var content = await ReadComponentAsync(fileName);
+
+        Assert.Contains("if (!isAuthenticated)", content);
+        Assert.Contains("return;", content);
+        Assert.Contains("Could not resolve user from principal", content);
+        Assert.Contains("konnte nicht geladen werden", content);
+    }
+
     private static Task<string> ReadComponentAsync(string fileName)
     {
         var current = new DirectoryInfo(AppContext.BaseDirectory);

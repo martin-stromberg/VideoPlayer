@@ -153,7 +153,7 @@ public sealed class MediaMetadataEditorService
 
     private async Task UpdateTVShowEpisodeAsync(MediaMetadataUpdateRequest request, CancellationToken cancellationToken)
     {
-        ValidatePremieredAtOnly(request, "Episoden");
+        ValidateReleaseDateOnly(request, "Episoden");
 
         if (request.GenreNames.Length > 0)
             throw new ArgumentException("Episoden besitzen keine eigenen Genre-Felder.");
@@ -163,7 +163,7 @@ public sealed class MediaMetadataEditorService
             ?? throw new KeyNotFoundException("Episode nicht gefunden.");
 
         episode.Name = request.Name.Trim();
-        episode.PremieredAt = NormalizeDate(request.PremieredAt);
+        episode.ReleaseDate = NormalizeDate(request.ReleaseDate);
         episode.Plot = NormalizeText(request.Plot);
         episode.IsManuallyEdited = true;
         await _db.SaveChangesAsync(cancellationToken);

@@ -17,7 +17,7 @@
 else if (show == null)
 {
     <PageTitle>Unbekannt</PageTitle>
-    <div class="alert alert-danger">TV-Show nicht gefunden.</div>
+    <div class="alert alert-danger">@(loadError ?? "TV-Show nicht gefunden.")</div>
 }
 else
 {
@@ -91,7 +91,7 @@ else
                 {
                     <h1>@selectedEpisode.Name</h1>
                     <div class="tvshow-meta">
-                        <span class="tvshow-year">@selectedEpisode.PremieredAt?.Year</span>
+                        <span class="tvshow-year">@GetEpisodeDisplayDate(selectedEpisode)?.Year</span>
                         <span class="tvshow-episode-number">Episode @selectedEpisode.Number</span>
                     </div>
                     <div class="tvshow-plot">@selectedEpisode.Plot</div>
@@ -128,7 +128,7 @@ else
                         <option value="@season.Id" selected="@(season.Id == selectedSeason?.Id)">@season.Name</option>
                     }
                 </select>
-                @if (isAdmin)
+                @if (isAdmin && isEditing)
                 {
                     <button class="metadata-icon-btn metadata-inline-edit" @onclick="EditSelectedSeasonAsync" title="Staffel bearbeiten">✎</button>
                 }
@@ -217,6 +217,7 @@ else
     private MetadataEditModel editModel = new();
     private EditContext? editContext;
     private string? editError;
+    private string? loadError;
     private HashSet<string> editGenres = new(StringComparer.OrdinalIgnoreCase);
     private bool showDiscardDialog;
     private Func<Task>? pendingDiscardAction;
@@ -227,8 +228,29 @@ else
         isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
         isAdmin = isAuthenticated && authState.User.HasClaim("IsAdmin", "True");
 
-        show = await Client.RequestTVShowAsync(Id) as DtoTVShow;
-        genreOptions = await Client.RequestGenreOptionsAsync();
+        if (!isAuthenticated)
+            return;
+
+        try
+        {
+            show = await Client.RequestTVShowAsync(Id) as DtoTVShow;
+            genreOptions = await Client.RequestGenreOptionsAsync();
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("Could not resolve user from principal", StringComparison.Ordinal))
+        {
+            isAuthenticated = false;
+            loadError = "Bitte melden Sie sich erneut an, um die Serie zu oeffnen.";
+            return;
+        }
+        catch
+        {
+            loadError = "Die Serie konnte nicht geladen werden.";
+            return;
+        }
+
+        if (show is null)
+            return;
+
         selectedSeason = show?.Seasons?.OrderBy(s => s.Name).FirstOrDefault();
 
         if (SeasonId.HasValue && show?.Seasons != null)
@@ -269,7 +291,7 @@ else
         @if (editSupportsGenres)
         {
             <div class="genre-scrollbar metadata-genre-scrollbar">
-                @foreach (var genre in genreOptions)
+                @foreach (var genre in OrderedGenreOptions())
                 {
                     <button type="button" class="genre-btn @(editGenres.Contains(genre.Name) ? "selected" : "")" @onclick="() => ToggleEditGenre(genre.Name)">
                         @genre.Name
@@ -463,13 +485,13 @@ else
             _ => ""
         };
         editId = target.Id;
-        editUsesPremieredAt = target is DtoTVShowSeason or DtoTVShowEpisode;
+        editUsesPremieredAt = target is DtoTVShowSeason;
         editSupportsPlot = target is DtoTVShow or DtoTVShowEpisode;
         editSupportsGenres = target is DtoTVShow;
         editModel = new MetadataEditModel
         {
             Name = target.Name,
-            Date = editUsesPremieredAt ? target.PremieredAt : target.ReleaseDate,
+            Date = GetEditDate(target),
             Plot = target switch
             {
                 DtoTVShow tvShow => tvShow.Plot ?? "",
@@ -612,6 +634,22 @@ else
 
     private static string FormatDate(DateTime? value)
         => value?.ToString("yyyy-MM-dd") ?? "";
+
+    private IEnumerable<DtoGenreOption> OrderedGenreOptions()
+        => genreOptions
+            .OrderByDescending(g => editGenres.Contains(g.Name))
+            .ThenBy(g => g.Name, StringComparer.OrdinalIgnoreCase);
+
+    private static DateTime? GetEditDate(DtoMediaEntry target)
+        => target switch
+        {
+            DtoTVShowSeason => target.PremieredAt,
+            DtoTVShowEpisode => target.ReleaseDate ?? target.PremieredAt,
+            _ => target.ReleaseDate
+        };
+
+    private static DateTime? GetEpisodeDisplayDate(DtoTVShowEpisode episode)
+        => episode.ReleaseDate ?? episode.PremieredAt;
 
     private DateTime? GetShowDisplayDate()
         => show?.ReleaseDate ?? show?.PremieredAt;

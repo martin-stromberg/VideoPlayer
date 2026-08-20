@@ -13,7 +13,7 @@
 }
 else if (collection == null)
 {
-    <div class="alert alert-danger">Sammlung nicht gefunden.</div>
+    <div class="alert alert-danger">@(loadError ?? "Sammlung nicht gefunden.")</div>
 }
 else if (selectedMovie != null)
 {
@@ -173,6 +173,7 @@ else
     private MetadataEditModel editModel = new();
     private EditContext? editContext;
     private string? editError;
+    private string? loadError;
     private HashSet<string> editGenres = new(StringComparer.OrdinalIgnoreCase);
     private bool showDiscardDialog;
     private Func<Task>? pendingDiscardAction;
@@ -183,8 +184,29 @@ else
         isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
         isAdmin = isAuthenticated && authState.User.HasClaim("IsAdmin", "True");
 
-        collection = await Client.RequestMovieCollectionAsync(Id) as DtoMovieCollection;
-        genreOptions = await Client.RequestGenreOptionsAsync();
+        if (!isAuthenticated)
+            return;
+
+        try
+        {
+            collection = await Client.RequestMovieCollectionAsync(Id) as DtoMovieCollection;
+            genreOptions = await Client.RequestGenreOptionsAsync();
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("Could not resolve user from principal", StringComparison.Ordinal))
+        {
+            isAuthenticated = false;
+            loadError = "Bitte melden Sie sich erneut an, um die Sammlung zu oeffnen.";
+            return;
+        }
+        catch
+        {
+            loadError = "Die Sammlung konnte nicht geladen werden.";
+            return;
+        }
+
+        if (collection is null)
+            return;
+
         IsCollectionFavorite = await CheckIfFavorite(collectionId: collection, movieId: null);
 
         if (MovieId.HasValue && collection?.Movies != null)
@@ -247,7 +269,7 @@ else
         @if (editSupportsGenres)
         {
             <div class="genre-scrollbar metadata-genre-scrollbar">
-                @foreach (var genre in genreOptions)
+                @foreach (var genre in OrderedGenreOptions())
                 {
                     <button type="button" class="genre-btn @(editGenres.Contains(genre.Name) ? "selected" : "")" @onclick="() => ToggleEditGenre(genre.Name)">
                         @genre.Name
@@ -513,6 +535,11 @@ else
 
     private static string FormatDate(DateTime? value)
         => value?.ToString("yyyy-MM-dd") ?? "";
+
+    private IEnumerable<DtoGenreOption> OrderedGenreOptions()
+        => genreOptions
+            .OrderByDescending(g => editGenres.Contains(g.Name))
+            .ThenBy(g => g.Name, StringComparer.OrdinalIgnoreCase);
 
     private void OnPositionChanged(double seconds)
     {

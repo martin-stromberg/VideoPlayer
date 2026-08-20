@@ -106,6 +106,7 @@ public sealed class MediaMetadataEditorServiceTests
     [InlineData("movie")]
     [InlineData("moviecollection")]
     [InlineData("tvshow")]
+    [InlineData("tvshowepisode")]
     public async Task UpdateAsync_RejectsPremieredAtForReleaseDateTypes(string objectType)
     {
         await using var db = CreateDb();
@@ -125,7 +126,6 @@ public sealed class MediaMetadataEditorServiceTests
 
     [Theory]
     [InlineData("tvshowseason")]
-    [InlineData("tvshowepisode")]
     public async Task UpdateAsync_RejectsReleaseDateForPremieredAtTypes(string objectType)
     {
         await using var db = CreateDb();
@@ -205,13 +205,14 @@ public sealed class MediaMetadataEditorServiceTests
             ObjectType = "tvshowepisode",
             Id = 30,
             Name = "New Episode",
-            PremieredAt = new DateTime(2024, 8, 9, 13, 45, 0),
+            ReleaseDate = new DateTime(2024, 8, 9, 13, 45, 0),
             Plot = " New episode plot ",
         });
 
         var episode = await db.TVShowEpisodes.SingleAsync(e => e.Id == 30);
         Assert.Equal("New Episode", episode.Name);
-        Assert.Equal(new DateTime(2024, 8, 9), episode.PremieredAt);
+        Assert.Equal(new DateTime(2024, 8, 9), episode.ReleaseDate);
+        Assert.Null(episode.PremieredAt);
         Assert.Equal("New episode plot", episode.Plot);
         Assert.True(episode.IsManuallyEdited);
     }

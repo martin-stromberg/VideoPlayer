@@ -1,8 +1,11 @@
 @using VideoWebPlayer.Data
+@using VideoWebPlayer.Events
 @inject VideoWebPlayer.Client.VideoWebPlayerClient Client
+@inject VideoWebPlayer.Services.EventManager EventManager
 
 @code {
     public List<DtoFavoriteEntry> Favorites { get; set; } = new();
+    private static readonly MediaBoxAction[] ContextActions = [new("remove", "Entfernen")];
 
 
     private Dictionary<long, string> favTitles = new();
@@ -11,9 +14,26 @@
 
     protected override async Task OnInitializedAsync()
     {
-        Favorites = (await Client.RequestFavoritesAsync()).ToList();
-        await InitializeValues();
+        await LoadFavoritesAsync();
         await base.OnInitializedAsync();
+    }
+
+    private async Task<bool> LoadFavoritesAsync()
+    {
+        List<DtoFavoriteEntry> loadedFavorites;
+        try
+        {
+            loadedFavorites = (await Client.RequestFavoritesAsync()).ToList();
+        }
+        catch (Exception ex)
+        {
+            PublishStatus($"Fehler beim Aktualisieren der Favoritenliste: {ex.Message}");
+            return false;
+        }
+
+        Favorites = loadedFavorites;
+        await InitializeValues();
+        return true;
     }
 
     protected async Task InitializeValues()
@@ -77,6 +97,35 @@
             }
         }
     }
+
+    private async Task HandleContextActionAsync(DtoFavoriteEntry favorite, string action)
+    {
+        if (action != "remove")
+            return;
+
+        try
+        {
+            await Client.RemoveFavoriteAsync(favorite.Id);
+
+            if (await LoadFavoritesAsync())
+            {
+                PublishStatus("Favorit wurde entfernt.");
+            }
+            else
+            {
+                PublishStatus("Favorit wurde entfernt. Die Liste konnte danach nicht aktualisiert werden.");
+            }
+        }
+        catch (Exception ex)
+        {
+            PublishStatus($"Fehler: {ex.Message}");
+        }
+    }
+
+    private void PublishStatus(string message)
+    {
+        EventManager.Publish(new BackgroundProcessingStatusEvent(message, DateTimeOffset.Now));
+    }
 }
 
 @if (Favorites.Any())
@@ -88,7 +137,13 @@
             {
                 if (favTitles.ContainsKey(fav.Id))
                 {
-                    <MediaBox Title="@favTitles[fav.Id]" ImageUrl="@favImages[fav.Id]" LinkUrl="@favLinks[fav.Id]" />
+                    <MediaBox @key="fav.Id"
+                              Title="@favTitles[fav.Id]"
+                              ImageUrl="@favImages[fav.Id]"
+                              LinkUrl="@favLinks[fav.Id]"
+                              CardKey="@($"favorite-{fav.Id}")"
+                              Actions="@ContextActions"
+                              OnActionSelected="action => HandleContextActionAsync(fav, action)" />
                 }
             }
         </div>

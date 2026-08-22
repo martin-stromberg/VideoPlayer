@@ -67,6 +67,7 @@
 - ✅ Kategorisierte Navigation durch Filme und Serien
 - ✅ Favoriten-System
 - ✅ Continue-Watching mit Positionsspeicherung
+- ✅ Kontextmenue mit Aktionen fuer Weiterschauen und Favoriten
 - ✅ Recent Entries Timeline
 - ✅ Dynamisches Hero-Hintergrundbild auf der Startseite
 

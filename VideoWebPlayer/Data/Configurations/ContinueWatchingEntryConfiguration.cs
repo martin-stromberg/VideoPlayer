@@ -13,6 +13,7 @@ namespace VideoWebPlayer.Data.Configurations
         {
             builder.HasIndex(x => new { x.UserId, x.MovieId });
             builder.HasIndex(x => new { x.UserId, x.TVShowEpisodeId });
+            builder.HasIndex(x => new { x.UserId, x.ListOrder, x.UpdatedAt });
 
             builder
                 .HasOne(x => x.Movie)

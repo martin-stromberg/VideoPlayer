@@ -1,10 +1,16 @@
 @using VideoWebPlayer.Client.Models
+@using VideoWebPlayer.Events
 @inject IJSRuntime JS
-@inject HttpClient Http
 @inject VideoWebPlayer.Client.VideoWebPlayerClient Client
+@inject VideoWebPlayer.Services.EventManager EventManager
 
 @code {
     private List<ContinueWatchingDto> Items = new();
+    private static readonly MediaBoxAction[] ContextActions =
+    [
+        new("hide", "Ausblenden"),
+        new("skip", "Überspringen")
+    ];
 
     private readonly Dictionary<long, string> titles = new();
     private readonly Dictionary<long, string> images = new();
@@ -14,18 +20,32 @@
 
     protected override async Task OnInitializedAsync()
     {
-        // Liste laden
-        var data = await Http.GetFromJsonAsync<List<ContinueWatchingDto>>("api/continue-watching")
-                   ?? new List<ContinueWatchingDto>();
+        await LoadItemsAsync();
+        await base.OnInitializedAsync();
+    }
 
-        Items = data;
+    private async Task<bool> LoadItemsAsync()
+    {
+        List<ContinueWatchingDto> loadedItems;
+        try
+        {
+            loadedItems = (await Client.RequestContinueWatchingAsync())
+                .Where(e => e.Entry is not null)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            PublishStatus($"Fehler beim Aktualisieren der Weiterschauen-Liste: {ex.Message}");
+            return false;
+        }
 
-        // Werte vorbereiten
+        Items = loadedItems;
+
         titles.Clear();
         images.Clear();
         links.Clear();
 
-        foreach (var it in Items.Where(e => e.Entry is not null))
+        foreach (var it in Items)
         {
             titles[it.Entry.Id] = it.Title ?? "";
             images[it.Entry.Id] = it.PosterPictureId.HasValue
@@ -46,7 +66,7 @@
             }
         }
 
-        await base.OnInitializedAsync();
+        return true;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -55,6 +75,40 @@
         {
             await JS.InvokeVoidAsync("enableHorizontalWheelScroll", ".continue-watching-list");
         }
+    }
+
+    private async Task HandleContextActionAsync(ContinueWatchingDto item, string action)
+    {
+        if (item.Entry is null)
+            return;
+
+        try
+        {
+            ContinueWatchingMutationResult result = action switch
+            {
+                "hide" => await Client.HideContinueWatchingAsync(item.MediaType, item.Entry.Id),
+                "skip" => await Client.SkipContinueWatchingAsync(item.MediaType, item.Entry.Id),
+                _ => new ContinueWatchingMutationResult("ignored", "Aktion ist nicht verfügbar.")
+            };
+
+            if (await LoadItemsAsync())
+            {
+                PublishStatus(result.Message);
+            }
+            else
+            {
+                PublishStatus($"{result.Message} Die Liste konnte danach nicht aktualisiert werden.");
+            }
+        }
+        catch (Exception ex)
+        {
+            PublishStatus($"Fehler: {ex.Message}");
+        }
+    }
+
+    private void PublishStatus(string message)
+    {
+        EventManager.Publish(new BackgroundProcessingStatusEvent(message, DateTimeOffset.Now));
     }
 }
 
@@ -67,7 +121,13 @@
             {
                 if (titles.ContainsKey(it.Entry.Id))
                 {
-                    <MediaBox Title="@titles[it.Entry.Id]" ImageUrl="@images[it.Entry.Id]" LinkUrl="@links[it.Entry.Id]" />
+                    <MediaBox @key="it.Entry.Id"
+                              Title="@titles[it.Entry.Id]"
+                              ImageUrl="@images[it.Entry.Id]"
+                              LinkUrl="@links[it.Entry.Id]"
+                              CardKey="@($"continue-{it.MediaType}-{it.Entry.Id}")"
+                              Actions="@ContextActions"
+                              OnActionSelected="action => HandleContextActionAsync(it, action)" />
                 }
             }
         </div>

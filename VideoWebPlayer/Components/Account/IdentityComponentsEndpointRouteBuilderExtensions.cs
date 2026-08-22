@@ -64,7 +64,7 @@ namespace Microsoft.AspNetCore.Routing
 
                 if (result.Succeeded)
                 {
-                    var target = string.IsNullOrEmpty(returnUrl) ? "" : $"/{returnUrl.TrimStart('/')}";
+                    var target = string.IsNullOrEmpty(returnUrl) ? "/" : $"/{returnUrl.TrimStart('/')}";
                     return TypedResults.LocalRedirect($"~{target}");
                 }
                 else if (result.RequiresTwoFactor)

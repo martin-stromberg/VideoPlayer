@@ -179,7 +179,7 @@ namespace VideoWebPlayer.Services
                         await UpsertAsync(userId, nextMovieId: null, nextEpisodeId: nextEpisode.Id, TimeSpan.Zero, duration: null, ct);
                 }
 
-                // Wenn wir wirklich etwas entfernt haben, aber kein n‰chstes Medium gefunden wurde,
+                // Wenn wir wirklich etwas entfernt haben, aber kein n√§chstes Medium gefunden wurde,
                 // muss trotzdem ein Update raus.
                 if (existing != null)
                 {
@@ -213,14 +213,14 @@ namespace VideoWebPlayer.Services
 
             var listChanged = false;
 
-            // Nur wenn ein NEUER Eintrag erzeugt wird: vorhandene Eintr‰ge derselben Filmsammlung / Serie entfernen
+            // Nur wenn ein NEUER Eintrag erzeugt wird: vorhandene Eintr√§ge derselben Filmsammlung / Serie entfernen
             if (entry == null)
             {
                 await RemoveExtsingMovieCollectionEntry(userId, nextMovieId, ct);
                 await RemoveExistingTVShowEntry(userId, nextEpisodeId, ct);
 
-                // Wenn die obigen Methoden Entries entfernen, ‰ndert sich die Liste auch ohne neuen Eintrag.
-                // (ChangeTracker enth‰lt dann Deletes)
+                // Wenn die obigen Methoden Entries entfernen, √§ndert sich die Liste auch ohne neuen Eintrag.
+                // (ChangeTracker enth√§lt dann Deletes)
                 if (_db.ChangeTracker.Entries<ContinueWatchingEntry>().Any(e => e.State == EntityState.Deleted))
                     listChanged = true;
 
@@ -238,8 +238,8 @@ namespace VideoWebPlayer.Services
             }
             else
             {
-                // Nur updaten, wenn sich wirklich etwas ge‰ndert hat.
-                // Sonst w¸rde UpdatedAt die Sortierung ‰ndern und unnˆtige Notifications auslˆsen.
+                // Nur updaten, wenn sich wirklich etwas ge√§ndert hat.
+                // Sonst w√ºrde UpdatedAt die Sortierung √§ndern und unn√∂tige Notifications ausl√∂sen.
                 if (PositionChanged(entry.Position, position) || DurationChanged(entry.Duration, duration))
                 {
                     entry.Position = position;
@@ -254,14 +254,14 @@ namespace VideoWebPlayer.Services
             if (!listChanged)
                 return;
 
-            // Sende SignalR-Update an User nur wenn sich wirklich etwas ge‰ndert hat
+            // Sende SignalR-Update an User nur wenn sich wirklich etwas ge√§ndert hat
             await _notificationService.NotifyContinueWatchingUpdatedAsync(userId, ct);
         }
 
         private async Task RemoveExistingTVShowEntry(string userId, long? nextEpisodeId, CancellationToken ct)
         {
             if (!nextEpisodeId.HasValue) return;
-            // Serien-ID ¸ber Episode -> Season -> Show ermitteln
+            // Serien-ID √ºber Episode -> Season -> Show ermitteln
             var showId = await (
                 from e in _db.TVShowEpisodes
                 join s in _db.TVShowSeasons on e.TVShowSeasonId equals s.Id
@@ -271,7 +271,7 @@ namespace VideoWebPlayer.Services
 
             if (showId != 0)
             {
-                // Alle anderen Episoden-Eintr‰ge derselben Serie entfernen
+                // Alle anderen Episoden-Eintr√§ge derselben Serie entfernen
                 var obsoleteEpisodeEntries = await (
                     from cw in _db.ContinueWatchingEntries
                     join e in _db.TVShowEpisodes on cw.TVShowEpisodeId equals e.Id
@@ -301,7 +301,7 @@ namespace VideoWebPlayer.Services
 
             if (collectionId.HasValue)
             {
-                // Alle anderen ContinueWatching-Eintr‰ge des Users aus derselben Sammlung entfernen
+                // Alle anderen ContinueWatching-Eintr√§ge des Users aus derselben Sammlung entfernen
                 var obsoleteMovieEntries = await (
                     from cw in _db.ContinueWatchingEntries
                     join m in _db.Movies on cw.MovieId equals m.Id
@@ -352,9 +352,8 @@ namespace VideoWebPlayer.Services
             if (season is null) return null;
 
             var next = await _db.TVShowEpisodes.AsNoTracking()
-                .Where(e => e.TVShowSeasonId == current.TVShowSeasonId && e.Id != current.Id && e.ReleaseDate >= current.ReleaseDate)
-                .OrderBy(e => e.ReleaseDate)
-                .ThenBy(e => e.Number)
+                .Where(e => e.TVShowSeasonId == current.TVShowSeasonId && e.Number > current.Number)
+                .OrderBy(e => e.Number)
                 .Select(e => e.Id)
                 .FirstOrDefaultAsync(ct);
 
@@ -369,8 +368,7 @@ namespace VideoWebPlayer.Services
                 if (nextSeason is null) return null;
                 next = await _db.TVShowEpisodes.AsNoTracking()
                     .Where(e => e.TVShowSeasonId == nextSeason.Id)
-                    .OrderBy(e => e.ReleaseDate)
-                    .ThenBy(e => e.Number)
+                    .OrderBy(e => e.Number)
                     .Select(e => e.Id)
                     .FirstOrDefaultAsync(ct);
             }

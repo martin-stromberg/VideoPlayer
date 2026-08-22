@@ -115,11 +115,47 @@ namespace VideoWebPlayer.Client
             
             var content = await response.Content.ReadAsStringAsync();
             if (!response.IsSuccessStatusCode)
-                throw new HttpRequestException($"Failed to POST from {endPoint}: {response.ReasonPhrase}");
+                throw new HttpRequestException(
+                    string.IsNullOrWhiteSpace(content)
+                        ? $"Failed to POST from {endPoint}: {response.ReasonPhrase}"
+                        : content);
             return System.Text.Json.JsonSerializer.Deserialize<T>(content, new System.Text.Json.JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
             }) ?? throw new InvalidOperationException("Deserialization returned null.");
+        }
+
+        protected virtual async Task HttpPostAsync(string endPoint, HttpContent args, bool skipReauthorize = false)
+        {
+            async Task<HttpResponseMessage> DoRequestAsync() => await httpClient.PostAsync(endPoint, args);
+
+            var response = await DoRequestAsync();
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                Logger?.LogWarning("Received 401 Unauthorized from {EndPoint}. Token might be expired.", endPoint);
+                if (skipReauthorize)
+                    throw new HttpRequestException($"Unauthorized: {endPoint}");
+
+                if (await HandleUnauthorized())
+                {
+                    response = await DoRequestAsync();
+                    if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                        throw new HttpRequestException($"Unauthorized: {endPoint}");
+                }
+                else
+                {
+                    throw new HttpRequestException($"Unauthorized: {endPoint}");
+                }
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var content = await response.Content.ReadAsStringAsync();
+                throw new HttpRequestException(
+                    string.IsNullOrWhiteSpace(content)
+                        ? $"Failed to POST from {endPoint}: {response.ReasonPhrase}"
+                        : content);
+            }
         }
 
         #region Authentication
@@ -230,14 +266,23 @@ namespace VideoWebPlayer.Client
         #region Continue Watching
         public async Task<IEnumerable<ContinueWatchingDto>> RequestContinueWatchingAsync()
         {
-            try
-            {
-                return await HttpGetAsync<ContinueWatchingDto[]>("api/continue-watching");
-            }
-            catch
-            {
-                return Array.Empty<ContinueWatchingDto>();
-            }
+            return await HttpGetAsync<ContinueWatchingDto[]>("api/continue-watching");
+        }
+
+        public async Task<ContinueWatchingMutationResult> HideContinueWatchingAsync(string mediaType, long mediaId)
+        {
+            var json = JsonSerializer.Serialize(new { MediaType = mediaType, MediaId = mediaId });
+            return await HttpPostAsync<ContinueWatchingMutationResult>(
+                "api/continue-watching/hide",
+                new StringContent(json, System.Text.Encoding.UTF8, new System.Net.Http.Headers.MediaTypeHeaderValue("application/json")));
+        }
+
+        public async Task<ContinueWatchingMutationResult> SkipContinueWatchingAsync(string mediaType, long mediaId)
+        {
+            var json = JsonSerializer.Serialize(new { MediaType = mediaType, MediaId = mediaId });
+            return await HttpPostAsync<ContinueWatchingMutationResult>(
+                "api/continue-watching/skip",
+                new StringContent(json, System.Text.Encoding.UTF8, new System.Net.Http.Headers.MediaTypeHeaderValue("application/json")));
         }
         #endregion
 
@@ -250,6 +295,12 @@ namespace VideoWebPlayer.Client
         {
             var json = JsonSerializer.Serialize(entry);
             return await HttpPostAsync<bool>("api/favorites/toggle", new StringContent(json, new System.Net.Http.Headers.MediaTypeHeaderValue("application/json")));
+        }
+
+        public async Task RemoveFavoriteAsync(long favoriteId)
+        {
+            var json = JsonSerializer.Serialize(new { Id = favoriteId, UserId = "anonymous" });
+            await HttpPostAsync("api/favorites/remove", new StringContent(json, System.Text.Encoding.UTF8, new System.Net.Http.Headers.MediaTypeHeaderValue("application/json")));
         }
         #endregion
 
@@ -296,6 +347,26 @@ namespace VideoWebPlayer.Client
             {
                 return null;
             }
+        }
+
+        public async Task<List<DtoGenreOption>> RequestGenreOptionsAsync()
+        {
+            try
+            {
+                return await HttpGetAsync<List<DtoGenreOption>>("api/items/genres");
+            }
+            catch
+            {
+                return [];
+            }
+        }
+
+        public async Task SaveMetadataAsync(MediaMetadataUpdateRequest request)
+        {
+            var json = JsonSerializer.Serialize(request);
+            _ = await HttpPostAsync<bool>(
+                "api/items/metadata",
+                new StringContent(json, System.Text.Encoding.UTF8, "application/json"));
         }
         
         #endregion

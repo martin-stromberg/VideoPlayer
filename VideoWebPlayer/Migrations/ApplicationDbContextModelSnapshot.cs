@@ -490,6 +490,9 @@ namespace VideoWebPlayer.Migrations
                     b.Property<TimeSpan?>("Duration")
                         .HasColumnType("TEXT");
 
+                    b.Property<long>("ListOrder")
+                        .HasColumnType("INTEGER");
+
                     b.Property<long?>("MovieId")
                         .HasColumnType("INTEGER");
 
@@ -516,6 +519,8 @@ namespace VideoWebPlayer.Migrations
                     b.HasIndex("UserId", "MovieId");
 
                     b.HasIndex("UserId", "TVShowEpisodeId");
+
+                    b.HasIndex("UserId", "ListOrder", "UpdatedAt");
 
                     b.ToTable("ContinueWatchingEntries");
                 });
@@ -782,6 +787,9 @@ namespace VideoWebPlayer.Migrations
                     b.Property<string>("GenreNames")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("IsManuallyEdited")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Language")
                         .HasColumnType("TEXT");
 
@@ -854,6 +862,9 @@ namespace VideoWebPlayer.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<long?>("FanartPictureId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsManuallyEdited")
                         .HasColumnType("INTEGER");
 
                     b.Property<long>("MediaSourceId")
@@ -958,6 +969,9 @@ namespace VideoWebPlayer.Migrations
                     b.Property<string>("GenreNames")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("IsManuallyEdited")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Language")
                         .HasColumnType("TEXT");
 
@@ -1036,6 +1050,9 @@ namespace VideoWebPlayer.Migrations
                     b.Property<long?>("GeneratedBackgroundPictureId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("IsManuallyEdited")
+                        .HasColumnType("INTEGER");
+
                     b.Property<long>("MediaSourceId")
                         .HasColumnType("INTEGER");
 
@@ -1101,6 +1118,9 @@ namespace VideoWebPlayer.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<long?>("FanartPictureId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsManuallyEdited")
                         .HasColumnType("INTEGER");
 
                     b.Property<long>("MediaSourceId")

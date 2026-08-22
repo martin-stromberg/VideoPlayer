@@ -28,14 +28,30 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
         $"{nameof(ApplicationDbContext.TVShowEpisodes)}.{nameof(TVShowEpisode.GeneratedBackgroundPictureId)}",
         $"{nameof(ApplicationDbContext.TVShowEpisodes)}.{nameof(TVShowEpisode.BackgroundImageRequiresUpdate)}",
         $"{nameof(ApplicationDbContext.TVShowEpisodes)}.{nameof(TVShowEpisode.BackgroundImageGeneratedAt)}",
+        $"{nameof(ApplicationDbContext.TVShowEpisodes)}.{nameof(TVShowEpisode.IsManuallyEdited)}",
+        $"{nameof(ApplicationDbContext.TVShows)}.{nameof(TVShow.IsManuallyEdited)}",
+        $"{nameof(ApplicationDbContext.TVShowSeasons)}.{nameof(TVShowSeason.IsManuallyEdited)}",
+        $"{nameof(ApplicationDbContext.Movies)}.{nameof(Movie.IsManuallyEdited)}",
+        $"{nameof(ApplicationDbContext.MovieCollections)}.{nameof(MovieCollection.IsManuallyEdited)}",
         $"{nameof(ApplicationDbContext.Pictures)}.{nameof(Picture.IsGeneratedBackground)}",
-        $"{nameof(ApplicationDbContext.Pictures)}.{nameof(Picture.EpisodeId)}"
+        $"{nameof(ApplicationDbContext.Pictures)}.{nameof(Picture.EpisodeId)}",
+        $"{nameof(ApplicationDbContext.ContinueWatchingEntries)}.{nameof(ContinueWatchingEntry.ListOrder)}"
     };
 
     private static readonly (string Table, string Column, bool DefaultValue)[] OptionalRestoreBoolDefaults =
     {
         (nameof(ApplicationDbContext.TVShowEpisodes), nameof(TVShowEpisode.BackgroundImageRequiresUpdate), false),
+        (nameof(ApplicationDbContext.TVShowEpisodes), nameof(TVShowEpisode.IsManuallyEdited), false),
+        (nameof(ApplicationDbContext.TVShows), nameof(TVShow.IsManuallyEdited), false),
+        (nameof(ApplicationDbContext.TVShowSeasons), nameof(TVShowSeason.IsManuallyEdited), false),
+        (nameof(ApplicationDbContext.Movies), nameof(Movie.IsManuallyEdited), false),
+        (nameof(ApplicationDbContext.MovieCollections), nameof(MovieCollection.IsManuallyEdited), false),
         (nameof(ApplicationDbContext.Pictures), nameof(Picture.IsGeneratedBackground), false)
+    };
+
+    private static readonly (string Table, string Column, long DefaultValue)[] OptionalRestoreLongDefaults =
+    {
+        (nameof(ApplicationDbContext.ContinueWatchingEntries), nameof(ContinueWatchingEntry.ListOrder), 0L)
     };
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };
@@ -771,6 +787,19 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
         }
 
         foreach (var (tableName, columnName, defaultValue) in OptionalRestoreBoolDefaults)
+        {
+            if (!string.Equals(table.Name, tableName, StringComparison.OrdinalIgnoreCase)
+                || insertColumns.Contains(columnName, StringComparer.OrdinalIgnoreCase)
+                || !table.Columns.Any(x => string.Equals(x.Name, columnName, StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            insertColumns.Add(columnName);
+            row[columnName] = JsonSerializer.SerializeToElement(defaultValue, JsonOptions);
+        }
+
+        foreach (var (tableName, columnName, defaultValue) in OptionalRestoreLongDefaults)
         {
             if (!string.Equals(table.Name, tableName, StringComparison.OrdinalIgnoreCase)
                 || insertColumns.Contains(columnName, StringComparer.OrdinalIgnoreCase)

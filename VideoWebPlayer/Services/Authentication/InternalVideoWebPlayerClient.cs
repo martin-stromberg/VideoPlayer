@@ -71,6 +71,17 @@ namespace VideoWebPlayer.Services.Authentication
                 await ImpersonateAsync(httpContextAccessor.HttpContext?.User ?? new ClaimsPrincipal());
             return await base.HttpPostAsync<T>(endPoint, args, skipReauthorize);
         }
+
+        /// <summary>
+        /// Issues an authenticated POST request to the specified endpoint (non-generic).
+        /// </summary>
+        protected override async Task HttpPostAsync(string endPoint, HttpContent args, bool skipReauthorize = false)
+        {
+            if (string.IsNullOrWhiteSpace(AuthorizationToken))
+                await ImpersonateAsync(httpContextAccessor.HttpContext?.User ?? new ClaimsPrincipal());
+            await base.HttpPostAsync(endPoint, args, skipReauthorize);
+        }
+
         private async Task ImpersonateAsync(ClaimsPrincipal user)
         {
             while (_impersonating)

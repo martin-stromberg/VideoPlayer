@@ -539,6 +539,133 @@ public sealed class VideoWebPlayerBackupDataProviderTests
         Assert.Null(restoredPicture.EpisodeId);
     }
 
+    [Fact]
+    public async Task RestoreAsync_AcceptsLegacyPayloadWithoutManualMetadataColumns()
+    {
+        using var temp = new TempDirectory();
+        await using var sourceConnection = new SqliteConnection("Data Source=:memory:");
+        await sourceConnection.OpenAsync(TestContext.Current.CancellationToken);
+        await using var sourceDb = CreateDb(sourceConnection);
+        await sourceDb.Database.EnsureCreatedAsync(TestContext.Current.CancellationToken);
+
+        var mediaSource = new MediaSource { Id = 201, Name = "Source", Path = "/source", Host = "localhost", Port = 22 };
+        var collection = new MediaCollection { Id = 202, Name = "Collection", Path = "/source/show", MediaSourceId = mediaSource.Id, CreatedAt = DateTime.UtcNow };
+        var movieCollection = new MovieCollection { Id = 203, Name = "Movies", MediaSourceId = mediaSource.Id, CollectionId = collection.Id, CreatedAt = DateTime.UtcNow, IsManuallyEdited = true };
+        var movie = new Movie { Id = 204, Name = "Movie", MediaSourceId = mediaSource.Id, CollectionId = collection.Id, MovieCollectionId = movieCollection.Id, CreatedAt = DateTime.UtcNow, IsManuallyEdited = true };
+        var show = new TVShow { Id = 205, Name = "Show", MediaSourceId = mediaSource.Id, CollectionId = collection.Id, CreatedAt = DateTime.UtcNow, IsManuallyEdited = true };
+        var season = new TVShowSeason { Id = 206, Name = "Season", TVShowId = show.Id, MediaSourceId = mediaSource.Id, CollectionId = collection.Id, CreatedAt = DateTime.UtcNow, IsManuallyEdited = true };
+        var episode = new TVShowEpisode { Id = 207, Name = "Episode", TVShowSeasonId = season.Id, MediaSourceId = mediaSource.Id, CollectionId = collection.Id, CreatedAt = DateTime.UtcNow, IsManuallyEdited = true };
+
+        sourceDb.MediaSources.Add(mediaSource);
+        sourceDb.MediaCollections.Add(collection);
+        sourceDb.MovieCollections.Add(movieCollection);
+        sourceDb.Movies.Add(movie);
+        sourceDb.TVShows.Add(show);
+        sourceDb.TVShowSeasons.Add(season);
+        sourceDb.TVShowEpisodes.Add(episode);
+        await sourceDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        await using var exported = await ExportProviderPayloadAsync(
+            CreateProvider(sourceDb, temp.Path),
+            TestContext.Current.CancellationToken);
+
+        var legacyIndex = CreateLegacyIndexWithoutManualMetadataColumns(exported.Index);
+
+        await using var targetConnection = new SqliteConnection("Data Source=:memory:");
+        await targetConnection.OpenAsync(TestContext.Current.CancellationToken);
+        await using var targetDb = CreateDb(targetConnection);
+        await targetDb.Database.EnsureCreatedAsync(TestContext.Current.CancellationToken);
+
+        await CreateProvider(targetDb, temp.Path).RestoreAsync(
+            legacyIndex,
+            new BackupRestoreContext(
+                null,
+                (entryName, token) => OpenLegacyPayloadWithoutManualMetadataColumnsAsync(exported, entryName, token)),
+            TestContext.Current.CancellationToken);
+
+        targetDb.ChangeTracker.Clear();
+        Assert.False((await targetDb.MovieCollections.SingleAsync(x => x.Id == movieCollection.Id, TestContext.Current.CancellationToken)).IsManuallyEdited);
+        Assert.False((await targetDb.Movies.SingleAsync(x => x.Id == movie.Id, TestContext.Current.CancellationToken)).IsManuallyEdited);
+        Assert.False((await targetDb.TVShows.SingleAsync(x => x.Id == show.Id, TestContext.Current.CancellationToken)).IsManuallyEdited);
+        Assert.False((await targetDb.TVShowSeasons.SingleAsync(x => x.Id == season.Id, TestContext.Current.CancellationToken)).IsManuallyEdited);
+        Assert.False((await targetDb.TVShowEpisodes.SingleAsync(x => x.Id == episode.Id, TestContext.Current.CancellationToken)).IsManuallyEdited);
+    }
+
+    [Fact]
+    public async Task RestoreAsync_AcceptsLegacyPayloadWithoutListOrderColumn()
+    {
+        using var temp = new TempDirectory();
+        await using var sourceConnection = new SqliteConnection("Data Source=:memory:");
+        await sourceConnection.OpenAsync(TestContext.Current.CancellationToken);
+        await using var sourceDb = CreateDb(sourceConnection);
+        await sourceDb.Database.EnsureCreatedAsync(TestContext.Current.CancellationToken);
+
+        var (_, _, episode) = await SeedGeneratedBackgroundScenarioAsync(sourceDb);
+        var source = await sourceDb.MediaSources.SingleAsync(TestContext.Current.CancellationToken);
+
+        var user = new ApplicationUser
+        {
+            Id = "user-1",
+            UserName = "user-1",
+            NormalizedUserName = "USER-1",
+            Email = "user-1@example.test",
+            NormalizedEmail = "USER-1@EXAMPLE.TEST",
+            Sources = "[1]"
+        };
+        sourceDb.Users.Add(user);
+        sourceDb.ContinueWatchingEntries.Add(new ContinueWatchingEntry
+        {
+            UserId = user.Id,
+            TVShowEpisodeId = episode.Id,
+            Position = TimeSpan.FromMinutes(5),
+            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            ListOrder = 123456L
+        });
+        sourceDb.FavoriteEntries.Add(new FavoriteEntry
+        {
+            UserId = user.Id,
+            TVShowEpisodeId = episode.Id,
+            CreatedAt = DateTime.UtcNow
+        });
+        sourceDb.RecentEntries.Add(new RecentEntry
+        {
+            MediaSourceId = source.Id,
+            TVShowEpisodeId = episode.Id,
+            PublishedAt = DateTime.UtcNow,
+            CreatedAt = DateTime.UtcNow
+        });
+        await sourceDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        await using var exported = await ExportProviderPayloadAsync(
+            CreateProvider(sourceDb, temp.Path),
+            TestContext.Current.CancellationToken);
+
+        var legacyIndex = CreateLegacyIndexWithoutListOrderColumn(exported.Index);
+
+        await using var targetConnection = new SqliteConnection("Data Source=:memory:");
+        await targetConnection.OpenAsync(TestContext.Current.CancellationToken);
+        await using var targetDb = CreateDb(targetConnection);
+        await targetDb.Database.EnsureCreatedAsync(TestContext.Current.CancellationToken);
+
+        await CreateProvider(targetDb, temp.Path).RestoreAsync(
+            legacyIndex,
+            new BackupRestoreContext(
+                null,
+                (entryName, token) => OpenLegacyPayloadWithoutListOrderColumnAsync(exported, entryName, token)),
+            TestContext.Current.CancellationToken);
+
+        targetDb.ChangeTracker.Clear();
+        var restored = await targetDb.ContinueWatchingEntries.SingleAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(0L, restored.ListOrder);
+        Assert.Equal(TimeSpan.FromMinutes(5), restored.Position);
+        Assert.Equal("user-1", restored.UserId);
+        Assert.Equal(episode.Id, restored.TVShowEpisodeId);
+
+        Assert.Single(await targetDb.FavoriteEntries.ToListAsync(TestContext.Current.CancellationToken));
+        Assert.Single(await targetDb.RecentEntries.ToListAsync(TestContext.Current.CancellationToken));
+        Assert.Single(await targetDb.Users.ToListAsync(TestContext.Current.CancellationToken));
+    }
+
     private static readonly (string Table, string Column)[] EpisodeBackgroundImageLegacyColumns =
     {
         (nameof(ApplicationDbContext.TVShowEpisodes), nameof(TVShowEpisode.GeneratedBackgroundPictureId)),
@@ -546,6 +673,20 @@ public sealed class VideoWebPlayerBackupDataProviderTests
         (nameof(ApplicationDbContext.TVShowEpisodes), nameof(TVShowEpisode.BackgroundImageGeneratedAt)),
         (nameof(ApplicationDbContext.Pictures), nameof(Picture.IsGeneratedBackground)),
         (nameof(ApplicationDbContext.Pictures), nameof(Picture.EpisodeId))
+    };
+
+    private static readonly (string Table, string Column)[] ManualMetadataLegacyColumns =
+    {
+        (nameof(ApplicationDbContext.MovieCollections), nameof(MovieCollection.IsManuallyEdited)),
+        (nameof(ApplicationDbContext.Movies), nameof(Movie.IsManuallyEdited)),
+        (nameof(ApplicationDbContext.TVShowEpisodes), nameof(TVShowEpisode.IsManuallyEdited)),
+        (nameof(ApplicationDbContext.TVShows), nameof(TVShow.IsManuallyEdited)),
+        (nameof(ApplicationDbContext.TVShowSeasons), nameof(TVShowSeason.IsManuallyEdited))
+    };
+
+    private static readonly (string Table, string Column)[] ListOrderLegacyColumns =
+    {
+        (nameof(ApplicationDbContext.ContinueWatchingEntries), nameof(ContinueWatchingEntry.ListOrder))
     };
 
     private static MemoryStream CreateLegacyIndexWithoutEpisodeBackgroundImageColumns(MemoryStream index)
@@ -573,6 +714,22 @@ public sealed class VideoWebPlayerBackupDataProviderTests
         return new MemoryStream(Encoding.UTF8.GetBytes(root.ToJsonString()));
     }
 
+    private static MemoryStream CreateLegacyIndexWithoutManualMetadataColumns(MemoryStream index)
+    {
+        index.Position = 0;
+        var root = JsonNode.Parse(index)!;
+        RemoveColumnsFromIndex(root, ManualMetadataLegacyColumns);
+        return new MemoryStream(Encoding.UTF8.GetBytes(root.ToJsonString()));
+    }
+
+    private static MemoryStream CreateLegacyIndexWithoutListOrderColumn(MemoryStream index)
+    {
+        index.Position = 0;
+        var root = JsonNode.Parse(index)!;
+        RemoveColumnsFromIndex(root, ListOrderLegacyColumns);
+        return new MemoryStream(Encoding.UTF8.GetBytes(root.ToJsonString()));
+    }
+
     private static async Task<Stream> OpenLegacyPayloadWithoutEpisodeBackgroundImageColumnsAsync(
         ExportedPayload exported,
         string entryName,
@@ -592,6 +749,69 @@ public sealed class VideoWebPlayerBackupDataProviderTests
             foreach (var row in root["rows"]!.AsArray())
             {
                 foreach (var column in columnsToRemove)
+                    row!.AsObject().Remove(column);
+            }
+
+            return new MemoryStream(Encoding.UTF8.GetBytes(root.ToJsonString()));
+        }
+    }
+
+    private static async Task<Stream> OpenLegacyPayloadWithoutManualMetadataColumnsAsync(
+        ExportedPayload exported,
+        string entryName,
+        CancellationToken cancellationToken)
+    {
+        var stream = await exported.OpenAsync(entryName, cancellationToken);
+        return await RemoveColumnsFromPayloadAsync(stream, entryName, ManualMetadataLegacyColumns);
+    }
+
+    private static async Task<Stream> OpenLegacyPayloadWithoutListOrderColumnAsync(
+        ExportedPayload exported,
+        string entryName,
+        CancellationToken cancellationToken)
+    {
+        var stream = await exported.OpenAsync(entryName, cancellationToken);
+        return await RemoveColumnsFromPayloadAsync(stream, entryName, ListOrderLegacyColumns);
+    }
+
+    private static void RemoveColumnsFromIndex(JsonNode root, IReadOnlyCollection<(string Table, string Column)> columnsToRemove)
+    {
+        var tables = root["tables"]!.AsArray();
+        foreach (var table in tables)
+        {
+            var tableName = table!["name"]?.GetValue<string>();
+            var columns = table["columns"]!.AsArray();
+            for (var columnIndex = columns.Count - 1; columnIndex >= 0; columnIndex--)
+            {
+                var columnName = columns[columnIndex]?.GetValue<string>();
+                if (columnsToRemove.Any(x =>
+                        string.Equals(x.Table, tableName, StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(x.Column, columnName, StringComparison.OrdinalIgnoreCase)))
+                {
+                    columns.RemoveAt(columnIndex);
+                }
+            }
+        }
+    }
+
+    private static async Task<Stream> RemoveColumnsFromPayloadAsync(
+        Stream stream,
+        string entryName,
+        IReadOnlyCollection<(string Table, string Column)> columnsToRemove)
+    {
+        var payloadColumnsToRemove = columnsToRemove
+            .Where(x => entryName.Contains(x.Table, StringComparison.OrdinalIgnoreCase))
+            .Select(x => x.Column)
+            .ToList();
+        if (payloadColumnsToRemove.Count == 0)
+            return stream;
+
+        await using (stream)
+        {
+            var root = JsonNode.Parse(stream)!;
+            foreach (var row in root["rows"]!.AsArray())
+            {
+                foreach (var column in payloadColumnsToRemove)
                     row!.AsObject().Remove(column);
             }
 

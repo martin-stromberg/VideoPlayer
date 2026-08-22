@@ -1,6 +1,79 @@
+@implements IDisposable
+@inject IJSRuntime JS
+
 @* Wiederverwendbare Box für ein Media-Element *@
-<a class="media-box-link" href="@LinkUrl">
-    <div class="media-box" title="@Title">
+<div class="media-box-shell @(IsMenuOpen ? "media-box-shell-menu-open" : null)" data-card-key="@CardKey" @ref="shellRef">
+    @if (HasActions && IsMenuOpen)
+    {
+        <button type="button"
+                class="media-context-backdrop"
+                aria-label="Kontextmenü schließen"
+                @onclick="CloseMenuFromPointerAsync"></button>
+
+        <div class="media-context-menu"
+             style="opacity: 0;"
+             role="menu"
+             aria-label="Aktionen für @Title"
+             tabindex="-1"
+             @ref="menuRef"
+             @onkeydown="HandleMenuKeyDown"
+             @onclick:stopPropagation="true">
+            @if (Actions.Count > 0)
+            {
+                var firstAction = Actions[0];
+                <button type="button"
+                        class="media-context-action"
+                        role="menuitem"
+                        @ref="firstActionRef"
+                        @onclick="() => SelectActionAsync(firstAction.Key)">
+                    @firstAction.Label
+                </button>
+
+                @for (var i = 1; i < Actions.Count; i++)
+                {
+                    var action = Actions[i];
+                    <button type="button"
+                            class="media-context-action"
+                            role="menuitem"
+                            @onclick="() => SelectActionAsync(action.Key)">
+                        @action.Label
+                    </button>
+                }
+            }
+        </div>
+    }
+
+    @if (HasActions)
+    {
+        <a class="media-box-link"
+           href="@LinkUrl"
+           @ref="linkRef"
+           @onclick="HandleLinkClick"
+           @onclick:preventDefault="@SuppressNextClick"
+           @onkeydown="HandleKeyDown"
+           @oncontextmenu="HandleContextMenu"
+           @oncontextmenu:preventDefault="true"
+           @oncontextmenu:stopPropagation="true"
+           @onpointerdown="HandlePointerDown"
+           @onpointermove="HandlePointerMove"
+           @onpointerup="HandlePointerUp"
+           @onpointercancel="HandlePointerCancel"
+           @onpointerleave="HandlePointerLeave">
+            @MediaBoxContent
+        </a>
+    }
+    else
+    {
+        <a class="media-box-link"
+           href="@LinkUrl"
+           @ref="linkRef">
+            @MediaBoxContent
+        </a>
+    }
+</div>
+
+@code {
+    private RenderFragment MediaBoxContent => @<div class="media-box" title="@Title">
         <img class="media-poster"
              src="@ImageUrl"
              alt="@Title"
@@ -10,11 +83,159 @@
         <div class="media-card-overlay">
             <span class="media-title-text">@Title</span>
         </div>
-    </div>
-</a>
+    </div>;
 
-@code {
+    private readonly MediaContextMenuInteractionState interaction = new();
+    private ElementReference linkRef;
+    private ElementReference firstActionRef;
+    private ElementReference shellRef;
+    private ElementReference menuRef;
+    private bool shouldFocusFirstAction;
+    private bool shouldPositionMenu;
+    private bool shouldRestoreLinkFocus;
+
     [Parameter] public string Title { get; set; } = string.Empty;
     [Parameter] public string ImageUrl { get; set; } = "/images/placeholder.png";
     [Parameter] public string LinkUrl { get; set; } = "#";
+    [Parameter] public string CardKey { get; set; } = string.Empty;
+    [Parameter] public IReadOnlyList<MediaBoxAction> Actions { get; set; } = Array.Empty<MediaBoxAction>();
+    [Parameter] public EventCallback<string> OnActionSelected { get; set; }
+
+    private bool HasActions => Actions.Count > 0 && OnActionSelected.HasDelegate;
+    private bool IsMenuOpen => interaction.IsMenuOpen;
+    private bool SuppressNextClick => interaction.SuppressNextClick;
+
+    private void HandlePointerDown(PointerEventArgs args)
+    {
+        var cancellationToken = interaction.BeginPointerPress(
+            HasActions,
+            args.PointerType,
+            args.Button,
+            args.ClientX,
+            args.ClientY);
+
+        if (cancellationToken.HasValue)
+            _ = OpenMenuAfterDelayAsync(cancellationToken.Value);
+    }
+
+    private void HandlePointerMove(PointerEventArgs args)
+    {
+        interaction.CancelIfPointerMoved(args.ClientX, args.ClientY);
+    }
+
+    private void HandlePointerUp(PointerEventArgs args)
+    {
+        interaction.EndPointerPress();
+    }
+
+    private async Task HandlePointerCancel(PointerEventArgs args)
+    {
+        await CloseMenuAsync();
+    }
+
+    private void HandlePointerLeave(PointerEventArgs args)
+    {
+        if (!IsMenuOpen)
+            interaction.CancelLongPress();
+    }
+
+    private void HandleLinkClick()
+    {
+        interaction.ConsumeClickSuppression();
+    }
+
+    private void HandleContextMenu(MouseEventArgs args)
+    {
+        if (HasActions)
+            interaction.CancelLongPress();
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs args)
+    {
+        if (!HasActions)
+            return;
+
+        if (args.Key == "Escape")
+        {
+            await CloseMenuAsync();
+            return;
+        }
+
+        if (args.Key == "ContextMenu" || (args.ShiftKey && args.Key == "F10"))
+            await OpenMenuAsync();
+    }
+
+    private async Task HandleMenuKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Escape")
+            await CloseMenuAsync();
+    }
+
+    private async Task OpenMenuAfterDelayAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(MediaContextMenuInteractionState.LongPressDelay, cancellationToken);
+            await OpenMenuAsync();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task OpenMenuAsync()
+    {
+        if (!interaction.OpenMenu(HasActions))
+            return;
+
+        shouldFocusFirstAction = true;
+        shouldPositionMenu = true;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task CloseMenuFromPointerAsync()
+    {
+        await CloseMenuAsync();
+    }
+
+    private async Task CloseMenuAsync()
+    {
+        var wasOpen = interaction.CloseMenu();
+        if (wasOpen)
+            shouldRestoreLinkFocus = true;
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SelectActionAsync(string actionKey)
+    {
+        await CloseMenuAsync();
+        await OnActionSelected.InvokeAsync(actionKey);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (shouldPositionMenu && IsMenuOpen)
+        {
+            shouldPositionMenu = false;
+            await JS.InvokeVoidAsync("mediaContextMenu.position", shellRef, menuRef);
+        }
+
+        if (shouldFocusFirstAction && IsMenuOpen)
+        {
+            shouldFocusFirstAction = false;
+            await firstActionRef.FocusAsync();
+        }
+
+        if (shouldRestoreLinkFocus)
+        {
+            shouldRestoreLinkFocus = false;
+            await linkRef.FocusAsync();
+        }
+    }
+
+    public void Dispose()
+    {
+        interaction.CancelLongPress();
+    }
 }

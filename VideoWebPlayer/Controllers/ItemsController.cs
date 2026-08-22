@@ -16,6 +16,7 @@ public class ItemsController : ApiBaseController
 {
     private readonly ApplicationDbContext _db;
     private readonly SftpMediaSourceReader _sftpReader;
+    private readonly MediaMetadataEditorService _metadataEditor;
     private readonly RecentEntryService recentEntryService;
 
     /// <summary>
@@ -29,6 +30,7 @@ public class ItemsController : ApiBaseController
     public ItemsController(
         ApplicationDbContext db, 
         SftpMediaSourceReader sftpReader,
+        MediaMetadataEditorService metadataEditor,
         RecentEntryService recentEntryService,
         
         IAuthService authService, 
@@ -36,9 +38,69 @@ public class ItemsController : ApiBaseController
     {
         _db = db;
         _sftpReader = sftpReader;
+        _metadataEditor = metadataEditor;
         this.recentEntryService = recentEntryService;
     }
 
+    /// <summary>
+    /// Gets genre options as displayed by the genre admin page.
+    /// </summary>
+    [HttpGet("genres")]
+    public async Task<ActionResult<List<DtoGenreOption>>> GetGenres()
+    {
+        try
+        {
+            CheckLogedIn();
+            return Ok(await _metadataEditor.GetGenreOptionsAsync(HttpContext.RequestAborted));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Logger.LogWarning(ex, "Zugriff verweigert beim Abrufen der Genre-Auswahlliste");
+            return Unauthorized(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Fehler beim Abrufen der Genre-Auswahlliste");
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    /// <summary>
+    /// Updates user-editable metadata for a media detail context.
+    /// </summary>
+    [HttpPost("metadata")]
+    public async Task<IActionResult> UpdateMetadata([FromBody] MediaMetadataUpdateRequest request)
+    {
+        try
+        {
+            CheckLogedIn();
+            if (!User.HasClaim("IsAdmin", "True"))
+                return Unauthorized("Nur Administratoren duerfen Metadaten speichern.");
+
+            await _metadataEditor.UpdateAsync(request, HttpContext.RequestAborted);
+            return Ok(true);
+        }
+        catch (ArgumentException ex)
+        {
+            Logger.LogWarning(ex, "Ungueltige Metadaten-Aktualisierung");
+            return BadRequest(ex.Message);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            Logger.LogWarning(ex, "Metadaten-Ziel nicht gefunden");
+            return NotFound(ex.Message);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Logger.LogWarning(ex, "Zugriff verweigert beim Speichern von Metadaten");
+            return Unauthorized(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Fehler beim Speichern von Metadaten");
+            return StatusCode(500, "Internal server error");
+        }
+    }
     /// <summary>
     /// Gets media entries for a source with optional filtering.
     /// </summary>
@@ -141,12 +203,12 @@ public class ItemsController : ApiBaseController
         }
         catch (UnauthorizedAccessException ex)
         {
-            Logger.LogWarning(ex, "Zugriff verweigert beim Abrufen der Genres für Quelle");
+            Logger.LogWarning(ex, "Zugriff verweigert beim Abrufen der Genres fuer Quelle");
             return Unauthorized(ex.Message);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Fehler beim Abrufen der Genres für Quelle");
+            Logger.LogError(ex, "Fehler beim Abrufen der Genres fuer Quelle");
             return StatusCode(500, "Internal server error");
         }
     }
@@ -252,12 +314,12 @@ public class ItemsController : ApiBaseController
         }
         catch (UnauthorizedAccessException ex)
         {
-            Logger.LogWarning(ex, "Zugriff verweigert beim Abrufen der letzten Einträge");
+            Logger.LogWarning(ex, "Zugriff verweigert beim Abrufen der letzten Eintraege");
             return Unauthorized(ex.Message);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Fehler beim Abrufen der letzten Einträge");
+            Logger.LogError(ex, "Fehler beim Abrufen der letzten Eintraege");
             return StatusCode(500, "Internal server error");
         }
     }
@@ -289,7 +351,7 @@ public class ItemsController : ApiBaseController
         if (source is null)
             throw new RecordNotFoundException("Medienquelle nicht gefunden");
         if (!source.MediaSourceUsers.Any(u => u.UserId == CurrentUser.Id))
-            throw new UnauthorizedAccessException("Fehlende Berechtigung für Medienquelle");
+            throw new UnauthorizedAccessException("Fehlende Berechtigung fuer Medienquelle");
 
         var mediaItem = type switch
         {
@@ -306,7 +368,7 @@ public class ItemsController : ApiBaseController
             _ => null
         };
         if (mediaItem is null)
-            throw new RecordNotFoundException("Keine Medienitems für diesen Eintrag gefunden");
+            throw new RecordNotFoundException("Keine Medienitems fuer diesen Eintrag gefunden");
         return mediaItem;
     }
 
@@ -323,9 +385,9 @@ public class ItemsController : ApiBaseController
                 type = nameof(TVShowEpisode).ToLower(); 
 
             if (type != nameof(Movie).ToLower() && type != nameof(TVShowEpisode).ToLower())
-                return BadRequest("Ungültiger Medientyp");
+                return BadRequest("Ungueltiger Medientyp");
             if (id <= 0)
-                return BadRequest("Ungültige ID");
+                return BadRequest("Ungueltige ID");
 
             var mediaItem = await FindMediaItemAsync(type, id);
             if (mediaItem == null)
@@ -350,7 +412,7 @@ public class ItemsController : ApiBaseController
                 _ => "application/octet-stream"
             };
 
-            // enableRangeProcessing: true für Video-Streaming
+            // enableRangeProcessing: true for video streaming
             return File(stream, contentType, enableRangeProcessing: true);
         }
         catch (UnauthorizedAccessException ex)
@@ -383,7 +445,7 @@ public class ItemsController : ApiBaseController
             if (fileStreamResult == null)
                 return NotFound();
 
-            // Optional: Dateiname auslesen
+            // Optional: read file name
             var fileName = !string.IsNullOrWhiteSpace(fileStreamResult.FileDownloadName) ? fileStreamResult.FileDownloadName : Path.GetFileName(mediaItem.Path) ?? $"video_{mediaItem.Id}.mp4";
             return File(fileStreamResult.FileStream, "application/octet-stream", fileName);
         }

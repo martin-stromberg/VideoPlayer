@@ -28,6 +28,7 @@ namespace VideoWebPlayer.Services
         private readonly MediaUpdateNotificationService? _notificationService;
         private readonly EpisodeBackgroundImageService _episodeBackgroundImageService;
         private readonly ILogger<MediaSourceClassifier> _logger;
+        private readonly IMediaMetadataWriteCoordinator? _writeCoordinator;
 
 		private static int _classificationRunning;
 		private static readonly object _classificationQueueLock = new();
@@ -55,7 +56,8 @@ namespace VideoWebPlayer.Services
             EventManager eventManager,
             EpisodeBackgroundImageService episodeBackgroundImageService,
             ILogger<MediaSourceClassifier> logger,
-            MediaUpdateNotificationService? notificationService = null)
+            MediaUpdateNotificationService? notificationService = null,
+            IMediaMetadataWriteCoordinator? writeCoordinator = null)
         {
             _db = db;
             _sftpReader = sftpReader;
@@ -64,6 +66,7 @@ namespace VideoWebPlayer.Services
             _episodeBackgroundImageService = episodeBackgroundImageService;
             _notificationService = notificationService;
             _logger = logger;
+            _writeCoordinator = writeCoordinator;
         }
 
         /// <summary>
@@ -79,6 +82,7 @@ namespace VideoWebPlayer.Services
 
 			try
 			{
+            await using var writeLease = await EnterMetadataWriteAsync(cancellationToken);
             _logger.LogInformation("Starte Klassifizierung aller MediaItems und MediaCollections.");
             await ProcessMediaItemsAsync(cancellationToken);
             await ProcessMediaCollectionsAsync(cancellationToken);
@@ -103,6 +107,7 @@ namespace VideoWebPlayer.Services
 
 			try
 			{
+            await using var writeLease = await EnterMetadataWriteAsync(cancellationToken);
             _logger.LogInformation("Starte Klassifizierung der MediaItems.");
             await ProcessMediaItemsAsync(cancellationToken);
             _logger.LogInformation("Klassifizierung der MediaItems abgeschlossen.");
@@ -126,6 +131,7 @@ namespace VideoWebPlayer.Services
 
 			try
 			{
+            await using var writeLease = await EnterMetadataWriteAsync(cancellationToken);
             _logger.LogInformation("Starte Klassifizierung der MediaCollections.");
             await ProcessMediaCollectionsAsync(cancellationToken);
             _logger.LogInformation("Klassifizierung der MediaCollections abgeschlossen.");
@@ -162,6 +168,9 @@ namespace VideoWebPlayer.Services
 
 		private static bool TryBeginClassification()
 			=> Interlocked.CompareExchange(ref _classificationRunning, 1, 0) == 0;
+
+        private async Task<IAsyncDisposable?> EnterMetadataWriteAsync(CancellationToken cancellationToken)
+            => _writeCoordinator is null ? null : await _writeCoordinator.EnterAsync(cancellationToken);
 
 		private async Task FinishClassificationAsync(CancellationToken cancellationToken)
 		{
@@ -222,6 +231,7 @@ namespace VideoWebPlayer.Services
 
 		private async Task ClassifyCollectionTreeCoreAsync(long rootMediaCollectionId, CancellationToken cancellationToken)
 		{
+			await using var writeLease = await EnterMetadataWriteAsync(cancellationToken);
 			var collectionIds = await GetCollectionTreeIdsAsync(rootMediaCollectionId, cancellationToken);
 			_logger.LogInformation("Starte Klassifizierung f�r Collection-Tree (Root={RootId}, Count={Count}).", rootMediaCollectionId, collectionIds.Count);
 
@@ -421,9 +431,14 @@ namespace VideoWebPlayer.Services
             // Parse die relevanten Infos aus dem XML
             string showName = xml.Element("title")?.Value ?? collection.Name;
 
-            // Pr�fe, ob es bereits einen TVShow-Datensatz zu dieser Collection gibt
+            // Prefer the stable source collection before falling back to the legacy title lookup.
             var existingShow = await _db.TVShows
-                .FirstOrDefaultAsync(s => s.MediaSourceId == collection.MediaSourceId && s.Name == showName, cancellationToken);
+                .Where(s => s.MediaSourceId == collection.MediaSourceId && s.CollectionId == collection.Id)
+                .OrderByDescending(s => s.IsManuallyEdited)
+                .ThenBy(s => s.Id)
+                .FirstOrDefaultAsync(cancellationToken)
+                ?? await _db.TVShows
+                    .FirstOrDefaultAsync(s => s.MediaSourceId == collection.MediaSourceId && s.Name == showName, cancellationToken);
 
             if (existingShow == null)
             {
@@ -443,22 +458,28 @@ namespace VideoWebPlayer.Services
             }
             else
             {
-                existingShow.Name = showName;
-                existingShow.LoadFromXml(xml);
+                if (!existingShow.IsManuallyEdited)
+                {
+                    existingShow.Name = showName;
+                    existingShow.LoadFromXml(xml);
+                }
                 await _db.SaveChangesAsync(cancellationToken);
                 PublishStatus($"TVShow '{showName}' aktualisiert.");
             }
-            var showGenres = await GetOrCreateGenresAsync(existingShow.GenreNames, collection.MediaSourceId, cancellationToken);
-            existingShow.GenreNames = string.Join(",", showGenres.Select(g => g.Name));
-            existingShow.TVShowGenres.Clear();
-            foreach (var genre in showGenres)
+            if (!existingShow.IsManuallyEdited)
             {
-                var existing = await _db.TVShowGenres.FirstOrDefaultAsync(mg => mg.TVShowId == existingShow.Id && mg.GenreId == genre.Id);
-                if (existing is not null)
-                    existingShow.TVShowGenres.Add(existing);
-                else
-                    existingShow.TVShowGenres.Add(new TVShowGenre { TVShowId = existingShow.Id, GenreId = genre.Id });
-            }            
+                var showGenres = await GetOrCreateGenresAsync(existingShow.GenreNames, collection.MediaSourceId, cancellationToken);
+                existingShow.GenreNames = string.Join(",", showGenres.Select(g => g.Name));
+                existingShow.TVShowGenres.Clear();
+                foreach (var genre in showGenres)
+                {
+                    var existing = await _db.TVShowGenres.FirstOrDefaultAsync(mg => mg.TVShowId == existingShow.Id && mg.GenreId == genre.Id);
+                    if (existing is not null)
+                        existingShow.TVShowGenres.Add(existing);
+                    else
+                        existingShow.TVShowGenres.Add(new TVShowGenre { TVShowId = existingShow.Id, GenreId = genre.Id });
+                }
+            }
             await _db.SaveChangesAsync(cancellationToken);
             return existingShow;
         }
@@ -530,10 +551,14 @@ namespace VideoWebPlayer.Services
                 if (episodeNo == 0)
                     continue; // Keine Episode-Nummer, �berspringen
 
-                // Staffel suchen oder anlegen
+                // Prefer the stable season collection before falling back to the legacy season name lookup.
                 var season = await _db.TVShowSeasons
-                    .FirstOrDefaultAsync(se =>
-                        se.TVShowId == show.Id && se.Name == $"{seasonName}", cancellationToken);
+                    .Where(se => se.TVShowId == show.Id && se.CollectionId == collection.Id)
+                    .OrderByDescending(se => se.IsManuallyEdited)
+                    .ThenBy(se => se.Id)
+                    .FirstOrDefaultAsync(cancellationToken)
+                    ?? await _db.TVShowSeasons
+                        .FirstOrDefaultAsync(se => se.TVShowId == show.Id && se.Name == $"{seasonName}", cancellationToken);
                 if (season == null)
                 {
                     season = new TVShowSeason
@@ -549,13 +574,25 @@ namespace VideoWebPlayer.Services
                     await _recentEntryService.AddTVShowSeasonAsync(season).ConfigureAwait(false);
                     PublishStatus($"Neue Staffel '{seasonName}' f�r TVShow '{show.Name}' angelegt.");
                 }
+                else
+                {
+                    season.CollectionId = collection.Id;
+                    if (!season.IsManuallyEdited)
+                        season.Name = seasonName;
+                    await _db.SaveChangesAsync(cancellationToken);
+                }
 
                 // Episode suchen oder anlegen
                 var episodeTitle = xml.Element("title")?.Value ?? item.Name;
-                var existingEpisode = await _db.TVShowEpisodes
-                    .FirstOrDefaultAsync(ep =>
-                        ep.TVShowSeasonId == season.Id &&
-                        ep.Number == episodeNo, cancellationToken);
+                var existingEpisode = await _db.TVShowEpisodeMediaItems
+                    .Include(link => link.TVShowEpisode)
+                    .Where(link => link.MediaItemId == item.Id)
+                    .Select(link => link.TVShowEpisode)
+                    .FirstOrDefaultAsync(cancellationToken)
+                    ?? await _db.TVShowEpisodes
+                        .FirstOrDefaultAsync(ep =>
+                            ep.TVShowSeasonId == season.Id &&
+                            ep.Number == episodeNo, cancellationToken);
 
                 if (existingEpisode == null)
                 {
@@ -580,11 +617,14 @@ namespace VideoWebPlayer.Services
                 }
                 else
                 {
-                    existingEpisode.Name = episodeTitle;
-                    existingEpisode.ReleaseDate = DateTime.TryParse(xml.Element("aired")?.Value, out var aired) ? aired : (DateTime?)null;
-                    existingEpisode.PremieredAt = DateTime.TryParse(xml.Element("premiered")?.Value, out var prem) ? prem : (DateTime?)null;
-                    existingEpisode.EndedAt = existingEpisode.ReleaseDate > existingEpisode.PremieredAt ? existingEpisode.ReleaseDate : existingEpisode.PremieredAt;
-                    existingEpisode.Plot = xml.Element("plot")?.Value;
+                    if (!existingEpisode.IsManuallyEdited)
+                    {
+                        existingEpisode.Name = episodeTitle;
+                        existingEpisode.ReleaseDate = DateTime.TryParse(xml.Element("aired")?.Value, out var aired) ? aired : (DateTime?)null;
+                        existingEpisode.PremieredAt = DateTime.TryParse(xml.Element("premiered")?.Value, out var prem) ? prem : (DateTime?)null;
+                        existingEpisode.EndedAt = existingEpisode.ReleaseDate > existingEpisode.PremieredAt ? existingEpisode.ReleaseDate : existingEpisode.PremieredAt;
+                        existingEpisode.Plot = xml.Element("plot")?.Value;
+                    }
                     await _db.SaveChangesAsync(cancellationToken);
                     PublishStatus($"Episode '{episodeTitle}' (Staffel {seasonNo}, Episode {episodeNo}) aktualisiert.");
                 }                
@@ -603,36 +643,54 @@ namespace VideoWebPlayer.Services
 
                 if (existingEpisode.ReleaseDate.HasValue)
                 {
-                    season.ReleaseDate =
-                        season.ReleaseDate.HasValue
-                            ? (season.ReleaseDate < existingEpisode.ReleaseDate ? season.ReleaseDate : existingEpisode.ReleaseDate)
-                            : existingEpisode.ReleaseDate;
-                    show.ReleaseDate =
-                        show.ReleaseDate.HasValue
-                            ? (show.ReleaseDate < existingEpisode.ReleaseDate ? show.ReleaseDate : existingEpisode.ReleaseDate)
-                            : existingEpisode.ReleaseDate;
+                    if (!season.IsManuallyEdited)
+                    {
+                        season.ReleaseDate =
+                            season.ReleaseDate.HasValue
+                                ? (season.ReleaseDate < existingEpisode.ReleaseDate ? season.ReleaseDate : existingEpisode.ReleaseDate)
+                                : existingEpisode.ReleaseDate;
+                    }
+                    if (!show.IsManuallyEdited)
+                    {
+                        show.ReleaseDate =
+                            show.ReleaseDate.HasValue
+                                ? (show.ReleaseDate < existingEpisode.ReleaseDate ? show.ReleaseDate : existingEpisode.ReleaseDate)
+                                : existingEpisode.ReleaseDate;
+                    }
                 }
                 if (existingEpisode.PremieredAt.HasValue)
                 {
-                    season.PremieredAt =
-                        season.PremieredAt.HasValue
-                            ? (season.PremieredAt < existingEpisode.PremieredAt ? season.PremieredAt : existingEpisode.PremieredAt)
-                            : existingEpisode.PremieredAt;
-                    show.PremieredAt =
-                        show.PremieredAt.HasValue
-                            ? (show.PremieredAt < existingEpisode.PremieredAt ? show.PremieredAt : existingEpisode.PremieredAt)
-                            : existingEpisode.PremieredAt;
+                    if (!season.IsManuallyEdited)
+                    {
+                        season.PremieredAt =
+                            season.PremieredAt.HasValue
+                                ? (season.PremieredAt < existingEpisode.PremieredAt ? season.PremieredAt : existingEpisode.PremieredAt)
+                                : existingEpisode.PremieredAt;
+                    }
+                    if (!show.IsManuallyEdited)
+                    {
+                        show.PremieredAt =
+                            show.PremieredAt.HasValue
+                                ? (show.PremieredAt < existingEpisode.PremieredAt ? show.PremieredAt : existingEpisode.PremieredAt)
+                                : existingEpisode.PremieredAt;
+                    }
                 }
                 if (existingEpisode.EndedAt.HasValue)
                 {
-                    season.EndedAt =
-                        season.EndedAt.HasValue
-                            ? (season.EndedAt < existingEpisode.EndedAt ? season.EndedAt : existingEpisode.EndedAt)
-                            : existingEpisode.EndedAt;
-                    show.EndedAt =
-                        show.EndedAt.HasValue
-                            ? (show.EndedAt < existingEpisode.EndedAt ? show.EndedAt : existingEpisode.EndedAt)
-                            : existingEpisode.EndedAt;
+                    if (!season.IsManuallyEdited)
+                    {
+                        season.EndedAt =
+                            season.EndedAt.HasValue
+                                ? (season.EndedAt < existingEpisode.EndedAt ? season.EndedAt : existingEpisode.EndedAt)
+                                : existingEpisode.EndedAt;
+                    }
+                    if (!show.IsManuallyEdited)
+                    {
+                        show.EndedAt =
+                            show.EndedAt.HasValue
+                                ? (show.EndedAt < existingEpisode.EndedAt ? show.EndedAt : existingEpisode.EndedAt)
+                                : existingEpisode.EndedAt;
+                    }
                 }
                 await _db.SaveChangesAsync(cancellationToken);
                 await AssignPicturesToTVShowEpisodeAsync(existingEpisode, collection, item.Path, cancellationToken);
@@ -685,8 +743,13 @@ namespace VideoWebPlayer.Services
                 var movieName = xml.Element("title")?.Value ?? item.Name;
 
                 // Movie suchen oder anlegen
-                var existingMovie = await _db.Movies
-                    .FirstOrDefaultAsync(m => m.CollectionId == collection.Id && m.Name == movieName, cancellationToken);
+                var existingMovie = await _db.MovieMediaItems
+                    .Include(mmi => mmi.Movie)
+                    .Where(mmi => mmi.MediaItemId == item.Id)
+                    .Select(mmi => mmi.Movie)
+                    .FirstOrDefaultAsync(cancellationToken)
+                    ?? await _db.Movies
+                        .FirstOrDefaultAsync(m => m.CollectionId == collection.Id && m.Name == movieName, cancellationToken);
 
                 if (existingMovie == null)
                 {
@@ -708,23 +771,29 @@ namespace VideoWebPlayer.Services
                 }
                 else
                 {
-                    existingMovie.Name = movieName;
-                    existingMovie.LoadFromXml(xml); // <-- XML-Daten aktualisieren
+                    if (!existingMovie.IsManuallyEdited)
+                    {
+                        existingMovie.Name = movieName;
+                        existingMovie.LoadFromXml(xml); // <-- XML-Daten aktualisieren
+                    }
                     await _db.SaveChangesAsync(cancellationToken);
                     movies.Add(existingMovie);
                     PublishStatus($"Film '{movieName}' aktualisiert.");
                 }
-                var movieGenres = await GetOrCreateGenresAsync(existingMovie.GenreNames, collection.MediaSourceId, cancellationToken);
-                existingMovie.GenreNames = string.Join(",", movieGenres.Select(g => g.Name));
-                existingMovie.MovieGenres.Clear();
-                foreach (var genre in movieGenres)
+                if (!existingMovie.IsManuallyEdited)
                 {
-                    var existing = await _db.MovieGenres.FirstOrDefaultAsync(mg => mg.MovieId == existingMovie.Id && mg.GenreId == genre.Id);
-                    if (existing is not null)
-                        existingMovie.MovieGenres.Add(existing);
-                    else
-                        existingMovie.MovieGenres.Add(new MovieGenre { MovieId = existingMovie.Id, GenreId = genre.Id });
-                }                
+                    var movieGenres = await GetOrCreateGenresAsync(existingMovie.GenreNames, collection.MediaSourceId, cancellationToken);
+                    existingMovie.GenreNames = string.Join(",", movieGenres.Select(g => g.Name));
+                    existingMovie.MovieGenres.Clear();
+                    foreach (var genre in movieGenres)
+                    {
+                        var existing = await _db.MovieGenres.FirstOrDefaultAsync(mg => mg.MovieId == existingMovie.Id && mg.GenreId == genre.Id);
+                        if (existing is not null)
+                            existingMovie.MovieGenres.Add(existing);
+                        else
+                            existingMovie.MovieGenres.Add(new MovieGenre { MovieId = existingMovie.Id, GenreId = genre.Id });
+                    }
+                }
                 await _db.SaveChangesAsync(cancellationToken);
 
                 var movieMediaItem = await _db.MovieMediaItems
@@ -780,10 +849,13 @@ namespace VideoWebPlayer.Services
                 }
                 else
                 {
-                    existingCollection.Name = collectionName;
-                    existingCollection.ReleaseDate = movies.Min(m => m.ReleaseDate);
-                    existingCollection.PremieredAt = movies.Min(m => m.PremieredAt);
-                    existingCollection.EndedAt = movies.Max(m => m.EndedAt);
+                    if (!existingCollection.IsManuallyEdited)
+                    {
+                        existingCollection.Name = collectionName;
+                        existingCollection.ReleaseDate = movies.Min(m => m.ReleaseDate);
+                        existingCollection.PremieredAt = movies.Min(m => m.PremieredAt);
+                        existingCollection.EndedAt = movies.Max(m => m.EndedAt);
+                    }
                     await _db.SaveChangesAsync(cancellationToken);
                     foreach (var movie in movies)
                     {
@@ -1197,7 +1269,7 @@ namespace VideoWebPlayer.Services
         {
             // Filme ohne GenreNames korrigieren
             var movies = await _db.Movies
-                .Where(m => !string.IsNullOrWhiteSpace(m.GenreNames))
+                .Where(m => !m.IsManuallyEdited && !string.IsNullOrWhiteSpace(m.GenreNames))
                 .ToListAsync(cancellationToken);
 
             foreach (var movie in movies)
@@ -1219,7 +1291,7 @@ namespace VideoWebPlayer.Services
 
             // TVShows ohne GenreNames korrigieren
             var tvshows = await _db.TVShows
-                .Where(s => !string.IsNullOrWhiteSpace(s.GenreNames))
+                .Where(s => !s.IsManuallyEdited && !string.IsNullOrWhiteSpace(s.GenreNames))
                 .ToListAsync(cancellationToken);
 
             foreach (var show in tvshows)

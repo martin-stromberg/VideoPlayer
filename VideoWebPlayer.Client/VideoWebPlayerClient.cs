@@ -299,7 +299,7 @@ namespace VideoWebPlayer.Client
 
         public async Task RemoveFavoriteAsync(long favoriteId)
         {
-            var json = JsonSerializer.Serialize(new { Id = favoriteId, UserId = string.Empty });
+            var json = JsonSerializer.Serialize(new { Id = favoriteId, UserId = "anonymous" });
             await HttpPostAsync("api/favorites/remove", new StringContent(json, System.Text.Encoding.UTF8, new System.Net.Http.Headers.MediaTypeHeaderValue("application/json")));
         }
         #endregion

@@ -1,7 +1,10 @@
+@using Microsoft.AspNetCore.Components.Authorization
 @using VideoWebPlayer.Client.Models
 @using VideoWebPlayer.Events
+@rendermode InteractiveServer
 @inject IJSRuntime JS
 @inject VideoWebPlayer.Client.VideoWebPlayerClient Client
+@inject AuthenticationStateProvider AuthStateProvider
 @inject VideoWebPlayer.Services.EventManager EventManager
 
 @code {
@@ -20,6 +23,8 @@
 
     protected override async Task OnInitializedAsync()
     {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        await Client.EnsureAuthorizationTokenAsync(authState.User);
         await LoadItemsAsync();
         await base.OnInitializedAsync();
     }

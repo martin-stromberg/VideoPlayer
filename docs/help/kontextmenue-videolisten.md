@@ -18,6 +18,3 @@ Mit einem dreisekuendigen Gedrueckthalten eines Eintrags in den horizontalen Lis
 - `Escape`, Klick ausserhalb, Auswahl einer Aktion oder erneutes Pointer-Abbrechen schliessen das Menue.
 - Das Menue wird per JavaScript an den Viewport-Raendern ausgerichtet, um auf kleinen Bildschirmen nicht abgeschnitten zu werden.
 
-## Offene Punkte
-
-Die vollstaendige browserbasierte Abnahme (Playwright-E2E) muss in einer eingerichteten Browserumgebung nachgeholt werden. Details siehe `docs/features/task/issue-132-bbdbadac867a48cda3c898e00e13ec82-kotextmenue-fuer-videolisten/continue.md`.

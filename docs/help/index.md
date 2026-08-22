@@ -8,6 +8,7 @@
 - [Medienbibliothek](medienbibliothek.md) — Überarbeitete Oberfläche und Navigation durch Ihre Mediencollection
 - [Medienmetadaten bearbeiten](medien-editiermodus.md) — Administrativer Editiermodus für Serien, Staffeln, Episoden, Filme und Filmsammlungen
 - [Startseite – Hero-Hintergrund](startseite-hero-hintergrund.md) — Zusammengesetztes Hintergrundbild aus der „Weiterschauen"-Liste
+- [Weiterschauen](weiterschauen/index.md) — Speichern und Fortsetzen von Serien und Filmen an der zuletzt angesehenen Position
 
 ## Systemverwaltung (Administratoren)
 

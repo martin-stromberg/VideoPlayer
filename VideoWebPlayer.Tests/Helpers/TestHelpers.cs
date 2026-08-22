@@ -226,6 +226,38 @@ public static class TestHelpers
         }
     }
 
+    public static async Task<TVShow> CreateTvShowWithSeasonsAsync(
+        ApplicationDbContext db,
+        params (string Name, (int Number, DateTime? ReleaseDate)[] Episodes)[] seasons)
+    {
+        var show = new TVShow { Name = "Test Show", MediaSourceId = 1, CreatedAt = DateTime.UtcNow };
+        db.TVShows.Add(show);
+        await db.SaveChangesAsync();
+
+        foreach (var seasonDef in seasons)
+        {
+            var season = new TVShowSeason { TVShowId = show.Id, Name = seasonDef.Name, MediaSourceId = 1, CreatedAt = DateTime.UtcNow };
+            db.TVShowSeasons.Add(season);
+            await db.SaveChangesAsync();
+
+            foreach (var episodeDef in seasonDef.Episodes)
+            {
+                db.TVShowEpisodes.Add(new TVShowEpisode
+                {
+                    TVShowSeasonId = season.Id,
+                    Name = $"Episode {episodeDef.Number}",
+                    Number = episodeDef.Number,
+                    ReleaseDate = episodeDef.ReleaseDate,
+                    MediaSourceId = 1,
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
+            await db.SaveChangesAsync();
+        }
+
+        return show;
+    }
+
     public static async Task WaitForMessageCountAsync(
         ConcurrentQueue<string> messages,
         string expected,

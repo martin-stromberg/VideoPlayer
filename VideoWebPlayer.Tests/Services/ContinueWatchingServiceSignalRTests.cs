@@ -1,9 +1,5 @@
-using Microsoft.AspNetCore.SignalR;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 using Moq;
 using VideoWebPlayer.Data;
-using VideoWebPlayer.Hubs;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Tests.Helpers;
 using Xunit;
@@ -13,73 +9,8 @@ namespace VideoWebPlayer.Tests.Services;
 /// <summary>
 /// Tests für ContinueWatchingService SignalR-Integration.
 /// </summary>
-public class ContinueWatchingServiceSignalRTests
+public class ContinueWatchingServiceSignalRTests : ContinueWatchingServiceTestBase
 {
-    private readonly ApplicationDbContext _db;
-    private readonly Mock<IHubContext<MediaUpdateHub>> _mockHubContext;
-    private readonly Mock<IHubClients> _mockClients;
-    private readonly Mock<IClientProxy> _mockClientProxy;
-    private readonly MediaUpdateNotificationService _notificationService;
-    private readonly ContinueWatchingService _service;
-    private readonly string _testUserId = "test-user-123";
-    private readonly List<string> _signalRCallLog = new();
-
-    public ContinueWatchingServiceSignalRTests()
-    {
-        // In-Memory Database
-        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .Options;
-        var eventManager = new EventManager();
-        _db = new ApplicationDbContext(options, eventManager);
-
-        // Mock SignalR Hub Context
-        _mockClientProxy = new Mock<IClientProxy>();
-        _mockClientProxy
-            .Setup(x => x.SendCoreAsync(
-                It.IsAny<string>(),
-                It.IsAny<object?[]>(),
-                It.IsAny<CancellationToken>()))
-            .Callback<string, object?[], CancellationToken>((method, args, ct) =>
-            {
-                var logEntry = $"{method}({string.Join(", ", args?.Select(a => a?.ToString() ?? "null") ?? Array.Empty<string>())})";
-                _signalRCallLog.Add(logEntry);
-                Console.WriteLine($"[SignalR Mock] {logEntry}");
-            })
-            .Returns(Task.CompletedTask);
-
-        _mockClients = new Mock<IHubClients>();
-        _mockClients.Setup(x => x.User(It.IsAny<string>())).Returns(_mockClientProxy.Object);
-        _mockClients.Setup(x => x.All).Returns(_mockClientProxy.Object);
-
-        _mockHubContext = new Mock<IHubContext<MediaUpdateHub>>();
-        _mockHubContext.Setup(x => x.Clients).Returns(_mockClients.Object);
-
-        // MediaUpdateNotificationService mit Mock
-        var notificationLogger = Mock.Of<ILogger<MediaUpdateNotificationService>>();
-        _notificationService = new MediaUpdateNotificationService(_mockHubContext.Object, notificationLogger);
-
-        // ContinueWatchingService mit NotificationService
-        var userManager = CreateMockUserManager();
-        var logger = Mock.Of<ILogger<ContinueWatchingService>>();
-        var buffer = new ContinueWatchingBuffer();
-
-        _service = new ContinueWatchingService(
-            _db,
-            userManager,
-            logger,
-            buffer,
-            _notificationService);
-    }
-    
-    private static Microsoft.AspNetCore.Identity.UserManager<ApplicationUser> CreateMockUserManager()
-    {
-        var store = new Mock<Microsoft.AspNetCore.Identity.IUserStore<ApplicationUser>>();
-        var mockUserManager = new Mock<Microsoft.AspNetCore.Identity.UserManager<ApplicationUser>>(
-            store.Object, null, null, null, null, null, null, null, null);
-        return mockUserManager.Object;
-    }
-
     [Fact]
     public async Task ProcessBufferedEntry_NewEntry_SendsSignalRUpdate()
     {

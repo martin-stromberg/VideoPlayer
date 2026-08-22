@@ -7,9 +7,9 @@ namespace VideoWebPlayer.Tests.Components;
 public class MediaBoxContextMenuInteractionTests
 {
     [Fact]
-    public void LongPressDelay_IsExactlyThreeSeconds()
+    public void LongPressDelay_IsExactlyOneSecond()
     {
-        Assert.Equal(TimeSpan.FromSeconds(3), MediaContextMenuInteractionState.LongPressDelay);
+        Assert.Equal(TimeSpan.FromSeconds(1), MediaContextMenuInteractionState.LongPressDelay);
     }
 
     [Fact]

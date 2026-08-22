@@ -47,7 +47,7 @@ public sealed class MediaBoxContextMenuInteractionE2ETests : MediaBoxContextMenu
 
         await Page.Mouse.MoveAsync((float)x, (float)y);
         await Page.Mouse.DownAsync();
-        await Page.WaitForTimeoutAsync(1000);
+        await Page.WaitForTimeoutAsync(500);
         await Page.Mouse.UpAsync();
 
         await Expect(Page.GetByRole(AriaRole.Menu)).Not.ToBeVisibleAsync();

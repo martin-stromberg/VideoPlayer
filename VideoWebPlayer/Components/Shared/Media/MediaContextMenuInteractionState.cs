@@ -2,7 +2,7 @@ namespace VideoWebPlayer.Components.Shared.Media;
 
 internal sealed class MediaContextMenuInteractionState
 {
-    public static readonly TimeSpan LongPressDelay = TimeSpan.FromSeconds(3);
+    public static readonly TimeSpan LongPressDelay = TimeSpan.FromSeconds(1);
     public const double MovementTolerancePx = 10;
 
     private CancellationTokenSource? longPressCts;

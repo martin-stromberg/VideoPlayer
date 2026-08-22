@@ -63,7 +63,8 @@ public sealed class FavoritesService : IFavoritesService
 	{
 		var fav = await _db.FavoriteEntries.FirstOrDefaultAsync(
 			f => f.UserId == userId &&
-				((entry.MovieCollectionId != null && f.MovieCollectionId == entry.MovieCollectionId) ||
+				((entry.Id > 0 && f.Id == entry.Id) ||
+				 (entry.MovieCollectionId != null && f.MovieCollectionId == entry.MovieCollectionId) ||
 				 (entry.TVShowId != null && f.TVShowId == entry.TVShowId) ||
 				 (entry.TVShowSeasonId != null && f.TVShowSeasonId == entry.TVShowSeasonId) ||
 				 (entry.TVShowEpisodeId != null && f.TVShowEpisodeId == entry.TVShowEpisodeId) ||

@@ -48,6 +48,11 @@ namespace VideoWebPlayer.Data
         public DateTime UpdatedAt { get; set; }
 
         /// <summary>
+        /// Gets or sets the persisted user-specific list order.
+        /// </summary>
+        public long ListOrder { get; set; }
+
+        /// <summary>
         /// Gets or sets the movie navigation property.
         /// </summary>
         [ForeignKey(nameof(MovieId))]

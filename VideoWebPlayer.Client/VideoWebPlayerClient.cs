@@ -125,6 +125,39 @@ namespace VideoWebPlayer.Client
             }) ?? throw new InvalidOperationException("Deserialization returned null.");
         }
 
+        protected virtual async Task HttpPostAsync(string endPoint, HttpContent args, bool skipReauthorize = false)
+        {
+            async Task<HttpResponseMessage> DoRequestAsync() => await httpClient.PostAsync(endPoint, args);
+
+            var response = await DoRequestAsync();
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                Logger?.LogWarning("Received 401 Unauthorized from {EndPoint}. Token might be expired.", endPoint);
+                if (skipReauthorize)
+                    throw new HttpRequestException($"Unauthorized: {endPoint}");
+
+                if (await HandleUnauthorized())
+                {
+                    response = await DoRequestAsync();
+                    if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                        throw new HttpRequestException($"Unauthorized: {endPoint}");
+                }
+                else
+                {
+                    throw new HttpRequestException($"Unauthorized: {endPoint}");
+                }
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var content = await response.Content.ReadAsStringAsync();
+                throw new HttpRequestException(
+                    string.IsNullOrWhiteSpace(content)
+                        ? $"Failed to POST from {endPoint}: {response.ReasonPhrase}"
+                        : content);
+            }
+        }
+
         #region Authentication
         /// <summary>
         /// Authenticates the user and stores the authorization token.
@@ -233,14 +266,23 @@ namespace VideoWebPlayer.Client
         #region Continue Watching
         public async Task<IEnumerable<ContinueWatchingDto>> RequestContinueWatchingAsync()
         {
-            try
-            {
-                return await HttpGetAsync<ContinueWatchingDto[]>("api/continue-watching");
-            }
-            catch
-            {
-                return Array.Empty<ContinueWatchingDto>();
-            }
+            return await HttpGetAsync<ContinueWatchingDto[]>("api/continue-watching");
+        }
+
+        public async Task<ContinueWatchingMutationResult> HideContinueWatchingAsync(string mediaType, long mediaId)
+        {
+            var json = JsonSerializer.Serialize(new { MediaType = mediaType, MediaId = mediaId });
+            return await HttpPostAsync<ContinueWatchingMutationResult>(
+                "api/continue-watching/hide",
+                new StringContent(json, System.Text.Encoding.UTF8, new System.Net.Http.Headers.MediaTypeHeaderValue("application/json")));
+        }
+
+        public async Task<ContinueWatchingMutationResult> SkipContinueWatchingAsync(string mediaType, long mediaId)
+        {
+            var json = JsonSerializer.Serialize(new { MediaType = mediaType, MediaId = mediaId });
+            return await HttpPostAsync<ContinueWatchingMutationResult>(
+                "api/continue-watching/skip",
+                new StringContent(json, System.Text.Encoding.UTF8, new System.Net.Http.Headers.MediaTypeHeaderValue("application/json")));
         }
         #endregion
 
@@ -253,6 +295,12 @@ namespace VideoWebPlayer.Client
         {
             var json = JsonSerializer.Serialize(entry);
             return await HttpPostAsync<bool>("api/favorites/toggle", new StringContent(json, new System.Net.Http.Headers.MediaTypeHeaderValue("application/json")));
+        }
+
+        public async Task RemoveFavoriteAsync(long favoriteId)
+        {
+            var json = JsonSerializer.Serialize(new { Id = favoriteId, UserId = "anonymous" });
+            await HttpPostAsync("api/favorites/remove", new StringContent(json, System.Text.Encoding.UTF8, new System.Net.Http.Headers.MediaTypeHeaderValue("application/json")));
         }
         #endregion
 

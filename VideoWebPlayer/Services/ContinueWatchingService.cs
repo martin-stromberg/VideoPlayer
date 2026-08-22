@@ -21,6 +21,19 @@ namespace VideoWebPlayer.Services
         private readonly MediaUpdateNotificationService _notificationService;
 
         /// <summary>
+        /// Represents the result of a manual continue-watching skip operation.
+        /// </summary>
+        public enum SkipResult
+        {
+            /// <summary>The requested entry does not exist for the user.</summary>
+            NotFound,
+            /// <summary>The entry was replaced by the next media item.</summary>
+            Replaced,
+            /// <summary>The entry was removed because no following media item exists.</summary>
+            RemovedWithoutNext
+        }
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="ContinueWatchingService"/> class.
         /// </summary>
         /// <param name="db">Application database context.</param>
@@ -77,7 +90,9 @@ namespace VideoWebPlayer.Services
             var list = (await _db.ContinueWatchingEntries
                 .AsNoTracking()
                 .Where(x => x.UserId == userId)
-                .OrderByDescending(x => x.UpdatedAt)
+                .OrderByDescending(x => x.ListOrder)
+                .ThenByDescending(x => x.UpdatedAt)
+                .ThenByDescending(x => x.Id)
                 .Take(50)
                 .ToListAsync(ct))
                 .Select(x => new ContinueWatchingDto
@@ -196,6 +211,98 @@ namespace VideoWebPlayer.Services
             await UpsertAsync(userId, movieId, episodeId, position, duration, ct);
         }
 
+        /// <summary>
+        /// Removes a continue-watching entry for the authenticated user.
+        /// </summary>
+        /// <param name="userId">The authenticated user identifier.</param>
+        /// <param name="movieId">The movie identifier, if the entry is a movie.</param>
+        /// <param name="episodeId">The episode identifier, if the entry is an episode.</param>
+        /// <param name="ct">A cancellation token.</param>
+        /// <returns><c>true</c> when an entry was removed; otherwise <c>false</c>.</returns>
+        public async Task<bool> HideAsync(string userId, long? movieId, long? episodeId, CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(userId))
+                return false;
+
+            var entry = await _db.ContinueWatchingEntries
+                .FirstOrDefaultAsync(x => x.UserId == userId && x.MovieId == movieId && x.TVShowEpisodeId == episodeId, ct);
+
+            if (entry is null)
+                return false;
+
+            _db.ContinueWatchingEntries.Remove(entry);
+            await _db.SaveChangesAsync(ct);
+            await _notificationService.NotifyContinueWatchingUpdatedAsync(userId, ct);
+            return true;
+        }
+
+        /// <summary>
+        /// Replaces a continue-watching entry with the next media item while preserving its list position.
+        /// </summary>
+        /// <param name="userId">The authenticated user identifier.</param>
+        /// <param name="movieId">The movie identifier, if the entry is a movie.</param>
+        /// <param name="episodeId">The episode identifier, if the entry is an episode.</param>
+        /// <param name="ct">A cancellation token.</param>
+        /// <returns>The skip result.</returns>
+        public async Task<SkipResult> SkipAsync(string userId, long? movieId, long? episodeId, CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(userId))
+                return SkipResult.NotFound;
+
+            var entry = await _db.ContinueWatchingEntries
+                .FirstOrDefaultAsync(x => x.UserId == userId && x.MovieId == movieId && x.TVShowEpisodeId == episodeId, ct);
+
+            if (entry is null)
+                return SkipResult.NotFound;
+
+            var preservedListOrder = entry.ListOrder;
+            var nextMovie = movieId.HasValue ? await GetNextMovieAsync(movieId.Value, ct) : null;
+            var nextEpisode = episodeId.HasValue ? await GetNextEpisodeAsync(episodeId.Value, ct) : null;
+
+            _db.ContinueWatchingEntries.Remove(entry);
+
+            if (nextMovie is null && nextEpisode is null)
+            {
+                await _db.SaveChangesAsync(ct);
+                await _notificationService.NotifyContinueWatchingUpdatedAsync(userId, ct);
+                return SkipResult.RemovedWithoutNext;
+            }
+
+            var nextMovieId = nextMovie?.Id;
+            var nextEpisodeId = nextEpisode?.Id;
+
+            await RemoveExtsingMovieCollectionEntry(userId, nextMovieId, ct);
+            await RemoveExistingTVShowEntry(userId, nextEpisodeId, ct);
+
+            var replacement = await _db.ContinueWatchingEntries
+                .FirstOrDefaultAsync(x => x.UserId == userId && x.MovieId == nextMovieId && x.TVShowEpisodeId == nextEpisodeId, ct);
+
+            if (replacement is null)
+            {
+                _db.ContinueWatchingEntries.Add(new ContinueWatchingEntry
+                {
+                    UserId = userId,
+                    MovieId = nextMovieId,
+                    TVShowEpisodeId = nextEpisodeId,
+                    Position = TimeSpan.Zero,
+                    Duration = null,
+                    UpdatedAt = DateTime.UtcNow,
+                    ListOrder = preservedListOrder
+                });
+            }
+            else
+            {
+                replacement.Position = TimeSpan.Zero;
+                replacement.Duration = null;
+                replacement.UpdatedAt = DateTime.UtcNow;
+                replacement.ListOrder = preservedListOrder;
+            }
+
+            await _db.SaveChangesAsync(ct);
+            await _notificationService.NotifyContinueWatchingUpdatedAsync(userId, ct);
+            return SkipResult.Replaced;
+        }
+
         private async Task UpsertAsync(string userId, long? nextMovieId, long? nextEpisodeId, TimeSpan position, TimeSpan? duration, CancellationToken ct)
         {
             var entry = await _db.ContinueWatchingEntries
@@ -231,7 +338,8 @@ namespace VideoWebPlayer.Services
                     TVShowEpisodeId = nextEpisodeId,
                     Position = position,
                     Duration = duration,
-                    UpdatedAt = DateTime.UtcNow
+                    UpdatedAt = DateTime.UtcNow,
+                    ListOrder = DateTime.UtcNow.Ticks
                 };
                 _db.ContinueWatchingEntries.Add(entry);
                 listChanged = true;
@@ -245,6 +353,7 @@ namespace VideoWebPlayer.Services
                     entry.Position = position;
                     entry.Duration = duration;
                     entry.UpdatedAt = DateTime.UtcNow;
+                    entry.ListOrder = DateTime.UtcNow.Ticks;
                     listChanged = true;
                 }
             }

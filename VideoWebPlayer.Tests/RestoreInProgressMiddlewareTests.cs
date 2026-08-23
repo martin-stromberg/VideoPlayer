@@ -87,7 +87,6 @@ public sealed class RestoreInProgressMiddlewareTests
         services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
         services.AddDbContext<ApplicationDbContext>(options => options.UseInMemoryDatabase(Guid.NewGuid().ToString()));
         services.AddScoped<IBackupDataProvider, NoopBackupDataProvider>();
-        services.AddScoped<VideoWebPlayerBackupDataFactory>();
         services.AddScoped<BackupSettingsService>();
         services.AddScoped<BackupOperationHistoryService>();
         services.AddScoped<VideoWebPlayerBackupFacade>();

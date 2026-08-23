@@ -50,7 +50,6 @@ public sealed class RestoreBackupJobServiceTests
         services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
         services.AddDbContext<ApplicationDbContext>(options => options.UseInMemoryDatabase(Guid.NewGuid().ToString()));
         services.AddScoped<IBackupDataProvider, NoopBackupDataProvider>();
-        services.AddScoped<VideoWebPlayerBackupDataFactory>();
         services.AddScoped<BackupSettingsService>();
         services.AddScoped<BackupOperationHistoryService>();
         services.AddScoped<VideoWebPlayerBackupFacade>();
@@ -109,16 +108,8 @@ public sealed class RestoreBackupJobServiceTests
         public Task<BackupResult> StoreAsync(string backupName, IEnumerable<IBackupData> items, CancellationToken cancellationToken)
             => Task.FromResult(new BackupResult(backupName, true, "Backup wurde gespeichert."));
 
-        public async Task<IReadOnlyList<IBackupData>> RestoreAsync(string backupName, IBackupDataFactory factory, CancellationToken cancellationToken)
-        {
-            if (factory is VideoWebPlayerBackupDataFactory f)
-            {
-                f.Progress?.Report(new BackupRestoreProgress("AspNetUsers", 1, 2, 3, 5, "Datensatz wurde wiederhergestellt."));
-            }
-
-            await _release.Task.WaitAsync(cancellationToken);
-            return Array.Empty<IBackupData>();
-        }
+        public Task<IReadOnlyList<IBackupData>> RestoreAsync(string backupName, IBackupDataFactory factory, CancellationToken cancellationToken)
+            => throw new NotSupportedException();
 
         public Task ApplyRetentionAsync(CancellationToken cancellationToken)
             => Task.CompletedTask;

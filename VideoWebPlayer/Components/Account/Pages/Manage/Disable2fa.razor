@@ -38,7 +38,13 @@
 
     protected override async Task OnInitializedAsync()
     {
-        user = await UserAccessor.GetRequiredUserAsync(HttpContext);
+        var requiredUser = await UserAccessor.GetUserOrRedirectAsync(HttpContext);
+        if (requiredUser is null)
+        {
+            return;
+        }
+
+        user = requiredUser;
 
         if (HttpMethods.IsGet(HttpContext.Request.Method) && !await UserManager.GetTwoFactorEnabledAsync(user))
         {

@@ -52,10 +52,9 @@ namespace VideoWebPlayer.Components.Account
                 uri = navigationManager.ToBaseRelativePath(uri);
             }
 
-            if (!uri.StartsWith("/", StringComparison.Ordinal))
-            {
-                uri = $"/{uri}";
-            }
+            uri = navigationManager
+                .ToAbsoluteUri(uri)
+                .GetComponents(UriComponents.PathAndQuery, UriFormat.UriEscaped);
 
             context ??= httpContextAccessor.HttpContext
                 ?? throw new InvalidOperationException(

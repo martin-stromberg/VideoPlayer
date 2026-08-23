@@ -49,6 +49,8 @@ public sealed class RestoreBackupJobServiceTests
         services.AddSingleton(new EventManager());
         services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
         services.AddDbContext<ApplicationDbContext>(options => options.UseInMemoryDatabase(Guid.NewGuid().ToString()));
+        services.AddScoped<IBackupDataProvider, NoopBackupDataProvider>();
+        services.AddScoped<VideoWebPlayerBackupDataFactory>();
         services.AddScoped<BackupSettingsService>();
         services.AddScoped<BackupOperationHistoryService>();
         services.AddScoped<VideoWebPlayerBackupFacade>();
@@ -104,7 +106,35 @@ public sealed class RestoreBackupJobServiceTests
             return BackupOperationResult.Success("Backup wurde wiederhergestellt.");
         }
 
+        public Task<BackupResult> StoreAsync(string backupName, IEnumerable<IBackupData> items, CancellationToken cancellationToken)
+            => Task.FromResult(new BackupResult(backupName, true, "Backup wurde gespeichert."));
+
+        public async Task<IReadOnlyList<IBackupData>> RestoreAsync(string backupName, IBackupDataFactory factory, CancellationToken cancellationToken)
+        {
+            if (factory is VideoWebPlayerBackupDataFactory f)
+            {
+                f.Progress?.Report(new BackupRestoreProgress("AspNetUsers", 1, 2, 3, 5, "Datensatz wurde wiederhergestellt."));
+            }
+
+            await _release.Task.WaitAsync(cancellationToken);
+            return Array.Empty<IBackupData>();
+        }
+
         public Task ApplyRetentionAsync(CancellationToken cancellationToken)
+            => Task.CompletedTask;
+    }
+
+    private sealed class NoopBackupDataProvider : IBackupDataProvider
+    {
+        public string ProviderId => "Test";
+
+        public Task ExportAsync(Stream target, BackupExportContext context, CancellationToken cancellationToken)
+            => Task.CompletedTask;
+
+        public Task<BackupValidationResult> ValidateAsync(Stream source, BackupValidationContext context, CancellationToken cancellationToken)
+            => Task.FromResult(BackupValidationResult.Valid);
+
+        public Task RestoreAsync(Stream source, BackupRestoreContext context, CancellationToken cancellationToken)
             => Task.CompletedTask;
     }
 }

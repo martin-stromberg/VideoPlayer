@@ -18,8 +18,9 @@ public sealed class VideoWebPlayerAutomaticBackupRunnerTests
 
         await using var db = new ApplicationDbContext(options, new EventManager());
         var backupService = new RecordingBackupService();
+        var provider = new NoopBackupDataProvider();
         var history = new BackupOperationHistoryService(db);
-        var runner = new VideoWebPlayerAutomaticBackupRunner(backupService, history);
+        var runner = new VideoWebPlayerAutomaticBackupRunner(backupService, provider, history);
 
         var result = await runner.RunAutomaticBackupAsync(BackupGeneration.Son, TestContext.Current.CancellationToken);
 
@@ -69,10 +70,30 @@ public sealed class VideoWebPlayerAutomaticBackupRunnerTests
         public Task<BackupOperationResult> RestoreBackupAsync(BackupRestoreRequest request, CancellationToken cancellationToken)
             => throw new NotSupportedException();
 
+        public Task<BackupResult> StoreAsync(string backupName, IEnumerable<IBackupData> items, CancellationToken cancellationToken)
+            => Task.FromResult(new BackupResult(backupName, true, "Backup wurde gespeichert."));
+
+        public Task<IReadOnlyList<IBackupData>> RestoreAsync(string backupName, IBackupDataFactory factory, CancellationToken cancellationToken)
+            => throw new NotSupportedException();
+
         public Task ApplyRetentionAsync(CancellationToken cancellationToken)
         {
             RetentionApplied = true;
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class NoopBackupDataProvider : IBackupDataProvider
+    {
+        public string ProviderId => "Test";
+
+        public Task ExportAsync(Stream target, BackupExportContext context, CancellationToken cancellationToken)
+            => Task.CompletedTask;
+
+        public Task<BackupValidationResult> ValidateAsync(Stream source, BackupValidationContext context, CancellationToken cancellationToken)
+            => Task.FromResult(BackupValidationResult.Valid);
+
+        public Task RestoreAsync(Stream source, BackupRestoreContext context, CancellationToken cancellationToken)
+            => Task.CompletedTask;
     }
 }

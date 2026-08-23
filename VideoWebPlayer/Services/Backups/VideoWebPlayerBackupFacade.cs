@@ -91,7 +91,7 @@ public sealed class VideoWebPlayerBackupFacade
         {
             await _backupService.RestoreAsync(fileName, _factory, cancellationToken);
             var descriptor = new BackupDescriptor(fileName, fileName, 0, started, BackupGeneration.Manual, _provider.ProviderId, 1, true, []);
-            var result = BackupOperationResult.Success("Wiederherstellung abgeschlossen.", descriptor);
+            var result = BackupOperationResult.Success("Backup wurde wiederhergestellt.", descriptor);
             await _historyService.AddAsync("Restore", result, userId, started, cancellationToken);
             return result;
         }

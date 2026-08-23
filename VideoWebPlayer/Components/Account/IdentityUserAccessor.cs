@@ -12,6 +12,7 @@ namespace VideoWebPlayer.Components.Account
             if (user is null)
             {
                 redirectManager.RedirectToWithStatus("Account/InvalidUser", $"Error: Unable to load user with ID '{userManager.GetUserId(context.User)}'.", context);
+                throw new InvalidOperationException("Die Weiterleitung für den fehlenden Benutzer wurde unerwartet beendet.");
             }
 
             return user;

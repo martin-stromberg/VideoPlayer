@@ -115,6 +115,7 @@ else
         else
         {
             RedirectManager.RedirectToWithStatus("Account/Manage/TwoFactorAuthentication", message, HttpContext);
+            return;
         }
     }
 

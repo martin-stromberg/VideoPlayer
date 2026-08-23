@@ -46,7 +46,7 @@
     <Folder Include="Pages\" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="msTools.Backup" Version="1.0.0" />
+    <PackageReference Include="msTools.Backup" Version="1.1.0-RC.2" />
     <ProjectReference Include="..\VideoWebPlayer.Client\VideoWebPlayer.Client.csproj" />
   </ItemGroup>
   <!-- msTools.Updater ist nicht auf NuGet veroeffentlicht; die DLL aus dem release.zip liegt unter lib/. -->

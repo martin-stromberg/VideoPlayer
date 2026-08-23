@@ -8,7 +8,7 @@ namespace VideoWebPlayer.Services.Backups;
 public sealed class VideoWebPlayerAutomaticBackupRunner : IAutomaticBackupRunner
 {
     private readonly IBackupService _backupService;
-    private readonly VideoWebPlayerBackupDataProvider _provider;
+    private readonly IBackupDataProvider _provider;
     private readonly BackupOperationHistoryService _historyService;
 
     /// <summary>
@@ -16,7 +16,7 @@ public sealed class VideoWebPlayerAutomaticBackupRunner : IAutomaticBackupRunner
     /// </summary>
     public VideoWebPlayerAutomaticBackupRunner(
         IBackupService backupService,
-        VideoWebPlayerBackupDataProvider provider,
+        IBackupDataProvider provider,
         BackupOperationHistoryService historyService)
     {
         _backupService = backupService;

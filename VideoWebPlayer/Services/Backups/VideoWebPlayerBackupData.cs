@@ -11,7 +11,7 @@ public sealed class VideoWebPlayerBackupData : IBackupData
 {
     private const string IndexEntryName = "index.json";
 
-    private readonly VideoWebPlayerBackupDataProvider _provider;
+    private readonly IBackupDataProvider _provider;
     private readonly VideoWebPlayerBackupDataFactory? _factory;
     private readonly BackupExportContext? _exportContext;
 
@@ -32,7 +32,7 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         BackupExportContext exportContext,
         string name,
         string contentType,
-        VideoWebPlayerBackupDataProvider provider)
+        IBackupDataProvider provider)
     {
         _exportContext = exportContext;
         Name = name;
@@ -46,7 +46,7 @@ public sealed class VideoWebPlayerBackupData : IBackupData
     public VideoWebPlayerBackupData(
         string name,
         string contentType,
-        VideoWebPlayerBackupDataProvider provider,
+        IBackupDataProvider provider,
         VideoWebPlayerBackupDataFactory factory)
     {
         Name = name;

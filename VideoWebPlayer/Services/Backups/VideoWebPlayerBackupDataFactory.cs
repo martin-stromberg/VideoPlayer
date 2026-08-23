@@ -7,7 +7,7 @@ namespace VideoWebPlayer.Services.Backups;
 /// </summary>
 public sealed class VideoWebPlayerBackupDataFactory : IBackupDataFactory
 {
-    private readonly VideoWebPlayerBackupDataProvider _provider;
+    private readonly IBackupDataProvider _provider;
 
     /// <summary>
     /// Gets or sets the user id to keep during restore.
@@ -22,7 +22,7 @@ public sealed class VideoWebPlayerBackupDataFactory : IBackupDataFactory
     /// <summary>
     /// Creates a new factory.
     /// </summary>
-    public VideoWebPlayerBackupDataFactory(VideoWebPlayerBackupDataProvider provider)
+    public VideoWebPlayerBackupDataFactory(IBackupDataProvider provider)
     {
         _provider = provider;
     }

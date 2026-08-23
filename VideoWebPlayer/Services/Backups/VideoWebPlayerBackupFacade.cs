@@ -9,7 +9,7 @@ namespace VideoWebPlayer.Services.Backups;
 public sealed class VideoWebPlayerBackupFacade
 {
     private readonly IBackupService _backupService;
-    private readonly VideoWebPlayerBackupDataProvider _provider;
+    private readonly IBackupDataProvider _provider;
     private readonly VideoWebPlayerBackupDataFactory _factory;
     private readonly BackupSettingsService _settingsService;
     private readonly BackupOperationHistoryService _historyService;
@@ -20,7 +20,7 @@ public sealed class VideoWebPlayerBackupFacade
     /// </summary>
     public VideoWebPlayerBackupFacade(
         IBackupService backupService,
-        VideoWebPlayerBackupDataProvider provider,
+        IBackupDataProvider provider,
         VideoWebPlayerBackupDataFactory factory,
         BackupSettingsService settingsService,
         BackupOperationHistoryService historyService,

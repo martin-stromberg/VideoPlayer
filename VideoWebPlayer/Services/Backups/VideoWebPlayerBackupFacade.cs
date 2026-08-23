@@ -9,8 +9,6 @@ namespace VideoWebPlayer.Services.Backups;
 public sealed class VideoWebPlayerBackupFacade
 {
     private readonly IBackupService _backupService;
-    private readonly IBackupDataProvider _provider;
-    private readonly VideoWebPlayerBackupDataFactory _factory;
     private readonly BackupSettingsService _settingsService;
     private readonly BackupOperationHistoryService _historyService;
     private readonly ILogger<VideoWebPlayerBackupFacade> _logger;
@@ -20,15 +18,11 @@ public sealed class VideoWebPlayerBackupFacade
     /// </summary>
     public VideoWebPlayerBackupFacade(
         IBackupService backupService,
-        IBackupDataProvider provider,
-        VideoWebPlayerBackupDataFactory factory,
         BackupSettingsService settingsService,
         BackupOperationHistoryService historyService,
         ILogger<VideoWebPlayerBackupFacade> logger)
     {
         _backupService = backupService;
-        _provider = provider;
-        _factory = factory;
         _settingsService = settingsService;
         _historyService = historyService;
         _logger = logger;
@@ -47,19 +41,13 @@ public sealed class VideoWebPlayerBackupFacade
     {
         var started = DateTime.UtcNow;
         _logger.LogInformation("Starting manual backup for user {UserId}.", userId);
-        var exportContext = new BackupExportContext(BackupGeneration.Manual, started);
-        var data = new VideoWebPlayerBackupData(exportContext, "videowebplayer/database", "VideoWebPlayer:Database", _provider);
-        var backupName = $"manual-{started:yyyyMMdd-HHmmss}";
-        var result = await _backupService.StoreAsync(backupName, [data], cancellationToken);
-        var path = result.BackupPath ?? backupName;
-        var descriptor = new BackupDescriptor(path, path, 0, started, BackupGeneration.Manual, _provider.ProviderId, 1, true, []);
-        var operationResult = result.Succeeded
-            ? BackupOperationResult.Success(result.Message, descriptor)
-            : BackupOperationResult.Failure(result.Message, [result.Message]);
-        await _historyService.AddAsync("Backup", operationResult, userId, started, cancellationToken);
+        var result = await _backupService.CreateBackupAsync(
+            new BackupCreateRequest(BackupGeneration.Manual, "VideoWebPlayer"),
+            cancellationToken);
+        await _historyService.AddAsync("Backup", result, userId, started, cancellationToken);
         if (result.Succeeded)
             await _backupService.ApplyRetentionAsync(cancellationToken);
-        return operationResult;
+        return result;
     }
 
     /// <summary>
@@ -84,14 +72,11 @@ public sealed class VideoWebPlayerBackupFacade
         CancellationToken cancellationToken = default)
     {
         var started = DateTime.UtcNow;
-        _factory.UserId = userId;
-        _factory.Progress = progress;
-
         try
         {
-            await _backupService.RestoreAsync(fileName, _factory, cancellationToken);
-            var descriptor = new BackupDescriptor(fileName, fileName, 0, started, BackupGeneration.Manual, _provider.ProviderId, 1, true, []);
-            var result = BackupOperationResult.Success("Backup wurde wiederhergestellt.", descriptor);
+            var result = await _backupService.RestoreBackupAsync(
+                new BackupRestoreRequest(fileName, userId, confirmRestore, progress),
+                cancellationToken);
             await _historyService.AddAsync("Restore", result, userId, started, cancellationToken);
             return result;
         }

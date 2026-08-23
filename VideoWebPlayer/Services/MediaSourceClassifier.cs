@@ -337,16 +337,24 @@ namespace VideoWebPlayer.Services
 
                     _logger.LogInformation("Verarbeite Collection '{CollectionName}' (ID: {CollectionId})", collection.Name, collection.Id);
 
-                    // 1. TVShow-Verarbeitung
-                    await ProcessCollectionAsTVShowAsync(collection, cancellationToken);
+                    try
+                    {
+                        // 1. TVShow-Verarbeitung
+                        await ProcessCollectionAsTVShowAsync(collection, cancellationToken);
 
-                    // 2. Movie-Verarbeitung (falls TVShow nicht zutrifft oder zus�tzlich n�tig)
-                    await ProcessCollectionAsMovieAsync(collection, cancellationToken);
+                        // 2. Movie-Verarbeitung (falls TVShow nicht zutrifft oder zus�tzlich n�tig)
+                        await ProcessCollectionAsMovieAsync(collection, cancellationToken);
+
+                        if (collection.ParentMediaCollection != null)
+                            collection.ParentMediaCollection.Changed = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Fehler bei der Klassifizierung der Collection '{CollectionName}' (ID: {CollectionId}).", collection.Name, collection.Id);
+                    }
 
                     collection.Changed = false;
                     collection.ClassifiedAt = DateTime.UtcNow;
-                    if (collection.ParentMediaCollection != null)
-                        collection.ParentMediaCollection.Changed = true;
                     await _db.SaveChangesAsync(cancellationToken);
                 }
             }
@@ -378,13 +386,21 @@ namespace VideoWebPlayer.Services
 
                     _logger.LogInformation("Verarbeite Collection '{CollectionName}' (ID: {CollectionId})", collection.Name, collection.Id);
 
-                    await ProcessCollectionAsTVShowAsync(collection, cancellationToken);
-                    await ProcessCollectionAsMovieAsync(collection, cancellationToken);
+                    try
+                    {
+                        await ProcessCollectionAsTVShowAsync(collection, cancellationToken);
+                        await ProcessCollectionAsMovieAsync(collection, cancellationToken);
+
+                        if (collection.ParentMediaCollection != null)
+                            collection.ParentMediaCollection.Changed = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Fehler bei der Klassifizierung der Collection '{CollectionName}' (ID: {CollectionId}).", collection.Name, collection.Id);
+                    }
 
                     collection.Changed = false;
                     collection.ClassifiedAt = DateTime.UtcNow;
-                    if (collection.ParentMediaCollection != null)
-                        collection.ParentMediaCollection.Changed = true;
                     await _db.SaveChangesAsync(cancellationToken);
                 }
             }

@@ -135,7 +135,7 @@
 | Real-Time | SignalR | .NET 10 |
 | Authentication | ASP.NET Identity | .NET 10 |
 | FTP/SFTP | FluentFTP, SSH.NET | Latest |
-| Backups | msTools.Backup | Projektbibliothek |
+| Backups | msTools.Backup | Lokales NuGet-Paket (lib/packages) |
 | Image Processing | SixLabors.ImageSharp | 3.1.11 |
 | Async Utilities | Nito.AsyncEx | 5.1.2 |
 
@@ -281,8 +281,8 @@ VideoWebPlayer.sln
 
 ```
 VideoWebPlayer/
-├── msTools.Backup/              # Wiederverwendbare Backup-Bibliothek
-├── msTools.Backup.Tests/        # Tests der Backup-Bibliothek
+├── lib/packages/                # Lokale NuGet-Pakete
+├── NuGet.config                 # Lokale NuGet-Package-Quellen
 ├── VideoWebPlayer/              # ASP.NET Core Blazor Backend
 │   ├── Components/              # Blazor-Komponenten
 │   ├── Controllers/             # API-Controller

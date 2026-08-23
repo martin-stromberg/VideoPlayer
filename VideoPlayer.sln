@@ -3,7 +3,6 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
 VisualStudioVersion = 18.3.11520.95
 MinimumVisualStudioVersion = 10.0.40219.1
-
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VideoWebPlayer", "VideoWebPlayer\VideoWebPlayer.csproj", "{951A411D-0429-4A7D-94EE-B1F78D25FA66}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VideoWebPlayer.Client", "VideoWebPlayer.Client\VideoWebPlayer.Client.csproj", "{2A95DFF2-04F7-48DF-87CE-AF1B4D715523}"
@@ -13,10 +12,6 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VideoWebPlayer.Maui", "VideoWebPlayer.Maui\VideoWebPlayer.Maui.csproj", "{EC080583-F95B-43C9-B2A1-0CB5D7EF7B30}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VideoWebPlayer.Maui.Tests", "VideoWebPlayer.Maui.Tests\VideoWebPlayer.Maui.Tests.csproj", "{D66513E6-621B-4054-B0C3-A7E646124A12}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "msTools.Backup", "msTools.Backup\msTools.Backup.csproj", "{083A1DC0-95E0-44D8-AD5B-404A64F55A14}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "msTools.Backup.Tests", "msTools.Backup.Tests\msTools.Backup.Tests.csproj", "{7A2D34D9-A65D-4937-8583-DB4FD8042C22}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -88,30 +83,6 @@ Global
 		{D66513E6-621B-4054-B0C3-A7E646124A12}.Release|x64.Build.0 = Release|Any CPU
 		{D66513E6-621B-4054-B0C3-A7E646124A12}.Release|x86.ActiveCfg = Release|Any CPU
 		{D66513E6-621B-4054-B0C3-A7E646124A12}.Release|x86.Build.0 = Release|Any CPU
-		{083A1DC0-95E0-44D8-AD5B-404A64F55A14}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{083A1DC0-95E0-44D8-AD5B-404A64F55A14}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{083A1DC0-95E0-44D8-AD5B-404A64F55A14}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{083A1DC0-95E0-44D8-AD5B-404A64F55A14}.Debug|x64.Build.0 = Debug|Any CPU
-		{083A1DC0-95E0-44D8-AD5B-404A64F55A14}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{083A1DC0-95E0-44D8-AD5B-404A64F55A14}.Debug|x86.Build.0 = Debug|Any CPU
-		{083A1DC0-95E0-44D8-AD5B-404A64F55A14}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{083A1DC0-95E0-44D8-AD5B-404A64F55A14}.Release|Any CPU.Build.0 = Release|Any CPU
-		{083A1DC0-95E0-44D8-AD5B-404A64F55A14}.Release|x64.ActiveCfg = Release|Any CPU
-		{083A1DC0-95E0-44D8-AD5B-404A64F55A14}.Release|x64.Build.0 = Release|Any CPU
-		{083A1DC0-95E0-44D8-AD5B-404A64F55A14}.Release|x86.ActiveCfg = Release|Any CPU
-		{083A1DC0-95E0-44D8-AD5B-404A64F55A14}.Release|x86.Build.0 = Release|Any CPU
-		{7A2D34D9-A65D-4937-8583-DB4FD8042C22}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{7A2D34D9-A65D-4937-8583-DB4FD8042C22}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{7A2D34D9-A65D-4937-8583-DB4FD8042C22}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{7A2D34D9-A65D-4937-8583-DB4FD8042C22}.Debug|x64.Build.0 = Debug|Any CPU
-		{7A2D34D9-A65D-4937-8583-DB4FD8042C22}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{7A2D34D9-A65D-4937-8583-DB4FD8042C22}.Debug|x86.Build.0 = Debug|Any CPU
-		{7A2D34D9-A65D-4937-8583-DB4FD8042C22}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{7A2D34D9-A65D-4937-8583-DB4FD8042C22}.Release|Any CPU.Build.0 = Release|Any CPU
-		{7A2D34D9-A65D-4937-8583-DB4FD8042C22}.Release|x64.ActiveCfg = Release|Any CPU
-		{7A2D34D9-A65D-4937-8583-DB4FD8042C22}.Release|x64.Build.0 = Release|Any CPU
-		{7A2D34D9-A65D-4937-8583-DB4FD8042C22}.Release|x86.ActiveCfg = Release|Any CPU
-		{7A2D34D9-A65D-4937-8583-DB4FD8042C22}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

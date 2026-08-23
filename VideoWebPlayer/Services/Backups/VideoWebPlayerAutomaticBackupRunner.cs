@@ -8,6 +8,7 @@ namespace VideoWebPlayer.Services.Backups;
 public sealed class VideoWebPlayerAutomaticBackupRunner : IAutomaticBackupRunner
 {
     private readonly IBackupService _backupService;
+    private readonly VideoWebPlayerBackupDataProvider _provider;
     private readonly BackupOperationHistoryService _historyService;
 
     /// <summary>
@@ -15,9 +16,11 @@ public sealed class VideoWebPlayerAutomaticBackupRunner : IAutomaticBackupRunner
     /// </summary>
     public VideoWebPlayerAutomaticBackupRunner(
         IBackupService backupService,
+        VideoWebPlayerBackupDataProvider provider,
         BackupOperationHistoryService historyService)
     {
         _backupService = backupService;
+        _provider = provider;
         _historyService = historyService;
     }
 
@@ -25,11 +28,19 @@ public sealed class VideoWebPlayerAutomaticBackupRunner : IAutomaticBackupRunner
     public async Task<BackupOperationResult> RunAutomaticBackupAsync(BackupGeneration generation, CancellationToken cancellationToken)
     {
         var started = DateTime.UtcNow;
-        var result = await _backupService.CreateBackupAsync(new BackupCreateRequest(generation, "VideoWebPlayer"), cancellationToken);
-        await _historyService.AddAsync("AutomaticBackup", result, null, started, cancellationToken);
+        var exportContext = new BackupExportContext(generation, started);
+        var data = new VideoWebPlayerBackupData(exportContext, "videowebplayer/database", "VideoWebPlayer:Database", _provider);
+        var backupName = $"{generation}-{started:yyyyMMdd-HHmmss}".ToLowerInvariant();
+        var result = await _backupService.StoreAsync(backupName, [data], cancellationToken);
+        var path = result.BackupPath ?? backupName;
+        var descriptor = new BackupDescriptor(path, path, 0, started, generation, _provider.ProviderId, 1, true, []);
+        var operationResult = result.Succeeded
+            ? BackupOperationResult.Success(result.Message, descriptor)
+            : BackupOperationResult.Failure(result.Message, [result.Message]);
+        await _historyService.AddAsync("AutomaticBackup", operationResult, null, started, cancellationToken);
         if (result.Succeeded)
             await _backupService.ApplyRetentionAsync(cancellationToken);
 
-        return result;
+        return operationResult;
     }
 }

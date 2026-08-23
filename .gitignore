@@ -390,3 +390,5 @@ FodyWeavers.xsd
 /VideoWebPlayer/Updates/
 /VideoWebPlayer/Backups/
 issue.md
+/.agents
+/AGENTS.md

@@ -36,7 +36,12 @@
 
     private async Task OnSubmitAsync()
     {
-        var user = await UserAccessor.GetRequiredUserAsync(HttpContext);
+        var user = await UserAccessor.GetUserOrRedirectAsync(HttpContext);
+        if (user is null)
+        {
+            return;
+        }
+
         await UserManager.SetTwoFactorEnabledAsync(user, false);
         await UserManager.ResetAuthenticatorKeyAsync(user);
         var userId = await UserManager.GetUserIdAsync(user);
@@ -48,5 +53,6 @@
             "Account/Manage/EnableAuthenticator",
             "Your authenticator app key has been reset, you will need to configure your authenticator app using the new key.",
             HttpContext);
+        return;
     }
 }

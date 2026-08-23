@@ -1,12 +1,8 @@
 ﻿@page "/"
-@using System.Security.Claims
-@using Microsoft.EntityFrameworkCore
 @using VideoWebPlayer.Components.Account.Pages.Shared
 @using VideoWebPlayer.Data
-@inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthStateProvider
 @inject RecentEntryService RecentEntryService
-@inject ApplicationDbContext DbContext
 @inject HttpClient Http
 @inject VideoWebPlayer.Client.VideoWebPlayerClient Client
 @inject VideoWebPlayer.Services.ProgramSettingsService SettingsService
@@ -37,26 +33,12 @@
     private string applicationTitle = "Martins Videosammlung";
     private string? heroBackgroundStyle;
 
-    private const string SystemUserNormalizedName = "SYSTEM";
-
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         applicationTitle = await SettingsService.GetApplicationTitleAsync();
         var user = authState.User;
         isAuthenticated = user?.Identity?.IsAuthenticated == true;
-
-        if (isAuthenticated != true)
-        {
-            var anyUser = await DbContext.Users.AnyAsync(u => u.NormalizedUserName != SystemUserNormalizedName);
-            if (!anyUser)
-            {
-                var returnUrl = Navigation.ToBaseRelativePath(Navigation.Uri);
-                if (string.IsNullOrEmpty(returnUrl))
-                    returnUrl = "/";
-                Navigation.NavigateTo($"Account/Register?ReturnUrl={Uri.EscapeDataString(returnUrl)}", forceLoad: true);
-            }
-        }
 
         if (isAuthenticated == true)
         {

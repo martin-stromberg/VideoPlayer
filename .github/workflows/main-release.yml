@@ -212,26 +212,7 @@ jobs:
             artifacts/release-windows/release-windows-${{ needs.extract-version.outputs.release_version }}.zip
             artifacts/release-linux/release-linux-${{ needs.extract-version.outputs.release_version }}.zip
             artifacts/update-manifest/update.json
-          body: |
-            ## Release v${{ needs.extract-version.outputs.release_version }}
-            
-            This is the stable release from the main branch.
-            
-            ### Installation
-            
-            #### Windows
-            Download `release-windows-${{ needs.extract-version.outputs.release_version }}.zip` and extract it to your desired location.
-            
-            #### Linux
-            Download `release-linux-${{ needs.extract-version.outputs.release_version }}.zip` and extract it to your desired location.
-            
-            ### What's New
-            This release includes all features that were validated in the staging branch.
-            
-            ### Verification
-            - ✅ All tests passed
-            - ✅ Build artifacts created successfully
-            - ✅ Version: ${{ needs.extract-version.outputs.release_version }}
+          body_path: docs/RELEASE_NOTES.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

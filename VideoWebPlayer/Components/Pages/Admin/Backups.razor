@@ -129,7 +129,7 @@ else
             {
                 <article class="backup-file-card">
                     <div class="backup-file-card-header">
-                        <span class="admin-icon admin-icon-muted">ZIP</span>
+                        <span class="admin-icon admin-icon-muted">BAK</span>
                         @if (backup.IsValid)
                         {
                             <span class="badge bg-success">Gültig</span>
@@ -212,10 +212,10 @@ else
             <input type="hidden" name="__RequestVerificationToken" value="@antiforgeryRequestToken" />
         }
         <div class="backup-upload-row">
-            <input class="form-control" type="file" name="backupFile" accept=".zip,application/zip" disabled="@(isBusy || IsRestoreActive)" />
+            <input class="form-control" type="file" name="backupFile" accept=".bak" disabled="@(isBusy || IsRestoreActive)" />
             <button class="btn btn-primary" type="submit" disabled="@(isBusy || IsRestoreActive)">Backup hochladen</button>
         </div>
-        <div class="form-text">Maximal @FormatBytes(settingsModel.MaxUploadSizeBytes). Nur gültige Backup-ZIP-Dateien werden übernommen.</div>
+        <div class="form-text">Maximal @FormatBytes(settingsModel.MaxUploadSizeBytes). Nur gültige Backup-Dateien (.bak) werden übernommen.</div>
     </form>
     </section>
 

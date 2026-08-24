@@ -389,4 +389,12 @@ FodyWeavers.xsd
 # Runtime-Verzeichnisse der automatischen Programmupdates
 /VideoWebPlayer/Updates/
 /VideoWebPlayer/Backups/
+/VideoWebPlayer/wwwroot/images/genres/
 issue.md
+/.agents
+/AGENTS.md
+
+# Ausnahme: Lokale NuGet-Pakete, die dem Repository explizit beigestellt werden
+!lib/packages/
+!lib/packages/*.nupkg
+!lib/packages/**/*.nupkg

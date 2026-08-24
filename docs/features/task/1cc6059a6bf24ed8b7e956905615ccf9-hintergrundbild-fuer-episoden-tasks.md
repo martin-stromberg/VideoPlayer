@@ -12,7 +12,7 @@
 | 8 | Logik | `EpisodeBackgroundImageGenerator` Service implementieren (alle Bildverarbeitungsmethoden) | Offen | — |
 | 9 | Logik | `EpisodeBackgroundImageService` Service implementieren (Lazy-Load, Persistierung, Caching, Thread-Safety) | Offen | — |
 | 10 | Logik | `MediaSourceClassifier.AssignPicturesToTVShowEpisodeAsync()` erweitern: `MarkBackgroundImageForUpdateAsync()` Aufruf hinzufügen | Offen | — |
-| 11 | Logik | `VideoWebPlayerBackupDataProvider.ExportAsync()` erweitern: Filter `!picture.IsGeneratedBackground` für Picture-Export | Offen | — |
+| 11 | Logik | `VideoWebPlayerBackupData.WriteToAsync()` erweitern: Filter `!picture.IsGeneratedBackground` für Picture-Export in `BuildTableFilter()` | Offen | — |
 | 12 | Konfiguration | `appsettings.json` Sektion `EpisodeBackgroundImage` mit Standardwerten hinzufügen | Offen | — |
 | 13 | Konfiguration | `Program.cs`: Service-Registrierung für `EpisodeBackgroundImageGenerator`, `EpisodeBackgroundImageService`, `IMemoryCache` hinzufügen | Offen | — |
 | 14 | Konfiguration | Database Migration ausführen: `dotnet ef database update` | Offen | — |
@@ -40,7 +40,7 @@
 | 36 | E2E-Tests | `BackupE2ETests` erweitern/erstellen: Test `Test_Backup_ExcludesGeneratedBackgroundImages` | Offen | — |
 | 37 | E2E-Tests | `BackupE2ETests`: Test `Test_Restore_RegeneratesBackgroundImages_OnNextEpisodeLoad` | Offen | — |
 | 38 | Integration | Bestehende `MediaSourceClassifierTests` prüfen/anpassen (falls vorhanden) | Offen | — |
-| 39 | Integration | Bestehende `VideoWebPlayerBackupDataProviderTests` prüfen/anpassen (falls vorhanden) | Offen | — |
+| 39 | Integration | Bestehende Backup-Daten-Tests (`VideoWebPlayerBackupData`) prüfen/anpassen (falls vorhanden) | Offen | — |
 
 **Hinweise:**
 - Status wird durch `/review-plan` oder `/review` aktualisiert.

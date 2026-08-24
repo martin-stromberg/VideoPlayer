@@ -1,19 +1,22 @@
 using System.Data;
 using System.Data.Common;
 using System.Globalization;
+using System.IO.Compression;
 using System.Text.Json;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.Logging;
 using msTools.Backup;
 using VideoWebPlayer.Data;
 
 namespace VideoWebPlayer.Services.Backups;
 
 /// <summary>
-/// Exports and restores the VideoWebPlayer application database for backups.
+/// Exports and restores the VideoWebPlayer application database as an object-based backup item.
 /// </summary>
-public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
+public sealed class VideoWebPlayerBackupData : IBackupData
 {
     private const int CurrentSchemaVersion = 1;
     private const string UsersTableName = "AspNetUsers";
@@ -57,96 +60,138 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };
     private readonly ApplicationDbContext _db;
     private readonly IWebHostEnvironment _environment;
-    private readonly ILogger<VideoWebPlayerBackupDataProvider> _logger;
+    private readonly ILogger<VideoWebPlayerBackupData> _logger;
+    private readonly VideoWebPlayerBackupDataFactory? _factory;
+    private readonly BackupGeneration? _generation;
+    private readonly DateTimeOffset? _createdAtUtc;
 
     /// <summary>
-    /// Creates a new data provider.
+    /// Gets the unique storage location of this backup object.
     /// </summary>
-    public VideoWebPlayerBackupDataProvider(
+    public string Name { get; }
+
+    /// <summary>
+    /// Gets the unique type identifier of this backup object.
+    /// </summary>
+    public string ContentType { get; }
+
+    /// <summary>
+    /// Creates a new backup data object.
+    /// </summary>
+    public VideoWebPlayerBackupData(
+        string name,
+        string contentType,
         ApplicationDbContext db,
         IWebHostEnvironment environment,
-        ILogger<VideoWebPlayerBackupDataProvider> logger)
+        ILogger<VideoWebPlayerBackupData> logger,
+        VideoWebPlayerBackupDataFactory? factory = null,
+        BackupGeneration? generation = null,
+        DateTimeOffset? createdAtUtc = null)
     {
+        Name = name;
+        ContentType = contentType;
         _db = db;
         _environment = environment;
         _logger = logger;
+        _factory = factory;
+        _generation = generation;
+        _createdAtUtc = createdAtUtc;
     }
 
     /// <inheritdoc />
-    public string ProviderId => "VideoWebPlayer.ApplicationDbContext";
-
-    /// <inheritdoc />
-    public async Task ExportAsync(Stream target, BackupExportContext context, CancellationToken cancellationToken)
+    public async Task WriteToAsync(Stream target, CancellationToken cancellationToken)
     {
         var index = new DatabaseBackupIndex
         {
-            ProviderId = ProviderId,
+            ProviderId = "VideoWebPlayer.ApplicationDbContext",
             SchemaVersion = CurrentSchemaVersion,
-            CreatedAtUtc = context.CreatedAtUtc,
+            CreatedAtUtc = _createdAtUtc ?? DateTimeOffset.UtcNow,
             Tables = new List<TableIndex>(),
-            Files = await ExportGenreIconFilesAsync(context, cancellationToken)
+            Files = new List<FilePayload>(),
+            Generation = _generation
         };
 
-        foreach (var table in GetTables())
+        var tempPath = Path.Combine(Path.GetTempPath(), $"vwp-backup-{Guid.NewGuid():N}.tmp");
+        using var buffer = new FileStream(tempPath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 81920, FileOptions.DeleteOnClose);
+        using (var zip = new ZipArchive(buffer, ZipArchiveMode.Create, leaveOpen: true))
         {
-            var entryName = CreateEntityEntryName(table);
-            index.Tables.Add(new TableIndex
+            foreach (var table in GetTables())
             {
-                Name = table.Name,
-                Schema = table.Schema,
-                Columns = table.Columns.Select(x => x.Name).ToList(),
-                EntryName = entryName
-            });
+                var entryName = CreateEntityEntryName(table);
+                index.Tables.Add(new TableIndex
+                {
+                    Name = table.Name,
+                    Schema = table.Schema,
+                    Columns = table.Columns.Select(x => x.Name).ToList(),
+                    EntryName = entryName
+                });
 
-            context.FileAttachments.Add(new BackupFileAttachment(
-                entryName,
-                (stream, token) => WriteTablePayloadAsync(stream, table, token)));
+                var entry = zip.CreateEntry(entryName);
+                await using var entryStream = entry.Open();
+                await WriteTablePayloadAsync(entryStream, table, cancellationToken);
+            }
+
+            var indexEntry = zip.CreateEntry("index.json");
+            await using (var indexStream = indexEntry.Open())
+            {
+                await JsonSerializer.SerializeAsync(indexStream, index, JsonOptions, cancellationToken);
+            }
         }
 
-        await JsonSerializer.SerializeAsync(target, index, JsonOptions, cancellationToken);
+        buffer.Position = 0;
+        await buffer.CopyToAsync(target, cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<BackupValidationResult> ValidateAsync(Stream source, BackupValidationContext context, CancellationToken cancellationToken)
+    public async Task ReadFromAsync(Stream source, CancellationToken cancellationToken)
     {
-        try
-        {
-            var index = await JsonSerializer.DeserializeAsync<DatabaseBackupIndex>(source, JsonOptions, cancellationToken);
-            return await ValidatePayloadAsync(index, context.OpenPayloadEntryAsync, cancellationToken);
-        }
-        catch (JsonException ex)
-        {
-            return BackupValidationResult.Invalid($"index.json ist kein gültiges JSON: {ex.Message}");
-        }
-    }
+        var tempPath = Path.Combine(Path.GetTempPath(), $"vwp-restore-{Guid.NewGuid():N}.tmp");
+        using var tempFile = source.CanSeek
+            ? null
+            : new FileStream(tempPath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 81920, FileOptions.DeleteOnClose);
 
-    /// <inheritdoc />
-    public async Task RestoreAsync(Stream source, BackupRestoreContext context, CancellationToken cancellationToken)
-    {
-        var payload = await JsonSerializer.DeserializeAsync<DatabaseBackupIndex>(source, JsonOptions, cancellationToken)
-            ?? throw new InvalidDataException("index.json ist leer.");
+        var archiveStream = tempFile ?? source;
+        if (tempFile is not null)
+        {
+            await source.CopyToAsync(tempFile, cancellationToken);
+            tempFile.Position = 0;
+        }
 
-        var validation = await ValidatePayloadAsync(payload, context.OpenPayloadEntryAsync, cancellationToken);
+        using var zip = new ZipArchive(archiveStream, ZipArchiveMode.Read, leaveOpen: tempFile is null);
+        var indexEntry = zip.GetEntry("index.json")
+            ?? throw new InvalidDataException("index.json fehlt.");
+
+        DatabaseBackupIndex payload;
+        await using (var indexStream = indexEntry.Open())
+        {
+            payload = await JsonSerializer.DeserializeAsync<DatabaseBackupIndex>(indexStream, JsonOptions, cancellationToken)
+                ?? throw new InvalidDataException("index.json ist leer.");
+        }
+
+        Func<string, CancellationToken, Task<Stream>> openPayloadEntryAsync = (entryName, token) =>
+        {
+            var entry = zip.GetEntry(entryName)
+                ?? throw new FileNotFoundException($"Backup-Eintrag {entryName} fehlt.");
+            return Task.FromResult(entry.Open());
+        };
+
+        var validation = await ValidatePayloadAsync(payload, openPayloadEntryAsync, cancellationToken);
         if (!validation.IsValid)
             throw new InvalidDataException(string.Join(" ", validation.Errors));
 
         var tables = GetTables();
-        ReportRestoreProgress(context, null, 0, tables.Count, 0, 0, "Restore wird vorbereitet.");
+        var userId = _factory?.UserId;
+        ReportRestoreProgress(null, 0, tables.Count, 0, 0, "Restore wird vorbereitet.");
+
         var tableMap = tables.ToDictionary(x => x.Name, StringComparer.OrdinalIgnoreCase);
         var connection = _db.Database.GetDbConnection();
         await EnsureOpenAsync(connection, cancellationToken);
 
         Dictionary<string, object?>? currentAdminRow = null;
-        if (!string.IsNullOrWhiteSpace(context.UserId) && tableMap.TryGetValue(UsersTableName, out var usersTable))
-            currentAdminRow = await ReadUserRowAsync(connection, usersTable, context.UserId, cancellationToken);
+        if (!string.IsNullOrWhiteSpace(userId) && tableMap.TryGetValue(UsersTableName, out var usersTable))
+            currentAdminRow = await ReadUserRowAsync(connection, usersTable, userId, cancellationToken);
 
-        var userIdMap = await CreateRestoreUserIdMapAsync(payload, context, currentAdminRow, cancellationToken);
-
-        await using var stagedFiles = await StagedGenreIconRestore.PrepareAsync(
-            _environment.WebRootPath,
-            payload.Files,
-            context.OpenPayloadEntryAsync,
-            cancellationToken);
+        var userIdMap = await CreateRestoreUserIdMapAsync(payload, userId, currentAdminRow, openPayloadEntryAsync, cancellationToken);
 
         var sqlite = IsSqliteConnection(connection);
         if (sqlite)
@@ -169,17 +214,17 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
                 if (tablePayload is null)
                     continue;
 
-                ReportRestoreProgress(context, table.Name, dataSetNumber, tables.Count, 0, 0, "Datenbestand wird gelesen.");
-                var tableData = await ReadTablePayloadAsync(tablePayload, context.OpenPayloadEntryAsync, cancellationToken);
+                ReportRestoreProgress(table.Name, dataSetNumber, tables.Count, 0, 0, "Datenbestand wird gelesen.");
+                var tableData = await ReadTablePayloadAsync(tablePayload, openPayloadEntryAsync, cancellationToken);
                 var rows = tableData.Rows ?? new List<Dictionary<string, JsonElement?>>();
-                ReportRestoreProgress(context, table.Name, dataSetNumber, tables.Count, 0, rows.Count, "Datenbestand wird wiederhergestellt.");
+                ReportRestoreProgress(table.Name, dataSetNumber, tables.Count, 0, rows.Count, "Datenbestand wird wiederhergestellt.");
+
                 for (var rowIndex = 0; rowIndex < rows.Count; rowIndex++)
                 {
                     var row = rows[rowIndex];
                     ApplyRestoreUserIdMap(table, row, userIdMap);
                     await InsertRowAsync(connection, dbTransaction, table, tablePayload.Columns, row, cancellationToken);
                     ReportRestoreProgress(
-                        context,
                         table.Name,
                         dataSetNumber,
                         tables.Count,
@@ -189,24 +234,21 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
                 }
             }
 
-            if (!string.IsNullOrWhiteSpace(context.UserId) && tableMap.TryGetValue(UsersTableName, out usersTable))
-                await EnsureAdminAccountAsync(connection, dbTransaction, usersTable, tables, context.UserId, currentAdminRow, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(userId) && tableMap.TryGetValue(UsersTableName, out usersTable))
+                await EnsureAdminAccountAsync(connection, dbTransaction, usersTable, tables, userId, currentAdminRow, cancellationToken);
 
             if (sqlite)
                 await EnsureNoSqliteForeignKeyViolationsAsync(connection, dbTransaction, cancellationToken);
 
-            await stagedFiles.ApplyAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             committed = true;
-            stagedFiles.Accept();
-            ReportRestoreProgress(context, null, tables.Count, tables.Count, 0, 0, "Restore wurde abgeschlossen.");
+            ReportRestoreProgress(null, tables.Count, tables.Count, 0, 0, "Restore wurde abgeschlossen.");
         }
         catch
         {
             if (!committed)
             {
                 await transaction.RollbackAsync(cancellationToken);
-                await stagedFiles.RollbackAsync(cancellationToken);
             }
 
             _logger.LogWarning("Restore transaction rolled back.");
@@ -219,8 +261,7 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
         }
     }
 
-    private static void ReportRestoreProgress(
-        BackupRestoreContext context,
+    private void ReportRestoreProgress(
         string? dataSetName,
         int dataSetNumber,
         int dataSetTotal,
@@ -228,51 +269,13 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
         int recordTotal,
         string message)
     {
-        context.Progress?.Report(new BackupRestoreProgress(
+        _factory?.Progress?.Report(new BackupRestoreProgress(
             dataSetName,
             dataSetNumber,
             dataSetTotal,
             recordNumber,
             recordTotal,
             message));
-    }
-
-    private async Task<List<FilePayload>> ExportGenreIconFilesAsync(BackupExportContext context, CancellationToken cancellationToken)
-    {
-        var directory = Path.Combine(_environment.WebRootPath, "images", "genres");
-        if (!Directory.Exists(directory))
-            return new List<FilePayload>();
-
-        var files = new List<FilePayload>();
-        var seenEntries = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var path in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var relative = Path.GetRelativePath(directory, path).Replace('\\', '/');
-            if (relative.Split('/').Any(part => part is "." or ".."))
-                continue;
-
-            var entryName = $"files/{relative}";
-            if (!seenEntries.Add(entryName))
-                throw new InvalidOperationException($"Doppelter Backup-Dateieintrag: {entryName}");
-
-            files.Add(new FilePayload
-            {
-                RelativePath = relative,
-                EntryName = entryName
-            });
-
-            context.FileAttachments.Add(new BackupFileAttachment(
-                entryName,
-                async (target, token) =>
-                {
-                    await using var source = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-                    await source.CopyToAsync(target, token);
-                }));
-        }
-
-        await Task.CompletedTask.WaitAsync(cancellationToken);
-        return files;
     }
 
     private async Task WriteTablePayloadAsync(Stream target, TableMetadata table, CancellationToken cancellationToken)
@@ -357,7 +360,7 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
             return BackupValidationResult.Invalid("index.json ist leer.");
 
         var errors = new List<string>();
-        if (!string.Equals(payload.ProviderId, ProviderId, StringComparison.Ordinal))
+        if (!string.Equals(payload.ProviderId, "VideoWebPlayer.ApplicationDbContext", StringComparison.Ordinal))
             errors.Add("index.json gehört nicht zum VideoWebPlayer-Provider.");
         if (payload.SchemaVersion != CurrentSchemaVersion)
             errors.Add($"Nicht unterstützte Daten-Schemaversion: {payload.SchemaVersion}.");
@@ -464,12 +467,13 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
 
     private static async Task<Dictionary<string, string>> CreateRestoreUserIdMapAsync(
         DatabaseBackupIndex payload,
-        BackupRestoreContext context,
+        string? userId,
         Dictionary<string, object?>? currentAdminRow,
+        Func<string, CancellationToken, Task<Stream>>? openPayloadEntryAsync,
         CancellationToken cancellationToken)
     {
         var result = new Dictionary<string, string>(StringComparer.Ordinal);
-        if (string.IsNullOrWhiteSpace(context.UserId) || currentAdminRow is null)
+        if (string.IsNullOrWhiteSpace(userId) || currentAdminRow is null)
             return result;
 
         var usersPayload = payload.Tables.FirstOrDefault(x => string.Equals(x.Name, UsersTableName, StringComparison.OrdinalIgnoreCase));
@@ -481,11 +485,11 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
         if (string.IsNullOrWhiteSpace(currentNormalizedUserName) && string.IsNullOrWhiteSpace(currentNormalizedEmail))
             return result;
 
-        var users = await ReadTablePayloadAsync(usersPayload, context.OpenPayloadEntryAsync, cancellationToken);
+        var users = await ReadTablePayloadAsync(usersPayload, openPayloadEntryAsync, cancellationToken);
         foreach (var row in users.Rows ?? new List<Dictionary<string, JsonElement?>>())
         {
             var backupUserId = GetString(row, "Id");
-            if (string.IsNullOrWhiteSpace(backupUserId) || string.Equals(backupUserId, context.UserId, StringComparison.Ordinal))
+            if (string.IsNullOrWhiteSpace(backupUserId) || string.Equals(backupUserId, userId, StringComparison.Ordinal))
                 continue;
 
             var sameUserName = !string.IsNullOrWhiteSpace(currentNormalizedUserName)
@@ -495,7 +499,7 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
 
             if (sameUserName || sameEmail)
             {
-                result[backupUserId] = context.UserId;
+                result[backupUserId] = userId;
                 break;
             }
         }
@@ -991,6 +995,7 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
         public string ProviderId { get; set; } = string.Empty;
         public int SchemaVersion { get; set; }
         public DateTimeOffset CreatedAtUtc { get; set; }
+        public BackupGeneration? Generation { get; set; }
         public List<TableIndex> Tables { get; set; } = new();
         public List<FilePayload> Files { get; set; } = new();
     }
@@ -1012,149 +1017,6 @@ public sealed class VideoWebPlayerBackupDataProvider : IBackupDataProvider
     {
         public string RelativePath { get; set; } = string.Empty;
         public string EntryName { get; set; } = string.Empty;
-    }
-
-    private sealed class StagedGenreIconRestore : IAsyncDisposable
-    {
-        private readonly string _targetDirectory;
-        private readonly string _stagingDirectory;
-        private readonly string _backupDirectory;
-        private bool _applied;
-        private bool _accepted;
-        private bool _targetMovedToBackup;
-
-        private StagedGenreIconRestore(string targetDirectory, string stagingDirectory, string backupDirectory)
-        {
-            _targetDirectory = targetDirectory;
-            _stagingDirectory = stagingDirectory;
-            _backupDirectory = backupDirectory;
-        }
-
-        public static async Task<StagedGenreIconRestore> PrepareAsync(
-            string webRootPath,
-            List<FilePayload> files,
-            Func<string, CancellationToken, Task<Stream>>? openPayloadEntryAsync,
-            CancellationToken cancellationToken)
-        {
-            var targetDirectory = Path.GetFullPath(Path.Combine(webRootPath, "images", "genres"));
-            var parentDirectory = Path.GetDirectoryName(targetDirectory) ?? webRootPath;
-            Directory.CreateDirectory(parentDirectory);
-
-            var stagingDirectory = Path.Combine(parentDirectory, $".genres-restore-{Guid.NewGuid():N}");
-            var backupDirectory = Path.Combine(parentDirectory, $".genres-backup-{Guid.NewGuid():N}");
-            Directory.CreateDirectory(stagingDirectory);
-
-            foreach (var file in files)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (!IsSafeRelativePath(file.RelativePath))
-                    throw new InvalidDataException($"Dateipfad {file.RelativePath} ist ungültig.");
-
-                if (!IsSafeFileEntryName(file.EntryName))
-                    throw new InvalidDataException($"ZIP-Eintrag {file.EntryName} für Datei {file.RelativePath} ist ungültig.");
-                if (!string.Equals(file.EntryName, $"files/{file.RelativePath.Replace('\\', '/')}", StringComparison.Ordinal))
-                    throw new InvalidDataException($"ZIP-Eintrag {file.EntryName} passt nicht zu Datei {file.RelativePath}.");
-                if (openPayloadEntryAsync is null)
-                    throw new InvalidDataException($"Payload-Eintrag {file.EntryName} kann nicht geöffnet werden.");
-
-                var parts = file.RelativePath.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
-                var targetPath = Path.GetFullPath(Path.Combine(new[] { stagingDirectory }.Concat(parts).ToArray()));
-                if (!IsWithinDirectory(targetPath, stagingDirectory))
-                    throw new InvalidDataException($"Dateipfad {file.RelativePath} ist ungültig.");
-
-                Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
-                await using var source = await openPayloadEntryAsync(file.EntryName, cancellationToken);
-                await using var target = new FileStream(targetPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
-                await source.CopyToAsync(target, cancellationToken);
-            }
-
-            return new StagedGenreIconRestore(targetDirectory, stagingDirectory, backupDirectory);
-        }
-
-        public Task ApplyAsync(CancellationToken cancellationToken)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            try
-            {
-                if (Directory.Exists(_targetDirectory))
-                {
-                    Directory.Move(_targetDirectory, _backupDirectory);
-                    _targetMovedToBackup = true;
-                }
-
-                Directory.Move(_stagingDirectory, _targetDirectory);
-                _applied = true;
-                return Task.CompletedTask;
-            }
-            catch
-            {
-                RollbackFileSystemState();
-                throw;
-            }
-        }
-
-        public Task RollbackAsync(CancellationToken cancellationToken)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            RollbackFileSystemState();
-            return Task.CompletedTask;
-        }
-
-        public void Accept()
-        {
-            _accepted = true;
-            TryDeleteDirectory(_backupDirectory);
-        }
-
-        public ValueTask DisposeAsync()
-        {
-            if (!_accepted)
-                RollbackFileSystemState();
-
-            TryDeleteDirectory(_stagingDirectory);
-            if (_accepted)
-                TryDeleteDirectory(_backupDirectory);
-
-            return ValueTask.CompletedTask;
-        }
-
-        private void RollbackFileSystemState()
-        {
-            if (_applied)
-            {
-                TryDeleteDirectory(_targetDirectory);
-                _applied = false;
-            }
-
-            if (_targetMovedToBackup && Directory.Exists(_backupDirectory) && !Directory.Exists(_targetDirectory))
-            {
-                Directory.Move(_backupDirectory, _targetDirectory);
-                _targetMovedToBackup = false;
-            }
-
-            if (!_targetMovedToBackup)
-                TryDeleteDirectory(_backupDirectory);
-        }
-
-        private static bool IsWithinDirectory(string path, string directory)
-        {
-            var fullDirectory = Path.GetFullPath(directory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
-            var fullPath = Path.GetFullPath(path);
-            return fullPath.StartsWith(fullDirectory, StringComparison.OrdinalIgnoreCase);
-        }
-
-        private static void TryDeleteDirectory(string path)
-        {
-            try
-            {
-                if (Directory.Exists(path))
-                    Directory.Delete(path, recursive: true);
-            }
-            catch
-            {
-            }
-        }
     }
 
     private sealed record TableMetadata(string Name, string? Schema, List<ColumnMetadata> Columns);

@@ -212,34 +212,7 @@ jobs:
             artifacts/release-windows/release-windows-${{ needs.extract-version.outputs.release_version }}.zip
             artifacts/release-linux/release-linux-${{ needs.extract-version.outputs.release_version }}.zip
             artifacts/update-manifest/update.json
-          body: |
-            ## Release v${{ needs.extract-version.outputs.release_version }}
-            
-            ### :warning: Wichtige Hinweise vor dem Update (Backup-Format Breaking Change)
-            
-            Diese Version enthält Änderungen am Backup-Format:
-            
-            - **Vor dem Update:** Erstellen Sie eine vollständige Sicherung des Anwendungsverzeichnisses (z.B. Dateien, Datenbank, Konfiguration) außerhalb des Anwendungspfads.
-            - **Nach dem Update:** Erstellen Sie nach dem ersten Start unbedingt eine neue Datensicherung im Programm (`Einrichtung` > `Backups` > `Backup erstellen`).
-            - Backups im alten `.zip`-Format werden von dieser Version nicht mehr unterstützt und können nicht wiederhergestellt werden.
-            
-            This is the stable release from the main branch.
-            
-            ### Installation
-            
-            #### Windows
-            Download `release-windows-${{ needs.extract-version.outputs.release_version }}.zip` and extract it to your desired location.
-            
-            #### Linux
-            Download `release-linux-${{ needs.extract-version.outputs.release_version }}.zip` and extract it to your desired location.
-            
-            ### What's New
-            This release includes all features that were validated in the staging branch.
-            
-            ### Verification
-            - ✅ All tests passed
-            - ✅ Build artifacts created successfully
-            - ✅ Version: ${{ needs.extract-version.outputs.release_version }}
+          body_path: docs/RELEASE_NOTES.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

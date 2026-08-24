@@ -1,8 +1,10 @@
 using System.Text.Json;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using msTools.Backup;
 using VideoWebPlayer.Data;
@@ -85,8 +87,12 @@ public sealed class RestoreInProgressMiddlewareTests
         var services = new ServiceCollection();
         services.AddSingleton(new EventManager());
         services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
+        services.AddSingleton<IWebHostEnvironment>(new FakeWebHostEnvironment());
+        services.AddSingleton<IHostEnvironment>(sp => sp.GetRequiredService<IWebHostEnvironment>());
         services.AddDbContext<ApplicationDbContext>(options => options.UseInMemoryDatabase(Guid.NewGuid().ToString()));
-        services.AddScoped<IBackupDataProvider, NoopBackupDataProvider>();
+        services.AddScoped<IBackupDataSource, NoopBackupDataSource>();
+        services.AddScoped<VideoWebPlayerBackupDataFactory>();
+        services.AddScoped<IBackupOptionsProvider, NoopBackupOptionsProvider>();
         services.AddScoped<BackupSettingsService>();
         services.AddScoped<BackupOperationHistoryService>();
         services.AddScoped<VideoWebPlayerBackupFacade>();
@@ -96,7 +102,7 @@ public sealed class RestoreInProgressMiddlewareTests
         var service = new RestoreBackupJobService(
             provider.GetRequiredService<IServiceScopeFactory>(),
             NullLogger<RestoreBackupJobService>.Instance);
-        service.StartRestore("backup.zip", "admin", confirmRestore: true);
+        service.StartRestore("backup.bak", "admin", confirmRestore: true);
         return service;
     }
 
@@ -125,31 +131,16 @@ public sealed class RestoreInProgressMiddlewareTests
         public Task<IReadOnlyList<BackupDescriptor>> ListBackupsAsync(CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<BackupDescriptor>>(Array.Empty<BackupDescriptor>());
 
-        public Task<BackupOperationResult> CreateBackupAsync(BackupCreateRequest request, CancellationToken cancellationToken)
-            => Task.FromResult(BackupOperationResult.Success("Backup wurde erstellt."));
-
-        public Task<BackupValidationResult> ValidateUploadAsync(Stream source, CancellationToken cancellationToken)
-            => Task.FromResult(BackupValidationResult.Valid);
-
-        public Task<BackupOperationResult> ImportUploadedBackupAsync(Stream source, string originalFileName, CancellationToken cancellationToken)
-            => Task.FromResult(BackupOperationResult.Success("Backup wurde hochgeladen."));
-
         public Task<Stream> OpenBackupReadAsync(string fileName, CancellationToken cancellationToken)
             => Task.FromResult<Stream>(new MemoryStream());
 
         public Task<BackupOperationResult> DeleteBackupAsync(string fileName, CancellationToken cancellationToken)
             => Task.FromResult(BackupOperationResult.Success("Backup wurde gelöscht."));
 
-        public async Task<BackupOperationResult> RestoreBackupAsync(BackupRestoreRequest request, CancellationToken cancellationToken)
-        {
-            await _release.WaitAsync(cancellationToken);
-            return BackupOperationResult.Success("Backup wurde wiederhergestellt.");
-        }
-
-        public Task<BackupResult> StoreAsync(string backupName, IEnumerable<IBackupData> items, CancellationToken cancellationToken)
+        public Task<BackupResult> StoreAsync(string backupName, BackupGeneration generation, IEnumerable<IBackupData> items, CancellationToken cancellationToken = default)
             => Task.FromResult(new BackupResult(backupName, true, "Backup wurde gespeichert."));
 
-        public async Task<IReadOnlyList<IBackupData>> RestoreAsync(string backupName, IBackupDataFactory factory, CancellationToken cancellationToken)
+        public async Task<IReadOnlyList<IBackupData>> RestoreAsync(string backupName, IBackupDataFactory factory, CancellationToken cancellationToken = default)
         {
             await _release.WaitAsync(cancellationToken);
             return Array.Empty<IBackupData>();
@@ -159,17 +150,25 @@ public sealed class RestoreInProgressMiddlewareTests
             => Task.CompletedTask;
     }
 
-    private sealed class NoopBackupDataProvider : IBackupDataProvider
+    private sealed class NoopBackupDataSource : IBackupDataSource
     {
-        public string ProviderId => "Test";
+        public Task<IReadOnlyList<IBackupData>> GetBackupDataAsync(CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<IBackupData>>(Array.Empty<IBackupData>());
+    }
 
-        public Task ExportAsync(Stream target, BackupExportContext context, CancellationToken cancellationToken)
-            => Task.CompletedTask;
+    private sealed class NoopBackupOptionsProvider : IBackupOptionsProvider
+    {
+        public Task<BackupOptions> GetOptionsAsync(CancellationToken cancellationToken)
+            => Task.FromResult(new BackupOptions { StoragePath = Path.Combine("Data", "Backups") });
+    }
 
-        public Task<BackupValidationResult> ValidateAsync(Stream source, BackupValidationContext context, CancellationToken cancellationToken)
-            => Task.FromResult(BackupValidationResult.Valid);
-
-        public Task RestoreAsync(Stream source, BackupRestoreContext context, CancellationToken cancellationToken)
-            => Task.CompletedTask;
+    private sealed class FakeWebHostEnvironment : IWebHostEnvironment
+    {
+        public string ApplicationName { get; set; } = "VideoWebPlayer";
+        public string EnvironmentName { get; set; } = "Test";
+        public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
+        public string WebRootPath { get; set; } = AppContext.BaseDirectory;
+        public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; } = null!;
+        public Microsoft.Extensions.FileProviders.IFileProvider WebRootFileProvider { get; set; } = null!;
     }
 }

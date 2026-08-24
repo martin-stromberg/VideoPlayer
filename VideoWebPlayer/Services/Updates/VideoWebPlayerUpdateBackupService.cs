@@ -9,6 +9,7 @@ namespace VideoWebPlayer.Services.Updates;
 public sealed class VideoWebPlayerUpdateBackupService : IUpdateBackupService
 {
     private readonly IBackupService _backupService;
+    private readonly IBackupDataSource _dataSource;
     private readonly BackupOperationHistoryService _historyService;
     private readonly ILogger<VideoWebPlayerUpdateBackupService> _logger;
 
@@ -17,10 +18,12 @@ public sealed class VideoWebPlayerUpdateBackupService : IUpdateBackupService
     /// </summary>
     public VideoWebPlayerUpdateBackupService(
         IBackupService backupService,
+        IBackupDataSource dataSource,
         BackupOperationHistoryService historyService,
         ILogger<VideoWebPlayerUpdateBackupService> logger)
     {
         _backupService = backupService;
+        _dataSource = dataSource;
         _historyService = historyService;
         _logger = logger;
     }
@@ -32,9 +35,25 @@ public sealed class VideoWebPlayerUpdateBackupService : IUpdateBackupService
         BackupOperationResult result;
         try
         {
-            result = await _backupService.CreateBackupAsync(
-                new BackupCreateRequest(BackupGeneration.ProgramUpdate, "VideoWebPlayer"),
+            var items = await _dataSource.GetBackupDataAsync(cancellationToken);
+            var storeResult = await _backupService.StoreAsync(
+                $"programupdate-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}",
+                BackupGeneration.ProgramUpdate,
+                items,
                 cancellationToken);
+
+            if (storeResult.Succeeded)
+            {
+                var descriptors = await _backupService.ListBackupsAsync(cancellationToken);
+                var descriptor = descriptors.FirstOrDefault(d =>
+                    string.Equals(d.Path, storeResult.BackupPath, StringComparison.OrdinalIgnoreCase));
+                result = BackupOperationResult.Success(storeResult.Message, descriptor);
+                await _backupService.ApplyRetentionAsync(cancellationToken);
+            }
+            else
+            {
+                result = BackupOperationResult.Failure(storeResult.Message);
+            }
 
             await _historyService.AddAsync("ProgramUpdateBackup", result, userId: null, started, cancellationToken);
             if (!result.Succeeded)
@@ -43,7 +62,6 @@ public sealed class VideoWebPlayerUpdateBackupService : IUpdateBackupService
             if (result.Descriptor is null)
                 return UpdateBackupResult.Failure("Backup wurde erstellt, aber ohne Dateiinformation zurueckgegeben.");
 
-            await _backupService.ApplyRetentionAsync(cancellationToken);
             return UpdateBackupResult.Success(result.Descriptor.Path, result.Message);
         }
         catch (Exception ex)

@@ -107,16 +107,16 @@ public sealed class VideoWebPlayerBackupFacade
 
             Directory.CreateDirectory(fullStoragePath);
 
-            await using var ms = new MemoryStream();
-            await stream.CopyToAsync(ms, cancellationToken);
-            ms.Position = 0;
-
-            if (ms.Length == 0)
+            var tempPath = Path.Combine(Path.GetTempPath(), $"vwp-backup-import-{Guid.NewGuid():N}.tmp");
+            await using var temp = new FileStream(tempPath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 81920, FileOptions.DeleteOnClose);
+            await stream.CopyToAsync(temp, cancellationToken);
+            if (temp.Length == 0)
                 return BackupOperationResult.Failure("Die hochgeladene Datei ist leer.", fileName);
 
+            temp.Position = 0;
             try
             {
-                using var archive = new ZipArchive(ms, ZipArchiveMode.Read, leaveOpen: true);
+                using var archive = new ZipArchive(temp, ZipArchiveMode.Read, leaveOpen: true);
                 var manifestEntry = archive.GetEntry("manifest.json");
                 if (manifestEntry is null)
                     return BackupOperationResult.Failure("Kein gültiges Backup: manifest.json fehlt.", fileName);
@@ -129,8 +129,8 @@ public sealed class VideoWebPlayerBackupFacade
             var targetPath = Path.Combine(fullStoragePath, safeFileName);
             await using (var fileStream = new FileStream(targetPath, FileMode.Create, FileAccess.Write, FileShare.None))
             {
-                ms.Position = 0;
-                await ms.CopyToAsync(fileStream, cancellationToken);
+                temp.Position = 0;
+                await temp.CopyToAsync(fileStream, cancellationToken);
             }
 
             var descriptors = await _backupService.ListBackupsAsync(cancellationToken);

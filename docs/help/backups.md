@@ -4,7 +4,13 @@ Diese Hilfe richtet sich an Administratoren. Die Backup-Funktion ist im Einricht
 
 ## Backup-Seite
 
-Die Seite zeigt vorhandene Backups mit Dateiname, Generation, Erstellzeit, Größe und Gültigkeitsstatus. Pro Backup stehen Symbolbuttons zum Herunterladen, Wiederherstellen und Löschen bereit.
+Die Seite `/admin/backups` ist in drei Bereiche gegliedert:
+
+1. **Seitenkopf**: Zeigt den Titel „System Backups" und den Button „Neues Backup" zum Erstellen eines manuellen Backups.
+2. **Statistikleiste**: Zeigt die Anzahl vorhandener Backups, den belegten Speicherplatz und den Status der automatischen Backups.
+3. **Zweispaltiges Layout**:
+   - **Linke Spalte**: Liste der letzten Backups mit Dateiname, Erstellzeit, Größe und Status. Pro Backup stehen Symbolbuttons zum Herunterladen, Wiederherstellen und Löschen bereit. Darunter befinden sich der Bereich „Backup hochladen" und die „Historie".
+   - **Rechte Spalte**: Konfiguration mit Speicherpfad, Aufbewahrungseinstellungen (Sohn/Vater/Großvater), automatischem Backup und Upload-Limit.
 
 Nur angemeldete Benutzer mit Administrationsrechten können die Seite und die Backup-Endpunkte verwenden.
 

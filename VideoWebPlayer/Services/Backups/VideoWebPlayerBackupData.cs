@@ -111,15 +111,10 @@ public sealed class VideoWebPlayerBackupData : IBackupData
             Generation = _generation
         };
 
-        using var buffer = new MemoryStream();
+        var tempPath = Path.Combine(Path.GetTempPath(), $"vwp-backup-{Guid.NewGuid():N}.tmp");
+        using var buffer = new FileStream(tempPath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 81920, FileOptions.DeleteOnClose);
         using (var zip = new ZipArchive(buffer, ZipArchiveMode.Create, leaveOpen: true))
         {
-            var indexEntry = zip.CreateEntry("index.json");
-            await using (var indexStream = indexEntry.Open())
-            {
-                await JsonSerializer.SerializeAsync(indexStream, index, JsonOptions, cancellationToken);
-            }
-
             foreach (var table in GetTables())
             {
                 var entryName = CreateEntityEntryName(table);
@@ -135,6 +130,12 @@ public sealed class VideoWebPlayerBackupData : IBackupData
                 await using var entryStream = entry.Open();
                 await WriteTablePayloadAsync(entryStream, table, cancellationToken);
             }
+
+            var indexEntry = zip.CreateEntry("index.json");
+            await using (var indexStream = indexEntry.Open())
+            {
+                await JsonSerializer.SerializeAsync(indexStream, index, JsonOptions, cancellationToken);
+            }
         }
 
         buffer.Position = 0;
@@ -144,11 +145,19 @@ public sealed class VideoWebPlayerBackupData : IBackupData
     /// <inheritdoc />
     public async Task ReadFromAsync(Stream source, CancellationToken cancellationToken)
     {
-        using var buffer = new MemoryStream();
-        await source.CopyToAsync(buffer, cancellationToken);
-        buffer.Position = 0;
+        var tempPath = Path.Combine(Path.GetTempPath(), $"vwp-restore-{Guid.NewGuid():N}.tmp");
+        using var tempFile = source.CanSeek
+            ? null
+            : new FileStream(tempPath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 81920, FileOptions.DeleteOnClose);
 
-        using var zip = new ZipArchive(buffer, ZipArchiveMode.Read, leaveOpen: true);
+        var archiveStream = tempFile ?? source;
+        if (tempFile is not null)
+        {
+            await source.CopyToAsync(tempFile, cancellationToken);
+            tempFile.Position = 0;
+        }
+
+        using var zip = new ZipArchive(archiveStream, ZipArchiveMode.Read, leaveOpen: tempFile is null);
         var indexEntry = zip.GetEntry("index.json")
             ?? throw new InvalidDataException("index.json fehlt.");
 

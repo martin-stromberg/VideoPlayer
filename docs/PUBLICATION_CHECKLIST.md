@@ -4,20 +4,30 @@
 > **Zielgruppe**: Maintainer  
 > **Letzte Aktualisierung**: 2026-08-25
 
-Vor einer öffentlichen Bereitstellung prüfen:
+Der aktuelle Abarbeitungsstand ist in [docs/PUBLICATION_AUDIT.md](./PUBLICATION_AUDIT.md) dokumentiert. Vor einer öffentlichen Bereitstellung prüfen:
 
-- [ ] `LICENSE` ist unverändert und wird als PolyForm Noncommercial License 1.0.0 ausgewiesen.
-- [ ] README und Installationsdokumentation nennen keine OSI-Open-Source-Freigabe.
-- [ ] Kommerzielle Nutzung verweist auf `mstromberg84+videoplayer@gmail.com`.
-- [ ] `dotnet run --no-restore --project tools/MarkdownLinkCheck/MarkdownLinkCheck.csproj -- --root .` läuft erfolgreich.
-- [ ] Der lokale Hook ist mit `git config core.hooksPath .githooks` aktivierbar.
-- [ ] `dotnet build VideoPlayer.sln` läuft ohne MAUI-Projekte.
-- [ ] `dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj` läuft erfolgreich.
-- [ ] `dotnet test tools/MarkdownLinkCheck.Tests/MarkdownLinkCheck.Tests.csproj` läuft erfolgreich.
-- [ ] Das MAUI-Repository baut und testet mit seiner eigenen Solution.
-- [ ] `dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --filter ApiDocumentationContractTests` weist Health, Login und authentifizierten Lesezugriff nach.
-- [ ] `dotnet list VideoPlayer.sln package --vulnerable --include-transitive` und derselbe Scan im MAUI-Repository melden keine High-Advisories oder dokumentierte, freigegebene Ausnahmen.
-- [ ] [API-Dokumentation](./API.md) deckt die vom MAUI-Client verwendeten Routen ab.
-- [ ] [Secrets Management](./SECRETS_MANAGEMENT.md) enthält nur synthetische Platzhalter.
-- [ ] Arbeitsbaum und vereinbarter Historienumfang wurden im Web-Repository und im MAUI-Repository mit den in [Secrets Management](./SECRETS_MANAGEMENT.md) dokumentierten Kommandos auf Secrets geprüft.
-- [ ] Produktive Secrets wurden außerhalb des Repositorys erzeugt und dokumentiert rotiert.
+| Status | Punkt | Ergebnis |
+|--------|-------|----------|
+| [x] | `LICENSE` ist unverändert und wird als PolyForm Noncommercial License 1.0.0 ausgewiesen. | Lokal geprüft. |
+| [x] | README und Installationsdokumentation nennen keine OSI-Open-Source-Freigabe. | Lokal geprüft. |
+| [x] | Kommerzielle Nutzung verweist auf `mstromberg84+videoplayer@gmail.com`. | Lokal geprüft. |
+| [x] | `dotnet run --no-restore --project tools/MarkdownLinkCheck/MarkdownLinkCheck.csproj -- --root .` läuft erfolgreich. | Bestanden: 61 Dateien, 101 lokale Links. |
+| [x] | Der lokale Hook ist mit `git config core.hooksPath .githooks` aktivierbar. | Aktiviert; `core.hooksPath` liefert `.githooks`; Hook-Dateimodus `100755`. |
+| [x] | `dotnet build VideoPlayer.sln` läuft ohne MAUI-Projekte. | Bestanden mit bestehenden Warnungen. |
+| [x] | `dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj` läuft erfolgreich. | Bestanden: 188/188 Tests. |
+| [x] | `dotnet test tools/MarkdownLinkCheck.Tests/MarkdownLinkCheck.Tests.csproj` läuft erfolgreich. | Bestanden: 5/5 Tests. |
+| [ ] | Das MAUI-Repository baut und testet mit seiner eigenen Solution. | Offen: `Sub-Repository/` ist in dieser Arbeitskopie nicht vorhanden; siehe Audit. |
+| [x] | `dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --filter ApiDocumentationContractTests` weist Health, Login und authentifizierten Lesezugriff nach. | Bestanden: 4/4 Tests. |
+| [ ] | `dotnet list VideoPlayer.sln package --vulnerable --include-transitive` und derselbe Scan im MAUI-Repository melden keine High-Advisories oder dokumentierte, freigegebene Ausnahmen. | Web bestanden; MAUI offen. |
+| [x] | [API-Dokumentation](./API.md) deckt die vom MAUI-Client verwendeten Routen ab. | Durch API-Vertragstest lokal nachgewiesen. |
+| [x] | [Secrets Management](./SECRETS_MANAGEMENT.md) enthält nur synthetische Platzhalter. | Lokal geprüft. |
+| [ ] | Arbeitsbaum und vereinbarter Historienumfang wurden im Web-Repository und im MAUI-Repository mit den in [Secrets Management](./SECRETS_MANAGEMENT.md) dokumentierten Kommandos auf Secrets geprüft. | Web geprüft; MAUI offen. Lokale Remote-URL enthielt ein Token und wurde bereinigt; Token-Rotation bleibt offen. |
+| [ ] | Produktive Secrets wurden außerhalb des Repositorys erzeugt und dokumentiert rotiert. | Offen: muss außerhalb des Repositorys erfolgen. |
+
+## Blocker vor `public`
+
+- MAUI-Repository prüfen: Remote-Stand, vorbereitende Commits, Build, Tests, Vulnerability-Scan und Secret-Scan.
+- Linux-Frischclone-Hook-Test mit Erfolgsfall und fehlendem-`dotnet`-Fehlerpfad ausführen.
+- GitHub-Repository-Einstellungen mit Maintainer-Zugriff prüfen.
+- Produktive Secrets und das zuvor in der lokalen Remote-URL vorhandene GitHub-Token rotieren.
+- Erst danach Repository auf `public` setzen und finalen Stand taggen oder dokumentieren.

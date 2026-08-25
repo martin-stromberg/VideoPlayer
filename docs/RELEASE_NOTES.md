@@ -21,5 +21,5 @@ Backups im alten `.zip`-Format werden von dieser Version nicht mehr unterstützt
 ## Stand und Prüfhinweis
 
 - Die Veröffentlichungsunterlagen, der versionierte Linkcheck-Hook, die API-Dokumentation sowie die Installations- und Secret-Hinweise sind vorbereitet.
-- Vor einer Freigabe sind Web-Build und Web-Tests sowie die MAUI-Builds und MAUI-Tests im separaten MAUI-Repository erneut auszuführen.
-- Dieser Stand ist noch keine vollständige Freigabe: Zwei technische Nacharbeiten bleiben offen. Die Produktionskonfiguration muss das erforderliche MAUI-API-Token validieren, und ungültige API-Schlüssel dürfen nicht vollständig ins Warning-Log geschrieben werden.
+- Web-Build, Web-Tests, API-Vertragstest, Markdown-Linkcheck und Web-Vulnerability-Scan wurden am 2026-08-25 lokal erfolgreich ausgeführt; Details stehen in `docs/PUBLICATION_AUDIT.md`.
+- Dieser Stand ist noch keine vollständige Freigabe: MAUI-Repository, Linux-Frischclone-Hook-Test, GitHub-Repository-Einstellungen und produktive Secret-Rotation müssen vor dem Umschalten auf `public` abgeschlossen werden.

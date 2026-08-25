@@ -10,6 +10,7 @@
 | [API-Vertrag](./API.md) | REST- und SignalR-Vertrag für das MAUI-Team | Vollständig |
 | [Secrets Management](./SECRETS_MANAGEMENT.md) | Umgang mit Backend-Secrets, JWTs und Client-Gate-Werten | Vollständig |
 | [Veröffentlichungscheckliste](./PUBLICATION_CHECKLIST.md) | Technische Prüfliste vor öffentlicher Bereitstellung | Vollständig |
+| [Veröffentlichungs-Audit](./PUBLICATION_AUDIT.md) | Lokaler Prüfstand und offene externe Freigaben vor `public` | In Prüfung |
 
 ## Technische Dokumentation
 

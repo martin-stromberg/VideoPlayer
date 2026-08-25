@@ -106,6 +106,8 @@ Das Web-Repository baut keine MAUI-Projekte. MAUI-App, MAUI-Tests und eine Kopie
 
 Vor einer öffentlichen Bereitstellung müssen die [Veröffentlichungscheckliste](./docs/PUBLICATION_CHECKLIST.md), der lokale Markdown-Linkcheck, die API-Dokumentation und der Secret-Scan nachvollzogen werden. Diese README beschreibt die technische Einrichtung und ist keine Aussage, dass eine Veröffentlichung oder alle offenen technischen Nacharbeiten bereits abgeschlossen sind.
 
+Der aktuelle lokale Prüfstand vor der Veröffentlichung ist in [docs/PUBLICATION_AUDIT.md](./docs/PUBLICATION_AUDIT.md) dokumentiert. Externe Freigaben wie MAUI-Repository, Linux-Frischclone, GitHub-Repository-Einstellungen und produktive Secret-Rotation müssen dort vor dem Umschalten auf `public` abgeschlossen werden.
+
 ## Lizenz
 
 Dieses Projekt steht unter der **PolyForm Noncommercial License 1.0.0**. Die Software darf für private, persönliche, nicht-kommerzielle oder edukative Zwecke genutzt, verändert und weitergegeben werden.

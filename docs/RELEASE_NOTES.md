@@ -14,11 +14,11 @@ Backups im alten `.zip`-Format werden von dieser Version nicht mehr unterstützt
 
 ## What’s New
 
-- Backup-System komplett auf `msTools.Backup` mit objektbasiertem `.bak`-Format umgestellt.
-- Manuelle und automatische Backups verwenden jetzt `IBackupData` / `IBackupDataFactory`.
-- Upload, Download, Restore und Validierung arbeiten mit dem neuen Format.
+- Projektstruktur bereinigt: Die nicht mehr benötigten Bereiche `Videos/`, `WebPlayer/`, `WebPlayerApi/` und `WebPlayerApi.Common/` wurden entfernt.
+- Die aktuellen Projekte `VideoWebPlayer` und `VideoWebPlayer.Maui` bleiben erhalten.
 
 ## Verification
 
-- :white_check_mark: All tests passed
-- :white_check_mark: Build artifacts created successfully
+- :white_check_mark: Build erfolgreich
+- :white_check_mark: Tests erfolgreich
+- :information_source: Die MAUI-App wurde nicht gestartet.

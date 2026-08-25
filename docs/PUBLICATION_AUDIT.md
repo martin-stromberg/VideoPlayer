@@ -5,7 +5,7 @@
 > **Stand**: 2026-08-25  
 > **Web-Commit bei lokaler Pruefung vor Abschlusscommit**: `3f1e816565ae0ce90f96625854b8242533d38ba4`
 
-Dieses Dokument haelt den lokal ausgefuehrten Pruefstand vor dem Umschalten des Web-Repositorys auf `public` fest. Es ersetzt keine Maintainer-Freigabe fuer externe Systeme wie GitHub-Repository-Einstellungen, produktive Secrets oder das ausgelagerte MAUI-Repository.
+Dieses Dokument haelt den lokal ausgefuehrten Pruefstand vor dem Umschalten des Web-Repositorys auf `public` fest. Es ersetzt keine Maintainer-Freigabe fuer externe Systeme wie GitHub-Repository-Einstellungen oder produktive Secrets.
 
 ## Ergebnisuebersicht
 
@@ -25,7 +25,6 @@ Dieses Dokument haelt den lokal ausgefuehrten Pruefstand vor dem Umschalten des 
 | Secret-Scan Web-Historie | Bestanden mit erwarteten Treffern | Der vereinbarte Keyword-Historienscan liefert nur Commit-Kontext zu bekannten Token-/Secret-Themen; der konkrete Token-Format-Historienscan war leer. |
 | Lokale Git-Remote-URL | Bereinigt, Rotation erforderlich | Die lokale `origin`-URL enthielt initial ein eingebettetes GitHub-Token. Die URL wurde auf `https://github.com/martin-stromberg/VideoPlayer` bereinigt. Das zuvor eingebettete Token muss ausserhalb des Repositorys rotiert werden. |
 | Private Pfade/interne Reste | Bereinigt | Alte `docs/features/`-Arbeitsartefakte mit lokalem Pfad wurden aus dem oeffentlichen Arbeitsbaum entfernt. |
-| MAUI-Repository | Offen | In dieser Arbeitskopie existiert kein `Sub-Repository/`; Remote-Stand, drei vorbereitende Commits, Build, Tests, Vulnerability-Scan und Secret-Scan muessen im ausgelagerten Repository nachgewiesen werden. |
 | GitHub-Repository-Einstellungen | Offen | `gh auth status` meldet einen ungueltigen `GITHUB_TOKEN`; Branch Protection, Actions Permissions, Issues/Discussions und Security Advisories muessen mit Maintainer-Zugriff geprueft werden. |
 | Produktive Secret-Rotation | Offen | Muss ausserhalb des Repositorys erfolgen und dokumentiert freigegeben werden. |
 | `public`-Umschaltung und Tagging | Offen | Erst nach Abschluss aller offenen Gates ausfuehren. |
@@ -49,30 +48,6 @@ git log --all --source --decorate -G "ghp_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-
 ```
 
 ## Noch manuell auszufuehren
-
-### MAUI-Repository
-
-Im ausgelagerten MAUI-Repository:
-
-```bash
-git status -sb
-git log --oneline --decorate -n 10
-git fetch --all --prune
-git branch -vv
-dotnet restore VideoPlayer.App.sln
-dotnet test VideoWebPlayer.Maui.Tests/VideoWebPlayer.Maui.Tests.csproj
-dotnet build VideoWebPlayer.Maui/VideoWebPlayer.Maui.csproj -p:MauiClientApiToken="<ENTWICKLUNGS_MAUI_API_TOKEN>"
-dotnet list VideoPlayer.App.sln package --vulnerable --include-transitive
-git grep -n -I -E "Jwt:Key|Jwt__Key|ApiToken|Authorization: Bearer|password|secret|token" -- .
-git log --all --source --decorate -G "Jwt:Key|Jwt__Key|ApiToken|Authorization: Bearer|password|secret|token" -- .
-```
-
-Pruefen und dokumentieren:
-
-- Arbeitsbaum sauber.
-- Die drei vorbereitenden Commits liegen auf dem Remote.
-- Keine High-Advisories ohne dokumentierte Freigabe.
-- Keine ungeklarten Secret-Treffer.
 
 ### Linux-Frischclone-Hook-Test
 
@@ -123,8 +98,8 @@ Mit Maintainer-Zugriff pruefen:
 Vor `public` ausserhalb des Repositorys:
 
 - GitHub-Token aus der lokalen Remote-URL rotieren oder widerrufen.
-- `Jwt:Key`, `Jwt:ApiToken:Web`, `Jwt:ApiToken:Maui` neu erzeugen.
-- Pipeline-, Hosting- und MAUI-Build-Konfiguration aktualisieren.
+- `Jwt:Key` und `Jwt:ApiToken:Web` neu erzeugen.
+- Pipeline- und Hosting-Konfiguration aktualisieren.
 - Bestaetigen, dass keine Platzhalterwerte aus der Dokumentation produktiv verwendet werden.
 
 ### Finale Freigabe

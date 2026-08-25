@@ -60,12 +60,12 @@ Du solltest den Dienst sehen, z. B.:
 ```
 
 ## Hinweise
-- Der Service ist jetzt per mDNS im lokalen Netzwerk sichtbar und kann von Clients (z. B. MAUI-App) gefunden werden.
+- Der Service ist jetzt per mDNS im lokalen Netzwerk sichtbar und kann von Clients gefunden werden.
 - Firewall: UDP-Port 5353 muss für mDNS offen sein (meist Standard).
 - Für eigene Service-Typen (z. B. `_videowebplayer._tcp`) einfach `<type>` anpassen und Client entsprechend konfigurieren.
 
 ---
 
 **Nächste Schritte:**
-- Implementiere die mDNS-Discovery im Client (MAUI-App)
+- Implementiere die mDNS-Discovery in externen Clients.
 - Implementiere optional einen UDP-Listener für Discovery als Fallback

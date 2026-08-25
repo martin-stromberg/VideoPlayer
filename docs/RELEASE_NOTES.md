@@ -16,10 +16,10 @@ Backups im alten `.zip`-Format werden von dieser Version nicht mehr unterstützt
 
 - Veröffentlichungsvorbereitung ergänzt: konsistente PolyForm-Noncommercial-Lizenzhinweise, Linux-/Windows-Installationsanleitung, zentrale API-Dokumentation und Secret-Hinweise mit synthetischen Platzhaltern.
 - Markdown-Linkcheck als versionierter lokaler Client-Hook unter `.githooks/pre-commit` ergänzt.
-- Projektstruktur getrennt: Das Web-Repository enthält `VideoWebPlayer`, `VideoWebPlayer.Client`, `VideoWebPlayer.Tests` und Linkcheck-Tools; die MAUI-App wird im separaten MAUI-Repository gepflegt.
+- Projektstruktur bereinigt: Das Web-Repository enthält `VideoWebPlayer`, `VideoWebPlayer.Client`, `VideoWebPlayer.Tests` und Linkcheck-Tools.
 
 ## Stand und Prüfhinweis
 
 - Die Veröffentlichungsunterlagen, der versionierte Linkcheck-Hook, die API-Dokumentation sowie die Installations- und Secret-Hinweise sind vorbereitet.
 - Web-Build, Web-Tests, API-Vertragstest, Markdown-Linkcheck und Web-Vulnerability-Scan wurden am 2026-08-25 lokal erfolgreich ausgeführt; Details stehen in `docs/PUBLICATION_AUDIT.md`.
-- Dieser Stand ist noch keine vollständige Freigabe: MAUI-Repository, Linux-Frischclone-Hook-Test, GitHub-Repository-Einstellungen und produktive Secret-Rotation müssen vor dem Umschalten auf `public` abgeschlossen werden.
+- Dieser Stand ist noch keine vollständige Freigabe: Linux-Frischclone-Hook-Test, GitHub-Repository-Einstellungen und produktive Secret-Rotation müssen vor dem Umschalten auf `public` abgeschlossen werden.

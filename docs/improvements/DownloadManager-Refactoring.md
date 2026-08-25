@@ -35,7 +35,7 @@ Diese starke Kopplung erschwert:
 
 ### 2. Dependency Injection
 
-- Alle Services werden per DI injiziert (z.B. über den MAUI DI-Container).
+- Alle Services werden per DI injiziert.
 - Statische Zugriffe auf App.ServiceProvider, Preferences, etc. werden vermieden.
 
 ### 3. Verbesserte Fehlerbehandlung

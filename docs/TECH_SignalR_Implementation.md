@@ -9,6 +9,10 @@
 
 SignalR wurde implementiert für automatische Echtzeit-Updates der Media-Listen zwischen Backend und MAUI-Client.
 
+## Repository-Kontext
+
+Backend-Pfade wie `VideoWebPlayer/...` liegen im Web-Repository. MAUI-Pfade wie `VideoWebPlayer.Maui/...` beziehen sich auf das separate MAUI-Repository, in dieser Arbeitskopie auf den Klon unter `Sub-Repository/`.
+
 ## Architektur
 
 ```
@@ -88,7 +92,7 @@ public class MediaUpdateNotificationService
 
 ### 3. MAUI SignalR Client Service
 
-**Datei:** `VideoWebPlayer.Maui/Services/SignalRService.cs`
+**Datei im MAUI-Repository:** `VideoWebPlayer.Maui/Services/SignalRService.cs`
 
 ```csharp
 public class SignalRService : IAsyncDisposable
@@ -127,7 +131,7 @@ public class SignalRService : IAsyncDisposable
 
 ### 4. MAUI Notification Event Service
 
-**Datei:** `VideoWebPlayer.Maui/Services/Events/NotificationEventService.cs`
+**Datei im MAUI-Repository:** `VideoWebPlayer.Maui/Services/Events/NotificationEventService.cs`
 
 Der `NotificationEventService` fungiert als Brücke zwischen SignalR und der MAUI-App:
 
@@ -158,7 +162,7 @@ public class NotificationEventService : IPublishNotificationEvent, ISubscribeNot
 
 ### 5. UI-Integration (HomePage)
 
-**Datei:** `VideoWebPlayer.Maui/HomePage.xaml.cs`
+**Datei im MAUI-Repository:** `VideoWebPlayer.Maui/HomePage.xaml.cs`
 
 ```csharp
 public HomePage()

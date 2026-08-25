@@ -382,6 +382,9 @@ issue.md
 /.agents
 /AGENTS.md
 
+# Eigenstaendiger MAUI-Repository-Klon; wird separat versioniert.
+/Sub-Repository/
+
 # Ausnahme: Lokale NuGet-Pakete, die dem Repository explizit beigestellt werden
 !lib/packages/
 !lib/packages/*.nupkg

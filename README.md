@@ -1,371 +1,120 @@
 # VideoWebPlayer
 
-<h1 align="center">
-  <br>
-  <img src="https://github.com/Muesli84/VideoPlayer/blob/master/VideoPlayer/Resources/AppIcon/appicon.png?raw=true" alt="VideoWebPlayer" width="200">
-  <br>
-  VideoWebPlayer
-  <br>
-</h1>
+VideoWebPlayer ist eine ASP.NET-Core-/Blazor-Anwendung für die private Verwaltung und Wiedergabe einer eigenen Videobibliothek. Das Web-Repository enthält Backend, Weboberfläche, gemeinsame Client-DTOs, Tests und technische Dokumentation.
 
-<h4 align="center">Eine moderne Video-Management- und Streaming-Plattform für Ihre private Mediathek</h4>
-
-<p align="center">
-  <a href="./LICENSE">
-    <img src="https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-blue">
-  </a>
-  <img src="https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet">
-  <img src="https://img.shields.io/badge/MAUI-latest-512BD4?logo=dotnet">
-  <img src="https://img.shields.io/badge/Blazor-latest-512BD4?logo=blazor">
-</p>
-
-<p align="center">
-  <a href="#übersicht">Übersicht</a> •
-  <a href="#funktionsumfang">Funktionsumfang</a> •
-  <a href="#technologie-stack">Technologie-Stack</a> •
-  <a href="#installation">Installation</a> •
-  <a href="#dokumentation">Dokumentation</a> •
-  <a href="#unterstützung">Unterstützung</a> •
-  <a href="#lizenz">Lizenz</a>
-</p>
-
----
-
-## Übersicht
-
-**VideoWebPlayer** ist eine Full-Stack-Lösung für die Verwaltung, Kategorisierung und das Streaming von privaten Video-Bibliotheken. Die Anwendung besteht aus einer responsiven ASP.NET Core Blazor-Weboberfläche, einem Blazor-Backend und einer .NET MAUI Cross-Platform-App für mobile Endgeräte.
-
-### Hauptmerkmale
-
-- 🎬 **Automatische Medienverwaltung** - Scannt und kategorisiert Videos in Filme, Serien und Episoden
-- 📱 **Cross-Platform** - Blazor Web-App und native iOS/Windows MAUI-App
-- 🔄 **Echtzeit-Synchronisation** - SignalR-basierte Live-Updates über alle Geräte
-- 📥 **Offline-Downloads** - Vollständige Offline-Unterstützung in der MAUI-App
-- 🎯 **Intelligente Wiedergabe** - Continue-Watching, automatische Episodenfortschaltung
-- 🌐 **Mehrere Quellen** - FTP, SFTP und lokale Medienbibliotheken
-- 🎨 **Überarbeitete Medienbibliothek** - Modernes, responsives Layout für Dashboard, Filme, Serien und Wiedergabe
-
----
+[![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-blue)](./LICENSE)
+![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)
+![Blazor](https://img.shields.io/badge/Blazor-Server-512BD4?logo=blazor)
 
 ## Funktionsumfang
 
-### Backend (ASP.NET Core Blazor)
+- Medienquellen per FTP, SFTP oder lokaler Ablage verwalten.
+- Filme, Serien, Staffeln und Episoden indizieren und kategorisieren.
+- Poster, Banner, Fanart und generierte Hintergrundbilder ausliefern.
+- Favoriten und Weiterschauen-Positionen pro Benutzer speichern.
+- Blazor-Weboberfläche für Bibliothek, Wiedergabe und Administration.
+- SignalR-basierte Aktualisierungen für verbundene Clients.
+- Administrative Bereiche für Quellen, Backups, Updates, Sicherheit, Genres und Benutzer.
 
-#### Medienquellen-Verwaltung
-- ✅ Registrierung von FTP/SFTP-Servern
-- ✅ Automatisches Scannen und Indizieren von Videos
-- ✅ NFO-Datei-Parsing für Metadaten
-- ✅ Automatische Poster- und Banner-Zuordnung
+Die .NET-MAUI-App wird in einem separaten Repository gepflegt. In dieser Arbeitskopie liegt der vorhandene Klon unter `Sub-Repository/`; er ist absichtlich nicht Teil des Web-Repositorys.
 
-#### Medien-Kategorisierung
-- ✅ Automatische Erkennung von Filmen und Filmsammlungen
-- ✅ TV-Show-Strukturierung (Shows → Seasons → Episodes)
-- ✅ Genre-basierte Klassifizierung
-- ✅ TMDB-Integration für Metadaten
+Das Web-Repository verantwortet Backend, Blazor-Oberfläche, gemeinsame Client-DTOs und den versionierten API-Vertrag. Das MAUI-Repository verantwortet die mobile App, ihre Tests und die für den mobilen Build übernommene Client-Codebasis. Das Web-Repository baut und testet keine MAUI-Projekte.
 
-#### Bibliotheksverwaltung
-- ✅ Kategorisierte Navigation durch Filme und Serien
-- ✅ Favoriten-System
-- ✅ Continue-Watching mit Positionsspeicherung
-- ✅ Kontextmenue mit Aktionen fuer Weiterschauen und Favoriten
-- ✅ Recent Entries Timeline
-- ✅ Dynamisches Hero-Hintergrundbild auf der Startseite
+## Voraussetzungen
 
-#### Streaming & Playback
-- ✅ Direktes Video-Streaming vom Server
-- ✅ Multi-Format-Unterstützung
-- ✅ Adaptive Bitrate-Unterstützung
-- ✅ Position-Synchronisation über Geräte
+- .NET 10 SDK.
+- Git.
+- NuGet.org und die lokale Paketquelle `lib/packages/` aus `NuGet.config`.
+- Die lokale DLL `lib/msTools.Updater/msTools.Updater.dll`.
+- Schreibrechte für SQLite-Datenbank, Logs, Backups und Medien-/Bildverzeichnisse.
 
-#### Episode-Anzeige
-- ✅ Dynamisch generierte Episoden-Hintergrundbilder
-- ✅ Automatische Fanart-Verarbeitung (Skalierung, Farbextraktion, Overlay), mit Poster als Fallback-Quelle
-- ✅ In-Memory Caching für optimale Performance
-- ✅ Automatische Regenerierung bei Fanart- oder Poster-Updates
-
-#### Echtzeit-Updates
-- ✅ SignalR-basierte Push-Notifications
-- ✅ Live-Updates der Medienbibliothek
-- ✅ Multi-Device-Synchronisation
-
-#### Administration
-- ✅ Zentraler Einrichtungsbereich mit Quellen, Backups, Updates, Sicherheit, Genres, Anwenderanlage und allgemeinen Programmeinstellungen
-- ✅ Konfigurierbarer Anwendungstitel für Navigation und Startseite
-- ✅ Administrative Backup-Verwaltung mit Hintergrund-Backups, Hintergrund-Restore mit Fortschritt, automatischer GVS-Aufbewahrung, Upload, Download und Löschen
-- ✅ Administrative Update-Verwaltung mit persistenten Update-Einstellungen, manueller Prüfung/Installation, Prerelease-Sicherheitsabfrage und Backup vor der Installation
-- ✅ Administrativer Editiermodus für Medienmetadaten mit dauerhaftem Schutz vor Scan-Überschreibung
-
-### Frontend (.NET MAUI App)
-
-#### Cross-Platform Support
-- ✅ iOS (iPhone & iPad)
-- ✅ Windows Desktop
-- ⏳ Android (in Planung)
-- ⏳ macOS (in Planung)
-
-#### Offline-Funktionalität
-- ✅ Download-Management mit SQLite-Persistenz
-- ✅ Lokale Wiedergabe ohne Internetverbindung
-- ✅ Automatische Download-Bereinigung (Cache/Persistenz)
-- ✅ Playback-Position lokal gespeichert
-
-#### Benutzeroberfläche
-- ✅ Native Performance mit .NET MAUI
-- ✅ Responsive Grid-Layout
-- ✅ Carousel-basierte Medien-Navigation
-- ✅ Echtzeit-Benachrichtigungsticker im Footer
-
-#### Event-System
-- ✅ Pub/Sub-basiertes Notification-System
-- ✅ Download-Events (Completed, Deleted)
-- ✅ SignalR-Event-Integration
-- ✅ UI-Thread-sichere Event-Verarbeitung
-
----
-
-## Technologie-Stack
-
-### Backend
-
-| Kategorie | Technologie | Version |
-|-----------|-------------|---------|
-| Framework | ASP.NET Core | .NET 10 |
-| UI | Blazor Server | .NET 10 |
-| Datenbank | SQLite | via Entity Framework Core |
-| Real-Time | SignalR | .NET 10 |
-| Authentication | ASP.NET Identity | .NET 10 |
-| FTP/SFTP | FluentFTP, SSH.NET | Latest |
-| Backups | msTools.Backup | Lokales NuGet-Paket (lib/packages) |
-| Image Processing | SixLabors.ImageSharp | 3.1.11 |
-| Async Utilities | Nito.AsyncEx | 5.1.2 |
-
-### Frontend (MAUI)
-
-| Kategorie | Technologie | Version |
-|-----------|-------------|---------|
-| Framework | .NET MAUI | .NET 10 |
-| UI Toolkit | CommunityToolkit.Maui | 9.x |
-| Media | CommunityToolkit.Maui.MediaElement | 4.x |
-| Datenbank | sqlite-net-pcl | Latest |
-| Real-Time | Microsoft.AspNetCore.SignalR.Client | 10.0 |
-
-### Shared
-
-| Kategorie | Technologie |
-|-----------|-------------|
-| Serialization | Newtonsoft.Json |
-| HTTP Client | System.Net.Http |
-| Dependency Injection | Microsoft.Extensions.DependencyInjection |
-| Backups | msTools.Backup |
-
----
-
-## Drittanbieter-Komponenten
-
-### Open Source Libraries
-
-- **[CommunityToolkit.Maui](https://github.com/CommunityToolkit/Maui)** - MAUI UI Controls & Extensions
-- **[FluentFTP](https://github.com/robinrodricks/FluentFTP)** - FTP/FTPS Client
-- **[SSH.NET](https://github.com/sshnet/SSH.NET)** - SFTP-Unterstützung
-- **[Newtonsoft.Json](https://www.newtonsoft.com/json)** - JSON-Serialisierung
-- **[sqlite-net-pcl](https://github.com/praeclarum/sqlite-net)** - SQLite für Mobile
-- **[SyncFusion](https://www.syncfusion.com/)** - UI-Komponenten (optional)
-
-### Icons & Assets
-
-- Icons von [flaticon.com](https://www.flaticon.com)
-- Eigene Hintergrund-Assets für MAUI-App
-
----
-
-## Besondere Abhängigkeiten
-
-### Plattform-spezifisch
-
-#### iOS
-- **Minimum Version**: iOS 14.0+
-- **Berechtigungen**: Netzwerkzugriff, Speicher
-- **Frameworks**: UIKit, AVFoundation
-
-#### Windows
-- **Minimum Version**: Windows 10 1809+
-- **Runtime**: .NET Desktop Runtime 10.0+
-
-### Netzwerk-Anforderungen
-- HTTP/HTTPS-Zugriff zum Backend-Server
-- WebSocket-Support für SignalR
-- Ports: 5000 (HTTP), 5001 (HTTPS), oder konfigurierbar
-
-### Backend-Anforderungen
-- .NET 10 Runtime
-- SQLite (embedded)
-- Schreibrechte für Datenbankdatei
-- Zugriff auf FTP/SFTP-Server (für Medienquellen)
-
----
+Für die MAUI-App gelten zusätzlich plattformabhängige MAUI-Workloads und SDKs; Details stehen im separaten MAUI-Repository.
 
 ## Installation
 
-### Schnellstart (Entwicklungsumgebung)
-
 ```bash
-# Repository klonen
-git clone https://github.com/Muesli84/VideoPlayer.git
-cd VideoPlayer
-
-# Solution öffnen
-VideoPlayer.sln
+git clone <REPOSITORY_URL> VideoWebPlayer
+cd VideoWebPlayer
+dotnet restore VideoPlayer.sln
+dotnet build VideoPlayer.sln
+dotnet run --project VideoWebPlayer/VideoWebPlayer.csproj
 ```
 
-**Voraussetzungen:**
-- Visual Studio 2022 (17.8+) mit .NET 10 SDK
-- .NET MAUI Workload installiert
-- iOS/Android Build-Tools (für Mobile-Entwicklung)
+Für eine vollständige Einrichtung: Voraussetzungen prüfen, Repository klonen, `NuGet.config` und die lokale Quelle `lib/packages/` bereitstellen, anschließend Restore und Build ausführen. Entwicklungs-Secrets werden über User Secrets, Umgebungsvariablen oder ein Secret-Management-System gesetzt; die Platzhalter aus der Dokumentation dürfen nicht übernommen werden.
 
-**Erste Schritte:**
-1. `VideoWebPlayer` als Startup-Projekt setzen (Backend)
-2. F5 zum Starten des Blazor-Backends
-3. Für die mobile Entwicklung das erhaltene Projekt `VideoWebPlayer.Maui` mit dem passenden Ziel-Framework auswählen
+Der lokale Entwicklungsstart verwendet die Projektkonfiguration. Die Launch-Profile enthalten `http://localhost:57331` und `http://localhost:5039`; `Host:Address`/`Host:Port` steuern zusätzlich die Discovery-Adresse, standardmäßig `http://localhost:5000`. Nach dem Start kann die Einrichtung über `GET /api/health` geprüft werden.
 
-📖 **Detaillierte Installationsanleitung**: Siehe [INSTALLATION.md](./Docs/GUIDE_Installation.md)
+Die vollständige Anleitung für Linux und Windows steht in [docs/GUIDE_Installation.md](./docs/GUIDE_Installation.md).
 
----
+## Secrets
+
+Beispielwerte in der Dokumentation sind synthetische Platzhalter wie `<PRODUKTIVER_JWT_KEY>` oder `<MAUI_CLIENT_API_TOKEN>`. Sie dürfen nicht produktiv verwendet werden. Backend-Secrets werden über User Secrets, Umgebungsvariablen oder ein Secret-Management-System gesetzt; der Client-Gate-Wert wird getrennt dokumentiert und ist im Backend als sensibler Konfigurationswert zu schützen.
+
+Details: [docs/SECRETS_MANAGEMENT.md](./docs/SECRETS_MANAGEMENT.md).
+
+## Markdown-Linkcheck
+
+Das Repository enthält einen lokalen Linkcheck für Markdown-Dateien:
+
+```bash
+dotnet run --no-restore --project tools/MarkdownLinkCheck/MarkdownLinkCheck.csproj -- --root .
+```
+
+Nach einem frischen Klon muss der Linkcheck einmal restauriert und gebaut werden, bevor der Hook mit `--no-restore` ausgeführt wird:
+
+```bash
+dotnet restore tools/MarkdownLinkCheck/MarkdownLinkCheck.csproj
+dotnet build tools/MarkdownLinkCheck/MarkdownLinkCheck.csproj --no-restore
+```
+
+Der versionierte Client-Hook liegt unter `.githooks/pre-commit` und wird lokal aktiviert mit:
+
+```bash
+git config core.hooksPath .githooks
+git ls-files --stage .githooks/pre-commit
+```
+
+Die Stage-Ausgabe muss mit `100755` beginnen. Unter Linux kann ein frischer Arbeitsbaum andernfalls mit `chmod +x .githooks/pre-commit` korrigiert werden. Fehlt `dotnet`, bricht der Hook mit einer verständlichen Fehlermeldung ab; externe HTTP(S)-Links werden nicht über das Netzwerk geprüft.
+
+Der Hook prüft lokale und repositoryinterne Markdown-Links ohne Netzwerkzugriff. CI-Workflows werden dafür nicht vorausgesetzt.
 
 ## Dokumentation
 
-### 📚 Allgemeine Dokumentation
-
-| Dokument | Beschreibung |
-|----------|--------------|
-| [Installation & Setup](./Docs/GUIDE_Installation.md) | Vollständige Installations- und Konfigurationsanleitung |
-| [Benutzerhandbuch](./Docs/GUIDE_User_Manual.md) | Anleitung zur Nutzung der Anwendung |
-| [Feature-Übersicht](./Docs/GUIDE_Features.md) | Detaillierte Beschreibung aller Features |
-| [Medienbibliothek](./docs/help/medienbibliothek.md) | Bedienung der überarbeiteten Weboberfläche |
-| [Medienmetadaten bearbeiten](./docs/help/medien-editiermodus.md) | Administrativer Editiermodus und Schutz vor Scan-Überschreibung |
-| [Aktuelle Projektstruktur](./docs/help/projektstruktur.md) | Verbleibende Solution-Projekte sowie Web- und MAUI-Anwendung |
-
-### 🔧 Technische Dokumentation
-
-| Dokument | Beschreibung |
-|----------|--------------|
-| [Architektur-Übersicht](./Docs/TECH_Architecture.md) | System-Architektur und Design-Entscheidungen |
-| [SignalR-Implementation](./Docs/TECH_SignalR_Implementation.md) | Echtzeit-Update-System (Backend ↔ Frontend) |
-| [Event-System](./Docs/TECH_Event_System.md) | MAUI Notification Event Infrastructure |
-| [Download-Management](./Docs/TECH_Download_Management.md) | Offline-Download-System in MAUI |
-| [Media-Kategorisierung](./Docs/TECH_Media_Classification.md) | Automatische Video-Klassifizierung |
-| [Database Schema](./Docs/TECH_Database_Schema.md) | Datenbankstruktur und Entitäten |
-
-### 🎯 Spezifische Features
-
-| Dokument | Beschreibung |
-|----------|--------------|
-| [Startseite – Hero-Hintergrund](./docs/help/startseite-hero-hintergrund.md) | Zusammengesetztes Hintergrundbild aus der „Weiterschauen"-Liste |
-| [Episode Selection](./Docs/TECH_Episode_Selection.md) | Smart Episode Selection & Play Button |
-| [MediaElement Error Handling](./Docs/TECH_MediaElement_Error_Handling.md) | Video-Player Fehlerbehandlung |
-| [Notification Ticker](./Docs/TECH_Notification_Ticker.md) | Footer-Lauftext-Komponente |
-| [Einrichtung](./docs/help/einrichtung.md) | Zentraler Administrationsbereich für Quellen, Backups, Updates, Sicherheit, Genres, Anwender und allgemeine Einstellungen |
-| [Backups](./docs/help/backups.md) | Administrative Backup-Verwaltung, automatische GVS-Backups, Hintergrund-Restore und Inhaltsblockade während Wiederherstellung |
-| [Updates](./docs/help/updates.md) | Administrative Update-Verwaltung, manuelle Prüfung und Installation, Prerelease-Freigabe und Backup vor Installation |
-| [Automatisierte Programmupdates](./docs/TECH_Auto_Update.md) | Update-Admin-UI, automatische Installation, Prerelease-Warnung, Backup vor Installation und EF-Migration |
-
-### 📋 API-Dokumentation
-
-- [REST API Endpoints](./Docs/TECH_API_Reference.md)
-- [SignalR Hub Events](./Docs/TECH_SignalR_Events.md)
-
----
+- [Installationsanleitung](./docs/GUIDE_Installation.md)
+- [API-Vertrag für das MAUI-Team](./docs/API.md)
+- [Secrets Management](./docs/SECRETS_MANAGEMENT.md)
+- [Dokumentationsindex](./docs/INDEX.md)
+- [Veröffentlichungscheckliste](./docs/PUBLICATION_CHECKLIST.md)
+- [Projektstruktur](./docs/help/projektstruktur.md)
+- [Medienbibliothek](./docs/help/medienbibliothek.md)
+- [Einrichtung](./docs/help/einrichtung.md)
+- [Backups](./docs/help/backups.md)
+- [Updates](./docs/help/updates.md)
 
 ## Entwicklung
 
-### Repository-Struktur
-
-```
-VideoPlayer/
-├── Images/                     # Gemeinsame Bildressourcen
-├── lib/packages/                # Lokale NuGet-Pakete
-├── lib/msTools.Updater/         # Lokale Updater-Abhängigkeit
-├── NuGet.config                 # Lokale NuGet-Package-Quellen
-├── VideoWebPlayer/              # ASP.NET Core Blazor Backend
-│   ├── Components/              # Blazor-Komponenten
-│   ├── Controllers/             # API-Controller
-│   ├── Services/                # Backend-Services
-│   ├── Hubs/                    # SignalR Hubs
-│   └── Data/                    # EF Core DbContext
-├── VideoWebPlayer.Client/       # Blazor Shared Client Library
-│   └── Models/                  # Shared DTOs
-├── VideoWebPlayer.Maui/         # .NET MAUI App für den mobilen Zugriff
-│   ├── Components/              # MAUI UI-Komponenten
-│   ├── Services/                # MAUI Services
-│   ├── ViewModels/              # MVVM ViewModels
-│   └── Docs/                    # MAUI-spezifische Docs
-├── VideoWebPlayer.Tests/        # Backend Unit Tests
-├── VideoWebPlayer.Maui.Tests/   # MAUI Unit Tests
-└── Docs/                        # Zentrale Dokumentation
+```bash
+dotnet restore VideoPlayer.sln
+dotnet build VideoPlayer.sln
+dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj
+dotnet test tools/MarkdownLinkCheck.Tests/MarkdownLinkCheck.Tests.csproj
 ```
 
-### Branch-Strategie
+Das Web-Repository baut keine MAUI-Projekte. MAUI-App, MAUI-Tests und eine Kopie des gemeinsamen Client-Projekts werden im separaten MAUI-Repository gepflegt. Für die plattformabhängigen MAUI-Workloads, Builds und Tests siehe die Installationshinweise des MAUI-Repositorys.
 
-- `master` - Stabile Production-Releases
-- `develop` - Aktuelle Entwicklung
-- `feature/*` - Feature-Branches
-- `hotfix/*` - Bugfix-Branches
+## Veröffentlichung
 
-### Contributing
-
-Contributions sind willkommen! Bitte erstellen Sie einen Issue oder Pull Request.
-
----
-
-## Roadmap
-
-### Version 2.0 (In Arbeit)
-- ✅ SignalR Echtzeit-Updates
-- ✅ Offline-Download-System
-- ✅ Event-basiertes Notification-System
-- ⏳ Android-Support
-- ⏳ macOS-Support
-
-### Version 2.1 (Geplant)
-- ⏳ Multi-User-Management
-- ⏳ Watch-Together-Feature (gemeinsames Schauen)
-- ⏳ Subtitle-Support
-- ⏳ Chromecast-Integration
-
-### Version 3.0 (Vision)
-- ⏳ AI-basierte Empfehlungen
-- ⏳ Social Features (Bewertungen, Kommentare)
-- ⏳ Plugin-System für Erweiterungen
-
----
-
-## Unterstützung
-
-### 💬 Community
-
-- **Issues**: [GitHub Issues](https://github.com/Muesli84/VideoPlayer/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/Muesli84/VideoPlayer/discussions)
-
----
+Vor einer öffentlichen Bereitstellung müssen die [Veröffentlichungscheckliste](./docs/PUBLICATION_CHECKLIST.md), der lokale Markdown-Linkcheck, die API-Dokumentation und der Secret-Scan nachvollzogen werden. Diese README beschreibt die technische Einrichtung und ist keine Aussage, dass eine Veröffentlichung oder alle offenen technischen Nacharbeiten bereits abgeschlossen sind.
 
 ## Lizenz
 
-Dieses Projekt steht unter der **PolyForm Noncommercial License 1.0.0**.  
-Die Software darf frei für private, persönliche, nicht‑kommerzielle oder edukative Zwecke genutzt, verändert und weitergegeben werden.
+Dieses Projekt steht unter der **PolyForm Noncommercial License 1.0.0**. Die Software darf für private, persönliche, nicht-kommerzielle oder edukative Zwecke genutzt, verändert und weitergegeben werden.
 
-Jegliche **kommerzielle Nutzung** – einschließlich direkter oder indirekter Einnahmeerzielung, gewerblicher Nutzung, Nutzung in Unternehmen oder Nutzung zur Erzielung finanzieller Vorteile – ist **ohne vorherige schriftliche Zustimmung des Urhebers untersagt**.
+Kommerzielle Nutzung, einschließlich direkter oder indirekter Einnahmeerzielung, gewerblicher Nutzung, Nutzung in Unternehmen oder Nutzung zur Erzielung finanzieller Vorteile, ist ohne vorherige schriftliche Zustimmung des Urhebers untersagt.
 
-Für kommerzielle Nutzung ist ein separater Lizenzvertrag erforderlich.  
-Kontakt für kommerzielle Lizenzanfragen: mstromberg84+videoplayer@gmail.com
+Für kommerzielle Nutzung ist ein separater Lizenzvertrag erforderlich. Kontakt für kommerzielle Lizenzanfragen: mstromberg84+videoplayer@gmail.com
 
----
+## Autor
 
-## Autoren
-
-**Martin Stromberg**
-- GitHub: [@Muesli84](https://github.com/Muesli84)
-
----
-
-<p align="center">
-  Made with ❤️ and .NET 10
-</p>
+Martin Stromberg
+GitHub: [@Muesli84](https://github.com/Muesli84)

@@ -9,6 +9,10 @@
 
 Die `NotificationTicker`-Komponente ist ein animierter Lauftext (Marquee/Ticker), der Event-basierte Benachrichtigungen im Footer-Bereich der MAUI-Anwendung anzeigt.
 
+## Repository-Kontext
+
+Diese Datei beschreibt die ausgelagerte MAUI-Komponente. Pfade mit `VideoWebPlayer.Maui/...` beziehen sich auf das separate MAUI-Repository, in dieser Arbeitskopie auf den Klon unter `Sub-Repository/`.
+
 ## Features
 
 - ✅ **Event-basiert**: Empfängt automatisch Notifications über das Event-System
@@ -46,7 +50,7 @@ Die `NotificationTicker`-Komponente ist ein animierter Lauftext (Marquee/Ticker)
 
 ### 1. XAML Layout
 
-**Datei:** `VideoWebPlayer.Maui/Components/NotificationTicker.xaml`
+**Datei im MAUI-Repository:** `VideoWebPlayer.Maui/Components/NotificationTicker.xaml`
 
 ```xaml
 <Border StrokeThickness="0" 
@@ -73,7 +77,7 @@ Die `NotificationTicker`-Komponente ist ein animierter Lauftext (Marquee/Ticker)
 
 ### 2. Code-Behind
 
-**Datei:** `VideoWebPlayer.Maui/Components/NotificationTicker.xaml.cs`
+**Datei im MAUI-Repository:** `VideoWebPlayer.Maui/Components/NotificationTicker.xaml.cs`
 
 #### Event Subscriptions
 

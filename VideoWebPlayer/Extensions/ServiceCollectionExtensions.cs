@@ -47,6 +47,7 @@ public static class ServiceCollectionExtensions
         var jwtKey = configuration["Jwt:Key"];
         // Versuche zuerst den Web-spezifischen Token, dann den allgemeinen
         var apiKey = configuration["Jwt:ApiToken:Web"] ?? configuration["Jwt:ApiToken"];
+        var mauiApiKey = configuration["Jwt:ApiToken:Maui"];
         var issuer = configuration["Jwt:Issuer"] ?? "VideoWebPlayer";
 
         // In Produktion sicherstellen, dass Secrets vorhanden sind
@@ -54,6 +55,7 @@ public static class ServiceCollectionExtensions
         {
             if (string.IsNullOrWhiteSpace(jwtKey)) throw new InvalidOperationException("Fehlende Konfiguration: Jwt:Key");
             if (string.IsNullOrWhiteSpace(apiKey)) throw new InvalidOperationException("Fehlende Konfiguration: Jwt:ApiToken oder Jwt:ApiToken:Web");
+            if (string.IsNullOrWhiteSpace(mauiApiKey)) throw new InvalidOperationException("Fehlende Konfiguration: Jwt:ApiToken:Maui");
         }
 
         // Blazor/Identity

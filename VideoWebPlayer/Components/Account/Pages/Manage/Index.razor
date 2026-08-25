@@ -46,7 +46,13 @@
 
     protected override async Task OnInitializedAsync()
     {
-        user = await UserAccessor.GetRequiredUserAsync(HttpContext);
+        var requiredUser = await UserAccessor.GetUserOrRedirectAsync(HttpContext);
+        if (requiredUser is null)
+        {
+            return;
+        }
+
+        user = requiredUser;
         username = await UserManager.GetUserNameAsync(user);
         phoneNumber = await UserManager.GetPhoneNumberAsync(user);
 
@@ -61,11 +67,13 @@
             if (!setPhoneResult.Succeeded)
             {
                 RedirectManager.RedirectToCurrentPageWithStatus("Error: Failed to set phone number.", HttpContext);
+                return;
             }
         }
 
         await SignInManager.RefreshSignInAsync(user);
         RedirectManager.RedirectToCurrentPageWithStatus("Your profile has been updated", HttpContext);
+        return;
     }
 
     private sealed class InputModel

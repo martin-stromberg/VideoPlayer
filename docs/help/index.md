@@ -15,3 +15,7 @@
 - [Einrichtung](einrichtung.md) — Administrativer Bereich mit Verwaltungsfunktionen für die Anwendung
 - [Backups](backups.md) — Erstellen, herunterladen und wiederherstellen von Anwendungs-Backups
 - [Updates](updates.md) — Prüfen, installieren und konfigurieren von Programmupdates
+
+## Projekt und Entwicklung
+
+- [Aktuelle Projektstruktur](projektstruktur.md) — Verbleibende Solution-Projekte und Hinweise zur Web- und MAUI-Anwendung

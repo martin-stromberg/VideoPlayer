@@ -1720,3 +1720,245 @@ input[type="text"]:focus {
         font-size: 0.82rem;
     }
 }
+
+/* Backup page redesign */
+
+.admin-backup-header {
+    align-items: flex-end;
+}
+
+.admin-console .backup-create-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: #e50914;
+    border-color: #e50914;
+    box-shadow: 0 10px 20px rgba(229, 9, 20, 0.2);
+}
+
+.admin-console .backup-create-button:hover:not(:disabled) {
+    background: #f40612;
+    border-color: #f40612;
+}
+
+.admin-console .backup-create-button:disabled {
+    opacity: 0.65;
+}
+
+.admin-stat-card-title {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+    color: var(--admin-muted);
+    font-weight: 500;
+}
+
+.admin-stat-card-title svg {
+    color: var(--admin-primary);
+}
+
+.admin-stat-card-status {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.admin-stat-card-status strong {
+    font-size: 2rem;
+    line-height: 1;
+    color: var(--admin-primary);
+}
+
+.backup-main-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 1.5rem;
+    align-items: start;
+}
+
+.backup-main-left,
+.backup-main-right {
+    display: grid;
+    gap: 1rem;
+    min-width: 0;
+}
+
+.backup-list-card {
+    border: 1px solid var(--admin-border);
+    border-radius: var(--vp-radius);
+    background: var(--admin-surface-low);
+    overflow: hidden;
+}
+
+.backup-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.backup-list-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem;
+    border-bottom: 1px solid var(--admin-border);
+    transition: background 0.15s ease;
+}
+
+.backup-list-item:last-child {
+    border-bottom: none;
+}
+
+.backup-list-item:hover {
+    background: rgba(173, 198, 255, 0.05);
+}
+
+.backup-list-item-main {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    min-width: 0;
+    flex: 1;
+}
+
+.backup-list-icon {
+    width: 2.5rem;
+    height: 2.5rem;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    border-radius: var(--vp-radius-sm);
+    background: var(--admin-surface-high);
+    color: var(--admin-muted);
+}
+
+.backup-list-info {
+    min-width: 0;
+    display: grid;
+    gap: 0.25rem;
+}
+
+.backup-list-name {
+    overflow-wrap: anywhere;
+    color: var(--admin-primary);
+    font-weight: 600;
+}
+
+.backup-list-meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    color: var(--admin-muted);
+    font-size: 0.85rem;
+}
+
+.backup-list-status {
+    font-weight: 600;
+}
+
+.backup-list-status-success {
+    color: var(--admin-success);
+}
+
+.backup-list-status-error {
+    color: var(--admin-danger);
+}
+
+.backup-list-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex-shrink: 0;
+}
+
+.admin-console .btn-icon {
+    display: inline-grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    padding: 0;
+    border-radius: var(--vp-radius-sm);
+    color: var(--admin-muted);
+    background: transparent;
+    border: 1px solid transparent;
+    transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.admin-console .btn-icon:hover:not(:disabled) {
+    color: var(--admin-text);
+    background: var(--admin-surface-high);
+    border-color: var(--admin-border);
+}
+
+.admin-console .btn-icon-danger:hover:not(:disabled) {
+    color: var(--admin-danger);
+    background: rgba(255, 180, 171, 0.1);
+    border-color: rgba(255, 180, 171, 0.25);
+}
+
+.admin-console .btn-icon:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.backup-list-footer {
+    display: flex;
+    justify-content: center;
+    padding: 0.75rem;
+    border-top: 1px solid var(--admin-border);
+    background: var(--admin-surface);
+}
+
+.backup-list-count {
+    color: var(--admin-muted);
+    font-size: 0.85rem;
+}
+
+.backup-config-card {
+    padding: 1.25rem;
+    border: 1px solid var(--admin-border);
+    border-radius: var(--vp-radius);
+    background: var(--admin-surface-low);
+}
+
+.backup-retention-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+}
+
+.backup-retention-input {
+    display: grid;
+    gap: 0.25rem;
+}
+
+.backup-retention-input .form-label {
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--admin-muted);
+}
+
+@media (max-width: 992px) {
+    .backup-main-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .backup-retention-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 640px) {
+    .backup-list-item {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .backup-list-actions {
+        align-self: flex-end;
+    }
+}
+

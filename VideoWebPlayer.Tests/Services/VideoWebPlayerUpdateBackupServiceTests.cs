@@ -15,26 +15,29 @@ public sealed class VideoWebPlayerUpdateBackupServiceTests
     [Fact]
     public async Task CreateBackupAsync_UsesProgramUpdateGenerationAndReturnsDescriptorPath()
     {
-        BackupCreateRequest? request = null;
+        BackupGeneration? generation = null;
         var descriptor = new BackupDescriptor(
-            "backup.zip",
-            "Data/Backups/backup.zip",
+            "programupdate-20260101-000000.bak",
+            "Data/Backups/programupdate-20260101-000000.bak",
             123,
             DateTimeOffset.UtcNow,
             BackupGeneration.ProgramUpdate,
-            "VideoWebPlayer",
-            1,
+            "msTools.Backup.Object",
+            2,
             true,
             Array.Empty<string>());
 
         var backupService = new Mock<IBackupService>();
         backupService
-            .Setup(x => x.CreateBackupAsync(It.IsAny<BackupCreateRequest>(), It.IsAny<CancellationToken>()))
-            .Returns((BackupCreateRequest r, CancellationToken _) =>
+            .Setup(x => x.StoreAsync(It.IsAny<string>(), It.IsAny<BackupGeneration>(), It.IsAny<IEnumerable<IBackupData>>(), It.IsAny<CancellationToken>()))
+            .Returns((string _, BackupGeneration g, IEnumerable<IBackupData> _, CancellationToken _) =>
             {
-                request = r;
-                return Task.FromResult(BackupOperationResult.Success("Backup wurde erstellt.", descriptor));
+                generation = g;
+                return Task.FromResult(new BackupResult(descriptor.Path, true, "Backup wurde gespeichert."));
             });
+        backupService
+            .Setup(x => x.ListBackupsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { descriptor });
 
         await using var db = CreateDb();
         var service = CreateService(db, backupService.Object);
@@ -42,14 +45,14 @@ public sealed class VideoWebPlayerUpdateBackupServiceTests
         var result = await service.CreateBackupAsync(new UpdateBackupRequest("ignored", "test"), TestContext.Current.CancellationToken);
 
         Assert.True(result.Succeeded);
-        Assert.Equal("Data/Backups/backup.zip", result.BackupFilePath);
-        Assert.Equal(BackupGeneration.ProgramUpdate, request?.Generation);
+        Assert.Equal(descriptor.Path, result.BackupFilePath);
+        Assert.Equal(BackupGeneration.ProgramUpdate, generation);
         backupService.Verify(x => x.ApplyRetentionAsync(It.IsAny<CancellationToken>()), Times.Once);
 
         var history = await db.BackupOperationHistories.SingleAsync(TestContext.Current.CancellationToken);
         Assert.Equal("ProgramUpdateBackup", history.Operation);
-        Assert.True(history.Succeeded);
         Assert.Equal("ProgramUpdate", history.Generation);
+        Assert.True(history.Succeeded);
     }
 
     [Fact]
@@ -57,8 +60,8 @@ public sealed class VideoWebPlayerUpdateBackupServiceTests
     {
         var backupService = new Mock<IBackupService>();
         backupService
-            .Setup(x => x.CreateBackupAsync(It.IsAny<BackupCreateRequest>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(BackupOperationResult.Failure("kaputt", "Fehler"));
+            .Setup(x => x.StoreAsync(It.IsAny<string>(), It.IsAny<BackupGeneration>(), It.IsAny<IEnumerable<IBackupData>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new BackupResult(string.Empty, false, "kaputt"));
 
         await using var db = CreateDb();
         var service = CreateService(db, backupService.Object);
@@ -81,20 +84,23 @@ public sealed class VideoWebPlayerUpdateBackupServiceTests
         try
         {
             var descriptor = new BackupDescriptor(
-                "program-update.zip",
-                "Data/Backups/program-update.zip",
+                "programupdate-20260101-000000.bak",
+                "Data/Backups/programupdate-20260101-000000.bak",
                 123,
                 DateTimeOffset.UtcNow,
                 BackupGeneration.ProgramUpdate,
-                "VideoWebPlayer",
-                1,
+                "msTools.Backup.Object",
+                2,
                 true,
                 Array.Empty<string>());
 
             var backupService = new Mock<IBackupService>();
             backupService
-                .Setup(x => x.CreateBackupAsync(It.IsAny<BackupCreateRequest>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(BackupOperationResult.Success("Backup wurde erstellt.", descriptor));
+                .Setup(x => x.StoreAsync(It.IsAny<string>(), It.IsAny<BackupGeneration>(), It.IsAny<IEnumerable<IBackupData>>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new BackupResult(descriptor.Path, true, "Backup wurde gespeichert."));
+            backupService
+                .Setup(x => x.ListBackupsAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new[] { descriptor });
 
             await using var db = CreateDb();
             var service = CreateService(db, backupService.Object);
@@ -123,6 +129,13 @@ public sealed class VideoWebPlayerUpdateBackupServiceTests
     private static VideoWebPlayerUpdateBackupService CreateService(ApplicationDbContext db, IBackupService backupService)
         => new(
             backupService,
+            new NoopBackupDataSource(),
             new BackupOperationHistoryService(db),
             NullLogger<VideoWebPlayerUpdateBackupService>.Instance);
+
+    private sealed class NoopBackupDataSource : IBackupDataSource
+    {
+        public Task<IReadOnlyList<IBackupData>> GetBackupDataAsync(CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<IBackupData>>(Array.Empty<IBackupData>());
+    }
 }

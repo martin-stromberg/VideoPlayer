@@ -74,11 +74,13 @@
         {
             Logger.LogInformation("User with ID '{UserId}' logged in with 2fa.", userId);
             RedirectManager.RedirectTo(ReturnUrl);
+            return;
         }
         else if (result.IsLockedOut)
         {
             Logger.LogWarning("User with ID '{UserId}' account locked out.", userId);
             RedirectManager.RedirectTo("Account/Lockout");
+            return;
         }
         else
         {

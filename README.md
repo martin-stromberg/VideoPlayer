@@ -135,7 +135,7 @@
 | Real-Time | SignalR | .NET 10 |
 | Authentication | ASP.NET Identity | .NET 10 |
 | FTP/SFTP | FluentFTP, SSH.NET | Latest |
-| Backups | msTools.Backup | Projektbibliothek |
+| Backups | msTools.Backup | Lokales NuGet-Paket (lib/packages) |
 | Image Processing | SixLabors.ImageSharp | 3.1.11 |
 | Async Utilities | Nito.AsyncEx | 5.1.2 |
 
@@ -214,7 +214,7 @@ git clone https://github.com/Muesli84/VideoPlayer.git
 cd VideoPlayer
 
 # Solution öffnen
-VideoWebPlayer.sln
+VideoPlayer.sln
 ```
 
 **Voraussetzungen:**
@@ -225,8 +225,7 @@ VideoWebPlayer.sln
 **Erste Schritte:**
 1. `VideoWebPlayer` als Startup-Projekt setzen (Backend)
 2. F5 zum Starten des Blazor-Backends
-3. `VideoWebPlayer.Maui` als Startup-Projekt setzen (Optional)
-4. iOS-Simulator oder Windows-Deployment wählen
+3. Für die mobile Entwicklung das erhaltene Projekt `VideoWebPlayer.Maui` mit dem passenden Ziel-Framework auswählen
 
 📖 **Detaillierte Installationsanleitung**: Siehe [INSTALLATION.md](./Docs/GUIDE_Installation.md)
 
@@ -243,6 +242,7 @@ VideoWebPlayer.sln
 | [Feature-Übersicht](./Docs/GUIDE_Features.md) | Detaillierte Beschreibung aller Features |
 | [Medienbibliothek](./docs/help/medienbibliothek.md) | Bedienung der überarbeiteten Weboberfläche |
 | [Medienmetadaten bearbeiten](./docs/help/medien-editiermodus.md) | Administrativer Editiermodus und Schutz vor Scan-Überschreibung |
+| [Aktuelle Projektstruktur](./docs/help/projektstruktur.md) | Verbleibende Solution-Projekte sowie Web- und MAUI-Anwendung |
 
 ### 🔧 Technische Dokumentation
 
@@ -280,9 +280,11 @@ VideoWebPlayer.sln
 ### Repository-Struktur
 
 ```
-VideoWebPlayer/
-├── msTools.Backup/              # Wiederverwendbare Backup-Bibliothek
-├── msTools.Backup.Tests/        # Tests der Backup-Bibliothek
+VideoPlayer/
+├── Images/                     # Gemeinsame Bildressourcen
+├── lib/packages/                # Lokale NuGet-Pakete
+├── lib/msTools.Updater/         # Lokale Updater-Abhängigkeit
+├── NuGet.config                 # Lokale NuGet-Package-Quellen
 ├── VideoWebPlayer/              # ASP.NET Core Blazor Backend
 │   ├── Components/              # Blazor-Komponenten
 │   ├── Controllers/             # API-Controller
@@ -291,7 +293,7 @@ VideoWebPlayer/
 │   └── Data/                    # EF Core DbContext
 ├── VideoWebPlayer.Client/       # Blazor Shared Client Library
 │   └── Models/                  # Shared DTOs
-├── VideoWebPlayer.Maui/         # .NET MAUI App
+├── VideoWebPlayer.Maui/         # .NET MAUI App für den mobilen Zugriff
 │   ├── Components/              # MAUI UI-Komponenten
 │   ├── Services/                # MAUI Services
 │   ├── ViewModels/              # MVVM ViewModels

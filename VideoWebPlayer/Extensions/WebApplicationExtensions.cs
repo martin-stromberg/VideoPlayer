@@ -5,6 +5,7 @@ using VideoWebPlayer.Components;
 using VideoWebPlayer.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using msTools.Backup;
+using VideoWebPlayer.Services;
 using VideoWebPlayer.Services.Backups;
 
 namespace VideoWebPlayer.Extensions;
@@ -58,6 +59,7 @@ public static class WebApplicationExtensions
         app.UseAuthorization();
         app.UseBackups();
         app.UseMiddleware<RestoreInProgressMiddleware>();
+        app.UseMiddleware<FirstUserRedirectMiddleware>();
         app.UseAntiforgery();
 
 

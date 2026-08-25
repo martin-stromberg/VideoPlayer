@@ -223,12 +223,15 @@ public static class ServiceCollectionExtensions
         services.AddScoped<DataUpgradeManager>();
         services.AddScoped<ProgramSettingsService>();
         services.AddBackups(configuration.GetSection("Backups"));
-        services.AddScoped<IBackupDataProvider, VideoWebPlayerBackupDataProvider>();
+        services.AddScoped<IBackupDataSource, VideoWebPlayerBackupDataSource>();
+        services.AddScoped<VideoWebPlayerBackupDataFactory>();
+        services.AddScoped<IBackupDataFactory>(sp => sp.GetRequiredService<VideoWebPlayerBackupDataFactory>());
         services.AddSingleton<IBackgroundProcessingGate, BackgroundProcessingGate>();
         services.AddSingleton<IBackupRestoreGuard, VideoWebPlayerBackupRestoreGuard>();
         services.AddScoped<BackupSettingsService>();
         services.AddScoped<IBackupOptionsProvider, BackupSettingsService>();
         services.AddScoped<BackupOperationHistoryService>();
+        services.AddScoped<IBackupOperationHistory, InMemoryBackupOperationHistory>();
         services.AddScoped<IAutomaticBackupRunner, VideoWebPlayerAutomaticBackupRunner>();
         services.AddScoped<VideoWebPlayerBackupFacade>();
         services.AddSingleton<ManualBackupJobService>();

@@ -272,7 +272,7 @@ If version bumping fails:
 
 ### Release Management
 - Review automated PR to main carefully
-- Ensure release notes are updated
+- Ensure `docs/RELEASE_NOTES.md` is updated; it is used as the GitHub release body by `main-release.yml`
 - Test pre-release artifacts when possible
 - Plan release timing around staging validation
 

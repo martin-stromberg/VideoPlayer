@@ -4,7 +4,13 @@ Diese Hilfe richtet sich an Administratoren. Die Backup-Funktion ist im Einricht
 
 ## Backup-Seite
 
-Die Seite zeigt vorhandene Backups mit Dateiname, Generation, Erstellzeit, Größe und Gültigkeitsstatus. Pro Backup stehen Symbolbuttons zum Herunterladen, Wiederherstellen und Löschen bereit.
+Die Seite `/admin/backups` ist in drei Bereiche gegliedert:
+
+1. **Seitenkopf**: Zeigt den Titel „System Backups" und den Button „Neues Backup" zum Erstellen eines manuellen Backups.
+2. **Statistikleiste**: Zeigt die Anzahl vorhandener Backups, den belegten Speicherplatz und den Status der automatischen Backups.
+3. **Zweispaltiges Layout**:
+   - **Linke Spalte**: Liste der letzten Backups mit Dateiname, Erstellzeit, Größe und Status. Pro Backup stehen Symbolbuttons zum Herunterladen, Wiederherstellen und Löschen bereit. Darunter befinden sich der Bereich „Backup hochladen" und die „Historie".
+   - **Rechte Spalte**: Konfiguration mit Speicherpfad, Aufbewahrungseinstellungen (Sohn/Vater/Großvater), automatischem Backup und Upload-Limit.
 
 Nur angemeldete Benutzer mit Administrationsrechten können die Seite und die Backup-Endpunkte verwenden.
 
@@ -28,11 +34,11 @@ Der Hintergrunddienst prüft regelmäßig, ob ein neues automatisches Backup fä
 
 Der Speicherpfad wird in den Backup-Einstellungen gesetzt. Standard ist `Data/Backups` relativ zum Content Root der Anwendung. Die Anwendung muss auf diesen Ordner lesend und schreibend zugreifen können.
 
-Alle Backups werden als ZIP-Dateien gespeichert. Der Pfad kann über die Admin-Oberfläche geändert werden; neue Operationen verwenden danach den gespeicherten Wert.
+Alle Backups werden als `.bak`-Dateien gespeichert. Der Pfad kann über die Admin-Oberfläche geändert werden; neue Operationen verwenden danach den gespeicherten Wert.
 
 ## Download
 
-Mit dem Herunterladen-Symbol kann ein vorhandenes Backup als ZIP-Datei heruntergeladen werden. Der Download ist serverseitig auf bekannte Backup-Dateien beschränkt und nur für Administratoren erlaubt.
+Mit dem Herunterladen-Symbol kann ein vorhandenes Backup als `.bak`-Datei heruntergeladen werden. Der Download ist serverseitig auf bekannte Backup-Dateien beschränkt und nur für Administratoren erlaubt.
 
 ## Löschen
 
@@ -40,7 +46,7 @@ Mit dem Löschen-Symbol kann ein vorhandenes Backup dauerhaft entfernt werden. V
 
 ## Upload
 
-Im Bereich `Backup hochladen` kann eine Backup-ZIP-Datei importiert werden. Es werden nur gültige Backup-ZIPs übernommen. Dazu gehören ein lesbares ZIP, ein gültiges Manifest, ein passender Provider und die erwarteten Dateninhalte.
+Im Bereich `Backup hochladen` kann eine Backup-Datei (`.bak`) importiert werden. Es werden nur gültige `.bak`-Backups übernommen. Dazu gehören ein lesbares Archiv, ein gültiges `manifest.json`, ein passender Provider und die erwarteten Dateninhalte.
 
 Das Upload-Limit ist in den Einstellungen sichtbar und änderbar. Standard ist `512 MB`.
 
@@ -71,8 +77,8 @@ Die Seite zeigt eine Historie der letzten Backup-, Restore- und Löschaktionen. 
 ## Bekannte technische Hinweise
 
 - Gesichert werden Datenbankdaten und optionale Genre-Icons. Echte Mediendateien aus Medienquellen, Logs, Demo-/Seed-Dateien und externe Speicherorte werden nicht gesichert.
-- Das Backup-Format ist ein ZIP mit `manifest.json`, `index.json`, Entitätsdateien unter `entities/` und optionalen Dateien unter `files/`.
+- Das Backup-Format ist eine `.bak`-Datei, die ein objektbasiertes Archiv enthält. Sie besteht aus einem `manifest.json` und einem oder mehreren Backup-Objekten. Das VideoWebPlayer-Datenbank-Objekt trägt den Namen `videowebplayer/database` und den Content-Type `VideoWebPlayer:Database`; es enthält wiederum ein `index.json` sowie die Tabellen-Payloads der Anwendungsdatenbank.
 - Backups aus älteren Versionen ohne `UpdateSettings`-Tabelle oder ohne Anwendungstitel in `Setups` können wiederhergestellt werden. Fehlende Werte werden beim Restore mit aktuellen Standardwerten ergänzt.
-- Hochgeladene ZIPs werden gegen ungültige Manifestdaten und unsichere Pfade validiert.
+- Hochgeladene `.bak`-Dateien werden gegen ungültige Manifestdaten und unsichere Pfade validiert.
 - Die Restore-Sperre wirkt innerhalb der laufenden Anwendung. Sie ist keine Cluster- oder Mehrprozess-Sperre für mehrere App-Instanzen.
 - Backups sind nicht verschlüsselt und nicht passwortgeschützt. Der Speicherpfad sollte entsprechend geschützt werden.

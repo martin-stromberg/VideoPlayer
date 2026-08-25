@@ -17,7 +17,7 @@ namespace VideoWebPlayer.Services.EpisodeBackgroundImage
     /// </summary>
     public class EpisodeBackgroundImageService
     {
-        private static readonly ConcurrentDictionary<long, AsyncLock> EpisodeLocks = new();
+        private static readonly ConcurrentDictionary<long, Lazy<AsyncLock>> EpisodeLocks = new();
 
         private readonly ApplicationDbContext _db;
         private readonly EpisodeBackgroundImageGenerator _generator;
@@ -62,9 +62,15 @@ namespace VideoWebPlayer.Services.EpisodeBackgroundImage
             if (existingPicture is not null)
                 return existingPicture;
 
-            using (await EpisodeLocks.GetOrAdd(episode.Id, _ => new AsyncLock()).LockAsync(cancellationToken))
+            var lockLazy = EpisodeLocks.GetOrAdd(episode.Id, _ => new Lazy<AsyncLock>(static () => new AsyncLock()));
+            using (await lockLazy.Value.LockAsync(cancellationToken))
             {
+                var tracked = _db.ChangeTracker.Entries<TVShowEpisode>()
+                    .FirstOrDefault(e => e.Entity.Id == episode.Id);
+                tracked?.State = EntityState.Detached;
+
                 var currentEpisode = await _db.TVShowEpisodes
+                    .AsNoTracking()
                     .FirstOrDefaultAsync(e => e.Id == episode.Id, cancellationToken);
                 if (currentEpisode is null)
                     return null;
@@ -145,6 +151,8 @@ namespace VideoWebPlayer.Services.EpisodeBackgroundImage
         /// <returns>The generated and persisted <see cref="Picture"/>, or <c>null</c> if generation failed.</returns>
         private async Task<Picture?> GenerateAndPersistBackgroundPictureAsync(TVShowEpisode episode, Picture sourcePicture, CancellationToken cancellationToken)
         {
+            _db.TVShowEpisodes.Update(episode);
+
             var generated = await TryGenerateBackgroundPictureAsync(episode, sourcePicture, cancellationToken);
             if (generated is null)
                 return null;

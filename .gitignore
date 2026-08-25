@@ -369,18 +369,6 @@ FodyWeavers.xsd
 /Mediathek/Resources/Raw/secrets.json
 /MediaPlayer/Resources/Raw/secrets.json
 /VideoPlayer.Tests/Resources/Raw
-/WebPlayerApi/.config/dotnet-tools.json
-/WebPlayerApi/data
-/WebPlayerApi/appsettings.Development.json
-/WebPlayerApi/appsettings.Production.json
-/WebPlayer/WebPlayer/.config/dotnet-tools.json
-/WebPlayer/WebPlayer/appsettings.Production.json
-/WebPlayer/WebPlayer/appsettings.Development.json
-/WebPlayer/WebPlayer/roles.json
-/WebPlayer/WebPlayer/userRoles.json
-/WebPlayer/WebPlayer/users.json
-/WebPlayer/WebPlayer.Client/wwwroot/appsettings.Development.json
-/WebPlayer/WebPlayer.Client/wwwroot/appsettings.Production.json
 /VideoWebPlayer/Data/WebVideoPlayer.db
 *.db-shm
 *.db-wal
@@ -389,4 +377,12 @@ FodyWeavers.xsd
 # Runtime-Verzeichnisse der automatischen Programmupdates
 /VideoWebPlayer/Updates/
 /VideoWebPlayer/Backups/
+/VideoWebPlayer/wwwroot/images/genres/
 issue.md
+/.agents
+/AGENTS.md
+
+# Ausnahme: Lokale NuGet-Pakete, die dem Repository explizit beigestellt werden
+!lib/packages/
+!lib/packages/*.nupkg
+!lib/packages/**/*.nupkg

@@ -92,6 +92,7 @@ namespace VideoWebPlayer.Services
 
                         if (now - lastRun >= scanProcessInterval)
                         {
+                            lastRun = now;
                             await using var processingLease = gate is null ? null : await gate.EnterOperationAsync("Automatischer Scanprozess", stoppingToken);
                             _logger.LogInformation("Starte Scanprozess (Intervall: {Interval}).", scanProcessInterval);
 
@@ -176,7 +177,6 @@ namespace VideoWebPlayer.Services
                                 await _notificationService.NotifyNewVideosScannedAsync(0L, unclassifiedBefore, stoppingToken);
                             }
 
-                            lastRun = now;
                         }
                     }
                     catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

@@ -1,12 +1,6 @@
 ﻿@page "/Account/Login"
 
-@using Microsoft.AspNetCore.Identity
-@using Microsoft.EntityFrameworkCore
-@using VideoWebPlayer.Components.Account
 @using VideoWebPlayer.Components.Account.Pages.Shared
-@using VideoWebPlayer.Data
-@inject UserManager<ApplicationUser> UserManager
-@inject IdentityRedirectManager RedirectManager
 
 <PageTitle>Log in</PageTitle>
 
@@ -24,20 +18,10 @@
 </div>
 
 @code {
-    private const string SystemUserNormalizedName = "SYSTEM";
-
     [SupplyParameterFromQuery]
     private string? ReturnUrl { get; set; }
 
     [SupplyParameterFromQuery]
     private string? Error { get; set; }
 
-    protected override async Task OnInitializedAsync()
-    {
-        var anyUser = await UserManager.Users.AnyAsync(u => u.NormalizedUserName != SystemUserNormalizedName);
-        if (!anyUser)
-        {
-            RedirectManager.RedirectTo("Account/Register", new() { ["ReturnUrl"] = ReturnUrl });
-        }
-    }
 }

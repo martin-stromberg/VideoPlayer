@@ -83,7 +83,13 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        user = await UserAccessor.GetRequiredUserAsync(HttpContext);
+        var requiredUser = await UserAccessor.GetUserOrRedirectAsync(HttpContext);
+        if (requiredUser is null)
+        {
+            return;
+        }
+
+        user = requiredUser;
 
         await LoadSharedKeyAndQrCodeUriAsync(user);
     }
@@ -115,6 +121,7 @@ else
         else
         {
             RedirectManager.RedirectToWithStatus("Account/Manage/TwoFactorAuthentication", message, HttpContext);
+            return;
         }
     }
 

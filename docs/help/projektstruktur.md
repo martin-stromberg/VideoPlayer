@@ -1,26 +1,31 @@
 # Aktuelle Projektstruktur
 
-Die Solution `VideoPlayer.sln` enthaelt die aktuellen Bestandteile der
-Videoverwaltung:
+Die Solution `VideoPlayer.sln` enthält die Bestandteile des Web-Repositorys:
 
-- `VideoWebPlayer` — ASP.NET-Core-Blazor-Webanwendung und API
-- `VideoWebPlayer.Client` — gemeinsam genutzte Client- und API-Modelle
-- `VideoWebPlayer.Maui` — mobile .NET-MAUI-Anwendung fuer den Zugriff auf die Webanwendung
-- `VideoWebPlayer.Tests` — Tests fuer die Webanwendung
-- `VideoWebPlayer.Maui.Tests` — Tests fuer die MAUI-Anwendung
+- `VideoWebPlayer` - ASP.NET-Core-Blazor-Webanwendung und API
+- `VideoWebPlayer.Client` - gemeinsam genutzte Client- und API-Modelle
+- `VideoWebPlayer.Tests` - Tests für Webanwendung, API-Vertrag und Services
+- `tools/MarkdownLinkCheck` - lokaler Markdown-Linkcheck
+- `tools/MarkdownLinkCheck.Tests` - Tests für den Linkcheck
 
-Die Webanwendung stellt die API bereit, die von `VideoWebPlayer.Maui` ueber
-`VideoWebPlayer.Client` verwendet wird. Diese Kommunikation und die
-Anwendungskonfiguration bleiben von der Projektbereinigung unveraendert.
+Die MAUI-Anwendung wurde in ein eigenes Repository ausgelagert. In dieser Arbeitskopie liegt der vorhandene Klon unter `Sub-Repository/`; er besitzt eigene Git-Metadaten und wird vom Web-Repository ignoriert.
+
+## Zuständigkeiten
+
+- Web-Repository: Backend, Weboberfläche, Webtests, API-Vertrag, Installations- und Veröffentlichungsdokumentation.
+- MAUI-Repository: `VideoWebPlayer.Maui`, `VideoWebPlayer.Maui.Tests`, kopierte `VideoWebPlayer.Client`-Übergabeschnittstelle und mobile Build-/Testdokumentation.
+
+Die Webanwendung stellt die API bereit, die MAUI über den dokumentierten Vertrag in [../API.md](../API.md) verwendet.
 
 ## Entwicklung und Start
 
-Fuer die Webentwicklung wird `VideoWebPlayer` als Startprojekt verwendet. Die
-MAUI-Anwendung bleibt fuer mobile Builds und Tests erhalten. Sie wurde im
-Rahmen der Projektbereinigung nicht gestartet; plattformspezifische
-Laufzeitpruefungen sind daher nicht Teil dieser Dokumentation.
+Für Webentwicklung und CI werden keine MAUI-Workloads benötigt:
 
-Beim Aufraeumen entfernte historische Projektbereiche werden nicht mehr als
-Bestandteil der aktuellen Solution oder des Repositories vorausgesetzt.
+```bash
+dotnet build VideoPlayer.sln
+dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj
+```
 
-← [Zurueck zur Dokumentationsuebersicht](index.md)
+Mobile Builds und MAUI-spezifische Tests laufen im separaten MAUI-Repository.
+
+[Zurück zur Dokumentationsübersicht](index.md)

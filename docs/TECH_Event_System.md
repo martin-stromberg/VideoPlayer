@@ -9,6 +9,10 @@
 
 Das MAUI Event-System bietet eine zentrale Event-Infrastruktur für die Kommunikation innerhalb der MAUI-Anwendung. Es kombiniert SignalR-Backend-Events mit internen Application-Events in einem einheitlichen Pub/Sub-System.
 
+## Repository-Kontext
+
+Diese Datei beschreibt die ausgelagerte MAUI-Implementierung. Pfade mit `VideoWebPlayer.Maui/...` beziehen sich auf das separate MAUI-Repository, in dieser Arbeitskopie auf den Klon unter `Sub-Repository/`. Das Web-Repository stellt nur die Backend- und API-Vertraege bereit.
+
 ## Architektur
 
 ```
@@ -37,7 +41,7 @@ Das MAUI Event-System bietet eine zentrale Event-Infrastruktur für die Kommunik
 
 ### 1. Base Event Class
 
-**Datei:** `VideoWebPlayer.Maui/Services/Events/NotificationEvent.cs`
+**Datei im MAUI-Repository:** `VideoWebPlayer.Maui/Services/Events/NotificationEvent.cs`
 
 ```csharp
 public abstract class NotificationEvent
@@ -71,7 +75,7 @@ public interface ISubscribeNotificationEvent
 
 ### 3. NotificationEventService
 
-**Datei:** `VideoWebPlayer.Maui/Services/Events/NotificationEventService.cs`
+**Datei im MAUI-Repository:** `VideoWebPlayer.Maui/Services/Events/NotificationEventService.cs`
 
 Zentrale Implementierung mit:
 - Pub/Sub-Mechanismus via `ConcurrentDictionary`

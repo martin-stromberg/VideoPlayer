@@ -13,12 +13,10 @@ VideoWebPlayer ist eine ASP.NET-Core-/Blazor-Anwendung für die private Verwaltu
 - Poster, Banner, Fanart und generierte Hintergrundbilder ausliefern.
 - Favoriten und Weiterschauen-Positionen pro Benutzer speichern.
 - Blazor-Weboberfläche für Bibliothek, Wiedergabe und Administration.
-- SignalR-basierte Aktualisierungen für verbundene Clients.
+- SignalR-basierte Aktualisierungen für verbundene Browser- und API-Clients.
 - Administrative Bereiche für Quellen, Backups, Updates, Sicherheit, Genres und Benutzer.
 
-Die .NET-MAUI-App wird in einem separaten Repository gepflegt. In dieser Arbeitskopie liegt der vorhandene Klon unter `Sub-Repository/`; er ist absichtlich nicht Teil des Web-Repositorys.
-
-Das Web-Repository verantwortet Backend, Blazor-Oberfläche, gemeinsame Client-DTOs und den versionierten API-Vertrag. Das MAUI-Repository verantwortet die mobile App, ihre Tests und die für den mobilen Build übernommene Client-Codebasis. Das Web-Repository baut und testet keine MAUI-Projekte.
+Das Web-Repository verantwortet Backend, Blazor-Oberfläche, gemeinsame Client-DTOs, Tests und den versionierten API-Vertrag.
 
 ## Voraussetzungen
 
@@ -27,8 +25,6 @@ Das Web-Repository verantwortet Backend, Blazor-Oberfläche, gemeinsame Client-D
 - NuGet.org und die lokale Paketquelle `lib/packages/` aus `NuGet.config`.
 - Die lokale DLL `lib/msTools.Updater/msTools.Updater.dll`.
 - Schreibrechte für SQLite-Datenbank, Logs, Backups und Medien-/Bildverzeichnisse.
-
-Für die MAUI-App gelten zusätzlich plattformabhängige MAUI-Workloads und SDKs; Details stehen im separaten MAUI-Repository.
 
 ## Installation
 
@@ -48,7 +44,7 @@ Die vollständige Anleitung für Linux und Windows steht in [docs/GUIDE_Installa
 
 ## Secrets
 
-Beispielwerte in der Dokumentation sind synthetische Platzhalter wie `<PRODUKTIVER_JWT_KEY>` oder `<MAUI_CLIENT_API_TOKEN>`. Sie dürfen nicht produktiv verwendet werden. Backend-Secrets werden über User Secrets, Umgebungsvariablen oder ein Secret-Management-System gesetzt; der Client-Gate-Wert wird getrennt dokumentiert und ist im Backend als sensibler Konfigurationswert zu schützen.
+Beispielwerte in der Dokumentation sind synthetische Platzhalter wie `<PRODUKTIVER_JWT_KEY>` oder `<CLIENT_API_TOKEN>`. Sie dürfen nicht produktiv verwendet werden. Backend-Secrets werden über User Secrets, Umgebungsvariablen oder ein Secret-Management-System gesetzt; API-Gate-Werte sind als sensible Konfigurationswerte zu schützen.
 
 Details: [docs/SECRETS_MANAGEMENT.md](./docs/SECRETS_MANAGEMENT.md).
 
@@ -81,7 +77,7 @@ Der Hook prüft lokale und repositoryinterne Markdown-Links ohne Netzwerkzugriff
 ## Dokumentation
 
 - [Installationsanleitung](./docs/GUIDE_Installation.md)
-- [API-Vertrag für das MAUI-Team](./docs/API.md)
+- [API-Vertrag](./docs/API.md)
 - [Secrets Management](./docs/SECRETS_MANAGEMENT.md)
 - [Dokumentationsindex](./docs/INDEX.md)
 - [Veröffentlichungscheckliste](./docs/PUBLICATION_CHECKLIST.md)
@@ -100,11 +96,13 @@ dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj
 dotnet test tools/MarkdownLinkCheck.Tests/MarkdownLinkCheck.Tests.csproj
 ```
 
-Das Web-Repository baut keine MAUI-Projekte. MAUI-App, MAUI-Tests und eine Kopie des gemeinsamen Client-Projekts werden im separaten MAUI-Repository gepflegt. Für die plattformabhängigen MAUI-Workloads, Builds und Tests siehe die Installationshinweise des MAUI-Repositorys.
+Das Web-Repository baut Backend, Blazor-Oberfläche, Client-DTOs, Web-Tests und Linkcheck-Tools.
 
 ## Veröffentlichung
 
 Vor einer öffentlichen Bereitstellung müssen die [Veröffentlichungscheckliste](./docs/PUBLICATION_CHECKLIST.md), der lokale Markdown-Linkcheck, die API-Dokumentation und der Secret-Scan nachvollzogen werden. Diese README beschreibt die technische Einrichtung und ist keine Aussage, dass eine Veröffentlichung oder alle offenen technischen Nacharbeiten bereits abgeschlossen sind.
+
+Der aktuelle lokale Prüfstand vor der Veröffentlichung ist in [docs/PUBLICATION_AUDIT.md](./docs/PUBLICATION_AUDIT.md) dokumentiert. Externe Freigaben wie Linux-Frischclone, GitHub-Repository-Einstellungen und produktive Secret-Rotation müssen dort vor dem Umschalten auf `public` abgeschlossen werden.
 
 ## Lizenz
 

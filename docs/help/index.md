@@ -18,4 +18,4 @@
 
 ## Projekt und Entwicklung
 
-- [Aktuelle Projektstruktur](projektstruktur.md) — Verbleibende Solution-Projekte und Hinweise zur Web- und MAUI-Anwendung
+- [Aktuelle Projektstruktur](projektstruktur.md) — Verbleibende Solution-Projekte und Hinweise zur Webanwendung

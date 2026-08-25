@@ -14,11 +14,12 @@ Backups im alten `.zip`-Format werden von dieser Version nicht mehr unterstützt
 
 ## What’s New
 
-- Projektstruktur bereinigt: Die nicht mehr benötigten Bereiche `Videos/`, `WebPlayer/`, `WebPlayerApi/` und `WebPlayerApi.Common/` wurden entfernt.
-- Die aktuellen Projekte `VideoWebPlayer` und `VideoWebPlayer.Maui` bleiben erhalten.
+- Veröffentlichungsvorbereitung ergänzt: konsistente PolyForm-Noncommercial-Lizenzhinweise, Linux-/Windows-Installationsanleitung, zentrale API-Dokumentation und Secret-Hinweise mit synthetischen Platzhaltern.
+- Markdown-Linkcheck als versionierter lokaler Client-Hook unter `.githooks/pre-commit` ergänzt.
+- Projektstruktur getrennt: Das Web-Repository enthält `VideoWebPlayer`, `VideoWebPlayer.Client`, `VideoWebPlayer.Tests` und Linkcheck-Tools; die MAUI-App wird im separaten MAUI-Repository gepflegt.
 
-## Verification
+## Stand und Prüfhinweis
 
-- :white_check_mark: Build erfolgreich
-- :white_check_mark: Tests erfolgreich
-- :information_source: Die MAUI-App wurde nicht gestartet.
+- Die Veröffentlichungsunterlagen, der versionierte Linkcheck-Hook, die API-Dokumentation sowie die Installations- und Secret-Hinweise sind vorbereitet.
+- Vor einer Freigabe sind Web-Build und Web-Tests sowie die MAUI-Builds und MAUI-Tests im separaten MAUI-Repository erneut auszuführen.
+- Dieser Stand ist noch keine vollständige Freigabe: Zwei technische Nacharbeiten bleiben offen. Die Produktionskonfiguration muss das erforderliche MAUI-API-Token validieren, und ungültige API-Schlüssel dürfen nicht vollständig ins Warning-Log geschrieben werden.

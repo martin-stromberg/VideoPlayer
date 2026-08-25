@@ -1,429 +1,211 @@
-# Installation & Setup Guide
+# Installation und Setup
 
 > **Dokumenttyp**: Allgemeine Dokumentation  
 > **Zielgruppe**: Entwickler, Administratoren  
-> **Version**: 1.0  
-> **Letzte Aktualisierung**: 2024
+> **Version**: 2.0
+> **Letzte Aktualisierung**: 2026-08-25
 
-## Übersicht
-
-Dieses Dokument beschreibt die Installation und Einrichtung der VideoWebPlayer-Solution für Entwicklungs- und Produktionsumgebungen.
+Diese Anleitung beschreibt die Einrichtung des Web-Repositorys unter Linux und Windows. Die .NET-MAUI-App wird separat im MAUI-Repository gepflegt; in dieser Arbeitskopie liegt der vorhandene Klon unter `Sub-Repository/`.
 
 ## Voraussetzungen
 
-### Software-Anforderungen
+### Web-Repository
 
-#### Entwicklungsumgebung
+- .NET 10 SDK.
+- Git.
+- Zugriff auf NuGet.org.
+- Lokale Paketquelle `lib/packages/` aus `NuGet.config`.
+- Lokale DLL `lib/msTools.Updater/msTools.Updater.dll`.
+- Schreibrechte im Arbeitsverzeichnis für SQLite-Datenbank, Logs, Backups, Updates und generierte Bilddateien.
+- Optional: Visual Studio 2022 oder neuer mit ASP.NET-/Web-Workload.
 
-- **Visual Studio 2022** (Version 17.8 oder höher)
-  - Workload: "ASP.NET and web development"
-  - Workload: ".NET Multi-platform App UI development"
-- **.NET 10 SDK** (oder höher)
-- **Git** für Version Control
+### MAUI-Repository
 
-#### Optional für Mobile-Entwicklung
+- .NET 10 SDK.
+- MAUI-Workload passend zum Zielsystem.
+- Windows: Windows App SDK/Windows-Zielplattform für `net10.0-windows10.0.19041.0`.
+- Android: Android SDK und `net10.0-android`.
+- iOS/MacCatalyst: macOS mit Xcode; diese Targets sind auf Linux nicht buildbar.
 
-- **Xcode** (für iOS-Entwicklung auf macOS)
-- **Android SDK** (für Android-Entwicklung)
-- **Windows SDK** (für Windows-App-Entwicklung)
-
-### Hardware-Anforderungen
-
-- **Minimum**: 8 GB RAM, 10 GB freier Speicherplatz
-- **Empfohlen**: 16 GB RAM, 50 GB freier Speicherplatz (für Medienbibliothek)
-
-### Netzwerk-Anforderungen
-
-- Internetzugang für NuGet-Package-Downloads
-- Zugriff auf FTP/SFTP-Server (für Medienquellen)
-
-## Installation
-
-### 1. Repository klonen
+## Linux: Web installieren
 
 ```bash
-# HTTPS
-git clone https://github.com/Muesli84/VideoPlayer.git
-cd VideoPlayer
-
-# Oder SSH
-git clone git@github.com:Muesli84/VideoPlayer.git
-cd VideoPlayer
+git clone <REPOSITORY_URL> VideoWebPlayer
+cd VideoWebPlayer
+dotnet --version
+dotnet restore VideoPlayer.sln
+dotnet build VideoPlayer.sln
 ```
 
-### 2. Solution öffnen
-
-```bash
-# Windows
-start VideoWebPlayer.sln
-
-# macOS
-open VideoWebPlayer.sln
-
-# Oder direkt in Visual Studio öffnen
-```
-
-### 3. NuGet-Packages wiederherstellen
-
-Visual Studio restauriert Packages automatisch beim ersten Build. Manuell:
-
-```bash
-dotnet restore
-```
-
-### 4. .NET MAUI Workload überprüfen
-
-```bash
-# Installierte Workloads anzeigen
-dotnet workload list
-
-# MAUI Workload installieren (falls nicht vorhanden)
-dotnet workload install maui
-```
-
-## Konfiguration
-
-### Backend (VideoWebPlayer)
-
-#### 1. Datenbank konfigurieren
-
-Die Anwendung verwendet SQLite. Die Datenbank wird automatisch erstellt.
-
-**Connection String** in `appsettings.json`:
-
-```json
-{
-  "ConnectionStrings": {
-    "DefaultConnection": "Data Source=app.db"
-  }
-}
-```
-
-#### 2. JWT-Secrets konfigurieren
-
-**Entwicklung** - User Secrets verwenden:
+Secrets für Entwicklung setzen:
 
 ```bash
 cd VideoWebPlayer
-dotnet user-secrets init
-dotnet user-secrets set "Jwt:Key" "DEIN_BASE64_ENCODED_SECRET_KEY"
-dotnet user-secrets set "Jwt:ApiToken" "DEIN_API_TOKEN"
+dotnet user-secrets init --project VideoWebPlayer/VideoWebPlayer.csproj
+dotnet user-secrets set "Jwt:Key" "<ENTWICKLUNGS_JWT_KEY_BASE64_MIN_32_BYTES>" --project VideoWebPlayer/VideoWebPlayer.csproj
+dotnet user-secrets set "Jwt:ApiToken:Web" "<ENTWICKLUNGS_WEB_API_TOKEN>" --project VideoWebPlayer/VideoWebPlayer.csproj
+dotnet user-secrets set "Jwt:ApiToken:Maui" "<ENTWICKLUNGS_MAUI_API_TOKEN>" --project VideoWebPlayer/VideoWebPlayer.csproj
+dotnet user-secrets set "Jwt:Issuer" "VideoWebPlayer" --project VideoWebPlayer/VideoWebPlayer.csproj
+cd ..
 ```
 
-**Produktion** - Umgebungsvariablen:
+Anwendung starten:
 
 ```bash
-# Linux/macOS
-export Jwt__Key="DEIN_BASE64_ENCODED_SECRET_KEY"
-export Jwt__ApiToken="DEIN_API_TOKEN"
-
-# Windows PowerShell
-$env:Jwt__Key = "DEIN_BASE64_ENCODED_SECRET_KEY"
-$env:Jwt__ApiToken = "DEIN_API_TOKEN"
+dotnet run --project VideoWebPlayer/VideoWebPlayer.csproj
 ```
 
-#### 3. Server-Adresse konfigurieren
-
-In `appsettings.json`:
-
-```json
-{
-  "Host": {
-    "Address": "0.0.0.0",
-    "Port": "5000"
-  }
-}
-```
-
-### Frontend (VideoWebPlayer.Maui)
-
-#### 1. Server-Adresse
-
-Die Server-Adresse wird zur Laufzeit konfiguriert (Login-Seite).
-
-**Für Entwicklung** - Emulator/Simulator verwenden:
-
-- **iOS Simulator**: `localhost:5000`
-- **Android Emulator**: `10.0.2.2:5000`
-- **Physisches Gerät**: `<IP_DES_DEV_RECHNERS>:5000`
-
-#### 2. API-Token
-
-Hardcodiert in `MauiProgram.cs` (nur für Entwicklung):
-
-```csharp
-client.DefaultRequestHeaders.Add("X-API-Key", "DEIN_API_TOKEN");
-```
-
-**Für Produktion**: Token über sichere Konfiguration laden.
-
-## Erste Schritte
-
-### 1. Backend starten
+Erreichbarkeit prüfen:
 
 ```bash
-cd VideoWebPlayer
-dotnet run
-
-# Oder in Visual Studio:
-# VideoWebPlayer als Startup-Projekt setzen
-# F5 drücken
+curl http://localhost:5039/api/health
 ```
 
-Die Anwendung startet auf:
-- HTTP: `http://localhost:5000`
-- HTTPS: `https://localhost:5001`
+Wenn ein anderes Launch-Profil oder `Host:Port` verwendet wird, die URL entsprechend anpassen. Die Projekt-Launch-Profile enthalten `http://localhost:57331` und `http://localhost:5039`; die Discovery-Adresse fällt ohne Konfiguration auf `http://localhost:5000` zurück.
 
-### 2. Frontend starten (Optional)
+## Windows: Web installieren
 
-#### iOS
+```powershell
+git clone <REPOSITORY_URL> VideoWebPlayer
+Set-Location VideoWebPlayer
+dotnet --version
+dotnet restore .\VideoPlayer.sln
+dotnet build .\VideoPlayer.sln
+```
+
+Secrets für Entwicklung setzen:
+
+```powershell
+Set-Location VideoWebPlayer
+dotnet user-secrets init --project .\VideoWebPlayer\VideoWebPlayer.csproj
+dotnet user-secrets set "Jwt:Key" "<ENTWICKLUNGS_JWT_KEY_BASE64_MIN_32_BYTES>" --project .\VideoWebPlayer\VideoWebPlayer.csproj
+dotnet user-secrets set "Jwt:ApiToken:Web" "<ENTWICKLUNGS_WEB_API_TOKEN>" --project .\VideoWebPlayer\VideoWebPlayer.csproj
+dotnet user-secrets set "Jwt:ApiToken:Maui" "<ENTWICKLUNGS_MAUI_API_TOKEN>" --project .\VideoWebPlayer\VideoWebPlayer.csproj
+dotnet user-secrets set "Jwt:Issuer" "VideoWebPlayer" --project .\VideoWebPlayer\VideoWebPlayer.csproj
+Set-Location ..
+```
+
+Anwendung starten:
+
+```powershell
+dotnet run --project .\VideoWebPlayer\VideoWebPlayer.csproj
+```
+
+Erreichbarkeit prüfen:
+
+```powershell
+Invoke-WebRequest http://localhost:5039/api/health
+```
+
+## Produktive Konfiguration
+
+Produktive Werte dürfen nicht aus dieser Dokumentation übernommen werden. Erzeuge eigene Secrets und setze sie als Umgebungsvariablen oder über ein Secret-Management-System:
 
 ```bash
-cd VideoWebPlayer.Maui
-dotnet build -t:Run -f net10.0-ios
-
-# Oder in Visual Studio:
-# VideoWebPlayer.Maui als Startup-Projekt
-# iOS-Simulator auswählen
-# F5 drücken
+export Jwt__Key="<PRODUKTIVER_JWT_KEY>"
+export Jwt__ApiToken__Web="<PRODUKTIVER_WEB_API_TOKEN>"
+export Jwt__ApiToken__Maui="<PRODUKTIVER_MAUI_API_TOKEN>"
+export Jwt__Issuer="VideoWebPlayer"
 ```
 
-#### Windows
+```powershell
+$env:Jwt__Key = "<PRODUKTIVER_JWT_KEY>"
+$env:Jwt__ApiToken__Web = "<PRODUKTIVER_WEB_API_TOKEN>"
+$env:Jwt__ApiToken__Maui = "<PRODUKTIVER_MAUI_API_TOKEN>"
+$env:Jwt__Issuer = "VideoWebPlayer"
+```
+
+## Markdown-Linkcheck aktivieren
+
+Der Linkcheck prüft lokale Markdown-Links ohne externe Netzwerkzugriffe:
 
 ```bash
-cd VideoWebPlayer.Maui
-dotnet build -t:Run -f net10.0-windows10.0.19041.0
-
-# Oder in Visual Studio:
-# VideoWebPlayer.Maui als Startup-Projekt
-# Windows Machine auswählen
-# F5 drücken
+dotnet run --no-restore --project tools/MarkdownLinkCheck/MarkdownLinkCheck.csproj -- --root .
+git config core.hooksPath .githooks
+git ls-files --stage .githooks/pre-commit
 ```
 
-### 3. Erste Anmeldung
+Unter Windows PowerShell:
 
-#### Backend (Blazor)
-
-1. Navigiere zu `http://localhost:5000`
-2. Klicke auf "Register"
-3. Erstelle einen neuen Account
-4. Bestätige die E-Mail (in Development-Modus auto-confirmed)
-
-#### MAUI-App
-
-1. App starten
-2. Server-Adresse eingeben (z.B. `192.168.1.100:5000`)
-3. Mit erstelltem Account anmelden
-
-## Medienquellen einrichten
-
-### FTP/SFTP-Quelle hinzufügen
-
-1. Im Backend einloggen
-2. Zu "Medienquellen" navigieren
-3. "Neue Quelle hinzufügen" klicken
-4. Konfiguration eingeben:
-   - **Name**: Name der Quelle
-   - **Typ**: FTP oder SFTP
-   - **Server**: IP oder Hostname
-   - **Port**: 21 (FTP) oder 22 (SFTP)
-   - **Benutzername** & **Passwort**
-   - **Pfad**: Basispfad auf Server
-5. "Speichern" klicken
-6. "Scan starten" klicken
-
-### Erwartete Ordnerstruktur
-
-```
-/medienbibliothek/
-├── Filme/
-│   ├── Movie Name (2023)/
-│   │   ├── Movie Name.mp4
-│   │   ├── Movie Name.nfo
-│   │   ├── Movie Name-poster.jpg
-│   │   └── Movie Name-fanart.jpg
-│   └── ...
-└── Serien/
-    ├── Show Name/
-    │   ├── Season 01/
-    │   │   ├── S01E01 - Episode Name.mp4
-    │   │   ├── S01E01 - Episode Name.nfo
-    │   │   └── ...
-    │   └── ...
-    └── ...
+```powershell
+dotnet run --no-restore --project .\tools\MarkdownLinkCheck\MarkdownLinkCheck.csproj -- --root .
+git config core.hooksPath .githooks
+git ls-files --stage .githooks/pre-commit
 ```
 
-## Problembehandlung
+Der Hook läuft lokal vor Commits. Er ist versioniert, wird aber nicht automatisch durch Git aktiviert. Die Stage-Ausgabe muss mit `100755` beginnen; falls ein Linux-Arbeitsbaum `100644` zeigt, `chmod +x .githooks/pre-commit` ausführen und die Git-Metadaten vor der Veröffentlichung erneut prüfen.
 
-### Backend startet nicht
+## MAUI-Setup
 
-**Problem**: Port bereits belegt
+Im MAUI-Repository:
 
-**Lösung**:
-```json
-// appsettings.json
-{
-  "Host": {
-    "Port": "5002"  // Anderen Port verwenden
-  }
-}
-```
-
-### MAUI-App kann nicht verbinden
-
-**Problem**: Server nicht erreichbar
-
-**Diagnose**:
 ```bash
-# Prüfe Server-Erreichbarkeit
-curl http://<SERVER_IP>:5000/api/health
-
-# Oder im Browser
-http://<SERVER_IP>:5000
+dotnet restore VideoPlayer.App.sln
+dotnet test VideoWebPlayer.Maui.Tests/VideoWebPlayer.Maui.Tests.csproj
+dotnet build VideoWebPlayer.Maui/VideoWebPlayer.Maui.csproj -p:MauiClientApiToken="<ENTWICKLUNGS_MAUI_API_TOKEN>"
 ```
 
-**Lösung**:
-- Firewall-Regeln prüfen
-- Server-Adresse korrekt eingegeben?
-- Server läuft?
+Alternativ kann der Client-Gate-Wert zur Laufzeit über `VIDEOWEBPLAYER_MAUI_API_TOKEN` gesetzt werden. Der Wert muss backendseitig zu `Jwt:ApiToken:Maui` passen. Er ist kein Ersatz für Benutzer-Authentifizierung, muss aber als sensibler gemeinsam konfigurierter Zugangswert geschützt und darf nicht in öffentliche Dokumentation oder Logs übernommen werden. Benutzerpasswörter werden im MAUI-Client nicht in `Preferences`, sondern im plattformsicheren Speicher abgelegt.
 
-### NuGet-Restore schlägt fehl
+Windows-Ziel:
 
-**Problem**: Package-Quelle nicht erreichbar
+```powershell
+dotnet build .\VideoWebPlayer.Maui\VideoWebPlayer.Maui.csproj -f net10.0-windows10.0.19041.0
+```
 
-**Lösung**:
+Android-Ziel:
+
 ```bash
-# Package-Quellen anzeigen
+dotnet build VideoWebPlayer.Maui/VideoWebPlayer.Maui.csproj -f net10.0-android
+```
+
+Linux kann das MAUI-Testprojekt und das gemeinsame Client-Projekt prüfen, aber keine iOS-, MacCatalyst- oder Windows-MAUI-Ziele bauen.
+
+## Tests
+
+```bash
+dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj
+dotnet test tools/MarkdownLinkCheck.Tests/MarkdownLinkCheck.Tests.csproj
+```
+
+API-Dokumentationsvertrag:
+
+```bash
+dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --filter ApiDocumentationContractTests
+```
+
+## Häufige Fehler
+
+### Restore findet lokale Pakete nicht
+
+Prüfe, ob `lib/packages/` vorhanden ist und `NuGet.config` die Quelle enthält:
+
+```bash
 dotnet nuget list source
-
-# Package-Quellen hinzufügen
-dotnet nuget add source https://api.nuget.org/v3/index.json -n nuget.org
 ```
 
-### iOS-Build schlägt fehl
+### `msTools.Updater.dll` fehlt
 
-**Problem**: Provisioning Profile fehlt
+Die Webprojektdatei referenziert `lib/msTools.Updater/msTools.Updater.dll`. Lege die DLL aus dem vorgesehenen Release-Paket an diesem Pfad ab.
 
-**Lösung**:
-1. Xcode öffnen
-2. Preferences → Accounts
-3. Apple ID hinzufügen
-4. Team auswählen
-5. In Visual Studio: iOS Bundle Signing konfigurieren
+### Port ist belegt
 
-## Build für Produktion
-
-### Backend
+Starte mit einer anderen URL:
 
 ```bash
-cd VideoWebPlayer
-dotnet publish -c Release -o ./publish
-
-# Ausgabe in ./publish/
+dotnet run --project VideoWebPlayer/VideoWebPlayer.csproj --urls http://localhost:5220
 ```
 
-### MAUI-App
+### Health-Check liefert `401`
 
-#### iOS (App Store)
+`GET /api/health` benötigt keine Authentifizierung. Wird `401` zurückgegeben, wurde vermutlich eine andere Route oder ein Proxy geprüft.
 
-```bash
-cd VideoWebPlayer.Maui
-dotnet publish -f net10.0-ios -c Release -p:ArchiveOnBuild=true
-```
+### MAUI-App verbindet sich nicht
 
-#### Windows (MSIX)
-
-```bash
-cd VideoWebPlayer.Maui
-dotnet publish -f net10.0-windows10.0.19041.0 -c Release -p:GenerateAppxPackageOnBuild=true
-```
-
-## Deployment
-
-### Docker (Backend)
-
-```dockerfile
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
-WORKDIR /app
-EXPOSE 5000
-
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
-WORKDIR /src
-COPY ["VideoWebPlayer/VideoWebPlayer.csproj", "VideoWebPlayer/"]
-RUN dotnet restore "VideoWebPlayer/VideoWebPlayer.csproj"
-COPY . .
-WORKDIR "/src/VideoWebPlayer"
-RUN dotnet build "VideoWebPlayer.csproj" -c Release -o /app/build
-
-FROM build AS publish
-RUN dotnet publish "VideoWebPlayer.csproj" -c Release -o /app/publish
-
-FROM base AS final
-WORKDIR /app
-COPY --from=publish /app/publish .
-ENTRYPOINT ["dotnet", "VideoWebPlayer.dll"]
-```
-
-```bash
-# Build
-docker build -t videowebplayer:latest .
-
-# Run
-docker run -d -p 5000:5000 \
-  -e Jwt__Key="..." \
-  -e Jwt__ApiToken="..." \
-  -v /data/videos:/app/data \
-  videowebplayer:latest
-```
-
-### Systemd-Service (Linux)
-
-`/etc/systemd/system/videowebplayer.service`:
-
-```ini
-[Unit]
-Description=VideoWebPlayer Service
-After=network.target
-
-[Service]
-Type=notify
-User=videowebplayer
-WorkingDirectory=/opt/videowebplayer
-ExecStart=/usr/bin/dotnet /opt/videowebplayer/VideoWebPlayer.dll
-Restart=always
-RestartSec=10
-Environment="ASPNETCORE_ENVIRONMENT=Production"
-Environment="Jwt__Key=..."
-Environment="Jwt__ApiToken=..."
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```bash
-# Enable & Start
-sudo systemctl enable videowebplayer
-sudo systemctl start videowebplayer
-
-# Status
-sudo systemctl status videowebplayer
-```
+Prüfe die aus Sicht des Geräts erreichbare Serveradresse. Android-Emulatoren verwenden häufig `10.0.2.2`, physische Geräte die LAN-IP des Entwicklungsrechners. Der MAUI-Client benötigt zusätzlich den Client-Gate-Wert, der backendseitig zu `Jwt:ApiToken:Maui` passt; der Backendwert ist als sensibler Konfigurationswert zu schützen.
 
 ## Nächste Schritte
 
-Nach erfolgreicher Installation:
-
-1. 📖 [Benutzerhandbuch](./GUIDE_User_Manual.md) - Nutzung der Anwendung
-2. 🔧 [Technische Dokumentation](./INDEX.md) - Für Entwickler
-3. 🎯 [Feature-Übersicht](./GUIDE_Features.md) - Alle Features im Detail
-
-## Support
-
-Bei Problemen:
-- **Issues**: [GitHub Issues](https://github.com/Muesli84/VideoPlayer/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/Muesli84/VideoPlayer/discussions)
-
----
-
-**Letzte Aktualisierung**: 2024  
-**Getestet mit**: .NET 10, Visual Studio 2022 17.8+
+- [API-Vertrag prüfen](./API.md)
+- [Secrets Management prüfen](./SECRETS_MANAGEMENT.md)
+- [Veröffentlichungscheckliste abarbeiten](./PUBLICATION_CHECKLIST.md)

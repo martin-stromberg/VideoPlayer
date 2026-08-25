@@ -17,7 +17,6 @@ using VideoWebPlayer.Client.Models;
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
-[ApiTokenCheck()]
 public class AuthController : ApiBaseController
 {
     private readonly ApplicationDbContext _db;
@@ -40,6 +39,7 @@ public class AuthController : ApiBaseController
     /// <param name="request">The authentication request.</param>
     /// <returns>The authentication result.</returns>
     [HttpPost("login")]
+    [ApiTokenCheck(ApiTokenScope.MauiOnly)]
     public async Task<IActionResult> Login([FromBody] AuthenticationRequest request)
     {
         try
@@ -59,6 +59,7 @@ public class AuthController : ApiBaseController
     /// <param name="request">The impersonation request.</param>
     /// <returns>The authentication result.</returns>
     [HttpPost("impersonate")]
+    [ApiTokenCheck()]
     [BearerTokenCheck()]
     public async Task<IActionResult> Impersonate([FromBody] ImpersonateRequest request)
     {

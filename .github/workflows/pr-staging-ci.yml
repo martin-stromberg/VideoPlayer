@@ -74,10 +74,6 @@ jobs:
       - name: Run unit tests
         run: dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results.trx"
 
-      - name: Run MAUI unit tests
-        run: dotnet test VideoWebPlayer.Maui.Tests/VideoWebPlayer.Maui.Tests.csproj --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results.trx"
-        continue-on-error: true
-
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4

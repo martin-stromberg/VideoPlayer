@@ -2,24 +2,25 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
+
 /// <summary>
-/// Prüft, ob der API-Key im Request angegeben ist.
-/// Akzeptiert mehrere konfigurierte API-Tokens (für verschiedene Clients).
+/// Checks whether a configured API key is present on the request.
 /// </summary>
 public class ApiTokenCheckAttribute : ActionFilterAttribute
 {
     private const string HeaderName = "X-API-Key";
+    private readonly ApiTokenScope _scope;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ApiTokenCheckAttribute"/> class.
     /// </summary>
-    public ApiTokenCheckAttribute()
+    public ApiTokenCheckAttribute(ApiTokenScope scope = ApiTokenScope.AnyClient)
     {
+        _scope = scope;
     }
 
     /// <summary>
     /// Validates the API token header before the action executes.
-    /// Akzeptiert: Jwt:ApiToken (allgemein), Jwt:ApiToken:Web, Jwt:ApiToken:Maui
     /// </summary>
     /// <param name="context">The action executing context.</param>
     public override void OnActionExecuting(ActionExecutingContext context)
@@ -36,25 +37,23 @@ public class ApiTokenCheckAttribute : ActionFilterAttribute
 
         if (!context.HttpContext.Request.Headers.TryGetValue(HeaderName, out var tokenHeader) || tokenHeader.Count == 0)
         {
-            logger?.LogWarning("API-Token fehlt im Header.");
+            logger?.LogWarning("API token header is missing.");
             context.Result = new UnauthorizedResult();
             return;
         }
 
-        // Normalize request token (accept optional Bearer prefix)
-        string requestToken = string.Empty;
-        if (tokenHeader.Count > 0)
-            requestToken = tokenHeader.ToString().Trim();
+        var requestToken = tokenHeader.ToString().Trim();
         if (requestToken.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
             requestToken = requestToken.Substring(7).Trim();
 
-        // Prüfe mehrere konfigurierte Tokens (jede Konfig-Einstellung kann mehrere, kommaseparierte Tokens enthalten)
+        // Each configuration value may contain multiple comma- or semicolon-separated tokens.
         var validTokens = new HashSet<string>(StringComparer.Ordinal);
 
         void AddTokensFromConfig(string? raw)
         {
             if (string.IsNullOrWhiteSpace(raw))
                 return;
+
             var parts = raw.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries);
             foreach (var p in parts)
             {
@@ -64,21 +63,40 @@ public class ApiTokenCheckAttribute : ActionFilterAttribute
             }
         }
 
-        // Allgemeiner Token
-        AddTokensFromConfig(config["Jwt:ApiToken"]);
-        // Web-spezifischer Token
-        AddTokensFromConfig(config["Jwt:ApiToken:Web"]);
-        // MAUI-spezifischer Token
-        AddTokensFromConfig(config["Jwt:ApiToken:Maui"]);
+        if (_scope == ApiTokenScope.MauiOnly)
+        {
+            AddTokensFromConfig(config["Jwt:ApiToken:Maui"]);
+        }
+        else
+        {
+            AddTokensFromConfig(config["Jwt:ApiToken"]);
+            AddTokensFromConfig(config["Jwt:ApiToken:Web"]);
+            AddTokensFromConfig(config["Jwt:ApiToken:Maui"]);
+        }
 
-        // Prüfe, ob der Request-Token einem der gültigen Tokens entspricht
         if (validTokens.Contains(requestToken))
         {
             base.OnActionExecuting(context);
             return;
         }
 
-        logger?.LogWarning("Ungültiger API-Token: {Token}", requestToken);
+        logger?.LogWarning("Invalid API token for scope {Scope}.", _scope);
         context.Result = new UnauthorizedResult();
     }
+}
+
+/// <summary>
+/// Determines which configured API tokens are accepted by <see cref="ApiTokenCheckAttribute"/>.
+/// </summary>
+public enum ApiTokenScope
+{
+    /// <summary>
+    /// Accepts the legacy, web-specific, and MAUI-specific API tokens.
+    /// </summary>
+    AnyClient,
+
+    /// <summary>
+    /// Accepts only tokens configured via <c>Jwt:ApiToken:Maui</c>.
+    /// </summary>
+    MauiOnly
 }

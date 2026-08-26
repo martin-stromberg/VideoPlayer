@@ -7,19 +7,16 @@
 | Dokument | Beschreibung | Status |
 |----------|--------------|--------|
 | [Installation und Setup](./GUIDE_Installation.md) | Linux-/Windows-Einrichtung, Start, Tests und Fehlerbehebung | Vollständig |
-| [API-Vertrag](./API.md) | REST- und SignalR-Vertrag für das MAUI-Team | Vollständig |
+| [API-Vertrag](./API.md) | REST- und SignalR-Vertrag des Web-Repositorys | Vollständig |
 | [Secrets Management](./SECRETS_MANAGEMENT.md) | Umgang mit Backend-Secrets, JWTs und Client-Gate-Werten | Vollständig |
 | [Veröffentlichungscheckliste](./PUBLICATION_CHECKLIST.md) | Technische Prüfliste vor öffentlicher Bereitstellung | Vollständig |
+| [Veröffentlichungs-Audit](./PUBLICATION_AUDIT.md) | Lokaler Prüfstand und offene externe Freigaben vor `public` | In Prüfung |
 
 ## Technische Dokumentation
 
 | Dokument | Beschreibung |
 |----------|--------------|
-| [SignalR-Implementation](./TECH_SignalR_Implementation.md) | Echtzeit-Update-System |
-| [Event-System](./TECH_Event_System.md) | Ausgelagerte Event-Infrastruktur mit MAUI-Repository-Kontext |
 | [Episode Selection](./TECH_Episode_Selection.md) | Episodenauswahl und Wiedergabe |
-| [MediaElement Error Handling](./TECH_MediaElement_Error_Handling.md) | Fehlerbehandlung im Videoplayer |
-| [Notification Ticker](./TECH_Notification_Ticker.md) | Footer-Lauftext-Komponente |
 | [Automatisierte Programmupdates](./TECH_Auto_Update.md) | Update-Admin-UI, Sicherung und Installation |
 
 ## Benutzer- und Admin-Hilfen

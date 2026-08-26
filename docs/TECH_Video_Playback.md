@@ -1,10 +1,10 @@
 # Video Playback
 
 > **Dokumenttyp**: Technische Dokumentation  
-> **Zielgruppe**: Web- und MAUI-Entwickler  
+> **Zielgruppe**: Web-Entwickler  
 > **Letzte Aktualisierung**: 2026-08-25
 
-VideoWebPlayer liefert Medien über die Web-API aus. Die mobile Wiedergabe selbst liegt nach der Repository-Trennung im MAUI-Repository.
+VideoWebPlayer liefert Medien über die Web-API aus und stellt die Wiedergabe in der Weboberfläche bereit.
 
 ## Web-Endpunkte
 
@@ -21,4 +21,3 @@ Der Stream-Endpunkt akzeptiert `movie` und `tvshowepisode`. Content-Types werden
 
 - [API-Vertrag](./API.md)
 - [Episode Selection](./TECH_Episode_Selection.md)
-- [MediaElement Error Handling](./TECH_MediaElement_Error_Handling.md)

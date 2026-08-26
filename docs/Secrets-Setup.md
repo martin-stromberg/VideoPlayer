@@ -6,7 +6,6 @@
 Diese Datei bleibt nur als Kompatibilitaetsverweis fuer alte Links erhalten. Die fruehere Anleitung verwendete den allgemeinen Schluessel `Jwt:ApiToken`; fuer neue Installationen gelten getrennte Werte:
 
 - `Jwt:ApiToken:Web` fuer Web-/Browser- und interne Requests.
-- `Jwt:ApiToken:Maui` fuer initiale MAUI-Health-/Login-Aufrufe.
 
 Verbindliche Anleitung:
 

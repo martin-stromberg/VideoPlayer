@@ -1,19 +1,19 @@
 # VideoWebPlayer API
 
 > **Dokumenttyp**: Technische Dokumentation  
-> **Zielgruppe**: MAUI-Team, Backend-Entwickler  
+> **Zielgruppe**: Backend-Entwickler, API-Integratoren  
 > **Version**: 1.0  
 > **Letzte Aktualisierung**: 2026-08-25
 
-Diese Datei beschreibt den versionierten API-Vertrag, den die ausgelagerte MAUI-App gegen das Web-Repository nutzt. Die DTOs liegen im Web-Repository unter `VideoWebPlayer.Client/` und werden als Übergabeschnittstelle in das MAUI-Repository übernommen.
+Diese Datei beschreibt den versionierten API-Vertrag des Web-Repositorys. Die DTOs liegen unter `VideoWebPlayer.Client/`.
 
 ## Basis und Authentifizierung
 
 - Basis-URL lokal: `http://localhost:5000`, sofern `Host:Address` und `Host:Port` nicht anders konfiguriert sind.
 - `GET /api/health` ist ohne Authentifizierung erreichbar.
-- `POST /api/auth/login` benötigt den Header `X-API-Key: <MAUI_CLIENT_API_TOKEN>`.
-- Alle übrigen mobilen API-Endpunkte benötigen `Authorization: Bearer <JWT_ACCESS_TOKEN>`.
-- Der API-Key ist ein Client-Gate und kein Ersatz für ein Benutzer-Secret oder die JWT-Autorisierung. Der Backendwert ist als sensibler Konfigurationswert zu behandeln; für produktive Builds muss der Clientwert aus einer kontrollierten Build-/Konfigurationsquelle kommen und mit `Jwt:ApiToken:Maui` im Backend übereinstimmen. Ein ausgelieferter Client kann den Wert grundsätzlich offenlegen.
+- `POST /api/auth/login` benötigt den Header `X-API-Key: <CLIENT_API_TOKEN>`.
+- Alle übrigen API-Endpunkte benötigen `Authorization: Bearer <JWT_ACCESS_TOKEN>`, sofern sie nicht ausdrücklich als öffentlich dokumentiert sind.
+- Der API-Key ist ein Client-Gate und kein Ersatz für ein Benutzer-Secret oder die JWT-Autorisierung. Backendwerte sind als sensible Konfigurationswerte zu behandeln und dürfen nur aus kontrollierten Konfigurationsquellen kommen.
 - JWT-Signaturschlüssel und produktive API-Tokens werden ausschließlich über User Secrets, Umgebungsvariablen oder ein Secret-Management-System gesetzt.
 
 ## Standardstatuscodes
@@ -47,7 +47,7 @@ Authentifiziert einen Benutzer und liefert ein JWT.
 Header:
 
 ```http
-X-API-Key: <MAUI_CLIENT_API_TOKEN>
+X-API-Key: <CLIENT_API_TOKEN>
 Content-Type: application/json
 ```
 
@@ -288,17 +288,17 @@ Antwortstatuswerte:
 
 ### GET /hubs/mediaupdate
 
-SignalR-Hub für Medien-Updates. Die MAUI-App verbindet sich mit:
+SignalR-Hub für Medien-Updates. Clients verbinden sich mit:
 
 ```text
 <BASE_URL>/hubs/mediaupdate
 ```
 
-Die konkrete Ereignisnutzung ist in `docs/TECH_SignalR_Implementation.md` und in den MAUI-Services dokumentiert. Der Hub ist kein REST-Endpunkt.
+Der Hub ist kein REST-Endpunkt.
 
-## Nicht-mobile und admininterne Endpunkte
+## Admininterne Endpunkte
 
-Die folgenden Controller sind browser-/adminintern und nicht als öffentliche MAUI-API freigegeben:
+Die folgenden Controller sind browser-/adminintern und nicht als allgemeine öffentliche API freigegeben:
 
 - `admin/backups/api/*`
 - `admin/updates/api/*`
@@ -306,11 +306,11 @@ Die folgenden Controller sind browser-/adminintern und nicht als öffentliche MA
 - `POST /api/auth/impersonate`
 - Formular-, Razor- und Blazor-Komponentenrouten
 
-Diese Endpunkte können zusätzliche Rollen, Browser-Kontext oder Admin-Rechte voraussetzen und dürfen nicht ohne gesonderte Abstimmung in mobilen Clients verwendet werden.
+Diese Endpunkte können zusätzliche Rollen, Browser-Kontext oder Admin-Rechte voraussetzen und dürfen nicht ohne gesonderte Abstimmung in externen Clients verwendet werden.
 
 ## Vertragscheck
 
-Der Test `VideoWebPlayer.Tests.ApiDocumentationContractTests` stellt sicher, dass diese Dokumentation die vom MAUI-Client benötigten Kernrouten enthält und dass der Laufzeitvertrag für `GET /api/health`, `POST /api/auth/login` und einen authentifizierten `GET /api/items` funktioniert. Für lokale Prüfung:
+Der Test `VideoWebPlayer.Tests.ApiDocumentationContractTests` stellt sicher, dass diese Dokumentation die Kernrouten enthält und dass der Laufzeitvertrag für `GET /api/health`, `POST /api/auth/login` und einen authentifizierten `GET /api/items` funktioniert. Für lokale Prüfung:
 
 ```bash
 dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --filter ApiDocumentationContractTests

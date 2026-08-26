@@ -163,11 +163,6 @@ private async void OnPlayTapped(object? sender, EventArgs e)
 - [x] Play-Button spielt ausgewählte Episode
 - [x] Zurück zur Serie zeigt wieder Serie-Banner
 
-## Known Issues
-
-- MediaElement Package-Kompatibilitätsproblem mit .NET 10
-- Siehe: [MediaElement Error Handling](./TECH_MediaElement_Error_Handling.md)
-
 ## Future Enhancements
 
 - [ ] "Weiter schauen" Button (nächste Episode nach aktueller)
@@ -177,7 +172,6 @@ private async void OnPlayTapped(object? sender, EventArgs e)
 
 ## Related Documentation
 
-- [MediaElement Error Handling](./TECH_MediaElement_Error_Handling.md)
 - [Video Playback](./TECH_Video_Playback.md)
 
 ---

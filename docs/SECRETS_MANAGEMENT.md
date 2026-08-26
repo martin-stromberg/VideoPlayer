@@ -5,7 +5,7 @@
 > **Version**: 2.0
 > **Letzte Aktualisierung**: 2026-08-25
 
-Diese Dokumentation verwendet ausschließlich synthetische Platzhalter. Werte wie `<PRODUKTIVER_JWT_KEY>` oder `<MAUI_CLIENT_API_TOKEN>` sind keine Beispiele zum Kopieren, sondern Markierungen für selbst erzeugte Secrets.
+Diese Dokumentation verwendet ausschließlich synthetische Platzhalter. Werte wie `<PRODUKTIVER_JWT_KEY>` oder `<CLIENT_API_TOKEN>` sind keine Beispiele zum Kopieren, sondern Markierungen für selbst erzeugte Secrets.
 
 ## Konfigurationswerte
 
@@ -13,12 +13,11 @@ Diese Dokumentation verwendet ausschließlich synthetische Platzhalter. Werte wi
 |------|---------|------------|-------------------|
 | `Jwt:Key` | Ja | Signaturschlüssel für JWTs | User Secrets, Umgebungsvariable, Secret Store |
 | `Jwt:ApiToken:Web` | Ja | Gate für Web-/Browser-API-Aufrufe | User Secrets, Umgebungsvariable, Secret Store |
-| `Jwt:ApiToken:Maui` | Ja, im Backend | Client-Gate für initiale MAUI-Aufrufe | Backend: Secret Store; Client: geschützte Build-/Konfigurationsquelle |
 | `Jwt:Issuer` | Nein | Aussteller-Name im JWT | Konfiguration |
 | Benutzerpasswörter | Ja | Anmeldung | Datenbank/Identity-System |
 | JWT Access Token | Ja | Benutzerautorisierung nach Login | Laufzeitspeicher des Clients |
 
-Der MAUI-Client-Gate-Wert ersetzt keine Benutzeranmeldung. Die eigentliche Autorisierung erfolgt über das JWT nach erfolgreichem Login.
+Ein API-Gate-Wert ersetzt keine Benutzeranmeldung. Die eigentliche Autorisierung erfolgt über das JWT nach erfolgreichem Login.
 
 ## Entwicklung
 
@@ -27,7 +26,6 @@ cd VideoWebPlayer
 dotnet user-secrets init
 dotnet user-secrets set "Jwt:Key" "<ENTWICKLUNGS_JWT_KEY_BASE64_MIN_32_BYTES>"
 dotnet user-secrets set "Jwt:ApiToken:Web" "<ENTWICKLUNGS_WEB_API_TOKEN>"
-dotnet user-secrets set "Jwt:ApiToken:Maui" "<ENTWICKLUNGS_MAUI_API_TOKEN>"
 dotnet user-secrets set "Jwt:Issuer" "VideoWebPlayer"
 ```
 
@@ -46,7 +44,6 @@ Linux:
 ```bash
 export Jwt__Key="<PRODUKTIVER_JWT_KEY>"
 export Jwt__ApiToken__Web="<PRODUKTIVER_WEB_API_TOKEN>"
-export Jwt__ApiToken__Maui="<PRODUKTIVER_MAUI_API_TOKEN>"
 export Jwt__Issuer="VideoWebPlayer"
 ```
 
@@ -55,23 +52,10 @@ Windows PowerShell:
 ```powershell
 $env:Jwt__Key = "<PRODUKTIVER_JWT_KEY>"
 $env:Jwt__ApiToken__Web = "<PRODUKTIVER_WEB_API_TOKEN>"
-$env:Jwt__ApiToken__Maui = "<PRODUKTIVER_MAUI_API_TOKEN>"
 $env:Jwt__Issuer = "VideoWebPlayer"
 ```
 
 Für dauerhaft betriebene Systeme sollen die Werte aus einem Secret-Management-System oder geschützten Service-Konfigurationen kommen. Produktive JWT-Schlüssel müssen zufällig erzeugt, ausreichend lang und rotationsfähig sein.
-
-## MAUI-Client
-
-Die ausgelagerte MAUI-App verwendet einen Client-Gate-Wert für initiale Health-/Login-Aufrufe. Dieser Wert ist kein Ersatz für echte Authentifizierung und kann in einem ausgelieferten Client grundsätzlich ausgelesen werden; der Backendwert ist trotzdem als Secret zu behandeln und darf nicht in öffentliche Dokumentation oder Logs gelangen.
-
-Für produktive Builds gilt:
-
-- Backendwert `Jwt:ApiToken:Maui` getrennt vom Web-Token erzeugen.
-- Client-Gate-Wert über die MSBuild-Property `MauiClientApiToken`, die Runtime-Umgebungsvariable `VIDEOWEBPLAYER_MAUI_API_TOKEN` oder eine geschützte Pipeline-Variable setzen.
-- Benutzerpasswörter ausschließlich über `SecureStorage` speichern oder bei fehlendem sicheren Speicher neu abfragen.
-- Benutzer-JWTs nur zur Laufzeit speichern und bei Logout entfernen.
-- Tokenwechsel als App-/Backend-Konfigurationsänderung planen.
 
 ## Was nicht ins Repository gehört
 
@@ -97,9 +81,7 @@ Wenn ein Wert jemals öffentlich war oder realistisch produktiv verwendet wurde:
 
 ```bash
 git grep -n -I -E "Jwt:Key|Jwt__Key|ApiToken|Authorization: Bearer|password|secret|token" -- .
-git grep -n -I -E "Jwt:Key|Jwt__Key|ApiToken|Authorization: Bearer|password|secret|token" -- Sub-Repository
 git log --all --source --decorate -G "Jwt:Key|Jwt__Key|ApiToken|Authorization: Bearer|password|secret|token" -- .
-git -C Sub-Repository log --all --source --decorate -G "Jwt:Key|Jwt__Key|ApiToken|Authorization: Bearer|password|secret|token" -- .
 ```
 
 Treffer in Dokumentation müssen synthetische Platzhalter sein. Treffer in Code müssen Konfigurationszugriffe, Test-Credentials oder bewusst als auslesbare Client-Gate-Platzhalter gekennzeichnete Werte sein. Produktive Werte blockieren die Veröffentlichung bis zur Rotation und bis zur Freigabe des bereinigten Historienumfangs.

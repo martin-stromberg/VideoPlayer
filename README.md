@@ -29,7 +29,7 @@ Das Web-Repository verantwortet Backend, Blazor-Oberfläche, gemeinsame Client-D
 ## Installation
 
 ```bash
-git clone <REPOSITORY_URL> VideoWebPlayer
+git clone https://github.com/martin-stromberg/VideoPlayer.git VideoWebPlayer
 cd VideoWebPlayer
 dotnet restore VideoPlayer.sln
 dotnet build VideoPlayer.sln

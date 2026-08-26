@@ -2,6 +2,14 @@
 set -eu
 
 repo_root="$(git rev-parse --show-toplevel)"
+branch_name="$(git symbolic-ref --quiet --short HEAD || true)"
+
+case "$branch_name" in
+  main|staging)
+    echo "Direct commits to '$branch_name' are blocked. Create a feature branch and merge via pull request." >&2
+    exit 1
+    ;;
+esac
 
 if ! command -v dotnet >/dev/null 2>&1; then
   echo "Markdown link check failed: dotnet was not found. Install the .NET 10 SDK or disable the repository hook path." >&2

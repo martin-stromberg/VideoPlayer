@@ -20,7 +20,7 @@ Diese Anleitung beschreibt die Einrichtung des Web-Repositorys unter Linux und W
 ## Linux: Web installieren
 
 ```bash
-git clone <REPOSITORY_URL> VideoWebPlayer
+git clone https://github.com/martin-stromberg/VideoPlayer.git VideoWebPlayer
 cd VideoWebPlayer
 dotnet --version
 dotnet restore VideoPlayer.sln
@@ -55,7 +55,7 @@ Wenn ein anderes Launch-Profil oder `Host:Port` verwendet wird, die URL entsprec
 ## Windows: Web installieren
 
 ```powershell
-git clone <REPOSITORY_URL> VideoWebPlayer
+git clone https://github.com/martin-stromberg/VideoPlayer.git VideoWebPlayer
 Set-Location VideoWebPlayer
 dotnet --version
 dotnet restore .\VideoPlayer.sln

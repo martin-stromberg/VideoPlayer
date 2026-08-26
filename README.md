@@ -117,4 +117,4 @@ Für kommerzielle Nutzung ist ein separater Lizenzvertrag erforderlich. Kontakt 
 ## Autor
 
 Martin Stromberg
-GitHub: [@Muesli84](https://github.com/Muesli84)
+GitHub: [@martin-stromberg](https://github.com/martin-stromberg)

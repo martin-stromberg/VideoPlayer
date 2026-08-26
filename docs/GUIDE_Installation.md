@@ -101,15 +101,16 @@ $env:Jwt__ApiToken__Web = "<PRODUKTIVER_WEB_API_TOKEN>"
 $env:Jwt__Issuer = "VideoWebPlayer"
 ```
 
-## Lokalen Pre-Commit-Hook aktivieren
+## Lokale Git-Hooks aktivieren
 
-Der Hook blockiert mögliche GitHub-Tokens in gestagten Dateien und konfigurierten Remote-URLs. Danach prüft er lokale Markdown-Links ohne externe Netzwerkzugriffe:
+Die Hooks blockieren direkte Commits und Pushes auf `main` und `staging`, weil diese Branches nur über Pull Requests aktualisiert werden dürfen. Der Pre-Commit-Hook blockiert außerdem mögliche GitHub-Tokens in gestagten Dateien und konfigurierten Remote-URLs. Danach prüft er lokale Markdown-Links ohne externe Netzwerkzugriffe:
 
 ```bash
 dotnet run --no-restore --project tools/SecretScan/SecretScan.csproj -- --root .
 dotnet run --no-restore --project tools/MarkdownLinkCheck/MarkdownLinkCheck.csproj -- --root .
 git config core.hooksPath .githooks
 git ls-files --stage .githooks/pre-commit
+git ls-files --stage .githooks/pre-push
 ```
 
 Unter Windows PowerShell:
@@ -119,9 +120,12 @@ dotnet run --no-restore --project .\tools\SecretScan\SecretScan.csproj -- --root
 dotnet run --no-restore --project .\tools\MarkdownLinkCheck\MarkdownLinkCheck.csproj -- --root .
 git config core.hooksPath .githooks
 git ls-files --stage .githooks/pre-commit
+git ls-files --stage .githooks/pre-push
 ```
 
-Der Hook läuft lokal vor Commits. Er ist versioniert, wird aber nicht automatisch durch Git aktiviert. Die Stage-Ausgabe muss mit `100755` beginnen; falls ein Linux-Arbeitsbaum `100644` zeigt, `chmod +x .githooks/pre-commit` ausführen und die Git-Metadaten vor der Veröffentlichung erneut prüfen.
+Die Hooks laufen lokal vor Commits und Pushes. Sie sind versioniert, werden aber nicht automatisch durch Git aktiviert. Die Stage-Ausgabe muss jeweils mit `100755` beginnen; falls ein Linux-Arbeitsbaum `100644` zeigt, `chmod +x .githooks/pre-commit .githooks/pre-push` ausführen und die Git-Metadaten vor der Veröffentlichung erneut prüfen.
+
+Die lokale Hook-Sperre ersetzt keine serverseitige Branch Protection auf GitHub. `main` und `staging` müssen dort zusätzlich so konfiguriert werden, dass direkte Pushes verhindert und Änderungen nur über Pull Requests gemergt werden.
 
 ## Tests
 

@@ -16,6 +16,7 @@ Backups im alten `.zip`-Format werden von dieser Version nicht mehr unterstützt
 
 - Veröffentlichungsvorbereitung ergänzt: konsistente PolyForm-Noncommercial-Lizenzhinweise, Linux-/Windows-Installationsanleitung, zentrale API-Dokumentation und Secret-Hinweise mit synthetischen Platzhaltern.
 - Pre-Commit-Hook unter `.githooks/pre-commit` ergänzt: blockiert mögliche GitHub-Tokens in staged Dateien und Remote-URLs und führt den Markdown-Linkcheck aus.
+- README für die GitHub-Startseite gestrafft und About-Seite mit ersten Schritten zur Videobibliothek ergänzt.
 - Projektstruktur bereinigt: Das Web-Repository enthält `VideoWebPlayer`, `VideoWebPlayer.Client`, `VideoWebPlayer.Tests` und Linkcheck-Tools.
 
 ## Stand und Prüfhinweis

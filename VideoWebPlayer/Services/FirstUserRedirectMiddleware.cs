@@ -72,6 +72,7 @@ public sealed class FirstUserRedirectMiddleware
     private static bool IsExcludedPath(PathString path)
     {
         return path.StartsWithSegments("/Account/Register", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWithSegments("/about", StringComparison.OrdinalIgnoreCase)
             || path.StartsWithSegments("/_framework", StringComparison.OrdinalIgnoreCase)
             || path.StartsWithSegments("/_blazor", StringComparison.OrdinalIgnoreCase)
             || path.StartsWithSegments("/_content", StringComparison.OrdinalIgnoreCase)

@@ -56,10 +56,12 @@ Das Repository enthält einen lokalen Linkcheck für Markdown-Dateien:
 dotnet run --no-restore --project tools/MarkdownLinkCheck/MarkdownLinkCheck.csproj -- --root .
 ```
 
-Nach einem frischen Klon muss der Linkcheck einmal restauriert und gebaut werden, bevor der Hook mit `--no-restore` ausgeführt wird:
+Nach einem frischen Klon müssen die Hook-Tools einmal restauriert und gebaut werden, bevor der Hook mit `--no-restore` ausgeführt wird:
 
 ```bash
+dotnet restore tools/SecretScan/SecretScan.csproj
 dotnet restore tools/MarkdownLinkCheck/MarkdownLinkCheck.csproj
+dotnet build tools/SecretScan/SecretScan.csproj --no-restore
 dotnet build tools/MarkdownLinkCheck/MarkdownLinkCheck.csproj --no-restore
 ```
 
@@ -72,7 +74,7 @@ git ls-files --stage .githooks/pre-commit
 
 Die Stage-Ausgabe muss mit `100755` beginnen. Unter Linux kann ein frischer Arbeitsbaum andernfalls mit `chmod +x .githooks/pre-commit` korrigiert werden. Fehlt `dotnet`, bricht der Hook mit einer verständlichen Fehlermeldung ab; externe HTTP(S)-Links werden nicht über das Netzwerk geprüft.
 
-Der Hook prüft lokale und repositoryinterne Markdown-Links ohne Netzwerkzugriff. CI-Workflows werden dafür nicht vorausgesetzt.
+Der Hook blockiert mögliche GitHub-Tokens in gestagten Dateien und in konfigurierten Remote-URLs. Anschließend prüft er lokale und repositoryinterne Markdown-Links ohne Netzwerkzugriff. CI-Workflows werden dafür nicht vorausgesetzt.
 
 ## Dokumentation
 

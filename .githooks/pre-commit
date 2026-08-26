@@ -8,4 +8,5 @@ if ! command -v dotnet >/dev/null 2>&1; then
   exit 1
 fi
 
+dotnet run --no-restore --project "$repo_root/tools/SecretScan/SecretScan.csproj" -- --root "$repo_root"
 dotnet run --no-restore --project "$repo_root/tools/MarkdownLinkCheck/MarkdownLinkCheck.csproj" -- --root "$repo_root"

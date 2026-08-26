@@ -15,7 +15,7 @@ Backups im alten `.zip`-Format werden von dieser Version nicht mehr unterstützt
 ## What’s New
 
 - Veröffentlichungsvorbereitung ergänzt: konsistente PolyForm-Noncommercial-Lizenzhinweise, Linux-/Windows-Installationsanleitung, zentrale API-Dokumentation und Secret-Hinweise mit synthetischen Platzhaltern.
-- Markdown-Linkcheck als versionierter lokaler Client-Hook unter `.githooks/pre-commit` ergänzt.
+- Pre-Commit-Hook unter `.githooks/pre-commit` ergänzt: blockiert mögliche GitHub-Tokens in staged Dateien und Remote-URLs und führt den Markdown-Linkcheck aus.
 - Projektstruktur bereinigt: Das Web-Repository enthält `VideoWebPlayer`, `VideoWebPlayer.Client`, `VideoWebPlayer.Tests` und Linkcheck-Tools.
 
 ## Stand und Prüfhinweis

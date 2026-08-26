@@ -101,11 +101,12 @@ $env:Jwt__ApiToken__Web = "<PRODUKTIVER_WEB_API_TOKEN>"
 $env:Jwt__Issuer = "VideoWebPlayer"
 ```
 
-## Markdown-Linkcheck aktivieren
+## Lokalen Pre-Commit-Hook aktivieren
 
-Der Linkcheck prüft lokale Markdown-Links ohne externe Netzwerkzugriffe:
+Der Hook blockiert mögliche GitHub-Tokens in gestagten Dateien und konfigurierten Remote-URLs. Danach prüft er lokale Markdown-Links ohne externe Netzwerkzugriffe:
 
 ```bash
+dotnet run --no-restore --project tools/SecretScan/SecretScan.csproj -- --root .
 dotnet run --no-restore --project tools/MarkdownLinkCheck/MarkdownLinkCheck.csproj -- --root .
 git config core.hooksPath .githooks
 git ls-files --stage .githooks/pre-commit
@@ -114,6 +115,7 @@ git ls-files --stage .githooks/pre-commit
 Unter Windows PowerShell:
 
 ```powershell
+dotnet run --no-restore --project .\tools\SecretScan\SecretScan.csproj -- --root .
 dotnet run --no-restore --project .\tools\MarkdownLinkCheck\MarkdownLinkCheck.csproj -- --root .
 git config core.hooksPath .githooks
 git ls-files --stage .githooks/pre-commit

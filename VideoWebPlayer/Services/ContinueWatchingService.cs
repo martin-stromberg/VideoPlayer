@@ -12,13 +12,13 @@ namespace VideoWebPlayer.Services
     public class ContinueWatchingService
     {
         private static readonly TimeSpan MinStart = TimeSpan.FromSeconds(5);
-        private static readonly TimeSpan EndThreshold = TimeSpan.FromSeconds(30);
 
         private readonly ApplicationDbContext _db;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly ILogger<ContinueWatchingService> _logger;
         private readonly ContinueWatchingBuffer _buffer;
         private readonly MediaUpdateNotificationService _notificationService;
+        private readonly ProgramSettingsService _programSettings;
 
         /// <summary>
         /// Represents the result of a manual continue-watching skip operation.
@@ -41,17 +41,20 @@ namespace VideoWebPlayer.Services
         /// <param name="logger">Logger instance.</param>
         /// <param name="buffer">In-memory buffer for progress entries.</param>
         /// <param name="notificationService">Service for sending SignalR notifications.</param>
+        /// <param name="programSettings">Service for program-wide settings.</param>
         public ContinueWatchingService(ApplicationDbContext db,
                                        UserManager<ApplicationUser> userManager,
                                        ILogger<ContinueWatchingService> logger,
                                        ContinueWatchingBuffer buffer,
-                                       MediaUpdateNotificationService notificationService)
+                                       MediaUpdateNotificationService notificationService,
+                                       ProgramSettingsService programSettings)
         {
             _db = db;
             _userManager = userManager;
             _logger = logger;
             _buffer = buffer;
             _notificationService = notificationService;
+            _programSettings = programSettings;
         }
 
         /// <summary>
@@ -169,8 +172,10 @@ namespace VideoWebPlayer.Services
                                                    TimeSpan duration,
                                                    CancellationToken ct = default)
         {
+            var endThreshold = await _programSettings.GetContinueWatchingEndThresholdAsync(ct);
+
             // Beendet?
-            if (duration - position <= EndThreshold)
+            if (duration - position <= endThreshold)
             {
                 var existing = await _db.ContinueWatchingEntries
                     .FirstOrDefaultAsync(x => x.UserId == userId && x.MovieId == movieId && x.TVShowEpisodeId == episodeId, ct);

@@ -3,9 +3,12 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
+using msTools.Updater;
 using Serilog;
 using System.Security.Cryptography;
+using System.Threading;
 using VideoWebPlayer.Client;
 using VideoWebPlayer.Components;
 using VideoWebPlayer.Components.Account;
@@ -29,6 +32,14 @@ builder.AddVideoWebPlayerServices();
 builder.AddVideoWebPlayerAutoUpdate();
 
 var app = builder.Build();
+
+// Ensure the auto-update package store directories (Updates, Updates/pending, Updates/staging) exist.
+// Without this, the update script cannot be written and the installation fails silently.
+app.Services.GetRequiredService<IAutoUpdatePackageStore>()
+    .EnsureAsync(CancellationToken.None)
+    .GetAwaiter()
+    .GetResult();
+
 app.MigrateDatabase();
 app.UseVideoWebPlayer();
 

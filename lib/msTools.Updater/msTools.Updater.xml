@@ -1441,6 +1441,25 @@
             <param name="installedVersion">The currently installed version.</param>
             <returns>A fresh, idle snapshot with no history.</returns>
         </member>
+        <member name="T:msTools.Updater.AutoUpdateWorkspaceInitializationService">
+            <summary>
+            Initializes the auto-update workspace on host start by ensuring the configured
+            <see cref="T:msTools.Updater.IAutoUpdatePackageStore"/> directory layout exists.
+            </summary>
+        </member>
+        <member name="M:msTools.Updater.AutoUpdateWorkspaceInitializationService.#ctor(msTools.Updater.IAutoUpdatePackageStore,Microsoft.Extensions.Logging.ILogger{msTools.Updater.AutoUpdateWorkspaceInitializationService})">
+            <summary>
+            Initializes a new instance of the <see cref="T:msTools.Updater.AutoUpdateWorkspaceInitializationService"/> class.
+            </summary>
+            <param name="packageStore">The package store whose workspace will be initialized.</param>
+            <param name="logger">Used to log initialization outcomes.</param>
+        </member>
+        <member name="M:msTools.Updater.AutoUpdateWorkspaceInitializationService.StartAsync(System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:msTools.Updater.AutoUpdateWorkspaceInitializationService.StopAsync(System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
         <member name="T:msTools.Updater.AutoUpdateWorkspaceRecoveryException">
             <summary>
             Represents a failed recovery of the updater workspace.

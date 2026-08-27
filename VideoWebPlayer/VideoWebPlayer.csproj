@@ -99,4 +99,18 @@
   <ItemGroup>
     <None Include="../LICENSE" Pack="true" PackagePath="\" />
   </ItemGroup>
+
+  <Target Name="GenerateReleaseMetadata" AfterTargets="Build">
+    <PropertyGroup>
+      <_ReleaseVersion>$(Version)</_ReleaseVersion>
+      <_ReleaseVersion Condition="'$(_ReleaseVersion)' == ''">1.0.0</_ReleaseVersion>
+      <_ReleaseTimestamp>$([System.DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ'))</_ReleaseTimestamp>
+      <_ReleaseMetadataDir Condition="'$(PublishDir)' != ''">$([MSBuild]::EnsureTrailingSlash('$(PublishDir)'))</_ReleaseMetadataDir>
+      <_ReleaseMetadataDir Condition="'$(_ReleaseMetadataDir)' == ''">$([MSBuild]::EnsureTrailingSlash('$(OutDir)'))</_ReleaseMetadataDir>
+    </PropertyGroup>
+    <WriteLinesToFile
+      File="$(_ReleaseMetadataDir)release-metadata.json"
+      Overwrite="true"
+      Lines="{ &quot;version&quot;: &quot;$(_ReleaseVersion)&quot;, &quot;publishedAt&quot;: &quot;$(_ReleaseTimestamp)&quot;, &quot;commitSha&quot;: &quot;&quot;, &quot;repository&quot;: &quot;&quot;, &quot;runtimeIdentifier&quot;: &quot;$(RuntimeIdentifier)&quot; }" />
+  </Target>
 </Project>

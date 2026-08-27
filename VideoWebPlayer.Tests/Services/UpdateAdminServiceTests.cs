@@ -47,7 +47,7 @@ public sealed class UpdateAdminServiceTests
             .Setup(x => x.DownloadAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AutoUpdateResult(AutoUpdateOutcome.Success, AutoUpdateState.ReadyToInstall, "downloaded", null!));
         commandHandler
-            .Setup(x => x.InstallAsync(true, It.IsAny<CancellationToken>()))
+            .Setup(x => x.InstallAsync(true, It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AutoUpdateResult(AutoUpdateOutcome.Success, AutoUpdateState.Installing, "installing", null!));
 
         var service = CreateService(Status(AutoUpdateState.UpdateAvailable, availableVersion: "1.2.3"), commandHandler.Object);
@@ -56,7 +56,7 @@ public sealed class UpdateAdminServiceTests
 
         Assert.True(result.Succeeded);
         commandHandler.Verify(x => x.DownloadAsync(It.IsAny<CancellationToken>()), Times.Once);
-        commandHandler.Verify(x => x.InstallAsync(true, It.IsAny<CancellationToken>()), Times.Once);
+        commandHandler.Verify(x => x.InstallAsync(true, It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public sealed class UpdateAdminServiceTests
         Assert.True(result.IsBlocked);
         Assert.Equal("skipped", result.Message);
         commandHandler.Verify(x => x.DownloadAsync(It.IsAny<CancellationToken>()), Times.Once);
-        commandHandler.Verify(x => x.InstallAsync(true, It.IsAny<CancellationToken>()), Times.Never);
+        commandHandler.Verify(x => x.InstallAsync(true, It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -94,7 +94,7 @@ public sealed class UpdateAdminServiceTests
         Assert.True(result.IsBlocked);
         Assert.Equal("canceled", result.Message);
         commandHandler.Verify(x => x.DownloadAsync(It.IsAny<CancellationToken>()), Times.Once);
-        commandHandler.Verify(x => x.InstallAsync(true, It.IsAny<CancellationToken>()), Times.Never);
+        commandHandler.Verify(x => x.InstallAsync(true, It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -147,6 +147,7 @@ public sealed class UpdateAdminServiceTests
             LastDownloadResult: null!,
             LastInstallResult: null!,
             LastError: null,
+            LastErrorCode: null,
             IsLocked: isLocked,
             LockCreatedAt: isLocked ? DateTimeOffset.UtcNow : null);
 }

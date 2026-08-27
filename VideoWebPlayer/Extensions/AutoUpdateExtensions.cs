@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using msTools.Updater;
 using VideoWebPlayer.Services.Updates;
 
@@ -33,6 +34,10 @@ public static class AutoUpdateExtensions
             cfg.UseSource(sourceFactory.Create(allowPrereleaseUpdates))
                .WithUpdateUnitName(UpdateUnitName);
         });
+
+        // Replace the default process runner to avoid a workspace recovery that deletes
+        // the downloaded package after the install script has been generated.
+        builder.Services.Replace(ServiceDescriptor.Singleton<IAutoUpdateProcessRunner, SafeAutoUpdateProcessRunner>());
 
         builder.Services.AddHostedService<UpdateBackupEventBinder>();
 

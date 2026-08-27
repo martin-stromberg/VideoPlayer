@@ -104,6 +104,7 @@ public sealed class UpdatesControllerAuthorizationTests
             LastDownloadResult: null!,
             LastInstallResult: null!,
             LastError: null,
+            LastErrorCode: null,
             IsLocked: false,
             LockCreatedAt: null);
 }

@@ -232,8 +232,8 @@ jobs:
           draft: false
           prerelease: true
           files: |
-            release-windows-${RC_VERSION}.zip
-            release-linux-${RC_VERSION}.zip
+            release-windows-${{ needs.version.outputs.rc_version }}.zip
+            release-linux-${{ needs.version.outputs.rc_version }}.zip
             update.json
           body: |
             ## Pre-release v${{ needs.version.outputs.rc_version }}

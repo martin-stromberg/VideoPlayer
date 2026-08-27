@@ -22,7 +22,7 @@ else
             <div>
                 <span class="admin-kicker">Einrichtung</span>
                 <h1>Allgemein</h1>
-                <p>Anwendungstitel und Scan-Verhalten konfigurieren.</p>
+                <p>Anwendungstitel, Scan-Verhalten und Weiterschauen konfigurieren.</p>
             </div>
             <a class="btn btn-outline-light" href="/admin">Zurueck</a>
         </header>
@@ -68,6 +68,20 @@ else
                 </div>
             </div>
 
+            <div class="admin-card admin-card-wide">
+                <h2>Weiterschauen</h2>
+                <div class="admin-settings-grid">
+                    <div>
+                        <label class="form-label">Sekunden vor dem Videoende</label>
+                        <div class="admin-input-with-unit">
+                            <InputNumber class="form-control" @bind-Value="model.ContinueWatchingEndThresholdSeconds" />
+                            <span>Sek.</span>
+                        </div>
+                        <div class="form-text">Standard: 30 Sekunden. Position wird nicht gespeichert, wenn der Abstand zum Videoende kleiner ist.</div>
+                    </div>
+                </div>
+            </div>
+
             <div class="admin-actions">
                 <button type="submit" class="btn btn-primary" disabled="@isSaving">Speichern</button>
             </div>
@@ -96,6 +110,7 @@ else
             ApplicationTitle = setup.ApplicationTitle,
             ScanProcessIntervalMinutes = setup.ScanProcessIntervalMinutes,
             MediaCollectionScanIntervalDays = setup.MediaCollectionScanIntervalDays,
+            ContinueWatchingEndThresholdSeconds = setup.ContinueWatchingEndThresholdSeconds,
         };
     }
 
@@ -111,7 +126,8 @@ else
             await SettingsService.UpdateGeneralSettingsAsync(
                 model.ApplicationTitle,
                 model.ScanProcessIntervalMinutes,
-                model.MediaCollectionScanIntervalDays);
+                model.MediaCollectionScanIntervalDays,
+                model.ContinueWatchingEndThresholdSeconds);
             statusMessage = "Gespeichert.";
         }
         finally
@@ -131,5 +147,8 @@ else
 
         [Range(1, 365)]
         public int MediaCollectionScanIntervalDays { get; set; } = 7;
+
+        [Range(0, 3600)]
+        public int ContinueWatchingEndThresholdSeconds { get; set; } = 30;
     }
 }

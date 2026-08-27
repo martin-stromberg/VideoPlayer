@@ -62,13 +62,15 @@ public abstract class ContinueWatchingServiceTestBase
         var userManager = CreateMockUserManager();
         var logger = Mock.Of<ILogger<ContinueWatchingService>>();
         var buffer = new ContinueWatchingBuffer();
+        var programSettings = new ProgramSettingsService(_db, Mock.Of<ILogger<ProgramSettingsService>>());
 
         _service = new ContinueWatchingService(
             _db,
             userManager,
             logger,
             buffer,
-            _notificationService);
+            _notificationService,
+            programSettings);
     }
 
     private static UserManager<ApplicationUser> CreateMockUserManager()

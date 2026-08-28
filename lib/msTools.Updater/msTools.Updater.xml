@@ -408,6 +408,9 @@
         <member name="F:msTools.Updater.AutoUpdateErrorCode.PackagePersistenceFailed">
             <summary>The persisted package descriptor could not be loaded or failed its integrity check.</summary>
         </member>
+        <member name="F:msTools.Updater.AutoUpdateErrorCode.PackageValidationFailed">
+            <summary>The downloaded package failed integrity or structural validation before installation.</summary>
+        </member>
         <member name="F:msTools.Updater.AutoUpdateErrorCode.WorkspaceRecoveryFailed">
             <summary>The updater workspace could not be recovered because of stale files or permissions.</summary>
         </member>
@@ -1609,7 +1612,7 @@
         <member name="M:msTools.Updater.DefaultAutoUpdateProcessRunner.EnsureUpdateUnitAvailable(System.String)">
             <inheritdoc />
         </member>
-        <member name="M:msTools.Updater.DefaultAutoUpdateProcessRunner.StartScript(System.String)">
+        <member name="M:msTools.Updater.DefaultAutoUpdateProcessRunner.StartScript(System.String,System.String)">
             <inheritdoc />
         </member>
         <member name="M:msTools.Updater.DefaultAutoUpdateProcessRunner.ReadUnitProperty(System.String,System.String)">
@@ -2158,11 +2161,12 @@
             </summary>
             <param name="scriptPath">The full path of the installation script.</param>
         </member>
-        <member name="M:msTools.Updater.IAutoUpdateProcessRunner.StartScript(System.String)">
+        <member name="M:msTools.Updater.IAutoUpdateProcessRunner.StartScript(System.String,System.String)">
             <summary>
             Starts the installation script as a detached process.
             </summary>
             <param name="scriptPath">The full path of the installation script.</param>
+            <param name="zipPath">The full path of the downloaded update package. When provided, the runner verifies the package exists and is non-empty before starting the script.</param>
         </member>
         <member name="T:msTools.Updater.IAutoUpdateScriptGenerator">
             <summary>

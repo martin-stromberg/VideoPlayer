@@ -45,6 +45,12 @@ public sealed class ProgramSettingsService
                 changed = true;
             }
 
+            if (setup.ContinueWatchingEndThresholdSeconds <= 0)
+            {
+                setup.ContinueWatchingEndThresholdSeconds = 30;
+                changed = true;
+            }
+
             if (string.IsNullOrWhiteSpace(setup.ApplicationTitle))
             {
                 setup.ApplicationTitle = "Martins Videosammlung";
@@ -107,16 +113,31 @@ public sealed class ProgramSettingsService
     }
 
     /// <summary>
-    /// Updates the application title and scan-related program settings.
+    /// Gets the configured end-of-video threshold for continue-watching in seconds.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task<TimeSpan> GetContinueWatchingEndThresholdAsync(CancellationToken cancellationToken = default)
+    {
+        var setup = await GetOrCreateSetupAsync(cancellationToken);
+        var seconds = setup.ContinueWatchingEndThresholdSeconds <= 0
+            ? 30
+            : setup.ContinueWatchingEndThresholdSeconds;
+        return TimeSpan.FromSeconds(seconds);
+    }
+
+    /// <summary>
+    /// Updates the application title and program settings.
     /// </summary>
     /// <param name="applicationTitle">Application title shown in the UI.</param>
     /// <param name="scanProcessIntervalMinutes">Interval for the scan process in minutes.</param>
     /// <param name="mediaCollectionScanIntervalDays">Interval for re-scanning media collections in days.</param>
+    /// <param name="continueWatchingEndThresholdSeconds">Seconds before the end of a video after which the position is no longer saved.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     public async Task UpdateGeneralSettingsAsync(
         string applicationTitle,
         int scanProcessIntervalMinutes,
         int mediaCollectionScanIntervalDays,
+        int continueWatchingEndThresholdSeconds,
         CancellationToken cancellationToken = default)
     {
         var setup = await GetOrCreateSetupAsync(cancellationToken);
@@ -126,6 +147,7 @@ public sealed class ProgramSettingsService
             : applicationTitle.Trim();
         setup.ScanProcessIntervalMinutes = Math.Max(1, scanProcessIntervalMinutes);
         setup.MediaCollectionScanIntervalDays = Math.Max(1, mediaCollectionScanIntervalDays);
+        setup.ContinueWatchingEndThresholdSeconds = Math.Max(0, continueWatchingEndThresholdSeconds);
 
         await _db.SaveChangesAsync(cancellationToken);
     }

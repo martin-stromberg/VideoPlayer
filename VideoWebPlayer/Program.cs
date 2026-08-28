@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using System.Security.Cryptography;
@@ -29,6 +30,7 @@ builder.AddVideoWebPlayerServices();
 builder.AddVideoWebPlayerAutoUpdate();
 
 var app = builder.Build();
+
 app.MigrateDatabase();
 app.UseVideoWebPlayer();
 

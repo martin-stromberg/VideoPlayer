@@ -49,7 +49,7 @@ public sealed class UpdatesControllerAuthorizationTests
 
         await controller.Check(TestContext.Current.CancellationToken);
 
-        antiforgery.Verify(x => x.ValidateRequestAsync(httpContext), Times.Once);
+        antiforgery.Verify(x => x.IsRequestValidAsync(httpContext), Times.Once);
     }
 
     [Fact]
@@ -62,7 +62,7 @@ public sealed class UpdatesControllerAuthorizationTests
 
         await controller.Install(TestContext.Current.CancellationToken);
 
-        antiforgery.Verify(x => x.ValidateRequestAsync(httpContext), Times.Once);
+        antiforgery.Verify(x => x.IsRequestValidAsync(httpContext), Times.Once);
     }
 
     private static UpdatesController CreateController(IAntiforgery antiforgery, AutoUpdateStatusSnapshot status)
@@ -104,6 +104,7 @@ public sealed class UpdatesControllerAuthorizationTests
             LastDownloadResult: null!,
             LastInstallResult: null!,
             LastError: null,
+            LastErrorCode: null,
             IsLocked: false,
             LockCreatedAt: null);
 }

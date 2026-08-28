@@ -1,12 +1,14 @@
 @page "/admin/updates"
 @using System.ComponentModel.DataAnnotations
 @using Microsoft.AspNetCore.Antiforgery
+@using Microsoft.AspNetCore.Components
 @using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.AspNetCore.WebUtilities
 @using msTools.Updater
 @using VideoWebPlayer.Services.Updates
 @inject IAntiforgery Antiforgery
 @inject IHttpContextAccessor HttpContextAccessor
+@inject PersistentComponentState ApplicationState
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager NavigationManager
 @inject UpdateAdminService UpdateAdmin
@@ -169,6 +171,7 @@ else
     private AutoUpdateStatusSnapshot? status;
     private PeriodicTimer? timer;
     private CancellationTokenSource? timerCts;
+    private PersistingComponentStateSubscription _stateSubscription;
 
     private bool IsActionBlocked => status is null || UpdateAdminService.IsBusy(status);
 
@@ -188,10 +191,20 @@ else
 
     private string? CreateAntiforgeryRequestToken()
     {
+        if (ApplicationState.TryTakeFromJson<string>("antiforgeryToken", out var token))
+            return token;
+
         var httpContext = HttpContextAccessor.HttpContext;
-        return httpContext is null
-            ? null
-            : Antiforgery.GetAndStoreTokens(httpContext).RequestToken;
+        if (httpContext is null)
+            return null;
+
+        var requestToken = Antiforgery.GetAndStoreTokens(httpContext).RequestToken;
+        _stateSubscription = ApplicationState.RegisterOnPersisting(() =>
+        {
+            ApplicationState.PersistAsJson("antiforgeryToken", requestToken);
+            return Task.CompletedTask;
+        });
+        return requestToken;
     }
 
     private void ApplyQueryMessages()
@@ -359,6 +372,7 @@ else
     /// <inheritdoc />
     public void Dispose()
     {
+        _stateSubscription.Dispose();
         timerCts?.Cancel();
         timer?.Dispose();
         timerCts?.Dispose();

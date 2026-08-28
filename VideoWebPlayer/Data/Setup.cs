@@ -32,4 +32,10 @@ public class Setup
     /// Default: 7 days.
     /// </summary>
     public int MediaCollectionScanIntervalDays { get; set; } = 7;
+
+    /// <summary>
+    /// Gets or sets the number of seconds before the end of a video after which the playback position is no longer saved.
+    /// Default: 30 seconds.
+    /// </summary>
+    public int ContinueWatchingEndThresholdSeconds { get; set; } = 30;
 }

@@ -86,7 +86,7 @@ public sealed class UpdateAdminService
                     return ToActionResult(download);
             }
 
-            return ToActionResult(await _commands.InstallAsync(true, cancellationToken));
+            return ToActionResult(await _commands.InstallAsync(true, false, cancellationToken));
         }
         catch (Exception ex)
         {

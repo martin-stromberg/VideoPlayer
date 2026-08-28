@@ -189,15 +189,39 @@ jobs:
           dotnet publish VideoWebPlayer/VideoWebPlayer.csproj --configuration Release --runtime win-x64 --self-contained -o artifacts/windows /p:Version=$RC_VERSION /p:NoWarn=NU1903
           dotnet publish VideoWebPlayer/VideoWebPlayer.csproj --configuration Release --runtime linux-x64 --self-contained -o artifacts/linux /p:Version=$RC_VERSION /p:NoWarn=NU1903
 
+      - name: Create release metadata
+        run: |
+          PUBLISHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          for target in windows:win-x64 linux:linux-x64; do
+            DIR="artifacts/${target%%:*}"
+            RID="${target##*:}"
+            cat > "$DIR/release-metadata.json" <<JSON
+          {
+            "version": "${RC_VERSION}",
+            "publishedAt": "${PUBLISHED_AT}",
+            "commitSha": "${{ github.sha }}",
+            "repository": "${{ github.repository }}",
+            "runtimeIdentifier": "${RID}"
+          }
+          JSON
+          done
+
       - name: Create release zip (Windows)
         run: |
           cd artifacts/windows
-          zip -r ../../release-windows.zip .
+          zip -r ../../release-windows-${RC_VERSION}.zip .
 
       - name: Create release zip (Linux)
         run: |
           cd artifacts/linux
-          zip -r ../../release-linux.zip .
+          zip -r ../../release-linux-${RC_VERSION}.zip .
+
+      - name: Create update manifest
+        run: |
+          bash .github/scripts/create-update-manifest.sh \
+            "$RC_VERSION" \
+            "${{ github.repository }}" \
+            update.json
 
       - name: Create prerelease
         uses: softprops/action-gh-release@v2
@@ -208,8 +232,9 @@ jobs:
           draft: false
           prerelease: true
           files: |
-            release-windows.zip
-            release-linux.zip
+            release-windows-${{ needs.version.outputs.rc_version }}.zip
+            release-linux-${{ needs.version.outputs.rc_version }}.zip
+            update.json
           body: |
             ## Pre-release v${{ needs.version.outputs.rc_version }}
 

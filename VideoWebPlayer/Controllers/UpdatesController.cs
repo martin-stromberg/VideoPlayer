@@ -36,7 +36,13 @@ public sealed class UpdatesController : ControllerBase
     [HttpPost("check")]
     public async Task<IActionResult> Check(CancellationToken cancellationToken)
     {
-        await _antiforgery.ValidateRequestAsync(HttpContext);
+        var antiforgery = await _antiforgery.IsRequestValidAsync(HttpContext);
+        if (!antiforgery)
+        {
+            _logger.LogWarning("Missing or invalid antiforgery token for manual update check.");
+            return RedirectWithResult(UpdateAdminActionResult.Failed("Das Antiforgery-Token fehlt oder ist ungueltig."));
+        }
+
         _logger.LogInformation("Manual update check requested.");
 
         var result = await _updates.CheckAsync(cancellationToken);
@@ -49,7 +55,13 @@ public sealed class UpdatesController : ControllerBase
     [HttpPost("install")]
     public async Task<IActionResult> Install(CancellationToken cancellationToken)
     {
-        await _antiforgery.ValidateRequestAsync(HttpContext);
+        var antiforgery = await _antiforgery.IsRequestValidAsync(HttpContext);
+        if (!antiforgery)
+        {
+            _logger.LogWarning("Missing or invalid antiforgery token for manual update installation.");
+            return RedirectWithResult(UpdateAdminActionResult.Failed("Das Antiforgery-Token fehlt oder ist ungueltig."));
+        }
+
         _logger.LogInformation("Manual update installation requested.");
 
         var result = await _updates.InstallAsync(cancellationToken);

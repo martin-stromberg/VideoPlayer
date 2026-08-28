@@ -1,3 +1,4 @@
+﻿@using VideoWebPlayer.Components.Shared.Media
 @page "/moviecollection/{Id:long}"
 @using Microsoft.AspNetCore.Components.Web
 @using Microsoft.AspNetCore.Components.Authorization
@@ -83,6 +84,7 @@ else
         <button class="favorite-btn" @onclick="() => ToggleFavorite(null)" title="Sammlung als Favorit markieren">
             @((IsCollectionFavorite) ? "★" : "☆")
         </button>
+        <UnlockButton Entry="collection" IsUnlocked="IsCollectionUnlocked" IsUnlockedChanged="OnCollectionUnlockedChanged" />
         @RenderActionButtons()
         <div class="collection-header-overlay">
             <div class="collection-header-content">
@@ -161,6 +163,7 @@ else
     private bool isAdmin;
     private bool IsCollectionFavorite;
     private bool IsMovieFavorite;
+    private bool IsCollectionUnlocked;
     private long resumeSeconds;
     private VideoPlayer? _player;
 
@@ -207,6 +210,7 @@ else
         if (collection is null)
             return;
 
+        IsCollectionUnlocked = collection.IsUnlocked;
         IsCollectionFavorite = await CheckIfFavorite(collectionId: collection, movieId: null);
 
         if (MovieId.HasValue && collection?.Movies != null)
@@ -378,6 +382,13 @@ else
             IsCollectionFavorite = await Client.ToggleFavorite(collection);
     }
 
+    private void OnCollectionUnlockedChanged(bool unlocked)
+    {
+        IsCollectionUnlocked = unlocked;
+        if (collection is not null)
+            collection.IsUnlocked = unlocked;
+    }
+
     private Task<bool> CheckIfFavorite(DtoMediaEntry? collectionId, DtoMediaEntry? movieId)
     {
         if (movieId is not null)
@@ -452,6 +463,8 @@ else
         collection = await Client.RequestMovieCollectionAsync(Id) as DtoMovieCollection;
         if (collection is null)
             return;
+
+        IsCollectionUnlocked = collection.IsUnlocked;
         selectedMovie = movieId.HasValue ? collection.Movies.FirstOrDefault(m => m.Id == movieId.Value) : null;
         IsCollectionFavorite = await CheckIfFavorite(collectionId: collection, movieId: null);
         if (selectedMovie is not null)

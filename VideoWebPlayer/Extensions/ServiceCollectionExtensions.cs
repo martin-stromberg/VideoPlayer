@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Components;
+﻿using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -220,6 +220,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<MediaMetadataEditorService>();
         services.AddSingleton<IMediaMetadataWriteCoordinator, MediaMetadataWriteCoordinator>();
         services.AddScoped<IFavoritesService, FavoritesService>();
+        services.AddScoped<IUnlockedMediaService, UnlockedMediaService>();
 		services.AddScoped<IGenreService, GenreService>();
         services.AddScoped<SftpMediaSourceReader>();
         services.AddScoped<DataUpgradeManager>();

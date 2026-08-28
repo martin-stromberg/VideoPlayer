@@ -1,3 +1,4 @@
+using VideoWebPlayer.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using VideoWebPlayer.Client.Models;
@@ -14,6 +15,7 @@ using VideoWebPlayer.Services.Authentication;
 public class SourcesController : ApiBaseController
 {
     private readonly ApplicationDbContext _db;
+    private readonly IUnlockedMediaService _unlockedMediaService;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SourcesController"/> class.
@@ -21,10 +23,11 @@ public class SourcesController : ApiBaseController
     /// <param name="authService">Authentication service.</param>
     /// <param name="db">Database context.</param>
     /// <param name="logger">Logger instance.</param>
-    public SourcesController(IAuthService authService, ApplicationDbContext db, ILogger<SourcesController> logger)
+    public SourcesController(IAuthService authService, ApplicationDbContext db, IUnlockedMediaService unlockedMediaService, ILogger<SourcesController> logger)
         :base(authService, logger)
     {
         _db = db;
+        _unlockedMediaService = unlockedMediaService;
     }
 
     /// <summary>
@@ -75,10 +78,12 @@ public class SourcesController : ApiBaseController
         try
         {
             CheckLogedIn();
-            var isAllowed = await _db.MediaSourceUsers
+            var isSourceAllowed = await _db.MediaSourceUsers
                 .AsNoTracking()
                 .AnyAsync(msu => msu.UserId == CurrentUser.Id && msu.MediaSourceId == id);
-            if (!isAllowed)
+            var unlockedSourceIds = await _unlockedMediaService.GetUnlockedSourceIdsForUserAsync(CurrentUser.Id);
+            var hasUnlockedEntries = unlockedSourceIds.Contains(id);
+            if (!isSourceAllowed && !hasUnlockedEntries)
                 return Forbid("Kein Zugriff auf diese Quelle.");
 
             var source = await _db.MediaSources

@@ -1,3 +1,4 @@
+using VideoWebPlayer.Services;
 using Microsoft.EntityFrameworkCore;
 using Renci.SshNet;
 using System.Threading;
@@ -11,6 +12,7 @@ public class RecentEntryService
 {
     private readonly ApplicationDbContext _db;
     private readonly IAuthService authService;
+    private readonly IUnlockedMediaService _unlockedMediaService;
     private const int MaxEntries = 10;
 
     /// <summary>
@@ -18,10 +20,11 @@ public class RecentEntryService
     /// </summary>
     /// <param name="db">Database context.</param>
     /// <param name="authService">Authentication service.</param>
-    public RecentEntryService(ApplicationDbContext db, IAuthService authService)
+    public RecentEntryService(ApplicationDbContext db, IAuthService authService, IUnlockedMediaService unlockedMediaService)
     {
         _db = db;
         this.authService = authService;
+        _unlockedMediaService = unlockedMediaService;
     }
 
     private async Task ClearCorruptEntriesAsync()
@@ -328,12 +331,21 @@ public class RecentEntryService
     /// <returns>The recent entries.</returns>
     public async Task<List<RecentEntry>> GetRecentEntriesAsync()
     {
-        var mediaSourceIds = await _db.MediaSourceUsers.Where(msu => msu.UserId == authService.CurrentUser.Id).Select(msu => msu.MediaSourceId).ToArrayAsync();        
-        return await _db.RecentEntries           
-            .Where(m => mediaSourceIds.Contains(m.MediaSourceId))
+        var currentUser = authService.CurrentUser;
+        var mediaSourceIds = await _db.MediaSourceUsers.Where(msu => msu.UserId == currentUser.Id).Select(msu => msu.MediaSourceId).ToArrayAsync();
+        var unlockedSourceIds = await _unlockedMediaService.GetUnlockedSourceIdsForUserAsync(currentUser.Id);
+        var unlockedMovieCollectionIds = await _unlockedMediaService.GetUnlockedMovieCollectionIdsForUserAsync(currentUser.Id);
+        var unlockedTVShowIds = await _unlockedMediaService.GetUnlockedTVShowIdsForUserAsync(currentUser.Id);
+        var allowedSourceIds = mediaSourceIds.Union(unlockedSourceIds).ToArray();
+
+        return await _db.RecentEntries
+            .Where(m => allowedSourceIds.Contains(m.MediaSourceId) ||
+                (m.MovieCollectionId != null && unlockedMovieCollectionIds.Contains(m.MovieCollectionId.Value)) ||
+                (m.TVShowId != null && unlockedTVShowIds.Contains(m.TVShowId.Value)) ||
+                (m.TVShowSeasonId != null && _db.TVShowSeasons.Any(s => s.Id == m.TVShowSeasonId.Value && unlockedTVShowIds.Contains(s.TVShowId))) ||
+                (m.TVShowEpisodeId != null && _db.TVShowEpisodes.Any(e => e.Id == m.TVShowEpisodeId.Value && _db.TVShowSeasons.Any(s => s.Id == e.TVShowSeasonId && unlockedTVShowIds.Contains(s.TVShowId)))))
             .OrderByDescending(e => e.CreatedAt)
             .Take(MaxEntries)
             .ToListAsync();
-        //return new List<RecentEntry>();
     }
 }

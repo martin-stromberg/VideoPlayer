@@ -43,7 +43,8 @@ internal sealed class MediaSourceDetailsViewModel
             MediaSource = await _client.RequestSourceAsync(sourceId);
             if (MediaSource is not null)
             {
-                SourceGenres = await _client.RequestSourceGenresAsync(MediaSource.Id);
+                SourceGenres = await _client.RequestSourceGenresAsync(MediaSource.Id)
+                    ?? new ClientModels.SourceGenresDto();
             }
             else
             {

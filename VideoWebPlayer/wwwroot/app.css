@@ -1183,6 +1183,7 @@ input[type="text"]:focus {
 .play-button,
 .back-arrow,
 .favorite-btn,
+.unlock-btn,
 .close-player,
 .episode-download-btn {
     border: 1px solid rgba(255, 255, 255, 0.18);
@@ -1258,10 +1259,87 @@ input[type="text"]:focus {
     background: rgba(229, 9, 20, 0.26);
 }
 
+.unlock-btn {
+    position: absolute;
+    top: 1.25rem;
+    right: calc(var(--vp-gutter) + 52px);
+    z-index: 6;
+    width: 44px;
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: rgba(18, 18, 18, 0.64);
+    color: var(--vp-primary-soft);
+    font-size: 1.4rem;
+    cursor: pointer;
+}
+
+.unlock-btn:hover {
+    background: rgba(229, 9, 20, 0.26);
+}
+
+.unlock-dialog-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.72);
+    backdrop-filter: blur(6px);
+}
+
+.unlock-dialog {
+    width: min(90vw, 480px);
+    max-height: 80vh;
+    overflow: auto;
+    padding: 1.5rem;
+    border-radius: 1rem;
+    background: #1a1a1a;
+    color: var(--vp-text);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.unlock-dialog h4 {
+    margin-top: 0;
+    margin-bottom: 0.5rem;
+}
+
+.unlock-user-list {
+    max-height: 40vh;
+    overflow: auto;
+    margin: 1rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.unlock-user-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    cursor: pointer;
+}
+
+.unlock-user-item input {
+    width: 1.2rem;
+    height: 1.2rem;
+    accent-color: var(--vp-primary);
+}
+
+.unlock-dialog-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+    margin-top: 1rem;
+}
+
 .metadata-action-bar {
     position: absolute;
     top: 1.25rem;
-    right: calc(var(--vp-gutter) + 56px);
+    right: calc(var(--vp-gutter) + 108px);
     z-index: 7;
     display: inline-flex;
     gap: 0.5rem;

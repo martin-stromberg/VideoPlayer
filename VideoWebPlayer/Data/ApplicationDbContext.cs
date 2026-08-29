@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using System.Threading;
 using VideoWebPlayer.Events;
@@ -95,6 +95,10 @@ namespace VideoWebPlayer.Data
         /// Tabelle f�r Favoriten.
         /// </summary>
         public DbSet<FavoriteEntry> FavoriteEntries { get; set; }
+        /// <summary>
+        /// Tabelle fuer einzeln freigeschaltete Medieneintraege.
+        /// </summary>
+        public DbSet<UnlockedMediaEntry> UnlockedMediaEntries { get; set; }
         /// <summary>
         /// Tabelle f�r Genres.
         /// </summary>

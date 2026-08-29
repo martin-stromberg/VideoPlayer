@@ -3,25 +3,34 @@
 > Diese Datei wird von `.github/workflows/main-release.yml` als Body des GitHub-Releases verwendet.
 > Vor einem Release sollte sie auf den aktuellen Stand gebracht werden; alter Inhalt kann entfernt oder durch den neuen Release-Text ersetzt werden.
 
-## Wichtige Hinweise vor dem Update (Backup-Format Breaking Change)
+## Important Notes Before Update
 
-:danger: **Vor dem Update** muss eine vollständige Sicherung des Anwendungsverzeichnisses (Dateien, Datenbank, Konfiguration) außerhalb des Anwendungspfads erfolgen.
+- A new database migration adds the `UnlockedMediaEntries` table; it is applied automatically on startup. Backups from older versions remain restorable because missing new tables and fields are tolerated.
 
-:danger: **Nach dem Update** muss unbedingt eine neue Datensicherung im Programm erstellt werden:
-`Einrichtung` > `Backups` > `Backup erstellen`.
+## What's New
 
-Backups im alten `.zip`-Format werden von dieser Version nicht mehr unterstützt und können nicht wiederhergestellt werden.
+- Fixed source page rendering for users with only individually unlocked items; no more unhandled exceptions when opening a source.
+- Block direct URL manipulation for non-unlocked detail and stream endpoints.
+- Sources containing at least one unlocked item now appear in the user menu.
+- Source detail pages list only explicitly unlocked titles for users without full source access.
+- "Neu im Programm" / recent list shows only explicitly unlocked titles for sources the user cannot fully access.
+- Added user-specific individual unlocks for TV shows and movie collections, including a lock/unlock button and user-selection dialog on detail pages.
+- Backup/restore now tolerates missing `UnlockedMediaEntries` and `EndThreshold` fields.
+- Added controller, service and end-to-end tests for unlock visibility and authorization.
+- Added help page `einzelfreischaltungen`.
 
-## What’s New
+## Wichtige Hinweise vor dem Update
 
-- Veröffentlichungsvorbereitung ergänzt: konsistente PolyForm-Noncommercial-Lizenzhinweise, Linux-/Windows-Installationsanleitung, zentrale API-Dokumentation und Secret-Hinweise mit synthetischen Platzhaltern.
-- Pre-Commit-Hook unter `.githooks/pre-commit` ergänzt: blockiert mögliche GitHub-Tokens in staged Dateien und Remote-URLs und führt den Markdown-Linkcheck aus.
-- Lokale Git-Hooks blockieren direkte Commits und Pushes auf `main` und `staging`, damit beide Branches nur über Pull Requests aktualisiert werden.
-- README für die GitHub-Startseite gestrafft und About-Seite mit ersten Schritten zur Videobibliothek ergänzt.
-- Projektstruktur bereinigt: Das Web-Repository enthält `VideoWebPlayer`, `VideoWebPlayer.Client`, `VideoWebPlayer.Tests` und Linkcheck-Tools.
+- Eine neue Datenbank-Migration fügt die Tabelle `UnlockedMediaEntries` hinzu; sie wird beim Start automatisch angewendet. Datensicherungen älterer Versionen bleiben wiederherstellbar, da fehlende neue Tabellen und Felder toleriert werden.
 
-## Stand und Prüfhinweis
+## Neuerungen
 
-- Die Veröffentlichungsunterlagen, der versionierte Linkcheck-Hook, die API-Dokumentation sowie die Installations- und Secret-Hinweise sind vorbereitet.
-- Web-Build, Web-Tests, API-Vertragstest, Markdown-Linkcheck und Web-Vulnerability-Scan wurden am 2026-08-25 lokal erfolgreich ausgeführt; Details stehen in `docs/PUBLICATION_AUDIT.md`.
-- Dieser Stand ist noch keine vollständige Freigabe: Linux-Frischclone-Hook-Test, GitHub-Repository-Einstellungen und produktive Secret-Rotation müssen vor dem Umschalten auf `public` abgeschlossen werden.
+- Fehler bei der Quellenseite für Benutzer mit nur einzelnen Freischaltungen behoben; kein Seitenfehler mehr beim Aufrufen einer Quelle.
+- Direkte URL-Manipulation auf nicht freigegebene Detail- und Stream-Endpunkte wird blockiert.
+- Quellen mit mindestens einem freigeschalteten Titel erscheinen jetzt im Benutzermenü.
+- Quellenseiten zeigen Benutzern ohne vollen Quellenzugriff nur explizit freigegebene Titel.
+- "Neu im Programm" zeigt für eingeschränkte Quellen nur explizit freigegebene Titel.
+- Benutzerspezifische Einzelfreischaltungen für Serien und Filmsammlungen hinzugefügt, inklusive Freigabe-Schaltfläche und Benutzerauswahl-Dialog auf Detailseiten.
+- Backup/Wiederherstellung toleriert jetzt fehlende `UnlockedMediaEntries`- und `EndThreshold`-Felder.
+- Controller-, Service- und End-to-End-Tests für Sichtbarkeit und Autorisierung ergänzt.
+- Hilfeseite `einzelfreischaltungen` hinzugefügt.

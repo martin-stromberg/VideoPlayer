@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Globalization;
 using System.Linq;
 using Microsoft.Data.Sqlite;
@@ -38,6 +38,7 @@ public class MediaSourceScanServiceTests
         services.AddScoped<ProgramSettingsService>();
         services.AddScoped<MediaSourceScanner>();
         services.AddScoped<RecentEntryService>();
+        services.AddScoped<IUnlockedMediaService, UnlockedMediaService>();
         services.AddScoped<MediaSourceClassifier>();
         services.AddMemoryCache();
         services.AddScoped<EpisodeBackgroundImageGenerator>();
@@ -105,6 +106,7 @@ public class MediaSourceScanServiceTests
         services.AddScoped<ProgramSettingsService>();
         services.AddScoped<MediaSourceScanner>();
         services.AddScoped<RecentEntryService>();
+        services.AddScoped<IUnlockedMediaService, UnlockedMediaService>();
         services.AddScoped<MediaSourceClassifier>();
         services.AddMemoryCache();
         services.AddScoped<EpisodeBackgroundImageGenerator>();
@@ -185,6 +187,7 @@ public class MediaSourceScanServiceTests
         services.AddScoped<ProgramSettingsService>();
         services.AddScoped<MediaSourceScanner>();
         services.AddScoped<RecentEntryService>();
+        services.AddScoped<IUnlockedMediaService, UnlockedMediaService>();
         services.AddScoped<MediaSourceClassifier>();
         services.AddMemoryCache();
         services.AddScoped<EpisodeBackgroundImageGenerator>();
@@ -279,6 +282,7 @@ public class MediaSourceScanServiceTests
         services.AddScoped<ProgramSettingsService>();
         services.AddScoped<MediaSourceScanner>();
         services.AddScoped<RecentEntryService>();
+        services.AddScoped<IUnlockedMediaService, UnlockedMediaService>();
         services.AddScoped<MediaSourceClassifier>();
         services.AddMemoryCache();
         services.AddScoped<EpisodeBackgroundImageGenerator>();
@@ -380,6 +384,7 @@ public class MediaSourceScanServiceTests
         services.AddScoped<ProgramSettingsService>();
         services.AddScoped<MediaSourceScanner>();
         services.AddScoped<RecentEntryService>();
+        services.AddScoped<IUnlockedMediaService, UnlockedMediaService>();
         services.AddScoped<MediaSourceClassifier>();
         services.AddMemoryCache();
         services.AddScoped<EpisodeBackgroundImageGenerator>();

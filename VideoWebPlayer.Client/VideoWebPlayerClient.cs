@@ -297,6 +297,31 @@ namespace VideoWebPlayer.Client
             return await HttpPostAsync<bool>("api/favorites/toggle", new StringContent(json, new System.Net.Http.Headers.MediaTypeHeaderValue("application/json")));
         }
 
+        public async Task<string[]> RequestUnlockedUserIdsAsync(DtoMediaEntry entry)
+        {
+            var json = JsonSerializer.Serialize(entry);
+            return await HttpPostAsync<string[]>("api/UnlockedMedia/users", new StringContent(json, new System.Net.Http.Headers.MediaTypeHeaderValue("application/json")));
+        }
+
+        public async Task SetUnlockedUsersAsync(DtoMediaEntry entry, string[] userIds)
+        {
+            var request = new UnlockedUsersRequest { Entry = entry, UserIds = userIds };
+            var json = JsonSerializer.Serialize(request);
+            await HttpPostAsync<string[]>("api/UnlockedMedia/set", new StringContent(json, new System.Net.Http.Headers.MediaTypeHeaderValue("application/json")));
+        }
+
+        public async Task<Dictionary<string, string>> RequestAllUsersAsync()
+        {
+            var result = await HttpGetAsync<IEnumerable<UserIdName>>("api/UnlockedMedia/all-users");
+            return result?.ToDictionary(u => u.Id, u => u.UserName ?? string.Empty) ?? new();
+        }
+
+        private sealed class UserIdName
+        {
+            public string Id { get; set; } = string.Empty;
+            public string? UserName { get; set; }
+        }
+
         public async Task RemoveFavoriteAsync(long favoriteId)
         {
             var json = JsonSerializer.Serialize(new { Id = favoriteId, UserId = "anonymous" });

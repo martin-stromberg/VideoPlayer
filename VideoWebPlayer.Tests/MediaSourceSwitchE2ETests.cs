@@ -109,6 +109,7 @@ public sealed class MediaSourceSwitchE2ETests : IAsyncLifetime
     }
 
     [Fact]
+    [Trait("Category", "E2E")]
     public async Task User_Can_Switch_Source_From_Menu_And_Sees_Only_Selected_Source_Titles()
     {
         if (_skipBrowser)

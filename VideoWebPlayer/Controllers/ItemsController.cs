@@ -347,24 +347,42 @@ public class ItemsController : ApiBaseController
             throw new RecordNotFoundException("Medieneintrag nicht gefunden");
         return entry;
     }
-    private async Task<MediaItem> FindMediaItemAsync(string type, long id)
-    {
-        var entry = await FindEntry(type, id);
 
+    private async Task EnsureAccessAsync(MediaBaseEntry entry)
+    {
         var source = await _db.MediaSources
-            .Include(ms => ms.MediaSourceUsers)
+            .AsNoTracking()
             .FirstOrDefaultAsync(ms => ms.Id == entry.MediaSourceId);
         if (source is null)
             throw new RecordNotFoundException("Medienquelle nicht gefunden");
-        var hasSourceAccess = source.MediaSourceUsers.Any(u => u.UserId == CurrentUser.Id);
-        var isUnlocked = entry switch
-        {
-            Movie movie => _db.UnlockedMediaEntries.AsNoTracking().Any(u => u.UserId == CurrentUser.Id && u.MovieCollectionId == movie.MovieCollectionId),
-            TVShowEpisode episode => _db.UnlockedMediaEntries.AsNoTracking().Any(u => u.UserId == CurrentUser.Id && u.TVShowId == episode.TVShowSeason.TVShowId),
-            _ => _db.UnlockedMediaEntries.AsNoTracking().Any(u => u.UserId == CurrentUser.Id && (u.MovieCollectionId == entry.Id || u.TVShowId == entry.Id))
-        };
+
+        var hasSourceAccess = await _db.MediaSourceUsers.AnyAsync(u => u.UserId == CurrentUser.Id && u.MediaSourceId == source.Id);
+        var isUnlocked = await IsUnlockedAsync(entry);
         if (!hasSourceAccess && !isUnlocked)
             throw new UnauthorizedAccessException("Fehlende Berechtigung fuer Medienquelle");
+    }
+
+    private async Task<bool> IsUnlockedAsync(MediaBaseEntry entry)
+    {
+        if (entry is Movie movie)
+            return await _db.UnlockedMediaEntries.AsNoTracking().AnyAsync(u => u.UserId == CurrentUser.Id && u.MovieCollectionId == movie.MovieCollectionId);
+
+        if (entry is TVShowEpisode episode)
+        {
+            var showId = await _db.TVShowSeasons.AsNoTracking()
+                .Where(s => s.Id == episode.TVShowSeasonId)
+                .Select(s => (long?)s.TVShowId)
+                .FirstOrDefaultAsync();
+            return await _db.UnlockedMediaEntries.AsNoTracking().AnyAsync(u => u.UserId == CurrentUser.Id && u.TVShowId == showId);
+        }
+
+        return await _db.UnlockedMediaEntries.AsNoTracking().AnyAsync(u => u.UserId == CurrentUser.Id && (u.MovieCollectionId == entry.Id || u.TVShowId == entry.Id));
+    }
+
+    private async Task<MediaItem> FindMediaItemAsync(string type, long id)
+    {
+        var entry = await FindEntry(type, id);
+        await EnsureAccessAsync(entry);
 
         var mediaItem = type switch
         {
@@ -484,6 +502,7 @@ public class ItemsController : ApiBaseController
         {
             CheckLogedIn();
             var entry = await FindEntry(type, id);
+            await EnsureAccessAsync(entry);
             if (entry is MovieCollection)
             {
                 var collection = Create<DtoMovieCollection>(entry);

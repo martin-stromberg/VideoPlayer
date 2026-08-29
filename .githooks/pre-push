@@ -2,6 +2,7 @@
 set -eu
 
 repo_root="$(git rev-parse --show-toplevel)"
+run_coverage=false
 
 while read -r local_ref local_sha remote_ref remote_sha; do
   case "$remote_ref" in
@@ -17,6 +18,8 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     continue
   fi
 
+  run_coverage=true
+
   # Ensure docs/RELEASE_NOTES.md was changed at least once in this branch.
   merge_base=$(git merge-base main "$local_sha" 2>/dev/null || true)
   if [ -z "$merge_base" ]; then
@@ -30,3 +33,26 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     exit 1
   fi
 done
+
+if [ "$run_coverage" = true ]; then
+  if [ "${SKIP_COVERAGE_HOOK:-}" = "1" ]; then
+    echo "Skipping local coverage hook because SKIP_COVERAGE_HOOK=1 is set."
+    exit 0
+  fi
+
+  if ! command -v dotnet >/dev/null 2>&1; then
+    echo "Coverage analysis failed: dotnet was not found. Install the .NET 10 SDK or set SKIP_COVERAGE_HOOK=1 for this push." >&2
+    exit 1
+  fi
+
+  coverage_dir="$repo_root/artifacts/local-coverage"
+  mkdir -p "$coverage_dir"
+
+  echo "Running local coverage analysis before push..."
+  dotnet test "$repo_root/VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj" \
+    --configuration Release \
+    --filter "Category!=E2E" \
+    --collect:"XPlat Code Coverage" \
+    --results-directory "$coverage_dir" \
+    -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+fi

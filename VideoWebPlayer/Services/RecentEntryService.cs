@@ -1,4 +1,4 @@
-using VideoWebPlayer.Services;
+ï»¿using VideoWebPlayer.Services;
 using Microsoft.EntityFrameworkCore;
 using Renci.SshNet;
 using System.Threading;
@@ -66,16 +66,16 @@ public class RecentEntryService
     {
         await ClearCorruptEntriesAsync();
 
-        // Prüfe, ob die MovieCollection schon gelistet ist
+        // Prï¿½fe, ob die MovieCollection schon gelistet ist
         if (movie.MovieCollectionId.HasValue &&
             await _db.RecentEntries.AnyAsync(e => e.MovieCollectionId == movie.MovieCollectionId))
             return;
 
-        // Entferne ggf. vorhandene Einträge für denselben Film
+        // Entferne ggf. vorhandene Eintrï¿½ge fï¿½r denselben Film
         var existing = await _db.RecentEntries.Where(e => e.MovieId == movie.Id).ToListAsync();
         _db.RecentEntries.RemoveRange(existing);
 
-        // Füge neuen Eintrag hinzu
+        // Fï¿½ge neuen Eintrag hinzu
         _db.RecentEntries.Add(new RecentEntry
         {
             MediaSourceId = movie.MediaSourceId,
@@ -101,7 +101,7 @@ public class RecentEntryService
         var toRemove = await _db.RecentEntries.Where(e => movies.Contains(e.MovieId ?? 0)).ToListAsync();
         _db.RecentEntries.RemoveRange(toRemove);
 
-        // Füge Collection hinzu, falls nicht vorhanden
+        // Fï¿½ge Collection hinzu, falls nicht vorhanden
         if (!await _db.RecentEntries.AnyAsync(e => e.MovieCollectionId == collection.Id))
         {
             _db.RecentEntries.Add(new RecentEntry
@@ -134,7 +134,7 @@ public class RecentEntryService
         ).ToListAsync();
         _db.RecentEntries.RemoveRange(toRemove);
 
-        // Füge Show hinzu, falls nicht vorhanden
+        // Fï¿½ge Show hinzu, falls nicht vorhanden
         if (!await _db.RecentEntries.AnyAsync(e => e.TVShowId == show.Id))
         {
             _db.RecentEntries.Add(new RecentEntry
@@ -156,7 +156,7 @@ public class RecentEntryService
     public async Task AddTVShowSeasonAsync(TVShowSeason season)
     {
         await ClearCorruptEntriesAsync();
-        // Prüfe, ob die Show schon gelistet ist
+        // Prï¿½fe, ob die Show schon gelistet ist
         if (await _db.RecentEntries.AnyAsync(e => e.TVShowId == season.TVShowId && e.Type == RecentEntryType.TVShow))
             return;
 
@@ -169,7 +169,7 @@ public class RecentEntryService
         if (!int.TryParse(season.Name.Split(' ').Last(), out var thisSeasonNumber))
             return;
 
-        // Finde alle Einträge zu Staffeln/Episoden dieser Show
+        // Finde alle Eintrï¿½ge zu Staffeln/Episoden dieser Show
         var entries = await _db.RecentEntries
             .Where(e => e.TVShowId == season.TVShowId)
             .ToListAsync();
@@ -188,17 +188,17 @@ public class RecentEntryService
 
                     if (entrySeasonNumber > thisSeasonNumber)
                     {
-                        // Spätere Staffel vorhanden, neue Staffel hinzufügen
+                        // Spï¿½tere Staffel vorhanden, neue Staffel hinzufï¿½gen
                         shouldAdd = true;
                     }
                     else if (entrySeasonNumber < thisSeasonNumber)
                     {
-                        // Frühere Staffel vorhanden, neue Staffel NICHT hinzufügen
+                        // Frï¿½here Staffel vorhanden, neue Staffel NICHT hinzufï¿½gen
                         return;
                     }
                     else
                     {
-                        // Gleiche Staffel, NICHT hinzufügen
+                        // Gleiche Staffel, NICHT hinzufï¿½gen
                         return;
                     }
                 }
@@ -215,17 +215,17 @@ public class RecentEntryService
                             entrySeasonNumber = int.MaxValue;
                         if (entrySeasonNumber > thisSeasonNumber)
                         {
-                            // Episode einer späteren Staffel vorhanden, neue Staffel hinzufügen
+                            // Episode einer spï¿½teren Staffel vorhanden, neue Staffel hinzufï¿½gen
                             shouldAdd = true;
                         }
                         else if (entrySeasonNumber < thisSeasonNumber)
                         {
-                            // Episode einer früheren Staffel vorhanden, neue Staffel NICHT hinzufügen
+                            // Episode einer frï¿½heren Staffel vorhanden, neue Staffel NICHT hinzufï¿½gen
                             return;
                         }
                         else
                         {
-                            // Episode der gleichen Staffel vorhanden, neue Staffel hinzufügen
+                            // Episode der gleichen Staffel vorhanden, neue Staffel hinzufï¿½gen
                             shouldAdd = true;
                         }
                     }
@@ -233,7 +233,7 @@ public class RecentEntryService
             }
         }
 
-        // Entferne alle Einträge zu späteren Staffeln und deren Episoden
+        // Entferne alle Eintrï¿½ge zu spï¿½teren Staffeln und deren Episoden
         if (shouldAdd)
         {
             var laterSeasonIds = allSeasons.Where(s => s.Name.EndsWith(thisSeasonNumber.ToString().PadLeft(2, '0'))).Select(s => s.Id).ToList();
@@ -247,7 +247,7 @@ public class RecentEntryService
 
             _db.RecentEntries.RemoveRange(toRemove);
 
-            // Füge Staffel hinzu, falls nicht vorhanden
+            // Fï¿½ge Staffel hinzu, falls nicht vorhanden
             if (!await _db.RecentEntries.AnyAsync(e => e.TVShowSeasonId == season.Id))
             {
                 _db.RecentEntries.Add(new RecentEntry
@@ -275,12 +275,12 @@ public class RecentEntryService
             .FirstOrDefaultAsync(s => s.Id == episode.TVShowSeasonId);
         if (season is null)
             return;
-        // Prüfe, ob die Show oder Staffel schon gelistet ist
+        // Prï¿½fe, ob die Show oder Staffel schon gelistet ist
         if (await _db.RecentEntries.AnyAsync(e => e.TVShowId == season.TVShowId) ||
             await _db.RecentEntries.AnyAsync(e => e.TVShowSeasonId == episode.TVShowSeasonId))
             return;
 
-        // Prüfe, ob ein Eintrag mit früherem Veröffentlichungsdatum existiert
+        // Prï¿½fe, ob ein Eintrag mit frï¿½herem Verï¿½ffentlichungsdatum existiert
         var existing = await _db.RecentEntries
             .Where(e => e.TVShowEpisodeId == episode.Id)
             .FirstOrDefaultAsync();
@@ -290,13 +290,13 @@ public class RecentEntryService
         if (existing != null && existing.PublishedAt >= publishedAt)
             return;
 
-        // Entferne spätere Einträge
+        // Entferne spï¿½tere Eintrï¿½ge
         var laterEntries = await _db.RecentEntries
             .Where(e => e.TVShowEpisodeId == episode.Id && e.PublishedAt < publishedAt)
             .ToListAsync();
         _db.RecentEntries.RemoveRange(laterEntries);
 
-        // Füge Episode hinzu
+        // Fï¿½ge Episode hinzu
         _db.RecentEntries.Add(new RecentEntry
         {
             MediaSourceId = episode.MediaSourceId,
@@ -332,11 +332,9 @@ public class RecentEntryService
     public async Task<List<RecentEntry>> GetRecentEntriesAsync()
     {
         var currentUser = authService.CurrentUser;
-        var mediaSourceIds = await _db.MediaSourceUsers.Where(msu => msu.UserId == currentUser.Id).Select(msu => msu.MediaSourceId).ToArrayAsync();
-        var unlockedSourceIds = await _unlockedMediaService.GetUnlockedSourceIdsForUserAsync(currentUser.Id);
+        var allowedSourceIds = await _db.MediaSourceUsers.Where(msu => msu.UserId == currentUser.Id).Select(msu => msu.MediaSourceId).ToArrayAsync();
         var unlockedMovieCollectionIds = await _unlockedMediaService.GetUnlockedMovieCollectionIdsForUserAsync(currentUser.Id);
         var unlockedTVShowIds = await _unlockedMediaService.GetUnlockedTVShowIdsForUserAsync(currentUser.Id);
-        var allowedSourceIds = mediaSourceIds.Union(unlockedSourceIds).ToArray();
 
         return await _db.RecentEntries
             .Where(m => allowedSourceIds.Contains(m.MediaSourceId) ||

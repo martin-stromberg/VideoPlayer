@@ -300,19 +300,19 @@ namespace VideoWebPlayer.Client
         public async Task<string[]> RequestUnlockedUserIdsAsync(DtoMediaEntry entry)
         {
             var json = JsonSerializer.Serialize(entry);
-            return await HttpPostAsync<string[]>("api/unlocked/users", new StringContent(json, new System.Net.Http.Headers.MediaTypeHeaderValue("application/json")));
+            return await HttpPostAsync<string[]>("api/UnlockedMedia/users", new StringContent(json, new System.Net.Http.Headers.MediaTypeHeaderValue("application/json")));
         }
 
         public async Task SetUnlockedUsersAsync(DtoMediaEntry entry, string[] userIds)
         {
             var request = new UnlockedUsersRequest { Entry = entry, UserIds = userIds };
             var json = JsonSerializer.Serialize(request);
-            await HttpPostAsync<string[]>("api/unlocked/set", new StringContent(json, new System.Net.Http.Headers.MediaTypeHeaderValue("application/json")));
+            await HttpPostAsync<string[]>("api/UnlockedMedia/set", new StringContent(json, new System.Net.Http.Headers.MediaTypeHeaderValue("application/json")));
         }
 
         public async Task<Dictionary<string, string>> RequestAllUsersAsync()
         {
-            var result = await HttpGetAsync<IEnumerable<UserIdName>>("api/unlocked/all-users");
+            var result = await HttpGetAsync<IEnumerable<UserIdName>>("api/UnlockedMedia/all-users");
             return result?.ToDictionary(u => u.Id, u => u.UserName ?? string.Empty) ?? new();
         }
 

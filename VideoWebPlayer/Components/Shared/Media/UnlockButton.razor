@@ -88,6 +88,9 @@
 
         try
         {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            await Client.EnsureAuthorizationTokenAsync(authState.User);
+
             allUsers = await Client.RequestAllUsersAsync();
             var unlocked = await Client.RequestUnlockedUserIdsAsync(Entry);
             selectedUserIds = new HashSet<string>(unlocked);

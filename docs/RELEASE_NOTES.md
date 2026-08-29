@@ -9,6 +9,7 @@
 
 ## What's New
 
+- Fixed the title list not updating to the last selected source when switching sources through the menu.
 - Fixed source page rendering for users with only individually unlocked items; no more unhandled exceptions when opening a source.
 - Block direct URL manipulation for non-unlocked detail and stream endpoints.
 - Sources containing at least one unlocked item now appear in the user menu.
@@ -25,6 +26,7 @@
 
 ## Neuerungen
 
+- Fehler behoben, durch den die Titelliste beim Wechsel zwischen Quellen über das Menü nicht auf die zuletzt ausgewählte Quelle aktualisiert wurde.
 - Fehler bei der Quellenseite für Benutzer mit nur einzelnen Freischaltungen behoben; kein Seitenfehler mehr beim Aufrufen einer Quelle.
 - Direkte URL-Manipulation auf nicht freigegebene Detail- und Stream-Endpunkte wird blockiert.
 - Quellen mit mindestens einem freigeschalteten Titel erscheinen jetzt im Benutzermenü.

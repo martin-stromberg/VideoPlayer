@@ -1,6 +1,8 @@
 #!/usr/bin/env sh
 set -eu
 
+repo_root="$(git rev-parse --show-toplevel)"
+
 while read -r local_ref local_sha remote_ref remote_sha; do
   case "$remote_ref" in
     refs/heads/main|refs/heads/staging)
@@ -9,4 +11,22 @@ while read -r local_ref local_sha remote_ref remote_sha; do
       exit 1
       ;;
   esac
+
+  # Skip branch deletion (zero SHA).
+  if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
+    continue
+  fi
+
+  # Ensure docs/RELEASE_NOTES.md was changed at least once in this branch.
+  merge_base=$(git merge-base main "$local_sha" 2>/dev/null || true)
+  if [ -z "$merge_base" ]; then
+    continue
+  fi
+
+  release_notes_commits=$(git log --format=%H "$merge_base..$local_sha" -- "$repo_root/docs/RELEASE_NOTES.md")
+  if [ -z "$release_notes_commits" ]; then
+    echo "Push rejected: docs/RELEASE_NOTES.md has not been changed in this branch." >&2
+    echo "Update the release notes before pushing." >&2
+    exit 1
+  fi
 done

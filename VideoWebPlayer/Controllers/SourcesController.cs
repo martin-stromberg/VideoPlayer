@@ -1,4 +1,4 @@
-using VideoWebPlayer.Services;
+ï»¿using VideoWebPlayer.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using VideoWebPlayer.Client.Models;
@@ -40,12 +40,15 @@ public class SourcesController : ApiBaseController
         {
             CheckLogedIn();
 
-            // Hole alle Quellen, die für den Benutzer freigeschaltet sind
+            // Hole alle Quellen, die fï¿½r den Benutzer freigeschaltet sind
             var sourceIds = await _db.MediaSourceUsers
                 .AsNoTracking()
                 .Where(msu => msu.UserId == CurrentUser.Id)
                 .Select(msu => msu.MediaSourceId)
                 .ToListAsync();
+
+            var unlockedSourceIds = await _unlockedMediaService.GetUnlockedSourceIdsForUserAsync(CurrentUser.Id);
+            sourceIds = sourceIds.Union(unlockedSourceIds).ToList();
 
             var sources = (await _db.MediaSources
                 .AsNoTracking()

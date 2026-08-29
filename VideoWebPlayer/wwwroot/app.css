@@ -1339,7 +1339,7 @@ input[type="text"]:focus {
 .metadata-action-bar {
     position: absolute;
     top: 1.25rem;
-    right: calc(var(--vp-gutter) + 56px);
+    right: calc(var(--vp-gutter) + 108px);
     z-index: 7;
     display: inline-flex;
     gap: 0.5rem;

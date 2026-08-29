@@ -9,6 +9,7 @@ internal sealed class MediaSourceDetailsViewModel
 {
     private readonly VideoWebPlayerClient _client;
     private readonly AuthenticationStateProvider _authStateProvider;
+    private int _stateVersion;
 
     public MediaSourceDetailsViewModel(VideoWebPlayerClient client, AuthenticationStateProvider authStateProvider)
     {
@@ -16,6 +17,7 @@ internal sealed class MediaSourceDetailsViewModel
         _authStateProvider = authStateProvider;
     }
 
+    public long? ActiveSourceId { get; private set; }
     public ClientModels.DtoMediaSource? MediaSource { get; private set; }
     public ClientModels.SourceGenresDto SourceGenres { get; private set; } = new();
 
@@ -33,18 +35,34 @@ internal sealed class MediaSourceDetailsViewModel
 
     public async Task InitializeAsync(long sourceId)
     {
+        var version = ++_stateVersion;
+        ActiveSourceId = sourceId;
+        MediaSource = null;
+        SourceGenres = new ClientModels.SourceGenresDto();
+        ResetSourceState();
         IsLoading = true;
         try
         {
             var authState = await _authStateProvider.GetAuthenticationStateAsync();
+            if (version != _stateVersion)
+                return;
+
             var user = authState.User;
             IsAuthenticated = user?.Identity?.IsAuthenticated == true;
 
-            MediaSource = await _client.RequestSourceAsync(sourceId);
-            if (MediaSource is not null)
+            var mediaSource = await _client.RequestSourceAsync(sourceId);
+            if (version != _stateVersion)
+                return;
+
+            MediaSource = mediaSource;
+            if (mediaSource is not null)
             {
-                SourceGenres = await _client.RequestSourceGenresAsync(MediaSource.Id)
+                var sourceGenres = await _client.RequestSourceGenresAsync(mediaSource.Id)
                     ?? new ClientModels.SourceGenresDto();
+                if (version != _stateVersion)
+                    return;
+
+                SourceGenres = sourceGenres;
             }
             else
             {
@@ -53,37 +71,46 @@ internal sealed class MediaSourceDetailsViewModel
         }
         finally
         {
-            IsLoading = false;
+            if (version == _stateVersion)
+                IsLoading = false;
         }
     }
 
     public void ResetEntries()
     {
-        Page = 0;
-        Entries.Clear();
+        _stateVersion++;
+        ResetEntryState();
     }
 
     public void SetGenre(long? genreId) => SelectedGenreId = genreId;
 
     public async Task<IReadOnlyList<ApiModels.MediaEntryDto>> LoadNextPageAsync(long sourceId)
     {
-        if (IsLoading)
+        if (IsLoading || ActiveSourceId != sourceId)
             return Array.Empty<ApiModels.MediaEntryDto>();
+
+        var version = _stateVersion;
+        var page = Page;
+        var searchText = SearchText;
+        var selectedGenreId = SelectedGenreId;
 
         IsLoading = true;
         try
         {
             var newEntries = await _client.RequestSourceItems(
                 sourceId,
-                Page,
+                page,
                 PageSize,
-                SearchText,
-                SelectedGenreId ?? 0);
+                searchText,
+                selectedGenreId ?? 0);
+
+            if (version != _stateVersion || ActiveSourceId != sourceId)
+                return Array.Empty<ApiModels.MediaEntryDto>();
 
             if (newEntries?.Any() == true)
             {
                 Entries.AddRange(newEntries);
-                Page++;
+                Page = page + 1;
                 return newEntries;
             }
 
@@ -91,7 +118,22 @@ internal sealed class MediaSourceDetailsViewModel
         }
         finally
         {
-            IsLoading = false;
+            if (version == _stateVersion)
+                IsLoading = false;
         }
+    }
+
+    private void ResetSourceState()
+    {
+        SearchText = "";
+        SelectedGenreId = null;
+        ResetEntryState();
+    }
+
+    private void ResetEntryState()
+    {
+        IsLoading = false;
+        Page = 0;
+        Entries.Clear();
     }
 }

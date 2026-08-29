@@ -5,6 +5,7 @@
 @inject IJSRuntime JS
 @inject MediaSourceDetailsViewModel Vm
 @rendermode InteractiveServer
+@implements IAsyncDisposable
 
 <script>
     window.saveScrollPosition = function (selector) {
@@ -37,49 +38,78 @@
     public long Id { get; set; }
 
     private ElementReference BottomMarker;
+    private DotNetObjectReference<MediaSourceDetails>? _dotNetObjectReference;
+    private long? _initializedSourceId;
+    private bool _needsInitialPageLoad;
+    private int _initialLoadVersion;
 
     [JSInvokable]
     public async Task OnBottomVisible()
     {
         if (Vm.IsAuthenticated == true)
-            await LoadNextPageAsync();
+            await LoadNextPageAsync(Id);
     }
 
-    private async Task LoadNextPageAsync()
+    private async Task LoadNextPageAsync(long sourceId)
     {
         if (Vm.IsLoading)
             return;
 
-        var newEntries = await Vm.LoadNextPageAsync(Id);
+        var newEntries = await Vm.LoadNextPageAsync(sourceId);
 
         if (!long.TryParse(await JS.InvokeAsync<string>("getSelectedMediaItem"), out var selectedId))
             selectedId = 0;
 
-        if (selectedId != 0 && newEntries.Count > 0 && !newEntries.Any(e => e.Id == selectedId))
+        if (Vm.ActiveSourceId == sourceId && selectedId != 0 && newEntries.Count > 0 && !newEntries.Any(e => e.Id == selectedId))
         {
-            await LoadNextPageAsync();
+            await LoadNextPageAsync(sourceId);
             return;
         }
 
-        await JS.InvokeVoidAsync("setSelectedMediaItem", "0");
+        if (Vm.ActiveSourceId == sourceId)
+            await JS.InvokeVoidAsync("setSelectedMediaItem", "0");
+
         StateHasChanged();
     }
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
+        if (_initializedSourceId == Id)
+            return;
+
+        _initializedSourceId = Id;
+        _needsInitialPageLoad = true;
+        _initialLoadVersion++;
         await Vm.InitializeAsync(Id);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender && Vm.IsAuthenticated == true && Vm.MediaSource is not null)
+        if (_needsInitialPageLoad && Vm.IsAuthenticated == true && Vm.MediaSource is not null && Vm.ActiveSourceId == Id)
         {
             try
             {
-                while (Vm.IsLoading)
+                var sourceId = Id;
+                var initialLoadVersion = _initialLoadVersion;
+
+                while (Vm.IsLoading && IsInitialLoadCurrent(sourceId, initialLoadVersion))
                     await Task.Delay(10);
-                await LoadNextPageAsync();
-                await JS.InvokeVoidAsync("observeBottom", BottomMarker, DotNetObjectReference.Create(this));
+
+                if (!IsInitialLoadCurrent(sourceId, initialLoadVersion))
+                    return;
+
+                _needsInitialPageLoad = false;
+
+                if (!IsInitialLoadCurrent(sourceId, initialLoadVersion, requirePendingLoad: false))
+                    return;
+
+                await LoadNextPageAsync(sourceId);
+
+                if (!IsInitialLoadCurrent(sourceId, initialLoadVersion, requirePendingLoad: false))
+                    return;
+
+                _dotNetObjectReference ??= DotNetObjectReference.Create(this);
+                await JS.InvokeVoidAsync("observeBottom", BottomMarker, _dotNetObjectReference);
             }
             catch(Exception ex)
             {
@@ -90,6 +120,12 @@
         // Scrollposition der Medienliste wiederherstellen
         await JS.InvokeVoidAsync("restoreScrollPosition", ".media-grid");
     }
+
+    private bool IsInitialLoadCurrent(long sourceId, int initialLoadVersion, bool requirePendingLoad = true)
+        => (!requirePendingLoad || _needsInitialPageLoad)
+           && _initialLoadVersion == initialLoadVersion
+           && Id == sourceId
+           && Vm.ActiveSourceId == sourceId;
 
     private string GetPosterUrl(ApiModels.MediaEntryDto entry)
         => entry.PictureId.HasValue
@@ -108,8 +144,9 @@
     private async Task SearchEntries()
     {
         Vm.ResetEntries();
-        await LoadNextPageAsync();
-        await JS.InvokeVoidAsync("observeBottom", BottomMarker, DotNetObjectReference.Create(this));
+        await LoadNextPageAsync(Id);
+        _dotNetObjectReference ??= DotNetObjectReference.Create(this);
+        await JS.InvokeVoidAsync("observeBottom", BottomMarker, _dotNetObjectReference);
     }
 
     private async Task OnSearchKeyDown(KeyboardEventArgs e)
@@ -124,8 +161,26 @@
     {
         Vm.SetGenre(genreId);
         Vm.ResetEntries();
-        await LoadNextPageAsync();
-        await JS.InvokeVoidAsync("observeBottom", BottomMarker, DotNetObjectReference.Create(this));
+        await LoadNextPageAsync(Id);
+        _dotNetObjectReference ??= DotNetObjectReference.Create(this);
+        await JS.InvokeVoidAsync("observeBottom", BottomMarker, _dotNetObjectReference);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("disconnectMediaSourceBottomObserver");
+        }
+        catch (Microsoft.JSInterop.JSDisconnectedException)
+        {
+        }
+        catch (InvalidOperationException)
+        {
+        }
+
+        _dotNetObjectReference?.Dispose();
+        _dotNetObjectReference = null;
     }
 }
 

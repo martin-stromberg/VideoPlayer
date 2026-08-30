@@ -7,6 +7,7 @@ using System.Text;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Controllers;
 using VideoWebPlayer.Data;
+using VideoWebPlayer.Services;
 using VideoWebPlayer.Services.Authentication;
 
 /// <summary>
@@ -19,6 +20,7 @@ public class SourceGenresController : ApiBaseController
 {
     private readonly ApplicationDbContext _db;
     private readonly IWebHostEnvironment _env;
+    private readonly IUnlockedMediaService _unlockedMediaService;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SourceGenresController"/> class.
@@ -26,12 +28,14 @@ public class SourceGenresController : ApiBaseController
     /// <param name="authService">Authentication service.</param>
     /// <param name="db">Database context.</param>
     /// <param name="env">Web host environment.</param>
+    /// <param name="unlockedMediaService">Unlocked media service.</param>
     /// <param name="logger">Logger instance.</param>
-    public SourceGenresController(IAuthService authService, ApplicationDbContext db, IWebHostEnvironment env, ILogger<SourceGenresController> logger)
+    public SourceGenresController(IAuthService authService, ApplicationDbContext db, IWebHostEnvironment env, IUnlockedMediaService unlockedMediaService, ILogger<SourceGenresController> logger)
         :base(authService, logger)
     {
         _db = db;
         _env = env;
+        _unlockedMediaService = unlockedMediaService;
     }
 
     /// <summary>
@@ -118,8 +122,9 @@ public class SourceGenresController : ApiBaseController
             var isAllowed = await _db.MediaSourceUsers
                 .AsNoTracking()
                 .AnyAsync(msu => msu.UserId == CurrentUser.Id && msu.MediaSourceId == sourceId);
+            var unlockedSourceIds = await _unlockedMediaService.GetUnlockedSourceIdsForUserAsync(CurrentUser.Id);
 
-            if (!isAllowed)
+            if (!isAllowed && !unlockedSourceIds.Contains(sourceId))
                 return Forbid("Kein Zugriff auf diese Quelle.");
 
             var source = await _db.MediaSources.AsNoTracking().FirstOrDefaultAsync(ms => ms.Id == sourceId);

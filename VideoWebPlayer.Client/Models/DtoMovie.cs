@@ -22,7 +22,9 @@ public class DtoMediaEntry
     public DtoPicture? BannerPicture { get; set; }
     public DtoPicture? FanartPicture { get; set; }
     public bool IsFavorite { get; set; }
+    public bool IsUnlocked { get; set; }
     public bool IsManuallyEdited { get; set; }
+    public DateTime? WatchedAt { get; set; }
 }
 
 public sealed class DtoGenreOption

@@ -15,16 +15,21 @@ public sealed class FavoritesService : IFavoritesService
 {
 	private readonly ApplicationDbContext _db;
 	private readonly MediaUpdateNotificationService _notificationService;
+	private readonly WatchedStatusService _watchedStatusService;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="FavoritesService"/> class.
 	/// </summary>
 	/// <param name="db">Database context.</param>
 	/// <param name="notificationService">SignalR notification service.</param>
-	public FavoritesService(ApplicationDbContext db, MediaUpdateNotificationService notificationService)
+	public FavoritesService(
+		ApplicationDbContext db,
+		MediaUpdateNotificationService notificationService,
+		WatchedStatusService? watchedStatusService = null)
 	{
 		_db = db;
 		_notificationService = notificationService;
+		_watchedStatusService = watchedStatusService ?? new WatchedStatusService(db);
 	}
 
 	/// <inheritdoc />
@@ -45,6 +50,7 @@ public sealed class FavoritesService : IFavoritesService
 				result.Add(favDto);
 		}
 
+		await _watchedStatusService.EnrichAsync(userId, result.Select(x => x.Entry), cancellationToken);
 		return result.ToArray();
 	}
 

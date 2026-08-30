@@ -40,13 +40,13 @@ public sealed class UpdatesController : ControllerBase
         if (!antiforgery)
         {
             _logger.LogWarning("Missing or invalid antiforgery token for manual update check.");
-            return RedirectWithResult(UpdateAdminActionResult.Failed("Das Antiforgery-Token fehlt oder ist ungueltig."));
+            return RedirectWithCheckResult(UpdateAdminActionResult.Failed("Das Antiforgery-Token fehlt oder ist ungueltig."));
         }
 
         _logger.LogInformation("Manual update check requested.");
 
         var result = await _updates.CheckAsync(cancellationToken);
-        return RedirectWithResult(result);
+        return RedirectWithCheckResult(result);
     }
 
     /// <summary>
@@ -71,6 +71,12 @@ public sealed class UpdatesController : ControllerBase
     private static RedirectResult RedirectWithResult(UpdateAdminActionResult result)
     {
         var key = result.Succeeded ? "updateStatus" : "updateError";
+        return new RedirectResult($"/admin/updates?{key}={Uri.EscapeDataString(result.Message)}");
+    }
+
+    private static RedirectResult RedirectWithCheckResult(UpdateAdminActionResult result)
+    {
+        var key = result.Succeeded ? "checkStatus" : "checkError";
         return new RedirectResult($"/admin/updates?{key}={Uri.EscapeDataString(result.Message)}");
     }
 }

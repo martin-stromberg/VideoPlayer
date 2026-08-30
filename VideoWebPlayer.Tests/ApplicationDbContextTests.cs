@@ -128,6 +128,8 @@ public class ApplicationDbContextTests
         db.TVShowEpisodeMediaItems.Add(new TVShowEpisodeMediaItem { TVShowEpisodeId = episode.Id, MediaItemId = mediaItem.Id });
         db.TVShowGenres.Add(new TVShowGenre { TVShowId = tvShow.Id, GenreId = genre.Id });
         db.MediaSourceUsers.Add(new MediaSourceUser { MediaSourceId = source.Id, UserId = user.Id });
+        db.WatchedEntries.Add(new WatchedEntry { UserId = user.Id, MovieId = movie.Id, WatchedAt = DateTime.UtcNow });
+        db.WatchedEntries.Add(new WatchedEntry { UserId = user.Id, TVShowEpisodeId = episode.Id, WatchedAt = DateTime.UtcNow });
         await db.SaveChangesAsync(ct);
 
         var progressValues = new List<double>();
@@ -147,6 +149,7 @@ public class ApplicationDbContextTests
         Assert.Empty(await db.TVShowEpisodeMediaItems.ToListAsync(ct));
         Assert.Empty(await db.MovieGenres.Where(mg => mg.Movie.MediaSourceId == source.Id).ToListAsync(ct));
         Assert.Empty(await db.TVShowGenres.Where(tg => tg.TVShow.MediaSourceId == source.Id).ToListAsync(ct));
+        Assert.Empty(await db.WatchedEntries.ToListAsync(ct));
         Assert.Empty(await db.GenreNames.Where(gn => gn.Genre.MediaSourceId == source.Id).ToListAsync(ct));
         Assert.Empty(await db.Genres.Where(g => g.MediaSourceId == source.Id).ToListAsync(ct));
         Assert.Empty(await db.MediaSourceUsers.Where(msu => msu.MediaSourceId == source.Id).ToListAsync(ct));
@@ -286,6 +289,8 @@ public class ApplicationDbContextTests
         db.TVShowEpisodeMediaItems.Add(new TVShowEpisodeMediaItem { TVShowEpisodeId = episode.Id, MediaItemId = mediaItem.Id });
         db.TVShowGenres.Add(new TVShowGenre { TVShowId = tvShow.Id, GenreId = genre.Id });
         db.MediaSourceUsers.Add(new MediaSourceUser { MediaSourceId = source.Id, UserId = user.Id });
+        db.WatchedEntries.Add(new WatchedEntry { UserId = user.Id, MovieId = movie.Id, WatchedAt = DateTime.UtcNow });
+        db.WatchedEntries.Add(new WatchedEntry { UserId = user.Id, TVShowEpisodeId = episode.Id, WatchedAt = DateTime.UtcNow });
         await db.SaveChangesAsync(ct);
 
         db.Pictures.Add(new Picture
@@ -425,6 +430,7 @@ public class ApplicationDbContextTests
         Assert.Single(await ctx2.Db.GenreNames.ToListAsync(ct));
         Assert.Single(await ctx2.Db.MovieGenres.ToListAsync(ct));
         Assert.Single(await ctx2.Db.TVShowGenres.ToListAsync(ct));
+        Assert.Equal(2, await ctx2.Db.WatchedEntries.CountAsync(ct));
         Assert.Single(await ctx2.Db.MediaSourceUsers.ToListAsync(ct));
     }
 
@@ -490,6 +496,7 @@ public class ApplicationDbContextTests
         Assert.Equal(2, await ctx.Db.Pictures.CountAsync(ct));
         Assert.Single(await ctx.Db.ContinueWatchingEntries.ToListAsync(ct));
         Assert.Single(await ctx.Db.FavoriteEntries.ToListAsync(ct));
+        Assert.Equal(2, await ctx.Db.WatchedEntries.CountAsync(ct));
         Assert.Equal(2, await ctx.Db.RecentEntries.CountAsync(ct));
 
         await ctx.Db.DeleteMediaSourceAsync(ctx.Source, null, ct);
@@ -498,6 +505,7 @@ public class ApplicationDbContextTests
         Assert.Empty(await ctx.Db.Pictures.ToListAsync(ct));
         Assert.Empty(await ctx.Db.ContinueWatchingEntries.ToListAsync(ct));
         Assert.Empty(await ctx.Db.FavoriteEntries.ToListAsync(ct));
+        Assert.Empty(await ctx.Db.WatchedEntries.ToListAsync(ct));
         Assert.Empty(await ctx.Db.RecentEntries.ToListAsync(ct));
     }
 

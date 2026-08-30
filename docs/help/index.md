@@ -6,6 +6,7 @@
 
 - [Episoden](episoden/index.md) — Funktionen und Einstellungen für Episode-Detailansichten, einschließlich dynamisch generierter Hintergrundbilder
 - [Medienbibliothek](medienbibliothek.md) — Überarbeitete Oberfläche und Navigation durch Ihre Mediencollection
+- [Gesehen-Kennzeichen](gesehen-status.md) — Benutzerbezogene Markierung bereits gesehener Filme und Episoden
 - [Medienmetadaten bearbeiten](medien-editiermodus.md) — Administrativer Editiermodus für Serien, Staffeln, Episoden, Filme und Filmsammlungen
 - [Startseite – Hero-Hintergrund](startseite-hero-hintergrund.md) — Zusammengesetztes Hintergrundbild aus der „Weiterschauen"-Liste
 - [Weiterschauen](weiterschauen/index.md) — Speichern und Fortsetzen von Serien und Filmen an der zuletzt angesehenen Position

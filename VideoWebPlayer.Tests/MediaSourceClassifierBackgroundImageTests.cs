@@ -1,4 +1,4 @@
-using Microsoft.Data.Sqlite;
+﻿using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -252,6 +252,7 @@ public class MediaSourceClassifierBackgroundImageTests
         services.AddScoped<ProgramSettingsService>();
         services.AddScoped<MediaSourceScanner>();
         services.AddScoped<RecentEntryService>();
+        services.AddScoped<IUnlockedMediaService, UnlockedMediaService>();
         services.AddScoped<MediaSourceClassifier>();
         services.AddMemoryCache();
         services.AddScoped<EpisodeBackgroundImageGenerator>();

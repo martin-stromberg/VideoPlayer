@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using VideoWebPlayer.Controllers;
 using VideoWebPlayer.Controllers.Models;
@@ -18,6 +18,8 @@ public class ItemsController : ApiBaseController
     private readonly SftpMediaSourceReader _sftpReader;
     private readonly MediaMetadataEditorService _metadataEditor;
     private readonly RecentEntryService recentEntryService;
+    private readonly IUnlockedMediaService _unlockedMediaService;
+    private readonly WatchedStatusService _watchedStatusService;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ItemsController"/> class.
@@ -32,14 +34,18 @@ public class ItemsController : ApiBaseController
         SftpMediaSourceReader sftpReader,
         MediaMetadataEditorService metadataEditor,
         RecentEntryService recentEntryService,
+        IUnlockedMediaService unlockedMediaService,
         
         IAuthService authService, 
-        ILogger<ItemsController> logger) : base(authService, logger)
+        ILogger<ItemsController> logger,
+        WatchedStatusService? watchedStatusService = null) : base(authService, logger)
     {
         _db = db;
         _sftpReader = sftpReader;
         _metadataEditor = metadataEditor;
         this.recentEntryService = recentEntryService;
+        _unlockedMediaService = unlockedMediaService;
+        _watchedStatusService = watchedStatusService ?? new WatchedStatusService(db);
     }
 
     /// <summary>
@@ -142,8 +148,11 @@ public class ItemsController : ApiBaseController
                 .Select(msu => msu.MediaSourceId)
                 .ToArrayAsync();
 
+            var unlockedMovieCollectionIds = await _unlockedMediaService.GetUnlockedMovieCollectionIdsForUserAsync(CurrentUser.Id);
+            var unlockedTVShowIds = await _unlockedMediaService.GetUnlockedTVShowIdsForUserAsync(CurrentUser.Id);
+
             var movieCollections = (await queryMovie
-                .Where(m => mediaSourceIds.Contains(m.MediaSourceId))
+                .Where(m => mediaSourceIds.Contains(m.MediaSourceId) || unlockedMovieCollectionIds.Contains(m.Id))
                 .OrderBy(e => e.Name)
                 .Skip(0)
                 .Take((page + 1) * size)
@@ -176,7 +185,7 @@ public class ItemsController : ApiBaseController
             }
 
             var tvShows = await queryShow
-                .Where(m => mediaSourceIds.Contains(m.MediaSourceId))
+                .Where(m => mediaSourceIds.Contains(m.MediaSourceId) || unlockedTVShowIds.Contains(m.Id))
                 .OrderBy(e => e.Name)
                 .Skip(0)
                 .Take((page + 1) * size)
@@ -310,6 +319,7 @@ public class ItemsController : ApiBaseController
                     Logger.LogWarning(innerEx, "Fehler beim Verarbeiten eines RecentEntry (Id={Id})", rec.Id);
                 }
             }
+            await _watchedStatusService.EnrichAsync(CurrentUser.Id, dtoList.Select(x => x.Entry), RequestCancellationToken);
             return Ok(dtoList);
         }
         catch (UnauthorizedAccessException ex)
@@ -341,17 +351,44 @@ public class ItemsController : ApiBaseController
             throw new RecordNotFoundException("Medieneintrag nicht gefunden");
         return entry;
     }
-    private async Task<MediaItem> FindMediaItemAsync(string type, long id)
-    {
-        var entry = await FindEntry(type, id);
 
+    private async Task EnsureAccessAsync(MediaBaseEntry entry)
+    {
         var source = await _db.MediaSources
-            .Include(ms => ms.MediaSourceUsers)
+            .AsNoTracking()
             .FirstOrDefaultAsync(ms => ms.Id == entry.MediaSourceId);
         if (source is null)
             throw new RecordNotFoundException("Medienquelle nicht gefunden");
-        if (!source.MediaSourceUsers.Any(u => u.UserId == CurrentUser.Id))
+
+        var hasSourceAccess = await _db.MediaSourceUsers.AnyAsync(u => u.UserId == CurrentUser.Id && u.MediaSourceId == source.Id);
+        var isUnlocked = await IsUnlockedAsync(entry);
+        if (!hasSourceAccess && !isUnlocked)
             throw new UnauthorizedAccessException("Fehlende Berechtigung fuer Medienquelle");
+    }
+
+    private async Task<bool> IsUnlockedAsync(MediaBaseEntry entry)
+    {
+        if (entry is Movie movie)
+            return await _db.UnlockedMediaEntries.AsNoTracking().AnyAsync(u => u.UserId == CurrentUser.Id && u.MovieCollectionId == movie.MovieCollectionId);
+
+        if (entry is TVShowEpisode episode)
+        {
+            var showId = await _db.TVShowSeasons.AsNoTracking()
+                .Where(s => s.Id == episode.TVShowSeasonId)
+                .Select(s => (long?)s.TVShowId)
+                .FirstOrDefaultAsync();
+            return await _db.UnlockedMediaEntries.AsNoTracking().AnyAsync(u => u.UserId == CurrentUser.Id && u.TVShowId == showId);
+        }
+
+        return await _db.UnlockedMediaEntries.AsNoTracking().AnyAsync(u => u.UserId == CurrentUser.Id && (u.MovieCollectionId == entry.Id || u.TVShowId == entry.Id));
+    }
+
+    private CancellationToken RequestCancellationToken => HttpContext?.RequestAborted ?? CancellationToken.None;
+
+    private async Task<MediaItem> FindMediaItemAsync(string type, long id)
+    {
+        var entry = await FindEntry(type, id);
+        await EnsureAccessAsync(entry);
 
         var mediaItem = type switch
         {
@@ -471,9 +508,11 @@ public class ItemsController : ApiBaseController
         {
             CheckLogedIn();
             var entry = await FindEntry(type, id);
+            await EnsureAccessAsync(entry);
             if (entry is MovieCollection)
             {
                 var collection = Create<DtoMovieCollection>(entry);
+                collection.IsUnlocked = await _unlockedMediaService.IsUnlockedAsync(collection);
                 collection.IsFavorite = _db.FavoriteEntries.Any(f => f.UserId == CurrentUser.Id && f.MovieCollectionId == collection.Id);
                 collection.Movies = _db.Movies.Where(m => m.MovieCollectionId == collection.Id).ToList().Select(m =>
                 {
@@ -481,11 +520,13 @@ public class ItemsController : ApiBaseController
                     movie.IsFavorite = _db.FavoriteEntries.Any(f => f.UserId == CurrentUser.Id && f.MovieId == movie.Id);
                     return movie;
                 }).ToArray();
+                await _watchedStatusService.EnrichAsync(CurrentUser.Id, collection.Movies, RequestCancellationToken);
                 return Ok(collection);
             }
             else if (entry is TVShow)
             {
                 var show = Create<DtoTVShow>(entry);
+                show.IsUnlocked = await _unlockedMediaService.IsUnlockedAsync(show);
                 show.IsFavorite = _db.FavoriteEntries.Any(f => f.UserId == CurrentUser.Id && f.TVShowId == show.Id);
                 show.Seasons = _db.TVShowSeasons.Where(m => m.TVShowId == show.Id).ToList().Select(m =>
                 {
@@ -499,12 +540,14 @@ public class ItemsController : ApiBaseController
                     }).ToArray();
                     return season;
                 }).ToArray();
+                await _watchedStatusService.EnrichAsync(CurrentUser.Id, show.Seasons.SelectMany(s => s.Episodes), RequestCancellationToken);
                 return Ok(show);
             }
             else if (entry is TVShowEpisode dbSeason)
             {
                 var episode = Create<DtoTVShowEpisode>(entry);
                 episode.IsFavorite = _db.FavoriteEntries.Any(f => f.UserId == CurrentUser.Id && f.TVShowEpisodeId == episode.Id);
+                await _watchedStatusService.EnrichAsync(CurrentUser.Id, [episode], RequestCancellationToken);
                 episode.Season = _db.TVShowSeasons.Where(m => m.Id == dbSeason.TVShowSeasonId).ToList().Select(m =>
                 {
                     var season = Create<DtoTVShowSeason>(m);
@@ -523,6 +566,7 @@ public class ItemsController : ApiBaseController
             {
                 var movie = Create<DtoMovie>(dbMovie);
                 movie.IsFavorite = _db.FavoriteEntries.Any(f => f.UserId == CurrentUser.Id && f.MovieId == movie.Id);
+                await _watchedStatusService.EnrichAsync(CurrentUser.Id, [movie], RequestCancellationToken);
                 movie.Collection = _db.MovieCollections.Where(mc => mc.Id == dbMovie.MovieCollectionId).ToList().Select(mc =>
                 {
                     var collection = Create<DtoMovieCollection>(mc);

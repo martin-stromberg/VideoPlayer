@@ -19,7 +19,7 @@
             {
                 <section class="media-section" aria-labelledby="@($"genre-{genre.Id}")">
                     <h3 id="@($"genre-{genre.Id}")">@genre.Name</h3>
-                    <MediaBaseEntryList Entries="entries" AuthorizationToken="@authToken" />
+                    <MediaBaseEntryList Entries="entries" AuthorizationToken="@authToken" WatchedAtByEntryKey="watchedAtByEntryKey" />
                 </section>
             }
         }
@@ -31,6 +31,7 @@
     private string? authToken;
     private List<Genre> activeGenres = new();
     private Dictionary<long, List<MediaBaseEntry>> mediaEntriesByGenre = new();
+    private Dictionary<string, DateTime> watchedAtByEntryKey = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -103,6 +104,21 @@
                 .ThenByDescending(e => e.CreatedAt)
                 .ThenBy(e => e.Name)
                 .ToList();
+        }
+
+        if (!string.IsNullOrWhiteSpace(userId))
+        {
+            var movieIds = mediaEntriesByGenre.Values
+                .SelectMany(x => x)
+                .OfType<Movie>()
+                .Select(x => x.Id)
+                .Distinct()
+                .ToArray();
+
+            watchedAtByEntryKey = await DbContext.WatchedEntries
+                .AsNoTracking()
+                .Where(x => x.UserId == userId && x.MovieId.HasValue && movieIds.Contains(x.MovieId.Value))
+                .ToDictionaryAsync(x => $"{nameof(Movie)}:{x.MovieId!.Value}", x => x.WatchedAt);
         }
     }
 }

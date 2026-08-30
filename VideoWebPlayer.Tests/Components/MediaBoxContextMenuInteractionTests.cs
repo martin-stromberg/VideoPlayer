@@ -108,6 +108,40 @@ public class MediaBoxContextMenuInteractionTests
     }
 
     [Fact]
+    public void MediaBox_RendersWatchedIndicatorOnlyWhenWatchedAtIsSet()
+    {
+        var mediaBoxSource = ReadRepoFile("VideoWebPlayer", "Components", "Shared", "Media", "MediaBox.razor");
+
+        Assert.Contains("[Parameter] public DateTime? WatchedAt", mediaBoxSource);
+        Assert.Contains("@if (WatchedAt.HasValue)", mediaBoxSource);
+        Assert.Contains("<WatchedIndicator />", mediaBoxSource);
+
+        var watchedIndicatorSource = ReadRepoFile("VideoWebPlayer", "Components", "Shared", "Media", "WatchedIndicator.razor");
+        Assert.Contains("class=\"@CssClass\"", watchedIndicatorSource);
+        Assert.Contains("stroke=\"currentColor\"", watchedIndicatorSource);
+        Assert.Contains("fill=\"currentColor\"", watchedIndicatorSource);
+        Assert.Contains("data-testid=\"watched-indicator\"", watchedIndicatorSource);
+
+        var css = ReadRepoFile("VideoWebPlayer", "wwwroot", "app.css");
+        Assert.Contains("stroke: var(--vp-primary-soft);", css);
+        Assert.Contains(".watched-indicator-image-left", css);
+    }
+
+    [Fact]
+    public void HomeLists_PassWatchedAtToMediaBox()
+    {
+        var files = new[]
+        {
+            ReadRepoFile("VideoWebPlayer", "Components", "Shared", "Home", "ContinueWatchingList.razor"),
+            ReadRepoFile("VideoWebPlayer", "Components", "Shared", "Home", "FavoritesList.razor"),
+            ReadRepoFile("VideoWebPlayer", "Components", "Shared", "Home", "RecentEntriesList.razor"),
+            ReadRepoFile("VideoWebPlayer", "Components", "Shared", "Media", "MediaBaseEntryList.razor")
+        };
+
+        Assert.All(files, source => Assert.Contains("WatchedAt=", source));
+    }
+
+    [Fact]
     public void RecentEntriesList_DoesNotPassContextActionsToMediaBox()
     {
         var source = ReadRepoFile("VideoWebPlayer", "Components", "Shared", "Home", "RecentEntriesList.razor");

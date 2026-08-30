@@ -9,6 +9,13 @@ verfügbaren Medienquellen. Welche Quellen angezeigt werden, hängt von deinen
 Berechtigungen ab. Administratoren sehen zusätzlich den Bereich
 `Verwaltung`.
 
+### Zwischen Medienquellen wechseln
+
+Wählst du im Menü eine andere Medienquelle aus, wechselt die Ansicht auf
+diese Quelle. Überschrift und Titelliste werden neu geladen; Titel der zuvor
+geöffneten Quelle werden nicht weiter angezeigt. Auch Suche, Genreauswahl und
+Seitennavigation starten für die neue Quelle mit deren aktuellem Inhalt.
+
 ## Startseite
 
 Die Startseite bündelt die wichtigsten Inhalte:

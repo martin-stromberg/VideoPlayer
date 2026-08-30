@@ -80,6 +80,10 @@
              loading="lazy"
              onerror="this.onerror=null;this.src='/images/placeholder.png';" />
         <span class="media-quick-play" aria-hidden="true">&#9654;</span>
+        @if (WatchedAt.HasValue)
+        {
+            <WatchedIndicator />
+        }
         <div class="media-card-overlay">
             <span class="media-title-text">@Title</span>
         </div>
@@ -98,6 +102,7 @@
     [Parameter] public string ImageUrl { get; set; } = "/images/placeholder.png";
     [Parameter] public string LinkUrl { get; set; } = "#";
     [Parameter] public string CardKey { get; set; } = string.Empty;
+    [Parameter] public DateTime? WatchedAt { get; set; }
     [Parameter] public IReadOnlyList<MediaBoxAction> Actions { get; set; } = Array.Empty<MediaBoxAction>();
     [Parameter] public EventCallback<string> OnActionSelected { get; set; }
 

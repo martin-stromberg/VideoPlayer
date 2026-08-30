@@ -235,11 +235,13 @@
         var mediaSourceUsers = await DbContext.MediaSourceUsers.Where(x => x.UserId == user.Id).ToListAsync();
         var favorites = await DbContext.FavoriteEntries.Where(x => x.UserId == user.Id).ToListAsync();
         var continueWatching = await DbContext.ContinueWatchingEntries.Where(x => x.UserId == user.Id).ToListAsync();
+        var unlockedMedia = await DbContext.UnlockedMediaEntries.Where(x => x.UserId == user.Id).ToListAsync();
         var backupOperations = await DbContext.BackupOperationHistories.Where(x => x.UserId == user.Id).ToListAsync();
 
         DbContext.MediaSourceUsers.RemoveRange(mediaSourceUsers);
         DbContext.FavoriteEntries.RemoveRange(favorites);
         DbContext.ContinueWatchingEntries.RemoveRange(continueWatching);
+        DbContext.UnlockedMediaEntries.RemoveRange(unlockedMedia);
 
         foreach (var operation in backupOperations)
         {

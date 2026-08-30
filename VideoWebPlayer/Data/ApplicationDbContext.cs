@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using System.Threading;
 using VideoWebPlayer.Events;
@@ -96,6 +96,10 @@ namespace VideoWebPlayer.Data
         /// </summary>
         public DbSet<FavoriteEntry> FavoriteEntries { get; set; }
         /// <summary>
+        /// Tabelle fuer einzeln freigeschaltete Medieneintraege.
+        /// </summary>
+        public DbSet<UnlockedMediaEntry> UnlockedMediaEntries { get; set; }
+        /// <summary>
         /// Tabelle f�r Genres.
         /// </summary>
         public DbSet<Genre> Genres { get; set; }
@@ -115,6 +119,10 @@ namespace VideoWebPlayer.Data
         /// Tabelle f�r ContinueWatching-Eintr�ge.
         /// </summary>
         public DbSet<ContinueWatchingEntry> ContinueWatchingEntries { get; set; }
+        /// <summary>
+        /// Tabelle fuer Gesehen-Markierungen.
+        /// </summary>
+        public DbSet<WatchedEntry> WatchedEntries { get; set; }
         /// <summary>
         /// Tabelle f�r gesperrte Login-IPs.
         /// </summary>
@@ -178,7 +186,7 @@ namespace VideoWebPlayer.Data
             Entry(existingSource).State = EntityState.Detached;
 
             var step = 0;
-            const int TotalSteps = 19;
+            const int TotalSteps = 20;
 
             void Report()
             {
@@ -188,6 +196,12 @@ namespace VideoWebPlayer.Data
 
             try
             {
+                await WatchedEntries
+                    .Where(we => (we.Movie != null && we.Movie.MediaSourceId == source.Id) ||
+                                 (we.TVShowEpisode != null && we.TVShowEpisode.TVShowSeason.TVShow.MediaSourceId == source.Id))
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
                 await ContinueWatchingEntries
                     .Where(cwe => (cwe.Movie != null && cwe.Movie.MediaSourceId == source.Id) ||
                                   (cwe.TVShowEpisode != null && cwe.TVShowEpisode.TVShowSeason.TVShow.MediaSourceId == source.Id))

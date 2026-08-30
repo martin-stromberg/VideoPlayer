@@ -22,12 +22,15 @@ public sealed class VideoWebPlayerBackupData : IBackupData
     private const string UsersTableName = "AspNetUsers";
     private static readonly HashSet<string> OptionalRestoreTables = new(StringComparer.OrdinalIgnoreCase)
     {
-        "UpdateSettings"
+        "UpdateSettings",
+        nameof(ApplicationDbContext.UnlockedMediaEntries),
+        nameof(ApplicationDbContext.WatchedEntries)
     };
 
     private static readonly HashSet<string> OptionalRestoreColumns = new(StringComparer.OrdinalIgnoreCase)
     {
         "Setups.ApplicationTitle",
+        $"Setups.{nameof(Setup.ContinueWatchingEndThresholdSeconds)}",
         $"{nameof(ApplicationDbContext.TVShowEpisodes)}.{nameof(TVShowEpisode.GeneratedBackgroundPictureId)}",
         $"{nameof(ApplicationDbContext.TVShowEpisodes)}.{nameof(TVShowEpisode.BackgroundImageRequiresUpdate)}",
         $"{nameof(ApplicationDbContext.TVShowEpisodes)}.{nameof(TVShowEpisode.BackgroundImageGeneratedAt)}",
@@ -55,6 +58,11 @@ public sealed class VideoWebPlayerBackupData : IBackupData
     private static readonly (string Table, string Column, long DefaultValue)[] OptionalRestoreLongDefaults =
     {
         (nameof(ApplicationDbContext.ContinueWatchingEntries), nameof(ContinueWatchingEntry.ListOrder), 0L)
+    };
+
+    private static readonly (string Table, string Column, int DefaultValue)[] OptionalRestoreIntDefaults =
+    {
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.ContinueWatchingEndThresholdSeconds), 30)
     };
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };
@@ -804,6 +812,19 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         }
 
         foreach (var (tableName, columnName, defaultValue) in OptionalRestoreLongDefaults)
+        {
+            if (!string.Equals(table.Name, tableName, StringComparison.OrdinalIgnoreCase)
+                || insertColumns.Contains(columnName, StringComparer.OrdinalIgnoreCase)
+                || !table.Columns.Any(x => string.Equals(x.Name, columnName, StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            insertColumns.Add(columnName);
+            row[columnName] = JsonSerializer.SerializeToElement(defaultValue, JsonOptions);
+        }
+
+        foreach (var (tableName, columnName, defaultValue) in OptionalRestoreIntDefaults)
         {
             if (!string.Equals(table.Name, tableName, StringComparison.OrdinalIgnoreCase)
                 || insertColumns.Contains(columnName, StringComparer.OrdinalIgnoreCase)

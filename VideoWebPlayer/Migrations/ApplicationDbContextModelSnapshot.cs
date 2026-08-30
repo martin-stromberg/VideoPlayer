@@ -1158,6 +1158,33 @@ namespace VideoWebPlayer.Migrations
                     b.ToTable("TVShowSeasons");
                 });
 
+            modelBuilder.Entity("VideoWebPlayer.Data.UnlockedMediaEntry", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("MovieCollectionId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("TVShowId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "MovieCollectionId", "TVShowId")
+                        .IsUnique();
+
+                    b.ToTable("UnlockedMediaEntries");
+                });
+
             modelBuilder.Entity("VideoWebPlayer.Data.UpdateSettings", b =>
                 {
                     b.Property<int>("Id")
@@ -1203,6 +1230,48 @@ namespace VideoWebPlayer.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("UpdateSettings");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.WatchedEntry", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("MovieId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("TVShowEpisodeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("WatchedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MovieId");
+
+                    b.HasIndex("TVShowEpisodeId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("UserId", "MovieId")
+                        .IsUnique()
+                        .HasFilter("[MovieId] IS NOT NULL");
+
+                    b.HasIndex("UserId", "TVShowEpisodeId")
+                        .IsUnique()
+                        .HasFilter("[TVShowEpisodeId] IS NOT NULL");
+
+                    b.ToTable("WatchedEntries", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_WatchedEntries_ExactlyOneTitle", "((MovieId IS NOT NULL AND TVShowEpisodeId IS NULL) OR (MovieId IS NULL AND TVShowEpisodeId IS NOT NULL))");
+                        });
                 });
 
             modelBuilder.Entity("GenreName", b =>
@@ -1586,6 +1655,42 @@ namespace VideoWebPlayer.Migrations
                     b.Navigation("PosterPicture");
 
                     b.Navigation("TVShow");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.UnlockedMediaEntry", b =>
+                {
+                    b.HasOne("VideoWebPlayer.Data.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.WatchedEntry", b =>
+                {
+                    b.HasOne("VideoWebPlayer.Data.Movie", "Movie")
+                        .WithMany()
+                        .HasForeignKey("MovieId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("VideoWebPlayer.Data.TVShowEpisode", "TVShowEpisode")
+                        .WithMany()
+                        .HasForeignKey("TVShowEpisodeId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("VideoWebPlayer.Data.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Movie");
+
+                    b.Navigation("TVShowEpisode");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("VideoWebPlayer.Data.Genre", b =>

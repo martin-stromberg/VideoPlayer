@@ -15,7 +15,7 @@
 @implements IDisposable
 @rendermode InteractiveServer
 
-<PageTitle>Updates</PageTitle>
+<PageTitle>Systemupdates</PageTitle>
 
 @if (!isAdmin)
 {
@@ -28,134 +28,248 @@ else if (model is null || status is null)
 else
 {
     <section class="admin-console admin-update-page">
-    <h1>Updates</h1>
-
-    @if (!string.IsNullOrWhiteSpace(successMessage))
-    {
-        <div class="alert alert-success">@successMessage</div>
-    }
-
-    @if (!string.IsNullOrWhiteSpace(errorMessage))
-    {
-        <div class="alert alert-danger">@errorMessage</div>
-    }
-
-    <div class="alert @GetStatusAlertClass(status)" role="status">
-        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <header class="admin-page-header update-page-header">
             <div>
-                <strong>@GetStatusText(status)</strong>
-                @if (!string.IsNullOrWhiteSpace(status.AvailableVersion))
-                {
-                    <span> Version @status.AvailableVersion</span>
-                }
+                <span class="admin-kicker">Administration</span>
+                <h1>Systemupdates</h1>
+                <p>Update-Status pruefen, Versionen vergleichen und automatische Update- sowie Backup-Einstellungen verwalten.</p>
             </div>
-            <span class="badge @GetStatusBadgeClass(status)">@status.State</span>
-        </div>
-        @if (!string.IsNullOrWhiteSpace(status.LastError))
+            <span class="admin-chip @GetStatusChipClass(status)" data-testid="update-state">@GetStateLabel(status.State)</span>
+        </header>
+
+        @if (!string.IsNullOrWhiteSpace(successMessage))
         {
-            <div class="mt-2">@status.LastError</div>
+            <div class="alert alert-success" role="status">@successMessage</div>
         }
-        @if (status.IsLocked)
+
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
         {
-            <div class="mt-2">Update-Sperre aktiv seit @FormatDate(status.LockCreatedAt).</div>
+            <div class="alert alert-danger" role="alert">@errorMessage</div>
         }
-    </div>
 
-    <div class="mb-3 d-flex gap-2 flex-wrap">
-        <form method="post" action="/admin/updates/api/check">
-            @if (!string.IsNullOrWhiteSpace(antiforgeryRequestToken))
-            {
-                <input type="hidden" name="__RequestVerificationToken" value="@antiforgeryRequestToken" />
-            }
-            <button class="btn btn-primary" type="submit" disabled="@(isBusy || IsActionBlocked)">Jetzt pruefen</button>
-        </form>
-        <form method="post" action="/admin/updates/api/install">
-            @if (!string.IsNullOrWhiteSpace(antiforgeryRequestToken))
-            {
-                <input type="hidden" name="__RequestVerificationToken" value="@antiforgeryRequestToken" />
-            }
-            <button class="btn btn-warning" type="submit" disabled="@(isBusy || IsActionBlocked || !UpdateAdminService.IsInstallable(status))">Update installieren</button>
-        </form>
-        <button class="btn btn-outline-secondary" @onclick="ReloadAsync" disabled="@isBusy">Aktualisieren</button>
-    </div>
+        <div class="update-overview-grid">
+            <section class="update-panel update-status-panel" aria-labelledby="update-status-title" data-testid="update-status-section">
+                <div class="update-panel-header">
+                    <div>
+                        <span class="admin-kicker">Update</span>
+                        <h2 id="update-status-title">Update-Status</h2>
+                    </div>
+                    <span class="update-status-indicator @GetStatusIndicatorClass(status)" aria-hidden="true"></span>
+                </div>
 
-    <h2 class="h4">Statusdetails</h2>
-    <table class="table table-dark table-striped align-middle">
-        <tbody>
-            <tr><th>Installierte Version</th><td>@Empty(status.InstalledVersion)</td></tr>
-            <tr><th>Verfuegbare Version</th><td>@Empty(status.AvailableVersion)</td></tr>
-            <tr><th>Prerelease</th><td>@(status.LastCheckResult?.IsPrerelease == true ? "Ja" : "Nein")</td></tr>
-            <tr><th>Veroeffentlicht</th><td>@FormatDate(status.LastCheckResult?.PublishedAt)</td></tr>
-            <tr><th>Letzte Pruefung</th><td>@FormatDate(status.LastCheckedAt)</td></tr>
-            <tr><th>Letzter Download</th><td>@FormatDownload(status.LastDownloadResult)</td></tr>
-            <tr><th>Letzte Installation</th><td>@FormatInstall(status.LastInstallResult)</td></tr>
-            <tr><th>Letztes Pruefergebnis</th><td>@Empty(status.LastCheckResult?.AvailableVersion)</td></tr>
-        </tbody>
-    </table>
+                <div class="update-status-summary" role="status">
+                    <strong>@GetStatusText(status)</strong>
+                    <span>@GetVersionSummary(status)</span>
+                </div>
 
-    <h2 class="h4">Einstellungen</h2>
-    <EditForm Model="model" OnValidSubmit="SaveAsync">
-        <DataAnnotationsValidator />
-        <ValidationSummary />
+                <dl class="update-metric-list">
+                    <div>
+                        <dt>Installiert</dt>
+                        <dd>@Empty(status.InstalledVersion)</dd>
+                    </div>
+                    <div>
+                        <dt>Verfuegbar</dt>
+                        <dd>@Empty(status.AvailableVersion ?? status.LastCheckResult?.AvailableVersion)</dd>
+                    </div>
+                    <div>
+                        <dt>Letzte Pruefung</dt>
+                        <dd>@FormatDate(status.LastCheckedAt)</dd>
+                    </div>
+                </dl>
 
-        <div class="form-check mb-3">
-            <InputCheckbox class="form-check-input" @bind-Value="model.AutomaticChecksEnabled" />
-            <label class="form-check-label">Automatische Pruefung aktivieren</label>
+                @if (!string.IsNullOrWhiteSpace(status.LastError))
+                {
+                    <div class="update-inline-message update-inline-message-danger" role="alert">
+                        <strong>Fehler beim Abruf</strong>
+                        <span>@status.LastError</span>
+                        @if (status.LastErrorCode is not null)
+                        {
+                            <small>Code: @status.LastErrorCode</small>
+                        }
+                    </div>
+                }
+                else if (!string.IsNullOrWhiteSpace(checkSuccessMessage))
+                {
+                    <div class="update-inline-message update-inline-message-success" role="status">
+                        <strong>Updatepruefung abgeschlossen</strong>
+                        <span>@checkSuccessMessage</span>
+                    </div>
+                }
+                else if (!string.IsNullOrWhiteSpace(checkErrorMessage))
+                {
+                    <div class="update-inline-message update-inline-message-danger" role="alert">
+                        <strong>Updatepruefung fehlgeschlagen</strong>
+                        <span>@checkErrorMessage</span>
+                    </div>
+                }
+
+                @if (status.IsLocked)
+                {
+                    <div class="update-inline-message update-inline-message-warning" role="status">
+                        <strong>Update-Sperre aktiv</strong>
+                        <span>Seit @FormatDate(status.LockCreatedAt) koennen keine weiteren Aktionen gestartet werden.</span>
+                    </div>
+                }
+
+                <div class="update-action-row">
+                    <form method="post" action="/admin/updates/api/check">
+                        @if (!string.IsNullOrWhiteSpace(antiforgeryRequestToken))
+                        {
+                            <input type="hidden" name="__RequestVerificationToken" value="@antiforgeryRequestToken" />
+                        }
+                        <button class="btn btn-primary update-primary-action" type="submit" disabled="@(isBusy || IsActionBlocked)">Nach Updates suchen</button>
+                    </form>
+                    <button class="btn btn-ghost" type="button" @onclick="ReloadAsync" disabled="@isBusy" data-testid="refresh-updates">Daten aktualisieren</button>
+                    <form method="post" action="/admin/updates/api/install">
+                        @if (!string.IsNullOrWhiteSpace(antiforgeryRequestToken))
+                        {
+                            <input type="hidden" name="__RequestVerificationToken" value="@antiforgeryRequestToken" />
+                        }
+                        <button class="btn btn-warning" type="submit" disabled="@(isBusy || IsActionBlocked || !UpdateAdminService.IsInstallable(status))" data-testid="install-update">Update installieren</button>
+                    </form>
+                </div>
+            </section>
+
+            <section class="update-panel" aria-labelledby="version-details-title" data-testid="version-details-section">
+                <div class="update-panel-header">
+                    <div>
+                        <span class="admin-kicker">Versionen</span>
+                        <h2 id="version-details-title">Versionsdetails</h2>
+                    </div>
+                </div>
+
+                <dl class="update-detail-grid">
+                    <div>
+                        <dt>Installierte Version</dt>
+                        <dd>@Empty(status.InstalledVersion)</dd>
+                    </div>
+                    <div>
+                        <dt>Verfuegbare Version</dt>
+                        <dd>@Empty(status.AvailableVersion ?? status.LastCheckResult?.AvailableVersion)</dd>
+                    </div>
+                    <div>
+                        <dt>Prerelease-Kanal</dt>
+                        <dd>@FormatBool(status.LastCheckResult?.IsPrerelease == true)</dd>
+                    </div>
+                    <div>
+                        <dt>Release-Datum</dt>
+                        <dd>@FormatDate(status.LastCheckResult?.PublishedAt)</dd>
+                    </div>
+                    <div class="update-detail-wide">
+                        <dt>Letzter Download</dt>
+                        <dd>@FormatDownload(status.LastDownloadResult)</dd>
+                    </div>
+                    <div class="update-detail-wide">
+                        <dt>Letzte Installation</dt>
+                        <dd>@FormatInstall(status.LastInstallResult)</dd>
+                    </div>
+                </dl>
+            </section>
         </div>
 
-        <div class="mb-3">
-            <label class="form-label">Pruefintervall in Minuten</label>
-            <InputNumber class="form-control" @bind-Value="model.CheckIntervalMinutes" />
-        </div>
-
-        <div class="form-check mb-2">
-            <InputCheckbox class="form-check-input" @bind-Value="model.AllowPrereleaseUpdates" />
-            <label class="form-check-label">Prerelease-Versionen akzeptieren</label>
-        </div>
-        @if (model.AllowPrereleaseUpdates && !prereleaseWasEnabled)
-        {
-            <div class="alert alert-warning">
-                <div>Prerelease-Versionen koennen experimentell sein.</div>
-                <div class="form-check mt-2">
-                    <InputCheckbox class="form-check-input" @bind-Value="confirmPrerelease" />
-                    <label class="form-check-label">Prerelease-Aktivierung bestaetigen</label>
+        <section class="update-panel update-config-panel" aria-labelledby="configuration-title" data-testid="configuration-section">
+            <div class="update-panel-header">
+                <div>
+                    <span class="admin-kicker">Einstellungen</span>
+                    <h2 id="configuration-title">Konfiguration</h2>
                 </div>
             </div>
-        }
 
-        <div class="form-check mb-3">
-            <InputCheckbox class="form-check-input" @bind-Value="model.AutomaticInstallationEnabled" />
-            <label class="form-check-label">Neue Version automatisch installieren</label>
-        </div>
+            <EditForm Model="model" OnValidSubmit="SaveAsync" FormName="update-settings">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
 
-        <div class="mb-3">
-            <label class="form-label">Dienstname fuer Neustart</label>
-            <InputText class="form-control" @bind-Value="model.ServiceName" />
-        </div>
+                <div class="update-settings-grid">
+                    <fieldset class="update-settings-group">
+                        <legend>Automatisierung</legend>
 
-        <div class="form-check mb-3">
-            <InputCheckbox class="form-check-input" @bind-Value="model.CreateBackupBeforeInstallation" />
-            <label class="form-check-label">Backup vor Installation erstellen</label>
-        </div>
+                        <label class="update-toggle" for="automatic-checks">
+                            <InputCheckbox id="automatic-checks" class="form-check-input" @bind-Value="model.AutomaticChecksEnabled" />
+                            <span>
+                                <strong>Automatische Pruefung</strong>
+                                <small>Regelmaessig nach neuen Versionen suchen.</small>
+                            </span>
+                        </label>
 
-        <div class="form-check mb-3">
-            <InputCheckbox class="form-check-input" @bind-Value="model.CancelInstallationOnBackupFailure" />
-            <label class="form-check-label">Installation bei Backupfehler abbrechen</label>
-        </div>
+                        <div class="update-field">
+                            <label class="form-label" for="check-interval">Pruefintervall in Minuten</label>
+                            <InputNumber id="check-interval" class="form-control admin-mono" @bind-Value="model.CheckIntervalMinutes" min="1" max="1440" />
+                            <ValidationMessage For="@(() => model.CheckIntervalMinutes)" />
+                        </div>
 
-        <div class="row">
-            <div class="col-md-8 mb-3">
-                <label class="form-label">Update-Backup-Pfad</label>
-                <InputText class="form-control" @bind-Value="model.UpdateBackupPath" />
-            </div>
-            <div class="col-md-4 mb-3">
-                <label class="form-label">Aufbewahrung Update-Backups</label>
-                <InputNumber class="form-control" @bind-Value="model.RetainedUpdateBackupCount" />
-            </div>
-        </div>
+                        <label class="update-toggle" for="allow-prerelease">
+                            <InputCheckbox id="allow-prerelease" class="form-check-input" @bind-Value="model.AllowPrereleaseUpdates" />
+                            <span>
+                                <strong>Vorabversionen akzeptieren</strong>
+                                <small>Prerelease-Versionen in die Pruefung einbeziehen.</small>
+                            </span>
+                        </label>
 
-        <button class="btn btn-primary" type="submit" disabled="@isBusy">Einstellungen speichern</button>
-    </EditForm>
+                        @if (model.AllowPrereleaseUpdates && !prereleaseWasEnabled)
+                        {
+                            <div class="update-inline-message update-inline-message-warning">
+                                <strong>Vorabversionen koennen experimentell sein.</strong>
+                                <label class="update-toggle update-toggle-compact" for="confirm-prerelease">
+                                    <InputCheckbox id="confirm-prerelease" class="form-check-input" @bind-Value="confirmPrerelease" />
+                                    <span>Prerelease-Aktivierung bestaetigen</span>
+                                </label>
+                            </div>
+                        }
+
+                        <label class="update-toggle" for="automatic-installation">
+                            <InputCheckbox id="automatic-installation" class="form-check-input" @bind-Value="model.AutomaticInstallationEnabled" />
+                            <span>
+                                <strong>Automatische Installation</strong>
+                                <small>Gefundene Updates automatisch installieren.</small>
+                            </span>
+                        </label>
+
+                        <div class="update-field">
+                            <label class="form-label" for="service-name">Dienstname fuer Neustart</label>
+                            <InputText id="service-name" class="form-control" @bind-Value="model.ServiceName" />
+                            <ValidationMessage For="@(() => model.ServiceName)" />
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="update-settings-group">
+                        <legend>Sicherheit &amp; Backups</legend>
+
+                        <label class="update-toggle" for="create-backup">
+                            <InputCheckbox id="create-backup" class="form-check-input" @bind-Value="model.CreateBackupBeforeInstallation" />
+                            <span>
+                                <strong>Backup vor Installation</strong>
+                                <small>Vor dem Update eine Sicherung erstellen.</small>
+                            </span>
+                        </label>
+
+                        <label class="update-toggle" for="cancel-on-backup-failure">
+                            <InputCheckbox id="cancel-on-backup-failure" class="form-check-input" @bind-Value="model.CancelInstallationOnBackupFailure" />
+                            <span>
+                                <strong>Bei Backupfehler abbrechen</strong>
+                                <small>Installation nur bei erfolgreichem Backup fortsetzen.</small>
+                            </span>
+                        </label>
+
+                        <div class="update-field">
+                            <label class="form-label" for="backup-path">Update-Backup-Pfad</label>
+                            <InputText id="backup-path" class="form-control" @bind-Value="model.UpdateBackupPath" />
+                            <ValidationMessage For="@(() => model.UpdateBackupPath)" />
+                        </div>
+
+                        <div class="update-field">
+                            <label class="form-label" for="retained-backups">Aufzubewahrende Update-Backups</label>
+                            <InputNumber id="retained-backups" class="form-control admin-mono" @bind-Value="model.RetainedUpdateBackupCount" min="1" max="10" />
+                            <ValidationMessage For="@(() => model.RetainedUpdateBackupCount)" />
+                        </div>
+                    </fieldset>
+                </div>
+
+                <div class="update-form-actions">
+                    <button class="btn btn-ghost" type="button" @onclick="ResetDefaults" disabled="@(isBusy || defaultModel is null)" data-testid="reset-defaults">Standards zuruecksetzen</button>
+                    <button class="btn btn-primary update-primary-action" type="submit" disabled="@isBusy">Konfiguration speichern</button>
+                </div>
+            </EditForm>
+        </section>
     </section>
 }
 
@@ -166,8 +280,11 @@ else
     private bool confirmPrerelease;
     private string? successMessage;
     private string? errorMessage;
+    private string? checkSuccessMessage;
+    private string? checkErrorMessage;
     private string? antiforgeryRequestToken;
     private SettingsModel? model;
+    private SettingsModel? defaultModel;
     private AutoUpdateStatusSnapshot? status;
     private PeriodicTimer? timer;
     private CancellationTokenSource? timerCts;
@@ -214,26 +331,39 @@ else
             successMessage = statusMessage.ToString();
         if (query.TryGetValue("updateError", out var error))
             errorMessage = error.ToString();
+        if (query.TryGetValue("checkStatus", out var checkStatusMessage))
+            checkSuccessMessage = checkStatusMessage.ToString();
+        if (query.TryGetValue("checkError", out var checkError))
+            checkErrorMessage = checkError.ToString();
     }
 
     private async Task ReloadAsync()
     {
-        var snapshot = await UpdateAdmin.GetSnapshotAsync();
-        status = snapshot.Status;
-        model = new SettingsModel
+        isBusy = true;
+        try
         {
-            AutomaticChecksEnabled = snapshot.Settings.AutomaticChecksEnabled,
-            CheckIntervalMinutes = snapshot.Settings.CheckIntervalMinutes,
-            AllowPrereleaseUpdates = snapshot.Settings.AllowPrereleaseUpdates,
-            AutomaticInstallationEnabled = snapshot.Settings.AutomaticInstallationEnabled,
-            ServiceName = snapshot.Settings.ServiceName,
-            CreateBackupBeforeInstallation = snapshot.Settings.CreateBackupBeforeInstallation,
-            CancelInstallationOnBackupFailure = snapshot.Settings.CancelInstallationOnBackupFailure,
-            UpdateBackupPath = snapshot.Settings.UpdateBackupPath,
-            RetainedUpdateBackupCount = snapshot.Settings.RetainedUpdateBackupCount
-        };
-        prereleaseWasEnabled = model.AllowPrereleaseUpdates;
+            var snapshot = await UpdateAdmin.GetSnapshotAsync();
+            status = snapshot.Status;
+            model = SettingsModel.FromSettings(snapshot.Settings);
+            defaultModel = SettingsModel.FromSettings(snapshot.DefaultSettings);
+            prereleaseWasEnabled = model.AllowPrereleaseUpdates;
+            confirmPrerelease = false;
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private void ResetDefaults()
+    {
+        if (defaultModel is null)
+            return;
+
+        model = defaultModel.Clone();
         confirmPrerelease = false;
+        successMessage = "Standardwerte wurden im Formular geladen. Zum Uebernehmen bitte die Konfiguration speichern.";
+        errorMessage = null;
     }
 
     private async Task SaveAsync()
@@ -245,6 +375,7 @@ else
         {
             model.AllowPrereleaseUpdates = false;
             errorMessage = "Prerelease-Versionen wurden nicht aktiviert, weil die Sicherheitsabfrage nicht bestaetigt wurde.";
+            successMessage = null;
             return;
         }
 
@@ -264,7 +395,7 @@ else
                 model.CancelInstallationOnBackupFailure,
                 model.UpdateBackupPath,
                 model.RetainedUpdateBackupCount));
-            successMessage = "Einstellungen wurden gespeichert.";
+            successMessage = "Konfiguration wurde gespeichert.";
             await ReloadAsync();
         }
         catch (Exception ex)
@@ -306,46 +437,68 @@ else
         }
     }
 
-    private static string GetStatusAlertClass(AutoUpdateStatusSnapshot snapshot) => snapshot.State switch
+    private static string GetStatusChipClass(AutoUpdateStatusSnapshot snapshot) => snapshot.State switch
     {
-        AutoUpdateState.Failed => "alert-danger",
-        AutoUpdateState.UpdateAvailable or AutoUpdateState.ReadyToInstall => "alert-warning",
-        AutoUpdateState.Installing or AutoUpdateState.Downloading or AutoUpdateState.Checking => "alert-info",
-        AutoUpdateState.Disabled => "alert-secondary",
-        AutoUpdateState.Success => "alert-success",
-        _ => "alert-light"
+        AutoUpdateState.Failed => "admin-chip-danger",
+        AutoUpdateState.UpdateAvailable or AutoUpdateState.ReadyToInstall => "admin-chip-warning",
+        AutoUpdateState.Installing or AutoUpdateState.Downloading or AutoUpdateState.Checking => "admin-chip-info",
+        AutoUpdateState.Disabled => "admin-chip-muted",
+        AutoUpdateState.Success => "admin-chip-success",
+        _ => string.Empty
     };
 
-    private static string GetStatusBadgeClass(AutoUpdateStatusSnapshot snapshot) => snapshot.State switch
+    private static string GetStatusIndicatorClass(AutoUpdateStatusSnapshot snapshot) => snapshot.State switch
     {
-        AutoUpdateState.Failed => "bg-danger",
-        AutoUpdateState.UpdateAvailable or AutoUpdateState.ReadyToInstall => "bg-warning text-dark",
-        AutoUpdateState.Installing or AutoUpdateState.Downloading or AutoUpdateState.Checking => "bg-info text-dark",
-        AutoUpdateState.Disabled => "bg-secondary",
-        AutoUpdateState.Success => "bg-success",
-        _ => "bg-light text-dark"
+        AutoUpdateState.Failed => "update-status-danger",
+        AutoUpdateState.UpdateAvailable or AutoUpdateState.ReadyToInstall => "update-status-warning",
+        AutoUpdateState.Installing or AutoUpdateState.Downloading or AutoUpdateState.Checking => "update-status-info",
+        AutoUpdateState.Success => "update-status-success",
+        _ => "update-status-muted"
+    };
+
+    private static string GetStateLabel(AutoUpdateState state) => state switch
+    {
+        AutoUpdateState.Checking => "Pruefung",
+        AutoUpdateState.UpdateAvailable => "Update verfuegbar",
+        AutoUpdateState.Downloading => "Download",
+        AutoUpdateState.ReadyToInstall => "Bereit",
+        AutoUpdateState.Installing => "Installation",
+        AutoUpdateState.Idle => "Wartet",
+        AutoUpdateState.Success => "Erfolgreich",
+        AutoUpdateState.Failed => "Fehler",
+        AutoUpdateState.Disabled => "Deaktiviert",
+        _ => "Unbekannt"
     };
 
     private static string GetStatusText(AutoUpdateStatusSnapshot snapshot) => snapshot.State switch
     {
-        AutoUpdateState.Checking => "Pruefung laeuft.",
-        AutoUpdateState.UpdateAvailable => "Neue Version verfuegbar.",
-        AutoUpdateState.Downloading => "Download laeuft.",
-        AutoUpdateState.ReadyToInstall => "Update ist bereit zur Installation.",
+        AutoUpdateState.Checking => "Update-Pruefung laeuft.",
+        AutoUpdateState.UpdateAvailable => "Eine neue Version ist verfuegbar.",
+        AutoUpdateState.Downloading => "Update-Paket wird heruntergeladen.",
+        AutoUpdateState.ReadyToInstall => "Das Update ist bereit zur Installation.",
         AutoUpdateState.Installing => "Installation laeuft.",
-        AutoUpdateState.Success => "Letzte Update-Aktion erfolgreich.",
-        AutoUpdateState.Failed => "Update fehlgeschlagen.",
+        AutoUpdateState.Success => "Die letzte Update-Aktion war erfolgreich.",
+        AutoUpdateState.Failed => "Die letzte Update-Aktion ist fehlgeschlagen.",
         AutoUpdateState.Disabled => "Automatische Updates sind deaktiviert.",
-        _ => "Anwendung ist aktuell oder wartet auf die naechste Pruefung."
+        _ => "Keine laufende Update-Aktion."
     };
+
+    private static string GetVersionSummary(AutoUpdateStatusSnapshot snapshot)
+    {
+        var availableVersion = snapshot.AvailableVersion ?? snapshot.LastCheckResult?.AvailableVersion;
+        if (string.IsNullOrWhiteSpace(availableVersion))
+            return $"Installierte Version {Empty(snapshot.InstalledVersion)}";
+
+        return $"Installierte Version {Empty(snapshot.InstalledVersion)}, verfuegbare Version {availableVersion}";
+    }
 
     private static string FormatDate(DateTimeOffset? value)
         => value?.ToLocalTime().ToString("g") ?? "-";
 
     private static string FormatDownload(AutoUpdateDownloadResult? result)
         => result is null
-            ? "-"
-            : $"{Path.GetFileName(result.LocalPath)} ({FormatBytes(result.SizeBytes)}, Checksum {(result.ChecksumValid ? "ok" : "ungueltig")})";
+            ? "Noch kein Download vorhanden."
+            : $"{Path.GetFileName(result.LocalPath)} ({FormatBytes(result.SizeBytes)}, Pruefsumme {(result.ChecksumValid ? "gueltig" : "ungueltig")})";
 
     private static string FormatInstall(AutoUpdateInstallResult? result)
         => result is null
@@ -366,6 +519,9 @@ else
         return $"{value:0.##} {units[unit]}";
     }
 
+    private static string FormatBool(bool value)
+        => value ? "Ja" : "Nein";
+
     private static string Empty(string? value)
         => string.IsNullOrWhiteSpace(value) ? "-" : value;
 
@@ -382,25 +538,53 @@ else
     {
         public bool AutomaticChecksEnabled { get; set; } = true;
 
-        [Range(1, 24 * 60)]
+        [Range(1, 24 * 60, ErrorMessage = "Das Pruefintervall muss zwischen 1 und 1440 Minuten liegen.")]
         public int CheckIntervalMinutes { get; set; } = 360;
 
         public bool AllowPrereleaseUpdates { get; set; }
 
         public bool AutomaticInstallationEnabled { get; set; }
 
-        [MaxLength(200)]
+        [MaxLength(200, ErrorMessage = "Der Dienstname darf hoechstens 200 Zeichen lang sein.")]
         public string? ServiceName { get; set; }
 
         public bool CreateBackupBeforeInstallation { get; set; } = true;
 
         public bool CancelInstallationOnBackupFailure { get; set; } = true;
 
-        [Required]
-        [MaxLength(1024)]
+        [Required(ErrorMessage = "Der Backup-Pfad ist erforderlich.")]
+        [MaxLength(1024, ErrorMessage = "Der Backup-Pfad darf hoechstens 1024 Zeichen lang sein.")]
         public string UpdateBackupPath { get; set; } = "Backups";
 
-        [Range(0, 365)]
+        [Range(1, 10, ErrorMessage = "Es koennen 1 bis 10 Update-Backups aufbewahrt werden.")]
         public int RetainedUpdateBackupCount { get; set; } = 5;
+
+        public static SettingsModel FromSettings(VideoWebPlayer.Data.UpdateSettings settings)
+            => new()
+            {
+                AutomaticChecksEnabled = settings.AutomaticChecksEnabled,
+                CheckIntervalMinutes = settings.CheckIntervalMinutes,
+                AllowPrereleaseUpdates = settings.AllowPrereleaseUpdates,
+                AutomaticInstallationEnabled = settings.AutomaticInstallationEnabled,
+                ServiceName = settings.ServiceName,
+                CreateBackupBeforeInstallation = settings.CreateBackupBeforeInstallation,
+                CancelInstallationOnBackupFailure = settings.CancelInstallationOnBackupFailure,
+                UpdateBackupPath = settings.UpdateBackupPath,
+                RetainedUpdateBackupCount = settings.RetainedUpdateBackupCount
+            };
+
+        public SettingsModel Clone()
+            => new()
+            {
+                AutomaticChecksEnabled = AutomaticChecksEnabled,
+                CheckIntervalMinutes = CheckIntervalMinutes,
+                AllowPrereleaseUpdates = AllowPrereleaseUpdates,
+                AutomaticInstallationEnabled = AutomaticInstallationEnabled,
+                ServiceName = ServiceName,
+                CreateBackupBeforeInstallation = CreateBackupBeforeInstallation,
+                CancelInstallationOnBackupFailure = CancelInstallationOnBackupFailure,
+                UpdateBackupPath = UpdateBackupPath,
+                RetainedUpdateBackupCount = RetainedUpdateBackupCount
+            };
     }
 }

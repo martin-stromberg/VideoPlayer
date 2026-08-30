@@ -1,0 +1,147 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@using VideoWebPlayer.Client
+@using VideoWebPlayer.Client.Models
+@inject VideoWebPlayerClient Client
+
+@if (isAdmin && Entry is DtoTVShow or DtoMovieCollection)
+{
+    <button class="unlock-btn" @onclick="OpenDialog" title="Freigaben verwalten">
+        @(hasUnlockedUsers ? "🔓" : "🔒")
+    </button>
+}
+
+@if (showDialog)
+{
+    <div class="unlock-dialog-overlay" @onclick="CloseDialog">
+        <div class="unlock-dialog" @onclick:stopPropagation="true">
+            <h4>Freischaltungen verwalten</h4>
+            <p>@Entry?.Name</p>
+
+            @if (allUsers is null)
+            {
+                <p>Benutzer werden geladen...</p>
+            }
+            else if (!allUsers.Any())
+            {
+                <p>Keine Benutzer vorhanden.</p>
+            }
+            else
+            {
+                <div class="unlock-user-list">
+                    @foreach (var user in allUsers)
+                    {
+                        <label class="unlock-user-item">
+                            <input type="checkbox" checked="@selectedUserIds.Contains(user.Key)" @onchange="e => ToggleUser(user.Key, e.Value)" />
+                            <span>@user.Value</span>
+                        </label>
+                    }
+                </div>
+            }
+
+            <div class="unlock-dialog-actions">
+                <button class="btn btn-primary" @onclick="Save" disabled="@isSaving">Speichern</button>
+                <button class="btn btn-secondary" @onclick="CloseDialog" disabled="@isSaving">Abbrechen</button>
+            </div>
+
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger mt-2">@errorMessage</div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public DtoMediaEntry Entry { get; set; } = null!;
+    [Parameter] public bool IsUnlocked { get; set; }
+    [Parameter] public EventCallback<bool> IsUnlockedChanged { get; set; }
+
+    private bool isAdmin;
+    private bool showDialog;
+    private bool isSaving;
+    private bool hasUnlockedUsers;
+    private Dictionary<string, string> allUsers = new();
+    private HashSet<string> selectedUserIds = new();
+    private string? errorMessage;
+
+    [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = null!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        isAdmin = authState.User.Identity?.IsAuthenticated == true && authState.User.HasClaim("IsAdmin", "True");
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        hasUnlockedUsers = IsUnlocked;
+    }
+
+    private async Task OpenDialog()
+    {
+        if (Entry is null)
+            return;
+
+        showDialog = true;
+        errorMessage = null;
+        isSaving = false;
+
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            await Client.EnsureAuthorizationTokenAsync(authState.User);
+
+            allUsers = await Client.RequestAllUsersAsync();
+            var unlocked = await Client.RequestUnlockedUserIdsAsync(Entry);
+            selectedUserIds = new HashSet<string>(unlocked);
+            hasUnlockedUsers = selectedUserIds.Count > 0;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Fehler beim Laden: {ex.Message}";
+        }
+    }
+
+    private void CloseDialog()
+    {
+        if (isSaving)
+            return;
+
+        showDialog = false;
+        errorMessage = null;
+    }
+
+    private void ToggleUser(string userId, object? value)
+    {
+        var isChecked = value is bool b && b;
+        if (isChecked)
+            selectedUserIds.Add(userId);
+        else
+            selectedUserIds.Remove(userId);
+    }
+
+    private async Task Save()
+    {
+        if (Entry is null)
+            return;
+
+        isSaving = true;
+        errorMessage = null;
+
+        try
+        {
+            await Client.SetUnlockedUsersAsync(Entry, selectedUserIds.ToArray());
+            hasUnlockedUsers = selectedUserIds.Count > 0;
+            await IsUnlockedChanged.InvokeAsync(hasUnlockedUsers);
+            showDialog = false;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Fehler beim Speichern: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+}

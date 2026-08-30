@@ -130,6 +130,7 @@
                               Title="@titles[it.Entry.Id]"
                               ImageUrl="@images[it.Entry.Id]"
                               LinkUrl="@links[it.Entry.Id]"
+                              WatchedAt="@it.WatchedAt"
                               CardKey="@($"continue-{it.MediaType}-{it.Entry.Id}")"
                               Actions="@ContextActions"
                               OnActionSelected="action => HandleContextActionAsync(it, action)" />

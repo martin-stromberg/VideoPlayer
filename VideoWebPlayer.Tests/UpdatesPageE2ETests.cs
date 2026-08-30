@@ -157,7 +157,9 @@ public sealed class UpdatesPageE2ETests : IAsyncLifetime
 
         var initialCheckedAt = await MetricValue("Letzte Pruefung").TextContentAsync();
         await _page.GetByRole(AriaRole.Button, new() { Name = "Nach Updates suchen" }).ClickAsync();
-        await Expect(_page.GetByText("Test-Pruefung abgeschlossen.")).ToBeVisibleAsync();
+        await Expect(_page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex("/admin/updates\\?checkStatus="));
+        await Expect(_page.Locator("[data-testid='update-status-section']")).ToContainTextAsync("Test-Pruefung abgeschlossen.");
+        await Expect(_page.Locator(".admin-update-page > .alert").Filter(new() { HasText = "Test-Pruefung abgeschlossen." })).ToHaveCountAsync(0);
         await Expect(_page.Locator("[data-testid='version-details-section']")).ToContainTextAsync("1.1.0");
         Assert.Equal(1, _updates.CheckCount);
         var refreshedCheckedAt = await MetricValue("Letzte Pruefung").TextContentAsync();

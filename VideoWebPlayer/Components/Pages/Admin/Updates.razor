@@ -88,6 +88,20 @@ else
                         }
                     </div>
                 }
+                else if (!string.IsNullOrWhiteSpace(checkSuccessMessage))
+                {
+                    <div class="update-inline-message update-inline-message-success" role="status">
+                        <strong>Updatepruefung abgeschlossen</strong>
+                        <span>@checkSuccessMessage</span>
+                    </div>
+                }
+                else if (!string.IsNullOrWhiteSpace(checkErrorMessage))
+                {
+                    <div class="update-inline-message update-inline-message-danger" role="alert">
+                        <strong>Updatepruefung fehlgeschlagen</strong>
+                        <span>@checkErrorMessage</span>
+                    </div>
+                }
 
                 @if (status.IsLocked)
                 {
@@ -266,6 +280,8 @@ else
     private bool confirmPrerelease;
     private string? successMessage;
     private string? errorMessage;
+    private string? checkSuccessMessage;
+    private string? checkErrorMessage;
     private string? antiforgeryRequestToken;
     private SettingsModel? model;
     private SettingsModel? defaultModel;
@@ -315,6 +331,10 @@ else
             successMessage = statusMessage.ToString();
         if (query.TryGetValue("updateError", out var error))
             errorMessage = error.ToString();
+        if (query.TryGetValue("checkStatus", out var checkStatusMessage))
+            checkSuccessMessage = checkStatusMessage.ToString();
+        if (query.TryGetValue("checkError", out var checkError))
+            checkErrorMessage = checkError.ToString();
     }
 
     private async Task ReloadAsync()

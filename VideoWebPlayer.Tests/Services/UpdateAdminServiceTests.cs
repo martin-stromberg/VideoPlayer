@@ -137,6 +137,7 @@ public sealed class UpdateAdminServiceTests
         var result = await service.CheckAsync(TestContext.Current.CancellationToken);
 
         Assert.True(result.IsBlocked);
+        Mock.Get(commandHandler.Object).Verify(x => x.CheckAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     private static UpdateAdminService CreateService(

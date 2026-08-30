@@ -23,9 +23,9 @@ Die Anzeige wird regelmäßig aktualisiert. Mit `Daten aktualisieren` kann der S
 
 ## Manuell auf Updates prüfen
 
-Mit `Nach Updates suchen` startet ein Administrator sofort eine Prüfung auf neue Versionen. Die Aktion ist gesperrt, solange bereits eine Prüfung, ein Download, eine Installation oder eine Update-Sperre aktiv ist.
+Mit `Nach Updates suchen` startet ein Administrator sofort eine Prüfung auf neue Versionen. Die Aktion ist gesperrt, solange bereits eine Prüfung, ein Download, eine Installation oder eine Update-Sperre aktiv ist. Beim Start einer neuen manuellen Prüfung bereinigt der Updater eine zuvor gespeicherte Fehlermeldung, damit kein veralteter Fehler mehr im Statusbereich stehen bleibt.
 
-Nach Abschluss zeigt die Seite eine Erfolgsmeldung oder eine Fehlermeldung an. Wenn eine neue Version gefunden wurde, erscheint sie im Statusbereich und kann installiert werden.
+Nach Abschluss zeigt die Seite die Erfolgsmeldung oder Fehlermeldung im Bereich `Update-Status` an. Wenn eine neue Version gefunden wurde, erscheint sie ebenfalls im Statusbereich und kann installiert werden.
 
 ## Update manuell installieren
 

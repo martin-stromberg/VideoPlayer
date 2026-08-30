@@ -1,7 +1,7 @@
 namespace VideoWebPlayer.Controllers.Models
 {
     /// <summary>
-    /// Daten-Transfer-Objekt für MediaEntry.
+    /// Daten-Transfer-Objekt fuer MediaEntry.
     /// </summary>
     public class MediaEntryDto
     {
@@ -13,6 +13,7 @@ namespace VideoWebPlayer.Controllers.Models
         public DateTime CreatedAt { get; set; }
         public long? PictureId { get; set; } // oder PosterPictureId
         public int ItemCount { get; set; }
+        public DateTime? WatchedAt { get; set; }
         
     }
 }

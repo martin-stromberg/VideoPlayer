@@ -25,7 +25,7 @@ public sealed class VideoWebPlayerBackupDataTests
     };
 
     [Fact]
-    public async Task ReadFromAsync_LegacyBackupWithoutUnlockedMediaAndEndThreshold_RestoresSuccessfully()
+    public async Task ReadFromAsync_LegacyBackupWithoutUnlockedMediaWatchedEntriesAndEndThreshold_RestoresSuccessfully()
     {
         // Prepare a current database with a valid admin user and setup.
         var connectionString = "Data Source=file:backuptest?mode=memory&cache=shared";
@@ -84,7 +84,7 @@ public sealed class VideoWebPlayerBackupDataTests
         currentStream.Position = 0;
 
         // Simulate an old backup that does not yet contain the UnlockedMediaEntries
-        // table and the Setups.ContinueWatchingEndThresholdSeconds column.
+        // and WatchedEntries tables or the Setups.ContinueWatchingEndThresholdSeconds column.
         using var originalArchive = new ZipArchive(currentStream, ZipArchiveMode.Read, true);
         using var legacyStream = new MemoryStream();
         var setupsEntryName = string.Empty;
@@ -106,6 +106,15 @@ public sealed class VideoWebPlayerBackupDataTests
                 var unlockedIndex = tables.IndexOf(unlockedTable);
                 if (unlockedIndex >= 0)
                     tables.RemoveAt(unlockedIndex);
+            }
+
+            var watchedTable = tables.FirstOrDefault(t =>
+                string.Equals(t!["name"]!.GetValue<string>(), "WatchedEntries", StringComparison.OrdinalIgnoreCase));
+            if (watchedTable is not null)
+            {
+                var watchedIndex = tables.IndexOf(watchedTable);
+                if (watchedIndex >= 0)
+                    tables.RemoveAt(watchedIndex);
             }
 
             var setupsTable = tables.FirstOrDefault(t =>
@@ -138,6 +147,12 @@ public sealed class VideoWebPlayerBackupDataTests
 
                 if (unlockedTable is not null
                     && string.Equals(entry.FullName, unlockedTable["entryName"]!.GetValue<string>(), StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (watchedTable is not null
+                    && string.Equals(entry.FullName, watchedTable["entryName"]!.GetValue<string>(), StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
@@ -199,6 +214,7 @@ public sealed class VideoWebPlayerBackupDataTests
 
         Assert.Null(exception);
         Assert.False(await db.UnlockedMediaEntries.AnyAsync(TestContext.Current.CancellationToken));
+        Assert.False(await db.WatchedEntries.AnyAsync(TestContext.Current.CancellationToken));
         Assert.Equal(userId, (await db.Users.FirstAsync(TestContext.Current.CancellationToken)).Id);
     }
 

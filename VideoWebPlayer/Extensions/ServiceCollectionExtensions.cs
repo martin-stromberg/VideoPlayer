@@ -225,6 +225,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<SftpMediaSourceReader>();
         services.AddScoped<DataUpgradeManager>();
         services.AddScoped<ProgramSettingsService>();
+        services.AddSingleton(TimeProvider.System);
+        services.AddScoped<WatchedStatusService>();
         services.AddBackups(configuration.GetSection("Backups"));
         services.AddScoped<IBackupDataSource, VideoWebPlayerBackupDataSource>();
         services.AddScoped<VideoWebPlayerBackupDataFactory>();

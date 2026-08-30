@@ -252,6 +252,14 @@ else
                          loading="lazy"
                          onerror="this.onerror=null;this.src='/images/placeholder.png';" />
                     <span class="media-quick-play" aria-hidden="true">&#9654;</span>
+                    @if (entry.WatchedAt.HasValue)
+                    {
+                        <img class="watched-indicator"
+                             src="/images/gesehen64x64.png"
+                             alt=""
+                             title="Gesehen"
+                             data-testid="watched-indicator" />
+                    }
                     <div class="media-card-overlay">
                         <span class="media-title-text">@entry.Title</span>
                     </div>

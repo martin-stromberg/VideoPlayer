@@ -5,13 +5,15 @@
     {
         <MediaBox Title="@entry.Name"
                   ImageUrl="@GetImageUrl(entry)"
-                  LinkUrl="@GetLinkUrl(entry)" />
+                  LinkUrl="@GetLinkUrl(entry)"
+                  WatchedAt="@GetWatchedAt(entry)" />
     }
 </div>
 
 @code {
     [Parameter] public List<MediaBaseEntry> Entries { get; set; } = new();
     [Parameter] public string AuthorizationToken { get; set; } = string.Empty;
+    [Parameter] public IReadOnlyDictionary<string, DateTime> WatchedAtByEntryKey { get; set; } = new Dictionary<string, DateTime>();
     private string GetImageUrl(MediaBaseEntry entry)
     {
         if (entry.PosterPictureId.HasValue)
@@ -36,4 +38,9 @@
             _ => "#"
         };
     }
+
+    private DateTime? GetWatchedAt(MediaBaseEntry entry)
+        => WatchedAtByEntryKey.TryGetValue($"{entry.GetType().Name}:{entry.Id}", out var watchedAt)
+            ? watchedAt
+            : null;
 }

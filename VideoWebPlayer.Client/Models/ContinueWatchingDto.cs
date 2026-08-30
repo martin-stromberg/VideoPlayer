@@ -8,5 +8,6 @@ namespace VideoWebPlayer.Client.Models
         public long? DurationSeconds { get; set; }
         public string Title { get; set; } = "";
         public long? PosterPictureId { get; set; }
+        public DateTime? WatchedAt { get; set; }
     }
 }

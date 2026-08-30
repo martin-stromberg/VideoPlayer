@@ -130,7 +130,7 @@
             {
                 if (entry.Entry is DtoMovie && movieTitles.ContainsKey(entry.Id))
                 {
-                    <MediaBox Title="@movieTitles[entry.Id]" ImageUrl="@moviePosters[entry.Id]" LinkUrl="@movieLinks[entry.Id]" />
+                    <MediaBox Title="@movieTitles[entry.Id]" ImageUrl="@moviePosters[entry.Id]" LinkUrl="@movieLinks[entry.Id]" WatchedAt="@entry.Entry.WatchedAt" />
                 }
                 else if (entry.Entry is DtoMovieCollection && collectionTitles.ContainsKey(entry.Id))
                 {
@@ -146,7 +146,7 @@
                 }
                 else if (entry.Entry is DtoTVShowEpisode && episodeTitles.ContainsKey(entry.Id))
                 {
-                    <MediaBox Title="@episodeTitles[entry.Id]" ImageUrl="@episodePosters[entry.Id]" LinkUrl="@episodeLinks[entry.Id]" />
+                    <MediaBox Title="@episodeTitles[entry.Id]" ImageUrl="@episodePosters[entry.Id]" LinkUrl="@episodeLinks[entry.Id]" WatchedAt="@entry.Entry.WatchedAt" />
                 }
             }
         </div>

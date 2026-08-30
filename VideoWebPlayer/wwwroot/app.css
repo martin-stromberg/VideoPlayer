@@ -1041,6 +1041,28 @@ input[type="text"]:focus {
     transform: translateY(0);
 }
 
+.watched-indicator {
+    position: absolute;
+    top: 0.6rem;
+    right: 0.6rem;
+    z-index: 3;
+    width: clamp(1.65rem, 10%, 2.2rem);
+    height: clamp(1.65rem, 10%, 2.2rem);
+    padding: 0.22rem;
+    object-fit: contain;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.68);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.42);
+    pointer-events: none;
+}
+
+.watched-indicator-episode {
+    right: 3.65rem;
+    width: 2rem;
+    height: 2rem;
+}
+
 .media-box-shell-menu-open {
     z-index: 1200;
 }

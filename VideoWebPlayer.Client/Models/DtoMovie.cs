@@ -24,6 +24,7 @@ public class DtoMediaEntry
     public bool IsFavorite { get; set; }
     public bool IsUnlocked { get; set; }
     public bool IsManuallyEdited { get; set; }
+    public DateTime? WatchedAt { get; set; }
 }
 
 public sealed class DtoGenreOption

@@ -27,6 +27,7 @@
 | [Backups](./help/backups.md) | Backup-Erstellung, Restore und Aufbewahrung |
 | [Updates](./help/updates.md) | Manuelle und automatische Update-Verwaltung |
 | [Medienbibliothek](./help/medienbibliothek.md) | Bedienung der Weboberfläche |
+| [Gesehen-Kennzeichen](./help/gesehen-status.md) | Benutzerbezogene Markierung bereits gesehener Filme und Episoden |
 | [Medienmetadaten bearbeiten](./help/medien-editiermodus.md) | Administrativer Editiermodus |
 | [Projektstruktur](./help/projektstruktur.md) | Solution-Projekte und Repository-Grenzen |
 

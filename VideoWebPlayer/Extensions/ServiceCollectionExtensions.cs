@@ -179,8 +179,15 @@ public static class ServiceCollectionExtensions
             var nav = sp.GetService<NavigationManager>();
             if (nav is not null)
             {
-                http.BaseAddress = new Uri(nav.BaseUri);
-                return http;
+                try
+                {
+                    http.BaseAddress = new Uri(nav.BaseUri);
+                    return http;
+                }
+                catch (InvalidOperationException)
+                {
+                    // NavigationManager ist in diesem Kontext (z. B. HostedService) noch nicht initialisiert.
+                }
             }
 
             var httpContext = sp.GetService<IHttpContextAccessor>()?.HttpContext;

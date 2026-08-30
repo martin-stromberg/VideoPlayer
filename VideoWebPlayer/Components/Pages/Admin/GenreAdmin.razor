@@ -62,7 +62,7 @@ else
                                 <tr>
                                     <td style="width: 64px;">
                                         @{
-                                            var iconUrl = GetGenreImageUrl(genre.Name);
+                                            var iconUrl = GetGenreImageUrl(genre);
                                         }
                                         @if (!string.IsNullOrWhiteSpace(iconUrl))
                                         {
@@ -197,7 +197,7 @@ else
         hasPendingIcon = false;
         pendingIconBytes = null;
         pendingIconContentType = null;
-        iconPreviewUrl = GetGenreImageUrl(genre.Name, forceCacheBust: true);
+        iconPreviewUrl = GetGenreImageUrl(genre, forceCacheBust: true);
     }
 
     private async Task OnIconFileChanged(InputFileChangeEventArgs e)
@@ -246,7 +246,7 @@ else
         }
 
         if (hasPendingIcon && pendingIconBytes is not null && pendingIconBytes.Length > 0)
-            await SaveGenreIconAsync(editGenre.Name, pendingIconBytes, pendingIconContentType);
+            await SaveGenreIconAsync(editGenre, pendingIconBytes, pendingIconContentType);
 
         await ReloadGenres();
         editGenre = null;
@@ -257,7 +257,7 @@ else
         editGenre = null;
     }
 
-    private async Task SaveGenreIconAsync(string genreName, byte[] bytes, string? contentType)
+    private async Task SaveGenreIconAsync(Genre genre, byte[] bytes, string? contentType)
     {
         var extension = contentType switch
         {
@@ -268,10 +268,10 @@ else
             _ => null
         };
 
-        if (string.IsNullOrWhiteSpace(extension))
+        if (string.IsNullOrWhiteSpace(extension) || genre is null)
             return;
 
-        var key = GetGenreImageKey(genreName);
+        var key = GetGenreImageKey(genre);
         var iconsDir = Path.Combine(Env.WebRootPath, "images", "genres");
         Directory.CreateDirectory(iconsDir);
 
@@ -285,12 +285,12 @@ else
         await System.IO.File.WriteAllBytesAsync(Path.Combine(iconsDir, $"{key}{extension}"), bytes);
     }
 
-    private string? GetGenreImageUrl(string genreName, bool forceCacheBust = false)
+    private string? GetGenreImageUrl(Genre? genre, bool forceCacheBust = false)
     {
-        if (string.IsNullOrWhiteSpace(genreName))
+        if (genre is null || string.IsNullOrWhiteSpace(genre.Name))
             return null;
 
-        var key = GetGenreImageKey(genreName);
+        var key = GetGenreImageKey(genre);
         var iconsDir = Path.Combine(Env.WebRootPath, "images", "genres");
         foreach (var ext in new[] { ".png", ".jpg", ".jpeg", ".webp", ".gif" })
         {
@@ -305,9 +305,9 @@ else
         return null;
     }
 
-    private static string GetGenreImageKey(string genreName)
+    private static string GetGenreImageKey(Genre genre)
     {
-        var normalized = genreName.Trim().ToLowerInvariant();
+        var normalized = $"{genre.Id}:{genre.Name.Trim().ToLowerInvariant()}";
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(normalized));
         return Convert.ToHexString(hash).ToLowerInvariant();
     }

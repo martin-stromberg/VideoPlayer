@@ -10,6 +10,37 @@ namespace VideoWebPlayer.Tests.Services;
 public sealed class UpdateAdminServiceTests
 {
     [Fact]
+    public async Task GetSnapshotAsync_IncludesSettingsStatusAndDefaultSettings()
+    {
+        var status = Status(AutoUpdateState.Idle);
+        var orchestrator = new Mock<IAutoUpdateOrchestrator>();
+        orchestrator
+            .Setup(x => x.GetStatusAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(status);
+
+        var settings = new Mock<IUpdateSettingsService>();
+        settings
+            .Setup(x => x.GetOrCreateAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new UpdateSettings { CheckIntervalMinutes = 30, RetainedUpdateBackupCount = 3 });
+        settings
+            .Setup(x => x.GetDefaultSettings())
+            .Returns(new UpdateSettings { CheckIntervalMinutes = 360, RetainedUpdateBackupCount = 5 });
+
+        var service = new UpdateAdminService(
+            orchestrator.Object,
+            Mock.Of<IAutoUpdateCommandHandler>(),
+            settings.Object,
+            NullLogger<UpdateAdminService>.Instance);
+
+        var snapshot = await service.GetSnapshotAsync(TestContext.Current.CancellationToken);
+
+        Assert.Same(status, snapshot.Status);
+        Assert.Equal(30, snapshot.Settings.CheckIntervalMinutes);
+        Assert.Equal(360, snapshot.DefaultSettings.CheckIntervalMinutes);
+        Assert.Equal(5, snapshot.DefaultSettings.RetainedUpdateBackupCount);
+    }
+
+    [Fact]
     public async Task CheckAsync_WhenIdle_CallsCommandHandler()
     {
         var commandHandler = new Mock<IAutoUpdateCommandHandler>();
@@ -124,6 +155,9 @@ public sealed class UpdateAdminServiceTests
         settings
             .Setup(x => x.GetOrCreateAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new UpdateSettings());
+        settings
+            .Setup(x => x.GetDefaultSettings())
+            .Returns(new UpdateSettings());
 
         return new UpdateAdminService(
             orchestrator.Object,

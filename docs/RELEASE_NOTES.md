@@ -26,6 +26,8 @@
 
 ## Neuerungen
 
+- Die Updates-Seite wurde neu strukturiert: Status, Versionsdetails und Konfiguration sind klar getrennt, bleiben deutsch beschriftet und sind für Desktop und Mobilansichten optimiert.
+- Update-Konfigurationen validieren Prüfintervalle und die Aufbewahrung von Update-Backups strenger; vorhandene Legacy-Werte werden beim Lesen bereinigt.
 - Fehler behoben, durch den die Titelliste beim Wechsel zwischen Quellen über das Menü nicht auf die zuletzt ausgewählte Quelle aktualisiert wurde.
 - Fehler bei der Quellenseite für Benutzer mit nur einzelnen Freischaltungen behoben; kein Seitenfehler mehr beim Aufrufen einer Quelle.
 - Direkte URL-Manipulation auf nicht freigegebene Detail- und Stream-Endpunkte wird blockiert.

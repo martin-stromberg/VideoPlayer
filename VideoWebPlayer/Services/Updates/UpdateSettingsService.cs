@@ -10,7 +10,12 @@ namespace VideoWebPlayer.Services.Updates;
 public interface IUpdateSettingsService
 {
     /// <summary>
-    /// Gets the singleton settings row, creating it from configuration when missing.
+    /// Gets the default settings that would be used for a new settings row.
+    /// </summary>
+    UpdateSettings GetDefaultSettings();
+
+    /// <summary>
+    /// Gets the default settings that would be used for a new settings row.
     /// </summary>
     Task<UpdateSettings> GetOrCreateAsync(CancellationToken cancellationToken = default);
 
@@ -63,11 +68,22 @@ public sealed class UpdateSettingsService : IUpdateSettingsService
     /// <summary>
     /// Gets the singleton settings row, creating it from configuration when missing.
     /// </summary>
+    public UpdateSettings GetDefaultSettings()
+        => CreateDefaults();
+
+    /// <summary>
+    /// Gets the singleton settings row, creating it from configuration when missing.
+    /// </summary>
     public async Task<UpdateSettings> GetOrCreateAsync(CancellationToken cancellationToken = default)
     {
         var settings = await _db.UpdateSettings.FirstOrDefaultAsync(x => x.Id == SettingsRowId, cancellationToken);
         if (settings is not null)
+        {
+            if (NormalizePersistedSettings(settings))
+                await _db.SaveChangesAsync(cancellationToken);
+
             return settings;
+        }
 
         settings = CreateDefaults();
         _db.UpdateSettings.Add(settings);
@@ -80,9 +96,11 @@ public sealed class UpdateSettingsService : IUpdateSettingsService
     /// </summary>
     public async Task<UpdateSettings> UpdateAsync(UpdateSettingsUpdate update, CancellationToken cancellationToken = default)
     {
+        ValidateUpdate(update);
+
         var settings = await GetOrCreateAsync(cancellationToken);
         settings.AutomaticChecksEnabled = update.AutomaticChecksEnabled;
-        settings.CheckIntervalMinutes = Math.Max(1, update.CheckIntervalMinutes);
+        settings.CheckIntervalMinutes = update.CheckIntervalMinutes;
         settings.AllowPrereleaseUpdates = update.AllowPrereleaseUpdates;
         settings.AutomaticInstallationEnabled = update.AutomaticInstallationEnabled;
         settings.AutomaticDownloadEnabled = update.AutomaticInstallationEnabled || update.AutomaticDownloadEnabled;
@@ -92,7 +110,7 @@ public sealed class UpdateSettingsService : IUpdateSettingsService
         settings.UpdateBackupPath = string.IsNullOrWhiteSpace(update.UpdateBackupPath)
             ? DefaultBackupPath
             : update.UpdateBackupPath.Trim();
-        settings.RetainedUpdateBackupCount = Math.Max(0, update.RetainedUpdateBackupCount);
+        settings.RetainedUpdateBackupCount = update.RetainedUpdateBackupCount;
         settings.UpdatedAtUtc = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
@@ -128,7 +146,7 @@ public sealed class UpdateSettingsService : IUpdateSettingsService
     {
         _autoUpdateOptions.Enabled = true;
         _autoUpdateOptions.SourceCheck ??= new SourceCheckOptions();
-        _autoUpdateOptions.SourceCheck.Interval = Math.Max(1, settings.CheckIntervalMinutes);
+        _autoUpdateOptions.SourceCheck.Interval = ClampCheckInterval(settings.CheckIntervalMinutes);
         _autoUpdateOptions.SourceCheck.TimeRanges = settings.AutomaticChecksEnabled
             ? []
             : CreateDisabledSourceCheckWindows();
@@ -145,7 +163,7 @@ public sealed class UpdateSettingsService : IUpdateSettingsService
         {
             Id = SettingsRowId,
             AutomaticChecksEnabled = _configuration.GetValue("AutoUpdate:Enabled", true),
-            CheckIntervalMinutes = Math.Max(1, _configuration.GetValue("AutoUpdate:SourceCheck:Interval", DefaultCheckIntervalMinutes)),
+            CheckIntervalMinutes = ClampCheckInterval(_configuration.GetValue("AutoUpdate:SourceCheck:Interval", DefaultCheckIntervalMinutes)),
             AllowPrereleaseUpdates = _configuration.GetValue("AutoUpdate:AllowPrereleaseUpdates", false),
             AutomaticInstallationEnabled = _configuration.GetValue("AutoUpdate:EnableAutomaticInstallation", false),
             AutomaticDownloadEnabled = _configuration.GetValue("AutoUpdate:EnableAutomaticDownload", true),
@@ -153,9 +171,42 @@ public sealed class UpdateSettingsService : IUpdateSettingsService
             CreateBackupBeforeInstallation = _configuration.GetValue("AutoUpdate:Backup:Enabled", true),
             CancelInstallationOnBackupFailure = _configuration.GetValue("AutoUpdate:Backup:CancelInstallationOnFailure", true),
             UpdateBackupPath = _configuration["AutoUpdate:Backup:Path"] ?? DefaultBackupPath,
-            RetainedUpdateBackupCount = Math.Max(0, _configuration.GetValue("AutoUpdate:Backup:RetainedBackupCount", 5)),
+            RetainedUpdateBackupCount = ClampRetainedBackups(_configuration.GetValue("AutoUpdate:Backup:RetainedBackupCount", 5)),
             UpdatedAtUtc = DateTime.UtcNow
         };
+
+    private static int ClampCheckInterval(int value)
+        => Math.Clamp(value, 1, 24 * 60);
+
+    private static int ClampRetainedBackups(int value)
+        => Math.Clamp(value, 1, 10);
+
+    private static void ValidateUpdate(UpdateSettingsUpdate update)
+    {
+        if (update.CheckIntervalMinutes is < 1 or > 24 * 60)
+            throw new ArgumentOutOfRangeException(
+                nameof(update.CheckIntervalMinutes),
+                "Das Pruefintervall muss zwischen 1 und 1440 Minuten liegen.");
+
+        if (update.RetainedUpdateBackupCount is < 1 or > 10)
+            throw new ArgumentOutOfRangeException(
+                nameof(update.RetainedUpdateBackupCount),
+                "Es koennen 1 bis 10 Update-Backups aufbewahrt werden.");
+    }
+
+    private static bool NormalizePersistedSettings(UpdateSettings settings)
+    {
+        var checkInterval = ClampCheckInterval(settings.CheckIntervalMinutes);
+        var retainedBackups = ClampRetainedBackups(settings.RetainedUpdateBackupCount);
+        if (settings.CheckIntervalMinutes == checkInterval &&
+            settings.RetainedUpdateBackupCount == retainedBackups)
+            return false;
+
+        settings.CheckIntervalMinutes = checkInterval;
+        settings.RetainedUpdateBackupCount = retainedBackups;
+        settings.UpdatedAtUtc = DateTime.UtcNow;
+        return true;
+    }
 
     private static string? NormalizeOptional(string? value, int maxLength)
     {

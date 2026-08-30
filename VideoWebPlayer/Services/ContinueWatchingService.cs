@@ -19,6 +19,8 @@ namespace VideoWebPlayer.Services
         private readonly ContinueWatchingBuffer _buffer;
         private readonly MediaUpdateNotificationService _notificationService;
         private readonly ProgramSettingsService _programSettings;
+        private readonly WatchedStatusService _watchedStatusService;
+        private readonly TimeProvider _timeProvider;
 
         /// <summary>
         /// Represents the result of a manual continue-watching skip operation.
@@ -47,7 +49,9 @@ namespace VideoWebPlayer.Services
                                        ILogger<ContinueWatchingService> logger,
                                        ContinueWatchingBuffer buffer,
                                        MediaUpdateNotificationService notificationService,
-                                       ProgramSettingsService programSettings)
+                                       ProgramSettingsService programSettings,
+                                       WatchedStatusService? watchedStatusService = null,
+                                       TimeProvider? timeProvider = null)
         {
             _db = db;
             _userManager = userManager;
@@ -55,6 +59,8 @@ namespace VideoWebPlayer.Services
             _buffer = buffer;
             _notificationService = notificationService;
             _programSettings = programSettings;
+            _watchedStatusService = watchedStatusService ?? new WatchedStatusService(db);
+            _timeProvider = timeProvider ?? TimeProvider.System;
         }
 
         /// <summary>
@@ -125,9 +131,14 @@ namespace VideoWebPlayer.Services
                 {
                     t.PosterPictureId = t.Entry?.PosterPictureId ?? t.Entry?.FanartPictureId;
                     t.Title = t.Entry?.Name ?? t.Title;
+                    t.WatchedAt = t.Entry?.WatchedAt;
                     return t;
                 })
                 .ToList();
+
+            await _watchedStatusService.EnrichAsync(userId, list.Select(x => x.Entry), ct);
+            foreach (var item in list)
+                item.WatchedAt = item.Entry?.WatchedAt;
 
             return list;
         }
@@ -177,6 +188,13 @@ namespace VideoWebPlayer.Services
             // Beendet?
             if (duration - position <= endThreshold)
             {
+                await _watchedStatusService.MarkWatchedAsync(
+                    userId,
+                    movieId,
+                    episodeId,
+                    _timeProvider.GetUtcNow().UtcDateTime,
+                    ct);
+
                 var existing = await _db.ContinueWatchingEntries
                     .FirstOrDefaultAsync(x => x.UserId == userId && x.MovieId == movieId && x.TVShowEpisodeId == episodeId, ct);
 

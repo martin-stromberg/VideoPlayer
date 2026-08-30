@@ -146,6 +146,7 @@
                               Title="@favTitles[fav.Id]"
                               ImageUrl="@favImages[fav.Id]"
                               LinkUrl="@favLinks[fav.Id]"
+                              WatchedAt="@fav.Entry?.WatchedAt"
                               CardKey="@($"favorite-{fav.Id}")"
                               Actions="@ContextActions"
                               OnActionSelected="action => HandleContextActionAsync(fav, action)" />

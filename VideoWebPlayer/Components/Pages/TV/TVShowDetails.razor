@@ -145,6 +145,10 @@ else
                     var isSelected = selectedEpisode?.Id == episode.Id;
                     <div class="episode-box @(isSelected ? "selected" : "")" role="button" tabindex="0" @onclick="() => SelectEpisode(episode)" @onkeydown="args => SelectEpisodeByKeyboard(args, episode)">
                         <img class="episode-poster episode-poster-left" src="@GetPosterUrl(episode)" alt="@episode.Name" loading="lazy" onerror="this.onerror=null;this.src='/images/placeholder.png';" />
+                        @if (episode.WatchedAt.HasValue)
+                        {
+                            <WatchedIndicator Class="watched-indicator-image-left watched-indicator-episode" />
+                        }
                         <div class="episode-info">
                             <div class="episode-title">@episode.Number ‧ @episode.Name</div>
                             <div class="episode-plot">@episode.Plot</div>

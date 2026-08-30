@@ -23,7 +23,8 @@ public sealed class VideoWebPlayerBackupData : IBackupData
     private static readonly HashSet<string> OptionalRestoreTables = new(StringComparer.OrdinalIgnoreCase)
     {
         "UpdateSettings",
-        nameof(ApplicationDbContext.UnlockedMediaEntries)
+        nameof(ApplicationDbContext.UnlockedMediaEntries),
+        nameof(ApplicationDbContext.WatchedEntries)
     };
 
     private static readonly HashSet<string> OptionalRestoreColumns = new(StringComparer.OrdinalIgnoreCase)

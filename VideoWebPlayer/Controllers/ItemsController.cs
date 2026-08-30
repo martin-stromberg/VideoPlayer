@@ -19,6 +19,7 @@ public class ItemsController : ApiBaseController
     private readonly MediaMetadataEditorService _metadataEditor;
     private readonly RecentEntryService recentEntryService;
     private readonly IUnlockedMediaService _unlockedMediaService;
+    private readonly WatchedStatusService _watchedStatusService;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ItemsController"/> class.
@@ -36,13 +37,15 @@ public class ItemsController : ApiBaseController
         IUnlockedMediaService unlockedMediaService,
         
         IAuthService authService, 
-        ILogger<ItemsController> logger) : base(authService, logger)
+        ILogger<ItemsController> logger,
+        WatchedStatusService? watchedStatusService = null) : base(authService, logger)
     {
         _db = db;
         _sftpReader = sftpReader;
         _metadataEditor = metadataEditor;
         this.recentEntryService = recentEntryService;
         _unlockedMediaService = unlockedMediaService;
+        _watchedStatusService = watchedStatusService ?? new WatchedStatusService(db);
     }
 
     /// <summary>
@@ -316,6 +319,7 @@ public class ItemsController : ApiBaseController
                     Logger.LogWarning(innerEx, "Fehler beim Verarbeiten eines RecentEntry (Id={Id})", rec.Id);
                 }
             }
+            await _watchedStatusService.EnrichAsync(CurrentUser.Id, dtoList.Select(x => x.Entry), RequestCancellationToken);
             return Ok(dtoList);
         }
         catch (UnauthorizedAccessException ex)
@@ -378,6 +382,8 @@ public class ItemsController : ApiBaseController
 
         return await _db.UnlockedMediaEntries.AsNoTracking().AnyAsync(u => u.UserId == CurrentUser.Id && (u.MovieCollectionId == entry.Id || u.TVShowId == entry.Id));
     }
+
+    private CancellationToken RequestCancellationToken => HttpContext?.RequestAborted ?? CancellationToken.None;
 
     private async Task<MediaItem> FindMediaItemAsync(string type, long id)
     {
@@ -514,6 +520,7 @@ public class ItemsController : ApiBaseController
                     movie.IsFavorite = _db.FavoriteEntries.Any(f => f.UserId == CurrentUser.Id && f.MovieId == movie.Id);
                     return movie;
                 }).ToArray();
+                await _watchedStatusService.EnrichAsync(CurrentUser.Id, collection.Movies, RequestCancellationToken);
                 return Ok(collection);
             }
             else if (entry is TVShow)
@@ -533,12 +540,14 @@ public class ItemsController : ApiBaseController
                     }).ToArray();
                     return season;
                 }).ToArray();
+                await _watchedStatusService.EnrichAsync(CurrentUser.Id, show.Seasons.SelectMany(s => s.Episodes), RequestCancellationToken);
                 return Ok(show);
             }
             else if (entry is TVShowEpisode dbSeason)
             {
                 var episode = Create<DtoTVShowEpisode>(entry);
                 episode.IsFavorite = _db.FavoriteEntries.Any(f => f.UserId == CurrentUser.Id && f.TVShowEpisodeId == episode.Id);
+                await _watchedStatusService.EnrichAsync(CurrentUser.Id, [episode], RequestCancellationToken);
                 episode.Season = _db.TVShowSeasons.Where(m => m.Id == dbSeason.TVShowSeasonId).ToList().Select(m =>
                 {
                     var season = Create<DtoTVShowSeason>(m);
@@ -557,6 +566,7 @@ public class ItemsController : ApiBaseController
             {
                 var movie = Create<DtoMovie>(dbMovie);
                 movie.IsFavorite = _db.FavoriteEntries.Any(f => f.UserId == CurrentUser.Id && f.MovieId == movie.Id);
+                await _watchedStatusService.EnrichAsync(CurrentUser.Id, [movie], RequestCancellationToken);
                 movie.Collection = _db.MovieCollections.Where(mc => mc.Id == dbMovie.MovieCollectionId).ToList().Select(mc =>
                 {
                     var collection = Create<DtoMovieCollection>(mc);

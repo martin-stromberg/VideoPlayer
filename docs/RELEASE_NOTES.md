@@ -6,9 +6,12 @@
 ## Important Notes Before Update
 
 - A new database migration adds the `UnlockedMediaEntries` table; it is applied automatically on startup. Backups from older versions remain restorable because missing new tables and fields are tolerated.
+- A new database migration adds the `WatchedEntries` table; it is applied automatically on startup. Backups from older versions remain restorable because the new table is optional during restore.
 
 ## What's New
 
+- Movies and episodes are now marked per user as watched when playback reaches the configured continue-watching end threshold.
+- Watched movies and episodes show the existing eye symbol on title cards across home lists, collection details and TV show episode lists.
 - Fixed the title list not updating to the last selected source when switching sources through the menu.
 - Fixed source page rendering for users with only individually unlocked items; no more unhandled exceptions when opening a source.
 - Block direct URL manipulation for non-unlocked detail and stream endpoints.
@@ -23,9 +26,12 @@
 ## Wichtige Hinweise vor dem Update
 
 - Eine neue Datenbank-Migration fügt die Tabelle `UnlockedMediaEntries` hinzu; sie wird beim Start automatisch angewendet. Datensicherungen älterer Versionen bleiben wiederherstellbar, da fehlende neue Tabellen und Felder toleriert werden.
+- Eine neue Datenbank-Migration fügt die Tabelle `WatchedEntries` hinzu; sie wird beim Start automatisch angewendet. Datensicherungen älterer Versionen bleiben wiederherstellbar, da die neue Tabelle beim Restore optional ist.
 
 ## Neuerungen
 
+- Filme und Episoden werden jetzt pro Benutzer als gesehen markiert, sobald die Wiedergabe die konfigurierte Weiterschauen-Endschwelle erreicht.
+- Gesehene Filme und Episoden zeigen das vorhandene Auge-Symbol auf Titelkarten in Startseitenlisten, Sammlungsdetails und Serien-/Episodenlisten.
 - Die Updates-Seite wurde neu strukturiert: Status, Versionsdetails und Konfiguration sind klar getrennt, bleiben deutsch beschriftet und sind für Desktop und Mobilansichten optimiert.
 - Update-Konfigurationen validieren Prüfintervalle und die Aufbewahrung von Update-Backups strenger; vorhandene Legacy-Werte werden beim Lesen bereinigt.
 - Fehler behoben, durch den die Titelliste beim Wechsel zwischen Quellen über das Menü nicht auf die zuletzt ausgewählte Quelle aktualisiert wurde.

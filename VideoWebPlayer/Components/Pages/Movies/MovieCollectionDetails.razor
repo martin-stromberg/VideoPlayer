@@ -129,6 +129,10 @@ else
                      loading="lazy"
                      onerror="this.onerror=null;this.src='/images/placeholder.png';" />
                 <span class="media-quick-play" aria-hidden="true">&#9654;</span>
+                @if (movie.WatchedAt.HasValue)
+                {
+                    <WatchedIndicator Class="watched-indicator-image-left" />
+                }
                 <div class="media-card-overlay">
                     <span class="media-title-text">@name</span>
                 </div>

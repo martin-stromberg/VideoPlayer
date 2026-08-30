@@ -171,6 +171,9 @@ jobs:
       - name: Build test project
         run: dotnet build VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release /p:NoWarn=NU1903
 
+      - name: Install Playwright browsers
+        run: pwsh VideoWebPlayer.Tests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+
       - name: Run final test suite
         run: dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=final-test-results.trx"
 

@@ -11,6 +11,7 @@ namespace VideoWebPlayer.Client.Models
         public long Id { get; set; }
         public string Name { get; set; } = string.Empty;
         public string? PictureUrl { get; set; }
+        public int VideoCount { get; set; }
     }
 
     /// <summary>

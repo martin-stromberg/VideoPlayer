@@ -257,15 +257,17 @@ namespace VideoWebPlayer.Client
         #endregion
 
         #region Actors
-        public async Task<IEnumerable<ActorDto>> RequestActorsAsync(string? search = null, string? initial = null)
+        public async Task<IEnumerable<ActorDto>> RequestActorsAsync(string? search = null, string? sort = null, string? filter = null)
         {
             try
             {
                 var query = new List<string>();
                 if (!string.IsNullOrWhiteSpace(search))
                     query.Add($"search={Uri.EscapeDataString(search)}");
-                if (!string.IsNullOrWhiteSpace(initial))
-                    query.Add($"initial={Uri.EscapeDataString(initial)}");
+                if (!string.IsNullOrWhiteSpace(sort))
+                    query.Add($"sort={Uri.EscapeDataString(sort)}");
+                if (!string.IsNullOrWhiteSpace(filter))
+                    query.Add($"filter={Uri.EscapeDataString(filter)}");
                 var url = "api/Actors" + (query.Count > 0 ? $"?{string.Join("&", query)}" : string.Empty);
                 return await HttpGetAsync<ActorDto[]>(url);
             }
@@ -287,11 +289,12 @@ namespace VideoWebPlayer.Client
             }
         }
 
-        public async Task<IEnumerable<string>> RequestActorInitialsAsync()
+        public async Task<IEnumerable<string>> RequestActorFiltersAsync(string? sort = null)
         {
             try
             {
-                return await HttpGetAsync<string[]>("api/Actors/initials");
+                var query = !string.IsNullOrWhiteSpace(sort) ? $"?sort={Uri.EscapeDataString(sort)}" : string.Empty;
+                return await HttpGetAsync<string[]>($"api/Actors/filters{query}");
             }
             catch
             {

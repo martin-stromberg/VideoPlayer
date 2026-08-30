@@ -42,7 +42,8 @@ public sealed class UpdateAdminService
     {
         var settings = await _settingsService.GetOrCreateAsync(cancellationToken);
         var status = await _orchestrator.GetStatusAsync(cancellationToken);
-        return new UpdateAdminSnapshot(settings, status);
+        var defaultSettings = _settingsService.GetDefaultSettings();
+        return new UpdateAdminSnapshot(settings, status, defaultSettings);
     }
 
     /// <summary>
@@ -123,7 +124,7 @@ public sealed class UpdateAdminService
 /// <summary>
 /// Combines persisted settings and updater status.
 /// </summary>
-public sealed record UpdateAdminSnapshot(UpdateSettings Settings, AutoUpdateStatusSnapshot Status);
+public sealed record UpdateAdminSnapshot(UpdateSettings Settings, AutoUpdateStatusSnapshot Status, UpdateSettings DefaultSettings);
 
 /// <summary>
 /// Describes the result of a manual update action.

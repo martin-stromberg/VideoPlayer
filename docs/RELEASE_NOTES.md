@@ -11,8 +11,10 @@
 ## What's New
 
 - Added actor extraction from NFO metadata for movies and TV show episodes, stored in new `Actors`, `MovieActors` and `TVShowEpisodeActors` tables.
+- Actor images are loaded from the `<thumb>` element of NFO metadata and shown in the overview and detail pages.
 - Added a background worker that backfills actor metadata for existing media on application startup.
 - Added the "Schauspieler" menu, overview with search and initial-letter filters, and a detail page.
+- The actor detail page aggregates appearances across movie collections, TV shows, seasons and episodes based on a configurable threshold.
 - Backup/restore now tolerates the new actor tables and `ActorsClassifiedAt` / `ActorCollectionThresholdPercent` fields.
 - Added help page `schauspieler`.
 

@@ -32,7 +32,7 @@ else
             @foreach (var media in actor.Media)
             {
                 <MediaBox Title="@media.Title"
-                          ImageUrl="/images/placeholder.png"
+                          ImageUrl="@GetActorPictureUrl(media.PictureUrl)"
                           LinkUrl="@GetMediaLinkUrl(media)" />
             }
         </div>

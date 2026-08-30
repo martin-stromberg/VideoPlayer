@@ -204,8 +204,10 @@ namespace VideoWebPlayer.Controllers
                 {
                     ma.Movie.Id,
                     ma.Movie.Name,
+                    ma.Movie.PosterPictureId,
                     CollectionId = (long?)ma.Movie.MovieCollectionId,
-                    CollectionName = ma.Movie.MovieCollection != null ? ma.Movie.MovieCollection.Name : null
+                    CollectionName = ma.Movie.MovieCollection != null ? ma.Movie.MovieCollection.Name : null,
+                    CollectionPosterPictureId = ma.Movie.MovieCollection != null ? ma.Movie.MovieCollection.PosterPictureId : null
                 })
                 .ToListAsync(cancellationToken);
 
@@ -231,7 +233,7 @@ namespace VideoWebPlayer.Controllers
                     {
                         foreach (var movie in items)
                         {
-                            result.Add(new ActorMediaEntryDto { Type = "Film", Id = movie.Id, Title = movie.Name });
+                            result.Add(new ActorMediaEntryDto { Type = "Film", Id = movie.Id, Title = movie.Name, PictureUrl = GetPictureUrl(movie.PosterPictureId) });
                         }
                         continue;
                     }
@@ -244,25 +246,25 @@ namespace VideoWebPlayer.Controllers
                     if (totalMovies == 1 || actorCount == 1)
                     {
                         foreach (var movie in items)
-                            result.Add(new ActorMediaEntryDto { Type = "Film", Id = movie.Id, Title = movie.Name });
+                            result.Add(new ActorMediaEntryDto { Type = "Film", Id = movie.Id, Title = movie.Name, PictureUrl = GetPictureUrl(movie.PosterPictureId) });
                         continue;
                     }
 
                     if (actorCount == totalMovies)
                     {
-                        result.Add(new ActorMediaEntryDto { Type = "Filmsammlung", Id = collectionId, Title = collectionName, Subtitle = $"{actorCount} Filme" });
+                        result.Add(new ActorMediaEntryDto { Type = "Filmsammlung", Id = collectionId, Title = collectionName, Subtitle = $"{actorCount} Filme", PictureUrl = GetPictureUrl(items.First().CollectionPosterPictureId) });
                         continue;
                     }
 
                     if (totalMovies > 0 && (double)actorCount / totalMovies >= threshold)
                     {
                         var titles = string.Join(", ", items.OrderBy(m => m.Name).Select(m => m.Name));
-                        result.Add(new ActorMediaEntryDto { Type = "Filmsammlung", Id = collectionId, Title = collectionName, Subtitle = titles });
+                        result.Add(new ActorMediaEntryDto { Type = "Filmsammlung", Id = collectionId, Title = collectionName, Subtitle = titles, PictureUrl = GetPictureUrl(items.First().CollectionPosterPictureId) });
                         continue;
                     }
 
                     foreach (var movie in items)
-                        result.Add(new ActorMediaEntryDto { Type = "Film", Id = movie.Id, Title = movie.Name });
+                        result.Add(new ActorMediaEntryDto { Type = "Film", Id = movie.Id, Title = movie.Name, PictureUrl = GetPictureUrl(movie.PosterPictureId) });
                 }
             }
 
@@ -273,10 +275,13 @@ namespace VideoWebPlayer.Controllers
                 {
                     ea.TVShowEpisode.Id,
                     ea.TVShowEpisode.Name,
+                    ea.TVShowEpisode.PosterPictureId,
                     ea.TVShowEpisode.TVShowSeasonId,
                     SeasonName = ea.TVShowEpisode.TVShowSeason.Name,
+                    SeasonPosterPictureId = (long?)ea.TVShowEpisode.TVShowSeason.PosterPictureId,
                     ShowId = ea.TVShowEpisode.TVShowSeason.TVShow.Id,
-                    ShowName = ea.TVShowEpisode.TVShowSeason.TVShow.Name
+                    ShowName = ea.TVShowEpisode.TVShowSeason.TVShow.Name,
+                    ShowPosterPictureId = (long?)ea.TVShowEpisode.TVShowSeason.TVShow.PosterPictureId
                 })
                 .ToListAsync(cancellationToken);
 
@@ -307,7 +312,7 @@ namespace VideoWebPlayer.Controllers
 
                     if (showTotals.GetValueOrDefault(showId) == showEpisodes.Count)
                     {
-                        result.Add(new ActorMediaEntryDto { Type = "Serie", Id = showId, Title = showName, Subtitle = $"{showEpisodes.Count} Episoden" });
+                        result.Add(new ActorMediaEntryDto { Type = "Serie", Id = showId, Title = showName, Subtitle = $"{showEpisodes.Count} Episoden", PictureUrl = GetPictureUrl(showEpisodes.First().ShowPosterPictureId) });
                         continue;
                     }
 
@@ -319,17 +324,20 @@ namespace VideoWebPlayer.Controllers
 
                         if (seasonTotals.GetValueOrDefault(seasonId) == seasonEpisodes.Count)
                         {
-                            result.Add(new ActorMediaEntryDto { Type = "Staffel", Id = seasonId, Title = $"{showName} - {seasonName}", Subtitle = $"{seasonEpisodes.Count} Episoden" });
+                            result.Add(new ActorMediaEntryDto { Type = "Staffel", Id = seasonId, Title = $"{showName} - {seasonName}", Subtitle = $"{seasonEpisodes.Count} Episoden", PictureUrl = GetPictureUrl(seasonEpisodes.First().SeasonPosterPictureId) });
                             continue;
                         }
 
                         foreach (var ep in seasonEpisodes)
-                            result.Add(new ActorMediaEntryDto { Type = "Episode", Id = ep.Id, Title = ep.Name, Subtitle = $"{showName} - {seasonName}" });
+                            result.Add(new ActorMediaEntryDto { Type = "Episode", Id = ep.Id, Title = ep.Name, Subtitle = $"{showName} - {seasonName}", PictureUrl = GetPictureUrl(ep.PosterPictureId ?? ep.SeasonPosterPictureId ?? ep.ShowPosterPictureId) });
                     }
                 }
             }
 
             return result;
         }
+
+        private static string? GetPictureUrl(long? pictureId)
+            => pictureId.HasValue ? $"/api/pictures/{pictureId}" : null;
     }
 }

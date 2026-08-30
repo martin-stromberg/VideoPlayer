@@ -402,14 +402,6 @@ namespace VideoWebPlayer.Data
                     Traverse(c);
             }
 
-            var collectionIds = collections.Select(c => c.Id).ToList();
-
-            // L�sche alle MediaItems dieser Collections
-            var items = await MediaItems
-                .Where(i => collectionIds.Contains(i.MediaCollectionId))
-                .ToListAsync(cancellationToken);
-            MediaItems.RemoveRange(items);
-
             // L�sche Collections children-first
             foreach (var collection in deleteOrder)
                 MediaCollections.Remove(collection);

@@ -4,6 +4,10 @@
 
 Die Schauspieler-Ansicht listet alle Schauspieler, die in den Metadaten der erfassten Filme und Serien gefunden wurden.
 
+## Bilder
+
+Schauspielerbilder werden aus dem `<thumb>`-Element der NFO-Metadaten geladen (lokale Datei oder URL) und in der Übersicht sowie in der Detailansicht angezeigt.
+
 ## Menü
 
 Über den Menüpunkt "Schauspieler" in der Navigation gelangen Sie zur Übersicht.
@@ -15,6 +19,9 @@ Die Schauspieler-Ansicht listet alle Schauspieler, die in den Metadaten der erfa
 
 ## Detailansicht
 
-Klicken Sie auf einen Schauspieler, um alle Filme, Filmsammlungen, Serien, Staffeln und Episoden zu sehen, in denen er mitwirkt.
+Klicken Sie auf einen Schauspieler, um alle Medien zu sehen, in denen er mitwirkt.
 
-> Hinweis: Die Detailansicht zeigt aktuell noch alle einzelnen Medieneinträge. Die konfigurierbare Aggregation (z. B. Filmsammlung statt Einzelfilme ab 50 % Beteiligung) folgt in einer späteren Version.
+- Wirkt ein Schauspieler in **allen Filmen einer Filmsammlung** mit, wird nur die Sammlung gelistet.
+- Wirkt er in **nur einem Film**, wird nur dieser Film gelistet.
+- Bei **mehreren, aber nicht allen** Filmen einer Sammlung entscheidet der konfigurierbare Schwellenwert (`ActorCollectionThresholdPercent`, Standard 50 %): Ab dem Schwellenwert wird die Sammlung mit den betroffenen Filmen gelistet, sonst die einzelnen Filme.
+- Bei Serien gilt analog: Mitwirkung in allen Episoden einer Staffel → Staffel; Mitwirkung in allen Staffeln einer Serie → Serie; ansonsten einzelne Episoden.

@@ -12,7 +12,7 @@ namespace VideoWebPlayer.Data
         /// <summary>
         /// Gets or sets the media item identifier that stores the image file.
         /// </summary>
-        public long MediaItemId { get; set; } // Verweis auf die eigentliche Bilddatei
+        public long? MediaItemId { get; set; } // Verweis auf die eigentliche Bilddatei
         /// <summary>
         /// Gets or sets the picture type (poster, banner, fanart, thumb).
         /// </summary>
@@ -32,7 +32,7 @@ namespace VideoWebPlayer.Data
         /// <summary>
         /// Gets or sets the media item navigation property.
         /// </summary>
-        public MediaItem MediaItem { get; set; }
+        public MediaItem? MediaItem { get; set; }
         /// <summary>
         /// Gets or sets the image data.
         /// </summary>

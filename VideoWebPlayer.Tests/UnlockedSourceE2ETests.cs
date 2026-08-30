@@ -21,6 +21,7 @@ namespace VideoWebPlayer.Tests;
 /// freigegebene Titel der selben Quelle sind weder sichtbar noch über die
 /// URL erreichbar.
 /// </summary>
+[Trait("Category", "E2E")]
 public sealed class UnlockedSourceE2ETests : IAsyncLifetime
 {
     private readonly string _dbPath;

@@ -18,6 +18,7 @@ namespace VideoWebPlayer.Tests;
 /// End-to-end-Test mit Playwright: Ein Administrator bearbeitet eine Filmsammlung,
 /// speichert die Änderungen und der neue Titel bleibt sichtbar.
 /// </summary>
+[Trait("Category", "E2E")]
 public sealed class MovieCollectionEditE2ETests : IAsyncLifetime
 {
     private readonly string _dbPath;

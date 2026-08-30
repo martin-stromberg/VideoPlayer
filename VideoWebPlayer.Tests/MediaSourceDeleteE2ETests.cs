@@ -19,6 +19,7 @@ namespace VideoWebPlayer.Tests;
 /// End-to-end-Test mit Playwright: Ein Administrator löscht eine Quelle über die Oberfläche
 /// und die Quelle verschwindet. Die Datenbank enthält dabei alle zugehörigen Entitäten.
 /// </summary>
+[Trait("Category", "E2E")]
 public sealed class MediaSourceDeleteE2ETests : IAsyncLifetime
 {
     private readonly string _dbPath;

@@ -15,6 +15,7 @@ namespace VideoWebPlayer.Tests;
 /// Episoden-Hintergrundbild muss über den in der Bild-URL angehängten access_token
 /// abrufbar sein; ohne access_token muss der Zugriff verweigert werden.
 /// </summary>
+[Trait("Category", "E2E")]
 public sealed class EpisodesBackgroundImageAccessTokenE2ETests : IDisposable
 {
     private readonly string _dbPath;

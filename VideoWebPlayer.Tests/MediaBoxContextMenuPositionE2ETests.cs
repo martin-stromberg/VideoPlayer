@@ -9,6 +9,7 @@ namespace VideoWebPlayer.Tests;
 /// End-to-end-Tests mit Playwright für die responsive Randpositionierung des
 /// MediaBox-Kontextmenüs bei erster/letzter Karte auf Desktop- und mobilem Viewport.
 /// </summary>
+[Trait("Category", "E2E")]
 public sealed class MediaBoxContextMenuPositionE2ETests : MediaBoxContextMenuE2ETestBase
 {
     [Theory]

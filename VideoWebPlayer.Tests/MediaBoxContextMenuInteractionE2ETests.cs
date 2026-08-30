@@ -9,6 +9,7 @@ namespace VideoWebPlayer.Tests;
 /// End-to-end-Tests mit Playwright für die Long-Press-/Pointer-Interaktion des
 /// MediaBox-Kontextmenüs (echte gerenderte Blazor-Ereignisse statt Zustandsobjekte).
 /// </summary>
+[Trait("Category", "E2E")]
 public sealed class MediaBoxContextMenuInteractionE2ETests : MediaBoxContextMenuE2ETestBase
 {
     [Fact]

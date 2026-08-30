@@ -19,6 +19,7 @@ namespace VideoWebPlayer.Tests;
 /// eine Filmsammlung für einen anderen Benutzer frei. Anschließend kann sich
 /// dieser Benutzer anmelden und beide Titel aufrufen.
 /// </summary>
+[Trait("Category", "E2E")]
 public sealed class UnlockedMediaE2ETests : IAsyncLifetime
 {
     private readonly string _dbPath;

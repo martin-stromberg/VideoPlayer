@@ -8,6 +8,7 @@ using Xunit;
 
 namespace VideoWebPlayer.Tests;
 
+[Trait("Category", "E2E")]
 public sealed class AboutPageE2ETests : IDisposable
 {
     private readonly string _dbPath;

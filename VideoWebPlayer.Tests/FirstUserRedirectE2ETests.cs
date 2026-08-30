@@ -15,6 +15,7 @@ namespace VideoWebPlayer.Tests;
 /// E2E-Test für die automatische Weiterleitung zum Registrierungsformular,
 /// wenn noch kein Benutzer existiert.
 /// </summary>
+[Trait("Category", "E2E")]
 public sealed class FirstUserRedirectE2ETests : IDisposable
 {
     private readonly string _dbPath;

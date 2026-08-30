@@ -1544,6 +1544,7 @@ namespace VideoWebPlayer.Services
                 .Include(m => m.MovieMediaItems)
                     .ThenInclude(mmi => mmi.MediaItem)
                     .ThenInclude(mi => mi.MediaCollection)
+                    .ThenInclude(mc => mc.MediaSource)
                 .Include(m => m.MovieActors)
                 .ToListAsync(cancellationToken);
 
@@ -1584,6 +1585,7 @@ namespace VideoWebPlayer.Services
                 .Include(e => e.TVShowEpisodeMediaItems)
                     .ThenInclude(emi => emi.MediaItem)
                     .ThenInclude(mi => mi.MediaCollection)
+                    .ThenInclude(mc => mc.MediaSource)
                 .Include(e => e.TVShowEpisodeActors)
                 .ToListAsync(cancellationToken);
 
@@ -1642,6 +1644,7 @@ namespace VideoWebPlayer.Services
 
                 currentCollection = await _db.MediaCollections
                     .AsNoTracking()
+                    .Include(c => c.MediaSource)
                     .FirstOrDefaultAsync(c => c.Id == currentCollection.ParentMediaCollectionId.Value, cancellationToken);
             }
 

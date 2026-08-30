@@ -18,6 +18,7 @@ namespace VideoWebPlayer.Tests;
 /// E2E-Tests für die Ermittlung der nächsten Episode in der Continue-Watching-Funktionalität
 /// (Happy Path, Episoden-Lücken, Staffelwechsel, Serienende).
 /// </summary>
+[Trait("Category", "E2E")]
 public sealed class ContinueWatchingE2ETests : IDisposable
 {
     private readonly string _dbPath;

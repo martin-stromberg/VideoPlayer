@@ -1,6 +1,7 @@
 @page "/actors/{actorId:long}"
 @using VideoWebPlayer.Client
 @using VideoWebPlayer.Client.Models
+@using VideoWebPlayer.Components.Shared.Media
 @inject VideoWebPlayerClient Client
 @inject NavigationManager Navigation
 @rendermode InteractiveServer
@@ -14,10 +15,7 @@
 else
 {
     <div class="d-flex align-items-center mb-3">
-        @if (!string.IsNullOrWhiteSpace(actor.PictureUrl))
-        {
-            <img src="@actor.PictureUrl" alt="@actor.Name" class="rounded me-3" style="max-height: 150px;" />
-        }
+        <img src="@GetActorPictureUrl(actor.PictureUrl)" alt="@actor.Name" class="rounded me-3" style="max-height: 150px;" />
         <h3>@actor.Name</h3>
     </div>
 
@@ -30,22 +28,14 @@ else
     }
     else
     {
-        <ul class="list-group">
+        <div class="media-grid">
             @foreach (var media in actor.Media)
             {
-                <li class="list-group-item d-flex justify-content-between align-items-start">
-                    <div>
-                        <strong>@media.Title</strong>
-                        @if (!string.IsNullOrWhiteSpace(media.Subtitle))
-                        {
-                            <br />
-                            <small class="text-muted">@media.Subtitle</small>
-                        }
-                    </div>
-                    <span class="badge bg-secondary">@media.Type</span>
-                </li>
+                <MediaBox Title="@media.Title"
+                          ImageUrl="/images/placeholder.png"
+                          LinkUrl="@GetMediaLinkUrl(media)" />
             }
-        </ul>
+        </div>
     }
 }
 
@@ -66,4 +56,20 @@ else
     {
         Navigation.NavigateTo("/actors");
     }
+
+    private string GetActorPictureUrl(string? pictureUrl)
+        => !string.IsNullOrWhiteSpace(pictureUrl) && !string.IsNullOrWhiteSpace(Client.AuthorizationToken)
+            ? $"{pictureUrl}?access_token={Client.AuthorizationToken}"
+            : "/images/placeholder.png";
+
+    private string GetMediaLinkUrl(ActorMediaEntryDto media)
+        => media.Type switch
+        {
+            "Film" => $"/movie/{media.Id}",
+            "Filmsammlung" => $"/moviecollection/{media.Id}",
+            "Serie" => $"/tvshow/{media.Id}",
+            "Staffel" => $"/tvshow/season/{media.Id}",
+            "Episode" => $"/tvshow/episode/{media.Id}",
+            _ => "#"
+        };
 }

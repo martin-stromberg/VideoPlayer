@@ -1,6 +1,7 @@
 @page "/actors"
 @using VideoWebPlayer.Client
 @using VideoWebPlayer.Client.Models
+@using VideoWebPlayer.Components.Shared.Media
 @inject VideoWebPlayerClient Client
 @inject NavigationManager Navigation
 @rendermode InteractiveServer
@@ -36,20 +37,12 @@ else if (!actors.Any())
 }
 else
 {
-    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-3">
+    <div class="media-grid">
         @foreach (var actor in actors)
         {
-            <div class="col">
-                <div class="card h-100" style="cursor: pointer;" @onclick="() => OpenActor(actor.Id)">
-                    @if (!string.IsNullOrWhiteSpace(actor.PictureUrl))
-                    {
-                        <img src="@actor.PictureUrl" class="card-img-top" alt="@actor.Name" style="max-height: 200px; object-fit: cover;" />
-                    }
-                    <div class="card-body">
-                        <h5 class="card-title">@actor.Name</h5>
-                    </div>
-                </div>
-            </div>
+            <MediaBox Title="@actor.Name"
+                      ImageUrl="@GetActorPictureUrl(actor.PictureUrl)"
+                      LinkUrl="@($"/actors/{actor.Id}")" />
         }
     </div>
 }
@@ -94,4 +87,9 @@ else
     {
         Navigation.NavigateTo($"/actors/{actorId}");
     }
+
+    private string GetActorPictureUrl(string? pictureUrl)
+        => !string.IsNullOrWhiteSpace(pictureUrl) && !string.IsNullOrWhiteSpace(Client.AuthorizationToken)
+            ? $"{pictureUrl}?access_token={Client.AuthorizationToken}"
+            : "/images/placeholder.png";
 }

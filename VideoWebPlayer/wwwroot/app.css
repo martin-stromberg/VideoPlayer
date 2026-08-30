@@ -1072,9 +1072,13 @@ input[type="text"]:focus {
 }
 
 .watched-indicator-episode {
-    right: 3.65rem;
     width: 2rem;
     height: 2rem;
+}
+
+.watched-indicator-image-left {
+    right: auto;
+    left: 0.6rem;
 }
 
 .media-box-shell-menu-open {

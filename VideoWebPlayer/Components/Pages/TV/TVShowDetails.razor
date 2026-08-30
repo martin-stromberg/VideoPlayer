@@ -147,7 +147,7 @@ else
                         <img class="episode-poster episode-poster-left" src="@GetPosterUrl(episode)" alt="@episode.Name" loading="lazy" onerror="this.onerror=null;this.src='/images/placeholder.png';" />
                         @if (episode.WatchedAt.HasValue)
                         {
-                            <WatchedIndicator Class="watched-indicator-episode" />
+                            <WatchedIndicator Class="watched-indicator-image-left watched-indicator-episode" />
                         }
                         <div class="episode-info">
                             <div class="episode-title">@episode.Number ‧ @episode.Name</div>

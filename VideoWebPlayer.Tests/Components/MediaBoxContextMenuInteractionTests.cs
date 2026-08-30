@@ -124,6 +124,7 @@ public class MediaBoxContextMenuInteractionTests
 
         var css = ReadRepoFile("VideoWebPlayer", "wwwroot", "app.css");
         Assert.Contains("stroke: var(--vp-primary-soft);", css);
+        Assert.Contains(".watched-indicator-image-left", css);
     }
 
     [Fact]

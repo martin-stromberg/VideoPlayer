@@ -709,6 +709,12 @@ namespace VideoWebPlayer.Services
                     }
                 }
                 await _db.SaveChangesAsync(cancellationToken);
+
+                if (!existingEpisode.IsManuallyEdited)
+                {
+                    await AssignActorsToTVShowEpisodeAsync(existingEpisode, xml, cancellationToken);
+                }
+
                 await AssignPicturesToTVShowEpisodeAsync(existingEpisode, collection, item.Path, cancellationToken);
                 await AssignPicturesToTVShowSeasonAsync(show, season, collection, cancellationToken, isFirst);
                 await AssignPicturesToTVShowAsync(show, collection, cancellationToken, isFirst);
@@ -823,6 +829,11 @@ namespace VideoWebPlayer.Services
                     };
                     _db.MovieMediaItems.Add(movieMediaItem);
                     await _db.SaveChangesAsync(cancellationToken);
+                }
+
+                if (!existingMovie.IsManuallyEdited)
+                {
+                    await AssignActorsToMovieAsync(existingMovie, xml, cancellationToken);
                 }
 
                 await AssignPicturesToMovieAsync(existingMovie, collection, cancellationToken);
@@ -1375,6 +1386,149 @@ namespace VideoWebPlayer.Services
                 .GroupBy(g => g.Id)
                 .Select(g => g.First())
                 .ToList();
+        }
+
+        private IEnumerable<string> ParseActorNames(XElement xml)
+        {
+            return xml.Elements("actor")
+                .Select(a => a.Element("name")?.Value ?? a.Value)
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Select(name => name.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase);
+        }
+
+        private async Task<List<Actor>> GetOrCreateActorsAsync(IEnumerable<string> names, CancellationToken cancellationToken)
+        {
+            var resultActors = new List<Actor>();
+            foreach (var name in names)
+            {
+                var normalized = name.ToUpperInvariant();
+                var actor = await _db.Actors
+                    .FirstOrDefaultAsync(a => a.NormalizedName == normalized, cancellationToken);
+
+                if (actor == null)
+                {
+                    actor = new Actor
+                    {
+                        Name = name,
+                        NormalizedName = normalized,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    _db.Actors.Add(actor);
+                    await _db.SaveChangesAsync(cancellationToken);
+                }
+
+                resultActors.Add(actor);
+            }
+
+            return resultActors;
+        }
+
+        private async Task AssignActorsToMovieAsync(Movie movie, XElement xml, CancellationToken cancellationToken)
+        {
+            var actorNames = ParseActorNames(xml);
+            var actors = await GetOrCreateActorsAsync(actorNames, cancellationToken);
+
+            movie.MovieActors.Clear();
+            foreach (var actor in actors)
+            {
+                movie.MovieActors.Add(new MovieActor { MovieId = movie.Id, ActorId = actor.Id });
+            }
+
+            movie.ActorsClassifiedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
+        private async Task AssignActorsToTVShowEpisodeAsync(TVShowEpisode episode, XElement xml, CancellationToken cancellationToken)
+        {
+            var actorNames = ParseActorNames(xml);
+            var actors = await GetOrCreateActorsAsync(actorNames, cancellationToken);
+
+            episode.TVShowEpisodeActors.Clear();
+            foreach (var actor in actors)
+            {
+                episode.TVShowEpisodeActors.Add(new TVShowEpisodeActor { TVShowEpisodeId = episode.Id, ActorId = actor.Id });
+            }
+
+            episode.ActorsClassifiedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
+        /// <summary>
+        /// Backfills actor metadata for existing movies and episodes that have not yet been classified.
+        /// </summary>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        public async Task BackfillMissingActorsAsync(CancellationToken cancellationToken)
+        {
+            _logger.LogInformation("Starte Nacherfassung der Schauspieler f�r den Altbestand.");
+
+            var movies = await _db.Movies
+                .Where(m => m.ActorsClassifiedAt == null)
+                .Include(m => m.MovieMediaItems)
+                    .ThenInclude(mmi => mmi.MediaItem)
+                    .ThenInclude(mi => mi.MediaCollection)
+                .Include(m => m.MovieActors)
+                .ToListAsync(cancellationToken);
+
+            foreach (var movie in movies)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                    break;
+
+                var mediaItem = movie.MovieMediaItems.Select(mmi => mmi.MediaItem).FirstOrDefault();
+                if (mediaItem?.MediaCollection is null)
+                    continue;
+
+                var nfoFileName = System.IO.Path.ChangeExtension(System.IO.Path.GetFileName(mediaItem.Path), ".nfo");
+                if (!await _sftpReader.FileExistsAsync(mediaItem.MediaCollection, nfoFileName))
+                    continue;
+
+                var nfoContent = await _sftpReader.ReadFileAsync(mediaItem.MediaCollection, nfoFileName);
+                if (string.IsNullOrWhiteSpace(nfoContent))
+                    continue;
+
+                XElement? xml = null;
+                try { xml = XElement.Parse(nfoContent); }
+                catch { continue; }
+
+                await AssignActorsToMovieAsync(movie, xml, cancellationToken);
+                _logger.LogDebug("Schauspieler f�r Movie '{MovieName}' nacherfasst.", movie.Name);
+            }
+
+            var episodes = await _db.TVShowEpisodes
+                .Where(e => e.ActorsClassifiedAt == null)
+                .Include(e => e.TVShowEpisodeMediaItems)
+                    .ThenInclude(emi => emi.MediaItem)
+                    .ThenInclude(mi => mi.MediaCollection)
+                .Include(e => e.TVShowEpisodeActors)
+                .ToListAsync(cancellationToken);
+
+            foreach (var episode in episodes)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                    break;
+
+                var mediaItem = episode.TVShowEpisodeMediaItems.Select(emi => emi.MediaItem).FirstOrDefault();
+                if (mediaItem?.MediaCollection is null)
+                    continue;
+
+                var nfoFileName = System.IO.Path.ChangeExtension(System.IO.Path.GetFileName(mediaItem.Path), ".nfo");
+                if (!await _sftpReader.FileExistsAsync(mediaItem.MediaCollection, nfoFileName))
+                    continue;
+
+                var nfoContent = await _sftpReader.ReadFileAsync(mediaItem.MediaCollection, nfoFileName);
+                if (string.IsNullOrWhiteSpace(nfoContent))
+                    continue;
+
+                XElement? xml = null;
+                try { xml = XElement.Parse(nfoContent); }
+                catch { continue; }
+
+                await AssignActorsToTVShowEpisodeAsync(episode, xml, cancellationToken);
+                _logger.LogDebug("Schauspieler f�r Episode '{EpisodeName}' nacherfasst.", episode.Name);
+            }
+
+            _logger.LogInformation("Nacherfassung der Schauspieler abgeschlossen.");
         }
 
         internal async Task CheckReloadGenres(CancellationToken stoppingToken)

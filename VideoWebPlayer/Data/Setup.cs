@@ -38,4 +38,10 @@ public class Setup
     /// Default: 30 seconds.
     /// </summary>
     public int ContinueWatchingEndThresholdSeconds { get; set; } = 30;
+
+    /// <summary>
+    /// Gets or sets the percentage threshold for showing a media collection instead of individual items on the actor details page.
+    /// Default: 50 percent.
+    /// </summary>
+    public int ActorCollectionThresholdPercent { get; set; } = 50;
 }

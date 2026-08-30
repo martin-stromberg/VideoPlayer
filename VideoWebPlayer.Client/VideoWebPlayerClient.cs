@@ -256,6 +256,50 @@ namespace VideoWebPlayer.Client
         }
         #endregion
 
+        #region Actors
+        public async Task<IEnumerable<ActorDto>> RequestActorsAsync(string? search = null, string? initial = null)
+        {
+            try
+            {
+                var query = new List<string>();
+                if (!string.IsNullOrWhiteSpace(search))
+                    query.Add($"search={Uri.EscapeDataString(search)}");
+                if (!string.IsNullOrWhiteSpace(initial))
+                    query.Add($"initial={Uri.EscapeDataString(initial)}");
+                var url = "api/Actors" + (query.Count > 0 ? $"?{string.Join("&", query)}" : string.Empty);
+                return await HttpGetAsync<ActorDto[]>(url);
+            }
+            catch
+            {
+                return new ActorDto[0];
+            }
+        }
+
+        public async Task<ActorDetailsDto?> RequestActorAsync(long actorId)
+        {
+            try
+            {
+                return await HttpGetAsync<ActorDetailsDto>($"api/Actors/{actorId}");
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        public async Task<IEnumerable<string>> RequestActorInitialsAsync()
+        {
+            try
+            {
+                return await HttpGetAsync<string[]>("api/Actors/initials");
+            }
+            catch
+            {
+                return new string[0];
+            }
+        }
+        #endregion
+
         #region Recent Entries
         public async Task<IEnumerable<DtoRecentEntry>> RequestRecentEntriesAsync()
         {

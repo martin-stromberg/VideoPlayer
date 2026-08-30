@@ -62,6 +62,11 @@ namespace VideoWebPlayer.Data
         public string? Plot { get; set; }
 
         /// <summary>
+        /// Gets or sets a value indicating when (or whether) actor metadata has been classified for this movie.
+        /// </summary>
+        public DateTime? ActorsClassifiedAt { get; set; }
+
+        /// <summary>
         /// Gets the media item link entries for the movie.
         /// </summary>
         public ICollection<MovieMediaItem> MovieMediaItems { get; set; } = new List<MovieMediaItem>();
@@ -73,14 +78,15 @@ namespace VideoWebPlayer.Data
         /// Gets the genre link entries for the movie.
         /// </summary>
         public ICollection<MovieGenre> MovieGenres { get; set; } = new List<MovieGenre>();
+        /// <summary>
+        /// Gets the actor link entries for the movie.
+        /// </summary>
+        public ICollection<MovieActor> MovieActors { get; set; } = new List<MovieActor>();
 
-        // Optional: Komfort-Property für direkten Zugriff auf die MediaItems
         /// <summary>
         /// Gets the media items associated with this movie.
         /// </summary>
         public IEnumerable<MediaItem> MediaItems => MovieMediaItems.Select(mmi => mmi.MediaItem);
-
-        // Weitere Felder wie Actors können als separate Entität modelliert werden
 
         /// <summary>
         /// Loads metadata from an NFO XML document.
@@ -93,7 +99,7 @@ namespace VideoWebPlayer.Data
             Year = int.TryParse(xml.Element("year")?.Value, out var y) ? y : null;
             ReleaseDate = DateTime.TryParse(xml.Element("releasedate")?.Value, out var rd) ? rd : null;
             PremieredAt = DateTime.TryParse(xml.Element("premiered")?.Value, out var prem) ? prem : null;
-            EndedAt = ReleaseDate > PremieredAt ? ReleaseDate : PremieredAt; 
+            EndedAt = ReleaseDate > PremieredAt ? ReleaseDate : PremieredAt;
             Country = xml.Element("country")?.Value;
             GenreNames = string.Join(",", xml.Elements("genre").Select(g => g.Value));
             Studios = string.Join(",", xml.Elements("studio").Select(s => s.Value));
@@ -101,7 +107,5 @@ namespace VideoWebPlayer.Data
             Credits = string.Join(",", xml.Elements("credits").Select(c => c.Value));
             Plot = xml.Element("plot")?.Value;
         }
-
-        
     }
 }

@@ -10,6 +10,12 @@
 
 ## What's New
 
+- Added actor extraction from NFO metadata for movies and TV show episodes, stored in new `Actors`, `MovieActors` and `TVShowEpisodeActors` tables.
+- Added a background worker that backfills actor metadata for existing media on application startup.
+- Added the "Schauspieler" menu, overview with search and initial-letter filters, and a detail page.
+- Backup/restore now tolerates the new actor tables and `ActorsClassifiedAt` / `ActorCollectionThresholdPercent` fields.
+- Added help page `schauspieler`.
+
 - Movies and episodes are now marked per user as watched when playback reaches the configured continue-watching end threshold.
 - Watched movies and episodes show the existing eye symbol on title cards across home lists, collection details and TV show episode lists.
 - Fixed the title list not updating to the last selected source when switching sources through the menu.

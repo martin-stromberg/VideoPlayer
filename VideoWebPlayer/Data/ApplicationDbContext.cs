@@ -116,6 +116,18 @@ namespace VideoWebPlayer.Data
         /// </summary>
         public DbSet<TVShowGenre> TVShowGenres { get; set; }
         /// <summary>
+        /// Tabelle f�r Schauspieler.
+        /// </summary>
+        public DbSet<Actor> Actors { get; set; }
+        /// <summary>
+        /// Tabelle f�r Movie-Actor-Verkn�pfungen.
+        /// </summary>
+        public DbSet<MovieActor> MovieActors { get; set; }
+        /// <summary>
+        /// Tabelle f�r TVShowEpisode-Actor-Verkn�pfungen.
+        /// </summary>
+        public DbSet<TVShowEpisodeActor> TVShowEpisodeActors { get; set; }
+        /// <summary>
         /// Tabelle f�r ContinueWatching-Eintr�ge.
         /// </summary>
         public DbSet<ContinueWatchingEntry> ContinueWatchingEntries { get; set; }
@@ -186,7 +198,7 @@ namespace VideoWebPlayer.Data
             Entry(existingSource).State = EntityState.Detached;
 
             var step = 0;
-            const int TotalSteps = 20;
+            const int TotalSteps = 22;
 
             void Report()
             {
@@ -239,6 +251,16 @@ namespace VideoWebPlayer.Data
 
                 await MovieGenres
                     .Where(mg => mg.Movie.MediaSourceId == source.Id)
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
+                await MovieActors
+                    .Where(ma => ma.Movie.MediaSourceId == source.Id)
+                    .ExecuteDeleteAsync(cancellationToken);
+                Report();
+
+                await TVShowEpisodeActors
+                    .Where(ea => ea.TVShowEpisode.TVShowSeason.TVShow.MediaSourceId == source.Id)
                     .ExecuteDeleteAsync(cancellationToken);
                 Report();
 

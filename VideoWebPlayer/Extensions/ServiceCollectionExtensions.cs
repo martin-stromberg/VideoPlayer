@@ -262,6 +262,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ContinueWatchingService>();
         services.AddSingleton<MediaUpdateNotificationService>();
         services.AddHostedService<ContinueWatchingWorker>();
+        services.AddHostedService<ActorBackfillWorker>();
 		services.AddScoped<IDemoDataSetService, FileSystemDemoDataSetService>();
 
         services.AddScoped<MediaSourceDetailsViewModel>();

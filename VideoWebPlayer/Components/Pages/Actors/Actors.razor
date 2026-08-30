@@ -1,0 +1,93 @@
+@page "/actors"
+@using VideoWebPlayer.Client
+@using VideoWebPlayer.Client.Models
+@inject VideoWebPlayerClient Client
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Schauspieler</PageTitle>
+
+<h3>Schauspieler</h3>
+
+<div class="mb-3">
+    <input type="text" class="form-control" @bind="searchTerm" @bind:event="oninput" @onkeyup="OnSearchChanged" placeholder="Schauspieler suchen..." />
+</div>
+
+<div class="mb-3">
+    @foreach (var initial in initials)
+    {
+        <button class="btn btn-sm @(selectedInitial == initial ? "btn-primary" : "btn-outline-primary") me-1 mb-1" @onclick="() => SelectInitial(initial)">
+            @initial
+        </button>
+    }
+    @if (!string.IsNullOrEmpty(selectedInitial))
+    {
+        <button class="btn btn-sm btn-outline-secondary me-1 mb-1" @onclick="ClearInitial">Alle</button>
+    }
+</div>
+
+@if (actors is null)
+{
+    <p>Lade Schauspieler...</p>
+}
+else if (!actors.Any())
+{
+    <p>Keine Schauspieler gefunden.</p>
+}
+else
+{
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-3">
+        @foreach (var actor in actors)
+        {
+            <div class="col">
+                <div class="card h-100" style="cursor: pointer;" @onclick="() => OpenActor(actor.Id)">
+                    <div class="card-body">
+                        <h5 class="card-title">@actor.Name</h5>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private string searchTerm = string.Empty;
+    private string selectedInitial = string.Empty;
+    private List<string> initials = new();
+    private List<ActorDto>? actors;
+
+    protected override async Task OnInitializedAsync()
+    {
+        initials = (await Client.RequestActorInitialsAsync()).ToList();
+        await LoadActorsAsync();
+    }
+
+    private async Task LoadActorsAsync()
+    {
+        actors = (await Client.RequestActorsAsync(
+            string.IsNullOrWhiteSpace(searchTerm) ? null : searchTerm,
+            string.IsNullOrWhiteSpace(selectedInitial) ? null : selectedInitial)).ToList();
+    }
+
+    private async Task OnSearchChanged(KeyboardEventArgs e)
+    {
+        await LoadActorsAsync();
+    }
+
+    private async Task SelectInitial(string initial)
+    {
+        selectedInitial = initial;
+        await LoadActorsAsync();
+    }
+
+    private async Task ClearInitial()
+    {
+        selectedInitial = string.Empty;
+        await LoadActorsAsync();
+    }
+
+    private void OpenActor(long actorId)
+    {
+        Navigation.NavigateTo($"/actors/{actorId}");
+    }
+}

@@ -24,7 +24,10 @@ public sealed class VideoWebPlayerBackupData : IBackupData
     {
         "UpdateSettings",
         nameof(ApplicationDbContext.UnlockedMediaEntries),
-        nameof(ApplicationDbContext.WatchedEntries)
+        nameof(ApplicationDbContext.WatchedEntries),
+        nameof(ApplicationDbContext.Actors),
+        nameof(ApplicationDbContext.MovieActors),
+        nameof(ApplicationDbContext.TVShowEpisodeActors)
     };
 
     private static readonly HashSet<string> OptionalRestoreColumns = new(StringComparer.OrdinalIgnoreCase)
@@ -41,7 +44,10 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         $"{nameof(ApplicationDbContext.MovieCollections)}.{nameof(MovieCollection.IsManuallyEdited)}",
         $"{nameof(ApplicationDbContext.Pictures)}.{nameof(Picture.IsGeneratedBackground)}",
         $"{nameof(ApplicationDbContext.Pictures)}.{nameof(Picture.EpisodeId)}",
-        $"{nameof(ApplicationDbContext.ContinueWatchingEntries)}.{nameof(ContinueWatchingEntry.ListOrder)}"
+        $"{nameof(ApplicationDbContext.ContinueWatchingEntries)}.{nameof(ContinueWatchingEntry.ListOrder)}",
+        $"{nameof(ApplicationDbContext.Movies)}.{nameof(Movie.ActorsClassifiedAt)}",
+        $"{nameof(ApplicationDbContext.TVShowEpisodes)}.{nameof(TVShowEpisode.ActorsClassifiedAt)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ActorCollectionThresholdPercent)}"
     };
 
     private static readonly (string Table, string Column, bool DefaultValue)[] OptionalRestoreBoolDefaults =
@@ -62,7 +68,8 @@ public sealed class VideoWebPlayerBackupData : IBackupData
 
     private static readonly (string Table, string Column, int DefaultValue)[] OptionalRestoreIntDefaults =
     {
-        (nameof(ApplicationDbContext.Setups), nameof(Setup.ContinueWatchingEndThresholdSeconds), 30)
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.ContinueWatchingEndThresholdSeconds), 30),
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.ActorCollectionThresholdPercent), 50)
     };
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };

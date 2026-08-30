@@ -1397,10 +1397,10 @@ namespace VideoWebPlayer.Services
 
         private IEnumerable<ActorNfoInfo> ParseActorInfo(XElement xml)
         {
-            return xml.Elements("actor")
+            return xml.Descendants("actor")
                 .Select(a => new ActorNfoInfo(
-                    (a.Element("name")?.Value ?? a.Value).Trim(),
-                    a.Element("thumb")?.Value?.Trim()))
+                    (a.Element("name")?.Value ?? a.Attribute("name")?.Value ?? a.Value).Trim(),
+                    (a.Element("thumb")?.Value ?? a.Attribute("thumb")?.Value)?.Trim()))
                 .Where(a => !string.IsNullOrWhiteSpace(a.Name))
                 .DistinctBy(a => a.Name, StringComparer.OrdinalIgnoreCase);
         }
@@ -1552,16 +1552,23 @@ namespace VideoWebPlayer.Services
                 if (cancellationToken.IsCancellationRequested)
                     break;
 
+                if (movie.IsManuallyEdited)
+                    continue;
+
                 var mediaItem = movie.MovieMediaItems.Select(mmi => mmi.MediaItem).FirstOrDefault();
                 if (mediaItem?.MediaCollection is null)
                     continue;
 
-                var nfoFileName = System.IO.Path.ChangeExtension(System.IO.Path.GetFileName(mediaItem.Path), ".nfo");
-                if (!await _sftpReader.FileExistsAsync(mediaItem.MediaCollection, nfoFileName))
-                    continue;
-
-                var nfoContent = await _sftpReader.ReadFileAsync(mediaItem.MediaCollection, nfoFileName);
-                if (string.IsNullOrWhiteSpace(nfoContent))
+                var videoBaseName = System.IO.Path.GetFileName(mediaItem.Path);
+                var nfoContent = await TryReadActorNfoAsync(
+                    mediaItem,
+                    new[]
+                    {
+                        System.IO.Path.ChangeExtension(videoBaseName, ".nfo"),
+                        "movie.nfo"
+                    },
+                    cancellationToken);
+                if (nfoContent is null)
                     continue;
 
                 XElement? xml = null;
@@ -1585,16 +1592,23 @@ namespace VideoWebPlayer.Services
                 if (cancellationToken.IsCancellationRequested)
                     break;
 
+                if (episode.IsManuallyEdited)
+                    continue;
+
                 var mediaItem = episode.TVShowEpisodeMediaItems.Select(emi => emi.MediaItem).FirstOrDefault();
                 if (mediaItem?.MediaCollection is null)
                     continue;
 
-                var nfoFileName = System.IO.Path.ChangeExtension(System.IO.Path.GetFileName(mediaItem.Path), ".nfo");
-                if (!await _sftpReader.FileExistsAsync(mediaItem.MediaCollection, nfoFileName))
-                    continue;
-
-                var nfoContent = await _sftpReader.ReadFileAsync(mediaItem.MediaCollection, nfoFileName);
-                if (string.IsNullOrWhiteSpace(nfoContent))
+                var videoBaseName = System.IO.Path.GetFileName(mediaItem.Path);
+                var nfoContent = await TryReadActorNfoAsync(
+                    mediaItem,
+                    new[]
+                    {
+                        System.IO.Path.ChangeExtension(videoBaseName, ".nfo"),
+                        "tvshow.nfo"
+                    },
+                    cancellationToken);
+                if (nfoContent is null)
                     continue;
 
                 XElement? xml = null;
@@ -1606,6 +1620,32 @@ namespace VideoWebPlayer.Services
             }
 
             _logger.LogInformation("Nacherfassung der Schauspieler abgeschlossen.");
+        }
+
+        private async Task<string?> TryReadActorNfoAsync(MediaItem mediaItem, IEnumerable<string> candidateNames, CancellationToken cancellationToken)
+        {
+            var currentCollection = mediaItem.MediaCollection;
+            while (currentCollection is not null)
+            {
+                foreach (var candidate in candidateNames)
+                {
+                    if (await _sftpReader.FileExistsAsync(currentCollection, candidate))
+                    {
+                        var content = await _sftpReader.ReadFileAsync(currentCollection, candidate);
+                        if (!string.IsNullOrWhiteSpace(content))
+                            return content;
+                    }
+                }
+
+                if (!currentCollection.ParentMediaCollectionId.HasValue)
+                    break;
+
+                currentCollection = await _db.MediaCollections
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(c => c.Id == currentCollection.ParentMediaCollectionId.Value, cancellationToken);
+            }
+
+            return null;
         }
 
         internal async Task CheckReloadGenres(CancellationToken stoppingToken)

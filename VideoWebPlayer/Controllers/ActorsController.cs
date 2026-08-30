@@ -233,7 +233,7 @@ namespace VideoWebPlayer.Controllers
                     {
                         foreach (var movie in items)
                         {
-                            result.Add(new ActorMediaEntryDto { Type = "Film", Id = movie.Id, Title = movie.Name, PictureUrl = GetPictureUrl(movie.PosterPictureId) });
+                            result.Add(new ActorMediaEntryDto { Type = "Film", Id = movie.Id, Title = movie.Name, PictureUrl = GetPictureUrl(movie.PosterPictureId), LinkUrl = movie.CollectionId.HasValue ? $"/moviecollection/{movie.CollectionId}?movie={movie.Id}" : "#" });
                         }
                         continue;
                     }
@@ -246,25 +246,25 @@ namespace VideoWebPlayer.Controllers
                     if (totalMovies == 1 || actorCount == 1)
                     {
                         foreach (var movie in items)
-                            result.Add(new ActorMediaEntryDto { Type = "Film", Id = movie.Id, Title = movie.Name, PictureUrl = GetPictureUrl(movie.PosterPictureId) });
+                            result.Add(new ActorMediaEntryDto { Type = "Film", Id = movie.Id, Title = movie.Name, PictureUrl = GetPictureUrl(movie.PosterPictureId), LinkUrl = $"/moviecollection/{collectionId}?movie={movie.Id}" });
                         continue;
                     }
 
                     if (actorCount == totalMovies)
                     {
-                        result.Add(new ActorMediaEntryDto { Type = "Filmsammlung", Id = collectionId, Title = collectionName, Subtitle = $"{actorCount} Filme", PictureUrl = GetPictureUrl(items.First().CollectionPosterPictureId) });
+                        result.Add(new ActorMediaEntryDto { Type = "Filmsammlung", Id = collectionId, Title = collectionName, Subtitle = $"{actorCount} Filme", PictureUrl = GetPictureUrl(items.First().CollectionPosterPictureId), LinkUrl = $"/moviecollection/{collectionId}" });
                         continue;
                     }
 
                     if (totalMovies > 0 && (double)actorCount / totalMovies >= threshold)
                     {
                         var titles = string.Join(", ", items.OrderBy(m => m.Name).Select(m => m.Name));
-                        result.Add(new ActorMediaEntryDto { Type = "Filmsammlung", Id = collectionId, Title = collectionName, Subtitle = titles, PictureUrl = GetPictureUrl(items.First().CollectionPosterPictureId) });
+                        result.Add(new ActorMediaEntryDto { Type = "Filmsammlung", Id = collectionId, Title = collectionName, Subtitle = titles, PictureUrl = GetPictureUrl(items.First().CollectionPosterPictureId), LinkUrl = $"/moviecollection/{collectionId}" });
                         continue;
                     }
 
                     foreach (var movie in items)
-                        result.Add(new ActorMediaEntryDto { Type = "Film", Id = movie.Id, Title = movie.Name, PictureUrl = GetPictureUrl(movie.PosterPictureId) });
+                        result.Add(new ActorMediaEntryDto { Type = "Film", Id = movie.Id, Title = movie.Name, PictureUrl = GetPictureUrl(movie.PosterPictureId), LinkUrl = $"/moviecollection/{collectionId}?movie={movie.Id}" });
                 }
             }
 
@@ -312,7 +312,7 @@ namespace VideoWebPlayer.Controllers
 
                     if (showTotals.GetValueOrDefault(showId) == showEpisodes.Count)
                     {
-                        result.Add(new ActorMediaEntryDto { Type = "Serie", Id = showId, Title = showName, Subtitle = $"{showEpisodes.Count} Episoden", PictureUrl = GetPictureUrl(showEpisodes.First().ShowPosterPictureId) });
+                        result.Add(new ActorMediaEntryDto { Type = "Serie", Id = showId, Title = showName, Subtitle = $"{showEpisodes.Count} Episoden", PictureUrl = GetPictureUrl(showEpisodes.First().ShowPosterPictureId), LinkUrl = $"/tvshow/{showId}" });
                         continue;
                     }
 
@@ -324,12 +324,12 @@ namespace VideoWebPlayer.Controllers
 
                         if (seasonTotals.GetValueOrDefault(seasonId) == seasonEpisodes.Count)
                         {
-                            result.Add(new ActorMediaEntryDto { Type = "Staffel", Id = seasonId, Title = $"{showName} - {seasonName}", Subtitle = $"{seasonEpisodes.Count} Episoden", PictureUrl = GetPictureUrl(seasonEpisodes.First().SeasonPosterPictureId) });
+                            result.Add(new ActorMediaEntryDto { Type = "Staffel", Id = seasonId, Title = $"{showName} - {seasonName}", Subtitle = $"{seasonEpisodes.Count} Episoden", PictureUrl = GetPictureUrl(seasonEpisodes.First().SeasonPosterPictureId), LinkUrl = $"/tvshow/{showId}?season={seasonId}" });
                             continue;
                         }
 
                         foreach (var ep in seasonEpisodes)
-                            result.Add(new ActorMediaEntryDto { Type = "Episode", Id = ep.Id, Title = ep.Name, Subtitle = $"{showName} - {seasonName}", PictureUrl = GetPictureUrl(ep.PosterPictureId ?? ep.SeasonPosterPictureId ?? ep.ShowPosterPictureId) });
+                            result.Add(new ActorMediaEntryDto { Type = "Episode", Id = ep.Id, Title = ep.Name, Subtitle = $"{showName} - {seasonName}", PictureUrl = GetPictureUrl(ep.PosterPictureId ?? ep.SeasonPosterPictureId ?? ep.ShowPosterPictureId), LinkUrl = $"/tvshow/{showId}?season={seasonId}&episode={ep.Id}" });
                     }
                 }
             }

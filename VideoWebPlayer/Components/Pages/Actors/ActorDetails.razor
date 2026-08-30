@@ -33,7 +33,7 @@ else
             {
                 <MediaBox Title="@media.Title"
                           ImageUrl="@GetActorPictureUrl(media.PictureUrl)"
-                          LinkUrl="@GetMediaLinkUrl(media)" />
+                          LinkUrl="@media.LinkUrl" />
             }
         </div>
     }
@@ -61,15 +61,4 @@ else
         => !string.IsNullOrWhiteSpace(pictureUrl) && !string.IsNullOrWhiteSpace(Client.AuthorizationToken)
             ? $"{pictureUrl}?access_token={Client.AuthorizationToken}"
             : "/images/placeholder.png";
-
-    private string GetMediaLinkUrl(ActorMediaEntryDto media)
-        => media.Type switch
-        {
-            "Film" => $"/movie/{media.Id}",
-            "Filmsammlung" => $"/moviecollection/{media.Id}",
-            "Serie" => $"/tvshow/{media.Id}",
-            "Staffel" => $"/tvshow/season/{media.Id}",
-            "Episode" => $"/tvshow/episode/{media.Id}",
-            _ => "#"
-        };
 }

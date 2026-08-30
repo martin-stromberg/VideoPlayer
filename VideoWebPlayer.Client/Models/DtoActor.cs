@@ -23,6 +23,7 @@ namespace VideoWebPlayer.Client.Models
         public string Title { get; set; } = string.Empty;
         public string? Subtitle { get; set; }
         public string? PictureUrl { get; set; }
+        public string? LinkUrl { get; set; }
     }
 
     /// <summary>

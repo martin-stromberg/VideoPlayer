@@ -114,9 +114,16 @@ public class MediaBoxContextMenuInteractionTests
 
         Assert.Contains("[Parameter] public DateTime? WatchedAt", mediaBoxSource);
         Assert.Contains("@if (WatchedAt.HasValue)", mediaBoxSource);
-        Assert.Contains("class=\"watched-indicator\"", mediaBoxSource);
-        Assert.Contains("src=\"/images/gesehen64x64.png\"", mediaBoxSource);
-        Assert.Contains("data-testid=\"watched-indicator\"", mediaBoxSource);
+        Assert.Contains("<WatchedIndicator />", mediaBoxSource);
+
+        var watchedIndicatorSource = ReadRepoFile("VideoWebPlayer", "Components", "Shared", "Media", "WatchedIndicator.razor");
+        Assert.Contains("class=\"@CssClass\"", watchedIndicatorSource);
+        Assert.Contains("stroke=\"currentColor\"", watchedIndicatorSource);
+        Assert.Contains("fill=\"currentColor\"", watchedIndicatorSource);
+        Assert.Contains("data-testid=\"watched-indicator\"", watchedIndicatorSource);
+
+        var css = ReadRepoFile("VideoWebPlayer", "wwwroot", "app.css");
+        Assert.Contains("stroke: var(--vp-primary-soft);", css);
     }
 
     [Fact]

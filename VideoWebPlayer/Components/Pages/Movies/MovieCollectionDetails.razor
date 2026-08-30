@@ -131,11 +131,7 @@ else
                 <span class="media-quick-play" aria-hidden="true">&#9654;</span>
                 @if (movie.WatchedAt.HasValue)
                 {
-                    <img class="watched-indicator"
-                         src="/images/gesehen64x64.png"
-                         alt=""
-                         title="Gesehen"
-                         data-testid="watched-indicator" />
+                    <WatchedIndicator />
                 }
                 <div class="media-card-overlay">
                     <span class="media-title-text">@name</span>

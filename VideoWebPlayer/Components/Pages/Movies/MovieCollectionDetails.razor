@@ -221,7 +221,11 @@ else
         IsCollectionUnlocked = collection.IsUnlocked;
         IsCollectionFavorite = await CheckIfFavorite(collectionId: collection, movieId: null);
 
-        if (MovieId.HasValue && collection?.Movies != null)
+        if (collection.Movies?.Length == 1)
+        {
+            await SelectMovieCoreAsync(collection.Movies[0], false);
+        }
+        else if (MovieId.HasValue && collection?.Movies != null)
         {
             var movie = collection.Movies.FirstOrDefault(m => m.Id == MovieId.Value);
             if (movie != null)

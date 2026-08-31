@@ -177,24 +177,43 @@ namespace VideoWebPlayer.Controllers
 
                 var allowedSourceIds = await GetAllowedSourceIdsAsync();
 
-                var movieExists = await _db.Movies
+                var movie = await _db.Movies
                     .AsNoTracking()
-                    .AnyAsync(m => m.Id == movieId);
+                    .Select(m => new { m.Id, m.MediaSourceId, m.MovieCollectionId })
+                    .FirstOrDefaultAsync(m => m.Id == movieId);
 
-                if (!movieExists)
+                if (movie is null)
                     return NotFound("Film nicht gefunden.");
 
-                var actors = await _db.MovieActors
+                if (!allowedSourceIds.Contains(movie.MediaSourceId))
+                    return Ok(Array.Empty<ActorDto>());
+
+                var actorLinks = await _db.MovieActors
                     .AsNoTracking()
-                    .Where(ma => ma.MovieId == movieId && allowedSourceIds.Contains(ma.Movie.MediaSourceId))
-                    .OrderBy(ma => ma.Actor.NormalizedName)
-                    .Select(ma => new ActorDto
-                    {
-                        Id = ma.Actor.Id,
-                        Name = ma.Actor.Name,
-                        PictureUrl = ma.Actor.PictureId.HasValue ? $"/api/pictures/{ma.Actor.PictureId}" : null
-                    })
+                    .Where(ma => ma.MovieId == movieId)
+                    .Select(ma => new { ma.ActorId, ma.Actor.Name, ma.Actor.PictureId })
                     .ToListAsync();
+
+                var actorIds = actorLinks.Select(a => a.ActorId).ToList();
+
+                var contextCounts = movie.MovieCollectionId.HasValue
+                    ? await _db.MovieActors
+                        .AsNoTracking()
+                        .Where(ma => actorIds.Contains(ma.ActorId) && ma.Movie.MovieCollectionId == movie.MovieCollectionId.Value && allowedSourceIds.Contains(ma.Movie.MediaSourceId))
+                        .GroupBy(ma => ma.ActorId)
+                        .Select(g => new { ActorId = g.Key, Count = g.Count() })
+                        .ToDictionaryAsync(x => x.ActorId, x => x.Count)
+                    : new Dictionary<long, int>();
+
+                var actors = actorLinks
+                    .Select(a => new ActorDto
+                    {
+                        Id = a.ActorId,
+                        Name = a.Name,
+                        PictureUrl = a.PictureId.HasValue ? $"/api/pictures/{a.PictureId}" : null,
+                        ContextVideoCount = contextCounts.GetValueOrDefault(a.ActorId, 1)
+                    })
+                    .ToList();
 
                 return Ok(actors);
             }
@@ -222,24 +241,41 @@ namespace VideoWebPlayer.Controllers
 
                 var allowedSourceIds = await GetAllowedSourceIdsAsync();
 
-                var episodeExists = await _db.TVShowEpisodes
+                var episode = await _db.TVShowEpisodes
                     .AsNoTracking()
-                    .AnyAsync(e => e.Id == episodeId);
+                    .Select(e => new { e.Id, e.TVShowSeasonId, TVShowId = e.TVShowSeason.TVShowId, e.TVShowSeason.TVShow.MediaSourceId })
+                    .FirstOrDefaultAsync(e => e.Id == episodeId);
 
-                if (!episodeExists)
+                if (episode is null)
                     return NotFound("Episode nicht gefunden.");
 
-                var actors = await _db.TVShowEpisodeActors
+                if (!allowedSourceIds.Contains(episode.MediaSourceId))
+                    return Ok(Array.Empty<ActorDto>());
+
+                var actorLinks = await _db.TVShowEpisodeActors
                     .AsNoTracking()
-                    .Where(ea => ea.TVShowEpisodeId == episodeId && allowedSourceIds.Contains(ea.TVShowEpisode.TVShowSeason.TVShow.MediaSourceId))
-                    .OrderBy(ea => ea.Actor.NormalizedName)
-                    .Select(ea => new ActorDto
-                    {
-                        Id = ea.Actor.Id,
-                        Name = ea.Actor.Name,
-                        PictureUrl = ea.Actor.PictureId.HasValue ? $"/api/pictures/{ea.Actor.PictureId}" : null
-                    })
+                    .Where(ea => ea.TVShowEpisodeId == episodeId)
+                    .Select(ea => new { ea.ActorId, ea.Actor.Name, ea.Actor.PictureId })
                     .ToListAsync();
+
+                var actorIds = actorLinks.Select(a => a.ActorId).ToList();
+
+                var contextCounts = await _db.TVShowEpisodeActors
+                    .AsNoTracking()
+                    .Where(ea => actorIds.Contains(ea.ActorId) && ea.TVShowEpisode.TVShowSeason.TVShowId == episode.TVShowId && allowedSourceIds.Contains(ea.TVShowEpisode.TVShowSeason.TVShow.MediaSourceId))
+                    .GroupBy(ea => ea.ActorId)
+                    .Select(g => new { ActorId = g.Key, Count = g.Count() })
+                    .ToDictionaryAsync(x => x.ActorId, x => x.Count);
+
+                var actors = actorLinks
+                    .Select(a => new ActorDto
+                    {
+                        Id = a.ActorId,
+                        Name = a.Name,
+                        PictureUrl = a.PictureId.HasValue ? $"/api/pictures/{a.PictureId}" : null,
+                        ContextVideoCount = contextCounts.GetValueOrDefault(a.ActorId, 1)
+                    })
+                    .ToList();
 
                 return Ok(actors);
             }

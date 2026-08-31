@@ -10,7 +10,7 @@
         <h4 class="mt-4 mb-2">@Title</h4>
     }
     <div class="media-row">
-        @foreach (var actor in Actors)
+        @foreach (var actor in OrderedActors)
         {
             <MediaBox Title="@actor.Name"
                       ImageUrl="@GetActorPictureUrl(actor.PictureUrl)"
@@ -23,8 +23,17 @@
     [Parameter] public IReadOnlyList<ActorDto> Actors { get; set; } = Array.Empty<ActorDto>();
     [Parameter] public string? Title { get; set; } = "Schauspieler";
 
+    private IEnumerable<ActorDto> OrderedActors
+        => Actors
+            .OrderByDescending(a => a.ContextVideoCount)
+            .ThenByDescending(a => HasPicture(a.PictureUrl))
+            .ThenBy(a => a.Name);
+
     private string GetActorPictureUrl(string? pictureUrl)
         => !string.IsNullOrWhiteSpace(pictureUrl) && !string.IsNullOrWhiteSpace(Client.AuthorizationToken)
             ? $"{pictureUrl}?access_token={Client.AuthorizationToken}"
             : "/images/placeholder.png";
+
+    private static bool HasPicture(string? pictureUrl)
+        => !string.IsNullOrWhiteSpace(pictureUrl);
 }

@@ -5,31 +5,107 @@
 <section class="py-4" aria-labelledby="legal-title">
     <div class="mb-4">
         <h1 id="legal-title" class="h2">Rechtliches</h1>
+        <p class="text-body-secondary mb-0">
+            Diese Seite beschreibt den Standardumfang von VideoWebPlayer. Da die Anwendung selbst gehostet wird,
+            sollte die betreibende Person die Angaben an die eigene Installation anpassen.
+        </p>
     </div>
 
     <div class="row g-4">
         <div class="col-lg-6">
-            <h2 class="h4">Datenschutz</h2>
+            <h2 class="h4">Private Nutzung</h2>
             <p>
-                VideoWebPlayer speichert personenbezogene Daten ausschließlich auf dem eigenen Server,
-                auf dem die Anwendung betrieben wird.
+                VideoWebPlayer wird als private, selbst gehostete Medienbibliothek betrieben und richtet sich nicht
+                an die Allgemeinheit. Es handelt sich um kein geschäftsmäßiges Angebot, daher wird kein
+                betreiberbezogenes Impressum bereitgestellt.
             </p>
             <p>
-                Für die Anmeldung werden Cookies verwendet. Weitere Informationen dazu finden sich
-                im Profil.
+                Der Zugang ist auf die vom Betreiber angelegten Benutzerkonten beschränkt; eine öffentliche
+                Registrierung oder Veröffentlichung von Inhalten findet nicht statt.
+            </p>
+
+            <h2 class="h4 mt-4">Datenschutz</h2>
+            <p>
+                Alle Daten werden ausschließlich auf dem Server verarbeitet und gespeichert, auf dem die Anwendung
+                betrieben wird. Es findet keine Übermittlung an Dritte statt und es werden keine Analyse- oder
+                Tracking-Dienste eingesetzt. Ein E-Mail-Versand ist standardmäßig nicht eingerichtet.
+            </p>
+            <p class="mb-1">Verarbeitet werden insbesondere:</p>
+            <ul>
+                <li>
+                    <strong>Benutzerkonto:</strong> Benutzername, E-Mail-Adresse, Passwort-Hash, Administrator-Kennzeichen
+                    sowie – bei aktivierter Zwei-Faktor-Authentifizierung – Authenticator-Schlüssel und Wiederherstellungscodes.
+                </li>
+                <li>
+                    <strong>Berechtigungen:</strong> Zuordnung der Medienquellen, auf die ein Benutzerkonto zugreifen darf.
+                </li>
+                <li>
+                    <strong>Nutzungsdaten:</strong> Favoriten, Gesehen-Status, Wiedergabepositionen der Funktion
+                    „Weiterschauen“ sowie freigeschaltete Medien.
+                </li>
+                <li>
+                    <strong>Medienquellen:</strong> Pfade und – bei FTP-/SFTP-Quellen – die hinterlegten Zugangsdaten,
+                    sowie die aus den Medien gelesenen Metadaten.
+                </li>
+                <li>
+                    <strong>Sicherheit und Protokolle:</strong> fehlgeschlagene Anmeldeversuche und daraus
+                    resultierende IP-Sperren sowie Server-Protokolldateien, die technische Angaben zu Zugriffen und
+                    Fehlern enthalten können.
+                </li>
+                <li>
+                    <strong>Backups:</strong> Datensicherungen der Datenbank enthalten die oben genannten Daten und
+                    verbleiben auf dem vom Betreiber konfigurierten Speicherort.
+                </li>
+            </ul>
+            <p>
+                Für die Suche nach Programmupdates ruft die Anwendung – sofern die Update-Funktion aktiviert ist –
+                Release-Informationen von GitHub ab. Dabei werden keine Benutzerdaten übertragen.
             </p>
             <p>
-                Zur Verbesserung der Bedienung werden einige Oberflächen-Einstellungen lokal im Browser
-                gespeichert (HTML5-LocalStorage). Dazu gehört beispielsweise die zuletzt gewählte
-                Sortierung der Schauspielerübersicht.
+                Im Profil lassen sich die eigenen personenbezogenen Daten herunterladen und das Benutzerkonto
+                inklusive dieser Daten löschen.
             </p>
         </div>
 
         <div class="col-lg-6">
-            <h2 class="h4">Verantwortung</h2>
+            <h2 class="h4">Cookies und lokale Speicherung</h2>
+            <p class="mb-1">
+                Es werden ausschließlich technisch notwendige Cookies verwendet:
+            </p>
+            <ul>
+                <li><code>VideoWebPlayer.Auth</code> – Anmeldung an der Weboberfläche (gültig bis zu 14 Tage, verlängert sich bei Nutzung).</li>
+                <li><code>Identity.TwoFactorUserId</code> und <code>Identity.TwoFactorRememberMe</code> – Zwischenschritt und Merken des Geräts bei der Zwei-Faktor-Authentifizierung.</li>
+                <li><code>Identity.StatusMessage</code> – kurzlebige Statusmeldung nach Konto-Aktionen.</li>
+                <li>Antiforgery-Cookie – Schutz vor Cross-Site-Request-Forgery beim Absenden von Formularen.</li>
+            </ul>
             <p>
-                Der Betreiber der jeweiligen Instanz ist für die eingestellten Medien und Nutzerdaten
-                selbst verantwortlich. Diese Anwendung stellt lediglich eine private Medienbibliothek bereit.
+                App- und API-Clients melden sich stattdessen mit einem JWT-Token (Bearer-Token) an, das der
+                jeweilige Client auf dem Gerät hält.
+            </p>
+            <p class="mb-1">
+                Im Browser werden zusätzlich Oberflächen-Einstellungen gespeichert (HTML5-LocalStorage bzw.
+                SessionStorage). Diese Angaben werden nicht an den Server übertragen:
+            </p>
+            <ul>
+                <li><code>actors.sort</code> – zuletzt gewählte Sortierung der Schauspielerübersicht.</li>
+                <li><code>security.lastVisitUtc</code> – letzter Aufruf der Sicherheitsübersicht, um neue Sicherheitsereignisse zu markieren.</li>
+                <li><code>scrollPos_*</code> und <code>selectedMediaItem</code> – Scrollposition und letzte Auswahl in der Detailansicht einer Medienquelle (nur für die Dauer der Browsersitzung).</li>
+            </ul>
+
+            <h2 class="h4 mt-4">Verantwortung</h2>
+            <p>
+                Der Betreiber der jeweiligen Instanz ist für die eingestellten Medien sowie für die Nutzerdaten
+                selbst verantwortlich. Dazu gehören insbesondere die Absicherung des Servers, die Vergabe der
+                Zugänge, die Aufbewahrung der Datensicherungen und die Erfüllung etwaiger datenschutzrechtlicher
+                Pflichten gegenüber den Nutzern der Instanz.
+            </p>
+
+            <h2 class="h4 mt-4">Hinweise zur Nutzung eigener Medien</h2>
+            <p>
+                VideoWebPlayer stellt selbst keine Inhalte bereit, sondern gibt ausschließlich die vom Betreiber
+                eingebundenen Dateien wieder. Es dürfen nur Medien eingebunden werden, für die die erforderlichen
+                Rechte bestehen. Die Wiedergabe ist für den privaten Kreis vorgesehen; eine öffentliche
+                Zugänglichmachung oder Weitergabe an Dritte kann urheberrechtlich unzulässig sein.
             </p>
         </div>
     </div>

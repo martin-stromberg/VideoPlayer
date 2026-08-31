@@ -1393,13 +1393,15 @@ namespace VideoWebPlayer.Services
                 .ToList();
         }
 
-        private sealed record ActorNfoInfo(string Name, string? Thumb);
+        private sealed record ActorNfoInfo(string Name, string? Role, int Order, string? Thumb);
 
         private IEnumerable<ActorNfoInfo> ParseActorInfo(XElement xml)
         {
             return xml.Descendants("actor")
                 .Select(a => new ActorNfoInfo(
                     (a.Element("name")?.Value ?? a.Attribute("name")?.Value ?? a.Value).Trim(),
+                    (a.Element("role")?.Value ?? a.Attribute("role")?.Value)?.Trim(),
+                    int.TryParse((a.Element("order")?.Value ?? a.Attribute("order")?.Value)?.Trim(), out var order) ? order : 0,
                     (a.Element("thumb")?.Value ?? a.Attribute("thumb")?.Value)?.Trim()))
                 .Where(a => !string.IsNullOrWhiteSpace(a.Name))
                 .DistinctBy(a => a.Name, StringComparer.OrdinalIgnoreCase);
@@ -1503,13 +1505,21 @@ namespace VideoWebPlayer.Services
 
         private async Task AssignActorsToMovieAsync(Movie movie, XElement xml, MediaCollection collection, CancellationToken cancellationToken)
         {
-            var actorInfos = ParseActorInfo(xml);
+            var actorInfos = ParseActorInfo(xml).ToList();
+            var actorInfoByName = actorInfos.ToDictionary(a => a.Name, StringComparer.OrdinalIgnoreCase);
             var actors = await GetOrCreateActorsAsync(actorInfos, collection, cancellationToken);
 
             movie.MovieActors.Clear();
             foreach (var actor in actors)
             {
-                movie.MovieActors.Add(new MovieActor { MovieId = movie.Id, ActorId = actor.Id });
+                var info = actorInfoByName.GetValueOrDefault(actor.Name);
+                movie.MovieActors.Add(new MovieActor
+                {
+                    MovieId = movie.Id,
+                    ActorId = actor.Id,
+                    Role = info?.Role,
+                    Order = info?.Order ?? 0
+                });
             }
 
             movie.ActorsClassifiedAt = DateTime.UtcNow;
@@ -1518,13 +1528,21 @@ namespace VideoWebPlayer.Services
 
         private async Task AssignActorsToTVShowEpisodeAsync(TVShowEpisode episode, XElement xml, MediaCollection collection, CancellationToken cancellationToken)
         {
-            var actorInfos = ParseActorInfo(xml);
+            var actorInfos = ParseActorInfo(xml).ToList();
+            var actorInfoByName = actorInfos.ToDictionary(a => a.Name, StringComparer.OrdinalIgnoreCase);
             var actors = await GetOrCreateActorsAsync(actorInfos, collection, cancellationToken);
 
             episode.TVShowEpisodeActors.Clear();
             foreach (var actor in actors)
             {
-                episode.TVShowEpisodeActors.Add(new TVShowEpisodeActor { TVShowEpisodeId = episode.Id, ActorId = actor.Id });
+                var info = actorInfoByName.GetValueOrDefault(actor.Name);
+                episode.TVShowEpisodeActors.Add(new TVShowEpisodeActor
+                {
+                    TVShowEpisodeId = episode.Id,
+                    ActorId = actor.Id,
+                    Role = info?.Role,
+                    Order = info?.Order ?? 0
+                });
             }
 
             episode.ActorsClassifiedAt = DateTime.UtcNow;

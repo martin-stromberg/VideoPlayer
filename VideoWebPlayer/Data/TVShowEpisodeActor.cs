@@ -24,5 +24,15 @@ namespace VideoWebPlayer.Data
         /// Gets or sets the actor.
         /// </summary>
         public Actor Actor { get; set; } = null!;
+
+        /// <summary>
+        /// Gets or sets the role/character name.
+        /// </summary>
+        public string? Role { get; set; }
+
+        /// <summary>
+        /// Gets or sets the display order.
+        /// </summary>
+        public int Order { get; set; }
     }
 }

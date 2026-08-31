@@ -73,7 +73,7 @@
 </div>
 
 @code {
-    private RenderFragment MediaBoxContent => @<div class="media-box" title="@Title">
+    private RenderFragment MediaBoxContent => @<div class="media-box" title="@GetBoxTitle()">
         <img class="media-poster"
              src="@ImageUrl"
              alt="@Title"
@@ -85,7 +85,13 @@
             <WatchedIndicator />
         }
         <div class="media-card-overlay">
-            <span class="media-title-text">@Title</span>
+            <div class="media-titles">
+                <span class="media-title-text">@Title</span>
+                @if (!string.IsNullOrWhiteSpace(Subtitle))
+                {
+                    <span class="media-subtitle-text">@Subtitle</span>
+                }
+            </div>
         </div>
     </div>;
 
@@ -99,12 +105,16 @@
     private bool shouldRestoreLinkFocus;
 
     [Parameter] public string Title { get; set; } = string.Empty;
+    [Parameter] public string? Subtitle { get; set; }
     [Parameter] public string ImageUrl { get; set; } = "/images/placeholder.png";
     [Parameter] public string LinkUrl { get; set; } = "#";
     [Parameter] public string CardKey { get; set; } = string.Empty;
     [Parameter] public DateTime? WatchedAt { get; set; }
     [Parameter] public IReadOnlyList<MediaBoxAction> Actions { get; set; } = Array.Empty<MediaBoxAction>();
     [Parameter] public EventCallback<string> OnActionSelected { get; set; }
+
+    private string GetBoxTitle()
+        => string.IsNullOrWhiteSpace(Subtitle) ? Title : $"{Title} – {Subtitle}";
 
     private bool HasActions => Actions.Count > 0 && OnActionSelected.HasDelegate;
     private bool IsMenuOpen => interaction.IsMenuOpen;

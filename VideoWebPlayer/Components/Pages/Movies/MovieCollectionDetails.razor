@@ -23,6 +23,10 @@ else if (selectedMovie != null)
         <button class="favorite-btn" @onclick="() => ToggleFavorite(selectedMovie)" title="Film als Favorit markieren">
             @((IsMovieFavorite) ? "★" : "☆")
         </button>
+        @if (collection?.Movies?.Length == 1)
+        {
+            <UnlockButton Entry="collection" IsUnlocked="IsCollectionUnlocked" IsUnlockedChanged="OnCollectionUnlockedChanged" />
+        }
         @RenderActionButtons()
         <div class="collection-header-overlay">
             @if (collection?.Movies?.Length > 1)

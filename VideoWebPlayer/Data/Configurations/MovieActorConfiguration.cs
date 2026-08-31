@@ -22,6 +22,12 @@ namespace VideoWebPlayer.Data.Configurations
                 .HasOne(ma => ma.Actor)
                 .WithMany(a => a.MovieActors)
                 .HasForeignKey(ma => ma.ActorId);
+
+            builder.Property(ma => ma.Role)
+                .HasMaxLength(512);
+
+            builder.Property(ma => ma.Order)
+                .HasDefaultValue(0);
         }
     }
 }

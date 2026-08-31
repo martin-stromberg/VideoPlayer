@@ -22,6 +22,12 @@ namespace VideoWebPlayer.Data.Configurations
                 .HasOne(ea => ea.Actor)
                 .WithMany(a => a.TVShowEpisodeActors)
                 .HasForeignKey(ea => ea.ActorId);
+
+            builder.Property(ea => ea.Role)
+                .HasMaxLength(512);
+
+            builder.Property(ea => ea.Order)
+                .HasDefaultValue(0);
         }
     }
 }

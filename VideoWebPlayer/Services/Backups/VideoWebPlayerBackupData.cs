@@ -47,7 +47,11 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         $"{nameof(ApplicationDbContext.ContinueWatchingEntries)}.{nameof(ContinueWatchingEntry.ListOrder)}",
         $"{nameof(ApplicationDbContext.Movies)}.{nameof(Movie.ActorsClassifiedAt)}",
         $"{nameof(ApplicationDbContext.TVShowEpisodes)}.{nameof(TVShowEpisode.ActorsClassifiedAt)}",
-        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ActorCollectionThresholdPercent)}"
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ActorCollectionThresholdPercent)}",
+        $"{nameof(ApplicationDbContext.MovieActors)}.{nameof(MovieActor.Role)}",
+        $"{nameof(ApplicationDbContext.MovieActors)}.{nameof(MovieActor.Order)}",
+        $"{nameof(ApplicationDbContext.TVShowEpisodeActors)}.{nameof(TVShowEpisodeActor.Role)}",
+        $"{nameof(ApplicationDbContext.TVShowEpisodeActors)}.{nameof(TVShowEpisodeActor.Order)}"
     };
 
     private static readonly (string Table, string Column, bool DefaultValue)[] OptionalRestoreBoolDefaults =

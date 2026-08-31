@@ -13,6 +13,7 @@
         @foreach (var actor in OrderedActors)
         {
             <MediaBox Title="@actor.Name"
+                      Subtitle="@actor.Role"
                       ImageUrl="@GetActorPictureUrl(actor.PictureUrl)"
                       LinkUrl="@($"/actors/{actor.Id}")" />
         }
@@ -25,8 +26,7 @@
 
     private IEnumerable<ActorDto> OrderedActors
         => Actors
-            .OrderByDescending(a => a.ContextVideoCount)
-            .ThenByDescending(a => HasPicture(a.PictureUrl))
+            .OrderBy(a => a.Order)
             .ThenBy(a => a.Name);
 
     private string GetActorPictureUrl(string? pictureUrl)

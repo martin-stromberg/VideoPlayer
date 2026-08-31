@@ -191,7 +191,7 @@ namespace VideoWebPlayer.Controllers
                 var actorLinks = await _db.MovieActors
                     .AsNoTracking()
                     .Where(ma => ma.MovieId == movieId)
-                    .Select(ma => new { ma.ActorId, ma.Actor.Name, ma.Actor.PictureId })
+                    .Select(ma => new { ma.ActorId, ma.Actor.Name, ma.Actor.PictureId, ma.Role, ma.Order })
                     .ToListAsync();
 
                 var actorIds = actorLinks.Select(a => a.ActorId).ToList();
@@ -211,6 +211,8 @@ namespace VideoWebPlayer.Controllers
                         Id = a.ActorId,
                         Name = a.Name,
                         PictureUrl = a.PictureId.HasValue ? $"/api/pictures/{a.PictureId}" : null,
+                        Role = a.Role,
+                        Order = a.Order,
                         ContextVideoCount = contextCounts.GetValueOrDefault(a.ActorId, 1)
                     })
                     .ToList();
@@ -255,7 +257,7 @@ namespace VideoWebPlayer.Controllers
                 var actorLinks = await _db.TVShowEpisodeActors
                     .AsNoTracking()
                     .Where(ea => ea.TVShowEpisodeId == episodeId)
-                    .Select(ea => new { ea.ActorId, ea.Actor.Name, ea.Actor.PictureId })
+                    .Select(ea => new { ea.ActorId, ea.Actor.Name, ea.Actor.PictureId, ea.Role, ea.Order })
                     .ToListAsync();
 
                 var actorIds = actorLinks.Select(a => a.ActorId).ToList();
@@ -273,6 +275,8 @@ namespace VideoWebPlayer.Controllers
                         Id = a.ActorId,
                         Name = a.Name,
                         PictureUrl = a.PictureId.HasValue ? $"/api/pictures/{a.PictureId}" : null,
+                        Role = a.Role,
+                        Order = a.Order,
                         ContextVideoCount = contextCounts.GetValueOrDefault(a.ActorId, 1)
                     })
                     .ToList();

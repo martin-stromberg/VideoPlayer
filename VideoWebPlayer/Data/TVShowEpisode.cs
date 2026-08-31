@@ -49,9 +49,19 @@ namespace VideoWebPlayer.Data
         public Picture? GeneratedBackgroundPicture { get; set; }
 
         /// <summary>
+        /// Gets or sets a value indicating when (or whether) actor metadata has been classified for this episode.
+        /// </summary>
+        public DateTime? ActorsClassifiedAt { get; set; }
+
+        /// <summary>
         /// Gets or sets the media item link entries.
         /// </summary>
         public ICollection<TVShowEpisodeMediaItem> TVShowEpisodeMediaItems { get; set; } = new List<TVShowEpisodeMediaItem>();
+
+        /// <summary>
+        /// Gets the actor link entries for the episode.
+        /// </summary>
+        public ICollection<TVShowEpisodeActor> TVShowEpisodeActors { get; set; } = new List<TVShowEpisodeActor>();
 
         // Komfort-Property f�r direkten Zugriff auf die MediaItems
         /// <summary>

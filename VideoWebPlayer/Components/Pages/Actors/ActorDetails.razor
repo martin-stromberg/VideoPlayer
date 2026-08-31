@@ -1,0 +1,64 @@
+@page "/actors/{actorId:long}"
+@using VideoWebPlayer.Client
+@using VideoWebPlayer.Client.Models
+@using VideoWebPlayer.Components.Shared.Media
+@inject VideoWebPlayerClient Client
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>@actorName</PageTitle>
+
+@if (actor is null)
+{
+    <p>Lade Schauspieler...</p>
+}
+else
+{
+    <div class="d-flex align-items-center mb-3">
+        <img src="@GetActorPictureUrl(actor.PictureUrl)" alt="@actor.Name" class="rounded me-3" style="max-height: 150px;" />
+        <h3>@actor.Name</h3>
+    </div>
+
+    <button class="btn btn-outline-secondary mb-3" @onclick="BackToList">Zurück zur Übersicht</button>
+
+    <h4>Medien</h4>
+    @if (!actor.Media.Any())
+    {
+        <p>Keine Medien vorhanden.</p>
+    }
+    else
+    {
+        <div class="media-grid">
+            @foreach (var media in actor.Media)
+            {
+                <MediaBox Title="@media.Title"
+                          ImageUrl="@GetActorPictureUrl(media.PictureUrl)"
+                          LinkUrl="@media.LinkUrl" />
+            }
+        </div>
+    }
+}
+
+@code {
+    [Parameter]
+    public long actorId { get; set; }
+
+    private ActorDetailsDto? actor;
+    private string actorName = "Schauspieler";
+
+    protected override async Task OnInitializedAsync()
+    {
+        actor = await Client.RequestActorAsync(actorId);
+        actorName = actor?.Name ?? "Schauspieler";
+    }
+
+    private void BackToList()
+    {
+        Navigation.NavigateTo("/actors");
+    }
+
+    private string GetActorPictureUrl(string? pictureUrl)
+        => !string.IsNullOrWhiteSpace(pictureUrl) && !string.IsNullOrWhiteSpace(Client.AuthorizationToken)
+            ? $"{pictureUrl}?access_token={Client.AuthorizationToken}"
+            : "/images/placeholder.png";
+}

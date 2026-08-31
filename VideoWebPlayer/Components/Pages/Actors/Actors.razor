@@ -1,0 +1,128 @@
+@page "/actors"
+@using Microsoft.JSInterop
+@using VideoWebPlayer.Client
+@using VideoWebPlayer.Client.Models
+@using VideoWebPlayer.Components.Shared.Media
+@inject VideoWebPlayerClient Client
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@rendermode InteractiveServer
+
+<PageTitle>Schauspieler</PageTitle>
+
+<h3>Schauspieler</h3>
+
+<div class="mb-3">
+    <input type="text" class="form-control" @bind="searchTerm" @bind:event="oninput" @onkeyup="OnSearchChanged" placeholder="Schauspieler suchen..." />
+</div>
+
+<div class="mb-3 btn-group" role="group" aria-label="Sortierung">
+    <button class="btn btn-sm @(sortMode == "alphabetical" ? "btn-primary" : "btn-outline-primary")" @onclick="SortByAlphabetical">Alphabetisch</button>
+    <button class="btn btn-sm @(sortMode == "count" ? "btn-primary" : "btn-outline-primary")" @onclick="SortByCount">Anzahl Videos</button>
+</div>
+
+<div class="mb-3">
+    @foreach (var option in filterOptions)
+    {
+        <button class="btn btn-sm @(selectedFilter == option ? "btn-primary" : "btn-outline-primary") me-1 mb-1" @onclick="() => SelectFilter(option)">
+            @option
+        </button>
+    }
+    @if (!string.IsNullOrEmpty(selectedFilter))
+    {
+        <button class="btn btn-sm btn-outline-secondary me-1 mb-1" @onclick="ClearFilter">Alle</button>
+    }
+</div>
+
+@if (actors is null)
+{
+    <p>Lade Schauspieler...</p>
+}
+else if (!actors.Any())
+{
+    <p>Keine Schauspieler gefunden.</p>
+}
+else
+{
+    <div class="media-grid">
+        @foreach (var actor in actors)
+        {
+            <MediaBox Title="@GetActorTitle(actor)"
+                      ImageUrl="@GetActorPictureUrl(actor.PictureUrl)"
+                      LinkUrl="@($"/actors/{actor.Id}")" />
+        }
+    </div>
+}
+
+@code {
+    private const string SortKey = "actors.sort";
+    private string searchTerm = string.Empty;
+    private string sortMode = "alphabetical";
+    private string selectedFilter = string.Empty;
+    private List<string> filterOptions = new();
+    private List<ActorDto>? actors;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            sortMode = await JS.InvokeAsync<string?>("localStorage.getItem", SortKey) ?? "alphabetical";
+            await LoadFiltersAsync();
+            await LoadActorsAsync();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadFiltersAsync()
+    {
+        filterOptions = (await Client.RequestActorFiltersAsync(sortMode)).ToList();
+    }
+
+    private async Task LoadActorsAsync()
+    {
+        actors = (await Client.RequestActorsAsync(
+            string.IsNullOrWhiteSpace(searchTerm) ? null : searchTerm,
+            sortMode,
+            string.IsNullOrWhiteSpace(selectedFilter) ? null : selectedFilter)).ToList();
+    }
+
+    private async Task SetSortModeAsync(string mode)
+    {
+        if (mode == sortMode)
+            return;
+
+        sortMode = mode;
+        selectedFilter = string.Empty;
+        await JS.InvokeVoidAsync("localStorage.setItem", SortKey, sortMode);
+        await LoadFiltersAsync();
+        await LoadActorsAsync();
+    }
+
+    private Task SortByAlphabetical() => SetSortModeAsync("alphabetical");
+    private Task SortByCount() => SetSortModeAsync("count");
+
+    private string GetActorTitle(ActorDto actor)
+        => sortMode == "count" ? $"{actor.Name} ({actor.VideoCount})" : actor.Name;
+
+    private async Task OnSearchChanged(KeyboardEventArgs e)
+    {
+        await LoadActorsAsync();
+    }
+
+    private async Task SelectFilter(string option)
+    {
+        selectedFilter = option;
+        await LoadActorsAsync();
+    }
+
+    private async Task ClearFilter()
+    {
+        selectedFilter = string.Empty;
+        await LoadActorsAsync();
+    }
+
+    private string GetActorPictureUrl(string? pictureUrl)
+        => !string.IsNullOrWhiteSpace(pictureUrl) && !string.IsNullOrWhiteSpace(Client.AuthorizationToken)
+            ? $"{pictureUrl}?access_token={Client.AuthorizationToken}"
+            : "/images/placeholder.png";
+}

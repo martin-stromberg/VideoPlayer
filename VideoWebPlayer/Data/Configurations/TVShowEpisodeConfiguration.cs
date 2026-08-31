@@ -11,6 +11,8 @@ namespace VideoWebPlayer.Data.Configurations
         /// <inheritdoc />
         public void Configure(EntityTypeBuilder<TVShowEpisode> builder)
         {
+            builder.Ignore(e => e.MediaItems);
+
             builder
                 .HasOne(e => e.TVShowSeason)
                 .WithMany(s => s.Episodes)

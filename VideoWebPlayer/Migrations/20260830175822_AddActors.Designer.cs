@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using VideoWebPlayer.Data;
 
@@ -10,9 +11,11 @@ using VideoWebPlayer.Data;
 namespace VideoWebPlayer.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260830175822_AddActors")]
+    partial class AddActors
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.10");
@@ -203,9 +206,14 @@ namespace VideoWebPlayer.Migrations
                     b.Property<long>("MediaItemId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<long?>("MovieId1")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("MovieId", "MediaItemId");
 
                     b.HasIndex("MediaItemId");
+
+                    b.HasIndex("MovieId1");
 
                     b.ToTable("MovieMediaItems");
                 });
@@ -289,9 +297,14 @@ namespace VideoWebPlayer.Migrations
                     b.Property<long>("MediaItemId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<long?>("TVShowEpisodeId1")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("TVShowEpisodeId", "MediaItemId");
 
                     b.HasIndex("MediaItemId");
+
+                    b.HasIndex("TVShowEpisodeId1");
 
                     b.ToTable("TVShowEpisodeMediaItems");
                 });
@@ -680,6 +693,9 @@ namespace VideoWebPlayer.Migrations
                     b.Property<long>("MediaCollectionId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<long?>("MovieId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -688,9 +704,16 @@ namespace VideoWebPlayer.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<long?>("TVShowEpisodeId")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.HasIndex("MediaCollectionId");
+
+                    b.HasIndex("MovieId");
+
+                    b.HasIndex("TVShowEpisodeId");
 
                     b.ToTable("MediaItems");
                 });
@@ -863,15 +886,6 @@ namespace VideoWebPlayer.Migrations
                     b.Property<long>("ActorId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("Order")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
-                        .HasDefaultValue(0);
-
-                    b.Property<string>("Role")
-                        .HasMaxLength(512)
-                        .HasColumnType("TEXT");
-
                     b.HasKey("MovieId", "ActorId");
 
                     b.HasIndex("ActorId");
@@ -962,7 +976,7 @@ namespace VideoWebPlayer.Migrations
                     b.Property<bool>("IsGeneratedBackground")
                         .HasColumnType("INTEGER");
 
-                    b.Property<long?>("MediaItemId")
+                    b.Property<long>("MediaItemId")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Type")
@@ -1145,15 +1159,6 @@ namespace VideoWebPlayer.Migrations
 
                     b.Property<long>("ActorId")
                         .HasColumnType("INTEGER");
-
-                    b.Property<int>("Order")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
-                        .HasDefaultValue(0);
-
-                    b.Property<string>("Role")
-                        .HasMaxLength(512)
-                        .HasColumnType("TEXT");
 
                     b.HasKey("TVShowEpisodeId", "ActorId");
 
@@ -1449,10 +1454,14 @@ namespace VideoWebPlayer.Migrations
                         .IsRequired();
 
                     b.HasOne("VideoWebPlayer.Data.Movie", "Movie")
-                        .WithMany("MovieMediaItems")
+                        .WithMany()
                         .HasForeignKey("MovieId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("VideoWebPlayer.Data.Movie", null)
+                        .WithMany("MovieMediaItems")
+                        .HasForeignKey("MovieId1");
 
                     b.Navigation("MediaItem");
 
@@ -1468,10 +1477,14 @@ namespace VideoWebPlayer.Migrations
                         .IsRequired();
 
                     b.HasOne("VideoWebPlayer.Data.TVShowEpisode", "TVShowEpisode")
-                        .WithMany("TVShowEpisodeMediaItems")
+                        .WithMany()
                         .HasForeignKey("TVShowEpisodeId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("VideoWebPlayer.Data.TVShowEpisode", null)
+                        .WithMany("TVShowEpisodeMediaItems")
+                        .HasForeignKey("TVShowEpisodeId1");
 
                     b.Navigation("MediaItem");
 
@@ -1560,6 +1573,14 @@ namespace VideoWebPlayer.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("VideoWebPlayer.Data.Movie", null)
+                        .WithMany("MediaItems")
+                        .HasForeignKey("MovieId");
+
+                    b.HasOne("VideoWebPlayer.Data.TVShowEpisode", null)
+                        .WithMany("MediaItems")
+                        .HasForeignKey("TVShowEpisodeId");
+
                     b.Navigation("MediaCollection");
                 });
 
@@ -1643,7 +1664,9 @@ namespace VideoWebPlayer.Migrations
                 {
                     b.HasOne("VideoWebPlayer.Data.MediaItem", "MediaItem")
                         .WithMany()
-                        .HasForeignKey("MediaItemId");
+                        .HasForeignKey("MediaItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("MediaItem");
                 });
@@ -1820,6 +1843,8 @@ namespace VideoWebPlayer.Migrations
 
             modelBuilder.Entity("VideoWebPlayer.Data.Movie", b =>
                 {
+                    b.Navigation("MediaItems");
+
                     b.Navigation("MovieActors");
 
                     b.Navigation("MovieGenres");
@@ -1841,6 +1866,8 @@ namespace VideoWebPlayer.Migrations
 
             modelBuilder.Entity("VideoWebPlayer.Data.TVShowEpisode", b =>
                 {
+                    b.Navigation("MediaItems");
+
                     b.Navigation("TVShowEpisodeActors");
 
                     b.Navigation("TVShowEpisodeMediaItems");

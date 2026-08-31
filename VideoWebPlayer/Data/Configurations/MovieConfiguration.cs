@@ -11,6 +11,8 @@ namespace VideoWebPlayer.Data.Configurations
         /// <inheritdoc />
         public void Configure(EntityTypeBuilder<Movie> builder)
         {
+            builder.Ignore(m => m.MediaItems);
+
             builder
                 .HasOne(m => m.MovieCollection)
                 .WithMany(mc => mc.Movies)

@@ -40,6 +40,7 @@ public class MediaSourceScanServiceTests
         services.AddScoped<RecentEntryService>();
         services.AddScoped<IUnlockedMediaService, UnlockedMediaService>();
         services.AddScoped<MediaSourceClassifier>();
+        services.AddScoped<HttpClient>(_ => new HttpClient());
         services.AddMemoryCache();
         services.AddScoped<EpisodeBackgroundImageGenerator>();
         services.AddScoped<EpisodeBackgroundImageService>();
@@ -108,6 +109,7 @@ public class MediaSourceScanServiceTests
         services.AddScoped<RecentEntryService>();
         services.AddScoped<IUnlockedMediaService, UnlockedMediaService>();
         services.AddScoped<MediaSourceClassifier>();
+        services.AddScoped<HttpClient>(_ => new HttpClient());
         services.AddMemoryCache();
         services.AddScoped<EpisodeBackgroundImageGenerator>();
         services.AddScoped<EpisodeBackgroundImageService>();
@@ -189,6 +191,7 @@ public class MediaSourceScanServiceTests
         services.AddScoped<RecentEntryService>();
         services.AddScoped<IUnlockedMediaService, UnlockedMediaService>();
         services.AddScoped<MediaSourceClassifier>();
+        services.AddScoped<HttpClient>(_ => new HttpClient());
         services.AddMemoryCache();
         services.AddScoped<EpisodeBackgroundImageGenerator>();
         services.AddScoped<EpisodeBackgroundImageService>();
@@ -284,6 +287,7 @@ public class MediaSourceScanServiceTests
         services.AddScoped<RecentEntryService>();
         services.AddScoped<IUnlockedMediaService, UnlockedMediaService>();
         services.AddScoped<MediaSourceClassifier>();
+        services.AddScoped<HttpClient>(_ => new HttpClient());
         services.AddMemoryCache();
         services.AddScoped<EpisodeBackgroundImageGenerator>();
         services.AddScoped<EpisodeBackgroundImageService>();
@@ -386,6 +390,7 @@ public class MediaSourceScanServiceTests
         services.AddScoped<RecentEntryService>();
         services.AddScoped<IUnlockedMediaService, UnlockedMediaService>();
         services.AddScoped<MediaSourceClassifier>();
+        services.AddScoped<HttpClient>(_ => new HttpClient());
         services.AddMemoryCache();
         services.AddScoped<EpisodeBackgroundImageGenerator>();
         services.AddScoped<EpisodeBackgroundImageService>();

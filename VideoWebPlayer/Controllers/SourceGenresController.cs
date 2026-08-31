@@ -89,7 +89,7 @@ public class SourceGenresController : ApiBaseController
                 {
                     SourceId = source.Id,
                     SourceName = source.Name,
-                    Genres = genres.Select(g => new GenreDto { Id = g.Id, Name = g.Name, IconUrl = GetGenreImageUrl(g.Name) }).ToList()
+                    Genres = genres.Select(g => new GenreDto { Id = g.Id, Name = g.Name, IconUrl = GetGenreImageUrl(g.Id, g.Name) }).ToList()
                 });
             }
 
@@ -159,7 +159,7 @@ public class SourceGenresController : ApiBaseController
             {
                 SourceId = source.Id,
                 SourceName = source.Name,
-                Genres = genres.Select(g => new GenreDto { Id = g.Id, Name = g.Name, IconUrl = GetGenreImageUrl(g.Name) }).OrderBy(g => g.Name).ToList()
+                Genres = genres.Select(g => new GenreDto { Id = g.Id, Name = g.Name, IconUrl = GetGenreImageUrl(g.Id, g.Name) }).OrderBy(g => g.Name).ToList()
             };
 
             return Ok(result);
@@ -176,12 +176,12 @@ public class SourceGenresController : ApiBaseController
         }
     }
 
-    private string? GetGenreImageUrl(string genreName)
+    private string? GetGenreImageUrl(long genreId, string genreName)
     {
         if (string.IsNullOrWhiteSpace(genreName))
             return null;
 
-        var key = GetGenreImageKey(genreName);
+        var key = GetGenreImageKey(genreId, genreName);
         var iconsDir = Path.Combine(_env.WebRootPath, "images", "genres");
         foreach (var ext in new[] { ".png", ".jpg", ".jpeg", ".webp", ".gif" })
         {
@@ -195,9 +195,9 @@ public class SourceGenresController : ApiBaseController
         return null;
     }
 
-    private static string GetGenreImageKey(string genreName)
+    private static string GetGenreImageKey(long genreId, string genreName)
     {
-        var normalized = genreName.Trim().ToLowerInvariant();
+        var normalized = $"{genreId}:{genreName.Trim().ToLowerInvariant()}";
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(normalized));
         return Convert.ToHexString(hash).ToLowerInvariant();
     }

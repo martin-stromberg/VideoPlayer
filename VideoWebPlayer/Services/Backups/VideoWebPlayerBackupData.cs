@@ -54,6 +54,14 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         $"{nameof(ApplicationDbContext.TVShowEpisodeActors)}.{nameof(TVShowEpisodeActor.Order)}"
     };
 
+    private static readonly HashSet<string> IgnoredRestoreColumns = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "MediaItems.MovieId",
+        "MediaItems.TVShowEpisodeId",
+        "MovieMediaItems.MovieId1",
+        "TVShowEpisodeMediaItems.TVShowEpisodeId1"
+    };
+
     private static readonly (string Table, string Column, bool DefaultValue)[] OptionalRestoreBoolDefaults =
     {
         (nameof(ApplicationDbContext.TVShowEpisodes), nameof(TVShowEpisode.BackgroundImageRequiresUpdate), false),
@@ -431,6 +439,15 @@ public sealed class VideoWebPlayerBackupData : IBackupData
                 errors.Add($"Spalte {expected.Name}.{missing} fehlt.");
             }
 
+            foreach (var ignored in actualColumns
+                .Except(expectedColumns, StringComparer.OrdinalIgnoreCase)
+                .Where(c => IsIgnoredRestoreColumn(expected.Name, c))
+                .ToList())
+            {
+                table.Columns?.Remove(ignored);
+                actualColumns.Remove(ignored);
+            }
+
             foreach (var unexpected in actualColumns.Except(expectedColumns, StringComparer.OrdinalIgnoreCase))
                 errors.Add($"Spalte {expected.Name}.{unexpected} ist unbekannt.");
 
@@ -457,7 +474,10 @@ public sealed class VideoWebPlayerBackupData : IBackupData
                     continue;
                 }
 
-                var unknownRowColumns = rows[rowIndex].Keys.Except(expectedColumns, StringComparer.OrdinalIgnoreCase).ToList();
+                var unknownRowColumns = rows[rowIndex].Keys
+                    .Except(expectedColumns, StringComparer.OrdinalIgnoreCase)
+                    .Where(k => !IsIgnoredRestoreColumn(expected.Name, k))
+                    .ToList();
                 foreach (var unknown in unknownRowColumns)
                     errors.Add($"Zeile {rowIndex + 1} in Tabelle {expected.Name} enthält unbekannte Spalte {unknown}.");
             }
@@ -958,6 +978,9 @@ public sealed class VideoWebPlayerBackupData : IBackupData
 
     private static bool IsOptionalRestoreColumn(string tableName, string columnName)
         => OptionalRestoreColumns.Contains($"{tableName}.{columnName}");
+
+    private static bool IsIgnoredRestoreColumn(string tableName, string columnName)
+        => IgnoredRestoreColumns.Contains($"{tableName}.{columnName}");
 
     private static bool IsSafeFileEntryName(string entryName)
     {

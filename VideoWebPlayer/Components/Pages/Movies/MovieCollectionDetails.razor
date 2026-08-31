@@ -1,4 +1,5 @@
-﻿@using VideoWebPlayer.Components.Shared.Media
+﻿@using VideoWebPlayer.Client.Models
+@using VideoWebPlayer.Components.Shared.Media
 @page "/moviecollection/{Id:long}"
 @using Microsoft.AspNetCore.Components.Web
 @using Microsoft.AspNetCore.Components.Authorization
@@ -22,6 +23,10 @@ else if (selectedMovie != null)
         <button class="favorite-btn" @onclick="() => ToggleFavorite(selectedMovie)" title="Film als Favorit markieren">
             @((IsMovieFavorite) ? "★" : "☆")
         </button>
+        @if (collection?.Movies?.Length == 1)
+        {
+            <UnlockButton Entry="collection" IsUnlocked="IsCollectionUnlocked" IsUnlockedChanged="OnCollectionUnlockedChanged" />
+        }
         @RenderActionButtons()
         <div class="collection-header-overlay">
             @if (collection?.Movies?.Length > 1)
@@ -77,6 +82,8 @@ else if (selectedMovie != null)
                      StartPositionSeconds="@(resumeSeconds)"
                      PositionChanged="OnPositionChanged" />
     }
+
+    <ActorList Actors="movieActors" />
 }
 else
 {
@@ -161,6 +168,7 @@ else
 
     private DtoMovieCollection? collection;
     private DtoMovie? selectedMovie;
+    private List<ActorDto> movieActors = new();
     private List<DtoGenreOption> genreOptions = [];
     private bool showPlayer;
     private bool isAuthenticated;
@@ -217,7 +225,11 @@ else
         IsCollectionUnlocked = collection.IsUnlocked;
         IsCollectionFavorite = await CheckIfFavorite(collectionId: collection, movieId: null);
 
-        if (MovieId.HasValue && collection?.Movies != null)
+        if (collection.Movies?.Length == 1)
+        {
+            await SelectMovieCoreAsync(collection.Movies[0], false);
+        }
+        else if (MovieId.HasValue && collection?.Movies != null)
         {
             var movie = collection.Movies.FirstOrDefault(m => m.Id == MovieId.Value);
             if (movie != null)
@@ -349,6 +361,7 @@ else
         resumeSeconds = 0;
         showPlayer = false;
         IsMovieFavorite = await CheckIfFavorite(collectionId: null, movieId: selectedMovie);
+        movieActors = (await Client.RequestActorsByMovieAsync(movie.Id)).ToList();
         if (editAfterSwitch)
             BeginEdit(movie);
     }
@@ -363,6 +376,7 @@ else
         => await RunWithDirtyCheckAsync(() =>
         {
             selectedMovie = null;
+            movieActors = new();
             showPlayer = false;
             if (isEditing && collection is not null)
                 BeginEdit(collection);

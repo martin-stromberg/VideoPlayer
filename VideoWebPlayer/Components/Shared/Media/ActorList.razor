@@ -1,0 +1,39 @@
+@using VideoWebPlayer.Client
+@using VideoWebPlayer.Client.Models
+@using VideoWebPlayer.Components.Shared.Media
+@inject VideoWebPlayerClient Client
+
+@if (Actors is { Count: > 0 })
+{
+    @if (!string.IsNullOrWhiteSpace(Title))
+    {
+        <h4 class="mt-4 mb-2">@Title</h4>
+    }
+    <div class="media-row">
+        @foreach (var actor in OrderedActors)
+        {
+            <MediaBox Title="@actor.Name"
+                      Subtitle="@actor.Role"
+                      ImageUrl="@GetActorPictureUrl(actor.PictureUrl)"
+                      LinkUrl="@($"/actors/{actor.Id}")" />
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public IReadOnlyList<ActorDto> Actors { get; set; } = Array.Empty<ActorDto>();
+    [Parameter] public string? Title { get; set; } = "Schauspieler";
+
+    private IEnumerable<ActorDto> OrderedActors
+        => Actors
+            .OrderBy(a => a.Order)
+            .ThenBy(a => a.Name);
+
+    private string GetActorPictureUrl(string? pictureUrl)
+        => !string.IsNullOrWhiteSpace(pictureUrl) && !string.IsNullOrWhiteSpace(Client.AuthorizationToken)
+            ? $"{pictureUrl}?access_token={Client.AuthorizationToken}"
+            : "/images/placeholder.png";
+
+    private static bool HasPicture(string? pictureUrl)
+        => !string.IsNullOrWhiteSpace(pictureUrl);
+}

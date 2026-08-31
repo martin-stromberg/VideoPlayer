@@ -15,7 +15,7 @@ namespace VideoWebPlayer.Data.Configurations
 
             builder
                 .HasOne(x => x.TVShowEpisode)
-                .WithMany()
+                .WithMany(e => e.TVShowEpisodeMediaItems)
                 .HasForeignKey(x => x.TVShowEpisodeId);
 
             builder

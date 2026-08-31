@@ -103,7 +103,7 @@ public sealed class MovieCollectionEditE2ETests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Admin_Can_Edit_And_Save_MovieCollection_Title()
+    public async Task Admin_Can_Edit_And_Save_Single_Movie_Title()
     {
         if (_skipBrowser)
             return;
@@ -119,18 +119,7 @@ public sealed class MovieCollectionEditE2ETests : IAsyncLifetime
         // Wait for Blazor Server to become interactive.
         await _page.WaitForTimeoutAsync(3000);
 
-        // Verify the initial collection title is displayed.
-        await Expect(_page.Locator("h1")).ToHaveTextAsync("Test Movie Collection");
-
-        const string newCollectionTitle = "Updated Movie Collection";
-        await SaveTitleAsync(newCollectionTitle);
-        await Expect(_page.Locator("h1")).ToHaveTextAsync(newCollectionTitle);
-
-        // Select the only movie to test editing a single movie's metadata.
-        var movieBox = _page.Locator(".media-box").First;
-        await movieBox.ClickAsync();
-        await _page.WaitForTimeoutAsync(1000);
-
+        // A single-movie collection opens the movie detail directly.
         await Expect(_page.Locator("h1")).ToHaveTextAsync("Test Movie");
 
         const string newMovieTitle = "Updated Test Movie";

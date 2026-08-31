@@ -256,6 +256,77 @@ namespace VideoWebPlayer.Client
         }
         #endregion
 
+        #region Actors
+        public async Task<IEnumerable<ActorDto>> RequestActorsAsync(string? search = null, string? sort = null, string? filter = null)
+        {
+            try
+            {
+                var query = new List<string>();
+                if (!string.IsNullOrWhiteSpace(search))
+                    query.Add($"search={Uri.EscapeDataString(search)}");
+                if (!string.IsNullOrWhiteSpace(sort))
+                    query.Add($"sort={Uri.EscapeDataString(sort)}");
+                if (!string.IsNullOrWhiteSpace(filter))
+                    query.Add($"filter={Uri.EscapeDataString(filter)}");
+                var url = "api/Actors" + (query.Count > 0 ? $"?{string.Join("&", query)}" : string.Empty);
+                return await HttpGetAsync<ActorDto[]>(url);
+            }
+            catch
+            {
+                return new ActorDto[0];
+            }
+        }
+
+        public async Task<ActorDetailsDto?> RequestActorAsync(long actorId)
+        {
+            try
+            {
+                return await HttpGetAsync<ActorDetailsDto>($"api/Actors/{actorId}");
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        public async Task<IEnumerable<ActorDto>> RequestActorsByMovieAsync(long movieId)
+        {
+            try
+            {
+                return await HttpGetAsync<ActorDto[]>($"api/Actors/by-movie/{movieId}");
+            }
+            catch
+            {
+                return new ActorDto[0];
+            }
+        }
+
+        public async Task<IEnumerable<ActorDto>> RequestActorsByEpisodeAsync(long episodeId)
+        {
+            try
+            {
+                return await HttpGetAsync<ActorDto[]>($"api/Actors/by-episode/{episodeId}");
+            }
+            catch
+            {
+                return new ActorDto[0];
+            }
+        }
+
+        public async Task<IEnumerable<string>> RequestActorFiltersAsync(string? sort = null)
+        {
+            try
+            {
+                var query = !string.IsNullOrWhiteSpace(sort) ? $"?sort={Uri.EscapeDataString(sort)}" : string.Empty;
+                return await HttpGetAsync<string[]>($"api/Actors/filters{query}");
+            }
+            catch
+            {
+                return new string[0];
+            }
+        }
+        #endregion
+
         #region Recent Entries
         public async Task<IEnumerable<DtoRecentEntry>> RequestRecentEntriesAsync()
         {

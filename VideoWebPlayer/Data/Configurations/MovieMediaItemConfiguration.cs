@@ -15,7 +15,7 @@ namespace VideoWebPlayer.Data.Configurations
 
             builder
                 .HasOne(x => x.Movie)
-                .WithMany()
+                .WithMany(m => m.MovieMediaItems)
                 .HasForeignKey(x => x.MovieId);
 
             builder

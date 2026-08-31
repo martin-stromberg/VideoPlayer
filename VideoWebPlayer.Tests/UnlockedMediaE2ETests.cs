@@ -124,7 +124,8 @@ public sealed class UnlockedMediaE2ETests : IAsyncLifetime
         await _page.GotoAsync($"{_serverUrl}/moviecollection/1");
         await _page.WaitForLoadStateAsync(LoadState.NetworkIdle);
         await _page.WaitForTimeoutAsync(1000);
-        await Expect(_page.Locator("h1")).ToHaveTextAsync("Test Movie Collection");
+        // A single-movie collection opens the movie detail directly.
+        await Expect(_page.Locator("h1")).ToHaveTextAsync("Test Movie");
     }
 
     private async Task LoginAsync(string email)

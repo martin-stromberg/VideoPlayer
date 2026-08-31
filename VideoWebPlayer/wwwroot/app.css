@@ -1017,6 +1017,22 @@ input[type="text"]:focus {
     overflow: hidden;
 }
 
+.media-titles {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+}
+
+.media-subtitle-text {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: 0.82em;
+    font-weight: 500;
+    opacity: 0.85;
+}
+
 .media-quick-play {
     position: absolute;
     left: 0.8rem;

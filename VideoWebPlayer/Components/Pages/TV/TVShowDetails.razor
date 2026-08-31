@@ -1,4 +1,5 @@
-﻿@using VideoWebPlayer.Components.Shared.Media
+﻿@using VideoWebPlayer.Client.Models
+@using VideoWebPlayer.Components.Shared.Media
 @page "/tvshow/{Id:long}"
 @using Microsoft.AspNetCore.Components
 @using Microsoft.AspNetCore.Components.Web
@@ -168,6 +169,8 @@ else
         }
     </div>
 
+    <ActorList Actors="episodeActors" />
+
     @if (showPlayer && selectedEpisode != null)
     {
         <VideoPlayer @ref="_player"
@@ -204,6 +207,7 @@ else
     private DtoTVShow? show;
     private DtoTVShowSeason? selectedSeason;
     private DtoTVShowEpisode? selectedEpisode;
+    private List<ActorDto> episodeActors = new();
     private List<DtoGenreOption> genreOptions = [];
     private bool showSeasonInfo;
     private bool showPlayer;
@@ -276,7 +280,10 @@ else
         {
             var episode = selectedSeason.Episodes.FirstOrDefault(e => e.Id == EpisodeId.Value);
             if (episode != null)
+            {
                 selectedEpisode = episode;
+                episodeActors = (await Client.RequestActorsByEpisodeAsync(episode.Id)).ToList();
+            }
         }
 
         if (Position.HasValue && selectedEpisode is not null)
@@ -407,6 +414,10 @@ else
     {
         selectedSeason = season;
         selectedEpisode = editAfterSwitch ? null : season.Episodes?.OrderBy(e => e.Number).FirstOrDefault();
+        if (selectedEpisode is not null)
+            episodeActors = (await Client.RequestActorsByEpisodeAsync(selectedEpisode.Id)).ToList();
+        else
+            episodeActors = new();
         resumeSeconds = 0;
         showSeasonInfo = true;
         showPlayer = false;
@@ -423,6 +434,7 @@ else
         resumeSeconds = 0;
         selectedEpisode = episode;
         showPlayer = false;
+        episodeActors = (await Client.RequestActorsByEpisodeAsync(episode.Id)).ToList();
         await UpdateFavoriteMark();
         if (editAfterSwitch)
             BeginEdit(episode);
@@ -438,6 +450,7 @@ else
         => await RunWithDirtyCheckAsync(async () =>
         {
             selectedEpisode = null;
+            episodeActors = new();
             showSeasonInfo = true;
             await UpdateFavoriteMark();
             if (isEditing && selectedSeason is not null)

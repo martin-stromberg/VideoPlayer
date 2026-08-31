@@ -289,6 +289,30 @@ namespace VideoWebPlayer.Client
             }
         }
 
+        public async Task<IEnumerable<ActorDto>> RequestActorsByMovieAsync(long movieId)
+        {
+            try
+            {
+                return await HttpGetAsync<ActorDto[]>($"api/Actors/by-movie/{movieId}");
+            }
+            catch
+            {
+                return new ActorDto[0];
+            }
+        }
+
+        public async Task<IEnumerable<ActorDto>> RequestActorsByEpisodeAsync(long episodeId)
+        {
+            try
+            {
+                return await HttpGetAsync<ActorDto[]>($"api/Actors/by-episode/{episodeId}");
+            }
+            catch
+            {
+                return new ActorDto[0];
+            }
+        }
+
         public async Task<IEnumerable<string>> RequestActorFiltersAsync(string? sort = null)
         {
             try

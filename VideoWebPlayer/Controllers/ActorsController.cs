@@ -166,6 +166,96 @@ namespace VideoWebPlayer.Controllers
         }
 
         /// <summary>
+        /// Gets actors for a specific movie.
+        /// </summary>
+        [HttpGet("by-movie/{movieId:long}")]
+        public async Task<IActionResult> GetActorsForMovie(long movieId)
+        {
+            try
+            {
+                CheckLoggedIn();
+
+                var allowedSourceIds = await GetAllowedSourceIdsAsync();
+
+                var movieExists = await _db.Movies
+                    .AsNoTracking()
+                    .AnyAsync(m => m.Id == movieId);
+
+                if (!movieExists)
+                    return NotFound("Film nicht gefunden.");
+
+                var actors = await _db.MovieActors
+                    .AsNoTracking()
+                    .Where(ma => ma.MovieId == movieId && allowedSourceIds.Contains(ma.Movie.MediaSourceId))
+                    .OrderBy(ma => ma.Actor.NormalizedName)
+                    .Select(ma => new ActorDto
+                    {
+                        Id = ma.Actor.Id,
+                        Name = ma.Actor.Name,
+                        PictureUrl = ma.Actor.PictureId.HasValue ? $"/api/pictures/{ma.Actor.PictureId}" : null
+                    })
+                    .ToListAsync();
+
+                return Ok(actors);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                Logger.LogWarning(ex, "Zugriff verweigert beim Abrufen der Schauspieler eines Films");
+                return Unauthorized(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Fehler beim Abrufen der Schauspieler eines Films");
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        /// <summary>
+        /// Gets actors for a specific episode.
+        /// </summary>
+        [HttpGet("by-episode/{episodeId:long}")]
+        public async Task<IActionResult> GetActorsForEpisode(long episodeId)
+        {
+            try
+            {
+                CheckLoggedIn();
+
+                var allowedSourceIds = await GetAllowedSourceIdsAsync();
+
+                var episodeExists = await _db.TVShowEpisodes
+                    .AsNoTracking()
+                    .AnyAsync(e => e.Id == episodeId);
+
+                if (!episodeExists)
+                    return NotFound("Episode nicht gefunden.");
+
+                var actors = await _db.TVShowEpisodeActors
+                    .AsNoTracking()
+                    .Where(ea => ea.TVShowEpisodeId == episodeId && allowedSourceIds.Contains(ea.TVShowEpisode.TVShowSeason.TVShow.MediaSourceId))
+                    .OrderBy(ea => ea.Actor.NormalizedName)
+                    .Select(ea => new ActorDto
+                    {
+                        Id = ea.Actor.Id,
+                        Name = ea.Actor.Name,
+                        PictureUrl = ea.Actor.PictureId.HasValue ? $"/api/pictures/{ea.Actor.PictureId}" : null
+                    })
+                    .ToListAsync();
+
+                return Ok(actors);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                Logger.LogWarning(ex, "Zugriff verweigert beim Abrufen der Schauspieler einer Episode");
+                return Unauthorized(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Fehler beim Abrufen der Schauspieler einer Episode");
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        /// <summary>
         /// Gets filter options for the current actor sort mode.
         /// </summary>
         [HttpGet("filters")]

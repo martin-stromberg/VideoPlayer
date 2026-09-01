@@ -128,6 +128,100 @@ public class ActorsControllerTests
     }
 
     [Fact]
+    public async Task GetActors_Aggregated_Video_Counts_Match_Details()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var connectionString = CreateConnectionString();
+        using var keeperConnection = new SqliteConnection(connectionString);
+        keeperConnection.Open();
+
+        var userId = Guid.NewGuid().ToString();
+        var user = new ApplicationUser { Id = userId, UserName = "regular@test.com" };
+        var fakeAuth = new FakeAuthService { CurrentUser = user };
+
+        var services = new ServiceCollection();
+        services.AddSingleton<EventManager>();
+        services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(connectionString));
+        services.AddSingleton<IAuthService>(fakeAuth);
+        services.AddScoped<IUnlockedMediaService, UnlockedMediaService>();
+
+        var serviceProvider = services.BuildServiceProvider();
+
+        using var scope = serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await db.Database.EnsureCreatedAsync(ct);
+
+        db.Users.Add(user);
+
+        var source = new MediaSource { Name = "Test Source", Path = "/test", Host = "localhost", Port = 22 };
+        db.MediaSources.Add(source);
+        await db.SaveChangesAsync(ct);
+
+        db.MediaSourceUsers.Add(new MediaSourceUser { UserId = userId, MediaSourceId = source.Id });
+
+        var allInCollection = new MovieCollection { Name = "All Movies", MediaSourceId = source.Id };
+        var thresholdCollection = new MovieCollection { Name = "Threshold Movies", MediaSourceId = source.Id };
+        var singleMovieCollection = new MovieCollection { Name = "Single Movie", MediaSourceId = source.Id };
+        db.MovieCollections.AddRange(allInCollection, thresholdCollection, singleMovieCollection);
+
+        var showAll = new TVShow { Name = "Show All", MediaSourceId = source.Id };
+        var showPartial = new TVShow { Name = "Show Partial", MediaSourceId = source.Id };
+        db.TVShows.AddRange(showAll, showPartial);
+        await db.SaveChangesAsync(ct);
+
+        var allSeason = new TVShowSeason { Name = "Staffel 1", TVShowId = showAll.Id };
+        var partialSeasonA = new TVShowSeason { Name = "Staffel 1", TVShowId = showPartial.Id };
+        var partialSeasonB = new TVShowSeason { Name = "Staffel 2", TVShowId = showPartial.Id };
+        db.TVShowSeasons.AddRange(allSeason, partialSeasonA, partialSeasonB);
+        await db.SaveChangesAsync(ct);
+
+        var movies = new[]
+        {
+            new Movie { Name = "Alpha", MediaSourceId = source.Id, MovieCollectionId = allInCollection.Id },
+            new Movie { Name = "Beta", MediaSourceId = source.Id, MovieCollectionId = allInCollection.Id },
+            new Movie { Name = "Gamma", MediaSourceId = source.Id, MovieCollectionId = allInCollection.Id },
+            new Movie { Name = "One", MediaSourceId = source.Id, MovieCollectionId = thresholdCollection.Id },
+            new Movie { Name = "Two", MediaSourceId = source.Id, MovieCollectionId = thresholdCollection.Id },
+            new Movie { Name = "Three", MediaSourceId = source.Id, MovieCollectionId = thresholdCollection.Id },
+            new Movie { Name = "Standalone", MediaSourceId = source.Id, MovieCollectionId = singleMovieCollection.Id }
+        };
+        db.Movies.AddRange(movies);
+
+        var episodes = new[]
+        {
+            new TVShowEpisode { Name = "A1", Number = 1, TVShowSeasonId = allSeason.Id },
+            new TVShowEpisode { Name = "A2", Number = 2, TVShowSeasonId = allSeason.Id },
+            new TVShowEpisode { Name = "P1", Number = 1, TVShowSeasonId = partialSeasonA.Id },
+            new TVShowEpisode { Name = "P2", Number = 2, TVShowSeasonId = partialSeasonA.Id },
+            new TVShowEpisode { Name = "P3", Number = 1, TVShowSeasonId = partialSeasonB.Id },
+            new TVShowEpisode { Name = "P4", Number = 2, TVShowSeasonId = partialSeasonB.Id }
+        };
+        db.TVShowEpisodes.AddRange(episodes);
+
+        var actor = new Actor { Name = "Test Actor", NormalizedName = "TEST ACTOR", CreatedAt = DateTime.UtcNow };
+        db.Actors.Add(actor);
+        await db.SaveChangesAsync(ct);
+
+        db.MovieActors.AddRange(movies.Take(5).Select(m => new MovieActor { ActorId = actor.Id, MovieId = m.Id }));
+        db.MovieActors.Add(new MovieActor { ActorId = actor.Id, MovieId = movies[6].Id });
+
+        db.TVShowEpisodeActors.AddRange(episodes.Take(2).Select(e => new TVShowEpisodeActor { ActorId = actor.Id, TVShowEpisodeId = e.Id }));
+        db.TVShowEpisodeActors.AddRange(episodes.Skip(2).Take(2).Select(e => new TVShowEpisodeActor { ActorId = actor.Id, TVShowEpisodeId = e.Id }));
+        db.TVShowEpisodeActors.Add(new TVShowEpisodeActor { ActorId = actor.Id, TVShowEpisodeId = episodes[4].Id });
+        await db.SaveChangesAsync(ct);
+
+        var unlockedMediaService = scope.ServiceProvider.GetRequiredService<IUnlockedMediaService>();
+        var controller = new ActorsController(fakeAuth, db, unlockedMediaService, NullLogger<ActorsController>.Instance);
+        var result = await controller.GetActors(null, "count");
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        var actors = Assert.IsAssignableFrom<IEnumerable<ActorDto>>(okResult.Value).ToList();
+
+        Assert.Single(actors);
+        Assert.Equal(6, actors[0].VideoCount);
+    }
+
+    [Fact]
     public async Task GetActors_Excludes_Actors_From_Inaccessible_Sources()
     {
         var ct = TestContext.Current.CancellationToken;

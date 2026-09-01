@@ -43,20 +43,12 @@ namespace VideoWebPlayer.Controllers
                 if (allowedSourceIds.Count == 0)
                     return Ok(Array.Empty<ActorDto>());
 
-                var actorIdsInSources = await _db.MovieActors
-                    .Where(ma => allowedSourceIds.Contains(ma.Movie.MediaSourceId))
-                    .Select(ma => ma.ActorId)
-                    .Union(
-                        _db.TVShowEpisodeActors
-                            .Where(ea => allowedSourceIds.Contains(ea.TVShowEpisode.TVShowSeason.TVShow.MediaSourceId))
-                            .Select(ea => ea.ActorId))
-                    .ToListAsync();
-
                 var actorVideoCounts = await GetActorVideoCountsAsync(allowedSourceIds);
 
                 var query = _db.Actors
                     .AsNoTracking()
-                    .Where(a => actorIdsInSources.Contains(a.Id));
+                    .Where(a => _db.MovieActors.Any(ma => ma.ActorId == a.Id && allowedSourceIds.Contains(ma.Movie.MediaSourceId)) ||
+                        _db.TVShowEpisodeActors.Any(ea => ea.ActorId == a.Id && allowedSourceIds.Contains(ea.TVShowEpisode.TVShowSeason.TVShow.MediaSourceId)));
 
                 if (!string.IsNullOrWhiteSpace(search))
                 {
@@ -309,15 +301,6 @@ namespace VideoWebPlayer.Controllers
                 if (allowedSourceIds.Count == 0)
                     return Ok(Array.Empty<string>());
 
-                var actorIds = await _db.MovieActors
-                    .Where(ma => allowedSourceIds.Contains(ma.Movie.MediaSourceId))
-                    .Select(ma => ma.ActorId)
-                    .Union(
-                        _db.TVShowEpisodeActors
-                            .Where(ea => allowedSourceIds.Contains(ea.TVShowEpisode.TVShowSeason.TVShow.MediaSourceId))
-                            .Select(ea => ea.ActorId))
-                    .ToListAsync();
-
                 if (string.Equals(sort, "count", StringComparison.OrdinalIgnoreCase))
                 {
                     var actorVideoCounts = await GetActorVideoCountsAsync(allowedSourceIds);
@@ -330,7 +313,8 @@ namespace VideoWebPlayer.Controllers
 
                 var initials = await _db.Actors
                     .AsNoTracking()
-                    .Where(a => actorIds.Contains(a.Id))
+                    .Where(a => _db.MovieActors.Any(ma => ma.ActorId == a.Id && allowedSourceIds.Contains(ma.Movie.MediaSourceId)) ||
+                        _db.TVShowEpisodeActors.Any(ea => ea.ActorId == a.Id && allowedSourceIds.Contains(ea.TVShowEpisode.TVShowSeason.TVShow.MediaSourceId)))
                     .Select(a => a.NormalizedName.Substring(0, 1))
                     .Distinct()
                     .OrderBy(c => c)

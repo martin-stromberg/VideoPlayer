@@ -30,12 +30,12 @@ public class FavoritesServiceContextMenuActionTests : ContinueWatchingServiceTes
 
         _db.FavoriteEntries.Add(target);
         _db.FavoriteEntries.Add(decoy);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        await service.RemoveFavoriteAsync(_testUserId, new FavoriteEntry { UserId = string.Empty, Id = target.Id });
+        await service.RemoveFavoriteAsync(_testUserId, new FavoriteEntry { UserId = string.Empty, Id = target.Id }, TestContext.Current.CancellationToken);
 
-        Assert.False(await _db.FavoriteEntries.AnyAsync(f => f.Id == target.Id));
-        Assert.True(await _db.FavoriteEntries.AnyAsync(f => f.Id == decoy.Id));
+        Assert.False(await _db.FavoriteEntries.AnyAsync(f => f.Id == target.Id, TestContext.Current.CancellationToken));
+        Assert.True(await _db.FavoriteEntries.AnyAsync(f => f.Id == decoy.Id, TestContext.Current.CancellationToken));
     }
 
     private static FavoriteEntry CopyFavorite(FavoriteEntry source, string userId)

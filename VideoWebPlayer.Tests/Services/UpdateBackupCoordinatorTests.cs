@@ -35,7 +35,7 @@ public class UpdateBackupCoordinatorTests : IDisposable
     {
         var coordinator = CreateCoordinator(new UpdateBackupOptions(), backupService: null);
 
-        var mayProceed = await coordinator.CreateBackupAsync("test");
+        var mayProceed = await coordinator.CreateBackupAsync("test", TestContext.Current.CancellationToken);
 
         Assert.False(mayProceed);
     }
@@ -46,7 +46,7 @@ public class UpdateBackupCoordinatorTests : IDisposable
         var options = new UpdateBackupOptions { CancelInstallationOnFailure = false };
         var coordinator = CreateCoordinator(options, backupService: null);
 
-        var mayProceed = await coordinator.CreateBackupAsync("test");
+        var mayProceed = await coordinator.CreateBackupAsync("test", TestContext.Current.CancellationToken);
 
         Assert.True(mayProceed);
     }
@@ -57,7 +57,7 @@ public class UpdateBackupCoordinatorTests : IDisposable
         var backupService = new Mock<IUpdateBackupService>(MockBehavior.Strict);
         var coordinator = CreateCoordinator(new UpdateBackupOptions { Enabled = false }, backupService.Object);
 
-        var mayProceed = await coordinator.CreateBackupAsync("test");
+        var mayProceed = await coordinator.CreateBackupAsync("test", TestContext.Current.CancellationToken);
 
         Assert.True(mayProceed);
         backupService.Verify(
@@ -79,7 +79,7 @@ public class UpdateBackupCoordinatorTests : IDisposable
 
         var coordinator = CreateCoordinator(new UpdateBackupOptions { Path = "Sicherungen" }, backupService);
 
-        var mayProceed = await coordinator.CreateBackupAsync("test");
+        var mayProceed = await coordinator.CreateBackupAsync("test", TestContext.Current.CancellationToken);
 
         Assert.True(mayProceed);
         Assert.Equal(Path.Combine(_contentRoot, "Sicherungen"), requestedDirectory);
@@ -102,7 +102,7 @@ public class UpdateBackupCoordinatorTests : IDisposable
 
         var coordinator = CreateCoordinator(new UpdateBackupOptions { Path = configuredPath }, backupService);
 
-        var mayProceed = await coordinator.CreateBackupAsync("test");
+        var mayProceed = await coordinator.CreateBackupAsync("test", TestContext.Current.CancellationToken);
 
         Assert.True(mayProceed);
         Assert.Equal(Path.Combine(_contentRoot, configuredPath), requestedDirectory);
@@ -126,7 +126,7 @@ public class UpdateBackupCoordinatorTests : IDisposable
 
         var coordinator = CreateCoordinator(new UpdateBackupOptions { RetainedBackupCount = 2 }, backupService);
 
-        var mayProceed = await coordinator.CreateBackupAsync("test");
+        var mayProceed = await coordinator.CreateBackupAsync("test", TestContext.Current.CancellationToken);
 
         Assert.True(mayProceed);
         var remaining = Directory.GetFiles(backupDirectory).Select(Path.GetFileName).ToArray();
@@ -143,7 +143,7 @@ public class UpdateBackupCoordinatorTests : IDisposable
         var backupService = CreateBackupService(_ => throw new IOException("Datenträger voll"));
         var coordinator = CreateCoordinator(new UpdateBackupOptions(), backupService);
 
-        var mayProceed = await coordinator.CreateBackupAsync("test");
+        var mayProceed = await coordinator.CreateBackupAsync("test", TestContext.Current.CancellationToken);
 
         Assert.False(mayProceed);
     }
@@ -154,7 +154,7 @@ public class UpdateBackupCoordinatorTests : IDisposable
         var backupService = CreateBackupService(_ => UpdateBackupResult.Failure("kein Platz"));
         var coordinator = CreateCoordinator(new UpdateBackupOptions(), backupService);
 
-        var mayProceed = await coordinator.CreateBackupAsync("test");
+        var mayProceed = await coordinator.CreateBackupAsync("test", TestContext.Current.CancellationToken);
 
         Assert.False(mayProceed);
     }

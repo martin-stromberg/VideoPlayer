@@ -49,7 +49,7 @@ public sealed class EpisodesBackgroundImageAccessTokenE2ETests : IDisposable
         var (episodeId, token) = await CreateAuthenticatedEpisodeWithGeneratedBackgroundAsync();
         var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
 
-        var response = await client.GetAsync($"/api/episodes/{episodeId}/background-image?access_token={token}");
+        var response = await client.GetAsync($"/api/episodes/{episodeId}/background-image?access_token={token}", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
@@ -60,7 +60,7 @@ public sealed class EpisodesBackgroundImageAccessTokenE2ETests : IDisposable
         var (episodeId, _) = await CreateAuthenticatedEpisodeWithGeneratedBackgroundAsync();
         var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
 
-        var response = await client.GetAsync($"/api/episodes/{episodeId}/background-image");
+        var response = await client.GetAsync($"/api/episodes/{episodeId}/background-image", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }

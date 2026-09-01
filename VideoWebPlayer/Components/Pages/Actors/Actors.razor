@@ -7,6 +7,7 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 @rendermode InteractiveServer
+@implements IAsyncDisposable
 
 <PageTitle>Schauspieler</PageTitle>
 
@@ -34,7 +35,7 @@
     }
 </div>
 
-@if (actors is null)
+@if (isLoading && !actors.Any())
 {
     <p>Lade Schauspieler...</p>
 }
@@ -52,24 +53,76 @@ else
                       LinkUrl="@($"/actors/{actor.Id}")" />
         }
     </div>
+    @if (isLoading)
+    {
+        <p class="text-center mt-2">Weitere Schauspieler werden geladen...</p>
+    }
+    <div @ref="sentinel" id="actors-sentinel" style="height: 1px; width: 1px; margin-top: 20px;"></div>
 }
 
 @code {
     private const string SortKey = "actors.sort";
+    private const int PageSize = 50;
     private string searchTerm = string.Empty;
     private string sortMode = "alphabetical";
     private string selectedFilter = string.Empty;
     private List<string> filterOptions = new();
-    private List<ActorDto>? actors;
+    private List<ActorDto> actors = new();
+    private int offset;
+    private bool isLoading;
+    private bool hasMore = true;
+    private bool hasConnectedObserver;
+    private ElementReference sentinel;
+    private DotNetObjectReference<Actors>? dotNetHelper;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender)
+        if (firstRender && !hasConnectedObserver)
         {
-            sortMode = await JS.InvokeAsync<string?>("localStorage.getItem", SortKey) ?? "alphabetical";
-            await LoadFiltersAsync();
-            await LoadActorsAsync();
-            StateHasChanged();
+            try
+            {
+                sortMode = await JS.InvokeAsync<string?>("localStorage.getItem", SortKey) ?? "alphabetical";
+                await LoadFiltersAsync();
+                await ResetAndLoadAsync();
+                dotNetHelper = DotNetObjectReference.Create(this);
+                await JS.InvokeVoidAsync("observeBottom", sentinel, dotNetHelper);
+                hasConnectedObserver = true;
+            }
+            catch (Exception ex) when (ex is InvalidOperationException || ex is JSDisconnectedException)
+            {
+                // Still pre-rendering or the JS runtime is not available.
+            }
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnBottomVisible()
+    {
+        if (isLoading || !hasMore)
+            return;
+
+        await LoadActorsAsync(append: true);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (dotNetHelper is not null)
+        {
+            dotNetHelper.Dispose();
+            dotNetHelper = null;
+        }
+
+        if (hasConnectedObserver)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("disconnectMediaSourceBottomObserver");
+            }
+            catch (Exception ex) when (ex is InvalidOperationException || ex is JSDisconnectedException)
+            {
+                // JS runtime is no longer available.
+            }
+            hasConnectedObserver = false;
         }
     }
 
@@ -78,12 +131,43 @@ else
         filterOptions = (await Client.RequestActorFiltersAsync(sortMode)).ToList();
     }
 
-    private async Task LoadActorsAsync()
+    private async Task ResetAndLoadAsync()
     {
-        actors = (await Client.RequestActorsAsync(
-            string.IsNullOrWhiteSpace(searchTerm) ? null : searchTerm,
-            sortMode,
-            string.IsNullOrWhiteSpace(selectedFilter) ? null : selectedFilter)).ToList();
+        offset = 0;
+        actors = new List<ActorDto>();
+        hasMore = true;
+        await LoadActorsAsync();
+    }
+
+    private async Task LoadActorsAsync(bool append = false)
+    {
+        if (isLoading)
+            return;
+
+        isLoading = true;
+        try
+        {
+            var newActors = (await Client.RequestActorsAsync(
+                string.IsNullOrWhiteSpace(searchTerm) ? null : searchTerm,
+                sortMode,
+                string.IsNullOrWhiteSpace(selectedFilter) ? null : selectedFilter,
+                offset,
+                PageSize)).ToList();
+
+            if (!append)
+                actors = newActors;
+            else
+                actors.AddRange(newActors);
+
+            offset += newActors.Count;
+            hasMore = newActors.Count == PageSize;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+
+        StateHasChanged();
     }
 
     private async Task SetSortModeAsync(string mode)
@@ -95,7 +179,7 @@ else
         selectedFilter = string.Empty;
         await JS.InvokeVoidAsync("localStorage.setItem", SortKey, sortMode);
         await LoadFiltersAsync();
-        await LoadActorsAsync();
+        await ResetAndLoadAsync();
     }
 
     private Task SortByAlphabetical() => SetSortModeAsync("alphabetical");
@@ -106,19 +190,19 @@ else
 
     private async Task OnSearchChanged(KeyboardEventArgs e)
     {
-        await LoadActorsAsync();
+        await ResetAndLoadAsync();
     }
 
     private async Task SelectFilter(string option)
     {
         selectedFilter = option;
-        await LoadActorsAsync();
+        await ResetAndLoadAsync();
     }
 
     private async Task ClearFilter()
     {
         selectedFilter = string.Empty;
-        await LoadActorsAsync();
+        await ResetAndLoadAsync();
     }
 
     private string GetActorPictureUrl(string? pictureUrl)

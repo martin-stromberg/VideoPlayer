@@ -106,7 +106,7 @@ public class ActorsControllerTests
         var okResult = Assert.IsType<OkObjectResult>(result);
         var dto = Assert.IsType<ActorDetailsDto>(okResult.Value);
 
-        Assert.Equal(6, dto.Media.Count);
+        Assert.Equal(5, dto.Media.Count);
 
         var allEntry = Assert.Single(dto.Media, m => m.Type == "Filmsammlung" && m.Title == "All Movies");
         Assert.Equal("3 Filme", allEntry.Subtitle);
@@ -120,11 +120,8 @@ public class ActorsControllerTests
         var showAllEntry = Assert.Single(dto.Media, m => m.Type == "Serie" && m.Title == "Show All");
         Assert.Equal("2 Episoden", showAllEntry.Subtitle);
 
-        var staffelEntry = Assert.Single(dto.Media, m => m.Type == "Staffel" && m.Title == "Show Partial - Staffel 1");
-        Assert.Equal("2 Episoden", staffelEntry.Subtitle);
-
-        var episodeEntry = Assert.Single(dto.Media, m => m.Type == "Episode" && m.Title == "P3");
-        Assert.Equal("Show Partial - Staffel 2", episodeEntry.Subtitle);
+        var showPartialEntry = Assert.Single(dto.Media, m => m.Type == "Serie" && m.Title == "Show Partial");
+        Assert.Equal("3 Episoden", showPartialEntry.Subtitle);
     }
 
     [Fact]
@@ -218,7 +215,7 @@ public class ActorsControllerTests
         var actors = Assert.IsAssignableFrom<IEnumerable<ActorDto>>(okResult.Value).ToList();
 
         Assert.Single(actors);
-        Assert.Equal(6, actors[0].VideoCount);
+        Assert.Equal(5, actors[0].VideoCount);
     }
 
     [Fact]

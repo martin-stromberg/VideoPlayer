@@ -495,7 +495,8 @@ namespace VideoWebPlayer.Controllers
                     var showName = showEpisodes.First().ShowName;
                     var showId = showGroup.Key;
 
-                    if (showTotals.GetValueOrDefault(showId) == showEpisodes.Count)
+                    var showTotal = showTotals.GetValueOrDefault(showId);
+                    if (showTotal > 0 && (double)showEpisodes.Count / showTotal >= threshold)
                     {
                         result.Add(new ActorMediaEntryDto { Type = "Serie", Id = showId, Title = showName, Subtitle = $"{showEpisodes.Count} Episoden", PictureUrl = GetPictureUrl(showEpisodes.First().ShowPosterPictureId), LinkUrl = $"/tvshow/{showId}" });
                         continue;
@@ -506,8 +507,9 @@ namespace VideoWebPlayer.Controllers
                         var seasonName = seasonGroup.First().SeasonName;
                         var seasonEpisodes = seasonGroup.ToList();
                         var seasonId = seasonGroup.Key;
+                        var seasonTotal = seasonTotals.GetValueOrDefault(seasonId);
 
-                        if (seasonTotals.GetValueOrDefault(seasonId) == seasonEpisodes.Count)
+                        if (seasonTotal > 0 && (double)seasonEpisodes.Count / seasonTotal >= threshold)
                         {
                             result.Add(new ActorMediaEntryDto { Type = "Staffel", Id = seasonId, Title = $"{showName} - {seasonName}", Subtitle = $"{seasonEpisodes.Count} Episoden", PictureUrl = GetPictureUrl(seasonEpisodes.First().SeasonPosterPictureId), LinkUrl = $"/tvshow/{showId}?season={seasonId}" });
                             continue;
@@ -621,8 +623,9 @@ namespace VideoWebPlayer.Controllers
                 {
                     var showId = showGroup.Key;
                     var showEpisodes = showGroup.ToList();
+                    var showTotal = allShowTotals.GetValueOrDefault(showId);
 
-                    if (allShowTotals.GetValueOrDefault(showId) == showEpisodes.Count)
+                    if (showTotal > 0 && (double)showEpisodes.Count / showTotal >= threshold)
                     {
                         result += 1;
                         continue;
@@ -632,8 +635,9 @@ namespace VideoWebPlayer.Controllers
                     {
                         var seasonId = seasonGroup.Key;
                         var seasonEpisodes = seasonGroup.ToList();
+                        var seasonTotal = allSeasonTotals.GetValueOrDefault(seasonId);
 
-                        if (allSeasonTotals.GetValueOrDefault(seasonId) == seasonEpisodes.Count)
+                        if (seasonTotal > 0 && (double)seasonEpisodes.Count / seasonTotal >= threshold)
                         {
                             result += 1;
                             continue;

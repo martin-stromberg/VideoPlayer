@@ -30,14 +30,17 @@ namespace VideoWebPlayer.Controllers
         }
 
         /// <summary>
-        /// Gets actors, optionally filtered by search term and filter.
+        /// Gets actors, optionally filtered by search term and filter, paged by offset and limit.
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> GetActors([FromQuery] string? search = null, [FromQuery] string? sort = null, [FromQuery] string? filter = null)
+        public async Task<IActionResult> GetActors([FromQuery] string? search = null, [FromQuery] string? sort = null, [FromQuery] string? filter = null, [FromQuery] int offset = 0, [FromQuery] int limit = 50)
         {
             try
             {
                 CheckLoggedIn();
+
+                offset = Math.Max(0, offset);
+                limit = Math.Clamp(limit, 1, 200);
 
                 var allowedSourceIds = await GetAllowedSourceIdsAsync();
                 if (allowedSourceIds.Count == 0)
@@ -45,7 +48,7 @@ namespace VideoWebPlayer.Controllers
 
                 var actorVideoCounts = await GetActorVideoCountsAsync(allowedSourceIds);
 
-                var query = _db.Actors
+                var baseQuery = _db.Actors
                     .AsNoTracking()
                     .Where(a => _db.MovieActors.Any(ma => ma.ActorId == a.Id && allowedSourceIds.Contains(ma.Movie.MediaSourceId)) ||
                         _db.TVShowEpisodeActors.Any(ea => ea.ActorId == a.Id && allowedSourceIds.Contains(ea.TVShowEpisode.TVShowSeason.TVShow.MediaSourceId)));
@@ -53,43 +56,64 @@ namespace VideoWebPlayer.Controllers
                 if (!string.IsNullOrWhiteSpace(search))
                 {
                     var term = search.Trim().ToUpperInvariant();
-                    query = query.Where(a => a.NormalizedName.Contains(term));
+                    baseQuery = baseQuery.Where(a => a.NormalizedName.Contains(term));
                 }
-
-                var actors = await query
-                    .Select(a => new { a.Id, a.Name, a.NormalizedName, a.PictureId })
-                    .ToListAsync();
 
                 var isCountSort = string.Equals(sort, "count", StringComparison.OrdinalIgnoreCase);
 
-                if (!string.IsNullOrWhiteSpace(filter))
+                if (isCountSort)
                 {
-                    if (isCountSort)
+                    if (!string.IsNullOrWhiteSpace(filter))
                     {
                         var bucket = CountBuckets.FirstOrDefault(b => b.Label == filter);
                         if (bucket is not null)
                         {
-                            actors = actors
-                                .Where(a =>
-                                {
-                                    var count = actorVideoCounts.GetValueOrDefault(a.Id);
-                                    return count >= bucket.Min && (!bucket.Max.HasValue || count <= bucket.Max.Value);
-                                })
-                                .ToList();
+                            baseQuery = baseQuery.Where(a =>
+                                actorVideoCounts.ContainsKey(a.Id) &&
+                                actorVideoCounts[a.Id] >= bucket.Min &&
+                                (!bucket.Max.HasValue || actorVideoCounts[a.Id] <= bucket.Max.Value));
                         }
                     }
-                    else
-                    {
-                        var letter = filter.ToUpperInvariant()[0];
-                        actors = actors.Where(a => a.NormalizedName.StartsWith(letter.ToString(), StringComparison.OrdinalIgnoreCase)).ToList();
-                    }
+
+                    var paged = (await baseQuery
+                        .Select(a => new { a.Id, a.Name, a.NormalizedName, a.PictureId })
+                        .ToListAsync())
+                        .Select(a => new { a.Id, a.Name, a.NormalizedName, a.PictureId, Count = actorVideoCounts.GetValueOrDefault(a.Id) })
+                        .OrderByDescending(a => a.Count)
+                        .ThenBy(a => a.NormalizedName)
+                        .ThenBy(a => a.Id)
+                        .Skip(offset)
+                        .Take(limit)
+                        .ToList();
+
+                    var result = paged
+                        .Select(a => new ActorDto
+                        {
+                            Id = a.Id,
+                            Name = a.Name,
+                            PictureUrl = a.PictureId.HasValue ? $"/api/pictures/{a.PictureId}" : null,
+                            VideoCount = a.Count
+                        })
+                        .ToList();
+
+                    return Ok(result);
                 }
 
-                var ordered = isCountSort
-                    ? actors.OrderByDescending(a => actorVideoCounts.GetValueOrDefault(a.Id)).ThenBy(a => a.NormalizedName)
-                    : actors.OrderBy(a => a.NormalizedName);
+                if (!string.IsNullOrWhiteSpace(filter))
+                {
+                    var letter = filter.ToUpperInvariant()[0];
+                    baseQuery = baseQuery.Where(a => a.NormalizedName.StartsWith(letter.ToString(), StringComparison.OrdinalIgnoreCase));
+                }
 
-                var result = ordered
+                var pagedActors = await baseQuery
+                    .OrderBy(a => a.NormalizedName)
+                    .ThenBy(a => a.Id)
+                    .Skip(offset)
+                    .Take(limit)
+                    .Select(a => new { a.Id, a.Name, a.NormalizedName, a.PictureId })
+                    .ToListAsync();
+
+                var resultActors = pagedActors
                     .Select(a => new ActorDto
                     {
                         Id = a.Id,
@@ -99,7 +123,7 @@ namespace VideoWebPlayer.Controllers
                     })
                     .ToList();
 
-                return Ok(result);
+                return Ok(resultActors);
             }
             catch (UnauthorizedAccessException ex)
             {

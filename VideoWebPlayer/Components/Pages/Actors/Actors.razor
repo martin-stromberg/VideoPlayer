@@ -88,9 +88,9 @@ else
                 await JS.InvokeVoidAsync("observeBottom", sentinel, dotNetHelper);
                 hasConnectedObserver = true;
             }
-            catch (InvalidOperationException)
+            catch (Exception ex) when (ex is InvalidOperationException || ex is JSDisconnectedException)
             {
-                // Still pre-rendering; the next interactive render will retry.
+                // Still pre-rendering or the JS runtime is not available.
             }
         }
     }
@@ -118,7 +118,7 @@ else
             {
                 await JS.InvokeVoidAsync("disconnectMediaSourceBottomObserver");
             }
-            catch (InvalidOperationException)
+            catch (Exception ex) when (ex is InvalidOperationException || ex is JSDisconnectedException)
             {
                 // JS runtime is no longer available.
             }

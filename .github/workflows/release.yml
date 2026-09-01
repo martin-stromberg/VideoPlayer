@@ -1,282 +1,152 @@
-name: Main Branch Release
+name: Release
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
+    tags: ['v*.*.*']
 
 permissions:
   contents: write
-  pull-requests: write
+
+# Prevents parallel release runs (e.g. a fast merge to main followed shortly after by a
+# manually pushed tag): resolve-release-version.mjs decides on a single target tag/version
+# by querying the GitHub API and existing tags - without serialization, two concurrent runs
+# could race for the same version or fail to create the release.
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
-  extract-version:
+  release:
     runs-on: ubuntu-latest
-    outputs:
-      release_version: ${{ steps.get_version.outputs.release_version }}
-      already_released: ${{ steps.get_version.outputs.already_released }}
+    timeout-minutes: 30
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          fetch-tags: true
 
-      - name: Get release version from RC tag
-        id: get_version
-        run: |
-          # Letzten RC-Tag verwenden, der von HEAD aus erreichbar ist (der von staging
-          # promotete Release-Kandidat). Fallback: global letzter RC-Tag.
-          RC_TAG=$(git tag --merged HEAD -l 'v*-RC.*' | sort -V | tail -n 1)
-          if [ -z "$RC_TAG" ]; then
-            RC_TAG=$(git tag -l 'v*-RC.*' | sort -V | tail -n 1)
-          fi
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
 
-          if [ -n "$RC_TAG" ]; then
-            CLEAN_VERSION=${RC_TAG#v}
-            RELEASE_VERSION=${CLEAN_VERSION%-RC*}
-          else
-            # Kein RC-Tag vorhanden: semantischen Bump aus der Historie berechnen.
-            bash .github/scripts/compute-version.sh >/dev/null
-            RELEASE_VERSION=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' | grep -Ev -- '-' | sort -V | tail -n 1)
-            RELEASE_VERSION=${RELEASE_VERSION#v}
-            RELEASE_VERSION=${RELEASE_VERSION:-1.0.0}
-          fi
-
-          if git rev-parse -q --verify "refs/tags/v${RELEASE_VERSION}" >/dev/null; then
-            ALREADY_RELEASED=true
-            echo "::warning::Version v${RELEASE_VERSION} ist bereits released (Tag existiert). Release wird uebersprungen."
-          else
-            ALREADY_RELEASED=false
-          fi
-
-          {
-            echo "release_version=$RELEASE_VERSION"
-            echo "already_released=$ALREADY_RELEASED"
-          } >> $GITHUB_OUTPUT
-          echo "Release-Version: $RELEASE_VERSION (aus Tag: ${RC_TAG:-<keiner>})"
-
-  build-release:
-    runs-on: ubuntu-latest
-    needs: extract-version
-    if: needs.extract-version.outputs.already_released == 'false'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
-      - name: Restore dependencies
-        run: dotnet restore VideoWebPlayer/VideoWebPlayer.csproj
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Build solution
-        run: dotnet build VideoWebPlayer/VideoWebPlayer.csproj --configuration Release --no-restore /p:NoWarn=NU1903
+      - name: Resolve release version
+        # Generalized asset-repair mechanism (ci-target-schema.md section 4.10): classifies
+        # this run as automatic (branch push to main, version via semantic-release --dry-run)
+        # or manual (a pushed vX.Y.Z tag), then checks whether a GitHub release for the
+        # resolved tag already exists and whether it already has all expected assets. Missing
+        # assets are repaired in place instead of duplicating the release. See
+        # scripts/resolve-release-version.mjs.
+        id: version
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/resolve-release-version.mjs
 
-      - name: Update version to release version
+      - name: Check out release tag for asset repair
+        # Only relevant for the repair path: a previous run created the tag/release but was
+        # interrupted before all assets were uploaded. This checks out the exact tagged
+        # commit so the rebuilt assets match the already-published release, instead of
+        # rebuilding from whatever commit triggered this run.
+        if: steps.version.outputs.released == 'true' && steps.version.outputs.release_action == 'upload-existing'
+        env:
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
         run: |
-          RELEASE_VERSION="${{ needs.extract-version.outputs.release_version }}"
-          
-          # Update AssemblyVersion and FileVersion in project files
-          find . -name "*.csproj" -type f -exec sed -i "s/<AssemblyVersion>.*<\/AssemblyVersion>/<AssemblyVersion>${RELEASE_VERSION}<\/AssemblyVersion>/g" {} \;
-          find . -name "*.csproj" -type f -exec sed -i "s/<FileVersion>.*<\/FileVersion>/<FileVersion>${RELEASE_VERSION}<\/FileVersion>/g" {} \;
-          
-          # Update Version element to release version (without RC suffix)
-          for proj in $(find . -name "*.csproj" -type f); do
-            if grep -q "<Version>" "$proj"; then
-              sed -i "s/<Version>.*<\/Version>/<Version>${RELEASE_VERSION}<\/Version>/g" "$proj"
-            fi
-          done
+          set -euo pipefail
+          git checkout --detach "$RELEASE_TAG"
 
-      - name: Publish Windows artifact
-        run: |
-          dotnet publish VideoWebPlayer/VideoWebPlayer.csproj --configuration Release --runtime win-x64 --self-contained -o artifacts/windows /p:Version=${{ needs.extract-version.outputs.release_version }} /p:NoWarn=NU1903
+          expected_commit="$(git rev-parse "$RELEASE_TAG^{commit}")"
+          checked_out_commit="$(git rev-parse HEAD)"
+          if [ "$checked_out_commit" != "$expected_commit" ]; then
+            echo "::error::Release tag checkout did not resolve to the tagged commit."
+            exit 1
+          fi
 
-      - name: Publish Linux artifact
-        run: |
-          dotnet publish VideoWebPlayer/VideoWebPlayer.csproj --configuration Release --runtime linux-x64 --self-contained -o artifacts/linux /p:Version=${{ needs.extract-version.outputs.release_version }} /p:NoWarn=NU1903
-
-      # Der Updater (msTools.Updater) liest die installierte Version aus release-metadata.json
-      # im Anwendungsverzeichnis; ohne diese Datei ist keine Versionsermittlung moeglich.
-      - name: Create release metadata
-        run: |
-          RELEASE_VERSION="${{ needs.extract-version.outputs.release_version }}"
-          PUBLISHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          for target in windows:win-x64 linux:linux-x64; do
-            DIR="artifacts/${target%%:*}"
-            RID="${target##*:}"
-            cat > "$DIR/release-metadata.json" <<JSON
-          {
-            "version": "${RELEASE_VERSION}",
-            "publishedAt": "${PUBLISHED_AT}",
-            "commitSha": "${{ github.sha }}",
-            "repository": "${{ github.repository }}",
-            "runtimeIdentifier": "${RID}"
-          }
-          JSON
-          done
-
-      - name: Create release zip (Windows)
-        run: |
-          cd artifacts/windows
-          zip -r ../../release-windows-${{ needs.extract-version.outputs.release_version }}.zip .
-
-      - name: Create release zip (Linux)
-        run: |
-          cd artifacts/linux
-          zip -r ../../release-linux-${{ needs.extract-version.outputs.release_version }}.zip .
-
-      # Manifest-Asset, das msTools.Updater im GitHub-Release erwartet.
-      - name: Create update manifest
-        run: |
-          bash .github/scripts/create-update-manifest.sh \
-            "${{ needs.extract-version.outputs.release_version }}" \
-            "${{ github.repository }}" \
-            update.json
-
-      - name: Upload Windows artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-windows
-          path: release-windows-${{ needs.extract-version.outputs.release_version }}.zip
-
-      - name: Upload Linux artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-linux
-          path: release-linux-${{ needs.extract-version.outputs.release_version }}.zip
-
-      - name: Upload update manifest
-        uses: actions/upload-artifact@v4
-        with:
-          name: update-manifest
-          path: update.json
-
-  final-tests:
-    runs-on: ubuntu-latest
-    needs: extract-version
-    if: needs.extract-version.outputs.already_released == 'false'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Restore dependencies
-        run: dotnet restore VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj
+      - name: Restore solution
+        if: steps.version.outputs.released == 'true' && steps.version.outputs.release_action == 'create'
+        run: dotnet restore VideoPlayer.sln
 
       - name: Build test project
-        run: dotnet build VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release /p:NoWarn=NU1903
+        if: steps.version.outputs.released == 'true' && steps.version.outputs.release_action == 'create'
+        run: dotnet build VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-restore -c Release -p:NoWarn=NU1903
 
       - name: Install Playwright browsers
+        if: steps.version.outputs.released == 'true' && steps.version.outputs.release_action == 'create'
         run: pwsh VideoWebPlayer.Tests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
 
-      - name: Run final test suite
-        run: dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=final-test-results.trx"
+      - name: Release gate - full test suite
+        # Safety net now that there is no dedicated PR-gate workflow against main anymore
+        # (see ci-target-schema.md section 11, item 2): PRs against main can only come from
+        # staging, which was already fully validated by pr-staging-ci.yml/staging-ci.yml, so
+        # this re-run mainly guards against a race between that validation and the actual
+        # merge or tag push. Runs for both automatic and manual-tag releases, but not for the
+        # asset-repair path, which only needs to rebuild an already-validated release.
+        if: steps.version.outputs.released == 'true' && steps.version.outputs.release_action == 'create'
+        run: dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-build -c Release --logger "trx;LogFileName=final-test-results.trx" --logger "console;verbosity=normal"
 
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
+      - name: Upload release-gate test results
+        if: always() && steps.version.outputs.released == 'true' && steps.version.outputs.release_action == 'create'
+        uses: actions/upload-artifact@v7
         with:
-          name: final-test-results
-          path: '**/*final-test-results.trx'
+          name: test-results-release
+          path: VideoWebPlayer.Tests/TestResults/*.trx
+          retention-days: 14
 
-  create-github-release:
-    runs-on: ubuntu-latest
-    needs: [extract-version, build-release, final-tests]
-    if: success() && needs.extract-version.outputs.already_released == 'false'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Build and package
+        if: steps.version.outputs.released == 'true'
+        uses: ./.github/actions/build-and-package
         with:
-          fetch-depth: 0
+          release-version: ${{ steps.version.outputs.version }}
+          release-tag: ${{ steps.version.outputs.tag }}
 
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
+      - name: Create automatic GitHub release
+        # Goes through semantic-release's own publish pipeline (releasePlugins in
+        # release.config.js: commit-analyzer, release-notes-generator, then
+        # @semantic-release/github, which creates the tag, the GitHub release and uploads the
+        # assets listed via RELEASE_ASSET_PATHS/RELEASE_MANIFEST_PATH below). Manual-tag and
+        # asset-repair releases intentionally stay on the gh CLI / softprops action below:
+        # semantic-release only knows about conventional-commit-driven releases on configured
+        # branches, not about a tag someone pushed manually or a one-off missing-asset repair.
+        if: steps.version.outputs.released == 'true' && steps.version.outputs.release_action == 'create' && steps.version.outputs.release_kind == 'automatic'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_ASSET_PATHS: release-win-x64.zip;release-linux-x64.zip
+          RELEASE_MANIFEST_PATH: update.json
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: npm run release
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+      - name: Create manual-tag GitHub release
+        # softprops/action-gh-release is pinned to a commit SHA rather than a mutable tag,
+        # matching the project-wide supply-chain-hardening standard (ci-target-schema.md
+        # section 6.4).
+        if: steps.version.outputs.released == 'true' && steps.version.outputs.release_action == 'create' && steps.version.outputs.release_kind == 'manual'
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
-          tag_name: v${{ needs.extract-version.outputs.release_version }}
-          name: Release v${{ needs.extract-version.outputs.release_version }}
-          target_commitish: ${{ github.sha }}
-          draft: false
-          prerelease: false
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          generate_release_notes: true
           files: |
-            artifacts/release-windows/release-windows-${{ needs.extract-version.outputs.release_version }}.zip
-            artifacts/release-linux/release-linux-${{ needs.extract-version.outputs.release_version }}.zip
-            artifacts/update-manifest/update.json
-          body_path: docs/RELEASE_NOTES.md
+            release-win-x64.zip
+            release-linux-x64.zip
+            update.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  verify-release-tag:
-    runs-on: ubuntu-latest
-    needs: [extract-version, create-github-release]
-    if: success() && needs.extract-version.outputs.already_released == 'false'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Verify release tag exists
-        run: |
-          # Der Tag wird von der Release-Action erzeugt; hier wird nur geprueft,
-          # dass er vorhanden ist (kein zweites, konfliktbehaftetes Anlegen).
-          TAG="v${{ needs.extract-version.outputs.release_version }}"
-          git fetch origin "refs/tags/${TAG}:refs/tags/${TAG}" --no-tags
-          git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null
-          echo "Tag ${TAG} vorhanden."
-
-  backmerge-to-staging:
-    # Nach dem Release wird main via PR zurueck nach staging gemergt, damit der
-    # Release-Tag/-Stand auf staging bekannt ist und der naechste Staging-Push die
-    # Version semantisch (statt nur den RC-Zaehler) weiterzaehlt.
-    runs-on: ubuntu-latest
-    needs: [extract-version, create-github-release]
-    if: always() && needs.create-github-release.result == 'success'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Check if staging is behind main
-        id: diff
-        run: |
-          git fetch origin staging --no-tags
-          COUNT=$(git rev-list origin/staging..HEAD --count)
-          echo "commits_ahead=$COUNT" >> $GITHUB_OUTPUT
-          echo "main ist $COUNT Commit(s) vor staging."
-
-      - name: Ensure automated-backmerge label exists
-        if: steps.diff.outputs.commits_ahead != '0'
+      - name: Upload missing assets to existing release
+        if: steps.version.outputs.released == 'true' && steps.version.outputs.release_action == 'upload-existing'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh label create automated-backmerge --color "1D76DB" --description "Automatischer Back-Merge von main nach staging" --force
-
-      - name: Create back-merge pull request
-        if: steps.diff.outputs.commits_ahead != '0'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_VERSION: ${{ needs.extract-version.outputs.release_version }}
         run: |
-          EXISTING=$(gh pr list --base staging --head main --state open --json number --jq 'length')
-          if [ "$EXISTING" != "0" ]; then
-            echo "Es existiert bereits ein offener Back-Merge-PR main -> staging."
-            exit 0
-          fi
-          gh pr create \
-            --base staging \
-            --head main \
-            --title "Back-Merge: Release v${RELEASE_VERSION} von main nach staging" \
-            --body "Automatischer Back-Merge nach dem Release **v${RELEASE_VERSION}**.
-
-          Dadurch kennt \`staging\` den released Stand inkl. Tag \`v${RELEASE_VERSION}\`, sodass der naechste Push auf staging die Version anhand der semantischen Regeln (Conventional Commits) hochzaehlt und nicht nur den RC-Zaehler." \
-            --label "automated-backmerge"
+          set -euo pipefail
+          tag="${{ steps.version.outputs.tag }}"
+          gh release upload "$tag" release-win-x64.zip release-linux-x64.zip update.json --clobber

@@ -1,13 +1,17 @@
 name: Staging to Main Promotion
 
-# Nach erfolgreichem Durchlauf von "Staging Branch CI" auf staging (Push-Event) wird geprueft, ob main
-# gegenueber staging zurueckliegt. Falls ja, wird automatisch ein Draft-PR staging -> main
-# erstellt. Der PR benoetigt manuellen Review und Merge durch einen Maintainer; Branch-Protection
-# auf main erzwingt mindestens ein Approval.
+# After a successful "Pre-Release" run on staging, this workflow checks whether main is
+# behind staging. If so, it creates a draft PR staging -> main. The final merge must be
+# approved and completed manually by a maintainer.
+#
+# Critical: this workflow_run trigger references the *display name* of staging-ci.yml, not
+# its filename. If staging-ci.yml's `name:` field ever changes again, this array must be
+# updated in the same commit - otherwise the promotion silently stops firing (no error, it
+# just never runs). See ci-target-schema.md section 3.
 
-on:
+"on":
   workflow_run:
-    workflows: ["Staging Branch CI"]
+    workflows: ["Pre-Release"]
     types: [completed]
     branches: [staging]
 
@@ -28,51 +32,47 @@ jobs:
 
     steps:
       - name: Checkout staging
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Fetch main
         run: git fetch origin main
-        shell: pwsh
 
       - name: Check if main is behind staging
         id: diff
         run: |
-          # Bei einem reinen Back-Merge (Tree identisch zu main) gibt es nichts zu promoten.
-          $changed = git diff --name-only origin/main HEAD
-          if ([string]::IsNullOrWhiteSpace(($changed -join ''))) {
-            Write-Host "Tree ist identisch zu main (Back-Merge) - keine Promotion notwendig."
-            "commits_ahead=0" | Add-Content -Path $env:GITHUB_OUTPUT
-          } else {
-            $count = git rev-list origin/main..HEAD --count
-            "commits_ahead=$count" | Add-Content -Path $env:GITHUB_OUTPUT
-          }
-        shell: pwsh
+          # A pure back-merge (tree identical to main) has nothing left to promote.
+          changed=$(git diff --name-only origin/main HEAD)
+          if [ -z "$changed" ]; then
+            echo "Tree is identical to main (back-merge) - no promotion needed."
+            echo "commits_ahead=0" >> "$GITHUB_OUTPUT"
+          else
+            count=$(git rev-list origin/main..HEAD --count)
+            echo "commits_ahead=$count" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Ensure automated-promotion label exists
         if: steps.diff.outputs.commits_ahead != '0'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh label create automated-promotion --color "0E8A16" --description "Automatisierter PR von staging nach main" --force
-        shell: pwsh
+        run: gh label create automated-promotion --color "0E8A16" --description "Automated PR from staging to main" --force
 
       - name: Create promotion pull request
         if: steps.diff.outputs.commits_ahead != '0'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $existing = gh pr list --base main --head staging --state open --json number | ConvertFrom-Json
-          if ($existing.Count -eq 0) {
-            gh pr create `
-              --base main `
-              --head staging `
-              --title "Automated promotion from staging to main" `
-              --body "Automated promotion from staging to main. Enthaelt alle Aenderungen, die auf staging integriert und erfolgreich getestet wurden. Benoetigt manuellen Review und Merge durch einen Maintainer." `
-              --draft `
+          existing=$(gh pr list --base main --head staging --state open --json number --jq 'length')
+          if [ "$existing" = "0" ]; then
+            gh pr create \
+              --base main \
+              --head staging \
+              --title "Automated promotion from staging to main" \
+              --body "Automated promotion from staging to main. Contains all changes that have been integrated and successfully validated on staging. Requires manual review and merge by a maintainer." \
+              --draft \
               --label "automated-promotion"
-          } else {
-            Write-Host "An open promotion PR from staging to main already exists (#$($existing[0].number))."
-          }
-        shell: pwsh
+          else
+            echo "An open promotion PR from staging to main already exists."
+          fi

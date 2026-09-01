@@ -1,8 +1,8 @@
 name: Verify PR Source
 
-on:
+"on":
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 permissions: {}
 
@@ -17,4 +17,4 @@ jobs:
             echo "Please create your PR: feature branch -> staging -> main"
             exit 1
           fi
-          echo "✅ PR source is staging - allowed"
+          echo "PR source is staging - allowed"

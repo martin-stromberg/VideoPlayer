@@ -71,18 +71,27 @@ else
     private int offset;
     private bool isLoading;
     private bool hasMore = true;
+    private bool hasConnectedObserver;
     private ElementReference sentinel;
     private DotNetObjectReference<Actors>? dotNetHelper;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender)
+        if (firstRender && !hasConnectedObserver)
         {
-            sortMode = await JS.InvokeAsync<string?>("localStorage.getItem", SortKey) ?? "alphabetical";
-            await LoadFiltersAsync();
-            await ResetAndLoadAsync();
-            dotNetHelper = DotNetObjectReference.Create(this);
-            await JS.InvokeVoidAsync("observeBottom", sentinel, dotNetHelper);
+            try
+            {
+                sortMode = await JS.InvokeAsync<string?>("localStorage.getItem", SortKey) ?? "alphabetical";
+                await LoadFiltersAsync();
+                await ResetAndLoadAsync();
+                dotNetHelper = DotNetObjectReference.Create(this);
+                await JS.InvokeVoidAsync("observeBottom", sentinel, dotNetHelper);
+                hasConnectedObserver = true;
+            }
+            catch (InvalidOperationException)
+            {
+                // Still pre-rendering; the next interactive render will retry.
+            }
         }
     }
 
@@ -103,7 +112,18 @@ else
             dotNetHelper = null;
         }
 
-        await JS.InvokeVoidAsync("disconnectMediaSourceBottomObserver");
+        if (hasConnectedObserver)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("disconnectMediaSourceBottomObserver");
+            }
+            catch (InvalidOperationException)
+            {
+                // JS runtime is no longer available.
+            }
+            hasConnectedObserver = false;
+        }
     }
 
     private async Task LoadFiltersAsync()

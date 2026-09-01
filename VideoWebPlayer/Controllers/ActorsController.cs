@@ -63,22 +63,25 @@ namespace VideoWebPlayer.Controllers
 
                 if (isCountSort)
                 {
+                    var actors = await baseQuery
+                        .Select(a => new { a.Id, a.Name, a.NormalizedName, a.PictureId })
+                        .ToListAsync();
+
+                    var withCount = actors
+                        .Select(a => new { a.Id, a.Name, a.NormalizedName, a.PictureId, Count = actorVideoCounts.GetValueOrDefault(a.Id) });
+
                     if (!string.IsNullOrWhiteSpace(filter))
                     {
                         var bucket = CountBuckets.FirstOrDefault(b => b.Label == filter);
                         if (bucket is not null)
                         {
-                            baseQuery = baseQuery.Where(a =>
-                                actorVideoCounts.ContainsKey(a.Id) &&
-                                actorVideoCounts[a.Id] >= bucket.Min &&
-                                (!bucket.Max.HasValue || actorVideoCounts[a.Id] <= bucket.Max.Value));
+                            withCount = withCount.Where(a =>
+                                a.Count >= bucket.Min &&
+                                (!bucket.Max.HasValue || a.Count <= bucket.Max.Value));
                         }
                     }
 
-                    var paged = (await baseQuery
-                        .Select(a => new { a.Id, a.Name, a.NormalizedName, a.PictureId })
-                        .ToListAsync())
-                        .Select(a => new { a.Id, a.Name, a.NormalizedName, a.PictureId, Count = actorVideoCounts.GetValueOrDefault(a.Id) })
+                    var paged = withCount
                         .OrderByDescending(a => a.Count)
                         .ThenBy(a => a.NormalizedName)
                         .ThenBy(a => a.Id)

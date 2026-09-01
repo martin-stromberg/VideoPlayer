@@ -257,7 +257,7 @@ namespace VideoWebPlayer.Client
         #endregion
 
         #region Actors
-        public async Task<IEnumerable<ActorDto>> RequestActorsAsync(string? search = null, string? sort = null, string? filter = null)
+        public async Task<IEnumerable<ActorDto>> RequestActorsAsync(string? search = null, string? sort = null, string? filter = null, int offset = 0, int limit = 50)
         {
             try
             {
@@ -268,6 +268,8 @@ namespace VideoWebPlayer.Client
                     query.Add($"sort={Uri.EscapeDataString(sort)}");
                 if (!string.IsNullOrWhiteSpace(filter))
                     query.Add($"filter={Uri.EscapeDataString(filter)}");
+                query.Add($"offset={offset}");
+                query.Add($"limit={limit}");
                 var url = "api/Actors" + (query.Count > 0 ? $"?{string.Join("&", query)}" : string.Empty);
                 return await HttpGetAsync<ActorDto[]>(url);
             }

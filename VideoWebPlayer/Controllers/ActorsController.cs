@@ -30,22 +30,28 @@ namespace VideoWebPlayer.Controllers
         }
 
         /// <summary>
-        /// Gets actors, optionally filtered by search term and filter.
+        /// Gets actors, optionally filtered by search term and filter, paged by offset and limit.
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> GetActors([FromQuery] string? search = null, [FromQuery] string? sort = null, [FromQuery] string? filter = null)
+        public async Task<IActionResult> GetActors([FromQuery] string? search = null, [FromQuery] string? sort = null, [FromQuery] string? filter = null, [FromQuery] int offset = 0, [FromQuery] int limit = 50)
         {
             try
             {
                 CheckLoggedIn();
 
+                offset = Math.Max(0, offset);
+                limit = Math.Clamp(limit, 1, 200);
+
                 var allowedSourceIds = await GetAllowedSourceIdsAsync();
                 if (allowedSourceIds.Count == 0)
                     return Ok(Array.Empty<ActorDto>());
 
-                var actorVideoCounts = await GetActorVideoCountsAsync(allowedSourceIds);
+                var setup = await _db.Setups.AsNoTracking().FirstOrDefaultAsync();
+                var threshold = (setup?.ActorCollectionThresholdPercent ?? 50) / 100.0;
 
-                var query = _db.Actors
+                var actorVideoCounts = await GetActorAggregatedVideoCountsAsync(allowedSourceIds, threshold);
+
+                var baseQuery = _db.Actors
                     .AsNoTracking()
                     .Where(a => _db.MovieActors.Any(ma => ma.ActorId == a.Id && allowedSourceIds.Contains(ma.Movie.MediaSourceId)) ||
                         _db.TVShowEpisodeActors.Any(ea => ea.ActorId == a.Id && allowedSourceIds.Contains(ea.TVShowEpisode.TVShowSeason.TVShow.MediaSourceId)));
@@ -53,43 +59,67 @@ namespace VideoWebPlayer.Controllers
                 if (!string.IsNullOrWhiteSpace(search))
                 {
                     var term = search.Trim().ToUpperInvariant();
-                    query = query.Where(a => a.NormalizedName.Contains(term));
+                    baseQuery = baseQuery.Where(a => a.NormalizedName.Contains(term));
                 }
-
-                var actors = await query
-                    .Select(a => new { a.Id, a.Name, a.NormalizedName, a.PictureId })
-                    .ToListAsync();
 
                 var isCountSort = string.Equals(sort, "count", StringComparison.OrdinalIgnoreCase);
 
-                if (!string.IsNullOrWhiteSpace(filter))
+                if (isCountSort)
                 {
-                    if (isCountSort)
+                    var actors = await baseQuery
+                        .Select(a => new { a.Id, a.Name, a.NormalizedName, a.PictureId })
+                        .ToListAsync();
+
+                    var withCount = actors
+                        .Select(a => new { a.Id, a.Name, a.NormalizedName, a.PictureId, Count = actorVideoCounts.GetValueOrDefault(a.Id) });
+
+                    if (!string.IsNullOrWhiteSpace(filter))
                     {
                         var bucket = CountBuckets.FirstOrDefault(b => b.Label == filter);
                         if (bucket is not null)
                         {
-                            actors = actors
-                                .Where(a =>
-                                {
-                                    var count = actorVideoCounts.GetValueOrDefault(a.Id);
-                                    return count >= bucket.Min && (!bucket.Max.HasValue || count <= bucket.Max.Value);
-                                })
-                                .ToList();
+                            withCount = withCount.Where(a =>
+                                a.Count >= bucket.Min &&
+                                (!bucket.Max.HasValue || a.Count <= bucket.Max.Value));
                         }
                     }
-                    else
-                    {
-                        var letter = filter.ToUpperInvariant()[0];
-                        actors = actors.Where(a => a.NormalizedName.StartsWith(letter.ToString(), StringComparison.OrdinalIgnoreCase)).ToList();
-                    }
+
+                    var paged = withCount
+                        .OrderByDescending(a => a.Count)
+                        .ThenBy(a => a.NormalizedName)
+                        .ThenBy(a => a.Id)
+                        .Skip(offset)
+                        .Take(limit)
+                        .ToList();
+
+                    var result = paged
+                        .Select(a => new ActorDto
+                        {
+                            Id = a.Id,
+                            Name = a.Name,
+                            PictureUrl = a.PictureId.HasValue ? $"/api/pictures/{a.PictureId}" : null,
+                            VideoCount = a.Count
+                        })
+                        .ToList();
+
+                    return Ok(result);
                 }
 
-                var ordered = isCountSort
-                    ? actors.OrderByDescending(a => actorVideoCounts.GetValueOrDefault(a.Id)).ThenBy(a => a.NormalizedName)
-                    : actors.OrderBy(a => a.NormalizedName);
+                if (!string.IsNullOrWhiteSpace(filter))
+                {
+                    var letter = filter.ToUpperInvariant()[0];
+                    baseQuery = baseQuery.Where(a => a.NormalizedName.StartsWith(letter.ToString(), StringComparison.OrdinalIgnoreCase));
+                }
 
-                var result = ordered
+                var pagedActors = await baseQuery
+                    .OrderBy(a => a.NormalizedName)
+                    .ThenBy(a => a.Id)
+                    .Skip(offset)
+                    .Take(limit)
+                    .Select(a => new { a.Id, a.Name, a.NormalizedName, a.PictureId })
+                    .ToListAsync();
+
+                var resultActors = pagedActors
                     .Select(a => new ActorDto
                     {
                         Id = a.Id,
@@ -99,7 +129,7 @@ namespace VideoWebPlayer.Controllers
                     })
                     .ToList();
 
-                return Ok(result);
+                return Ok(resultActors);
             }
             catch (UnauthorizedAccessException ex)
             {
@@ -303,7 +333,9 @@ namespace VideoWebPlayer.Controllers
 
                 if (string.Equals(sort, "count", StringComparison.OrdinalIgnoreCase))
                 {
-                    var actorVideoCounts = await GetActorVideoCountsAsync(allowedSourceIds);
+                    var setup = await _db.Setups.AsNoTracking().FirstOrDefaultAsync();
+                    var threshold = (setup?.ActorCollectionThresholdPercent ?? 50) / 100.0;
+                    var actorVideoCounts = await GetActorAggregatedVideoCountsAsync(allowedSourceIds, threshold);
                     var usedBuckets = CountBuckets
                         .Where(b => actorVideoCounts.Values.Any(c => c >= b.Min && (!b.Max.HasValue || c <= b.Max.Value)))
                         .Select(b => b.Label)
@@ -463,7 +495,8 @@ namespace VideoWebPlayer.Controllers
                     var showName = showEpisodes.First().ShowName;
                     var showId = showGroup.Key;
 
-                    if (showTotals.GetValueOrDefault(showId) == showEpisodes.Count)
+                    var showTotal = showTotals.GetValueOrDefault(showId);
+                    if (showTotal > 0 && (double)showEpisodes.Count / showTotal >= threshold)
                     {
                         result.Add(new ActorMediaEntryDto { Type = "Serie", Id = showId, Title = showName, Subtitle = $"{showEpisodes.Count} Episoden", PictureUrl = GetPictureUrl(showEpisodes.First().ShowPosterPictureId), LinkUrl = $"/tvshow/{showId}" });
                         continue;
@@ -474,8 +507,9 @@ namespace VideoWebPlayer.Controllers
                         var seasonName = seasonGroup.First().SeasonName;
                         var seasonEpisodes = seasonGroup.ToList();
                         var seasonId = seasonGroup.Key;
+                        var seasonTotal = seasonTotals.GetValueOrDefault(seasonId);
 
-                        if (seasonTotals.GetValueOrDefault(seasonId) == seasonEpisodes.Count)
+                        if (seasonTotal > 0 && (double)seasonEpisodes.Count / seasonTotal >= threshold)
                         {
                             result.Add(new ActorMediaEntryDto { Type = "Staffel", Id = seasonId, Title = $"{showName} - {seasonName}", Subtitle = $"{seasonEpisodes.Count} Episoden", PictureUrl = GetPictureUrl(seasonEpisodes.First().SeasonPosterPictureId), LinkUrl = $"/tvshow/{showId}?season={seasonId}" });
                             continue;
@@ -490,26 +524,136 @@ namespace VideoWebPlayer.Controllers
             return result;
         }
 
-        private async Task<Dictionary<long, int>> GetActorVideoCountsAsync(List<long> allowedSourceIds)
+        private async Task<Dictionary<long, int>> GetActorAggregatedVideoCountsAsync(List<long> allowedSourceIds, double threshold, CancellationToken cancellationToken = default)
         {
-            var movieCounts = await _db.MovieActors
+            var counts = new Dictionary<long, int>();
+
+            var movieActors = await _db.MovieActors
                 .AsNoTracking()
                 .Where(ma => allowedSourceIds.Contains(ma.Movie.MediaSourceId))
-                .GroupBy(ma => ma.ActorId)
-                .Select(g => new { ActorId = g.Key, Count = g.Count() })
-                .ToListAsync();
+                .Select(ma => new { ma.ActorId, CollectionId = (long?)ma.Movie.MovieCollectionId })
+                .ToListAsync(cancellationToken);
 
-            var episodeCounts = await _db.TVShowEpisodeActors
+            var allCollectionIds = movieActors
+                .Where(m => m.CollectionId.HasValue)
+                .Select(m => m.CollectionId!.Value)
+                .Distinct()
+                .ToList();
+
+            var allCollectionTotals = allCollectionIds.Count > 0
+                ? await _db.Movies
+                    .AsNoTracking()
+                    .Where(m => m.MovieCollectionId.HasValue && allCollectionIds.Contains(m.MovieCollectionId.Value) && allowedSourceIds.Contains(m.MediaSourceId))
+                    .GroupBy(m => m.MovieCollectionId!.Value)
+                    .Select(g => new { CollectionId = g.Key, Total = g.Count() })
+                    .ToDictionaryAsync(g => g.CollectionId, g => g.Total, cancellationToken)
+                : new Dictionary<long, int>();
+
+            foreach (var actorGroup in movieActors.GroupBy(ma => ma.ActorId))
+            {
+                var result = 0;
+                foreach (var group in actorGroup.GroupBy(m => m.CollectionId))
+                {
+                    var items = group.ToList();
+                    if (!group.Key.HasValue)
+                    {
+                        result += items.Count;
+                        continue;
+                    }
+
+                    var collectionId = group.Key.Value;
+                    var totalMovies = allCollectionTotals.GetValueOrDefault(collectionId);
+                    var actorCount = items.Count;
+
+                    if (totalMovies == 1 || actorCount == 1)
+                    {
+                        result += actorCount;
+                        continue;
+                    }
+
+                    if (actorCount == totalMovies)
+                    {
+                        result += 1;
+                        continue;
+                    }
+
+                    if (totalMovies > 0 && (double)actorCount / totalMovies >= threshold)
+                    {
+                        result += 1;
+                        continue;
+                    }
+
+                    result += actorCount;
+                }
+
+                counts[actorGroup.Key] = result;
+            }
+
+            var episodeActors = await _db.TVShowEpisodeActors
                 .AsNoTracking()
                 .Where(ea => allowedSourceIds.Contains(ea.TVShowEpisode.TVShowSeason.TVShow.MediaSourceId))
-                .GroupBy(ea => ea.ActorId)
-                .Select(g => new { ActorId = g.Key, Count = g.Count() })
-                .ToListAsync();
+                .Select(ea => new { ea.ActorId, ea.TVShowEpisode.TVShowSeasonId, ShowId = ea.TVShowEpisode.TVShowSeason.TVShow.Id })
+                .ToListAsync(cancellationToken);
 
-            return movieCounts
-                .Concat(episodeCounts)
-                .GroupBy(x => x.ActorId)
-                .ToDictionary(g => g.Key, g => g.Sum(x => x.Count));
+            var allSeasonIds = episodeActors.Select(e => e.TVShowSeasonId).Distinct().ToList();
+            var allShowIds = episodeActors.Select(e => e.ShowId).Distinct().ToList();
+
+            var allSeasonTotals = allSeasonIds.Count > 0
+                ? await _db.TVShowEpisodes
+                    .AsNoTracking()
+                    .Where(e => allSeasonIds.Contains(e.TVShowSeasonId) && allowedSourceIds.Contains(e.TVShowSeason.TVShow.MediaSourceId))
+                    .GroupBy(e => e.TVShowSeasonId)
+                    .Select(g => new { SeasonId = g.Key, Total = g.Count() })
+                    .ToDictionaryAsync(g => g.SeasonId, g => g.Total, cancellationToken)
+                : new Dictionary<long, int>();
+
+            var allShowTotals = allShowIds.Count > 0
+                ? await _db.TVShowEpisodes
+                    .AsNoTracking()
+                    .Where(e => allShowIds.Contains(e.TVShowSeason.TVShowId) && allowedSourceIds.Contains(e.TVShowSeason.TVShow.MediaSourceId))
+                    .GroupBy(e => e.TVShowSeason.TVShowId)
+                    .Select(g => new { ShowId = g.Key, Total = g.Count() })
+                    .ToDictionaryAsync(g => g.ShowId, g => g.Total, cancellationToken)
+                : new Dictionary<long, int>();
+
+            foreach (var actorGroup in episodeActors.GroupBy(ea => ea.ActorId))
+            {
+                var result = 0;
+                foreach (var showGroup in actorGroup.GroupBy(e => e.ShowId))
+                {
+                    var showId = showGroup.Key;
+                    var showEpisodes = showGroup.ToList();
+                    var showTotal = allShowTotals.GetValueOrDefault(showId);
+
+                    if (showTotal > 0 && (double)showEpisodes.Count / showTotal >= threshold)
+                    {
+                        result += 1;
+                        continue;
+                    }
+
+                    foreach (var seasonGroup in showEpisodes.GroupBy(e => e.TVShowSeasonId))
+                    {
+                        var seasonId = seasonGroup.Key;
+                        var seasonEpisodes = seasonGroup.ToList();
+                        var seasonTotal = allSeasonTotals.GetValueOrDefault(seasonId);
+
+                        if (seasonTotal > 0 && (double)seasonEpisodes.Count / seasonTotal >= threshold)
+                        {
+                            result += 1;
+                            continue;
+                        }
+
+                        result += seasonEpisodes.Count;
+                    }
+                }
+
+                if (counts.ContainsKey(actorGroup.Key))
+                    counts[actorGroup.Key] += result;
+                else
+                    counts[actorGroup.Key] = result;
+            }
+
+            return counts;
         }
 
         private record CountBucket(int Min, int? Max, string Label);

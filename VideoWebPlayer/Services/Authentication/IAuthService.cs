@@ -111,9 +111,9 @@ namespace VideoWebPlayer.Services.Authentication
             AuthorizationTokenService authtorizationTokenService,
             UserManager<ApplicationUser> userManager,
             SignInManager<ApplicationUser> signInManager,
-            
+
             IConfiguration configuration,
-            IHttpContextAccessor httpContextAccessor, 
+            IHttpContextAccessor httpContextAccessor,
             ILogger<AuthService> logger)
         {
             this.authtorizationTokenService = authtorizationTokenService;
@@ -130,7 +130,7 @@ namespace VideoWebPlayer.Services.Authentication
         public ApplicationUser? CurrentUser
         {
             get
-            {                
+            {
                 return _userManager.GetUserAsync(_httpContextAccessor?.HttpContext?.User).Result;
             }
         }
@@ -171,7 +171,7 @@ namespace VideoWebPlayer.Services.Authentication
                 throw new UnauthorizedAccessException("Ungültige Zugangsdaten.");
             return authtorizationTokenService.CreateToken(user);
         }
-        
+
         /// <summary>
         /// Issues an authorization token for the specified user as an admin-only operation.
         /// </summary>

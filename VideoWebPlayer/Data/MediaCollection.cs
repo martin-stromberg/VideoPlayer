@@ -23,7 +23,7 @@ namespace VideoWebPlayer.Data
         /// <summary>
         /// Gets or sets the next scheduled scan time.
         /// </summary>
-        public DateTime? ScanDueAt{ get; set; }
+        public DateTime? ScanDueAt { get; set; }
         /// <summary>
         /// Gets or sets a value indicating whether this collection is fully scanned and ready to classify.
         /// </summary>

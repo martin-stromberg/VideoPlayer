@@ -79,10 +79,10 @@ namespace VideoWebPlayer.Data
         /// </summary>
         public DbSet<Picture> Pictures { get; set; }
 
-		/// <summary>
-		/// Table for uploaded source icon images.
-		/// </summary>
-		public DbSet<MediaSourceIcon> MediaSourceIcons { get; set; }
+        /// <summary>
+        /// Table for uploaded source icon images.
+        /// </summary>
+        public DbSet<MediaSourceIcon> MediaSourceIcons { get; set; }
         /// <summary>
         /// Tabelle f�r Setup-Eintr�ge.
         /// </summary>

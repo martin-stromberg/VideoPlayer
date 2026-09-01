@@ -24,7 +24,7 @@ namespace VideoWebPlayer.Controllers
         /// <param name="authService">Authentication service.</param>
         /// <param name="logger">Logger instance.</param>
         public ContinueWatchingController(ContinueWatchingService service, IAuthService authService, ILogger<ContinueWatchingController> logger)
-            :base(authService, logger)
+            : base(authService, logger)
         {
             _service = service;
         }

@@ -82,7 +82,7 @@ namespace VideoWebPlayer.Services
                     _db.MediaCollections.Add(rootEntry);
                     await _db.SaveChangesAsync(cancellationToken);
                     _logger.LogInformation("Root-Collection '{Path}' angelegt.", rootEntry.Path);
-                } 
+                }
                 else if (existing.CreatedAt != rootEntry.CreatedAt)
                 {
                     // Update the existing DB entity (not the newly read rootEntry) so changes are persisted

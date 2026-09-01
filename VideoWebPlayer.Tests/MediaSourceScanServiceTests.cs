@@ -226,7 +226,7 @@ public class MediaSourceScanServiceTests
             serviceProvider,
             serviceProvider.GetRequiredService<EventManager>(),
             logger,
-            TimeSpan.Zero, 
+            TimeSpan.Zero,
             TimeSpan.FromMilliseconds(10),
             skipUpgrade: true,
             timeProvider);
@@ -341,10 +341,10 @@ public class MediaSourceScanServiceTests
         var newSeasonPath = $"{rootPath}/{showName}/Season{(seasons + 1).ToString("00")}";
         await TestHelpers.WaitForMediaCollectionAsync(serviceProvider, newSeasonPath, TimeSpan.FromSeconds(waitTimeSec));
 
-		// Ensure the new season collection has been scanned and at least one episode file exists (otherwise episode counts can be flaky)
-		var newSeasonFirstEpisodePath = $"{newSeasonPath}/S{seasons + 1:00}E01.mp4";
-		await TestHelpers.WaitForMediaItemAsync(serviceProvider, newSeasonFirstEpisodePath, TimeSpan.FromSeconds(waitTimeSec));
-		await TestHelpers.WaitForMediaItemClassifiedAsync(serviceProvider, newSeasonFirstEpisodePath, TimeSpan.FromSeconds(waitTimeSec));
+        // Ensure the new season collection has been scanned and at least one episode file exists (otherwise episode counts can be flaky)
+        var newSeasonFirstEpisodePath = $"{newSeasonPath}/S{seasons + 1:00}E01.mp4";
+        await TestHelpers.WaitForMediaItemAsync(serviceProvider, newSeasonFirstEpisodePath, TimeSpan.FromSeconds(waitTimeSec));
+        await TestHelpers.WaitForMediaItemClassifiedAsync(serviceProvider, newSeasonFirstEpisodePath, TimeSpan.FromSeconds(waitTimeSec));
 
         // Dump DB state into the test messages to help debugging if counts don't match
         await TestHelpers.DumpDatabaseStateAsync(serviceProvider, messages);
@@ -435,13 +435,13 @@ public class MediaSourceScanServiceTests
         }
 
         // 2) First incremental scan -> should add the series folder
-        var first = await scanner.ScanNextMediaCollection(ct);        
+        var first = await scanner.ScanNextMediaCollection(ct);
         Assert.True(first);
         var showPath = $"{rootPath}/{showName}";
         using (var s = serviceProvider.CreateScope())
         {
-            var db = s.ServiceProvider.GetRequiredService<ApplicationDbContext>();            
-            Assert.True(await db.MediaCollections.AnyAsync(c => c.Path == showPath, ct));            
+            var db = s.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            Assert.True(await db.MediaCollections.AnyAsync(c => c.Path == showPath, ct));
         }
 
         // 3) Scan next -> should add season collections for all seasons

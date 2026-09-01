@@ -22,9 +22,9 @@ Directory.CreateDirectory(Path.Combine(builder.Environment.ContentRootPath, "Log
 
 // Configure logging from appsettings.json (including per-day file rolling + retention).
 builder.Host.UseSerilog((ctx, services, cfg) =>
-	cfg.ReadFrom.Configuration(ctx.Configuration)
-	   .ReadFrom.Services(services)
-	   .Enrich.FromLogContext());
+    cfg.ReadFrom.Configuration(ctx.Configuration)
+       .ReadFrom.Services(services)
+       .Enrich.FromLogContext());
 
 builder.AddVideoWebPlayerServices();
 builder.AddVideoWebPlayerAutoUpdate();

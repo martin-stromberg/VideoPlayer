@@ -50,7 +50,7 @@ public class ContinueWatchingServiceSignalRTests : ContinueWatchingServiceTestBa
 
         // Act - Erste Position
         await _service.ProcessBufferedEntryAsync(_testUserId, movieId, null, position1, duration);
-        
+
         // Act - Update Position
         _signalRCallLog.Clear(); // Reset für zweiten Test
         await _service.ProcessBufferedEntryAsync(_testUserId, movieId, null, position2, duration);
@@ -84,13 +84,13 @@ public class ContinueWatchingServiceSignalRTests : ContinueWatchingServiceTestBa
         _db.TVShowSeasons.Add(season);
         await _db.SaveChangesAsync();
 
-        var episode = new TVShowEpisode 
-        { 
-            Id = episodeId, 
-            TVShowSeasonId = season.Id, 
-            Name = "Test Episode", 
-            Number = 1, 
-            MediaSourceId = 1 
+        var episode = new TVShowEpisode
+        {
+            Id = episodeId,
+            TVShowSeasonId = season.Id,
+            Name = "Test Episode",
+            Number = 1,
+            MediaSourceId = 1
         };
         _db.TVShowEpisodes.Add(episode);
         await _db.SaveChangesAsync();

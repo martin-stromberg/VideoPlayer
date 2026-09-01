@@ -27,8 +27,8 @@ namespace VideoWebPlayer.Services.Authentication
         public InternalVideoWebPlayerClient(
             HttpClient httpClient,
             IHttpContextAccessor httpContextAccessor,
-            UserManager<ApplicationUser> userManager, 
-            AuthorizationTokenService authtorizationTokenService, 
+            UserManager<ApplicationUser> userManager,
+            AuthorizationTokenService authtorizationTokenService,
             ILogger<VideoWebPlayerClient> logger) : base(httpClient, logger)
         {
             this.httpContextAccessor = httpContextAccessor;

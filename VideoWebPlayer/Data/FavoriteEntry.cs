@@ -45,6 +45,6 @@ namespace VideoWebPlayer.Data
         /// Gets or sets the creation timestamp.
         /// </summary>
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-        
+
     }
 }

@@ -74,7 +74,7 @@ namespace VideoWebPlayer.Services
                 }
                 var lastRun = DateTimeOffset.MinValue;
                 using var settingsScope = _serviceProvider.CreateScope();
-                
+
                 while (!stoppingToken.IsCancellationRequested)
                 {
                     try
@@ -138,25 +138,25 @@ namespace VideoWebPlayer.Services
                                 await classifier.ClassifyMediaItemsAsync(stoppingToken);
                                 _logger.LogInformation("Klassifizierung abgeschlossen.");
 
-							// If scanning produced (or updated) classifyable collections, run collection-classification as well.
-							// This is required to create/update TV show seasons/episodes from newly scanned season folders.
-							int unclassifiedBefore;
-							{
-								var db = innerScope.ServiceProvider.GetRequiredService<Data.ApplicationDbContext>();
-								unclassifiedBefore = await db.MediaCollections
-									.CountAsync(mc => mc.Classifyable && (mc.Changed || !mc.ClassifiedAt.HasValue), stoppingToken);
-							}
+                                // If scanning produced (or updated) classifyable collections, run collection-classification as well.
+                                // This is required to create/update TV show seasons/episodes from newly scanned season folders.
+                                int unclassifiedBefore;
+                                {
+                                    var db = innerScope.ServiceProvider.GetRequiredService<Data.ApplicationDbContext>();
+                                    unclassifiedBefore = await db.MediaCollections
+                                        .CountAsync(mc => mc.Classifyable && (mc.Changed || !mc.ClassifiedAt.HasValue), stoppingToken);
+                                }
 
-							if (unclassifiedBefore > 0)
-							{
-								_logger.LogInformation("Scan abgeschlossen. Starte Klassifizierung ({UnclassifiedCount} unclassifizierte Collections).", unclassifiedBefore);
-								await classifier.ClassifyMediaCollectionsAsync(stoppingToken);
-								_logger.LogInformation("Klassifizierung der Collections abgeschlossen.");
-								_logger.LogInformation("Klassifizierung abgeschlossen.");
+                                if (unclassifiedBefore > 0)
+                                {
+                                    _logger.LogInformation("Scan abgeschlossen. Starte Klassifizierung ({UnclassifiedCount} unclassifizierte Collections).", unclassifiedBefore);
+                                    await classifier.ClassifyMediaCollectionsAsync(stoppingToken);
+                                    _logger.LogInformation("Klassifizierung der Collections abgeschlossen.");
+                                    _logger.LogInformation("Klassifizierung abgeschlossen.");
 
-								// Sende SignalR-Update �ber NotificationService
-								await _notificationService.NotifyNewVideosScannedAsync(0L, unclassifiedBefore, stoppingToken);
-							}
+                                    // Sende SignalR-Update �ber NotificationService
+                                    await _notificationService.NotifyNewVideosScannedAsync(0L, unclassifiedBefore, stoppingToken);
+                                }
                             }
                             else
                             {
@@ -198,7 +198,7 @@ namespace VideoWebPlayer.Services
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Fehler im MediaSourceScanService beim Start.");
             }

@@ -25,7 +25,7 @@ namespace VideoWebPlayer.Data
         /// <summary>
         /// Gets or sets the owning TV show season.
         /// </summary>
-        public TVShowSeason TVShowSeason { get; set; } = null!;        
+        public TVShowSeason TVShowSeason { get; set; } = null!;
         /// <summary>
         /// Gets or sets the plot summary.
         /// </summary>

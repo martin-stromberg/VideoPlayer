@@ -13,12 +13,12 @@ public sealed record DemoDataSetInfo(string Id, string Name, string? Description
 /// </summary>
 public interface IDemoDataSetService
 {
-	/// <summary>
-	/// Returns available demo data sets.
-	/// </summary>
-	Task<IReadOnlyList<DemoDataSetInfo>> GetAvailableAsync(CancellationToken cancellationToken = default);
-	/// <summary>
-	/// Applies a demo data set to the database.
-	/// </summary>
-	Task ApplyAsync(string demoDataSetId, Data.ApplicationUser user, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Returns available demo data sets.
+    /// </summary>
+    Task<IReadOnlyList<DemoDataSetInfo>> GetAvailableAsync(CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Applies a demo data set to the database.
+    /// </summary>
+    Task ApplyAsync(string demoDataSetId, Data.ApplicationUser user, CancellationToken cancellationToken = default);
 }

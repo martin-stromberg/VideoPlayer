@@ -11,7 +11,7 @@ using VideoWebPlayer.Services;
 /// </summary>
 public class ConnectionCheckAttribute : ActionFilterAttribute
 {
-    
+
     /// <summary>
     /// Validates connection headers before the action executes.
     /// </summary>
@@ -34,5 +34,5 @@ public class ConnectionCheckAttribute : ActionFilterAttribute
         base.OnActionExecuting(context);
     }
 
-    
+
 }

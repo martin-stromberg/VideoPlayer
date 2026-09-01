@@ -67,7 +67,7 @@ public static class WebApplicationExtensions
            .AddInteractiveServerRenderMode();
 
         app.MapControllers();
-        
+
         // SignalR Hub (JWT-authentifiziert)
         app.MapHub<VideoWebPlayer.Hubs.MediaUpdateHub>("/hubs/mediaupdate")
             .RequireAuthorization(policy => policy.AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme).RequireAuthenticatedUser());

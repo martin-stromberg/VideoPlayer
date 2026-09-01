@@ -22,6 +22,7 @@ public class SourcesController : ApiBaseController
     /// </summary>
     /// <param name="authService">Authentication service.</param>
     /// <param name="db">Database context.</param>
+    /// <param name="unlockedMediaService">Unlocked-media authorization service.</param>
     /// <param name="logger">Logger instance.</param>
     public SourcesController(IAuthService authService, ApplicationDbContext db, IUnlockedMediaService unlockedMediaService, ILogger<SourcesController> logger)
         : base(authService, logger)

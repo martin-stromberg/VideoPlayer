@@ -27,6 +27,7 @@ namespace VideoWebPlayer.Services
         /// <summary>
         /// Notifies all clients that new videos have been scanned.
         /// </summary>
+        /// <param name="message">The status message to broadcast.</param>
         /// <param name="ct">A cancellation token.</param>
         public async Task NotifyStatusAsync(string message, CancellationToken ct = default)
         {

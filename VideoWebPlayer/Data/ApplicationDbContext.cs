@@ -185,6 +185,8 @@ namespace VideoWebPlayer.Data
         /// Publiziert nach erfolgreichem L�schen ein Event.
         /// </summary>
         /// <param name="source">Die zu l�schende MediaSource.</param>
+        /// <param name="progress">Optional progress reporter.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
         public async Task DeleteMediaSourceAsync(MediaSource source, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(source);
@@ -344,7 +346,8 @@ namespace VideoWebPlayer.Data
         /// <summary>
         /// L�scht eine MediaCollection, alle untergeordneten Collections und alle zugeh�rigen MediaItems rekursiv.
         /// </summary>
-        /// <param name="collection">Die zu l�schende MediaCollection.</param>
+        /// <param name="collections">Die zu l�schenden MediaCollections.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
         private async Task DeleteMediaCollectionsForSourceAsync(List<MediaCollection> collections, CancellationToken cancellationToken = default)
         {
             if (collections.Count == 0)

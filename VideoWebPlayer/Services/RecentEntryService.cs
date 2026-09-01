@@ -20,6 +20,7 @@ public class RecentEntryService
     /// </summary>
     /// <param name="db">Database context.</param>
     /// <param name="authService">Authentication service.</param>
+    /// <param name="unlockedMediaService">Unlocked-media authorization service.</param>
     public RecentEntryService(ApplicationDbContext db, IAuthService authService, IUnlockedMediaService unlockedMediaService)
     {
         _db = db;

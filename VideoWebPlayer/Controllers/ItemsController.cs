@@ -26,9 +26,12 @@ public class ItemsController : ApiBaseController
     /// </summary>
     /// <param name="db">Database context.</param>
     /// <param name="sftpReader">SFTP reader.</param>
+    /// <param name="metadataEditor">Media metadata editor service.</param>
     /// <param name="recentEntryService">Recent entry service.</param>
+    /// <param name="unlockedMediaService">Unlocked-media authorization service.</param>
     /// <param name="authService">Authentication service.</param>
     /// <param name="logger">Logger instance.</param>
+    /// <param name="watchedStatusService">Watched-status service.</param>
     public ItemsController(
         ApplicationDbContext db,
         SftpMediaSourceReader sftpReader,

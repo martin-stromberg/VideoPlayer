@@ -22,6 +22,7 @@ public sealed class FavoritesService : IFavoritesService
     /// </summary>
     /// <param name="db">Database context.</param>
     /// <param name="notificationService">SignalR notification service.</param>
+    /// <param name="watchedStatusService">Optional watched-status service.</param>
     public FavoritesService(
         ApplicationDbContext db,
         MediaUpdateNotificationService notificationService,

@@ -28,6 +28,10 @@ namespace VideoWebPlayer.Services
         /// <param name="eventManager">Event manager instance.</param>
         /// <param name="notificationService">Service for sending SignalR notifications.</param>
         /// <param name="logger">Logger instance.</param>
+        /// <param name="initialDelay">Optional delay before the first scan loop iteration.</param>
+        /// <param name="loopDelay">Optional delay between scan loop iterations.</param>
+        /// <param name="skipUpgrade">Whether to skip the startup upgrade/backfill step.</param>
+        /// <param name="timeProvider">Optional time provider, primarily for testing.</param>
         public MediaSourceScanService(
             IServiceProvider serviceProvider,
             EventManager eventManager,

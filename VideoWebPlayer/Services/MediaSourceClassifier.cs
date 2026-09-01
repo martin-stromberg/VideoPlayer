@@ -50,8 +50,12 @@ namespace VideoWebPlayer.Services
         /// <param name="db">Application database context.</param>
         /// <param name="sftpReader">SFTP reader for remote sources.</param>
         /// <param name="recentEntryService">Recent entry service.</param>
+        /// <param name="eventManager">Event manager used to publish scan/classification events.</param>
+        /// <param name="episodeBackgroundImageService">Service for episode background images.</param>
         /// <param name="logger">Logger instance.</param>
         /// <param name="httpClient">HTTP client for downloading actor images.</param>
+        /// <param name="notificationService">Optional service used to notify clients about media updates.</param>
+        /// <param name="writeCoordinator">Optional coordinator serializing metadata writes.</param>
         public MediaSourceClassifier(
             ApplicationDbContext db,
             SftpMediaSourceReader sftpReader,

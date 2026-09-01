@@ -64,6 +64,7 @@ namespace VideoWebPlayer.Services.Authentication
         /// <typeparam name="T">The response payload type.</typeparam>
         /// <param name="endPoint">The endpoint to call.</param>
         /// <param name="args">The HTTP content payload.</param>
+        /// <param name="skipReauthorize">Whether to skip the automatic re-authorization retry.</param>
         /// <returns>The deserialized response.</returns>
         protected override async Task<T> HttpPostAsync<T>(string endPoint, HttpContent args, bool skipReauthorize = false)
         {

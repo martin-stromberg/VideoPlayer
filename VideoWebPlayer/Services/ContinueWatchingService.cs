@@ -44,6 +44,8 @@ namespace VideoWebPlayer.Services
         /// <param name="buffer">In-memory buffer for progress entries.</param>
         /// <param name="notificationService">Service for sending SignalR notifications.</param>
         /// <param name="programSettings">Service for program-wide settings.</param>
+        /// <param name="watchedStatusService">Optional watched-status service.</param>
+        /// <param name="timeProvider">Optional time provider, primarily for testing.</param>
         public ContinueWatchingService(ApplicationDbContext db,
                                        UserManager<ApplicationUser> userManager,
                                        ILogger<ContinueWatchingService> logger,

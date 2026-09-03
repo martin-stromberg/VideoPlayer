@@ -2,228 +2,194 @@ name: PR CI for Staging
 
 on:
   pull_request:
-    branches: [ staging ]
+    branches:
+      - staging
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+concurrency:
+  group: pr-staging-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
-  pull-requests: write
+  checks: write
 
 jobs:
   detect-backmerge:
-    # Back-Merge-PRs (main -> staging nach einem Release) enthalten nur bereits
-    # auf main released Code. Tests und Quality-Checks werden dann uebersprungen;
-    # uebersprungene Jobs gelten fuer die Branch-Protection als erfolgreich.
+    # Most thorough variant across the projects (ci-inventory.md section 8/10, decision 20):
+    # checks both whether main's tip is a merge-parent of this PR's merge commit, and whether
+    # the resulting tree is identical to main. actions/checkout on a pull_request event checks
+    # out the synthetic merge commit (base + head), so "origin/main is a parent of HEAD" is a
+    # direct, reliable signal that this PR's head branch is exactly main's current tip - i.e.
+    # the automated back-merge PR created by sync-staging-with-main.yml.
     runs-on: ubuntu-latest
     outputs:
       is_backmerge: ${{ steps.check.outputs.is_backmerge }}
     steps:
-      - name: Check whether PR is a back-merge from main
-        id: check
-        env:
-          HEAD_REF: ${{ github.event.pull_request.head.ref }}
-        run: |
-          if [ "$HEAD_REF" = "main" ]; then
-            echo "is_backmerge=true" >> $GITHUB_OUTPUT
-            echo "::notice::Back-Merge-PR von main erkannt - Tests und Quality-Checks werden uebersprungen."
-          else
-            echo "is_backmerge=false" >> $GITHUB_OUTPUT
-          fi
-
-  build:
-    runs-on: ubuntu-latest
-    needs: detect-backmerge
-    if: needs.detect-backmerge.outputs.is_backmerge != 'true'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
+      - name: Check whether this PR is a pure back-merge from main
+        id: check
+        run: |
+          git fetch origin main:refs/remotes/origin/main --no-tags
 
-      - name: Restore dependencies
-        run: dotnet restore VideoWebPlayer/VideoWebPlayer.csproj
+          main_sha="$(git rev-parse origin/main)"
+          is_main_merge_parent=false
+          for parent in $(git show -s --format=%P HEAD); do
+            if [[ "$parent" == "$main_sha" ]]; then
+              is_main_merge_parent=true
+              break
+            fi
+          done
 
-      - name: Restore dependencies for tests
-        run: dotnet restore VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj
+          if [[ "$is_main_merge_parent" == "true" ]]; then
+            echo "is_backmerge=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Back-merge from main detected - CI checks will be skipped."
+          elif git diff --quiet origin/main HEAD; then
+            echo "is_backmerge=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Pure back-merge from main detected (tree identical) - CI checks will be skipped."
+          else
+            echo "is_backmerge=false" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Build solution
-        run: dotnet build VideoWebPlayer/VideoWebPlayer.csproj --configuration Release --no-restore /p:NoWarn=NU1903
-
-  unit-tests:
+  static-checks:
+    name: static checks
+    needs: detect-backmerge
+    if: needs.detect-backmerge.outputs.is_backmerge != 'true'
+    # Hybrid job model (ci-target-schema.md section 4.2, decision 18): runs in parallel with
+    # build-and-test, with no `needs:` between them, so a format/security/lint failure is
+    # visible within seconds instead of waiting for the multi-minute test run to finish.
     runs-on: ubuntu-latest
-    needs: [detect-backmerge, build]
+    timeout-minutes: 15
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v7
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
       - name: Restore dependencies
-        run: dotnet restore VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj
+        run: dotnet restore VideoPlayer.sln
+
+      - name: Format check
+        # Gate 1. --severity error scopes this to whitespace/style diagnostics (dotnet
+        # format's own "error"-severity category) rather than the default "warn" threshold,
+        # which would otherwise also fail on the same pre-existing analyzer warnings excluded
+        # in the static-analysis step below (that is Gate 3's job, not this one's).
+        run: dotnet format VideoPlayer.sln --verify-no-changes --no-restore --severity error
+
+      - name: Security scan
+        # Gate 2 - shared composite action, see .github/actions/security-scan.
+        uses: ./.github/actions/security-scan
+        with:
+          solution-path: VideoPlayer.sln
+          artifact-name: vulnerable-packages-pr
+
+      - name: Static analysis
+        # Gate 3. WarningsNotAsErrors excludes diagnostic categories that predate this CI
+        # migration and are out of scope to fix here (~280 occurrences at the time of
+        # writing): nullable-reference annotations scattered across the app and tests
+        # (CS8601/CS8602/CS8603/CS8604/CS8618/CS8620/CS8629), the ASP.NET Core Identity
+        # scaffolded account pages' BL0008 (SupplyParameterFromForm + property initializer -
+        # a known pattern in Microsoft's own default template), one cross-project
+        # RecentEntryType name clash (CS0436, VideoWebPlayer vs. VideoWebPlayer.Client), and
+        # an unused field (CS0414). New occurrences of these codes are not caught, but any
+        # other new warning fails the build. Remove entries from this list as the underlying
+        # warnings get fixed; see the migration PR description for the full breakdown.
+        # %3B is MSBuild's own escape for ";" inside a single -p: value - avoids any
+        # shell-specific ambiguity around literal semicolons in this argument.
+        run: >
+          dotnet build VideoPlayer.sln -c Debug --no-restore -p:TreatWarningsAsErrors=true
+          "-p:WarningsNotAsErrors=NU1903%3BCS8601%3BCS8602%3BCS8603%3BCS8604%3BCS8618%3BCS8620%3BCS8629%3BCS0436%3BCS0414%3BBL0008"
+
+  build-and-test:
+    name: build & test
+    needs: detect-backmerge
+    if: needs.detect-backmerge.outputs.is_backmerge != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore VideoPlayer.sln
 
       - name: Build test project
-        run: dotnet build VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release /p:NoWarn=NU1903
-
-      - name: Run unit tests
-        run: dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release --no-build --verbosity normal --filter "Category!=E2E" --logger "trx;LogFileName=test-results.trx"
-
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results
-          path: '**/test-results.trx'
-
-  integration-tests:
-    runs-on: ubuntu-latest
-    needs: [detect-backmerge, build]
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Restore dependencies
-        run: dotnet restore VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj
-
-      - name: Build test project
-        run: dotnet build VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release /p:NoWarn=NU1903
-
-      - name: Run integration tests
-        run: dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release --no-build --verbosity normal --filter "Category=Integration" --logger "trx;LogFileName=integration-test-results.trx"
-        continue-on-error: false
-
-      - name: Upload integration test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: integration-test-results
-          path: '**/integration-test-results.trx'
-
-  e2e-tests:
-    runs-on: ubuntu-latest
-    needs: [detect-backmerge, build]
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Restore dependencies
-        run: dotnet restore VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj
-
-      - name: Build test project
-        run: dotnet build VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release /p:NoWarn=NU1903
+        run: dotnet build VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-restore -c Release -p:NoWarn=NU1903
 
       - name: Install Playwright browsers
         run: pwsh VideoWebPlayer.Tests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
 
+      - name: Run unit tests
+        # Gate 4a (blocking): collects coverage, since this is the primary blocking test run
+        # that feeds the coverage threshold below (ci-target-schema.md section 4.5).
+        run: dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-build -c Release --filter "Category!=E2E" --collect:"XPlat Code Coverage" --logger "trx;LogFileName=test-results.trx" --logger "console;verbosity=normal"
+
+      - name: Run integration tests
+        run: dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-build -c Release --filter "Category=Integration" --logger "trx;LogFileName=integration-test-results.trx" --logger "console;verbosity=normal"
+
       - name: Run E2E tests
-        run: dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release --no-build --verbosity normal --filter "Category=E2E" --logger "trx;LogFileName=e2e-test-results.trx"
+        run: dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-build -c Release --filter "Category=E2E" --logger "trx;LogFileName=e2e-test-results.trx" --logger "console;verbosity=normal"
 
-      - name: Upload E2E test results
+      - name: Install ReportGenerator
+        run: dotnet tool install -g dotnet-reportgenerator-globaltool --version 5.5.11
+
+      - name: Generate coverage report
+        run: reportgenerator "-reports:VideoWebPlayer.Tests/TestResults/**/coverage.cobertura.xml" "-targetdir:coverage-report" "-reporttypes:TextSummary"
+
+      - name: Enforce coverage threshold
+        # Gate 4b: hard 70% line-coverage minimum (ci-target-schema.md section 4.5), adopted
+        # from FinanceManager's test.yml.
+        env:
+          COVERAGE_THRESHOLD: '70'
+        run: |
+          set -euo pipefail
+          summary="$(cat coverage-report/Summary.txt)"
+          line_coverage="$(printf '%s\n' "$summary" | grep -oE 'Line coverage:[[:space:]]*[0-9]+([.,][0-9]+)?%' | grep -oE '[0-9]+([.,][0-9]+)?' | tr ',' '.')"
+          if [ -z "$line_coverage" ]; then
+            echo "::error::Could not determine line coverage from the generated report."
+            exit 1
+          fi
+          echo "Line coverage: ${line_coverage}% (threshold: ${COVERAGE_THRESHOLD}%)"
+          if awk "BEGIN { exit !($line_coverage < $COVERAGE_THRESHOLD) }"; then
+            echo "::error::Code coverage ${line_coverage}% is below the required threshold of ${COVERAGE_THRESHOLD}%."
+            exit 1
+          fi
+
+      - name: Upload coverage report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: e2e-test-results
-          path: '**/e2e-test-results.trx'
+          name: coverage-report-pr
+          path: coverage-report/
+          retention-days: 14
 
-  security-scan:
-    runs-on: ubuntu-latest
-    needs: [detect-backmerge, build]
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v7
         with:
-          dotnet-version: '10.0.x'
+          name: test-results-pr
+          path: VideoWebPlayer.Tests/TestResults/*.trx
+          retention-days: 14
 
-      - name: Run dependency vulnerability scan
-        run: |
-          cd VideoWebPlayer
-          dotnet list package --vulnerable --include-transitive
-
-  code-quality:
+  back-merge-skip:
+    needs: detect-backmerge
+    if: needs.detect-backmerge.outputs.is_backmerge == 'true'
     runs-on: ubuntu-latest
-    needs: [detect-backmerge, build]
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Install formatting tool
-        run: dotnet tool install -g dotnet-format
-
-      - name: Format code
-        run: dotnet format VideoWebPlayer/VideoWebPlayer.csproj --verbosity diagnostic
-
-      - name: Restore dependencies
-        run: dotnet restore VideoWebPlayer/VideoWebPlayer.csproj
-
-      - name: Run static analysis
-        run: dotnet build VideoWebPlayer/VideoWebPlayer.csproj --configuration Release --no-restore /p:AnalysisLevel=latest /p:NoWarn=NU1903
-
-  lint-check:
-    runs-on: ubuntu-latest
-    needs: [detect-backmerge, build]
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Restore dependencies
-        run: dotnet restore VideoWebPlayer/VideoWebPlayer.csproj
-
-      - name: Check for compiler warnings as errors
-        run: dotnet build VideoWebPlayer/VideoWebPlayer.csproj --configuration Release --no-restore /p:TreatWarningsAsErrors=true /p:NoWarn=NU1903 /p:GenerateFullPaths=false
-        continue-on-error: true
-
-  summary:
-    runs-on: ubuntu-latest
-    needs: [detect-backmerge, build, unit-tests, integration-tests, e2e-tests, security-scan, code-quality, lint-check]
-    if: always()
-    steps:
-      - name: Back-merge summary
-        if: needs.detect-backmerge.outputs.is_backmerge == 'true'
-        run: |
-          echo "## PR CI Summary for Staging" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Back-Merge von \`main\` - Tests und Quality-Checks uebersprungen (Code ist auf main bereits released und validiert)." >> $GITHUB_STEP_SUMMARY
-
-      - name: PR CI Summary
-        if: needs.detect-backmerge.outputs.is_backmerge != 'true'
-        run: |
-          echo "## PR CI Summary for Staging" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Build | ${{ needs.build.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Unit Tests | ${{ needs.unit-tests.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Integration Tests | ${{ needs.integration-tests.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| E2E Tests | ${{ needs.e2e-tests.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Security Scan | ${{ needs.security-scan.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Code Quality | ${{ needs.code-quality.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Lint Check | ${{ needs.lint-check.result }} |" >> $GITHUB_STEP_SUMMARY
+      - name: Back-merge detected
+        run: echo "Back-merge PR from main detected. Redundant checks are skipped."

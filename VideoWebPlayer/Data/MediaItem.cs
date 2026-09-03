@@ -10,10 +10,10 @@ namespace VideoWebPlayer.Data
         /// <summary>
         /// Gets or sets the owning media collection identifier.
         /// </summary>
-        public long MediaCollectionId { get; set; }                
+        public long MediaCollectionId { get; set; }
         /// <summary>
         /// Gets or sets the owning media collection.
         /// </summary>
-        public MediaCollection MediaCollection { get; set; } = null!;        
+        public MediaCollection MediaCollection { get; set; } = null!;
     }
 }

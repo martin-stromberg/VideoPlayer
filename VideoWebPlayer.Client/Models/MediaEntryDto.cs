@@ -5,15 +5,15 @@ namespace VideoWebPlayer.Controllers.Models
     /// </summary>
     public class MediaEntryDto
     {
-        public string Type { get; set; }
+        public string Type { get; set; } = string.Empty;
         public long Id { get; set; }
-        public string Title { get; set; }
+        public string Title { get; set; } = string.Empty;
         public string? Description { get; set; }
         public string? Url { get; set; }
         public DateTime CreatedAt { get; set; }
         public long? PictureId { get; set; } // oder PosterPictureId
         public int ItemCount { get; set; }
         public DateTime? WatchedAt { get; set; }
-        
+
     }
 }

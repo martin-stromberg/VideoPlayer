@@ -24,7 +24,7 @@ namespace VideoWebPlayer.Controllers
         /// <param name="authService">Authentication service.</param>
         /// <param name="logger">Logger instance.</param>
         public ContinueWatchingController(ContinueWatchingService service, IAuthService authService, ILogger<ContinueWatchingController> logger)
-            :base(authService, logger)
+            : base(authService, logger)
         {
             _service = service;
         }
@@ -42,23 +42,23 @@ namespace VideoWebPlayer.Controllers
         /// <summary>
         /// Request payload for reporting progress.
         /// </summary>
+        /// <param name="MediaType">Media type (movie or episode).</param>
+        /// <param name="MediaId">Media identifier.</param>
+        /// <param name="PositionSeconds">Playback position in seconds.</param>
+        /// <param name="DurationSeconds">Total duration in seconds.</param>
         public record ProgressRequest(
-            /// <summary>Media type (movie or episode).</summary>
             string MediaType,
-            /// <summary>Media identifier.</summary>
             long MediaId,
-            /// <summary>Playback position in seconds.</summary>
             long PositionSeconds,
-            /// <summary>Total duration in seconds.</summary>
             long DurationSeconds);
 
         /// <summary>
         /// Request payload for manual continue-watching actions.
         /// </summary>
+        /// <param name="MediaType">Media type (movie or episode).</param>
+        /// <param name="MediaId">Media identifier.</param>
         public record ContinueWatchingActionRequest(
-            /// <summary>Media type (movie or episode).</summary>
             string MediaType,
-            /// <summary>Media identifier.</summary>
             long MediaId);
 
         /// <summary>

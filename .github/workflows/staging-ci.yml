@@ -1,258 +1,256 @@
-name: Staging Branch CI
+name: Pre-Release
 
-# CI/CD Pipeline for staging branch - validates code quality and creates pre-releases
+# Filename stays staging-ci.yml (only the display name changes to "Pre-Release") - see
+# ci-target-schema.md section 3. staging-to-main-promotion.yml's workflow_run trigger
+# references this display name, not the filename; both were updated together in this same
+# commit so the promotion chain never briefly points at a name that no longer exists.
 
 on:
   push:
-    branches: [ staging ]
+    branches:
+      - staging
+
+concurrency:
+  group: staging-ci
+  cancel-in-progress: true
 
 permissions:
   contents: write
-  pull-requests: write
+  checks: write
 
 jobs:
   detect-backmerge:
-    # Ein reiner Back-Merge (main -> staging nach einem Release) bringt keinen neuen
-    # Code: der Tree ist identisch zu main. Tests, Quality-Gates und Prerelease
-    # werden dann uebersprungen.
+    # Same thorough check as pr-staging-ci.yml's detect-backmerge (decision 20): checks both
+    # merge-parent and tree-diff against main. On a push event HEAD is the pushed commit
+    # itself (not a synthetic merge), so this mainly catches the case where the automated
+    # back-merge PR (main -> staging) was merged with "Create a merge commit", making main's
+    # tip a direct parent of the new staging HEAD.
     runs-on: ubuntu-latest
     outputs:
       is_backmerge: ${{ steps.check.outputs.is_backmerge }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - name: Check whether push is a pure back-merge from main
+      - name: Check whether this push is a pure back-merge from main
         id: check
         run: |
-          git fetch origin main --no-tags
-          if git diff --quiet origin/main HEAD; then
-            echo "is_backmerge=true" >> $GITHUB_OUTPUT
-            echo "::notice::Reiner Back-Merge von main erkannt (Tree identisch) - Tests, Quality-Gates und Prerelease werden uebersprungen."
-          else
-            echo "is_backmerge=false" >> $GITHUB_OUTPUT
-            echo "Aenderungen gegenueber main vorhanden - vollstaendige Pipeline laeuft."
-          fi
+          git fetch origin main:refs/remotes/origin/main --no-tags
 
-  version:
-    runs-on: ubuntu-latest
-    needs: detect-backmerge
-    if: needs.detect-backmerge.outputs.is_backmerge != 'true'
-    outputs:
-      next_version: ${{ steps.semver.outputs.next_version }}
-      bump: ${{ steps.semver.outputs.bump }}
-      rc_version: ${{ steps.semver.outputs.rc_version }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Compute next semantic version
-        id: semver
-        run: bash .github/scripts/compute-version.sh
-
-  build:
-    runs-on: ubuntu-latest
-    needs: detect-backmerge
-    if: needs.detect-backmerge.outputs.is_backmerge != 'true'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Restore dependencies
-        run: dotnet restore VideoWebPlayer/VideoWebPlayer.csproj
-
-      - name: Build solution
-        run: dotnet build VideoWebPlayer/VideoWebPlayer.csproj --configuration Release --no-restore /p:NoWarn=NU1903
-
-  full-integration-tests:
-    runs-on: ubuntu-latest
-    needs: [detect-backmerge, build]
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Restore dependencies
-        run: dotnet restore VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj
-
-      - name: Build test project
-        run: dotnet build VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release /p:NoWarn=NU1903
-
-      - name: Run all integration tests
-        run: dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release --no-build --verbosity normal --filter "Category=Integration" --logger "trx;LogFileName=full-integration-results.trx"
-
-      - name: Upload integration test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: full-integration-test-results
-          path: '**/full-integration-results.trx'
-
-  code-coverage:
-    runs-on: ubuntu-latest
-    needs: [detect-backmerge, build]
-    if: needs.detect-backmerge.outputs.is_backmerge != 'true'
-    timeout-minutes: 10
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Restore dependencies
-        run: dotnet restore VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj
-
-      - name: Build test project
-        run: dotnet build VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --configuration Release /p:NoWarn=NU1903
-
-      - name: Run tests with coverage
-        run: |
-          mkdir -p coverage
-          dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj \
-            --configuration Release \
-            --no-build \
-            --filter "Category!=E2E" \
-            --collect:"XPlat Code Coverage" \
-            --results-directory coverage \
-            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
-
-      - name: Upload coverage data
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-data
-          path: coverage/**/*.xml
-          if-no-files-found: error
-
-  quality-gates:
-    runs-on: ubuntu-latest
-    needs: [detect-backmerge, build, code-coverage]
-    if: always() && needs.detect-backmerge.outputs.is_backmerge != 'true' && needs.build.result == 'success'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Restore dependencies
-        run: dotnet restore VideoWebPlayer/VideoWebPlayer.csproj
-
-      - name: Dependency vulnerability check
-        run: |
-          cd VideoWebPlayer
-          dotnet list package --vulnerable --include-transitive
-
-      - name: Code formatting
-        run: |
-          dotnet tool install -g dotnet-format
-          dotnet format VideoWebPlayer/VideoWebPlayer.csproj
-
-  create-prerelease:
-    runs-on: ubuntu-latest
-    needs: [detect-backmerge, version, full-integration-tests, quality-gates]
-    if: needs.detect-backmerge.outputs.is_backmerge != 'true' && needs.full-integration-tests.result == 'success' && needs.quality-gates.result == 'success'
-    env:
-      RC_VERSION: ${{ needs.version.outputs.rc_version }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Restore dependencies
-        run: dotnet restore VideoWebPlayer/VideoWebPlayer.csproj
-
-      - name: Build release artifacts
-        run: |
-          dotnet publish VideoWebPlayer/VideoWebPlayer.csproj --configuration Release --runtime win-x64 --self-contained -o artifacts/windows /p:Version=$RC_VERSION /p:NoWarn=NU1903
-          dotnet publish VideoWebPlayer/VideoWebPlayer.csproj --configuration Release --runtime linux-x64 --self-contained -o artifacts/linux /p:Version=$RC_VERSION /p:NoWarn=NU1903
-
-      - name: Create release metadata
-        run: |
-          PUBLISHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          for target in windows:win-x64 linux:linux-x64; do
-            DIR="artifacts/${target%%:*}"
-            RID="${target##*:}"
-            cat > "$DIR/release-metadata.json" <<JSON
-          {
-            "version": "${RC_VERSION}",
-            "publishedAt": "${PUBLISHED_AT}",
-            "commitSha": "${{ github.sha }}",
-            "repository": "${{ github.repository }}",
-            "runtimeIdentifier": "${RID}"
-          }
-          JSON
+          main_sha="$(git rev-parse origin/main)"
+          is_main_merge_parent=false
+          for parent in $(git show -s --format=%P HEAD); do
+            if [[ "$parent" == "$main_sha" ]]; then
+              is_main_merge_parent=true
+              break
+            fi
           done
 
-      - name: Create release zip (Windows)
-        run: |
-          cd artifacts/windows
-          zip -r ../../release-windows-${RC_VERSION}.zip .
+          if [[ "$is_main_merge_parent" == "true" ]]; then
+            echo "is_backmerge=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Back-merge from main detected - CI checks will be skipped."
+          elif git diff --quiet origin/main HEAD; then
+            echo "is_backmerge=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Pure back-merge from main detected (tree identical) - CI checks will be skipped."
+          else
+            echo "is_backmerge=false" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Create release zip (Linux)
-        run: |
-          cd artifacts/linux
-          zip -r ../../release-linux-${RC_VERSION}.zip .
+  static-checks:
+    name: static checks
+    needs: detect-backmerge
+    if: needs.detect-backmerge.outputs.is_backmerge != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
 
-      - name: Create update manifest
-        run: |
-          bash .github/scripts/create-update-manifest.sh \
-            "$RC_VERSION" \
-            "${{ github.repository }}" \
-            update.json
-
-      - name: Create prerelease
-        uses: softprops/action-gh-release@v2
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v6
         with:
-          tag_name: v${{ needs.version.outputs.rc_version }}
-          name: Pre-release v${{ needs.version.outputs.rc_version }}
-          target_commitish: ${{ github.sha }}
-          draft: false
-          prerelease: true
-          files: |
-            release-windows-${{ needs.version.outputs.rc_version }}.zip
-            release-linux-${{ needs.version.outputs.rc_version }}.zip
-            update.json
-          body: |
-            ## Pre-release v${{ needs.version.outputs.rc_version }}
+          dotnet-version: '10.0.x'
 
-            This is a pre-release from the staging branch. All quality gates have passed.
+      - name: Restore dependencies
+        run: dotnet restore VideoPlayer.sln
 
-            ### Version
-            - Naechste stabile Version: `${{ needs.version.outputs.next_version }}` (Bump: `${{ needs.version.outputs.bump }}`)
-            - Ermittelt aus dem letzten stabilen Tag und den Conventional Commits auf staging.
+      - name: Format check
+        # See pr-staging-ci.yml's equivalent step for why --severity error is used here.
+        run: dotnet format VideoPlayer.sln --verify-no-changes --no-restore --severity error
 
-            ### Changes
-            - See commit history for details
+      - name: Security scan
+        uses: ./.github/actions/security-scan
+        with:
+          solution-path: VideoPlayer.sln
+          artifact-name: vulnerable-packages-staging
 
-            ### Artifacts
-            - Windows: release-windows.zip
-            - Linux: release-linux.zip
+      - name: Static analysis
+        # See pr-staging-ci.yml's equivalent step for why these codes are excluded, and why
+        # %3B (MSBuild's own escape for ";") is used instead of a literal semicolon.
+        run: >
+          dotnet build VideoPlayer.sln -c Debug --no-restore -p:TreatWarningsAsErrors=true
+          "-p:WarningsNotAsErrors=NU1903%3BCS8601%3BCS8602%3BCS8603%3BCS8604%3BCS8618%3BCS8620%3BCS8629%3BCS0436%3BCS0414%3BBL0008"
 
-            ### Installation
-            Download the appropriate zip file for your platform and extract it.
+  build-and-test:
+    name: build & test
+    needs: detect-backmerge
+    if: needs.detect-backmerge.outputs.is_backmerge != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore VideoPlayer.sln
+
+      - name: Build test project
+        run: dotnet build VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-restore -c Release -p:NoWarn=NU1903
+
+      - name: Install Playwright browsers
+        run: pwsh VideoWebPlayer.Tests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+
+      - name: Run unit tests
+        run: dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-build -c Release --filter "Category!=E2E" --collect:"XPlat Code Coverage" --logger "trx;LogFileName=test-results.trx" --logger "console;verbosity=normal"
+
+      - name: Run integration tests
+        run: dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-build -c Release --filter "Category=Integration" --logger "trx;LogFileName=integration-test-results.trx" --logger "console;verbosity=normal"
+
+      - name: Run E2E tests
+        run: dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-build -c Release --filter "Category=E2E" --logger "trx;LogFileName=e2e-test-results.trx" --logger "console;verbosity=normal"
+
+      - name: Install ReportGenerator
+        run: dotnet tool install -g dotnet-reportgenerator-globaltool --version 5.5.11
+
+      - name: Generate coverage report
+        run: reportgenerator "-reports:VideoWebPlayer.Tests/TestResults/**/coverage.cobertura.xml" "-targetdir:coverage-report" "-reporttypes:TextSummary"
+
+      - name: Enforce coverage threshold
+        env:
+          COVERAGE_THRESHOLD: '70'
+        run: |
+          set -euo pipefail
+          summary="$(cat coverage-report/Summary.txt)"
+          line_coverage="$(printf '%s\n' "$summary" | grep -oE 'Line coverage:[[:space:]]*[0-9]+([.,][0-9]+)?%' | grep -oE '[0-9]+([.,][0-9]+)?' | tr ',' '.')"
+          if [ -z "$line_coverage" ]; then
+            echo "::error::Could not determine line coverage from the generated report."
+            exit 1
+          fi
+          echo "Line coverage: ${line_coverage}% (threshold: ${COVERAGE_THRESHOLD}%)"
+          if awk "BEGIN { exit !($line_coverage < $COVERAGE_THRESHOLD) }"; then
+            echo "::error::Code coverage ${line_coverage}% is below the required threshold of ${COVERAGE_THRESHOLD}%."
+            exit 1
+          fi
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-report-staging
+          path: coverage-report/
+          retention-days: 14
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results-staging
+          path: VideoWebPlayer.Tests/TestResults/*.trx
+          retention-days: 14
+
+  version:
+    name: version
+    needs: [detect-backmerge, static-checks, build-and-test]
+    if: needs.detect-backmerge.outputs.is_backmerge != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      changed: ${{ steps.semver.outputs.changed }}
+      version: ${{ steps.semver.outputs.version }}
+      rc_tag: ${{ steps.rc.outputs.rc_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Determine next version
+        # release.config.js only lists "main" as a release branch (see that file's own
+        # comment); staging is deliberately not a configured prerelease branch there. The
+        # --branches override below treats "staging" as a plain release branch for this one
+        # dry-run only, so the resulting X.Y.Z carries no prerelease identifier - the RC
+        # suffix is appended manually in the next step instead. This replaces the previous
+        # .github/scripts/compute-version.sh custom Conventional-Commits script.
+        id: semver
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          output="$(npx semantic-release --dry-run --no-ci --branches staging 2>&1 | tee /dev/stderr)"
+
+          version=""
+          changed="false"
+          if [[ "$output" =~ The\ next\ release\ version\ is\ ([0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?) ]]; then
+            version="${BASH_REMATCH[1]}"
+            changed="true"
+            echo "Next release version: $version"
+          else
+            echo "No new release version determined."
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+
+      - name: Determine RC number
+        if: steps.semver.outputs.changed == 'true'
+        id: rc
+        run: |
+          set -euo pipefail
+          version="${{ steps.semver.outputs.version }}"
+          rc_number=$(( $(git tag --list "v${version}-rc.*" | wc -l) + 1 ))
+          echo "rc_number=$rc_number" >> "$GITHUB_OUTPUT"
+          echo "rc_tag=v${version}-rc.${rc_number}" >> "$GITHUB_OUTPUT"
+
+  prerelease:
+    name: prerelease
+    needs: [detect-backmerge, version]
+    if: needs.detect-backmerge.outputs.is_backmerge != 'true' && needs.version.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Build and package release candidate
+        uses: ./.github/actions/build-and-package
+        with:
+          release-version: ${{ needs.version.outputs.version }}
+          release-tag: ${{ needs.version.outputs.rc_tag }}
+
+      - name: Create GitHub pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${{ needs.version.outputs.rc_tag }}"
+          gh release create "$tag" release-win-x64.zip release-linux-x64.zip update.json \
+            --target "$GITHUB_SHA" \
+            --title "$tag" \
+            --prerelease \
+            --generate-notes

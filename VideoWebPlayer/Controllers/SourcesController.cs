@@ -22,9 +22,10 @@ public class SourcesController : ApiBaseController
     /// </summary>
     /// <param name="authService">Authentication service.</param>
     /// <param name="db">Database context.</param>
+    /// <param name="unlockedMediaService">Unlocked-media authorization service.</param>
     /// <param name="logger">Logger instance.</param>
     public SourcesController(IAuthService authService, ApplicationDbContext db, IUnlockedMediaService unlockedMediaService, ILogger<SourcesController> logger)
-        :base(authService, logger)
+        : base(authService, logger)
     {
         _db = db;
         _unlockedMediaService = unlockedMediaService;
@@ -59,7 +60,7 @@ public class SourcesController : ApiBaseController
 
             return Ok(sources);
         }
-        catch(UnauthorizedAccessException ex)
+        catch (UnauthorizedAccessException ex)
         {
             Logger.LogWarning(ex, "Zugriff verweigert beim Abrufen der Quellen");
             return Unauthorized(ex.Message);

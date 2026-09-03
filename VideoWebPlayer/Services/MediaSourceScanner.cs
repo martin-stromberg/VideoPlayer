@@ -27,7 +27,9 @@ namespace VideoWebPlayer.Services
         /// </summary>
         /// <param name="db">Application database context.</param>
         /// <param name="sftpReader">SFTP reader for remote sources.</param>
+        /// <param name="settings">Program settings service.</param>
         /// <param name="logger">Logger instance.</param>
+        /// <param name="timeProvider">Optional time provider, primarily for testing.</param>
         public MediaSourceScanner(
             ApplicationDbContext db,
             SftpMediaSourceReader sftpReader,
@@ -52,7 +54,7 @@ namespace VideoWebPlayer.Services
             // Ensure DateTime kind is UTC so EF/core and tests don't mix kinds/local conversions
             var nowUtc = DateTime.SpecifyKind(now, DateTimeKind.Utc);
             var sources = await _db.MediaSources.ToListAsync(cancellationToken);
-            _logger.LogInformation("Starte Root-Scan für {Count} Quellen.", sources.Count);
+            _logger.LogInformation("Starte Root-Scan fï¿½r {Count} Quellen.", sources.Count);
 
             foreach (var source in sources)
             {
@@ -82,7 +84,7 @@ namespace VideoWebPlayer.Services
                     _db.MediaCollections.Add(rootEntry);
                     await _db.SaveChangesAsync(cancellationToken);
                     _logger.LogInformation("Root-Collection '{Path}' angelegt.", rootEntry.Path);
-                } 
+                }
                 else if (existing.CreatedAt != rootEntry.CreatedAt)
                 {
                     // Update the existing DB entity (not the newly read rootEntry) so changes are persisted
@@ -210,7 +212,7 @@ namespace VideoWebPlayer.Services
             }
             catch (Exception ex) when (ex is SftpPathNotFoundException or SftpPermissionDeniedException)
             {
-                _logger.LogWarning(ex, "Collection '{Path}' konnte nicht gelesen werden und wird übersprungen.", next.Path);
+                _logger.LogWarning(ex, "Collection '{Path}' konnte nicht gelesen werden und wird ï¿½bersprungen.", next.Path);
 
                 next.LastScannedAt = nowUtc;
                 next.ScanDueAt = nowUtc.Add(mediaCollectionScanInterval);
@@ -246,7 +248,7 @@ namespace VideoWebPlayer.Services
                         exists.Classifyable = false;
                         exists.ScanDueAt = nowUtc;
                         await _db.SaveChangesAsync(cancellationToken);
-                        _logger.LogInformation("Vorhandene MediaCollection aktualisiert (CreatedAt geändert): {Path}", exists.Path);
+                        _logger.LogInformation("Vorhandene MediaCollection aktualisiert (CreatedAt geï¿½ndert): {Path}", exists.Path);
                     }
                 }
                 else if (entry is MediaItem file)
@@ -266,7 +268,7 @@ namespace VideoWebPlayer.Services
                         existingItem.Changed = true;
                         existingItem.ClassifiedAt = null;
                         await _db.SaveChangesAsync(cancellationToken);
-                        _logger.LogInformation("Vorhandenes MediaItem aktualisiert (CreatedAt geändert): {Path}", existingItem.Path);
+                        _logger.LogInformation("Vorhandenes MediaItem aktualisiert (CreatedAt geï¿½ndert): {Path}", existingItem.Path);
                     }
                 }
             }
@@ -274,7 +276,7 @@ namespace VideoWebPlayer.Services
             next.ScanDueAt = nowUtc.Add(mediaCollectionScanInterval);
             await _db.SaveChangesAsync(cancellationToken);
 
-            _logger.LogInformation("Scan für Collection '{Path}' abgeschlossen. LastScannedAt={LastScannedAt}", next.Path, next.LastScannedAt);
+            _logger.LogInformation("Scan fï¿½r Collection '{Path}' abgeschlossen. LastScannedAt={LastScannedAt}", next.Path, next.LastScannedAt);
 
             var childCollections = await _db.MediaCollections
                 .Where(c => c.ParentMediaCollectionId == next.Id)

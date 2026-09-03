@@ -31,7 +31,7 @@ public class SourceGenresController : ApiBaseController
     /// <param name="unlockedMediaService">Unlocked media service.</param>
     /// <param name="logger">Logger instance.</param>
     public SourceGenresController(IAuthService authService, ApplicationDbContext db, IWebHostEnvironment env, IUnlockedMediaService unlockedMediaService, ILogger<SourceGenresController> logger)
-        :base(authService, logger)
+        : base(authService, logger)
     {
         _db = db;
         _env = env;

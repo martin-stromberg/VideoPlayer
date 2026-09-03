@@ -38,7 +38,7 @@ public sealed class SeriesSftpMediaSourceReader : SftpMediaSourceReader
             Files = new List<SourceFile>()
         };
         if (!string.IsNullOrWhiteSpace(showName))
-            AddShow(showName, seasonCount, episodesPerSeason);        
+            AddShow(showName, seasonCount, episodesPerSeason);
     }
     public void AddShow(string showName, int seasonCount = 0, int episodesPerSeason = 0)
     {
@@ -55,7 +55,7 @@ public sealed class SeriesSftpMediaSourceReader : SftpMediaSourceReader
                     CreatedAt = DateTime.UtcNow,
                     Data = System.Text.Encoding.UTF8.GetBytes("<tvshow><title>Test Show</title></tvshow>")
                 },
-                new SourceFile() 
+                new SourceFile()
                 {
                     Name = "poster.jpg",
                     CreatedAt = DateTime.UtcNow,
@@ -63,7 +63,7 @@ public sealed class SeriesSftpMediaSourceReader : SftpMediaSourceReader
                 }
             }
         });
-        for (;  seasonCount > 0; seasonCount-- )
+        for (; seasonCount > 0; seasonCount--)
             AddSeason(showName, episodesPerSeason);
     }
 

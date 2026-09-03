@@ -16,7 +16,7 @@ namespace VideoWebPlayer.Client
     {
         private readonly HttpClient httpClient;
         private readonly ConcurrentDictionary<string, ProgressSendState> progressStates = new();
-        
+
         public VideoWebPlayerClient(HttpClient httpClient, ILogger<VideoWebPlayerClient> logger)
         {
             this.httpClient = httpClient;
@@ -79,12 +79,12 @@ namespace VideoWebPlayer.Client
                 PropertyNameCaseInsensitive = true
             }) ?? throw new InvalidOperationException("Deserialization returned null.");
         }
-        
+
         protected virtual async Task<T> HttpPostAsync<T>(string endPoint, HttpContent args, bool skipReauthorize = false)
         {
             async Task<HttpResponseMessage> DoRequestAsync() => await httpClient.PostAsync(endPoint, args);
 
-            var response = await DoRequestAsync();            
+            var response = await DoRequestAsync();
             // Prüfe auf 401 Unauthorized
             if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
             {
@@ -112,7 +112,7 @@ namespace VideoWebPlayer.Client
                     throw new HttpRequestException($"Unauthorized: {endPoint}");
                 }
             }
-            
+
             var content = await response.Content.ReadAsStringAsync();
             if (!response.IsSuccessStatusCode)
                 throw new HttpRequestException(
@@ -171,16 +171,16 @@ namespace VideoWebPlayer.Client
             SetAuthorizationToken(token);
             return token;
         }
-        
+
         public virtual void SetAuthorizationToken(AuthorizationToken token)
         {
             if (token is not null)
             {
-                httpClient.DefaultRequestHeaders.Authorization = 
+                httpClient.DefaultRequestHeaders.Authorization =
                     new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token.token);
             }
         }
-        
+
         public string? AuthorizationToken
         {
             get
@@ -197,7 +197,7 @@ namespace VideoWebPlayer.Client
         {
             return Task.CompletedTask;
         }
-        
+
         public bool Initializing { get; set; }
         protected ILogger<VideoWebPlayerClient> Logger { get; }
         #endregion
@@ -466,9 +466,9 @@ namespace VideoWebPlayer.Client
                 "api/items/metadata",
                 new StringContent(json, System.Text.Encoding.UTF8, "application/json"));
         }
-        
+
         #endregion
-        
+
         #region Continue Watching
         /// <summary>
         /// Gets the current user's continue-watching list.
@@ -477,7 +477,7 @@ namespace VideoWebPlayer.Client
         {
             return await HttpGetAsync<List<ContinueWatchingDto>>("api/continue-watching");
         }
-        
+
         /// <summary>
         /// Reports playback progress for the current user.
         /// Coalescing: Für ein MediaItem läuft nur ein Request gleichzeitig.

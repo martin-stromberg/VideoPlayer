@@ -31,13 +31,13 @@ public class ContinueWatchingContextMenuActionTests : ContinueWatchingServiceTes
             UpdatedAt = DateTime.UtcNow,
             ListOrder = 10
         });
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var removed = await _service.HideAsync(_testUserId, movie.Id, null);
+        var removed = await _service.HideAsync(_testUserId, movie.Id, null, TestContext.Current.CancellationToken);
 
         Assert.True(removed);
-        Assert.False(await _db.ContinueWatchingEntries.AnyAsync(e => e.UserId == _testUserId && e.MovieId == movie.Id));
-        Assert.True(await _db.ContinueWatchingEntries.AnyAsync(e => e.UserId == "other-user" && e.MovieId == movie.Id));
+        Assert.False(await _db.ContinueWatchingEntries.AnyAsync(e => e.UserId == _testUserId && e.MovieId == movie.Id, TestContext.Current.CancellationToken));
+        Assert.True(await _db.ContinueWatchingEntries.AnyAsync(e => e.UserId == "other-user" && e.MovieId == movie.Id, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -46,8 +46,8 @@ public class ContinueWatchingContextMenuActionTests : ContinueWatchingServiceTes
         await TestHelpers.CreateTvShowWithSeasonsAsync(
             _db,
             ("Staffel 01", new (int, DateTime?)[] { (1, null), (2, null) }));
-        var episode1 = await _db.TVShowEpisodes.FirstAsync(e => e.Number == 1);
-        var episode2 = await _db.TVShowEpisodes.FirstAsync(e => e.Number == 2);
+        var episode1 = await _db.TVShowEpisodes.FirstAsync(e => e.Number == 1, TestContext.Current.CancellationToken);
+        var episode2 = await _db.TVShowEpisodes.FirstAsync(e => e.Number == 2, TestContext.Current.CancellationToken);
 
         _db.ContinueWatchingEntries.Add(new ContinueWatchingEntry
         {
@@ -58,12 +58,12 @@ public class ContinueWatchingContextMenuActionTests : ContinueWatchingServiceTes
             UpdatedAt = DateTime.UtcNow.AddMinutes(-5),
             ListOrder = 12345
         });
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var result = await _service.SkipAsync(_testUserId, null, episode1.Id);
+        var result = await _service.SkipAsync(_testUserId, null, episode1.Id, TestContext.Current.CancellationToken);
 
         Assert.Equal(ContinueWatchingService.SkipResult.Replaced, result);
-        var entry = await _db.ContinueWatchingEntries.SingleAsync(e => e.UserId == _testUserId);
+        var entry = await _db.ContinueWatchingEntries.SingleAsync(e => e.UserId == _testUserId, TestContext.Current.CancellationToken);
         Assert.Equal(episode2.Id, entry.TVShowEpisodeId);
         Assert.Null(entry.MovieId);
         Assert.Equal(12345, entry.ListOrder);
@@ -77,7 +77,7 @@ public class ContinueWatchingContextMenuActionTests : ContinueWatchingServiceTes
         await TestHelpers.CreateTvShowWithSeasonsAsync(
             _db,
             ("Staffel 01", new (int, DateTime?)[] { (1, null) }));
-        var episode = await _db.TVShowEpisodes.SingleAsync();
+        var episode = await _db.TVShowEpisodes.SingleAsync(TestContext.Current.CancellationToken);
 
         _db.ContinueWatchingEntries.Add(new ContinueWatchingEntry
         {
@@ -87,12 +87,12 @@ public class ContinueWatchingContextMenuActionTests : ContinueWatchingServiceTes
             UpdatedAt = DateTime.UtcNow,
             ListOrder = 12345
         });
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var result = await _service.SkipAsync(_testUserId, null, episode.Id);
+        var result = await _service.SkipAsync(_testUserId, null, episode.Id, TestContext.Current.CancellationToken);
 
         Assert.Equal(ContinueWatchingService.SkipResult.RemovedWithoutNext, result);
-        Assert.False(await _db.ContinueWatchingEntries.AnyAsync(e => e.UserId == _testUserId));
+        Assert.False(await _db.ContinueWatchingEntries.AnyAsync(e => e.UserId == _testUserId, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -109,12 +109,12 @@ public class ContinueWatchingContextMenuActionTests : ContinueWatchingServiceTes
             UpdatedAt = DateTime.UtcNow.AddMinutes(-10),
             ListOrder = 67890
         });
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var result = await _service.SkipAsync(_testUserId, first.Id, null);
+        var result = await _service.SkipAsync(_testUserId, first.Id, null, TestContext.Current.CancellationToken);
 
         Assert.Equal(ContinueWatchingService.SkipResult.Replaced, result);
-        var entry = await _db.ContinueWatchingEntries.SingleAsync(e => e.UserId == _testUserId);
+        var entry = await _db.ContinueWatchingEntries.SingleAsync(e => e.UserId == _testUserId, TestContext.Current.CancellationToken);
         Assert.Equal(second.Id, entry.MovieId);
         Assert.Null(entry.TVShowEpisodeId);
         Assert.Equal(67890, entry.ListOrder);

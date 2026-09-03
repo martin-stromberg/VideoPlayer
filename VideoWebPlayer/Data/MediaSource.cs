@@ -25,15 +25,15 @@ namespace VideoWebPlayer.Data
         /// </summary>
         public string? Password { get; set; }
 
-		/// <summary>
-		/// Optional uploaded icon image (stored in `MediaSourceIcons` table).
-		/// </summary>
-		public long? IconPictureId { get; set; }
+        /// <summary>
+        /// Optional uploaded icon image (stored in `MediaSourceIcons` table).
+        /// </summary>
+        public long? IconPictureId { get; set; }
 
-		/// <summary>
-		/// Navigation property for the uploaded source icon.
-		/// </summary>
-		public MediaSourceIcon? IconPicture { get; set; }
+        /// <summary>
+        /// Navigation property for the uploaded source icon.
+        /// </summary>
+        public MediaSourceIcon? IconPicture { get; set; }
         /// <summary>
         /// Gets or sets the last scan timestamp.
         /// </summary>

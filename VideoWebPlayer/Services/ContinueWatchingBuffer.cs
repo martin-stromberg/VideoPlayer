@@ -42,7 +42,8 @@ namespace VideoWebPlayer.Services
         private readonly ConcurrentDictionary<string, ProgressEntry> _latestByKey = new();
         private readonly Channel<string> _keysChannel = Channel.CreateUnbounded<string>(new UnboundedChannelOptions
         {
-            SingleReader = true, SingleWriter = false
+            SingleReader = true,
+            SingleWriter = false
         });
 
         private static string MakeKey(string userId, long? movieId, long? episodeId)
@@ -70,15 +71,15 @@ namespace VideoWebPlayer.Services
             };
 
             var wasNew = !_latestByKey.ContainsKey(key);
-            
+
             // Aktualisiere oder füge hinzu
             _latestByKey[key] = entry;
-            
+
             // Schreibe Key IMMER in Channel (auch bei Update)
             // Der Worker entfernt den Entry aus dem Dictionary nach Verarbeitung
             // Duplikate im Channel sind OK - TryRemove gibt beim 2. Mal null zurück
             var written = _keysChannel.Writer.TryWrite(key);
-            
+
             System.Diagnostics.Debug.WriteLine(
                 $"[ContinueWatchingBuffer] {(wasNew ? "New" : "Update")} entry for key {key}. " +
                 $"Position: {position.TotalSeconds:F1}s. Channel write: {(written ? "OK" : "FAILED")}. " +
@@ -93,17 +94,17 @@ namespace VideoWebPlayer.Services
         public async Task<ProgressEntry?> ReadNextAsync(CancellationToken ct)
         {
             var key = await _keysChannel.Reader.ReadAsync(ct);
-            
+
             // TryRemove kann null zurückgeben wenn Key bereits verarbeitet wurde (Duplikat)
             // Das ist OK und kein Fehler - einfach zum nächsten Key weitergehen
             var removed = _latestByKey.TryRemove(key, out var entry);
-            
+
             System.Diagnostics.Debug.WriteLine(
                 $"[ContinueWatchingBuffer] Read key {key}. " +
                 $"Found: {removed}. " +
                 $"Position: {(entry != null ? entry.Position.TotalSeconds.ToString("F1") : "N/A")}s. " +
                 $"Remaining in buffer: {_latestByKey.Count}");
-            
+
             return removed ? entry : null;
         }
     }

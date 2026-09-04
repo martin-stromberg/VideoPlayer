@@ -9,7 +9,7 @@ description: >
 
 inputs:
   release-version:
-    description: Version without a leading v, embedded via -p:Version and written into update.json.
+    description: Version without a leading v, embedded via -p:Version and written into release-metadata.json and update.json.
     required: false
     default: ''
   release-tag:
@@ -42,6 +42,35 @@ runs:
             echo "::error::publish/$rid is missing or empty."
             exit 1
           fi
+        done
+
+    - name: Write release metadata
+      # msTools.Updater's default IInstalledVersionProvider (ReleaseMetadataInstalledVersionProvider)
+      # reads release-metadata.json from the running app's own root directory to determine
+      # the currently-installed version - it is bundled INSIDE each runtime's ZIP, unlike
+      # update.json (a separate release asset describing available updates). Without this
+      # file, VideoWebPlayer can never determine its own installed version once deployed via
+      # msTools.Updater. Schema matches FinanceManager's/Schnittstellenzentrale's existing
+      # build-and-package equivalent step.
+      shell: bash
+      env:
+        RELEASE_VERSION: ${{ inputs.release-version }}
+      run: |
+        set -euo pipefail
+        for rid in win-x64 linux-x64; do
+          jq -n \
+            --arg version "$RELEASE_VERSION" \
+            --arg publishedAt "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            --arg commitSha "$GITHUB_SHA" \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg runtimeIdentifier "$rid" \
+            '{
+              version: $version,
+              publishedAt: $publishedAt,
+              commitSha: $commitSha,
+              repository: $repository,
+              runtimeIdentifier: $runtimeIdentifier
+            }' > "publish/$rid/release-metadata.json"
         done
 
     - name: Create release ZIPs

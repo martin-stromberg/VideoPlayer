@@ -175,6 +175,7 @@ jobs:
       changed: ${{ steps.semver.outputs.changed }}
       version: ${{ steps.semver.outputs.version }}
       rc_tag: ${{ steps.rc.outputs.rc_tag }}
+      rc_version: ${{ steps.rc.outputs.rc_version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -226,6 +227,12 @@ jobs:
           rc_number=$(( $(git tag --list "v${version}-rc.*" | wc -l) + 1 ))
           echo "rc_number=$rc_number" >> "$GITHUB_OUTPUT"
           echo "rc_tag=v${version}-rc.${rc_number}" >> "$GITHUB_OUTPUT"
+          # RC-suffixed version without the leading "v" (e.g. "1.2.3-rc.1"), distinct from
+          # rc_tag ("v1.2.3-rc.1"). Passed as build-and-package's release-version input so both
+          # the packaged asset file names and update.json's own "version" field carry the RC
+          # suffix (previously this fell through to the bare semantic version - update.json
+          # would say e.g. "1.12.1" for what was actually the v1.12.1-rc.3 pre-release).
+          echo "rc_version=${version}-rc.${rc_number}" >> "$GITHUB_OUTPUT"
 
   prerelease:
     name: prerelease
@@ -240,7 +247,7 @@ jobs:
       - name: Build and package release candidate
         uses: ./.github/actions/build-and-package
         with:
-          release-version: ${{ needs.version.outputs.version }}
+          release-version: ${{ needs.version.outputs.rc_version }}
           release-tag: ${{ needs.version.outputs.rc_tag }}
 
       - name: Create GitHub pre-release

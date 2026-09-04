@@ -46,6 +46,7 @@ public sealed class UpdatesPageE2ETests : IAsyncLifetime
                 builder.UseEnvironment("Testing");
                 builder.UseUrls("http://127.0.0.1:0");
                 builder.UseStaticWebAssets();
+                builder.UseSetting("AutoUpdate:HostedServicesEnabled", "false");
                 builder.UseSetting("ConnectionStrings:DefaultConnection", $"Data Source={_dbPath}");
                 builder.UseSetting("Jwt:Key", jwtKey);
                 builder.UseSetting("Jwt:ApiToken", "test-api-token");

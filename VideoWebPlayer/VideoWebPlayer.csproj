@@ -95,7 +95,7 @@
     <None Include="../LICENSE" Pack="true" PackagePath="\" />
   </ItemGroup>
 
-  <Target Name="GenerateReleaseMetadata" AfterTargets="Build">
+  <Target Name="GenerateReleaseMetadata" AfterTargets="Build;Publish">
     <PropertyGroup>
       <_ReleaseVersion>$(Version)</_ReleaseVersion>
       <_ReleaseVersion Condition="'$(_ReleaseVersion)' == ''">1.0.0</_ReleaseVersion>

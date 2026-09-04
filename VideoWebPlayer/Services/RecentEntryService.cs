@@ -20,6 +20,7 @@ public class RecentEntryService
     /// </summary>
     /// <param name="db">Database context.</param>
     /// <param name="authService">Authentication service.</param>
+    /// <param name="unlockedMediaService">Unlocked-media authorization service.</param>
     public RecentEntryService(ApplicationDbContext db, IAuthService authService, IUnlockedMediaService unlockedMediaService)
     {
         _db = db;
@@ -29,9 +30,9 @@ public class RecentEntryService
 
     private async Task ClearCorruptEntriesAsync()
     {
-       foreach (var entry in await _db.RecentEntries.ToListAsync())
-       {
-            switch(entry.Type)
+        foreach (var entry in await _db.RecentEntries.ToListAsync())
+        {
+            switch (entry.Type)
             {
                 case RecentEntryType.Movie:
                     if (entry.MovieId == null || entry.MovieId == 0)
@@ -161,10 +162,10 @@ public class RecentEntryService
             return;
 
         // Hole alle Staffeln der Show
-       var allSeasons = await _db.TVShowSeasons
-            .Where(s => s.TVShowId == season.TVShowId)
-            .OrderBy(s => s.Name)
-            .ToListAsync();
+        var allSeasons = await _db.TVShowSeasons
+             .Where(s => s.TVShowId == season.TVShowId)
+             .OrderBy(s => s.Name)
+             .ToListAsync();
 
         if (!int.TryParse(season.Name.Split(' ').Last(), out var thisSeasonNumber))
             return;
@@ -307,7 +308,7 @@ public class RecentEntryService
             TVShowEpisodeId = episode.Id
         });
         await _db.SaveChangesAsync();
-        await TrimEntriesAsync(episode.MediaSourceId);        
+        await TrimEntriesAsync(episode.MediaSourceId);
     }
 
     private async Task TrimEntriesAsync(long mediaSourceId)

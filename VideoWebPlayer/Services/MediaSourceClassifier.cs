@@ -32,10 +32,10 @@ namespace VideoWebPlayer.Services
         private readonly IMediaMetadataWriteCoordinator? _writeCoordinator;
         private readonly HttpClient _httpClient;
 
-		private static int _classificationRunning;
-		private static readonly object _classificationQueueLock = new();
-		private static readonly Queue<long> _queuedCollectionTreeClassificationIds = new();
-		private static readonly HashSet<long> _queuedCollectionTreeClassificationIdSet = new();
+        private static int _classificationRunning;
+        private static readonly object _classificationQueueLock = new();
+        private static readonly Queue<long> _queuedCollectionTreeClassificationIds = new();
+        private static readonly HashSet<long> _queuedCollectionTreeClassificationIdSet = new();
 
         private readonly string[] fileExtensions_Video = new string[] { ".mp4", ".avi", ".mkv", ".mpeg" };
         private static readonly string[] PictureTypes = new[] { "poster", "banner", "fanart", "thumb" };
@@ -50,8 +50,12 @@ namespace VideoWebPlayer.Services
         /// <param name="db">Application database context.</param>
         /// <param name="sftpReader">SFTP reader for remote sources.</param>
         /// <param name="recentEntryService">Recent entry service.</param>
+        /// <param name="eventManager">Event manager used to publish scan/classification events.</param>
+        /// <param name="episodeBackgroundImageService">Service for episode background images.</param>
         /// <param name="logger">Logger instance.</param>
         /// <param name="httpClient">HTTP client for downloading actor images.</param>
+        /// <param name="notificationService">Optional service used to notify clients about media updates.</param>
+        /// <param name="writeCoordinator">Optional coordinator serializing metadata writes.</param>
         public MediaSourceClassifier(
             ApplicationDbContext db,
             SftpMediaSourceReader sftpReader,
@@ -79,24 +83,24 @@ namespace VideoWebPlayer.Services
         /// </summary>
         public async Task ClassifyAllAsync(CancellationToken cancellationToken)
         {
-			if (!TryBeginClassification())
-			{
-				_logger.LogInformation("Klassifizierung l�uft bereits, �berspringe ClassifyAllAsync.");
-				return;
-			}
+            if (!TryBeginClassification())
+            {
+                _logger.LogInformation("Klassifizierung l�uft bereits, �berspringe ClassifyAllAsync.");
+                return;
+            }
 
-			try
-			{
-            await using var writeLease = await EnterMetadataWriteAsync(cancellationToken);
-            _logger.LogInformation("Starte Klassifizierung aller MediaItems und MediaCollections.");
-            await ProcessMediaItemsAsync(cancellationToken);
-            await ProcessMediaCollectionsAsync(cancellationToken);
-            _logger.LogInformation("Klassifizierung abgeschlossen.");
-			}
-			finally
-			{
-				await FinishClassificationAsync(cancellationToken);
-			}
+            try
+            {
+                await using var writeLease = await EnterMetadataWriteAsync(cancellationToken);
+                _logger.LogInformation("Starte Klassifizierung aller MediaItems und MediaCollections.");
+                await ProcessMediaItemsAsync(cancellationToken);
+                await ProcessMediaCollectionsAsync(cancellationToken);
+                _logger.LogInformation("Klassifizierung abgeschlossen.");
+            }
+            finally
+            {
+                await FinishClassificationAsync(cancellationToken);
+            }
         }
 
         /// <summary>
@@ -104,23 +108,23 @@ namespace VideoWebPlayer.Services
         /// </summary>
         public async Task ClassifyMediaItemsAsync(CancellationToken cancellationToken)
         {
-			if (!TryBeginClassification())
-			{
-				_logger.LogInformation("Klassifizierung l�uft bereits, �berspringe ClassifyMediaItemsAsync.");
-				return;
-			}
+            if (!TryBeginClassification())
+            {
+                _logger.LogInformation("Klassifizierung l�uft bereits, �berspringe ClassifyMediaItemsAsync.");
+                return;
+            }
 
-			try
-			{
-            await using var writeLease = await EnterMetadataWriteAsync(cancellationToken);
-            _logger.LogInformation("Starte Klassifizierung der MediaItems.");
-            await ProcessMediaItemsAsync(cancellationToken);
-            _logger.LogInformation("Klassifizierung der MediaItems abgeschlossen.");
-			}
-			finally
-			{
-				await FinishClassificationAsync(cancellationToken);
-			}
+            try
+            {
+                await using var writeLease = await EnterMetadataWriteAsync(cancellationToken);
+                _logger.LogInformation("Starte Klassifizierung der MediaItems.");
+                await ProcessMediaItemsAsync(cancellationToken);
+                _logger.LogInformation("Klassifizierung der MediaItems abgeschlossen.");
+            }
+            finally
+            {
+                await FinishClassificationAsync(cancellationToken);
+            }
         }
 
         /// <summary>
@@ -128,23 +132,23 @@ namespace VideoWebPlayer.Services
         /// </summary>
         public async Task ClassifyMediaCollectionsAsync(CancellationToken cancellationToken)
         {
-			if (!TryBeginClassification())
-			{
-				_logger.LogInformation("Klassifizierung l�uft bereits, �berspringe ClassifyMediaCollectionsAsync.");
-				return;
-			}
+            if (!TryBeginClassification())
+            {
+                _logger.LogInformation("Klassifizierung l�uft bereits, �berspringe ClassifyMediaCollectionsAsync.");
+                return;
+            }
 
-			try
-			{
-            await using var writeLease = await EnterMetadataWriteAsync(cancellationToken);
-            _logger.LogInformation("Starte Klassifizierung der MediaCollections.");
-            await ProcessMediaCollectionsAsync(cancellationToken);
-            _logger.LogInformation("Klassifizierung der MediaCollections abgeschlossen.");
-			}
-			finally
-			{
-				await FinishClassificationAsync(cancellationToken);
-			}
+            try
+            {
+                await using var writeLease = await EnterMetadataWriteAsync(cancellationToken);
+                _logger.LogInformation("Starte Klassifizierung der MediaCollections.");
+                await ProcessMediaCollectionsAsync(cancellationToken);
+                _logger.LogInformation("Klassifizierung der MediaCollections abgeschlossen.");
+            }
+            finally
+            {
+                await FinishClassificationAsync(cancellationToken);
+            }
         }
 
         /// <summary>
@@ -154,97 +158,97 @@ namespace VideoWebPlayer.Services
         /// <param name="cancellationToken">Cancellation token.</param>
         public async Task<bool> ClassifyCollectionTreeAsync(long rootMediaCollectionId, CancellationToken cancellationToken)
         {
-			if (!TryBeginClassificationForCollectionTree(rootMediaCollectionId))
-			{
-				_logger.LogInformation("Klassifizierung l�uft bereits, CollectionId {CollectionId} wurde in Queue gepackt.", rootMediaCollectionId);
-				return false;
-			}
+            if (!TryBeginClassificationForCollectionTree(rootMediaCollectionId))
+            {
+                _logger.LogInformation("Klassifizierung l�uft bereits, CollectionId {CollectionId} wurde in Queue gepackt.", rootMediaCollectionId);
+                return false;
+            }
 
-			try
-			{
-				await ClassifyCollectionTreeCoreAsync(rootMediaCollectionId, cancellationToken);
-				return true;
-			}
-			finally
-			{
-				await FinishClassificationAsync(cancellationToken);
-			}
+            try
+            {
+                await ClassifyCollectionTreeCoreAsync(rootMediaCollectionId, cancellationToken);
+                return true;
+            }
+            finally
+            {
+                await FinishClassificationAsync(cancellationToken);
+            }
         }
 
-		private static bool TryBeginClassification()
-			=> Interlocked.CompareExchange(ref _classificationRunning, 1, 0) == 0;
+        private static bool TryBeginClassification()
+            => Interlocked.CompareExchange(ref _classificationRunning, 1, 0) == 0;
 
         private async Task<IAsyncDisposable?> EnterMetadataWriteAsync(CancellationToken cancellationToken)
             => _writeCoordinator is null ? null : await _writeCoordinator.EnterAsync(cancellationToken);
 
-		private async Task FinishClassificationAsync(CancellationToken cancellationToken)
-		{
-			while (!cancellationToken.IsCancellationRequested)
-			{
-				await DrainQueuedCollectionTreeClassificationsAsync(cancellationToken);
+        private async Task FinishClassificationAsync(CancellationToken cancellationToken)
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                await DrainQueuedCollectionTreeClassificationsAsync(cancellationToken);
 
-				lock (_classificationQueueLock)
-				{
-					if (_queuedCollectionTreeClassificationIds.Count == 0)
-					{
-						Interlocked.Exchange(ref _classificationRunning, 0);
-						return;
-					}
-				}
-			}
+                lock (_classificationQueueLock)
+                {
+                    if (_queuedCollectionTreeClassificationIds.Count == 0)
+                    {
+                        Interlocked.Exchange(ref _classificationRunning, 0);
+                        return;
+                    }
+                }
+            }
 
-			Interlocked.Exchange(ref _classificationRunning, 0);
-		}
+            Interlocked.Exchange(ref _classificationRunning, 0);
+        }
 
-		private static bool TryBeginClassificationForCollectionTree(long rootMediaCollectionId)
-		{
-			if (Interlocked.CompareExchange(ref _classificationRunning, 1, 0) == 0)
-				return true;
+        private static bool TryBeginClassificationForCollectionTree(long rootMediaCollectionId)
+        {
+            if (Interlocked.CompareExchange(ref _classificationRunning, 1, 0) == 0)
+                return true;
 
-			lock (_classificationQueueLock)
-			{
-				if (_queuedCollectionTreeClassificationIdSet.Add(rootMediaCollectionId))					
-					_queuedCollectionTreeClassificationIds.Enqueue(rootMediaCollectionId);
-			}
+            lock (_classificationQueueLock)
+            {
+                if (_queuedCollectionTreeClassificationIdSet.Add(rootMediaCollectionId))
+                    _queuedCollectionTreeClassificationIds.Enqueue(rootMediaCollectionId);
+            }
 
-			return false;
-		}
+            return false;
+        }
 
-		private static bool TryDequeueQueuedCollectionTree(out long collectionId)
-		{
-			lock (_classificationQueueLock)
-			{
-				if (_queuedCollectionTreeClassificationIds.Count == 0)
-				{
-					collectionId = default;
-					return false;
-				}
+        private static bool TryDequeueQueuedCollectionTree(out long collectionId)
+        {
+            lock (_classificationQueueLock)
+            {
+                if (_queuedCollectionTreeClassificationIds.Count == 0)
+                {
+                    collectionId = default;
+                    return false;
+                }
 
-				collectionId = _queuedCollectionTreeClassificationIds.Dequeue();
-				_queuedCollectionTreeClassificationIdSet.Remove(collectionId);
-				return true;
-			}
-		}
+                collectionId = _queuedCollectionTreeClassificationIds.Dequeue();
+                _queuedCollectionTreeClassificationIdSet.Remove(collectionId);
+                return true;
+            }
+        }
 
-		private async Task DrainQueuedCollectionTreeClassificationsAsync(CancellationToken cancellationToken)
-		{
-			while (!cancellationToken.IsCancellationRequested && TryDequeueQueuedCollectionTree(out var nextId))
-			{
-				await ClassifyCollectionTreeCoreAsync(nextId, cancellationToken);
-			}
-		}
+        private async Task DrainQueuedCollectionTreeClassificationsAsync(CancellationToken cancellationToken)
+        {
+            while (!cancellationToken.IsCancellationRequested && TryDequeueQueuedCollectionTree(out var nextId))
+            {
+                await ClassifyCollectionTreeCoreAsync(nextId, cancellationToken);
+            }
+        }
 
-		private async Task ClassifyCollectionTreeCoreAsync(long rootMediaCollectionId, CancellationToken cancellationToken)
-		{
-			await using var writeLease = await EnterMetadataWriteAsync(cancellationToken);
-			var collectionIds = await GetCollectionTreeIdsAsync(rootMediaCollectionId, cancellationToken);
-			_logger.LogInformation("Starte Klassifizierung f�r Collection-Tree (Root={RootId}, Count={Count}).", rootMediaCollectionId, collectionIds.Count);
+        private async Task ClassifyCollectionTreeCoreAsync(long rootMediaCollectionId, CancellationToken cancellationToken)
+        {
+            await using var writeLease = await EnterMetadataWriteAsync(cancellationToken);
+            var collectionIds = await GetCollectionTreeIdsAsync(rootMediaCollectionId, cancellationToken);
+            _logger.LogInformation("Starte Klassifizierung f�r Collection-Tree (Root={RootId}, Count={Count}).", rootMediaCollectionId, collectionIds.Count);
 
-			await ProcessMediaItemsAsync(collectionIds, cancellationToken);
-			await ProcessMediaCollectionsAsync(collectionIds, cancellationToken);
+            await ProcessMediaItemsAsync(collectionIds, cancellationToken);
+            await ProcessMediaCollectionsAsync(collectionIds, cancellationToken);
 
-			_logger.LogInformation("Klassifizierung f�r Collection-Tree abgeschlossen (Root={RootId}).", rootMediaCollectionId);
-		}
+            _logger.LogInformation("Klassifizierung f�r Collection-Tree abgeschlossen (Root={RootId}).", rootMediaCollectionId);
+        }
 
         private async Task<HashSet<long>> GetCollectionTreeIdsAsync(long rootMediaCollectionId, CancellationToken cancellationToken)
         {
@@ -648,7 +652,7 @@ namespace VideoWebPlayer.Services
                     }
                     await _db.SaveChangesAsync(cancellationToken);
                     PublishStatus($"Episode '{episodeTitle}' (Staffel {seasonNo}, Episode {episodeNo}) aktualisiert.");
-                }                
+                }
 
                 var episodeMediaItem = await _db.TVShowEpisodeMediaItems.FirstOrDefaultAsync(i => i.TVShowEpisodeId == existingEpisode.Id && i.MediaItemId == item.Id);
                 if (episodeMediaItem is null)
@@ -866,7 +870,7 @@ namespace VideoWebPlayer.Services
                         ReleaseDate = movies.Min(m => m.ReleaseDate),
                         PremieredAt = movies.Min(m => m.PremieredAt),
                         EndedAt = movies.Max(m => m.EndedAt)
-                    }; 
+                    };
                     _db.MovieCollections.Add(movieCollection);
                     await _db.SaveChangesAsync(cancellationToken);
                     existingCollection = movieCollection;
@@ -1047,7 +1051,7 @@ namespace VideoWebPlayer.Services
                     movieCollection.BannerPictureId = firstMovieWithBanner.BannerPictureId;
                 await _db.SaveChangesAsync(cancellationToken);
 
-                var firstMovieWithFanart= await _db.Movies
+                var firstMovieWithFanart = await _db.Movies
                     .Where(m => m.MovieCollectionId == movieCollection.Id && m.FanartPictureId != null)
                     .OrderBy(m => m.Id)
                     .FirstOrDefaultAsync(cancellationToken);
@@ -1081,7 +1085,7 @@ namespace VideoWebPlayer.Services
                                 if (mediaItem == null)
                                     continue;
 
-                                Picture? picture = await GetOrCreatePicture(mediaItem, type, cancellationToken);                                
+                                Picture? picture = await GetOrCreatePicture(mediaItem, type, cancellationToken);
 
                                 pictureIds[type] = picture.Id;
                             }
@@ -1110,7 +1114,7 @@ namespace VideoWebPlayer.Services
                 if (firstSeasonWithPoster != null)
                 {
                     if (!pictureIds.ContainsKey("poster") && firstSeasonWithPoster.PosterPictureId != null)
-                        pictureIds["poster"] = firstSeasonWithPoster.PosterPictureId;                    
+                        pictureIds["poster"] = firstSeasonWithPoster.PosterPictureId;
                 }
 
                 var firstSeasonWithFanart = await _db.TVShowSeasons
@@ -1156,7 +1160,7 @@ namespace VideoWebPlayer.Services
                                 if (mediaItem == null)
                                     continue;
 
-                                Picture? picture = await GetOrCreatePicture(mediaItem, type, cancellationToken);                                
+                                Picture? picture = await GetOrCreatePicture(mediaItem, type, cancellationToken);
 
                                 pictureIds[type] = picture.Id;
                             }
@@ -1185,7 +1189,7 @@ namespace VideoWebPlayer.Services
                 if (firstEpisodeWithPoster != null)
                 {
                     if (!pictureIds.ContainsKey("poster") && firstEpisodeWithPoster.PosterPictureId != null)
-                        pictureIds["poster"] = firstEpisodeWithPoster.PosterPictureId;                    
+                        pictureIds["poster"] = firstEpisodeWithPoster.PosterPictureId;
                 }
 
                 var firstEpisodeWithFanart = await _db.TVShowEpisodes
@@ -1339,7 +1343,7 @@ namespace VideoWebPlayer.Services
                         show.TVShowGenres.Add(existing);
                     else
                         show.TVShowGenres.Add(new TVShowGenre { TVShowId = show.Id, GenreId = genre.Id });
-                }                
+                }
                 await _db.SaveChangesAsync(cancellationToken);
             }
         }
@@ -1680,13 +1684,13 @@ namespace VideoWebPlayer.Services
             {
                 await (ReloadGenres(stoppingToken));
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Fehler beim Reload der Genres.");
                 setup = await _db.Setups.FirstOrDefaultAsync();
                 setup.GenresChanged = true;
                 await _db.SaveChangesAsync();
-            }            
+            }
         }
     }
 }

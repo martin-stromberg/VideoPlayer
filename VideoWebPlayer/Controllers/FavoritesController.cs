@@ -21,9 +21,9 @@ public class FavoritesController : ApiBaseController
     /// <param name="authService">Authentication service.</param>
     /// <param name="logger">Logger instance.</param>
     public FavoritesController(IFavoritesService favoritesService, IAuthService authService, ILogger<FavoritesController> logger)
-        :base(authService, logger)
+        : base(authService, logger)
     {
-		_favoritesService = favoritesService;
+        _favoritesService = favoritesService;
     }
 
     /// <summary>
@@ -36,8 +36,8 @@ public class FavoritesController : ApiBaseController
         try
         {
             CheckLogedIn();
-			var result = await _favoritesService.GetFavoritesAsync(CurrentUser!.Id, HttpContext.RequestAborted);
-			return Ok(result);
+            var result = await _favoritesService.GetFavoritesAsync(CurrentUser!.Id, HttpContext.RequestAborted);
+            return Ok(result);
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -62,7 +62,7 @@ public class FavoritesController : ApiBaseController
         try
         {
             CheckLogedIn();
-			await _favoritesService.AddFavoriteAsync(CurrentUser!.Id, entry, HttpContext.RequestAborted);
+            await _favoritesService.AddFavoriteAsync(CurrentUser!.Id, entry, HttpContext.RequestAborted);
             return Ok();
         }
         catch (UnauthorizedAccessException ex)
@@ -88,7 +88,7 @@ public class FavoritesController : ApiBaseController
         try
         {
             CheckLogedIn();
-			await _favoritesService.RemoveFavoriteAsync(CurrentUser!.Id, entry, HttpContext.RequestAborted);
+            await _favoritesService.RemoveFavoriteAsync(CurrentUser!.Id, entry, HttpContext.RequestAborted);
             return Ok();
         }
         catch (UnauthorizedAccessException ex)
@@ -112,7 +112,7 @@ public class FavoritesController : ApiBaseController
     public async Task<IActionResult> ToggleFavorite([FromBody] DtoMediaEntry entry)
     {
         CheckLogedIn();
-		var isFav = await _favoritesService.ToggleFavoriteAsync(CurrentUser!.Id, entry, HttpContext.RequestAborted);
-		return Ok(isFav);
+        var isFav = await _favoritesService.ToggleFavoriteAsync(CurrentUser!.Id, entry, HttpContext.RequestAborted);
+        return Ok(isFav);
     }
 }

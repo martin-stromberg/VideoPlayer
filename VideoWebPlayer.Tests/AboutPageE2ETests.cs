@@ -39,10 +39,10 @@ public sealed class AboutPageE2ETests : IDisposable
         var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
         client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("text/html"));
 
-        var response = await client.GetAsync("/about");
+        var response = await client.GetAsync("/about", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var html = await response.Content.ReadAsStringAsync();
+        var html = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         Assert.Contains("Private Videobibliothek im Browser", html);
         Assert.Contains("Medienquelle", html);
         Assert.Contains("Scan und Klassifizierung", html);

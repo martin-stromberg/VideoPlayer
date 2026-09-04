@@ -5,7 +5,7 @@ public class DtoRecentEntry
     public DateTime PublishedAt { get; set; }
     public DateTime? CreatedAt { get; set; } = DateTime.UtcNow;
     public RecentEntryType Type { get; set; } // Movie, MovieCollection, TVShow, TVShowSeason, TVShowEpisode
-    public DtoMediaEntry Entry { get; set; }
+    public DtoMediaEntry Entry { get; set; } = null!;
 }
 public enum RecentEntryType
 {

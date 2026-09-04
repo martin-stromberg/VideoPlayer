@@ -23,14 +23,14 @@ public sealed class TestableMediaSourceScanService : MediaSourceScanService
     {
         return ExecuteAsync(stoppingToken);
     }
-    
+
     private static MediaUpdateNotificationService CreateNullNotificationService()
     {
         var hubContext = new NullHubContext();
         var logger = Microsoft.Extensions.Logging.Abstractions.NullLogger<MediaUpdateNotificationService>.Instance;
         return new MediaUpdateNotificationService(hubContext, logger);
     }
-    
+
     /// <summary>
     /// Null implementation of IHubContext for testing.
     /// </summary>
@@ -39,7 +39,7 @@ public sealed class TestableMediaSourceScanService : MediaSourceScanService
         public IHubClients Clients => new NullHubClients();
         public IGroupManager Groups => throw new NotImplementedException();
     }
-    
+
     private class NullHubClients : IHubClients
     {
         public IClientProxy All => new NullClientProxy();
@@ -52,7 +52,7 @@ public sealed class TestableMediaSourceScanService : MediaSourceScanService
         public IClientProxy User(string userId) => new NullClientProxy();
         public IClientProxy Users(IReadOnlyList<string> userIds) => new NullClientProxy();
     }
-    
+
     private class NullClientProxy : IClientProxy
     {
         public Task SendCoreAsync(string method, object?[] args, CancellationToken cancellationToken = default)

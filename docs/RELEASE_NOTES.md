@@ -1,7 +1,14 @@
 # Release Notes
 
-> Diese Datei wird von `.github/workflows/main-release.yml` als Body des GitHub-Releases verwendet.
-> Vor einem Release sollte sie auf den aktuellen Stand gebracht werden; alter Inhalt kann entfernt oder durch den neuen Release-Text ersetzt werden.
+> As of the CI standardization migration, `.github/workflows/release.yml` (previously
+> `main-release.yml`) no longer reads this file as the GitHub release body. Releases now use
+> semantic-release's auto-generated notes (derived from conventional commit messages) instead
+> of this hand-curated changelog. This file is kept for historical reference; whether a
+> manually maintained changelog should be reintroduced is an open follow-up question.
+>
+> Frühere Fassung: Diese Datei wurde von `main-release.yml` als Body des GitHub-Releases
+> verwendet. Seit der CI-Vereinheitlichung generiert semantic-release die Release-Notes
+> automatisch aus den Commit-Nachrichten; diese Datei wird nicht mehr automatisch verwendet.
 
 ## Important Notes Before Update
 

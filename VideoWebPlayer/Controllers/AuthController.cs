@@ -28,8 +28,8 @@ public class AuthController : ApiBaseController
     /// <param name="db">Application database context.</param>
     /// <param name="logger">Logger instance.</param>
     public AuthController(IAuthService authService, ApplicationDbContext db, ILogger<AuthController> logger)
-        :base(authService, logger)
-    {        
+        : base(authService, logger)
+    {
         _db = db;
     }
 
@@ -52,7 +52,7 @@ public class AuthController : ApiBaseController
         }
     }
 
-    
+
     /// <summary>
     /// Issues an impersonation token for an administrator request.
     /// </summary>
@@ -61,7 +61,7 @@ public class AuthController : ApiBaseController
     [HttpPost("impersonate")]
     [ApiTokenCheck()]
     [BearerTokenCheck()]
-    public async Task<IActionResult> Impersonate([FromBody] ImpersonateRequest request)
+    public new async Task<IActionResult> Impersonate([FromBody] ImpersonateRequest request)
     {
         try
         {

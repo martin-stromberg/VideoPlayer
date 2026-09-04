@@ -53,7 +53,7 @@ public class DataUpgradeManager
             _db.Setups.Add(setup);
             await _db.SaveChangesAsync(cancellationToken);
         }
-        
+
         while (setup.DataVersion < CurrentVersion)
         {
             var nextVersion = setup.DataVersion + 1;
@@ -124,7 +124,7 @@ public class DataUpgradeManager
         var newUser = Activator.CreateInstance<ApplicationUser>();
         await userStore.SetUserNameAsync(newUser, "system", cancellationToken);
         await emailStore.SetEmailAsync(newUser, "system@example.com", cancellationToken);
-        newUser.IsAdmin = true; 
+        newUser.IsAdmin = true;
         var result = await userManager.CreateAsync(newUser, GeneratePassword());
         if (!result.Succeeded)
             throw new Exception($"Fehler beim Erstellen des Systembenutzers: {string.Join(", ", result.Errors.Select(e => e.Description))}");

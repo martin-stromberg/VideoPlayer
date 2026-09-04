@@ -9,7 +9,7 @@ namespace VideoWebPlayer.Controllers
     /// <summary>
     /// Base controller providing shared authentication helpers.
     /// </summary>
-    public class ApiBaseController: ControllerBase
+    public class ApiBaseController : ControllerBase
     {
         private readonly IAuthService _authService;
         private readonly ILogger _logger;
@@ -20,7 +20,7 @@ namespace VideoWebPlayer.Controllers
         /// <param name="authService">Authentication service.</param>
         /// <param name="logger">Logger instance.</param>
         public ApiBaseController(IAuthService authService, ILogger logger)
-            :base()
+            : base()
         {
             _authService = authService;
             _logger = logger;

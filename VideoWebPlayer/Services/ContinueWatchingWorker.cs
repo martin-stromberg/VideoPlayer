@@ -33,15 +33,15 @@ namespace VideoWebPlayer.Services
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             _logger.LogInformation("[ContinueWatchingWorker] Started");
-            
+
             while (!stoppingToken.IsCancellationRequested)
             {
                 try
                 {
                     _logger.LogDebug("[ContinueWatchingWorker] Waiting for next entry...");
-                    
+
                     var entry = await _buffer.ReadNextAsync(stoppingToken);
-                    
+
                     if (entry is null)
                     {
                         _logger.LogDebug("[ContinueWatchingWorker] Received null entry (duplicate key) - skipping");
@@ -58,7 +58,7 @@ namespace VideoWebPlayer.Services
 
                     await using var processingLease = gate is null ? null : await gate.EnterOperationAsync("ContinueWatching", stoppingToken);
                     await service.ProcessBufferedEntryAsync(entry.UserId, entry.MovieId, entry.EpisodeId, entry.Position, entry.Duration, stoppingToken);
-                    
+
                     _logger.LogDebug("[ContinueWatchingWorker] Entry processed successfully");
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -72,7 +72,7 @@ namespace VideoWebPlayer.Services
                     await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken);
                 }
             }
-            
+
             _logger.LogInformation("[ContinueWatchingWorker] Stopped");
         }
     }

@@ -32,14 +32,8 @@ namespace VideoWebPlayer.Data
         /// Gets or sets the release year.
         /// </summary>
         public int? Year { get; set; }
-        /// <summary>
-        /// Gets or sets the release date.
-        /// </summary>
-        public DateTime? ReleaseDate { get; set; }
-        /// <summary>
-        /// Gets or sets the premiered date.
-        /// </summary>
-        public DateTime? PremieredAt { get; set; }
+        // ReleaseDate and PremieredAt are inherited from MediaBaseEntry (same type) - previously
+        // redeclared here, which only hid the base members (CS0108) without adding anything.
         /// <summary>
         /// Gets or sets the country.
         /// </summary>

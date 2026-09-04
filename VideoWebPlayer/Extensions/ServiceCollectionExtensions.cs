@@ -213,7 +213,7 @@ public static class ServiceCollectionExtensions
             var authStateProvider = sp.GetRequiredService<AuthenticationStateProvider>();
             var client = new InternalVideoWebPlayerClient(
                 sp.GetRequiredService<HttpClient>(),
-                sp.GetRequiredService<IHttpContextAccessor>(), 
+                sp.GetRequiredService<IHttpContextAccessor>(),
                 sp.GetRequiredService<UserManager<ApplicationUser>>(),
                 sp.GetRequiredService<AuthorizationTokenService>(),
                 sp.GetRequiredService<ILogger<VideoWebPlayerClient>>());
@@ -228,7 +228,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IMediaMetadataWriteCoordinator, MediaMetadataWriteCoordinator>();
         services.AddScoped<IFavoritesService, FavoritesService>();
         services.AddScoped<IUnlockedMediaService, UnlockedMediaService>();
-		services.AddScoped<IGenreService, GenreService>();
+        services.AddScoped<IGenreService, GenreService>();
         services.AddScoped<SftpMediaSourceReader>();
         services.AddScoped<DataUpgradeManager>();
         services.AddScoped<ProgramSettingsService>();
@@ -270,10 +270,10 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<MediaUpdateNotificationService>();
         services.AddHostedService<ContinueWatchingWorker>();
         services.AddHostedService<ActorBackfillWorker>();
-		services.AddScoped<IDemoDataSetService, FileSystemDemoDataSetService>();
+        services.AddScoped<IDemoDataSetService, FileSystemDemoDataSetService>();
 
         services.AddScoped<MediaSourceDetailsViewModel>();
-        
+
         // SignalR
         services.AddSignalR();
 

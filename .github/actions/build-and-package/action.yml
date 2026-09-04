@@ -1,0 +1,142 @@
+name: Build and package
+description: >
+  Provisions the .NET 10 SDK, publishes VideoWebPlayer (Release, self-contained) for both
+  win-x64 and linux-x64, packages each runtime as its own ZIP, and generates the update
+  manifest (update.json, Rezepte-format: SHA-256/size/URL per asset). Used by both the
+  "prerelease" job in staging-ci.yml ("Pre-Release") and the "release" job in release.yml,
+  so these build/publish/zip/manifest steps only exist once instead of being duplicated
+  between them.
+
+inputs:
+  release-version:
+    description: Version without a leading v, embedded via -p:Version and written into release-metadata.json and update.json.
+    required: false
+    default: ''
+  release-tag:
+    description: Release tag (e.g. v1.2.3 or v1.2.3-rc.1), used to build the asset download URLs.
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Setup .NET 10
+      uses: actions/setup-dotnet@v6
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: Publish (win-x64, self-contained)
+      run: dotnet publish VideoWebPlayer/VideoWebPlayer.csproj -c Release -r win-x64 --self-contained true -o publish/win-x64 -p:Version=${{ inputs.release-version }} -p:NoWarn=NU1903
+      shell: bash
+
+    - name: Publish (linux-x64, self-contained)
+      run: dotnet publish VideoWebPlayer/VideoWebPlayer.csproj -c Release -r linux-x64 --self-contained true -o publish/linux-x64 -p:Version=${{ inputs.release-version }} -p:NoWarn=NU1903
+      shell: bash
+
+    - name: Verify publish output
+      shell: bash
+      run: |
+        set -euo pipefail
+        for rid in win-x64 linux-x64; do
+          if [ -z "$(ls -A "publish/$rid" 2>/dev/null)" ]; then
+            echo "::error::publish/$rid is missing or empty."
+            exit 1
+          fi
+        done
+
+    - name: Write release metadata
+      # msTools.Updater's default IInstalledVersionProvider (ReleaseMetadataInstalledVersionProvider)
+      # reads release-metadata.json from the running app's own root directory to determine
+      # the currently-installed version - it is bundled INSIDE each runtime's ZIP, unlike
+      # update.json (a separate release asset describing available updates). Without this
+      # file, VideoWebPlayer can never determine its own installed version once deployed via
+      # msTools.Updater. Schema matches FinanceManager's/Schnittstellenzentrale's existing
+      # build-and-package equivalent step.
+      shell: bash
+      env:
+        RELEASE_VERSION: ${{ inputs.release-version }}
+      run: |
+        set -euo pipefail
+        for rid in win-x64 linux-x64; do
+          jq -n \
+            --arg version "$RELEASE_VERSION" \
+            --arg publishedAt "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            --arg commitSha "$GITHUB_SHA" \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg runtimeIdentifier "$rid" \
+            '{
+              version: $version,
+              publishedAt: $publishedAt,
+              commitSha: $commitSha,
+              repository: $repository,
+              runtimeIdentifier: $runtimeIdentifier
+            }' > "publish/$rid/release-metadata.json"
+        done
+
+    - name: Create release ZIPs
+      # Asset names intentionally match Rezepte's convention (release-<rid>.zip, no project
+      # name/version in the file name) - see ci-target-schema.md section 4.7. The manifest
+      # generated below and resolve-release-version.mjs's expected-asset list both depend on
+      # these exact names.
+      shell: bash
+      run: |
+        set -euo pipefail
+        (cd publish/win-x64 && zip -r ../../release-win-x64.zip .)
+        (cd publish/linux-x64 && zip -r ../../release-linux-x64.zip .)
+
+    - name: Create update manifest
+      # Rezepte-format update manifest (SHA-256, size, download URL per asset), see
+      # ci-target-schema.md section 4.7. This is consumed by msTools.Updater at runtime; it
+      # already understands this format, so no updater-side change is needed.
+      shell: bash
+      env:
+        RELEASE_VERSION: ${{ inputs.release-version }}
+        RELEASE_TAG: ${{ inputs.release-tag }}
+      run: |
+        set -euo pipefail
+        version="$RELEASE_VERSION"
+        tag="$RELEASE_TAG"
+        if [ -z "$tag" ]; then
+          tag="v0.0.0"
+        fi
+        if [ -z "$version" ]; then
+          version="${tag#v}"
+        fi
+
+        win_sha="$(sha256sum release-win-x64.zip | awk '{print $1}')"
+        win_size="$(stat -c%s release-win-x64.zip)"
+        win_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}/release-win-x64.zip"
+
+        linux_sha="$(sha256sum release-linux-x64.zip | awk '{print $1}')"
+        linux_size="$(stat -c%s release-linux-x64.zip)"
+        linux_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}/release-linux-x64.zip"
+
+        jq -n \
+          --arg version "$version" \
+          --arg releaseNotes "VideoPlayer release ${tag}" \
+          --arg publishedAt "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+          --arg winUrl "$win_url" --arg winSha "$win_sha" --argjson winSize "$win_size" \
+          --arg linuxUrl "$linux_url" --arg linuxSha "$linux_sha" --argjson linuxSize "$linux_size" \
+          '{
+            version: $version,
+            releaseNotes: $releaseNotes,
+            publishedAt: $publishedAt,
+            assets: [
+              {
+                platform: "windows",
+                runtimeIdentifier: "win-x64",
+                assetName: "release-win-x64.zip",
+                assetUrl: $winUrl,
+                sha256: $winSha,
+                sizeBytes: $winSize
+              },
+              {
+                platform: "linux",
+                runtimeIdentifier: "linux-x64",
+                assetName: "release-linux-x64.zip",
+                assetUrl: $linuxUrl,
+                sha256: $linuxSha,
+                sizeBytes: $linuxSize
+              }
+            ]
+          }' > update.json

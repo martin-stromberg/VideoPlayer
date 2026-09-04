@@ -48,9 +48,9 @@ public sealed class IdentityRedirectManagerE2ETests : IDisposable
         client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("text/html"));
 
         var registerUrl = "/Account/Register?ReturnUrl=%2F";
-        var registerResponse = await client.GetAsync(registerUrl);
+        var registerResponse = await client.GetAsync(registerUrl, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, registerResponse.StatusCode);
-        var html = await registerResponse.Content.ReadAsStringAsync();
+        var html = await registerResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
 
         var form = new FormUrlEncodedContent(new Dictionary<string, string?>
         {
@@ -77,7 +77,7 @@ public sealed class IdentityRedirectManagerE2ETests : IDisposable
         HttpResponseMessage postResponse;
         try
         {
-            postResponse = await client.PostAsync(registerUrl, form);
+            postResponse = await client.PostAsync(registerUrl, form, TestContext.Current.CancellationToken);
         }
         finally
         {

@@ -45,7 +45,7 @@ This project implements a two-stage CI/CD process with a dedicated `staging` bra
 
 **Trigger**: Push to `staging` branch
 
-**Workflow**: `.github/workflows/staging-ci.yml`
+**Workflow**: `.github/workflows/staging-ci.yml` (display name "Pre-Release")
 
 **Checks performed**:
 - ✅ Full integration test suite
@@ -57,27 +57,27 @@ This project implements a two-stage CI/CD process with a dedicated `staging` bra
 - ✅ Automated PR creation to main (Workflow `staging-to-main-promotion.yml`)
 
 **Artifacts created**:
-- Pre-release GitHub release (e.g., v1.2.3-RC.4)
+- Pre-release GitHub release (e.g., v1.2.3-rc.4)
 - Windows release.zip
 - Linux release.zip
 - Automated PR to main branch
 
-**Version format**: `v{major}.{minor}.{patch}-RC.{n}` (n je Version ab 1)
+**Version format**: `v{major}.{minor}.{patch}-rc.{n}` (n je Version ab 1, lowercase)
 
 ### Stage 3: Final Release
 
-**Trigger**: Push to `main` branch (via automated PR from staging)
+**Trigger**: Push to `main` branch (via automated PR from staging) or a manually pushed `v*.*.*` tag
 
-**Workflow**: `.github/workflows/main-release.yml`
+**Workflow**: `.github/workflows/release.yml` (display name "Release")
 
 **Process**:
-- ✅ Extract version from staging RC tag (RC-Suffix entfernt)
-- ✅ Skip, falls der stabile Tag bereits existiert
+- ✅ Classify the ref: branch push to `main` → automatic version via `semantic-release --dry-run`; tag push `vX.Y.Z` → manual, version taken directly from the tag name
+- ✅ `scripts/resolve-release-version.mjs` checks whether a GitHub Release for the target version already exists: fully present → no-op, partially uploaded → repair only the missing assets, absent → create it
 - ✅ Build final release artifacts
 - ✅ Run final test suite
-- ✅ Create GitHub release (erzeugt den Tag)
+- ✅ Create/repair the GitHub release
 - ✅ Verify release tag
-- ✅ Back-Merge-PR `main` → `staging`
+- ✅ `sync-staging-with-main.yml` creates the back-merge PR `main` → `staging` (see below — unconditional, not gated on this release job's success)
 
 **Artifacts created**:
 - Stable GitHub release (e.g., v1.2.3)
@@ -169,31 +169,39 @@ git push origin feature/your-feature-name
 ## Version Management
 
 ### Automatic Version Bumping
-Die Staging-Pipeline berechnet die naechste Version mit `.github/scripts/compute-version.sh`:
+Die Versionsermittlung erfolgt ueber **semantic-release** (`release.config.js`), nicht mehr ueber ein
+Custom-Bash-Skript. Der `version`-Job in `staging-ci.yml` ruft semantic-release mit einem
+`--branches`-Override gegen dieselbe Config auf, um die naechste RC-Version zu bestimmen, ohne bereits
+zu veroeffentlichen:
 - Basis ist der letzte **stabile** Tag (`vX.Y.Z` ohne Suffix)
-- Der Bump ergibt sich aus den Conventional Commits zwischen diesem Tag und `HEAD`:
-  - `BREAKING CHANGE` oder `<type>!:` → major
-  - `feat:` / `feat(scope):` → minor
-  - alles andere → patch
-- Der RC-Zaehler wird pro Zielversion gefuehrt (hoechster vorhandener RC-Tag dieser Version + 1) und beginnt
-  fuer jede neue Version wieder bei 1 — nicht die GitHub-Run-Number
-- Beispiel: stabil `v1.2.3` + `feat:` → `v1.3.0-RC.1`, naechster Push → `v1.3.0-RC.2`
+- Der Bump ergibt sich aus den Conventional Commits zwischen diesem Tag und `HEAD` (Standard-semantic-release-Regeln:
+  `BREAKING CHANGE`/`<type>!:` → major, `feat:` → minor, `fix:` → patch)
+- Der RC-Zaehler wird pro Zielversion gefuehrt (Anzahl vorhandener `v<version>-rc.*`-Tags + 1) und beginnt
+  fuer jede neue Version wieder bei 1
+- Beispiel: stabil `v1.2.3` + `feat:` → `v1.3.0-rc.1`, naechster Push → `v1.3.0-rc.2` (RC-Suffix durchgehend
+  Kleinschreibung)
 
 ### Release Version
-Die Main-Pipeline liest den letzten von `main` aus erreichbaren RC-Tag und entfernt das RC-Suffix:
-- Beispiel: `v1.2.4-RC.42` → `v1.2.4`
-- Der Release-Tag wird ausschliesslich durch die Release-Action erzeugt (kein zusaetzliches `git tag`), daher keine "tag already exists"-Fehler
-- Existiert der stabile Tag bereits, wird der Release-Lauf mit einer Warnung uebersprungen statt zu scheitern
+`release.yml` klassifiziert den ausloesenden Ref und ermittelt die Version entsprechend:
+- Branch-Push auf `main` → automatisch, Version via `semantic-release --dry-run`
+- Tag-Push `vX.Y.Z` → manuell, Version direkt aus dem Tag-Namen
+- `scripts/resolve-release-version.mjs` prueft vor der Veroeffentlichung, ob fuer die Zielversion bereits ein
+  GitHub-Release existiert: vollstaendig vorhanden → nichts tun; vorhanden aber Assets fehlen → nur die
+  fehlenden Assets nachladen (kein neuer Tag); nicht vorhanden → neu erstellen. Das deckt sowohl automatische
+  als auch manuell gepushte Tags einheitlich ab (Asset-Repair-Mechanismus).
 
 ### Back-Merge main → staging
-Ein reiner Back-Merge (Tree identisch zu `main`) wird in `staging-ci.yml` im Job `detect-backmerge` erkannt;
-Tests, Quality-Gates und Prerelease werden dann uebersprungen, und `staging-to-main-promotion.yml` erstellt
-keinen Promotion-PR. Auch `pr-staging-ci.yml` ueberspringt bei einem Back-Merge-PR (Head-Branch `main`)
-Build, Tests und Quality-Checks; uebersprungene Jobs gelten fuer die Branch-Protection als erfolgreich.
+Ein reiner Back-Merge (Tree identisch zu `main`, oder `main` als direkter Merge-Parent von `HEAD`) wird in
+`staging-ci.yml` und `pr-staging-ci.yml` jeweils im Job `detect-backmerge` erkannt; Tests, Quality-Gates und
+Prerelease werden dann uebersprungen, und `staging-to-main-promotion.yml` erstellt keinen Promotion-PR.
+Uebersprungene Jobs gelten fuer die Branch-Protection als erfolgreich.
 
-Nach einem erfolgreichen Release erstellt `main-release.yml` automatisch einen PR von `main` nach `staging`
-(Label `automated-backmerge`). Erst dadurch kennt `staging` den released Stand inkl. Release-Tag, sodass der
-naechste Push auf `staging` die Version semantisch weiterzaehlt und nicht nur den RC-Zaehler erhoeht.
+`sync-staging-with-main.yml` ("Backmerge Main to Staging") erstellt bei **jedem** Push auf `main` automatisch
+einen PR von `main` nach `staging` (Label `automated-backmerge`) — unabhaengig davon, ob der zeitgleich
+laufende `release.yml`-Lauf erfolgreich war. Diese Kopplung an einen erfolgreichen Release wurde bewusst
+aufgegeben, damit `staging` auch nach einem fehlschlagenden Release-Build den aktuellen `main`-Stand kennt.
+Der PR muss mit "Create a merge commit" gemergt werden, nicht "Rebase and merge", damit Merge-Commit und Tag
+von `staging` aus erreichbar bleiben.
 
 ### Manual Version Override
 If manual version control is needed:
@@ -230,13 +238,15 @@ If version bumping fails:
 
 ## CI Workflow Files
 
-- `.github/scripts/compute-version.sh` - Semantische Versionsberechnung (von staging & main genutzt)
-- `.github/workflows/pr-staging-ci.yml` - PR validation for staging
-- `.github/workflows/staging-to-main-promotion.yml` - Automatischer PR staging -> main
-- `.github/workflows/staging-ci.yml` - Staging branch validation and prerelease
-- `.github/workflows/main-release.yml` - Main branch release process
-- `.github/workflows/codereviewagent.yml` - Code review automation (updated)
-- `.github/workflows/dark-pattern-check.yml` - Dark pattern detection (updated)
+- `.github/workflows/verify-pr-source.yml` - Erzwingt, dass PRs gegen `main` nur aus `staging` kommen
+- `.github/workflows/pr-staging-ci.yml` ("PR CI for Staging") - PR validation for staging
+- `.github/workflows/staging-ci.yml` ("Pre-Release") - Staging branch validation and prerelease
+- `.github/workflows/staging-to-main-promotion.yml` - Automatischer Draft-PR staging -> main
+- `.github/workflows/sync-staging-with-main.yml` ("Backmerge Main to Staging") - Automatischer PR main -> staging nach jedem Push auf main
+- `.github/workflows/release.yml` ("Release") - Release-Pipeline (push auf main oder `v*.*.*`-Tag)
+- `.github/workflows/security-scan.yml` ("Security Scan") - Woechentlicher, von Code-Aenderungen unabhaengiger Dependency-Scan
+- `scripts/resolve-release-version.mjs` - Versions-/Ref-Klassifikation und Asset-Repair fuer `release.yml`
+- `release.config.js` - semantic-release-Konfiguration (ersetzt das fruehere `compute-version.sh`)
 
 ## Migration from Old Workflow
 
@@ -272,7 +282,7 @@ If version bumping fails:
 
 ### Release Management
 - Review automated PR to main carefully
-- Ensure `docs/RELEASE_NOTES.md` is updated; it is used as the GitHub release body by `main-release.yml`
+- Release notes are generated automatically by semantic-release from Conventional Commits, not from a manually maintained file
 - Test pre-release artifacts when possible
 - Plan release timing around staging validation
 

@@ -30,7 +30,7 @@ public sealed class MediaMetadataEditorServiceTests
             MediaSourceId = 1,
             Name = "Action",
         });
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var service = new MediaMetadataEditorService(db);
         await service.UpdateAsync(new MediaMetadataUpdateRequest
@@ -41,18 +41,18 @@ public sealed class MediaMetadataEditorServiceTests
             ReleaseDate = new DateTime(2024, 5, 6, 11, 30, 0),
             Plot = " New plot ",
             GenreNames = ["Action", "Noir", "noir"],
-        });
+        }, TestContext.Current.CancellationToken);
 
         var movie = await db.Movies
             .Include(m => m.MovieGenres)
-            .SingleAsync(m => m.Id == 10);
+            .SingleAsync(m => m.Id == 10, TestContext.Current.CancellationToken);
         Assert.Equal("New Movie", movie.Name);
         Assert.Equal(new DateTime(2024, 5, 6), movie.ReleaseDate);
         Assert.Equal("New plot", movie.Plot);
         Assert.True(movie.IsManuallyEdited);
         Assert.Equal("Action,Noir", movie.GenreNames);
         Assert.Equal(2, movie.MovieGenres.Count);
-        Assert.Contains(await db.Genres.ToListAsync(), g => g.Name == "Noir" && g.MediaSourceId == 1);
+        Assert.Contains(await db.Genres.ToListAsync(TestContext.Current.CancellationToken), g => g.Name == "Noir" && g.MediaSourceId == 1);
     }
 
     [Fact]
@@ -64,9 +64,9 @@ public sealed class MediaMetadataEditorServiceTests
             new Genre { Id = 2, MediaSourceId = 1, Name = "action" },
             new Genre { Id = 3, MediaSourceId = 1, Name = "Action" },
             new Genre { Id = 4, MediaSourceId = 1, Name = "  Comedy  " });
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var options = await new MediaMetadataEditorService(db).GetGenreOptionsAsync();
+        var options = await new MediaMetadataEditorService(db).GetGenreOptionsAsync(TestContext.Current.CancellationToken);
 
         Assert.Collection(
             options,
@@ -87,7 +87,7 @@ public sealed class MediaMetadataEditorServiceTests
             Name = "Season 1",
             CreatedAt = DateTime.UtcNow,
         });
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var service = new MediaMetadataEditorService(db);
 
@@ -99,7 +99,7 @@ public sealed class MediaMetadataEditorServiceTests
             PremieredAt = new DateTime(2024, 1, 1),
             Plot = "Should not be accepted",
             GenreNames = ["Drama"],
-        }));
+        }, TestContext.Current.CancellationToken));
     }
 
     [Theory]
@@ -119,7 +119,7 @@ public sealed class MediaMetadataEditorServiceTests
             Name = "Title",
             ReleaseDate = new DateTime(2024, 1, 1),
             PremieredAt = new DateTime(2024, 1, 2),
-        }));
+        }, TestContext.Current.CancellationToken));
 
         Assert.Contains("PremieredAt", ex.Message);
     }
@@ -138,7 +138,7 @@ public sealed class MediaMetadataEditorServiceTests
             Name = "Title",
             ReleaseDate = new DateTime(2024, 1, 1),
             PremieredAt = new DateTime(2024, 1, 2),
-        }));
+        }, TestContext.Current.CancellationToken));
 
         Assert.Contains("ReleaseDate", ex.Message);
     }
@@ -160,7 +160,7 @@ public sealed class MediaMetadataEditorServiceTests
             MediaSourceId = 1,
             Name = "Drama",
         });
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var service = new MediaMetadataEditorService(db);
         await service.UpdateAsync(new MediaMetadataUpdateRequest
@@ -171,11 +171,11 @@ public sealed class MediaMetadataEditorServiceTests
             ReleaseDate = new DateTime(2024, 6, 7, 8, 9, 0),
             Plot = " Show plot ",
             GenreNames = ["Drama", "Mystery"],
-        });
+        }, TestContext.Current.CancellationToken);
 
         var show = await db.TVShows
             .Include(s => s.TVShowGenres)
-            .SingleAsync(s => s.Id == 40);
+            .SingleAsync(s => s.Id == 40, TestContext.Current.CancellationToken);
         Assert.Equal("New Show", show.Name);
         Assert.Equal(new DateTime(2024, 6, 7), show.ReleaseDate);
         Assert.Equal("Show plot", show.Plot);
@@ -197,7 +197,7 @@ public sealed class MediaMetadataEditorServiceTests
             CreatedAt = DateTime.UtcNow,
             Plot = "Old plot",
         });
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var service = new MediaMetadataEditorService(db);
         await service.UpdateAsync(new MediaMetadataUpdateRequest
@@ -207,9 +207,9 @@ public sealed class MediaMetadataEditorServiceTests
             Name = "New Episode",
             ReleaseDate = new DateTime(2024, 8, 9, 13, 45, 0),
             Plot = " New episode plot ",
-        });
+        }, TestContext.Current.CancellationToken);
 
-        var episode = await db.TVShowEpisodes.SingleAsync(e => e.Id == 30);
+        var episode = await db.TVShowEpisodes.SingleAsync(e => e.Id == 30, TestContext.Current.CancellationToken);
         Assert.Equal("New Episode", episode.Name);
         Assert.Equal(new DateTime(2024, 8, 9), episode.ReleaseDate);
         Assert.Null(episode.PremieredAt);
@@ -228,7 +228,7 @@ public sealed class MediaMetadataEditorServiceTests
             Name = "Old Collection",
             CreatedAt = DateTime.UtcNow,
         });
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var service = new MediaMetadataEditorService(db);
         await service.UpdateAsync(new MediaMetadataUpdateRequest
@@ -237,9 +237,9 @@ public sealed class MediaMetadataEditorServiceTests
             Id = 50,
             Name = "New Collection",
             ReleaseDate = new DateTime(2024, 10, 11, 12, 13, 0),
-        });
+        }, TestContext.Current.CancellationToken);
 
-        var collection = await db.MovieCollections.SingleAsync(c => c.Id == 50);
+        var collection = await db.MovieCollections.SingleAsync(c => c.Id == 50, TestContext.Current.CancellationToken);
         Assert.Equal("New Collection", collection.Name);
         Assert.Equal(new DateTime(2024, 10, 11), collection.ReleaseDate);
         Assert.True(collection.IsManuallyEdited);
@@ -250,7 +250,7 @@ public sealed class MediaMetadataEditorServiceTests
             Id = 50,
             Name = "New Collection",
             GenreNames = ["Action"],
-        }));
+        }, TestContext.Current.CancellationToken));
     }
 
     [Theory]
@@ -267,7 +267,7 @@ public sealed class MediaMetadataEditorServiceTests
             ObjectType = objectType,
             Id = id,
             Name = name,
-        }));
+        }, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -281,7 +281,7 @@ public sealed class MediaMetadataEditorServiceTests
             ObjectType = "movie",
             Id = 1,
             Name = new string('x', 513),
-        }));
+        }, TestContext.Current.CancellationToken));
 
         Assert.Contains("512", ex.Message);
     }

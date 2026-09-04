@@ -49,7 +49,7 @@ public sealed class FirstUserRedirectE2ETests : IDisposable
         var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
         client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("text/html"));
 
-        var response = await client.GetAsync("/Account/Login?ReturnUrl=%2Fadmin%2Fbackups");
+        var response = await client.GetAsync("/Account/Login?ReturnUrl=%2Fadmin%2Fbackups", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         var location = response.Headers.Location;
@@ -67,7 +67,7 @@ public sealed class FirstUserRedirectE2ETests : IDisposable
         var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
         client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("text/html"));
 
-        var response = await client.GetAsync("/");
+        var response = await client.GetAsync("/", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         var location = response.Headers.Location;
@@ -89,15 +89,15 @@ public sealed class FirstUserRedirectE2ETests : IDisposable
         });
         client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("text/html"));
 
-        var homeResponse = await client.GetAsync("/");
+        var homeResponse = await client.GetAsync("/", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Redirect, homeResponse.StatusCode);
         var registerUrl = homeResponse.Headers.Location;
         Assert.NotNull(registerUrl);
         Assert.Equal("/Account/Register", GetPath(registerUrl));
 
-        var registerResponse = await client.GetAsync(registerUrl);
+        var registerResponse = await client.GetAsync(registerUrl, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, registerResponse.StatusCode);
-        var html = await registerResponse.Content.ReadAsStringAsync();
+        var html = await registerResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         Assert.Contains("Input.Email", html);
         Assert.Contains("Input.Password", html);
         Assert.Contains("Input.ConfirmPassword", html);
@@ -118,7 +118,7 @@ public sealed class FirstUserRedirectE2ETests : IDisposable
             ["__RequestVerificationToken"] = antiforgeryToken
         });
 
-        var postResponse = await client.PostAsync(registerUrl, form);
+        var postResponse = await client.PostAsync(registerUrl, form, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.Redirect, postResponse.StatusCode);
         Assert.NotNull(postResponse.Headers.Location);

@@ -1,0 +1,15 @@
+{
+  "name": "videoplayer-release",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Self-hosted video library and streaming player - release tooling",
+  "scripts": {
+    "release": "semantic-release"
+  },
+  "devDependencies": {
+    "semantic-release": "^25.0.7",
+    "@semantic-release/commit-analyzer": "^9.0.0",
+    "@semantic-release/release-notes-generator": "^10.0.0",
+    "@semantic-release/github": "^8.0.0"
+  }
+}

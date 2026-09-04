@@ -19,6 +19,8 @@ public sealed class MediaMetadataEditorService
     /// Initializes a new instance of the <see cref="MediaMetadataEditorService"/> class.
     /// </summary>
     /// <param name="db">Application database context.</param>
+    /// <param name="backgroundGate">Optional gate coordinating background processing.</param>
+    /// <param name="writeCoordinator">Optional coordinator serializing metadata writes.</param>
     public MediaMetadataEditorService(
         ApplicationDbContext db,
         IBackgroundProcessingGate? backgroundGate = null,

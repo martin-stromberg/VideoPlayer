@@ -58,7 +58,7 @@ namespace VideoWebPlayer.Data
             Status = GetElementValue(xml, "status");
             Studio = GetElementValue(xml, "studio");
             GenreNames = string.Join(",", xml.Elements("genre").Select(g => g.Value));
-            PremieredAt = DateTime.TryParse(GetElementValue(xml, "premiered"), out var dt) ? dt : null;            
+            PremieredAt = DateTime.TryParse(GetElementValue(xml, "premiered"), out var dt) ? dt : null;
         }
 
         /// <summary>

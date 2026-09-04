@@ -26,17 +26,20 @@ public class ItemsController : ApiBaseController
     /// </summary>
     /// <param name="db">Database context.</param>
     /// <param name="sftpReader">SFTP reader.</param>
+    /// <param name="metadataEditor">Media metadata editor service.</param>
     /// <param name="recentEntryService">Recent entry service.</param>
+    /// <param name="unlockedMediaService">Unlocked-media authorization service.</param>
     /// <param name="authService">Authentication service.</param>
     /// <param name="logger">Logger instance.</param>
+    /// <param name="watchedStatusService">Watched-status service.</param>
     public ItemsController(
-        ApplicationDbContext db, 
+        ApplicationDbContext db,
         SftpMediaSourceReader sftpReader,
         MediaMetadataEditorService metadataEditor,
         RecentEntryService recentEntryService,
         IUnlockedMediaService unlockedMediaService,
-        
-        IAuthService authService, 
+
+        IAuthService authService,
         ILogger<ItemsController> logger,
         WatchedStatusService? watchedStatusService = null) : base(authService, logger)
     {
@@ -333,7 +336,7 @@ public class ItemsController : ApiBaseController
             return StatusCode(500, "Internal server error");
         }
     }
-    
+
     private async Task<MediaBaseEntry> FindEntry(string type, long id)
     {
         var entry = type switch
@@ -419,7 +422,7 @@ public class ItemsController : ApiBaseController
         {
             CheckLogedIn();
             if (type == nameof(TVShow).ToLower())
-                type = nameof(TVShowEpisode).ToLower(); 
+                type = nameof(TVShowEpisode).ToLower();
 
             if (type != nameof(Movie).ToLower() && type != nameof(TVShowEpisode).ToLower())
                 return BadRequest("Ungueltiger Medientyp");
@@ -551,7 +554,7 @@ public class ItemsController : ApiBaseController
                 episode.Season = _db.TVShowSeasons.Where(m => m.Id == dbSeason.TVShowSeasonId).ToList().Select(m =>
                 {
                     var season = Create<DtoTVShowSeason>(m);
-                    season.IsFavorite = _db.FavoriteEntries.Any(f => f.UserId == CurrentUser.Id && f.TVShowSeasonId == season.Id);                    
+                    season.IsFavorite = _db.FavoriteEntries.Any(f => f.UserId == CurrentUser.Id && f.TVShowSeasonId == season.Id);
                     season.Show = _db.TVShows.Where(s => s.Id == m.TVShowId).ToList().Select(s =>
                     {
                         var show = Create<DtoTVShow>(s);

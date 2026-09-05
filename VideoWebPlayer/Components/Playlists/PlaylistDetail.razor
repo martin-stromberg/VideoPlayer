@@ -1,0 +1,176 @@
+@page "/playlists/{id:long}"
+@using Microsoft.AspNetCore.Components.Authorization
+@using VideoWebPlayer.Client.Models
+@inject VideoWebPlayer.Client.VideoWebPlayerClient Client
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+
+<PageTitle>Playlist</PageTitle>
+
+<section class="media-section">
+    <div class="admin-card-header">
+        <h1>Playlist</h1>
+    </div>
+
+    @if (isLoading)
+    {
+        <p>Lade Daten...</p>
+    }
+    else if (!string.IsNullOrWhiteSpace(loadError))
+    {
+        <div class="alert alert-danger" id="playlist-detail-error">@loadError</div>
+    }
+    else if (playlist is not null)
+    {
+        <div class="admin-table-wrap">
+            <dl>
+                <div>
+                    <dt>Name</dt>
+                    <dd id="playlist-detail-name">@playlist.Name</dd>
+                </div>
+                <div>
+                    <dt>Beschreibung</dt>
+                    <dd id="playlist-detail-description">@playlist.Description</dd>
+                </div>
+                <div>
+                    <dt>Sortierung</dt>
+                    <dd id="playlist-detail-sortmode">@(playlist.SortMode == PlaylistSortModeValues.Manual ? "Manuell" : "Nach Erscheinungsdatum")</dd>
+                </div>
+                <div>
+                    <dt>Erstellt</dt>
+                    <dd id="playlist-detail-created">@playlist.CreatedAt.ToLocalTime()</dd>
+                </div>
+                <div>
+                    <dt>Aktualisiert</dt>
+                    <dd id="playlist-detail-updated">@playlist.UpdatedAt.ToLocalTime()</dd>
+                </div>
+            </dl>
+        </div>
+
+        <div class="admin-actions">
+            <button class="btn btn-primary playlist-detail-edit-button" @onclick="OnEditClick">Bearbeiten</button>
+            <button class="btn btn-danger playlist-detail-delete-button" @onclick="OnDeleteClick">Loeschen</button>
+            <button class="btn btn-ghost playlist-detail-back-button" @onclick="OnBackClick">Zurueck zur Uebersicht</button>
+        </div>
+    }
+</section>
+
+@if (showForm)
+{
+    <PlaylistForm PlaylistId="editingPlaylistId" OnSave="OnFormSave" OnCancel="OnFormCancel" />
+}
+
+@if (showDeleteConfirmation)
+{
+    <div class="admin-dialog-overlay" @onclick="CancelDelete">
+        <div class="admin-dialog" @onclick:stopPropagation>
+            <header class="admin-card-header">
+                <h2>Playlist loeschen</h2>
+            </header>
+            <p>Moechten Sie die Playlist "@playlist?.Name" wirklich loeschen?</p>
+            <div class="admin-actions">
+                <button class="btn btn-danger" id="confirm-delete-playlist-button" @onclick="OnDeleteConfirm">Loeschen</button>
+                <button class="btn btn-ghost" @onclick="CancelDelete">Abbrechen</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public long Id { get; set; }
+
+    private DtoPlaylist? playlist;
+    private bool isLoading = true;
+    private string? loadError;
+    private bool showForm;
+    private bool showDeleteConfirmation;
+    private long? editingPlaylistId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        try
+        {
+            await Client.EnsureAuthorizationTokenAsync(authState.User);
+        }
+        catch (Exception)
+        {
+            // Kein Token verfuegbar (z. B. nicht angemeldet). Der nachfolgende Ladevorgang
+            // schlaegt dann mit einer aussagekraeftigen Fehlermeldung fehl, die im UI angezeigt wird.
+        }
+        await LoadPlaylistAsync();
+    }
+
+    private async Task LoadPlaylistAsync()
+    {
+        isLoading = true;
+        loadError = null;
+        try
+        {
+            playlist = await Client.RequestPlaylistAsync(Id);
+            if (playlist is null)
+                loadError = "Playlist nicht gefunden.";
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            loadError = "Zugriff auf diese Playlist verweigert.";
+        }
+        catch (Exception ex)
+        {
+            loadError = $"Fehler beim Laden der Playlist: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void OnEditClick()
+    {
+        editingPlaylistId = Id;
+        showForm = true;
+    }
+
+    private void OnDeleteClick()
+    {
+        showDeleteConfirmation = true;
+    }
+
+    private async Task OnFormSave()
+    {
+        showForm = false;
+        await LoadPlaylistAsync();
+    }
+
+    private void OnFormCancel()
+    {
+        showForm = false;
+    }
+
+    private void CancelDelete()
+    {
+        showDeleteConfirmation = false;
+    }
+
+    private async Task OnDeleteConfirm()
+    {
+        try
+        {
+            await Client.DeletePlaylistAsync(Id);
+            showDeleteConfirmation = false;
+            NavigationManager.NavigateTo("/playlists");
+        }
+        catch (Exception ex)
+        {
+            loadError = $"Fehler beim Loeschen der Playlist: {ex.Message}";
+            showDeleteConfirmation = false;
+        }
+    }
+
+    private void OnBackClick()
+    {
+        NavigationManager.NavigateTo("/playlists");
+    }
+}

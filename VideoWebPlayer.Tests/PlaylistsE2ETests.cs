@@ -224,6 +224,148 @@ public sealed class PlaylistsE2ETests : IAsyncLifetime
         await Expect(_page.Locator(".playlist-row[data-playlist-name='Nur fuer Benutzer A']")).ToHaveCountAsync(0);
     }
 
+    [Fact]
+    public async Task Load_Detail_Page_Unauthenticated_Shows_Error()
+    {
+        if (_skipBrowser)
+            return;
+
+        await _page.GotoAsync($"{_serverUrl}/playlists/1");
+        await _page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await _page.WaitForTimeoutAsync(1500);
+
+        await Expect(_page.Locator("#playlist-detail-error")).ToBeVisibleAsync();
+    }
+
+    [Fact]
+    public async Task Load_Detail_Page_ValidPlaylist_ShowsMetadata()
+    {
+        if (_skipBrowser)
+            return;
+
+        await LoginAsync(UserAEmail);
+        var row = await CreatePlaylistViaUiAsync("Metadaten-Test", "Beschreibung fuer Metadaten-Test");
+        await row.Locator(".playlist-open-button").ClickAsync();
+        await _page.WaitForSelectorAsync("#playlist-detail-name");
+
+        await Expect(_page.Locator("#playlist-detail-name")).ToHaveTextAsync("Metadaten-Test");
+        await Expect(_page.Locator("#playlist-detail-description")).ToHaveTextAsync("Beschreibung fuer Metadaten-Test");
+        await Expect(_page.Locator("#playlist-detail-sortmode")).ToHaveTextAsync("Nach Erscheinungsdatum");
+
+        var createdText = await _page.Locator("#playlist-detail-created").InnerTextAsync();
+        var updatedText = await _page.Locator("#playlist-detail-updated").InnerTextAsync();
+        Assert.False(string.IsNullOrWhiteSpace(createdText));
+        Assert.False(string.IsNullOrWhiteSpace(updatedText));
+    }
+
+    [Fact]
+    public async Task Open_Button_In_List_Navigates_To_Detail()
+    {
+        if (_skipBrowser)
+            return;
+
+        await LoginAsync(UserAEmail);
+        var row = await CreatePlaylistViaUiAsync("Oeffnen-Navigation");
+        await row.Locator(".playlist-open-button").ClickAsync();
+        await _page.WaitForSelectorAsync("#playlist-detail-name");
+
+        await Expect(_page.Locator("#playlist-detail-name")).ToHaveTextAsync("Oeffnen-Navigation");
+    }
+
+    [Fact]
+    public async Task Detail_Page_Edit_Opens_Form_And_Saves()
+    {
+        if (_skipBrowser)
+            return;
+
+        await LoginAsync(UserAEmail);
+        var row = await CreatePlaylistViaUiAsync("Bearbeiten-Von-Detail");
+        await row.Locator(".playlist-open-button").ClickAsync();
+        await _page.WaitForSelectorAsync("#playlist-detail-name");
+
+        await _page.ClickAsync(".playlist-detail-edit-button");
+        await _page.WaitForSelectorAsync("#playlist-name-input");
+        await _page.FillAsync("#playlist-name-input", "Bearbeiten-Von-Detail Aktualisiert");
+        await _page.ClickAsync("#playlist-save-button");
+        await _page.WaitForTimeoutAsync(1000);
+
+        await Expect(_page.Locator("#playlist-detail-name")).ToHaveTextAsync("Bearbeiten-Von-Detail Aktualisiert");
+    }
+
+    [Fact]
+    public async Task Detail_Page_Delete_Shows_Confirmation_And_Deletes()
+    {
+        if (_skipBrowser)
+            return;
+
+        await LoginAsync(UserAEmail);
+        var row = await CreatePlaylistViaUiAsync("Loeschen-Von-Detail");
+        await row.Locator(".playlist-open-button").ClickAsync();
+        await _page.WaitForSelectorAsync("#playlist-detail-name");
+
+        await _page.ClickAsync(".playlist-detail-delete-button");
+        await _page.WaitForSelectorAsync("#confirm-delete-playlist-button");
+        await _page.ClickAsync("#confirm-delete-playlist-button");
+        await _page.WaitForTimeoutAsync(1000);
+
+        var currentUrl = new Uri(_page.Url);
+        Assert.Equal("/playlists", currentUrl.AbsolutePath);
+        await Expect(_page.Locator(".playlist-row[data-playlist-name='Loeschen-Von-Detail']")).ToHaveCountAsync(0);
+    }
+
+    [Fact]
+    public async Task Detail_Page_Back_Button_Navigates_To_List()
+    {
+        if (_skipBrowser)
+            return;
+
+        await LoginAsync(UserAEmail);
+        var row = await CreatePlaylistViaUiAsync("Zurueck-Von-Detail");
+        await row.Locator(".playlist-open-button").ClickAsync();
+        await _page.WaitForSelectorAsync("#playlist-detail-name");
+
+        await _page.ClickAsync(".playlist-detail-back-button");
+        await _page.WaitForTimeoutAsync(1000);
+
+        var currentUrl = new Uri(_page.Url);
+        Assert.Equal("/playlists", currentUrl.AbsolutePath);
+    }
+
+    [Fact]
+    public async Task Detail_Page_Foreign_Playlist_Shows_403_Error()
+    {
+        if (_skipBrowser)
+            return;
+
+        await LoginAsync(UserAEmail);
+        var row = await CreatePlaylistViaUiAsync("Fremde-Playlist-Test");
+        await row.Locator(".playlist-open-button").ClickAsync();
+        await _page.WaitForSelectorAsync("#playlist-detail-name");
+
+        var detailUrl = _page.Url;
+
+        await LoginAsync(UserBEmail);
+        await _page.GotoAsync(detailUrl);
+        await _page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await _page.WaitForTimeoutAsync(1500);
+
+        await Expect(_page.Locator("#playlist-detail-error")).ToContainTextAsync("Zugriff auf diese Playlist verweigert");
+    }
+
+    [Fact]
+    public async Task Detail_Page_Nonexistent_Playlist_Shows_404_Error()
+    {
+        if (_skipBrowser)
+            return;
+
+        await LoginAsync(UserAEmail);
+        await _page.GotoAsync($"{_serverUrl}/playlists/999999999");
+        await _page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await _page.WaitForTimeoutAsync(1500);
+
+        await Expect(_page.Locator("#playlist-detail-error")).ToContainTextAsync("Playlist nicht gefunden");
+    }
+
     private async Task LoginAsync(string email)
     {
         await _page.GotoAsync($"{_serverUrl}/Account/Login");
@@ -236,6 +378,25 @@ public sealed class PlaylistsE2ETests : IAsyncLifetime
 
         // Wait for Blazor Server to become interactive.
         await _page.WaitForTimeoutAsync(2000);
+    }
+
+    private async Task<ILocator> CreatePlaylistViaUiAsync(string name, string? description = null)
+    {
+        await _page.GotoAsync($"{_serverUrl}/playlists");
+        await _page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await _page.WaitForTimeoutAsync(1500);
+
+        await _page.ClickAsync("#create-playlist-button");
+        await _page.WaitForSelectorAsync("#playlist-name-input");
+        await _page.FillAsync("#playlist-name-input", name);
+        if (description is not null)
+            await _page.FillAsync("#playlist-description-input", description);
+        await _page.ClickAsync("#playlist-save-button");
+        await _page.WaitForTimeoutAsync(1000);
+
+        var row = _page.Locator($".playlist-row[data-playlist-name='{name}']");
+        await Expect(row).ToBeVisibleAsync();
+        return row;
     }
 
     private async Task SeedUsersAsync()

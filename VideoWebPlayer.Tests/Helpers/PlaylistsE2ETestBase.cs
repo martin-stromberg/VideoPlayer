@@ -1,0 +1,162 @@
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.AspNetCore.HttpsPolicy;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Playwright;
+using static Microsoft.Playwright.Assertions;
+using VideoWebPlayer.Data;
+using Xunit;
+
+namespace VideoWebPlayer.Tests.Helpers;
+
+/// <summary>
+/// Stellt einen echten, per Playwright gesteuerten Browser gegen eine gehostete
+/// <see cref="global::Program"/>-Instanz mit vorbelegten Playlist-Testbenutzern bereit, damit
+/// Playlist-Listenansicht und -Detailseite als gerenderte Blazor-/Browser-Ereignisse geprüft
+/// werden können.
+/// </summary>
+public abstract class PlaylistsE2ETestBase : IAsyncLifetime
+{
+    protected const string UserAEmail = "playlist-user-a@test.com";
+    protected const string UserBEmail = "playlist-user-b@test.com";
+    protected const string Password = "P@ssw0rd123!";
+
+    private readonly string _dbPath;
+    private readonly WebApplicationFactory<global::Program> _factory;
+    private IPlaywright _playwright = null!;
+    private IBrowser _browser = null!;
+    private IBrowserContext _context = null!;
+
+    protected IPage Page { get; private set; } = null!;
+    protected string ServerUrl { get; private set; } = null!;
+    protected bool SkipBrowser { get; private set; }
+
+    protected PlaylistsE2ETestBase()
+    {
+        _dbPath = Path.Combine(Path.GetTempPath(), $"vwp-playlists-e2e-{Guid.NewGuid()}.db");
+        try { File.Delete(_dbPath); } catch { /* ensure clean state */ }
+
+        var jwtKey = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+
+        _factory = new WebApplicationFactory<global::Program>()
+            .WithWebHostBuilder(builder =>
+            {
+                builder.UseEnvironment("Testing");
+                builder.UseUrls("http://127.0.0.1:0");
+                builder.UseStaticWebAssets();
+                builder.UseSetting("ConnectionStrings:DefaultConnection", $"Data Source={_dbPath}");
+                builder.UseSetting("Jwt:Key", jwtKey);
+                builder.UseSetting("Jwt:ApiToken", "test-api-token");
+                builder.ConfigureServices(services =>
+                {
+                    services.Configure<HttpsRedirectionOptions>(options => options.HttpsPort = null);
+                });
+            });
+    }
+
+    public async ValueTask InitializeAsync()
+    {
+        _factory.UseKestrel();
+        _factory.StartServer();
+
+        var server = _factory.Services.GetRequiredService<IServer>();
+        var addressFeature = server.Features.Get<IServerAddressesFeature>();
+        ServerUrl = addressFeature!.Addresses.First().TrimEnd('/');
+
+        await SeedUsersAsync();
+
+        try
+        {
+            _playwright = await Playwright.CreateAsync();
+            _browser = await _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions { Headless = true });
+            _context = await _browser.NewContextAsync();
+            Page = await _context.NewPageAsync();
+            Page.SetDefaultTimeout(30_000);
+        }
+        catch (PlaywrightException)
+        {
+            SkipBrowser = true;
+            _playwright?.Dispose();
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (Page is not null)
+            await Page.CloseAsync();
+        if (_context is not null)
+            await _context.CloseAsync();
+        if (_browser is not null)
+            await _browser.CloseAsync();
+        _playwright?.Dispose();
+
+        _factory.Dispose();
+        try { File.Delete(_dbPath); } catch { /* ignore */ }
+    }
+
+    protected async Task LoginAsync(string email)
+    {
+        await Page.GotoAsync($"{ServerUrl}/Account/Login");
+        await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+        await Page.FillAsync("#email", email);
+        await Page.FillAsync("#password", Password);
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Log in" }).ClickAsync();
+        await Page.WaitForLoadStateAsync(LoadState.Load);
+
+        // Wait for Blazor Server to become interactive.
+        await Page.WaitForTimeoutAsync(2000);
+    }
+
+    protected async Task<ILocator> CreatePlaylistViaUiAsync(string name, string? description = null)
+    {
+        await Page.GotoAsync($"{ServerUrl}/playlists");
+        await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await Page.WaitForTimeoutAsync(1500);
+
+        await Page.ClickAsync("#create-playlist-button");
+        await Page.WaitForSelectorAsync("#playlist-name-input");
+        await Page.FillAsync("#playlist-name-input", name);
+        if (description is not null)
+            await Page.FillAsync("#playlist-description-input", description);
+        await Page.ClickAsync("#playlist-save-button");
+        await Page.WaitForTimeoutAsync(1000);
+
+        var row = Page.Locator($".playlist-row[data-playlist-name='{name}']");
+        await Expect(row).ToBeVisibleAsync();
+        return row;
+    }
+
+    private async Task SeedUsersAsync()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+
+        await db.Database.EnsureCreatedAsync();
+
+        var userA = new ApplicationUser
+        {
+            UserName = UserAEmail,
+            Email = UserAEmail,
+            EmailConfirmed = true
+        };
+        var createA = await userManager.CreateAsync(userA, Password);
+        if (!createA.Succeeded)
+            throw new InvalidOperationException($"Benutzer A konnte nicht erstellt werden: {string.Join(", ", createA.Errors.Select(e => e.Description))}");
+
+        var userB = new ApplicationUser
+        {
+            UserName = UserBEmail,
+            Email = UserBEmail,
+            EmailConfirmed = true
+        };
+        var createB = await userManager.CreateAsync(userB, Password);
+        if (!createB.Succeeded)
+            throw new InvalidOperationException($"Benutzer B konnte nicht erstellt werden: {string.Join(", ", createB.Errors.Select(e => e.Description))}");
+    }
+}

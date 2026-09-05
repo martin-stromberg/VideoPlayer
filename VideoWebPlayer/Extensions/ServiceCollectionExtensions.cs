@@ -227,6 +227,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<MediaMetadataEditorService>();
         services.AddSingleton<IMediaMetadataWriteCoordinator, MediaMetadataWriteCoordinator>();
         services.AddScoped<IFavoritesService, FavoritesService>();
+        services.AddScoped<IPlaylistService, PlaylistService>();
+        services.Configure<VideoWebPlayer.Configuration.PlaylistSettings>(configuration.GetSection("Playlists"));
         services.AddScoped<IUnlockedMediaService, UnlockedMediaService>();
         services.AddScoped<IGenreService, GenreService>();
         services.AddScoped<SftpMediaSourceReader>();

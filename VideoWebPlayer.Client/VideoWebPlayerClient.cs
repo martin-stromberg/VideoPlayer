@@ -43,110 +43,76 @@ namespace VideoWebPlayer.Client
             return Task.FromResult(false);
         }
 
-        protected virtual async Task<T> HttpGetAsync<T>(string endPoint)
+        // Executes an HTTP request, retrying once via HandleUnauthorized if the server responds with
+        // 401 Unauthorized. Shared by all Http*Async helper methods.
+        private async Task<HttpResponseMessage> SendWithReauthorizationAsync(string endPoint, Func<Task<HttpResponseMessage>> doRequestAsync, bool skipReauthorize = false)
         {
-            async Task<HttpResponseMessage> DoRequestAsync() => await httpClient.GetAsync(endPoint);
+            var response = await doRequestAsync();
+            if (response.StatusCode != System.Net.HttpStatusCode.Unauthorized)
+                return response;
 
-            var response = await DoRequestAsync();
+            Logger?.LogWarning("Received 401 Unauthorized from {EndPoint}. Token might be expired.", endPoint);
 
-            // Prüfe auf 401 Unauthorized
-            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            if (skipReauthorize)
             {
-                Logger?.LogWarning("Received 401 Unauthorized from {EndPoint}. Token might be expired.", endPoint);
-
-                if (await HandleUnauthorized())
-                {
-                    response = await DoRequestAsync();
-                    if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-                    {
-                        // Wenn nach Erneuerung weiterhin Unauthorized kommt, gib das weiter.
-                        Logger?.LogWarning("Retry after token refresh still returned 401 for {EndPoint}.", endPoint);
-                        throw new HttpRequestException($"Unauthorized: {endPoint}");
-                    }
-                }
-                else
-                {
-                    // Kein neuer Token innerhalb der Wartezeit
-                    throw new HttpRequestException($"Unauthorized: {endPoint}");
-                }
+                // We're in the login call itself; do not attempt to re-authorize.
+                Logger?.LogWarning("Skipping reauthorization for request to {EndPoint}.", endPoint);
+                throw new HttpRequestException($"Unauthorized: {endPoint}", null, System.Net.HttpStatusCode.Unauthorized);
             }
 
-            var content = await response.Content.ReadAsStringAsync();
-            if (!response.IsSuccessStatusCode)
-                throw new HttpRequestException($"Failed to GET from {endPoint}: {response.ReasonPhrase}");
-            return System.Text.Json.JsonSerializer.Deserialize<T>(content, new System.Text.Json.JsonSerializerOptions
+            if (!await HandleUnauthorized())
+                // Kein neuer Token innerhalb der Wartezeit
+                throw new HttpRequestException($"Unauthorized: {endPoint}", null, System.Net.HttpStatusCode.Unauthorized);
+
+            response = await doRequestAsync();
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
             {
-                PropertyNameCaseInsensitive = true
-            }) ?? throw new InvalidOperationException("Deserialization returned null.");
+                // Wenn nach Erneuerung weiterhin Unauthorized kommt, gib das weiter.
+                Logger?.LogWarning("Retry after token refresh still returned 401 for {EndPoint}.", endPoint);
+                throw new HttpRequestException($"Unauthorized: {endPoint}", null, System.Net.HttpStatusCode.Unauthorized);
+            }
+
+            return response;
         }
 
-        protected virtual async Task<T> HttpPostAsync<T>(string endPoint, HttpContent args, bool skipReauthorize = false)
+        // Executes a request via SendWithReauthorizationAsync, then reads the response body and either
+        // throws (on failure) or deserializes it to T. Shared by HttpGetAsync, HttpPostAsync and HttpPutAsync.
+        private async Task<T> SendAndDeserializeAsync<T>(string endPoint, string httpMethod, Func<Task<HttpResponseMessage>> doRequestAsync, bool skipReauthorize = false)
         {
-            async Task<HttpResponseMessage> DoRequestAsync() => await httpClient.PostAsync(endPoint, args);
-
-            var response = await DoRequestAsync();
-            // Prüfe auf 401 Unauthorized
-            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-            {
-                Logger?.LogWarning("Received 401 Unauthorized from {EndPoint}. Token might be expired.", endPoint);
-                if (skipReauthorize)
-                {
-                    // We're in the login call itself; do not attempt to re-authorize.
-                    Logger?.LogWarning("Skipping reauthorization for login request to {EndPoint}.", endPoint);
-                    throw new HttpRequestException($"Unauthorized: {endPoint}");
-                }
-
-                if (await HandleUnauthorized())
-                {
-                    response = await DoRequestAsync();
-                    if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-                    {
-                        // Wenn nach Erneuerung weiterhin Unauthorized kommt, gib das weiter.
-                        Logger?.LogWarning("Retry after token refresh still returned 401 for {EndPoint}.", endPoint);
-                        throw new HttpRequestException($"Unauthorized: {endPoint}");
-                    }
-                }
-                else
-                {
-                    // Kein neuer Token innerhalb der Wartezeit
-                    throw new HttpRequestException($"Unauthorized: {endPoint}");
-                }
-            }
+            var response = await SendWithReauthorizationAsync(endPoint, doRequestAsync, skipReauthorize);
 
             var content = await response.Content.ReadAsStringAsync();
             if (!response.IsSuccessStatusCode)
                 throw new HttpRequestException(
                     string.IsNullOrWhiteSpace(content)
-                        ? $"Failed to POST from {endPoint}: {response.ReasonPhrase}"
-                        : content);
+                        ? $"Failed to {httpMethod} from {endPoint}: {response.ReasonPhrase}"
+                        : content,
+                    null,
+                    response.StatusCode);
             return System.Text.Json.JsonSerializer.Deserialize<T>(content, new System.Text.Json.JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
             }) ?? throw new InvalidOperationException("Deserialization returned null.");
         }
 
+        protected virtual Task<T> HttpGetAsync<T>(string endPoint)
+        {
+            return SendAndDeserializeAsync<T>(endPoint, "GET", () => httpClient.GetAsync(endPoint));
+        }
+
+        protected virtual Task<T> HttpPostAsync<T>(string endPoint, HttpContent args, bool skipReauthorize = false)
+        {
+            return SendAndDeserializeAsync<T>(endPoint, "POST", () => httpClient.PostAsync(endPoint, args), skipReauthorize);
+        }
+
+        protected virtual Task<T> HttpPutAsync<T>(string endPoint, HttpContent args)
+        {
+            return SendAndDeserializeAsync<T>(endPoint, "PUT", () => httpClient.PutAsync(endPoint, args));
+        }
+
         protected virtual async Task HttpPostAsync(string endPoint, HttpContent args, bool skipReauthorize = false)
         {
-            async Task<HttpResponseMessage> DoRequestAsync() => await httpClient.PostAsync(endPoint, args);
-
-            var response = await DoRequestAsync();
-            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-            {
-                Logger?.LogWarning("Received 401 Unauthorized from {EndPoint}. Token might be expired.", endPoint);
-                if (skipReauthorize)
-                    throw new HttpRequestException($"Unauthorized: {endPoint}");
-
-                if (await HandleUnauthorized())
-                {
-                    response = await DoRequestAsync();
-                    if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-                        throw new HttpRequestException($"Unauthorized: {endPoint}");
-                }
-                else
-                {
-                    throw new HttpRequestException($"Unauthorized: {endPoint}");
-                }
-            }
+            var response = await SendWithReauthorizationAsync(endPoint, () => httpClient.PostAsync(endPoint, args), skipReauthorize);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -154,7 +120,9 @@ namespace VideoWebPlayer.Client
                 throw new HttpRequestException(
                     string.IsNullOrWhiteSpace(content)
                         ? $"Failed to POST from {endPoint}: {response.ReasonPhrase}"
-                        : content);
+                        : content,
+                    null,
+                    response.StatusCode);
             }
         }
 
@@ -196,6 +164,25 @@ namespace VideoWebPlayer.Client
         public virtual Task EnsureAuthorizationTokenAsync(ClaimsPrincipal? user, CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// Calls <see cref="EnsureAuthorizationTokenAsync(ClaimsPrincipal?, CancellationToken)"/> and
+        /// silently ignores any exception (e.g. because no token is available for an unauthenticated
+        /// user). The subsequent load operation then fails with a meaningful error message that is
+        /// shown in the UI.
+        /// </summary>
+        public async Task EnsureAuthorizationTokenSilentlyAsync(ClaimsPrincipal? user, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                await EnsureAuthorizationTokenAsync(user, cancellationToken);
+            }
+            catch (Exception)
+            {
+                // Kein Token verfuegbar (z. B. nicht angemeldet). Der nachfolgende Ladevorgang
+                // schlaegt dann mit einer aussagekraeftigen Fehlermeldung fehl, die im UI angezeigt wird.
+            }
         }
 
         public bool Initializing { get; set; }
@@ -399,6 +386,54 @@ namespace VideoWebPlayer.Client
         {
             var json = JsonSerializer.Serialize(new { Id = favoriteId, UserId = "anonymous" });
             await HttpPostAsync("api/favorites/remove", new StringContent(json, System.Text.Encoding.UTF8, new System.Net.Http.Headers.MediaTypeHeaderValue("application/json")));
+        }
+        #endregion
+
+        #region Playlists
+        public async Task<IEnumerable<DtoPlaylist>> RequestPlaylistsAsync()
+        {
+            return await HttpGetAsync<DtoPlaylist[]>("api/playlists");
+        }
+
+        public async Task<DtoPlaylist?> RequestPlaylistAsync(long playlistId)
+        {
+            try
+            {
+                return await HttpGetAsync<DtoPlaylist>($"api/playlists/{playlistId}");
+            }
+            catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                return null;
+            }
+        }
+
+        public async Task<DtoPlaylist> CreatePlaylistAsync(DtoCreatePlaylistRequest request)
+        {
+            var json = JsonSerializer.Serialize(request);
+            var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+            return await HttpPostAsync<DtoPlaylist>("api/playlists", content);
+        }
+
+        public async Task<DtoPlaylist> UpdatePlaylistAsync(long playlistId, DtoUpdatePlaylistRequest request)
+        {
+            var json = JsonSerializer.Serialize(request);
+            var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+            return await HttpPutAsync<DtoPlaylist>($"api/playlists/{playlistId}", content);
+        }
+
+        public async Task DeletePlaylistAsync(long playlistId)
+        {
+            var endPoint = $"api/playlists/{playlistId}";
+            var response = await httpClient.DeleteAsync(endPoint);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var content = await response.Content.ReadAsStringAsync();
+                throw new HttpRequestException(
+                    string.IsNullOrWhiteSpace(content)
+                        ? $"Failed to DELETE {endPoint}: {response.ReasonPhrase}"
+                        : content);
+            }
         }
         #endregion
 

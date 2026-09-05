@@ -1,0 +1,185 @@
+@page "/playlists"
+@using Microsoft.AspNetCore.Components.Authorization
+@using VideoWebPlayer.Client.Models
+@using VideoWebPlayer.Events
+@inject VideoWebPlayer.Client.VideoWebPlayerClient Client
+@inject AuthenticationStateProvider AuthStateProvider
+@inject VideoWebPlayer.Services.EventManager EventManager
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+
+<PageTitle>Playlists</PageTitle>
+
+<section class="media-section">
+    <div class="admin-card-header">
+        <h1>Playlists</h1>
+        <button class="btn btn-primary" id="create-playlist-button" @onclick="OpenCreateForm">Neue Playlist erstellen</button>
+    </div>
+
+    @if (isLoading)
+    {
+        <p>Lade Daten...</p>
+    }
+    else if (!string.IsNullOrWhiteSpace(loadError))
+    {
+        <div class="alert alert-danger" id="playlists-load-error">@loadError</div>
+    }
+    else if (playlists.Count == 0)
+    {
+        <div class="admin-empty-state">
+            <strong>Keine Playlists vorhanden</strong>
+            <span>Erstellen Sie Ihre erste Playlist.</span>
+        </div>
+    }
+    else
+    {
+        <div class="admin-table-wrap">
+            <table class="table table-dark table-striped align-middle">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Beschreibung</th>
+                        <th>Sortierung</th>
+                        <th>Erstellt</th>
+                        <th>Aktualisiert</th>
+                        <th>Aktionen</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var playlist in playlists)
+                    {
+                        <tr class="playlist-row" data-playlist-name="@playlist.Name">
+                            <td>@playlist.Name</td>
+                            <td>@TruncateDescription(playlist.Description)</td>
+                            <td>@(playlist.SortMode == PlaylistSortModeValues.Manual ? "Manuell" : "Nach Erscheinungsdatum")</td>
+                            <td>@playlist.CreatedAt.ToLocalTime()</td>
+                            <td>@playlist.UpdatedAt.ToLocalTime()</td>
+                            <td>
+                                <button class="btn btn-sm btn-primary playlist-open-button" @onclick="() => OpenDetail(playlist.Id)">Oeffnen</button>
+                                <button class="btn btn-sm btn-primary playlist-edit-button" @onclick="() => OpenEditForm(playlist.Id)">Bearbeiten</button>
+                                <button class="btn btn-sm btn-danger playlist-delete-button" @onclick="() => RequestDelete(playlist)">Loeschen</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+@if (showForm)
+{
+    <PlaylistForm PlaylistId="editingPlaylistId" OnSave="HandleSavedAsync" OnCancel="HandleCancel" />
+}
+
+@if (playlistPendingDelete is not null)
+{
+    <PlaylistDeleteConfirmationDialog PlaylistName="@playlistPendingDelete.Name" OnConfirm="ConfirmDeleteAsync" OnCancel="CancelDelete" />
+}
+
+@code {
+    private List<DtoPlaylist> playlists = new();
+    private bool isLoading = true;
+    private string? loadError;
+    private bool showForm;
+    private long? editingPlaylistId;
+    private DtoPlaylist? playlistPendingDelete;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        await Client.EnsureAuthorizationTokenSilentlyAsync(authState.User);
+        await LoadPlaylistsAsync();
+    }
+
+    private async Task LoadPlaylistsAsync()
+    {
+        isLoading = true;
+        loadError = null;
+        try
+        {
+            playlists = (await Client.RequestPlaylistsAsync()).ToList();
+        }
+        catch (Exception ex)
+        {
+            loadError = $"Fehler beim Laden der Playlists: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void OpenCreateForm()
+    {
+        editingPlaylistId = null;
+        showForm = true;
+    }
+
+    private void OpenEditForm(long playlistId)
+    {
+        editingPlaylistId = playlistId;
+        showForm = true;
+    }
+
+    private async Task HandleSavedAsync()
+    {
+        showForm = false;
+        await LoadPlaylistsAsync();
+    }
+
+    private void HandleCancel()
+    {
+        showForm = false;
+    }
+
+    private void RequestDelete(DtoPlaylist playlist)
+    {
+        playlistPendingDelete = playlist;
+    }
+
+    private void CancelDelete()
+    {
+        playlistPendingDelete = null;
+    }
+
+    private async Task ConfirmDeleteAsync()
+    {
+        if (playlistPendingDelete is null)
+            return;
+
+        try
+        {
+            await Client.DeletePlaylistAsync(playlistPendingDelete.Id);
+            PublishStatus("Playlist wurde geloescht.");
+        }
+        catch (Exception ex)
+        {
+            PublishStatus($"Fehler beim Loeschen der Playlist: {ex.Message}");
+        }
+        finally
+        {
+            playlistPendingDelete = null;
+        }
+
+        await LoadPlaylistsAsync();
+    }
+
+    private static string TruncateDescription(string? description)
+    {
+        if (string.IsNullOrEmpty(description))
+            return string.Empty;
+
+        return description.Length > 100 ? description[..100] + "…" : description;
+    }
+
+    private void PublishStatus(string message)
+    {
+        EventManager.Publish(new BackgroundProcessingStatusEvent(message, DateTimeOffset.Now));
+    }
+
+    private void OpenDetail(long playlistId)
+    {
+        NavigationManager.NavigateTo($"/playlists/{playlistId}");
+    }
+}

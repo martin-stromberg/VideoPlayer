@@ -284,6 +284,65 @@ Antwortstatuswerte:
 - `replaced`
 - `removed`
 
+## Playlists
+
+Alle Playlist-Endpunkte sind benutzerbezogen: Sie wirken ausschließlich auf die Playlists des
+aktuell authentifizierten Anwenders.
+
+### GET /api/playlists
+
+Liefert alle Playlists des aktuellen Benutzers als `DtoPlaylist[]`.
+
+### GET /api/playlists/{id}
+
+Liefert eine einzelne Playlist als `DtoPlaylist`.
+
+- `404 Not Found`, wenn keine Playlist mit dieser ID existiert.
+- `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
+
+### POST /api/playlists
+
+Erstellt eine neue Playlist.
+
+Request (`DtoCreatePlaylistRequest`):
+
+```json
+{
+  "name": "Serien-Marathon",
+  "description": "Meine Lieblingsserien",
+  "sortMode": "ByReleaseDate"
+}
+```
+
+`sortMode` akzeptiert `ByReleaseDate` (Standard) oder `Manual`. `name` ist erforderlich
+(max. 255 Zeichen, pro Benutzer eindeutig), `description` ist optional (max. 2000 Zeichen).
+
+Antwort: `DtoPlaylist` der neu erstellten Playlist.
+
+- `400 Bad Request` bei ungültigen Eingaben (z. B. leerer Name, zu lang).
+- `409 Conflict`, wenn bereits eine Playlist mit demselben Namen existiert.
+
+### PUT /api/playlists/{id}
+
+Aktualisiert Name, Beschreibung und Sortiermodus einer bestehenden Playlist.
+
+Request (`DtoUpdatePlaylistRequest`): identische Struktur wie beim Erstellen.
+
+Antwort: aktualisiertes `DtoPlaylist`.
+
+- `404 Not Found`, wenn keine Playlist mit dieser ID existiert.
+- `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
+- `400 Bad Request` / `409 Conflict` analog zum Erstellen.
+
+### DELETE /api/playlists/{id}
+
+Löscht eine Playlist endgültig.
+
+Antwort: `204 No Content`.
+
+- `404 Not Found`, wenn keine Playlist mit dieser ID existiert.
+- `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
+
 ## SignalR
 
 ### GET /hubs/mediaupdate

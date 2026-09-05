@@ -41,17 +41,46 @@ Fügt einen Medieninhalt (oder mehrere bei Cascade) zu einer Playlist hinzu.
 
 ```json
 {
-  "id": 456,
-  "playlistId": 1,
-  "mediaType": "TVShow",
-  "mediaId": 123,
-  "mediaTitle": "The Crown",
-  "parentMediaType": null,
-  "parentMediaId": null,
-  "parentMediaTitle": null,
-  "addedAt": "2026-09-05T14:30:00Z"
+  "topLevelEntry": {
+    "id": 456,
+    "playlistId": 1,
+    "mediaType": "TVShow",
+    "mediaId": 123,
+    "mediaTitle": "The Crown",
+    "parentMediaType": null,
+    "parentMediaId": null,
+    "parentMediaTitle": null,
+    "addedAt": "2026-09-05T14:30:00Z"
+  },
+  "addedEntries": [
+    {
+      "id": 456,
+      "playlistId": 1,
+      "mediaType": "TVShow",
+      "mediaId": 123,
+      "mediaTitle": "The Crown",
+      "parentMediaType": null,
+      "parentMediaId": null,
+      "parentMediaTitle": null,
+      "addedAt": "2026-09-05T14:30:00Z"
+    }
+  ],
+  "skippedDuplicateCount": 0,
+  "message": "3 Titel hinzugefuegt."
 }
 ```
+
+Die Antwort ist ein `DtoPlaylistAddResult`-Objekt (siehe [DTO-Modelle](#dto-modelle)). `topLevelEntry`
+ist `null`, wenn der angeforderte Top-Level-Eintrag bereits als Duplikat übersprungen wurde.
+`addedEntries` enthält alle tatsächlich neu angelegten Einträge (Top-Level plus Cascade-Kinder),
+`skippedDuplicateCount` die Anzahl der dabei übersprungenen Duplikate, und `message` einen für die
+UI aufbereiteten Text mit der Zusammenfassung des Ergebnisses.
+
+**Duplikate führen nicht mehr zu einem Fehler:** Ist der angeforderte Medieninhalt (oder ein
+Cascade-Kind) bereits in der Playlist vorhanden, wird der Eintrag übersprungen und in
+`skippedDuplicateCount` gezählt; die Antwort bleibt weiterhin `HTTP 200 OK`. Sind ausnahmslos alle
+betroffenen Einträge bereits vorhanden, ist `addedEntries` leer und `message` lautet z. B.
+`"Alle 6 Titel waren bereits vorhanden."`.
 
 **Fehlerantworten:**
 
@@ -59,7 +88,6 @@ Fügt einen Medieninhalt (oder mehrere bei Cascade) zu einer Playlist hinzu.
 |-------------|-------|---------------|
 | 400 Bad Request | Ungültiger `mediaType` oder `mediaId <= 0` | `"Ungültiger Medientyp."` |
 | 404 Not Found | Playlist nicht gefunden oder Medieninhalt nicht vorhanden | `"Medieninhalt wurde nicht gefunden."` |
-| 409 Conflict | Medieninhalt existiert bereits in dieser Playlist | `"Medieninhalt bereits in dieser Playlist vorhanden."` |
 | 403 Forbidden | Benutzer ist nicht der Besitzer der Playlist | `"Sie haben keinen Zugriff auf diese Playlist."` |
 | 401 Unauthorized | Fehlende oder ungültige Authentifizierung | `"Unauthorized"` |
 
@@ -71,7 +99,15 @@ Wenn der `mediaType` einer Sammlung entspricht (Serie, Staffel oder Filmsammlung
 - `TVShowSeason` → alle Episoden
 - `MovieCollection` → alle Filme
 
-Die Antwort enthält nur den Top-Level-Eintrag. Cascade-Duplikate werden still übersprungen.
+Die Antwort enthält alle neu hinzugefügten Einträge (Top-Level und Cascade-Kinder) in
+`addedEntries`. Bereits vorhandene Cascade-Einträge werden übersprungen und in
+`skippedDuplicateCount` mitgezählt.
+
+**Besonderheit – MediaType-Normalisierung:**
+
+Der übergebene `mediaType` wird beim Speichern auf seine kanonische Schreibweise normalisiert
+(z. B. `"movie"` → `"Movie"`). Dadurch werden `"Movie"` und `"movie"` bei der Duplikatprüfung als
+derselbe Medientyp erkannt.
 
 ---
 
@@ -189,6 +225,20 @@ public class DtoAddMediaToPlaylistRequest
 }
 ```
 
+### `DtoPlaylistAddResult`
+
+Response-Format von `POST /api/playlists/{id}/entries`.
+
+```csharp
+public class DtoPlaylistAddResult
+{
+    public DtoPlaylistEntry? TopLevelEntry { get; set; }  // null, falls Top-Level-Eintrag ein Duplikat war
+    public DtoPlaylistEntry[] AddedEntries { get; set; }  // alle tatsaechlich neu angelegten Eintraege
+    public int SkippedDuplicateCount { get; set; }        // Anzahl uebersprungener Duplikate (Top-Level + Cascade)
+    public string Message { get; set; }                   // Zusammenfassung fuer die Anzeige in der UI
+}
+```
+
 ---
 
 ## Medientypen
@@ -212,22 +262,25 @@ Die folgenden Medientypen werden unterstützt:
 | `mediaType` | Muss einer der 5 unterstützten Typen sein | 400 Bad Request |
 | `mediaId` | Muss > 0 sein | 400 Bad Request |
 | Medieninhalt | Muss in der Datenbank existieren | 404 Not Found |
-| Duplikat | Eintrag `(PlaylistId, MediaType, MediaId)` darf nur einmal existieren | 409 Conflict |
+| Duplikat | Eintrag `(PlaylistId, MediaType, MediaId)` darf nur einmal existieren; wird beim Hinzufügen jedoch übersprungen statt einen Fehler auszulösen (siehe unten) | Kein Fehler — `HTTP 200 OK` mit `skippedDuplicateCount` |
 | Berechtigung | Anfragender Benutzer muss Besitzer der Playlist sein | 403 Forbidden |
 
 ---
 
 ## Besonderheiten
 
-### Cascade-Duplikate bei Hinzufügen
+### Duplikate bei Hinzufügen
 
-Werden Duplikate beim Hinzufügen einer Sammlung erkannt, werden diese still übersprungen:
+Werden Duplikate beim Hinzufügen erkannt — egal ob der Top-Level-Eintrag selbst oder ein
+Cascade-Kind —, werden diese übersprungen und in `skippedDuplicateCount` gezählt. Die Anfrage
+schlägt dabei nie fehl; die Antwort bleibt `HTTP 200 OK`.
 
 **Beispiel:**
 - Playlist enthält bereits Episode 5 von Season 1 (hinzugefügt einzeln)
 - Benutzer fügt Season 1 hinzu
-- Resultat: Season 1 und Episode 1–4 werden hinzugefügt, Episode 5 wird übersprungen (existiert bereits)
-- Kein Fehler wird angezeigt
+- Resultat: Season 1 und Episode 1–4 werden hinzugefügt (`addedEntries`), Episode 5 wird
+  übersprungen (`skippedDuplicateCount = 1`)
+- `message`: `"5 Titel hinzugefuegt, 1 bereits vorhanden und uebersprungen."`
 
 ### Verwaiste Einträge
 

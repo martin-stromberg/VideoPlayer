@@ -37,7 +37,7 @@ public interface IPlaylistService
     /// <summary>
     /// Adds a media entry (with cascade logic for TVShow, TVShowSeason and MovieCollection) to a playlist.
     /// </summary>
-    Task<DtoPlaylistEntry> AddMediaToPlaylistAsync(long playlistId, string userId, string mediaType, long mediaId, CancellationToken cancellationToken = default);
+    Task<DtoPlaylistAddResult> AddMediaToPlaylistAsync(long playlistId, string userId, string mediaType, long mediaId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Removes a media entry from a playlist.

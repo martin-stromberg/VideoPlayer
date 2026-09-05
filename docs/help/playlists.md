@@ -81,8 +81,11 @@ Falls Teile der Kaskade bereits in der Playlist vorhanden sind, werden diese üb
 ohne dass dies dem Anwender als Fehler angezeigt wird. Nur neue Inhalte werden hinzugefügt.
 
 **Duplikat-Prüfung:** Ein Medieninhalt darf nicht doppelt in derselben Playlist vorkommen.
-Der Versuch, einen bereits vorhandenen Inhalt erneut hinzuzufügen, wird mit einer
-Hinweismeldung abgelehnt.
+Der Versuch, einen bereits vorhandenen Inhalt erneut hinzuzufügen, wird **nicht** mit einer
+Fehlermeldung abgelehnt. Stattdessen werden die bereits vorhandenen Inhalte übersprungen
+und der Anwender erhält eine aussagekräftige Rückmeldung, z. B. „3 Titel hinzugefügt, 2 bereits
+vorhanden und übersprungen." oder „Alle 5 Titel waren bereits vorhanden." Die Operation wird
+erfolgreich abgeschlossen (grüne Info-Meldung), auch wenn nichts Neues hinzugefügt wurde.
 
 ### Entfernen
 

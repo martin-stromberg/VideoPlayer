@@ -1,3 +1,4 @@
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Configuration;
@@ -7,24 +8,41 @@ using VideoWebPlayer.Services;
 namespace VideoWebPlayer.Tests.Helpers;
 
 /// <summary>
-/// Provides an in-memory-database-backed <see cref="PlaylistService"/> instance for tests.
+/// Provides a SQLite-in-memory-database-backed <see cref="PlaylistService"/> instance for tests.
 /// </summary>
-public abstract class PlaylistServiceTestBase
+public abstract class PlaylistServiceTestBase : IDisposable
 {
     protected readonly ApplicationDbContext _db;
     protected readonly EventManager _eventManager;
     protected readonly PlaylistService _service;
     protected readonly string _testUserId = "test-user-123";
     protected readonly string _otherUserId = "other-user-456";
+    private readonly SqliteConnection _keeperConnection;
 
     protected PlaylistServiceTestBase()
     {
+        var connectionString = $"Data Source=file:playlist-service-{Guid.NewGuid()}?mode=memory&cache=shared";
+        _keeperConnection = new SqliteConnection(connectionString);
+        _keeperConnection.Open();
+
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .UseSqlite(connectionString)
             .Options;
         _eventManager = new EventManager();
         _db = new ApplicationDbContext(options, _eventManager);
+        _db.Database.EnsureCreated();
+
+        _db.Users.AddRange(
+            new ApplicationUser { Id = _testUserId, UserName = "test-user@test.com" },
+            new ApplicationUser { Id = _otherUserId, UserName = "other-user@test.com" });
+        _db.SaveChanges();
+
         _service = CreateService(null);
+    }
+
+    public void Dispose()
+    {
+        _keeperConnection.Dispose();
     }
 
     protected PlaylistService CreateService(int? maxPlaylistsPerUser = null, int? maxPlaylistItemCount = null)

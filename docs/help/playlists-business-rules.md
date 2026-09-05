@@ -10,13 +10,13 @@ Dieses Dokument beschreibt die Validierungsregeln, Geschäftslogik und Entscheid
 
 **Regel:** Ein Medieninhalt darf in ein und derselben Playlist nur einmal vorkommen.
 
-**Definition Duplikat:** Zwei `PlaylistEntry`-Reihen sind Duplikate, wenn sie die gleiche Kombination aus `(PlaylistId, MediaType, MediaId)` haben.
+**Definition Duplikat:** Zwei `PlaylistEntry`-Reihen sind Duplikate, wenn sie die gleiche Kombination aus `(PlaylistId, MediaType, MediaId)` haben (nach Normalisierung des `MediaType`, siehe BR-6).
 
 **Implementierung:**
 - Composite Unique Constraint in der Datenbank auf Spalten `(PlaylistId, MediaType, MediaId)`
-- Zusätzliche Validierung im Service vor dem Einfügen
+- Zusätzliche Validierung im Service vor dem Einfügen: Lade alle bestehenden Einträge als `HashSet<(MediaType, MediaId)>` und prüfe den (normalisierten) Top-Level-Eintrag dagegen
 
-**Fehlerbehandlung:** Versuch, einen bereits vorhandenen Eintrag hinzuzufügen → `InvalidOperationException` → HTTP 409 Conflict
+**Fehlerbehandlung:** Versuch, einen bereits vorhandenen Eintrag hinzuzufügen → Eintrag wird übersprungen und in `SkippedDuplicateCount` gezählt; es wird **keine Exception geworfen** und **kein HTTP 409** zurückgegeben. Die Antwort bleibt `HTTP 200 OK` (siehe BR-2).
 
 **Beispiel:**
 ```
@@ -24,23 +24,28 @@ Playlist 1:
 - Film: "The Matrix" (Movie, ID=100)
 
 Versuch: Hinzufügen von Film "The Matrix" (Movie, ID=100) erneut
-Ergebnis: Fehler 409 — "Medieninhalt bereits in dieser Playlist vorhanden."
+Ergebnis: HTTP 200 OK — AddedEntries=[], SkippedDuplicateCount=1,
+          Message="Alle 1 Titel waren bereits vorhanden."
 ```
 
 ---
 
-## BR-2: Cascade-Duplikate bei Hinzufügen
+## BR-2: Einheitliches Duplikat-Handling (Top-Level und Cascade)
 
-**Regel:** Werden Duplikate bei Cascade-Hinzufügen erkannt, werden diese still übersprungen ohne Fehler.
+**Regel:** Werden Duplikate beim Hinzufügen erkannt — egal ob der angeforderte Top-Level-Eintrag selbst oder ein Cascade-Kind —, werden diese übersprungen ohne Fehler. Die Anfrage schlägt in keinem Fall wegen eines Duplikats fehl.
 
-**Hintergrund:** Wenn Benutzer eine Serie hinzufügen und einige Episoden bereits einzeln in der Playlist sind, soll die Operation nicht fehlschlagen, sondern nur die neuen Episoden hinzufügen.
+**Hintergrund:** Wenn Benutzer eine Serie hinzufügen und einige Episoden bereits einzeln in der Playlist sind (oder die ganze Serie erneut hinzugefügt wird), soll die Operation nicht fehlschlagen, sondern nur die neuen Einträge hinzufügen und dem Benutzer eine verständliche Zusammenfassung liefern.
 
 **Implementierung:**
 - Lade alle bestehenden Einträge als `HashSet<(MediaType, MediaId)>`
-- Filtere Cascade-Kinder: `newCascadeEntries = cascadeEntries.Where(e => !existingKeys.Contains(e))`
-- Speichere nur die neuen Einträge (Cascade-Duplikate ignorieren)
+- Prüfe den Top-Level-Eintrag gegen dieses Set: Duplikat → `SkippedDuplicateCount++`, sonst neuer Eintrag
+- Filtere Cascade-Kinder genauso: Duplikat → `SkippedDuplicateCount++`, sonst neuer Eintrag
+- Speichere nur die neuen Einträge (`AddedEntries`) in einem Rutsch
 
-**Benutzer-Feedback:** Keine Fehlermeldung; der Top-Level-Eintrag wird zurückgegeben
+**Benutzer-Feedback:** Kein Fehler; `DtoPlaylistAddResult.Message` beschreibt das Ergebnis in Textform:
+- `entriesToAdd.Count > 0 && SkippedDuplicateCount > 0`: `"{N} Titel hinzugefuegt, {M} bereits vorhanden und uebersprungen."`
+- `entriesToAdd.Count > 0 && SkippedDuplicateCount == 0`: `"{N} Titel hinzugefuegt."`
+- `entriesToAdd.Count == 0`: `"Alle {M} Titel waren bereits vorhanden."`
 
 **Beispiel:**
 ```
@@ -57,7 +62,7 @@ Cascade-Ergebnis:
 - Episode 2 (TVShowEpisode, ID=1002) — Duplikat, übersprungen
 - Episode 3 (TVShowEpisode, ID=1003) — neu hinzugefügt
 
-Benutzer sieht nur: "Serie A wurde hinzugefügt" (keine Details über übersprungene Duplikate)
+Benutzer sieht: HTTP 200 OK, Message="3 Titel hinzugefuegt, 2 bereits vorhanden und uebersprungen."
 ```
 
 ---
@@ -159,11 +164,13 @@ Antwort: HTTP 403 Forbidden — "Sie haben keinen Zugriff auf diese Playlist."
 4. `TVShowEpisode`
 5. `MovieCollection`
 
-**Implementierung:** `ValidateMediaType()` wirft `InvalidOperationException` für ungültige Typen
+**Implementierung:** `ParseMediaType()` wirft `InvalidOperationException` für ungültige Typen (case-insensitives Parsing des `MediaType`-Enums)
 
 **Fehlerbehandlung:** HTTP 400 Bad Request
 
 **Zusammenhang:** Diese Typen entsprechen den Datenmodellen in `VideoWebPlayer.Data` (Movie, TVShow, etc.)
+
+**MediaType-Normalisierung:** Der geparste `mediaType` wird über `parsedMediaType.ToString()` auf seine kanonische Schreibweise normalisiert (z. B. `"movie"` oder `"MOVIE"` → `"Movie"`), bevor er gespeichert oder mit vorhandenen Einträgen verglichen wird. Dadurch werden unterschiedliche Schreibweisen desselben Medientyps zuverlässig als Duplikat erkannt (siehe BR-1). Dieselbe Normalisierung wird auch beim Entfernen eines Eintrags (`RemoveMediaFromPlaylistAsync`) angewendet, damit ein Eintrag unabhängig von der Schreibweise des übergebenen `mediaType` gefunden wird.
 
 **Beispiel:**
 ```
@@ -172,6 +179,11 @@ Body: { "mediaType": "Book", "mediaId": 100 }
 
 Validierung schlägt fehl: "Book" ist nicht in der Liste gültiger Typen
 Antwort: HTTP 400 Bad Request — "Ungültiger Medientyp."
+
+Request: POST /api/playlists/1/entries (zweiter Aufruf mit anderer Schreibweise)
+Body: { "mediaType": "movie", "mediaId": 42 }   // zuvor bereits mit "Movie" hinzugefuegt
+
+Ergebnis: HTTP 200 OK — SkippedDuplicateCount=1 (als Duplikat von "Movie" erkannt)
 ```
 
 ---
@@ -309,12 +321,12 @@ Resultat in Playlist:
 
 | Regel | Prüfpunkt | Fehler | HTTP-Status |
 |-------|-----------|--------|-------------|
-| BR-1: Keine Duplikate | Vor Insert | "... bereits in dieser Playlist vorhanden" | 409 Conflict |
-| BR-2: Cascade-Duplikate OK | Bei Cascade | Still übersprungen | Keine |
+| BR-1: Keine Duplikate | Vor Insert | Übersprungen, `SkippedDuplicateCount` erhöht | Keine — 200 OK |
+| BR-2: Einheitliches Duplikat-Handling (Top-Level + Cascade) | Bei Insert | Übersprungen, `Message` beschreibt Ergebnis | Keine — 200 OK |
 | BR-3: Cascade-Abfrage | Konfiguriert pro Type | Keine (oder Empty-List) | Keine |
 | BR-4: Berechtigung | Vor jeder Op. | `PlaylistAccessDeniedException` | 403 Forbidden |
 | BR-5: Medieninhalt existiert | Vor Insert | `KeyNotFoundException` | 404 Not Found |
-| BR-6: MediaType gültig | Bei Validierung | "Ungültiger Medientyp" | 400 Bad Request |
+| BR-6: MediaType gültig und normalisiert | Bei Validierung | "Ungültiger Medientyp" | 400 Bad Request |
 | BR-7: Verwaiste Bereinigung | Bei Get | Still gelöscht | Keine |
 | BR-8: MediaId > 0 | Bei Validierung | "MediaId muss groesser als 0 sein" | 400 Bad Request |
 | BR-9: MaxItemCount | Vor Insert (optional) | "... maximale Anzahl ... erreicht" | 400 Bad Request |
@@ -324,18 +336,19 @@ Resultat in Playlist:
 
 ## Designentscheidungen
 
-### Warum Cascade-Duplikate still übersprungen?
+### Warum Duplikate (Top-Level und Cascade) übersprungen statt abgelehnt?
 
-**Entscheidung:** Cascade-Duplikate werden übersprungen ohne Fehler.
+**Entscheidung:** Alle Duplikate — sowohl der angeforderte Top-Level-Eintrag als auch Cascade-Kinder — werden übersprungen ohne Fehler; die Response beschreibt das Ergebnis in `Message` und `SkippedDuplicateCount`.
 
 **Alternativen:**
-1. Abbrechen und 409 zurückgeben (würde benutzer blockieren)
+1. Abbrechen und 409 zurückgeben (würde Benutzer blockieren, uneinheitlich zum bisherigen Cascade-Verhalten)
 2. Alle Einträge mit detaillierter Response zurückgeben (komplexer für Client)
 
-**Gewählte Lösung:** Still überspringen. Begründung:
+**Gewählte Lösung:** Übersprungen mit Rückmeldung. Begründung:
+- Einheitliches Verhalten für Top-Level und Cascade (statt bisher inkonsistent: Top-Level warf 409, Cascade wurde still übersprungen)
 - Einfacher zu implementieren
 - User-Experience besser: Operation erfolgt, nicht blockiert
-- Der Top-Level-Eintrag wird immer zurückgegeben (Erfolgs-Bestätigung)
+- `AddedEntries` und `Message` geben dem Benutzer transparent Auskunft über das Ergebnis
 
 ### Warum Verwaiste Einträge beim Read bereinigen?
 

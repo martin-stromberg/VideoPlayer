@@ -62,7 +62,7 @@ public sealed class PlaylistEntriesE2ETests : PlaylistsE2ETestBase
     }
 
     [Fact]
-    public async Task AddMovie_Duplicate_ShowsConflictMessage()
+    public async Task AddMovie_Duplicate_ShowsSuccessMessage()
     {
         if (SkipBrowser)
             return;
@@ -77,7 +77,8 @@ public sealed class PlaylistEntriesE2ETests : PlaylistsE2ETestBase
 
         await AddEntryViaUiAsync("Movie", movieId);
 
-        await Expect(Page.Locator("#playlist-entries-status")).ToContainTextAsync("bereits in dieser Playlist vorhanden");
+        await Expect(Page.Locator("#playlist-entries-status")).ToContainTextAsync("Alle 1 Titel waren bereits vorhanden.");
+        await Expect(Page.Locator("#playlist-entries-status")).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("alert-success"));
     }
 
     [Fact]

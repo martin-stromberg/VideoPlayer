@@ -70,11 +70,7 @@ public sealed class PlaylistService : IPlaylistService
         var trimmedDescription = ValidateDescription(description);
         var resolvedSortMode = ParseSortMode(sortMode, PlaylistSortMode.ByReleaseDate);
 
-        var isDuplicate = await _db.Playlists
-            .AsNoTracking()
-            .AnyAsync(p => p.UserId == userId && p.Name.ToLower() == trimmedName.ToLower(), cancellationToken);
-        if (isDuplicate)
-            throw new InvalidOperationException("Ein Playlist mit diesem Namen existiert bereits.");
+        await EnsureNameNotDuplicateAsync(userId, trimmedName, null, cancellationToken);
 
         if (_playlistSettings.MaxPlaylistsPerUser is int maxPlaylists)
         {
@@ -110,11 +106,7 @@ public sealed class PlaylistService : IPlaylistService
         var trimmedDescription = ValidateDescription(description);
         var resolvedSortMode = ParseSortMode(sortMode, playlist.SortMode);
 
-        var isDuplicate = await _db.Playlists
-            .AsNoTracking()
-            .AnyAsync(p => p.UserId == userId && p.Id != playlistId && p.Name.ToLower() == trimmedName.ToLower(), cancellationToken);
-        if (isDuplicate)
-            throw new InvalidOperationException("Ein Playlist mit diesem Namen existiert bereits.");
+        await EnsureNameNotDuplicateAsync(userId, trimmedName, playlistId, cancellationToken);
 
         playlist.Name = trimmedName;
         playlist.Description = trimmedDescription;
@@ -138,11 +130,12 @@ public sealed class PlaylistService : IPlaylistService
     }
 
     /// <inheritdoc />
-    public async Task<DtoPlaylistEntry> AddMediaToPlaylistAsync(long playlistId, string userId, string mediaType, long mediaId, CancellationToken cancellationToken = default)
+    public async Task<DtoPlaylistAddResult> AddMediaToPlaylistAsync(long playlistId, string userId, string mediaType, long mediaId, CancellationToken cancellationToken = default)
     {
         await GetOwnedPlaylistAsync(playlistId, userId, cancellationToken);
 
         var parsedMediaType = ParseMediaType(mediaType);
+        var normalizedMediaType = parsedMediaType.ToString();
 
         if (mediaId <= 0)
             throw new InvalidOperationException("MediaId muss groesser als 0 sein.");
@@ -151,58 +144,17 @@ public sealed class PlaylistService : IPlaylistService
         if (mediaTitle is null)
             throw new KeyNotFoundException("Medieninhalt wurde nicht gefunden.");
 
-        var existingKeys = (await _db.PlaylistEntries
-            .AsNoTracking()
-            .Where(e => e.PlaylistId == playlistId)
-            .Select(e => new { e.MediaType, e.MediaId })
-            .ToListAsync(cancellationToken))
-            .Select(e => (e.MediaType, e.MediaId))
-            .ToHashSet();
+        var (entriesToAdd, skippedDuplicateCount, topLevelEntry, existingEntryCount) =
+            await BuildEntriesToAddAsync(playlistId, parsedMediaType, normalizedMediaType, mediaId, cancellationToken);
 
-        if (existingKeys.Contains((mediaType, mediaId)))
-            throw new InvalidOperationException("Medieninhalt bereits in dieser Playlist vorhanden.");
+        if (_playlistSettings.MaxPlaylistItemCount is int maxItemCount
+            && existingEntryCount + entriesToAdd.Count > maxItemCount)
+            throw new InvalidOperationException("Die maximale Anzahl an Playlist-Eintraegen wurde erreicht.");
 
-        var cascadeEntries = await GetCascadeMediaIdsAsync(parsedMediaType, mediaId, cancellationToken);
-        var newCascadeEntries = cascadeEntries
-            .Select(e => (MediaType: e.MediaType.ToString(), e.MediaId))
-            .Where(e => !existingKeys.Contains(e))
-            .ToList();
-
-        if (_playlistSettings.MaxPlaylistItemCount is int maxItemCount)
-        {
-            var newEntryCount = 1 + newCascadeEntries.Count;
-            if (existingKeys.Count + newEntryCount > maxItemCount)
-                throw new InvalidOperationException("Die maximale Anzahl an Playlist-Eintraegen wurde erreicht.");
-        }
-
-        var now = DateTime.UtcNow;
-        var topLevelEntry = new PlaylistEntry
-        {
-            PlaylistId = playlistId,
-            MediaType = mediaType,
-            MediaId = mediaId,
-            ParentMediaType = null,
-            ParentMediaId = null,
-            AddedAt = now
-        };
-        await _db.PlaylistEntries.AddAsync(topLevelEntry, cancellationToken);
-
-        foreach (var (childMediaType, childMediaId) in newCascadeEntries)
-        {
-            await _db.PlaylistEntries.AddAsync(new PlaylistEntry
-            {
-                PlaylistId = playlistId,
-                MediaType = childMediaType,
-                MediaId = childMediaId,
-                ParentMediaType = mediaType,
-                ParentMediaId = mediaId,
-                AddedAt = now
-            }, cancellationToken);
-        }
-
+        await _db.PlaylistEntries.AddRangeAsync(entriesToAdd, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
 
-        return ToDto(topLevelEntry, mediaTitle, null);
+        return await BuildAddResultAsync(entriesToAdd, skippedDuplicateCount, topLevelEntry, mediaTitle, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -210,8 +162,10 @@ public sealed class PlaylistService : IPlaylistService
     {
         await GetOwnedPlaylistAsync(playlistId, userId, cancellationToken);
 
+        var normalizedMediaType = ParseMediaType(mediaType).ToString();
+
         var entry = await _db.PlaylistEntries.FirstOrDefaultAsync(
-            e => e.PlaylistId == playlistId && e.MediaType == mediaType && e.MediaId == mediaId, cancellationToken)
+            e => e.PlaylistId == playlistId && e.MediaType == normalizedMediaType && e.MediaId == mediaId, cancellationToken)
             ?? throw new KeyNotFoundException("Eintrag wurde nicht gefunden.");
 
         _db.PlaylistEntries.Remove(entry);
@@ -307,6 +261,15 @@ public sealed class PlaylistService : IPlaylistService
         return description;
     }
 
+    private async Task EnsureNameNotDuplicateAsync(string userId, string name, long? excludePlaylistId, CancellationToken cancellationToken)
+    {
+        var isDuplicate = await _db.Playlists
+            .AsNoTracking()
+            .AnyAsync(p => p.UserId == userId && p.Id != excludePlaylistId && p.Name == name, cancellationToken);
+        if (isDuplicate)
+            throw new InvalidOperationException("Ein Playlist mit diesem Namen existiert bereits.");
+    }
+
     private static PlaylistSortMode ParseSortMode(string? sortMode, PlaylistSortMode fallback)
     {
         if (string.IsNullOrWhiteSpace(sortMode))
@@ -387,10 +350,106 @@ public sealed class PlaylistService : IPlaylistService
     /// <returns>The parsed <see cref="MediaType"/> value.</returns>
     private static MediaType ParseMediaType(string mediaType)
     {
-        if (!Enum.TryParse<MediaType>(mediaType, ignoreCase: true, out var parsed) || !MediaTypeHandlers.ContainsKey(parsed))
+        if (!TryParseKnownMediaType(mediaType, out var parsed))
             throw new InvalidOperationException("Ungueltiger Medientyp.");
 
         return parsed;
+    }
+
+    private static bool TryParseKnownMediaType(string mediaType, out MediaType parsed)
+    {
+        return Enum.TryParse(mediaType, ignoreCase: true, out parsed) && MediaTypeHandlers.ContainsKey(parsed);
+    }
+
+    private async Task<(List<PlaylistEntry> EntriesToAdd, int SkippedDuplicateCount, PlaylistEntry? TopLevelEntry, int ExistingEntryCount)> BuildEntriesToAddAsync(
+        long playlistId, MediaType parsedMediaType, string normalizedMediaType, long mediaId, CancellationToken cancellationToken)
+    {
+        var existingKeys = (await _db.PlaylistEntries
+            .AsNoTracking()
+            .Where(e => e.PlaylistId == playlistId)
+            .Select(e => new { e.MediaType, e.MediaId })
+            .ToListAsync(cancellationToken))
+            .Select(e => (e.MediaType, e.MediaId))
+            .ToHashSet();
+
+        var now = DateTime.UtcNow;
+        var entriesToAdd = new List<PlaylistEntry>();
+        var skippedDuplicateCount = 0;
+        PlaylistEntry? topLevelEntry = null;
+
+        if (existingKeys.Contains((normalizedMediaType, mediaId)))
+        {
+            skippedDuplicateCount++;
+        }
+        else
+        {
+            topLevelEntry = new PlaylistEntry
+            {
+                PlaylistId = playlistId,
+                MediaType = normalizedMediaType,
+                MediaId = mediaId,
+                ParentMediaType = null,
+                ParentMediaId = null,
+                AddedAt = now
+            };
+            entriesToAdd.Add(topLevelEntry);
+        }
+
+        var cascadeEntries = await GetCascadeMediaIdsAsync(parsedMediaType, mediaId, cancellationToken);
+        foreach (var (childMediaType, childMediaId) in cascadeEntries)
+        {
+            var normalizedChildMediaType = childMediaType.ToString();
+            if (existingKeys.Contains((normalizedChildMediaType, childMediaId)))
+            {
+                skippedDuplicateCount++;
+                continue;
+            }
+
+            entriesToAdd.Add(new PlaylistEntry
+            {
+                PlaylistId = playlistId,
+                MediaType = normalizedChildMediaType,
+                MediaId = childMediaId,
+                ParentMediaType = normalizedMediaType,
+                ParentMediaId = mediaId,
+                AddedAt = now
+            });
+        }
+
+        return (entriesToAdd, skippedDuplicateCount, topLevelEntry, existingKeys.Count);
+    }
+
+    private async Task<DtoPlaylistAddResult> BuildAddResultAsync(
+        List<PlaylistEntry> entriesToAdd, int skippedDuplicateCount, PlaylistEntry? topLevelEntry, string mediaTitle, CancellationToken cancellationToken)
+    {
+        var titlesByType = new Dictionary<string, Dictionary<long, string>>();
+        foreach (var group in entriesToAdd.GroupBy(e => e.MediaType))
+            titlesByType[group.Key] = await GetMediaTitlesAsync(group.Key, group.Select(e => e.MediaId).ToHashSet(), cancellationToken);
+
+        var addedEntries = entriesToAdd
+            .Select(e => ToDto(
+                e,
+                titlesByType[e.MediaType].TryGetValue(e.MediaId, out var title) ? title : string.Empty,
+                e.ParentMediaType is null ? null : mediaTitle))
+            .ToArray();
+
+        var message = entriesToAdd.Count switch
+        {
+            > 0 when skippedDuplicateCount > 0 =>
+                $"{entriesToAdd.Count} Titel hinzugefuegt, {skippedDuplicateCount} bereits vorhanden und uebersprungen.",
+            > 0 =>
+                $"{entriesToAdd.Count} Titel hinzugefuegt.",
+            _ =>
+                $"Alle {skippedDuplicateCount} Titel waren bereits vorhanden."
+        };
+
+        return new DtoPlaylistAddResult
+        {
+            TopLevelEntry = topLevelEntry is null ? null : ToDto(topLevelEntry, mediaTitle, null),
+            AddedEntries = addedEntries,
+            SkippedDuplicateCount = skippedDuplicateCount,
+            Message = message
+        };
     }
 
     private async Task<IEnumerable<(MediaType MediaType, long MediaId)>> GetCascadeMediaIdsAsync(MediaType mediaType, long mediaId, CancellationToken cancellationToken)
@@ -409,9 +468,10 @@ public sealed class PlaylistService : IPlaylistService
 
     private async Task<Dictionary<long, string>> GetMediaTitlesAsync(string mediaType, IReadOnlyCollection<long> mediaIds, CancellationToken cancellationToken)
     {
-        if (mediaIds.Count == 0 || !Enum.TryParse<MediaType>(mediaType, ignoreCase: true, out var parsedType) || !MediaTypeHandlers.TryGetValue(parsedType, out var handler))
+        if (mediaIds.Count == 0 || !TryParseKnownMediaType(mediaType, out var parsedType))
             return new Dictionary<long, string>();
 
+        var handler = MediaTypeHandlers[parsedType];
         return await handler.LoadTitlesAsync(_db, mediaIds, cancellationToken);
     }
 

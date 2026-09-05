@@ -38,9 +38,10 @@ Diese Dokumentation beschreibt den internen Ablauf auf Code-Ebene.
 
 5. **Bestehende Duplikate abfragen:**
    - Lade alle bestehenden `PlaylistEntry` für diese Playlist
-   - Sammle die Schlüssel als `(MediaType, MediaId)` in einem `HashSet`
-   - Prüfe: Existiert bereits ein Eintrag mit `(mediaType, mediaId)`?
-   - Falls ja → `InvalidOperationException` → HTTP 409 Conflict
+   - Sammle die Schlüssel als `(normalizedMediaType, MediaId)` in einem `HashSet`
+   - Normalisiere den `mediaType` zu seinem kanonischen Enum-Wert: `var normalizedMediaType = parsedMediaType.ToString()`
+   - Prüfe: Existiert bereits ein Eintrag mit `(normalizedMediaType, mediaId)`?
+   - Falls ja → Erhöhe `skippedDuplicateCount`, fahre fort (kein Fehler)
 
 6. **Cascade-Kinder laden:**
    - `GetCascadeMediaIdsAsync()` prüft: Hat dieser `mediaType` Kind-Einträge?
@@ -51,8 +52,10 @@ Diese Dokumentation beschreibt den internen Ablauf auf Code-Ebene.
    - Rückgabe: Liste von `(type, id)` Tupeln
 
 7. **Cascade-Duplikate filtern:**
-   - Filtere die Cascade-Kinder: Behalte nur diejenigen, die nicht im bestehenden `HashSet` sind
-   - Neue Cascade-Einträge: `newCascadeEntries`
+   - Filtere die Cascade-Kinder: Für jeden Eintrag Cascade-Eintrag den `mediaType` normalisieren
+   - Behalte nur diejenigen, die nicht im bestehenden `HashSet` (mit normalisierten Schlüsseln) sind
+   - Für Duplikate: Erhöhe `skippedDuplicateCount`
+   - Neue Cascade-Einträge: `newCascadeEntries` (nur noch nicht vorhandene)
 
 8. **Maximale Anzahl prüfen:**
    - Falls `PlaylistSettings.MaxPlaylistItemCount` gesetzt ist (nicht null):
@@ -60,31 +63,40 @@ Diese Dokumentation beschreibt den internen Ablauf auf Code-Ebene.
      - Prüfe: `existingKeys.Count + newEntryCount <= maxItemCount`?
      - Falls nicht → `InvalidOperationException` → HTTP 400
 
-9. **Top-Level-Eintrag erstellen:**
-   - Erstelle `PlaylistEntry` mit:
+9. **Top-Level-Eintrag vorbereiten:**
+   - Falls nicht als Duplikat übersprungen: Erstelle `PlaylistEntry` mit:
      - `PlaylistId = playlistId`
-     - `MediaType = mediaType`
+     - `MediaType = normalizedMediaType` (kanonischer Enum-Wert, nicht roher Input)
      - `MediaId = mediaId`
      - `ParentMediaType = null`
      - `ParentMediaId = null`
      - `AddedAt = DateTime.UtcNow`
-   - Füge zu DbContext hinzu (noch nicht gespeichert)
+   - Füge zu `entriesToAdd` Liste hinzu (noch nicht in DB)
 
-10. **Cascade-Einträge erstellen:**
-    - Für jeden Eintrag in `newCascadeEntries`:
+10. **Cascade-Einträge vorbereiten:**
+    - Für jeden neuen Eintrag in `newCascadeEntries` (nicht Duplikate):
       - Erstelle `PlaylistEntry` mit:
-        - `ParentMediaType = mediaType`
+        - `MediaType = normalizedCascadeMediaType` (normalisiert)
+        - `ParentMediaType = normalizedMediaType` (normalisiert)
         - `ParentMediaId = mediaId`
-      - Füge zu DbContext hinzu
+      - Füge zu `entriesToAdd` Liste hinzu
 
 11. **Alle Einträge speichern:**
-    - `await db.SaveChangesAsync()` — eine Transaktion speichert Top-Level + Cascade-Einträge
+    - `await db.SaveChangesAsync()` — eine Transaktion speichert alle Einträge aus `entriesToAdd` atomar
 
-12. **Titel laden:**
-    - `GetMediaTitleAsync()` ruft via `MediaTypeHandler` den Titel des Top-Level-Eintrags ab
+12. **Benutzer-Nachricht bauen:**
+    - Falls `entriesToAdd.Count > 0 && skippedDuplicateCount > 0`: `"{entriesToAdd.Count} Titel hinzugefügt, {skippedDuplicateCount} bereits vorhanden und übersprungen."`
+    - Falls `entriesToAdd.Count > 0 && skippedDuplicateCount == 0`: `"{entriesToAdd.Count} Titel hinzugefügt."`
+    - Falls `entriesToAdd.Count == 0`: `"Alle {skippedDuplicateCount} Titel waren bereits vorhanden."`
 
-13. **DTO konvertieren:**
-    - `ToDto()` konvertiert die Entity zu `DtoPlaylistEntry`
+13. **Titel laden und Response bauen:**
+    - Lade Titel für alle neuen Einträge via `GetMediaTitleAsync()` und `MediaTypeHandler`
+    - Konvertiere alle neuen Einträge zu `DtoPlaylistEntry` via `ToDto()`
+    - Baue neue Response: `DtoPlaylistAddResult`:
+      - `TopLevelEntry`: Der neu hinzugefügte Top-Level-Eintrag (oder `null`, falls Duplikat)
+      - `AddedEntries[]`: Alle neu hinzugefügten Einträge
+      - `SkippedDuplicateCount`: Anzahl übersprungener Duplikate
+      - `Message`: Benutzer-Nachricht aus Schritt 12
     - Rückgabe an Client (HTTP 200 OK)
 
 ### Beteiligte Klassen/Komponenten
@@ -92,16 +104,18 @@ Diese Dokumentation beschreibt den internen Ablauf auf Code-Ebene.
 | Klasse | Methode | Zweck |
 |--------|---------|-------|
 | `PlaylistsController` | `AddMediaToPlaylist()` | HTTP-Endpoint-Handler |
-| `PlaylistService` | `AddMediaToPlaylistAsync()` | Geschäftslogik |
+| `PlaylistService` | `AddMediaToPlaylistAsync()` | Geschäftslogik mit normalisierter Duplikat-Behandlung und Message-Generierung |
 | `PlaylistService` | `GetOwnedPlaylistAsync()` | Berechtigung + Existenz |
-| `PlaylistService` | `ValidateMediaType()` | Typ-Validierung |
+| `PlaylistService` | `ValidateMediaType()` | Typ-Validierung (case-insensitiv) |
+| `PlaylistService` | `ParseMediaType()` | Parsing und Normalisierung des MediaType-Enums |
 | `PlaylistService` | `CheckMediaExistsAsync()` | Existenz-Prüfung |
 | `PlaylistService` | `GetCascadeMediaIdsAsync()` | Cascade-Abfrage |
 | `PlaylistService` | `GetMediaTitleAsync()` | Titel-Lookup |
 | `PlaylistService` | `ToDto()` | Entity → DTO Konvertierung |
 | `ApplicationDbContext` | `PlaylistEntries` | DB-Zugriff |
-| `PlaylistEntry` | — | Datenmodell |
-| `DtoPlaylistEntry` | — | Client-Modell |
+| `PlaylistEntry` | — | Datenmodell mit normalisiertem `MediaType` |
+| `DtoPlaylistEntry` | — | Client-Modell für einzelne Einträge |
+| `DtoPlaylistAddResult` | — | Neue Client-Response-Struktur (TopLevelEntry, AddedEntries[], SkippedDuplicateCount, Message) |
 
 ### Diagramm
 
@@ -113,20 +127,24 @@ flowchart TD
     C -->|Not Found| C2[404 Not Found]
     C -->|OK| D[ValidateMediaType]
     D -->|Invalid| D1[400 Bad Request]
-    D -->|OK| E[CheckMediaExists]
-    E -->|Not Found| E1[404 Not Found]
-    E -->|OK| F[LoadExistingKeys]
-    F --> G{TopLevel Duplicate?}
-    G -->|Yes| G1[409 Conflict]
-    G -->|No| H[GetCascadeMediaIds]
-    H --> I[FilterNewCascade]
-    I --> J{MaxItemCount?}
-    J -->|Exceeded| J1[400 Bad Request]
-    J -->|OK| K[CreateEntries]
-    K --> L[SaveToDb]
-    L --> M[LoadTitle]
-    M --> N[ToDto]
-    N --> O[200 OK]
+    D -->|OK| E[NormalizeMediaType]
+    E --> F[CheckMediaExists]
+    F -->|Not Found| F1[404 Not Found]
+    F -->|OK| G[LoadExistingKeys]
+    G --> H{TopLevel Duplicate?}
+    H -->|Yes| H1[skippedCount++]
+    H -->|No| H2[AddToEntries]
+    H1 --> I[GetCascadeMediaIds]
+    H2 --> I
+    I --> J[FilterNewCascade]
+    J --> K{MaxItemCount?}
+    K -->|Exceeded| K1[400 Bad Request]
+    K -->|OK| L[CreateEntries]
+    L --> M[SaveToDb]
+    M --> N[LoadTitles]
+    N --> O[BuildMessage]
+    O --> P[BuildDtoPlaylistAddResult]
+    P --> Q[200 OK]
 ```
 
 ---
@@ -340,14 +358,14 @@ Nachteil: Der Read-Vorgang könnte bei vielen Waisen einen Write-Vorgang auslös
 
 ## Fehlerbehandlung
 
-Alle Fehlerfälle führen zu expliziten HTTP-Status-Codes:
+Alle echten Fehlerfälle führen zu expliziten HTTP-Status-Codes:
 
 | Exception | Mapping | HTTP-Status |
 |-----------|---------|------------|
 | `PlaylistAccessDeniedException` | Direkt | 403 Forbidden |
 | `KeyNotFoundException` | Direkt | 404 Not Found |
-| `InvalidOperationException("... bereits in dieser Playlist vorhanden")` | `MapInvalidOperationException()` | 409 Conflict |
-| `InvalidOperationException` (sonstige) | `MapInvalidOperationException()` | 400 Bad Request |
+| `InvalidOperationException` (Max-Item-Limit überschritten) | `MapInvalidOperationException()` | 400 Bad Request |
+| `InvalidOperationException` (ungültiger MediaType) | `MapInvalidOperationException()` | 400 Bad Request |
 | Andere Exceptions | Generischer Error | 500 Internal Server Error |
 
-Die `MapInvalidOperationException()`-Methode entscheidet basierend auf der Exception-Message, ob 400 oder 409 zurückgegeben wird.
+**Wichtig:** Duplikate führen **nicht** mehr zu einem Fehler. Sie werden übersprungen, gezählt und in der `DtoPlaylistAddResult`-Message beschrieben. Die Antwort bleibt immer HTTP 200 OK.

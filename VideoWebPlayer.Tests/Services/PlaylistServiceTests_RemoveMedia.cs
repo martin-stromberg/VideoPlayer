@@ -44,4 +44,27 @@ public class PlaylistServiceTests_RemoveMedia : PlaylistServiceTestBase
         await Assert.ThrowsAsync<PlaylistAccessDeniedException>(
             () => _service.RemoveMediaFromPlaylistAsync(playlistId, _otherUserId, MediaTypeValues.Movie, movieId, ct));
     }
+
+    [Fact]
+    public async Task RemoveMedia_DifferentCasingMediaType_RemovesEntry()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var movieId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie);
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.Movie, movieId));
+
+        await _service.RemoveMediaFromPlaylistAsync(playlistId, _testUserId, "movie", movieId, ct);
+
+        Assert.False(await _db.PlaylistEntries.AsNoTracking()
+            .AnyAsync(e => e.PlaylistId == playlistId && e.MediaType == MediaTypeValues.Movie && e.MediaId == movieId, ct));
+    }
+
+    [Fact]
+    public async Task RemoveMedia_UnknownMediaType_ThrowsInvalidOperationException()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _service.RemoveMediaFromPlaylistAsync(playlistId, _testUserId, "UnknownType", 1, ct));
+    }
 }

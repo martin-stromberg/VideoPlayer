@@ -234,7 +234,7 @@ public class PlaylistsController : ApiBaseController
         catch (InvalidOperationException ex)
         {
             Logger.LogWarning(ex, "Fehler beim Hinzufuegen zur Playlist {PlaylistId}", id);
-            return MapInvalidOperationException(ex, "bereits in dieser Playlist vorhanden");
+            return MapInvalidOperationException(ex);
         }
         catch (Exception ex)
         {
@@ -272,6 +272,11 @@ public class PlaylistsController : ApiBaseController
         {
             Logger.LogWarning(ex, "Zugriff verweigert beim Entfernen aus Playlist {PlaylistId}", id);
             return StatusCode(403, ex.Message);
+        }
+        catch (InvalidOperationException ex)
+        {
+            Logger.LogWarning(ex, "Fehler beim Entfernen aus Playlist {PlaylistId}", id);
+            return MapInvalidOperationException(ex);
         }
         catch (Exception ex)
         {

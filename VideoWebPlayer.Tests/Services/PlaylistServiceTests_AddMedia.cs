@@ -18,28 +18,85 @@ public class PlaylistServiceTests_AddMedia : PlaylistServiceTestBase
         var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId);
         var movieId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Mein Film");
 
-        var dto = await _service.AddMediaToPlaylistAsync(playlistId, _testUserId, MediaTypeValues.Movie, movieId, ct);
+        var result = await _service.AddMediaToPlaylistAsync(playlistId, _testUserId, MediaTypeValues.Movie, movieId, ct);
 
-        Assert.Equal(playlistId, dto.PlaylistId);
-        Assert.Equal(MediaTypeValues.Movie, dto.MediaType);
-        Assert.Equal(movieId, dto.MediaId);
-        Assert.Equal("Mein Film", dto.MediaTitle);
-        Assert.Null(dto.ParentMediaType);
-        Assert.Null(dto.ParentMediaId);
+        Assert.NotNull(result.TopLevelEntry);
+        Assert.Equal(playlistId, result.TopLevelEntry!.PlaylistId);
+        Assert.Equal(MediaTypeValues.Movie, result.TopLevelEntry.MediaType);
+        Assert.Equal(movieId, result.TopLevelEntry.MediaId);
+        Assert.Equal("Mein Film", result.TopLevelEntry.MediaTitle);
+        Assert.Null(result.TopLevelEntry.ParentMediaType);
+        Assert.Null(result.TopLevelEntry.ParentMediaId);
+        Assert.Single(result.AddedEntries);
+        Assert.Equal(0, result.SkippedDuplicateCount);
+        Assert.Equal("1 Titel hinzugefuegt.", result.Message);
     }
 
     [Fact]
-    public async Task AddMedia_Duplicate_ThrowsInvalidOperationException()
+    public async Task AddMedia_TopLevelDuplicate_SkipsAndReturnsCount()
     {
         var ct = TestContext.Current.CancellationToken;
         var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId);
         var movieId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie);
         await _service.AddMediaToPlaylistAsync(playlistId, _testUserId, MediaTypeValues.Movie, movieId, ct);
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => _service.AddMediaToPlaylistAsync(playlistId, _testUserId, MediaTypeValues.Movie, movieId, ct));
+        var result = await _service.AddMediaToPlaylistAsync(playlistId, _testUserId, MediaTypeValues.Movie, movieId, ct);
 
-        Assert.Equal("Medieninhalt bereits in dieser Playlist vorhanden.", ex.Message);
+        Assert.Null(result.TopLevelEntry);
+        Assert.Empty(result.AddedEntries);
+        Assert.Equal(1, result.SkippedDuplicateCount);
+        Assert.Equal("Alle 1 Titel waren bereits vorhanden.", result.Message);
+    }
+
+    [Fact]
+    public async Task AddMedia_PartialDuplicates_AddedNewAndSkipped()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var show = await Helpers.TestHelpers.CreateTvShowWithSeasonsAsync(_db,
+            ("Staffel 1", new[] { (1, (DateTime?)null), (2, (DateTime?)null), (3, (DateTime?)null) }));
+        var existingEpisodeId = await _db.TVShowEpisodes.AsNoTracking().Select(e => e.Id).FirstAsync(ct);
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.TVShowEpisode, existingEpisodeId));
+
+        var result = await _service.AddMediaToPlaylistAsync(playlistId, _testUserId, MediaTypeValues.TVShow, show.Id, ct);
+
+        // Show + Season + 2 new episodes = 4 added; 1 episode already existed and is skipped.
+        Assert.Equal(4, result.AddedEntries.Length);
+        Assert.Equal(1, result.SkippedDuplicateCount);
+        Assert.Equal("4 Titel hinzugefuegt, 1 bereits vorhanden und uebersprungen.", result.Message);
+    }
+
+    [Fact]
+    public async Task AddMedia_AllDuplicates_ReturnsZeroAddedCount()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId);
+        var show = await Helpers.TestHelpers.CreateTvShowWithSeasonsAsync(_db,
+            ("Staffel 1", new[] { (1, (DateTime?)null), (2, (DateTime?)null) }),
+            ("Staffel 2", new[] { (1, (DateTime?)null) }));
+        await _service.AddMediaToPlaylistAsync(playlistId, _testUserId, MediaTypeValues.TVShow, show.Id, ct);
+
+        var result = await _service.AddMediaToPlaylistAsync(playlistId, _testUserId, MediaTypeValues.TVShow, show.Id, ct);
+
+        Assert.Null(result.TopLevelEntry);
+        Assert.Empty(result.AddedEntries);
+        Assert.Equal(6, result.SkippedDuplicateCount);
+        Assert.Equal("Alle 6 Titel waren bereits vorhanden.", result.Message);
+    }
+
+    [Fact]
+    public async Task AddMedia_NormalizeMediaType_CaseInsensitiveDuplicateDetection()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId);
+        var movieId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie);
+        await _service.AddMediaToPlaylistAsync(playlistId, _testUserId, "Movie", movieId, ct);
+
+        var result = await _service.AddMediaToPlaylistAsync(playlistId, _testUserId, "movie", movieId, ct);
+
+        Assert.Equal(1, result.SkippedDuplicateCount);
+        Assert.Empty(result.AddedEntries);
+        var storedEntry = await _db.PlaylistEntries.AsNoTracking().SingleAsync(e => e.PlaylistId == playlistId, ct);
+        Assert.Equal("Movie", storedEntry.MediaType);
     }
 
     [Fact]
@@ -143,12 +200,14 @@ public class PlaylistServiceTests_AddMedia : PlaylistServiceTestBase
         var episodeId = await _db.TVShowEpisodes.AsNoTracking().Select(e => e.Id).FirstAsync(ct);
         var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.TVShowEpisode, episodeId));
 
-        await _service.AddMediaToPlaylistAsync(playlistId, _testUserId, MediaTypeValues.TVShow, show.Id, ct);
+        var result = await _service.AddMediaToPlaylistAsync(playlistId, _testUserId, MediaTypeValues.TVShow, show.Id, ct);
 
         var entries = await _db.PlaylistEntries.AsNoTracking().Where(e => e.PlaylistId == playlistId).ToListAsync(ct);
         // 1 pre-existing episode + 1 show + 1 season + 1 new episode = 4 (the duplicate episode is skipped)
         Assert.Equal(4, entries.Count);
         Assert.Single(entries, e => e.MediaType == MediaTypeValues.TVShowEpisode && e.MediaId == episodeId);
+        Assert.Equal(1, result.SkippedDuplicateCount);
+        Assert.Equal(3, result.AddedEntries.Length);
     }
 
     [Fact]

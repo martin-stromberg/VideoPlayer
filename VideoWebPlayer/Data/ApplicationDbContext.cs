@@ -96,11 +96,11 @@ namespace VideoWebPlayer.Data
         /// </summary>
         public DbSet<FavoriteEntry> FavoriteEntries { get; set; }
         /// <summary>
-        /// Tabelle f�r Playlists.
+        /// Tabelle für Playlists.
         /// </summary>
         public DbSet<Playlist> Playlists { get; set; }
         /// <summary>
-        /// Tabelle f�r Playlist-Eintr�ge.
+        /// Tabelle für Playlist-Einträge.
         /// </summary>
         public DbSet<PlaylistEntry> PlaylistEntries { get; set; }
         /// <summary>

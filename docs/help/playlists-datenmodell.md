@@ -56,7 +56,7 @@ Repräsentiert einen einzelnen Medieninhalt in einer Playlist.
 | `Id` | `long` (PK) | Eindeutige Identifier |
 | `PlaylistId` | `long` (FK) | Verweis auf `Playlist.Id` |
 | `Playlist` | Navigation | Referenz zur Besitzer-Playlist |
-| `MediaType` | `string` (Required) | Art des Medieninhalts: `"Movie"`, `"TVShow"`, `"TVShowSeason"`, `"TVShowEpisode"`, `"MovieCollection"` |
+| `MediaType` | `string` (Required) | Art des Medieninhalts (kanonische Schreibweise): `"Movie"`, `"TVShow"`, `"TVShowSeason"`, `"TVShowEpisode"`, `"MovieCollection`. Input wird normalisiert, um case-insensitive Duplikat-Erkennung zu gewährleisten. |
 | `MediaId` | `long` | ID des Medieninhalts in seiner Tabelle (z. B. Movie.Id, TVShow.Id) |
 | `ParentMediaType` | `string?` | Medientyp des Sammelwerks, falls dieser Eintrag durch Cascade hinzugefügt wurde (z. B. `"TVShow"` oder `"TVShowSeason"` oder `"MovieCollection"`); `null` für Top-Level-Einträge |
 | `ParentMediaId` | `long?` | ID des Sammelwerks (z. B. der Serie, wenn dieser Eintrag eine Episode ist); `null` für Top-Level-Einträge |
@@ -213,6 +213,23 @@ erDiagram
 
 ## Datenbankmigrationen
 
+### Migration: `NormalizePlaylistEntryMediaTypes` (neu in Schritt 2.1)
+
+**Betroffene Tabellen:**
+- `PlaylistEntries.MediaType` (Wert-Migration)
+
+**Beschreibung:** Normalisiert alle bestehenden `MediaType`-Werte auf ihre kanonischen Enum-Werte.
+Dies stellt sicher, dass Duplikat-Prüfungen case-insensitiv funktionieren (z. B. `"movie"` wird zu `"Movie"`).
+
+**SQL-Aktion (vereinfacht):**
+```sql
+UPDATE PlaylistEntries SET MediaType = 'Movie' WHERE LOWER(MediaType) = 'movie';
+UPDATE PlaylistEntries SET MediaType = 'TVShow' WHERE LOWER(MediaType) = 'tvshow';
+UPDATE PlaylistEntries SET MediaType = 'TVShowSeason' WHERE LOWER(MediaType) = 'tvshowseason';
+UPDATE PlaylistEntries SET MediaType = 'TVShowEpisode' WHERE LOWER(MediaType) = 'tvshowepisode';
+UPDATE PlaylistEntries SET MediaType = 'MovieCollection' WHERE LOWER(MediaType) = 'moviecollection';
+```
+
 ### Migration: `AddPlaylistEntriesTable`
 
 **Betroffene Tabellen:**
@@ -359,10 +376,10 @@ Wenn ein Medieninhalt gelöscht wird:
 
 | Constraint | Ort | Typ | Beschreibung |
 |-----------|-----|-----|--------------|
-| Unique (PlaylistId, MediaType, MediaId) | DB | Eindeutigkeit | Keine Duplikate pro Playlist |
+| Unique (PlaylistId, MediaType, MediaId) | DB | Eindeutigkeit | Keine Duplikate pro Playlist; MediaType ist normalisiert, daher case-insensitive Duplikat-Erkennung |
 | Foreign Key (PlaylistId) | DB | Referenzielle Integrität | PlaylistEntry muss zu existierender Playlist gehören |
 | MediaId > 0 | Service | Business Logic | Positive IDs nur |
-| MediaType in {Movie, TVShow, ...} | Service | Enumeration | Nur gültige Typen |
+| MediaType normalisiert | Service | Normalisierung | MediaType-Input wird auf kanonischen Enum-Wert normalisiert vor Speicherung |
 | ParentMediaType in {TVShow, TVShowSeason, MovieCollection, null} | Service | Enumeration | Nur gültige Parent-Typen |
 
 ---

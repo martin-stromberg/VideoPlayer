@@ -447,11 +447,11 @@ namespace VideoWebPlayer.Client
             return await HttpGetAsync<DtoPlaylistEntry[]>($"api/playlists/{playlistId}/entries");
         }
 
-        public async Task<DtoPlaylistEntry> AddMediaToPlaylistAsync(long playlistId, DtoAddMediaToPlaylistRequest request)
+        public async Task<DtoPlaylistAddResult> AddMediaToPlaylistAsync(long playlistId, DtoAddMediaToPlaylistRequest request)
         {
             var json = JsonSerializer.Serialize(request);
             var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
-            return await HttpPostAsync<DtoPlaylistEntry>($"api/playlists/{playlistId}/entries", content);
+            return await HttpPostAsync<DtoPlaylistAddResult>($"api/playlists/{playlistId}/entries", content);
         }
 
         public async Task RemoveMediaFromPlaylistAsync(long playlistId, string mediaType, long mediaId)

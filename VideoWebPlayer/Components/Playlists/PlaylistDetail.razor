@@ -60,7 +60,7 @@
 
         @if (!string.IsNullOrWhiteSpace(entriesStatusMessage))
         {
-            <div class="alert alert-warning" id="playlist-entries-status">@entriesStatusMessage</div>
+            <div class="alert @(entriesStatusIsError ? "alert-danger" : "alert-success")" id="playlist-entries-status">@entriesStatusMessage</div>
         }
 
         <div class="admin-table-wrap">
@@ -139,6 +139,7 @@
     private string newEntryMediaType = MediaTypeValues.Movie;
     private long newEntryMediaId;
     private string? entriesStatusMessage;
+    private bool entriesStatusIsError;
 
     protected override async Task OnInitializedAsync()
     {
@@ -181,6 +182,7 @@
         }
         catch (Exception ex)
         {
+            entriesStatusIsError = true;
             entriesStatusMessage = $"Fehler beim Laden der Eintraege: {ex.Message}";
         }
     }
@@ -188,25 +190,31 @@
     private async Task AddEntryAsync()
     {
         entriesStatusMessage = null;
+        entriesStatusIsError = false;
         try
         {
-            await Client.AddMediaToPlaylistAsync(Id, new DtoAddMediaToPlaylistRequest
+            var result = await Client.AddMediaToPlaylistAsync(Id, new DtoAddMediaToPlaylistRequest
             {
                 MediaType = newEntryMediaType,
                 MediaId = newEntryMediaId
             });
+            entriesStatusMessage = result.Message;
             await LoadEntriesAsync();
-        }
-        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Conflict)
-        {
-            entriesStatusMessage = "Medieninhalt bereits in dieser Playlist vorhanden.";
+            newEntryMediaId = 0;
         }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
+            entriesStatusIsError = true;
             entriesStatusMessage = "Medieninhalt wurde nicht gefunden.";
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            entriesStatusIsError = true;
+            entriesStatusMessage = "Sie sind nicht Besitzer dieser Playlist.";
         }
         catch (Exception ex)
         {
+            entriesStatusIsError = true;
             entriesStatusMessage = $"Fehler beim Hinzufuegen: {ex.Message}";
         }
     }
@@ -214,6 +222,7 @@
     private async Task RemoveEntryAsync(DtoPlaylistEntry entry)
     {
         entriesStatusMessage = null;
+        entriesStatusIsError = false;
         try
         {
             await Client.RemoveMediaFromPlaylistAsync(Id, entry.MediaType, entry.MediaId);
@@ -221,6 +230,7 @@
         }
         catch (Exception ex)
         {
+            entriesStatusIsError = true;
             entriesStatusMessage = $"Fehler beim Entfernen: {ex.Message}";
         }
     }

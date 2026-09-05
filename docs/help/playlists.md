@@ -1,18 +1,24 @@
 # Playlists
 
-Angemeldete Anwender können eigene Playlists anlegen, umbenennen und löschen. Playlists sind
+Angemeldete Anwender können eigene Playlists anlegen, öffnen, bearbeiten und löschen. Playlists sind
 benutzerbezogen und privat: Jeder Anwender sieht und verwaltet ausschließlich seine eigenen
 Playlists, unabhängig davon, welche anderen Anwender ebenfalls Playlists angelegt haben.
 
-Dieser Schritt umfasst die Verwaltung der Playlists selbst (anlegen, umbenennen, löschen,
+Dieser Abschnitt umfasst die Verwaltung der Playlists selbst (anlegen, öffnen, bearbeiten, löschen,
 Übersicht). Das Befüllen von Playlists mit konkreten Medieninhalten (z. B. Serien oder Staffeln)
-ist nicht Teil dieses Schritts und folgt in einem späteren Ausbauschritt.
+ist nicht Teil dieser Beschreibung und folgt in einem späteren Ausbauschritt.
 
 ## Übersicht
 
 Unter „Playlists" sieht ein Anwender eine Tabelle aller eigenen Playlists mit Name, Beschreibung,
 Sortiermodus sowie Erstellungs- und Aktualisierungszeitpunkt. Von hier aus lassen sich neue
-Playlists anlegen sowie bestehende bearbeiten oder löschen.
+Playlists anlegen sowie bestehende öffnen, bearbeiten oder löschen.
+
+Für jede Playlist werden drei Aktionen angeboten:
+
+- **Öffnen** — Navigiert zur Detailseite der Playlist (siehe Abschnitt „Detailseite")
+- **Bearbeiten** — Öffnet ein Formular zum Ändern der Stammdaten (Name, Beschreibung, Sortiermodus)
+- **Löschen** — Entfernt die Playlist nach Bestätigung in einem Dialog
 
 Ist noch keine Playlist vorhanden, zeigt die Übersicht einen Hinweis anstelle der Tabelle an.
 Schlägt das Laden der Playlists fehl (z. B. weil der Anwender nicht angemeldet ist), erscheint
@@ -31,14 +37,36 @@ Beim Anlegen oder Bearbeiten einer Playlist werden folgende Angaben erfasst:
 Ungültige Eingaben werden sowohl im Formular als auch serverseitig abgelehnt und mit einer
 aussagekräftigen Fehlermeldung angezeigt.
 
+## Detailseite
+
+Durch die "Öffnen"-Aktion in der Übersicht oder direkte Navigation gelangt ein Anwender zur
+Detailseite einer Playlist. Die Detailseite zeigt die Stammdaten der Playlist an:
+
+- **Name** — Name der Playlist
+- **Beschreibung** — Beschreibungstext (falls vorhanden)
+- **Sortierung** — Sortiermodus der Playlist („Nach Erscheinungsdatum" oder „Manuell")
+- **Erstellt** — Zeitpunkt der Erstellung
+- **Aktualisiert** — Zeitpunkt der letzten Änderung
+
+Von der Detailseite aus lassen sich die gleichen Aktionen wie in der Übersicht durchführen:
+
+- **Bearbeiten** — Öffnet das Bearbeitungsformular für die Playlist
+- **Löschen** — Löscht die Playlist nach Bestätigung
+- **Zurück zur Übersicht** — Kehrt zur Playlist-Übersicht zurück
+
+Die Detailseite zeigt ausschließlich die Stammdaten an. Das Befüllen der Playlist mit konkreten
+Medieninhalten (z. B. Serien oder Staffeln) wird in einem zukünftigen Ausbauschritt hinzugefügt.
+
 ## Löschen
 
 Playlists werden nach Bestätigung in einem Dialog endgültig gelöscht (kein Papierkorb).
 
 ## Zugriff und Berechtigungen
 
-Alle Playlist-Funktionen erfordern eine Anmeldung. Der Zugriff auf eine fremde Playlist (z. B.
-über eine erratene ID) wird abgelehnt, unabhängig davon, ob die Playlist existiert.
+Alle Playlist-Funktionen erfordern eine Anmeldung. Der Zugriff auf eine Playlist, die einem anderen
+Anwender gehört, wird mit HTTP 403 (Forbidden) abgelehnt, unabhängig davon, ob die Playlist
+existiert. Dies ist eine intentionale Sicherheitsmaßnahme, um nicht die Existenz fremder Playlists
+preiszugeben.
 
 Wird ein Benutzerkonto gelöscht, werden auch alle Playlists dieses Anwenders automatisch entfernt.
 

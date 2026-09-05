@@ -48,5 +48,10 @@ namespace VideoWebPlayer.Data
         /// Gets or sets the last update timestamp.
         /// </summary>
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+        /// <summary>
+        /// Gets or sets the entries contained in this playlist.
+        /// </summary>
+        public ICollection<PlaylistEntry> PlaylistEntries { get; set; } = new List<PlaylistEntry>();
     }
 }

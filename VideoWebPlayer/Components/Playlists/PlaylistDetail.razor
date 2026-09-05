@@ -53,6 +53,65 @@
             <button class="btn btn-danger playlist-detail-delete-button" @onclick="RequestDelete">Loeschen</button>
             <button class="btn btn-ghost playlist-detail-back-button" @onclick="NavigateToOverview">Zurueck zur Uebersicht</button>
         </div>
+
+        <div class="admin-card-header">
+            <h2>Inhalte</h2>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(entriesStatusMessage))
+        {
+            <div class="alert alert-warning" id="playlist-entries-status">@entriesStatusMessage</div>
+        }
+
+        <div class="admin-table-wrap">
+            <div class="admin-actions">
+                <select class="form-control playlist-add-mediatype-select" @bind="newEntryMediaType">
+                    <option value="@MediaTypeValues.Movie">Film</option>
+                    <option value="@MediaTypeValues.TVShow">Serie</option>
+                    <option value="@MediaTypeValues.TVShowSeason">Staffel</option>
+                    <option value="@MediaTypeValues.TVShowEpisode">Episode</option>
+                    <option value="@MediaTypeValues.MovieCollection">Filmsammlung</option>
+                </select>
+                <input class="form-control playlist-add-mediaid-input" type="number" min="1" @bind="newEntryMediaId" placeholder="Medien-Id" />
+                <button class="btn btn-primary playlist-add-entry-button" @onclick="AddEntryAsync">Hinzufuegen</button>
+            </div>
+
+            @if (playlistEntries.Count == 0)
+            {
+                <div class="admin-empty-state">
+                    <strong>Keine Eintraege vorhanden</strong>
+                    <span>Fuegen Sie einen Medieninhalt hinzu.</span>
+                </div>
+            }
+            else
+            {
+                <table class="table table-dark table-striped align-middle">
+                    <thead>
+                        <tr>
+                            <th>Typ</th>
+                            <th>Titel</th>
+                            <th>Sammlung</th>
+                            <th>Hinzugefuegt</th>
+                            <th>Aktionen</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var entry in playlistEntries)
+                        {
+                            <tr class="playlist-entry-row" data-media-type="@entry.MediaType" data-media-id="@entry.MediaId">
+                                <td>@entry.MediaType</td>
+                                <td>@entry.MediaTitle</td>
+                                <td>@entry.ParentMediaTitle</td>
+                                <td>@entry.AddedAt.ToLocalTime()</td>
+                                <td>
+                                    <button class="btn btn-sm btn-danger playlist-entry-remove-button" @onclick="() => RemoveEntryAsync(entry)">Entfernen</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
     }
 </section>
 
@@ -76,6 +135,10 @@
     private bool showForm;
     private bool showDeleteConfirmation;
     private long? editingPlaylistId;
+    private List<DtoPlaylistEntry> playlistEntries = new();
+    private string newEntryMediaType = MediaTypeValues.Movie;
+    private long newEntryMediaId;
+    private string? entriesStatusMessage;
 
     protected override async Task OnInitializedAsync()
     {
@@ -93,6 +156,8 @@
             playlist = await Client.RequestPlaylistAsync(Id);
             if (playlist is null)
                 loadError = "Playlist nicht gefunden.";
+            else
+                await LoadEntriesAsync();
         }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Forbidden)
         {
@@ -105,6 +170,58 @@
         finally
         {
             isLoading = false;
+        }
+    }
+
+    private async Task LoadEntriesAsync()
+    {
+        try
+        {
+            playlistEntries = (await Client.RequestPlaylistEntriesAsync(Id)).ToList();
+        }
+        catch (Exception ex)
+        {
+            entriesStatusMessage = $"Fehler beim Laden der Eintraege: {ex.Message}";
+        }
+    }
+
+    private async Task AddEntryAsync()
+    {
+        entriesStatusMessage = null;
+        try
+        {
+            await Client.AddMediaToPlaylistAsync(Id, new DtoAddMediaToPlaylistRequest
+            {
+                MediaType = newEntryMediaType,
+                MediaId = newEntryMediaId
+            });
+            await LoadEntriesAsync();
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Conflict)
+        {
+            entriesStatusMessage = "Medieninhalt bereits in dieser Playlist vorhanden.";
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            entriesStatusMessage = "Medieninhalt wurde nicht gefunden.";
+        }
+        catch (Exception ex)
+        {
+            entriesStatusMessage = $"Fehler beim Hinzufuegen: {ex.Message}";
+        }
+    }
+
+    private async Task RemoveEntryAsync(DtoPlaylistEntry entry)
+    {
+        entriesStatusMessage = null;
+        try
+        {
+            await Client.RemoveMediaFromPlaylistAsync(Id, entry.MediaType, entry.MediaId);
+            await LoadEntriesAsync();
+        }
+        catch (Exception ex)
+        {
+            entriesStatusMessage = $"Fehler beim Entfernen: {ex.Message}";
         }
     }
 

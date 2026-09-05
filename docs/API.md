@@ -343,6 +343,48 @@ Antwort: `204 No Content`.
 - `404 Not Found`, wenn keine Playlist mit dieser ID existiert.
 - `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
 
+### POST /api/playlists/{id}/entries
+
+Fügt einen Medieninhalt zur Playlist hinzu. Unterstützte `mediaType`-Werte: `Movie`,
+`TVShowEpisode`, `TVShowSeason`, `TVShow`, `MovieCollection`. Beim Hinzufügen von `TVShow`,
+`TVShowSeason` oder `MovieCollection` werden alle zugehörigen Staffeln/Episoden bzw. Filme
+automatisch mit hinzugefügt (Cascade-Logik); bereits vorhandene Cascade-Einträge werden dabei
+still übersprungen.
+
+Request (`DtoAddMediaToPlaylistRequest`):
+
+```json
+{
+  "mediaType": "Movie",
+  "mediaId": 42
+}
+```
+
+Antwort: `DtoPlaylistEntry` des angeforderten Top-Level-Eintrags.
+
+- `400 Bad Request`, wenn `mediaType` ungültig oder `mediaId` nicht größer als 0 ist.
+- `404 Not Found`, wenn der Medieninhalt oder die Playlist nicht existiert.
+- `409 Conflict`, wenn der Medieninhalt bereits in dieser Playlist vorhanden ist.
+- `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
+
+### DELETE /api/playlists/{id}/entries/{mediaType}/{mediaId}
+
+Entfernt einen Medieninhalt aus der Playlist.
+
+Antwort: `204 No Content`.
+
+- `404 Not Found`, wenn kein passender Eintrag in der Playlist vorhanden ist.
+- `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
+
+### GET /api/playlists/{id}/entries
+
+Liefert alle Einträge einer Playlist als `DtoPlaylistEntry[]` (unsortiert). Einträge, deren
+referenzierter Medieninhalt nicht mehr existiert, werden dabei still aus der Datenbank entfernt
+und nicht in der Antwort aufgeführt.
+
+- `404 Not Found`, wenn keine Playlist mit dieser ID existiert.
+- `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
+
 ## SignalR
 
 ### GET /hubs/mediaupdate

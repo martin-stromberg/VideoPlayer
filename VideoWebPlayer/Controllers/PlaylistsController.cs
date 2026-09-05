@@ -193,11 +193,125 @@ public class PlaylistsController : ApiBaseController
         }
     }
 
-    private static IActionResult MapInvalidOperationException(InvalidOperationException ex)
+    private static IActionResult MapInvalidOperationException(InvalidOperationException ex, string conflictSubstring = "existiert bereits")
     {
-        if (ex.Message.Contains("existiert bereits", StringComparison.OrdinalIgnoreCase))
+        if (ex.Message.Contains(conflictSubstring, StringComparison.OrdinalIgnoreCase))
             return new ConflictObjectResult(ex.Message);
 
         return new BadRequestObjectResult(ex.Message);
+    }
+
+    /// <summary>
+    /// Adds a media entry to a playlist for the current user.
+    /// </summary>
+    /// <param name="id">The playlist identifier.</param>
+    /// <param name="request">The add request.</param>
+    [HttpPost("{id}/entries")]
+    public async Task<IActionResult> AddMediaToPlaylist(long id, [FromBody] DtoAddMediaToPlaylistRequest request)
+    {
+        try
+        {
+            CheckLogedIn();
+            var result = await _playlistService.AddMediaToPlaylistAsync(
+                id, CurrentUser!.Id, request.MediaType, request.MediaId, HttpContext.RequestAborted);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            Logger.LogWarning(ex, "Medieninhalt oder Playlist {PlaylistId} wurde beim Hinzufuegen nicht gefunden", id);
+            return NotFound(ex.Message);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Logger.LogWarning(ex, "Zugriff ohne Anmeldung beim Hinzufuegen zur Playlist {PlaylistId}", id);
+            return Unauthorized(ex.Message);
+        }
+        catch (PlaylistAccessDeniedException ex)
+        {
+            Logger.LogWarning(ex, "Zugriff verweigert beim Hinzufuegen zur Playlist {PlaylistId}", id);
+            return StatusCode(403, ex.Message);
+        }
+        catch (InvalidOperationException ex)
+        {
+            Logger.LogWarning(ex, "Fehler beim Hinzufuegen zur Playlist {PlaylistId}", id);
+            return MapInvalidOperationException(ex, "bereits in dieser Playlist vorhanden");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Fehler beim Hinzufuegen zur Playlist {PlaylistId}", id);
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    /// <summary>
+    /// Removes a media entry from a playlist for the current user.
+    /// </summary>
+    /// <param name="id">The playlist identifier.</param>
+    /// <param name="mediaType">The media type of the entry to remove.</param>
+    /// <param name="mediaId">The media identifier of the entry to remove.</param>
+    [HttpDelete("{id}/entries/{mediaType}/{mediaId}")]
+    public async Task<IActionResult> RemoveMediaFromPlaylist(long id, string mediaType, long mediaId)
+    {
+        try
+        {
+            CheckLogedIn();
+            await _playlistService.RemoveMediaFromPlaylistAsync(id, CurrentUser!.Id, mediaType, mediaId, HttpContext.RequestAborted);
+            return NoContent();
+        }
+        catch (KeyNotFoundException ex)
+        {
+            Logger.LogWarning(ex, "Eintrag wurde beim Entfernen aus Playlist {PlaylistId} nicht gefunden", id);
+            return NotFound(ex.Message);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Logger.LogWarning(ex, "Zugriff ohne Anmeldung beim Entfernen aus Playlist {PlaylistId}", id);
+            return Unauthorized(ex.Message);
+        }
+        catch (PlaylistAccessDeniedException ex)
+        {
+            Logger.LogWarning(ex, "Zugriff verweigert beim Entfernen aus Playlist {PlaylistId}", id);
+            return StatusCode(403, ex.Message);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Fehler beim Entfernen aus Playlist {PlaylistId}", id);
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    /// <summary>
+    /// Gets all entries of a playlist for the current user.
+    /// </summary>
+    /// <param name="id">The playlist identifier.</param>
+    [HttpGet("{id}/entries")]
+    public async Task<IActionResult> GetPlaylistEntries(long id)
+    {
+        try
+        {
+            CheckLogedIn();
+            var result = await _playlistService.GetPlaylistEntriesAsync(id, CurrentUser!.Id, HttpContext.RequestAborted);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            Logger.LogWarning(ex, "Playlist {PlaylistId} wurde beim Abrufen der Eintraege nicht gefunden", id);
+            return NotFound(ex.Message);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Logger.LogWarning(ex, "Zugriff ohne Anmeldung beim Abrufen der Eintraege von Playlist {PlaylistId}", id);
+            return Unauthorized(ex.Message);
+        }
+        catch (PlaylistAccessDeniedException ex)
+        {
+            Logger.LogWarning(ex, "Zugriff verweigert beim Abrufen der Eintraege von Playlist {PlaylistId}", id);
+            return StatusCode(403, ex.Message);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Fehler beim Abrufen der Eintraege von Playlist {PlaylistId}", id);
+            return StatusCode(500, "Internal server error");
+        }
     }
 }

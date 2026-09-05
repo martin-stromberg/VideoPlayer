@@ -5,8 +5,9 @@ benutzerbezogen und privat: Jeder Anwender sieht und verwaltet ausschließlich s
 Playlists, unabhängig davon, welche anderen Anwender ebenfalls Playlists angelegt haben.
 
 Dieser Abschnitt umfasst die Verwaltung der Playlists selbst (anlegen, öffnen, bearbeiten, löschen,
-Übersicht). Das Befüllen von Playlists mit konkreten Medieninhalten (z. B. Serien oder Staffeln)
-ist nicht Teil dieser Beschreibung und folgt in einem späteren Ausbauschritt.
+Übersicht) sowie das Befüllen einer Playlist mit konkreten Medieninhalten (Filme, Episoden,
+Staffeln, Serien, Filmsammlungen). Die sortierte, performante Anzeige der Inhalte ist nicht Teil
+dieser Beschreibung und folgt in einem späteren Ausbauschritt.
 
 ## Übersicht
 
@@ -54,8 +55,46 @@ Von der Detailseite aus lassen sich die gleichen Aktionen wie in der Übersicht 
 - **Löschen** — Löscht die Playlist nach Bestätigung
 - **Zurück zur Übersicht** — Kehrt zur Playlist-Übersicht zurück
 
-Die Detailseite zeigt ausschließlich die Stammdaten an. Das Befüllen der Playlist mit konkreten
-Medieninhalten (z. B. Serien oder Staffeln) wird in einem zukünftigen Ausbauschritt hinzugefügt.
+## Inhalte hinzufügen und entfernen
+
+Unterhalb der Stammdaten zeigt die Detailseite eine einfache, unsortierte Liste der Inhalte
+(„Einträge") dieser Playlist mit Typ, Titel, zugehöriger Sammlung (falls vorhanden) und
+Hinzufügedatum.
+
+### Hinzufügen
+
+Zum Hinzufügen eines Medieninhalts wählt der Anwender:
+
+1. Den Medientyp aus einem Dropdown: **Film**, **Serie**, **Staffel**, **Episode** oder **Filmsammlung**
+2. Die Medien-ID des gewünschten Inhalts (eine Zahl)
+3. Bestätigt mit dem Button **Hinzufügen**
+
+Das System prüft sofort, ob der Medieninhalt existiert. Falls nicht, wird eine Fehlermeldung angezeigt.
+
+**Kaskaden-Logik:** Wird eine Serie, Staffel oder Filmsammlung hinzugefügt, werden automatisch
+auch alle zugehörigen Staffeln/Episoden bzw. Filme mit aufgenommen. Beispiele:
+- Hinzufügen einer **Serie** → alle Staffeln und Episoden dieser Serie werden hinzugefügt
+- Hinzufügen einer **Staffel** → alle Episoden dieser Staffel werden hinzugefügt
+- Hinzufügen einer **Filmsammlung** → alle Filme dieser Sammlung werden hinzugefügt
+
+Falls Teile der Kaskade bereits in der Playlist vorhanden sind, werden diese übersprungen,
+ohne dass dies dem Anwender als Fehler angezeigt wird. Nur neue Inhalte werden hinzugefügt.
+
+**Duplikat-Prüfung:** Ein Medieninhalt darf nicht doppelt in derselben Playlist vorkommen.
+Der Versuch, einen bereits vorhandenen Inhalt erneut hinzuzufügen, wird mit einer
+Hinweismeldung abgelehnt.
+
+### Entfernen
+
+Jeder Eintrag in der Liste besitzt einen **Entfernen**-Button. Ein Klick darauf entfernt
+genau diesen Eintrag sofort aus der Playlist. Die Liste wird unmittelbar aktualisiert.
+
+### Automatische Bereinigung
+
+Wird ein Medieninhalt aus dem Bestand entfernt (z. B. eine Serie oder ein Film gelöscht),
+verschwindet der zugehörige Playlist-Eintrag beim nächsten Laden der Playlist still
+(ohne Fehlermeldung oder Hinweismeldung für den Anwender). Diese automatische Bereinigung
+verhindert, dass die Playlist auf nicht mehr existierende Inhalte verweist.
 
 ## Löschen
 
@@ -63,11 +102,9 @@ Playlists werden nach Bestätigung in einem Dialog endgültig gelöscht (kein Pa
 
 ## Zugriff und Berechtigungen
 
-Alle Playlist-Funktionen erfordern eine Anmeldung. Der Zugriff auf eine Playlist, die einem anderen
-Anwender gehört, wird mit HTTP 403 (Forbidden) abgelehnt. Existiert die angefragte Playlist-ID gar
-nicht, wird stattdessen HTTP 404 (Not Found) zurückgegeben. Da sich diese beiden Fälle im
-Statuscode unterscheiden, lässt sich über die Antwort erkennen, ob eine fremde Playlist-ID
-existiert.
+Alle Playlist-Funktionen erfordern eine Anmeldung. Jeder Anwender kann nur auf seine eigenen
+Playlists zugreifen: Der Versuch, eine fremde Playlist zu bearbeiten oder zu löschen, wird
+abgelehnt. Falls eine Playlist nicht existiert, wird ebenfalls eine Fehlermeldung angezeigt.
 
 Wird ein Benutzerkonto gelöscht, werden auch alle Playlists dieses Anwenders automatisch entfernt.
 
@@ -79,7 +116,8 @@ Konfiguration festgelegt:
 ```json
 {
   "Playlists": {
-    "MaxPlaylistsPerUser": null
+    "MaxPlaylistsPerUser": null,
+    "MaxPlaylistItemCount": null
   }
 }
 ```
@@ -87,3 +125,7 @@ Konfiguration festgelegt:
 `null` bedeutet keine Begrenzung (Standardeinstellung). Ein numerischer Wert begrenzt die Anzahl
 der Playlists, die ein einzelner Anwender gleichzeitig anlegen kann; beim Überschreiten wird das
 Anlegen weiterer Playlists mit einer Fehlermeldung abgelehnt.
+
+`MaxPlaylistItemCount` ist für eine spätere Begrenzung der Anzahl an Einträgen pro Playlist
+vorbereitet. Die Konfiguration existiert bereits, wird aber aktuell noch nicht durchgesetzt
+(`null`, unbegrenzt).

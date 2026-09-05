@@ -126,6 +126,22 @@ namespace VideoWebPlayer.Client
             }
         }
 
+        protected virtual async Task HttpDeleteAsync(string endPoint)
+        {
+            var response = await SendWithReauthorizationAsync(endPoint, () => httpClient.DeleteAsync(endPoint));
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var content = await response.Content.ReadAsStringAsync();
+                throw new HttpRequestException(
+                    string.IsNullOrWhiteSpace(content)
+                        ? $"Failed to DELETE from {endPoint}: {response.ReasonPhrase}"
+                        : content,
+                    null,
+                    response.StatusCode);
+            }
+        }
+
         #region Authentication
         /// <summary>
         /// Authenticates the user and stores the authorization token.
@@ -423,17 +439,24 @@ namespace VideoWebPlayer.Client
 
         public async Task DeletePlaylistAsync(long playlistId)
         {
-            var endPoint = $"api/playlists/{playlistId}";
-            var response = await httpClient.DeleteAsync(endPoint);
+            await HttpDeleteAsync($"api/playlists/{playlistId}");
+        }
 
-            if (!response.IsSuccessStatusCode)
-            {
-                var content = await response.Content.ReadAsStringAsync();
-                throw new HttpRequestException(
-                    string.IsNullOrWhiteSpace(content)
-                        ? $"Failed to DELETE {endPoint}: {response.ReasonPhrase}"
-                        : content);
-            }
+        public async Task<IEnumerable<DtoPlaylistEntry>> RequestPlaylistEntriesAsync(long playlistId)
+        {
+            return await HttpGetAsync<DtoPlaylistEntry[]>($"api/playlists/{playlistId}/entries");
+        }
+
+        public async Task<DtoPlaylistEntry> AddMediaToPlaylistAsync(long playlistId, DtoAddMediaToPlaylistRequest request)
+        {
+            var json = JsonSerializer.Serialize(request);
+            var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+            return await HttpPostAsync<DtoPlaylistEntry>($"api/playlists/{playlistId}/entries", content);
+        }
+
+        public async Task RemoveMediaFromPlaylistAsync(long playlistId, string mediaType, long mediaId)
+        {
+            await HttpDeleteAsync($"api/playlists/{playlistId}/entries/{mediaType}/{mediaId}");
         }
         #endregion
 

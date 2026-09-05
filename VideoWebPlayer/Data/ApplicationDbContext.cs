@@ -100,6 +100,10 @@ namespace VideoWebPlayer.Data
         /// </summary>
         public DbSet<Playlist> Playlists { get; set; }
         /// <summary>
+        /// Tabelle f�r Playlist-Eintr�ge.
+        /// </summary>
+        public DbSet<PlaylistEntry> PlaylistEntries { get; set; }
+        /// <summary>
         /// Tabelle für einzeln freigeschaltete Medieneinträge.
         /// </summary>
         public DbSet<UnlockedMediaEntry> UnlockedMediaEntries { get; set; }

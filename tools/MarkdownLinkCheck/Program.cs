@@ -44,6 +44,7 @@ public static partial class MarkdownLinkChecker
         "bin",
         "obj",
         "artifacts",
+        "node_modules",
         "Sub-Repository"
     ];
 

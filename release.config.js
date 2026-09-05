@@ -20,8 +20,18 @@ const releaseAssets = [...releaseAssetPaths, releaseManifestPath]
   .map((assetPath) => ({ path: assetPath, name: path.basename(assetPath) }));
 
 const releasePlugins = [
-  "@semantic-release/commit-analyzer",
-  "@semantic-release/release-notes-generator",
+  [
+    "@semantic-release/commit-analyzer",
+    {
+      preset: "conventionalcommits"
+    }
+  ],
+  [
+    "@semantic-release/release-notes-generator",
+    {
+      preset: "conventionalcommits"
+    }
+  ],
   [
     "@semantic-release/github",
     {
@@ -43,7 +53,14 @@ const releasePlugins = [
 // dry-run-only version check (RESOLVE_DRY_RUN=true, set in runSemanticReleaseDryRun()) -
 // avoids loading @semantic-release/github (and its verifyConditions checks) for a call that
 // never publishes anything.
-const dryRunPlugins = ["@semantic-release/commit-analyzer"];
+const dryRunPlugins = [
+  [
+    "@semantic-release/commit-analyzer",
+    {
+      preset: "conventionalcommits"
+    }
+  ]
+];
 
 module.exports = {
   branches: ["main"],

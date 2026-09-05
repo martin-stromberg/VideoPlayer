@@ -17,6 +17,8 @@
 
 ## What's New
 
+- (Internal, no user-facing change) Release tooling now uses the Conventional Commits preset for version determination and release-notes generation, matching the other projects in the fleet; updated outdated `semantic-release` plugin versions; excluded `node_modules` from the local markdown-link-check hook.
+
 - Added actor extraction from NFO metadata for movies and TV show episodes, stored in new `Actors`, `MovieActors` and `TVShowEpisodeActors` tables.
 - Actor images are loaded from the `<thumb>` element of NFO metadata and shown in the overview and detail pages.
 - Added a background worker that backfills actor metadata for existing media on application startup.

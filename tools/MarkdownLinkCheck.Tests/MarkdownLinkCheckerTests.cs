@@ -68,6 +68,22 @@ public sealed class MarkdownLinkCheckerTests : IDisposable
         Assert.Equal(0, result.CheckedLinks);
     }
 
+    [Fact]
+    public void NodeModulesIsIgnored()
+    {
+        // Third-party npm packages ship their own markdown with broken relative links (e.g.
+        // pointing at files only present in their own git repo, not the installed package) -
+        // scanning node_modules made every local commit fail after `npm install` for the
+        // release tooling (semantic-release and its plugins), even though nothing in the
+        // actual project changed.
+        Write("node_modules/some-package/README.md", "[Missing](does-not-exist.md)");
+
+        var result = MarkdownLinkChecker.Check(root);
+
+        Assert.Empty(result.Errors);
+        Assert.Equal(0, result.CheckedFiles);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(root))

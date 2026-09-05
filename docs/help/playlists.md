@@ -64,9 +64,10 @@ Playlists werden nach Bestätigung in einem Dialog endgültig gelöscht (kein Pa
 ## Zugriff und Berechtigungen
 
 Alle Playlist-Funktionen erfordern eine Anmeldung. Der Zugriff auf eine Playlist, die einem anderen
-Anwender gehört, wird mit HTTP 403 (Forbidden) abgelehnt, unabhängig davon, ob die Playlist
-existiert. Dies ist eine intentionale Sicherheitsmaßnahme, um nicht die Existenz fremder Playlists
-preiszugeben.
+Anwender gehört, wird mit HTTP 403 (Forbidden) abgelehnt. Existiert die angefragte Playlist-ID gar
+nicht, wird stattdessen HTTP 404 (Not Found) zurückgegeben. Da sich diese beiden Fälle im
+Statuscode unterscheiden, lässt sich über die Antwort erkennen, ob eine fremde Playlist-ID
+existiert.
 
 Wird ein Benutzerkonto gelöscht, werden auch alle Playlists dieses Anwenders automatisch entfernt.
 

@@ -17,6 +17,8 @@
 
 ## What's New
 
+- (Internal, no user-facing change) Manual-tag releases now use the `gh` CLI directly instead of `softprops/action-gh-release`, matching the rest of the fleet and dropping a third-party action dependency.
+
 - Added actor extraction from NFO metadata for movies and TV show episodes, stored in new `Actors`, `MovieActors` and `TVShowEpisodeActors` tables.
 - Actor images are loaded from the `<thumb>` element of NFO metadata and shown in the overview and detail pages.
 - Added a background worker that backfills actor metadata for existing media on application startup.

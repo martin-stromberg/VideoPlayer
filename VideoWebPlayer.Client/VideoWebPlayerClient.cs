@@ -166,6 +166,25 @@ namespace VideoWebPlayer.Client
             return Task.CompletedTask;
         }
 
+        /// <summary>
+        /// Calls <see cref="EnsureAuthorizationTokenAsync(ClaimsPrincipal?, CancellationToken)"/> and
+        /// silently ignores any exception (e.g. because no token is available for an unauthenticated
+        /// user). The subsequent load operation then fails with a meaningful error message that is
+        /// shown in the UI.
+        /// </summary>
+        public async Task EnsureAuthorizationTokenSilentlyAsync(ClaimsPrincipal? user, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                await EnsureAuthorizationTokenAsync(user, cancellationToken);
+            }
+            catch (Exception)
+            {
+                // Kein Token verfuegbar (z. B. nicht angemeldet). Der nachfolgende Ladevorgang
+                // schlaegt dann mit einer aussagekraeftigen Fehlermeldung fehl, die im UI angezeigt wird.
+            }
+        }
+
         public bool Initializing { get; set; }
         protected ILogger<VideoWebPlayerClient> Logger { get; }
         #endregion

@@ -49,32 +49,21 @@
         </div>
 
         <div class="admin-actions">
-            <button class="btn btn-primary playlist-detail-edit-button" @onclick="OnEditClick">Bearbeiten</button>
-            <button class="btn btn-danger playlist-detail-delete-button" @onclick="OnDeleteClick">Loeschen</button>
-            <button class="btn btn-ghost playlist-detail-back-button" @onclick="OnBackClick">Zurueck zur Uebersicht</button>
+            <button class="btn btn-primary playlist-detail-edit-button" @onclick="OpenEditForm">Bearbeiten</button>
+            <button class="btn btn-danger playlist-detail-delete-button" @onclick="RequestDelete">Loeschen</button>
+            <button class="btn btn-ghost playlist-detail-back-button" @onclick="NavigateToOverview">Zurueck zur Uebersicht</button>
         </div>
     }
 </section>
 
 @if (showForm)
 {
-    <PlaylistForm PlaylistId="editingPlaylistId" OnSave="OnFormSave" OnCancel="OnFormCancel" />
+    <PlaylistForm PlaylistId="editingPlaylistId" OnSave="HandleSavedAsync" OnCancel="HandleCancel" />
 }
 
 @if (showDeleteConfirmation)
 {
-    <div class="admin-dialog-overlay" @onclick="CancelDelete">
-        <div class="admin-dialog" @onclick:stopPropagation>
-            <header class="admin-card-header">
-                <h2>Playlist loeschen</h2>
-            </header>
-            <p>Moechten Sie die Playlist "@playlist?.Name" wirklich loeschen?</p>
-            <div class="admin-actions">
-                <button class="btn btn-danger" id="confirm-delete-playlist-button" @onclick="OnDeleteConfirm">Loeschen</button>
-                <button class="btn btn-ghost" @onclick="CancelDelete">Abbrechen</button>
-            </div>
-        </div>
-    </div>
+    <PlaylistDeleteConfirmationDialog PlaylistName="@playlist?.Name" OnConfirm="ConfirmDeleteAsync" OnCancel="CancelDelete" />
 }
 
 @code {
@@ -91,15 +80,7 @@
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        try
-        {
-            await Client.EnsureAuthorizationTokenAsync(authState.User);
-        }
-        catch (Exception)
-        {
-            // Kein Token verfuegbar (z. B. nicht angemeldet). Der nachfolgende Ladevorgang
-            // schlaegt dann mit einer aussagekraeftigen Fehlermeldung fehl, die im UI angezeigt wird.
-        }
+        await Client.EnsureAuthorizationTokenSilentlyAsync(authState.User);
         await LoadPlaylistAsync();
     }
 
@@ -127,24 +108,24 @@
         }
     }
 
-    private void OnEditClick()
+    private void OpenEditForm()
     {
         editingPlaylistId = Id;
         showForm = true;
     }
 
-    private void OnDeleteClick()
+    private void RequestDelete()
     {
         showDeleteConfirmation = true;
     }
 
-    private async Task OnFormSave()
+    private async Task HandleSavedAsync()
     {
         showForm = false;
         await LoadPlaylistAsync();
     }
 
-    private void OnFormCancel()
+    private void HandleCancel()
     {
         showForm = false;
     }
@@ -154,7 +135,7 @@
         showDeleteConfirmation = false;
     }
 
-    private async Task OnDeleteConfirm()
+    private async Task ConfirmDeleteAsync()
     {
         try
         {
@@ -169,7 +150,7 @@
         }
     }
 
-    private void OnBackClick()
+    private void NavigateToOverview()
     {
         NavigationManager.NavigateTo("/playlists");
     }

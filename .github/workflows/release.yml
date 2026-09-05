@@ -114,8 +114,8 @@ jobs:
         # release.config.js: commit-analyzer, release-notes-generator, then
         # @semantic-release/github, which creates the tag, the GitHub release and uploads the
         # assets listed via RELEASE_ASSET_PATHS/RELEASE_MANIFEST_PATH below). Manual-tag and
-        # asset-repair releases intentionally stay on the gh CLI / softprops action below:
-        # semantic-release only knows about conventional-commit-driven releases on configured
+        # asset-repair releases intentionally stay on the gh CLI below: semantic-release only
+        # knows about conventional-commit-driven releases on configured
         # branches, not about a tag someone pushed manually or a one-off missing-asset repair.
         if: steps.version.outputs.released == 'true' && steps.version.outputs.release_action == 'create' && steps.version.outputs.release_kind == 'automatic'
         env:

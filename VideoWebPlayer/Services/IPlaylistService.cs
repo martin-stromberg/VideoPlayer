@@ -1,0 +1,36 @@
+using System.Threading;
+using System.Threading.Tasks;
+using VideoWebPlayer.Client.Models;
+
+namespace VideoWebPlayer.Services;
+
+/// <summary>
+/// Provides CRUD operations for managing playlists for a specific user.
+/// </summary>
+public interface IPlaylistService
+{
+    /// <summary>
+    /// Returns all playlists for the given user.
+    /// </summary>
+    Task<DtoPlaylist[]> GetPlaylistsAsync(string userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns a single playlist for the given user, or <c>null</c> if it does not exist.
+    /// </summary>
+    Task<DtoPlaylist?> GetPlaylistAsync(long playlistId, string userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates a new playlist for the given user.
+    /// </summary>
+    Task<DtoPlaylist> CreatePlaylistAsync(string userId, string name, string? description, string? sortMode, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates an existing playlist for the given user.
+    /// </summary>
+    Task<DtoPlaylist> UpdatePlaylistAsync(long playlistId, string userId, string name, string? description, string? sortMode, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Deletes a playlist for the given user.
+    /// </summary>
+    Task DeletePlaylistAsync(long playlistId, string userId, CancellationToken cancellationToken = default);
+}

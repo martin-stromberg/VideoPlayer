@@ -1,4 +1,5 @@
 @using Microsoft.AspNetCore.Components.Forms
+@using System.Net
 @using VideoWebPlayer.Client.Models
 @inject VideoWebPlayer.Client.VideoWebPlayerClient Client
 
@@ -143,11 +144,13 @@
 
             await OnSave.InvokeAsync();
         }
-        catch (Exception ex)
+        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Conflict)
         {
-            errorMessage = ex.Message.Contains("existiert bereits", StringComparison.OrdinalIgnoreCase)
-                ? "Ein Playlist mit diesem Namen existiert bereits."
-                : "Beim Speichern ist ein Fehler aufgetreten.";
+            errorMessage = "Ein Playlist mit diesem Namen existiert bereits.";
+        }
+        catch (Exception)
+        {
+            errorMessage = "Beim Speichern ist ein Fehler aufgetreten.";
         }
         finally
         {

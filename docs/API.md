@@ -343,6 +343,65 @@ Antwort: `204 No Content`.
 - `404 Not Found`, wenn keine Playlist mit dieser ID existiert.
 - `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
 
+### POST /api/playlists/{id}/entries
+
+Fügt einen Medieninhalt zur Playlist hinzu. Unterstützte `mediaType`-Werte: `Movie`,
+`TVShowEpisode`, `TVShowSeason`, `TVShow`, `MovieCollection` (case-insensitiv, wird beim Speichern
+auf die kanonische Schreibweise normalisiert). Beim Hinzufügen von `TVShow`, `TVShowSeason` oder
+`MovieCollection` werden alle zugehörigen Staffeln/Episoden bzw. Filme automatisch mit hinzugefügt
+(Cascade-Logik). Bereits vorhandene Einträge — Top-Level oder Cascade-Kind — werden dabei
+übersprungen statt einen Fehler auszulösen.
+
+Request (`DtoAddMediaToPlaylistRequest`):
+
+```json
+{
+  "mediaType": "Movie",
+  "mediaId": 42
+}
+```
+
+Antwort: `DtoPlaylistAddResult`:
+
+```json
+{
+  "topLevelEntry": { "id": 456, "playlistId": 1, "mediaType": "Movie", "mediaId": 42, "..." : "..." },
+  "addedEntries": [ { "id": 456, "playlistId": 1, "mediaType": "Movie", "mediaId": 42, "..." : "..." } ],
+  "skippedDuplicateCount": 0,
+  "message": "1 Titel hinzugefuegt."
+}
+```
+
+`topLevelEntry` ist `null`, wenn der angeforderte Eintrag bereits vorhanden war. `addedEntries`
+enthält alle neu angelegten Einträge (Top-Level plus Cascade-Kinder). Duplikate — egal ob
+Top-Level oder Cascade — führen **nicht** zu einem Fehler, sondern werden in
+`skippedDuplicateCount` gezählt; die Antwort bleibt `200 OK`.
+
+- `400 Bad Request`, wenn `mediaType` ungültig oder `mediaId` nicht größer als 0 ist.
+- `404 Not Found`, wenn der Medieninhalt oder die Playlist nicht existiert.
+- `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
+
+### DELETE /api/playlists/{id}/entries/{mediaType}/{mediaId}
+
+Entfernt einen Medieninhalt aus der Playlist. `mediaType` wird case-insensitiv verarbeitet und
+vor dem Abgleich auf die kanonische Schreibweise normalisiert (z. B. `"movie"` findet denselben
+Eintrag wie `"Movie"`).
+
+Antwort: `204 No Content`.
+
+- `400 Bad Request`, wenn `mediaType` keinem unterstützten Medientyp entspricht.
+- `404 Not Found`, wenn kein passender Eintrag in der Playlist vorhanden ist.
+- `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
+
+### GET /api/playlists/{id}/entries
+
+Liefert alle Einträge einer Playlist als `DtoPlaylistEntry[]` (unsortiert). Einträge, deren
+referenzierter Medieninhalt nicht mehr existiert, werden dabei still aus der Datenbank entfernt
+und nicht in der Antwort aufgeführt.
+
+- `404 Not Found`, wenn keine Playlist mit dieser ID existiert.
+- `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
+
 ## SignalR
 
 ### GET /hubs/mediaupdate

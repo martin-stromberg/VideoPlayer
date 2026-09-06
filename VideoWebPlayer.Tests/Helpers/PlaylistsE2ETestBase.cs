@@ -131,6 +131,79 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
         return row;
     }
 
+    /// <summary>
+    /// Seeds a single movie directly in the database (bypassing the UI) and returns its id, for use
+    /// as the target of the playlist "add media" form in E2E tests.
+    /// </summary>
+    protected async Task<long> SeedMovieAsync(string name)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var sourceId = await EnsureMediaSourceIdAsync(db);
+
+        var movie = new Movie { Name = name, MediaSourceId = sourceId, CreatedAt = DateTime.UtcNow };
+        db.Movies.Add(movie);
+        await db.SaveChangesAsync();
+        return movie.Id;
+    }
+
+    /// <summary>
+    /// Seeds a TV show with the given seasons and episode counts directly in the database and returns
+    /// the show's id, for use as the target of the playlist "add media" form in E2E tests.
+    /// </summary>
+    protected async Task<long> SeedTvShowWithSeasonsAsync(string showName, params (string SeasonName, int EpisodeCount)[] seasons)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var sourceId = await EnsureMediaSourceIdAsync(db);
+
+        var show = new TVShow { Name = showName, MediaSourceId = sourceId, CreatedAt = DateTime.UtcNow };
+        db.TVShows.Add(show);
+        await db.SaveChangesAsync();
+
+        foreach (var (seasonName, episodeCount) in seasons)
+        {
+            var season = new TVShowSeason { Name = seasonName, TVShowId = show.Id, MediaSourceId = sourceId, CreatedAt = DateTime.UtcNow };
+            db.TVShowSeasons.Add(season);
+            await db.SaveChangesAsync();
+
+            for (var number = 1; number <= episodeCount; number++)
+            {
+                db.TVShowEpisodes.Add(new TVShowEpisode
+                {
+                    Name = $"{seasonName} Episode {number}",
+                    Number = number,
+                    TVShowSeasonId = season.Id,
+                    MediaSourceId = sourceId,
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
+            await db.SaveChangesAsync();
+        }
+
+        return show.Id;
+    }
+
+    private static async Task<long> EnsureMediaSourceIdAsync(ApplicationDbContext db)
+    {
+        var existing = await db.MediaSources.FirstOrDefaultAsync();
+        if (existing is not null)
+            return existing.Id;
+
+        var source = new MediaSource
+        {
+            Name = "E2E Test Source",
+            Host = "127.0.0.1",
+            Port = 22,
+            Path = "/test",
+            Username = "user",
+            Password = "pass"
+        };
+        db.MediaSources.Add(source);
+        await db.SaveChangesAsync();
+        return source.Id;
+    }
+
     private async Task SeedUsersAsync()
     {
         using var scope = _factory.Services.CreateScope();

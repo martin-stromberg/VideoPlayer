@@ -33,4 +33,19 @@ public interface IPlaylistService
     /// Deletes a playlist for the given user.
     /// </summary>
     Task DeletePlaylistAsync(long playlistId, string userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Adds a media entry (with cascade logic for TVShow, TVShowSeason and MovieCollection) to a playlist.
+    /// </summary>
+    Task<DtoPlaylistAddResult> AddMediaToPlaylistAsync(long playlistId, string userId, string mediaType, long mediaId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Removes a media entry from a playlist.
+    /// </summary>
+    Task RemoveMediaFromPlaylistAsync(long playlistId, string userId, string mediaType, long mediaId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns all entries of a playlist, silently removing orphaned entries whose referenced media no longer exists.
+    /// </summary>
+    Task<DtoPlaylistEntry[]> GetPlaylistEntriesAsync(long playlistId, string userId, CancellationToken cancellationToken = default);
 }

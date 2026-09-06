@@ -183,7 +183,39 @@ public class PlaylistServiceTests_GetEntriesPaged : PlaylistServiceTestBase
     }
 
     [Fact]
-    public async Task GetEntriesPaged_EntriesAreAccessibleByDefault()
+    public async Task GetEntriesPaged_EntryNotUnlocked_IsNotAccessible()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var showId = await CreateTestMediaEntryAsync(MediaTypeValues.TVShow, "Eine Serie");
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.TVShow, showId));
+
+        var result = await _service.GetPlaylistEntriesPagedAsync(playlistId, _testUserId, 1, 20, ct);
+
+        Assert.Single(result.Entries);
+        Assert.False(result.Entries[0].IsAccessible);
+    }
+
+    [Fact]
+    public async Task GetEntriesPaged_EntryUnlockedForCurrentUser_IsAccessible()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var showId = await CreateTestMediaEntryAsync(MediaTypeValues.TVShow, "Eine Serie");
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.TVShow, showId));
+        await UnlockMediaForUserAsync(_testUserId, MediaTypeValues.TVShow, showId);
+
+        var result = await _service.GetPlaylistEntriesPagedAsync(playlistId, _testUserId, 1, 20, ct);
+
+        Assert.Single(result.Entries);
+        Assert.True(result.Entries[0].IsAccessible);
+    }
+
+    /// <summary>
+    /// <see cref="IUnlockedMediaService.IsUnlockedAsync"/> only recognizes movie collections and TV
+    /// shows; other media types (movies, seasons, episodes) are therefore never reported as unlocked,
+    /// regardless of any <see cref="UnlockedMediaEntry"/> rows.
+    /// </summary>
+    [Fact]
+    public async Task GetEntriesPaged_MovieEntry_IsNeverAccessible()
     {
         var ct = TestContext.Current.CancellationToken;
         var movieId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Ein Film");
@@ -192,7 +224,40 @@ public class PlaylistServiceTests_GetEntriesPaged : PlaylistServiceTestBase
         var result = await _service.GetPlaylistEntriesPagedAsync(playlistId, _testUserId, 1, 20, ct);
 
         Assert.Single(result.Entries);
-        Assert.True(result.Entries[0].IsAccessible);
+        Assert.False(result.Entries[0].IsAccessible);
+    }
+
+    [Fact]
+    public async Task GetEntriesPaged_ResolvesResolvedPictureId_FromMediaEntity()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var movieId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Ein Film");
+        var poster = new Picture { Type = "poster", Data = [0x1], ContentType = "image/png" };
+        _db.Pictures.Add(poster);
+        await _db.SaveChangesAsync(ct);
+        var movie = await _db.Movies.FirstAsync(m => m.Id == movieId, ct);
+        movie.PosterPictureId = poster.Id;
+        await _db.SaveChangesAsync(ct);
+
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.Movie, movieId));
+
+        var result = await _service.GetPlaylistEntriesPagedAsync(playlistId, _testUserId, 1, 20, ct);
+
+        Assert.Single(result.Entries);
+        Assert.Equal(poster.Id, result.Entries[0].ResolvedPictureId);
+    }
+
+    [Fact]
+    public async Task GetEntriesPaged_NoPictureSet_ResolvedPictureIdIsNull()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var movieId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Ein Film");
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.Movie, movieId));
+
+        var result = await _service.GetPlaylistEntriesPagedAsync(playlistId, _testUserId, 1, 20, ct);
+
+        Assert.Single(result.Entries);
+        Assert.Null(result.Entries[0].ResolvedPictureId);
     }
 
     [Fact]

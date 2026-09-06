@@ -12,7 +12,14 @@ namespace VideoWebPlayer.Client.Models
         public string? ParentMediaTitle { get; set; }
         public DateTime AddedAt { get; set; }
 
-        // Placeholder for future license/access checking; the server currently always returns true.
+        // Id of the picture to display for the referenced media entity, already resolved server-side:
+        // the poster picture, falling back to its banner or fanart picture if no poster is set; null if
+        // none of those are available. Unlike PosterPictureId on other DTOs (e.g. DtoMovie), this value
+        // may already be a banner or fanart id, since the fallback happens on the server rather than
+        // client-side.
+        public long? ResolvedPictureId { get; set; }
+
+        // Whether the current user has unlocked access to the referenced media entity.
         public bool IsAccessible { get; set; } = true;
     }
 }

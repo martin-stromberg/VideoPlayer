@@ -90,6 +90,7 @@
                     <table class="table table-dark table-striped align-middle">
                         <thead>
                             <tr>
+                                <th>Bild</th>
                                 <th>Typ</th>
                                 <th>Titel</th>
                                 <th>Sammlung</th>
@@ -101,18 +102,21 @@
                             <Virtualize TItem="DtoPlaylistEntry" @ref="virtualizeRef" ItemsProvider="ItemsProviderAsync" Context="entry">
                                 <ItemContent>
                                     <tr class="playlist-entry-row @(entry.IsAccessible ? string.Empty : "opacity-50 text-muted")" data-media-type="@entry.MediaType" data-media-id="@entry.MediaId">
+                                        <td>
+                                            <img class="media-poster playlist-entry-image" src="@GetImageUrl(entry)" alt="@entry.MediaTitle" loading="lazy" onerror="this.onerror=null;this.src='/images/placeholder.png';" />
+                                        </td>
                                         <td>@entry.MediaType</td>
                                         <td>@entry.MediaTitle</td>
                                         <td>@entry.ParentMediaTitle</td>
                                         <td>@entry.AddedAt.ToLocalTime()</td>
                                         <td>
-                                            <button class="btn btn-sm btn-danger playlist-entry-remove-button" disabled="@(!entry.IsAccessible)" @onclick="() => RemoveEntryAsync(entry)">Entfernen</button>
+                                            <button class="btn btn-sm btn-danger playlist-entry-remove-button" @onclick="() => RemoveEntryAsync(entry)">Entfernen</button>
                                         </td>
                                     </tr>
                                 </ItemContent>
                                 <Placeholder>
                                     <tr class="playlist-entry-row playlist-entry-placeholder">
-                                        <td colspan="5">Lade...</td>
+                                        <td colspan="6">Lade...</td>
                                     </tr>
                                 </Placeholder>
                             </Virtualize>
@@ -357,4 +361,9 @@
     {
         NavigationManager.NavigateTo("/playlists");
     }
+
+    private string GetImageUrl(DtoPlaylistEntry entry)
+        => entry.ResolvedPictureId.HasValue
+            ? $"/api/pictures/{entry.ResolvedPictureId}?access_token={Client.AuthorizationToken}"
+            : "/images/placeholder.png";
 }

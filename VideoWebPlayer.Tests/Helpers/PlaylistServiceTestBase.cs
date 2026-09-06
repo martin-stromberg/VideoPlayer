@@ -17,6 +17,8 @@ public abstract class PlaylistServiceTestBase : IDisposable
     protected readonly PlaylistService _service;
     protected readonly string _testUserId = "test-user-123";
     protected readonly string _otherUserId = "other-user-456";
+    protected readonly FakeAuthService _fakeAuthService;
+    protected readonly IUnlockedMediaService _unlockedMediaService;
     private readonly SqliteConnection _keeperConnection;
 
     protected PlaylistServiceTestBase()
@@ -32,10 +34,13 @@ public abstract class PlaylistServiceTestBase : IDisposable
         _db = new ApplicationDbContext(options, _eventManager);
         _db.Database.EnsureCreated();
 
-        _db.Users.AddRange(
-            new ApplicationUser { Id = _testUserId, UserName = "test-user@test.com" },
-            new ApplicationUser { Id = _otherUserId, UserName = "other-user@test.com" });
+        var testUser = new ApplicationUser { Id = _testUserId, UserName = "test-user@test.com" };
+        var otherUser = new ApplicationUser { Id = _otherUserId, UserName = "other-user@test.com" };
+        _db.Users.AddRange(testUser, otherUser);
         _db.SaveChanges();
+
+        _fakeAuthService = new FakeAuthService { CurrentUser = testUser };
+        _unlockedMediaService = new UnlockedMediaService(_db, _fakeAuthService);
 
         _service = CreateService(null);
     }
@@ -52,7 +57,17 @@ public abstract class PlaylistServiceTestBase : IDisposable
             MaxPlaylistsPerUser = maxPlaylistsPerUser,
             MaxPlaylistItemCount = maxPlaylistItemCount
         });
-        return new PlaylistService(_db, _eventManager, settings);
+        return new PlaylistService(_db, _eventManager, _unlockedMediaService, settings);
+    }
+
+    /// <summary>
+    /// Grants the given user unlocked access to a movie collection or TV show by inserting an
+    /// <see cref="UnlockedMediaEntry"/> directly, bypassing <see cref="IUnlockedMediaService.SetUnlockedUsersAsync"/>.
+    /// </summary>
+    protected async Task UnlockMediaForUserAsync(string userId, string mediaType, long mediaId)
+    {
+        _db.UnlockedMediaEntries.Add(UnlockedMediaTestHelper.CreateUnlockedMediaEntry(userId, mediaType, mediaId));
+        await _db.SaveChangesAsync();
     }
 
     /// <summary>

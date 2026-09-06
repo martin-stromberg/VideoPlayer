@@ -90,9 +90,12 @@ Diese Dokumentation beschreibt den internen Ablauf auf Code-Ebene.
     - Falls `entriesToAdd.Count > 0 && skippedDuplicateCount == 0`: `"{entriesToAdd.Count} Titel hinzugefügt."`
     - Falls `entriesToAdd.Count == 0`: `"Alle {skippedDuplicateCount} Titel waren bereits vorhanden."`
 
-13. **Titel laden und Response bauen:**
-    - Lade Titel für alle neuen Einträge via `GetMediaTitleAsync()` und `MediaTypeHandler`
-    - Konvertiere alle neuen Einträge zu `DtoPlaylistEntry` via `ToDto()`
+13. **DTOs bauen und Response zusammenstellen:**
+    - `BuildAddResultAsync()` konvertiert alle neuen Einträge (`entriesToAdd`) über dieselbe
+      `BuildEntryDtosAsync()`-Methode zu `DtoPlaylistEntry`, die auch die beiden Lese-Endpunkte
+      (Ablauf 3 und 4) verwenden — inklusive Titel, aufgelöster Bild-ID (`ResolvedPictureId`) und
+      echter Freischaltungsprüfung (`IsAccessible`) für den aktuellen Benutzer. Ein soeben
+      hinzugefügter, nicht freigeschalteter Titel liefert also unmittelbar `IsAccessible: false`.
     - Baue neue Response: `DtoPlaylistAddResult`:
       - `TopLevelEntry`: Der neu hinzugefügte Top-Level-Eintrag (oder `null`, falls Duplikat)
       - `AddedEntries[]`: Alle neu hinzugefügten Einträge
@@ -112,7 +115,8 @@ Diese Dokumentation beschreibt den internen Ablauf auf Code-Ebene.
 | `PlaylistService` | `CheckMediaExistsAsync()` | Existenz-Prüfung |
 | `PlaylistService` | `GetCascadeMediaIdsAsync()` | Cascade-Abfrage |
 | `PlaylistService` | `GetMediaTitleAsync()` | Titel-Lookup |
-| `PlaylistService` | `ToDto()` | Entity → DTO Konvertierung |
+| `PlaylistService` | `BuildAddResultAsync()` | Baut `DtoPlaylistAddResult` inkl. Message |
+| `PlaylistService` | `BuildEntryDtosAsync()` | Entity → DTO Konvertierung (Titel, `ResolvedPictureId`, `IsAccessible`), gemeinsam mit Ablauf 3/4 |
 | `ApplicationDbContext` | `PlaylistEntries` | DB-Zugriff |
 | `PlaylistEntry` | — | Datenmodell mit normalisiertem `MediaType` |
 | `DtoPlaylistEntry` | — | Client-Modell für einzelne Einträge |
@@ -215,14 +219,18 @@ flowchart TD
        - Markiere Eintrag als Verwaist
        - Füge zu `orphans` Liste hinzu
        - Überspringe zu nächstem Eintrag (nicht in `result` aufnehmen)
-     - Falls ja: Konvertiere zu DTO und füge zu `result` hinzu
+     - Falls ja: Behalte den Eintrag für die DTO-Konvertierung in Schritt 7
 
 6. **Verwaiste Einträge löschen:**
    - Falls `orphans.Count > 0`:
      - `db.PlaylistEntries.RemoveRange(orphans)`
      - `await db.SaveChangesAsync()` — Löscht alle Einträge, deren Medieninhalt nicht mehr existiert
 
-7. **DTOs zurückgeben:**
+7. **DTOs bauen und zurückgeben:**
+   - `BuildEntryDtosAsync()` konvertiert die verbleibenden (nicht verwaisten) Einträge zu
+     `DtoPlaylistEntry`, inklusive aufgelöster Bild-ID (`ResolvedPictureId`) und echter
+     Freischaltungsprüfung (`IsAccessible`) für den aktuellen Benutzer über `IUnlockedMediaService`
+     — dieselbe Methode wie in Ablauf 1 und 4
    - HTTP 200 OK mit Array von `DtoPlaylistEntry`
 
 ### Beteiligte Klassen
@@ -233,7 +241,8 @@ flowchart TD
 | `PlaylistService` | `GetPlaylistEntriesAsync()` | Geschäftslogik + Bereinigung |
 | `PlaylistService` | `GetOwnedPlaylistAsync()` | Berechtigung + Existenz |
 | `PlaylistService` | `GetMediaTitlesAsync()` | Batch-Titel-Lookup |
-| `PlaylistService` | `ToDto()` | Entity → DTO Konvertierung |
+| `PlaylistService` | `BuildEntryDtosAsync()` | Entity → DTO Konvertierung (Titel, `ResolvedPictureId`, `IsAccessible`), gemeinsam mit Ablauf 1/4 |
+| `IUnlockedMediaService` | `GetUnlockedMovieCollectionIdsForUserAsync()` / `GetUnlockedTVShowIdsForUserAsync()` | Bulk-Freischaltungsprüfung für `IsAccessible` |
 | `ApplicationDbContext` | `PlaylistEntries` | DB-Zugriff |
 
 ### Diagramm
@@ -311,8 +320,12 @@ scrollt.
      Playlist
 
 7. **DTOs bauen und zurückgeben:**
-   - Jeder `pageEntries`-Eintrag wird über `ToDto()` in ein `DtoPlaylistEntry` konvertiert
-     (inklusive `IsAccessible = true`, siehe Hinweis in `playlists-api.md`)
+   - `BuildEntryDtosAsync()` konvertiert `pageEntries` (nur die aktuelle Seite) zu
+     `DtoPlaylistEntry`, inklusive für die Seite aufgelöster Bild-IDs (`ResolvedPictureId`, mit
+     Fallback Poster → Banner → Fanart pro Medientyp via `LoadPictureIdsForMediaRefsAsync()`) und
+     echter Freischaltungsprüfung (`IsAccessible`) über `IUnlockedMediaService`
+     (`LoadUnlockedMediaIdsAsync()`, siehe Hinweis in `playlists-api.md`) — beides skaliert mit der
+     Seitengröße, nicht mit der Gesamtgröße der Playlist
    - Rückgabe: `DtoPlaylistEntriesPagedResult { Entries, TotalCount, HasNextPage, PageNumber, PageSize }`
      mit `HasNextPage = skip + pageSize < totalCount`
 
@@ -335,6 +348,9 @@ scrollt.
 | `PlaylistService` | `LoadValidPlaylistEntriesAsync()` | Laden aller Einträge + Bereinigung verwaister Einträge (ohne Titel-Auflösung) |
 | `PlaylistService` | `SortPlaylistEntriesByReleaseDateAsync()` | Ermittelt Sortierschlüssel und sortiert die vollständige, gültige Eintragsliste |
 | `PlaylistService` | `LoadTitlesForMediaRefsAsync()` | Titel-Auflösung, beschränkt auf die übergebenen Referenzen (z. B. nur die aktuelle Seite) |
+| `PlaylistService` | `BuildEntryDtosAsync()` | Entity → DTO Konvertierung (Titel, `ResolvedPictureId`, `IsAccessible`), gemeinsam mit Ablauf 1/3 |
+| `PlaylistService` | `LoadPictureIdsForMediaRefsAsync()` | Bild-ID-Auflösung (Poster → Banner → Fanart), beschränkt auf die übergebenen Referenzen |
+| `PlaylistService` | `LoadUnlockedMediaIdsAsync()` | Bulk-Freischaltungsprüfung über `IUnlockedMediaService` für alle Einträge der Seite |
 | `PlaylistDetail.razor` | `LoadInitialPageAsync()` | Lädt die erste Seite beim Öffnen/Neuladen der Playlist |
 | `PlaylistDetail.razor` | `ItemsProviderAsync()` | Liefert der `Virtualize`-Komponente Einträge, lädt bei Bedarf weitere Seiten nach |
 

@@ -50,7 +50,9 @@ Fügt einen Medieninhalt (oder mehrere bei Cascade) zu einer Playlist hinzu.
     "parentMediaType": null,
     "parentMediaId": null,
     "parentMediaTitle": null,
-    "addedAt": "2026-09-05T14:30:00Z"
+    "addedAt": "2026-09-05T14:30:00Z",
+    "resolvedPictureId": 789,
+    "isAccessible": false
   },
   "addedEntries": [
     {
@@ -62,13 +64,20 @@ Fügt einen Medieninhalt (oder mehrere bei Cascade) zu einer Playlist hinzu.
       "parentMediaType": null,
       "parentMediaId": null,
       "parentMediaTitle": null,
-      "addedAt": "2026-09-05T14:30:00Z"
+      "addedAt": "2026-09-05T14:30:00Z",
+      "resolvedPictureId": 789,
+      "isAccessible": false
     }
   ],
   "skippedDuplicateCount": 0,
   "message": "3 Titel hinzugefuegt."
 }
 ```
+
+`resolvedPictureId` und `isAccessible` werden für `topLevelEntry` und `addedEntries` genauso
+ermittelt wie für die Lese-Endpunkte weiter unten (siehe Hinweise zu `DtoPlaylistEntry` im
+Abschnitt [DTO-Modelle](#dto-modelle)) — ein soeben hinzugefügter, noch nicht freigeschalteter
+Titel liefert also unmittelbar `isAccessible: false`.
 
 Die Antwort ist ein `DtoPlaylistAddResult`-Objekt (siehe [DTO-Modelle](#dto-modelle)). `topLevelEntry`
 ist `null`, wenn der angeforderte Top-Level-Eintrag bereits als Duplikat übersprungen wurde.
@@ -160,7 +169,9 @@ Ruft alle Medieninhalte einer Playlist ab. Verwaiste Einträge (deren Medieninha
     "parentMediaType": null,
     "parentMediaId": null,
     "parentMediaTitle": null,
-    "addedAt": "2026-09-05T14:30:00Z"
+    "addedAt": "2026-09-05T14:30:00Z",
+    "resolvedPictureId": 789,
+    "isAccessible": false
   },
   {
     "id": 457,
@@ -171,7 +182,9 @@ Ruft alle Medieninhalte einer Playlist ab. Verwaiste Einträge (deren Medieninha
     "parentMediaType": "TVShow",
     "parentMediaId": 123,
     "parentMediaTitle": "The Crown",
-    "addedAt": "2026-09-05T14:30:00Z"
+    "addedAt": "2026-09-05T14:30:00Z",
+    "resolvedPictureId": null,
+    "isAccessible": false
   }
 ]
 ```
@@ -229,6 +242,7 @@ still bereinigt.
       "parentMediaId": 200,
       "parentMediaTitle": "Season 1",
       "addedAt": "2026-09-05T14:30:00Z",
+      "resolvedPictureId": null,
       "isAccessible": true
     }
   ],
@@ -272,13 +286,25 @@ public class DtoPlaylistEntry
     public long? ParentMediaId { get; set; }       // null für Top-Level
     public string? ParentMediaTitle { get; set; }  // null für Top-Level, sonst Titel der Sammlung
     public DateTime AddedAt { get; set; }          // UTC
-    public bool IsAccessible { get; set; }         // aktuell serverseitig immer true (siehe Hinweis unten)
+    public long? ResolvedPictureId { get; set; }   // Bild-ID für die Anzeige, siehe Hinweis unten
+    public bool IsAccessible { get; set; }         // echte Freischaltungsprüfung, siehe Hinweis unten
 }
 ```
 
-**Hinweis zu `IsAccessible`:** Das Feld ist für eine spätere Freischaltungs-/Lizenzprüfung
-vorbereitet. Solange diese Prüfung nicht implementiert ist, liefert der Server für jeden Eintrag
-`true`.
+**Hinweis zu `ResolvedPictureId`:** Serverseitig bereits aufgelöste Bild-ID des referenzierten
+Medieninhalts, die der Client direkt an `GET /api/pictures/{id}` übergeben kann. Es wird das
+Poster-Bild verwendet; ist keines gesetzt, wird auf das Banner- und danach auf das Fanart-Bild
+zurückgegriffen. Ist keines der drei vorhanden, ist der Wert `null` und der Client zeigt einen
+Platzhalter an. Anders als `PosterPictureId` auf anderen DTOs (z. B. `DtoMovie`) kann dieser Wert
+also bereits eine Banner- oder Fanart-ID sein, da der Fallback serverseitig erfolgt.
+
+**Hinweis zu `IsAccessible`:** Gibt an, ob der aktuell angemeldete Anwender den referenzierten
+Medieninhalt freigeschaltet hat. Die Prüfung erfolgt über denselben Freischaltungsdienst wie bei
+Einzelfreischaltungen (siehe `einzelfreischaltungen.md`) und berücksichtigt ausschließlich die
+Medientypen `TVShow` und `MovieCollection`, da nur diese einzeln freigeschaltet werden können —
+Einträge der Typen `Movie`, `TVShowSeason` und `TVShowEpisode` liefern daher immer `false`. Der
+Wert dient ausschließlich der Anzeige (siehe `playlists.md`, Abschnitt „Zugriffsstatus in der
+Liste"); er verhindert nicht das Entfernen des Eintrags aus der Playlist.
 
 ### `DtoAddMediaToPlaylistRequest`
 

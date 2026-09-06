@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using VideoWebPlayer.Client.Models;
+using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Tests.Helpers;
 using Xunit;
@@ -105,5 +106,65 @@ public class PlaylistServiceTests_GetEntries : PlaylistServiceTestBase
         Assert.Equal(MediaTypeValues.TVShow, episodeEntry.ParentMediaType);
         Assert.Equal(show.Id, episodeEntry.ParentMediaId);
         Assert.Equal(show.Name, episodeEntry.ParentMediaTitle);
+    }
+
+    [Fact]
+    public async Task GetEntries_EntryNotUnlocked_IsNotAccessible()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var showId = await CreateTestMediaEntryAsync(MediaTypeValues.TVShow, "Eine Serie");
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.TVShow, showId));
+
+        var result = await _service.GetPlaylistEntriesAsync(playlistId, _testUserId, ct);
+
+        Assert.Single(result);
+        Assert.False(result[0].IsAccessible);
+    }
+
+    [Fact]
+    public async Task GetEntries_EntryUnlockedForCurrentUser_IsAccessible()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var showId = await CreateTestMediaEntryAsync(MediaTypeValues.TVShow, "Eine Serie");
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.TVShow, showId));
+        await UnlockMediaForUserAsync(_testUserId, MediaTypeValues.TVShow, showId);
+
+        var result = await _service.GetPlaylistEntriesAsync(playlistId, _testUserId, ct);
+
+        Assert.Single(result);
+        Assert.True(result[0].IsAccessible);
+    }
+
+    [Fact]
+    public async Task GetEntries_ResolvesResolvedPictureId_FromMediaEntity()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var movieId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Ein Film");
+        var poster = new Picture { Type = "poster", Data = [0x1], ContentType = "image/png" };
+        _db.Pictures.Add(poster);
+        await _db.SaveChangesAsync(ct);
+        var movie = await _db.Movies.FirstAsync(m => m.Id == movieId, ct);
+        movie.PosterPictureId = poster.Id;
+        await _db.SaveChangesAsync(ct);
+
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.Movie, movieId));
+
+        var result = await _service.GetPlaylistEntriesAsync(playlistId, _testUserId, ct);
+
+        Assert.Single(result);
+        Assert.Equal(poster.Id, result[0].ResolvedPictureId);
+    }
+
+    [Fact]
+    public async Task GetEntries_NoPictureSet_ResolvedPictureIdIsNull()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var movieId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Ein Film");
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.Movie, movieId));
+
+        var result = await _service.GetPlaylistEntriesAsync(playlistId, _testUserId, ct);
+
+        Assert.Single(result);
+        Assert.Null(result[0].ResolvedPictureId);
     }
 }

@@ -19,6 +19,7 @@ public sealed class PlaylistService : IPlaylistService
 {
     private readonly ApplicationDbContext _db;
     private readonly EventManager _eventManager;
+    private readonly IUnlockedMediaService _unlockedMediaService;
     private readonly PlaylistSettings _playlistSettings;
 
     /// <summary>
@@ -26,14 +27,17 @@ public sealed class PlaylistService : IPlaylistService
     /// </summary>
     /// <param name="db">Database context.</param>
     /// <param name="eventManager">Event manager used for publishing playlist events.</param>
+    /// <param name="unlockedMediaService">Service used to check per-entry unlock/access status.</param>
     /// <param name="playlistSettings">Optional playlist configuration.</param>
     public PlaylistService(
         ApplicationDbContext db,
         EventManager eventManager,
+        IUnlockedMediaService unlockedMediaService,
         IOptions<PlaylistSettings>? playlistSettings = null)
     {
         _db = db;
         _eventManager = eventManager;
+        _unlockedMediaService = unlockedMediaService;
         _playlistSettings = playlistSettings?.Value ?? new PlaylistSettings();
     }
 
@@ -154,7 +158,7 @@ public sealed class PlaylistService : IPlaylistService
         await _db.PlaylistEntries.AddRangeAsync(entriesToAdd, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
 
-        return await BuildAddResultAsync(entriesToAdd, skippedDuplicateCount, topLevelEntry, mediaTitle, cancellationToken);
+        return await BuildAddResultAsync(entriesToAdd, skippedDuplicateCount, topLevelEntry, userId, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -178,12 +182,7 @@ public sealed class PlaylistService : IPlaylistService
         await GetOwnedPlaylistAsync(playlistId, userId, cancellationToken);
 
         var validEntries = await LoadValidPlaylistEntriesAsync(playlistId, cancellationToken);
-        var titlesByType = await LoadTitlesForMediaRefsAsync(validEntries.Select(e => (e.MediaType, e.MediaId)), cancellationToken);
-        var parentTitlesByType = await LoadTitlesForMediaRefsAsync(GetParentMediaRefs(validEntries), cancellationToken);
-
-        return validEntries
-            .Select(entry => ToDto(entry, titlesByType[entry.MediaType][entry.MediaId], GetParentTitle(entry, parentTitlesByType)))
-            .ToArray();
+        return await BuildEntryDtosAsync(validEntries, userId, cancellationToken);
     }
 
     private async Task<Playlist> GetOwnedPlaylistAsync(long playlistId, string userId, CancellationToken cancellationToken)
@@ -266,6 +265,12 @@ public sealed class PlaylistService : IPlaylistService
         public required Func<ApplicationDbContext, IReadOnlyCollection<long>, CancellationToken, Task<Dictionary<long, DateTime?>>> LoadReleaseDateAsync { get; init; }
 
         public required Func<ApplicationDbContext, IReadOnlyCollection<long>, CancellationToken, Task<Dictionary<long, (long? ParentId, int? SequenceNumber)>>> GetHierarchySequenceAsync { get; init; }
+
+        /// <summary>
+        /// Bulk-loads the resolved picture id (poster, falling back to banner and then fanart) for each of
+        /// the given ids in a single query, matching the fallback convention used by <c>MediaBaseEntryList.razor</c>.
+        /// </summary>
+        public required Func<ApplicationDbContext, IReadOnlyCollection<long>, CancellationToken, Task<Dictionary<long, long?>>> LoadPictureIdsAsync { get; init; }
     }
 
     private static readonly IReadOnlyDictionary<MediaType, MediaTypeHandler> MediaTypeHandlers = new Dictionary<MediaType, MediaTypeHandler>
@@ -275,7 +280,15 @@ public sealed class PlaylistService : IPlaylistService
             LoadTitlesAsync = (db, ids, ct) => db.Movies.AsNoTracking().Where(m => ids.Contains(m.Id)).ToDictionaryAsync(m => m.Id, m => m.Name, ct),
             LoadExistingIdsAsync = (db, ids, ct) => db.Movies.AsNoTracking().Where(m => ids.Contains(m.Id)).Select(m => m.Id).ToHashSetAsync(ct),
             LoadReleaseDateAsync = (db, ids, ct) => db.Movies.AsNoTracking().Where(m => ids.Contains(m.Id)).ToDictionaryAsync(m => m.Id, m => m.ReleaseDate ?? m.PremieredAt, ct),
-            GetHierarchySequenceAsync = NoHierarchyAsync
+            GetHierarchySequenceAsync = NoHierarchyAsync,
+            LoadPictureIdsAsync = async (db, ids, ct) =>
+            {
+                var pictures = await db.Movies.AsNoTracking()
+                    .Where(m => ids.Contains(m.Id))
+                    .Select(m => new { m.Id, m.PosterPictureId, m.BannerPictureId, m.FanartPictureId })
+                    .ToListAsync(ct);
+                return pictures.ToDictionary(m => m.Id, m => m.PosterPictureId ?? m.BannerPictureId ?? m.FanartPictureId);
+            }
         },
         [MediaType.TVShowEpisode] = new MediaTypeHandler
         {
@@ -296,6 +309,14 @@ public sealed class PlaylistService : IPlaylistService
                     .Select(e => new { e.Id, e.TVShowSeasonId, e.Number })
                     .ToListAsync(ct);
                 return episodes.ToDictionary(e => e.Id, e => ((long?)e.TVShowSeasonId, (int?)e.Number));
+            },
+            LoadPictureIdsAsync = async (db, ids, ct) =>
+            {
+                var pictures = await db.TVShowEpisodes.AsNoTracking()
+                    .Where(e => ids.Contains(e.Id))
+                    .Select(e => new { e.Id, e.PosterPictureId, e.BannerPictureId, e.FanartPictureId })
+                    .ToListAsync(ct);
+                return pictures.ToDictionary(e => e.Id, e => e.PosterPictureId ?? e.BannerPictureId ?? e.FanartPictureId);
             }
         },
         [MediaType.TVShowSeason] = new MediaTypeHandler
@@ -331,6 +352,14 @@ public sealed class PlaylistService : IPlaylistService
                     .GroupBy(s => s.TVShowId)
                     .SelectMany(g => g.OrderBy(s => s.Id).Select((s, index) => (s.Id, ParentId: (long?)g.Key, SequenceNumber: (int?)(index + 1))))
                     .ToDictionary(x => x.Id, x => (x.ParentId, x.SequenceNumber));
+            },
+            LoadPictureIdsAsync = async (db, ids, ct) =>
+            {
+                var pictures = await db.TVShowSeasons.AsNoTracking()
+                    .Where(s => ids.Contains(s.Id))
+                    .Select(s => new { s.Id, s.PosterPictureId, s.BannerPictureId, s.FanartPictureId })
+                    .ToListAsync(ct);
+                return pictures.ToDictionary(s => s.Id, s => s.PosterPictureId ?? s.BannerPictureId ?? s.FanartPictureId);
             }
         },
         [MediaType.TVShow] = new MediaTypeHandler
@@ -363,7 +392,15 @@ public sealed class PlaylistService : IPlaylistService
                     .ToListAsync(ct);
                 return shows.ToDictionary(t => t.Id, t => t.PremieredAt ?? t.FirstEpisodeDate);
             },
-            GetHierarchySequenceAsync = NoHierarchyAsync
+            GetHierarchySequenceAsync = NoHierarchyAsync,
+            LoadPictureIdsAsync = async (db, ids, ct) =>
+            {
+                var pictures = await db.TVShows.AsNoTracking()
+                    .Where(t => ids.Contains(t.Id))
+                    .Select(t => new { t.Id, t.PosterPictureId, t.BannerPictureId, t.FanartPictureId })
+                    .ToListAsync(ct);
+                return pictures.ToDictionary(t => t.Id, t => t.PosterPictureId ?? t.BannerPictureId ?? t.FanartPictureId);
+            }
         },
         [MediaType.MovieCollection] = new MediaTypeHandler
         {
@@ -375,7 +412,15 @@ public sealed class PlaylistService : IPlaylistService
                 return movieIds.Select(movieId => (MediaType.Movie, movieId)).ToList();
             },
             LoadReleaseDateAsync = (db, ids, ct) => db.MovieCollections.AsNoTracking().Where(c => ids.Contains(c.Id)).ToDictionaryAsync(c => c.Id, c => c.ReleaseDate ?? c.PremieredAt, ct),
-            GetHierarchySequenceAsync = NoHierarchyAsync
+            GetHierarchySequenceAsync = NoHierarchyAsync,
+            LoadPictureIdsAsync = async (db, ids, ct) =>
+            {
+                var pictures = await db.MovieCollections.AsNoTracking()
+                    .Where(c => ids.Contains(c.Id))
+                    .Select(c => new { c.Id, c.PosterPictureId, c.BannerPictureId, c.FanartPictureId })
+                    .ToListAsync(ct);
+                return pictures.ToDictionary(c => c.Id, c => c.PosterPictureId ?? c.BannerPictureId ?? c.FanartPictureId);
+            }
         }
     };
 
@@ -460,18 +505,9 @@ public sealed class PlaylistService : IPlaylistService
     }
 
     private async Task<DtoPlaylistAddResult> BuildAddResultAsync(
-        List<PlaylistEntry> entriesToAdd, int skippedDuplicateCount, PlaylistEntry? topLevelEntry, string mediaTitle, CancellationToken cancellationToken)
+        List<PlaylistEntry> entriesToAdd, int skippedDuplicateCount, PlaylistEntry? topLevelEntry, string userId, CancellationToken cancellationToken)
     {
-        var titlesByType = new Dictionary<string, Dictionary<long, string>>();
-        foreach (var group in entriesToAdd.GroupBy(e => e.MediaType))
-            titlesByType[group.Key] = await GetMediaTitlesAsync(group.Key, group.Select(e => e.MediaId).ToHashSet(), cancellationToken);
-
-        var addedEntries = entriesToAdd
-            .Select(e => ToDto(
-                e,
-                titlesByType[e.MediaType].TryGetValue(e.MediaId, out var title) ? title : string.Empty,
-                e.ParentMediaType is null ? null : mediaTitle))
-            .ToArray();
+        var addedEntries = await BuildEntryDtosAsync(entriesToAdd, userId, cancellationToken);
 
         var message = entriesToAdd.Count switch
         {
@@ -485,7 +521,7 @@ public sealed class PlaylistService : IPlaylistService
 
         return new DtoPlaylistAddResult
         {
-            TopLevelEntry = topLevelEntry is null ? null : ToDto(topLevelEntry, mediaTitle, null),
+            TopLevelEntry = topLevelEntry is null ? null : addedEntries[entriesToAdd.IndexOf(topLevelEntry)],
             AddedEntries = addedEntries,
             SkippedDuplicateCount = skippedDuplicateCount,
             Message = message
@@ -532,19 +568,107 @@ public sealed class PlaylistService : IPlaylistService
         return await handler.LoadExistingIdsAsync(_db, mediaIds, cancellationToken);
     }
 
-    private static DtoPlaylistEntry ToDto(PlaylistEntry playlistEntry, string mediaTitle, string? parentMediaTitle) => new()
+    /// <summary>
+    /// Builds the <see cref="DtoPlaylistEntry"/> array for the given entries, resolving titles, resolved
+    /// picture ids and unlock/access status in bulk (a handful of queries scaled to media type, not to
+    /// the number of entries), analogous to <see cref="LoadTitlesForMediaRefsAsync"/>.
+    /// </summary>
+    /// <param name="entries">The playlist entries to convert.</param>
+    /// <param name="userId">The id of the user the accessibility check is performed for.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The resulting <see cref="DtoPlaylistEntry"/> array, in the same order as <paramref name="entries"/>.</returns>
+    private async Task<DtoPlaylistEntry[]> BuildEntryDtosAsync(List<PlaylistEntry> entries, string userId, CancellationToken cancellationToken)
     {
-        Id = playlistEntry.Id,
-        PlaylistId = playlistEntry.PlaylistId,
-        MediaType = playlistEntry.MediaType,
-        MediaId = playlistEntry.MediaId,
-        MediaTitle = mediaTitle,
-        ParentMediaType = playlistEntry.ParentMediaType,
-        ParentMediaId = playlistEntry.ParentMediaId,
-        ParentMediaTitle = parentMediaTitle,
-        AddedAt = playlistEntry.AddedAt,
-        IsAccessible = true
-    };
+        var titlesByType = await LoadTitlesForMediaRefsAsync(entries.Select(e => (e.MediaType, e.MediaId)), cancellationToken);
+        var parentTitlesByType = await LoadTitlesForMediaRefsAsync(GetParentMediaRefs(entries), cancellationToken);
+        var pictureIdsByType = await LoadPictureIdsForMediaRefsAsync(entries.Select(e => (e.MediaType, e.MediaId)), cancellationToken);
+        var (unlockedMovieCollectionIds, unlockedTVShowIds) = await LoadUnlockedMediaIdsAsync(userId, cancellationToken);
+
+        return entries
+            .Select(entry => new DtoPlaylistEntry
+            {
+                Id = entry.Id,
+                PlaylistId = entry.PlaylistId,
+                MediaType = entry.MediaType,
+                MediaId = entry.MediaId,
+                MediaTitle = titlesByType[entry.MediaType][entry.MediaId],
+                ParentMediaType = entry.ParentMediaType,
+                ParentMediaId = entry.ParentMediaId,
+                ParentMediaTitle = GetParentTitle(entry, parentTitlesByType),
+                AddedAt = entry.AddedAt,
+                ResolvedPictureId = GetPictureId(entry, pictureIdsByType),
+                IsAccessible = IsEntryAccessible(entry, unlockedMovieCollectionIds, unlockedTVShowIds)
+            })
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Loads the resolved picture ids (poster, falling back to banner and then fanart) for the given
+    /// (media type, media id) references, grouped by media type, scaled to only the references actually
+    /// passed in (e.g. a single page of entries) rather than an entire playlist. Mirrors
+    /// <see cref="LoadTitlesForMediaRefsAsync"/>.
+    /// </summary>
+    /// <param name="mediaRefs">The (media type, media id) references to resolve picture ids for.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A dictionary of media type to a dictionary of media id to resolved picture id.</returns>
+    private async Task<Dictionary<string, Dictionary<long, long?>>> LoadPictureIdsForMediaRefsAsync(
+        IEnumerable<(string MediaType, long MediaId)> mediaRefs, CancellationToken cancellationToken)
+    {
+        var idsByType = new Dictionary<string, HashSet<long>>();
+        foreach (var (mediaType, mediaId) in mediaRefs)
+            AddMediaId(idsByType, mediaType, mediaId);
+
+        var pictureIdsByType = new Dictionary<string, Dictionary<long, long?>>();
+        foreach (var (mediaType, mediaIds) in idsByType)
+        {
+            if (!TryParseKnownMediaType(mediaType, out var parsedType))
+                continue;
+
+            var handler = MediaTypeHandlers[parsedType];
+            pictureIdsByType[mediaType] = await handler.LoadPictureIdsAsync(_db, mediaIds, cancellationToken);
+        }
+
+        return pictureIdsByType;
+    }
+
+    private static long? GetPictureId(PlaylistEntry entry, Dictionary<string, Dictionary<long, long?>> pictureIdsByType)
+        => pictureIdsByType.TryGetValue(entry.MediaType, out var pictureIds) && pictureIds.TryGetValue(entry.MediaId, out var pictureId)
+            ? pictureId
+            : null;
+
+    // Bulk-loads the ids of all movie collections and TV shows currently unlocked for the given user,
+    // via IUnlockedMediaService.GetUnlockedMovieCollectionIdsForUserAsync and
+    // IUnlockedMediaService.GetUnlockedTVShowIdsForUserAsync (one query each, regardless of the number
+    // of playlist entries), so accessibility can then be checked per entry in-memory.
+    private async Task<(HashSet<long> UnlockedMovieCollectionIds, HashSet<long> UnlockedTVShowIds)> LoadUnlockedMediaIdsAsync(
+        string userId, CancellationToken cancellationToken)
+    {
+        var unlockedMovieCollectionIds = await _unlockedMediaService.GetUnlockedMovieCollectionIdsForUserAsync(userId, cancellationToken);
+        var unlockedTVShowIds = await _unlockedMediaService.GetUnlockedTVShowIdsForUserAsync(userId, cancellationToken);
+        return (unlockedMovieCollectionIds.ToHashSet(), unlockedTVShowIds.ToHashSet());
+    }
+
+    /// <summary>
+    /// Checks whether the given entry is accessible, based on the given sets of unlocked movie
+    /// collection and TV show ids. Only movie collections and TV shows can be unlocked; other media
+    /// types (movies, seasons, episodes) are therefore never reported as accessible.
+    /// </summary>
+    /// <param name="entry">The playlist entry to check.</param>
+    /// <param name="unlockedMovieCollectionIds">The ids of movie collections unlocked for the user.</param>
+    /// <param name="unlockedTVShowIds">The ids of TV shows unlocked for the user.</param>
+    /// <returns><c>true</c> if the entry is accessible; otherwise, <c>false</c>.</returns>
+    private static bool IsEntryAccessible(PlaylistEntry entry, HashSet<long> unlockedMovieCollectionIds, HashSet<long> unlockedTVShowIds)
+    {
+        if (!TryParseKnownMediaType(entry.MediaType, out var parsedType))
+            return false;
+
+        return parsedType switch
+        {
+            MediaType.MovieCollection => unlockedMovieCollectionIds.Contains(entry.MediaId),
+            MediaType.TVShow => unlockedTVShowIds.Contains(entry.MediaId),
+            _ => false
+        };
+    }
 
     /// <inheritdoc />
     public async Task<DtoPlaylistEntriesPagedResult> GetPlaylistEntriesPagedAsync(long playlistId, string userId, int pageNumber, int pageSize, CancellationToken cancellationToken = default)
@@ -561,14 +685,10 @@ public sealed class PlaylistService : IPlaylistService
         var skip = (pageNumber - 1) * pageSize;
         var pageEntries = sortedEntries.Skip(skip).Take(pageSize).ToList();
 
-        // Title resolution is scaled to the returned page only (not the whole playlist), since it is the
-        // only per-entry lookup that isn't already required for orphan detection or sorting.
-        var titlesByType = await LoadTitlesForMediaRefsAsync(pageEntries.Select(e => (e.MediaType, e.MediaId)), cancellationToken);
-        var parentTitlesByType = await LoadTitlesForMediaRefsAsync(GetParentMediaRefs(pageEntries), cancellationToken);
-
-        var dtoEntries = pageEntries
-            .Select(entry => ToDto(entry, titlesByType[entry.MediaType][entry.MediaId], GetParentTitle(entry, parentTitlesByType)))
-            .ToArray();
+        // Title/picture/accessibility resolution is scaled to the returned page only (not the whole
+        // playlist), since these are the only per-entry lookups that aren't already required for orphan
+        // detection or sorting.
+        var dtoEntries = await BuildEntryDtosAsync(pageEntries, userId, cancellationToken);
 
         return new DtoPlaylistEntriesPagedResult
         {

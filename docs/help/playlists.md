@@ -58,7 +58,21 @@ Von der Detailseite aus lassen sich die gleichen Aktionen wie in der Übersicht 
 ## Inhalte hinzufügen und entfernen
 
 Unterhalb der Stammdaten zeigt die Detailseite die Liste der Inhalte („Einträge") dieser Playlist
-mit Typ, Titel, zugehöriger Sammlung (falls vorhanden) und Hinzufügedatum.
+mit Titelbild, Typ, Titel, zugehöriger Sammlung (falls vorhanden) und Hinzufügedatum.
+
+### Titelbild
+
+Jeder Eintrag zeigt ein kleines Titelbild des referenzierten Inhalts (Film, Serie, Staffel,
+Episode oder Filmsammlung). Ist für den Inhalt kein eigenes Bild hinterlegt, erscheint stattdessen
+ein Platzhalterbild.
+
+### Zugriffsstatus in der Liste
+
+Serien und Filmsammlungen, die für den angemeldeten Anwender nicht freigeschaltet sind, werden in
+der Liste optisch abgeblendet dargestellt, um anzuzeigen, dass die enthaltenen Inhalte derzeit
+nicht angeschaut werden können. Der **Entfernen**-Button bleibt für solche Einträge weiterhin
+nutzbar — der Anwender kann einen nicht freigeschalteten Eintrag also jederzeit aus der Playlist
+entfernen.
 
 ### Sortierung und Anzeige
 

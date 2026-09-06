@@ -402,10 +402,10 @@ Mögliche zukünftige Änderungen für späteren Ausbau:
    - `Watched` (bool) — Benutzer hat Eintrag bereits gesehen
    - `Rating` (decimal, nullable) — Benutzerbewertung
 
-4. **Zugriffs-/Lizenzprüfung (zukünftig):**
-   `DtoPlaylistEntry.IsAccessible` ist bereits vorbereitet und liefert aktuell immer `true`
-   (siehe `playlists-api.md`). Eine echte Prüfung würde vermutlich keine Änderung an
-   `PlaylistEntry` selbst erfordern, sondern einen zusätzlichen Dienst, der pro Anfrage befragt
-   wird.
+4. **Zugriffs-/Lizenzprüfung — bereits umgesetzt, ohne Schemaänderung:**
+   `DtoPlaylistEntry.IsAccessible` wird zur Laufzeit über `IUnlockedMediaService` ermittelt
+   (siehe `playlists-api.md`) und benötigt keine zusätzlichen Spalten an `PlaylistEntry` selbst:
+   Die Freischaltungsdaten für Serien und Filmsammlungen liegen bereits in der bestehenden
+   `UnlockedMediaEntry`-Tabelle, die pro Anfrage befragt wird (siehe `einzelfreischaltungen.md`).
 
 Änderungen 2–3 würden Migrationen erfordern, würden aber keine Breaking Changes darstellen.

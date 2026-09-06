@@ -10,7 +10,6 @@ using VideoWebPlayer.Configuration;
 using VideoWebPlayer.Controllers;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
-using VideoWebPlayer.Services.Authentication;
 
 namespace VideoWebPlayer.Tests.Helpers;
 
@@ -58,7 +57,8 @@ public abstract class PlaylistsControllerTestBase : IDisposable
     protected PlaylistsController CreateController(PlaylistSettings playlistSettings)
     {
         var options = Options.Create(playlistSettings);
-        var playlistService = new PlaylistService(_db, _eventManager, options);
+        var unlockedMediaService = new UnlockedMediaService(_db, _fakeAuth);
+        var playlistService = new PlaylistService(_db, _eventManager, unlockedMediaService, options);
 
         return new PlaylistsController(playlistService, _fakeAuth, NullLogger<PlaylistsController>.Instance, options)
         {
@@ -69,14 +69,5 @@ public abstract class PlaylistsControllerTestBase : IDisposable
     public void Dispose()
     {
         _keeperConnection.Dispose();
-    }
-
-    public sealed class FakeAuthService : IAuthService
-    {
-        public ApplicationUser? CurrentUser { get; set; }
-
-        public Task<AuthorizationToken> ImpersonateAsync(ImpersonateRequest request) => Task.FromResult(new AuthorizationToken());
-
-        public Task<AuthorizationToken> LoginAsync(AuthenticationRequest request) => Task.FromResult(new AuthorizationToken());
     }
 }

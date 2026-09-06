@@ -220,6 +220,87 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
         await db.SaveChangesAsync();
     }
 
+    /// <summary>
+    /// Seeds a TV show directly in the database and adds it as a top-level entry to the playlist with
+    /// the given name, for use in E2E tests covering real unlock/access behavior (only TV shows and
+    /// movie collections are recognized by <see cref="VideoWebPlayer.Services.IUnlockedMediaService"/>).
+    /// </summary>
+    protected async Task<long> SeedTvShowIntoPlaylistAsync(string playlistName, string showName)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var playlist = await db.Playlists.FirstAsync(p => p.Name == playlistName);
+        var sourceId = await EnsureMediaSourceIdAsync(db);
+
+        var show = new TVShow { Name = showName, MediaSourceId = sourceId, CreatedAt = DateTime.UtcNow };
+        db.TVShows.Add(show);
+        await db.SaveChangesAsync();
+
+        db.PlaylistEntries.Add(new PlaylistEntry
+        {
+            PlaylistId = playlist.Id,
+            MediaType = MediaTypeValues.TVShow,
+            MediaId = show.Id,
+            AddedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+
+        return show.Id;
+    }
+
+    /// <summary>
+    /// Seeds a movie with a real poster picture directly in the database and adds it as a top-level
+    /// entry to the playlist with the given name, for use in E2E tests covering the playlist image column.
+    /// </summary>
+    protected async Task<long> SeedMovieWithPosterIntoPlaylistAsync(string playlistName, string movieName)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var playlist = await db.Playlists.FirstAsync(p => p.Name == playlistName);
+        var sourceId = await EnsureMediaSourceIdAsync(db);
+
+        // A real (if minimal) 1x1 transparent GIF is used here instead of arbitrary bytes: the browser
+        // fetches the picture successfully either way, but only valid image data actually decodes and
+        // renders, so arbitrary bytes would trigger the <img> element's onerror fallback despite the
+        // HTTP request succeeding.
+        var pixelGif = Convert.FromBase64String("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBTAA7");
+        var picture = new Picture { Type = "poster", Data = pixelGif, ContentType = "image/gif" };
+        db.Pictures.Add(picture);
+        await db.SaveChangesAsync();
+
+        var movie = new Movie { Name = movieName, MediaSourceId = sourceId, CreatedAt = DateTime.UtcNow, PosterPictureId = picture.Id };
+        db.Movies.Add(movie);
+        await db.SaveChangesAsync();
+
+        db.PlaylistEntries.Add(new PlaylistEntry
+        {
+            PlaylistId = playlist.Id,
+            MediaType = MediaTypeValues.Movie,
+            MediaId = movie.Id,
+            AddedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+
+        return movie.Id;
+    }
+
+    /// <summary>
+    /// Grants the given user unlocked access to a movie collection or TV show by inserting an
+    /// <see cref="UnlockedMediaEntry"/> directly in the database, for use in E2E tests that need to
+    /// manipulate the real per-user unlock/access status of a playlist entry.
+    /// </summary>
+    protected async Task UnlockMediaForUserAsync(string userEmail, string mediaType, long mediaId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = await userManager.FindByEmailAsync(userEmail)
+            ?? throw new InvalidOperationException($"Benutzer {userEmail} wurde nicht gefunden.");
+
+        db.UnlockedMediaEntries.Add(UnlockedMediaTestHelper.CreateUnlockedMediaEntry(user.Id, mediaType, mediaId));
+        await db.SaveChangesAsync();
+    }
+
     private static async Task<long> EnsureMediaSourceIdAsync(ApplicationDbContext db)
     {
         var existing = await db.MediaSources.FirstOrDefaultAsync();

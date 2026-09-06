@@ -1,5 +1,7 @@
+using System.Text.RegularExpressions;
 using Microsoft.Playwright;
 using static Microsoft.Playwright.Assertions;
+using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
@@ -220,23 +222,115 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
     }
 
     /// <summary>
-    /// Verifies the baseline appearance of accessible entries: since license/access checking is not
-    /// yet implemented, <c>DtoPlaylistEntry.IsAccessible</c> is currently always <c>true</c>, so no
-    /// entry is expected to carry the reduced-opacity styling reserved for inaccessible content.
+    /// Verifies the appearance of a genuinely accessible entry: a TV show that has been explicitly
+    /// unlocked for the current user via the unlocked-media service is expected to be
+    /// rendered without the reduced-opacity styling reserved for inaccessible content.
     /// </summary>
     [Fact]
-    public async Task PlaylistDetail_DoesNotShowReducedOpacity_WhenAllEntriesAccessible()
+    public async Task PlaylistDetail_DoesNotShowReducedOpacity_WhenEntryIsUnlocked()
     {
         if (SkipBrowser)
             return;
 
         await LoginAsync(UserAEmail);
-        var row = await CreatePlaylistViaUiAsync("Infinity-Zugriffsstatus");
-        await SeedMoviesIntoPlaylistAsync("Infinity-Zugriffsstatus", 3);
+        var row = await CreatePlaylistViaUiAsync("Zugriffsstatus-Freigeschaltet");
+        var showId = await SeedTvShowIntoPlaylistAsync("Zugriffsstatus-Freigeschaltet", "Freigeschaltete Serie");
+        await UnlockMediaForUserAsync(UserAEmail, MediaTypeValues.TVShow, showId);
         await row.Locator(".playlist-open-button").ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
         await Page.WaitForTimeoutAsync(1500);
 
-        await Expect(Page.Locator(".playlist-entry-row.opacity-50")).ToHaveCountAsync(0);
+        await Expect(Page.Locator($".playlist-entry-row[data-media-id='{showId}']")).Not.ToHaveClassAsync(new Regex("opacity-50"));
+    }
+
+    /// <summary>
+    /// Verifies the actual graying behavior for entries without a real unlock: a TV show that has
+    /// not been explicitly unlocked for the current user is rendered with the reduced-opacity styling,
+    /// while a sibling entry that has been unlocked is not.
+    /// </summary>
+    [Fact]
+    public async Task PlaylistDetail_ShowsReducedOpacity_WhenEntryNotAccessible()
+    {
+        if (SkipBrowser)
+            return;
+
+        await LoginAsync(UserAEmail);
+        var row = await CreatePlaylistViaUiAsync("Zugriffsstatus-Gemischt");
+        var lockedShowId = await SeedTvShowIntoPlaylistAsync("Zugriffsstatus-Gemischt", "Gesperrte Serie");
+        var unlockedShowId = await SeedTvShowIntoPlaylistAsync("Zugriffsstatus-Gemischt", "Freigeschaltete Serie");
+        await UnlockMediaForUserAsync(UserAEmail, MediaTypeValues.TVShow, unlockedShowId);
+        await row.Locator(".playlist-open-button").ClickAsync();
+        await Page.WaitForSelectorAsync("#playlist-detail-name");
+        await Page.WaitForTimeoutAsync(1500);
+
+        await Expect(Page.Locator($".playlist-entry-row[data-media-id='{lockedShowId}']")).ToHaveClassAsync(new Regex("opacity-50"));
+        await Expect(Page.Locator($".playlist-entry-row[data-media-id='{unlockedShowId}']")).Not.ToHaveClassAsync(new Regex("opacity-50"));
+    }
+
+    /// <summary>
+    /// Verifies that the "Entfernen" button stays enabled for inaccessible entries, so the playlist
+    /// owner can still remove them even though they are grayed out.
+    /// </summary>
+    [Fact]
+    public async Task PlaylistDetail_RemoveButton_EnabledForAllEntries()
+    {
+        if (SkipBrowser)
+            return;
+
+        await LoginAsync(UserAEmail);
+        var row = await CreatePlaylistViaUiAsync("Entfernen-Trotz-Sperre");
+        var lockedShowId = await SeedTvShowIntoPlaylistAsync("Entfernen-Trotz-Sperre", "Gesperrte Serie");
+        await row.Locator(".playlist-open-button").ClickAsync();
+        await Page.WaitForSelectorAsync("#playlist-detail-name");
+        await Page.WaitForTimeoutAsync(1500);
+
+        var lockedRow = Page.Locator($".playlist-entry-row[data-media-id='{lockedShowId}']");
+        await Expect(lockedRow).ToHaveClassAsync(new Regex("opacity-50"));
+        var removeButton = lockedRow.Locator(".playlist-entry-remove-button");
+        await Expect(removeButton).ToBeVisibleAsync();
+        await Expect(removeButton).ToBeEnabledAsync();
+
+        await removeButton.ClickAsync();
+        await Page.WaitForTimeoutAsync(1000);
+
+        await Expect(Page.Locator($".playlist-entry-row[data-media-id='{lockedShowId}']")).ToHaveCountAsync(0);
+    }
+
+    /// <summary>
+    /// Verifies that each playlist entry displays a title image: an entry with a poster picture
+    /// resolves it via the pictures API, and an entry without one falls back to the placeholder image.
+    /// </summary>
+    [Fact]
+    public async Task PlaylistDetail_DisplaysImageForEachEntry()
+    {
+        if (SkipBrowser)
+            return;
+
+        var failedImageResponses = new List<string>();
+        Page.Response += (_, response) =>
+        {
+            if (response.Status >= 400 && response.Url.Contains("/api/pictures/"))
+                failedImageResponses.Add($"{response.Status} {response.Url}");
+        };
+
+        await LoginAsync(UserAEmail);
+        var row = await CreatePlaylistViaUiAsync("Bildspalte-Test");
+        var moviePosterId = await SeedMovieWithPosterIntoPlaylistAsync("Bildspalte-Test", "Film Mit Poster");
+        var showWithoutPosterId = await SeedTvShowIntoPlaylistAsync("Bildspalte-Test", "Serie Ohne Poster");
+        await row.Locator(".playlist-open-button").ClickAsync();
+        await Page.WaitForSelectorAsync("#playlist-detail-name");
+        await Page.WaitForTimeoutAsync(1500);
+
+        // Movie and TVShow ids are independently auto-incremented, so the media type must be
+        // included in the selector to uniquely identify each row.
+        var posterImage = Page.Locator($".playlist-entry-row[data-media-type='{MediaTypeValues.Movie}'][data-media-id='{moviePosterId}'] .playlist-entry-image");
+        await Expect(posterImage).ToHaveCountAsync(1);
+        await Expect(posterImage).ToHaveAttributeAsync("src", new Regex("/api/pictures/"));
+
+        var placeholderImage = Page.Locator($".playlist-entry-row[data-media-type='{MediaTypeValues.TVShow}'][data-media-id='{showWithoutPosterId}'] .playlist-entry-image");
+        await Expect(placeholderImage).ToHaveCountAsync(1);
+        await Expect(placeholderImage).ToHaveAttributeAsync("src", new Regex("/images/placeholder.png"));
+
+        Assert.Empty(failedImageResponses);
     }
 }

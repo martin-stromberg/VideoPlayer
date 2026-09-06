@@ -218,6 +218,127 @@ public sealed class VideoWebPlayerBackupDataTests
         Assert.Equal(userId, (await db.Users.FirstAsync(TestContext.Current.CancellationToken)).Id);
     }
 
+    [Fact]
+    public async Task ReadFromAsync_LegacyBackupWithoutPlaylistsAndPlaylistEntries_RestoresSuccessfully()
+    {
+        // Prepare a current database with a valid admin user and setup.
+        var connectionString = "Data Source=file:backuptest-playlists?mode=memory&cache=shared";
+        using var connection = new SqliteConnection(connectionString);
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
+
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        await using var db = new ApplicationDbContext(options, new EventManager());
+        await db.Database.EnsureCreatedAsync(TestContext.Current.CancellationToken);
+
+        var userId = Guid.NewGuid().ToString();
+        db.Users.Add(new ApplicationUser
+        {
+            Id = userId,
+            UserName = "admin",
+            NormalizedUserName = "ADMIN",
+            Email = "admin@test.de",
+            NormalizedEmail = "ADMIN@TEST.DE",
+            PasswordHash = "hash",
+            SecurityStamp = "stamp",
+            ConcurrencyStamp = Guid.NewGuid().ToString(),
+            Sources = string.Empty,
+            IsAdmin = true
+        });
+
+        db.Setups.Add(new Setup
+        {
+            DataVersion = 1,
+            GenresChanged = false,
+            ContinueWatchingEndThresholdSeconds = 42
+        });
+
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var environment = new FakeWebHostEnvironment();
+        var logger = NullLogger<VideoWebPlayerBackupData>.Instance;
+        var factory = new VideoWebPlayerBackupDataFactory(new ServiceCollection().BuildServiceProvider(), environment, logger)
+        {
+            UserId = userId
+        };
+
+        var backup = new VideoWebPlayerBackupData(
+            "test",
+            "VideoWebPlayer:Database",
+            db,
+            environment,
+            logger,
+            factory);
+
+        // Create a backup of the current schema.
+        using var currentStream = new MemoryStream();
+        await backup.WriteToAsync(currentStream, TestContext.Current.CancellationToken);
+        currentStream.Position = 0;
+
+        // Simulate a backup created before the Playlists/PlaylistEntries tables existed.
+        using var originalArchive = new ZipArchive(currentStream, ZipArchiveMode.Read, true);
+        using var legacyStream = new MemoryStream();
+
+        using (var legacyArchive = new ZipArchive(legacyStream, ZipArchiveMode.Create, true))
+        {
+            var indexEntry = originalArchive.GetEntry("index.json")!;
+            JsonNode? indexNode;
+            using (var indexStream = indexEntry.Open())
+            {
+                indexNode = await JsonNode.ParseAsync(indexStream, cancellationToken: TestContext.Current.CancellationToken);
+            }
+
+            var tables = indexNode!["tables"]!.AsArray();
+            var removedEntryNames = new List<string>();
+
+            foreach (var tableName in new[] { "Playlists", "PlaylistEntries" })
+            {
+                var table = tables.FirstOrDefault(t =>
+                    string.Equals(t!["name"]!.GetValue<string>(), tableName, StringComparison.OrdinalIgnoreCase));
+                if (table is null)
+                    continue;
+
+                removedEntryNames.Add(table["entryName"]!.GetValue<string>());
+                tables.RemoveAt(tables.IndexOf(table));
+            }
+
+            var newIndexEntry = legacyArchive.CreateEntry("index.json");
+            using (var newIndexStream = newIndexEntry.Open())
+            {
+                await using var writer = new Utf8JsonWriter(newIndexStream, new JsonWriterOptions { Indented = true });
+                indexNode!.WriteTo(writer, JsonOptions);
+                await writer.FlushAsync(TestContext.Current.CancellationToken);
+            }
+
+            foreach (var entry in originalArchive.Entries)
+            {
+                if (entry.FullName == "index.json")
+                    continue;
+
+                if (removedEntryNames.Any(name => string.Equals(entry.FullName, name, StringComparison.OrdinalIgnoreCase)))
+                    continue;
+
+                var newEntry = legacyArchive.CreateEntry(entry.FullName);
+                using var sourceStream = entry.Open();
+                using var destinationStream = newEntry.Open();
+                await sourceStream.CopyToAsync(destinationStream, TestContext.Current.CancellationToken);
+            }
+        }
+
+        legacyStream.Position = 0;
+
+        // This must not throw even though the backup lacks the new tables.
+        var exception = await Record.ExceptionAsync(async () =>
+            await backup.ReadFromAsync(legacyStream, TestContext.Current.CancellationToken));
+
+        Assert.Null(exception);
+        Assert.False(await db.Playlists.AnyAsync(TestContext.Current.CancellationToken));
+        Assert.False(await db.PlaylistEntries.AnyAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(userId, (await db.Users.FirstAsync(TestContext.Current.CancellationToken)).Id);
+    }
+
     private sealed class FakeWebHostEnvironment : IWebHostEnvironment
     {
         public string ApplicationName { get; set; } = "VideoWebPlayer";

@@ -27,7 +27,9 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         nameof(ApplicationDbContext.WatchedEntries),
         nameof(ApplicationDbContext.Actors),
         nameof(ApplicationDbContext.MovieActors),
-        nameof(ApplicationDbContext.TVShowEpisodeActors)
+        nameof(ApplicationDbContext.TVShowEpisodeActors),
+        nameof(ApplicationDbContext.Playlists),
+        nameof(ApplicationDbContext.PlaylistEntries)
     };
 
     private static readonly HashSet<string> OptionalRestoreColumns = new(StringComparer.OrdinalIgnoreCase)

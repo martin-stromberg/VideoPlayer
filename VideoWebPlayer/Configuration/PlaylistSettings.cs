@@ -15,5 +15,15 @@ namespace VideoWebPlayer.Configuration
         /// Enforced in <see cref="VideoWebPlayer.Services.PlaylistService.AddMediaToPlaylistAsync"/>, counting cascade entries.
         /// </summary>
         public int? MaxPlaylistItemCount { get; set; }
+
+        /// <summary>
+        /// Gets or sets the default page size used for paginated retrieval of playlist entries.
+        /// </summary>
+        public int DefaultPageSize { get; set; } = 20;
+
+        /// <summary>
+        /// Gets or sets the maximum page size allowed for paginated retrieval of playlist entries.
+        /// </summary>
+        public int MaxPageSize { get; set; } = 100;
     }
 }

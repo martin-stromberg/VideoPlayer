@@ -192,6 +192,68 @@ Ruft alle Medieninhalte einer Playlist ab. Verwaiste Einträge (deren Medieninha
 
 ---
 
+### `GET /api/playlists/{id}/entries/paged` — Sortierte, paginierte Einträge abrufen
+
+Ruft eine sortierte Seite der Medieninhalte einer Playlist ab. Wird von der Detailseite verwendet,
+um Einträge beim Scrollen schrittweise nachzuladen (Virtual Scrolling), statt immer die komplette
+Liste auf einmal zu übertragen. Verwaiste Einträge werden dabei wie beim unpaginierten Endpunkt
+still bereinigt.
+
+**Parameter:**
+
+| Name | Position | Typ | Erforderlich | Beschreibung |
+|------|----------|-----|-------------|--------------|
+| `id` | Route | long | Ja | Playlist-ID |
+| `pageNumber` | Query | int | Nein | 1-basierte Seitennummer (Standard: `1`); muss ≥ 1 sein |
+| `pageSize` | Query | int | Nein | Anzahl Einträge pro Seite (Standard: `Playlists:DefaultPageSize`, `20`); muss zwischen 1 und `Playlists:MaxPageSize` (`100`) liegen |
+
+**Sortierlogik:**
+
+- Playlist-Sortiermodus `ByReleaseDate`: primär nach Erscheinungsdatum des referenzierten
+  Medieninhalts (aufsteigend); fehlt dieses, Fallback auf die Hierarchie (übergeordnete
+  Serie/Staffel, dann Episoden- bzw. Staffelnummer); fehlt auch das, Fallback auf `AddedAt`.
+- Playlist-Sortiermodus `Manual`: nach `AddedAt` (aufsteigend).
+
+**Erfolgreiche Antwort (HTTP 200):**
+
+```json
+{
+  "entries": [
+    {
+      "id": 456,
+      "playlistId": 1,
+      "mediaType": "TVShowEpisode",
+      "mediaId": 1001,
+      "mediaTitle": "Pilot",
+      "parentMediaType": "TVShowSeason",
+      "parentMediaId": 200,
+      "parentMediaTitle": "Season 1",
+      "addedAt": "2026-09-05T14:30:00Z",
+      "isAccessible": true
+    }
+  ],
+  "totalCount": 57,
+  "hasNextPage": true,
+  "pageNumber": 1,
+  "pageSize": 20
+}
+```
+
+Die Antwort ist ein `DtoPlaylistEntriesPagedResult`-Objekt (siehe [DTO-Modelle](#dto-modelle)).
+`totalCount` ist die Gesamtzahl aller (nicht verwaisten) Einträge der Playlist, unabhängig von der
+aktuellen Seite. `hasNextPage` gibt an, ob nach der aktuellen Seite noch weitere Einträge folgen.
+
+**Fehlerantworten:**
+
+| HTTP-Status | Grund |
+|-------------|-------|
+| 400 Bad Request | `pageNumber < 1` oder `pageSize` außerhalb von `1..MaxPageSize` |
+| 404 Not Found | Playlist nicht gefunden |
+| 403 Forbidden | Benutzer ist nicht der Besitzer der Playlist |
+| 401 Unauthorized | Fehlende oder ungültige Authentifizierung |
+
+---
+
 ## DTO-Modelle
 
 ### `DtoPlaylistEntry`
@@ -210,8 +272,13 @@ public class DtoPlaylistEntry
     public long? ParentMediaId { get; set; }       // null für Top-Level
     public string? ParentMediaTitle { get; set; }  // null für Top-Level, sonst Titel der Sammlung
     public DateTime AddedAt { get; set; }          // UTC
+    public bool IsAccessible { get; set; }         // aktuell serverseitig immer true (siehe Hinweis unten)
 }
 ```
+
+**Hinweis zu `IsAccessible`:** Das Feld ist für eine spätere Freischaltungs-/Lizenzprüfung
+vorbereitet. Solange diese Prüfung nicht implementiert ist, liefert der Server für jeden Eintrag
+`true`.
 
 ### `DtoAddMediaToPlaylistRequest`
 
@@ -236,6 +303,21 @@ public class DtoPlaylistAddResult
     public DtoPlaylistEntry[] AddedEntries { get; set; }  // alle tatsaechlich neu angelegten Eintraege
     public int SkippedDuplicateCount { get; set; }        // Anzahl uebersprungener Duplikate (Top-Level + Cascade)
     public string Message { get; set; }                   // Zusammenfassung fuer die Anzeige in der UI
+}
+```
+
+### `DtoPlaylistEntriesPagedResult`
+
+Response-Format von `GET /api/playlists/{id}/entries/paged`.
+
+```csharp
+public class DtoPlaylistEntriesPagedResult
+{
+    public DtoPlaylistEntry[] Entries { get; set; }  // Eintraege der aktuellen Seite, sortiert gemaess SortMode
+    public int TotalCount { get; set; }              // Gesamtzahl aller (nicht verwaisten) Eintraege der Playlist
+    public bool HasNextPage { get; set; }            // true, wenn nach dieser Seite weitere Eintraege folgen
+    public int PageNumber { get; set; }              // angeforderte (1-basierte) Seitennummer
+    public int PageSize { get; set; }                // tatsaechlich verwendete Seitengroesse
 }
 ```
 
@@ -295,9 +377,13 @@ Optional kann die maximale Anzahl von Einträgen pro Playlist begrenzt werden:
 ```json
 {
   "Playlists": {
-    "MaxPlaylistItemCount": 1000
+    "MaxPlaylistItemCount": 1000,
+    "DefaultPageSize": 20,
+    "MaxPageSize": 100
   }
 }
 ```
 
-Wenn der Wert `null` ist (Standard), gibt es keine Beschränkung. Bei Überschreitung wird HTTP 400 zurückgegeben.
+- `MaxPlaylistItemCount`: `null` (Standard) bedeutet keine Beschränkung. Bei Überschreitung wird HTTP 400 zurückgegeben.
+- `DefaultPageSize`: Seitengröße, die `GET /api/playlists/{id}/entries/paged` verwendet, wenn kein `pageSize`-Parameter übergeben wird (Standard: `20`).
+- `MaxPageSize`: obere Grenze für den `pageSize`-Parameter von `GET /api/playlists/{id}/entries/paged` (Standard: `100`); größere Werte führen zu HTTP 400.

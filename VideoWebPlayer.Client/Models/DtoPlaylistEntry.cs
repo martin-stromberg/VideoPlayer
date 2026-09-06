@@ -11,5 +11,8 @@ namespace VideoWebPlayer.Client.Models
         public long? ParentMediaId { get; set; }
         public string? ParentMediaTitle { get; set; }
         public DateTime AddedAt { get; set; }
+
+        // Placeholder for future license/access checking; the server currently always returns true.
+        public bool IsAccessible { get; set; } = true;
     }
 }

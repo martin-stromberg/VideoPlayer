@@ -177,54 +177,13 @@ public sealed class PlaylistService : IPlaylistService
     {
         await GetOwnedPlaylistAsync(playlistId, userId, cancellationToken);
 
-        var entries = await _db.PlaylistEntries
-            .Where(e => e.PlaylistId == playlistId)
-            .ToListAsync(cancellationToken);
+        var validEntries = await LoadValidPlaylistEntriesAsync(playlistId, cancellationToken);
+        var titlesByType = await LoadTitlesForMediaRefsAsync(validEntries.Select(e => (e.MediaType, e.MediaId)), cancellationToken);
+        var parentTitlesByType = await LoadTitlesForMediaRefsAsync(GetParentMediaRefs(validEntries), cancellationToken);
 
-        var mediaIdsByType = new Dictionary<string, HashSet<long>>();
-        foreach (var entry in entries)
-        {
-            AddId(mediaIdsByType, entry.MediaType, entry.MediaId);
-            if (entry.ParentMediaType is not null && entry.ParentMediaId is not null)
-                AddId(mediaIdsByType, entry.ParentMediaType, entry.ParentMediaId.Value);
-        }
-
-        var titlesByType = new Dictionary<string, Dictionary<long, string>>();
-        foreach (var (mediaType, mediaIds) in mediaIdsByType)
-            titlesByType[mediaType] = await GetMediaTitlesAsync(mediaType, mediaIds, cancellationToken);
-
-        var result = new List<DtoPlaylistEntry>(entries.Count);
-        var orphans = new List<PlaylistEntry>();
-
-        foreach (var entry in entries)
-        {
-            if (!titlesByType[entry.MediaType].TryGetValue(entry.MediaId, out var mediaTitle))
-            {
-                orphans.Add(entry);
-                continue;
-            }
-
-            string? parentMediaTitle = null;
-            if (entry.ParentMediaType is not null && entry.ParentMediaId is not null)
-                titlesByType[entry.ParentMediaType].TryGetValue(entry.ParentMediaId.Value, out parentMediaTitle);
-
-            result.Add(ToDto(entry, mediaTitle, parentMediaTitle));
-        }
-
-        if (orphans.Count > 0)
-        {
-            _db.PlaylistEntries.RemoveRange(orphans);
-            await _db.SaveChangesAsync(cancellationToken);
-        }
-
-        return result.ToArray();
-
-        static void AddId(Dictionary<string, HashSet<long>> map, string mediaType, long mediaId)
-        {
-            if (!map.TryGetValue(mediaType, out var ids))
-                map[mediaType] = ids = new HashSet<long>();
-            ids.Add(mediaId);
-        }
+        return validEntries
+            .Select(entry => ToDto(entry, titlesByType[entry.MediaType][entry.MediaId], GetParentTitle(entry, parentTitlesByType)))
+            .ToArray();
     }
 
     private async Task<Playlist> GetOwnedPlaylistAsync(long playlistId, string userId, CancellationToken cancellationToken)
@@ -295,31 +254,89 @@ public sealed class PlaylistService : IPlaylistService
     {
         public required Func<ApplicationDbContext, IReadOnlyCollection<long>, CancellationToken, Task<Dictionary<long, string>>> LoadTitlesAsync { get; init; }
 
+        /// <summary>
+        /// Checks which of the given ids still reference existing media, without fetching their titles.
+        /// Used for orphan detection over an entire playlist, where resolving titles would be wasted work
+        /// for every entry that is not part of the page actually being returned to the caller.
+        /// </summary>
+        public required Func<ApplicationDbContext, IReadOnlyCollection<long>, CancellationToken, Task<HashSet<long>>> LoadExistingIdsAsync { get; init; }
+
         public Func<ApplicationDbContext, long, CancellationToken, Task<List<(MediaType MediaType, long MediaId)>>>? LoadCascadeChildrenAsync { get; init; }
+
+        public required Func<ApplicationDbContext, IReadOnlyCollection<long>, CancellationToken, Task<Dictionary<long, DateTime?>>> LoadReleaseDateAsync { get; init; }
+
+        public required Func<ApplicationDbContext, IReadOnlyCollection<long>, CancellationToken, Task<Dictionary<long, (long? ParentId, int? SequenceNumber)>>> GetHierarchySequenceAsync { get; init; }
     }
 
     private static readonly IReadOnlyDictionary<MediaType, MediaTypeHandler> MediaTypeHandlers = new Dictionary<MediaType, MediaTypeHandler>
     {
         [MediaType.Movie] = new MediaTypeHandler
         {
-            LoadTitlesAsync = (db, ids, ct) => db.Movies.AsNoTracking().Where(m => ids.Contains(m.Id)).ToDictionaryAsync(m => m.Id, m => m.Name, ct)
+            LoadTitlesAsync = (db, ids, ct) => db.Movies.AsNoTracking().Where(m => ids.Contains(m.Id)).ToDictionaryAsync(m => m.Id, m => m.Name, ct),
+            LoadExistingIdsAsync = (db, ids, ct) => db.Movies.AsNoTracking().Where(m => ids.Contains(m.Id)).Select(m => m.Id).ToHashSetAsync(ct),
+            LoadReleaseDateAsync = (db, ids, ct) => db.Movies.AsNoTracking().Where(m => ids.Contains(m.Id)).ToDictionaryAsync(m => m.Id, m => m.ReleaseDate ?? m.PremieredAt, ct),
+            GetHierarchySequenceAsync = NoHierarchyAsync
         },
         [MediaType.TVShowEpisode] = new MediaTypeHandler
         {
-            LoadTitlesAsync = (db, ids, ct) => db.TVShowEpisodes.AsNoTracking().Where(e => ids.Contains(e.Id)).ToDictionaryAsync(e => e.Id, e => e.Name, ct)
+            LoadTitlesAsync = (db, ids, ct) => db.TVShowEpisodes.AsNoTracking().Where(e => ids.Contains(e.Id)).ToDictionaryAsync(e => e.Id, e => e.Name, ct),
+            LoadExistingIdsAsync = (db, ids, ct) => db.TVShowEpisodes.AsNoTracking().Where(e => ids.Contains(e.Id)).Select(e => e.Id).ToHashSetAsync(ct),
+            LoadReleaseDateAsync = async (db, ids, ct) =>
+            {
+                var episodes = await db.TVShowEpisodes.AsNoTracking()
+                    .Where(e => ids.Contains(e.Id))
+                    .Select(e => new { e.Id, e.ReleaseDate, e.PremieredAt, ShowPremieredAt = e.TVShowSeason.TVShow.PremieredAt })
+                    .ToListAsync(ct);
+                return episodes.ToDictionary(e => e.Id, e => e.ReleaseDate ?? e.PremieredAt ?? e.ShowPremieredAt);
+            },
+            GetHierarchySequenceAsync = async (db, ids, ct) =>
+            {
+                var episodes = await db.TVShowEpisodes.AsNoTracking()
+                    .Where(e => ids.Contains(e.Id))
+                    .Select(e => new { e.Id, e.TVShowSeasonId, e.Number })
+                    .ToListAsync(ct);
+                return episodes.ToDictionary(e => e.Id, e => ((long?)e.TVShowSeasonId, (int?)e.Number));
+            }
         },
         [MediaType.TVShowSeason] = new MediaTypeHandler
         {
             LoadTitlesAsync = (db, ids, ct) => db.TVShowSeasons.AsNoTracking().Where(s => ids.Contains(s.Id)).ToDictionaryAsync(s => s.Id, s => s.Name, ct),
+            LoadExistingIdsAsync = (db, ids, ct) => db.TVShowSeasons.AsNoTracking().Where(s => ids.Contains(s.Id)).Select(s => s.Id).ToHashSetAsync(ct),
             LoadCascadeChildrenAsync = async (db, id, ct) =>
             {
                 var episodeIds = await db.TVShowEpisodes.AsNoTracking().Where(e => e.TVShowSeasonId == id).Select(e => e.Id).ToListAsync(ct);
                 return episodeIds.Select(episodeId => (MediaType.TVShowEpisode, episodeId)).ToList();
+            },
+            LoadReleaseDateAsync = async (db, ids, ct) =>
+            {
+                var seasons = await db.TVShowSeasons.AsNoTracking()
+                    .Where(s => ids.Contains(s.Id))
+                    .Select(s => new
+                    {
+                        s.Id,
+                        s.PremieredAt,
+                        FirstEpisodeDate = s.Episodes.OrderBy(e => e.Number).Select(e => (DateTime?)e.ReleaseDate).FirstOrDefault(),
+                        ShowPremieredAt = s.TVShow.PremieredAt
+                    })
+                    .ToListAsync(ct);
+                return seasons.ToDictionary(s => s.Id, s => s.PremieredAt ?? s.FirstEpisodeDate ?? s.ShowPremieredAt);
+            },
+            GetHierarchySequenceAsync = async (db, ids, ct) =>
+            {
+                var seasons = await db.TVShowSeasons.AsNoTracking()
+                    .Where(s => ids.Contains(s.Id))
+                    .Select(s => new { s.Id, s.TVShowId })
+                    .ToListAsync(ct);
+                return seasons
+                    .GroupBy(s => s.TVShowId)
+                    .SelectMany(g => g.OrderBy(s => s.Id).Select((s, index) => (s.Id, ParentId: (long?)g.Key, SequenceNumber: (int?)(index + 1))))
+                    .ToDictionary(x => x.Id, x => (x.ParentId, x.SequenceNumber));
             }
         },
         [MediaType.TVShow] = new MediaTypeHandler
         {
             LoadTitlesAsync = (db, ids, ct) => db.TVShows.AsNoTracking().Where(t => ids.Contains(t.Id)).ToDictionaryAsync(t => t.Id, t => t.Name, ct),
+            LoadExistingIdsAsync = (db, ids, ct) => db.TVShows.AsNoTracking().Where(t => ids.Contains(t.Id)).Select(t => t.Id).ToHashSetAsync(ct),
             LoadCascadeChildrenAsync = async (db, id, ct) =>
             {
                 var seasonIds = await db.TVShowSeasons.AsNoTracking().Where(s => s.TVShowId == id).Select(s => s.Id).ToListAsync(ct);
@@ -329,18 +346,41 @@ public sealed class PlaylistService : IPlaylistService
                 result.AddRange(seasonIds.Select(seasonId => (MediaType.TVShowSeason, seasonId)));
                 result.AddRange(episodeIds.Select(episodeId => (MediaType.TVShowEpisode, episodeId)));
                 return result;
-            }
+            },
+            LoadReleaseDateAsync = async (db, ids, ct) =>
+            {
+                var shows = await db.TVShows.AsNoTracking()
+                    .Where(t => ids.Contains(t.Id))
+                    .Select(t => new
+                    {
+                        t.Id,
+                        t.PremieredAt,
+                        FirstEpisodeDate = t.Seasons
+                            .OrderBy(s => s.Id)
+                            .Select(s => s.Episodes.OrderBy(e => e.Number).Select(e => (DateTime?)e.ReleaseDate).FirstOrDefault())
+                            .FirstOrDefault()
+                    })
+                    .ToListAsync(ct);
+                return shows.ToDictionary(t => t.Id, t => t.PremieredAt ?? t.FirstEpisodeDate);
+            },
+            GetHierarchySequenceAsync = NoHierarchyAsync
         },
         [MediaType.MovieCollection] = new MediaTypeHandler
         {
             LoadTitlesAsync = (db, ids, ct) => db.MovieCollections.AsNoTracking().Where(c => ids.Contains(c.Id)).ToDictionaryAsync(c => c.Id, c => c.Name, ct),
+            LoadExistingIdsAsync = (db, ids, ct) => db.MovieCollections.AsNoTracking().Where(c => ids.Contains(c.Id)).Select(c => c.Id).ToHashSetAsync(ct),
             LoadCascadeChildrenAsync = async (db, id, ct) =>
             {
                 var movieIds = await db.Movies.AsNoTracking().Where(m => m.MovieCollectionId == id).Select(m => m.Id).ToListAsync(ct);
                 return movieIds.Select(movieId => (MediaType.Movie, movieId)).ToList();
-            }
+            },
+            LoadReleaseDateAsync = (db, ids, ct) => db.MovieCollections.AsNoTracking().Where(c => ids.Contains(c.Id)).ToDictionaryAsync(c => c.Id, c => c.ReleaseDate ?? c.PremieredAt, ct),
+            GetHierarchySequenceAsync = NoHierarchyAsync
         }
     };
+
+    private static Task<Dictionary<long, (long? ParentId, int? SequenceNumber)>> NoHierarchyAsync(ApplicationDbContext db, IReadOnlyCollection<long> ids, CancellationToken cancellationToken)
+        => Task.FromResult(ids.ToDictionary(id => id, id => ((long?)null, (int?)null)));
 
     /// <summary>
     /// Parses and validates a raw media type string (one of the values in <c>MediaTypeValues</c>)
@@ -475,6 +515,23 @@ public sealed class PlaylistService : IPlaylistService
         return await handler.LoadTitlesAsync(_db, mediaIds, cancellationToken);
     }
 
+    /// <summary>
+    /// Checks which of the given media ids of the given type still reference existing media, without
+    /// resolving their titles. Used for orphan detection, where the title text itself is not needed.
+    /// </summary>
+    /// <param name="mediaType">The media type of the ids.</param>
+    /// <param name="mediaIds">The media ids to check.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The subset of <paramref name="mediaIds"/> that still reference existing media.</returns>
+    private async Task<HashSet<long>> GetExistingMediaIdsAsync(string mediaType, IReadOnlyCollection<long> mediaIds, CancellationToken cancellationToken)
+    {
+        if (mediaIds.Count == 0 || !TryParseKnownMediaType(mediaType, out var parsedType))
+            return new HashSet<long>();
+
+        var handler = MediaTypeHandlers[parsedType];
+        return await handler.LoadExistingIdsAsync(_db, mediaIds, cancellationToken);
+    }
+
     private static DtoPlaylistEntry ToDto(PlaylistEntry playlistEntry, string mediaTitle, string? parentMediaTitle) => new()
     {
         Id = playlistEntry.Id,
@@ -485,6 +542,179 @@ public sealed class PlaylistService : IPlaylistService
         ParentMediaType = playlistEntry.ParentMediaType,
         ParentMediaId = playlistEntry.ParentMediaId,
         ParentMediaTitle = parentMediaTitle,
-        AddedAt = playlistEntry.AddedAt
+        AddedAt = playlistEntry.AddedAt,
+        IsAccessible = true
     };
+
+    /// <inheritdoc />
+    public async Task<DtoPlaylistEntriesPagedResult> GetPlaylistEntriesPagedAsync(long playlistId, string userId, int pageNumber, int pageSize, CancellationToken cancellationToken = default)
+    {
+        var playlist = await GetOwnedPlaylistAsync(playlistId, userId, cancellationToken);
+
+        var validEntries = await LoadValidPlaylistEntriesAsync(playlistId, cancellationToken);
+
+        var sortedEntries = playlist.SortMode == PlaylistSortMode.ByReleaseDate
+            ? await SortPlaylistEntriesByReleaseDateAsync(validEntries, cancellationToken)
+            : validEntries.OrderBy(e => e.AddedAt).ToList();
+
+        var totalCount = sortedEntries.Count;
+        var skip = (pageNumber - 1) * pageSize;
+        var pageEntries = sortedEntries.Skip(skip).Take(pageSize).ToList();
+
+        // Title resolution is scaled to the returned page only (not the whole playlist), since it is the
+        // only per-entry lookup that isn't already required for orphan detection or sorting.
+        var titlesByType = await LoadTitlesForMediaRefsAsync(pageEntries.Select(e => (e.MediaType, e.MediaId)), cancellationToken);
+        var parentTitlesByType = await LoadTitlesForMediaRefsAsync(GetParentMediaRefs(pageEntries), cancellationToken);
+
+        var dtoEntries = pageEntries
+            .Select(entry => ToDto(entry, titlesByType[entry.MediaType][entry.MediaId], GetParentTitle(entry, parentTitlesByType)))
+            .ToArray();
+
+        return new DtoPlaylistEntriesPagedResult
+        {
+            Entries = dtoEntries,
+            TotalCount = totalCount,
+            HasNextPage = skip + pageSize < totalCount,
+            PageNumber = pageNumber,
+            PageSize = pageSize
+        };
+    }
+
+    /// <summary>
+    /// Loads all <see cref="PlaylistEntry"/> rows of a playlist, removing (and persisting the removal of)
+    /// orphaned entries whose referenced media no longer exists. Only checks for existence of the referenced
+    /// media (not its title), so the cost of this call does not depend on how many entries are actually
+    /// going to be displayed by the caller.
+    /// </summary>
+    /// <param name="playlistId">The playlist identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The playlist entries whose referenced media still exists.</returns>
+    private async Task<List<PlaylistEntry>> LoadValidPlaylistEntriesAsync(long playlistId, CancellationToken cancellationToken)
+    {
+        var entries = await _db.PlaylistEntries
+            .Where(e => e.PlaylistId == playlistId)
+            .ToListAsync(cancellationToken);
+
+        var mediaIdsByType = new Dictionary<string, HashSet<long>>();
+        foreach (var entry in entries)
+            AddMediaId(mediaIdsByType, entry.MediaType, entry.MediaId);
+
+        var existingIdsByType = new Dictionary<string, HashSet<long>>();
+        foreach (var (mediaType, mediaIds) in mediaIdsByType)
+            existingIdsByType[mediaType] = await GetExistingMediaIdsAsync(mediaType, mediaIds, cancellationToken);
+
+        var validEntries = new List<PlaylistEntry>(entries.Count);
+        var orphans = new List<PlaylistEntry>();
+
+        foreach (var entry in entries)
+        {
+            if (existingIdsByType.TryGetValue(entry.MediaType, out var ids) && ids.Contains(entry.MediaId))
+                validEntries.Add(entry);
+            else
+                orphans.Add(entry);
+        }
+
+        if (orphans.Count > 0)
+        {
+            _db.PlaylistEntries.RemoveRange(orphans);
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
+        return validEntries;
+    }
+
+    /// <summary>
+    /// Loads the media titles for the given (media type, media id) references, grouped by media type.
+    /// Used both to resolve entries' own titles and the titles of their parents, scaled to only the
+    /// references actually passed in (e.g. a single page of entries) rather than an entire playlist.
+    /// </summary>
+    /// <param name="mediaRefs">The (media type, media id) references to resolve titles for.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A dictionary of media type to a dictionary of media id to title.</returns>
+    private async Task<Dictionary<string, Dictionary<long, string>>> LoadTitlesForMediaRefsAsync(
+        IEnumerable<(string MediaType, long MediaId)> mediaRefs, CancellationToken cancellationToken)
+    {
+        var idsByType = new Dictionary<string, HashSet<long>>();
+        foreach (var (mediaType, mediaId) in mediaRefs)
+            AddMediaId(idsByType, mediaType, mediaId);
+
+        var titlesByType = new Dictionary<string, Dictionary<long, string>>();
+        foreach (var (mediaType, mediaIds) in idsByType)
+            titlesByType[mediaType] = await GetMediaTitlesAsync(mediaType, mediaIds, cancellationToken);
+
+        return titlesByType;
+    }
+
+    /// <summary>
+    /// Projects the (parent media type, parent media id) references of the given entries, skipping entries
+    /// that have no parent.
+    /// </summary>
+    /// <param name="entries">The entries to project parent references from.</param>
+    /// <returns>The (media type, media id) references of the entries' parents.</returns>
+    private static IEnumerable<(string MediaType, long MediaId)> GetParentMediaRefs(IEnumerable<PlaylistEntry> entries) =>
+        entries
+            .Where(e => e.ParentMediaType is not null && e.ParentMediaId is not null)
+            .Select(e => (e.ParentMediaType!, e.ParentMediaId!.Value));
+
+    private static string? GetParentTitle(PlaylistEntry entry, Dictionary<string, Dictionary<long, string>> parentTitlesByType)
+    {
+        if (entry.ParentMediaType is null || entry.ParentMediaId is null)
+            return null;
+
+        return parentTitlesByType.TryGetValue(entry.ParentMediaType, out var titles) && titles.TryGetValue(entry.ParentMediaId.Value, out var title)
+            ? title
+            : null;
+    }
+
+    private static void AddMediaId(Dictionary<string, HashSet<long>> map, string mediaType, long mediaId)
+    {
+        if (!map.TryGetValue(mediaType, out var ids))
+            map[mediaType] = ids = new HashSet<long>();
+        ids.Add(mediaId);
+    }
+
+    private async Task<List<PlaylistEntry>> SortPlaylistEntriesByReleaseDateAsync(List<PlaylistEntry> entries, CancellationToken cancellationToken)
+    {
+        var mediaIdsByType = new Dictionary<string, HashSet<long>>();
+        foreach (var entry in entries)
+            AddMediaId(mediaIdsByType, entry.MediaType, entry.MediaId);
+
+        var releaseDatesByType = new Dictionary<string, Dictionary<long, DateTime?>>();
+        var hierarchyByType = new Dictionary<string, Dictionary<long, (long? ParentId, int? SequenceNumber)>>();
+        foreach (var (mediaType, mediaIds) in mediaIdsByType)
+        {
+            if (!TryParseKnownMediaType(mediaType, out var parsedType))
+                continue;
+
+            var handler = MediaTypeHandlers[parsedType];
+            releaseDatesByType[mediaType] = await handler.LoadReleaseDateAsync(_db, mediaIds, cancellationToken);
+            hierarchyByType[mediaType] = await handler.GetHierarchySequenceAsync(_db, mediaIds, cancellationToken);
+        }
+
+        var sortKeys = new Dictionary<PlaylistEntry, (DateTime? ReleaseDate, long? ParentId, int? SequenceNumber, DateTime? AddedAt)>();
+        foreach (var entry in entries)
+        {
+            var releaseDate = releaseDatesByType.TryGetValue(entry.MediaType, out var dates) && dates.TryGetValue(entry.MediaId, out var date)
+                ? date
+                : null;
+            var sequenceInfo = hierarchyByType.TryGetValue(entry.MediaType, out var hierarchy) && hierarchy.TryGetValue(entry.MediaId, out var info)
+                ? info
+                : (ParentId: null, SequenceNumber: null);
+
+            sortKeys[entry] = BuildPlaylistEntriesSortKey(entry, releaseDate, sequenceInfo);
+        }
+
+        return entries
+            .OrderBy(e => sortKeys[e].ReleaseDate)
+            .ThenBy(e => sortKeys[e].ParentId)
+            .ThenBy(e => sortKeys[e].SequenceNumber)
+            .ThenBy(e => sortKeys[e].AddedAt)
+            .ToList();
+    }
+
+    private static (DateTime? ReleaseDate, long? ParentId, int? SequenceNumber, DateTime? AddedAt) BuildPlaylistEntriesSortKey(
+        PlaylistEntry entry, DateTime? releaseDate, (long? ParentId, int? SequenceNumber) sequenceInfo)
+    {
+        return (releaseDate, sequenceInfo.ParentId, sequenceInfo.SequenceNumber, entry.AddedAt);
+    }
 }

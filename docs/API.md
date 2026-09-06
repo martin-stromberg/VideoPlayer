@@ -402,6 +402,42 @@ und nicht in der Antwort aufgeführt.
 - `404 Not Found`, wenn keine Playlist mit dieser ID existiert.
 - `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
 
+### GET /api/playlists/{id}/entries/paged
+
+Liefert eine sortierte, paginierte Seite der Einträge einer Playlist als
+`DtoPlaylistEntriesPagedResult`. Wird von der Playlist-Detailseite für das schrittweise Nachladen
+beim Scrollen (Virtual Scrolling) verwendet. Verwaiste Einträge werden wie bei
+`GET /api/playlists/{id}/entries` still bereinigt.
+
+**Query-Parameter:**
+
+| Name | Typ | Pflicht | Standard | Beschreibung |
+|------|-----|---------|----------|--------------|
+| `pageNumber` | int | Nein | `1` | 1-basierte Seitennummer, muss ≥ 1 sein |
+| `pageSize` | int | Nein | `Playlists:DefaultPageSize` (20) | Anzahl Einträge pro Seite, muss zwischen 1 und `Playlists:MaxPageSize` (100) liegen |
+
+**Sortierung:** Ist `Playlist.SortMode` auf `ByReleaseDate` gesetzt, werden die Einträge nach
+Erscheinungsdatum des referenzierten Medieninhalts sortiert; fehlt dieses, wird auf
+Hierarchie-Reihenfolge (übergeordnete Serie/Staffel, dann Episoden-/Staffelnummer) und zuletzt auf
+den Zeitpunkt des Hinzufügens (`AddedAt`) zurückgefallen. Bei `Manual` wird nach `AddedAt`
+sortiert.
+
+Antwort (`DtoPlaylistEntriesPagedResult`):
+
+```json
+{
+  "entries": [ { "id": 456, "playlistId": 1, "mediaType": "Movie", "mediaId": 42, "..." : "..." } ],
+  "totalCount": 57,
+  "hasNextPage": true,
+  "pageNumber": 1,
+  "pageSize": 20
+}
+```
+
+- `400 Bad Request`, wenn `pageNumber < 1` oder `pageSize` außerhalb von `1..MaxPageSize` liegt.
+- `404 Not Found`, wenn keine Playlist mit dieser ID existiert.
+- `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
+
 ## SignalR
 
 ### GET /hubs/mediaupdate

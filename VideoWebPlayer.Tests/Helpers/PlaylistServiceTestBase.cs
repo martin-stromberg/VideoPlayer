@@ -143,4 +143,55 @@ public abstract class PlaylistServiceTestBase : IDisposable
 
         return playlist.Id;
     }
+
+    /// <summary>
+    /// Creates a playlist for the given user together with newly created Movie or MovieCollection
+    /// media entries carrying the given release dates, added as top-level playlist entries.
+    /// </summary>
+    protected async Task<long> CreateTestPlaylistWithReleaseDatesAsync(string userId, params (string MediaType, string Name, DateTime? ReleaseDate)[] entries)
+    {
+        var playlist = new Playlist
+        {
+            UserId = userId,
+            Name = $"Test-Playlist-{Guid.NewGuid()}",
+            SortMode = PlaylistSortMode.ByReleaseDate,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        _db.Playlists.Add(playlist);
+        await _db.SaveChangesAsync();
+
+        foreach (var (mediaType, name, releaseDate) in entries)
+        {
+            long mediaId;
+            switch (mediaType)
+            {
+                case MediaTypeValues.Movie:
+                    var movie = new Movie { Name = name, MediaSourceId = 1, CreatedAt = DateTime.UtcNow, ReleaseDate = releaseDate };
+                    _db.Movies.Add(movie);
+                    await _db.SaveChangesAsync();
+                    mediaId = movie.Id;
+                    break;
+                case MediaTypeValues.MovieCollection:
+                    var collection = new MovieCollection { Name = name, MediaSourceId = 1, CreatedAt = DateTime.UtcNow, ReleaseDate = releaseDate };
+                    _db.MovieCollections.Add(collection);
+                    await _db.SaveChangesAsync();
+                    mediaId = collection.Id;
+                    break;
+                default:
+                    throw new ArgumentException($"Nicht unterstuetzter MediaType fuer Erscheinungsdatum-Test: {mediaType}", nameof(entries));
+            }
+
+            _db.PlaylistEntries.Add(new PlaylistEntry
+            {
+                PlaylistId = playlist.Id,
+                MediaType = mediaType,
+                MediaId = mediaId,
+                AddedAt = DateTime.UtcNow
+            });
+        }
+        await _db.SaveChangesAsync();
+
+        return playlist.Id;
+    }
 }

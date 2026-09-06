@@ -95,7 +95,7 @@ PlaylistEntry:
 - ParentMediaId: 100
 ```
 
-Dies ermöglicht später (in späteren Schritten) Zuordnung und Gruppierung in der UI.
+Dies wird für die Fallback-Sortierung nach Hierarchie genutzt, siehe BR-13.
 
 **Beispiel:**
 ```
@@ -299,7 +299,7 @@ Resultat in Playlist:
 ... etc.
 ```
 
-**Auswirkung:** Die Cascade-Liste ist nicht flach, sondern enthält die gesamte Hierarchie. Dies ermöglicht später (Schritt 3) Sortierung und Gruppierung.
+**Auswirkung:** Die Cascade-Liste ist nicht flach, sondern enthält die gesamte Hierarchie. Dies ermöglicht die Fallback-Sortierung nach Hierarchie (siehe BR-13).
 
 ---
 
@@ -317,6 +317,74 @@ Resultat in Playlist:
 
 ---
 
+## BR-13: Automatische Sortierung mit Fallback-Kette
+
+**Regel:** Im Sortiermodus `ByReleaseDate` (Standard) werden die Einträge einer Playlist beim
+Abruf über `GetPlaylistEntriesPagedAsync()` in folgender Reihenfolge sortiert, wobei jede Stufe
+nur dann greift, wenn die vorherige Stufe keinen eindeutigen Wert liefert:
+
+1. **Erscheinungsdatum** des referenzierten Medieninhalts (aufsteigend), ermittelt über
+   `MediaTypeHandler.LoadReleaseDateAsync`:
+   - `Movie`, `MovieCollection`: `ReleaseDate ?? PremieredAt`
+   - `TVShowEpisode`: `ReleaseDate ?? PremieredAt ?? ` Erscheinungsdatum der Serie
+   - `TVShowSeason`: `PremieredAt ?? ` Erscheinungsdatum der ersten Episode `?? ` Erscheinungsdatum der Serie
+   - `TVShow`: `PremieredAt ?? ` Erscheinungsdatum der ersten Episode der ersten Staffel
+2. **Hierarchie** (`ParentId`, dann `SequenceNumber`), ermittelt über
+   `MediaTypeHandler.GetHierarchySequenceAsync`, falls kein Erscheinungsdatum vorhanden ist:
+   - `TVShowEpisode`: `ParentId` = `TVShowSeasonId`, `SequenceNumber` = Episodennummer
+   - `TVShowSeason`: `ParentId` = `TVShowId`, `SequenceNumber` = fortlaufende Position der Staffel
+     innerhalb ihrer Serie (aufsteigend nach `Id`)
+   - `Movie`, `TVShow`, `MovieCollection`: keine Hierarchie (`null`, `null`)
+3. **`AddedAt`** (aufsteigend) als letzter Fallback, falls weder Erscheinungsdatum noch Hierarchie
+   einen Wert liefern.
+
+Im Sortiermodus `Manual` entfällt diese Kette; es wird ausschließlich nach `AddedAt` sortiert.
+
+**Begründung für die Einbeziehung von `ParentId`:** Ohne `ParentId` in der Sortierung würden z. B.
+gleich nummerierte Staffeln unterschiedlicher Serien (beide ohne Erscheinungsdatum) allein nach
+`SequenceNumber` vermischt sortiert. Durch die Voranstellung von `ParentId` bleiben Einträge
+derselben übergeordneten Serie/Staffel zusammenhängend sortiert.
+
+**Implementierung:** `PlaylistService.SortPlaylistEntriesByReleaseDateAsync()`,
+`PlaylistService.BuildPlaylistEntriesSortKey()`
+
+**Beispiel:**
+```
+Playlist (SortMode = ByReleaseDate):
+- Episode "Pilot" (TVShowEpisode, kein eigenes Datum, Serie "Show A" hat PremieredAt 2020-01-01)
+- Film "Der Film" (Movie, ReleaseDate 2019-05-01)
+- Episode "Finale" (TVShowEpisode, kein eigenes Datum, gleiche Serie, Episodennummer 10)
+
+Ergebnis-Reihenfolge:
+1. Film "Der Film" (2019-05-01)
+2. Episode "Pilot" (Fallback: Serien-Datum 2020-01-01, Sequenz 1)
+3. Episode "Finale" (Fallback: Serien-Datum 2020-01-01, Sequenz 10)
+```
+
+---
+
+## BR-14: Validierung der Paginierungsparameter
+
+**Regel:** `GET /api/playlists/{id}/entries/paged` validiert `pageNumber` und `pageSize`, bevor
+die Playlist-Berechtigung geprüft wird.
+
+**Implementierung (`PlaylistsController.GetPlaylistEntriesPaged`):**
+- `pageNumber < 1` → HTTP 400 Bad Request ("pageNumber muss groesser oder gleich 1 sein.")
+- `pageSize` (nach Anwendung des Standardwerts `Playlists:DefaultPageSize`) `< 1` oder
+  `> Playlists:MaxPageSize` → HTTP 400 Bad Request ("pageSize muss zwischen 1 und {MaxPageSize} liegen.")
+- Wird kein `pageSize`-Query-Parameter übergeben, wird `Playlists:DefaultPageSize` (Standard: `20`) verwendet.
+
+**Beispiel:**
+```
+GET /api/playlists/1/entries/paged?pageNumber=0
+→ 400 Bad Request: "pageNumber muss groesser oder gleich 1 sein."
+
+GET /api/playlists/1/entries/paged?pageSize=500
+→ 400 Bad Request: "pageSize muss zwischen 1 und 100 liegen."
+```
+
+---
+
 ## Zusammenfassung der Validierungsregeln
 
 | Regel | Prüfpunkt | Fehler | HTTP-Status |
@@ -331,6 +399,8 @@ Resultat in Playlist:
 | BR-8: MediaId > 0 | Bei Validierung | "MediaId muss groesser als 0 sein" | 400 Bad Request |
 | BR-9: MaxItemCount | Vor Insert (optional) | "... maximale Anzahl ... erreicht" | 400 Bad Request |
 | BR-10: Remove-Eintrag vorhanden | Vor Delete | `KeyNotFoundException` | 404 Not Found |
+| BR-13: Sortierung mit Fallback-Kette | Bei paginiertem Get | Keine (deterministische Sortierung) | Keine |
+| BR-14: Paginierungsparameter gültig | Vor Berechtigungsprüfung | "pageNumber ..." / "pageSize ..." | 400 Bad Request |
 
 ---
 
@@ -377,7 +447,7 @@ Resultat: Serie A PLUS alle Staffeln und Episoden
 **Grund:**
 - Konsistenz: Alles, was hinzugefügt wird, kann auch einzeln entfernt werden
 - UI einfacher: Keine speziellen Regeln für "Sammlung ohne Eintrag"
-- Später (Schritt 3): Einfach gruppieren nach Parent-Referenz
+- Ermöglicht die Fallback-Sortierung nach Hierarchie über die Parent-Referenz (siehe BR-13)
 
 ---
 
@@ -386,5 +456,8 @@ Resultat: Serie A PLUS alle Staffeln und Episoden
 | Parameter | Typ | Standard | Beschreibung |
 |-----------|-----|---------|--------------|
 | `Playlists:MaxPlaylistItemCount` | `int?` | `null` (unbegrenzt) | Maximale Einträge pro Playlist (Enforcement noch nicht implementiert) |
+| `Playlists:DefaultPageSize` | `int` | `20` | Seitengröße für `GET /api/playlists/{id}/entries/paged`, wenn kein `pageSize`-Parameter übergeben wird |
+| `Playlists:MaxPageSize` | `int` | `100` | Obere Grenze für den `pageSize`-Parameter von `GET /api/playlists/{id}/entries/paged` |
 
-Dieser Parameter wird in `PlaylistSettings` gelesen. Falls `null`, gibt es keine Prüfung.
+Diese Parameter werden in `PlaylistSettings` gelesen. Falls `MaxPlaylistItemCount` `null` ist,
+gibt es keine Prüfung der maximalen Eintragsanzahl.

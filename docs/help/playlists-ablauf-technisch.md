@@ -2,10 +2,11 @@
 
 ## Übersicht
 
-Die Playlist-Verwaltung besteht aus drei Hauptabläufen:
+Die Playlist-Verwaltung besteht aus vier Hauptabläufen:
 1. Hinzufügen von Medieninhalten (mit Cascade-Logik)
 2. Entfernen von Medieninhalten
 3. Abrufen aller Einträge (mit Bereinigung verwaister Einträge)
+4. Abrufen einer sortierten, paginierten Seite von Einträgen (für die Infinity-List der Detailseite)
 
 Diese Dokumentation beschreibt den internen Ablauf auf Code-Ebene.
 
@@ -193,7 +194,8 @@ flowchart TD
 
 2. **Alle Einträge laden:**
    - Lade alle `PlaylistEntry` mit `PlaylistId = id` aus DB
-   - Keine Filterung, keine Sortierung (wird in späteren Schritten hinzugefügt)
+   - Keine Filterung, keine Sortierung (unsortiert in Einfüge-Reihenfolge; sortierte Anzeige nur
+     über den paginierten Endpunkt, siehe Ablauf 4)
 
 3. **Medien-IDs sammeln:**
    - Erstelle Dictionary `mediaIdsByType` mit den Schlüsseln (Medientypen)
@@ -257,6 +259,103 @@ flowchart TD
     L -->|No| N[ReturnResult]
     M --> N
     N --> O[200 OK]
+```
+
+---
+
+## Ablauf 4: Sortierte, paginierte Einträge abrufen (Infinity-List)
+
+### Schritt-für-Schritt
+
+**Auslöser:** Client (`PlaylistDetail.razor`, über `Virtualize`) ruft
+`GET /api/playlists/{id}/entries/paged?pageNumber=N&pageSize=M` auf, initial für Seite 1 und dann
+erneut mit fortlaufend höherem `pageNumber`, sobald der Anwender in der Liste weiter nach unten
+scrollt.
+
+1. **Parameter-Validierung (vor der Berechtigungsprüfung):**
+   - `PlaylistsController.GetPlaylistEntriesPaged()` löst `pageSize` auf: übergebener Wert oder,
+     falls keiner angegeben, `PlaylistSettings.DefaultPageSize`
+   - `pageNumber < 1` → HTTP 400
+   - `pageSize < 1` oder `pageSize > PlaylistSettings.MaxPageSize` → HTTP 400
+
+2. **Berechtigungsprüfung:**
+   - `PlaylistService.GetPlaylistEntriesPagedAsync()` ruft `GetOwnedPlaylistAsync()` auf
+   - Falls nicht Besitzer → HTTP 403; falls Playlist nicht gefunden → HTTP 404
+
+3. **Gültige Einträge laden (ohne Titel-Auflösung):**
+   - `LoadValidPlaylistEntriesAsync()` lädt alle `PlaylistEntry` der Playlist
+   - Für jeden Medientyp wird über `MediaTypeHandler.LoadExistingIdsAsync()` geprüft, welche
+     referenzierten Medien-IDs noch existieren (nur ID-Existenzprüfung, keine Titel werden dabei
+     geladen)
+   - Einträge, deren Medieninhalt nicht mehr existiert, werden als Waisen erkannt und aus der DB
+     entfernt (`RemoveRange` + `SaveChangesAsync`), analog zu Ablauf 3
+
+4. **Sortierung:**
+   - Bei `Playlist.SortMode == ByReleaseDate`: `SortPlaylistEntriesByReleaseDateAsync()` ermittelt
+     für alle gültigen Einträge Erscheinungsdatum (`LoadReleaseDateAsync`) und Hierarchie-Sequenz
+     (`GetHierarchySequenceAsync`) pro Medientyp und sortiert nach der Fallback-Kette
+     Erscheinungsdatum → `ParentId` → `SequenceNumber` → `AddedAt` (siehe `playlists-business-rules.md`, BR-13)
+   - Bei `Manual`: einfache Sortierung nach `AddedAt`
+
+5. **Seite ausschneiden:**
+   - `totalCount = sortedEntries.Count`
+   - `skip = (pageNumber - 1) * pageSize`
+   - `pageEntries = sortedEntries.Skip(skip).Take(pageSize)`
+
+6. **Titel nur für die aktuelle Seite auflösen:**
+   - `LoadTitlesForMediaRefsAsync()` lädt die Medientitel ausschließlich für `pageEntries` (nicht
+     für die gesamte Playlist)
+   - Ebenso werden die Titel etwaiger Eltern-Einträge (`ParentMediaType`/`ParentMediaId`) nur für
+     die aktuelle Seite aufgelöst
+   - Dadurch skaliert der Aufwand pro Anfrage mit der Seitengröße, nicht mit der Gesamtgröße der
+     Playlist
+
+7. **DTOs bauen und zurückgeben:**
+   - Jeder `pageEntries`-Eintrag wird über `ToDto()` in ein `DtoPlaylistEntry` konvertiert
+     (inklusive `IsAccessible = true`, siehe Hinweis in `playlists-api.md`)
+   - Rückgabe: `DtoPlaylistEntriesPagedResult { Entries, TotalCount, HasNextPage, PageNumber, PageSize }`
+     mit `HasNextPage = skip + pageSize < totalCount`
+
+**Client-seitiges Nachladen (`PlaylistDetail.razor`):**
+- `LoadInitialPageAsync()` lädt beim Öffnen der Seite die erste Seite (`PageSize = 20`) und setzt
+  `allEntries`, `hasMorePages`, `totalCount`
+- `ItemsProviderAsync()` wird von der `Virtualize`-Komponente aufgerufen, sobald weitere,
+  noch nicht geladene Zeilen sichtbar werden sollen; lädt bei Bedarf weitere Seiten nach, bis genug
+  Einträge für den angeforderten Bereich vorhanden sind oder `hasMorePages == false`
+- Eine `SemaphoreSlim` (`loadPageSemaphore`) verhindert, dass bei schnellem Scrollen mehrere
+  überlappende Ladevorgänge gleichzeitig laufen; das `CancellationToken` der jeweiligen
+  `ItemsProviderRequest` wird an den Server-Aufruf weitergereicht
+
+### Beteiligte Klassen/Komponenten
+
+| Klasse | Methode | Zweck |
+|--------|---------|-------|
+| `PlaylistsController` | `GetPlaylistEntriesPaged()` | HTTP-Endpoint-Handler inkl. Parameter-Validierung |
+| `PlaylistService` | `GetPlaylistEntriesPagedAsync()` | Geschäftslogik: Laden, Sortieren, Paginieren, Titel nur für die Seite auflösen |
+| `PlaylistService` | `LoadValidPlaylistEntriesAsync()` | Laden aller Einträge + Bereinigung verwaister Einträge (ohne Titel-Auflösung) |
+| `PlaylistService` | `SortPlaylistEntriesByReleaseDateAsync()` | Ermittelt Sortierschlüssel und sortiert die vollständige, gültige Eintragsliste |
+| `PlaylistService` | `LoadTitlesForMediaRefsAsync()` | Titel-Auflösung, beschränkt auf die übergebenen Referenzen (z. B. nur die aktuelle Seite) |
+| `PlaylistDetail.razor` | `LoadInitialPageAsync()` | Lädt die erste Seite beim Öffnen/Neuladen der Playlist |
+| `PlaylistDetail.razor` | `ItemsProviderAsync()` | Liefert der `Virtualize`-Komponente Einträge, lädt bei Bedarf weitere Seiten nach |
+
+### Diagramm
+
+```mermaid
+flowchart TD
+    A[GET .../entries/paged] --> B{pageNumber/pageSize gueltig?}
+    B -->|Nein| B1[400 Bad Request]
+    B -->|Ja| C[GetOwnedPlaylist]
+    C -->|Not Owner| C1[403 Forbidden]
+    C -->|Not Found| C2[404 Not Found]
+    C -->|OK| D[LoadValidEntries ohne Titel]
+    D --> E{SortMode?}
+    E -->|ByReleaseDate| F[SortByReleaseDateFallback]
+    E -->|Manual| G[SortByAddedAt]
+    F --> H[Skip/Take Seite]
+    G --> H
+    H --> I[LoadTitles nur fuer Seite]
+    I --> J[BuildDtoPlaylistEntriesPagedResult]
+    J --> K[200 OK]
 ```
 
 ---
@@ -366,6 +465,7 @@ Alle echten Fehlerfälle führen zu expliziten HTTP-Status-Codes:
 | `KeyNotFoundException` | Direkt | 404 Not Found |
 | `InvalidOperationException` (Max-Item-Limit überschritten) | `MapInvalidOperationException()` | 400 Bad Request |
 | `InvalidOperationException` (ungültiger MediaType) | `MapInvalidOperationException()` | 400 Bad Request |
+| Ungültige `pageNumber`/`pageSize` (kein Exception, direkte Prüfung im Controller) | Direkte `BadRequest()`-Rückgabe | 400 Bad Request |
 | Andere Exceptions | Generischer Error | 500 Internal Server Error |
 
 **Wichtig:** Duplikate führen **nicht** mehr zu einem Fehler. Sie werden übersprungen, gezählt und in der `DtoPlaylistAddResult`-Message beschrieben. Die Antwort bleibt immer HTTP 200 OK.

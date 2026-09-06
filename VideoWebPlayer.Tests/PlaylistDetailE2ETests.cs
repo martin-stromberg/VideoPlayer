@@ -154,4 +154,89 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
 
         await Expect(Page.Locator("#playlist-detail-error")).ToContainTextAsync("Playlist nicht gefunden");
     }
+
+    [Fact]
+    public async Task PlaylistDetail_LoadsFirstPage_OnInitialize()
+    {
+        if (SkipBrowser)
+            return;
+
+        await LoginAsync(UserAEmail);
+        var row = await CreatePlaylistViaUiAsync("Infinity-Erste-Seite");
+        await SeedMoviesIntoPlaylistAsync("Infinity-Erste-Seite", 25);
+        await row.Locator(".playlist-open-button").ClickAsync();
+        await Page.WaitForSelectorAsync("#playlist-detail-name");
+        await Page.WaitForTimeoutAsync(1500);
+
+        var renderedCount = await Page.Locator(".playlist-entry-row").CountAsync();
+        Assert.True(renderedCount is > 0 and < 25, $"Erwartete eine virtualisierte Teilmenge der 25 Eintraege, aber es wurden {renderedCount} gerendert.");
+        await Expect(Page.Locator("#playlist-entries-more-available")).ToBeVisibleAsync();
+    }
+
+    [Fact]
+    public async Task PlaylistDetail_LoadsNextPage_OnScrollNearEnd()
+    {
+        if (SkipBrowser)
+            return;
+
+        await LoginAsync(UserAEmail);
+        var row = await CreatePlaylistViaUiAsync("Infinity-Naechste-Seite");
+        await SeedMoviesIntoPlaylistAsync("Infinity-Naechste-Seite", 25);
+        await row.Locator(".playlist-open-button").ClickAsync();
+        await Page.WaitForSelectorAsync("#playlist-detail-name");
+        await Page.WaitForTimeoutAsync(1500);
+
+        // Page 1 (pageSize 20) only ever contains media ids 1-20; a row referencing an id beyond
+        // that can only appear once the component has lazy-loaded page 2 in reaction to scrolling.
+        var beyondFirstPageRow = Page.Locator(".playlist-entry-row[data-media-id='21']");
+        var scrollContainer = Page.Locator(".playlist-entries-scroll");
+        await scrollContainer.HoverAsync();
+
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        while (await beyondFirstPageRow.CountAsync() == 0 && stopwatch.Elapsed < TimeSpan.FromSeconds(30))
+        {
+            await Page.Mouse.WheelAsync(0, 600);
+            await Page.WaitForTimeoutAsync(200);
+        }
+
+        await Expect(beyondFirstPageRow).ToBeVisibleAsync();
+    }
+
+    [Fact]
+    public async Task PlaylistDetail_StopsLoading_WhenHasNextPageFalse()
+    {
+        if (SkipBrowser)
+            return;
+
+        await LoginAsync(UserAEmail);
+        var row = await CreatePlaylistViaUiAsync("Infinity-Keine-Weiteren-Seiten");
+        await SeedMoviesIntoPlaylistAsync("Infinity-Keine-Weiteren-Seiten", 5);
+        await row.Locator(".playlist-open-button").ClickAsync();
+        await Page.WaitForSelectorAsync("#playlist-detail-name");
+        await Page.WaitForTimeoutAsync(1500);
+
+        await Expect(Page.Locator(".playlist-entry-row")).ToHaveCountAsync(5);
+        await Expect(Page.Locator("#playlist-entries-more-available")).ToHaveCountAsync(0);
+    }
+
+    /// <summary>
+    /// Verifies the baseline appearance of accessible entries: since license/access checking is not
+    /// yet implemented, <c>DtoPlaylistEntry.IsAccessible</c> is currently always <c>true</c>, so no
+    /// entry is expected to carry the reduced-opacity styling reserved for inaccessible content.
+    /// </summary>
+    [Fact]
+    public async Task PlaylistDetail_DoesNotShowReducedOpacity_WhenAllEntriesAccessible()
+    {
+        if (SkipBrowser)
+            return;
+
+        await LoginAsync(UserAEmail);
+        var row = await CreatePlaylistViaUiAsync("Infinity-Zugriffsstatus");
+        await SeedMoviesIntoPlaylistAsync("Infinity-Zugriffsstatus", 3);
+        await row.Locator(".playlist-open-button").ClickAsync();
+        await Page.WaitForSelectorAsync("#playlist-detail-name");
+        await Page.WaitForTimeoutAsync(1500);
+
+        await Expect(Page.Locator(".playlist-entry-row.opacity-50")).ToHaveCountAsync(0);
+    }
 }

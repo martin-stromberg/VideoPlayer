@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
 using VideoWebPlayer.Client.Models;
+using VideoWebPlayer.Configuration;
 using VideoWebPlayer.Controllers;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Services.Authentication;
@@ -15,6 +17,7 @@ using VideoWebPlayer.Services.Authentication;
 public class PlaylistsController : ApiBaseController
 {
     private readonly IPlaylistService _playlistService;
+    private readonly PlaylistSettings _playlistSettings;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PlaylistsController"/> class.
@@ -22,10 +25,12 @@ public class PlaylistsController : ApiBaseController
     /// <param name="playlistService">Playlist service.</param>
     /// <param name="authService">Authentication service.</param>
     /// <param name="logger">Logger instance.</param>
-    public PlaylistsController(IPlaylistService playlistService, IAuthService authService, ILogger<PlaylistsController> logger)
+    /// <param name="playlistSettings">Playlist configuration.</param>
+    public PlaylistsController(IPlaylistService playlistService, IAuthService authService, ILogger<PlaylistsController> logger, IOptions<PlaylistSettings> playlistSettings)
         : base(authService, logger)
     {
         _playlistService = playlistService;
+        _playlistSettings = playlistSettings.Value;
     }
 
     /// <summary>
@@ -316,6 +321,51 @@ public class PlaylistsController : ApiBaseController
         catch (Exception ex)
         {
             Logger.LogError(ex, "Fehler beim Abrufen der Eintraege von Playlist {PlaylistId}", id);
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    /// <summary>
+    /// Gets a sorted, paginated page of entries of a playlist for the current user.
+    /// </summary>
+    /// <param name="id">The playlist identifier.</param>
+    /// <param name="pageNumber">The 1-based page number.</param>
+    /// <param name="pageSize">The number of entries per page. Defaults to <see cref="PlaylistSettings.DefaultPageSize"/> when omitted.</param>
+    [HttpGet("{id}/entries/paged")]
+    public async Task<IActionResult> GetPlaylistEntriesPaged(long id, int pageNumber = 1, int? pageSize = null)
+    {
+        var resolvedPageSize = pageSize ?? _playlistSettings.DefaultPageSize;
+
+        if (pageNumber < 1)
+            return BadRequest("pageNumber muss groesser oder gleich 1 sein.");
+
+        if (resolvedPageSize < 1 || resolvedPageSize > _playlistSettings.MaxPageSize)
+            return BadRequest($"pageSize muss zwischen 1 und {_playlistSettings.MaxPageSize} liegen.");
+
+        try
+        {
+            CheckLogedIn();
+            var result = await _playlistService.GetPlaylistEntriesPagedAsync(id, CurrentUser!.Id, pageNumber, resolvedPageSize, HttpContext.RequestAborted);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            Logger.LogWarning(ex, "Playlist {PlaylistId} wurde beim Abrufen der paginierten Eintraege nicht gefunden", id);
+            return NotFound(ex.Message);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Logger.LogWarning(ex, "Zugriff ohne Anmeldung beim Abrufen der paginierten Eintraege von Playlist {PlaylistId}", id);
+            return Unauthorized(ex.Message);
+        }
+        catch (PlaylistAccessDeniedException ex)
+        {
+            Logger.LogWarning(ex, "Zugriff verweigert beim Abrufen der paginierten Eintraege von Playlist {PlaylistId}", id);
+            return StatusCode(403, ex.Message);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Fehler beim Abrufen der paginierten Eintraege von Playlist {PlaylistId}", id);
             return StatusCode(500, "Internal server error");
         }
     }

@@ -5,9 +5,9 @@ benutzerbezogen und privat: Jeder Anwender sieht und verwaltet ausschließlich s
 Playlists, unabhängig davon, welche anderen Anwender ebenfalls Playlists angelegt haben.
 
 Dieser Abschnitt umfasst die Verwaltung der Playlists selbst (anlegen, öffnen, bearbeiten, löschen,
-Übersicht) sowie das Befüllen einer Playlist mit konkreten Medieninhalten (Filme, Episoden,
-Staffeln, Serien, Filmsammlungen). Die sortierte, performante Anzeige der Inhalte ist nicht Teil
-dieser Beschreibung und folgt in einem späteren Ausbauschritt.
+Übersicht), das Befüllen einer Playlist mit konkreten Medieninhalten (Filme, Episoden, Staffeln,
+Serien, Filmsammlungen) sowie die automatisch sortierte, fortlaufend nachladende Anzeige der
+Inhalte auf der Detailseite.
 
 ## Übersicht
 
@@ -57,9 +57,23 @@ Von der Detailseite aus lassen sich die gleichen Aktionen wie in der Übersicht 
 
 ## Inhalte hinzufügen und entfernen
 
-Unterhalb der Stammdaten zeigt die Detailseite eine einfache, unsortierte Liste der Inhalte
-(„Einträge") dieser Playlist mit Typ, Titel, zugehöriger Sammlung (falls vorhanden) und
-Hinzufügedatum.
+Unterhalb der Stammdaten zeigt die Detailseite die Liste der Inhalte („Einträge") dieser Playlist
+mit Typ, Titel, zugehöriger Sammlung (falls vorhanden) und Hinzufügedatum.
+
+### Sortierung und Anzeige
+
+Steht die Playlist im Sortiermodus „Nach Erscheinungsdatum" (Standard), erscheinen die Einträge
+automatisch chronologisch nach Erscheinungsdatum des jeweiligen Inhalts. Besitzt ein Eintrag kein
+Erscheinungsdatum, wird er stattdessen anhand seiner Serien-/Staffel-/Episodenzugehörigkeit
+eingeordnet; ist auch das nicht möglich, richtet sich die Reihenfolge danach, wann der Eintrag der
+Playlist hinzugefügt wurde. Im Sortiermodus „Manuell" erscheinen die Einträge in der Reihenfolge
+ihres Hinzufügedatums.
+
+Enthält eine Playlist viele Einträge, werden zunächst nur die ersten davon angezeigt. Beim
+Herunterscrollen der Liste werden automatisch weitere Einträge nachgeladen und angehängt, sodass
+die Seite auch bei sehr umfangreichen Playlists flüssig bedienbar bleibt. Ein Hinweistext
+("Weitere Einträge werden beim Scrollen geladen.") zeigt an, dass noch nicht alle Einträge geladen
+sind; sobald die Liste vollständig geladen ist, verschwindet dieser Hinweis.
 
 ### Hinzufügen
 
@@ -120,7 +134,9 @@ Konfiguration festgelegt:
 {
   "Playlists": {
     "MaxPlaylistsPerUser": null,
-    "MaxPlaylistItemCount": null
+    "MaxPlaylistItemCount": null,
+    "DefaultPageSize": 20,
+    "MaxPageSize": 100
   }
 }
 ```
@@ -132,3 +148,7 @@ Anlegen weiterer Playlists mit einer Fehlermeldung abgelehnt.
 `MaxPlaylistItemCount` ist für eine spätere Begrenzung der Anzahl an Einträgen pro Playlist
 vorbereitet. Die Konfiguration existiert bereits, wird aber aktuell noch nicht durchgesetzt
 (`null`, unbegrenzt).
+
+`DefaultPageSize` legt fest, wie viele Einträge auf der Detailseite pro Ladevorgang beim Scrollen
+nachgeladen werden (Standard: 20). `MaxPageSize` begrenzt die höchstzulässige Anzahl an Einträgen
+pro Ladevorgang (Standard: 100).

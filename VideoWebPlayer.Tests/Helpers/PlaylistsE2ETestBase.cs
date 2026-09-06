@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
 using static Microsoft.Playwright.Assertions;
+using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Data;
 using Xunit;
 
@@ -182,6 +183,41 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
         }
 
         return show.Id;
+    }
+
+    /// <summary>
+    /// Seeds the given number of movies directly in the database (bypassing the UI) and adds them
+    /// as top-level entries to the playlist with the given name, for use in virtual-scrolling /
+    /// lazy-loading E2E tests that need more entries than fit on a single page.
+    /// </summary>
+    protected async Task SeedMoviesIntoPlaylistAsync(string playlistName, int count)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var playlist = await db.Playlists.FirstAsync(p => p.Name == playlistName);
+        var sourceId = await EnsureMediaSourceIdAsync(db);
+
+        for (var number = 1; number <= count; number++)
+        {
+            var movie = new Movie
+            {
+                Name = $"{playlistName} Film {number:D3}",
+                MediaSourceId = sourceId,
+                CreatedAt = DateTime.UtcNow,
+                ReleaseDate = new DateTime(2000, 1, 1).AddDays(number)
+            };
+            db.Movies.Add(movie);
+            await db.SaveChangesAsync();
+
+            db.PlaylistEntries.Add(new PlaylistEntry
+            {
+                PlaylistId = playlist.Id,
+                MediaType = MediaTypeValues.Movie,
+                MediaId = movie.Id,
+                AddedAt = DateTime.UtcNow
+            });
+        }
+        await db.SaveChangesAsync();
     }
 
     private static async Task<long> EnsureMediaSourceIdAsync(ApplicationDbContext db)

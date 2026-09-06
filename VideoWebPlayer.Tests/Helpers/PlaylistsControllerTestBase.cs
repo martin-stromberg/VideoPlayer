@@ -24,9 +24,10 @@ public abstract class PlaylistsControllerTestBase : IDisposable
     protected readonly ApplicationUser _otherUser;
     protected readonly FakeAuthService _fakeAuth;
     protected readonly ApplicationDbContext _db;
-    protected readonly PlaylistsController _controller;
+    protected PlaylistsController _controller;
     private readonly SqliteConnection _keeperConnection;
     private readonly IServiceProvider _serviceProvider;
+    private readonly EventManager _eventManager;
 
     protected PlaylistsControllerTestBase()
     {
@@ -50,11 +51,16 @@ public abstract class PlaylistsControllerTestBase : IDisposable
         _db.Users.AddRange(_user, _otherUser);
         _db.SaveChanges();
 
-        var eventManager = scope.ServiceProvider.GetRequiredService<EventManager>();
-        var playlistSettings = Options.Create(new PlaylistSettings());
-        var playlistService = new PlaylistService(_db, eventManager, playlistSettings);
+        _eventManager = scope.ServiceProvider.GetRequiredService<EventManager>();
+        _controller = CreateController(new PlaylistSettings());
+    }
 
-        _controller = new PlaylistsController(playlistService, _fakeAuth, NullLogger<PlaylistsController>.Instance)
+    protected PlaylistsController CreateController(PlaylistSettings playlistSettings)
+    {
+        var options = Options.Create(playlistSettings);
+        var playlistService = new PlaylistService(_db, _eventManager, options);
+
+        return new PlaylistsController(playlistService, _fakeAuth, NullLogger<PlaylistsController>.Instance, options)
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
         };

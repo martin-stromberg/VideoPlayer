@@ -15,7 +15,9 @@ VideoWebPlayer ist eine selbst gehostete ASP.NET-Core-/Blazor-Anwendung für die
 - Eigene Playlists anlegen, öffnen (mit Detailseite), bearbeiten und löschen; Filme, Serien, Staffeln,
   Episoden und Filmsammlungen per Kaskaden-Logik hinzufügen oder entfernen. Duplikat-Handling mit
   benutzerfreundlicher Rückmeldung (z. B. „3 Titel hinzugefügt, 2 bereits vorhanden"); MediaType-Normalisierung
-  für konsistente API-Aufrufe (case-insensitive).
+  für konsistente API-Aufrufe (case-insensitive). Automatische Sortierung nach Erscheinungsdatum
+  (mit Fallback auf Serien-/Staffelreihenfolge und Hinzufügedatum) sowie fortlaufend nachladende,
+  virtualisierte Anzeige der Einträge für flüssiges Scrollen auch bei sehr großen Playlists.
 - Einzelne Serien und Filmsammlungen fuer andere Anwender freischalten, ohne die gesamte Quelle freizugeben.
 - Browserbasierte Oberfläche für Bibliothek, Wiedergabe und Administration.
 - Automatische Erfassung und Übersicht von Schauspielern inklusive Such- und Filtermöglichkeiten.

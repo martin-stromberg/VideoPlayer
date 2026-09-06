@@ -48,4 +48,10 @@ public interface IPlaylistService
     /// Returns all entries of a playlist, silently removing orphaned entries whose referenced media no longer exists.
     /// </summary>
     Task<DtoPlaylistEntry[]> GetPlaylistEntriesAsync(long playlistId, string userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns a sorted, paginated page of entries of a playlist, silently removing orphaned entries whose
+    /// referenced media no longer exists.
+    /// </summary>
+    Task<DtoPlaylistEntriesPagedResult> GetPlaylistEntriesPagedAsync(long playlistId, string userId, int pageNumber, int pageSize, CancellationToken cancellationToken = default);
 }

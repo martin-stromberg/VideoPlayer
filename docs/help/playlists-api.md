@@ -298,13 +298,18 @@ zurückgegriffen. Ist keines der drei vorhanden, ist der Wert `null` und der Cli
 Platzhalter an. Anders als `PosterPictureId` auf anderen DTOs (z. B. `DtoMovie`) kann dieser Wert
 also bereits eine Banner- oder Fanart-ID sein, da der Fallback serverseitig erfolgt.
 
-**Hinweis zu `IsAccessible`:** Gibt an, ob der aktuell angemeldete Anwender den referenzierten
-Medieninhalt freigeschaltet hat. Die Prüfung erfolgt über denselben Freischaltungsdienst wie bei
-Einzelfreischaltungen (siehe `einzelfreischaltungen.md`) und berücksichtigt ausschließlich die
-Medientypen `TVShow` und `MovieCollection`, da nur diese einzeln freigeschaltet werden können —
-Einträge der Typen `Movie`, `TVShowSeason` und `TVShowEpisode` liefern daher immer `false`. Der
-Wert dient ausschließlich der Anzeige (siehe `playlists.md`, Abschnitt „Zugriffsstatus in der
-Liste"); er verhindert nicht das Entfernen des Eintrags aus der Playlist.
+**Hinweis zu `IsAccessible`:** Gibt an, ob der aktuell angemeldete Benutzer Zugriff auf den
+referenzierten Medieninhalt hat. Zugriff wird gewährt, wenn der Benutzer regulären Zugriff auf die
+Mediaquelle hat ODER wenn der Eintrag für ihn individuell freigeschaltet wurde
+(`hasSourceAccess OR isUnlocked`). Die individuelle Freischaltung erfolgt über denselben
+Freischaltungsdienst wie bei Einzelfreischaltungen (siehe `einzelfreischaltungen.md`) und
+berücksichtigt direkt nur die Medientypen `TVShow` und `MovieCollection` — für Filme wird die
+Freischaltung über die übergeordnete Filmsammlung geprüft, für Episoden und Staffeln über die
+übergeordnete Serie (Film → Filmsammlung, Episode → Staffel → Serie, Staffel → Serie). Dies gilt
+unabhängig vom regulären Quellenzugriff, der für alle fünf Medientypen direkt anhand der jeweils
+zugrunde liegenden Mediaquelle geprüft wird. Der Wert dient ausschließlich der Anzeige (siehe
+`playlists.md`, Abschnitt „Zugriffsstatus in der Liste"); er verhindert nicht das Entfernen des
+Eintrags aus der Playlist.
 
 ### `DtoAddMediaToPlaylistRequest`
 

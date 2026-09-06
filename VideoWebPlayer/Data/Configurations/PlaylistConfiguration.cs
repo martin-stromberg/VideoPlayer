@@ -15,11 +15,11 @@ namespace VideoWebPlayer.Data.Configurations
 
             builder.Property(p => p.Name)
                 .IsRequired()
-                .HasMaxLength(255)
+                .HasMaxLength(Playlist.NameMaxLength)
                 .UseCollation("NOCASE");
 
             builder.Property(p => p.Description)
-                .HasMaxLength(2000);
+                .HasMaxLength(Playlist.DescriptionMaxLength);
 
             builder.Property(p => p.SortMode)
                 .HasDefaultValue(PlaylistSortMode.ByReleaseDate);

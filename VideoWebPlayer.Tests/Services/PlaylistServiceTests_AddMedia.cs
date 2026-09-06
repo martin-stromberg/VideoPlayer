@@ -272,6 +272,47 @@ public class PlaylistServiceTests_AddMedia : PlaylistServiceTestBase
     }
 
     [Fact]
+    public async Task AddMedia_UserHasSourceAccess_ResultIsAccessible()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId);
+        var movieId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Ein Film");
+        await GrantMediaSourceAccessForUserAsync(_testUserId);
+
+        var result = await _service.AddMediaToPlaylistAsync(playlistId, _testUserId, MediaTypeValues.Movie, movieId, ct);
+
+        Assert.NotNull(result.TopLevelEntry);
+        Assert.True(result.TopLevelEntry!.IsAccessible);
+    }
+
+    [Fact]
+    public async Task AddMedia_UserUnlockedNoSourceAccess_ResultIsAccessible()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId);
+        var showId = await CreateTestMediaEntryAsync(MediaTypeValues.TVShow, "Eine Serie");
+        await UnlockMediaForUserAsync(_testUserId, MediaTypeValues.TVShow, showId);
+
+        var result = await _service.AddMediaToPlaylistAsync(playlistId, _testUserId, MediaTypeValues.TVShow, showId, ct);
+
+        Assert.NotNull(result.TopLevelEntry);
+        Assert.True(result.TopLevelEntry!.IsAccessible);
+    }
+
+    [Fact]
+    public async Task AddMedia_UserNoAccessNoUnlock_ResultIsNotAccessible()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId);
+        var movieId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Ein Film");
+
+        var result = await _service.AddMediaToPlaylistAsync(playlistId, _testUserId, MediaTypeValues.Movie, movieId, ct);
+
+        Assert.NotNull(result.TopLevelEntry);
+        Assert.False(result.TopLevelEntry!.IsAccessible);
+    }
+
+    [Fact]
     public async Task AddMedia_ResolvesResolvedPictureId_FromMediaEntity()
     {
         var ct = TestContext.Current.CancellationToken;

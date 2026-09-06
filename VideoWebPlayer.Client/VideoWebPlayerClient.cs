@@ -447,11 +447,6 @@ namespace VideoWebPlayer.Client
             await HttpDeleteAsync($"api/playlists/{playlistId}");
         }
 
-        public async Task<IEnumerable<DtoPlaylistEntry>> RequestPlaylistEntriesAsync(long playlistId)
-        {
-            return await HttpGetAsync<DtoPlaylistEntry[]>($"api/playlists/{playlistId}/entries");
-        }
-
         public async Task<DtoPlaylistEntriesPagedResult> RequestPlaylistEntriesPagedAsync(long playlistId, int pageNumber, int pageSize, CancellationToken cancellationToken = default)
         {
             return await HttpGetAsync<DtoPlaylistEntriesPagedResult>($"api/playlists/{playlistId}/entries/paged?pageNumber={pageNumber}&pageSize={pageSize}", cancellationToken);

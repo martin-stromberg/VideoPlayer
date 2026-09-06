@@ -1,4 +1,3 @@
-using VideoWebPlayer.Events;
 using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
@@ -81,18 +80,5 @@ public class PlaylistServiceTests_Create : PlaylistServiceTestBase
             () => limitedService.CreatePlaylistAsync(_testUserId, "Zweite Playlist", null, null, ct));
 
         Assert.Equal("Die maximale Anzahl an Playlists wurde erreicht.", ex.Message);
-    }
-
-    [Fact]
-    public async Task CreatePlaylist_PublishesPlaylistCreatedEvent()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        PlaylistCreatedEvent? publishedEvent = null;
-        _eventManager.Subscribe<PlaylistCreatedEvent>(e => publishedEvent = e);
-
-        var dto = await _service.CreatePlaylistAsync(_testUserId, "Event-Playlist", null, null, ct);
-
-        Assert.NotNull(publishedEvent);
-        Assert.Equal(dto.Id, publishedEvent!.Playlist.Id);
     }
 }

@@ -1,4 +1,3 @@
-using VideoWebPlayer.Events;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Tests.Helpers;
 using Xunit;
@@ -66,21 +65,5 @@ public class PlaylistServiceTests_Update : PlaylistServiceTestBase
 
         await Assert.ThrowsAsync<KeyNotFoundException>(
             () => _service.UpdatePlaylistAsync(999999, _testUserId, "Neuer Name", null, null, ct));
-    }
-
-    [Fact]
-    public async Task UpdatePlaylist_PublishesPlaylistUpdatedEvent()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var created = await _service.CreatePlaylistAsync(_testUserId, "Alter Name", null, null, ct);
-
-        PlaylistUpdatedEvent? publishedEvent = null;
-        _eventManager.Subscribe<PlaylistUpdatedEvent>(e => publishedEvent = e);
-
-        await _service.UpdatePlaylistAsync(created.Id, _testUserId, "Neuer Name", null, null, ct);
-
-        Assert.NotNull(publishedEvent);
-        Assert.Equal(created.Id, publishedEvent!.Playlist.Id);
-        Assert.Equal("Neuer Name", publishedEvent.Playlist.Name);
     }
 }

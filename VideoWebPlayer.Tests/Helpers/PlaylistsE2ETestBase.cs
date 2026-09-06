@@ -133,79 +133,182 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
     }
 
     /// <summary>
-    /// Seeds a single movie directly in the database (bypassing the UI) and returns its id, for use
-    /// as the target of the playlist "add media" form in E2E tests.
+    /// Opens a new DI scope, resolves its <see cref="ApplicationDbContext"/> and the id of the single
+    /// shared media source used by the <c>Seed*</c> helpers on this base class (creating it if needed),
+    /// then runs <paramref name="action"/> against them before the scope is disposed. Centralizes the
+    /// scope/db/source-id boilerplate that every seed helper previously repeated.
     /// </summary>
-    protected async Task<long> SeedMovieAsync(string name)
+    private async Task<T> RunScopedAsync<T>(Func<ApplicationDbContext, long, Task<T>> action)
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var sourceId = await EnsureMediaSourceIdAsync(db);
-
-        var movie = new Movie { Name = name, MediaSourceId = sourceId, CreatedAt = DateTime.UtcNow };
-        db.Movies.Add(movie);
-        await db.SaveChangesAsync();
-        return movie.Id;
+        return await action(db, sourceId);
     }
+
+    /// <summary>
+    /// Same as <see cref="RunScopedAsync{T}"/> for actions without a return value.
+    /// </summary>
+    private Task RunScopedAsync(Func<ApplicationDbContext, long, Task> action)
+        => RunScopedAsync<object?>(async (db, sourceId) =>
+        {
+            await action(db, sourceId);
+            return null;
+        });
+
+    /// <summary>
+    /// Same as <see cref="RunScopedAsync{T}"/>, additionally loading the playlist with the given name
+    /// before running <paramref name="action"/>, for the seed helpers that add entries to an existing
+    /// playlist.
+    /// </summary>
+    private Task<T> RunScopedWithPlaylistAsync<T>(string playlistName, Func<ApplicationDbContext, long, Playlist, Task<T>> action)
+        => RunScopedAsync(async (db, sourceId) =>
+        {
+            var playlist = await db.Playlists.FirstAsync(p => p.Name == playlistName);
+            return await action(db, sourceId, playlist);
+        });
+
+    /// <summary>
+    /// Same as <see cref="RunScopedWithPlaylistAsync{T}"/> for actions without a return value.
+    /// </summary>
+    private Task RunScopedWithPlaylistAsync(string playlistName, Func<ApplicationDbContext, long, Playlist, Task> action)
+        => RunScopedAsync(async (db, sourceId) =>
+        {
+            var playlist = await db.Playlists.FirstAsync(p => p.Name == playlistName);
+            await action(db, sourceId, playlist);
+        });
+
+    /// <summary>
+    /// Resolves the <see cref="ApplicationUser"/> with the given email address via the
+    /// <see cref="UserManager{TUser}"/> registered in the given scope, throwing if no such user exists.
+    /// Centralizes the "resolve test user or fail loudly" step shared by the unlock/access helpers below.
+    /// </summary>
+    private static async Task<ApplicationUser> ResolveUserByEmailAsync(IServiceProvider scopedServices, string email)
+    {
+        var userManager = scopedServices.GetRequiredService<UserManager<ApplicationUser>>();
+        return await userManager.FindByEmailAsync(email)
+            ?? throw new InvalidOperationException($"Benutzer {email} wurde nicht gefunden.");
+    }
+
+    /// <summary>
+    /// Seeds a single movie directly in the database (bypassing the UI) and returns its id, for use
+    /// as the target of the playlist "add media" form in E2E tests.
+    /// </summary>
+    protected Task<long> SeedMovieAsync(string name)
+        => RunScopedAsync(async (db, sourceId) =>
+        {
+            var movie = new Movie { Name = name, MediaSourceId = sourceId, CreatedAt = DateTime.UtcNow };
+            db.Movies.Add(movie);
+            await db.SaveChangesAsync();
+            return movie.Id;
+        });
 
     /// <summary>
     /// Seeds a TV show with the given seasons and episode counts directly in the database and returns
     /// the show's id, for use as the target of the playlist "add media" form in E2E tests.
     /// </summary>
-    protected async Task<long> SeedTvShowWithSeasonsAsync(string showName, params (string SeasonName, int EpisodeCount)[] seasons)
-    {
-        using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var sourceId = await EnsureMediaSourceIdAsync(db);
-
-        var show = new TVShow { Name = showName, MediaSourceId = sourceId, CreatedAt = DateTime.UtcNow };
-        db.TVShows.Add(show);
-        await db.SaveChangesAsync();
-
-        foreach (var (seasonName, episodeCount) in seasons)
+    protected Task<long> SeedTvShowWithSeasonsAsync(string showName, params (string SeasonName, int EpisodeCount)[] seasons)
+        => RunScopedAsync(async (db, sourceId) =>
         {
-            var season = new TVShowSeason { Name = seasonName, TVShowId = show.Id, MediaSourceId = sourceId, CreatedAt = DateTime.UtcNow };
-            db.TVShowSeasons.Add(season);
+            var show = new TVShow { Name = showName, MediaSourceId = sourceId, CreatedAt = DateTime.UtcNow };
+            db.TVShows.Add(show);
             await db.SaveChangesAsync();
 
-            for (var number = 1; number <= episodeCount; number++)
+            foreach (var (seasonName, episodeCount) in seasons)
             {
-                db.TVShowEpisodes.Add(new TVShowEpisode
-                {
-                    Name = $"{seasonName} Episode {number}",
-                    Number = number,
-                    TVShowSeasonId = season.Id,
-                    MediaSourceId = sourceId,
-                    CreatedAt = DateTime.UtcNow
-                });
-            }
-            await db.SaveChangesAsync();
-        }
+                var season = new TVShowSeason { Name = seasonName, TVShowId = show.Id, MediaSourceId = sourceId, CreatedAt = DateTime.UtcNow };
+                db.TVShowSeasons.Add(season);
+                await db.SaveChangesAsync();
 
-        return show.Id;
-    }
+                for (var number = 1; number <= episodeCount; number++)
+                {
+                    db.TVShowEpisodes.Add(new TVShowEpisode
+                    {
+                        Name = $"{seasonName} Episode {number}",
+                        Number = number,
+                        TVShowSeasonId = season.Id,
+                        MediaSourceId = sourceId,
+                        CreatedAt = DateTime.UtcNow
+                    });
+                }
+                await db.SaveChangesAsync();
+            }
+
+            return show.Id;
+        });
 
     /// <summary>
     /// Seeds the given number of movies directly in the database (bypassing the UI) and adds them
     /// as top-level entries to the playlist with the given name, for use in virtual-scrolling /
     /// lazy-loading E2E tests that need more entries than fit on a single page.
     /// </summary>
-    protected async Task SeedMoviesIntoPlaylistAsync(string playlistName, int count)
-    {
-        using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var playlist = await db.Playlists.FirstAsync(p => p.Name == playlistName);
-        var sourceId = await EnsureMediaSourceIdAsync(db);
-
-        for (var number = 1; number <= count; number++)
+    protected Task SeedMoviesIntoPlaylistAsync(string playlistName, int count)
+        => RunScopedWithPlaylistAsync(playlistName, async (db, sourceId, playlist) =>
         {
-            var movie = new Movie
+            for (var number = 1; number <= count; number++)
             {
-                Name = $"{playlistName} Film {number:D3}",
-                MediaSourceId = sourceId,
-                CreatedAt = DateTime.UtcNow,
-                ReleaseDate = new DateTime(2000, 1, 1).AddDays(number)
-            };
+                var movie = new Movie
+                {
+                    Name = $"{playlistName} Film {number:D3}",
+                    MediaSourceId = sourceId,
+                    CreatedAt = DateTime.UtcNow,
+                    ReleaseDate = new DateTime(2000, 1, 1).AddDays(number)
+                };
+                db.Movies.Add(movie);
+                await db.SaveChangesAsync();
+
+                db.PlaylistEntries.Add(new PlaylistEntry
+                {
+                    PlaylistId = playlist.Id,
+                    MediaType = MediaTypeValues.Movie,
+                    MediaId = movie.Id,
+                    AddedAt = DateTime.UtcNow
+                });
+            }
+            await db.SaveChangesAsync();
+        });
+
+    /// <summary>
+    /// Seeds a TV show directly in the database and adds it as a top-level entry to the playlist with
+    /// the given name, for use in E2E tests covering real unlock/access behavior (only TV shows and
+    /// movie collections are recognized by <see cref="VideoWebPlayer.Services.IUnlockedMediaService"/>).
+    /// </summary>
+    protected Task<long> SeedTvShowIntoPlaylistAsync(string playlistName, string showName)
+        => RunScopedWithPlaylistAsync(playlistName, async (db, sourceId, playlist) =>
+        {
+            var show = new TVShow { Name = showName, MediaSourceId = sourceId, CreatedAt = DateTime.UtcNow };
+            db.TVShows.Add(show);
+            await db.SaveChangesAsync();
+
+            db.PlaylistEntries.Add(new PlaylistEntry
+            {
+                PlaylistId = playlist.Id,
+                MediaType = MediaTypeValues.TVShow,
+                MediaId = show.Id,
+                AddedAt = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync();
+
+            return show.Id;
+        });
+
+    /// <summary>
+    /// Seeds a movie with a real poster picture directly in the database and adds it as a top-level
+    /// entry to the playlist with the given name, for use in E2E tests covering the playlist image column.
+    /// </summary>
+    protected Task<long> SeedMovieWithPosterIntoPlaylistAsync(string playlistName, string movieName)
+        => RunScopedWithPlaylistAsync(playlistName, async (db, sourceId, playlist) =>
+        {
+            // A real (if minimal) 1x1 transparent GIF is used here instead of arbitrary bytes: the browser
+            // fetches the picture successfully either way, but only valid image data actually decodes and
+            // renders, so arbitrary bytes would trigger the <img> element's onerror fallback despite the
+            // HTTP request succeeding.
+            var pixelGif = Convert.FromBase64String("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBTAA7");
+            var picture = new Picture { Type = "poster", Data = pixelGif, ContentType = "image/gif" };
+            db.Pictures.Add(picture);
+            await db.SaveChangesAsync();
+
+            var movie = new Movie { Name = movieName, MediaSourceId = sourceId, CreatedAt = DateTime.UtcNow, PosterPictureId = picture.Id };
             db.Movies.Add(movie);
             await db.SaveChangesAsync();
 
@@ -216,73 +319,10 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
                 MediaId = movie.Id,
                 AddedAt = DateTime.UtcNow
             });
-        }
-        await db.SaveChangesAsync();
-    }
+            await db.SaveChangesAsync();
 
-    /// <summary>
-    /// Seeds a TV show directly in the database and adds it as a top-level entry to the playlist with
-    /// the given name, for use in E2E tests covering real unlock/access behavior (only TV shows and
-    /// movie collections are recognized by <see cref="VideoWebPlayer.Services.IUnlockedMediaService"/>).
-    /// </summary>
-    protected async Task<long> SeedTvShowIntoPlaylistAsync(string playlistName, string showName)
-    {
-        using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var playlist = await db.Playlists.FirstAsync(p => p.Name == playlistName);
-        var sourceId = await EnsureMediaSourceIdAsync(db);
-
-        var show = new TVShow { Name = showName, MediaSourceId = sourceId, CreatedAt = DateTime.UtcNow };
-        db.TVShows.Add(show);
-        await db.SaveChangesAsync();
-
-        db.PlaylistEntries.Add(new PlaylistEntry
-        {
-            PlaylistId = playlist.Id,
-            MediaType = MediaTypeValues.TVShow,
-            MediaId = show.Id,
-            AddedAt = DateTime.UtcNow
+            return movie.Id;
         });
-        await db.SaveChangesAsync();
-
-        return show.Id;
-    }
-
-    /// <summary>
-    /// Seeds a movie with a real poster picture directly in the database and adds it as a top-level
-    /// entry to the playlist with the given name, for use in E2E tests covering the playlist image column.
-    /// </summary>
-    protected async Task<long> SeedMovieWithPosterIntoPlaylistAsync(string playlistName, string movieName)
-    {
-        using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var playlist = await db.Playlists.FirstAsync(p => p.Name == playlistName);
-        var sourceId = await EnsureMediaSourceIdAsync(db);
-
-        // A real (if minimal) 1x1 transparent GIF is used here instead of arbitrary bytes: the browser
-        // fetches the picture successfully either way, but only valid image data actually decodes and
-        // renders, so arbitrary bytes would trigger the <img> element's onerror fallback despite the
-        // HTTP request succeeding.
-        var pixelGif = Convert.FromBase64String("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBTAA7");
-        var picture = new Picture { Type = "poster", Data = pixelGif, ContentType = "image/gif" };
-        db.Pictures.Add(picture);
-        await db.SaveChangesAsync();
-
-        var movie = new Movie { Name = movieName, MediaSourceId = sourceId, CreatedAt = DateTime.UtcNow, PosterPictureId = picture.Id };
-        db.Movies.Add(movie);
-        await db.SaveChangesAsync();
-
-        db.PlaylistEntries.Add(new PlaylistEntry
-        {
-            PlaylistId = playlist.Id,
-            MediaType = MediaTypeValues.Movie,
-            MediaId = movie.Id,
-            AddedAt = DateTime.UtcNow
-        });
-        await db.SaveChangesAsync();
-
-        return movie.Id;
-    }
 
     /// <summary>
     /// Grants the given user unlocked access to a movie collection or TV show by inserting an
@@ -293,13 +333,88 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-        var user = await userManager.FindByEmailAsync(userEmail)
-            ?? throw new InvalidOperationException($"Benutzer {userEmail} wurde nicht gefunden.");
+        var user = await ResolveUserByEmailAsync(scope.ServiceProvider, userEmail);
 
         db.UnlockedMediaEntries.Add(UnlockedMediaTestHelper.CreateUnlockedMediaEntry(user.Id, mediaType, mediaId));
         await db.SaveChangesAsync();
     }
+
+    /// <summary>
+    /// Grants the given user regular access to the single media source used by the other <c>Seed*</c>
+    /// helpers on this base class, by inserting a <see cref="MediaSourceUser"/> entry directly in the
+    /// database, for use in E2E tests that need to manipulate the real per-user source access status
+    /// of a playlist entry.
+    /// </summary>
+    protected async Task GrantMediaSourceAccessForUserAsync(string userEmail)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var user = await ResolveUserByEmailAsync(scope.ServiceProvider, userEmail);
+        var sourceId = await EnsureMediaSourceIdAsync(db);
+
+        db.MediaSourceUsers.Add(new MediaSourceUser { UserId = user.Id, MediaSourceId = sourceId });
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Seeds a movie belonging to the given movie collection directly in the database and adds the
+    /// movie as a top-level entry to the playlist with the given name, for use in E2E tests covering
+    /// the movie-to-collection unlock hierarchy resolution.
+    /// </summary>
+    protected Task<(long MovieId, long CollectionId)> SeedMovieInCollectionIntoPlaylistAsync(string playlistName, string collectionName, string movieName)
+        => RunScopedWithPlaylistAsync(playlistName, async (db, sourceId, playlist) =>
+        {
+            var collection = new MovieCollection { Name = collectionName, MediaSourceId = sourceId, CreatedAt = DateTime.UtcNow };
+            db.MovieCollections.Add(collection);
+            await db.SaveChangesAsync();
+
+            var movie = new Movie { Name = movieName, MediaSourceId = sourceId, MovieCollectionId = collection.Id, CreatedAt = DateTime.UtcNow };
+            db.Movies.Add(movie);
+            await db.SaveChangesAsync();
+
+            db.PlaylistEntries.Add(new PlaylistEntry
+            {
+                PlaylistId = playlist.Id,
+                MediaType = MediaTypeValues.Movie,
+                MediaId = movie.Id,
+                AddedAt = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync();
+
+            return (movie.Id, collection.Id);
+        });
+
+    /// <summary>
+    /// Seeds a TV show with a single season and episode directly in the database and adds the episode
+    /// as a top-level entry to the playlist with the given name, for use in E2E tests covering the
+    /// episode-to-show unlock hierarchy resolution.
+    /// </summary>
+    protected Task<(long EpisodeId, long ShowId)> SeedTvShowEpisodeIntoPlaylistAsync(string playlistName, string showName)
+        => RunScopedWithPlaylistAsync(playlistName, async (db, sourceId, playlist) =>
+        {
+            var show = new TVShow { Name = showName, MediaSourceId = sourceId, CreatedAt = DateTime.UtcNow };
+            db.TVShows.Add(show);
+            await db.SaveChangesAsync();
+
+            var season = new TVShowSeason { Name = "Staffel 1", TVShowId = show.Id, MediaSourceId = sourceId, CreatedAt = DateTime.UtcNow };
+            db.TVShowSeasons.Add(season);
+            await db.SaveChangesAsync();
+
+            var episode = new TVShowEpisode { Name = "Episode 1", Number = 1, TVShowSeasonId = season.Id, MediaSourceId = sourceId, CreatedAt = DateTime.UtcNow };
+            db.TVShowEpisodes.Add(episode);
+            await db.SaveChangesAsync();
+
+            db.PlaylistEntries.Add(new PlaylistEntry
+            {
+                PlaylistId = playlist.Id,
+                MediaType = MediaTypeValues.TVShowEpisode,
+                MediaId = episode.Id,
+                AddedAt = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync();
+
+            return (episode.Id, show.Id);
+        });
 
     private static async Task<long> EnsureMediaSourceIdAsync(ApplicationDbContext db)
     {

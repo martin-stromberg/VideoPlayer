@@ -297,6 +297,74 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
     }
 
     /// <summary>
+    /// Verifies the corrected `hasSourceAccess OR isUnlocked` accessibility rule: a TV show the user
+    /// has regular access to via <see cref="VideoWebPlayer.Data.MediaSourceUser"/> is rendered without
+    /// the reduced-opacity styling, even without an explicit individual unlock.
+    /// </summary>
+    [Fact]
+    public async Task PlaylistDetail_DoesNotShowReducedOpacity_WhenUserHasSourceAccess()
+    {
+        if (SkipBrowser)
+            return;
+
+        await LoginAsync(UserAEmail);
+        var row = await CreatePlaylistViaUiAsync("Zugriffsstatus-Quellenzugriff");
+        var showId = await SeedTvShowIntoPlaylistAsync("Zugriffsstatus-Quellenzugriff", "Serie mit Quellenzugriff");
+        await GrantMediaSourceAccessForUserAsync(UserAEmail);
+        await row.Locator(".playlist-open-button").ClickAsync();
+        await Page.WaitForSelectorAsync("#playlist-detail-name");
+        await Page.WaitForTimeoutAsync(1500);
+
+        await Expect(Page.Locator($".playlist-entry-row[data-media-id='{showId}']")).Not.ToHaveClassAsync(new Regex("opacity-50"));
+    }
+
+    /// <summary>
+    /// Verifies the movie-to-collection unlock hierarchy resolution: a movie belonging to an unlocked
+    /// movie collection is rendered without the reduced-opacity styling, even though the movie itself
+    /// cannot be individually unlocked.
+    /// </summary>
+    [Fact]
+    public async Task PlaylistDetail_DoesNotShowReducedOpacity_WhenMovieCollectionIsUnlocked()
+    {
+        if (SkipBrowser)
+            return;
+
+        await LoginAsync(UserAEmail);
+        var row = await CreatePlaylistViaUiAsync("Zugriffsstatus-Sammlung-Freigeschaltet");
+        var (movieId, collectionId) = await SeedMovieInCollectionIntoPlaylistAsync(
+            "Zugriffsstatus-Sammlung-Freigeschaltet", "Freigeschaltete Sammlung", "Film in Sammlung");
+        await UnlockMediaForUserAsync(UserAEmail, MediaTypeValues.MovieCollection, collectionId);
+        await row.Locator(".playlist-open-button").ClickAsync();
+        await Page.WaitForSelectorAsync("#playlist-detail-name");
+        await Page.WaitForTimeoutAsync(1500);
+
+        await Expect(Page.Locator($".playlist-entry-row[data-media-id='{movieId}']")).Not.ToHaveClassAsync(new Regex("opacity-50"));
+    }
+
+    /// <summary>
+    /// Verifies the episode-to-show unlock hierarchy resolution: a TV show episode whose show is
+    /// unlocked is rendered without the reduced-opacity styling, even though the episode itself cannot
+    /// be individually unlocked.
+    /// </summary>
+    [Fact]
+    public async Task PlaylistDetail_DoesNotShowReducedOpacity_WhenEpisodeShowIsUnlocked()
+    {
+        if (SkipBrowser)
+            return;
+
+        await LoginAsync(UserAEmail);
+        var row = await CreatePlaylistViaUiAsync("Zugriffsstatus-Episode-Serie-Freigeschaltet");
+        var (episodeId, showId) = await SeedTvShowEpisodeIntoPlaylistAsync(
+            "Zugriffsstatus-Episode-Serie-Freigeschaltet", "Serie fuer Episode");
+        await UnlockMediaForUserAsync(UserAEmail, MediaTypeValues.TVShow, showId);
+        await row.Locator(".playlist-open-button").ClickAsync();
+        await Page.WaitForSelectorAsync("#playlist-detail-name");
+        await Page.WaitForTimeoutAsync(1500);
+
+        await Expect(Page.Locator($".playlist-entry-row[data-media-id='{episodeId}']")).Not.ToHaveClassAsync(new Regex("opacity-50"));
+    }
+
+    /// <summary>
     /// Verifies that each playlist entry displays a title image: an entry with a poster picture
     /// resolves it via the pictures API, and an entry without one falls back to the placeholder image.
     /// </summary>

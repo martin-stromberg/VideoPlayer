@@ -39,7 +39,6 @@ public class PlaylistsControllerTests_Delete : PlaylistsControllerTestBase
 
         var result = await _controller.DeletePlaylist(created!.Id);
 
-        var statusResult = Assert.IsType<ObjectResult>(result);
-        Assert.Equal(403, statusResult.StatusCode);
+        Assert.IsType<ForbidResult>(result);
     }
 }

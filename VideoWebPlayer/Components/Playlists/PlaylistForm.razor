@@ -1,6 +1,7 @@
 @using Microsoft.AspNetCore.Components.Forms
 @using System.Net
 @using VideoWebPlayer.Client.Models
+@using VideoWebPlayer.Data
 @inject VideoWebPlayer.Client.VideoWebPlayerClient Client
 
 <div class="admin-dialog-overlay" @onclick="Cancel">
@@ -105,11 +106,11 @@
 
         if (string.IsNullOrWhiteSpace(playlist.Name))
             nameError = "Playlist-Name ist erforderlich.";
-        else if (playlist.Name.Length > 255)
-            nameError = "Name darf maximal 255 Zeichen lang sein.";
+        else if (playlist.Name.Length > Playlist.NameMaxLength)
+            nameError = $"Name darf maximal {Playlist.NameMaxLength} Zeichen lang sein.";
 
-        if (playlist.Description?.Length > 2000)
-            descriptionError = "Beschreibung darf maximal 2000 Zeichen lang sein.";
+        if (playlist.Description?.Length > Playlist.DescriptionMaxLength)
+            descriptionError = $"Beschreibung darf maximal {Playlist.DescriptionMaxLength} Zeichen lang sein.";
 
         return nameError is null && descriptionError is null;
     }

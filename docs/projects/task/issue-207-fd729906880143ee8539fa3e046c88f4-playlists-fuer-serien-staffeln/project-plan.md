@@ -28,6 +28,7 @@ Genres, Bildverwaltung und Zugriffskontrolle.
 | Kein Kopieren, keine Historie | Playlists lassen sich weder duplizieren noch klonen, und es wird keine Historie früherer Stände geführt | Ausdrückliche Vorgabe der Anforderung; hält Datenmodell und Bedienung schlank |
 | Texte | Alle für Anwender sichtbaren Texte, einschließlich der Sicherheitsabfragen, werden lokalisierbar hinterlegt | Entspricht dem bestehenden Umgang mit Oberflächentexten im System |
 | Bestandsdaten | Bestehende Installationen erhalten keine vorbefüllten Playlists; das Feature startet leer | Playlists sind rein benutzergesteuert, es gibt keine sinnvolle automatische Ableitung aus dem Bestand |
+| Backup-Abwärtskompatibilität | Jede neue Tabelle und jede neue Spalte, die ein Entwicklungsschritt dieses Projekts einführt, muss in `VideoWebPlayerBackupData` (`OptionalRestoreTables` bzw. `OptionalRestoreColumns`) als optional markiert werden, inklusive Regressionstest, der das Wiederherstellen eines Backups ohne diese Tabelle/Spalte prüft | Alte Backups (ohne die neuen Playlist-Tabellen/-Spalten) müssen weiterhin wiederherstellbar bleiben. Etabliertes Muster der Codebasis (siehe `UnlockedMediaEntries`, `WatchedEntries`, `Actors` in derselben Liste); für die bereits in Schritt 1/2 eingeführten Tabellen `Playlists`/`PlaylistEntries` wurde dies zunächst versäumt und wird nachträglich behoben |
 
 ## Entwicklungsschritte
 

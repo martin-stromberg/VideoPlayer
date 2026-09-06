@@ -136,6 +136,190 @@ public class PlaylistServiceTests_GetEntries : PlaylistServiceTestBase
     }
 
     [Fact]
+    public async Task GetEntries_UserHasSourceAccess_IsAccessible()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var showId = await CreateTestMediaEntryAsync(MediaTypeValues.TVShow, "Serie mit Quellenzugriff");
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.TVShow, showId));
+        await GrantMediaSourceAccessForUserAsync(_testUserId);
+
+        var result = await _service.GetPlaylistEntriesAsync(playlistId, _testUserId, ct);
+
+        Assert.Single(result);
+        Assert.True(result[0].IsAccessible);
+    }
+
+    [Fact]
+    public async Task GetEntries_UserHasSourceAccess_MovieType_IsAccessible()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var movieId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Ein Film");
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.Movie, movieId));
+        await GrantMediaSourceAccessForUserAsync(_testUserId);
+
+        var result = await _service.GetPlaylistEntriesAsync(playlistId, _testUserId, ct);
+
+        Assert.Single(result);
+        Assert.True(result[0].IsAccessible);
+    }
+
+    [Fact]
+    public async Task GetEntries_UserHasSourceAccess_EpisodeType_IsAccessible()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var episodeId = await CreateTestMediaEntryAsync(MediaTypeValues.TVShowEpisode, "Eine Episode");
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.TVShowEpisode, episodeId));
+        await GrantMediaSourceAccessForUserAsync(_testUserId);
+
+        var result = await _service.GetPlaylistEntriesAsync(playlistId, _testUserId, ct);
+
+        Assert.Single(result);
+        Assert.True(result[0].IsAccessible);
+    }
+
+    [Fact]
+    public async Task GetEntries_UserHasSourceAccess_SeasonType_IsAccessible()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var seasonId = await CreateTestMediaEntryAsync(MediaTypeValues.TVShowSeason, "Eine Staffel");
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.TVShowSeason, seasonId));
+        await GrantMediaSourceAccessForUserAsync(_testUserId);
+
+        var result = await _service.GetPlaylistEntriesAsync(playlistId, _testUserId, ct);
+
+        Assert.Single(result);
+        Assert.True(result[0].IsAccessible);
+    }
+
+    [Fact]
+    public async Task GetEntries_UserUnlockedNoSourceAccess_IsAccessible()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var showId = await CreateTestMediaEntryAsync(MediaTypeValues.TVShow, "Nur freigeschaltet");
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.TVShow, showId));
+        await UnlockMediaForUserAsync(_testUserId, MediaTypeValues.TVShow, showId);
+
+        var result = await _service.GetPlaylistEntriesAsync(playlistId, _testUserId, ct);
+
+        Assert.Single(result);
+        Assert.True(result[0].IsAccessible);
+    }
+
+    [Fact]
+    public async Task GetEntries_UserUnlockedNoSourceAccess_MovieType_IsAccessible()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var collectionId = await CreateTestMediaEntryAsync(MediaTypeValues.MovieCollection, "Sammlung");
+        var movie = new Movie { Name = "Film", MediaSourceId = 1, MovieCollectionId = collectionId, CreatedAt = DateTime.UtcNow };
+        _db.Movies.Add(movie);
+        await _db.SaveChangesAsync(ct);
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.Movie, movie.Id));
+        await UnlockMediaForUserAsync(_testUserId, MediaTypeValues.MovieCollection, collectionId);
+
+        var result = await _service.GetPlaylistEntriesAsync(playlistId, _testUserId, ct);
+
+        Assert.Single(result);
+        Assert.True(result[0].IsAccessible);
+    }
+
+    [Fact]
+    public async Task GetEntries_UserUnlockedNoSourceAccess_EpisodeType_IsAccessible()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var show = await Helpers.TestHelpers.CreateTvShowWithSeasonsAsync(_db,
+            ("Staffel 1", new[] { (1, (DateTime?)null) }));
+        var episode = await _db.TVShowEpisodes.AsNoTracking().FirstAsync(ct);
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.TVShowEpisode, episode.Id));
+        await UnlockMediaForUserAsync(_testUserId, MediaTypeValues.TVShow, show.Id);
+
+        var result = await _service.GetPlaylistEntriesAsync(playlistId, _testUserId, ct);
+
+        Assert.Single(result);
+        Assert.True(result[0].IsAccessible);
+    }
+
+    [Fact]
+    public async Task GetEntries_UserUnlockedNoSourceAccess_SeasonType_IsAccessible()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var show = await Helpers.TestHelpers.CreateTvShowWithSeasonsAsync(_db,
+            ("Staffel 1", Array.Empty<(int, DateTime?)>()));
+        var season = await _db.TVShowSeasons.AsNoTracking().FirstAsync(s => s.TVShowId == show.Id, ct);
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.TVShowSeason, season.Id));
+        await UnlockMediaForUserAsync(_testUserId, MediaTypeValues.TVShow, show.Id);
+
+        var result = await _service.GetPlaylistEntriesAsync(playlistId, _testUserId, ct);
+
+        Assert.Single(result);
+        Assert.True(result[0].IsAccessible);
+    }
+
+    [Fact]
+    public async Task GetEntries_UserNoAccessNoUnlock_IsNotAccessible()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var showId = await CreateTestMediaEntryAsync(MediaTypeValues.TVShow, "Keine Berechtigung");
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.TVShow, showId));
+
+        var result = await _service.GetPlaylistEntriesAsync(playlistId, _testUserId, ct);
+
+        Assert.Single(result);
+        Assert.False(result[0].IsAccessible);
+    }
+
+    [Fact]
+    public async Task GetEntries_UserNoAccessNoUnlock_MovieType_IsNotAccessible()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var movieId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Ein Film");
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.Movie, movieId));
+
+        var result = await _service.GetPlaylistEntriesAsync(playlistId, _testUserId, ct);
+
+        Assert.Single(result);
+        Assert.False(result[0].IsAccessible);
+    }
+
+    [Fact]
+    public async Task GetEntries_UserNoAccessNoUnlock_EpisodeType_IsNotAccessible()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var episodeId = await CreateTestMediaEntryAsync(MediaTypeValues.TVShowEpisode, "Eine Episode");
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.TVShowEpisode, episodeId));
+
+        var result = await _service.GetPlaylistEntriesAsync(playlistId, _testUserId, ct);
+
+        Assert.Single(result);
+        Assert.False(result[0].IsAccessible);
+    }
+
+    [Fact]
+    public async Task GetEntries_UserNoAccessNoUnlock_SeasonType_IsNotAccessible()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var seasonId = await CreateTestMediaEntryAsync(MediaTypeValues.TVShowSeason, "Eine Staffel");
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.TVShowSeason, seasonId));
+
+        var result = await _service.GetPlaylistEntriesAsync(playlistId, _testUserId, ct);
+
+        Assert.Single(result);
+        Assert.False(result[0].IsAccessible);
+    }
+
+    [Fact]
+    public async Task GetEntries_UserNoAccessNoUnlock_CollectionType_IsNotAccessible()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var collectionId = await CreateTestMediaEntryAsync(MediaTypeValues.MovieCollection, "Sammlung");
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.MovieCollection, collectionId));
+
+        var result = await _service.GetPlaylistEntriesAsync(playlistId, _testUserId, ct);
+
+        Assert.Single(result);
+        Assert.False(result[0].IsAccessible);
+    }
+
+    [Fact]
     public async Task GetEntries_ResolvesResolvedPictureId_FromMediaEntity()
     {
         var ct = TestContext.Current.CancellationToken;

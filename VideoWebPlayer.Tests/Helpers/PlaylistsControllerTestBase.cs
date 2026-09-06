@@ -26,7 +26,6 @@ public abstract class PlaylistsControllerTestBase : IDisposable
     protected PlaylistsController _controller;
     private readonly SqliteConnection _keeperConnection;
     private readonly IServiceProvider _serviceProvider;
-    private readonly EventManager _eventManager;
 
     protected PlaylistsControllerTestBase()
     {
@@ -50,7 +49,6 @@ public abstract class PlaylistsControllerTestBase : IDisposable
         _db.Users.AddRange(_user, _otherUser);
         _db.SaveChanges();
 
-        _eventManager = scope.ServiceProvider.GetRequiredService<EventManager>();
         _controller = CreateController(new PlaylistSettings());
     }
 
@@ -58,7 +56,7 @@ public abstract class PlaylistsControllerTestBase : IDisposable
     {
         var options = Options.Create(playlistSettings);
         var unlockedMediaService = new UnlockedMediaService(_db, _fakeAuth);
-        var playlistService = new PlaylistService(_db, _eventManager, unlockedMediaService, options);
+        var playlistService = new PlaylistService(_db, unlockedMediaService, options);
 
         return new PlaylistsController(playlistService, _fakeAuth, NullLogger<PlaylistsController>.Instance, options)
         {

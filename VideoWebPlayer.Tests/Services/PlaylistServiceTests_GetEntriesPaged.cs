@@ -209,13 +209,36 @@ public class PlaylistServiceTests_GetEntriesPaged : PlaylistServiceTestBase
         Assert.True(result.Entries[0].IsAccessible);
     }
 
-    /// <summary>
-    /// <see cref="IUnlockedMediaService.IsUnlockedAsync"/> only recognizes movie collections and TV
-    /// shows; other media types (movies, seasons, episodes) are therefore never reported as unlocked,
-    /// regardless of any <see cref="UnlockedMediaEntry"/> rows.
-    /// </summary>
     [Fact]
-    public async Task GetEntriesPaged_MovieEntry_IsNeverAccessible()
+    public async Task GetEntriesPaged_UserHasSourceAccess_IsAccessible()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var movieId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Ein Film");
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.Movie, movieId));
+        await GrantMediaSourceAccessForUserAsync(_testUserId);
+
+        var result = await _service.GetPlaylistEntriesPagedAsync(playlistId, _testUserId, 1, 20, ct);
+
+        Assert.Single(result.Entries);
+        Assert.True(result.Entries[0].IsAccessible);
+    }
+
+    [Fact]
+    public async Task GetEntriesPaged_UserUnlockedNoSourceAccess_IsAccessible()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var showId = await CreateTestMediaEntryAsync(MediaTypeValues.TVShow, "Eine Serie");
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.TVShow, showId));
+        await UnlockMediaForUserAsync(_testUserId, MediaTypeValues.TVShow, showId);
+
+        var result = await _service.GetPlaylistEntriesPagedAsync(playlistId, _testUserId, 1, 20, ct);
+
+        Assert.Single(result.Entries);
+        Assert.True(result.Entries[0].IsAccessible);
+    }
+
+    [Fact]
+    public async Task GetEntriesPaged_UserNoAccessNoUnlock_IsNotAccessible()
     {
         var ct = TestContext.Current.CancellationToken;
         var movieId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Ein Film");

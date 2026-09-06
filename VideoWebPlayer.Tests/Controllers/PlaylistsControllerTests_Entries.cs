@@ -90,8 +90,7 @@ public class PlaylistsControllerTests_Entries : PlaylistsControllerTestBase
 
         var result = await _controller.AddMediaToPlaylist(playlistId, new DtoAddMediaToPlaylistRequest { MediaType = MediaTypeValues.Movie, MediaId = movieId });
 
-        var statusResult = Assert.IsType<ObjectResult>(result);
-        Assert.Equal(403, statusResult.StatusCode);
+        Assert.IsType<ForbidResult>(result);
     }
 
     [Fact]
@@ -204,8 +203,7 @@ public class PlaylistsControllerTests_Entries : PlaylistsControllerTestBase
 
         var result = await _controller.RemoveMediaFromPlaylist(playlistId, MediaTypeValues.Movie, movieId);
 
-        var statusResult = Assert.IsType<ObjectResult>(result);
-        Assert.Equal(403, statusResult.StatusCode);
+        Assert.IsType<ForbidResult>(result);
     }
 
     [Fact]
@@ -243,8 +241,7 @@ public class PlaylistsControllerTests_Entries : PlaylistsControllerTestBase
 
         var result = await _controller.GetPlaylistEntries(playlistId);
 
-        var statusResult = Assert.IsType<ObjectResult>(result);
-        Assert.Equal(403, statusResult.StatusCode);
+        Assert.IsType<ForbidResult>(result);
     }
 
     [Fact]

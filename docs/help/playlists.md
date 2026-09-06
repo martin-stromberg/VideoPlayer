@@ -68,11 +68,13 @@ ein Platzhalterbild.
 
 ### Zugriffsstatus in der Liste
 
-Serien und Filmsammlungen, die für den angemeldeten Anwender nicht freigeschaltet sind, werden in
-der Liste optisch abgeblendet dargestellt, um anzuzeigen, dass die enthaltenen Inhalte derzeit
-nicht angeschaut werden können. Der **Entfernen**-Button bleibt für solche Einträge weiterhin
-nutzbar — der Anwender kann einen nicht freigeschalteten Eintrag also jederzeit aus der Playlist
-entfernen.
+Einträge, auf deren Inhalt der angemeldete Anwender keinen Zugriff hat, werden in der Liste
+optisch abgeblendet dargestellt, um anzuzeigen, dass die enthaltenen Inhalte derzeit nicht
+angeschaut werden können. Zugriff besteht, wenn der Anwender entweder regulären Zugriff auf die
+zugrunde liegende Mediaquelle hat oder der Inhalt individuell für ihn freigeschaltet wurde
+(bei Filmen, Staffeln und Episoden über die übergeordnete Filmsammlung bzw. Serie); dies gilt für
+alle Medientypen. Der **Entfernen**-Button bleibt für solche Einträge weiterhin nutzbar — der
+Anwender kann einen nicht zugänglichen Eintrag also jederzeit aus der Playlist entfernen.
 
 ### Sortierung und Anzeige
 

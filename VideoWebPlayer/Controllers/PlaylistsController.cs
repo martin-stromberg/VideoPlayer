@@ -193,9 +193,9 @@ public class PlaylistsController : ApiBaseController
         }
     }
 
-    private static IActionResult MapInvalidOperationException(InvalidOperationException ex, string conflictSubstring = "existiert bereits")
+    private static IActionResult MapInvalidOperationException(InvalidOperationException ex)
     {
-        if (ex.Message.Contains(conflictSubstring, StringComparison.OrdinalIgnoreCase))
+        if (ex.Message.Contains("existiert bereits", StringComparison.OrdinalIgnoreCase))
             return new ConflictObjectResult(ex.Message);
 
         return new BadRequestObjectResult(ex.Message);

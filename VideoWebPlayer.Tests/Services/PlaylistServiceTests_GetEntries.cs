@@ -307,6 +307,34 @@ public class PlaylistServiceTests_GetEntries : PlaylistServiceTestBase
     }
 
     [Fact]
+    public async Task GetEntries_MovieCollectionIdCollidesWithUnlockedTVShowId_MovieIsNotAccessible()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        // In a fresh test database both tables assign id 1 to their first row, so a TV show and a
+        // movie collection created here collide on id 1 despite living in independent id spaces.
+        var show = new TVShow { Name = "Freigeschaltete Serie", MediaSourceId = 1, CreatedAt = DateTime.UtcNow };
+        _db.TVShows.Add(show);
+        await _db.SaveChangesAsync(ct);
+        await UnlockMediaForUserAsync(_testUserId, MediaTypeValues.TVShow, show.Id);
+
+        var collection = new MovieCollection { Name = "Nicht freigeschaltete Sammlung", MediaSourceId = 1, CreatedAt = DateTime.UtcNow };
+        _db.MovieCollections.Add(collection);
+        await _db.SaveChangesAsync(ct);
+        Assert.Equal(show.Id, collection.Id);
+
+        var movie = new Movie { Name = "Film aus nicht freigeschalteter Sammlung", MediaSourceId = 1, MovieCollectionId = collection.Id, CreatedAt = DateTime.UtcNow };
+        _db.Movies.Add(movie);
+        await _db.SaveChangesAsync(ct);
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.Movie, movie.Id));
+
+        var result = await _service.GetPlaylistEntriesAsync(playlistId, _testUserId, ct);
+
+        Assert.Single(result);
+        Assert.False(result[0].IsAccessible);
+    }
+
+    [Fact]
     public async Task GetEntries_UserNoAccessNoUnlock_CollectionType_IsNotAccessible()
     {
         var ct = TestContext.Current.CancellationToken;

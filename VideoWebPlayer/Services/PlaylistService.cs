@@ -811,8 +811,18 @@ public sealed class PlaylistService : IPlaylistService
         HashSet<long> mediaSourceIds)
     {
         var hasSourceAccess = resolvedMediaSourceId.HasValue && mediaSourceIds.Contains(resolvedMediaSourceId.Value);
-        var isUnlocked = unlockedUnlockId.HasValue &&
-            (unlockedMovieCollectionIds.Contains(unlockedUnlockId.Value) || unlockedTVShowIds.Contains(unlockedUnlockId.Value));
+
+        var isUnlocked = false;
+        if (unlockedUnlockId.HasValue && TryParseKnownMediaType(entry.MediaType, out var parsedType))
+        {
+            // MovieCollectionId and TVShowId are independent, both-starting-at-1 id spaces (separate
+            // tables), so the resolved id must only be checked against the id space it was resolved
+            // from - never against the union of both, or ids can collide across spaces.
+            isUnlocked = parsedType is MediaType.Movie or MediaType.MovieCollection
+                ? unlockedMovieCollectionIds.Contains(unlockedUnlockId.Value)
+                : unlockedTVShowIds.Contains(unlockedUnlockId.Value);
+        }
+
         return hasSourceAccess || isUnlocked;
     }
 

@@ -7,7 +7,7 @@ Branch: `task/issue-207-fd729906880143ee8539fa3e046c88f4-playlists-fuer-serien-s
 | 1 | Playlists anlegen und verwalten | Keine | `task/issue-207-fd729906880143ee8539fa3e046c88f4-playlists-fuer-serien-staffeln-schritt-1-playlists-anlegen-und-verwalten` | Fertig |
 | 2 | Inhalte zu einer Playlist hinzufügen und daraus entfernen | 1 | `task/issue-207-fd729906880143ee8539fa3e046c88f4-playlists-fuer-serien-staffeln-schritt-2-inhalte-hinzufuegen-und-entfernen` | Fertig |
 | 3 | Playlist-Inhalte anzeigen und automatisch nach Erscheinungsdatum sortieren | 2 | `task/issue-207-fd729906880143ee8539fa3e046c88f4-playlists-fuer-serien-staffeln-schritt-3-automatische-sortierung-anzeige` | Fertig |
-| 4 | Manuelle Sortierung einer Playlist | 3 | `task/issue-207-fd729906880143ee8539fa3e046c88f4-playlists-fuer-serien-staffeln-schritt-4-manuelle-sortierung` | Offen |
+| 4 | Manuelle Sortierung einer Playlist | 3 | `task/issue-207-fd729906880143ee8539fa3e046c88f4-playlists-fuer-serien-staffeln-schritt-4-manuelle-sortierung` | In Arbeit |
 | 5 | Wiedergabe aus einer Playlist heraus | 3 | `task/issue-207-fd729906880143ee8539fa3e046c88f4-playlists-fuer-serien-staffeln-schritt-5-wiedergabe-aus-playlist` | Offen |
 | 6 | Weiterschauen-Einträge mit Playlist-Bezug | 5 | `task/issue-207-fd729906880143ee8539fa3e046c88f4-playlists-fuer-serien-staffeln-schritt-6-weiterschauen-playlist-bezug` | Offen |
 | 7 | Sicherheitsabfrage beim Entfernen von Titeln mit Weiterschauen-Bezug | 2, 6 | `task/issue-207-fd729906880143ee8539fa3e046c88f4-playlists-fuer-serien-staffeln-schritt-7-sicherheitsabfrage-entfernen` | Offen |

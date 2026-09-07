@@ -50,7 +50,9 @@ Fügt einen Medieninhalt (oder mehrere bei Cascade) zu einer Playlist hinzu.
     "parentMediaType": null,
     "parentMediaId": null,
     "parentMediaTitle": null,
-    "addedAt": "2026-09-05T14:30:00Z"
+    "addedAt": "2026-09-05T14:30:00Z",
+    "resolvedPictureId": 789,
+    "isAccessible": false
   },
   "addedEntries": [
     {
@@ -62,13 +64,20 @@ Fügt einen Medieninhalt (oder mehrere bei Cascade) zu einer Playlist hinzu.
       "parentMediaType": null,
       "parentMediaId": null,
       "parentMediaTitle": null,
-      "addedAt": "2026-09-05T14:30:00Z"
+      "addedAt": "2026-09-05T14:30:00Z",
+      "resolvedPictureId": 789,
+      "isAccessible": false
     }
   ],
   "skippedDuplicateCount": 0,
   "message": "3 Titel hinzugefuegt."
 }
 ```
+
+`resolvedPictureId` und `isAccessible` werden für `topLevelEntry` und `addedEntries` genauso
+ermittelt wie für die Lese-Endpunkte weiter unten (siehe Hinweise zu `DtoPlaylistEntry` im
+Abschnitt [DTO-Modelle](#dto-modelle)) — ein soeben hinzugefügter, noch nicht freigeschalteter
+Titel liefert also unmittelbar `isAccessible: false`.
 
 Die Antwort ist ein `DtoPlaylistAddResult`-Objekt (siehe [DTO-Modelle](#dto-modelle)). `topLevelEntry`
 ist `null`, wenn der angeforderte Top-Level-Eintrag bereits als Duplikat übersprungen wurde.
@@ -160,7 +169,9 @@ Ruft alle Medieninhalte einer Playlist ab. Verwaiste Einträge (deren Medieninha
     "parentMediaType": null,
     "parentMediaId": null,
     "parentMediaTitle": null,
-    "addedAt": "2026-09-05T14:30:00Z"
+    "addedAt": "2026-09-05T14:30:00Z",
+    "resolvedPictureId": 789,
+    "isAccessible": false
   },
   {
     "id": 457,
@@ -171,7 +182,9 @@ Ruft alle Medieninhalte einer Playlist ab. Verwaiste Einträge (deren Medieninha
     "parentMediaType": "TVShow",
     "parentMediaId": 123,
     "parentMediaTitle": "The Crown",
-    "addedAt": "2026-09-05T14:30:00Z"
+    "addedAt": "2026-09-05T14:30:00Z",
+    "resolvedPictureId": null,
+    "isAccessible": false
   }
 ]
 ```
@@ -186,6 +199,69 @@ Ruft alle Medieninhalte einer Playlist ab. Verwaiste Einträge (deren Medieninha
 
 | HTTP-Status | Grund |
 |-------------|-------|
+| 404 Not Found | Playlist nicht gefunden |
+| 403 Forbidden | Benutzer ist nicht der Besitzer der Playlist |
+| 401 Unauthorized | Fehlende oder ungültige Authentifizierung |
+
+---
+
+### `GET /api/playlists/{id}/entries/paged` — Sortierte, paginierte Einträge abrufen
+
+Ruft eine sortierte Seite der Medieninhalte einer Playlist ab. Wird von der Detailseite verwendet,
+um Einträge beim Scrollen schrittweise nachzuladen (Virtual Scrolling), statt immer die komplette
+Liste auf einmal zu übertragen. Verwaiste Einträge werden dabei wie beim unpaginierten Endpunkt
+still bereinigt.
+
+**Parameter:**
+
+| Name | Position | Typ | Erforderlich | Beschreibung |
+|------|----------|-----|-------------|--------------|
+| `id` | Route | long | Ja | Playlist-ID |
+| `pageNumber` | Query | int | Nein | 1-basierte Seitennummer (Standard: `1`); muss ≥ 1 sein |
+| `pageSize` | Query | int | Nein | Anzahl Einträge pro Seite (Standard: `Playlists:DefaultPageSize`, `20`); muss zwischen 1 und `Playlists:MaxPageSize` (`100`) liegen |
+
+**Sortierlogik:**
+
+- Playlist-Sortiermodus `ByReleaseDate`: primär nach Erscheinungsdatum des referenzierten
+  Medieninhalts (aufsteigend); fehlt dieses, Fallback auf die Hierarchie (übergeordnete
+  Serie/Staffel, dann Episoden- bzw. Staffelnummer); fehlt auch das, Fallback auf `AddedAt`.
+- Playlist-Sortiermodus `Manual`: nach `AddedAt` (aufsteigend).
+
+**Erfolgreiche Antwort (HTTP 200):**
+
+```json
+{
+  "entries": [
+    {
+      "id": 456,
+      "playlistId": 1,
+      "mediaType": "TVShowEpisode",
+      "mediaId": 1001,
+      "mediaTitle": "Pilot",
+      "parentMediaType": "TVShowSeason",
+      "parentMediaId": 200,
+      "parentMediaTitle": "Season 1",
+      "addedAt": "2026-09-05T14:30:00Z",
+      "resolvedPictureId": null,
+      "isAccessible": true
+    }
+  ],
+  "totalCount": 57,
+  "hasNextPage": true,
+  "pageNumber": 1,
+  "pageSize": 20
+}
+```
+
+Die Antwort ist ein `DtoPlaylistEntriesPagedResult`-Objekt (siehe [DTO-Modelle](#dto-modelle)).
+`totalCount` ist die Gesamtzahl aller (nicht verwaisten) Einträge der Playlist, unabhängig von der
+aktuellen Seite. `hasNextPage` gibt an, ob nach der aktuellen Seite noch weitere Einträge folgen.
+
+**Fehlerantworten:**
+
+| HTTP-Status | Grund |
+|-------------|-------|
+| 400 Bad Request | `pageNumber < 1` oder `pageSize` außerhalb von `1..MaxPageSize` |
 | 404 Not Found | Playlist nicht gefunden |
 | 403 Forbidden | Benutzer ist nicht der Besitzer der Playlist |
 | 401 Unauthorized | Fehlende oder ungültige Authentifizierung |
@@ -210,8 +286,30 @@ public class DtoPlaylistEntry
     public long? ParentMediaId { get; set; }       // null für Top-Level
     public string? ParentMediaTitle { get; set; }  // null für Top-Level, sonst Titel der Sammlung
     public DateTime AddedAt { get; set; }          // UTC
+    public long? ResolvedPictureId { get; set; }   // Bild-ID für die Anzeige, siehe Hinweis unten
+    public bool IsAccessible { get; set; }         // echte Freischaltungsprüfung, siehe Hinweis unten
 }
 ```
+
+**Hinweis zu `ResolvedPictureId`:** Serverseitig bereits aufgelöste Bild-ID des referenzierten
+Medieninhalts, die der Client direkt an `GET /api/pictures/{id}` übergeben kann. Es wird das
+Poster-Bild verwendet; ist keines gesetzt, wird auf das Banner- und danach auf das Fanart-Bild
+zurückgegriffen. Ist keines der drei vorhanden, ist der Wert `null` und der Client zeigt einen
+Platzhalter an. Anders als `PosterPictureId` auf anderen DTOs (z. B. `DtoMovie`) kann dieser Wert
+also bereits eine Banner- oder Fanart-ID sein, da der Fallback serverseitig erfolgt.
+
+**Hinweis zu `IsAccessible`:** Gibt an, ob der aktuell angemeldete Benutzer Zugriff auf den
+referenzierten Medieninhalt hat. Zugriff wird gewährt, wenn der Benutzer regulären Zugriff auf die
+Mediaquelle hat ODER wenn der Eintrag für ihn individuell freigeschaltet wurde
+(`hasSourceAccess OR isUnlocked`). Die individuelle Freischaltung erfolgt über denselben
+Freischaltungsdienst wie bei Einzelfreischaltungen (siehe `einzelfreischaltungen.md`) und
+berücksichtigt direkt nur die Medientypen `TVShow` und `MovieCollection` — für Filme wird die
+Freischaltung über die übergeordnete Filmsammlung geprüft, für Episoden und Staffeln über die
+übergeordnete Serie (Film → Filmsammlung, Episode → Staffel → Serie, Staffel → Serie). Dies gilt
+unabhängig vom regulären Quellenzugriff, der für alle fünf Medientypen direkt anhand der jeweils
+zugrunde liegenden Mediaquelle geprüft wird. Der Wert dient ausschließlich der Anzeige (siehe
+`playlists.md`, Abschnitt „Zugriffsstatus in der Liste"); er verhindert nicht das Entfernen des
+Eintrags aus der Playlist.
 
 ### `DtoAddMediaToPlaylistRequest`
 
@@ -236,6 +334,21 @@ public class DtoPlaylistAddResult
     public DtoPlaylistEntry[] AddedEntries { get; set; }  // alle tatsaechlich neu angelegten Eintraege
     public int SkippedDuplicateCount { get; set; }        // Anzahl uebersprungener Duplikate (Top-Level + Cascade)
     public string Message { get; set; }                   // Zusammenfassung fuer die Anzeige in der UI
+}
+```
+
+### `DtoPlaylistEntriesPagedResult`
+
+Response-Format von `GET /api/playlists/{id}/entries/paged`.
+
+```csharp
+public class DtoPlaylistEntriesPagedResult
+{
+    public DtoPlaylistEntry[] Entries { get; set; }  // Eintraege der aktuellen Seite, sortiert gemaess SortMode
+    public int TotalCount { get; set; }              // Gesamtzahl aller (nicht verwaisten) Eintraege der Playlist
+    public bool HasNextPage { get; set; }            // true, wenn nach dieser Seite weitere Eintraege folgen
+    public int PageNumber { get; set; }              // angeforderte (1-basierte) Seitennummer
+    public int PageSize { get; set; }                // tatsaechlich verwendete Seitengroesse
 }
 ```
 
@@ -295,9 +408,13 @@ Optional kann die maximale Anzahl von Einträgen pro Playlist begrenzt werden:
 ```json
 {
   "Playlists": {
-    "MaxPlaylistItemCount": 1000
+    "MaxPlaylistItemCount": 1000,
+    "DefaultPageSize": 20,
+    "MaxPageSize": 100
   }
 }
 ```
 
-Wenn der Wert `null` ist (Standard), gibt es keine Beschränkung. Bei Überschreitung wird HTTP 400 zurückgegeben.
+- `MaxPlaylistItemCount`: `null` (Standard) bedeutet keine Beschränkung. Bei Überschreitung wird HTTP 400 zurückgegeben.
+- `DefaultPageSize`: Seitengröße, die `GET /api/playlists/{id}/entries/paged` verwendet, wenn kein `pageSize`-Parameter übergeben wird (Standard: `20`).
+- `MaxPageSize`: obere Grenze für den `pageSize`-Parameter von `GET /api/playlists/{id}/entries/paged` (Standard: `100`); größere Werte führen zu HTTP 400.

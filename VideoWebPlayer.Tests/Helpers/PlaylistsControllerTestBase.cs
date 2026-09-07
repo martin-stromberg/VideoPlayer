@@ -10,7 +10,6 @@ using VideoWebPlayer.Configuration;
 using VideoWebPlayer.Controllers;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
-using VideoWebPlayer.Services.Authentication;
 
 namespace VideoWebPlayer.Tests.Helpers;
 
@@ -24,7 +23,7 @@ public abstract class PlaylistsControllerTestBase : IDisposable
     protected readonly ApplicationUser _otherUser;
     protected readonly FakeAuthService _fakeAuth;
     protected readonly ApplicationDbContext _db;
-    protected readonly PlaylistsController _controller;
+    protected PlaylistsController _controller;
     private readonly SqliteConnection _keeperConnection;
     private readonly IServiceProvider _serviceProvider;
 
@@ -50,11 +49,16 @@ public abstract class PlaylistsControllerTestBase : IDisposable
         _db.Users.AddRange(_user, _otherUser);
         _db.SaveChanges();
 
-        var eventManager = scope.ServiceProvider.GetRequiredService<EventManager>();
-        var playlistSettings = Options.Create(new PlaylistSettings());
-        var playlistService = new PlaylistService(_db, eventManager, playlistSettings);
+        _controller = CreateController(new PlaylistSettings());
+    }
 
-        _controller = new PlaylistsController(playlistService, _fakeAuth, NullLogger<PlaylistsController>.Instance)
+    protected PlaylistsController CreateController(PlaylistSettings playlistSettings)
+    {
+        var options = Options.Create(playlistSettings);
+        var unlockedMediaService = new UnlockedMediaService(_db, _fakeAuth);
+        var playlistService = new PlaylistService(_db, unlockedMediaService, options);
+
+        return new PlaylistsController(playlistService, _fakeAuth, NullLogger<PlaylistsController>.Instance, options)
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
         };
@@ -63,14 +67,5 @@ public abstract class PlaylistsControllerTestBase : IDisposable
     public void Dispose()
     {
         _keeperConnection.Dispose();
-    }
-
-    public sealed class FakeAuthService : IAuthService
-    {
-        public ApplicationUser? CurrentUser { get; set; }
-
-        public Task<AuthorizationToken> ImpersonateAsync(ImpersonateRequest request) => Task.FromResult(new AuthorizationToken());
-
-        public Task<AuthorizationToken> LoginAsync(AuthenticationRequest request) => Task.FromResult(new AuthorizationToken());
     }
 }

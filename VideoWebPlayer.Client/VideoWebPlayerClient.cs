@@ -100,6 +100,11 @@ namespace VideoWebPlayer.Client
             return SendAndDeserializeAsync<T>(endPoint, "GET", () => httpClient.GetAsync(endPoint));
         }
 
+        protected virtual Task<T> HttpGetAsync<T>(string endPoint, CancellationToken cancellationToken)
+        {
+            return SendAndDeserializeAsync<T>(endPoint, "GET", () => httpClient.GetAsync(endPoint, cancellationToken));
+        }
+
         protected virtual Task<T> HttpPostAsync<T>(string endPoint, HttpContent args, bool skipReauthorize = false)
         {
             return SendAndDeserializeAsync<T>(endPoint, "POST", () => httpClient.PostAsync(endPoint, args), skipReauthorize);
@@ -442,9 +447,9 @@ namespace VideoWebPlayer.Client
             await HttpDeleteAsync($"api/playlists/{playlistId}");
         }
 
-        public async Task<IEnumerable<DtoPlaylistEntry>> RequestPlaylistEntriesAsync(long playlistId)
+        public async Task<DtoPlaylistEntriesPagedResult> RequestPlaylistEntriesPagedAsync(long playlistId, int pageNumber, int pageSize, CancellationToken cancellationToken = default)
         {
-            return await HttpGetAsync<DtoPlaylistEntry[]>($"api/playlists/{playlistId}/entries");
+            return await HttpGetAsync<DtoPlaylistEntriesPagedResult>($"api/playlists/{playlistId}/entries/paged?pageNumber={pageNumber}&pageSize={pageSize}", cancellationToken);
         }
 
         public async Task<DtoPlaylistAddResult> AddMediaToPlaylistAsync(long playlistId, DtoAddMediaToPlaylistRequest request)

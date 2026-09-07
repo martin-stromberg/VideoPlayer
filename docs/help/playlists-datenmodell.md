@@ -80,7 +80,7 @@ Repräsentiert einen einzelnen Medieninhalt in einer Playlist.
 - Primary Index auf `Id`
 - Foreign Key Index auf `PlaylistId`
 - **Composite Index** auf `(PlaylistId, MediaType, MediaId)` (für Duplikatsprüfung)
-- Index auf `(PlaylistId, ParentMediaType, ParentMediaId)` (für spätere Gruppierung/Sortierung in Schritt 3)
+- Index auf `(PlaylistId, ParentMediaType, ParentMediaId)` (wird für die Fallback-Sortierung nach Hierarchie genutzt, siehe `playlists-business-rules.md`, BR-13)
 
 ---
 
@@ -305,7 +305,7 @@ Angenommen:
 | 4 | 1 | TVShowEpisode | 1001 | TVShowSeason | 200 | 2026-09-05 14:05:00Z |
 | 5 | 1 | TVShowEpisode | 1002 | TVShowSeason | 200 | 2026-09-05 14:05:00Z |
 
-**Gruppierung (später in Schritt 3):**
+**Fallback-Sortierung nach Hierarchie (genutzt, wenn kein Erscheinungsdatum vorhanden ist, siehe BR-13):**
 - Film: The Matrix (1 Eintrag, top-level)
 - Serie: The Crown (1 Eintrag, top-level)
   - Staffel 1 (1 Eintrag, Parent=Serie)
@@ -332,7 +332,7 @@ Angenommen:
 
 1. **Clustered Index** auf `(PlaylistId)` — schnelle Abfrage aller Einträge einer Playlist
 2. **Unique Index** auf `(PlaylistId, MediaType, MediaId)` — Duplikatsprüfung bei Insert
-3. **Non-Clustered Index** auf `(PlaylistId, ParentMediaType, ParentMediaId)` — Vorbereitung für Sortierung nach Parent in Schritt 3
+3. **Non-Clustered Index** auf `(PlaylistId, ParentMediaType, ParentMediaId)` — genutzt für die Fallback-Sortierung nach Hierarchie (siehe BR-13 in `playlists-business-rules.md`)
 
 ### Query-Optimierungen
 
@@ -349,7 +349,7 @@ var isDuplicate = db.PlaylistEntries
     .Any(e => e.PlaylistId == id && e.MediaType == type && e.MediaId == mid);
 // → Nutzt Unique Index auf (PlaylistId, MediaType, MediaId)
 
-// Abfrage: Alle Kind-Einträge einer Serie (später in Schritt 3)
+// Abfrage: Alle Kind-Einträge einer Serie (Beispiel, aktuell nicht als eigenständige Abfrage im Code)
 var childEntries = db.PlaylistEntries
     .Where(e => e.PlaylistId == id && e.ParentMediaType == "TVShow" && e.ParentMediaId == seriesId)
     .ToList();
@@ -388,13 +388,24 @@ Wenn ein Medieninhalt gelöscht wird:
 
 Mögliche zukünftige Änderungen für späteren Ausbau:
 
-1. **Schritt 3 (Sortierung):**
-   - `SortOrder` (int, nullable) — Manuelle Sortierreihenfolge
-   - `DisplayOrder` (int, computed) — Berechnete Anzeige-Reihenfolge basierend auf SortMode
+1. **Automatische Sortierung (`ByReleaseDate`) — bereits umgesetzt, ohne Schemaänderung:**
+   Die Sortierung nach Erscheinungsdatum mit Fallback auf Hierarchie und `AddedAt` wird zur
+   Laufzeit berechnet (siehe `playlists-business-rules.md`, BR-13) und benötigt keine zusätzlichen
+   Spalten an `PlaylistEntry`.
 
-2. **Schritt 4+ (erweiterte Metadaten):**
+2. **Manuelle Sortierung (Drag & Drop, zukünftig):**
+   - `SortOrder` (int, nullable) — Manuelle Sortierreihenfolge, sofern der Sortiermodus `Manual`
+     künftig eine explizite Reihenfolge statt der Reihenfolge nach `AddedAt` erhalten soll
+
+3. **Erweiterte Metadaten (zukünftig):**
    - `Notes` (string, nullable) — Benutzer-Notizen pro Eintrag
    - `Watched` (bool) — Benutzer hat Eintrag bereits gesehen
    - `Rating` (decimal, nullable) — Benutzerbewertung
 
-Diese Änderungen würden Migrationen erfordern, würden aber keine Breaking Changes darstellen.
+4. **Zugriffs-/Lizenzprüfung — bereits umgesetzt, ohne Schemaänderung:**
+   `DtoPlaylistEntry.IsAccessible` wird zur Laufzeit über `IUnlockedMediaService` ermittelt
+   (siehe `playlists-api.md`) und benötigt keine zusätzlichen Spalten an `PlaylistEntry` selbst:
+   Die Freischaltungsdaten für Serien und Filmsammlungen liegen bereits in der bestehenden
+   `UnlockedMediaEntry`-Tabelle, die pro Anfrage befragt wird (siehe `einzelfreischaltungen.md`).
+
+Änderungen 2–3 würden Migrationen erfordern, würden aber keine Breaking Changes darstellen.

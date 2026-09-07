@@ -61,6 +61,32 @@ public sealed class PlaylistEntriesE2ETests : PlaylistsE2ETestBase
         await Expect(Page.Locator($".playlist-entry-row[data-media-type='Movie'][data-media-id='{movieId}']")).ToHaveCountAsync(0);
     }
 
+    /// <summary>
+    /// Verifies the corrected `hasSourceAccess OR isUnlocked` accessibility rule for newly added
+    /// entries: a movie the user has regular access to via
+    /// <see cref="VideoWebPlayer.Data.MediaSourceUser"/> is rendered without the reduced-opacity
+    /// styling right after being added, even without an explicit individual unlock.
+    /// </summary>
+    [Fact]
+    public async Task AddMovie_WithSourceAccess_AppearsAccessible()
+    {
+        if (SkipBrowser)
+            return;
+
+        var movieId = await SeedMovieAsync("Quellenzugriff-Testfilm");
+
+        await LoginAsync(UserAEmail);
+        await GrantMediaSourceAccessForUserAsync(UserAEmail);
+        var row = await CreatePlaylistViaUiAsync("Playlist-Fuer-Quellenzugriff");
+        await row.Locator(".playlist-open-button").ClickAsync();
+        await Page.WaitForSelectorAsync("#playlist-detail-name");
+
+        await AddEntryViaUiAsync("Movie", movieId);
+
+        await Expect(Page.Locator($".playlist-entry-row[data-media-type='Movie'][data-media-id='{movieId}']"))
+            .Not.ToHaveClassAsync(new System.Text.RegularExpressions.Regex("opacity-50"));
+    }
+
     [Fact]
     public async Task AddMovie_Duplicate_ShowsSuccessMessage()
     {

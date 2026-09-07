@@ -241,4 +241,106 @@ public class PlaylistServiceTests_AddMedia : PlaylistServiceTestBase
 
         Assert.Empty(await _db.PlaylistEntries.AsNoTracking().Where(e => e.PlaylistId == playlistId).ToListAsync(ct));
     }
+
+    [Fact]
+    public async Task AddMedia_TVShowNotUnlocked_TopLevelEntryIsNotAccessible()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId);
+        var showId = await CreateTestMediaEntryAsync(MediaTypeValues.TVShow, "Eine Serie");
+
+        var result = await _service.AddMediaToPlaylistAsync(playlistId, _testUserId, MediaTypeValues.TVShow, showId, ct);
+
+        Assert.NotNull(result.TopLevelEntry);
+        Assert.False(result.TopLevelEntry!.IsAccessible);
+        Assert.Single(result.AddedEntries, e => e.MediaType == MediaTypeValues.TVShow && e.MediaId == showId);
+        Assert.False(result.AddedEntries.Single(e => e.MediaType == MediaTypeValues.TVShow).IsAccessible);
+    }
+
+    [Fact]
+    public async Task AddMedia_TVShowUnlockedForCurrentUser_TopLevelEntryIsAccessible()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId);
+        var showId = await CreateTestMediaEntryAsync(MediaTypeValues.TVShow, "Eine Serie");
+        await UnlockMediaForUserAsync(_testUserId, MediaTypeValues.TVShow, showId);
+
+        var result = await _service.AddMediaToPlaylistAsync(playlistId, _testUserId, MediaTypeValues.TVShow, showId, ct);
+
+        Assert.NotNull(result.TopLevelEntry);
+        Assert.True(result.TopLevelEntry!.IsAccessible);
+    }
+
+    [Fact]
+    public async Task AddMedia_UserHasSourceAccess_ResultIsAccessible()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId);
+        var movieId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Ein Film");
+        await GrantMediaSourceAccessForUserAsync(_testUserId);
+
+        var result = await _service.AddMediaToPlaylistAsync(playlistId, _testUserId, MediaTypeValues.Movie, movieId, ct);
+
+        Assert.NotNull(result.TopLevelEntry);
+        Assert.True(result.TopLevelEntry!.IsAccessible);
+    }
+
+    [Fact]
+    public async Task AddMedia_UserUnlockedNoSourceAccess_ResultIsAccessible()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId);
+        var showId = await CreateTestMediaEntryAsync(MediaTypeValues.TVShow, "Eine Serie");
+        await UnlockMediaForUserAsync(_testUserId, MediaTypeValues.TVShow, showId);
+
+        var result = await _service.AddMediaToPlaylistAsync(playlistId, _testUserId, MediaTypeValues.TVShow, showId, ct);
+
+        Assert.NotNull(result.TopLevelEntry);
+        Assert.True(result.TopLevelEntry!.IsAccessible);
+    }
+
+    [Fact]
+    public async Task AddMedia_UserNoAccessNoUnlock_ResultIsNotAccessible()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId);
+        var movieId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Ein Film");
+
+        var result = await _service.AddMediaToPlaylistAsync(playlistId, _testUserId, MediaTypeValues.Movie, movieId, ct);
+
+        Assert.NotNull(result.TopLevelEntry);
+        Assert.False(result.TopLevelEntry!.IsAccessible);
+    }
+
+    [Fact]
+    public async Task AddMedia_ResolvesResolvedPictureId_FromMediaEntity()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId);
+        var movieId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Ein Film");
+        var poster = new Data.Picture { Type = "poster", Data = [0x1], ContentType = "image/png" };
+        _db.Pictures.Add(poster);
+        await _db.SaveChangesAsync(ct);
+        var movie = await _db.Movies.FirstAsync(m => m.Id == movieId, ct);
+        movie.PosterPictureId = poster.Id;
+        await _db.SaveChangesAsync(ct);
+
+        var result = await _service.AddMediaToPlaylistAsync(playlistId, _testUserId, MediaTypeValues.Movie, movieId, ct);
+
+        Assert.NotNull(result.TopLevelEntry);
+        Assert.Equal(poster.Id, result.TopLevelEntry!.ResolvedPictureId);
+    }
+
+    [Fact]
+    public async Task AddMedia_NoPictureSet_ResolvedPictureIdIsNull()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId);
+        var movieId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Ein Film");
+
+        var result = await _service.AddMediaToPlaylistAsync(playlistId, _testUserId, MediaTypeValues.Movie, movieId, ct);
+
+        Assert.NotNull(result.TopLevelEntry);
+        Assert.Null(result.TopLevelEntry!.ResolvedPictureId);
+    }
 }

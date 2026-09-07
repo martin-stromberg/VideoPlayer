@@ -2,10 +2,11 @@
 
 ## Übersicht
 
-Die Playlist-Verwaltung besteht aus drei Hauptabläufen:
+Die Playlist-Verwaltung besteht aus vier Hauptabläufen:
 1. Hinzufügen von Medieninhalten (mit Cascade-Logik)
 2. Entfernen von Medieninhalten
 3. Abrufen aller Einträge (mit Bereinigung verwaister Einträge)
+4. Abrufen einer sortierten, paginierten Seite von Einträgen (für die Infinity-List der Detailseite)
 
 Diese Dokumentation beschreibt den internen Ablauf auf Code-Ebene.
 
@@ -89,9 +90,12 @@ Diese Dokumentation beschreibt den internen Ablauf auf Code-Ebene.
     - Falls `entriesToAdd.Count > 0 && skippedDuplicateCount == 0`: `"{entriesToAdd.Count} Titel hinzugefügt."`
     - Falls `entriesToAdd.Count == 0`: `"Alle {skippedDuplicateCount} Titel waren bereits vorhanden."`
 
-13. **Titel laden und Response bauen:**
-    - Lade Titel für alle neuen Einträge via `GetMediaTitleAsync()` und `MediaTypeHandler`
-    - Konvertiere alle neuen Einträge zu `DtoPlaylistEntry` via `ToDto()`
+13. **DTOs bauen und Response zusammenstellen:**
+    - `BuildAddResultAsync()` konvertiert alle neuen Einträge (`entriesToAdd`) über dieselbe
+      `BuildEntryDtosAsync()`-Methode zu `DtoPlaylistEntry`, die auch die beiden Lese-Endpunkte
+      (Ablauf 3 und 4) verwenden — inklusive Titel, aufgelöster Bild-ID (`ResolvedPictureId`) und
+      echter Freischaltungsprüfung (`IsAccessible`) für den aktuellen Benutzer. Ein soeben
+      hinzugefügter, nicht freigeschalteter Titel liefert also unmittelbar `IsAccessible: false`.
     - Baue neue Response: `DtoPlaylistAddResult`:
       - `TopLevelEntry`: Der neu hinzugefügte Top-Level-Eintrag (oder `null`, falls Duplikat)
       - `AddedEntries[]`: Alle neu hinzugefügten Einträge
@@ -111,7 +115,8 @@ Diese Dokumentation beschreibt den internen Ablauf auf Code-Ebene.
 | `PlaylistService` | `CheckMediaExistsAsync()` | Existenz-Prüfung |
 | `PlaylistService` | `GetCascadeMediaIdsAsync()` | Cascade-Abfrage |
 | `PlaylistService` | `GetMediaTitleAsync()` | Titel-Lookup |
-| `PlaylistService` | `ToDto()` | Entity → DTO Konvertierung |
+| `PlaylistService` | `BuildAddResultAsync()` | Baut `DtoPlaylistAddResult` inkl. Message |
+| `PlaylistService` | `BuildEntryDtosAsync()` | Entity → DTO Konvertierung (Titel, `ResolvedPictureId`, `IsAccessible`), gemeinsam mit Ablauf 3/4 |
 | `ApplicationDbContext` | `PlaylistEntries` | DB-Zugriff |
 | `PlaylistEntry` | — | Datenmodell mit normalisiertem `MediaType` |
 | `DtoPlaylistEntry` | — | Client-Modell für einzelne Einträge |
@@ -193,7 +198,8 @@ flowchart TD
 
 2. **Alle Einträge laden:**
    - Lade alle `PlaylistEntry` mit `PlaylistId = id` aus DB
-   - Keine Filterung, keine Sortierung (wird in späteren Schritten hinzugefügt)
+   - Keine Filterung, keine Sortierung (unsortiert in Einfüge-Reihenfolge; sortierte Anzeige nur
+     über den paginierten Endpunkt, siehe Ablauf 4)
 
 3. **Medien-IDs sammeln:**
    - Erstelle Dictionary `mediaIdsByType` mit den Schlüsseln (Medientypen)
@@ -213,14 +219,18 @@ flowchart TD
        - Markiere Eintrag als Verwaist
        - Füge zu `orphans` Liste hinzu
        - Überspringe zu nächstem Eintrag (nicht in `result` aufnehmen)
-     - Falls ja: Konvertiere zu DTO und füge zu `result` hinzu
+     - Falls ja: Behalte den Eintrag für die DTO-Konvertierung in Schritt 7
 
 6. **Verwaiste Einträge löschen:**
    - Falls `orphans.Count > 0`:
      - `db.PlaylistEntries.RemoveRange(orphans)`
      - `await db.SaveChangesAsync()` — Löscht alle Einträge, deren Medieninhalt nicht mehr existiert
 
-7. **DTOs zurückgeben:**
+7. **DTOs bauen und zurückgeben:**
+   - `BuildEntryDtosAsync()` konvertiert die verbleibenden (nicht verwaisten) Einträge zu
+     `DtoPlaylistEntry`, inklusive aufgelöster Bild-ID (`ResolvedPictureId`) und echter
+     Freischaltungsprüfung (`IsAccessible`) für den aktuellen Benutzer über `IUnlockedMediaService`
+     — dieselbe Methode wie in Ablauf 1 und 4
    - HTTP 200 OK mit Array von `DtoPlaylistEntry`
 
 ### Beteiligte Klassen
@@ -231,7 +241,8 @@ flowchart TD
 | `PlaylistService` | `GetPlaylistEntriesAsync()` | Geschäftslogik + Bereinigung |
 | `PlaylistService` | `GetOwnedPlaylistAsync()` | Berechtigung + Existenz |
 | `PlaylistService` | `GetMediaTitlesAsync()` | Batch-Titel-Lookup |
-| `PlaylistService` | `ToDto()` | Entity → DTO Konvertierung |
+| `PlaylistService` | `BuildEntryDtosAsync()` | Entity → DTO Konvertierung (Titel, `ResolvedPictureId`, `IsAccessible`), gemeinsam mit Ablauf 1/4 |
+| `IUnlockedMediaService` | `GetUnlockedMovieCollectionIdsForUserAsync()` / `GetUnlockedTVShowIdsForUserAsync()` | Bulk-Freischaltungsprüfung für `IsAccessible` |
 | `ApplicationDbContext` | `PlaylistEntries` | DB-Zugriff |
 
 ### Diagramm
@@ -257,6 +268,110 @@ flowchart TD
     L -->|No| N[ReturnResult]
     M --> N
     N --> O[200 OK]
+```
+
+---
+
+## Ablauf 4: Sortierte, paginierte Einträge abrufen (Infinity-List)
+
+### Schritt-für-Schritt
+
+**Auslöser:** Client (`PlaylistDetail.razor`, über `Virtualize`) ruft
+`GET /api/playlists/{id}/entries/paged?pageNumber=N&pageSize=M` auf, initial für Seite 1 und dann
+erneut mit fortlaufend höherem `pageNumber`, sobald der Anwender in der Liste weiter nach unten
+scrollt.
+
+1. **Parameter-Validierung (vor der Berechtigungsprüfung):**
+   - `PlaylistsController.GetPlaylistEntriesPaged()` löst `pageSize` auf: übergebener Wert oder,
+     falls keiner angegeben, `PlaylistSettings.DefaultPageSize`
+   - `pageNumber < 1` → HTTP 400
+   - `pageSize < 1` oder `pageSize > PlaylistSettings.MaxPageSize` → HTTP 400
+
+2. **Berechtigungsprüfung:**
+   - `PlaylistService.GetPlaylistEntriesPagedAsync()` ruft `GetOwnedPlaylistAsync()` auf
+   - Falls nicht Besitzer → HTTP 403; falls Playlist nicht gefunden → HTTP 404
+
+3. **Gültige Einträge laden (ohne Titel-Auflösung):**
+   - `LoadValidPlaylistEntriesAsync()` lädt alle `PlaylistEntry` der Playlist
+   - Für jeden Medientyp wird über `MediaTypeHandler.LoadExistingIdsAsync()` geprüft, welche
+     referenzierten Medien-IDs noch existieren (nur ID-Existenzprüfung, keine Titel werden dabei
+     geladen)
+   - Einträge, deren Medieninhalt nicht mehr existiert, werden als Waisen erkannt und aus der DB
+     entfernt (`RemoveRange` + `SaveChangesAsync`), analog zu Ablauf 3
+
+4. **Sortierung:**
+   - Bei `Playlist.SortMode == ByReleaseDate`: `SortPlaylistEntriesByReleaseDateAsync()` ermittelt
+     für alle gültigen Einträge Erscheinungsdatum (`LoadReleaseDateAsync`) und Hierarchie-Sequenz
+     (`GetHierarchySequenceAsync`) pro Medientyp und sortiert nach der Fallback-Kette
+     Erscheinungsdatum → `ParentId` → `SequenceNumber` → `AddedAt` (siehe `playlists-business-rules.md`, BR-13)
+   - Bei `Manual`: einfache Sortierung nach `AddedAt`
+
+5. **Seite ausschneiden:**
+   - `totalCount = sortedEntries.Count`
+   - `skip = (pageNumber - 1) * pageSize`
+   - `pageEntries = sortedEntries.Skip(skip).Take(pageSize)`
+
+6. **Titel nur für die aktuelle Seite auflösen:**
+   - `LoadTitlesForMediaRefsAsync()` lädt die Medientitel ausschließlich für `pageEntries` (nicht
+     für die gesamte Playlist)
+   - Ebenso werden die Titel etwaiger Eltern-Einträge (`ParentMediaType`/`ParentMediaId`) nur für
+     die aktuelle Seite aufgelöst
+   - Dadurch skaliert der Aufwand pro Anfrage mit der Seitengröße, nicht mit der Gesamtgröße der
+     Playlist
+
+7. **DTOs bauen und zurückgeben:**
+   - `BuildEntryDtosAsync()` konvertiert `pageEntries` (nur die aktuelle Seite) zu
+     `DtoPlaylistEntry`, inklusive für die Seite aufgelöster Bild-IDs (`ResolvedPictureId`, mit
+     Fallback Poster → Banner → Fanart pro Medientyp via `LoadPictureIdsForMediaRefsAsync()`) und
+     echter Freischaltungsprüfung (`IsAccessible`) über `IUnlockedMediaService`
+     (`LoadUnlockedMediaIdsAsync()`, siehe Hinweis in `playlists-api.md`) — beides skaliert mit der
+     Seitengröße, nicht mit der Gesamtgröße der Playlist
+   - Rückgabe: `DtoPlaylistEntriesPagedResult { Entries, TotalCount, HasNextPage, PageNumber, PageSize }`
+     mit `HasNextPage = skip + pageSize < totalCount`
+
+**Client-seitiges Nachladen (`PlaylistDetail.razor`):**
+- `LoadInitialPageAsync()` lädt beim Öffnen der Seite die erste Seite (`PageSize = 20`) und setzt
+  `allEntries`, `hasMorePages`, `totalCount`
+- `ItemsProviderAsync()` wird von der `Virtualize`-Komponente aufgerufen, sobald weitere,
+  noch nicht geladene Zeilen sichtbar werden sollen; lädt bei Bedarf weitere Seiten nach, bis genug
+  Einträge für den angeforderten Bereich vorhanden sind oder `hasMorePages == false`
+- Eine `SemaphoreSlim` (`loadPageSemaphore`) verhindert, dass bei schnellem Scrollen mehrere
+  überlappende Ladevorgänge gleichzeitig laufen; das `CancellationToken` der jeweiligen
+  `ItemsProviderRequest` wird an den Server-Aufruf weitergereicht
+
+### Beteiligte Klassen/Komponenten
+
+| Klasse | Methode | Zweck |
+|--------|---------|-------|
+| `PlaylistsController` | `GetPlaylistEntriesPaged()` | HTTP-Endpoint-Handler inkl. Parameter-Validierung |
+| `PlaylistService` | `GetPlaylistEntriesPagedAsync()` | Geschäftslogik: Laden, Sortieren, Paginieren, Titel nur für die Seite auflösen |
+| `PlaylistService` | `LoadValidPlaylistEntriesAsync()` | Laden aller Einträge + Bereinigung verwaister Einträge (ohne Titel-Auflösung) |
+| `PlaylistService` | `SortPlaylistEntriesByReleaseDateAsync()` | Ermittelt Sortierschlüssel und sortiert die vollständige, gültige Eintragsliste |
+| `PlaylistService` | `LoadTitlesForMediaRefsAsync()` | Titel-Auflösung, beschränkt auf die übergebenen Referenzen (z. B. nur die aktuelle Seite) |
+| `PlaylistService` | `BuildEntryDtosAsync()` | Entity → DTO Konvertierung (Titel, `ResolvedPictureId`, `IsAccessible`), gemeinsam mit Ablauf 1/3 |
+| `PlaylistService` | `LoadPictureIdsForMediaRefsAsync()` | Bild-ID-Auflösung (Poster → Banner → Fanart), beschränkt auf die übergebenen Referenzen |
+| `PlaylistService` | `LoadUnlockedMediaIdsAsync()` | Bulk-Freischaltungsprüfung über `IUnlockedMediaService` für alle Einträge der Seite |
+| `PlaylistDetail.razor` | `LoadInitialPageAsync()` | Lädt die erste Seite beim Öffnen/Neuladen der Playlist |
+| `PlaylistDetail.razor` | `ItemsProviderAsync()` | Liefert der `Virtualize`-Komponente Einträge, lädt bei Bedarf weitere Seiten nach |
+
+### Diagramm
+
+```mermaid
+flowchart TD
+    A[GET .../entries/paged] --> B{pageNumber/pageSize gueltig?}
+    B -->|Nein| B1[400 Bad Request]
+    B -->|Ja| C[GetOwnedPlaylist]
+    C -->|Not Owner| C1[403 Forbidden]
+    C -->|Not Found| C2[404 Not Found]
+    C -->|OK| D[LoadValidEntries ohne Titel]
+    D --> E{SortMode?}
+    E -->|ByReleaseDate| F[SortByReleaseDateFallback]
+    E -->|Manual| G[SortByAddedAt]
+    F --> H[Skip/Take Seite]
+    G --> H
+    H --> I[LoadTitles nur fuer Seite]
+    I --> J[BuildDtoPlaylistEntriesPagedResult]
+    J --> K[200 OK]
 ```
 
 ---
@@ -366,6 +481,7 @@ Alle echten Fehlerfälle führen zu expliziten HTTP-Status-Codes:
 | `KeyNotFoundException` | Direkt | 404 Not Found |
 | `InvalidOperationException` (Max-Item-Limit überschritten) | `MapInvalidOperationException()` | 400 Bad Request |
 | `InvalidOperationException` (ungültiger MediaType) | `MapInvalidOperationException()` | 400 Bad Request |
+| Ungültige `pageNumber`/`pageSize` (kein Exception, direkte Prüfung im Controller) | Direkte `BadRequest()`-Rückgabe | 400 Bad Request |
 | Andere Exceptions | Generischer Error | 500 Internal Server Error |
 
 **Wichtig:** Duplikate führen **nicht** mehr zu einem Fehler. Sie werden übersprungen, gezählt und in der `DtoPlaylistAddResult`-Message beschrieben. Die Antwort bleibt immer HTTP 200 OK.

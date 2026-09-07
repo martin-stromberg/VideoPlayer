@@ -39,4 +39,13 @@ public interface IUnlockedMediaService
     /// Returns the media source ids that contain at least one entry unlocked for the given user.
     /// </summary>
     Task<long[]> GetUnlockedSourceIdsForUserAsync(string userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns the ids of all media sources the given user has regular (non-unlock) access to,
+    /// based on <c>MediaSourceUsers</c> entries.
+    /// </summary>
+    /// <param name="userId">The id of the user to look up regular media source access for.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The ids of all media sources the user has regular access to.</returns>
+    Task<long[]> GetMediaSourceIdsForUserAsync(string userId, CancellationToken cancellationToken = default);
 }

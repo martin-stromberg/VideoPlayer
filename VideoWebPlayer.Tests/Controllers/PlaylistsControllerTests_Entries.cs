@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using VideoWebPlayer.Client.Models;
+using VideoWebPlayer.Configuration;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Tests.Helpers;
 using Xunit;
@@ -89,8 +90,7 @@ public class PlaylistsControllerTests_Entries : PlaylistsControllerTestBase
 
         var result = await _controller.AddMediaToPlaylist(playlistId, new DtoAddMediaToPlaylistRequest { MediaType = MediaTypeValues.Movie, MediaId = movieId });
 
-        var statusResult = Assert.IsType<ObjectResult>(result);
-        Assert.Equal(403, statusResult.StatusCode);
+        Assert.IsType<ForbidResult>(result);
     }
 
     [Fact]
@@ -203,8 +203,7 @@ public class PlaylistsControllerTests_Entries : PlaylistsControllerTestBase
 
         var result = await _controller.RemoveMediaFromPlaylist(playlistId, MediaTypeValues.Movie, movieId);
 
-        var statusResult = Assert.IsType<ObjectResult>(result);
-        Assert.Equal(403, statusResult.StatusCode);
+        Assert.IsType<ForbidResult>(result);
     }
 
     [Fact]
@@ -242,7 +241,81 @@ public class PlaylistsControllerTests_Entries : PlaylistsControllerTestBase
 
         var result = await _controller.GetPlaylistEntries(playlistId);
 
-        var statusResult = Assert.IsType<ObjectResult>(result);
-        Assert.Equal(403, statusResult.StatusCode);
+        Assert.IsType<ForbidResult>(result);
+    }
+
+    [Fact]
+    public async Task GetEntriesPaged_ValidatesPageNumber_GreaterThanZero()
+    {
+        var playlistId = await CreatePlaylistAsync();
+
+        var result = await _controller.GetPlaylistEntriesPaged(playlistId, 0, 20);
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GetEntriesPaged_ValidatesPageSize_TooSmall()
+    {
+        var playlistId = await CreatePlaylistAsync();
+
+        var result = await _controller.GetPlaylistEntriesPaged(playlistId, 1, 0);
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GetEntriesPaged_ValidatesPageSize_TooLarge()
+    {
+        var playlistId = await CreatePlaylistAsync();
+
+        var result = await _controller.GetPlaylistEntriesPaged(playlistId, 1, 101);
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GetEntriesPaged_UsesConfiguredDefaultPageSize_WhenPageSizeOmitted()
+    {
+        var playlistId = await CreatePlaylistAsync();
+        _controller = CreateController(new PlaylistSettings { DefaultPageSize = 5, MaxPageSize = 100 });
+
+        var result = await _controller.GetPlaylistEntriesPaged(playlistId, 1, null);
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        var dto = Assert.IsType<DtoPlaylistEntriesPagedResult>(okResult.Value);
+        Assert.Equal(5, dto.PageSize);
+    }
+
+    [Fact]
+    public async Task GetEntriesPaged_UsesConfiguredMaxPageSize_ToRejectTooLargePageSize()
+    {
+        var playlistId = await CreatePlaylistAsync();
+        _controller = CreateController(new PlaylistSettings { DefaultPageSize = 20, MaxPageSize = 10 });
+
+        var withinConfiguredMax = await _controller.GetPlaylistEntriesPaged(playlistId, 1, 10);
+        var beyondConfiguredMax = await _controller.GetPlaylistEntriesPaged(playlistId, 1, 11);
+
+        Assert.IsType<OkObjectResult>(withinConfiguredMax);
+        Assert.IsType<BadRequestObjectResult>(beyondConfiguredMax);
+    }
+
+    [Fact]
+    public async Task GetEntriesPaged_Endpoint_ReturnsCorrectResponse()
+    {
+        var playlistId = await CreatePlaylistAsync();
+        var movieId = await CreateMovieAsync();
+        await _controller.AddMediaToPlaylist(playlistId, new DtoAddMediaToPlaylistRequest { MediaType = MediaTypeValues.Movie, MediaId = movieId });
+
+        var result = await _controller.GetPlaylistEntriesPaged(playlistId, 1, 20);
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        var dto = Assert.IsType<DtoPlaylistEntriesPagedResult>(okResult.Value);
+        Assert.Single(dto.Entries);
+        Assert.Equal(movieId, dto.Entries[0].MediaId);
+        Assert.Equal(1, dto.TotalCount);
+        Assert.False(dto.HasNextPage);
+        Assert.Equal(1, dto.PageNumber);
+        Assert.Equal(20, dto.PageSize);
     }
 }

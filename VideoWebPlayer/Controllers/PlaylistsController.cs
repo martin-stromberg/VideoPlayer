@@ -1,7 +1,10 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
 using VideoWebPlayer.Client.Models;
+using VideoWebPlayer.Configuration;
 using VideoWebPlayer.Controllers;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Services.Authentication;
@@ -15,6 +18,7 @@ using VideoWebPlayer.Services.Authentication;
 public class PlaylistsController : ApiBaseController
 {
     private readonly IPlaylistService _playlistService;
+    private readonly PlaylistSettings _playlistSettings;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PlaylistsController"/> class.
@@ -22,10 +26,12 @@ public class PlaylistsController : ApiBaseController
     /// <param name="playlistService">Playlist service.</param>
     /// <param name="authService">Authentication service.</param>
     /// <param name="logger">Logger instance.</param>
-    public PlaylistsController(IPlaylistService playlistService, IAuthService authService, ILogger<PlaylistsController> logger)
+    /// <param name="playlistSettings">Playlist configuration.</param>
+    public PlaylistsController(IPlaylistService playlistService, IAuthService authService, ILogger<PlaylistsController> logger, IOptions<PlaylistSettings> playlistSettings)
         : base(authService, logger)
     {
         _playlistService = playlistService;
+        _playlistSettings = playlistSettings.Value;
     }
 
     /// <summary>
@@ -76,7 +82,7 @@ public class PlaylistsController : ApiBaseController
         catch (PlaylistAccessDeniedException ex)
         {
             Logger.LogWarning(ex, "Zugriff verweigert beim Abrufen der Playlist {PlaylistId}", id);
-            return StatusCode(403, ex.Message);
+            return Forbid(JwtBearerDefaults.AuthenticationScheme);
         }
         catch (Exception ex)
         {
@@ -95,6 +101,9 @@ public class PlaylistsController : ApiBaseController
         try
         {
             CheckLogedIn();
+            if (request is null)
+                return BadRequest("Der Anfrage-Body darf nicht leer sein.");
+
             var result = await _playlistService.CreatePlaylistAsync(
                 CurrentUser!.Id, request.Name, request.Description, request.SortMode, HttpContext.RequestAborted);
             return Ok(result);
@@ -127,6 +136,9 @@ public class PlaylistsController : ApiBaseController
         try
         {
             CheckLogedIn();
+            if (request is null)
+                return BadRequest("Der Anfrage-Body darf nicht leer sein.");
+
             var result = await _playlistService.UpdatePlaylistAsync(
                 id, CurrentUser!.Id, request.Name, request.Description, request.SortMode, HttpContext.RequestAborted);
             return Ok(result);
@@ -144,7 +156,7 @@ public class PlaylistsController : ApiBaseController
         catch (PlaylistAccessDeniedException ex)
         {
             Logger.LogWarning(ex, "Zugriff verweigert beim Aktualisieren der Playlist {PlaylistId}", id);
-            return StatusCode(403, ex.Message);
+            return Forbid(JwtBearerDefaults.AuthenticationScheme);
         }
         catch (InvalidOperationException ex)
         {
@@ -184,7 +196,7 @@ public class PlaylistsController : ApiBaseController
         catch (PlaylistAccessDeniedException ex)
         {
             Logger.LogWarning(ex, "Zugriff verweigert beim Loeschen der Playlist {PlaylistId}", id);
-            return StatusCode(403, ex.Message);
+            return Forbid(JwtBearerDefaults.AuthenticationScheme);
         }
         catch (Exception ex)
         {
@@ -212,6 +224,9 @@ public class PlaylistsController : ApiBaseController
         try
         {
             CheckLogedIn();
+            if (request is null)
+                return BadRequest("Der Anfrage-Body darf nicht leer sein.");
+
             var result = await _playlistService.AddMediaToPlaylistAsync(
                 id, CurrentUser!.Id, request.MediaType, request.MediaId, HttpContext.RequestAborted);
             return Ok(result);
@@ -229,7 +244,7 @@ public class PlaylistsController : ApiBaseController
         catch (PlaylistAccessDeniedException ex)
         {
             Logger.LogWarning(ex, "Zugriff verweigert beim Hinzufuegen zur Playlist {PlaylistId}", id);
-            return StatusCode(403, ex.Message);
+            return Forbid(JwtBearerDefaults.AuthenticationScheme);
         }
         catch (InvalidOperationException ex)
         {
@@ -271,7 +286,7 @@ public class PlaylistsController : ApiBaseController
         catch (PlaylistAccessDeniedException ex)
         {
             Logger.LogWarning(ex, "Zugriff verweigert beim Entfernen aus Playlist {PlaylistId}", id);
-            return StatusCode(403, ex.Message);
+            return Forbid(JwtBearerDefaults.AuthenticationScheme);
         }
         catch (InvalidOperationException ex)
         {
@@ -311,11 +326,57 @@ public class PlaylistsController : ApiBaseController
         catch (PlaylistAccessDeniedException ex)
         {
             Logger.LogWarning(ex, "Zugriff verweigert beim Abrufen der Eintraege von Playlist {PlaylistId}", id);
-            return StatusCode(403, ex.Message);
+            return Forbid(JwtBearerDefaults.AuthenticationScheme);
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Fehler beim Abrufen der Eintraege von Playlist {PlaylistId}", id);
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    /// <summary>
+    /// Gets a sorted, paginated page of entries of a playlist for the current user.
+    /// </summary>
+    /// <param name="id">The playlist identifier.</param>
+    /// <param name="pageNumber">The 1-based page number.</param>
+    /// <param name="pageSize">The number of entries per page. Defaults to <see cref="PlaylistSettings.DefaultPageSize"/> when omitted.</param>
+    [HttpGet("{id}/entries/paged")]
+    public async Task<IActionResult> GetPlaylistEntriesPaged(long id, int pageNumber = 1, int? pageSize = null)
+    {
+        try
+        {
+            CheckLogedIn();
+
+            var resolvedPageSize = pageSize ?? _playlistSettings.DefaultPageSize;
+
+            if (pageNumber < 1)
+                return BadRequest("pageNumber muss groesser oder gleich 1 sein.");
+
+            if (resolvedPageSize < 1 || resolvedPageSize > _playlistSettings.MaxPageSize)
+                return BadRequest($"pageSize muss zwischen 1 und {_playlistSettings.MaxPageSize} liegen.");
+
+            var result = await _playlistService.GetPlaylistEntriesPagedAsync(id, CurrentUser!.Id, pageNumber, resolvedPageSize, HttpContext.RequestAborted);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            Logger.LogWarning(ex, "Playlist {PlaylistId} wurde beim Abrufen der paginierten Eintraege nicht gefunden", id);
+            return NotFound(ex.Message);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Logger.LogWarning(ex, "Zugriff ohne Anmeldung beim Abrufen der paginierten Eintraege von Playlist {PlaylistId}", id);
+            return Unauthorized(ex.Message);
+        }
+        catch (PlaylistAccessDeniedException ex)
+        {
+            Logger.LogWarning(ex, "Zugriff verweigert beim Abrufen der paginierten Eintraege von Playlist {PlaylistId}", id);
+            return Forbid(JwtBearerDefaults.AuthenticationScheme);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Fehler beim Abrufen der paginierten Eintraege von Playlist {PlaylistId}", id);
             return StatusCode(500, "Internal server error");
         }
     }

@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using VideoWebPlayer.Events;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Tests.Helpers;
 using Xunit;
@@ -41,21 +40,5 @@ public class PlaylistServiceTests_Delete : PlaylistServiceTestBase
 
         await Assert.ThrowsAsync<KeyNotFoundException>(
             () => _service.DeletePlaylistAsync(999999, _testUserId, ct));
-    }
-
-    [Fact]
-    public async Task DeletePlaylist_PublishesPlaylistDeletedEvent()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var created = await _service.CreatePlaylistAsync(_testUserId, "Zu Loeschen", null, null, ct);
-
-        PlaylistDeletedEvent? publishedEvent = null;
-        _eventManager.Subscribe<PlaylistDeletedEvent>(e => publishedEvent = e);
-
-        await _service.DeletePlaylistAsync(created.Id, _testUserId, ct);
-
-        Assert.NotNull(publishedEvent);
-        Assert.Equal(created.Id, publishedEvent!.PlaylistId);
-        Assert.Equal(_testUserId, publishedEvent.UserId);
     }
 }

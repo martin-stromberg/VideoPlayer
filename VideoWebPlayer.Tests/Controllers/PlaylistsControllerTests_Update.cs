@@ -41,7 +41,6 @@ public class PlaylistsControllerTests_Update : PlaylistsControllerTestBase
 
         var result = await _controller.UpdatePlaylist(created!.Id, new DtoUpdatePlaylistRequest { Name = "Neuer Name" });
 
-        var statusResult = Assert.IsType<ObjectResult>(result);
-        Assert.Equal(403, statusResult.StatusCode);
+        Assert.IsType<ForbidResult>(result);
     }
 }

@@ -54,7 +54,6 @@ public class PlaylistsControllerTests_Read : PlaylistsControllerTestBase
 
         var result = await _controller.GetPlaylist(created!.Id);
 
-        var statusResult = Assert.IsType<ObjectResult>(result);
-        Assert.Equal(403, statusResult.StatusCode);
+        Assert.IsType<ForbidResult>(result);
     }
 }

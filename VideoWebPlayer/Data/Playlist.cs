@@ -9,6 +9,16 @@ namespace VideoWebPlayer.Data
     public class Playlist
     {
         /// <summary>
+        /// The maximum allowed length of <see cref="Name"/>.
+        /// </summary>
+        public const int NameMaxLength = 255;
+
+        /// <summary>
+        /// The maximum allowed length of <see cref="Description"/>.
+        /// </summary>
+        public const int DescriptionMaxLength = 2000;
+
+        /// <summary>
         /// Gets or sets the playlist identifier.
         /// </summary>
         [Key]
@@ -25,13 +35,13 @@ namespace VideoWebPlayer.Data
         /// Gets or sets the playlist name.
         /// </summary>
         [Required]
-        [MaxLength(255)]
+        [MaxLength(NameMaxLength)]
         public required string Name { get; set; }
 
         /// <summary>
         /// Gets or sets the optional playlist description.
         /// </summary>
-        [MaxLength(2000)]
+        [MaxLength(DescriptionMaxLength)]
         public string? Description { get; set; }
 
         /// <summary>

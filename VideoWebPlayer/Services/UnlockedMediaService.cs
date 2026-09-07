@@ -139,6 +139,15 @@ public sealed class UnlockedMediaService : IUnlockedMediaService
         return collectionSources.Concat(showSources).Distinct().ToArray();
     }
 
+    /// <inheritdoc />
+    public async Task<long[]> GetMediaSourceIdsForUserAsync(string userId, CancellationToken cancellationToken = default)
+        => await _db.MediaSourceUsers
+            .AsNoTracking()
+            .Where(msu => msu.UserId == userId)
+            .Select(msu => msu.MediaSourceId)
+            .Distinct()
+            .ToArrayAsync(cancellationToken);
+
     private static (long? MovieCollectionId, long? TVShowId) GetIds(DtoMediaEntry entry)
         => entry switch
         {

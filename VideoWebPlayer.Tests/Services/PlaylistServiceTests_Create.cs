@@ -1,3 +1,4 @@
+using VideoWebPlayer.Services;
 using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
@@ -57,12 +58,12 @@ public class PlaylistServiceTests_Create : PlaylistServiceTestBase
     }
 
     [Fact]
-    public async Task CreatePlaylist_DuplicateName_ThrowsInvalidOperationException()
+    public async Task CreatePlaylist_DuplicateName_ThrowsPlaylistNameAlreadyExistsException()
     {
         var ct = TestContext.Current.CancellationToken;
         await _service.CreatePlaylistAsync(_testUserId, "Serien-Marathon", null, null, ct);
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+        var ex = await Assert.ThrowsAsync<PlaylistNameAlreadyExistsException>(
             () => _service.CreatePlaylistAsync(_testUserId, "serien-marathon", null, null, ct));
 
         Assert.Equal("Ein Playlist mit diesem Namen existiert bereits.", ex.Message);

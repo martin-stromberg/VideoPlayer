@@ -1,10 +1,11 @@
 @page "/playlists/{id:long}"
 @using Microsoft.AspNetCore.Components.Authorization
 @using VideoWebPlayer.Client.Models
-@implements IDisposable
 @inject VideoWebPlayer.Client.VideoWebPlayerClient Client
+@inject VideoWebPlayer.Client.IPlaylistApiClient PlaylistClient
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager NavigationManager
+@inject ILogger<PlaylistDetail> Logger
 @rendermode InteractiveServer
 
 <PageTitle>Playlist</PageTitle>
@@ -36,7 +37,7 @@
                 </div>
                 <div>
                     <dt>Sortierung</dt>
-                    <dd id="playlist-detail-sortmode">@(playlist.SortMode == PlaylistSortModeValues.Manual ? "Manuell" : "Nach Erscheinungsdatum")</dd>
+                    <dd id="playlist-detail-sortmode">@PlaylistSortModeValues.GetDisplayLabel(playlist.SortMode)</dd>
                 </div>
                 <div>
                     <dt>Erstellt</dt>
@@ -55,122 +56,57 @@
             <button class="btn btn-ghost playlist-detail-back-button" @onclick="NavigateToOverview">Zurueck zur Uebersicht</button>
         </div>
 
+        @if (!string.IsNullOrWhiteSpace(sortModeStatusMessage))
+        {
+            <div class="alert alert-danger" id="playlist-sortmode-status">@sortModeStatusMessage</div>
+        }
+
+        <div class="admin-actions playlist-sortmode-actions">
+            <label for="playlist-sortmode-change-select">Sortiermodus aendern</label>
+            <select id="playlist-sortmode-change-select" class="form-control" @bind="selectedSortMode">
+                <PlaylistSortModeOptions />
+            </select>
+            <button class="btn btn-primary playlist-sortmode-apply-button" @onclick="ApplySortModeAsync">Anwenden</button>
+        </div>
+
         <div class="admin-card-header">
             <h2>Inhalte</h2>
         </div>
 
-        @if (!string.IsNullOrWhiteSpace(entriesStatusMessage))
-        {
-            <div class="alert @(entriesStatusIsError ? "alert-danger" : "alert-success")" id="playlist-entries-status">@entriesStatusMessage</div>
-        }
-
-        <div class="admin-table-wrap">
-            <div class="admin-actions">
-                <select class="form-control playlist-add-mediatype-select" @bind="newEntryMediaType">
-                    <option value="@MediaTypeValues.Movie">Film</option>
-                    <option value="@MediaTypeValues.TVShow">Serie</option>
-                    <option value="@MediaTypeValues.TVShowSeason">Staffel</option>
-                    <option value="@MediaTypeValues.TVShowEpisode">Episode</option>
-                    <option value="@MediaTypeValues.MovieCollection">Filmsammlung</option>
-                </select>
-                <input class="form-control playlist-add-mediaid-input" type="number" min="1" @bind="newEntryMediaId" placeholder="Medien-Id" />
-                <button class="btn btn-primary playlist-add-entry-button" @onclick="AddEntryAsync">Hinzufuegen</button>
-            </div>
-
-            @if (allEntries.Count == 0 && !hasMorePages)
-            {
-                <div class="admin-empty-state">
-                    <strong>Keine Eintraege vorhanden</strong>
-                    <span>Fuegen Sie einen Medieninhalt hinzu.</span>
-                </div>
-            }
-            else
-            {
-                <div class="playlist-entries-scroll">
-                    <table class="table table-dark table-striped align-middle">
-                        <thead>
-                            <tr>
-                                <th>Bild</th>
-                                <th>Typ</th>
-                                <th>Titel</th>
-                                <th>Sammlung</th>
-                                <th>Hinzugefuegt</th>
-                                <th>Aktionen</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <Virtualize TItem="DtoPlaylistEntry" @ref="virtualizeRef" ItemsProvider="ItemsProviderAsync" Context="entry">
-                                <ItemContent>
-                                    <tr class="playlist-entry-row @(entry.IsAccessible ? string.Empty : "opacity-50 text-muted")" data-media-type="@entry.MediaType" data-media-id="@entry.MediaId">
-                                        <td>
-                                            <img class="media-poster playlist-entry-image" src="@GetImageUrl(entry)" alt="@entry.MediaTitle" loading="lazy" onerror="this.onerror=null;this.src='/images/placeholder.png';" />
-                                        </td>
-                                        <td>@entry.MediaType</td>
-                                        <td>@entry.MediaTitle</td>
-                                        <td>@entry.ParentMediaTitle</td>
-                                        <td>@entry.AddedAt.ToLocalTime()</td>
-                                        <td>
-                                            <button class="btn btn-sm btn-danger playlist-entry-remove-button" @onclick="() => RemoveEntryAsync(entry)">Entfernen</button>
-                                        </td>
-                                    </tr>
-                                </ItemContent>
-                                <Placeholder>
-                                    <tr class="playlist-entry-row playlist-entry-placeholder">
-                                        <td colspan="6">Lade...</td>
-                                    </tr>
-                                </Placeholder>
-                            </Virtualize>
-                        </tbody>
-                    </table>
-                </div>
-
-                @if (isLoadingMore)
-                {
-                    <p id="playlist-entries-loading-more">Lade weitere Eintraege...</p>
-                }
-                @if (hasMorePages)
-                {
-                    <p id="playlist-entries-more-available">Weitere Eintraege werden beim Scrollen geladen.</p>
-                }
-            }
-        </div>
+        <PlaylistEntriesList @ref="entriesList" PlaylistId="Id" IsManualMode="IsManualMode" />
     }
 </section>
 
-@if (showForm)
+@if (formState.IsOpen)
 {
-    <PlaylistForm PlaylistId="editingPlaylistId" OnSave="HandleSavedAsync" OnCancel="HandleCancel" />
+    <PlaylistForm PlaylistId="formState.EditingId" OnSave="HandleSavedAsync" OnCancel="HandleCancel" />
 }
 
-@if (showDeleteConfirmation)
+@if (deleteState.Pending is not null)
 {
-    <PlaylistDeleteConfirmationDialog PlaylistName="@playlist?.Name" OnConfirm="ConfirmDeleteAsync" OnCancel="CancelDelete" />
+    <PlaylistDeleteConfirmationDialog PlaylistName="@deleteState.Pending.Name" OnConfirm="ConfirmDeleteAsync" OnCancel="CancelDelete" />
+}
+
+@if (showSortModeConfirmation)
+{
+    <PlaylistSortModeConfirmationDialog OnConfirm="ConfirmSortModeChangeAsync" OnCancel="CancelSortModeChange" />
 }
 
 @code {
-    private const int PageSize = 20;
-
     [Parameter]
     public long Id { get; set; }
 
     private DtoPlaylist? playlist;
     private bool isLoading = true;
     private string? loadError;
-    private bool showForm;
-    private bool showDeleteConfirmation;
-    private long? editingPlaylistId;
-    private string newEntryMediaType = MediaTypeValues.Movie;
-    private long newEntryMediaId;
-    private string? entriesStatusMessage;
-    private bool entriesStatusIsError;
+    private readonly PlaylistFormState formState = new();
+    private readonly PlaylistDeletePendingState deleteState = new();
+    private string selectedSortMode = PlaylistSortModeValues.ByReleaseDate;
+    private bool showSortModeConfirmation;
+    private string? sortModeStatusMessage;
+    private PlaylistEntriesList? entriesList;
 
-    private int currentPageNumber = 1;
-    private bool isLoadingMore;
-    private List<DtoPlaylistEntry> allEntries = new();
-    private bool hasMorePages = true;
-    private int totalCount;
-    private Virtualize<DtoPlaylistEntry>? virtualizeRef;
-    private readonly SemaphoreSlim loadPageSemaphore = new(1, 1);
+    private bool IsManualMode => playlist?.SortMode == PlaylistSortModeValues.Manual;
 
     protected override async Task OnInitializedAsync()
     {
@@ -185,18 +121,20 @@
         loadError = null;
         try
         {
-            playlist = await Client.RequestPlaylistAsync(Id);
+            playlist = await PlaylistClient.RequestPlaylistAsync(Id);
             if (playlist is null)
                 loadError = "Playlist nicht gefunden.";
             else
-                await LoadInitialPageAsync();
+                selectedSortMode = playlist.SortMode;
         }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Forbidden)
         {
+            Logger.LogWarning(ex, "Zugriff auf Playlist {PlaylistId} verweigert", Id);
             loadError = "Zugriff auf diese Playlist verweigert.";
         }
         catch (Exception ex)
         {
+            Logger.LogWarning(ex, "Fehler beim Laden der Playlist {PlaylistId}", Id);
             loadError = $"Fehler beim Laden der Playlist: {ex.Message}";
         }
         finally
@@ -205,155 +143,49 @@
         }
     }
 
-    private async Task LoadInitialPageAsync()
-    {
-        try
-        {
-            currentPageNumber = 1;
-            allEntries = new List<DtoPlaylistEntry>();
-            hasMorePages = true;
-            totalCount = 0;
-
-            var page = await Client.RequestPlaylistEntriesPagedAsync(Id, currentPageNumber, PageSize);
-            allEntries.AddRange(page.Entries);
-            hasMorePages = page.HasNextPage;
-            totalCount = page.TotalCount;
-            currentPageNumber++;
-
-            if (virtualizeRef is not null)
-                await virtualizeRef.RefreshDataAsync();
-        }
-        catch (Exception ex)
-        {
-            entriesStatusIsError = true;
-            entriesStatusMessage = $"Fehler beim Laden der Eintraege: {ex.Message}";
-        }
-    }
-
-    private async ValueTask<ItemsProviderResult<DtoPlaylistEntry>> ItemsProviderAsync(ItemsProviderRequest request)
-    {
-        await loadPageSemaphore.WaitAsync(request.CancellationToken);
-        try
-        {
-            while (allEntries.Count < request.StartIndex + request.Count && hasMorePages)
-            {
-                isLoadingMore = true;
-                try
-                {
-                    var page = await Client.RequestPlaylistEntriesPagedAsync(Id, currentPageNumber, PageSize, request.CancellationToken);
-                    allEntries.AddRange(page.Entries);
-                    hasMorePages = page.HasNextPage;
-                    totalCount = page.TotalCount;
-                    currentPageNumber++;
-                }
-                finally
-                {
-                    isLoadingMore = false;
-                }
-            }
-        }
-        finally
-        {
-            loadPageSemaphore.Release();
-        }
-
-        var count = Math.Clamp(allEntries.Count - request.StartIndex, 0, request.Count);
-        var items = allEntries.Skip(request.StartIndex).Take(count);
-        return new ItemsProviderResult<DtoPlaylistEntry>(items, totalCount);
-    }
-
-    public void Dispose()
-    {
-        loadPageSemaphore.Dispose();
-    }
-
-    private async Task AddEntryAsync()
-    {
-        entriesStatusMessage = null;
-        entriesStatusIsError = false;
-        try
-        {
-            var result = await Client.AddMediaToPlaylistAsync(Id, new DtoAddMediaToPlaylistRequest
-            {
-                MediaType = newEntryMediaType,
-                MediaId = newEntryMediaId
-            });
-            entriesStatusMessage = result.Message;
-            await LoadInitialPageAsync();
-            newEntryMediaId = 0;
-        }
-        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
-        {
-            entriesStatusIsError = true;
-            entriesStatusMessage = "Medieninhalt wurde nicht gefunden.";
-        }
-        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Forbidden)
-        {
-            entriesStatusIsError = true;
-            entriesStatusMessage = "Sie sind nicht Besitzer dieser Playlist.";
-        }
-        catch (Exception ex)
-        {
-            entriesStatusIsError = true;
-            entriesStatusMessage = $"Fehler beim Hinzufuegen: {ex.Message}";
-        }
-    }
-
-    private async Task RemoveEntryAsync(DtoPlaylistEntry entry)
-    {
-        entriesStatusMessage = null;
-        entriesStatusIsError = false;
-        try
-        {
-            await Client.RemoveMediaFromPlaylistAsync(Id, entry.MediaType, entry.MediaId);
-            await LoadInitialPageAsync();
-        }
-        catch (Exception ex)
-        {
-            entriesStatusIsError = true;
-            entriesStatusMessage = $"Fehler beim Entfernen: {ex.Message}";
-        }
-    }
-
     private void OpenEditForm()
     {
-        editingPlaylistId = Id;
-        showForm = true;
+        formState.OpenForEdit(Id);
     }
 
     private void RequestDelete()
     {
-        showDeleteConfirmation = true;
+        if (playlist is not null)
+            deleteState.Request(playlist);
     }
 
     private async Task HandleSavedAsync()
     {
-        showForm = false;
+        formState.Close();
         await LoadPlaylistAsync();
     }
 
     private void HandleCancel()
     {
-        showForm = false;
+        formState.Close();
     }
 
     private void CancelDelete()
     {
-        showDeleteConfirmation = false;
+        deleteState.Cancel();
     }
 
     private async Task ConfirmDeleteAsync()
     {
+        if (deleteState.Pending is null)
+            return;
+
         try
         {
-            await Client.DeletePlaylistAsync(Id);
-            showDeleteConfirmation = false;
+            await PlaylistClient.DeletePlaylistAsync(deleteState.Pending.Id);
+            deleteState.Cancel();
             NavigationManager.NavigateTo("/playlists");
         }
         catch (Exception ex)
         {
+            Logger.LogWarning(ex, "Fehler beim Loeschen der Playlist {PlaylistId}", Id);
             loadError = $"Fehler beim Loeschen der Playlist: {ex.Message}";
-            showDeleteConfirmation = false;
+            deleteState.Cancel();
         }
     }
 
@@ -362,8 +194,69 @@
         NavigationManager.NavigateTo("/playlists");
     }
 
-    private string GetImageUrl(DtoPlaylistEntry entry)
-        => entry.ResolvedPictureId.HasValue
-            ? $"/api/pictures/{entry.ResolvedPictureId}?access_token={Client.AuthorizationToken}"
-            : "/images/placeholder.png";
+    /// <summary>
+    /// Resets <see cref="sortModeStatusMessage"/>, runs <paramref name="action"/>, and on failure sets it
+    /// from the exception - unless <paramref name="handleSpecialError"/> is given and fully handles the
+    /// exception itself (returning <see langword="true"/>), e.g. to show the confirmation dialog instead
+    /// of an error. Mirrors <c>PlaylistEntriesList.RunEntryActionAsync</c> for the sort-mode-change
+    /// workflow, which stays on this component since it owns <see cref="playlist"/>.
+    /// </summary>
+    private async Task RunSortModeActionAsync(Func<Task> action, string errorPrefix, Func<Exception, bool>? handleSpecialError = null)
+    {
+        sortModeStatusMessage = null;
+        try
+        {
+            await action();
+        }
+        catch (Exception ex)
+        {
+            if (handleSpecialError?.Invoke(ex) == true)
+                return;
+
+            Logger.LogWarning(ex, "{ErrorPrefix} (Playlist {PlaylistId})", errorPrefix, Id);
+            sortModeStatusMessage = $"{errorPrefix}: {ex.Message}";
+        }
+    }
+
+    private Task ApplySortModeAsync()
+        => RunSortModeActionAsync(async () =>
+        {
+            playlist = await PlaylistClient.ChangeSortModeAsync(Id, new DtoChangeSortModeRequest
+            {
+                NewSortMode = selectedSortMode,
+                ConfirmLossOfManualOrder = false
+            });
+            await ReloadEntriesAsync();
+        }, "Fehler beim Aendern des Sortiermodus", ex =>
+        {
+            if (ex is HttpRequestException { StatusCode: System.Net.HttpStatusCode.Conflict })
+            {
+                showSortModeConfirmation = true;
+                return true;
+            }
+            return false;
+        });
+
+    private Task ConfirmSortModeChangeAsync()
+    {
+        showSortModeConfirmation = false;
+        return RunSortModeActionAsync(async () =>
+        {
+            playlist = await PlaylistClient.ChangeSortModeAsync(Id, new DtoChangeSortModeRequest
+            {
+                NewSortMode = selectedSortMode,
+                ConfirmLossOfManualOrder = true
+            });
+            await ReloadEntriesAsync();
+        }, "Fehler beim Aendern des Sortiermodus");
+    }
+
+    private void CancelSortModeChange()
+    {
+        showSortModeConfirmation = false;
+        selectedSortMode = playlist?.SortMode ?? PlaylistSortModeValues.ByReleaseDate;
+    }
+
+    private Task ReloadEntriesAsync()
+        => entriesList is not null ? entriesList.ReloadAsync() : Task.CompletedTask;
 }

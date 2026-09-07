@@ -2,7 +2,7 @@
 @using System.Net
 @using VideoWebPlayer.Client.Models
 @using VideoWebPlayer.Data
-@inject VideoWebPlayer.Client.VideoWebPlayerClient Client
+@inject VideoWebPlayer.Client.IPlaylistApiClient PlaylistClient
 
 <div class="admin-dialog-overlay" @onclick="Cancel">
     <div class="admin-dialog" @onclick:stopPropagation>
@@ -36,13 +36,24 @@
                     }
                 </div>
 
-                <div class="mb-3">
-                    <label class="form-label" for="playlist-sortmode-select">Sortierung</label>
-                    <InputSelect id="playlist-sortmode-select" class="form-control" @bind-Value="playlist.SortMode">
-                        <option value="@PlaylistSortModeValues.ByReleaseDate">Nach Erscheinungsdatum</option>
-                        <option value="@PlaylistSortModeValues.Manual">Manuell</option>
-                    </InputSelect>
-                </div>
+                @if (!PlaylistId.HasValue)
+                {
+                    <div class="mb-3">
+                        <label class="form-label" for="playlist-sortmode-select">Sortierung</label>
+                        <InputSelect id="playlist-sortmode-select" class="form-control" @bind-Value="playlist.SortMode">
+                            <PlaylistSortModeOptions />
+                        </InputSelect>
+                    </div>
+                }
+                else
+                {
+                    <div class="mb-3">
+                        <span class="form-label">Sortierung</span>
+                        <p id="playlist-form-sortmode-readonly">
+                            @PlaylistSortModeValues.GetDisplayLabel(playlist.SortMode) (Aenderung ueber "Sortiermodus aendern" auf der Playlist-Detailseite)
+                        </p>
+                    </div>
+                }
 
                 @if (!string.IsNullOrWhiteSpace(errorMessage))
                 {
@@ -82,15 +93,15 @@
             isLoading = true;
             try
             {
-                var loaded = await Client.RequestPlaylistAsync(PlaylistId.Value);
+                var loaded = await PlaylistClient.RequestPlaylistAsync(PlaylistId.Value);
                 if (loaded is not null)
                     playlist = loaded;
                 else
                     errorMessage = "Playlist konnte nicht geladen werden.";
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                errorMessage = "Playlist konnte nicht geladen werden.";
+                errorMessage = $"Playlist konnte nicht geladen werden: {ex.Message}";
             }
             finally
             {
@@ -126,16 +137,20 @@
         {
             if (PlaylistId.HasValue)
             {
-                await Client.UpdatePlaylistAsync(PlaylistId.Value, new DtoUpdatePlaylistRequest
+                // SortMode is intentionally not sent here: the sort mode select is hidden while editing
+                // (see markup above) and the server ignores it for updates anyway - changing the sort
+                // mode is only possible via the dedicated "Sortiermodus aendern" workflow on the playlist
+                // detail page, which goes through ChangeSortModeAsync instead of a plain name/description edit.
+                await PlaylistClient.UpdatePlaylistAsync(PlaylistId.Value, new DtoUpdatePlaylistRequest
                 {
                     Name = playlist.Name,
                     Description = playlist.Description,
-                    SortMode = playlist.SortMode
+                    SortMode = null
                 });
             }
             else
             {
-                await Client.CreatePlaylistAsync(new DtoCreatePlaylistRequest
+                await PlaylistClient.CreatePlaylistAsync(new DtoCreatePlaylistRequest
                 {
                     Name = playlist.Name,
                     Description = playlist.Description,
@@ -149,9 +164,9 @@
         {
             errorMessage = "Ein Playlist mit diesem Namen existiert bereits.";
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            errorMessage = "Beim Speichern ist ein Fehler aufgetreten.";
+            errorMessage = $"Beim Speichern ist ein Fehler aufgetreten: {ex.Message}";
         }
         finally
         {

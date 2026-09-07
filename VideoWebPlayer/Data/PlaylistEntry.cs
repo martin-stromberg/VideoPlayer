@@ -53,5 +53,12 @@ namespace VideoWebPlayer.Data
         /// Gets or sets the timestamp when the entry was added to the playlist.
         /// </summary>
         public DateTime AddedAt { get; set; } = DateTime.UtcNow;
+
+        /// <summary>
+        /// Gets or sets the manual sort order of the entry within its playlist, used when the owning
+        /// playlist's <see cref="Data.PlaylistSortMode"/> is <see cref="PlaylistSortMode.Manual"/>.
+        /// <c>null</c> for entries of a playlist sorted by <see cref="PlaylistSortMode.ByReleaseDate"/>.
+        /// </summary>
+        public long? SortOrder { get; set; }
     }
 }

@@ -23,6 +23,9 @@ namespace VideoWebPlayer.Data.Configurations
                 .OnDelete(DeleteBehavior.Cascade);
 
             builder.HasIndex(e => new { e.PlaylistId, e.MediaType, e.MediaId }).IsUnique();
+
+            builder.HasIndex(e => new { e.PlaylistId, e.SortOrder })
+                .HasDatabaseName("IX_PlaylistEntries_PlaylistId_SortOrder");
         }
     }
 }

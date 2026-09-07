@@ -35,27 +35,115 @@ public class PlaylistsController : ApiBaseController
     }
 
     /// <summary>
+    /// Runs <paramref name="action"/> (which is expected to call <see cref="ApiBaseController.CheckLogedIn"/>
+    /// itself before touching the playlist service) and maps the exceptions common to every playlist
+    /// endpoint to the corresponding HTTP response, centralizing the try/catch block that was previously
+    /// duplicated across all playlist actions.
+    /// </summary>
+    /// <param name="action">The endpoint logic to run.</param>
+    /// <param name="logContext">A German gerund phrase describing the action, used in log messages (e.g. "Abrufen der Playlists").</param>
+    /// <param name="mapInvalidOperation">
+    /// Optional mapping for a plain <see cref="InvalidOperationException"/> to an <see cref="IActionResult"/>.
+    /// Defaults to <see cref="BadRequestObjectResult"/> when omitted.
+    /// </param>
+    /// <returns>The result produced by <paramref name="action"/>, or the mapped error response.</returns>
+    private async Task<IActionResult> ExecuteAsync(
+        Func<Task<IActionResult>> action,
+        string logContext,
+        Func<InvalidOperationException, IActionResult>? mapInvalidOperation = null)
+    {
+        try
+        {
+            return await action();
+        }
+        catch (KeyNotFoundException ex)
+        {
+            Logger.LogWarning(ex, "Eintrag nicht gefunden beim {LogContext}", logContext);
+            return NotFound(ex.Message);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Logger.LogWarning(ex, "Zugriff ohne Anmeldung beim {LogContext}", logContext);
+            return Unauthorized(ex.Message);
+        }
+        catch (PlaylistAccessDeniedException ex)
+        {
+            Logger.LogWarning(ex, "Zugriff verweigert beim {LogContext}", logContext);
+            return Forbid(JwtBearerDefaults.AuthenticationScheme);
+        }
+        catch (ManualSortOrderConfirmationRequiredException ex)
+        {
+            Logger.LogInformation(ex, "Bestaetigung erforderlich beim {LogContext}", logContext);
+            return Conflict(new DtoChangeSortModeConflictResponse { IsLossOfDataConfirmationRequired = true });
+        }
+        catch (PlaylistNotInManualSortModeException ex)
+        {
+            Logger.LogWarning(ex, "Playlist nicht im manuellen Sortiermodus beim {LogContext}", logContext);
+            return Conflict(ex.Message);
+        }
+        catch (PlaylistNameAlreadyExistsException ex)
+        {
+            Logger.LogWarning(ex, "Name bereits vergeben beim {LogContext}", logContext);
+            return Conflict(ex.Message);
+        }
+        catch (ArgumentException ex)
+        {
+            Logger.LogWarning(ex, "Ungueltige Eingabe beim {LogContext}", logContext);
+            return BadRequest(ex.Message);
+        }
+        catch (InvalidOperationException ex)
+        {
+            Logger.LogWarning(ex, "Fehler beim {LogContext}", logContext);
+            return mapInvalidOperation?.Invoke(ex) ?? BadRequest(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Fehler beim {LogContext}", logContext);
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    /// <summary>
+    /// Same as <see cref="ExecuteAsync(Func{Task{IActionResult}}, string, Func{InvalidOperationException, IActionResult}?)"/>,
+    /// additionally rejecting a <see langword="null"/> <paramref name="request"/> body with 400 Bad
+    /// Request before invoking <paramref name="action"/>, centralizing the null-body check that was
+    /// previously duplicated at the start of every endpoint with a request body.
+    /// </summary>
+    /// <typeparam name="TRequest">The request body type.</typeparam>
+    /// <param name="request">The deserialized request body, or <see langword="null"/> if the body was empty/invalid.</param>
+    /// <param name="action">The endpoint logic to run once <paramref name="request"/> is known to be non-null.</param>
+    /// <param name="logContext">A German gerund phrase describing the action, used in log messages.</param>
+    /// <param name="mapInvalidOperation">Optional mapping for a plain <see cref="InvalidOperationException"/>, see the base overload.</param>
+    /// <returns>The result produced by <paramref name="action"/>, or the mapped error response.</returns>
+    private Task<IActionResult> ExecuteAsync<TRequest>(
+        TRequest? request,
+        Func<TRequest, Task<IActionResult>> action,
+        string logContext,
+        Func<InvalidOperationException, IActionResult>? mapInvalidOperation = null)
+        where TRequest : class
+    {
+        return ExecuteAsync(async () =>
+        {
+            CheckLogedIn();
+            if (request is null)
+                return BadRequest("Der Anfrage-Body darf nicht leer sein.");
+
+            return await action(request);
+        }, logContext, mapInvalidOperation);
+    }
+
+    /// <summary>
     /// Gets all playlists for the current user.
     /// </summary>
     [HttpGet]
-    public async Task<IActionResult> GetPlaylists()
+    public Task<IActionResult> GetPlaylists()
     {
-        try
+        return ExecuteAsync(async () =>
         {
             CheckLogedIn();
             var result = await _playlistService.GetPlaylistsAsync(CurrentUser!.Id, HttpContext.RequestAborted);
             return Ok(result);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            Logger.LogWarning(ex, "Zugriff ohne Anmeldung beim Abrufen der Playlists");
-            return Unauthorized(ex.Message);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Fehler beim Abrufen der Playlists");
-            return StatusCode(500, "Internal server error");
-        }
+        }, "Abrufen der Playlists");
     }
 
     /// <summary>
@@ -63,9 +151,9 @@ public class PlaylistsController : ApiBaseController
     /// </summary>
     /// <param name="id">The playlist identifier.</param>
     [HttpGet("{id}")]
-    public async Task<IActionResult> GetPlaylist(long id)
+    public Task<IActionResult> GetPlaylist(long id)
     {
-        try
+        return ExecuteAsync(async () =>
         {
             CheckLogedIn();
             var result = await _playlistService.GetPlaylistAsync(id, CurrentUser!.Id, HttpContext.RequestAborted);
@@ -73,22 +161,7 @@ public class PlaylistsController : ApiBaseController
                 return NotFound();
 
             return Ok(result);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            Logger.LogWarning(ex, "Zugriff ohne Anmeldung beim Abrufen der Playlist {PlaylistId}", id);
-            return Unauthorized(ex.Message);
-        }
-        catch (PlaylistAccessDeniedException ex)
-        {
-            Logger.LogWarning(ex, "Zugriff verweigert beim Abrufen der Playlist {PlaylistId}", id);
-            return Forbid(JwtBearerDefaults.AuthenticationScheme);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Fehler beim Abrufen der Playlist {PlaylistId}", id);
-            return StatusCode(500, "Internal server error");
-        }
+        }, $"Abrufen der Playlist {id}");
     }
 
     /// <summary>
@@ -96,33 +169,14 @@ public class PlaylistsController : ApiBaseController
     /// </summary>
     /// <param name="request">The create request.</param>
     [HttpPost]
-    public async Task<IActionResult> CreatePlaylist([FromBody] DtoCreatePlaylistRequest request)
+    public Task<IActionResult> CreatePlaylist([FromBody] DtoCreatePlaylistRequest request)
     {
-        try
+        return ExecuteAsync(request, async req =>
         {
-            CheckLogedIn();
-            if (request is null)
-                return BadRequest("Der Anfrage-Body darf nicht leer sein.");
-
             var result = await _playlistService.CreatePlaylistAsync(
-                CurrentUser!.Id, request.Name, request.Description, request.SortMode, HttpContext.RequestAborted);
+                CurrentUser!.Id, req.Name, req.Description, req.SortMode, HttpContext.RequestAborted);
             return Ok(result);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            Logger.LogWarning(ex, "Zugriff ohne Anmeldung beim Erstellen der Playlist");
-            return Unauthorized(ex.Message);
-        }
-        catch (InvalidOperationException ex)
-        {
-            Logger.LogWarning(ex, "Fehler beim Erstellen der Playlist");
-            return MapInvalidOperationException(ex);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Fehler beim Erstellen der Playlist");
-            return StatusCode(500, "Internal server error");
-        }
+        }, "Erstellen der Playlist");
     }
 
     /// <summary>
@@ -131,43 +185,14 @@ public class PlaylistsController : ApiBaseController
     /// <param name="id">The playlist identifier.</param>
     /// <param name="request">The update request.</param>
     [HttpPut("{id}")]
-    public async Task<IActionResult> UpdatePlaylist(long id, [FromBody] DtoUpdatePlaylistRequest request)
+    public Task<IActionResult> UpdatePlaylist(long id, [FromBody] DtoUpdatePlaylistRequest request)
     {
-        try
+        return ExecuteAsync(request, async req =>
         {
-            CheckLogedIn();
-            if (request is null)
-                return BadRequest("Der Anfrage-Body darf nicht leer sein.");
-
             var result = await _playlistService.UpdatePlaylistAsync(
-                id, CurrentUser!.Id, request.Name, request.Description, request.SortMode, HttpContext.RequestAborted);
+                id, CurrentUser!.Id, req.Name, req.Description, req.SortMode, HttpContext.RequestAborted);
             return Ok(result);
-        }
-        catch (KeyNotFoundException ex)
-        {
-            Logger.LogWarning(ex, "Playlist {PlaylistId} wurde beim Aktualisieren nicht gefunden", id);
-            return NotFound(ex.Message);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            Logger.LogWarning(ex, "Zugriff ohne Anmeldung beim Aktualisieren der Playlist {PlaylistId}", id);
-            return Unauthorized(ex.Message);
-        }
-        catch (PlaylistAccessDeniedException ex)
-        {
-            Logger.LogWarning(ex, "Zugriff verweigert beim Aktualisieren der Playlist {PlaylistId}", id);
-            return Forbid(JwtBearerDefaults.AuthenticationScheme);
-        }
-        catch (InvalidOperationException ex)
-        {
-            Logger.LogWarning(ex, "Fehler beim Aktualisieren der Playlist {PlaylistId}", id);
-            return MapInvalidOperationException(ex);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Fehler beim Aktualisieren der Playlist {PlaylistId}", id);
-            return StatusCode(500, "Internal server error");
-        }
+        }, $"Aktualisieren der Playlist {id}");
     }
 
     /// <summary>
@@ -175,42 +200,14 @@ public class PlaylistsController : ApiBaseController
     /// </summary>
     /// <param name="id">The playlist identifier.</param>
     [HttpDelete("{id}")]
-    public async Task<IActionResult> DeletePlaylist(long id)
+    public Task<IActionResult> DeletePlaylist(long id)
     {
-        try
+        return ExecuteAsync(async () =>
         {
             CheckLogedIn();
             await _playlistService.DeletePlaylistAsync(id, CurrentUser!.Id, HttpContext.RequestAborted);
             return NoContent();
-        }
-        catch (KeyNotFoundException ex)
-        {
-            Logger.LogWarning(ex, "Playlist {PlaylistId} wurde beim Loeschen nicht gefunden", id);
-            return NotFound(ex.Message);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            Logger.LogWarning(ex, "Zugriff ohne Anmeldung beim Loeschen der Playlist {PlaylistId}", id);
-            return Unauthorized(ex.Message);
-        }
-        catch (PlaylistAccessDeniedException ex)
-        {
-            Logger.LogWarning(ex, "Zugriff verweigert beim Loeschen der Playlist {PlaylistId}", id);
-            return Forbid(JwtBearerDefaults.AuthenticationScheme);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Fehler beim Loeschen der Playlist {PlaylistId}", id);
-            return StatusCode(500, "Internal server error");
-        }
-    }
-
-    private static IActionResult MapInvalidOperationException(InvalidOperationException ex)
-    {
-        if (ex.Message.Contains("existiert bereits", StringComparison.OrdinalIgnoreCase))
-            return new ConflictObjectResult(ex.Message);
-
-        return new BadRequestObjectResult(ex.Message);
+        }, $"Loeschen der Playlist {id}");
     }
 
     /// <summary>
@@ -219,43 +216,14 @@ public class PlaylistsController : ApiBaseController
     /// <param name="id">The playlist identifier.</param>
     /// <param name="request">The add request.</param>
     [HttpPost("{id}/entries")]
-    public async Task<IActionResult> AddMediaToPlaylist(long id, [FromBody] DtoAddMediaToPlaylistRequest request)
+    public Task<IActionResult> AddMediaToPlaylist(long id, [FromBody] DtoAddMediaToPlaylistRequest request)
     {
-        try
+        return ExecuteAsync(request, async req =>
         {
-            CheckLogedIn();
-            if (request is null)
-                return BadRequest("Der Anfrage-Body darf nicht leer sein.");
-
             var result = await _playlistService.AddMediaToPlaylistAsync(
-                id, CurrentUser!.Id, request.MediaType, request.MediaId, HttpContext.RequestAborted);
+                id, CurrentUser!.Id, req.MediaType, req.MediaId, HttpContext.RequestAborted);
             return Ok(result);
-        }
-        catch (KeyNotFoundException ex)
-        {
-            Logger.LogWarning(ex, "Medieninhalt oder Playlist {PlaylistId} wurde beim Hinzufuegen nicht gefunden", id);
-            return NotFound(ex.Message);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            Logger.LogWarning(ex, "Zugriff ohne Anmeldung beim Hinzufuegen zur Playlist {PlaylistId}", id);
-            return Unauthorized(ex.Message);
-        }
-        catch (PlaylistAccessDeniedException ex)
-        {
-            Logger.LogWarning(ex, "Zugriff verweigert beim Hinzufuegen zur Playlist {PlaylistId}", id);
-            return Forbid(JwtBearerDefaults.AuthenticationScheme);
-        }
-        catch (InvalidOperationException ex)
-        {
-            Logger.LogWarning(ex, "Fehler beim Hinzufuegen zur Playlist {PlaylistId}", id);
-            return MapInvalidOperationException(ex);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Fehler beim Hinzufuegen zur Playlist {PlaylistId}", id);
-            return StatusCode(500, "Internal server error");
-        }
+        }, $"Hinzufuegen zur Playlist {id}");
     }
 
     /// <summary>
@@ -265,39 +233,14 @@ public class PlaylistsController : ApiBaseController
     /// <param name="mediaType">The media type of the entry to remove.</param>
     /// <param name="mediaId">The media identifier of the entry to remove.</param>
     [HttpDelete("{id}/entries/{mediaType}/{mediaId}")]
-    public async Task<IActionResult> RemoveMediaFromPlaylist(long id, string mediaType, long mediaId)
+    public Task<IActionResult> RemoveMediaFromPlaylist(long id, string mediaType, long mediaId)
     {
-        try
+        return ExecuteAsync(async () =>
         {
             CheckLogedIn();
             await _playlistService.RemoveMediaFromPlaylistAsync(id, CurrentUser!.Id, mediaType, mediaId, HttpContext.RequestAborted);
             return NoContent();
-        }
-        catch (KeyNotFoundException ex)
-        {
-            Logger.LogWarning(ex, "Eintrag wurde beim Entfernen aus Playlist {PlaylistId} nicht gefunden", id);
-            return NotFound(ex.Message);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            Logger.LogWarning(ex, "Zugriff ohne Anmeldung beim Entfernen aus Playlist {PlaylistId}", id);
-            return Unauthorized(ex.Message);
-        }
-        catch (PlaylistAccessDeniedException ex)
-        {
-            Logger.LogWarning(ex, "Zugriff verweigert beim Entfernen aus Playlist {PlaylistId}", id);
-            return Forbid(JwtBearerDefaults.AuthenticationScheme);
-        }
-        catch (InvalidOperationException ex)
-        {
-            Logger.LogWarning(ex, "Fehler beim Entfernen aus Playlist {PlaylistId}", id);
-            return MapInvalidOperationException(ex);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Fehler beim Entfernen aus Playlist {PlaylistId}", id);
-            return StatusCode(500, "Internal server error");
-        }
+        }, $"Entfernen aus Playlist {id}");
     }
 
     /// <summary>
@@ -305,34 +248,14 @@ public class PlaylistsController : ApiBaseController
     /// </summary>
     /// <param name="id">The playlist identifier.</param>
     [HttpGet("{id}/entries")]
-    public async Task<IActionResult> GetPlaylistEntries(long id)
+    public Task<IActionResult> GetPlaylistEntries(long id)
     {
-        try
+        return ExecuteAsync(async () =>
         {
             CheckLogedIn();
             var result = await _playlistService.GetPlaylistEntriesAsync(id, CurrentUser!.Id, HttpContext.RequestAborted);
             return Ok(result);
-        }
-        catch (KeyNotFoundException ex)
-        {
-            Logger.LogWarning(ex, "Playlist {PlaylistId} wurde beim Abrufen der Eintraege nicht gefunden", id);
-            return NotFound(ex.Message);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            Logger.LogWarning(ex, "Zugriff ohne Anmeldung beim Abrufen der Eintraege von Playlist {PlaylistId}", id);
-            return Unauthorized(ex.Message);
-        }
-        catch (PlaylistAccessDeniedException ex)
-        {
-            Logger.LogWarning(ex, "Zugriff verweigert beim Abrufen der Eintraege von Playlist {PlaylistId}", id);
-            return Forbid(JwtBearerDefaults.AuthenticationScheme);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Fehler beim Abrufen der Eintraege von Playlist {PlaylistId}", id);
-            return StatusCode(500, "Internal server error");
-        }
+        }, $"Abrufen der Eintraege von Playlist {id}");
     }
 
     /// <summary>
@@ -342,9 +265,9 @@ public class PlaylistsController : ApiBaseController
     /// <param name="pageNumber">The 1-based page number.</param>
     /// <param name="pageSize">The number of entries per page. Defaults to <see cref="PlaylistSettings.DefaultPageSize"/> when omitted.</param>
     [HttpGet("{id}/entries/paged")]
-    public async Task<IActionResult> GetPlaylistEntriesPaged(long id, int pageNumber = 1, int? pageSize = null)
+    public Task<IActionResult> GetPlaylistEntriesPaged(long id, int pageNumber = 1, int? pageSize = null)
     {
-        try
+        return ExecuteAsync(async () =>
         {
             CheckLogedIn();
 
@@ -358,26 +281,89 @@ public class PlaylistsController : ApiBaseController
 
             var result = await _playlistService.GetPlaylistEntriesPagedAsync(id, CurrentUser!.Id, pageNumber, resolvedPageSize, HttpContext.RequestAborted);
             return Ok(result);
-        }
-        catch (KeyNotFoundException ex)
+        }, $"Abrufen der paginierten Eintraege von Playlist {id}");
+    }
+
+    /// <summary>
+    /// Changes the manual sort order of a single entry of a playlist for the current user.
+    /// </summary>
+    /// <param name="id">The playlist identifier.</param>
+    /// <param name="entryId">The playlist entry identifier.</param>
+    /// <param name="request">The reorder request.</param>
+    [HttpPut("{id}/entries/{entryId}/order")]
+    public Task<IActionResult> ReorderPlaylistEntry(long id, long entryId, [FromBody] DtoReorderPlaylistEntryRequest request)
+    {
+        return ExecuteAsync(request, async req =>
         {
-            Logger.LogWarning(ex, "Playlist {PlaylistId} wurde beim Abrufen der paginierten Eintraege nicht gefunden", id);
-            return NotFound(ex.Message);
-        }
-        catch (UnauthorizedAccessException ex)
+            await _playlistService.ReorderPlaylistEntryAsync(id, CurrentUser!.Id, entryId, req.NewSortOrder, HttpContext.RequestAborted);
+            return Ok();
+        }, $"Umordnen von Eintrag {entryId} in Playlist {id}");
+    }
+
+    /// <summary>
+    /// Atomically changes the manual sort order of multiple entries of a playlist for the current user.
+    /// </summary>
+    /// <param name="id">The playlist identifier.</param>
+    /// <param name="request">The batch reorder request.</param>
+    [HttpPost("{id}/entries/batch-reorder")]
+    public Task<IActionResult> BatchReorderPlaylistEntries(long id, [FromBody] DtoBatchReorderPlaylistEntriesRequest request)
+    {
+        return ExecuteAsync(request, async req =>
         {
-            Logger.LogWarning(ex, "Zugriff ohne Anmeldung beim Abrufen der paginierten Eintraege von Playlist {PlaylistId}", id);
-            return Unauthorized(ex.Message);
-        }
-        catch (PlaylistAccessDeniedException ex)
+            var reorderOperations = req.ReorderOperations
+                .Select(op => (op.EntryId, op.NewSortOrder))
+                .ToList();
+            var result = await _playlistService.BatchReorderPlaylistEntriesAsync(id, CurrentUser!.Id, reorderOperations, HttpContext.RequestAborted);
+            return Ok(result);
+        }, $"Batch-Umordnen von Playlist {id}", ex => Conflict(ex.Message));
+    }
+
+    /// <summary>
+    /// Gets the current maximum manual sort order across the entire playlist (not just a loaded/
+    /// virtualized page of it), for the "move to end" quick action.
+    /// </summary>
+    /// <param name="id">The playlist identifier.</param>
+    [HttpGet("{id}/entries/max-sort-order")]
+    public Task<IActionResult> GetMaxSortOrder(long id)
+    {
+        return ExecuteAsync(async () =>
         {
-            Logger.LogWarning(ex, "Zugriff verweigert beim Abrufen der paginierten Eintraege von Playlist {PlaylistId}", id);
-            return Forbid(JwtBearerDefaults.AuthenticationScheme);
-        }
-        catch (Exception ex)
+            CheckLogedIn();
+            var result = await _playlistService.GetMaxSortOrderAsync(id, CurrentUser!.Id, HttpContext.RequestAborted);
+            return Ok(new DtoMaxSortOrderResult { MaxSortOrder = result });
+        }, $"Abrufen der maximalen SortOrder von Playlist {id}");
+    }
+
+    /// <summary>
+    /// Moves a single entry of a playlist to the true beginning of the manual order (shifting every other
+    /// entry's manual sort order up by one first), for the "move to beginning" quick action.
+    /// </summary>
+    /// <param name="id">The playlist identifier.</param>
+    /// <param name="entryId">The playlist entry identifier.</param>
+    [HttpPost("{id}/entries/{entryId}/move-to-beginning")]
+    public Task<IActionResult> MoveEntryToBeginning(long id, long entryId)
+    {
+        return ExecuteAsync(async () =>
         {
-            Logger.LogError(ex, "Fehler beim Abrufen der paginierten Eintraege von Playlist {PlaylistId}", id);
-            return StatusCode(500, "Internal server error");
-        }
+            CheckLogedIn();
+            var result = await _playlistService.MoveEntryToBeginningAsync(id, CurrentUser!.Id, entryId, HttpContext.RequestAborted);
+            return Ok(result);
+        }, $"Verschieben von Eintrag {entryId} in Playlist {id} an den Anfang");
+    }
+
+    /// <summary>
+    /// Changes the sort mode of a playlist for the current user.
+    /// </summary>
+    /// <param name="id">The playlist identifier.</param>
+    /// <param name="request">The sort mode change request.</param>
+    [HttpPatch("{id}/sort-mode")]
+    public Task<IActionResult> ChangeSortMode(long id, [FromBody] DtoChangeSortModeRequest request)
+    {
+        return ExecuteAsync(request, async req =>
+        {
+            var result = await _playlistService.ChangeSortModeAsync(
+                id, CurrentUser!.Id, req.NewSortMode, req.ConfirmLossOfManualOrder, HttpContext.RequestAborted);
+            return Ok(result);
+        }, $"Aendern des Sortiermodus von Playlist {id}");
     }
 }

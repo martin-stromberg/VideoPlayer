@@ -365,7 +365,7 @@ public class ItemsController : ApiBaseController
 
         var hasSourceAccess = await _db.MediaSourceUsers.AnyAsync(u => u.UserId == CurrentUser.Id && u.MediaSourceId == source.Id);
         var isUnlocked = await IsUnlockedAsync(entry);
-        if (!hasSourceAccess && !isUnlocked)
+        if (!_unlockedMediaService.IsAccessible(hasSourceAccess, isUnlocked))
             throw new UnauthorizedAccessException("Fehlende Berechtigung fuer Medienquelle");
     }
 

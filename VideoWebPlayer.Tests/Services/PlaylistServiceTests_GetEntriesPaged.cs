@@ -314,4 +314,69 @@ public class PlaylistServiceTests_GetEntriesPaged : PlaylistServiceTestBase
         Assert.Equal(0, result.TotalCount);
         Assert.False(result.HasNextPage);
     }
+
+    [Fact]
+    public async Task GetEntriesPaged_ManualMode_SortedBySortOrder()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var movie1Id = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Film 1");
+        var movie2Id = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Film 2");
+        var movie3Id = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Film 3");
+        var playlistId = await CreateTestManualPlaylistWithEntriesAsync(_testUserId,
+            (MediaTypeValues.Movie, movie1Id, 2),
+            (MediaTypeValues.Movie, movie2Id, 0),
+            (MediaTypeValues.Movie, movie3Id, 1));
+
+        var result = await _service.GetPlaylistEntriesPagedAsync(playlistId, _testUserId, 1, 20, ct);
+
+        Assert.Equal(new[] { movie2Id, movie3Id, movie1Id }, result.Entries.Select(e => e.MediaId));
+        Assert.Equal(new long?[] { 0, 1, 2 }, result.Entries.Select(e => e.SortOrder));
+    }
+
+    [Fact]
+    public async Task GetEntriesPaged_ManualMode_NullSortOrder_FallsBackToAddedAt()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var movie1Id = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Spaeter hinzugefuegt");
+        var movie2Id = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Zuerst hinzugefuegt");
+        var playlistId = await CreateTestManualPlaylistWithEntriesAsync(_testUserId);
+        var baseTime = DateTime.UtcNow;
+        _db.PlaylistEntries.Add(new PlaylistEntry { PlaylistId = playlistId, MediaType = MediaTypeValues.Movie, MediaId = movie1Id, SortOrder = null, AddedAt = baseTime.AddMinutes(10) });
+        _db.PlaylistEntries.Add(new PlaylistEntry { PlaylistId = playlistId, MediaType = MediaTypeValues.Movie, MediaId = movie2Id, SortOrder = null, AddedAt = baseTime });
+        await _db.SaveChangesAsync(ct);
+
+        var result = await _service.GetPlaylistEntriesPagedAsync(playlistId, _testUserId, 1, 20, ct);
+
+        Assert.Equal(new[] { movie2Id, movie1Id }, result.Entries.Select(e => e.MediaId));
+    }
+
+    /// <summary>
+    /// Covers the mixed edge case (some entries carry a SortOrder, others don't - e.g. a playlist whose
+    /// SortMode was switched to Manual before this feature assigned a value to every entry) that the
+    /// all-null and all-set tests above don't exercise on their own. Documents .NET's actual
+    /// <c>OrderBy</c> behavior for a nullable value type: entries with <c>SortOrder == null</c> sort
+    /// before any entry with a real value, regardless of <c>AddedAt</c>.
+    /// </summary>
+    [Fact]
+    public async Task GetEntriesPaged_ManualMode_MixedNullAndSetSortOrder_NullEntriesSortFirst()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var movieWithOrderId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Mit SortOrder");
+        var movieWithoutOrderId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Ohne SortOrder");
+        var playlistId = await CreateTestManualPlaylistWithEntriesAsync(_testUserId,
+            (MediaTypeValues.Movie, movieWithOrderId, 0));
+        _db.PlaylistEntries.Add(new PlaylistEntry
+        {
+            PlaylistId = playlistId,
+            MediaType = MediaTypeValues.Movie,
+            MediaId = movieWithoutOrderId,
+            SortOrder = null,
+            AddedAt = DateTime.UtcNow
+        });
+        await _db.SaveChangesAsync(ct);
+
+        var result = await _service.GetPlaylistEntriesPagedAsync(playlistId, _testUserId, 1, 20, ct);
+
+        Assert.Equal(new[] { movieWithoutOrderId, movieWithOrderId }, result.Entries.Select(e => e.MediaId));
+    }
 }

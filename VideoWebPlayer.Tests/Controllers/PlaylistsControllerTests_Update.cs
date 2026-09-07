@@ -43,4 +43,23 @@ public class PlaylistsControllerTests_Update : PlaylistsControllerTestBase
 
         Assert.IsType<ForbidResult>(result);
     }
+
+    /// <summary>
+    /// Documents the fix for the bug where sending SortMode through the normal "edit playlist" form
+    /// bypassed ChangeSortModeAsync's confirmation/initialization logic: UpdatePlaylist now ignores
+    /// SortMode entirely, so the sort mode set at creation time (via the /sort-mode endpoint or at
+    /// creation) is unaffected by a plain name/description edit.
+    /// </summary>
+    [Fact]
+    public async Task UpdatePlaylist_SortModeInRequest_IsIgnored()
+    {
+        var createResult = await _controller.CreatePlaylist(new DtoCreatePlaylistRequest { Name = "Playlist", SortMode = "Manual" });
+        var created = Assert.IsType<OkObjectResult>(createResult).Value as DtoPlaylist;
+
+        var result = await _controller.UpdatePlaylist(created!.Id, new DtoUpdatePlaylistRequest { Name = "Playlist", SortMode = "ByReleaseDate" });
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        var dto = Assert.IsType<DtoPlaylist>(okResult.Value);
+        Assert.Equal("Manual", dto.SortMode);
+    }
 }

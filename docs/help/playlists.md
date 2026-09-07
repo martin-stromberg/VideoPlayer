@@ -6,8 +6,8 @@ Playlists, unabhängig davon, welche anderen Anwender ebenfalls Playlists angele
 
 Dieser Abschnitt umfasst die Verwaltung der Playlists selbst (anlegen, öffnen, bearbeiten, löschen,
 Übersicht), das Befüllen einer Playlist mit konkreten Medieninhalten (Filme, Episoden, Staffeln,
-Serien, Filmsammlungen) sowie die automatisch sortierte, fortlaufend nachladende Anzeige der
-Inhalte auf der Detailseite.
+Serien, Filmsammlungen), die fortlaufend nachladende Anzeige der Inhalte auf der Detailseite sowie
+die manuelle Umsortierung der Einträge per Drag & Drop oder Schnellaktion.
 
 ## Übersicht
 
@@ -33,7 +33,11 @@ Beim Anlegen oder Bearbeiten einer Playlist werden folgende Angaben erfasst:
   Der Name muss pro Anwender eindeutig sein (Groß-/Kleinschreibung wird dabei nicht
   unterschieden); ein doppelter Name führt zu einer Fehlermeldung.
 - **Beschreibung** (optional): maximal 2000 Zeichen.
-- **Sortiermodus**: entweder „Nach Erscheinungsdatum" (automatisch, Standard) oder „Manuell".
+- **Sortiermodus**: entweder „Nach Erscheinungsdatum" (automatisch, Standard) oder „Manuell". Diese
+  Angabe lässt sich nur beim **Anlegen** einer neuen Playlist wählen. Beim Bearbeiten einer
+  bestehenden Playlist wird der aktuelle Sortiermodus nur noch angezeigt (nicht änderbar); eine
+  Änderung des Sortiermodus einer bestehenden Playlist erfolgt ausschließlich über die Aktion
+  „Sortiermodus ändern" auf der Detailseite (siehe Abschnitt „Sortiermodus ändern").
 
 Ungültige Eingaben werden sowohl im Formular als auch serverseitig abgelehnt und mit einer
 aussagekräftigen Fehlermeldung angezeigt.
@@ -82,14 +86,46 @@ Steht die Playlist im Sortiermodus „Nach Erscheinungsdatum" (Standard), ersche
 automatisch chronologisch nach Erscheinungsdatum des jeweiligen Inhalts. Besitzt ein Eintrag kein
 Erscheinungsdatum, wird er stattdessen anhand seiner Serien-/Staffel-/Episodenzugehörigkeit
 eingeordnet; ist auch das nicht möglich, richtet sich die Reihenfolge danach, wann der Eintrag der
-Playlist hinzugefügt wurde. Im Sortiermodus „Manuell" erscheinen die Einträge in der Reihenfolge
-ihres Hinzufügedatums.
+Playlist hinzugefügt wurde. Im Sortiermodus „Manuell" erscheinen die Einträge in der vom Anwender
+selbst festgelegten Reihenfolge (siehe Abschnitt „Manuelle Sortierung").
 
 Enthält eine Playlist viele Einträge, werden zunächst nur die ersten davon angezeigt. Beim
 Herunterscrollen der Liste werden automatisch weitere Einträge nachgeladen und angehängt, sodass
 die Seite auch bei sehr umfangreichen Playlists flüssig bedienbar bleibt. Ein Hinweistext
 ("Weitere Einträge werden beim Scrollen geladen.") zeigt an, dass noch nicht alle Einträge geladen
 sind; sobald die Liste vollständig geladen ist, verschwindet dieser Hinweis.
+
+### Manuelle Sortierung
+
+Steht eine Playlist im Sortiermodus „Manuell", kann der Anwender die Reihenfolge der Einträge
+selbst festlegen. Neu hinzugefügte Einträge werden dabei stets ans Ende der bisherigen Reihenfolge
+angehängt. Zum Umsortieren stehen zwei gleichwertige Wege zur Verfügung:
+
+- **Drag & Drop**: Ein Eintrag lässt sich per Maus greifen (Mauszeiger wechselt über einer
+  ziehbaren Zeile zu einer Greifhand) und auf einen anderen Eintrag ziehen, um ihn dorthin zu
+  verschieben. Ein kurzer Hinweistext oberhalb der Liste erinnert im manuellen Modus an diese
+  Möglichkeit.
+- **Schnellaktionen**: Jeder Eintrag besitzt im manuellen Modus zusätzlich die Schaltflächen
+  **„An Anfang"** und **„An Ende"**, mit denen sich der Eintrag ohne Ziehen sofort an den Anfang
+  bzw. das Ende der Liste verschieben lässt — nützlich insbesondere bei vielen Einträgen oder wenn
+  Drag & Drop nicht bequem nutzbar ist. Für eine Zielposition mitten in der Liste bleibt Drag & Drop
+  der einzige Weg.
+
+Jede Umsortierung wird sofort gespeichert und bleibt auch nach einem Neuladen der Seite erhalten.
+
+### Sortiermodus ändern
+
+Der Sortiermodus einer bestehenden Playlist lässt sich auf der Detailseite über die Auswahl
+„Sortiermodus ändern" (Dropdown mit „Nach Erscheinungsdatum" und „Manuell" sowie Schaltfläche
+„Anwenden") jederzeit umstellen:
+
+- **Wechsel zu „Manuell"**: Die Einträge übernehmen als Ausgangsreihenfolge die zuletzt
+  angezeigte, automatisch nach Erscheinungsdatum sortierte Reihenfolge. Ab diesem Zeitpunkt lässt
+  sich die Reihenfolge wie im Abschnitt „Manuelle Sortierung" beschrieben frei anpassen.
+- **Wechsel zu „Nach Erscheinungsdatum"**: Da die bisherige manuelle Reihenfolge dabei
+  unwiederbringlich verloren geht, erscheint zuvor ein Bestätigungsdialog mit einer entsprechenden
+  Warnung. Erst nach ausdrücklicher Bestätigung wird der Sortiermodus tatsächlich umgestellt; ein
+  Abbrechen belässt die Playlist im manuellen Modus mit der bisherigen Reihenfolge unverändert.
 
 ### Hinzufügen
 

@@ -1,15 +1,7 @@
-<div class="admin-dialog-overlay" @onclick="Cancel">
-    <div class="admin-dialog" @onclick:stopPropagation>
-        <header class="admin-card-header">
-            <h2>Playlist loeschen</h2>
-        </header>
-        <p>Moechten Sie die Playlist "@PlaylistName" wirklich loeschen?</p>
-        <div class="admin-actions">
-            <button class="btn btn-danger" id="confirm-delete-playlist-button" @onclick="Confirm">Loeschen</button>
-            <button class="btn btn-ghost" @onclick="Cancel">Abbrechen</button>
-        </div>
-    </div>
-</div>
+<ConfirmationDialog Title="Playlist loeschen" OnConfirm="OnConfirm" OnCancel="OnCancel"
+                    ConfirmButtonText="Loeschen" ConfirmButtonId="confirm-delete-playlist-button" CancelButtonId="cancel-delete-playlist-button">
+    <p>Moechten Sie die Playlist "@PlaylistName" wirklich loeschen?</p>
+</ConfirmationDialog>
 
 @code {
     [Parameter]
@@ -20,14 +12,4 @@
 
     [Parameter]
     public EventCallback OnCancel { get; set; }
-
-    private async Task Confirm()
-    {
-        await OnConfirm.InvokeAsync();
-    }
-
-    private async Task Cancel()
-    {
-        await OnCancel.InvokeAsync();
-    }
 }

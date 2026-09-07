@@ -48,4 +48,16 @@ public interface IUnlockedMediaService
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The ids of all media sources the user has regular access to.</returns>
     Task<long[]> GetMediaSourceIdsForUserAsync(string userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The canonical application accessibility rule, shared by every caller that determines whether a
+    /// media entry is accessible to a user: the entry is accessible if the user has regular access to
+    /// its media source, or the entry is individually unlocked for the user. Takes the already-resolved
+    /// booleans rather than performing lookups itself, so callers that bulk-load access data for many
+    /// entries (e.g. playlist entries) are not forced back into a per-entry query.
+    /// </summary>
+    /// <param name="hasSourceAccess">Whether the user has regular access to the entry's media source.</param>
+    /// <param name="isUnlocked">Whether the entry is individually unlocked for the user.</param>
+    /// <returns><c>true</c> if the entry is accessible; otherwise, <c>false</c>.</returns>
+    bool IsAccessible(bool hasSourceAccess, bool isUnlocked);
 }

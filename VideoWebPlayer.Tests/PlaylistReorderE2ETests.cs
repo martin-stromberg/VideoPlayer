@@ -213,6 +213,7 @@ public sealed class PlaylistReorderE2ETests : PlaylistsE2ETestBase
             @"(source, targetId) => {
                 const target = document.querySelector(`.playlist-entry-row[data-media-id='${targetId}']`);
                 const dt = new DataTransfer();
+                dt.setData('text/plain', targetId.toString());
                 source.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: dt }));
                 target.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }));
                 target.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
@@ -221,9 +222,14 @@ public sealed class PlaylistReorderE2ETests : PlaylistsE2ETestBase
             targetMediaId);
         await Page.WaitForTimeoutAsync(1000);
 
+        // Dragging the first entry (SortOrder 0) onto the third entry (SortOrder 2) must shift the second
+        // and third entries up by one (to SortOrder 0 and 1) and place the dragged entry exactly at
+        // SortOrder 2 - not merely "some" different order, which the previous Assert.NotEqual checks would
+        // also have passed for the pre-fix behavior (colliding SortOrder resolved unpredictably via the
+        // AddedAt tie-break).
+        var expectedAfterDrop = new[] { initialOrder[1], initialOrder[2], initialOrder[0] };
         var afterDrop = await rowLocator.EvaluateAllAsync<string[]>("els => els.map(e => e.getAttribute('data-media-id'))");
-        Assert.NotEqual(initialOrder, afterDrop);
-        Assert.NotEqual(sourceMediaId, afterDrop[0]);
+        Assert.Equal(expectedAfterDrop, afterDrop);
 
         await Page.ReloadAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");

@@ -90,42 +90,16 @@ internal sealed class PlaylistEntryReorderService
     /// manual order. Unlike <see cref="ReorderEntryAsync"/> with <c>newSortOrder = 0</c> (which would only
     /// collide with whichever entry already occupies position 0, and lose the resulting
     /// <c>ThenBy(AddedAt)</c> tie-break every time, since the current front entry's <c>AddedAt</c> is
-    /// always earlier), this shifts every other entry's <see cref="PlaylistEntry.SortOrder"/> up by one
-    /// first (scaled to the whole playlist, not just a loaded/virtualized page, mirroring
-    /// <see cref="GetMaxSortOrderAsync"/>'s use for "move to end"), guaranteeing 0 is uniquely free before
-    /// assigning it to the moved entry. Entries without a <see cref="PlaylistEntry.SortOrder"/> yet are
-    /// left at <see langword="null"/> (SQL's null-plus-one is null), consistent with "no order assigned"
-    /// staying unassigned everywhere else in this class.
+    /// always earlier), this is just <see cref="MoveEntryBetweenAsync"/> with a target position of 0: only
+    /// the entries between the moved entry's current position and the beginning are shifted, rather than
+    /// every other entry in the playlist.
     /// </summary>
     /// <param name="playlist">The owning playlist, which must be in <see cref="PlaylistSortMode.Manual"/> mode.</param>
     /// <param name="entryId">The playlist entry identifier.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The updated entry.</returns>
-    public async Task<PlaylistEntry> MoveEntryToBeginningAsync(Playlist playlist, long entryId, CancellationToken cancellationToken)
-    {
-        EnsureManualSortMode(playlist);
-
-        var entry = await _db.PlaylistEntries
-            .FirstOrDefaultAsync(e => e.Id == entryId && e.PlaylistId == playlist.Id, cancellationToken)
-            ?? throw new KeyNotFoundException("Playlist-Eintrag wurde nicht gefunden.");
-
-        // ExecuteUpdateAsync commits immediately against the database, independently of the
-        // SaveChangesAsync call below - unlike the rest of this class (where a single SaveChangesAsync
-        // call is already atomic on its own), these are genuinely two separate writes that must succeed
-        // or fail together, hence the explicit transaction.
-        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
-
-        await _db.PlaylistEntries
-            .Where(e => e.PlaylistId == playlist.Id && e.Id != entryId)
-            .ExecuteUpdateAsync(setters => setters.SetProperty(e => e.SortOrder, e => e.SortOrder + 1), cancellationToken);
-
-        entry.SortOrder = 0;
-        await _db.SaveChangesAsync(cancellationToken);
-
-        await transaction.CommitAsync(cancellationToken);
-
-        return entry;
-    }
+    public Task<PlaylistEntry> MoveEntryToBeginningAsync(Playlist playlist, long entryId, CancellationToken cancellationToken)
+        => MoveEntryBetweenAsync(playlist, entryId, 0, cancellationToken);
 
     /// <summary>
     /// Atomically changes the manual sort order of multiple entries of the given (already
@@ -172,5 +146,57 @@ internal sealed class PlaylistEntryReorderService
         await _db.SaveChangesAsync(cancellationToken);
 
         return entries;
+    }
+
+    /// <summary>
+    /// Moves a single entry of the given (already ownership-checked) playlist to an arbitrary target
+    /// position, shifting every other entry's <see cref="PlaylistEntry.SortOrder"/> between the entry's
+    /// current and target position by one first - the general case <see cref="MoveEntryToBeginningAsync"/>
+    /// delegates to for a target position of 0. Used by drag & drop reordering, which - unlike
+    /// <see cref="ReorderEntryAsync"/> - must not simply collide with the target entry's SortOrder (that
+    /// would leave the resulting order to the unpredictable <c>ThenBy(AddedAt)</c> tie-break).
+    /// </summary>
+    /// <param name="playlist">The owning playlist, which must be in <see cref="PlaylistSortMode.Manual"/> mode.</param>
+    /// <param name="entryId">The playlist entry identifier.</param>
+    /// <param name="targetSortOrder">The target sort order; must be non-negative.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The updated entry.</returns>
+    public async Task<PlaylistEntry> MoveEntryBetweenAsync(Playlist playlist, long entryId, long targetSortOrder, CancellationToken cancellationToken)
+    {
+        EnsureManualSortMode(playlist);
+
+        if (targetSortOrder < 0)
+            throw new ArgumentException("targetSortOrder darf nicht negativ sein.");
+
+        var entry = await _db.PlaylistEntries
+            .FirstOrDefaultAsync(e => e.Id == entryId && e.PlaylistId == playlist.Id, cancellationToken)
+            ?? throw new KeyNotFoundException("Playlist-Eintrag wurde nicht gefunden.");
+
+        if (entry.SortOrder is not { } currentSortOrder)
+            throw new InvalidOperationException("Eintrag hat keine gueltige Sortierreihenfolge.");
+
+        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+
+        if (targetSortOrder < currentSortOrder)
+        {
+            await _db.PlaylistEntries
+                .Where(e => e.PlaylistId == playlist.Id && e.Id != entryId
+                    && e.SortOrder >= targetSortOrder && e.SortOrder < currentSortOrder)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(e => e.SortOrder, e => e.SortOrder + 1), cancellationToken);
+        }
+        else
+        {
+            await _db.PlaylistEntries
+                .Where(e => e.PlaylistId == playlist.Id && e.Id != entryId
+                    && e.SortOrder > currentSortOrder && e.SortOrder <= targetSortOrder)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(e => e.SortOrder, e => e.SortOrder - 1), cancellationToken);
+        }
+
+        entry.SortOrder = targetSortOrder;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await transaction.CommitAsync(cancellationToken);
+
+        return entry;
     }
 }

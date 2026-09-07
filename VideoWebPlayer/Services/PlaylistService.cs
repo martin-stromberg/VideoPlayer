@@ -649,6 +649,14 @@ public sealed class PlaylistService : IPlaylistService
     }
 
     /// <inheritdoc />
+    public async Task MoveEntryBetweenAsync(long playlistId, string userId, long entryId, long targetSortOrder, CancellationToken cancellationToken = default)
+    {
+        var playlist = await GetOwnedPlaylistAsync(playlistId, userId, cancellationToken);
+
+        await _reorderService.MoveEntryBetweenAsync(playlist, entryId, targetSortOrder, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task<DtoPlaylist> ChangeSortModeAsync(long playlistId, string userId, string newSortMode, bool? confirmLossOfManualOrder, CancellationToken cancellationToken = default)
     {
         var playlist = await GetOwnedPlaylistAsync(playlistId, userId, cancellationToken);

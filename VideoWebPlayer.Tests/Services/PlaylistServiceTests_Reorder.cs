@@ -8,8 +8,9 @@ using Xunit;
 namespace VideoWebPlayer.Tests.Services;
 
 /// <summary>
-/// Tests for <see cref="VideoWebPlayer.Services.PlaylistService.ReorderPlaylistEntryAsync"/> and
-/// <see cref="VideoWebPlayer.Services.PlaylistService.BatchReorderPlaylistEntriesAsync"/>.
+/// Tests for <see cref="VideoWebPlayer.Services.PlaylistService.ReorderPlaylistEntryAsync"/>,
+/// <see cref="VideoWebPlayer.Services.PlaylistService.BatchReorderPlaylistEntriesAsync"/> and
+/// <see cref="VideoWebPlayer.Services.PlaylistService.MoveEntryBetweenAsync"/>.
 /// </summary>
 public class PlaylistServiceTests_Reorder : PlaylistServiceTestBase
 {
@@ -224,5 +225,122 @@ public class PlaylistServiceTests_Reorder : PlaylistServiceTestBase
 
         var updatedMoved = await _db.PlaylistEntries.AsNoTracking().SingleAsync(e => e.Id == entryToMove, ct);
         Assert.Equal(untouchedEntry.SortOrder, updatedMoved.SortOrder);
+    }
+
+    /// <summary>
+    /// Covers the "moved forward/up" branch of <c>PlaylistEntryReorderService.MoveEntryBetweenAsync</c>
+    /// (target SortOrder &lt; current SortOrder), which - unlike the "moved backward/down" branch - was not
+    /// exercised by any test in the project before (only indirectly, and only for the other branch, by
+    /// <c>E2E_DragDropReorder_ManualMode_PersistsSortOrder</c>).
+    /// </summary>
+    [Fact]
+    public async Task MoveEntryBetween_Forward_ShiftsIntermediateEntriesUp()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var movie1Id = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Film 1");
+        var movie2Id = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Film 2");
+        var movie3Id = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Film 3");
+        var playlistId = await CreateTestManualPlaylistWithEntriesAsync(_testUserId,
+            (MediaTypeValues.Movie, movie1Id, 0),
+            (MediaTypeValues.Movie, movie2Id, 1),
+            (MediaTypeValues.Movie, movie3Id, 2));
+        var entries = await _db.PlaylistEntries.AsNoTracking().Where(e => e.PlaylistId == playlistId).ToListAsync(ct);
+        var entryForMedia3 = entries.Single(e => e.MediaId == movie3Id).Id;
+
+        await _service.MoveEntryBetweenAsync(playlistId, _testUserId, entryForMedia3, 0, ct);
+
+        var updated = await _db.PlaylistEntries.AsNoTracking().Where(e => e.PlaylistId == playlistId).ToListAsync(ct);
+        Assert.Equal(1, updated.Single(e => e.MediaId == movie1Id).SortOrder);
+        Assert.Equal(2, updated.Single(e => e.MediaId == movie2Id).SortOrder);
+        Assert.Equal(0, updated.Single(e => e.MediaId == movie3Id).SortOrder);
+    }
+
+    /// <summary>
+    /// Covers the "moved backward/down" branch of <c>PlaylistEntryReorderService.MoveEntryBetweenAsync</c>
+    /// (target SortOrder &gt; current SortOrder) as a fast unit test, in addition to the indirect coverage
+    /// by <c>E2E_DragDropReorder_ManualMode_PersistsSortOrder</c>.
+    /// </summary>
+    [Fact]
+    public async Task MoveEntryBetween_Backward_ShiftsIntermediateEntriesDown()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var movie1Id = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Film 1");
+        var movie2Id = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Film 2");
+        var movie3Id = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Film 3");
+        var playlistId = await CreateTestManualPlaylistWithEntriesAsync(_testUserId,
+            (MediaTypeValues.Movie, movie1Id, 0),
+            (MediaTypeValues.Movie, movie2Id, 1),
+            (MediaTypeValues.Movie, movie3Id, 2));
+        var entries = await _db.PlaylistEntries.AsNoTracking().Where(e => e.PlaylistId == playlistId).ToListAsync(ct);
+        var entryForMedia1 = entries.Single(e => e.MediaId == movie1Id).Id;
+
+        await _service.MoveEntryBetweenAsync(playlistId, _testUserId, entryForMedia1, 2, ct);
+
+        var updated = await _db.PlaylistEntries.AsNoTracking().Where(e => e.PlaylistId == playlistId).ToListAsync(ct);
+        Assert.Equal(2, updated.Single(e => e.MediaId == movie1Id).SortOrder);
+        Assert.Equal(0, updated.Single(e => e.MediaId == movie2Id).SortOrder);
+        Assert.Equal(1, updated.Single(e => e.MediaId == movie3Id).SortOrder);
+    }
+
+    [Fact]
+    public async Task MoveEntryBetween_NotOwner_ThrowsPlaylistAccessDeniedException()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var playlistId = await CreateTestManualPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.Movie, 1, 0));
+        var entryId = await _db.PlaylistEntries.AsNoTracking().Select(e => e.Id).SingleAsync(ct);
+
+        await Assert.ThrowsAsync<PlaylistAccessDeniedException>(
+            () => _service.MoveEntryBetweenAsync(playlistId, _otherUserId, entryId, 1, ct));
+    }
+
+    [Fact]
+    public async Task MoveEntryBetween_NotManualMode_ThrowsPlaylistNotInManualSortModeException()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var movieId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie);
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.Movie, movieId));
+        var entryId = await _db.PlaylistEntries.AsNoTracking().Select(e => e.Id).SingleAsync(ct);
+
+        await Assert.ThrowsAsync<PlaylistNotInManualSortModeException>(
+            () => _service.MoveEntryBetweenAsync(playlistId, _testUserId, entryId, 1, ct));
+    }
+
+    [Fact]
+    public async Task MoveEntryBetween_NegativeSortOrder_ThrowsArgumentException()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var playlistId = await CreateTestManualPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.Movie, 1, 0));
+        var entryId = await _db.PlaylistEntries.AsNoTracking().Select(e => e.Id).SingleAsync(ct);
+
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => _service.MoveEntryBetweenAsync(playlistId, _testUserId, entryId, -1, ct));
+    }
+
+    [Fact]
+    public async Task MoveEntryBetween_EntryNotFound_ThrowsKeyNotFoundException()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var playlistId = await CreateTestManualPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.Movie, 1, 0));
+
+        await Assert.ThrowsAsync<KeyNotFoundException>(
+            () => _service.MoveEntryBetweenAsync(playlistId, _testUserId, 999999, 1, ct));
+    }
+
+    /// <summary>
+    /// An entry without a <see cref="PlaylistEntry.SortOrder"/> yet (which should not normally occur in a
+    /// Manual-mode playlist - see <c>ChangeSortModeAsync</c> and <c>AssignSortOrderForNewEntriesAsync</c> -
+    /// but is not otherwise prevented at the data layer) cannot be positioned relative to other entries.
+    /// </summary>
+    [Fact]
+    public async Task MoveEntryBetween_EntrySortOrderNull_ThrowsInvalidOperationException()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var playlistId = await CreateTestManualPlaylistWithEntriesAsync(_testUserId,
+            (MediaTypeValues.Movie, 1, null),
+            (MediaTypeValues.Movie, 2, 0));
+        var entryId = await _db.PlaylistEntries.AsNoTracking().Where(e => e.MediaId == 1).Select(e => e.Id).SingleAsync(ct);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _service.MoveEntryBetweenAsync(playlistId, _testUserId, entryId, 0, ct));
     }
 }

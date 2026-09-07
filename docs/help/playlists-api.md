@@ -325,10 +325,11 @@ aktuellen Seite. `hasNextPage` gibt an, ob nach der aktuellen Seite noch weitere
 ### `PUT /api/playlists/{id}/entries/{entryId}/order` — Einzelnen Eintrag umsortieren
 
 Setzt den `SortOrder`-Wert eines einzelnen Eintrags. Nur im Sortiermodus `Manual` verwendbar. Wird
-u. a. von der Drag & Drop-Oberfläche genutzt: Beim Ablegen eines Eintrags auf einem anderen wird
-`newSortOrder` auf den `SortOrder`-Wert des Ziel-Eintrags gesetzt — ein bewusst in Kauf genommener
-Gleichstand mit dem Ziel-Eintrag, der beim Lesen über den `AddedAt`-Fallback aufgelöst wird (siehe
-„Sortierlogik" oben); es findet keine automatische Prüfung auf Kollision mit anderen Einträgen statt.
+in einfachen Fällen genutzt, wenn nur ein einzelner Eintrag gesetzt werden soll; es findet keine
+automatische Anpassung benachbarter Einträge statt. Die Drag-&-Drop-Oberfläche nutzt nicht diesen
+Endpunkt direkt, sondern wird serverseitig durch spezialisierte Reorder-Logik verarbeitet (analog
+zum Endpunkt `move-to-beginning` unten), um eine exakte Zielposition zu garantieren und Kollisionen
+zu vermeiden.
 
 **Parameter:**
 

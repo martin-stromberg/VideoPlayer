@@ -352,6 +352,23 @@ public class PlaylistsController : ApiBaseController
     }
 
     /// <summary>
+    /// Moves a single entry of a playlist to an arbitrary target position (shifting every other entry
+    /// between the entry's current and target position by one), for drag & drop reordering.
+    /// </summary>
+    /// <param name="id">The playlist identifier.</param>
+    /// <param name="entryId">The playlist entry identifier.</param>
+    /// <param name="request">The move request, carrying the target sort order.</param>
+    [HttpPost("{id}/entries/{entryId}/move-between")]
+    public Task<IActionResult> MoveEntryBetween(long id, long entryId, [FromBody] DtoReorderPlaylistEntryRequest request)
+    {
+        return ExecuteAsync(request, async req =>
+        {
+            await _playlistService.MoveEntryBetweenAsync(id, CurrentUser!.Id, entryId, req.NewSortOrder, HttpContext.RequestAborted);
+            return Ok();
+        }, $"Verschieben von Eintrag {entryId} in Playlist {id} zwischen Positionen");
+    }
+
+    /// <summary>
     /// Changes the sort mode of a playlist for the current user.
     /// </summary>
     /// <param name="id">The playlist identifier.</param>

@@ -9,7 +9,7 @@ namespace VideoWebPlayer.Tests.Controllers;
 
 /// <summary>
 /// Tests for the reorder endpoints of <see cref="VideoWebPlayer.Controllers.PlaylistsController"/>:
-/// <c>ReorderPlaylistEntry</c> and <c>BatchReorderPlaylistEntries</c>.
+/// <c>ReorderPlaylistEntry</c>, <c>BatchReorderPlaylistEntries</c> and <c>MoveEntryBetween</c>.
 /// </summary>
 public class PlaylistsControllerTests_Reorder : PlaylistsControllerTestBase
 {
@@ -172,5 +172,66 @@ public class PlaylistsControllerTests_Reorder : PlaylistsControllerTestBase
         });
 
         Assert.IsType<NotFoundObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task MoveEntryBetween_ValidRequest_Returns200Ok()
+    {
+        var playlistId = await CreateManualPlaylistAsync();
+        var entryId1 = await AddEntryAsync(playlistId, "Film 1");
+        var entryId2 = await AddEntryAsync(playlistId, "Film 2");
+
+        var result = await _controller.MoveEntryBetween(playlistId, entryId2, new DtoReorderPlaylistEntryRequest { NewSortOrder = 0 });
+
+        Assert.IsType<OkResult>(result);
+        var entry1 = await _db.PlaylistEntries.AsNoTracking().SingleAsync(e => e.Id == entryId1, TestContext.Current.CancellationToken);
+        var entry2 = await _db.PlaylistEntries.AsNoTracking().SingleAsync(e => e.Id == entryId2, TestContext.Current.CancellationToken);
+        Assert.Equal(1, entry1.SortOrder);
+        Assert.Equal(0, entry2.SortOrder);
+    }
+
+    [Fact]
+    public async Task MoveEntryBetween_NotOwner_Returns403Forbidden()
+    {
+        var playlistId = await CreateManualPlaylistAsync();
+        var entryId = await AddEntryAsync(playlistId, "Film 1");
+        _fakeAuth.CurrentUser = _otherUser;
+
+        var result = await _controller.MoveEntryBetween(playlistId, entryId, new DtoReorderPlaylistEntryRequest { NewSortOrder = 0 });
+
+        Assert.IsType<ForbidResult>(result);
+    }
+
+    [Fact]
+    public async Task MoveEntryBetween_EntryNotFound_Returns404NotFound()
+    {
+        var playlistId = await CreateManualPlaylistAsync();
+
+        var result = await _controller.MoveEntryBetween(playlistId, 999999, new DtoReorderPlaylistEntryRequest { NewSortOrder = 0 });
+
+        Assert.IsType<NotFoundObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task MoveEntryBetween_NotManualMode_Returns409Conflict()
+    {
+        var createResult = await _controller.CreatePlaylist(new DtoCreatePlaylistRequest { Name = "Automatische Playlist" });
+        var playlistId = (Assert.IsType<OkObjectResult>(createResult).Value as DtoPlaylist)!.Id;
+        var entryId = await AddEntryAsync(playlistId, "Film 1");
+
+        var result = await _controller.MoveEntryBetween(playlistId, entryId, new DtoReorderPlaylistEntryRequest { NewSortOrder = 0 });
+
+        Assert.IsType<ConflictObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task MoveEntryBetween_NegativeSortOrder_Returns400BadRequest()
+    {
+        var playlistId = await CreateManualPlaylistAsync();
+        var entryId = await AddEntryAsync(playlistId, "Film 1");
+
+        var result = await _controller.MoveEntryBetween(playlistId, entryId, new DtoReorderPlaylistEntryRequest { NewSortOrder = -1 });
+
+        Assert.IsType<BadRequestObjectResult>(result);
     }
 }

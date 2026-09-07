@@ -92,4 +92,11 @@ public interface IPlaylistService
     /// (and lose the tie-break against) whichever entry already occupies position 0.
     /// </summary>
     Task<DtoPlaylistEntry> MoveEntryToBeginningAsync(long playlistId, string userId, long entryId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Moves a single entry of a playlist in <see cref="Data.PlaylistSortMode.Manual"/> mode to an
+    /// arbitrary target position, shifting every other entry's <see cref="Data.PlaylistEntry.SortOrder"/>
+    /// between the entry's current and target position by one first. Used by drag & drop reordering.
+    /// </summary>
+    Task MoveEntryBetweenAsync(long playlistId, string userId, long entryId, long targetSortOrder, CancellationToken cancellationToken = default);
 }

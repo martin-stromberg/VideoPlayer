@@ -317,6 +317,18 @@
             await LoadInitialPageAsync();
         }, "Fehler beim Umordnen");
 
+    /// <summary>
+    /// Records the entry being dragged. Deliberately does not itself call
+    /// <c>dataTransfer.setData(...)</c> (which Firefox requires at least once per drag to accept the
+    /// operation at all) via JS interop: that call is only valid while the native <c>dragstart</c> event
+    /// is still synchronously dispatching, but a Blazor Server <c>@ondragstart</c> handler like this one
+    /// only runs after an async SignalR round-trip - by then the event has already finished dispatching
+    /// and the call would be silently ignored by the browser. Firefox compatibility is instead handled by
+    /// <c>wwwroot/js/playlistDragDrop.js</c>, a plain document-level <c>dragstart</c> listener (loaded
+    /// globally in App.razor, independently of this component) that calls
+    /// <c>event.dataTransfer.setData(...)</c> synchronously for every <c>.playlist-entry-row</c> drag,
+    /// before this handler's SignalR round-trip even starts.
+    /// </summary>
     private void OnEntryDragStart(DtoPlaylistEntry entry)
     {
         if (!IsManualMode)
@@ -345,7 +357,11 @@
             return;
         }
 
-        await ReorderEntryAsync(entryToMove, () => Task.FromResult(targetSortOrder));
+        await RunEntryActionAsync(async () =>
+        {
+            await PlaylistClient.MoveEntryBetweenAsync(PlaylistId, entryToMove.Id, new DtoReorderPlaylistEntryRequest { NewSortOrder = targetSortOrder });
+            await LoadInitialPageAsync();
+        }, "Fehler beim Umordnen");
     }
 
     private void OnEntryDragEnd()

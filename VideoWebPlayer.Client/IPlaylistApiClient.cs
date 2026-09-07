@@ -79,5 +79,12 @@ namespace VideoWebPlayer.Client
         /// action.
         /// </summary>
         Task<DtoPlaylistEntry> MoveEntryToBeginningAsync(long playlistId, long entryId);
+
+        /// <summary>
+        /// Moves a single entry of a playlist to an arbitrary target position, shifting every other entry
+        /// between the entry's current and target position by one server-side first. Used by drag & drop
+        /// reordering.
+        /// </summary>
+        Task MoveEntryBetweenAsync(long playlistId, long entryId, DtoReorderPlaylistEntryRequest request);
     }
 }

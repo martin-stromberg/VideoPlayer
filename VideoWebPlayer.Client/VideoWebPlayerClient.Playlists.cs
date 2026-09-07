@@ -92,5 +92,11 @@ namespace VideoWebPlayer.Client
         {
             return await HttpPostAsync<DtoPlaylistEntry>($"api/playlists/{playlistId}/entries/{entryId}/move-to-beginning", new StringContent(string.Empty));
         }
+
+        /// <inheritdoc />
+        public async Task MoveEntryBetweenAsync(long playlistId, long entryId, DtoReorderPlaylistEntryRequest request)
+        {
+            await HttpPostAsync($"api/playlists/{playlistId}/entries/{entryId}/move-between", CreateJsonContent(request));
+        }
     }
 }

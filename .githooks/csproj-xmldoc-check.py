@@ -22,6 +22,16 @@ sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
 EXCLUDED_DIRS = {'.git', 'bin', 'obj', 'TestResults', 'node_modules', '.vs', 'packages'}
 
+# Test projects are not a consumed public API surface, so requiring full XML
+# doc coverage / CS1591-as-error at the .csproj level is not meaningful there
+# (matches the equivalent exemption in no-notimplemented-check.py). Any path
+# with a directory component ending in ".Tests" (this repo's test-project
+# naming convention, e.g. "VideoWebPlayer.Tests") is exempted from the
+# .csproj-level XML-doc-configuration check. Per-member completeness checks on
+# .cs files still apply if a member happens to carry a <summary> comment.
+def is_test_project_csproj(rel_path):
+    return any(part.endswith('.Tests') for part in Path(rel_path).parts)
+
 # All C# warning codes related to XML documentation
 XML_DOC_CODES = {
     "CS1591",  # Missing XML comment for publicly visible type or member
@@ -83,10 +93,20 @@ def all_source_files(root):
 
 
 def parse_codes(text):
-    """Splits a semicolon- or comma-separated warning code string into a set."""
+    """Splits a semicolon- or comma-separated warning code string into a set,
+    normalizing bare numeric codes (e.g. "1591") to their "CS"-prefixed form
+    ("CS1591") since MSBuild/csc accept both interchangeably."""
     if not text:
         return set()
-    return {c.strip().upper() for c in text.replace(";", ",").split(",") if c.strip()}
+    codes = set()
+    for c in text.replace(";", ",").split(","):
+        c = c.strip().upper()
+        if not c:
+            continue
+        if c.isdigit():
+            c = "CS" + c
+        codes.add(c)
+    return codes
 
 
 def find_nearest_csproj(start_dir):
@@ -469,6 +489,8 @@ def main():
         if not path.exists():
             continue
         checked += 1
+        if is_test_project_csproj(rel):
+            continue
         problems = check_csproj_for_xmldoc(path)
         if problems:
             failed = True

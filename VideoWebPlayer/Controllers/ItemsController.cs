@@ -54,6 +54,7 @@ public class ItemsController : ApiBaseController
     /// <summary>
     /// Gets genre options as displayed by the genre admin page.
     /// </summary>
+    /// <returns>The available genre options.</returns>
     [HttpGet("genres")]
     public async Task<ActionResult<List<DtoGenreOption>>> GetGenres()
     {
@@ -77,6 +78,8 @@ public class ItemsController : ApiBaseController
     /// <summary>
     /// Updates user-editable metadata for a media detail context.
     /// </summary>
+    /// <param name="request">The metadata values to persist.</param>
+    /// <returns>An action result indicating success.</returns>
     [HttpPost("metadata")]
     public async Task<IActionResult> UpdateMetadata([FromBody] MediaMetadataUpdateRequest request)
     {
@@ -124,6 +127,7 @@ public class ItemsController : ApiBaseController
     /// search (<see cref="VideoWebPlayer.Components.Playlists.MediaSearchSelector"/>); media-source browsing
     /// leaves this at its default (<c>false</c>) to keep returning only the original two media types.
     /// </param>
+    /// <returns>The matching, paged media entries.</returns>
     [HttpGet]
     public async Task<ActionResult<List<MediaEntryDto>>> Get(
             [FromQuery] long? mediaSourceId,
@@ -196,6 +200,7 @@ public class ItemsController : ApiBaseController
     /// alongside <c>MovieCollection</c> and <c>TVShow</c>. Defaults to <c>false</c> so media-source browsing
     /// keeps returning only the original two media types.
     /// </param>
+    /// <returns>The constructed <see cref="MediaEntryFilter"/> value.</returns>
     private readonly record struct MediaEntryFilter(long? MediaSourceId, string? Search, long? GenreId, int Page, int Size, bool IncludeIndividualMediaTypes = false);
 
     /// <summary>
@@ -211,8 +216,9 @@ public class ItemsController : ApiBaseController
         if (string.IsNullOrWhiteSpace(search))
             return query;
 
-        var lowered = search.ToLower();
-        return query.Where(e => e.Name.ToLower().Contains(lowered));
+        var lowered = search.ToLowerInvariant();
+        var escaped = lowered.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
+        return query.Where(e => EF.Functions.Like(AppDbFunctions.LowerInvariant(e.Name), $"%{escaped}%", "\\"));
     }
 
     private async Task<List<MediaEntryDto>> GetMovieCollectionEntriesAsync(MediaEntryFilter filter, long[] mediaSourceIds, long[] unlockedMovieCollectionIds)
@@ -383,6 +389,7 @@ public class ItemsController : ApiBaseController
     /// <summary>
     /// Gets recently watched media entries.
     /// </summary>
+    /// <returns>The recently watched media entries.</returns>
     [HttpGet("recent")]
     public async Task<ActionResult<List<DtoRecentEntry>>> GetRecent()
     {
@@ -570,6 +577,9 @@ public class ItemsController : ApiBaseController
     /// <summary>
     /// Streams a media item by type and identifier.
     /// </summary>
+    /// <param name="type">The media type (<c>movie</c> or the TV show/episode type).</param>
+    /// <param name="id">The media item identifier.</param>
+    /// <returns>The media file as a range-processed stream.</returns>
     [HttpGet("{type}/{id}/stream")]
     public async Task<IActionResult> StreamMediaItem(string type, long id)
     {
@@ -625,6 +635,9 @@ public class ItemsController : ApiBaseController
     /// <summary>
     /// Downloads a media item by type and identifier.
     /// </summary>
+    /// <param name="type">The media type (<c>movie</c> or the TV show/episode type).</param>
+    /// <param name="id">The media item identifier.</param>
+    /// <returns>The media file as a downloadable attachment.</returns>
     [HttpGet("{type}/{id}/download")]
     public async Task<IActionResult> Download(string type, long id)
     {
@@ -659,6 +672,9 @@ public class ItemsController : ApiBaseController
     /// <summary>
     /// Gets media details for a movie collection or TV show.
     /// </summary>
+    /// <param name="type">The media type (movie collection or TV show).</param>
+    /// <param name="id">The media item identifier.</param>
+    /// <returns>The media details.</returns>
     [HttpGet("{type}/{id}")]
     public async Task<IActionResult> Get(string type, long id)
     {

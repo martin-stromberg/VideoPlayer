@@ -278,6 +278,227 @@ public class ItemsControllerTests_Search
         Assert.Equal(2, entries.Count);
     }
 
+    [Fact]
+    public async Task Get_SearchMovies_UnicodeUmlaut_UpperCase_Ueber()
+    {
+        var (db, controller, user, source) = await CreateControllerAsync();
+        await GrantSourceAccessAsync(db, user, source);
+        var matching = await CreateMovieAsync(db, source, "Über den Wolken");
+
+        var actionResult = await controller.Get(null, 0, 30, "ÜBER", null, includeIndividualMediaTypes: true);
+
+        var entries = GetOkValue(actionResult);
+        var entry = Assert.Single(entries);
+        Assert.Equal(matching.Id, entry.Id);
+    }
+
+    [Fact]
+    public async Task Get_SearchMovies_UnicodeUmlaut_LowerCase_ueber()
+    {
+        var (db, controller, user, source) = await CreateControllerAsync();
+        await GrantSourceAccessAsync(db, user, source);
+        var matching = await CreateMovieAsync(db, source, "Über den Wolken");
+
+        var actionResult = await controller.Get(null, 0, 30, "über", null, includeIndividualMediaTypes: true);
+
+        var entries = GetOkValue(actionResult);
+        var entry = Assert.Single(entries);
+        Assert.Equal(matching.Id, entry.Id);
+    }
+
+    [Fact]
+    public async Task Get_SearchMovies_UnicodeUmlaut_MixedCase_Ueber()
+    {
+        var (db, controller, user, source) = await CreateControllerAsync();
+        await GrantSourceAccessAsync(db, user, source);
+        var matching = await CreateMovieAsync(db, source, "Über den Wolken");
+
+        var actionResult = await controller.Get(null, 0, 30, "Über", null, includeIndividualMediaTypes: true);
+
+        var entries = GetOkValue(actionResult);
+        var entry = Assert.Single(entries);
+        Assert.Equal(matching.Id, entry.Id);
+    }
+
+    [Fact]
+    public async Task Get_SearchMovies_UnicodeEszett_UpperCase()
+    {
+        var (db, controller, user, source) = await CreateControllerAsync();
+        await GrantSourceAccessAsync(db, user, source);
+        var matching = await CreateMovieAsync(db, source, "Das Eszett ß Zeichen");
+
+        var actionResult = await controller.Get(null, 0, 30, "ESZETT", null, includeIndividualMediaTypes: true);
+
+        var entries = GetOkValue(actionResult);
+        var entry = Assert.Single(entries);
+        Assert.Equal(matching.Id, entry.Id);
+    }
+
+    [Fact]
+    public async Task Get_SearchMovies_UnicodeEszett_LowerCase()
+    {
+        var (db, controller, user, source) = await CreateControllerAsync();
+        await GrantSourceAccessAsync(db, user, source);
+        var matching = await CreateMovieAsync(db, source, "Das Eszett ß Zeichen");
+
+        var actionResult = await controller.Get(null, 0, 30, "eszett", null, includeIndividualMediaTypes: true);
+
+        var entries = GetOkValue(actionResult);
+        var entry = Assert.Single(entries);
+        Assert.Equal(matching.Id, entry.Id);
+    }
+
+    [Fact]
+    public async Task Get_SearchMovies_UnicodeUmlaut_Aerzte_UpperCase()
+    {
+        var (db, controller, user, source) = await CreateControllerAsync();
+        await GrantSourceAccessAsync(db, user, source);
+        var matching = await CreateMovieAsync(db, source, "Ärzte");
+
+        var actionResult = await controller.Get(null, 0, 30, "ÄRZTE", null, includeIndividualMediaTypes: true);
+
+        var entries = GetOkValue(actionResult);
+        var entry = Assert.Single(entries);
+        Assert.Equal(matching.Id, entry.Id);
+    }
+
+    [Fact]
+    public async Task Get_SearchMovies_UnicodeUmlaut_Aerzte_LowerCase()
+    {
+        var (db, controller, user, source) = await CreateControllerAsync();
+        await GrantSourceAccessAsync(db, user, source);
+        var matching = await CreateMovieAsync(db, source, "Ärzte");
+
+        var actionResult = await controller.Get(null, 0, 30, "ärzte", null, includeIndividualMediaTypes: true);
+
+        var entries = GetOkValue(actionResult);
+        var entry = Assert.Single(entries);
+        Assert.Equal(matching.Id, entry.Id);
+    }
+
+    [Fact]
+    public async Task Get_SearchMovies_UnicodeUmlaut_Moerder_UpperCase()
+    {
+        var (db, controller, user, source) = await CreateControllerAsync();
+        await GrantSourceAccessAsync(db, user, source);
+        var matching = await CreateMovieAsync(db, source, "Der Mörder ist da");
+
+        var actionResult = await controller.Get(null, 0, 30, "MÖRDER", null, includeIndividualMediaTypes: true);
+
+        var entries = GetOkValue(actionResult);
+        var entry = Assert.Single(entries);
+        Assert.Equal(matching.Id, entry.Id);
+    }
+
+    [Fact]
+    public async Task Get_SearchMovies_UnicodeUmlaut_Moerder_LowerCase()
+    {
+        var (db, controller, user, source) = await CreateControllerAsync();
+        await GrantSourceAccessAsync(db, user, source);
+        var matching = await CreateMovieAsync(db, source, "Der Mörder ist da");
+
+        var actionResult = await controller.Get(null, 0, 30, "mörder", null, includeIndividualMediaTypes: true);
+
+        var entries = GetOkValue(actionResult);
+        var entry = Assert.Single(entries);
+        Assert.Equal(matching.Id, entry.Id);
+    }
+
+    [Fact]
+    public async Task Get_SearchTVShows_UnicodeUmlaut()
+    {
+        var (db, controller, user, source) = await CreateControllerAsync();
+        await GrantSourceAccessAsync(db, user, source);
+        var matching = await CreateTVShowAsync(db, source, "Über den Serien");
+
+        var actionResult = await controller.Get(null, 0, 30, "ÜBER", null, includeIndividualMediaTypes: true);
+
+        var entries = GetOkValue(actionResult);
+        var entry = Assert.Single(entries);
+        Assert.Equal(nameof(TVShow), entry.Type);
+        Assert.Equal(matching.Id, entry.Id);
+    }
+
+    [Fact]
+    public async Task Get_SearchSeasons_UnicodeUmlaut()
+    {
+        var (db, controller, user, source) = await CreateControllerAsync();
+        await GrantSourceAccessAsync(db, user, source);
+        var show = await CreateTVShowAsync(db, source, "Show");
+        var matching = await CreateSeasonAsync(db, source, show, "Über Staffel");
+
+        var actionResult = await controller.Get(null, 0, 30, "über", null, includeIndividualMediaTypes: true);
+
+        var entries = GetOkValue(actionResult);
+        var entry = Assert.Single(entries);
+        Assert.Equal(nameof(TVShowSeason), entry.Type);
+        Assert.Equal(matching.Id, entry.Id);
+    }
+
+    [Fact]
+    public async Task Get_SearchEpisodes_UnicodeUmlaut()
+    {
+        var (db, controller, user, source) = await CreateControllerAsync();
+        await GrantSourceAccessAsync(db, user, source);
+        var show = await CreateTVShowAsync(db, source, "Show");
+        var season = await CreateSeasonAsync(db, source, show, "Staffel 1");
+        var matching = await CreateEpisodeAsync(db, source, season, "Über Folge");
+
+        var actionResult = await controller.Get(null, 0, 30, "ÜBER", null, includeIndividualMediaTypes: true);
+
+        var entries = GetOkValue(actionResult);
+        var entry = Assert.Single(entries);
+        Assert.Equal(nameof(TVShowEpisode), entry.Type);
+        Assert.Equal(matching.Id, entry.Id);
+    }
+
+    [Fact]
+    public async Task Get_SearchMovieCollections_UnicodeUmlaut()
+    {
+        var (db, controller, user, source) = await CreateControllerAsync();
+        await GrantSourceAccessAsync(db, user, source);
+        var collection = new MovieCollection { Name = "Über Sammlung", MediaSourceId = source.Id };
+        db.MovieCollections.Add(collection);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var actionResult = await controller.Get(null, 0, 30, "über", null, includeIndividualMediaTypes: true);
+
+        var entries = GetOkValue(actionResult);
+        var entry = Assert.Single(entries);
+        Assert.Equal(nameof(MovieCollection), entry.Type);
+        Assert.Equal(collection.Id, entry.Id);
+    }
+
+    [Fact]
+    public async Task Get_SearchMovies_LiteralPercentCharacter_NotTreatedAsWildcard()
+    {
+        var (db, controller, user, source) = await CreateControllerAsync();
+        await GrantSourceAccessAsync(db, user, source);
+        var matching = await CreateMovieAsync(db, source, "50% Off");
+        await CreateMovieAsync(db, source, "Normal Movie");
+
+        var actionResult = await controller.Get(null, 0, 30, "%", null, includeIndividualMediaTypes: true);
+
+        var entries = GetOkValue(actionResult);
+        var entry = Assert.Single(entries);
+        Assert.Equal(matching.Id, entry.Id);
+    }
+
+    [Fact]
+    public async Task Get_SearchMovies_LiteralUnderscoreCharacter_NotTreatedAsWildcard()
+    {
+        var (db, controller, user, source) = await CreateControllerAsync();
+        await GrantSourceAccessAsync(db, user, source);
+        var matching = await CreateMovieAsync(db, source, "A_B");
+        await CreateMovieAsync(db, source, "AxB");
+
+        var actionResult = await controller.Get(null, 0, 30, "_", null, includeIndividualMediaTypes: true);
+
+        var entries = GetOkValue(actionResult);
+        var entry = Assert.Single(entries);
+        Assert.Equal(matching.Id, entry.Id);
+    }
+
     private static List<MediaEntryDto> GetOkValue(ActionResult<List<MediaEntryDto>> actionResult)
     {
         var okResult = Assert.IsType<OkObjectResult>(actionResult.Result);

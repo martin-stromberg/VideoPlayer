@@ -3,6 +3,7 @@
 @using VideoWebPlayer.Client.Models
 @using VideoWebPlayer.Events
 @inject VideoWebPlayer.Client.VideoWebPlayerClient Client
+@inject VideoWebPlayer.Client.IPlaylistApiClient PlaylistClient
 @inject AuthenticationStateProvider AuthStateProvider
 @inject VideoWebPlayer.Services.EventManager EventManager
 @inject NavigationManager NavigationManager
@@ -51,7 +52,7 @@
                         <tr class="playlist-row" data-playlist-name="@playlist.Name">
                             <td>@playlist.Name</td>
                             <td>@TruncateDescription(playlist.Description)</td>
-                            <td>@(playlist.SortMode == PlaylistSortModeValues.Manual ? "Manuell" : "Nach Erscheinungsdatum")</td>
+                            <td>@PlaylistSortModeValues.GetDisplayLabel(playlist.SortMode)</td>
                             <td>@playlist.CreatedAt.ToLocalTime()</td>
                             <td>@playlist.UpdatedAt.ToLocalTime()</td>
                             <td>
@@ -67,23 +68,25 @@
     }
 </section>
 
-@if (showForm)
+@if (formState.IsOpen)
 {
-    <PlaylistForm PlaylistId="editingPlaylistId" OnSave="HandleSavedAsync" OnCancel="HandleCancel" />
+    <PlaylistForm PlaylistId="formState.EditingId" OnSave="HandleSavedAsync" OnCancel="HandleCancel" />
 }
 
-@if (playlistPendingDelete is not null)
+@if (deleteState.Pending is not null)
 {
-    <PlaylistDeleteConfirmationDialog PlaylistName="@playlistPendingDelete.Name" OnConfirm="ConfirmDeleteAsync" OnCancel="CancelDelete" />
+    <PlaylistDeleteConfirmationDialog PlaylistName="@deleteState.Pending.Name" OnConfirm="ConfirmDeleteAsync" OnCancel="CancelDelete" />
 }
 
 @code {
+    private const int DescriptionTruncateLength = 100;
+    private const string DescriptionTruncateEllipsis = "…";
+
     private List<DtoPlaylist> playlists = new();
     private bool isLoading = true;
     private string? loadError;
-    private bool showForm;
-    private long? editingPlaylistId;
-    private DtoPlaylist? playlistPendingDelete;
+    private readonly PlaylistFormState formState = new();
+    private readonly PlaylistDeletePendingState deleteState = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -98,7 +101,7 @@
         loadError = null;
         try
         {
-            playlists = (await Client.RequestPlaylistsAsync()).ToList();
+            playlists = (await PlaylistClient.RequestPlaylistsAsync()).ToList();
         }
         catch (Exception ex)
         {
@@ -112,45 +115,43 @@
 
     private void OpenCreateForm()
     {
-        editingPlaylistId = null;
-        showForm = true;
+        formState.OpenForCreate();
     }
 
     private void OpenEditForm(long playlistId)
     {
-        editingPlaylistId = playlistId;
-        showForm = true;
+        formState.OpenForEdit(playlistId);
     }
 
     private async Task HandleSavedAsync()
     {
-        showForm = false;
+        formState.Close();
         await LoadPlaylistsAsync();
     }
 
     private void HandleCancel()
     {
-        showForm = false;
+        formState.Close();
     }
 
     private void RequestDelete(DtoPlaylist playlist)
     {
-        playlistPendingDelete = playlist;
+        deleteState.Request(playlist);
     }
 
     private void CancelDelete()
     {
-        playlistPendingDelete = null;
+        deleteState.Cancel();
     }
 
     private async Task ConfirmDeleteAsync()
     {
-        if (playlistPendingDelete is null)
+        if (deleteState.Pending is null)
             return;
 
         try
         {
-            await Client.DeletePlaylistAsync(playlistPendingDelete.Id);
+            await PlaylistClient.DeletePlaylistAsync(deleteState.Pending.Id);
             PublishStatus("Playlist wurde geloescht.");
         }
         catch (Exception ex)
@@ -159,7 +160,7 @@
         }
         finally
         {
-            playlistPendingDelete = null;
+            deleteState.Cancel();
         }
 
         await LoadPlaylistsAsync();
@@ -170,7 +171,9 @@
         if (string.IsNullOrEmpty(description))
             return string.Empty;
 
-        return description.Length > 100 ? description[..100] + "…" : description;
+        return description.Length > DescriptionTruncateLength
+            ? description[..DescriptionTruncateLength] + DescriptionTruncateEllipsis
+            : description;
     }
 
     private void PublishStatus(string message)

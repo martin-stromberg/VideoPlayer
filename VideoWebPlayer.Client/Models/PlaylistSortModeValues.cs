@@ -9,5 +9,15 @@ namespace VideoWebPlayer.Client.Models
     {
         public const string ByReleaseDate = "ByReleaseDate";
         public const string Manual = "Manual";
+
+        /// <summary>
+        /// Returns the German display label for the given sort mode value ("Manuell" or "Nach
+        /// Erscheinungsdatum"), so <c>PlaylistDetail</c> and <c>PlaylistsList</c> do not each duplicate
+        /// the same ternary.
+        /// </summary>
+        /// <param name="sortMode">The raw sort mode value, e.g. from <see cref="DtoPlaylist.SortMode"/>.</param>
+        /// <returns>The German display label.</returns>
+        public static string GetDisplayLabel(string? sortMode)
+            => sortMode == Manual ? "Manuell" : "Nach Erscheinungsdatum";
     }
 }

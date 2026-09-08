@@ -1,0 +1,14 @@
+.playlist-entries-scroll {
+    max-height: 480px;
+    overflow-y: auto;
+}
+
+/* Usability: without this, a draggable row looks identical to a non-draggable one - nothing in the
+   markup otherwise hints that it can be picked up and dropped elsewhere. */
+.playlist-entry-row[draggable="true"] {
+    cursor: grab;
+}
+
+.playlist-entry-row[draggable="true"]:active {
+    cursor: grabbing;
+}

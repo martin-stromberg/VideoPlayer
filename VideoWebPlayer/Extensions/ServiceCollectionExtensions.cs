@@ -220,6 +220,7 @@ public static class ServiceCollectionExtensions
                 sp.GetRequiredService<ILogger<VideoWebPlayerClient>>());
             return client;
         });
+        services.AddScoped<IPlaylistApiClient>(sp => sp.GetRequiredService<VideoWebPlayerClient>());
 
         services.AddScoped<IUserClaimsPrincipalFactory<ApplicationUser>, ApplicationUserClaimsPrincipalFactory>();
         services.AddSingleton<EventManager>();

@@ -12,7 +12,14 @@ using VideoWebPlayer.Data;
 
 namespace VideoWebPlayer.Client
 {
-    public class VideoWebPlayerClient
+    /// <summary>
+    /// Facade over the server API. The Playlist operations (<see cref="IPlaylistApiClient"/>) live in the
+    /// <c>VideoWebPlayerClient.Playlists.cs</c> partial file, physically separating that cohesive group of
+    /// endpoints from the other regions (Authentication, Sources, Actors, Continue Watching, Favorites,
+    /// Media Entries, ...) while still sharing this class's HTTP/reauthorization infrastructure and the
+    /// impersonation behavior of <c>InternalVideoWebPlayerClient</c>.
+    /// </summary>
+    public partial class VideoWebPlayerClient : IPlaylistApiClient
     {
         private readonly HttpClient httpClient;
         private readonly ConcurrentDictionary<string, ProgressSendState> progressStates = new();
@@ -115,6 +122,27 @@ namespace VideoWebPlayer.Client
             return SendAndDeserializeAsync<T>(endPoint, "PUT", () => httpClient.PutAsync(endPoint, args));
         }
 
+        protected virtual async Task HttpPutAsync(string endPoint, HttpContent args)
+        {
+            var response = await SendWithReauthorizationAsync(endPoint, () => httpClient.PutAsync(endPoint, args));
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var content = await response.Content.ReadAsStringAsync();
+                throw new HttpRequestException(
+                    string.IsNullOrWhiteSpace(content)
+                        ? $"Failed to PUT from {endPoint}: {response.ReasonPhrase}"
+                        : content,
+                    null,
+                    response.StatusCode);
+            }
+        }
+
+        protected virtual Task<T> HttpPatchAsync<T>(string endPoint, HttpContent args)
+        {
+            return SendAndDeserializeAsync<T>(endPoint, "PATCH", () => httpClient.PatchAsync(endPoint, args));
+        }
+
         protected virtual async Task HttpPostAsync(string endPoint, HttpContent args, bool skipReauthorize = false)
         {
             var response = await SendWithReauthorizationAsync(endPoint, () => httpClient.PostAsync(endPoint, args), skipReauthorize);
@@ -199,10 +227,11 @@ namespace VideoWebPlayer.Client
             {
                 await EnsureAuthorizationTokenAsync(user, cancellationToken);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
                 // Kein Token verfuegbar (z. B. nicht angemeldet). Der nachfolgende Ladevorgang
                 // schlaegt dann mit einer aussagekraeftigen Fehlermeldung fehl, die im UI angezeigt wird.
+                Logger?.LogDebug(ex, "EnsureAuthorizationTokenAsync fehlgeschlagen, wird stillschweigend ignoriert.");
             }
         }
 
@@ -410,60 +439,15 @@ namespace VideoWebPlayer.Client
         }
         #endregion
 
-        #region Playlists
-        public async Task<IEnumerable<DtoPlaylist>> RequestPlaylistsAsync()
-        {
-            return await HttpGetAsync<DtoPlaylist[]>("api/playlists");
-        }
-
-        public async Task<DtoPlaylist?> RequestPlaylistAsync(long playlistId)
-        {
-            try
-            {
-                return await HttpGetAsync<DtoPlaylist>($"api/playlists/{playlistId}");
-            }
-            catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
-            {
-                return null;
-            }
-        }
-
-        public async Task<DtoPlaylist> CreatePlaylistAsync(DtoCreatePlaylistRequest request)
-        {
-            var json = JsonSerializer.Serialize(request);
-            var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
-            return await HttpPostAsync<DtoPlaylist>("api/playlists", content);
-        }
-
-        public async Task<DtoPlaylist> UpdatePlaylistAsync(long playlistId, DtoUpdatePlaylistRequest request)
-        {
-            var json = JsonSerializer.Serialize(request);
-            var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
-            return await HttpPutAsync<DtoPlaylist>($"api/playlists/{playlistId}", content);
-        }
-
-        public async Task DeletePlaylistAsync(long playlistId)
-        {
-            await HttpDeleteAsync($"api/playlists/{playlistId}");
-        }
-
-        public async Task<DtoPlaylistEntriesPagedResult> RequestPlaylistEntriesPagedAsync(long playlistId, int pageNumber, int pageSize, CancellationToken cancellationToken = default)
-        {
-            return await HttpGetAsync<DtoPlaylistEntriesPagedResult>($"api/playlists/{playlistId}/entries/paged?pageNumber={pageNumber}&pageSize={pageSize}", cancellationToken);
-        }
-
-        public async Task<DtoPlaylistAddResult> AddMediaToPlaylistAsync(long playlistId, DtoAddMediaToPlaylistRequest request)
-        {
-            var json = JsonSerializer.Serialize(request);
-            var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
-            return await HttpPostAsync<DtoPlaylistAddResult>($"api/playlists/{playlistId}/entries", content);
-        }
-
-        public async Task RemoveMediaFromPlaylistAsync(long playlistId, string mediaType, long mediaId)
-        {
-            await HttpDeleteAsync($"api/playlists/{playlistId}/entries/{mediaType}/{mediaId}");
-        }
-        #endregion
+        /// <summary>
+        /// Serializes <paramref name="value"/> to JSON and wraps it in an <c>application/json</c>
+        /// <see cref="StringContent"/>, for the POST/PUT/PATCH helper methods that send a JSON body.
+        /// </summary>
+        /// <typeparam name="T">The type of the value to serialize.</typeparam>
+        /// <param name="value">The value to serialize as the request body.</param>
+        /// <returns>The JSON-encoded <see cref="StringContent"/>.</returns>
+        private static StringContent CreateJsonContent<T>(T value)
+            => new(JsonSerializer.Serialize(value), System.Text.Encoding.UTF8, "application/json");
 
         #region Media Entries
         public async Task<List<MediaEntryDto>> RequestSourceItems(long mediaSourceId, int Page = 0, int PageSize = 30, string searchText = "", long genreId = 0)

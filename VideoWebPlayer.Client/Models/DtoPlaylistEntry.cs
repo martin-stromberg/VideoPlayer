@@ -21,5 +21,9 @@ namespace VideoWebPlayer.Client.Models
 
         // Whether the current user has unlocked access to the referenced media entity.
         public bool IsAccessible { get; set; } = true;
+
+        // Manual sort order of the entry within its playlist, populated when the owning playlist's
+        // SortMode is Manual; null for playlists sorted by ByReleaseDate.
+        public long? SortOrder { get; set; }
     }
 }

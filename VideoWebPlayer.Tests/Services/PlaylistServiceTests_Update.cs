@@ -10,7 +10,7 @@ namespace VideoWebPlayer.Tests.Services;
 public class PlaylistServiceTests_Update : PlaylistServiceTestBase
 {
     [Fact]
-    public async Task UpdatePlaylist_ValidInput_UpdatesEntity()
+    public async Task UpdatePlaylist_ValidInput_UpdatesNameAndDescription()
     {
         var ct = TestContext.Current.CancellationToken;
         var created = await _service.CreatePlaylistAsync(_testUserId, "Alter Name", "Alte Beschreibung", "ByReleaseDate", ct);
@@ -19,18 +19,36 @@ public class PlaylistServiceTests_Update : PlaylistServiceTestBase
 
         Assert.Equal("Neuer Name", updated.Name);
         Assert.Equal("Neue Beschreibung", updated.Description);
-        Assert.Equal("Manual", updated.SortMode);
         Assert.True(updated.UpdatedAt >= created.UpdatedAt);
     }
 
+    /// <summary>
+    /// Documents the fix for the previously reported bug where <c>UpdatePlaylistAsync</c> let the
+    /// SortMode field bypass <c>ChangeSortModeAsync</c>'s confirmation/initialization logic (a plain
+    /// name/description edit could silently switch a playlist to Manual mode without initializing
+    /// SortOrder, or drop the manual order when switching away from it without confirmation). The
+    /// sortMode parameter is now ignored entirely by UpdatePlaylistAsync; only ChangeSortModeAsync may
+    /// change the sort mode.
+    /// </summary>
     [Fact]
-    public async Task UpdatePlaylist_DuplicateName_ThrowsInvalidOperationException()
+    public async Task UpdatePlaylist_SortModeParameterProvided_IsIgnored()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var created = await _service.CreatePlaylistAsync(_testUserId, "Playlist", null, "ByReleaseDate", ct);
+
+        var updated = await _service.UpdatePlaylistAsync(created.Id, _testUserId, "Playlist", null, "Manual", ct);
+
+        Assert.Equal("ByReleaseDate", updated.SortMode);
+    }
+
+    [Fact]
+    public async Task UpdatePlaylist_DuplicateName_ThrowsPlaylistNameAlreadyExistsException()
     {
         var ct = TestContext.Current.CancellationToken;
         await _service.CreatePlaylistAsync(_testUserId, "Playlist Eins", null, null, ct);
         var second = await _service.CreatePlaylistAsync(_testUserId, "Playlist Zwei", null, null, ct);
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+        var ex = await Assert.ThrowsAsync<PlaylistNameAlreadyExistsException>(
             () => _service.UpdatePlaylistAsync(second.Id, _testUserId, "playlist eins", null, null, ct));
 
         Assert.Equal("Ein Playlist mit diesem Namen existiert bereits.", ex.Message);

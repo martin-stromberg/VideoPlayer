@@ -1,0 +1,371 @@
+@using VideoWebPlayer.Client.Models
+@implements IDisposable
+@inject VideoWebPlayer.Client.VideoWebPlayerClient Client
+@inject VideoWebPlayer.Client.IPlaylistApiClient PlaylistClient
+@inject ILogger<PlaylistEntriesList> Logger
+
+@* Owns the "Inhalte" section of the playlist detail page: the add-entry form, paginated/virtualized
+   entry table, drag & drop reordering and the "An Anfang"/"An Ende" quick actions. Extracted out of
+   PlaylistDetail.razor (which otherwise combined this with playlist metadata display, the sort-mode
+   change workflow and the delete workflow into a single ~500-line component) so each component stays
+   focused on one concern. PlaylistDetail.razor still owns the sort-mode change workflow itself (it needs
+   to update the playlist's SortMode and show the confirmation dialog), but tells this component to
+   reload afterwards via ReloadAsync(), since a sort-mode change affects every entry's SortOrder. *@
+
+@if (!string.IsNullOrWhiteSpace(entriesStatusMessage))
+{
+    <div class="alert @(entriesStatusIsError ? "alert-danger" : "alert-success")" id="playlist-entries-status">@entriesStatusMessage</div>
+}
+
+<div class="admin-table-wrap">
+    <div class="admin-actions">
+        <select class="form-control playlist-add-mediatype-select" @bind="newEntryMediaType">
+            <option value="@MediaTypeValues.Movie">Film</option>
+            <option value="@MediaTypeValues.TVShow">Serie</option>
+            <option value="@MediaTypeValues.TVShowSeason">Staffel</option>
+            <option value="@MediaTypeValues.TVShowEpisode">Episode</option>
+            <option value="@MediaTypeValues.MovieCollection">Filmsammlung</option>
+        </select>
+        <input class="form-control playlist-add-mediaid-input" type="number" min="1" @bind="newEntryMediaId" placeholder="Medien-Id" />
+        <button class="btn btn-primary playlist-add-entry-button" @onclick="AddEntryAsync">Hinzufuegen</button>
+    </div>
+
+    @if (allEntries.Count == 0 && !hasMorePages)
+    {
+        <div class="admin-empty-state">
+            <strong>Keine Eintraege vorhanden</strong>
+            <span>Fuegen Sie einen Medieninhalt hinzu.</span>
+        </div>
+    }
+    else
+    {
+        @if (IsManualMode)
+        {
+            <p class="text-muted playlist-entries-draganddrop-hint">Tipp: Ziehen Sie einen Eintrag an eine neue Position, oder nutzen Sie die Schaltflaechen "An Anfang"/"An Ende".</p>
+        }
+        <div class="playlist-entries-scroll">
+            <table class="table table-dark table-striped align-middle">
+                <thead>
+                    <tr>
+                        <th>Bild</th>
+                        <th>Typ</th>
+                        <th>Titel</th>
+                        <th>Sammlung</th>
+                        <th>Hinzugefuegt</th>
+                        <th>Aktionen</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <Virtualize TItem="DtoPlaylistEntry" @ref="virtualizeRef" ItemsProvider="ItemsProviderAsync" Context="entry">
+                        <ItemContent>
+                            <tr class="playlist-entry-row @(entry.IsAccessible ? string.Empty : "opacity-50 text-muted")" data-media-type="@entry.MediaType" data-media-id="@entry.MediaId"
+                                draggable="@(IsManualMode ? "true" : "false")"
+                                @ondragstart="() => OnEntryDragStart(entry)"
+                                @ondragover:preventDefault="IsManualMode"
+                                @ondrop="() => OnEntryDropAsync(entry)"
+                                @ondragend="OnEntryDragEnd">
+                                <td>
+                                    <img class="media-poster playlist-entry-image" src="@GetImageUrl(entry)" alt="@entry.MediaTitle" loading="lazy" onerror="this.onerror=null;this.src='/images/placeholder.png';" />
+                                </td>
+                                <td>@entry.MediaType</td>
+                                <td>@entry.MediaTitle</td>
+                                <td>@entry.ParentMediaTitle</td>
+                                <td>@entry.AddedAt.ToLocalTime()</td>
+                                <td>
+                                    <button class="btn btn-sm btn-danger playlist-entry-remove-button" @onclick="() => RemoveEntryAsync(entry)">Entfernen</button>
+                                    @if (IsManualMode)
+                                    {
+                                        <button class="btn btn-sm btn-secondary playlist-entry-move-start-button" @onclick="() => MoveEntryToBeginningAsync(entry)">An Anfang</button>
+                                        <button class="btn btn-sm btn-secondary playlist-entry-move-end-button" @onclick="() => MoveEntryToEndAsync(entry)">An Ende</button>
+                                    }
+                                </td>
+                            </tr>
+                        </ItemContent>
+                        <Placeholder>
+                            <tr class="playlist-entry-row playlist-entry-placeholder">
+                                <td colspan="6">Lade...</td>
+                            </tr>
+                        </Placeholder>
+                    </Virtualize>
+                </tbody>
+            </table>
+        </div>
+
+        @if (isLoadingMore)
+        {
+            <p id="playlist-entries-loading-more">Lade weitere Eintraege...</p>
+        }
+        @if (hasMorePages)
+        {
+            <p id="playlist-entries-more-available">Weitere Eintraege werden beim Scrollen geladen.</p>
+        }
+    }
+</div>
+
+@code {
+    private const int PageSize = 20;
+
+    [Parameter, EditorRequired]
+    public long PlaylistId { get; set; }
+
+    [Parameter, EditorRequired]
+    public bool IsManualMode { get; set; }
+
+    private string newEntryMediaType = MediaTypeValues.Movie;
+    private long newEntryMediaId;
+    private string? entriesStatusMessage;
+    private bool entriesStatusIsError;
+    private DtoPlaylistEntry? draggedEntry;
+
+    private int currentPageNumber = 1;
+    private bool isLoadingMore;
+    private List<DtoPlaylistEntry> allEntries = new();
+    private bool hasMorePages = true;
+    private int totalCount;
+    private Virtualize<DtoPlaylistEntry>? virtualizeRef;
+    private readonly SemaphoreSlim loadPageSemaphore = new(1, 1);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadInitialPageAsync();
+    }
+
+    /// <summary>
+    /// Reloads the first page from scratch, for use by <c>PlaylistDetail</c> after a sort-mode change
+    /// (which affects every entry's SortOrder and thus the manual-mode controls' availability).
+    /// </summary>
+    public Task ReloadAsync() => LoadInitialPageAsync();
+
+    /// <summary>
+    /// Resets paging state and (re)loads the first page. Guarded by <see cref="loadPageSemaphore"/> - the
+    /// same semaphore <see cref="ItemsProviderAsync"/> uses - so a scroll-triggered load-more triggered
+    /// while this is still running cannot interleave with it and corrupt the paging fields (e.g. read
+    /// <see cref="currentPageNumber"/> after it was reset to 1 here but before the first page's results
+    /// were applied, causing the same page to be fetched twice or entries to be lost).
+    /// </summary>
+    private async Task LoadInitialPageAsync()
+    {
+        try
+        {
+            await loadPageSemaphore.WaitAsync();
+            try
+            {
+                currentPageNumber = 1;
+                allEntries = new List<DtoPlaylistEntry>();
+                hasMorePages = true;
+                totalCount = 0;
+
+                var page = await PlaylistClient.RequestPlaylistEntriesPagedAsync(PlaylistId, currentPageNumber, PageSize);
+                allEntries.AddRange(page.Entries);
+                hasMorePages = page.HasNextPage;
+                totalCount = page.TotalCount;
+                currentPageNumber++;
+            }
+            finally
+            {
+                loadPageSemaphore.Release();
+            }
+
+            if (virtualizeRef is not null)
+                await virtualizeRef.RefreshDataAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Fehler beim Laden der Eintraege von Playlist {PlaylistId}", PlaylistId);
+            entriesStatusIsError = true;
+            entriesStatusMessage = $"Fehler beim Laden der Eintraege: {ex.Message}";
+        }
+    }
+
+    private async ValueTask<ItemsProviderResult<DtoPlaylistEntry>> ItemsProviderAsync(ItemsProviderRequest request)
+    {
+        await loadPageSemaphore.WaitAsync(request.CancellationToken);
+        try
+        {
+            while (allEntries.Count < request.StartIndex + request.Count && hasMorePages)
+            {
+                isLoadingMore = true;
+                try
+                {
+                    var page = await PlaylistClient.RequestPlaylistEntriesPagedAsync(PlaylistId, currentPageNumber, PageSize, request.CancellationToken);
+                    allEntries.AddRange(page.Entries);
+                    hasMorePages = page.HasNextPage;
+                    totalCount = page.TotalCount;
+                    currentPageNumber++;
+                }
+                finally
+                {
+                    isLoadingMore = false;
+                }
+            }
+        }
+        finally
+        {
+            loadPageSemaphore.Release();
+        }
+
+        var count = Math.Clamp(allEntries.Count - request.StartIndex, 0, request.Count);
+        var items = allEntries.Skip(request.StartIndex).Take(count);
+        return new ItemsProviderResult<DtoPlaylistEntry>(items, totalCount);
+    }
+
+    public void Dispose()
+    {
+        loadPageSemaphore.Dispose();
+    }
+
+    /// <summary>
+    /// Resets the entries status message, runs <paramref name="action"/>, and on failure sets
+    /// <see cref="entriesStatusIsError"/>/<see cref="entriesStatusMessage"/> from the exception - unless
+    /// <paramref name="handleSpecialError"/> is given and fully handles the exception itself (returning
+    /// <see langword="true"/>). Shared by every entry-list action (add, remove, reorder) to avoid
+    /// repeating the same reset/try/catch skeleton in each of them.
+    /// </summary>
+    private async Task RunEntryActionAsync(Func<Task> action, string errorPrefix, Func<Exception, bool>? handleSpecialError = null)
+    {
+        entriesStatusMessage = null;
+        entriesStatusIsError = false;
+        try
+        {
+            await action();
+        }
+        catch (Exception ex)
+        {
+            if (handleSpecialError?.Invoke(ex) == true)
+                return;
+
+            Logger.LogWarning(ex, "{ErrorPrefix} (Playlist {PlaylistId})", errorPrefix, PlaylistId);
+            entriesStatusIsError = true;
+            entriesStatusMessage = $"{errorPrefix}: {ex.Message}";
+        }
+    }
+
+    private Task AddEntryAsync()
+        => RunEntryActionAsync(async () =>
+        {
+            var result = await PlaylistClient.AddMediaToPlaylistAsync(PlaylistId, new DtoAddMediaToPlaylistRequest
+            {
+                MediaType = newEntryMediaType,
+                MediaId = newEntryMediaId
+            });
+            entriesStatusMessage = result.Message;
+            await LoadInitialPageAsync();
+            newEntryMediaId = 0;
+        }, "Fehler beim Hinzufuegen", ex =>
+        {
+            if (ex is HttpRequestException { StatusCode: System.Net.HttpStatusCode.NotFound })
+            {
+                entriesStatusIsError = true;
+                entriesStatusMessage = "Medieninhalt wurde nicht gefunden.";
+                return true;
+            }
+            if (ex is HttpRequestException { StatusCode: System.Net.HttpStatusCode.Forbidden })
+            {
+                entriesStatusIsError = true;
+                entriesStatusMessage = "Sie sind nicht Besitzer dieser Playlist.";
+                return true;
+            }
+            return false;
+        });
+
+    private Task RemoveEntryAsync(DtoPlaylistEntry entry)
+        => RunEntryActionAsync(async () =>
+        {
+            await PlaylistClient.RemoveMediaFromPlaylistAsync(PlaylistId, entry.MediaType, entry.MediaId);
+            await LoadInitialPageAsync();
+        }, "Fehler beim Entfernen");
+
+    private string GetImageUrl(DtoPlaylistEntry entry)
+        => entry.ResolvedPictureId.HasValue
+            ? $"/api/pictures/{entry.ResolvedPictureId}?access_token={Client.AuthorizationToken}"
+            : "/images/placeholder.png";
+
+    /// <summary>
+    /// Moves the given entry to the true beginning of the playlist via the dedicated
+    /// <c>IPlaylistApiClient.MoveEntryToBeginningAsync</c> endpoint, which shifts every other entry's
+    /// SortOrder up by one server-side first. A plain <c>ReorderPlaylistEntryAsync</c> call with
+    /// <c>newSortOrder = 0</c> would only collide with (and always lose the AddedAt tie-break against)
+    /// whichever entry already occupies position 0, so - unlike <see cref="MoveEntryToEndAsync"/> - this
+    /// does not go through the shared <see cref="ReorderEntryAsync"/> helper.
+    /// </summary>
+    private Task MoveEntryToBeginningAsync(DtoPlaylistEntry entry)
+        => RunEntryActionAsync(async () =>
+        {
+            await PlaylistClient.MoveEntryToBeginningAsync(PlaylistId, entry.Id);
+            await LoadInitialPageAsync();
+        }, "Fehler beim Umordnen");
+
+    /// <summary>
+    /// Moves the given entry to the end of the playlist. Resolves the target position from
+    /// <c>IPlaylistApiClient.RequestMaxSortOrderAsync</c> - the true maximum SortOrder across the
+    /// entire playlist - rather than <c>allEntries.Max(...)</c>, which would only reflect whatever subset
+    /// of entries has been loaded/virtualized into the client so far and could place the entry in the
+    /// middle of the list instead of at its actual end.
+    /// </summary>
+    private Task MoveEntryToEndAsync(DtoPlaylistEntry entry)
+        => ReorderEntryAsync(entry, async () =>
+        {
+            var maxSortOrder = await PlaylistClient.RequestMaxSortOrderAsync(PlaylistId);
+            return (maxSortOrder ?? -1) + 1;
+        });
+
+    private Task ReorderEntryAsync(DtoPlaylistEntry entry, Func<Task<long>> resolveNewSortOrder)
+        => RunEntryActionAsync(async () =>
+        {
+            var newSortOrder = await resolveNewSortOrder();
+            await PlaylistClient.ReorderPlaylistEntryAsync(PlaylistId, entry.Id, new DtoReorderPlaylistEntryRequest { NewSortOrder = newSortOrder });
+            await LoadInitialPageAsync();
+        }, "Fehler beim Umordnen");
+
+    /// <summary>
+    /// Records the entry being dragged. Deliberately does not itself call
+    /// <c>dataTransfer.setData(...)</c> (which Firefox requires at least once per drag to accept the
+    /// operation at all) via JS interop: that call is only valid while the native <c>dragstart</c> event
+    /// is still synchronously dispatching, but a Blazor Server <c>@ondragstart</c> handler like this one
+    /// only runs after an async SignalR round-trip - by then the event has already finished dispatching
+    /// and the call would be silently ignored by the browser. Firefox compatibility is instead handled by
+    /// <c>wwwroot/js/playlistDragDrop.js</c>, a plain document-level <c>dragstart</c> listener (loaded
+    /// globally in App.razor, independently of this component) that calls
+    /// <c>event.dataTransfer.setData(...)</c> synchronously for every <c>.playlist-entry-row</c> drag,
+    /// before this handler's SignalR round-trip even starts.
+    /// </summary>
+    private void OnEntryDragStart(DtoPlaylistEntry entry)
+    {
+        if (!IsManualMode)
+            return;
+
+        draggedEntry = entry;
+    }
+
+    private async Task OnEntryDropAsync(DtoPlaylistEntry targetEntry)
+    {
+        if (!IsManualMode || draggedEntry is null || draggedEntry.Id == targetEntry.Id)
+            return;
+
+        var entryToMove = draggedEntry;
+        draggedEntry = null;
+
+        if (targetEntry.SortOrder is not { } targetSortOrder)
+        {
+            // A manual-mode entry should always carry a SortOrder (ChangeSortModeAsync populates it for
+            // every entry when switching to Manual, and AddMediaToPlaylistAsync assigns one to new
+            // entries added while already in Manual mode); a null here means the server-side invariant
+            // was violated, so this is surfaced as an error instead of silently defaulting to 0 and
+            // moving the entry to a position that was never actually requested.
+            entriesStatusIsError = true;
+            entriesStatusMessage = "Fehler beim Umordnen: Zielposition hat keine gueltige Sortierreihenfolge.";
+            return;
+        }
+
+        await RunEntryActionAsync(async () =>
+        {
+            await PlaylistClient.MoveEntryBetweenAsync(PlaylistId, entryToMove.Id, new DtoReorderPlaylistEntryRequest { NewSortOrder = targetSortOrder });
+            await LoadInitialPageAsync();
+        }, "Fehler beim Umordnen");
+    }
+
+    private void OnEntryDragEnd()
+    {
+        draggedEntry = null;
+    }
+}

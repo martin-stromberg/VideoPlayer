@@ -148,6 +148,9 @@ public sealed class UnlockedMediaService : IUnlockedMediaService
             .Distinct()
             .ToArrayAsync(cancellationToken);
 
+    /// <inheritdoc />
+    public bool IsAccessible(bool hasSourceAccess, bool isUnlocked) => hasSourceAccess || isUnlocked;
+
     private static (long? MovieCollectionId, long? TVShowId) GetIds(DtoMediaEntry entry)
         => entry switch
         {

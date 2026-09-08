@@ -1,0 +1,51 @@
+<div class="admin-dialog-overlay" @onclick="Cancel">
+    <div class="admin-dialog" @onclick:stopPropagation>
+        <header class="admin-card-header">
+            <h2>@Title</h2>
+        </header>
+        @ChildContent
+        <div class="admin-actions">
+            <button class="btn @ConfirmButtonClass" id="@ConfirmButtonId" @onclick="Confirm">@ConfirmButtonText</button>
+            <button class="btn btn-ghost" id="@CancelButtonId" @onclick="Cancel">@CancelButtonText</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter, EditorRequired]
+    public EventCallback OnConfirm { get; set; }
+
+    [Parameter, EditorRequired]
+    public EventCallback OnCancel { get; set; }
+
+    [Parameter]
+    public string ConfirmButtonText { get; set; } = "Bestaetigen";
+
+    [Parameter]
+    public string ConfirmButtonClass { get; set; } = "btn-danger";
+
+    [Parameter]
+    public string? ConfirmButtonId { get; set; }
+
+    [Parameter]
+    public string CancelButtonText { get; set; } = "Abbrechen";
+
+    [Parameter]
+    public string? CancelButtonId { get; set; }
+
+    private async Task Confirm()
+    {
+        await OnConfirm.InvokeAsync();
+    }
+
+    private async Task Cancel()
+    {
+        await OnCancel.InvokeAsync();
+    }
+}

@@ -144,22 +144,48 @@ public abstract class PlaylistServiceTestBase : IDisposable
     }
 
     /// <summary>
-    /// Creates and persists a new playlist for the given user with a randomly generated name,
-    /// sorted by release date. Shared by the various <c>CreateTestPlaylistWith*Async</c> helpers.
+    /// Creates and persists a new playlist for the given user with a randomly generated name and the
+    /// given sort mode (defaulting to sorted by release date). Shared by the various
+    /// <c>CreateTestPlaylistWith*Async</c> helpers.
     /// </summary>
-    private async Task<Playlist> CreateTestPlaylistAsync(string userId)
+    private async Task<Playlist> CreateTestPlaylistAsync(string userId, PlaylistSortMode sortMode = PlaylistSortMode.ByReleaseDate)
     {
         var playlist = new Playlist
         {
             UserId = userId,
             Name = $"Test-Playlist-{Guid.NewGuid()}",
-            SortMode = PlaylistSortMode.ByReleaseDate,
+            SortMode = sortMode,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
         _db.Playlists.Add(playlist);
         await _db.SaveChangesAsync();
         return playlist;
+    }
+
+    /// <summary>
+    /// Creates a playlist in <see cref="PlaylistSortMode.Manual"/> mode for the given user and directly
+    /// seeds it with the given (mediaType, mediaId, sortOrder) entries, bypassing the service. Returns
+    /// the playlist id.
+    /// </summary>
+    protected async Task<long> CreateTestManualPlaylistWithEntriesAsync(string userId, params (string MediaType, long MediaId, long? SortOrder)[] entries)
+    {
+        var playlist = await CreateTestPlaylistAsync(userId, PlaylistSortMode.Manual);
+
+        foreach (var (mediaType, mediaId, sortOrder) in entries)
+        {
+            _db.PlaylistEntries.Add(new PlaylistEntry
+            {
+                PlaylistId = playlist.Id,
+                MediaType = mediaType,
+                MediaId = mediaId,
+                SortOrder = sortOrder,
+                AddedAt = DateTime.UtcNow
+            });
+        }
+        await _db.SaveChangesAsync();
+
+        return playlist.Id;
     }
 
     /// <summary>

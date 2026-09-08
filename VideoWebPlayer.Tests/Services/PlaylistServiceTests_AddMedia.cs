@@ -343,4 +343,63 @@ public class PlaylistServiceTests_AddMedia : PlaylistServiceTestBase
         Assert.NotNull(result.TopLevelEntry);
         Assert.Null(result.TopLevelEntry!.ResolvedPictureId);
     }
+
+    [Fact]
+    public async Task AddMedia_ManualMode_AppendsWithSortOrder()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // Large, distinct fake MediaIds are used for the pre-existing entries here (rather than the
+        // service under test), so they cannot collide with the autoincrement id assigned below to the
+        // one real movie that this test actually adds through the service.
+        var playlistId = await CreateTestManualPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.Movie, 90001, 0), (MediaTypeValues.Movie, 90002, 1));
+        var movieId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Neuer Film");
+
+        var result = await _service.AddMediaToPlaylistAsync(playlistId, _testUserId, MediaTypeValues.Movie, movieId, ct);
+
+        Assert.NotNull(result.TopLevelEntry);
+        Assert.Equal(2, result.TopLevelEntry!.SortOrder);
+    }
+
+    [Fact]
+    public async Task AddMedia_ManualMode_EmptyPlaylist_FirstEntryGetsSortOrderZero()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var playlistId = await CreateTestManualPlaylistWithEntriesAsync(_testUserId);
+        var movieId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Erster Film");
+
+        var result = await _service.AddMediaToPlaylistAsync(playlistId, _testUserId, MediaTypeValues.Movie, movieId, ct);
+
+        Assert.NotNull(result.TopLevelEntry);
+        Assert.Equal(0, result.TopLevelEntry!.SortOrder);
+    }
+
+    [Fact]
+    public async Task AddMedia_ByReleaseDateMode_SortOrderIsNull()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId);
+        var movieId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Ein Film");
+
+        var result = await _service.AddMediaToPlaylistAsync(playlistId, _testUserId, MediaTypeValues.Movie, movieId, ct);
+
+        Assert.NotNull(result.TopLevelEntry);
+        Assert.Null(result.TopLevelEntry!.SortOrder);
+    }
+
+    [Fact]
+    public async Task AddMedia_ManualMode_CascadeChildren_SequentialSortOrder()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var playlistId = await CreateTestManualPlaylistWithEntriesAsync(_testUserId);
+        var show = await Helpers.TestHelpers.CreateTvShowWithSeasonsAsync(_db,
+            ("Staffel 1", new[] { (1, (DateTime?)null), (2, (DateTime?)null) }));
+
+        var result = await _service.AddMediaToPlaylistAsync(playlistId, _testUserId, MediaTypeValues.TVShow, show.Id, ct);
+
+        // Show + season + 2 episodes = 4 entries, each with a distinct, ascending SortOrder.
+        var sortOrders = result.AddedEntries.Select(e => e.SortOrder).ToList();
+        Assert.All(sortOrders, o => Assert.NotNull(o));
+        Assert.Equal(sortOrders.OrderBy(o => o), sortOrders);
+        Assert.Equal(sortOrders.Count, sortOrders.Distinct().Count());
+    }
 }

@@ -290,7 +290,7 @@ flowchart TD
 
 2. **MediaEntryFilter konstruieren:**
    - Konstruiere ein `MediaEntryFilter`-Record mit:
-     - `Search = search.ToLower()` (normalisiert zu Kleinbuchstaben für case-insensitive Vergleich)
+     - `Search = search` (unverändert; die Kleinschreibungs-Faltung erfolgt erst in Schritt 4, Unicode-korrekt über `ToLowerInvariant()`)
      - `IncludeIndividualMediaTypes = includeIndividualMediaTypes`
      - `MediaSourceId = mediaSourceId`
      - `Page = page`
@@ -309,11 +309,12 @@ flowchart TD
        - `GetMovieCollectionEntriesAsync(filter)`
        - `GetTVShowEntriesAsync(filter)`
 
-4. **Case-insensitive Namenssuche in jeder Methode:**
-   - Jede `Get*EntriesAsync()`-Methode wendet denselben Filter auf die Datenbank an:
-     - Falls `filter.Search` nicht null: `.Where(e => e.Name.ToLower().Contains(filter.Search.ToLower()))`
-     - Dies konvertiert den Medientitel und den Suchbegriff beide zu Kleinbuchstaben, bevor der Vergleich erfolgt
-     - Beispiel: Suche nach „breaking" findet „Breaking Bad", „BREAKING_BAD", etc.
+4. **Case-insensitive, Unicode-korrekte Namenssuche in jeder Methode:**
+   - Jede `Get*EntriesAsync()`-Methode ruft für den Namensvergleich `ApplySearchFilter<T>()` auf, eine über alle fünf Methoden geteilte Hilfsmethode:
+     - Der Suchbegriff wird mit `ToLowerInvariant()` (kulturunabhängig statt kultursensitiv `ToLower()`) kleingeschrieben.
+     - Die LIKE-Sonderzeichen `\`, `%` und `_` im Suchbegriff werden escaped (Backslash zuerst), damit sie als literale Zeichen statt als Wildcards gesucht werden.
+     - Der Vergleich erfolgt über `EF.Functions.Like(AppDbFunctions.LowerInvariant(e.Name), $"%{escaped}%", "\\")`. `AppDbFunctions.LowerInvariant` ist eine als SQLite-Funktion (`lower_invariant`) registrierte, serverseitig ausgeführte Faltung über `string.ToLowerInvariant()` — im Gegensatz zu SQLite's eingebautem `lower()` faltet sie auch Ä/Ö/Ü/ß korrekt zu ä/ö/ü/ß (und umgekehrt bei der Suche nach Großbuchstaben-Varianten).
+     - Beispiel: Suche nach „breaking" findet „Breaking Bad", „BREAKING_BAD", etc.; Suche nach „mörder“ findet „Mörder“ ebenso wie „MÖRDER“; ein Suchbegriff mit `%` oder `_` (z. B. Dateinamen-artige Titel) wird literal gesucht statt als Wildcard interpretiert.
    - Falls kein `search` angegeben: Alle Einträge des Medientyps
 
 5. **Zugriffskontrolle in jeder Methode:**
@@ -351,7 +352,7 @@ Server:
 1. Konstruiere MediaEntryFilter(Search="breaking", IncludeIndividualMediaTypes=true)
 2. Rufe alle 5 Get*EntriesAsync-Methoden auf
 3. GetMovieEntriesAsync:
-   - Suche: WHERE Name.ToLower() LIKE '%breaking%'
+   - Suche: WHERE lower_invariant(Name) LIKE '%breaking%' ESCAPE '\'
    - Ergebnis: "Breaking Bad" (Movie), "Breaking Point" (Movie)
 4. GetTVShowEntriesAsync:
    - Ergebnis: "Breaking Bad" (TVShow)
@@ -386,7 +387,8 @@ Server:
 | `ItemsController` | `GetMovieEntriesAsync()` | Abfrage Movies mit case-insensitiver Namenssuche (nur wenn `includeIndividualMediaTypes == true`) |
 | `ItemsController` | `GetSeasonEntriesAsync()` | Abfrage TVShowSeasons mit case-insensitiver Namenssuche (nur wenn `includeIndividualMediaTypes == true`) |
 | `ItemsController` | `GetEpisodeEntriesAsync()` | Abfrage TVShowEpisodes mit case-insensitiver Namenssuche (nur wenn `includeIndividualMediaTypes == true`) |
-| `ItemsController` | `ApplyNameSearchFilter()` | Hilfsmethode für case-insensitive `.ToLower().Contains()`-Logik, wird von allen 5 Methoden genutzt |
+| `ItemsController` | `ApplySearchFilter<T>()` | Hilfsmethode für case-insensitive, Unicode-korrekte `EF.Functions.Like(...)`-Suche mit LIKE-Escaping, wird von allen 5 Methoden genutzt |
+| `AppDbFunctions` | `LowerInvariant()` | Als SQLite-Funktion `lower_invariant` registrierte, kulturunabhängige Kleinschreibungs-Faltung (`ToLowerInvariant()`); faltet Ä/Ö/Ü/ß korrekt, im Gegensatz zu SQLite's eingebautem `lower()` |
 | `MediaEntryFilter` (Record) | — | Filter-Parameter-Objekt mit Feldern: `Search`, `IncludeIndividualMediaTypes`, `MediaSourceId`, `Page`, `Size`, `GenreId` |
 | `VideoWebPlayerClient` | `RequestItemsAsync()` | Client-Methode für Playlist-Suche, ruft `RequestItemsCoreAsync()` mit `includeIndividualMediaTypes: true` auf |
 | `VideoWebPlayerClient` | `RequestSourceItems()` | Client-Methode für Quellen-Browsing, ruft `RequestItemsCoreAsync()` mit `includeIndividualMediaTypes: false` (oder setzt Parameter nicht) auf |

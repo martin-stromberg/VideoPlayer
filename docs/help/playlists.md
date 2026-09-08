@@ -136,7 +136,9 @@ jedem Tastendruck eine eigene Suche ausgelöst wird) durchsucht das System alle 
 die Treffer als Kacheln mit Titelbild, Titel und Medientyp an. Ein Klick auf eine Kachel fügt den
 zugehörigen Medieninhalt sofort zur Playlist hinzu; eine manuelle Eingabe von internen IDs ist
 nicht mehr nötig. Die Suche berücksichtigt dabei keine Groß-/Kleinschreibung — eine Suche nach
-„breaking bad" findet also auch einen Eintrag mit dem Namen „Breaking Bad".
+„breaking bad" findet also auch einen Eintrag mit dem Namen „Breaking Bad". Das gilt auch für
+deutsche Umlaute und ß: Eine Suche nach „mörder" findet ebenso einen Eintrag mit dem Namen
+„Mörder" wie „MÖRDER".
 
 Nur Inhalte, auf die der Anwender bereits Zugriff hat (reguläre Mediaquelle oder individuelle
 Freischaltung, siehe Abschnitt „Zugriffsstatus in der Liste"), erscheinen in den Suchergebnissen.

@@ -29,7 +29,11 @@ und `PictureId` je Treffer. Der `Type`-Wert einer Filmsammlung lautet dabei korr
 
 **Case-insensitive Suche:** Der `search`-Parameter vergleicht ohne Rücksicht auf Groß-/Kleinschreibung
 (z. B. findet die Suche nach `"breaking bad"` oder `"BREAKING"` einen Eintrag mit dem Namen
-„Breaking Bad").
+„Breaking Bad"). Die Faltung erfolgt Unicode-korrekt und kulturunabhängig (`ToLowerInvariant()`
+über eine als SQLite-Funktion registrierte `AppDbFunctions.LowerInvariant()`), sodass auch
+deutsche Umlaute und ß unabhängig von Groß-/Kleinschreibung gefunden werden (z. B. findet
+`"mörder"` auch „MÖRDER"). Die `LIKE`-Sonderzeichen `%` und `_` im Suchbegriff werden escaped und
+dadurch literal statt als Wildcard gesucht.
 
 **Parameter `includeIndividualMediaTypes` (boolean, Standard: `false`):** Steuert, ob neben
 `MovieCollection` und `TVShow` zusätzlich die drei einzelnen Medientypen `Movie`, `TVShowSeason`

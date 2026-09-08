@@ -363,22 +363,26 @@ Ergebnis-Reihenfolge:
 
 ---
 
-## BR-15: Case-insensitive Namenssuche in der Medienauswahl
+## BR-15: Case-insensitive, Unicode-korrekte Namenssuche in der Medienauswahl
 
-**Regel:** Die Namenssuche bei `GET /api/items?search={term}` erfolgt unabhängig von Groß-/Kleinschreibung.
+**Regel:** Die Namenssuche bei `GET /api/items?search={term}` erfolgt unabhängig von Groß-/Kleinschreibung, einschließlich deutscher Umlaute (Ä/Ö/Ü/ß). Zeichen mit Sonderbedeutung in SQL-`LIKE`-Mustern (`%`, `_`) im Suchbegriff werden literal gesucht statt als Wildcard interpretiert.
 
 **Implementierung:**
-- Alle fünf `Get*EntriesAsync()`-Methoden normalisieren den Suchbegriff mit `.ToLower()` und den Medientitel ebenfalls mit `.ToLower()`, bevor der Vergleich erfolgt:
+- Alle fünf `Get*EntriesAsync()`-Methoden nutzen die gemeinsame Hilfsmethode `ApplySearchFilter<T>()`, die den Suchbegriff kulturunabhängig kleinschreibt (`ToLowerInvariant()`), die `LIKE`-Sonderzeichen `\`, `%` und `_` escaped (Backslash zuerst) und den Vergleich über eine als SQLite-Funktion registrierte, ebenfalls kulturunabhängige Faltung des Medientitels durchführt:
   ```csharp
-  var lowered = search.ToLower();
-  return query.Where(e => e.Name.ToLower().Contains(lowered));
+  var lowered = search.ToLowerInvariant();
+  var escaped = lowered.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
+  return query.Where(e => EF.Functions.Like(AppDbFunctions.LowerInvariant(e.Name), $"%{escaped}%", "\\"));
   ```
-- Auf SQLite-Ebene wird dies zu einer case-insensitiven `LIKE`-Abfrage übersetzt
+- `AppDbFunctions.LowerInvariant()` ist über `HasDbFunction`/`CreateFunction` als SQLite-Funktion `lower_invariant` registriert und ruft serverseitig `string.ToLowerInvariant()` auf. Das ist bewusst nicht SQLite's eingebautes `lower()`, das Ä/Ö/Ü/ß nicht faltet (ASCII-only) und `ToLower()` (kultursensitiv, z. B. `tr-TR`-Sonderfälle bei „I"/„ı"), sondern eine Unicode-korrekte, kulturunabhängige Faltung auf beiden Seiten des Vergleichs.
+- Auf SQLite-Ebene wird dies zu einer case-insensitiven, Ä/Ö/Ü/ß-korrekten `LIKE`-Abfrage mit explizitem Escape-Zeichen übersetzt
 
-**Auswirkung auf Playlist-Suche:** Benutzer können einen Suchbegriff in beliebiger Groß-/Kleinschreibung eingeben und finden weiterhin Medieninhalte mit unterschiedlicher Schreibweise:
+**Auswirkung auf Playlist-Suche:** Benutzer können einen Suchbegriff in beliebiger Groß-/Kleinschreibung eingeben und finden weiterhin Medieninhalte mit unterschiedlicher Schreibweise, auch bei Umlauten:
 - Suche nach „breaking bad" findet „Breaking Bad"
 - Suche nach „BREAKING" findet „Breaking Bad"
 - Suche nach „Breaking Bad" findet ebenfalls alle Treffer
+- Suche nach „mörder" findet „Mörder" ebenso wie „MÖRDER"
+- Suche nach einem Titel mit `%` oder `_` findet diesen literal, ohne dass die Zeichen als Wildcard wirken
 
 **Beispiel:**
 ```

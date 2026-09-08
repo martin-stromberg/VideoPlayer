@@ -14,6 +14,18 @@ Authorization: Bearer {token}
 
 Fehlerhafte oder fehlende Authentifizierung führt zu HTTP 401 (Unauthorized).
 
+## Medien-Suche für die Auswahl-Oberfläche
+
+Die Namenssuche, mit der die Playlist-Detailseite Medieninhalte zum Hinzufügen anbietet (siehe
+`playlists.md`, Abschnitt „Hinzufügen"), nutzt keinen playlist-spezifischen Endpunkt, sondern den
+bestehenden `GET /api/items`-Endpunkt (`search`-Parameter). Dieser Endpunkt durchsucht alle fünf
+Medientypen (`Movie`, `TVShow`, `TVShowSeason`, `TVShowEpisode`, `MovieCollection`) nach passenden
+Namen und wendet dabei dieselbe Zugriffskontrolle an wie andernorts (regulärer Mediaquellen-Zugriff
+oder individuelle Freischaltung der übergeordneten Filmsammlung bzw. Serie für Filme, Staffeln und
+Episoden) — nicht zugängliche Inhalte erscheinen nicht in den Suchergebnissen. Das Ergebnis ist eine
+`List<MediaEntryDto>` mit `Type`, `Id`, `Title` und `PictureId` je Treffer. Der `Type`-Wert einer
+Filmsammlung lautet dabei korrekt `"MovieCollection"` (zuvor fälschlich `"Movie"`).
+
 ## Endpunkte für Playlist-Einträge
 
 ### `POST /api/playlists/{id}/entries` — Medieninhalt hinzufügen

@@ -19,15 +19,7 @@
 
 <div class="admin-table-wrap">
     <div class="admin-actions">
-        <select class="form-control playlist-add-mediatype-select" @bind="newEntryMediaType">
-            <option value="@MediaTypeValues.Movie">Film</option>
-            <option value="@MediaTypeValues.TVShow">Serie</option>
-            <option value="@MediaTypeValues.TVShowSeason">Staffel</option>
-            <option value="@MediaTypeValues.TVShowEpisode">Episode</option>
-            <option value="@MediaTypeValues.MovieCollection">Filmsammlung</option>
-        </select>
-        <input class="form-control playlist-add-mediaid-input" type="number" min="1" @bind="newEntryMediaId" placeholder="Medien-Id" />
-        <button class="btn btn-primary playlist-add-entry-button" @onclick="AddEntryAsync">Hinzufuegen</button>
+        <MediaSearchSelector @ref="searchSelectorRef" OnMediaSelected="OnMediaSelectedAsync" />
     </div>
 
     @if (allEntries.Count == 0 && !hasMorePages)
@@ -116,6 +108,7 @@
     private string? entriesStatusMessage;
     private bool entriesStatusIsError;
     private DtoPlaylistEntry? draggedEntry;
+    private MediaSearchSelector? searchSelectorRef;
 
     private int currentPageNumber = 1;
     private bool isLoadingMore;
@@ -275,10 +268,22 @@
             await LoadInitialPageAsync();
         }, "Fehler beim Entfernen");
 
+    /// <summary>
+    /// Callback from <see cref="MediaSearchSelector"/>: sets <see cref="newEntryMediaType"/> and
+    /// <see cref="newEntryMediaId"/> from the selected search result and adds it via
+    /// <see cref="AddEntryAsync"/>, then clears the search selector so the previous search does not
+    /// linger on screen.
+    /// </summary>
+    private async Task OnMediaSelectedAsync((string MediaType, long MediaId) selection)
+    {
+        newEntryMediaType = selection.MediaType;
+        newEntryMediaId = selection.MediaId;
+        await AddEntryAsync();
+        searchSelectorRef?.Reset();
+    }
+
     private string GetImageUrl(DtoPlaylistEntry entry)
-        => entry.ResolvedPictureId.HasValue
-            ? $"/api/pictures/{entry.ResolvedPictureId}?access_token={Client.AuthorizationToken}"
-            : "/images/placeholder.png";
+        => MediaPictureUrlResolver.Resolve(entry.ResolvedPictureId, Client.AuthorizationToken);
 
     /// <summary>
     /// Moves the given entry to the true beginning of the playlist via the dedicated

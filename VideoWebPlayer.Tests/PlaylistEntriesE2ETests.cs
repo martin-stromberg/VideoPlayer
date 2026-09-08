@@ -13,14 +13,6 @@ namespace VideoWebPlayer.Tests;
 [Trait("Category", "E2E")]
 public sealed class PlaylistEntriesE2ETests : PlaylistsE2ETestBase
 {
-    private async Task AddEntryViaUiAsync(string mediaType, long mediaId)
-    {
-        await Page.SelectOptionAsync(".playlist-add-mediatype-select", mediaType);
-        await Page.FillAsync(".playlist-add-mediaid-input", mediaId.ToString());
-        await Page.ClickAsync(".playlist-add-entry-button");
-        await Page.WaitForTimeoutAsync(1000);
-    }
-
     [Fact]
     public async Task AddMovie_HappyPath_AppearsInList()
     {
@@ -30,11 +22,12 @@ public sealed class PlaylistEntriesE2ETests : PlaylistsE2ETestBase
         var movieId = await SeedMovieAsync("Hinzufuegen-Testfilm");
 
         await LoginAsync(UserAEmail);
+        await GrantMediaSourceAccessForUserAsync(UserAEmail);
         var row = await CreatePlaylistViaUiAsync("Playlist-Fuer-Hinzufuegen");
         await row.Locator(".playlist-open-button").ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
 
-        await AddEntryViaUiAsync("Movie", movieId);
+        await SelectSearchResultAsync("Hinzufuegen-Testfilm", "Movie", movieId);
 
         await Expect(Page.Locator($".playlist-entry-row[data-media-type='Movie'][data-media-id='{movieId}']")).ToBeVisibleAsync();
         await Expect(Page.Locator($".playlist-entry-row[data-media-type='Movie'][data-media-id='{movieId}']")).ToContainTextAsync("Hinzufuegen-Testfilm");
@@ -49,10 +42,11 @@ public sealed class PlaylistEntriesE2ETests : PlaylistsE2ETestBase
         var movieId = await SeedMovieAsync("Entfernen-Testfilm");
 
         await LoginAsync(UserAEmail);
+        await GrantMediaSourceAccessForUserAsync(UserAEmail);
         var row = await CreatePlaylistViaUiAsync("Playlist-Fuer-Entfernen");
         await row.Locator(".playlist-open-button").ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
-        await AddEntryViaUiAsync("Movie", movieId);
+        await SelectSearchResultAsync("Entfernen-Testfilm", "Movie", movieId);
         await Expect(Page.Locator($".playlist-entry-row[data-media-type='Movie'][data-media-id='{movieId}']")).ToBeVisibleAsync();
 
         await Page.ClickAsync($".playlist-entry-row[data-media-type='Movie'][data-media-id='{movieId}'] .playlist-entry-remove-button");
@@ -81,7 +75,7 @@ public sealed class PlaylistEntriesE2ETests : PlaylistsE2ETestBase
         await row.Locator(".playlist-open-button").ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
 
-        await AddEntryViaUiAsync("Movie", movieId);
+        await SelectSearchResultAsync("Quellenzugriff-Testfilm", "Movie", movieId);
 
         await Expect(Page.Locator($".playlist-entry-row[data-media-type='Movie'][data-media-id='{movieId}']"))
             .Not.ToHaveClassAsync(new System.Text.RegularExpressions.Regex("opacity-50"));
@@ -96,12 +90,13 @@ public sealed class PlaylistEntriesE2ETests : PlaylistsE2ETestBase
         var movieId = await SeedMovieAsync("Duplikat-Testfilm");
 
         await LoginAsync(UserAEmail);
+        await GrantMediaSourceAccessForUserAsync(UserAEmail);
         var row = await CreatePlaylistViaUiAsync("Playlist-Fuer-Duplikat");
         await row.Locator(".playlist-open-button").ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
-        await AddEntryViaUiAsync("Movie", movieId);
+        await SelectSearchResultAsync("Duplikat-Testfilm", "Movie", movieId);
 
-        await AddEntryViaUiAsync("Movie", movieId);
+        await SelectSearchResultAsync("Duplikat-Testfilm", "Movie", movieId);
 
         await Expect(Page.Locator("#playlist-entries-status")).ToContainTextAsync("Alle 1 Titel waren bereits vorhanden.");
         await Expect(Page.Locator("#playlist-entries-status")).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("alert-success"));
@@ -118,11 +113,12 @@ public sealed class PlaylistEntriesE2ETests : PlaylistsE2ETestBase
             ("Staffel 2", 1));
 
         await LoginAsync(UserAEmail);
+        await GrantMediaSourceAccessForUserAsync(UserAEmail);
         var row = await CreatePlaylistViaUiAsync("Playlist-Fuer-Kaskade");
         await row.Locator(".playlist-open-button").ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
 
-        await AddEntryViaUiAsync("TVShow", showId);
+        await SelectSearchResultAsync("Kaskaden-Testserie", "TVShow", showId);
 
         // 1 show + 2 seasons + 3 episodes = 6 rows
         await Expect(Page.Locator(".playlist-entry-row")).ToHaveCountAsync(6);

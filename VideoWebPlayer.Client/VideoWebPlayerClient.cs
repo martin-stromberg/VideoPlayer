@@ -450,15 +450,22 @@ namespace VideoWebPlayer.Client
             => new(JsonSerializer.Serialize(value), System.Text.Encoding.UTF8, "application/json");
 
         #region Media Entries
-        public async Task<List<MediaEntryDto>> RequestSourceItems(long mediaSourceId, int Page = 0, int PageSize = 30, string searchText = "", long genreId = 0)
+        // Shared URL-builder/HTTP-call for the "/api/items" endpoint, used by both RequestSourceItems
+        // (media-source browsing, with genre filter) and RequestItemsAsync (cross-source name search).
+        private Task<List<MediaEntryDto>> RequestItemsCoreAsync(long? mediaSourceId, int page, int size, string? search, long genreId, CancellationToken cancellationToken)
         {
-            var url = $"/api/items?mediaSourceId={mediaSourceId}&page={Page}&size={PageSize}";
-            if (!string.IsNullOrWhiteSpace(searchText))
-                url += $"&search={Uri.EscapeDataString(searchText)}";
+            var url = $"/api/items?page={page}&size={size}";
+            if (mediaSourceId.HasValue)
+                url += $"&mediaSourceId={mediaSourceId}";
+            if (!string.IsNullOrWhiteSpace(search))
+                url += $"&search={Uri.EscapeDataString(search)}";
             if (genreId > 0)
                 url += $"&genreId={genreId}";
-            return await HttpGetAsync<List<MediaEntryDto>>(url);
+            return HttpGetAsync<List<MediaEntryDto>>(url, cancellationToken);
         }
+
+        public Task<List<MediaEntryDto>> RequestSourceItems(long mediaSourceId, int Page = 0, int PageSize = 30, string searchText = "", long genreId = 0)
+            => RequestItemsCoreAsync(mediaSourceId, Page, PageSize, searchText, genreId, CancellationToken.None);
 
         public async Task<DtoMediaEntry> RequestMovieCollectionAsync(long id)
         {
@@ -493,6 +500,9 @@ namespace VideoWebPlayer.Client
                 return null;
             }
         }
+
+        public Task<List<MediaEntryDto>> RequestItemsAsync(string? search = null, int page = 0, int size = 30, CancellationToken cancellationToken = default)
+            => RequestItemsCoreAsync(null, page, size, search, 0, cancellationToken);
 
         public async Task<List<DtoGenreOption>> RequestGenreOptionsAsync()
         {

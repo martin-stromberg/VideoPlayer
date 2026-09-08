@@ -1,0 +1,166 @@
+@using VideoWebPlayer.Client.Models
+@using VideoWebPlayer.Controllers.Models
+@implements IDisposable
+@inject VideoWebPlayer.Client.VideoWebPlayerClient Client
+@inject ILogger<MediaSearchSelector> Logger
+
+@* Namenssuche/Auswahl-Oberflaeche fuer Medieninhalte, die anstelle einer manuellen Medien-Id-Eingabe
+   genutzt wird. Inspiriert von Actors.razor (Live-Suchmuster) und MediaBox.razor (Ergebnis-Darstellung),
+   aber mit einem Auswahl-Callback statt Navigation: ein Klick auf ein Suchergebnis loest OnMediaSelected
+   aus, statt zur Detailseite des Mediums zu navigieren. *@
+
+<div class="media-search-selector">
+    <input type="text" class="form-control media-search-input" @bind="searchTerm" @bind:event="oninput" @bind:after="OnSearchTermChangedAsync" placeholder="Medieninhalt suchen..." />
+
+    @if (isLoading)
+    {
+        <p class="media-search-loading">Suche laeuft...</p>
+    }
+    else if (hasError)
+    {
+        <p class="media-search-error">Fehler bei der Suche. Bitte versuchen Sie es erneut.</p>
+    }
+    else if (hasSearched && results.Count == 0)
+    {
+        <p class="media-search-empty">Keine Ergebnisse gefunden.</p>
+    }
+    else if (results.Count > 0)
+    {
+        <div class="media-search-results media-grid">
+            @foreach (var result in results)
+            {
+                <div class="media-search-result" data-media-type="@result.Type" data-media-id="@result.Id" data-enhance-nav="false"
+                     @onclick="() => SelectResultAsync(result)" @onclick:preventDefault="true">
+                    <MediaBox Title="@result.Title" Subtitle="@GetTypeLabel(result.Type)" ImageUrl="@GetImageUrl(result)" LinkUrl="#" CardKey="@($"media-search-{result.Type}-{result.Id}")" />
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private const int DebounceMilliseconds = 400;
+    private const int PageSize = 30;
+
+    [Parameter]
+    public EventCallback<(string MediaType, long MediaId)> OnMediaSelected { get; set; }
+
+    private string searchTerm = string.Empty;
+    private List<MediaEntryDto> results = new();
+    private bool isLoading;
+    private bool hasSearched;
+    private bool hasError;
+    private CancellationTokenSource? debounceCts;
+    private int latestRequestId;
+
+    private Task OnSearchTermChangedAsync()
+    {
+        debounceCts?.Cancel();
+        debounceCts?.Dispose();
+        var cts = new CancellationTokenSource();
+        debounceCts = cts;
+        _ = DebounceAndSearchAsync(cts.Token);
+        return Task.CompletedTask;
+    }
+
+    private async Task DebounceAndSearchAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(DebounceMilliseconds, cancellationToken);
+        }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
+
+        if (cancellationToken.IsCancellationRequested)
+            return;
+
+        await SearchAsync(cancellationToken);
+    }
+
+    private async Task SearchAsync(CancellationToken cancellationToken)
+    {
+        var requestId = ++latestRequestId;
+
+        if (string.IsNullOrWhiteSpace(searchTerm))
+        {
+            results = new List<MediaEntryDto>();
+            hasSearched = false;
+            hasError = false;
+            isLoading = false;
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        isLoading = true;
+        hasError = false;
+        await InvokeAsync(StateHasChanged);
+
+        List<MediaEntryDto> found;
+        var searchFailed = false;
+        try
+        {
+            found = await Client.RequestItemsAsync(searchTerm, 0, PageSize, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Fehler bei der Mediensuche nach '{SearchTerm}'", searchTerm);
+            found = new List<MediaEntryDto>();
+            searchFailed = true;
+        }
+
+        if (cancellationToken.IsCancellationRequested || requestId != latestRequestId)
+            return;
+
+        results = found;
+        hasSearched = !searchFailed;
+        hasError = searchFailed;
+        isLoading = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SelectResultAsync(MediaEntryDto result)
+    {
+        await OnMediaSelected.InvokeAsync((result.Type, result.Id));
+    }
+
+    private string GetImageUrl(MediaEntryDto result)
+        => MediaPictureUrlResolver.Resolve(result.PictureId, Client.AuthorizationToken);
+
+    private static string GetTypeLabel(string mediaType) => mediaType switch
+    {
+        MediaTypeValues.Movie => "Film",
+        MediaTypeValues.TVShow => "Serie",
+        MediaTypeValues.TVShowSeason => "Staffel",
+        MediaTypeValues.TVShowEpisode => "Episode",
+        MediaTypeValues.MovieCollection => "Filmsammlung",
+        _ => mediaType
+    };
+
+    /// <summary>
+    /// Clears the search term and the currently displayed results, for use by a parent component
+    /// after a search result was successfully added, so a stale search does not linger on screen.
+    /// </summary>
+    public void Reset()
+    {
+        debounceCts?.Cancel();
+        searchTerm = string.Empty;
+        results = new List<MediaEntryDto>();
+        hasSearched = false;
+        hasError = false;
+        isLoading = false;
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        debounceCts?.Cancel();
+        debounceCts?.Dispose();
+    }
+}

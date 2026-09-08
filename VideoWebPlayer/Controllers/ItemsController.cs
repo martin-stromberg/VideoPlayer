@@ -54,6 +54,7 @@ public class ItemsController : ApiBaseController
     /// <summary>
     /// Gets genre options as displayed by the genre admin page.
     /// </summary>
+    /// <returns>The available genre options.</returns>
     [HttpGet("genres")]
     public async Task<ActionResult<List<DtoGenreOption>>> GetGenres()
     {
@@ -77,6 +78,8 @@ public class ItemsController : ApiBaseController
     /// <summary>
     /// Updates user-editable metadata for a media detail context.
     /// </summary>
+    /// <param name="request">The metadata values to persist.</param>
+    /// <returns>An action result indicating success.</returns>
     [HttpPost("metadata")]
     public async Task<IActionResult> UpdateMetadata([FromBody] MediaMetadataUpdateRequest request)
     {
@@ -113,37 +116,30 @@ public class ItemsController : ApiBaseController
     /// <summary>
     /// Gets media entries for a source with optional filtering.
     /// </summary>
+    /// <param name="mediaSourceId">Optional media source id to restrict results to (media-source browsing use case).</param>
+    /// <param name="page">Zero-based page index.</param>
+    /// <param name="size">Page size.</param>
+    /// <param name="search">Optional case-insensitive substring to match against the entry name.</param>
+    /// <param name="genreId">Optional genre id to restrict results to.</param>
+    /// <param name="includeIndividualMediaTypes">
+    /// When <c>true</c>, individual <c>Movie</c>, <c>TVShowSeason</c> and <c>TVShowEpisode</c> entries are
+    /// included in addition to <c>MovieCollection</c> and <c>TVShow</c> entries. Used by the playlist media
+    /// search (<see cref="VideoWebPlayer.Components.Playlists.MediaSearchSelector"/>); media-source browsing
+    /// leaves this at its default (<c>false</c>) to keep returning only the original two media types.
+    /// </param>
+    /// <returns>The matching, paged media entries.</returns>
     [HttpGet]
     public async Task<ActionResult<List<MediaEntryDto>>> Get(
             [FromQuery] long? mediaSourceId,
             [FromQuery] int page = 0,
             [FromQuery] int size = 30,
             [FromQuery] string? search = null,
-            [FromQuery] long? genreId = null)
+            [FromQuery] long? genreId = null,
+            [FromQuery] bool includeIndividualMediaTypes = false)
     {
         try
         {
             CheckLogedIn();
-            // MovieCollections
-            var queryMovie = _db.MovieCollections
-                .AsNoTracking()
-                .Where(mc => !mediaSourceId.HasValue || mc.MediaSourceId == mediaSourceId);
-            var foundMovies = queryMovie.ToList();
-
-            if (!string.IsNullOrWhiteSpace(search))
-                queryMovie = queryMovie.Where(e => e.Name.Contains(search));
-            foundMovies = queryMovie.ToList();
-
-            if (genreId.HasValue)
-            {
-                // Nur Collections, deren Movies das Genre haben
-                queryMovie = queryMovie.Where(mc =>
-                    _db.Movies.Any(m =>
-                        m.MovieCollectionId == mc.Id &&
-                        m.MovieGenres.Any(mg => mg.GenreId == genreId.Value)
-                    )
-                );
-            }
 
             var mediaSourceIds = await _db.MediaSourceUsers
                 .AsNoTracking()
@@ -154,64 +150,28 @@ public class ItemsController : ApiBaseController
             var unlockedMovieCollectionIds = await _unlockedMediaService.GetUnlockedMovieCollectionIdsForUserAsync(CurrentUser.Id);
             var unlockedTVShowIds = await _unlockedMediaService.GetUnlockedTVShowIdsForUserAsync(CurrentUser.Id);
 
-            var movieCollections = (await queryMovie
-                .Where(m => mediaSourceIds.Contains(m.MediaSourceId) || unlockedMovieCollectionIds.Contains(m.Id))
-                .OrderBy(e => e.Name)
-                .Skip(0)
-                .Take((page + 1) * size)
-                .Select(mc => new MediaEntryDto
-                {
-                    Type = nameof(Movie),
-                    Id = mc.Id,
-                    Title = mc.Name,
-                    Description = "",
-                    Url = $"/moviecollection/{mc.Id}",
-                    CreatedAt = mc.CreatedAt,
-                    PictureId = mc.PosterPictureId,
-                    ItemCount = _db.Movies.Count(m => m.MovieCollectionId == mc.Id)
-                })
-                .ToListAsync());
+            var filter = new MediaEntryFilter(mediaSourceId, search, genreId, page, size, includeIndividualMediaTypes);
 
-            // TVShows
-            var queryShow = _db.TVShows
-                .AsNoTracking()
-                .Where(ts => !mediaSourceId.HasValue || ts.MediaSourceId == mediaSourceId);
+            var movieCollections = await GetMovieCollectionEntriesAsync(filter, mediaSourceIds, unlockedMovieCollectionIds);
+            var tvShows = await GetTVShowEntriesAsync(filter, mediaSourceIds, unlockedTVShowIds);
 
-            if (!string.IsNullOrWhiteSpace(search))
-                queryShow = queryShow.Where(e => e.Name.Contains(search));
+            var entries = movieCollections.Concat(tvShows);
 
-            if (genreId.HasValue)
+            if (filter.IncludeIndividualMediaTypes)
             {
-                queryShow = queryShow.Where(ts =>
-                    ts.TVShowGenres.Any(tg => tg.GenreId == genreId.Value)
-                );
+                var movies = await GetMovieEntriesAsync(filter, mediaSourceIds, unlockedMovieCollectionIds);
+                var seasons = await GetSeasonEntriesAsync(filter, mediaSourceIds, unlockedTVShowIds);
+                var episodes = await GetEpisodeEntriesAsync(filter, mediaSourceIds, unlockedTVShowIds);
+                entries = entries.Concat(movies).Concat(seasons).Concat(episodes);
             }
 
-            var tvShows = await queryShow
-                .Where(m => mediaSourceIds.Contains(m.MediaSourceId) || unlockedTVShowIds.Contains(m.Id))
-                .OrderBy(e => e.Name)
-                .Skip(0)
-                .Take((page + 1) * size)
-                .Select(ts => new MediaEntryDto
-                {
-                    Type = nameof(TVShow),
-                    Id = ts.Id,
-                    Title = ts.Name,
-                    Description = ts.Plot,
-                    Url = $"/tvshow/{ts.Id}",
-                    CreatedAt = ts.CreatedAt,
-                    PictureId = ts.PosterPictureId
-                })
-                .ToListAsync();
-
-            var entries = movieCollections
-                .Concat(tvShows)
+            var pagedEntries = entries
                 .OrderBy(e => e.Title)
                 .Skip(page * size)
                 .Take(size)
                 .ToList();
 
-            return Ok(entries);
+            return Ok(pagedEntries);
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -226,8 +186,210 @@ public class ItemsController : ApiBaseController
     }
 
     /// <summary>
+    /// Bundles the media-source/search/genre/paging filter parameters shared by all five
+    /// <c>Get*EntriesAsync</c> helpers below, which otherwise pass the same five values unchanged on
+    /// every call alongside a type-specific id list.
+    /// </summary>
+    /// <param name="MediaSourceId">Optional media source id to restrict results to.</param>
+    /// <param name="Search">Optional case-insensitive substring to match against the entry name.</param>
+    /// <param name="GenreId">Optional genre id to restrict results to.</param>
+    /// <param name="Page">Zero-based page index used for the final result trimming in <see cref="Get(long?, int, int, string?, long?, bool)"/>.</param>
+    /// <param name="Size">Page size used for the final result trimming in <see cref="Get(long?, int, int, string?, long?, bool)"/>.</param>
+    /// <param name="IncludeIndividualMediaTypes">
+    /// When <c>true</c>, the <c>Movie</c>, <c>TVShowSeason</c> and <c>TVShowEpisode</c> helpers are included
+    /// alongside <c>MovieCollection</c> and <c>TVShow</c>. Defaults to <c>false</c> so media-source browsing
+    /// keeps returning only the original two media types.
+    /// </param>
+    /// <returns>The constructed <see cref="MediaEntryFilter"/> value.</returns>
+    private readonly record struct MediaEntryFilter(long? MediaSourceId, string? Search, long? GenreId, int Page, int Size, bool IncludeIndividualMediaTypes = false);
+
+    /// <summary>
+    /// Applies the case-insensitive substring search shared by all five <c>Get*EntriesAsync</c> helpers
+    /// below to the entry's <see cref="MediaBaseEntry.Name"/>.
+    /// </summary>
+    /// <typeparam name="T">The entity type, which must derive from <see cref="MediaBaseEntry"/>.</typeparam>
+    /// <param name="query">The query to filter.</param>
+    /// <param name="search">Optional case-insensitive substring to match against the entry name.</param>
+    /// <returns>The filtered query, or the unmodified <paramref name="query"/> when <paramref name="search"/> is empty.</returns>
+    private static IQueryable<T> ApplySearchFilter<T>(IQueryable<T> query, string? search) where T : MediaBaseEntry
+    {
+        if (string.IsNullOrWhiteSpace(search))
+            return query;
+
+        var lowered = search.ToLowerInvariant();
+        var escaped = lowered.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
+        return query.Where(e => EF.Functions.Like(AppDbFunctions.LowerInvariant(e.Name), $"%{escaped}%", "\\"));
+    }
+
+    private async Task<List<MediaEntryDto>> GetMovieCollectionEntriesAsync(MediaEntryFilter filter, long[] mediaSourceIds, long[] unlockedMovieCollectionIds)
+    {
+        var query = _db.MovieCollections
+            .AsNoTracking()
+            .Where(mc => !filter.MediaSourceId.HasValue || mc.MediaSourceId == filter.MediaSourceId);
+
+        query = ApplySearchFilter(query, filter.Search);
+
+        if (filter.GenreId.HasValue)
+        {
+            // Nur Collections, deren Movies das Genre haben
+            query = query.Where(mc =>
+                _db.Movies.Any(m =>
+                    m.MovieCollectionId == mc.Id &&
+                    m.MovieGenres.Any(mg => mg.GenreId == filter.GenreId.Value)
+                )
+            );
+        }
+
+        return await query
+            .Where(m => mediaSourceIds.Contains(m.MediaSourceId) || unlockedMovieCollectionIds.Contains(m.Id))
+            .OrderBy(e => e.Name)
+            .Take((filter.Page + 1) * filter.Size)
+            .Select(mc => new MediaEntryDto
+            {
+                Type = nameof(MovieCollection),
+                Id = mc.Id,
+                Title = mc.Name,
+                Description = "",
+                Url = $"/moviecollection/{mc.Id}",
+                CreatedAt = mc.CreatedAt,
+                PictureId = mc.PosterPictureId,
+                ItemCount = _db.Movies.Count(m => m.MovieCollectionId == mc.Id)
+            })
+            .ToListAsync();
+    }
+
+    private async Task<List<MediaEntryDto>> GetTVShowEntriesAsync(MediaEntryFilter filter, long[] mediaSourceIds, long[] unlockedTVShowIds)
+    {
+        var query = _db.TVShows
+            .AsNoTracking()
+            .Where(ts => !filter.MediaSourceId.HasValue || ts.MediaSourceId == filter.MediaSourceId);
+
+        query = ApplySearchFilter(query, filter.Search);
+
+        if (filter.GenreId.HasValue)
+        {
+            query = query.Where(ts =>
+                ts.TVShowGenres.Any(tg => tg.GenreId == filter.GenreId.Value)
+            );
+        }
+
+        return await query
+            .Where(m => mediaSourceIds.Contains(m.MediaSourceId) || unlockedTVShowIds.Contains(m.Id))
+            .OrderBy(e => e.Name)
+            .Take((filter.Page + 1) * filter.Size)
+            .Select(ts => new MediaEntryDto
+            {
+                Type = nameof(TVShow),
+                Id = ts.Id,
+                Title = ts.Name,
+                Description = ts.Plot,
+                Url = $"/tvshow/{ts.Id}",
+                CreatedAt = ts.CreatedAt,
+                PictureId = ts.PosterPictureId
+            })
+            .ToListAsync();
+    }
+
+    private async Task<List<MediaEntryDto>> GetMovieEntriesAsync(MediaEntryFilter filter, long[] mediaSourceIds, long[] unlockedMovieCollectionIds)
+    {
+        var query = _db.Movies
+            .AsNoTracking()
+            .Where(m => !filter.MediaSourceId.HasValue || m.MediaSourceId == filter.MediaSourceId);
+
+        query = ApplySearchFilter(query, filter.Search);
+
+        if (filter.GenreId.HasValue)
+        {
+            query = query.Where(m =>
+                m.MovieGenres.Any(mg => mg.GenreId == filter.GenreId.Value)
+            );
+        }
+
+        return await query
+            .Where(m => mediaSourceIds.Contains(m.MediaSourceId) || unlockedMovieCollectionIds.Contains(m.MovieCollectionId ?? -1))
+            .OrderBy(e => e.Name)
+            .Take((filter.Page + 1) * filter.Size)
+            .Select(m => new MediaEntryDto
+            {
+                Type = nameof(Movie),
+                Id = m.Id,
+                Title = m.Name,
+                Description = m.Plot,
+                Url = $"/movie/{m.Id}",
+                CreatedAt = m.CreatedAt,
+                PictureId = m.PosterPictureId
+            })
+            .ToListAsync();
+    }
+
+    private async Task<List<MediaEntryDto>> GetSeasonEntriesAsync(MediaEntryFilter filter, long[] mediaSourceIds, long[] unlockedTVShowIds)
+    {
+        var query = _db.TVShowSeasons
+            .AsNoTracking()
+            .Where(s => !filter.MediaSourceId.HasValue || s.MediaSourceId == filter.MediaSourceId);
+
+        query = ApplySearchFilter(query, filter.Search);
+
+        if (filter.GenreId.HasValue)
+        {
+            query = query.Where(s =>
+                s.TVShow.TVShowGenres.Any(tg => tg.GenreId == filter.GenreId.Value)
+            );
+        }
+
+        return await query
+            .Where(s => mediaSourceIds.Contains(s.MediaSourceId) || unlockedTVShowIds.Contains(s.TVShowId))
+            .OrderBy(e => e.Name)
+            .Take((filter.Page + 1) * filter.Size)
+            .Select(s => new MediaEntryDto
+            {
+                Type = nameof(TVShowSeason),
+                Id = s.Id,
+                Title = s.Name,
+                Description = "",
+                Url = $"/tvshow/season/{s.Id}",
+                CreatedAt = s.CreatedAt,
+                PictureId = s.PosterPictureId
+            })
+            .ToListAsync();
+    }
+
+    private async Task<List<MediaEntryDto>> GetEpisodeEntriesAsync(MediaEntryFilter filter, long[] mediaSourceIds, long[] unlockedTVShowIds)
+    {
+        var query = _db.TVShowEpisodes
+            .AsNoTracking()
+            .Where(e => !filter.MediaSourceId.HasValue || e.MediaSourceId == filter.MediaSourceId);
+
+        query = ApplySearchFilter(query, filter.Search);
+
+        if (filter.GenreId.HasValue)
+        {
+            query = query.Where(e =>
+                e.TVShowSeason.TVShow.TVShowGenres.Any(tg => tg.GenreId == filter.GenreId.Value)
+            );
+        }
+
+        return await query
+            .Where(e => mediaSourceIds.Contains(e.MediaSourceId) || unlockedTVShowIds.Contains(e.TVShowSeason.TVShowId))
+            .OrderBy(e => e.Name)
+            .Take((filter.Page + 1) * filter.Size)
+            .Select(e => new MediaEntryDto
+            {
+                Type = nameof(TVShowEpisode),
+                Id = e.Id,
+                Title = e.Name,
+                Description = e.Plot,
+                Url = $"/tvshow/episode/{e.Id}",
+                CreatedAt = e.CreatedAt,
+                PictureId = e.PosterPictureId
+            })
+            .ToListAsync();
+    }
+
+    /// <summary>
     /// Gets recently watched media entries.
     /// </summary>
+    /// <returns>The recently watched media entries.</returns>
     [HttpGet("recent")]
     public async Task<ActionResult<List<DtoRecentEntry>>> GetRecent()
     {
@@ -415,6 +577,9 @@ public class ItemsController : ApiBaseController
     /// <summary>
     /// Streams a media item by type and identifier.
     /// </summary>
+    /// <param name="type">The media type (<c>movie</c> or the TV show/episode type).</param>
+    /// <param name="id">The media item identifier.</param>
+    /// <returns>The media file as a range-processed stream.</returns>
     [HttpGet("{type}/{id}/stream")]
     public async Task<IActionResult> StreamMediaItem(string type, long id)
     {
@@ -470,6 +635,9 @@ public class ItemsController : ApiBaseController
     /// <summary>
     /// Downloads a media item by type and identifier.
     /// </summary>
+    /// <param name="type">The media type (<c>movie</c> or the TV show/episode type).</param>
+    /// <param name="id">The media item identifier.</param>
+    /// <returns>The media file as a downloadable attachment.</returns>
     [HttpGet("{type}/{id}/download")]
     public async Task<IActionResult> Download(string type, long id)
     {
@@ -504,6 +672,9 @@ public class ItemsController : ApiBaseController
     /// <summary>
     /// Gets media details for a movie collection or TV show.
     /// </summary>
+    /// <param name="type">The media type (movie collection or TV show).</param>
+    /// <param name="id">The media item identifier.</param>
+    /// <returns>The media details.</returns>
     [HttpGet("{type}/{id}")]
     public async Task<IActionResult> Get(string type, long id)
     {

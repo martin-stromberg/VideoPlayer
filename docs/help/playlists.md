@@ -129,13 +129,20 @@ Der Sortiermodus einer bestehenden Playlist lässt sich auf der Detailseite übe
 
 ### Hinzufügen
 
-Zum Hinzufügen eines Medieninhalts wählt der Anwender:
+Zum Hinzufügen eines Medieninhalts gibt der Anwender einen Suchbegriff in das Suchfeld oberhalb der
+Einträge-Liste ein. Bereits während der Eingabe (mit einer kurzen Verzögerung, damit nicht bei
+jedem Tastendruck eine eigene Suche ausgelöst wird) durchsucht das System alle fünf Medientypen —
+**Film**, **Serie**, **Staffel**, **Episode** und **Filmsammlung** — nach passenden Namen und zeigt
+die Treffer als Kacheln mit Titelbild, Titel und Medientyp an. Ein Klick auf eine Kachel fügt den
+zugehörigen Medieninhalt sofort zur Playlist hinzu; eine manuelle Eingabe von internen IDs ist
+nicht mehr nötig. Die Suche berücksichtigt dabei keine Groß-/Kleinschreibung — eine Suche nach
+„breaking bad" findet also auch einen Eintrag mit dem Namen „Breaking Bad". Das gilt auch für
+deutsche Umlaute und ß: Eine Suche nach „mörder" findet ebenso einen Eintrag mit dem Namen
+„Mörder" wie „MÖRDER".
 
-1. Den Medientyp aus einem Dropdown: **Film**, **Serie**, **Staffel**, **Episode** oder **Filmsammlung**
-2. Die Medien-ID des gewünschten Inhalts (eine Zahl)
-3. Bestätigt mit dem Button **Hinzufügen**
-
-Das System prüft sofort, ob der Medieninhalt existiert. Falls nicht, wird eine Fehlermeldung angezeigt.
+Nur Inhalte, auf die der Anwender bereits Zugriff hat (reguläre Mediaquelle oder individuelle
+Freischaltung, siehe Abschnitt „Zugriffsstatus in der Liste"), erscheinen in den Suchergebnissen.
+Liefert ein Suchbegriff keine Treffer, zeigt die Oberfläche eine entsprechende Hinweismeldung an.
 
 **Kaskaden-Logik:** Wird eine Serie, Staffel oder Filmsammlung hinzugefügt, werden automatisch
 auch alle zugehörigen Staffeln/Episoden bzw. Filme mit aufgenommen. Beispiele:

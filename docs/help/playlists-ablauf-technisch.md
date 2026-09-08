@@ -2,11 +2,12 @@
 
 ## Übersicht
 
-Die Playlist-Verwaltung besteht aus vier Hauptabläufen:
+Die Playlist-Verwaltung besteht aus fünf Hauptabläufen:
 1. Hinzufügen von Medieninhalten (mit Cascade-Logik)
 2. Entfernen von Medieninhalten
 3. Abrufen aller Einträge (mit Bereinigung verwaister Einträge)
-4. Abrufen einer sortierten, paginierten Seite von Einträgen (für die Infinity-List der Detailseite)
+4. Mediensuche für die Playlist-Auswahl-Oberfläche (case-insensitive Namenssuche, Opt-in für 5 Medientypen, Regression-Schutz für Quellen-Browsing)
+5. Abrufen einer sortierten, paginierten Seite von Einträgen (für die Infinity-List der Detailseite)
 
 Diese Dokumentation beschreibt den internen Ablauf auf Code-Ebene.
 
@@ -272,7 +273,158 @@ flowchart TD
 
 ---
 
-## Ablauf 4: Sortierte, paginierte Einträge abrufen (Infinity-List)
+## Ablauf 4: Mediensuche für die Playlist-Auswahl-Oberfläche (case-insensitiv, multi-type)
+
+### Schritt-für-Schritt
+
+**Auslöser:** Client (`MediaSearchSelector.razor`) ruft `GET /api/items?search={term}&includeIndividualMediaTypes=true` auf, während Benutzer einen Suchbegriff eingibt
+
+**Hinweis:** Dieser Ablauf dokumentiert auch das bestehende Quellen-Browsing-Verhalten, wenn `includeIndividualMediaTypes` nicht gesetzt ist oder den Standardwert `false` hat.
+
+1. **Parameter-Validierung:**
+   - `ItemsController.Get()` empfängt Query-Parameter:
+     - `search` (string, optional): Suchbegriff für Namensabfrage
+     - `includeIndividualMediaTypes` (bool, Default `false`): Steuert, ob die 5 Medientypen (Movie, TVShow, TVShowSeason, TVShowEpisode, MovieCollection) durchsucht werden oder nur 2 (TVShow, MovieCollection)
+     - `mediaSourceId` (long, optional): Falls gesetzt, wird Quellen-Browsing-Modus aktiviert (filtert nach Medienquelle)
+     - `page`, `size`, `genreId`: Weitere Filterparameter
+
+2. **MediaEntryFilter konstruieren:**
+   - Konstruiere ein `MediaEntryFilter`-Record mit:
+     - `Search = search` (unverändert; die Kleinschreibungs-Faltung erfolgt erst in Schritt 4, Unicode-korrekt über `ToLowerInvariant()`)
+     - `IncludeIndividualMediaTypes = includeIndividualMediaTypes`
+     - `MediaSourceId = mediaSourceId`
+     - `Page = page`
+     - `Size = size`
+
+3. **Abfrage-Strategie bestimmen:**
+   - Falls `includeIndividualMediaTypes == true` (Playlist-Suche):
+     - Rufe alle fünf `Get*EntriesAsync()`-Methoden auf:
+       - `GetMovieCollectionEntriesAsync(filter)`
+       - `GetTVShowEntriesAsync(filter)`
+       - `GetMovieEntriesAsync(filter)` ← nur bei `includeIndividualMediaTypes == true`
+       - `GetSeasonEntriesAsync(filter)` ← nur bei `includeIndividualMediaTypes == true`
+       - `GetEpisodeEntriesAsync(filter)` ← nur bei `includeIndividualMediaTypes == true`
+   - Sonst (Quellen-Browsing oder Standard):
+     - Rufe nur die zwei ursprünglichen Methoden auf:
+       - `GetMovieCollectionEntriesAsync(filter)`
+       - `GetTVShowEntriesAsync(filter)`
+
+4. **Case-insensitive, Unicode-korrekte Namenssuche in jeder Methode:**
+   - Jede `Get*EntriesAsync()`-Methode ruft für den Namensvergleich `ApplySearchFilter<T>()` auf, eine über alle fünf Methoden geteilte Hilfsmethode:
+     - Der Suchbegriff wird mit `ToLowerInvariant()` (kulturunabhängig statt kultursensitiv `ToLower()`) kleingeschrieben.
+     - Die LIKE-Sonderzeichen `\`, `%` und `_` im Suchbegriff werden escaped (Backslash zuerst), damit sie als literale Zeichen statt als Wildcards gesucht werden.
+     - Der Vergleich erfolgt über `EF.Functions.Like(AppDbFunctions.LowerInvariant(e.Name), $"%{escaped}%", "\\")`. `AppDbFunctions.LowerInvariant` ist eine als SQLite-Funktion (`lower_invariant`) registrierte, serverseitig ausgeführte Faltung über `string.ToLowerInvariant()` — im Gegensatz zu SQLite's eingebautem `lower()` faltet sie auch Ä/Ö/Ü/ß korrekt zu ä/ö/ü/ß (und umgekehrt bei der Suche nach Großbuchstaben-Varianten).
+     - Beispiel: Suche nach „breaking" findet „Breaking Bad", „BREAKING_BAD", etc.; Suche nach „mörder“ findet „Mörder“ ebenso wie „MÖRDER“; ein Suchbegriff mit `%` oder `_` (z. B. Dateinamen-artige Titel) wird literal gesucht statt als Wildcard interpretiert.
+   - Falls kein `search` angegeben: Alle Einträge des Medientyps
+
+5. **Zugriffskontrolle in jeder Methode:**
+   - Jede Methode prüft zusätzlich Berechtigungen über `IUnlockedMediaService`
+   - Nur Einträge, auf die der aktuelle Benutzer zugriff hat (regulärer Quellenzugriff oder individuelle Freischaltung), werden in die Ergebnisse aufgenommen
+   - Nicht zugängliche Inhalte erscheinen nicht in den Suchergebnissen
+
+6. **Quellenzugriff filtern (nur bei `mediaSourceId`):**
+   - Falls `mediaSourceId` gesetzt ist: Filtere nach `.Where(e => e.MediaSource.Id == mediaSourceId)`
+   - Dies ist das bestehende Quellen-Browsing-Verhalten (z. B. Browse einer Netflix-Quelle zeigt nur Inhalte aus Netflix)
+
+7. **Paginierung:**
+   - Alle Ergebnisse aus den `Get*EntriesAsync()`-Methoden werden kombiniert (konkateniert)
+   - Wende `Skip((page - 1) * size).Take(size)` an
+   - Rückgabe: Liste von `MediaEntryDto` mit den angeforderten Einträgen
+
+8. **Rückgabe:**
+   - HTTP 200 OK mit Array von `MediaEntryDto`:
+     ```csharp
+     public class MediaEntryDto
+     {
+         public string Type { get; set; }       // "Movie", "TVShow", etc.
+         public long Id { get; set; }           // Medien-ID
+         public string Title { get; set; }      // Titel
+         public long? PictureId { get; set; }   // Bild-ID oder null
+     }
+     ```
+
+### Beispiel 1: Playlist-Medienauswahl mit case-insensitiver Suche
+
+```
+Client-Request: GET /api/items?search=breaking&includeIndividualMediaTypes=true
+
+Server:
+1. Konstruiere MediaEntryFilter(Search="breaking", IncludeIndividualMediaTypes=true)
+2. Rufe alle 5 Get*EntriesAsync-Methoden auf
+3. GetMovieEntriesAsync:
+   - Suche: WHERE lower_invariant(Name) LIKE '%breaking%' ESCAPE '\'
+   - Ergebnis: "Breaking Bad" (Movie), "Breaking Point" (Movie)
+4. GetTVShowEntriesAsync:
+   - Ergebnis: "Breaking Bad" (TVShow)
+5. GetSeasonEntriesAsync:
+   - Ergebnis: Staffel 1 von "Breaking Bad" (wenn Titel enthält "breaking")
+6. ... etc.
+7. Kombiniere und paginiere
+8. Rückgabe: 5 Einträge (2 Movies, 1 TVShow, ...)
+```
+
+### Beispiel 2: Quellen-Browsing ohne Opt-in (Regression-Schutz)
+
+```
+Client-Request: GET /api/items?mediaSourceId=123&includeIndividualMediaTypes=false
+
+Server:
+1. Konstruiere MediaEntryFilter(MediaSourceId=123, IncludeIndividualMediaTypes=false)
+2. Rufe nur 2 Get*EntriesAsync-Methoden auf (NICHT GetMovieEntriesAsync, etc.)
+   - GetMovieCollectionEntriesAsync: WHERE MediaSourceId = 123
+   - GetTVShowEntriesAsync: WHERE MediaSourceId = 123
+3. Rückgabe: Nur 2 Medientypen, z. B. [MovieCollection, TVShow]
+   (Keine Movies, Seasons, Episodes → kein Regression zur alten Oberfläche)
+```
+
+### Beteiligte Klassen
+
+| Klasse | Methode | Zweck |
+|--------|---------|-------|
+| `ItemsController` | `Get(mediaSourceId, search, includeIndividualMediaTypes, ...)` | HTTP-Endpoint-Handler, Koordination der Abfragen |
+| `ItemsController` | `GetMovieCollectionEntriesAsync()` | Abfrage MovieCollections mit case-insensitiver Namenssuche |
+| `ItemsController` | `GetTVShowEntriesAsync()` | Abfrage TVShows mit case-insensitiver Namenssuche |
+| `ItemsController` | `GetMovieEntriesAsync()` | Abfrage Movies mit case-insensitiver Namenssuche (nur wenn `includeIndividualMediaTypes == true`) |
+| `ItemsController` | `GetSeasonEntriesAsync()` | Abfrage TVShowSeasons mit case-insensitiver Namenssuche (nur wenn `includeIndividualMediaTypes == true`) |
+| `ItemsController` | `GetEpisodeEntriesAsync()` | Abfrage TVShowEpisodes mit case-insensitiver Namenssuche (nur wenn `includeIndividualMediaTypes == true`) |
+| `ItemsController` | `ApplySearchFilter<T>()` | Hilfsmethode für case-insensitive, Unicode-korrekte `EF.Functions.Like(...)`-Suche mit LIKE-Escaping, wird von allen 5 Methoden genutzt |
+| `AppDbFunctions` | `LowerInvariant()` | Als SQLite-Funktion `lower_invariant` registrierte, kulturunabhängige Kleinschreibungs-Faltung (`ToLowerInvariant()`); faltet Ä/Ö/Ü/ß korrekt, im Gegensatz zu SQLite's eingebautem `lower()` |
+| `MediaEntryFilter` (Record) | — | Filter-Parameter-Objekt mit Feldern: `Search`, `IncludeIndividualMediaTypes`, `MediaSourceId`, `Page`, `Size`, `GenreId` |
+| `VideoWebPlayerClient` | `RequestItemsAsync()` | Client-Methode für Playlist-Suche, ruft `RequestItemsCoreAsync()` mit `includeIndividualMediaTypes: true` auf |
+| `VideoWebPlayerClient` | `RequestSourceItems()` | Client-Methode für Quellen-Browsing, ruft `RequestItemsCoreAsync()` mit `includeIndividualMediaTypes: false` (oder setzt Parameter nicht) auf |
+| `VideoWebPlayerClient` | `RequestItemsCoreAsync()` | Kern-Methode für API-Aufruf, übernimmt den `includeIndividualMediaTypes`-Parameter in den Query-String |
+| `MediaSearchSelector.razor` | — | UI-Komponente für Medienauswahl, ruft `Client.RequestItemsAsync()` auf |
+| `IUnlockedMediaService` | `GetUnlockedMediaIdsAsync()` | Prüft Zugriff des Benutzers auf Individual Media (Movies, Seasons, Episodes) über übergeordnete Sammlung/Serie |
+
+### Diagramm
+
+```mermaid
+flowchart TD
+    A[GET /api/items] --> B{includeIndividualMediaTypes?}
+    B -->|false oder nicht gesetzt| C[Quellen-Browsing]
+    B -->|true| D[Playlist-Suche]
+    C --> E[GetMovieCollectionEntriesAsync]
+    C --> F[GetTVShowEntriesAsync]
+    D --> G[GetMovieCollectionEntriesAsync]
+    D --> H[GetTVShowEntriesAsync]
+    D --> I[GetMovieEntriesAsync]
+    D --> J[GetSeasonEntriesAsync]
+    D --> K[GetEpisodeEntriesAsync]
+    E --> L[case-insensitive Filter]
+    F --> L
+    G --> L
+    H --> L
+    I --> L
+    J --> L
+    K --> L
+    L --> M[Access Control via IUnlockedMediaService]
+    M --> N[Combine & Paginate]
+    N --> O[200 OK]
+```
+
+---
+
+## Ablauf 5: Sortierte, paginierte Einträge abrufen (Infinity-List)
 
 ### Schritt-für-Schritt
 

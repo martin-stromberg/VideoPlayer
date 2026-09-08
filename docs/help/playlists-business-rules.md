@@ -363,6 +363,79 @@ Ergebnis-Reihenfolge:
 
 ---
 
+## BR-15: Case-insensitive, Unicode-korrekte Namenssuche in der Medienauswahl
+
+**Regel:** Die Namenssuche bei `GET /api/items?search={term}` erfolgt unabhängig von Groß-/Kleinschreibung, einschließlich deutscher Umlaute (Ä/Ö/Ü/ß). Zeichen mit Sonderbedeutung in SQL-`LIKE`-Mustern (`%`, `_`) im Suchbegriff werden literal gesucht statt als Wildcard interpretiert.
+
+**Implementierung:**
+- Alle fünf `Get*EntriesAsync()`-Methoden nutzen die gemeinsame Hilfsmethode `ApplySearchFilter<T>()`, die den Suchbegriff kulturunabhängig kleinschreibt (`ToLowerInvariant()`), die `LIKE`-Sonderzeichen `\`, `%` und `_` escaped (Backslash zuerst) und den Vergleich über eine als SQLite-Funktion registrierte, ebenfalls kulturunabhängige Faltung des Medientitels durchführt:
+  ```csharp
+  var lowered = search.ToLowerInvariant();
+  var escaped = lowered.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
+  return query.Where(e => EF.Functions.Like(AppDbFunctions.LowerInvariant(e.Name), $"%{escaped}%", "\\"));
+  ```
+- `AppDbFunctions.LowerInvariant()` ist über `HasDbFunction`/`CreateFunction` als SQLite-Funktion `lower_invariant` registriert und ruft serverseitig `string.ToLowerInvariant()` auf. Das ist bewusst nicht SQLite's eingebautes `lower()`, das Ä/Ö/Ü/ß nicht faltet (ASCII-only) und `ToLower()` (kultursensitiv, z. B. `tr-TR`-Sonderfälle bei „I"/„ı"), sondern eine Unicode-korrekte, kulturunabhängige Faltung auf beiden Seiten des Vergleichs.
+- Auf SQLite-Ebene wird dies zu einer case-insensitiven, Ä/Ö/Ü/ß-korrekten `LIKE`-Abfrage mit explizitem Escape-Zeichen übersetzt
+
+**Auswirkung auf Playlist-Suche:** Benutzer können einen Suchbegriff in beliebiger Groß-/Kleinschreibung eingeben und finden weiterhin Medieninhalte mit unterschiedlicher Schreibweise, auch bei Umlauten:
+- Suche nach „breaking bad" findet „Breaking Bad"
+- Suche nach „BREAKING" findet „Breaking Bad"
+- Suche nach „Breaking Bad" findet ebenfalls alle Treffer
+- Suche nach „mörder" findet „Mörder" ebenso wie „MÖRDER"
+- Suche nach einem Titel mit `%` oder `_` findet diesen literal, ohne dass die Zeichen als Wildcard wirken
+
+**Beispiel:**
+```
+Datenbank enthält: "The Office", "FRIENDS", "The Crown", "breaking bad"
+
+Suche nach "the":
+- Ergebnis: "The Office", "The Crown"
+
+Suche nach "BREAKING":
+- Ergebnis: "breaking bad"
+
+Suche nach "friends":
+- Ergebnis: "FRIENDS"
+```
+
+---
+
+## BR-16: Opt-in-Parameter für 5 Medientypen (Playlist-Suche vs. Quellen-Browsing)
+
+**Regel:** Der Query-Parameter `includeIndividualMediaTypes` (bool, Standard: `false`) steuert, ob die Suche alle 5 oder nur 2 Medientypen durchsucht.
+
+**Anwendungsfälle:**
+
+| Szenario | Parameter | Medientypen | Zweck |
+|----------|-----------|------------|-------|
+| Playlist-Medienauswahl (neue Oberfläche) | `includeIndividualMediaTypes=true` | 5: Movie, TVShow, TVShowSeason, TVShowEpisode, MovieCollection | Benutzer soll alle verfügbaren Medientypen für die Playlist auswählen können |
+| Quellen-Browsing (bestehende Oberfläche) | Nicht gesetzt (Default `false`) | 2: TVShow, MovieCollection | Detailseite einer Medienquelle zeigt nur Sammlungen (nicht einzelne Filme/Episoden) → keine Redundanz |
+
+**Implementierung:**
+- `ItemsController.Get()` prüft den Wert von `includeIndividualMediaTypes`
+- Nur falls `includeIndividualMediaTypes == true`: Rufe `GetMovieEntriesAsync()`, `GetSeasonEntriesAsync()`, `GetEpisodeEntriesAsync()` auf
+- Falls `includeIndividualMediaTypes == false` (oder nicht gesetzt): Rufe nur `GetMovieCollectionEntriesAsync()` und `GetTVShowEntriesAsync()` auf
+- Alle fünf Methoden werden für die genannten Typen implementiert; einzelne werden via Opt-in-Parameter selegktiv verwendet
+
+**Regression-Schutz:**
+- Bestehende Aufrufer von `GET /api/items` (z. B. Quellen-Browsing), die den Parameter nicht setzen, erhalten weiterhin nur 2 Medientypen
+- Dies verhindert, dass die Detail-Seite einer Medienquelle plötzlich redundante Einträge enthält (z. B. einzelne Filme zusätzlich zur Sammlung)
+
+**Beispiel:**
+```
+GET /api/items?search=breaking&includeIndividualMediaTypes=true
+→ Ergebnisse: Movie, TVShow, TVShowSeason, TVShowEpisode, MovieCollection (bis zu 5 Typen)
+
+GET /api/items?mediaSourceId=123&includeIndividualMediaTypes=false
+→ Ergebnisse: TVShow, MovieCollection (nur 2 Typen, kein Regression)
+
+GET /api/items?mediaSourceId=123
+(Parameter nicht gesetzt, Default false)
+→ Ergebnisse: TVShow, MovieCollection (nur 2 Typen)
+```
+
+---
+
 ## BR-14: Validierung der Paginierungsparameter
 
 **Regel:** `GET /api/playlists/{id}/entries/paged` validiert `pageNumber` und `pageSize`, bevor
@@ -401,6 +474,8 @@ GET /api/playlists/1/entries/paged?pageSize=500
 | BR-10: Remove-Eintrag vorhanden | Vor Delete | `KeyNotFoundException` | 404 Not Found |
 | BR-13: Sortierung mit Fallback-Kette | Bei paginiertem Get | Keine (deterministische Sortierung) | Keine |
 | BR-14: Paginierungsparameter gültig | Vor Berechtigungsprüfung | "pageNumber ..." / "pageSize ..." | 400 Bad Request |
+| BR-15: Case-insensitive Namenssuche | Immer aktiv in Get-Methoden | Keine | Keine — 200 OK |
+| BR-16: Opt-in für 5 Medientypen | Parameter gesteuert | Regression-Schutz für Quellen-Browsing | Keine — 200 OK |
 
 ---
 

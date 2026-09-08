@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using System.Threading;
 using VideoWebPlayer.Events;
@@ -25,6 +26,12 @@ namespace VideoWebPlayer.Data
             : base(options)
         {
             _eventManager = eventManager;
+
+            // Die per [DbFunction]/HasDbFunction() angebundene Funktion lower_invariant() existiert nicht
+            // von sich aus in SQLite; sie muss zusaetzlich auf der zugrunde liegenden Verbindung als
+            // benutzerdefinierte Funktion registriert werden, damit EF Core sie tatsaechlich ausfuehren kann.
+            if (Database.IsRelational() && Database.GetDbConnection() is SqliteConnection sqliteConnection)
+                sqliteConnection.CreateFunction<string?, string?>("lower_invariant", AppDbFunctions.LowerInvariant);
         }
         #region DbSet Properties
         /// <summary>
@@ -423,6 +430,9 @@ namespace VideoWebPlayer.Data
         /// Stellt sicher, dass eine MediaCollection mit gegebener MediaSourceId und Path existiert.
         /// Gibt die bestehende Collection zur�ck oder legt sie neu an.
         /// </summary>
+        /// <param name="collection">Die zu suchende bzw. anzulegende Collection.</param>
+        /// <param name="cancellationToken">Token zum Abbrechen der Operation.</param>
+        /// <returns>Die bestehende oder neu angelegte Collection.</returns>
         public async Task<MediaCollection> EnsureMediaCollectionExistsAsync(MediaCollection collection, CancellationToken cancellationToken = default)
         {
             var existing = await MediaCollections
@@ -444,6 +454,9 @@ namespace VideoWebPlayer.Data
         /// Gibt das bestehende Item zur�ck oder legt es neu an.
         /// Wird ein bestehendes Item gefunden und das CreatedAt-Datum ist unterschiedlich, wird es aktualisiert und Changed auf true gesetzt.
         /// </summary>
+        /// <param name="item">Das zu suchende bzw. anzulegende MediaItem.</param>
+        /// <param name="cancellationToken">Token zum Abbrechen der Operation.</param>
+        /// <returns>Das bestehende oder neu angelegte MediaItem.</returns>
         public async Task<MediaItem> EnsureMediaItemExistsAsync(MediaItem item, CancellationToken cancellationToken = default)
         {
             var existing = await MediaItems
@@ -604,6 +617,9 @@ namespace VideoWebPlayer.Data
         /// L�dt die zu einer MediaItem-Id geh�renden �bergeordneten Entit�ten (MediaCollection, Movie (+MovieCollection) oder TVShow/Season/Episode).
         /// Gibt ein <see cref="MediaItemRelationResult"/> mit gef�llten Properties zur�ck (nicht gefundene bleiben null).
         /// </summary>
+        /// <param name="mediaItemId">Die Id des MediaItems, dessen Beziehungen geladen werden sollen.</param>
+        /// <param name="cancellationToken">Token zum Abbrechen der Operation.</param>
+        /// <returns>Das <see cref="MediaItemRelationResult"/> mit den geladenen Beziehungen.</returns>
         public async Task<MediaItemRelationResult> GetRelationsForMediaItemAsync(long mediaItemId, CancellationToken cancellationToken = default)
         {
             var result = new MediaItemRelationResult();
@@ -656,6 +672,8 @@ namespace VideoWebPlayer.Data
             base.OnModelCreating(modelBuilder);
 
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
+
+            modelBuilder.HasDbFunction(typeof(AppDbFunctions).GetMethod(nameof(AppDbFunctions.LowerInvariant))!);
         }
     }
 }

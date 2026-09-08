@@ -11,6 +11,8 @@ the entire repository for unused/missing localization keys.
    present in all other files of the same package.
 3. Validates the required resx headers (resmimetype, reader, writer) in every
    .resx file to catch formatting issues such as `Text/microsoft-resx`.
+4. Validates German translation values and rejects common umlaut
+    transliterations like `ue/oe/ae` at the beginning of words.
 """
 import argparse
 import re
@@ -29,6 +31,7 @@ KEY_PATTERNS = [
 
 RESX_CULTURE_RE = re.compile(r'^(.*?)(?:\.([a-zA-Z]{2}(?:-[a-zA-Z]{2})?))?\.resx$')
 EXCLUDED_DIRS = {'.git', 'bin', 'obj', 'TestResults', 'node_modules', '.vs', 'packages'}
+GERMAN_TRANSLITERATION_RE = re.compile(r'\b(?:ae|oe|ue|AE|OE|UE|Ae|Oe|Ue)[A-Za-z]{2,}\b')
 
 
 def run(*args):
@@ -108,6 +111,38 @@ def resx_header_errors(path):
     return errors
 
 
+def resx_german_value_errors(path):
+    """Validate German .resx values for umlaut transliterations."""
+    _, culture = resx_base(path)
+    if not culture or not culture.lower().startswith('de'):
+        return []
+
+    errors = []
+    try:
+        tree = ET.parse(path)
+    except ET.ParseError as e:
+        return [f'cannot parse XML: {e}']
+
+    for data in tree.getroot().iter('data'):
+        key = data.get('name')
+        if not key:
+            continue
+        value_node = data.find('value')
+        if value_node is None:
+            continue
+        value_text = ''.join(value_node.itertext())
+        if not value_text:
+            continue
+
+        for match in GERMAN_TRANSLITERATION_RE.finditer(value_text):
+            transliteration = match.group(0)
+            errors.append(
+                f"key '{key}' contains likely umlaut transliteration '{transliteration}'"
+            )
+
+    return errors
+
+
 def resx_base(path):
     m = RESX_CULTURE_RE.match(path.name)
     if not m:
@@ -142,6 +177,13 @@ def main():
         errors = resx_header_errors(r)
         if errors:
             header_errors.append((r.relative_to(root), errors))
+
+    # Part 4: validate german translations for umlaut transliterations
+    german_value_errors = []
+    for r in resx:
+        errors = resx_german_value_errors(r)
+        if errors:
+            german_value_errors.append((r.relative_to(root), errors))
 
     # Part 1: check source files for missing keys
     if args.all:
@@ -210,6 +252,14 @@ def main():
         failed = True
         print('ERROR: the following .resx files have invalid headers:')
         for f, errors in header_errors:
+            for e in errors:
+                print(f'  {f}: {e}')
+        print()
+
+    if german_value_errors:
+        failed = True
+        print('ERROR: the following german translation values contain likely umlaut transliterations:')
+        for f, errors in german_value_errors:
             for e in errors:
                 print(f'  {f}: {e}')
         print()

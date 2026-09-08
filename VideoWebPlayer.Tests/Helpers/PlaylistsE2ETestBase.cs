@@ -113,6 +113,23 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
         await Page.WaitForTimeoutAsync(2000);
     }
 
+    /// <summary>
+    /// Adds a media entry via the <c>MediaSearchSelector</c> live-search UI: types the given search
+    /// term into the search input, waits for the matching result tile to appear and clicks it, which
+    /// invokes <c>PlaylistEntriesList.OnMediaSelectedAsync</c> and adds the entry. Shared by
+    /// <see cref="global::VideoWebPlayer.Tests.PlaylistEntriesE2ETests"/> and
+    /// <see cref="global::VideoWebPlayer.Tests.PlaylistMediaSearchE2ETests"/>, which both drive the
+    /// same search-and-select flow with different fixture data.
+    /// </summary>
+    protected async Task SelectSearchResultAsync(string searchTerm, string mediaType, long mediaId)
+    {
+        await Page.FillAsync(".media-search-input", searchTerm);
+        var resultLocator = Page.Locator($".media-search-result[data-media-type='{mediaType}'][data-media-id='{mediaId}']");
+        await resultLocator.WaitForAsync(new LocatorWaitForOptions { Timeout = 5000 });
+        await resultLocator.ClickAsync();
+        await Page.WaitForTimeoutAsync(1000);
+    }
+
     protected async Task<ILocator> CreatePlaylistViaUiAsync(string name, string? description = null)
     {
         await Page.GotoAsync($"{ServerUrl}/playlists");
@@ -235,6 +252,55 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
             }
 
             return show.Id;
+        });
+
+    /// <summary>
+    /// Seeds a movie collection directly in the database (bypassing the UI) and returns its id, for
+    /// use as a media-search target in E2E tests that do not need the collection pre-added to a
+    /// playlist.
+    /// </summary>
+    protected Task<long> SeedMovieCollectionAsync(string name)
+        => RunScopedAsync(async (db, sourceId) =>
+        {
+            var collection = new MovieCollection { Name = name, MediaSourceId = sourceId, CreatedAt = DateTime.UtcNow };
+            db.MovieCollections.Add(collection);
+            await db.SaveChangesAsync();
+            return collection.Id;
+        });
+
+    /// <summary>
+    /// Seeds a TV show with a single season and the given number of episodes directly in the database
+    /// (bypassing the UI), for use as a media-search target in E2E tests covering season/episode
+    /// selection in the search UI.
+    /// </summary>
+    protected Task<(long ShowId, long SeasonId, long[] EpisodeIds)> SeedTvShowWithSingleSeasonAsync(string showName, string seasonName, int episodeCount)
+        => RunScopedAsync(async (db, sourceId) =>
+        {
+            var show = new TVShow { Name = showName, MediaSourceId = sourceId, CreatedAt = DateTime.UtcNow };
+            db.TVShows.Add(show);
+            await db.SaveChangesAsync();
+
+            var season = new TVShowSeason { Name = seasonName, TVShowId = show.Id, MediaSourceId = sourceId, CreatedAt = DateTime.UtcNow };
+            db.TVShowSeasons.Add(season);
+            await db.SaveChangesAsync();
+
+            var episodeIds = new List<long>();
+            for (var number = 1; number <= episodeCount; number++)
+            {
+                var episode = new TVShowEpisode
+                {
+                    Name = $"{seasonName} Episode {number}",
+                    Number = number,
+                    TVShowSeasonId = season.Id,
+                    MediaSourceId = sourceId,
+                    CreatedAt = DateTime.UtcNow
+                };
+                db.TVShowEpisodes.Add(episode);
+                await db.SaveChangesAsync();
+                episodeIds.Add(episode.Id);
+            }
+
+            return (show.Id, season.Id, episodeIds.ToArray());
         });
 
     /// <summary>

@@ -14,6 +14,36 @@ Authorization: Bearer {token}
 
 Fehlerhafte oder fehlende Authentifizierung führt zu HTTP 401 (Unauthorized).
 
+## Medien-Suche für die Auswahl-Oberfläche
+
+Die Namenssuche, mit der die Playlist-Detailseite Medieninhalte zum Hinzufügen anbietet (siehe
+`playlists.md`, Abschnitt „Hinzufügen"), nutzt keinen playlist-spezifischen Endpunkt, sondern den
+bestehenden `GET /api/items`-Endpunkt (`search`-Parameter, zusätzlich `includeIndividualMediaTypes=true`,
+siehe unten). Dieser Endpunkt durchsucht alle fünf Medientypen (`Movie`, `TVShow`, `TVShowSeason`,
+`TVShowEpisode`, `MovieCollection`) nach passenden Namen und wendet dabei dieselbe Zugriffskontrolle
+an wie andernorts (regulärer Mediaquellen-Zugriff oder individuelle Freischaltung der übergeordneten
+Filmsammlung bzw. Serie für Filme, Staffeln und Episoden) — nicht zugängliche Inhalte erscheinen
+nicht in den Suchergebnissen. Das Ergebnis ist eine `List<MediaEntryDto>` mit `Type`, `Id`, `Title`
+und `PictureId` je Treffer. Der `Type`-Wert einer Filmsammlung lautet dabei korrekt
+`"MovieCollection"` (zuvor fälschlich `"Movie"`).
+
+**Case-insensitive Suche:** Der `search`-Parameter vergleicht ohne Rücksicht auf Groß-/Kleinschreibung
+(z. B. findet die Suche nach `"breaking bad"` oder `"BREAKING"` einen Eintrag mit dem Namen
+„Breaking Bad"). Die Faltung erfolgt Unicode-korrekt und kulturunabhängig (`ToLowerInvariant()`
+über eine als SQLite-Funktion registrierte `AppDbFunctions.LowerInvariant()`), sodass auch
+deutsche Umlaute und ß unabhängig von Groß-/Kleinschreibung gefunden werden (z. B. findet
+`"mörder"` auch „MÖRDER"). Die `LIKE`-Sonderzeichen `%` und `_` im Suchbegriff werden escaped und
+dadurch literal statt als Wildcard gesucht.
+
+**Parameter `includeIndividualMediaTypes` (boolean, Standard: `false`):** Steuert, ob neben
+`MovieCollection` und `TVShow` zusätzlich die drei einzelnen Medientypen `Movie`, `TVShowSeason`
+und `TVShowEpisode` im Ergebnis enthalten sind. Die Playlist-Medienauswahl setzt diesen Parameter auf
+`true`, um alle fünf Medientypen zu durchsuchen. Wird der Endpunkt dagegen zum Durchsuchen einer
+einzelnen Medienquelle verwendet (`mediaSourceId` gesetzt, Detailseite einer Medienquelle), bleibt
+der Parameter auf seinem Standardwert `false`, sodass weiterhin nur `MovieCollection`- und
+`TVShow`-Einträge geliefert werden — das bisherige Verhalten des Quellen-Browsings bleibt dadurch
+unverändert.
+
 ## Endpunkte für Playlist-Einträge
 
 ### `POST /api/playlists/{id}/entries` — Medieninhalt hinzufügen

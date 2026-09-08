@@ -115,4 +115,50 @@ public sealed class PlaylistMediaSearchE2ETests : PlaylistsE2ETestBase
 
         await Expect(Page.Locator(".media-search-empty")).ToBeVisibleAsync();
     }
+
+    [Fact]
+    public async Task AddMedia_SearchCaseInsensitive_FindsMedia()
+    {
+        if (SkipBrowser)
+            return;
+
+        var movieId = await SeedMovieAsync("Breaking Bad");
+
+        await LoginAsync(UserAEmail);
+        await GrantMediaSourceAccessForUserAsync(UserAEmail);
+        var row = await CreatePlaylistViaUiAsync("Playlist-Fuer-GrossKleinschreibung-Suche");
+        await row.Locator(".playlist-open-button").ClickAsync();
+        await Page.WaitForSelectorAsync("#playlist-detail-name");
+
+        await SelectSearchResultAsync("breaking bad", "Movie", movieId);
+
+        await Expect(Page.Locator($".playlist-entry-row[data-media-type='Movie'][data-media-id='{movieId}']")).ToBeVisibleAsync();
+        await Expect(Page.Locator($".playlist-entry-row[data-media-type='Movie'][data-media-id='{movieId}']")).ToContainTextAsync("Breaking Bad");
+    }
+
+    [Fact]
+    public async Task AddMedia_Search_ReturnsAll5Types()
+    {
+        if (SkipBrowser)
+            return;
+
+        var movieId = await SeedMovieAsync("Fuenftypen Film");
+        var collectionId = await SeedMovieCollectionAsync("Fuenftypen Sammlung");
+        var (showId, seasonId, episodeIds) = await SeedTvShowWithSingleSeasonAsync("Fuenftypen Serie", "Fuenftypen Staffel", 1);
+
+        await LoginAsync(UserAEmail);
+        await GrantMediaSourceAccessForUserAsync(UserAEmail);
+        var row = await CreatePlaylistViaUiAsync("Playlist-Fuer-Fuenf-Typen-Suche");
+        await row.Locator(".playlist-open-button").ClickAsync();
+        await Page.WaitForSelectorAsync("#playlist-detail-name");
+
+        await Page.FillAsync(".media-search-input", "Fuenftypen");
+        await Page.WaitForTimeoutAsync(1000);
+
+        await Expect(Page.Locator($".media-search-result[data-media-type='Movie'][data-media-id='{movieId}']")).ToBeVisibleAsync();
+        await Expect(Page.Locator($".media-search-result[data-media-type='MovieCollection'][data-media-id='{collectionId}']")).ToBeVisibleAsync();
+        await Expect(Page.Locator($".media-search-result[data-media-type='TVShow'][data-media-id='{showId}']")).ToBeVisibleAsync();
+        await Expect(Page.Locator($".media-search-result[data-media-type='TVShowSeason'][data-media-id='{seasonId}']")).ToBeVisibleAsync();
+        await Expect(Page.Locator($".media-search-result[data-media-type='TVShowEpisode'][data-media-id='{episodeIds[0]}']")).ToBeVisibleAsync();
+    }
 }

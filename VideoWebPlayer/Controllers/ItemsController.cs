@@ -113,13 +113,25 @@ public class ItemsController : ApiBaseController
     /// <summary>
     /// Gets media entries for a source with optional filtering.
     /// </summary>
+    /// <param name="mediaSourceId">Optional media source id to restrict results to (media-source browsing use case).</param>
+    /// <param name="page">Zero-based page index.</param>
+    /// <param name="size">Page size.</param>
+    /// <param name="search">Optional case-insensitive substring to match against the entry name.</param>
+    /// <param name="genreId">Optional genre id to restrict results to.</param>
+    /// <param name="includeIndividualMediaTypes">
+    /// When <c>true</c>, individual <c>Movie</c>, <c>TVShowSeason</c> and <c>TVShowEpisode</c> entries are
+    /// included in addition to <c>MovieCollection</c> and <c>TVShow</c> entries. Used by the playlist media
+    /// search (<see cref="VideoWebPlayer.Components.Playlists.MediaSearchSelector"/>); media-source browsing
+    /// leaves this at its default (<c>false</c>) to keep returning only the original two media types.
+    /// </param>
     [HttpGet]
     public async Task<ActionResult<List<MediaEntryDto>>> Get(
             [FromQuery] long? mediaSourceId,
             [FromQuery] int page = 0,
             [FromQuery] int size = 30,
             [FromQuery] string? search = null,
-            [FromQuery] long? genreId = null)
+            [FromQuery] long? genreId = null,
+            [FromQuery] bool includeIndividualMediaTypes = false)
     {
         try
         {
@@ -134,25 +146,28 @@ public class ItemsController : ApiBaseController
             var unlockedMovieCollectionIds = await _unlockedMediaService.GetUnlockedMovieCollectionIdsForUserAsync(CurrentUser.Id);
             var unlockedTVShowIds = await _unlockedMediaService.GetUnlockedTVShowIdsForUserAsync(CurrentUser.Id);
 
-            var filter = new MediaEntryFilter(mediaSourceId, search, genreId, page, size);
+            var filter = new MediaEntryFilter(mediaSourceId, search, genreId, page, size, includeIndividualMediaTypes);
 
             var movieCollections = await GetMovieCollectionEntriesAsync(filter, mediaSourceIds, unlockedMovieCollectionIds);
             var tvShows = await GetTVShowEntriesAsync(filter, mediaSourceIds, unlockedTVShowIds);
-            var movies = await GetMovieEntriesAsync(filter, mediaSourceIds, unlockedMovieCollectionIds);
-            var seasons = await GetSeasonEntriesAsync(filter, mediaSourceIds, unlockedTVShowIds);
-            var episodes = await GetEpisodeEntriesAsync(filter, mediaSourceIds, unlockedTVShowIds);
 
-            var entries = movieCollections
-                .Concat(tvShows)
-                .Concat(movies)
-                .Concat(seasons)
-                .Concat(episodes)
+            var entries = movieCollections.Concat(tvShows);
+
+            if (filter.IncludeIndividualMediaTypes)
+            {
+                var movies = await GetMovieEntriesAsync(filter, mediaSourceIds, unlockedMovieCollectionIds);
+                var seasons = await GetSeasonEntriesAsync(filter, mediaSourceIds, unlockedTVShowIds);
+                var episodes = await GetEpisodeEntriesAsync(filter, mediaSourceIds, unlockedTVShowIds);
+                entries = entries.Concat(movies).Concat(seasons).Concat(episodes);
+            }
+
+            var pagedEntries = entries
                 .OrderBy(e => e.Title)
                 .Skip(page * size)
                 .Take(size)
                 .ToList();
 
-            return Ok(entries);
+            return Ok(pagedEntries);
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -172,11 +187,33 @@ public class ItemsController : ApiBaseController
     /// every call alongside a type-specific id list.
     /// </summary>
     /// <param name="MediaSourceId">Optional media source id to restrict results to.</param>
-    /// <param name="Search">Optional case-sensitive substring to match against the entry name.</param>
+    /// <param name="Search">Optional case-insensitive substring to match against the entry name.</param>
     /// <param name="GenreId">Optional genre id to restrict results to.</param>
-    /// <param name="Page">Zero-based page index used for the final result trimming in <see cref="Get(long?, int, int, string?, long?)"/>.</param>
-    /// <param name="Size">Page size used for the final result trimming in <see cref="Get(long?, int, int, string?, long?)"/>.</param>
-    private readonly record struct MediaEntryFilter(long? MediaSourceId, string? Search, long? GenreId, int Page, int Size);
+    /// <param name="Page">Zero-based page index used for the final result trimming in <see cref="Get(long?, int, int, string?, long?, bool)"/>.</param>
+    /// <param name="Size">Page size used for the final result trimming in <see cref="Get(long?, int, int, string?, long?, bool)"/>.</param>
+    /// <param name="IncludeIndividualMediaTypes">
+    /// When <c>true</c>, the <c>Movie</c>, <c>TVShowSeason</c> and <c>TVShowEpisode</c> helpers are included
+    /// alongside <c>MovieCollection</c> and <c>TVShow</c>. Defaults to <c>false</c> so media-source browsing
+    /// keeps returning only the original two media types.
+    /// </param>
+    private readonly record struct MediaEntryFilter(long? MediaSourceId, string? Search, long? GenreId, int Page, int Size, bool IncludeIndividualMediaTypes = false);
+
+    /// <summary>
+    /// Applies the case-insensitive substring search shared by all five <c>Get*EntriesAsync</c> helpers
+    /// below to the entry's <see cref="MediaBaseEntry.Name"/>.
+    /// </summary>
+    /// <typeparam name="T">The entity type, which must derive from <see cref="MediaBaseEntry"/>.</typeparam>
+    /// <param name="query">The query to filter.</param>
+    /// <param name="search">Optional case-insensitive substring to match against the entry name.</param>
+    /// <returns>The filtered query, or the unmodified <paramref name="query"/> when <paramref name="search"/> is empty.</returns>
+    private static IQueryable<T> ApplySearchFilter<T>(IQueryable<T> query, string? search) where T : MediaBaseEntry
+    {
+        if (string.IsNullOrWhiteSpace(search))
+            return query;
+
+        var lowered = search.ToLower();
+        return query.Where(e => e.Name.ToLower().Contains(lowered));
+    }
 
     private async Task<List<MediaEntryDto>> GetMovieCollectionEntriesAsync(MediaEntryFilter filter, long[] mediaSourceIds, long[] unlockedMovieCollectionIds)
     {
@@ -184,8 +221,7 @@ public class ItemsController : ApiBaseController
             .AsNoTracking()
             .Where(mc => !filter.MediaSourceId.HasValue || mc.MediaSourceId == filter.MediaSourceId);
 
-        if (!string.IsNullOrWhiteSpace(filter.Search))
-            query = query.Where(e => e.Name.Contains(filter.Search));
+        query = ApplySearchFilter(query, filter.Search);
 
         if (filter.GenreId.HasValue)
         {
@@ -222,8 +258,7 @@ public class ItemsController : ApiBaseController
             .AsNoTracking()
             .Where(ts => !filter.MediaSourceId.HasValue || ts.MediaSourceId == filter.MediaSourceId);
 
-        if (!string.IsNullOrWhiteSpace(filter.Search))
-            query = query.Where(e => e.Name.Contains(filter.Search));
+        query = ApplySearchFilter(query, filter.Search);
 
         if (filter.GenreId.HasValue)
         {
@@ -255,8 +290,7 @@ public class ItemsController : ApiBaseController
             .AsNoTracking()
             .Where(m => !filter.MediaSourceId.HasValue || m.MediaSourceId == filter.MediaSourceId);
 
-        if (!string.IsNullOrWhiteSpace(filter.Search))
-            query = query.Where(e => e.Name.Contains(filter.Search));
+        query = ApplySearchFilter(query, filter.Search);
 
         if (filter.GenreId.HasValue)
         {
@@ -288,8 +322,7 @@ public class ItemsController : ApiBaseController
             .AsNoTracking()
             .Where(s => !filter.MediaSourceId.HasValue || s.MediaSourceId == filter.MediaSourceId);
 
-        if (!string.IsNullOrWhiteSpace(filter.Search))
-            query = query.Where(e => e.Name.Contains(filter.Search));
+        query = ApplySearchFilter(query, filter.Search);
 
         if (filter.GenreId.HasValue)
         {
@@ -321,8 +354,7 @@ public class ItemsController : ApiBaseController
             .AsNoTracking()
             .Where(e => !filter.MediaSourceId.HasValue || e.MediaSourceId == filter.MediaSourceId);
 
-        if (!string.IsNullOrWhiteSpace(filter.Search))
-            query = query.Where(e => e.Name.Contains(filter.Search));
+        query = ApplySearchFilter(query, filter.Search);
 
         if (filter.GenreId.HasValue)
         {

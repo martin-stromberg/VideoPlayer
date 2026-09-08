@@ -452,7 +452,7 @@ namespace VideoWebPlayer.Client
         #region Media Entries
         // Shared URL-builder/HTTP-call for the "/api/items" endpoint, used by both RequestSourceItems
         // (media-source browsing, with genre filter) and RequestItemsAsync (cross-source name search).
-        private Task<List<MediaEntryDto>> RequestItemsCoreAsync(long? mediaSourceId, int page, int size, string? search, long genreId, CancellationToken cancellationToken)
+        private Task<List<MediaEntryDto>> RequestItemsCoreAsync(long? mediaSourceId, int page, int size, string? search, long genreId, CancellationToken cancellationToken, bool includeIndividualMediaTypes = false)
         {
             var url = $"/api/items?page={page}&size={size}";
             if (mediaSourceId.HasValue)
@@ -461,11 +461,13 @@ namespace VideoWebPlayer.Client
                 url += $"&search={Uri.EscapeDataString(search)}";
             if (genreId > 0)
                 url += $"&genreId={genreId}";
+            if (includeIndividualMediaTypes)
+                url += $"&includeIndividualMediaTypes={includeIndividualMediaTypes}";
             return HttpGetAsync<List<MediaEntryDto>>(url, cancellationToken);
         }
 
         public Task<List<MediaEntryDto>> RequestSourceItems(long mediaSourceId, int Page = 0, int PageSize = 30, string searchText = "", long genreId = 0)
-            => RequestItemsCoreAsync(mediaSourceId, Page, PageSize, searchText, genreId, CancellationToken.None);
+            => RequestItemsCoreAsync(mediaSourceId, Page, PageSize, searchText, genreId, CancellationToken.None, includeIndividualMediaTypes: false);
 
         public async Task<DtoMediaEntry> RequestMovieCollectionAsync(long id)
         {
@@ -502,7 +504,7 @@ namespace VideoWebPlayer.Client
         }
 
         public Task<List<MediaEntryDto>> RequestItemsAsync(string? search = null, int page = 0, int size = 30, CancellationToken cancellationToken = default)
-            => RequestItemsCoreAsync(null, page, size, search, 0, cancellationToken);
+            => RequestItemsCoreAsync(null, page, size, search, 0, cancellationToken, includeIndividualMediaTypes: true);
 
         public async Task<List<DtoGenreOption>> RequestGenreOptionsAsync()
         {

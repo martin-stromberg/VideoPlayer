@@ -75,6 +75,11 @@
         </div>
 
         <PlaylistEntriesList @ref="entriesList" PlaylistId="Id" IsManualMode="IsManualMode" OnPlayEntry="PlayEntryAsync" />
+
+        @if (!string.IsNullOrWhiteSpace(playbackError))
+        {
+            <div class="alert alert-danger" id="playlist-playback-error">@playbackError</div>
+        }
     }
 </section>
 
@@ -132,6 +137,16 @@
     private PlaylistEntriesList? entriesList;
     private DtoPlaylistPlaybackStart? playbackStart;
 
+    /// <summary>
+    /// Error from a failed <see cref="StartPlaybackAsync"/> call (e.g. the requested entry is locked or a
+    /// non-playable collection entry), kept separate from <see cref="loadError"/> - which means the
+    /// playlist's own metadata failed to load and, per the page's exclusive if/else-if rendering chain,
+    /// replaces the entire detail page. A playback-start failure should instead leave the already-loaded
+    /// playlist and its entries visible, with just an inline error shown below them, so the user can pick
+    /// a different entry without a page reload.
+    /// </summary>
+    private string? playbackError;
+
     private bool IsManualMode => playlist?.SortMode == PlaylistSortModeValues.Manual;
 
     protected override async Task OnInitializedAsync()
@@ -155,18 +170,23 @@
             // Append the access token once here, so playbackStart.StreamUrl is always ready-to-use both
             // for this initial render and for later Next/Previous/Advance updates in OnPlaylistEntryIdChanged.
             playbackStart.StreamUrl = $"{playbackStart.StreamUrl}?access_token={Client.AuthorizationToken}";
+            playbackError = null;
             NavigationManager.NavigateTo($"/playlists/{Id}?entryId={playbackStart.CurrentEntryId}", replace: true);
         }
         catch (Exception ex)
         {
+            // Sets playbackError (not loadError) and does not navigate: the playlist itself loaded fine,
+            // only starting playback at this entry failed (e.g. it is locked or a non-playable collection
+            // entry), so the detail page including its entries list must stay visible - see playbackError.
             Logger.LogWarning(ex, "Fehler beim Starten der Wiedergabe von Playlist {PlaylistId}", Id);
-            loadError = $"Fehler beim Starten der Wiedergabe: {ex.Message}";
+            playbackError = $"Fehler beim Starten der Wiedergabe: {ex.Message}";
         }
     }
 
     private Task ClosePlayerAsync()
     {
         playbackStart = null;
+        playbackError = null;
         NavigationManager.NavigateTo($"/playlists/{Id}", replace: true);
         return Task.CompletedTask;
     }

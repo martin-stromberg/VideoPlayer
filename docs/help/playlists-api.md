@@ -545,7 +545,7 @@ eigenen, bereits bekannten Bearer-Token selbst an, bevor er die URL an den Video
 
 | HTTP-Status | Grund |
 |-------------|-------|
-| 400 Bad Request | Playlist enthält keinen einzigen abspielbaren und zugänglichen Eintrag (nur wenn kein `entryId` angegeben wurde) |
+| 400 Bad Request | Playlist enthält keinen einzigen abspielbaren und zugänglichen Eintrag (nur wenn kein `entryId` angegeben wurde), oder der explizit angegebene `entryId` verweist auf einen nicht abspielbaren Sammel-Eintrag (`TVShow`, `TVShowSeason`, `MovieCollection`) |
 | 403 Forbidden | Benutzer ist nicht der Besitzer der Playlist, oder der explizit angegebene `entryId` ist nicht zugänglich |
 | 404 Not Found | Playlist nicht gefunden, oder der explizit angegebene `entryId` gehört nicht zu dieser Playlist |
 | 401 Unauthorized | Fehlende oder ungültige Authentifizierung |

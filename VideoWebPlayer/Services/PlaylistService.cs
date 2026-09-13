@@ -914,8 +914,13 @@ public sealed class PlaylistService : IPlaylistService
 
     /// <summary>
     /// Resolves the entry to start playback at when the caller explicitly requested one: it must belong
-    /// to the playlist (<see cref="KeyNotFoundException"/> otherwise, mapped to 404) and be accessible to
-    /// the user (<see cref="PlaylistAccessDeniedException"/> otherwise, mapped to 403).
+    /// to the playlist (<see cref="KeyNotFoundException"/> otherwise, mapped to 404), be directly playable
+    /// (<see cref="InvalidOperationException"/> otherwise, mapped to 400 - a collection entry such as a
+    /// TVShow/TVShowSeason/MovieCollection has no media of its own to stream, so its <see cref="PlaylistEntry.MediaId"/>
+    /// must never be interpreted as a movie/episode id) and be accessible to the user
+    /// (<see cref="PlaylistAccessDeniedException"/> otherwise, mapped to 403). Mirrors the playability check
+    /// <see cref="ResolveFirstPlayableEntry"/> and <see cref="FindAdjacentPlayableEntryAsync"/> already
+    /// perform for implicit/adjacent navigation, which this explicit-entry path previously omitted.
     /// </summary>
     /// <param name="sortedEntries">The playlist's entries, sorted by its current sort mode.</param>
     /// <param name="entryId">The id of the requested entry.</param>
@@ -926,6 +931,9 @@ public sealed class PlaylistService : IPlaylistService
     {
         var entry = sortedEntries.FirstOrDefault(e => e.Id == entryId)
             ?? throw new KeyNotFoundException("Der angegebene Eintrag gehoert nicht zu dieser Playlist.");
+
+        if (!PlaylistEntryMediaTypeResolver.IsPlayable(entry.MediaType))
+            throw new InvalidOperationException("Der angegebene Eintrag ist nicht abspielbar.");
 
         if (!accessibilityByEntry.TryGetValue(entry, out var isAccessible) || !isAccessible)
             throw new PlaylistAccessDeniedException("Sie haben keinen Zugriff auf diesen Eintrag.");

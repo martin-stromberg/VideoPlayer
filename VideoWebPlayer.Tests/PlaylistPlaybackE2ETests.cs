@@ -269,6 +269,107 @@ public sealed class PlaylistPlaybackE2ETests : PlaylistsE2ETestBase
         await Expect(Page.Locator("#playlist-playback-badge")).ToContainTextAsync("3/3");
     }
 
+    /// <summary>
+    /// Regression test for the "false 'Ende der Playlist erreicht' at the beginning" bug (Playlist-Wiedergabe
+    /// Schritt 5, Runde 1 Nachbesserung, Punkt 1): clicking "Vorheriger" while already at the first entry
+    /// must not show the end-of-playlist message - previously <c>VideoPlayer.ApplyPlaylistNavigationResultAsync</c>
+    /// set <c>playlistEndReached</c> regardless of navigation direction whenever the server returned no
+    /// adjacent entry, so reaching the beginning via "Vorheriger" incorrectly displayed the same message as
+    /// reaching the actual end via "Naechster" (covered by <see cref="PlaylistEndBehaviorE2ETest"/>).
+    /// </summary>
+    [Fact]
+    public async Task PlaylistPreviousAtBeginningDoesNotShowEndReachedE2ETest()
+    {
+        if (SkipBrowser)
+            return;
+
+        var movieId = await SeedMovieAsync("Anfang-Film-1");
+        await LoginAsync(UserAEmail);
+        await GrantMediaSourceAccessForUserAsync(UserAEmail);
+        var row = await CreatePlaylistViaUiAsync("Anfang-Playlist");
+        await row.Locator(".playlist-open-button").ClickAsync();
+        await Page.WaitForSelectorAsync("#playlist-detail-name");
+        await SelectSearchResultAsync("Anfang-Film-1", "Movie", movieId);
+
+        await Page.ClickAsync(".playlist-entry-play-button");
+        await Page.WaitForSelectorAsync("#video-player-element");
+        await Expect(Page.Locator("#playlist-playback-badge")).ToContainTextAsync("1/1");
+
+        await Page.ClickAsync(".playlist-previous-button");
+        await Page.WaitForTimeoutAsync(500);
+
+        await Expect(Page.Locator("#playlist-end-reached")).ToHaveCountAsync(0);
+        // The player must still be present, still showing the same (only) title.
+        await Expect(Page.Locator("#video-player-element")).ToBeVisibleAsync();
+        await Expect(Page.Locator("#video-player-element")).ToHaveAttributeAsync("src", new System.Text.RegularExpressions.Regex($"/api/items/movie/{movieId}/stream"));
+    }
+
+    /// <summary>
+    /// Regression test for the "Abspielen button on a locked entry leads into a dead end" bug
+    /// (Playlist-Wiedergabe Schritt 5, Runde 1 Nachbesserung, Punkt 2): a locked entry must render no
+    /// "Abspielen" button (<c>IsPlayableEntry</c> now also checks <c>IsAccessible</c>), and double-clicking
+    /// its row must not attempt to start playback (<c>@ondblclick</c> is no longer unconditionally bound) -
+    /// previously the click reached the server, got a 403, and <c>PlaylistDetail.StartPlaybackAsync</c> set
+    /// <c>loadError</c>, which replaced the entire detail page with an error box.
+    /// </summary>
+    [Fact]
+    public async Task PlaylistLockedEntryPlayButtonHiddenAndDoubleClickHasNoEffectE2ETest()
+    {
+        if (SkipBrowser)
+            return;
+
+        await LoginAsync(UserAEmail);
+        var row = await CreatePlaylistViaUiAsync("Gesperrter-Eintrag-Playlist");
+        var lockedMovieId = await SeedLockedMovieIntoPlaylistAsync("Gesperrter-Eintrag-Playlist", "Gesperrter-Wiedergabe-Film");
+        await row.Locator(".playlist-open-button").ClickAsync();
+        await Page.WaitForSelectorAsync("#playlist-detail-name");
+        await Page.WaitForTimeoutAsync(1500);
+
+        var lockedRow = Page.Locator($".playlist-entry-row[data-media-type='Movie'][data-media-id='{lockedMovieId}']");
+        await Expect(lockedRow.Locator(".playlist-entry-play-button")).ToHaveCountAsync(0);
+
+        await lockedRow.DblClickAsync();
+        await Page.WaitForTimeoutAsync(1000);
+
+        await Expect(Page.Locator("#video-player-element")).ToHaveCountAsync(0);
+        // The detail page (name, entries list) must still be intact - not replaced by an error box.
+        await Expect(Page.Locator("#playlist-detail-name")).ToBeVisibleAsync();
+        await Expect(lockedRow).ToBeVisibleAsync();
+    }
+
+    /// <summary>
+    /// Regression test for the "double-click on a collection entry resolves the wrong media id" bug
+    /// (Playlist-Wiedergabe Schritt 5, Runde 1 Nachbesserung, Punkt 3): a non-playable collection entry
+    /// (TVShow) must render no "Abspielen" button, and double-clicking its row must not attempt to start
+    /// playback - previously the double-click reached <c>PlaylistService.ResolveExplicitStartEntry</c>,
+    /// which (unlike the other navigation methods) did not check playability and would have interpreted the
+    /// TVShow's id as if it were a playable movie/episode id.
+    /// </summary>
+    [Fact]
+    public async Task PlaylistDoubleClickCollectionEntryHasNoEffectE2ETest()
+    {
+        if (SkipBrowser)
+            return;
+
+        await LoginAsync(UserAEmail);
+        var row = await CreatePlaylistViaUiAsync("Sammel-Eintrag-Doppelklick-Playlist");
+        var showId = await SeedTvShowIntoPlaylistAsync("Sammel-Eintrag-Doppelklick-Playlist", "Doppelklick-Serie");
+        await GrantMediaSourceAccessForUserAsync(UserAEmail);
+        await row.Locator(".playlist-open-button").ClickAsync();
+        await Page.WaitForSelectorAsync("#playlist-detail-name");
+        await Page.WaitForTimeoutAsync(1500);
+
+        var showRow = Page.Locator($".playlist-entry-row[data-media-type='TVShow'][data-media-id='{showId}']");
+        await Expect(showRow.Locator(".playlist-entry-play-button")).ToHaveCountAsync(0);
+
+        await showRow.DblClickAsync();
+        await Page.WaitForTimeoutAsync(1000);
+
+        await Expect(Page.Locator("#video-player-element")).ToHaveCountAsync(0);
+        await Expect(Page.Locator("#playlist-detail-name")).ToBeVisibleAsync();
+        await Expect(showRow).ToBeVisibleAsync();
+    }
+
     [Fact]
     public async Task PlaylistReloadContextRecoveryE2ETest()
     {

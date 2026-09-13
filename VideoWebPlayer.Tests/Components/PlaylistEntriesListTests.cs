@@ -1,4 +1,5 @@
 using Bunit;
+using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -6,7 +7,7 @@ using Moq;
 using VideoWebPlayer.Client;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Components.Playlists;
-using VideoWebPlayer.Controllers.Models;
+using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.Components;
@@ -50,18 +51,86 @@ public class PlaylistEntriesListTests
     }
 
     /// <summary>
-    /// Minimal <see cref="VideoWebPlayerClient"/> stand-in for dependencies that
-    /// <see cref="PlaylistEntriesList"/> and <see cref="MediaSearchSelector"/> inject but this test does
-    /// not exercise (image URLs, live search); overrides the protected HTTP helper so no real HTTP call
-    /// is ever attempted.
+    /// Regression tests for the "IsPlayableEntry ignores IsAccessible" and "@ondblclick unconditionally
+    /// bound" bugs (Playlist-Wiedergabe Schritt 5, Runde 1 Nachbesserung, Punkte 2/3): a locked
+    /// (<c>IsAccessible == false</c>) or non-playable collection entry (e.g. TVShow) must render no
+    /// "Abspielen" button, and double-clicking its row must not raise <see cref="PlaylistEntriesList.OnPlayEntry"/>
+    /// - previously a locked entry's "Abspielen" button led into a 403 that replaced the whole
+    /// PlaylistDetail page, and a collection entry's row double-click resolved its collection MediaId as if
+    /// it were a playable movie/episode id.
     /// </summary>
-    private sealed class NoOpVideoWebPlayerClient : VideoWebPlayerClient
+    [Fact]
+    public async Task PlaylistEntriesList_LockedEntry_HasNoPlayButtonAndDoubleClickHasNoEffect()
     {
-        public NoOpVideoWebPlayerClient() : base(new HttpClient(), NullLogger<VideoWebPlayerClient>.Instance)
-        {
-        }
+        var entry = new DtoPlaylistEntry { Id = 1, PlaylistId = 1, MediaType = "Movie", MediaId = 10, MediaTitle = "Gesperrter Film", IsAccessible = false };
+        var (cut, onPlayEntryCalls) = RenderWithEntry(entry);
 
-        protected override Task<T> HttpGetAsync<T>(string endPoint, CancellationToken cancellationToken)
-            => Task.FromResult((T)(object)new List<MediaEntryDto>());
+        var row = cut.Find("tr.playlist-entry-row");
+        Assert.Empty(cut.FindAll("button.playlist-entry-play-button"));
+
+        await cut.InvokeAsync(() => row.DoubleClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs()));
+
+        Assert.Empty(onPlayEntryCalls);
+    }
+
+    [Fact]
+    public async Task PlaylistEntriesList_CollectionEntry_HasNoPlayButtonAndDoubleClickHasNoEffect()
+    {
+        var entry = new DtoPlaylistEntry { Id = 2, PlaylistId = 1, MediaType = "TVShow", MediaId = 20, MediaTitle = "Serie", IsAccessible = true };
+        var (cut, onPlayEntryCalls) = RenderWithEntry(entry);
+
+        var row = cut.Find("tr.playlist-entry-row");
+        Assert.Empty(cut.FindAll("button.playlist-entry-play-button"));
+
+        await cut.InvokeAsync(() => row.DoubleClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs()));
+
+        Assert.Empty(onPlayEntryCalls);
+    }
+
+    [Fact]
+    public async Task PlaylistEntriesList_PlayableAccessibleEntry_HasPlayButtonAndDoubleClickInvokesOnPlayEntry()
+    {
+        var entry = new DtoPlaylistEntry { Id = 3, PlaylistId = 1, MediaType = "Movie", MediaId = 30, MediaTitle = "Zugaenglicher Film", IsAccessible = true };
+        var (cut, onPlayEntryCalls) = RenderWithEntry(entry);
+
+        var row = cut.Find("tr.playlist-entry-row");
+        Assert.Single(cut.FindAll("button.playlist-entry-play-button"));
+
+        await cut.InvokeAsync(() => row.DoubleClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs()));
+
+        var raisedEntry = Assert.Single(onPlayEntryCalls);
+        Assert.Equal(entry.Id, raisedEntry.Id);
+    }
+
+    /// <summary>
+    /// Renders <see cref="PlaylistEntriesList"/> with a single given entry, wiring
+    /// <see cref="PlaylistEntriesList.OnPlayEntry"/> to append to the returned list. Shared by the
+    /// "Abspielen"-button-visibility and double-click regression tests above.
+    /// </summary>
+    /// <param name="entry">The single entry the mocked <c>RequestPlaylistEntriesPagedAsync</c> call returns.</param>
+    /// <param name="Cut">(Return tuple field.) The rendered component.</param>
+    /// <param name="OnPlayEntryCalls">(Return tuple field.) The list every <see cref="PlaylistEntriesList.OnPlayEntry"/> call appends to.</param>
+    /// <returns>The rendered component and the list every <see cref="PlaylistEntriesList.OnPlayEntry"/> call appends to.</returns>
+    private static (global::Bunit.IRenderedComponent<PlaylistEntriesList> Cut, List<DtoPlaylistEntry> OnPlayEntryCalls) RenderWithEntry(DtoPlaylistEntry entry)
+    {
+        var ctx = new global::Bunit.TestContext();
+
+        var playlistClientMock = new Mock<IPlaylistApiClient>();
+        playlistClientMock
+            .Setup(c => c.RequestPlaylistEntriesPagedAsync(It.IsAny<long>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DtoPlaylistEntriesPagedResult { Entries = new[] { entry }, HasNextPage = false, TotalCount = 1 });
+
+        ctx.Services.AddSingleton<VideoWebPlayerClient>(new NoOpVideoWebPlayerClient());
+        ctx.Services.AddSingleton(playlistClientMock.Object);
+        ctx.Services.AddSingleton<ILogger<PlaylistEntriesList>>(NullLogger<PlaylistEntriesList>.Instance);
+        ctx.Services.AddSingleton<ILogger<MediaSearchSelector>>(NullLogger<MediaSearchSelector>.Instance);
+
+        var calls = new List<DtoPlaylistEntry>();
+        var cut = ctx.RenderComponent<PlaylistEntriesList>(parameters => parameters
+            .Add(p => p.PlaylistId, 1)
+            .Add(p => p.IsManualMode, false)
+            .Add(p => p.OnPlayEntry, EventCallback.Factory.Create<DtoPlaylistEntry>(new object(), e => calls.Add(e))));
+
+        return (cut, calls);
     }
 }

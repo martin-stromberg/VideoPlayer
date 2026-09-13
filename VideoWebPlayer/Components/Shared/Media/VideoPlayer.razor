@@ -230,7 +230,7 @@
                 return;
 
             var next = await PlaylistClient.GetNextPlaylistEntryAsync(currentPlaylistId.Value, currentPlaylistEntryId.Value);
-            await ApplyPlaylistNavigationResultAsync(next);
+            await ApplyPlaylistNavigationResultAsync(next, isForward: true);
         }, "Fehler beim Wechsel zum naechsten Titel");
 
     private Task OnPreviousPlaylistEntryAsync()
@@ -240,7 +240,7 @@
                 return;
 
             var previous = await PlaylistClient.GetPreviousPlaylistEntryAsync(currentPlaylistId.Value, currentPlaylistEntryId.Value);
-            await ApplyPlaylistNavigationResultAsync(previous);
+            await ApplyPlaylistNavigationResultAsync(previous, isForward: false);
         }, "Fehler beim Wechsel zum vorherigen Titel");
 
     private Task OnMediaEndAsync()
@@ -250,7 +250,7 @@
                 return;
 
             var next = await PlaylistClient.AdvancePlaylistAsync(currentPlaylistId.Value, currentPlaylistEntryId.Value);
-            await ApplyPlaylistNavigationResultAsync(next);
+            await ApplyPlaylistNavigationResultAsync(next, isForward: true);
         }, "Fehler beim automatischen Weiterschalten");
 
     private Task OnRestartPlaylistAsync()
@@ -306,11 +306,21 @@
     /// previous position by one, since the server may have skipped one or more non-playable or
     /// inaccessible entries to reach this result.
     /// </summary>
-    private async Task ApplyPlaylistNavigationResultAsync(DtoPlaylistNavigationResult? result)
+    /// <param name="result">The resolved next/previous entry, or <c>null</c> if there is none.</param>
+    /// <param name="isForward">
+    /// Whether this call came from forward navigation (Next/Advance) as opposed to backward navigation
+    /// (Previous). Only a <see langword="null"/> <paramref name="result"/> reached via forward navigation
+    /// means the playlist's actual end was reached and warrants the "Ende der Playlist erreicht." message;
+    /// a <see langword="null"/> result reached via backward navigation just means the playlist's beginning
+    /// was reached, which is a normal, silent no-op (there is no earlier entry to jump to) rather than an
+    /// error - previously this method set <see cref="playlistEndReached"/> regardless of direction, so
+    /// clicking "Vorheriger" on the very first entry incorrectly showed the "end reached" message.
+    /// </param>
+    private async Task ApplyPlaylistNavigationResultAsync(DtoPlaylistNavigationResult? result, bool isForward)
     {
         if (result is null)
         {
-            playlistEndReached = true;
+            playlistEndReached = isForward;
             StateHasChanged();
             return;
         }

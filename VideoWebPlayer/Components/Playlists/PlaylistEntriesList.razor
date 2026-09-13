@@ -56,7 +56,7 @@
                                 @ondragover:preventDefault="IsManualMode"
                                 @ondrop="() => OnEntryDropAsync(entry)"
                                 @ondragend="OnEntryDragEnd"
-                                @ondblclick="() => OnPlayEntry.InvokeAsync(entry)">
+                                @ondblclick="GetPlayEntryDoubleClickCallback(entry)">
                                 <td>
                                     <img class="media-poster playlist-entry-image" src="@GetImageUrl(entry)" alt="@entry.MediaTitle" loading="lazy" onerror="this.onerror=null;this.src='/images/placeholder.png';" />
                                 </td>
@@ -299,12 +299,27 @@
         => MediaPictureUrlResolver.Resolve(entry.ResolvedPictureId, Client.AuthorizationToken);
 
     /// <summary>
-    /// Whether the given entry can be directly played back (Movie or TVShowEpisode); collection entries
-    /// (TVShow, TVShowSeason, MovieCollection) are not, mirroring
-    /// <c>PlaylistService.GetNextPlaylistEntryAsync</c>'s playback-navigation filtering.
+    /// Whether the given entry can be directly played back: its media type must be directly playable
+    /// (Movie or TVShowEpisode; collection entries like TVShow, TVShowSeason, MovieCollection are not,
+    /// mirroring <c>PlaylistService.GetNextPlaylistEntryAsync</c>'s playback-navigation filtering) and it
+    /// must be accessible to the current user (<see cref="DtoPlaylistEntry.IsAccessible"/>) - locked
+    /// entries offer no "Abspielen" button and cannot be started via double-click either, instead of
+    /// letting the click reach the server and fail with a 403 that used to replace the whole detail page
+    /// (see <see cref="PlaylistDetail.playbackError"/>).
     /// </summary>
     private static bool IsPlayableEntry(DtoPlaylistEntry entry)
-        => PlaylistEntryMediaTypeResolver.IsPlayable(entry.MediaType);
+        => PlaylistEntryMediaTypeResolver.IsPlayable(entry.MediaType) && entry.IsAccessible;
+
+    /// <summary>
+    /// Builds the double-click callback for an entry row: the real "start playback" callback when
+    /// <see cref="IsPlayableEntry"/> is true, or an empty (no-op) callback otherwise, so double-clicking a
+    /// locked or non-playable (collection) row has no effect instead of reaching
+    /// <c>PlaylistClient.StartPlaylistAsync</c> with an id that cannot be started.
+    /// </summary>
+    private EventCallback GetPlayEntryDoubleClickCallback(DtoPlaylistEntry entry)
+        => IsPlayableEntry(entry)
+            ? EventCallback.Factory.Create(this, () => OnPlayEntry.InvokeAsync(entry))
+            : EventCallback.Empty;
 
     /// <summary>
     /// Moves the given entry to the true beginning of the playlist via the dedicated

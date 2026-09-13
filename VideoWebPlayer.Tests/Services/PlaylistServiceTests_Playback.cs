@@ -210,11 +210,40 @@ public class PlaylistServiceTests_Playback : PlaylistServiceTestBase
     public async Task StartPlaylistAsync_ExplicitEntryNotAccessible_ThrowsPlaylistAccessDeniedException()
     {
         var ct = TestContext.Current.CancellationToken;
-        var showId = await CreateTestMediaEntryAsync(MediaTypeValues.TVShow, "Gesperrte Serie");
-        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.TVShow, showId));
+        // Uses a Movie (playable) with no MediaSourceAccess granted, so the entry fails only the
+        // accessibility check - not the playability check that ResolveExplicitStartEntry now also
+        // performs (see StartPlaylistAsync_ExplicitEntryNotPlayable_* below), which must be distinguished
+        // from this case (403, not 400).
+        var movieId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Gesperrter Film");
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.Movie, movieId));
         var entryIds = await GetOrderedEntryIdsAsync(playlistId);
 
         await Assert.ThrowsAsync<PlaylistAccessDeniedException>(
+            () => _service.StartPlaylistAsync(playlistId, _testUserId, entryIds[0], ct));
+    }
+
+    /// <summary>
+    /// Regression tests for the "double-click on a collection entry" bug (Playlist-Wiedergabe Schritt 5,
+    /// Runde 1 Nachbesserung, Punkt 3): <see cref="PlaylistService.StartPlaylistAsync"/> with an explicit
+    /// <c>entryId</c> pointing at a non-playable collection entry (TVShow, TVShowSeason or MovieCollection)
+    /// must reject it with <see cref="InvalidOperationException"/> (mapped to 400 Bad Request) instead of
+    /// resolving it as if its MediaId were a playable movie/episode id - regardless of whether the entry is
+    /// itself accessible, since playability is checked first.
+    /// </summary>
+    /// <param name="collectionMediaType">The non-playable collection media type to test with.</param>
+    [Theory]
+    [InlineData(MediaTypeValues.TVShow)]
+    [InlineData(MediaTypeValues.TVShowSeason)]
+    [InlineData(MediaTypeValues.MovieCollection)]
+    public async Task StartPlaylistAsync_ExplicitEntryNotPlayable_ThrowsInvalidOperationException(string collectionMediaType)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var collectionEntryId = await CreateTestMediaEntryAsync(collectionMediaType, "Sammlung");
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (collectionMediaType, collectionEntryId));
+        await GrantMediaSourceAccessForUserAsync(_testUserId);
+        var entryIds = await GetOrderedEntryIdsAsync(playlistId);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
             () => _service.StartPlaylistAsync(playlistId, _testUserId, entryIds[0], ct));
     }
 

@@ -78,7 +78,9 @@ angeschaut werden können. Zugriff besteht, wenn der Anwender entweder reguläre
 zugrunde liegende Mediaquelle hat oder der Inhalt individuell für ihn freigeschaltet wurde
 (bei Filmen, Staffeln und Episoden über die übergeordnete Filmsammlung bzw. Serie); dies gilt für
 alle Medientypen. Der **Entfernen**-Button bleibt für solche Einträge weiterhin nutzbar — der
-Anwender kann einen nicht zugänglichen Eintrag also jederzeit aus der Playlist entfernen.
+Anwender kann einen nicht zugänglichen Eintrag also jederzeit aus der Playlist entfernen. Die
+**Abspielen**-Schaltfläche erscheint dagegen nicht, und ein Doppelklick auf die Zeile startet
+keine Wiedergabe (siehe Abschnitt „Wiedergabe starten").
 
 ### Sortierung und Anzeige
 
@@ -187,7 +189,9 @@ oberhalb des Players einen Playlist-Badge mit Playlist-Name und Position an, z. 
 „[Meine Favoriten: 3/12]".
 
 Sammel-Einträge (Serie, Staffel, Filmsammlung) besitzen keine Abspielen-Schaltfläche, da sie nicht
-direkt abspielbar sind — nur Filme und Episoden lassen sich starten.
+direkt abspielbar sind — nur Filme und Episoden lassen sich starten. Dasselbe gilt für nicht
+zugängliche (gesperrte) Einträge (siehe Abschnitt „Zugriffsstatus in der Liste"): auch sie zeigen
+keine Abspielen-Schaltfläche, und ein Doppelklick auf ihre Zeile bleibt wirkungslos.
 
 ### Navigation innerhalb der Playlist
 
@@ -202,10 +206,12 @@ Dabei werden automatisch übersprungen:
 - **Sammel-Einträge** (Serie, Staffel, Filmsammlung), da sie nicht direkt abspielbar sind
 - **Nicht freigeschaltete Einträge**, auf die der Anwender keinen Zugriff hat
 
-Wird dabei das Ende **oder** der Anfang der Playlist erreicht, ohne dass ein weiterer abspielbarer
-und zugänglicher Titel gefunden wird, erscheint der Hinweis „Ende der Playlist erreicht." mit einer
-Schaltfläche **„Neu starten"**, über die sich die Playlist erneut von vorne abspielen lässt (siehe
-auch Abschnitt „Automatisches Weiterschalten").
+Wird dabei über „Nächster (Playlist)" das Ende der Playlist erreicht, ohne dass ein weiterer
+abspielbarer und zugänglicher Titel gefunden wird, erscheint der Hinweis „Ende der Playlist
+erreicht." mit einer Schaltfläche **„Neu starten"**, über die sich die Playlist erneut von vorne
+abspielen lässt (siehe auch Abschnitt „Automatisches Weiterschalten"). Wird dagegen über
+„Vorheriger (Playlist)" der Anfang der Playlist erreicht, bleibt der Klick einfach wirkungslos —
+es erscheint keine Meldung, da hier kein Fehlerzustand vorliegt.
 
 ### Automatisches Weiterschalten
 

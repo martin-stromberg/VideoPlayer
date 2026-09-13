@@ -2,25 +2,84 @@
 
 ## Ergebnis
 
-**Status:** Abweichungen gefunden
+**Status:** Anforderung vollständig erfüllt
 
 ## Abweichungen
 
-- [ ] **„Vorheriger" am Playlist-Anfang meldet sichtbar „Ende der Playlist erreicht."** (der vom Implementierungsagenten gemeldete Punkt – bestätigt, und es ist ein für den Anwender sichtbarer Fehler, nicht nur eine interne Falschbenennung). Betroffen ist `VideoWebPlayer/Components/Shared/Media/VideoPlayer.razor`, Methode `ApplyPlaylistNavigationResultAsync`: bei `result is null` wird richtungsunabhängig `playlistEndReached = true` gesetzt. Da beide Richtungen (`/play/next` und `/play/previous`) bei Erreichen der jeweiligen Grenze `204 No Content` → `null` liefern, kann die Methode Anfang und Ende nicht unterscheiden. Gerendert wird daraufhin der Block `@if (playlistEndReached)` als sichtbare Bootstrap-Infobox `#playlist-end-reached` mit dem Text „Ende der Playlist erreicht." samt Schaltfläche „Neu starten". Für den Anwender heißt das: Er steht beim **ersten** Titel, drückt „Vorheriger", und bekommt die Meldung, er sei am **Ende** der Playlist angelangt – während der erste Titel weiterläuft. Zusätzlich irreführend ist die angebotene Aktion „Neu starten", die an dieser Stelle sachlich nichts bewirkt (die Playlist läuft bereits ab dem ersten Titel). Die Meldung bleibt stehen, bis eine erfolgreiche Navigation sie zurücksetzt. Die Anforderung verlangt ein sauberes Endeverhalten „ohne Fehlermeldung"; eine falsche Endemeldung am Anfang widerspricht dem und ist unter dem Prüfschwerpunkt Bedienbarkeit eine relevante Abweichung.
+Keine.
 
-- [ ] **Die Schaltfläche „Abspielen" wird auch für gesperrte (nicht freigeschaltete) Einträge angeboten und führt in eine Sackgasse.** In `VideoWebPlayer/Components/Playlists/PlaylistEntriesList.razor` entscheidet `IsPlayableEntry(entry)` ausschließlich über den Medientyp und wertet `entry.IsAccessible` **nicht** aus. Eine gesperrte Zeile wird zwar ausgegraut dargestellt (`opacity-50 text-muted`), trägt aber trotzdem den grünen Button „Abspielen". Beim Klick wirft `PlaylistService.ResolveExplicitStartEntry` eine `PlaylistAccessDeniedException`, der Controller antwortet mit `403 Forbid`, der API-Client wirft eine `HttpRequestException`, und `PlaylistDetail.StartPlaybackAsync` fängt sie in das Feld `loadError`. Wegen der exklusiven Renderkette in `PlaylistDetail.razor` (`@if (isLoading)` / `else if (!string.IsNullOrWhiteSpace(loadError))` / `else if (playlist is not null)`) wird dadurch die **komplette Playlist-Detailseite** durch eine rote Fehlerbox mit technischer HTTP-Meldung ersetzt: Playlist-Stammdaten, Sortiermodus-Auswahl, Inhaltsliste und auch die Schaltfläche „Zurueck zur Uebersicht" verschwinden. Ein nicht-technischer Anwender hat danach keinen Weg zurück außer Browser-Zurück oder erneutem Navigieren. Gefordert ist, dass fehlende Freischaltungen die Wiedergabe nicht stören; geliefert wird eine angebotene, aber nicht ausführbare Aktion mit destruktiver Fehleranzeige.
+Die drei in Runde 1 (`acceptance-schritt-5.1.md`) festgestellten Abweichungen sind durch die
+Nachbesserung (Commit `01cee57`) vollständig behoben:
 
-- [ ] **Doppelklick auf einen nicht abspielbaren Sammel-Eintrag startet die Wiedergabe mit einer falschen Medien-Id.** In `PlaylistEntriesList.razor` ist `@ondblclick="() => OnPlayEntry.InvokeAsync(entry)"` ungefiltert auf **jeder** Zeile gesetzt – anders als der „Abspielen"-Button, der über `IsPlayableEntry` korrekt nur für `Movie` und `TVShowEpisode` erscheint. Serverseitig prüft `PlaylistService.ResolveExplicitStartEntry` nur Zugehörigkeit zur Playlist und Zugriffsrecht, jedoch **nicht** die Abspielbarkeit (im Gegensatz zu `ResolveFirstPlayableEntry` und `FindAdjacentPlayableEntryAsync`, die beide `PlaylistEntryMediaTypeResolver.IsPlayable` auswerten). Ein Doppelklick auf eine Zeile vom Typ `TVShow`, `TVShowSeason` oder `MovieCollection` liefert daher diesen Sammel-Eintrag als Startpunkt zurück; da `ToPlayerMediaType` und `ResolveItemStreamType` alles außer `TVShowEpisode` auf `"movie"` abbilden, entsteht die Stream-URL `/api/items/movie/{Id-der-Serie-bzw.-Sammlung}/stream`. Der Player öffnet sich also mit einer Film-Id, die der Serien-/Sammlungs-Id entspricht – je nach Datenbestand bleibt der Player leer oder es startet ein völlig unbeteiligter Film. Die Anforderung verlangt die Wiedergabe ab einem enthaltenen **Titel**; dieser Bedienweg verletzt das.
+1. **Falsche Meldung „Ende der Playlist erreicht" am Playlist-Anfang** – behoben.
+   `ApplyPlaylistNavigationResultAsync(result, isForward)` setzt `playlistEndReached = isForward`
+   (`VideoPlayer.razor`, Zeile 323). Beide Richtungen wurden geprüft:
+   - Rückwärts (`OnPreviousPlaylistEntryAsync` → `isForward: false`): kein Ende-Hinweis, stiller
+     No-Op, Player bleibt mit dem laufenden Titel bestehen.
+   - Vorwärts (`OnNextPlaylistEntryAsync` und `OnMediaEndAsync`/Auto-Advance → `isForward: true`):
+     Ende-Hinweis erscheint weiterhin korrekt als `alert-info` (keine Fehlermeldung), der Player
+     bleibt intakt, „Neu starten" wird angeboten.
+   Die Unterscheidung trägt sauber bis zum Server durch: `GetNext`/`GetPrevious`/`Advance` liefern am
+   Rand `204 No Content` (`PlaylistsController.cs`), der Client übersetzt das über
+   `PostForOptionalPlaylistNavigationResultAsync(..., treatNoContentAsNull: true)` in `null` – die
+   Richtung ist also die einzige unterscheidende Information und wird jetzt ausgewertet.
+
+2. **„Abspielen" auf gesperrten Einträgen führte in eine Sackgasse** – behoben.
+   `IsPlayableEntry` prüft zusätzlich `entry.IsAccessible` (`PlaylistEntriesList.razor`, Zeile 311),
+   dadurch entfällt der Button; `@ondblclick` ist über `GetPlayEntryDoubleClickCallback` an dieselbe
+   Bedingung gekoppelt und liefert sonst `EventCallback.Empty`. `IsAccessible` wird serverseitig real
+   befüllt (`PlaylistService.cs`, Zeile 526) und ist im DTO mit `true` vorbelegt, es entsteht also
+   kein Umkehrfehler, der die Buttons flächendeckend ausblenden würde.
+
+3. **Doppelklick auf Sammel-Einträge startete den Player mit falscher Medien-Id** – behoben.
+   `ResolveExplicitStartEntry` prüft jetzt vor der Zugriffsprüfung
+   `PlaylistEntryMediaTypeResolver.IsPlayable(entry.MediaType)` und wirft sonst eine
+   `InvalidOperationException`, die der Controller-Wrapper auf `400` abbildet. Damit prüft der
+   explizite Startpfad dieselbe Abspielbarkeit wie `ResolveFirstPlayableEntry` und
+   `FindAdjacentPlayableEntryAsync`; die UI verhindert den Fall zusätzlich schon im Browser.
+
+**Robustheit der Korrektur zu Punkt 2:** Die Fehleranzeige ist nicht auf den gemeldeten 403-Fall
+zugeschnitten. `StartPlaybackAsync` ist der einzige Einstieg in die Wiedergabe – sowohl über
+„Abspielen"/Doppelklick (`PlayEntryAsync`) als auch über den URL-Parameter `?entryId=` beim Laden der
+Seite (`OnInitializedAsync`) – und fängt dort *jede* Exception in `playbackError` statt in `loadError`
+ab. Da nur `loadError` in der exklusiven `if/else if`-Renderkette der Seite steht, bleiben Playlist
+und Eintragsliste in allen Fehlerfällen sichtbar, z. B. auch bei 400 (nicht abspielbarer Eintrag),
+404 (Eintrag gehört nicht zur Playlist), 400 (Playlist enthält gar keine abspielbaren Einträge) und
+Netz-/Serverfehlern. `playbackError` wird bei Erfolg und beim Schließen des Players wieder
+zurückgesetzt, bleibt also nicht als Altlast stehen.
+
+**Keine Beschädigung der zuvor bestätigten Aspekte:** Positionsanzeige weiterhin aus
+`DtoPlaylistNavigationResult.Position` (nicht inkrementiert), Sortierreihenfolge weiterhin über
+`SortPlaylistEntriesForModeAsync` maßgeblich, Überspringen gesperrter und nicht abspielbarer Einträge
+in `FindAdjacentPlayableEntryAsync` unverändert für Vorwärts- und Rückwärtsrichtung,
+Auto-Advance unverändert über `@onended`, Navigationsfehler weiterhin über
+`RunPlaylistNavigationActionAsync` in eine Inline-Meldung statt in einen Circuit-Abriss. Ohne
+`PlaylistContext` werden Badge, Navigationsleiste und Ende-Hinweis nicht gerendert und
+`OnMediaEndAsync` steigt sofort aus – die Wiedergabe außerhalb von Playlists bleibt unverändert.
+
+**Verifikation:** `dotnet build` fehlerfrei; 289 Playlist-Tests grün. Die vier einschlägigen
+E2E-Tests laufen nachweislich gegen einen echten Headless-Browser (je 9–12 s, kein
+`SkipBrowser`-Kurzschluss): `PlaylistPreviousAtBeginningDoesNotShowEndReachedE2ETest`,
+`PlaylistEndBehaviorE2ETest`, `PlaylistLockedEntryPlayButtonHiddenAndDoubleClickHasNoEffectE2ETest`,
+`PlaylistDoubleClickCollectionEntryHasNoEffectE2ETest`.
 
 ## Hinweise
 
-- Die Kernmechanik des Schritts ist tragfähig umgesetzt: Start ab beliebigem Eintrag über `POST /api/playlists/{id}/play`, automatisches Weiterschalten über `@onended` → `/play/advance`, manuelle Navigation über `/play/next` und `/play/previous`. Alle vier Wege laden die Einträge über dieselben Helfer `LoadValidPlaylistEntriesAsync` und `SortPlaylistEntriesForModeAsync`, die auch die Listenansicht verwendet – die jeweils gültige Sortierreihenfolge (automatisch nach Datum mit Fallback-Kette bzw. manuell nach `SortOrder`) gilt damit nachweislich auch für die Wiedergabe.
-- Die Positionsanzeige ist korrekt gelöst und **nicht** als feste +1/-1-Inkrementierung implementiert: `FindAdjacentPlayableEntryAsync` liefert die tatsächliche 1-basierte Position aus der sortierten Gesamtliste über `DtoPlaylistNavigationResult.Position` mit, und `ApplyPlaylistNavigationResultAsync` übernimmt genau diesen Wert. Der E2E-Test `PlaylistSkipLockedEntriesE2ETest` belegt das explizit (Sprung von 1/3 auf 3/3 über einen gesperrten Eintrag hinweg).
-- Das Überspringen gesperrter Titel beim Weiterschalten funktioniert tatsächlich auf Navigationsebene (Auswertung von `_accessResolver.ResolveAccessibilityAsync` in `FindAdjacentPlayableEntryAsync`) und nicht nur als Ausgrauen in der Liste. Ebenso werden nicht abspielbare Sammel-Einträge beim Weiterschalten übersprungen.
-- Die Fehlerbehandlung der Navigationsaktionen ist wie gefordert gelöst: `RunPlaylistNavigationActionAsync` fängt jede Ausnahme, protokolliert sie und zeigt eine Inline-Meldung `#playlist-navigation-error` an, statt die Ausnahme aus dem Blazor-Event-Handler laufen zu lassen und damit den Circuit abzureißen. Dieses Muster fehlt allerdings genau beim **Start** der Wiedergabe (siehe zweite Abweichung).
-- Kein Regressionsbefund für die Wiedergabe außerhalb von Playlists: Badge und Navigationsschaltflächen hängen an `currentPlaylistId.HasValue`, `OnMediaEndAsync` kehrt ohne Playlist-Kontext sofort zurück, und `VideoPlaybackOutsidePlaylistE2ETest` prüft die Abwesenheit beider Elemente. Der neu eingeführte `videoPlayer.reload`-Aufruf greift zwar auch beim ersten Rendern außerhalb von Playlists (ein zusätzliches `load()`), die Wiederaufnahmeposition wird jedoch danach angewandt, da `_startApplied` im selben Renderdurchlauf zurückgesetzt und `setStartPosition` anschließend ausgeführt wird.
-- Auf der Playlist-Detailseite gibt es keine Schaltfläche „Playlist von Anfang abspielen". Der serverseitig vorhandene Weg `StartPlaylistAsync(id, entryId: null)` wird ausschließlich vom „Neu starten"-Button im Player genutzt. Die Anforderung verlangt das nicht zwingend (Start ab beliebigem Titel ist über den Eintrags-Button abgedeckt), für die Bedienbarkeit wäre ein solcher Einstieg aber naheliegend.
-- Der Kontext-Badge wird als `[Playlistname: Position/Gesamt]` in Klammernotation ausgegeben. Die Klasse `playlist-playback-badge` ist in keiner CSS-Datei definiert, der Badge erbt also nur den Kartenhintergrund des Players. Inhaltlich erkennbar, gestalterisch unauffällig gegenüber dem sonstigen Erscheinungsbild.
-- Position und Gesamtzahl im Badge zählen **alle** Playlist-Einträge mit, also auch nicht abspielbare Sammel-Einträge und gesperrte Titel. Das passt zur Nummerierung der Listenansicht, führt für den Anwender aber zu scheinbar springenden Positionen (1/3 direkt gefolgt von 3/3) und ist ohne Erklärung irritierend.
-- Der Doppelklick auf eine Zeile als zweiter Startweg ist nirgends angekündigt (kein Tooltip, kein Hinweistext). Da der „Abspielen"-Button denselben Zweck sichtbar erfüllt, ist das für sich genommen unkritisch.
-- Prüfstand: `dotnet build VideoPlayer.sln` fehlerfrei (nur zwei bekannte NU1902-Paketwarnungen), `dotnet test --filter "FullyQualifiedName~Playlist"` mit 278 von 278 bestandenen Tests. Kein Test deckt den Fall „Vorheriger am Playlist-Anfang" ab, was erklärt, warum die erste Abweichung unentdeckt blieb.
+- **Bedienbarkeit gesperrter Zeilen:** Gesperrte Einträge sind nur optisch abgesetzt
+  (`opacity-50 text-muted`); ein Doppelklick darauf bleibt jetzt korrekt wirkungslos, gibt dem
+  Anwender aber keine Rückmeldung, *warum* nichts passiert. Ein kurzer Hinweis (z. B. `title`-Tooltip
+  „Nicht freigeschaltet" an der Zeile) wäre eine sinnvolle Ergänzung. Kein Verstoß gegen die
+  Anforderung, da die Sackgasse beseitigt ist.
+- **Randfall Ein-Titel-Playlist:** Enthält eine Playlist nur einen abspielbaren Titel, ist dieser
+  gleichzeitig Anfang und Ende. Wird nach dem Ende-Hinweis „Vorheriger" geklickt, setzt
+  `playlistEndReached = isForward` den Hinweis auf `false` zurück – Meldung und „Neu starten"-Button
+  verschwinden, ohne dass sich sonst etwas ändert. Fachlich unschädlich (die Wiedergabe endet
+  weiterhin ohne Fehler), optisch aber leicht irritierend.
+- **Statuscode-Reihenfolge:** Ein Eintrag, der gleichzeitig nicht abspielbar *und* nicht
+  freigeschaltet ist, liefert jetzt `400` statt wie zuvor `403`, da die Abspielbarkeitsprüfung vor der
+  Zugriffsprüfung steht. Da beide Fälle in der UI identisch als Inline-Meldung erscheinen und der
+  Einstieg ohnehin unterbunden ist, ohne Auswirkung auf die Anforderung.
+- **Außerhalb dieses Schritts:** `ConfirmDeleteAsync` in `PlaylistDetail.razor` setzt im Fehlerfall
+  weiterhin `loadError` und ersetzt damit die gesamte Detailseite – dasselbe Muster, das für die
+  Wiedergabe jetzt behoben wurde. Betrifft das Löschen (Schritt 1/2), nicht die Wiedergabe, und wurde
+  daher nicht als Abweichung dieses Schritts gewertet.

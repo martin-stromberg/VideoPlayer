@@ -18,6 +18,7 @@
     private readonly Dictionary<long, string> titles = new();
     private readonly Dictionary<long, string> images = new();
     private readonly Dictionary<long, string> links = new();
+    private readonly Dictionary<long, string?> playlistSubtitles = new();
 
     private ElementReference listRef;
 
@@ -49,6 +50,7 @@
         titles.Clear();
         images.Clear();
         links.Clear();
+        playlistSubtitles.Clear();
 
         foreach (var it in Items)
         {
@@ -56,6 +58,22 @@
             images[it.Entry.Id] = it.PosterPictureId.HasValue
                 ? $"/api/pictures/{it.PosterPictureId}?access_token={Client.AuthorizationToken}"
                 : "/images/placeholder.png";
+            playlistSubtitles[it.Entry.Id] = it.PlaylistId.HasValue && !string.IsNullOrWhiteSpace(it.PlaylistName)
+                ? $"In Playlist: {it.PlaylistName}"
+                : null;
+
+            // Ein Eintrag mit Playlist-Bezug fuehrt in die Playlist, aus der er stammt. Ist die konkrete
+            // PlaylistEntry.Id bekannt (Medium ist noch Teil der Playlist), wird sie als ?entryId= mitgegeben,
+            // damit PlaylistDetail.razor den PlaylistPlaybackContext ueber StartPlaylistAsync(playlistId, entryId)
+            // exakt an der Ursprungsposition rekonstruiert. Fehlt sie (z.B. Medium zwischenzeitlich aus der
+            // Playlist entfernt), wird ohne entryId navigiert (bisheriges Verhalten als Fallback).
+            if (it.PlaylistId.HasValue)
+            {
+                links[it.Entry.Id] = it.PlaylistEntryId.HasValue
+                    ? $"/playlists/{it.PlaylistId}?entryId={it.PlaylistEntryId}"
+                    : $"/playlists/{it.PlaylistId}";
+                continue;
+            }
 
             // Link ableiten: einfache Heuristik (wie in RecentEntriesList für Movie),
             // optional später durch genauere Auflösung ersetzen
@@ -91,8 +109,8 @@
         {
             ContinueWatchingMutationResult result = action switch
             {
-                "hide" => await Client.HideContinueWatchingAsync(item.MediaType, item.Entry.Id),
-                "skip" => await Client.SkipContinueWatchingAsync(item.MediaType, item.Entry.Id),
+                "hide" => await Client.HideContinueWatchingAsync(item.MediaType, item.Entry.Id, item.PlaylistId),
+                "skip" => await Client.SkipContinueWatchingAsync(item.MediaType, item.Entry.Id, item.PlaylistId),
                 _ => new ContinueWatchingMutationResult("ignored", "Aktion ist nicht verfügbar.")
             };
 
@@ -128,6 +146,7 @@
                 {
                     <MediaBox @key="it.Entry.Id"
                               Title="@titles[it.Entry.Id]"
+                              Subtitle="@playlistSubtitles[it.Entry.Id]"
                               ImageUrl="@images[it.Entry.Id]"
                               LinkUrl="@links[it.Entry.Id]"
                               WatchedAt="@it.WatchedAt"

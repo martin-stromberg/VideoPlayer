@@ -214,3 +214,98 @@ if (position < MinStart) return Task.CompletedTask;
 ```
 
 **Begründung:** Verhindert Puffer-Überlauf durch kurze Testabrufe oder Ladezeit-Spitzen.
+
+---
+
+## Regel: Eindeutigkeit durch (UserId, MediaId, PlaylistId)
+
+**Beschreibung:** Ein Benutzer kann pro Media (Film oder Episode) pro Playlist nur einen Eintrag in der Weiterschauen-Liste haben. Zusätzlich kann ein Benutzer pro Media eine Variante ohne Playlist-Bezug (PlaylistId = NULL) haben. Kombinationen unterschiedlicher Playlists oder Playlist vs. Non-Playlist sind jedoch unabhängige Einträge.
+
+**Bedingungen:**
+- Ein Video wird aus einer Playlist heraus gestartet (PlaylistId gesetzt) oder außerhalb einer Playlist (PlaylistId = NULL)
+- Benutzer hat bereits einen Eintrag für dieses Video in derselben Playlist-Kombination
+
+**Verhalten:**
+- Das System sucht den vorhandenen Eintrag mit `(UserId, MovieId OR TVShowEpisodeId, PlaylistId)`
+- Falls vorhanden: Position wird aktualisiert (Upsert-Verhalten), kein neuer Eintrag wird erstellt
+- Falls nicht vorhanden: Ein neuer Eintrag wird erstellt
+- Sind verschiedene Playlist-Varianten vorhanden, werden diese als separate Einträge behandelt
+
+**Umsetzung:** `ContinueWatchingService.UpsertAsync()`:
+```csharp
+var entry = await _db.ContinueWatchingEntries
+    .FirstOrDefaultAsync(x => x.UserId == userId 
+                           && x.MovieId == nextMovieId 
+                           && x.TVShowEpisodeId == nextEpisodeId 
+                           && x.PlaylistId == playlistId, ct);
+
+if (entry == null)
+{
+    // Neuer Eintrag wird erstellt mit dieser PlaylistId
+}
+else
+{
+    // Position wird aktualisiert
+}
+```
+
+**Begründung:** Diese Regel ermöglicht es, dasselbe Video mehrfach in der Weiterschauen-Liste zu haben — einmal pro Playlist plus optional eine Non-Playlist-Variante — und jede Variante individuell zu verwalten (eigener Fortschritt, eigene Ausblendung, eigenes Überspringen).
+
+---
+
+## Regel: Gesehen-Markierung ist playlist-übergreifend
+
+**Beschreibung:** Wenn ein Benutzer ein Video zu Ende schaut (Fortschritt nahe am Ende), werden ALLE Varianten dieses Videos aus der Weiterschauen-Liste entfernt — unabhängig davon, mit welcher Playlist oder ohne Playlist sie verknüpft sind.
+
+**Bedingungen:**
+- Benutzer schaut ein Video bis zum Ende (weniger als 30 Sekunden verbleibend)
+- Es können mehrere Varianten des Videos in der Liste sein (verschiedene Playlists, mit/ohne Playlist)
+
+**Verhalten:**
+- Das System markiert das Video global als „gesehen" (registriert in der `WatchedEntry`-Tabelle)
+- Es entfernt alle `ContinueWatchingEntry` für `(UserId, MovieId OR TVShowEpisodeId)` **ohne PlaylistId-Filter**
+- Dies geschieht **vor** der Ermittlung des nächsten Videos
+- Anschließend wird die nächste Episode/nächster Film mit der **aktuellen** PlaylistId eingefügt (falls vorhanden)
+
+**Umsetzung:** `ContinueWatchingService.ProcessBufferedEntryAsync()` (Zeilen 265–275):
+```csharp
+// Gesehen-Markierung ist playlist-uebergreifend: ALLE Varianten dieses Videos werden
+// entfernt, unabhaengig von ihrer PlaylistId.
+var existingEntries = await _db.ContinueWatchingEntries
+    .Where(x => x.UserId == userId && x.MovieId == movieId && x.TVShowEpisodeId == episodeId)
+    .ToListAsync(ct);
+
+if (existingEntries.Count > 0)
+{
+    _db.ContinueWatchingEntries.RemoveRange(existingEntries);
+    await _db.SaveChangesAsync(ct);
+}
+```
+
+**Begründung:** Die Gesehen-Markierung ist eine globale, benutzerweite Information („dieses Video habe ich gesehen"). Sie sollte nicht playlist-spezifisch sein. Dies verhindert auch Verwirrung: Wenn ein Benutzer das gleiche Video in zwei verschiedenen Playlists zu Ende schaut, würde erwartet, dass es überall als gesehen markiert wird, nicht nur in einer Playlist.
+
+---
+
+## Regel: Ausblenden und Überspringen sind playlist-spezifisch
+
+**Beschreibung:** Die manuellen Aktionen „Ausblenden" und „Überspringen" wirken nur auf die jeweilige Playlist-Variante eines Eintrags.
+
+**Bedingungen:**
+- Benutzer klickt „Ausblenden" oder „Überspringen" auf einem Eintrag in der Weiterschauen-Liste
+- Der Eintrag hat optional eine PlaylistId
+
+**Verhalten (Ausblenden):**
+- Das System sucht den Eintrag mit `(UserId, MovieId OR TVShowEpisodeId, PlaylistId)`
+- Falls vorhanden: Dieser eine Eintrag wird gelöscht
+- Alle anderen Varianten (mit anderen Playlists oder ohne) bleiben erhalten
+
+**Verhalten (Überspringen):**
+- Das System sucht den Eintrag mit `(UserId, MovieId OR TVShowEpisodeId, PlaylistId)`
+- Falls vorhanden: Dieser Eintrag wird gelöscht
+- Beim Ermitteln der nächsten Media (Episode oder Film) wird aber die **aktuelle Playlist-ID beibehalten**
+- Der Eintrag für die nächste Media wird mit derselben PlaylistId erstellt
+- Alle anderen Varianten des alten Videos bleiben erhalten
+
+**Umsetzung:** `ContinueWatchingService.HideAsync()` und `SkipAsync()` verwenden beide die PlaylistId in der Eindeutigkeitsabfrage.
+
+**Begründung:** Dies ermöglicht eine granulare Verwaltung: Ein Benutzer kann z. B. ein Video in Playlist A ausblenden, es aber weiterhin in Playlist B und als Non-Playlist-Variante in der Weiterschauen-Liste haben. Dies ist nützlich, wenn der Benutzer den Titel „dort" fortsetzen, aber „hier" nicht mehr sehen möchte.

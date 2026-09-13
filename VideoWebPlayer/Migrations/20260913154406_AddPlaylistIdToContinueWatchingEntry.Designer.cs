@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using VideoWebPlayer.Data;
 
@@ -10,9 +11,11 @@ using VideoWebPlayer.Data;
 namespace VideoWebPlayer.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260913154406_AddPlaylistIdToContinueWatchingEntry")]
+    partial class AddPlaylistIdToContinueWatchingEntry
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.10");
@@ -545,16 +548,6 @@ namespace VideoWebPlayer.Migrations
                     b.HasIndex("PlaylistId");
 
                     b.HasIndex("TVShowEpisodeId");
-
-                    b.HasIndex("UserId", "MovieId")
-                        .IsUnique()
-                        .HasDatabaseName("IX_ContinueWatchingEntries_UserId_MovieId_NoPlaylist")
-                        .HasFilter("[MovieId] IS NOT NULL AND [PlaylistId] IS NULL");
-
-                    b.HasIndex("UserId", "TVShowEpisodeId")
-                        .IsUnique()
-                        .HasDatabaseName("IX_ContinueWatchingEntries_UserId_TVShowEpisodeId_NoPlaylist")
-                        .HasFilter("[TVShowEpisodeId] IS NOT NULL AND [PlaylistId] IS NULL");
 
                     b.HasIndex("UserId", "ListOrder", "UpdatedAt");
 

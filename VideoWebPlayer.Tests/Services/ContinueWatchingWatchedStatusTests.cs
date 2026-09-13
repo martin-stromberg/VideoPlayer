@@ -18,7 +18,7 @@ public sealed class ContinueWatchingWatchedStatusTests : ContinueWatchingService
             null,
             Duration - TimeSpan.FromSeconds(30),
             Duration,
-            ct);
+            ct: ct);
 
         var watched = await _db.WatchedEntries.SingleAsync(x => x.UserId == _testUserId && x.MovieId == movieId, ct);
         Assert.True(watched.WatchedAt > DateTime.MinValue);
@@ -36,7 +36,7 @@ public sealed class ContinueWatchingWatchedStatusTests : ContinueWatchingService
             null,
             Duration - TimeSpan.FromSeconds(31),
             Duration,
-            ct);
+            ct: ct);
 
         Assert.Empty(await _db.WatchedEntries.Where(x => x.UserId == _testUserId && x.MovieId == movieId).ToListAsync(ct));
     }
@@ -47,8 +47,8 @@ public sealed class ContinueWatchingWatchedStatusTests : ContinueWatchingService
         var ct = TestContext.Current.CancellationToken;
         var episodeId = 789L;
 
-        await _service.ProcessBufferedEntryAsync(_testUserId, null, episodeId, Duration - TimeSpan.FromSeconds(10), Duration, ct);
-        await _service.ProcessBufferedEntryAsync(_testUserId, null, episodeId, Duration - TimeSpan.FromSeconds(5), Duration, ct);
+        await _service.ProcessBufferedEntryAsync(_testUserId, null, episodeId, Duration - TimeSpan.FromSeconds(10), Duration, ct: ct);
+        await _service.ProcessBufferedEntryAsync(_testUserId, null, episodeId, Duration - TimeSpan.FromSeconds(5), Duration, ct: ct);
 
         Assert.Single(await _db.WatchedEntries.Where(x => x.UserId == _testUserId && x.TVShowEpisodeId == episodeId).ToListAsync(ct));
     }

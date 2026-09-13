@@ -33,7 +33,7 @@ public class ContinueWatchingContextMenuActionTests : ContinueWatchingServiceTes
         });
         await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var removed = await _service.HideAsync(_testUserId, movie.Id, null, TestContext.Current.CancellationToken);
+        var removed = await _service.HideAsync(_testUserId, movie.Id, null, ct: TestContext.Current.CancellationToken);
 
         Assert.True(removed);
         Assert.False(await _db.ContinueWatchingEntries.AnyAsync(e => e.UserId == _testUserId && e.MovieId == movie.Id, TestContext.Current.CancellationToken));
@@ -60,7 +60,7 @@ public class ContinueWatchingContextMenuActionTests : ContinueWatchingServiceTes
         });
         await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var result = await _service.SkipAsync(_testUserId, null, episode1.Id, TestContext.Current.CancellationToken);
+        var result = await _service.SkipAsync(_testUserId, null, episode1.Id, ct: TestContext.Current.CancellationToken);
 
         Assert.Equal(ContinueWatchingService.SkipResult.Replaced, result);
         var entry = await _db.ContinueWatchingEntries.SingleAsync(e => e.UserId == _testUserId, TestContext.Current.CancellationToken);
@@ -89,7 +89,7 @@ public class ContinueWatchingContextMenuActionTests : ContinueWatchingServiceTes
         });
         await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var result = await _service.SkipAsync(_testUserId, null, episode.Id, TestContext.Current.CancellationToken);
+        var result = await _service.SkipAsync(_testUserId, null, episode.Id, ct: TestContext.Current.CancellationToken);
 
         Assert.Equal(ContinueWatchingService.SkipResult.RemovedWithoutNext, result);
         Assert.False(await _db.ContinueWatchingEntries.AnyAsync(e => e.UserId == _testUserId, TestContext.Current.CancellationToken));
@@ -111,7 +111,7 @@ public class ContinueWatchingContextMenuActionTests : ContinueWatchingServiceTes
         });
         await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var result = await _service.SkipAsync(_testUserId, first.Id, null, TestContext.Current.CancellationToken);
+        var result = await _service.SkipAsync(_testUserId, first.Id, null, ct: TestContext.Current.CancellationToken);
 
         Assert.Equal(ContinueWatchingService.SkipResult.Replaced, result);
         var entry = await _db.ContinueWatchingEntries.SingleAsync(e => e.UserId == _testUserId, TestContext.Current.CancellationToken);

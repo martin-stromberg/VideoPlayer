@@ -153,7 +153,7 @@
 
         if (Show && !_attached && _videoRef.Context != null && !string.IsNullOrWhiteSpace(MediaType) && MediaId > 0)
         {
-            await JS.InvokeVoidAsync("continueWatching.attach", _videoRef, MediaType, MediaId, "", AuthToken ?? "");
+            await JS.InvokeVoidAsync("continueWatching.attach", _videoRef, MediaType, MediaId, "", AuthToken ?? "", currentPlaylistId);
             _attached = true;
         }
 

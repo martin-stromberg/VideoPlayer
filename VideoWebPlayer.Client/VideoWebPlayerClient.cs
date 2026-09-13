@@ -532,10 +532,11 @@ namespace VideoWebPlayer.Client
         /// </summary>
         /// <param name="mediaType">The type of the media entry (e.g. movie or episode).</param>
         /// <param name="mediaId">The identifier of the media entry.</param>
+        /// <param name="playlistId">The playlist identifier of the entry, or <c>null</c> for a non-playlist entry.</param>
         /// <returns>The result of the mutation.</returns>
-        public async Task<ContinueWatchingMutationResult> HideContinueWatchingAsync(string mediaType, long mediaId)
+        public async Task<ContinueWatchingMutationResult> HideContinueWatchingAsync(string mediaType, long mediaId, long? playlistId = null)
         {
-            var json = JsonSerializer.Serialize(new { MediaType = mediaType, MediaId = mediaId });
+            var json = JsonSerializer.Serialize(new { MediaType = mediaType, MediaId = mediaId, PlaylistId = playlistId });
             return await HttpPostAsync<ContinueWatchingMutationResult>(
                 "api/continue-watching/hide",
                 new StringContent(json, System.Text.Encoding.UTF8, new System.Net.Http.Headers.MediaTypeHeaderValue("application/json")));
@@ -546,10 +547,11 @@ namespace VideoWebPlayer.Client
         /// </summary>
         /// <param name="mediaType">The type of the media entry (e.g. movie or episode).</param>
         /// <param name="mediaId">The identifier of the media entry.</param>
+        /// <param name="playlistId">The playlist identifier of the entry, or <c>null</c> for a non-playlist entry.</param>
         /// <returns>The result of the mutation.</returns>
-        public async Task<ContinueWatchingMutationResult> SkipContinueWatchingAsync(string mediaType, long mediaId)
+        public async Task<ContinueWatchingMutationResult> SkipContinueWatchingAsync(string mediaType, long mediaId, long? playlistId = null)
         {
-            var json = JsonSerializer.Serialize(new { MediaType = mediaType, MediaId = mediaId });
+            var json = JsonSerializer.Serialize(new { MediaType = mediaType, MediaId = mediaId, PlaylistId = playlistId });
             return await HttpPostAsync<ContinueWatchingMutationResult>(
                 "api/continue-watching/skip",
                 new StringContent(json, System.Text.Encoding.UTF8, new System.Net.Http.Headers.MediaTypeHeaderValue("application/json")));

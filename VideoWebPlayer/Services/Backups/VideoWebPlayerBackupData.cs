@@ -47,6 +47,7 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         $"{nameof(ApplicationDbContext.Pictures)}.{nameof(Picture.IsGeneratedBackground)}",
         $"{nameof(ApplicationDbContext.Pictures)}.{nameof(Picture.EpisodeId)}",
         $"{nameof(ApplicationDbContext.ContinueWatchingEntries)}.{nameof(ContinueWatchingEntry.ListOrder)}",
+        $"{nameof(ApplicationDbContext.ContinueWatchingEntries)}.{nameof(ContinueWatchingEntry.PlaylistId)}",
         $"{nameof(ApplicationDbContext.Movies)}.{nameof(Movie.ActorsClassifiedAt)}",
         $"{nameof(ApplicationDbContext.TVShowEpisodes)}.{nameof(TVShowEpisode.ActorsClassifiedAt)}",
         $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ActorCollectionThresholdPercent)}",
@@ -108,6 +109,14 @@ public sealed class VideoWebPlayerBackupData : IBackupData
     /// <summary>
     /// Creates a new backup data object.
     /// </summary>
+    /// <param name="name">The unique storage location of this backup object.</param>
+    /// <param name="contentType">The unique type identifier of this backup object.</param>
+    /// <param name="db">The application database context to back up or restore.</param>
+    /// <param name="environment">The current web host environment.</param>
+    /// <param name="logger">Logger instance.</param>
+    /// <param name="factory">The factory that created this instance, providing the restoring user id and progress reporting, if any.</param>
+    /// <param name="generation">The backup generation metadata to embed, if any.</param>
+    /// <param name="createdAtUtc">The creation timestamp to embed, or <c>null</c> to use the current time.</param>
     public VideoWebPlayerBackupData(
         string name,
         string contentType,

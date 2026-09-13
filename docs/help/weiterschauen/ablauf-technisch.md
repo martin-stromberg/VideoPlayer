@@ -15,12 +15,15 @@ Das "Weiterschauen"-Feature besteht aus zwei Hauptkomponenten: dem Puffer-System
 Wenn die Anwendung eine Wiedergabeposition übermittelt:
 
 1. Position muss mindestens 5 Sekunden betragen (Rausch-Filter)
-2. Einträge werden mit Benutzer-ID, Media-ID und Position in den `ContinueWatchingBuffer` eingefügt
-3. Puffer sammelt Einträge und dedupliziert sie (nur die neueste Position pro Media pro Benutzer wird behalten)
+2. Optional werden die Playlist-Kontext-Informationen extrahiert (sofern das Video aus einer Playlist heraus gestartet wurde)
+3. Playlist-Ownership wird validiert: Wenn eine `PlaylistId` übergeben wird, wird geprüft, dass der Benutzer diese Playlist besitzt
+4. Einträge werden mit Benutzer-ID, Media-ID, Position **und optional Playlist-ID** in den `ContinueWatchingBuffer` eingefügt
+5. Puffer sammelt Einträge und dedupliziert sie (nur die neueste Position pro Media-Playlist-Kombination pro Benutzer wird behalten)
 
 Beteiligte Komponenten:
 - `ContinueWatchingService` (Methode `ReportProgressAsync`)
 - `ContinueWatchingBuffer` (In-Memory-Puffer)
+- `IPlaylistService` (zur Validierung der Playlist-Ownership, falls `PlaylistId` vorhanden)
 
 ### 2. Worker verarbeitet Puffer
 
@@ -46,6 +49,8 @@ if (duration - position <= EndThreshold)  // EndThreshold = 30 Sekunden
 ```
 
 Wenn `duration - position <= 30 Sekunden`, gilt die Media als abgeschlossen.
+
+**Wichtig:** Ist die Media zu Ende, werden **ALLE Varianten** dieses Videos aus der Weiterschauen-Liste entfernt — unabhängig von ihrer `PlaylistId`. Dies geschieht durch eine Abfrage auf `(UserId, MediaId)` ohne Playlist-Filter. Dies ist das playlist-übergreifende Verhalten der Gesehen-Markierung (`WatchedEntry`).
 
 ### 2. Ermittlung der nächsten Episode (für Serien)
 
@@ -121,24 +126,25 @@ Wenn `duration - position <= 30 Sekunden`, gilt die Media als abgeschlossen.
 
 ### 4. Bereinigung der "Weiterschauen"-Liste
 
-**Komponente:** `ContinueWatchingService.UpsertAsync()`
+**Komponente:** `ContinueWatchingService.UpsertAsync()` und `RemoveExistingTVShowEntry()` / `RemoveExtsingMovieCollectionEntry()`
 
 Wenn eine neue Episode oder ein neuer Film hinzugefügt wird:
 
-1. **Für Serien:** Alle anderen Episoden derselben Serie entfernen
-   - Query: Alle `ContinueWatchingEntry` mit gleicher `TVShowId` (über Episode → Season → Show-Verknüpfung), aber unterschiedlicher `TVShowEpisodeId`
+1. **Für Serien:** Alle anderen Episoden derselben Serie und **gleicher Playlist** entfernen
+   - Query: Alle `ContinueWatchingEntry` mit gleicher `TVShowId` (über Episode → Season → Show-Verknüpfung), aber unterschiedlicher `TVShowEpisodeId` **und gleicher `PlaylistId`**
+   - Diese Einträge werden gelöscht
+   - **Wichtig:** Nur Einträge mit der gleichen `PlaylistId` werden entfernt. Sind mehrere Playlist-Varianten vorhanden, werden nur diejenigen mit der gleichen Playlist-ID bereinigt.
+
+2. **Für Filme:** Alle anderen Filme derselben Sammlung und **gleicher Playlist** entfernen
+   - Query: Alle `ContinueWatchingEntry` mit gleicher `MovieCollectionId`, aber unterschiedlicher `MovieId` **und gleicher `PlaylistId`**
    - Diese Einträge werden gelöscht
 
-2. **Für Filme:** Alle anderen Filme derselben Sammlung entfernen
-   - Query: Alle `ContinueWatchingEntry` mit gleicher `MovieCollectionId`, aber unterschiedlicher `MovieId`
-   - Diese Einträge werden gelöscht
-
-3. Neue oder aktualisierte Episode/Film wird eingefügt/aktualisiert
+3. Neue oder aktualisierte Episode/Film wird eingefügt/aktualisiert (mit der entsprechenden `PlaylistId`)
 
 4. SignalR-Benachrichtigung (`ContinueWatchingUpdated`) wird an den Benutzer gesendet
 
 **Beteiligte Klassen:**
-- `ContinueWatchingEntry` (Datenbankentität)
+- `ContinueWatchingEntry` (Datenbankentität mit optionalem `PlaylistId`)
 - `MediaUpdateNotificationService` (SignalR-Benachrichtigungen)
 - Entity Framework Core (Change Tracker)
 

@@ -11,7 +11,7 @@ VideoWebPlayer ist eine selbst gehostete ASP.NET-Core-/Blazor-Anwendung für die
 - Medienquellen per lokaler Ablage, FTP oder SFTP verwalten.
 - Filme, Serien, Staffeln und Episoden indizieren und kategorisieren.
 - Poster, Banner, Fanart und Hintergrundbilder anzeigen.
-- Favoriten, Weiterschauen-Positionen und Gesehen-Kennzeichen pro Benutzer speichern.
+- Favoriten, Weiterschauen-Positionen (mit optionalem Playlist-Bezug) und Gesehen-Kennzeichen pro Benutzer speichern.
 - Eigene Playlists anlegen, öffnen (mit Detailseite), bearbeiten und löschen; Filme, Serien, Staffeln,
   Episoden und Filmsammlungen per Namenssuche mit Live-Ergebnisliste (inkl. Titelbild) auswählen und
   per Kaskaden-Logik hinzufügen oder entfernen. Die Suche funktioniert case-insensitiv (z. B. findet

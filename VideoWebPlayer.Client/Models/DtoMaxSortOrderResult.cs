@@ -8,6 +8,10 @@ namespace VideoWebPlayer.Client.Models
     /// </summary>
     public class DtoMaxSortOrderResult
     {
+        /// <summary>
+        /// Gets or sets the highest sort order value currently in use among the playlist's manually
+        /// sorted entries, or <c>null</c> if there are none.
+        /// </summary>
         public long? MaxSortOrder { get; set; }
     }
 }

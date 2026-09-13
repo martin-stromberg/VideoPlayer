@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Configuration;
-using VideoWebPlayer.Data;
 using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
@@ -14,21 +13,6 @@ namespace VideoWebPlayer.Tests.Controllers;
 /// </summary>
 public class PlaylistsControllerTests_Entries : PlaylistsControllerTestBase
 {
-    private async Task<long> CreateMovieAsync(string name = "Testfilm")
-    {
-        var movie = new Movie { Name = name, MediaSourceId = 1, CreatedAt = DateTime.UtcNow };
-        _db.Movies.Add(movie);
-        await _db.SaveChangesAsync();
-        return movie.Id;
-    }
-
-    private async Task<long> CreatePlaylistAsync(string name = "Meine Playlist")
-    {
-        var createResult = await _controller.CreatePlaylist(new DtoCreatePlaylistRequest { Name = name });
-        var created = Assert.IsType<OkObjectResult>(createResult).Value as DtoPlaylist;
-        return created!.Id;
-    }
-
     [Fact]
     public async Task AddMediaToPlaylist_ValidInput_Returns200Ok()
     {

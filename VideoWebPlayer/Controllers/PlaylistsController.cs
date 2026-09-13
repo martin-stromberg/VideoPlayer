@@ -135,6 +135,7 @@ public class PlaylistsController : ApiBaseController
     /// <summary>
     /// Gets all playlists for the current user.
     /// </summary>
+    /// <returns>The playlists as <see cref="IEnumerable{DtoPlaylist}"/>, or an error result.</returns>
     [HttpGet]
     public Task<IActionResult> GetPlaylists()
     {
@@ -150,6 +151,7 @@ public class PlaylistsController : ApiBaseController
     /// Gets a single playlist for the current user.
     /// </summary>
     /// <param name="id">The playlist identifier.</param>
+    /// <returns>The playlist as <see cref="DtoPlaylist"/>, or an error result.</returns>
     [HttpGet("{id}")]
     public Task<IActionResult> GetPlaylist(long id)
     {
@@ -168,6 +170,7 @@ public class PlaylistsController : ApiBaseController
     /// Creates a new playlist for the current user.
     /// </summary>
     /// <param name="request">The create request.</param>
+    /// <returns>The created playlist as <see cref="DtoPlaylist"/>, or an error result.</returns>
     [HttpPost]
     public Task<IActionResult> CreatePlaylist([FromBody] DtoCreatePlaylistRequest request)
     {
@@ -184,6 +187,7 @@ public class PlaylistsController : ApiBaseController
     /// </summary>
     /// <param name="id">The playlist identifier.</param>
     /// <param name="request">The update request.</param>
+    /// <returns>The updated playlist as <see cref="DtoPlaylist"/>, or an error result.</returns>
     [HttpPut("{id}")]
     public Task<IActionResult> UpdatePlaylist(long id, [FromBody] DtoUpdatePlaylistRequest request)
     {
@@ -199,6 +203,7 @@ public class PlaylistsController : ApiBaseController
     /// Deletes a playlist for the current user.
     /// </summary>
     /// <param name="id">The playlist identifier.</param>
+    /// <returns>No content on success, or an error result.</returns>
     [HttpDelete("{id}")]
     public Task<IActionResult> DeletePlaylist(long id)
     {
@@ -215,6 +220,7 @@ public class PlaylistsController : ApiBaseController
     /// </summary>
     /// <param name="id">The playlist identifier.</param>
     /// <param name="request">The add request.</param>
+    /// <returns>The result of the add operation as <see cref="DtoPlaylistAddResult"/>, or an error result.</returns>
     [HttpPost("{id}/entries")]
     public Task<IActionResult> AddMediaToPlaylist(long id, [FromBody] DtoAddMediaToPlaylistRequest request)
     {
@@ -232,6 +238,7 @@ public class PlaylistsController : ApiBaseController
     /// <param name="id">The playlist identifier.</param>
     /// <param name="mediaType">The media type of the entry to remove.</param>
     /// <param name="mediaId">The media identifier of the entry to remove.</param>
+    /// <returns>No content on success, or an error result.</returns>
     [HttpDelete("{id}/entries/{mediaType}/{mediaId}")]
     public Task<IActionResult> RemoveMediaFromPlaylist(long id, string mediaType, long mediaId)
     {
@@ -247,6 +254,7 @@ public class PlaylistsController : ApiBaseController
     /// Gets all entries of a playlist for the current user.
     /// </summary>
     /// <param name="id">The playlist identifier.</param>
+    /// <returns>The playlist entries, or an error result.</returns>
     [HttpGet("{id}/entries")]
     public Task<IActionResult> GetPlaylistEntries(long id)
     {
@@ -264,6 +272,7 @@ public class PlaylistsController : ApiBaseController
     /// <param name="id">The playlist identifier.</param>
     /// <param name="pageNumber">The 1-based page number.</param>
     /// <param name="pageSize">The number of entries per page. Defaults to <see cref="PlaylistSettings.DefaultPageSize"/> when omitted.</param>
+    /// <returns>The requested page of playlist entries, or an error result.</returns>
     [HttpGet("{id}/entries/paged")]
     public Task<IActionResult> GetPlaylistEntriesPaged(long id, int pageNumber = 1, int? pageSize = null)
     {
@@ -290,6 +299,7 @@ public class PlaylistsController : ApiBaseController
     /// <param name="id">The playlist identifier.</param>
     /// <param name="entryId">The playlist entry identifier.</param>
     /// <param name="request">The reorder request.</param>
+    /// <returns>An empty success result, or an error result.</returns>
     [HttpPut("{id}/entries/{entryId}/order")]
     public Task<IActionResult> ReorderPlaylistEntry(long id, long entryId, [FromBody] DtoReorderPlaylistEntryRequest request)
     {
@@ -305,6 +315,7 @@ public class PlaylistsController : ApiBaseController
     /// </summary>
     /// <param name="id">The playlist identifier.</param>
     /// <param name="request">The batch reorder request.</param>
+    /// <returns>The reordered playlist entries, or an error result.</returns>
     [HttpPost("{id}/entries/batch-reorder")]
     public Task<IActionResult> BatchReorderPlaylistEntries(long id, [FromBody] DtoBatchReorderPlaylistEntriesRequest request)
     {
@@ -323,6 +334,7 @@ public class PlaylistsController : ApiBaseController
     /// virtualized page of it), for the "move to end" quick action.
     /// </summary>
     /// <param name="id">The playlist identifier.</param>
+    /// <returns>The current maximum manual sort order as <see cref="DtoMaxSortOrderResult"/>, or an error result.</returns>
     [HttpGet("{id}/entries/max-sort-order")]
     public Task<IActionResult> GetMaxSortOrder(long id)
     {
@@ -340,6 +352,7 @@ public class PlaylistsController : ApiBaseController
     /// </summary>
     /// <param name="id">The playlist identifier.</param>
     /// <param name="entryId">The playlist entry identifier.</param>
+    /// <returns>The moved playlist entry, or an error result.</returns>
     [HttpPost("{id}/entries/{entryId}/move-to-beginning")]
     public Task<IActionResult> MoveEntryToBeginning(long id, long entryId)
     {
@@ -358,6 +371,7 @@ public class PlaylistsController : ApiBaseController
     /// <param name="id">The playlist identifier.</param>
     /// <param name="entryId">The playlist entry identifier.</param>
     /// <param name="request">The move request, carrying the target sort order.</param>
+    /// <returns>An empty success result, or an error result.</returns>
     [HttpPost("{id}/entries/{entryId}/move-between")]
     public Task<IActionResult> MoveEntryBetween(long id, long entryId, [FromBody] DtoReorderPlaylistEntryRequest request)
     {
@@ -373,6 +387,7 @@ public class PlaylistsController : ApiBaseController
     /// </summary>
     /// <param name="id">The playlist identifier.</param>
     /// <param name="request">The sort mode change request.</param>
+    /// <returns>The updated playlist as <see cref="DtoPlaylist"/>, or an error result.</returns>
     [HttpPatch("{id}/sort-mode")]
     public Task<IActionResult> ChangeSortMode(long id, [FromBody] DtoChangeSortModeRequest request)
     {
@@ -382,5 +397,77 @@ public class PlaylistsController : ApiBaseController
                 id, CurrentUser!.Id, req.NewSortMode, req.ConfirmLossOfManualOrder, HttpContext.RequestAborted);
             return Ok(result);
         }, $"Aendern des Sortiermodus von Playlist {id}");
+    }
+
+    /// <summary>
+    /// Starts playback of a playlist for the current user, at the given entry (or at the first playable
+    /// and accessible entry if <paramref name="entryId"/> is omitted).
+    /// </summary>
+    /// <param name="id">The playlist identifier.</param>
+    /// <param name="entryId">The entry to start playback at, or <c>null</c> to start at the first playable entry.</param>
+    /// <returns>The playback start information as <see cref="DtoPlaylistPlaybackStart"/>, or an error result.</returns>
+    [HttpPost("{id}/play")]
+    public Task<IActionResult> StartPlaylist(long id, long? entryId = null)
+    {
+        return ExecuteAsync(async () =>
+        {
+            CheckLogedIn();
+            var result = await _playlistService.StartPlaylistAsync(id, CurrentUser!.Id, entryId, HttpContext.RequestAborted);
+            return Ok(result);
+        }, $"Starten der Wiedergabe von Playlist {id}");
+    }
+
+    /// <summary>
+    /// Gets the next playable and accessible entry after <paramref name="currentEntryId"/> for the
+    /// current user, for manual "next" navigation within a playlist.
+    /// </summary>
+    /// <param name="id">The playlist identifier.</param>
+    /// <param name="currentEntryId">The id of the playlist entry currently playing.</param>
+    /// <returns>The next playable and accessible entry, or no content if there is none, or an error result.</returns>
+    [HttpPost("{id}/play/next")]
+    public Task<IActionResult> GetNextPlaylistEntry(long id, long currentEntryId)
+    {
+        return ExecuteAsync(async () =>
+        {
+            CheckLogedIn();
+            var result = await _playlistService.GetNextPlaylistEntryAsync(id, CurrentUser!.Id, currentEntryId, HttpContext.RequestAborted);
+            return result is null ? NoContent() : Ok(result);
+        }, $"Ermitteln des naechsten Playlist-Eintrags von Playlist {id}");
+    }
+
+    /// <summary>
+    /// Gets the previous playable and accessible entry before <paramref name="currentEntryId"/> for the
+    /// current user, for manual "previous" navigation within a playlist.
+    /// </summary>
+    /// <param name="id">The playlist identifier.</param>
+    /// <param name="currentEntryId">The id of the playlist entry currently playing.</param>
+    /// <returns>The previous playable and accessible entry, or no content if there is none, or an error result.</returns>
+    [HttpPost("{id}/play/previous")]
+    public Task<IActionResult> GetPreviousPlaylistEntry(long id, long currentEntryId)
+    {
+        return ExecuteAsync(async () =>
+        {
+            CheckLogedIn();
+            var result = await _playlistService.GetPreviousPlaylistEntryAsync(id, CurrentUser!.Id, currentEntryId, HttpContext.RequestAborted);
+            return result is null ? NoContent() : Ok(result);
+        }, $"Ermitteln des vorherigen Playlist-Eintrags von Playlist {id}");
+    }
+
+    /// <summary>
+    /// Advances playback of a playlist from <paramref name="currentEntryId"/> to the next entry for the
+    /// current user, for automatic advance when a title finishes playing.
+    /// </summary>
+    /// <param name="id">The playlist identifier.</param>
+    /// <param name="currentEntryId">The id of the playlist entry that just finished playing.</param>
+    /// <returns>The next playable and accessible entry, or no content if there is none, or an error result.</returns>
+    [HttpPost("{id}/play/advance")]
+    public Task<IActionResult> AdvancePlaylist(long id, long currentEntryId)
+    {
+        return ExecuteAsync(async () =>
+        {
+            CheckLogedIn();
+            var result = await _playlistService.AdvancePlaylistAsync(id, CurrentUser!.Id, currentEntryId, HttpContext.RequestAborted);
+            return result is null ? NoContent() : Ok(result);
+        }, $"Automatisches Weiterschalten von Playlist {id}");
     }
 }

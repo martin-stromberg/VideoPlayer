@@ -24,7 +24,11 @@ VideoWebPlayer ist eine selbst gehostete ASP.NET-Core-/Blazor-Anwendung für die
   nachladende, virtualisierte Anzeige der Einträge für flüssiges Scrollen auch bei sehr großen
   Playlists. Jeder Eintrag zeigt ein Titelbild; Einträge, auf die der Anwender weder über regulären
   Quellenzugriff noch über eine individuelle Freischaltung zugreifen kann, werden abgeblendet
-  dargestellt, lassen sich aber weiterhin aus der Playlist entfernen.
+  dargestellt, lassen sich aber weiterhin aus der Playlist entfernen. Titel lassen sich direkt aus
+  der Playlist heraus abspielen, mit manuellem und automatischem Weiterschalten zum nächsten
+  abspielbaren und zugänglichen Titel (nicht-abspielbare Sammel-Einträge und nicht freigeschaltete
+  Einträge werden dabei übersprungen), Playlist-Badge mit Name und aktueller Position sowie
+  reload-resistenter Fortsetzung der Wiedergabeposition.
 - Einzelne Serien und Filmsammlungen fuer andere Anwender freischalten, ohne die gesamte Quelle freizugeben.
 - Browserbasierte Oberfläche für Bibliothek, Wiedergabe und Administration.
 - Automatische Erfassung und Übersicht von Schauspielern inklusive Such- und Filtermöglichkeiten.

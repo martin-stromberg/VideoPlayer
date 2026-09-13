@@ -7,7 +7,14 @@ namespace VideoWebPlayer.Client.Models
     /// </summary>
     public static class PlaylistSortModeValues
     {
+        /// <summary>
+        /// Entries are sorted by release date.
+        /// </summary>
         public const string ByReleaseDate = "ByReleaseDate";
+
+        /// <summary>
+        /// Entries are sorted manually by the user.
+        /// </summary>
         public const string Manual = "Manual";
 
         /// <summary>

@@ -494,6 +494,130 @@ eine leere Playlist, oder eine Playlist, die noch nie im Sortiermodus `Manual` w
 
 ---
 
+## Endpunkte für die Playlist-Wiedergabe
+
+Diese Endpunkte sind zustandslos: Der Server speichert keinen Wiedergabe-Kontext zwischen
+Aufrufen. Der Client (Video-Player) übergibt bei jedem Navigations-Aufruf die aktuell abgespielte
+`currentEntryId` explizit und hält den Kontext (Playlist-ID, aktuelle Position, Gesamtanzahl,
+Playlist-Name) selbst client-seitig, u. a. über den URL-Abfrageparameter `entryId` für
+Browser-Reload-Resilienz.
+
+Alle vier Endpunkte überspringen bei der Titelauswahl automatisch nicht-abspielbare Sammel-Einträge
+(`TVShow`, `TVShowSeason`, `MovieCollection`) sowie Einträge, auf die der anfragende Benutzer
+keinen Zugriff hat (dieselbe `hasSourceAccess OR isUnlocked`-Regel wie bei den Lese-Endpunkten,
+siehe Hinweis zu `IsAccessible` weiter unten). Nur `Movie` und `TVShowEpisode` sind direkt
+abspielbar.
+
+### `POST /api/playlists/{id}/play` — Wiedergabe starten
+
+Startet die Wiedergabe einer Playlist an einem bestimmten Eintrag oder, falls keiner angegeben
+ist, am ersten abspielbaren und zugänglichen Eintrag in der aktuell gültigen Sortierreihenfolge.
+
+**Parameter:**
+
+| Name | Position | Typ | Erforderlich | Beschreibung |
+|------|----------|-----|-------------|--------------|
+| `id` | Route | long | Ja | Playlist-ID |
+| `entryId` | Query | long | Nein | ID des Eintrags, an dem die Wiedergabe beginnen soll; ohne Angabe wird der erste abspielbare, zugängliche Eintrag verwendet |
+
+**Erfolgreiche Antwort (HTTP 200):**
+
+```json
+{
+  "playlistId": 1,
+  "playlistName": "Meine Favoriten",
+  "totalCount": 12,
+  "currentPosition": 3,
+  "currentEntryId": 458,
+  "currentEntry": { "id": 458, "mediaType": "TVShowEpisode", "mediaId": 1001, "mediaTitle": "Pilot", "...": "..." },
+  "streamUrl": "/api/items/tvshowepisode/1001/stream",
+  "mediaType": "episode",
+  "mediaId": 1001
+}
+```
+
+Die Antwort ist ein `DtoPlaylistPlaybackStart`-Objekt (siehe [DTO-Modelle](#dto-modelle)).
+`streamUrl` enthält bewusst keinen `access_token`-Abfrageparameter — der Client hängt seinen
+eigenen, bereits bekannten Bearer-Token selbst an, bevor er die URL an den Video-Player übergibt
+(analog zur bestehenden Film-/Episoden-Wiedergabe).
+
+**Fehlerantworten:**
+
+| HTTP-Status | Grund |
+|-------------|-------|
+| 400 Bad Request | Playlist enthält keinen einzigen abspielbaren und zugänglichen Eintrag (nur wenn kein `entryId` angegeben wurde) |
+| 403 Forbidden | Benutzer ist nicht der Besitzer der Playlist, oder der explizit angegebene `entryId` ist nicht zugänglich |
+| 404 Not Found | Playlist nicht gefunden, oder der explizit angegebene `entryId` gehört nicht zu dieser Playlist |
+| 401 Unauthorized | Fehlende oder ungültige Authentifizierung |
+
+---
+
+### `POST /api/playlists/{id}/play/next` — Zum nächsten Titel navigieren
+
+Ermittelt den nächsten abspielbaren und zugänglichen Eintrag nach `currentEntryId` in der aktuell
+gültigen Sortierreihenfolge.
+
+**Parameter:**
+
+| Name | Position | Typ | Erforderlich | Beschreibung |
+|------|----------|-----|-------------|--------------|
+| `id` | Route | long | Ja | Playlist-ID |
+| `currentEntryId` | Query | long | Ja | ID des aktuell abgespielten Eintrags |
+
+**Erfolgreiche Antwort (HTTP 200):** Ein `DtoPlaylistNavigationResult`-Objekt mit dem nächsten
+Eintrag und dessen tatsächlicher Position in der aktuell gültigen Sortierreihenfolge (siehe
+[DTO-Modelle](#dto-modelle)).
+
+**Erfolgreiche Antwort (HTTP 204 No Content):** Kein weiterer abspielbarer, zugänglicher Eintrag
+vorhanden (Ende der Playlist erreicht).
+
+**Fehlerantworten:**
+
+| HTTP-Status | Grund |
+|-------------|-------|
+| 400 Bad Request | `currentEntryId` gehört nicht zu dieser Playlist |
+| 403 Forbidden | Benutzer ist nicht der Besitzer der Playlist |
+| 404 Not Found | Playlist nicht gefunden |
+| 401 Unauthorized | Fehlende oder ungültige Authentifizierung |
+
+---
+
+### `POST /api/playlists/{id}/play/previous` — Zum vorherigen Titel navigieren
+
+Analog zu `POST /api/playlists/{id}/play/next`, jedoch rückwärts: Ermittelt den vorherigen
+abspielbaren und zugänglichen Eintrag vor `currentEntryId`.
+
+**Parameter:** wie bei `.../play/next`.
+
+**Erfolgreiche Antwort (HTTP 200):** Ein `DtoPlaylistNavigationResult`-Objekt mit dem vorherigen
+Eintrag und dessen tatsächlicher Position (siehe [DTO-Modelle](#dto-modelle)).
+
+**Erfolgreiche Antwort (HTTP 204 No Content):** Kein vorheriger abspielbarer, zugänglicher Eintrag
+vorhanden (Anfang der Playlist erreicht).
+
+**Fehlerantworten:** wie bei `.../play/next`.
+
+---
+
+### `POST /api/playlists/{id}/play/advance` — Automatisches Weiterschalten
+
+Wird vom Video-Player aufgerufen, wenn ein Titel automatisch zu Ende geht. Entspricht inhaltlich
+`.../play/next` (liefert intern denselben nächsten Eintrag), ist aber als eigener Endpunkt
+ausgeführt, um Auto-Advance-Aufrufe von manuellen „Nächster"-Klicks im Server-Log unterscheiden zu
+können.
+
+**Parameter:** wie bei `.../play/next`.
+
+**Erfolgreiche Antwort (HTTP 200):** Ein `DtoPlaylistNavigationResult`-Objekt mit dem nächsten
+Eintrag und dessen tatsächlicher Position (siehe [DTO-Modelle](#dto-modelle)).
+
+**Erfolgreiche Antwort (HTTP 204 No Content):** Ende der Playlist erreicht; der Client zeigt
+daraufhin „Ende der Playlist erreicht." an und stoppt die Wiedergabe.
+
+**Fehlerantworten:** wie bei `.../play/next`.
+
+---
+
 ## DTO-Modelle
 
 ### `DtoPlaylistEntry`
@@ -651,6 +775,44 @@ public class DtoMaxSortOrderResult
     public long? MaxSortOrder { get; set; }  // null, wenn kein Eintrag der Playlist einen SortOrder hat
 }
 ```
+
+### `DtoPlaylistPlaybackStart`
+
+Response-Format von `POST /api/playlists/{id}/play`.
+
+```csharp
+public class DtoPlaylistPlaybackStart
+{
+    public long PlaylistId { get; set; }
+    public string PlaylistName { get; set; }
+    public int TotalCount { get; set; }            // Gesamtzahl aller (nicht verwaisten) Eintraege der Playlist
+    public int CurrentPosition { get; set; }        // 1-basierte Position des Starttitels in der Sortierreihenfolge
+    public long CurrentEntryId { get; set; }
+    public DtoPlaylistEntry CurrentEntry { get; set; }
+    public string StreamUrl { get; set; }           // ohne access_token-Parameter, siehe Hinweis oben
+    public string MediaType { get; set; }           // "movie" oder "episode" (Video-Player-Konvention)
+    public long MediaId { get; set; }
+}
+```
+
+### `DtoPlaylistNavigationResult`
+
+Response-Format von `POST /api/playlists/{id}/play/next`, `.../play/previous` und `.../play/advance`
+bei HTTP 200.
+
+```csharp
+public class DtoPlaylistNavigationResult
+{
+    public DtoPlaylistEntry Entry { get; set; }
+    public int Position { get; set; }  // 1-basierte Position von Entry in der aktuell gueltigen Sortierreihenfolge
+}
+```
+
+**Hinweis zu `Position`:** Wird serverseitig ermittelt und entspricht der tatsächlichen Position
+von `Entry` in der vollständigen (auch nicht-abspielbare und gesperrte Einträge zählenden)
+Sortierreihenfolge — nicht der Position des vorherigen Eintrags plus/minus eins. Das ist relevant,
+weil die Navigation dabei einen oder mehrere nicht-abspielbare Sammel-Einträge (`TVShow`,
+`TVShowSeason`, `MovieCollection`) oder für den Benutzer gesperrte Einträge überspringen kann.
 
 ---
 

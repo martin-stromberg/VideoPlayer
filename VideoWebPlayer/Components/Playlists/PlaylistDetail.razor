@@ -1,6 +1,7 @@
 @page "/playlists/{id:long}"
 @using Microsoft.AspNetCore.Components.Authorization
 @using VideoWebPlayer.Client.Models
+@using VideoWebPlayer.ViewModels
 @inject VideoWebPlayer.Client.VideoWebPlayerClient Client
 @inject VideoWebPlayer.Client.IPlaylistApiClient PlaylistClient
 @inject AuthenticationStateProvider AuthStateProvider
@@ -73,9 +74,23 @@
             <h2>Inhalte</h2>
         </div>
 
-        <PlaylistEntriesList @ref="entriesList" PlaylistId="Id" IsManualMode="IsManualMode" />
+        <PlaylistEntriesList @ref="entriesList" PlaylistId="Id" IsManualMode="IsManualMode" OnPlayEntry="PlayEntryAsync" />
     }
 </section>
+
+@if (playbackStart is not null)
+{
+    <VideoPlayer Show="true"
+                 StreamUrl="@playbackStart.StreamUrl"
+                 OnClose="ClosePlayerAsync"
+                 MediaType="@playbackStart.MediaType"
+                 MediaId="@playbackStart.MediaId"
+                 AuthToken="@Client.AuthorizationToken"
+                 AutoPlay="true"
+                 PlaylistContext="new PlaylistPlaybackContext(playbackStart.PlaylistId, playbackStart.CurrentEntryId, playbackStart.TotalCount, playbackStart.PlaylistName)"
+                 CurrentPlaylistPosition="playbackStart.CurrentPosition"
+                 CurrentPlaylistEntryIdChanged="OnPlaylistEntryIdChanged" />
+}
 
 @if (formState.IsOpen)
 {
@@ -96,6 +111,16 @@
     [Parameter]
     public long Id { get; set; }
 
+    /// <summary>
+    /// Optional playlist entry to resume playback at, supplied via the <c>?entryId=</c> URL query
+    /// parameter. Populated on initial navigation from <see cref="PlaylistEntriesList.OnPlayEntry"/> and
+    /// kept in sync with the currently playing entry (see <see cref="OnPlaylistEntryIdChangedAsync"/>) so
+    /// a browser reload during playlist playback resumes at the same entry (Af-010).
+    /// </summary>
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "entryId")]
+    public long? EntryId { get; set; }
+
     private DtoPlaylist? playlist;
     private bool isLoading = true;
     private string? loadError;
@@ -105,6 +130,7 @@
     private bool showSortModeConfirmation;
     private string? sortModeStatusMessage;
     private PlaylistEntriesList? entriesList;
+    private DtoPlaylistPlaybackStart? playbackStart;
 
     private bool IsManualMode => playlist?.SortMode == PlaylistSortModeValues.Manual;
 
@@ -113,6 +139,55 @@
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         await Client.EnsureAuthorizationTokenSilentlyAsync(authState.User);
         await LoadPlaylistAsync();
+
+        if (EntryId.HasValue)
+            await StartPlaybackAsync(EntryId);
+    }
+
+    private async Task PlayEntryAsync(DtoPlaylistEntry entry)
+        => await StartPlaybackAsync(entry.Id);
+
+    private async Task StartPlaybackAsync(long? entryId)
+    {
+        try
+        {
+            playbackStart = await PlaylistClient.StartPlaylistAsync(Id, entryId);
+            // Append the access token once here, so playbackStart.StreamUrl is always ready-to-use both
+            // for this initial render and for later Next/Previous/Advance updates in OnPlaylistEntryIdChanged.
+            playbackStart.StreamUrl = $"{playbackStart.StreamUrl}?access_token={Client.AuthorizationToken}";
+            NavigationManager.NavigateTo($"/playlists/{Id}?entryId={playbackStart.CurrentEntryId}", replace: true);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Fehler beim Starten der Wiedergabe von Playlist {PlaylistId}", Id);
+            loadError = $"Fehler beim Starten der Wiedergabe: {ex.Message}";
+        }
+    }
+
+    private Task ClosePlayerAsync()
+    {
+        playbackStart = null;
+        NavigationManager.NavigateTo($"/playlists/{Id}", replace: true);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Updates the locally held <see cref="playbackStart"/> from the stream information <see cref="VideoPlayer"/>
+    /// already resolved for its new current entry (Next/Previous/Advance/Restart), rather than re-deriving
+    /// the stream URL here - which would be stale relative to what VideoPlayer is actually displaying and
+    /// would overwrite it on the next render this NavigateTo call triggers (see
+    /// <see cref="VideoPlayer.CurrentPlaylistEntryIdChanged"/>).
+    /// </summary>
+    private void OnPlaylistEntryIdChanged(VideoPlayer.PlaylistEntryPlaybackInfo info)
+    {
+        if (playbackStart is not null)
+        {
+            playbackStart.CurrentEntryId = info.EntryId;
+            playbackStart.MediaType = info.PlayerMediaType;
+            playbackStart.MediaId = info.MediaId;
+            playbackStart.StreamUrl = info.StreamUrl;
+        }
+        NavigationManager.NavigateTo($"/playlists/{Id}?entryId={info.EntryId}", replace: true);
     }
 
     private async Task LoadPlaylistAsync()

@@ -55,7 +55,8 @@
                                 @ondragstart="() => OnEntryDragStart(entry)"
                                 @ondragover:preventDefault="IsManualMode"
                                 @ondrop="() => OnEntryDropAsync(entry)"
-                                @ondragend="OnEntryDragEnd">
+                                @ondragend="OnEntryDragEnd"
+                                @ondblclick="() => OnPlayEntry.InvokeAsync(entry)">
                                 <td>
                                     <img class="media-poster playlist-entry-image" src="@GetImageUrl(entry)" alt="@entry.MediaTitle" loading="lazy" onerror="this.onerror=null;this.src='/images/placeholder.png';" />
                                 </td>
@@ -64,6 +65,10 @@
                                 <td>@entry.ParentMediaTitle</td>
                                 <td>@entry.AddedAt.ToLocalTime()</td>
                                 <td>
+                                    @if (IsPlayableEntry(entry))
+                                    {
+                                        <button class="btn btn-sm btn-success playlist-entry-play-button" @onclick="() => OnPlayEntry.InvokeAsync(entry)" @onclick:stopPropagation title="Abspielen">Abspielen</button>
+                                    }
                                     <button class="btn btn-sm btn-danger playlist-entry-remove-button" @onclick="() => RemoveEntryAsync(entry)">Entfernen</button>
                                     @if (IsManualMode)
                                     {
@@ -102,6 +107,14 @@
 
     [Parameter, EditorRequired]
     public bool IsManualMode { get; set; }
+
+    /// <summary>
+    /// Raised when the user double-clicks an entry row or clicks its "Abspielen" button, to start
+    /// playlist playback from that entry. Handled by <c>PlaylistDetail</c>, which owns navigation to
+    /// <c>VideoPlayer</c>.
+    /// </summary>
+    [Parameter]
+    public EventCallback<DtoPlaylistEntry> OnPlayEntry { get; set; }
 
     private string newEntryMediaType = MediaTypeValues.Movie;
     private long newEntryMediaId;
@@ -284,6 +297,14 @@
 
     private string GetImageUrl(DtoPlaylistEntry entry)
         => MediaPictureUrlResolver.Resolve(entry.ResolvedPictureId, Client.AuthorizationToken);
+
+    /// <summary>
+    /// Whether the given entry can be directly played back (Movie or TVShowEpisode); collection entries
+    /// (TVShow, TVShowSeason, MovieCollection) are not, mirroring
+    /// <c>PlaylistService.GetNextPlaylistEntryAsync</c>'s playback-navigation filtering.
+    /// </summary>
+    private static bool IsPlayableEntry(DtoPlaylistEntry entry)
+        => PlaylistEntryMediaTypeResolver.IsPlayable(entry.MediaType);
 
     /// <summary>
     /// Moves the given entry to the true beginning of the playlist via the dedicated

@@ -8,10 +8,29 @@ namespace VideoWebPlayer.Client.Models
     /// </summary>
     public static class MediaTypeValues
     {
+        /// <summary>
+        /// A single movie.
+        /// </summary>
         public const string Movie = "Movie";
+
+        /// <summary>
+        /// A single episode of a TV show.
+        /// </summary>
         public const string TVShowEpisode = "TVShowEpisode";
+
+        /// <summary>
+        /// A season of a TV show.
+        /// </summary>
         public const string TVShowSeason = "TVShowSeason";
+
+        /// <summary>
+        /// A whole TV show.
+        /// </summary>
         public const string TVShow = "TVShow";
+
+        /// <summary>
+        /// A collection of movies.
+        /// </summary>
         public const string MovieCollection = "MovieCollection";
     }
 }

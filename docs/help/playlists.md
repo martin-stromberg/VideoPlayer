@@ -78,7 +78,9 @@ angeschaut werden können. Zugriff besteht, wenn der Anwender entweder reguläre
 zugrunde liegende Mediaquelle hat oder der Inhalt individuell für ihn freigeschaltet wurde
 (bei Filmen, Staffeln und Episoden über die übergeordnete Filmsammlung bzw. Serie); dies gilt für
 alle Medientypen. Der **Entfernen**-Button bleibt für solche Einträge weiterhin nutzbar — der
-Anwender kann einen nicht zugänglichen Eintrag also jederzeit aus der Playlist entfernen.
+Anwender kann einen nicht zugänglichen Eintrag also jederzeit aus der Playlist entfernen. Die
+**Abspielen**-Schaltfläche erscheint dagegen nicht, und ein Doppelklick auf die Zeile startet
+keine Wiedergabe (siehe Abschnitt „Wiedergabe starten").
 
 ### Sortierung und Anzeige
 
@@ -171,6 +173,69 @@ Wird ein Medieninhalt aus dem Bestand entfernt (z. B. eine Serie oder ein Film g
 verschwindet der zugehörige Playlist-Eintrag beim nächsten Laden der Playlist still
 (ohne Fehlermeldung oder Hinweismeldung für den Anwender). Diese automatische Bereinigung
 verhindert, dass die Playlist auf nicht mehr existierende Inhalte verweist.
+
+## Wiedergabe aus einer Playlist
+
+Titel lassen sich direkt aus einer Playlist heraus abspielen, mit automatischem und manuellem
+Weiterschalten sowie einer durchgängigen Anzeige, aus welcher Playlist und an welcher Position
+gerade abgespielt wird.
+
+### Wiedergabe starten
+
+Auf der Detailseite besitzt jeder abspielbare Eintrag (Film oder Episode) eine
+**Abspielen**-Schaltfläche; alternativ startet ein Doppelklick auf die Zeile die Wiedergabe ab
+genau diesem Eintrag. Der Video-Player öffnet sich daraufhin mit dem gewählten Titel und zeigt
+oberhalb des Players einen Playlist-Badge mit Playlist-Name und Position an, z. B.
+„[Meine Favoriten: 3/12]".
+
+Sammel-Einträge (Serie, Staffel, Filmsammlung) besitzen keine Abspielen-Schaltfläche, da sie nicht
+direkt abspielbar sind — nur Filme und Episoden lassen sich starten. Dasselbe gilt für nicht
+zugängliche (gesperrte) Einträge (siehe Abschnitt „Zugriffsstatus in der Liste"): auch sie zeigen
+keine Abspielen-Schaltfläche, und ein Doppelklick auf ihre Zeile bleibt wirkungslos.
+
+### Navigation innerhalb der Playlist
+
+Solange aus einer Playlist heraus abgespielt wird, zeigt der Video-Player zusätzlich zu den
+üblichen Video-Bedienelementen zwei Schaltflächen „Vorheriger (Playlist)" und „Nächster
+(Playlist)" an. Ein Klick darauf lädt den vorherigen bzw. nächsten Titel in der aktuell gültigen
+Sortierreihenfolge der Playlist (siehe Abschnitt „Sortierung und Anzeige") und aktualisiert den
+Playlist-Badge entsprechend (z. B. „3/12" → „4/12").
+
+Dabei werden automatisch übersprungen:
+
+- **Sammel-Einträge** (Serie, Staffel, Filmsammlung), da sie nicht direkt abspielbar sind
+- **Nicht freigeschaltete Einträge**, auf die der Anwender keinen Zugriff hat
+
+Wird dabei über „Nächster (Playlist)" das Ende der Playlist erreicht, ohne dass ein weiterer
+abspielbarer und zugänglicher Titel gefunden wird, erscheint der Hinweis „Ende der Playlist
+erreicht." mit einer Schaltfläche **„Neu starten"**, über die sich die Playlist erneut von vorne
+abspielen lässt (siehe auch Abschnitt „Automatisches Weiterschalten"). Wird dagegen über
+„Vorheriger (Playlist)" der Anfang der Playlist erreicht, bleibt der Klick einfach wirkungslos —
+es erscheint keine Meldung, da hier kein Fehlerzustand vorliegt.
+
+### Automatisches Weiterschalten
+
+Endet der aktuell abgespielte Titel, schaltet der Player automatisch zum nächsten abspielbaren
+und zugänglichen Titel der Playlist weiter (dieselbe Übersprunglogik wie bei der manuellen
+Navigation) und aktualisiert den Playlist-Badge. Ein Eingreifen des Anwenders ist dafür nicht
+nötig.
+
+Ist das Ende der Playlist erreicht, stoppt die Wiedergabe ohne Fehlermeldung; stattdessen
+erscheint der Hinweis „Ende der Playlist erreicht." mit einer Schaltfläche **„Neu starten"**, über
+die sich die Playlist erneut von vorne abspielen lässt.
+
+### Wiedergabe außerhalb einer Playlist
+
+Wird ein Titel nicht aus einer Playlist heraus gestartet (z. B. direkt aus der Medienbibliothek
+oder den Suchergebnissen), zeigt der Video-Player weder den Playlist-Badge noch die
+Playlist-Navigationsschaltflächen an. Die Wiedergabe verhält sich in diesem Fall unverändert wie
+bisher.
+
+### Browser-Neuladen während der Wiedergabe
+
+Der aktuell abgespielte Eintrag wird in der Adresszeile als Abfrageparameter geführt
+(`?entryId=…`). Lädt der Anwender die Seite während der Playlist-Wiedergabe neu, wird dieselbe
+Position automatisch wiederhergestellt.
 
 ## Löschen
 

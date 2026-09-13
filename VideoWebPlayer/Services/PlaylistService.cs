@@ -170,6 +170,9 @@ public sealed class PlaylistService : IPlaylistService
     /// ascending values appended after the playlist's current maximum when the playlist is in
     /// <see cref="PlaylistSortMode.Manual"/> mode, or <c>null</c> for <see cref="PlaylistSortMode.ByReleaseDate"/>.
     /// </summary>
+    /// <param name="playlist">The playlist the entries are being added to.</param>
+    /// <param name="entriesToAdd">The newly built entries to assign a sort order to.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
     private async Task AssignSortOrderForNewEntriesAsync(Playlist playlist, List<PlaylistEntry> entriesToAdd, CancellationToken cancellationToken)
     {
         if (entriesToAdd.Count == 0)
@@ -311,6 +314,9 @@ public sealed class PlaylistService : IPlaylistService
     /// <param name="normalizedMediaType">The string form of <paramref name="parsedMediaType"/>.</param>
     /// <param name="mediaId">The media identifier being added.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
+    /// <param name="EntriesToAdd">(Return tuple field.) The entries to add.</param>
+    /// <param name="SkippedDuplicateCount">(Return tuple field.) How many requested entries were skipped as duplicates.</param>
+    /// <param name="TopLevelEntry">(Return tuple field.) The top-level entry, if it was not itself a duplicate.</param>
     /// <returns>
     /// The entries to add, how many requested entries were skipped as duplicates, the top-level entry
     /// (if it was not itself a duplicate), and the playlist's existing entry count.
@@ -354,6 +360,7 @@ public sealed class PlaylistService : IPlaylistService
     /// <param name="mediaId">The media identifier being added.</param>
     /// <param name="existingKeys">The (media type, media id) references already in the playlist.</param>
     /// <param name="now">The timestamp to stamp the new entry's <see cref="PlaylistEntry.AddedAt"/> with.</param>
+    /// <param name="Entry">(Return tuple field.) The built entry, or <c>null</c> if it was a duplicate.</param>
     /// <returns>The built entry (or <c>null</c> if it was a duplicate) and how many were skipped.</returns>
     private static (PlaylistEntry? Entry, int SkippedCount) BuildTopLevelEntry(
         long playlistId, string normalizedMediaType, long mediaId, HashSet<MediaRef> existingKeys, DateTime now)
@@ -383,6 +390,7 @@ public sealed class PlaylistService : IPlaylistService
     /// <param name="cascadeMediaRefs">The cascade-child (media type, media id) references to build entries for.</param>
     /// <param name="existingKeys">The (media type, media id) references already in the playlist.</param>
     /// <param name="now">The timestamp to stamp the new entries' <see cref="PlaylistEntry.AddedAt"/> with.</param>
+    /// <param name="Entries">(Return tuple field.) The built cascade-child entries.</param>
     /// <returns>The built cascade-child entries and how many were skipped as duplicates.</returns>
     private static (List<PlaylistEntry> Entries, int SkippedCount) BuildCascadeEntries(
         long playlistId, string normalizedMediaType, long mediaId, IEnumerable<MediaRef> cascadeMediaRefs, HashSet<MediaRef> existingKeys, DateTime now)
@@ -844,4 +852,169 @@ public sealed class PlaylistService : IPlaylistService
     {
         return (releaseDate, sequenceInfo.ParentId, sequenceInfo.SequenceNumber, entry.AddedAt);
     }
+
+    /// <inheritdoc />
+    public async Task<DtoPlaylistNavigationResult?> GetNextPlaylistEntryAsync(long playlistId, string userId, long currentEntryId, CancellationToken cancellationToken = default)
+    {
+        var (entry, position) = await FindAdjacentPlayableEntryAsync(playlistId, userId, currentEntryId, forward: true, cancellationToken);
+        if (entry is null)
+            return null;
+
+        var dtos = await BuildEntryDtosAsync(new List<PlaylistEntry> { entry }, userId, cancellationToken);
+        return new DtoPlaylistNavigationResult { Entry = dtos[0], Position = position };
+    }
+
+    /// <inheritdoc />
+    public async Task<DtoPlaylistNavigationResult?> GetPreviousPlaylistEntryAsync(long playlistId, string userId, long currentEntryId, CancellationToken cancellationToken = default)
+    {
+        var (entry, position) = await FindAdjacentPlayableEntryAsync(playlistId, userId, currentEntryId, forward: false, cancellationToken);
+        if (entry is null)
+            return null;
+
+        var dtos = await BuildEntryDtosAsync(new List<PlaylistEntry> { entry }, userId, cancellationToken);
+        return new DtoPlaylistNavigationResult { Entry = dtos[0], Position = position };
+    }
+
+    /// <inheritdoc />
+    public Task<DtoPlaylistNavigationResult?> AdvancePlaylistAsync(long playlistId, string userId, long currentEntryId, CancellationToken cancellationToken = default)
+        => GetNextPlaylistEntryAsync(playlistId, userId, currentEntryId, cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<DtoPlaylistPlaybackStart> StartPlaylistAsync(long playlistId, string userId, long? entryId, CancellationToken cancellationToken = default)
+    {
+        var playlist = await GetOwnedPlaylistAsync(playlistId, userId, cancellationToken);
+
+        var validEntries = await LoadValidPlaylistEntriesAsync(playlistId, cancellationToken);
+        var sortedEntries = await SortPlaylistEntriesForModeAsync(playlist.SortMode, validEntries, cancellationToken);
+
+        var idsByType = MediaHierarchyRegistry.GroupMediaIdsByType(sortedEntries);
+        var accessibilityByEntry = await _accessResolver.ResolveAccessibilityAsync(sortedEntries, userId, idsByType, cancellationToken);
+
+        var startEntry = entryId.HasValue
+            ? ResolveExplicitStartEntry(sortedEntries, entryId.Value, accessibilityByEntry)
+            : ResolveFirstPlayableEntry(sortedEntries, accessibilityByEntry);
+
+        var startDtos = await BuildEntryDtosAsync(new List<PlaylistEntry> { startEntry }, userId, cancellationToken);
+        var startDto = startDtos[0];
+        var position = sortedEntries.FindIndex(e => e.Id == startEntry.Id) + 1;
+
+        return new DtoPlaylistPlaybackStart
+        {
+            PlaylistId = playlist.Id,
+            PlaylistName = playlist.Name,
+            TotalCount = sortedEntries.Count,
+            CurrentPosition = position,
+            CurrentEntryId = startEntry.Id,
+            CurrentEntry = startDto,
+            StreamUrl = BuildStreamUrl(startEntry.MediaType, startEntry.MediaId),
+            MediaType = PlaylistEntryMediaTypeResolver.ToPlayerMediaType(startEntry.MediaType),
+            MediaId = startEntry.MediaId
+        };
+    }
+
+    /// <summary>
+    /// Resolves the entry to start playback at when the caller explicitly requested one: it must belong
+    /// to the playlist (<see cref="KeyNotFoundException"/> otherwise, mapped to 404), be directly playable
+    /// (<see cref="InvalidOperationException"/> otherwise, mapped to 400 - a collection entry such as a
+    /// TVShow/TVShowSeason/MovieCollection has no media of its own to stream, so its <see cref="PlaylistEntry.MediaId"/>
+    /// must never be interpreted as a movie/episode id) and be accessible to the user
+    /// (<see cref="PlaylistAccessDeniedException"/> otherwise, mapped to 403). Mirrors the playability check
+    /// <see cref="ResolveFirstPlayableEntry"/> and <see cref="FindAdjacentPlayableEntryAsync"/> already
+    /// perform for implicit/adjacent navigation, which this explicit-entry path previously omitted.
+    /// </summary>
+    /// <param name="sortedEntries">The playlist's entries, sorted by its current sort mode.</param>
+    /// <param name="entryId">The id of the requested entry.</param>
+    /// <param name="accessibilityByEntry">The bulk-resolved accessibility of each entry.</param>
+    /// <returns>The resolved entry.</returns>
+    private static PlaylistEntry ResolveExplicitStartEntry(
+        List<PlaylistEntry> sortedEntries, long entryId, Dictionary<PlaylistEntry, bool> accessibilityByEntry)
+    {
+        var entry = sortedEntries.FirstOrDefault(e => e.Id == entryId)
+            ?? throw new KeyNotFoundException("Der angegebene Eintrag gehoert nicht zu dieser Playlist.");
+
+        if (!PlaylistEntryMediaTypeResolver.IsPlayable(entry.MediaType))
+            throw new InvalidOperationException("Der angegebene Eintrag ist nicht abspielbar.");
+
+        if (!accessibilityByEntry.TryGetValue(entry, out var isAccessible) || !isAccessible)
+            throw new PlaylistAccessDeniedException("Sie haben keinen Zugriff auf diesen Eintrag.");
+
+        return entry;
+    }
+
+    /// <summary>
+    /// Resolves the first playable and accessible entry of the playlist, for <see cref="StartPlaylistAsync"/>
+    /// when no explicit entry id was requested.
+    /// </summary>
+    /// <param name="sortedEntries">The playlist's entries, sorted by its current sort mode.</param>
+    /// <param name="accessibilityByEntry">The bulk-resolved accessibility of each entry.</param>
+    /// <returns>The first playable and accessible entry.</returns>
+    private static PlaylistEntry ResolveFirstPlayableEntry(List<PlaylistEntry> sortedEntries, Dictionary<PlaylistEntry, bool> accessibilityByEntry)
+    {
+        foreach (var entry in sortedEntries)
+        {
+            if (PlaylistEntryMediaTypeResolver.IsPlayable(entry.MediaType) && accessibilityByEntry.TryGetValue(entry, out var isAccessible) && isAccessible)
+                return entry;
+        }
+
+        throw new InvalidOperationException("Diese Playlist enthaelt keine abspielbaren Eintraege.");
+    }
+
+    /// <summary>
+    /// Loads and sorts the playlist's entries the same way <see cref="GetPlaylistEntriesAsync"/> does,
+    /// then finds the first playable and accessible entry strictly after (<paramref name="forward"/>
+    /// <c>true</c>) or before (<paramref name="forward"/> <c>false</c>) <paramref name="currentEntryId"/>,
+    /// skipping non-playable collection entries and inaccessible entries. Also resolves the found entry's
+    /// actual 1-based position in <paramref name="playlistId"/>'s current sort order (the same computation
+    /// <see cref="StartPlaylistAsync"/> already performs via <c>sortedEntries.FindIndex(...) + 1</c>), so
+    /// callers can report the correct position even when entries were skipped to reach it. Shared by
+    /// <see cref="GetNextPlaylistEntryAsync"/> and <see cref="GetPreviousPlaylistEntryAsync"/>.
+    /// </summary>
+    /// <param name="playlistId">The playlist identifier.</param>
+    /// <param name="userId">The id of the requesting (owning) user.</param>
+    /// <param name="currentEntryId">The id of the playlist entry currently playing.</param>
+    /// <param name="forward">Whether to search forward (next) or backward (previous).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The found entry and its 1-based position, or <c>(null, 0)</c> if none matches.</returns>
+    private async Task<(PlaylistEntry? Entry, int Position)> FindAdjacentPlayableEntryAsync(long playlistId, string userId, long currentEntryId, bool forward, CancellationToken cancellationToken)
+    {
+        var playlist = await GetOwnedPlaylistAsync(playlistId, userId, cancellationToken);
+
+        var validEntries = await LoadValidPlaylistEntriesAsync(playlistId, cancellationToken);
+        var sortedEntries = await SortPlaylistEntriesForModeAsync(playlist.SortMode, validEntries, cancellationToken);
+
+        var currentIndex = sortedEntries.FindIndex(e => e.Id == currentEntryId);
+        if (currentIndex < 0)
+            throw new InvalidOperationException("Der aktuelle Eintrag gehoert nicht zu dieser Playlist.");
+
+        var idsByType = MediaHierarchyRegistry.GroupMediaIdsByType(sortedEntries);
+        var accessibilityByEntry = await _accessResolver.ResolveAccessibilityAsync(sortedEntries, userId, idsByType, cancellationToken);
+
+        var candidates = forward
+            ? sortedEntries.Skip(currentIndex + 1)
+            : Enumerable.Reverse(sortedEntries.Take(currentIndex));
+
+        foreach (var candidate in candidates)
+        {
+            if (!PlaylistEntryMediaTypeResolver.IsPlayable(candidate.MediaType))
+                continue;
+
+            if (accessibilityByEntry.TryGetValue(candidate, out var isAccessible) && isAccessible)
+                return (candidate, sortedEntries.FindIndex(e => e.Id == candidate.Id) + 1);
+        }
+
+        return (null, 0);
+    }
+
+    /// <summary>
+    /// Builds the relative stream URL for a playable entry's media, matching the convention already used
+    /// by the movie/TV show detail pages (<c>/api/items/{type}/{id}/stream</c>). Does not include an
+    /// <c>access_token</c> query parameter: <see cref="PlaylistService"/> has no access to the caller's
+    /// bearer token, so the client appends its own (already known) token before using the URL, exactly as
+    /// <c>MovieCollectionDetails.razor</c> and <c>TVShowDetails.razor</c> already do for their own players.
+    /// </summary>
+    /// <param name="mediaType">The playlist entry's media type.</param>
+    /// <param name="mediaId">The playlist entry's media id.</param>
+    /// <returns>The relative stream URL, without an <c>access_token</c> query parameter.</returns>
+    private static string BuildStreamUrl(string mediaType, long mediaId)
+        => $"/api/items/{PlaylistEntryMediaTypeResolver.ResolveItemStreamType(mediaType)}/{mediaId}/stream";
 }

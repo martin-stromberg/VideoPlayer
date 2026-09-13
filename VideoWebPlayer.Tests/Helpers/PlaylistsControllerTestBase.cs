@@ -10,6 +10,7 @@ using VideoWebPlayer.Configuration;
 using VideoWebPlayer.Controllers;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
+using Xunit;
 
 namespace VideoWebPlayer.Tests.Helpers;
 
@@ -67,5 +68,39 @@ public abstract class PlaylistsControllerTestBase : IDisposable
     public void Dispose()
     {
         _keeperConnection.Dispose();
+    }
+
+    protected async Task<long> CreateMovieAsync(string name = "Testfilm")
+    {
+        var movie = new Movie { Name = name, MediaSourceId = 1, CreatedAt = DateTime.UtcNow };
+        _db.Movies.Add(movie);
+        await _db.SaveChangesAsync();
+        return movie.Id;
+    }
+
+    protected async Task<long> CreatePlaylistAsync(string name = "Meine Playlist")
+    {
+        var createResult = await _controller.CreatePlaylist(new DtoCreatePlaylistRequest { Name = name });
+        var created = Assert.IsType<OkObjectResult>(createResult).Value as DtoPlaylist;
+        return created!.Id;
+    }
+
+    /// <summary>
+    /// Grants <see cref="_user"/> regular access to the media source with the given id (defaulting to the
+    /// <c>MediaSourceId = 1</c> used by <see cref="CreateMovieAsync"/>) by inserting a
+    /// <see cref="MediaSourceUser"/> entry, creating the referenced <see cref="MediaSource"/> first if it
+    /// does not exist yet.
+    /// </summary>
+    /// <param name="mediaSourceId">The id of the media source to grant access to (created if missing).</param>
+    protected async Task GrantMediaSourceAccessAsync(long mediaSourceId = 1)
+    {
+        if (!await _db.MediaSources.AnyAsync(s => s.Id == mediaSourceId))
+        {
+            _db.MediaSources.Add(new MediaSource { Id = mediaSourceId, Name = "Test Source", Path = "/test", Host = "localhost", Port = 22 });
+            await _db.SaveChangesAsync();
+        }
+
+        _db.MediaSourceUsers.Add(new MediaSourceUser { UserId = _user.Id, MediaSourceId = mediaSourceId });
+        await _db.SaveChangesAsync();
     }
 }

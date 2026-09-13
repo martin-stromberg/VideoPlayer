@@ -121,6 +121,9 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
     /// <see cref="global::VideoWebPlayer.Tests.PlaylistMediaSearchE2ETests"/>, which both drive the
     /// same search-and-select flow with different fixture data.
     /// </summary>
+    /// <param name="searchTerm">The search term to type into the live-search input.</param>
+    /// <param name="mediaType">The media type of the expected result tile.</param>
+    /// <param name="mediaId">The media id of the expected result tile.</param>
     protected async Task SelectSearchResultAsync(string searchTerm, string mediaType, long mediaId)
     {
         await Page.FillAsync(".media-search-input", searchTerm);
@@ -155,6 +158,10 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
     /// then runs <paramref name="action"/> against them before the scope is disposed. Centralizes the
     /// scope/db/source-id boilerplate that every seed helper previously repeated.
     /// </summary>
+    /// <typeparam name="T">The result type produced by <paramref name="action"/>.</typeparam>
+    /// <param name="long">The id of the single shared media source, passed to <paramref name="action"/>.</param>
+    /// <param name="action">The callback to run against the scoped db context and media-source id.</param>
+    /// <returns>The result produced by <paramref name="action"/>.</returns>
     private async Task<T> RunScopedAsync<T>(Func<ApplicationDbContext, long, Task<T>> action)
     {
         using var scope = _factory.Services.CreateScope();
@@ -166,6 +173,7 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
     /// <summary>
     /// Same as <see cref="RunScopedAsync{T}"/> for actions without a return value.
     /// </summary>
+    /// <param name="action">The callback to run against the scoped db context and media-source id.</param>
     private Task RunScopedAsync(Func<ApplicationDbContext, long, Task> action)
         => RunScopedAsync<object?>(async (db, sourceId) =>
         {
@@ -178,6 +186,12 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
     /// before running <paramref name="action"/>, for the seed helpers that add entries to an existing
     /// playlist.
     /// </summary>
+    /// <typeparam name="T">The result type produced by <paramref name="action"/>.</typeparam>
+    /// <param name="playlistName">The name of the existing playlist to load before running <paramref name="action"/>.</param>
+    /// <param name="long">The id of the single shared media source, passed to <paramref name="action"/>.</param>
+    /// <param name="Playlist">The loaded playlist, passed to <paramref name="action"/>.</param>
+    /// <param name="action">The callback to run against the scoped db context, media-source id and playlist.</param>
+    /// <returns>The result produced by <paramref name="action"/>.</returns>
     private Task<T> RunScopedWithPlaylistAsync<T>(string playlistName, Func<ApplicationDbContext, long, Playlist, Task<T>> action)
         => RunScopedAsync(async (db, sourceId) =>
         {
@@ -188,6 +202,8 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
     /// <summary>
     /// Same as <see cref="RunScopedWithPlaylistAsync{T}"/> for actions without a return value.
     /// </summary>
+    /// <param name="playlistName">The name of the existing playlist to load before running <paramref name="action"/>.</param>
+    /// <param name="action">The callback to run against the scoped db context, media-source id and playlist.</param>
     private Task RunScopedWithPlaylistAsync(string playlistName, Func<ApplicationDbContext, long, Playlist, Task> action)
         => RunScopedAsync(async (db, sourceId) =>
         {
@@ -200,6 +216,9 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
     /// <see cref="UserManager{TUser}"/> registered in the given scope, throwing if no such user exists.
     /// Centralizes the "resolve test user or fail loudly" step shared by the unlock/access helpers below.
     /// </summary>
+    /// <param name="scopedServices">The DI scope's service provider to resolve the <see cref="UserManager{TUser}"/> from.</param>
+    /// <param name="email">The email address of the user to resolve.</param>
+    /// <returns>The resolved <see cref="ApplicationUser"/>.</returns>
     private static async Task<ApplicationUser> ResolveUserByEmailAsync(IServiceProvider scopedServices, string email)
     {
         var userManager = scopedServices.GetRequiredService<UserManager<ApplicationUser>>();
@@ -211,6 +230,8 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
     /// Seeds a single movie directly in the database (bypassing the UI) and returns its id, for use
     /// as the target of the playlist "add media" form in E2E tests.
     /// </summary>
+    /// <param name="name">The name to give the created movie.</param>
+    /// <returns>The id of the created movie.</returns>
     protected Task<long> SeedMovieAsync(string name)
         => RunScopedAsync(async (db, sourceId) =>
         {
@@ -224,6 +245,10 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
     /// Seeds a TV show with the given seasons and episode counts directly in the database and returns
     /// the show's id, for use as the target of the playlist "add media" form in E2E tests.
     /// </summary>
+    /// <param name="showName">The name to give the created TV show.</param>
+    /// <param name="SeasonName">The name of a season to create.</param>
+    /// <param name="seasons">The (SeasonName, EpisodeCount) tuples describing the seasons and their episode counts.</param>
+    /// <returns>The id of the created TV show.</returns>
     protected Task<long> SeedTvShowWithSeasonsAsync(string showName, params (string SeasonName, int EpisodeCount)[] seasons)
         => RunScopedAsync(async (db, sourceId) =>
         {
@@ -259,6 +284,8 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
     /// use as a media-search target in E2E tests that do not need the collection pre-added to a
     /// playlist.
     /// </summary>
+    /// <param name="name">The name to give the created movie collection.</param>
+    /// <returns>The id of the created movie collection.</returns>
     protected Task<long> SeedMovieCollectionAsync(string name)
         => RunScopedAsync(async (db, sourceId) =>
         {
@@ -273,6 +300,10 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
     /// (bypassing the UI), for use as a media-search target in E2E tests covering season/episode
     /// selection in the search UI.
     /// </summary>
+    /// <param name="showName">The name to give the created TV show.</param>
+    /// <param name="seasonName">The name to give the created season.</param>
+    /// <param name="episodeCount">The number of episodes to create in the season.</param>
+    /// <returns>The ids of the created show, season and episodes.</returns>
     protected Task<(long ShowId, long SeasonId, long[] EpisodeIds)> SeedTvShowWithSingleSeasonAsync(string showName, string seasonName, int episodeCount)
         => RunScopedAsync(async (db, sourceId) =>
         {
@@ -308,6 +339,8 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
     /// as top-level entries to the playlist with the given name, for use in virtual-scrolling /
     /// lazy-loading E2E tests that need more entries than fit on a single page.
     /// </summary>
+    /// <param name="playlistName">The name of the existing playlist to add the movies to.</param>
+    /// <param name="count">The number of movies to create and add.</param>
     protected Task SeedMoviesIntoPlaylistAsync(string playlistName, int count)
         => RunScopedWithPlaylistAsync(playlistName, async (db, sourceId, playlist) =>
         {
@@ -339,6 +372,9 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
     /// the given name, for use in E2E tests covering real unlock/access behavior (only TV shows and
     /// movie collections are recognized by <see cref="VideoWebPlayer.Services.IUnlockedMediaService"/>).
     /// </summary>
+    /// <param name="playlistName">The name of the existing playlist to add the TV show to.</param>
+    /// <param name="showName">The name to give the created TV show.</param>
+    /// <returns>The id of the created TV show.</returns>
     protected Task<long> SeedTvShowIntoPlaylistAsync(string playlistName, string showName)
         => RunScopedWithPlaylistAsync(playlistName, async (db, sourceId, playlist) =>
         {
@@ -362,6 +398,9 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
     /// Seeds a movie with a real poster picture directly in the database and adds it as a top-level
     /// entry to the playlist with the given name, for use in E2E tests covering the playlist image column.
     /// </summary>
+    /// <param name="playlistName">The name of the existing playlist to add the movie to.</param>
+    /// <param name="movieName">The name to give the created movie.</param>
+    /// <returns>The id of the created movie.</returns>
     protected Task<long> SeedMovieWithPosterIntoPlaylistAsync(string playlistName, string movieName)
         => RunScopedWithPlaylistAsync(playlistName, async (db, sourceId, playlist) =>
         {
@@ -395,6 +434,9 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
     /// <see cref="UnlockedMediaEntry"/> directly in the database, for use in E2E tests that need to
     /// manipulate the real per-user unlock/access status of a playlist entry.
     /// </summary>
+    /// <param name="userEmail">The email address of the user to grant unlocked access to.</param>
+    /// <param name="mediaType">The media type of the target entity (e.g. movie collection or TV show).</param>
+    /// <param name="mediaId">The id of the target entity.</param>
     protected async Task UnlockMediaForUserAsync(string userEmail, string mediaType, long mediaId)
     {
         using var scope = _factory.Services.CreateScope();
@@ -411,6 +453,7 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
     /// database, for use in E2E tests that need to manipulate the real per-user source access status
     /// of a playlist entry.
     /// </summary>
+    /// <param name="userEmail">The email address of the user to grant media-source access to.</param>
     protected async Task GrantMediaSourceAccessForUserAsync(string userEmail)
     {
         using var scope = _factory.Services.CreateScope();
@@ -423,10 +466,47 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
     }
 
     /// <summary>
+    /// Seeds a movie directly in the database on a dedicated, never-granted media source (distinct from
+    /// the single shared source the other <c>Seed*</c> helpers use) and adds it as a top-level entry to
+    /// the playlist with the given name, for use in E2E tests that need a playlist entry which stays
+    /// locked regardless of <see cref="GrantMediaSourceAccessForUserAsync"/> being called for the shared
+    /// source (e.g. playback-navigation "skip locked entries" tests).
+    /// </summary>
+    /// <param name="playlistName">The name of the existing playlist to add the movie to.</param>
+    /// <param name="movieName">The name to give the created movie.</param>
+    /// <returns>The id of the created movie.</returns>
+    protected Task<long> SeedLockedMovieIntoPlaylistAsync(string playlistName, string movieName)
+        => RunScopedWithPlaylistAsync(playlistName, async (db, _, playlist) =>
+        {
+            var lockedSource = new MediaSource { Name = $"Locked Source {Guid.NewGuid()}", Host = "127.0.0.1", Port = 22, Path = "/locked" };
+            db.MediaSources.Add(lockedSource);
+            await db.SaveChangesAsync();
+
+            var movie = new Movie { Name = movieName, MediaSourceId = lockedSource.Id, CreatedAt = DateTime.UtcNow };
+            db.Movies.Add(movie);
+            await db.SaveChangesAsync();
+
+            db.PlaylistEntries.Add(new PlaylistEntry
+            {
+                PlaylistId = playlist.Id,
+                MediaType = MediaTypeValues.Movie,
+                MediaId = movie.Id,
+                AddedAt = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync();
+
+            return movie.Id;
+        });
+
+    /// <summary>
     /// Seeds a movie belonging to the given movie collection directly in the database and adds the
     /// movie as a top-level entry to the playlist with the given name, for use in E2E tests covering
     /// the movie-to-collection unlock hierarchy resolution.
     /// </summary>
+    /// <param name="playlistName">The name of the existing playlist to add the movie to.</param>
+    /// <param name="collectionName">The name to give the created movie collection.</param>
+    /// <param name="movieName">The name to give the created movie.</param>
+    /// <returns>The ids of the created movie and its movie collection.</returns>
     protected Task<(long MovieId, long CollectionId)> SeedMovieInCollectionIntoPlaylistAsync(string playlistName, string collectionName, string movieName)
         => RunScopedWithPlaylistAsync(playlistName, async (db, sourceId, playlist) =>
         {
@@ -455,6 +535,9 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
     /// as a top-level entry to the playlist with the given name, for use in E2E tests covering the
     /// episode-to-show unlock hierarchy resolution.
     /// </summary>
+    /// <param name="playlistName">The name of the existing playlist to add the episode to.</param>
+    /// <param name="showName">The name to give the created TV show.</param>
+    /// <returns>The ids of the created episode and its TV show.</returns>
     protected Task<(long EpisodeId, long ShowId)> SeedTvShowEpisodeIntoPlaylistAsync(string playlistName, string showName)
         => RunScopedWithPlaylistAsync(playlistName, async (db, sourceId, playlist) =>
         {

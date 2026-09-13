@@ -98,5 +98,40 @@ namespace VideoWebPlayer.Client
         {
             await HttpPostAsync($"api/playlists/{playlistId}/entries/{entryId}/move-between", CreateJsonContent(request));
         }
+
+        /// <inheritdoc />
+        public async Task<DtoPlaylistPlaybackStart> StartPlaylistAsync(long playlistId, long? entryId)
+        {
+            var query = entryId.HasValue ? $"?entryId={entryId.Value}" : string.Empty;
+            return await HttpPostAsync<DtoPlaylistPlaybackStart>($"api/playlists/{playlistId}/play{query}", new StringContent(string.Empty));
+        }
+
+        /// <inheritdoc />
+        public Task<DtoPlaylistNavigationResult?> GetNextPlaylistEntryAsync(long playlistId, long currentEntryId)
+            => PostForOptionalPlaylistNavigationResultAsync($"api/playlists/{playlistId}/play/next?currentEntryId={currentEntryId}");
+
+        /// <inheritdoc />
+        public Task<DtoPlaylistNavigationResult?> GetPreviousPlaylistEntryAsync(long playlistId, long currentEntryId)
+            => PostForOptionalPlaylistNavigationResultAsync($"api/playlists/{playlistId}/play/previous?currentEntryId={currentEntryId}");
+
+        /// <inheritdoc />
+        public Task<DtoPlaylistNavigationResult?> AdvancePlaylistAsync(long playlistId, long currentEntryId)
+            => PostForOptionalPlaylistNavigationResultAsync($"api/playlists/{playlistId}/play/advance?currentEntryId={currentEntryId}");
+
+        /// <summary>
+        /// POSTs to an endpoint that responds with either a <see cref="DtoPlaylistNavigationResult"/> or
+        /// 204 No Content (end/beginning of playlist reached), shared by
+        /// <see cref="GetNextPlaylistEntryAsync"/>, <see cref="GetPreviousPlaylistEntryAsync"/> and
+        /// <see cref="AdvancePlaylistAsync"/>, via <see cref="SendAndDeserializeAsync{T}"/>'s
+        /// <c>treatNoContentAsNull</c> option.
+        /// </summary>
+        /// <param name="endPoint">The relative endpoint to POST to.</param>
+        /// <returns>The deserialized navigation result, or <c>null</c> if the server responded with 204 No Content.</returns>
+        private Task<DtoPlaylistNavigationResult?> PostForOptionalPlaylistNavigationResultAsync(string endPoint)
+            => SendAndDeserializeAsync<DtoPlaylistNavigationResult?>(
+                endPoint,
+                "POST",
+                () => httpClient.PostAsync(endPoint, new StringContent(string.Empty)),
+                treatNoContentAsNull: true);
     }
 }

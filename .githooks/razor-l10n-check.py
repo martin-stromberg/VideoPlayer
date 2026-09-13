@@ -9,6 +9,16 @@ alt, aria-label, label, tooltip) and multi-word text nodes that look like
 natural-language UI text rather than code/identifiers, so they can be
 replaced with @L["Key"] calls (or a developer can confirm no localization
 is needed).
+
+By default (as used in pre-commit) this only WARNS and always exits 0, so
+work in progress is allowed while a feature is being built - and so this
+check does not immediately block every commit against the current, no
+localization-infrastructure-yet state of the repository (no .resx files,
+no IStringLocalizer, no @L[...] usage anywhere at all yet). Pass --strict
+to turn findings into a hard failure (exit 1), once the codebase actually
+has localization infrastructure to enforce this against. Matches the same
+--strict convention already used by no-notimplemented-check.py and
+razor-usage-check.py.
 """
 import argparse
 import re
@@ -124,6 +134,7 @@ def check_file(content):
 def parse_args():
     parser = argparse.ArgumentParser(description='Razor localization check')
     parser.add_argument('--all', action='store_true', help='scan all .razor files, not only staged ones')
+    parser.add_argument('--strict', action='store_true', help='exit 1 on findings instead of only warning')
     return parser.parse_args()
 
 
@@ -155,13 +166,18 @@ def main():
         findings = check_file(content)
         if findings:
             failed = True
-            print(f'ERROR: möglicherweise hartcodierte UI-Strings in {rel}:')
+            level = 'ERROR' if args.strict else 'WARNING'
+            print(f'{level}: möglicherweise hartcodierte UI-Strings in {rel}:')
             print('\n'.join(findings))
             print('  → Durch @L["SchlüsselName"]-Aufrufe ersetzen oder bestätigen, dass kein Lokalisierungsbedarf besteht.')
             print()
 
     if failed:
-        return 1
+        if args.strict:
+            return 1
+        print('(Nur Warnung — dieser Check ist aktuell in keinem Hook mit --strict verdrahtet,')
+        print(' da im Repository noch keine Lokalisierungs-Infrastruktur existiert.)')
+        return 0
 
     print(f'OK: {checked} {scan_mode} .razor file(s) checked, no hardcoded UI strings found.')
     return 0

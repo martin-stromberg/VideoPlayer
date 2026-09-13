@@ -48,14 +48,14 @@ public abstract class PlaylistServiceTestBase : IDisposable
         _keeperConnection.Dispose();
     }
 
-    protected PlaylistService CreateService(int? maxPlaylistsPerUser = null, int? maxPlaylistItemCount = null)
+    protected PlaylistService CreateService(int? maxPlaylistsPerUser = null, int? maxPlaylistItemCount = null, IServiceProvider? serviceProvider = null)
     {
         var settings = Microsoft.Extensions.Options.Options.Create(new PlaylistSettings
         {
             MaxPlaylistsPerUser = maxPlaylistsPerUser,
             MaxPlaylistItemCount = maxPlaylistItemCount
         });
-        return new PlaylistService(_db, _unlockedMediaService, settings);
+        return new PlaylistService(_db, _unlockedMediaService, settings, serviceProvider);
     }
 
     /// <summary>

@@ -53,5 +53,11 @@ namespace VideoWebPlayer.Client.Models
         /// Gets or sets the id of the start entry's media.
         /// </summary>
         public long MediaId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the playback position, in seconds, to resume the start entry's media at, populated
+        /// from the matching <c>ContinueWatchingEntry.Position</c> (<c>0</c> if none exists).
+        /// </summary>
+        public long StartPositionSeconds { get; set; }
     }
 }

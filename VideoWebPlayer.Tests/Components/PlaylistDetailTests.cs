@@ -8,6 +8,7 @@ using Moq;
 using VideoWebPlayer.Client;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Components.Playlists;
+using VideoWebPlayer.Components.Shared.Media;
 using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
@@ -81,6 +82,43 @@ public class PlaylistDetailTests
         Assert.Empty(cut.FindAll("#playlist-detail-error"));
         Assert.Empty(cut.FindAll("#playlist-playback-error"));
         Assert.NotEmpty(cut.FindAll("#video-player-element"));
+    }
+
+    /// <summary>
+    /// Regression test for the "playback always resumes at 0:00 in a playlist context" bug (Weiterschauen
+    /// mit Playlist-Bezug, Schritt 6 Nachbesserung, Problem 4): <see cref="PlaylistDetail"/> must pass
+    /// <see cref="DtoPlaylistPlaybackStart.StartPositionSeconds"/> through to <see cref="VideoPlayer"/>'s
+    /// <see cref="VideoPlayer.StartPositionSeconds"/> parameter instead of leaving it unset.
+    /// </summary>
+    [Fact]
+    public void StartPlaybackAsync_OnSuccess_PassesStartPositionSecondsToVideoPlayer()
+    {
+        var playlistClientMock = CreatePlaylistClientMock();
+        playlistClientMock
+            .Setup(c => c.StartPlaylistAsync(1, It.IsAny<long?>()))
+            .ReturnsAsync(new DtoPlaylistPlaybackStart
+            {
+                PlaylistId = 1,
+                PlaylistName = "Test-Playlist",
+                TotalCount = 1,
+                CurrentPosition = 1,
+                CurrentEntryId = 42,
+                CurrentEntry = new DtoPlaylistEntry { Id = 42, PlaylistId = 1, MediaType = "Movie", MediaId = 7 },
+                StreamUrl = "/api/items/movie/7/stream",
+                MediaType = "movie",
+                MediaId = 7,
+                StartPositionSeconds = 600
+            });
+
+        using var ctx = CreateTestContext(playlistClientMock);
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+
+        ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("/playlists/1?entryId=42");
+        var cut = ctx.RenderComponent<PlaylistDetail>(parameters => parameters
+            .Add(p => p.Id, 1));
+
+        var videoPlayer = cut.FindComponent<VideoPlayer>();
+        Assert.Equal(600d, videoPlayer.Instance.StartPositionSeconds);
     }
 
     /// <summary>

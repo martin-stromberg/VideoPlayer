@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
@@ -20,6 +21,7 @@ public sealed class PlaylistService : IPlaylistService
     private readonly PlaylistSettings _playlistSettings;
     private readonly PlaylistEntryAccessResolver _accessResolver;
     private readonly PlaylistEntryReorderService _reorderService;
+    private readonly IServiceProvider? _serviceProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PlaylistService"/> class.
@@ -27,15 +29,24 @@ public sealed class PlaylistService : IPlaylistService
     /// <param name="db">Database context.</param>
     /// <param name="unlockedMediaService">Service used to check per-entry unlock/access status.</param>
     /// <param name="playlistSettings">Playlist configuration.</param>
+    /// <param name="serviceProvider">
+    /// Used to lazily resolve <see cref="ContinueWatchingService"/> in <see cref="DeletePlaylistAsync"/>,
+    /// after this instance's own construction has completed: <see cref="ContinueWatchingService"/> itself
+    /// depends on <see cref="IPlaylistService"/>, so resolving it eagerly through the constructor would be
+    /// a circular dependency. <c>null</c> (e.g. in tests that construct this class directly) simply skips
+    /// that conflict resolution.
+    /// </param>
     public PlaylistService(
         ApplicationDbContext db,
         IUnlockedMediaService unlockedMediaService,
-        IOptions<PlaylistSettings> playlistSettings)
+        IOptions<PlaylistSettings> playlistSettings,
+        IServiceProvider? serviceProvider = null)
     {
         _db = db;
         _playlistSettings = playlistSettings.Value;
         _accessResolver = new PlaylistEntryAccessResolver(db, unlockedMediaService);
         _reorderService = new PlaylistEntryReorderService(db);
+        _serviceProvider = serviceProvider;
     }
 
     /// <inheritdoc />
@@ -127,9 +138,20 @@ public sealed class PlaylistService : IPlaylistService
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// Resolves unique-index conflicts on <see cref="Data.ContinueWatchingEntry"/> before deleting the
+    /// playlist itself (see <see cref="ContinueWatchingService.ResolvePlaylistDeletionConflictsAsync"/>):
+    /// without this, the database's <c>ON DELETE SET NULL</c> foreign-key action can collide with the
+    /// unique index on playlist-less entries when a playlist-less entry for the same media already exists,
+    /// failing the subsequent <c>SaveChangesAsync</c> call with a UNIQUE constraint violation.
+    /// </remarks>
     public async Task DeletePlaylistAsync(long playlistId, string userId, CancellationToken cancellationToken = default)
     {
         var playlist = await GetOwnedPlaylistAsync(playlistId, userId, cancellationToken);
+
+        var continueWatchingService = _serviceProvider?.GetService<ContinueWatchingService>();
+        if (continueWatchingService is not null)
+            await continueWatchingService.ResolvePlaylistDeletionConflictsAsync(playlistId, userId, cancellationToken);
 
         _db.Playlists.Remove(playlist);
         await _db.SaveChangesAsync(cancellationToken);
@@ -897,6 +919,7 @@ public sealed class PlaylistService : IPlaylistService
         var startDtos = await BuildEntryDtosAsync(new List<PlaylistEntry> { startEntry }, userId, cancellationToken);
         var startDto = startDtos[0];
         var position = sortedEntries.FindIndex(e => e.Id == startEntry.Id) + 1;
+        var startPositionSeconds = await GetContinueWatchingPositionSecondsAsync(playlist.Id, userId, startEntry, cancellationToken);
 
         return new DtoPlaylistPlaybackStart
         {
@@ -908,8 +931,31 @@ public sealed class PlaylistService : IPlaylistService
             CurrentEntry = startDto,
             StreamUrl = BuildStreamUrl(startEntry.MediaType, startEntry.MediaId),
             MediaType = PlaylistEntryMediaTypeResolver.ToPlayerMediaType(startEntry.MediaType),
-            MediaId = startEntry.MediaId
+            MediaId = startEntry.MediaId,
+            StartPositionSeconds = startPositionSeconds
         };
+    }
+
+    /// <summary>
+    /// Resolves the playback position, in seconds, to resume <paramref name="startEntry"/>'s media at,
+    /// from the matching <see cref="Data.ContinueWatchingEntry.Position"/> for <paramref name="userId"/>
+    /// within playlist <paramref name="playlistId"/>, or <c>0</c> if none exists.
+    /// </summary>
+    /// <param name="playlistId">The id of the playlist being started.</param>
+    /// <param name="userId">The id of the requesting (owning) user.</param>
+    /// <param name="startEntry">The resolved start entry.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The playback position in seconds, or <c>0</c> if no matching entry exists.</returns>
+    private async Task<long> GetContinueWatchingPositionSecondsAsync(long playlistId, string userId, PlaylistEntry startEntry, CancellationToken cancellationToken)
+    {
+        var position = await _db.ContinueWatchingEntries
+            .Where(x => x.UserId == userId && x.PlaylistId == playlistId &&
+                ((startEntry.MediaType == MediaTypeValues.Movie && x.MovieId == startEntry.MediaId) ||
+                 (startEntry.MediaType == MediaTypeValues.TVShowEpisode && x.TVShowEpisodeId == startEntry.MediaId)))
+            .Select(x => x.Position)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return (long)position.TotalSeconds;
     }
 
     /// <summary>

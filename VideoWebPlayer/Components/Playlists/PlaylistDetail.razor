@@ -92,6 +92,7 @@
                  MediaId="@playbackStart.MediaId"
                  AuthToken="@Client.AuthorizationToken"
                  AutoPlay="true"
+                 StartPositionSeconds="@playbackStart.StartPositionSeconds"
                  PlaylistContext="new PlaylistPlaybackContext(playbackStart.PlaylistId, playbackStart.CurrentEntryId, playbackStart.TotalCount, playbackStart.PlaylistName)"
                  CurrentPlaylistPosition="playbackStart.CurrentPosition"
                  CurrentPlaylistEntryIdChanged="OnPlaylistEntryIdChanged" />

@@ -180,7 +180,8 @@ Titel lassen sich direkt aus einer Playlist heraus abspielen, mit automatischem 
 Weiterschalten sowie einer durchgängigen Anzeige, aus welcher Playlist und an welcher Position
 gerade abgespielt wird. Die Wiedergabe wird dabei automatisch mit der Weiterschauen-Liste verknüpft:
 Wird ein Video aus einer Playlist gestartet und später pausiert, speichert das System den Playlist-Bezug
-für diesen Eintrag. Beim Fortsetzen wird die Wiedergabe im gleichen Playlist-Kontext rekonstruiert.
+für diesen Eintrag sowie die Wiedergabeposition. Beim Fortsetzen wird die Wiedergabe im gleichen 
+Playlist-Kontext **mit der gespeicherten Position** rekonstruiert.
 
 ### Wiedergabe starten
 
@@ -188,7 +189,10 @@ Auf der Detailseite besitzt jeder abspielbare Eintrag (Film oder Episode) eine
 **Abspielen**-Schaltfläche; alternativ startet ein Doppelklick auf die Zeile die Wiedergabe ab
 genau diesem Eintrag. Der Video-Player öffnet sich daraufhin mit dem gewählten Titel und zeigt
 oberhalb des Players einen Playlist-Badge mit Playlist-Name und Position an, z. B.
-„[Meine Favoriten: 3/12]".
+„[Meine Favoriten: 3/12]". 
+
+Wurde ein Video aus dieser Playlist bereits früher pausiert und in der Weiterschauen-Liste gespeichert,
+startet der Player automatisch an der gespeicherten Wiedergabeposition statt bei 0:00.
 
 Sammel-Einträge (Serie, Staffel, Filmsammlung) besitzen keine Abspielen-Schaltfläche, da sie nicht
 direkt abspielbar sind — nur Filme und Episoden lassen sich starten. Dasselbe gilt für nicht
@@ -256,7 +260,8 @@ Wird ein Benutzerkonto gelöscht, werden auch alle Playlists dieses Anwenders au
 Jedes Mal, wenn Sie ein Video direkt aus einer Playlist heraus starten und später pausieren, wird
 diese Information gespeichert. In Ihrer **Weiterschauen-Liste** erscheint dieser Titel dann mit einem
 Hinweis wie „In Playlist: Meine Favoriten". Wenn Sie diesen Eintrag später anklicken, wird die
-Wiedergabe genau dort fortgesetzt, wo Sie pausiert haben — **im gleichen Playlist-Kontext**.
+Wiedergabe genau dort fortgesetzt, wo Sie pausiert haben — **im gleichen Playlist-Kontext mit der 
+gespeicherten Position**.
 
 Dies hat mehrere Vorteile:
 
@@ -269,7 +274,8 @@ Dies hat mehrere Vorteile:
   schauen, werden alle Varianten (mit und ohne Playlist-Bezug) aus der Weiterschauen-Liste entfernt.
 
 Wird eine Playlist gelöscht, bleiben die Weiterschauen-Einträge bestehen und verlieren ihren Playlist-Bezug —
-sie werden zu normalen Einträgen ohne Playlist-Zuordnung.
+sie werden zu normalen Einträgen ohne Playlist-Zuordnung. Falls bereits ein Eintrag ohne Playlist-Bezug für 
+das gleiche Video existiert, wird das Duplikat automatisch entfernt, um Inkonsistenzen zu vermeiden.
 
 Weitere Details siehe [Weiterschauen – Beschreibung](weiterschauen/beschreibung.md).
 

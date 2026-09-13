@@ -309,3 +309,51 @@ if (existingEntries.Count > 0)
 **Umsetzung:** `ContinueWatchingService.HideAsync()` und `SkipAsync()` verwenden beide die PlaylistId in der Eindeutigkeitsabfrage.
 
 **Begründung:** Dies ermöglicht eine granulare Verwaltung: Ein Benutzer kann z. B. ein Video in Playlist A ausblenden, es aber weiterhin in Playlist B und als Non-Playlist-Variante in der Weiterschauen-Liste haben. Dies ist nützlich, wenn der Benutzer den Titel „dort" fortsetzen, aber „hier" nicht mehr sehen möchte.
+
+---
+
+## Regel: Eindeutige Identifizierung der Weiterschauen-Einträge in der UI durch Entry-ID
+
+**Beschreibung:** Jeder Weiterschauen-Eintrag wird in der Benutzeroberfläche durch seine eindeutige Datenbank-ID (`ContinueWatchingEntry.Id`) identifiziert, nicht durch die Media-ID. Dies ist essentiell, wenn dasselbe Video mehrfach in der Liste erscheint (mit unterschiedlichen Playlists oder ohne).
+
+**Bedingungen:**
+- Weiterschauen-Liste wird geladen
+- Ein oder mehr Videos erscheinen mehrfach (mit verschiedenen `PlaylistId`-Werten)
+- Display-Daten (Titel, Bild, Playlist-Name) müssen eindeutig jeder Variante zugeordnet werden
+
+**Verhalten:**
+- Die Eigenschaft `ContinueWatchingDto.Id` wird mit der Datenbank-ID der `ContinueWatchingEntry` befüllt
+- In `ContinueWatchingList.razor` werden Display-Data-Dictionaries nach `ContinueWatchingDto.Id` indiziert: `titles[it.Id]`, `images[it.Id]`, `links[it.Id]`, `playlistSubtitles[it.Id]`
+- Das Blazor-`@key`-Attribut wird auf `@key="it.Id"` gesetzt, um eindeutige Keys pro Datenbankzeile zu garantieren
+- Jeder Eintrag erhält korrekt seine zugehörigen Anzeigedaten, auch wenn mehrere Varianten des gleichen Videos nebeneinander erscheinen
+
+**Umsetzung:** 
+- `ContinueWatchingService.GetListAsync()` — Befüllt `ContinueWatchingDto.Id` aus `entry.Id`
+- `ContinueWatchingList.razor` — Umindizierung aller Display-Data-Dictionaries auf `it.Id` statt `it.Entry.Id`
+
+**Begründung:** Eine Indizierung nach Media-ID (`Entry.Id`) würde zu Kollisionen führen, wenn das gleiche Video mehrfach mit unterschiedlichen Playlist-Bezügen in der Liste vorhanden ist: mehrere DTOs mit derselben `Entry.Id` würden sich gegenseitig im Dictionary überschreiben, und der Blazor-Renderer würde bei mehreren identischen `@key`-Werten fehlschlagen. Die Entry-ID ist eindeutig pro Datenbankzeile und behebt beide Probleme.
+
+---
+
+## Regel: Konfliktauflösung beim Löschen einer Playlist mit playlist-losem Duplikat
+
+**Beschreibung:** Wenn eine Playlist gelöscht wird und ein oder mehr ihrer Weiterschauen-Einträge ein Duplikat als playlist-loser Eintrag (PlaylistId = NULL) haben, wird das playlist-gebundene Duplikat entfernt statt auf NULL gesetzt. Dies verhindert Unique-Constraint-Verletzungen und bewahrt die Konsistenz der Datenbank.
+
+**Bedingungen:**
+- Benutzer löscht eine Playlist
+- Für ein oder mehr Videos in dieser Playlist existiert bereits ein playlist-loser Weiterschauen-Eintrag (gleicher User, gleiche Media)
+- Die Datenbank erzwingt einen bedingten Unique-Index auf `(UserId, MediaId, NULL)` und `(UserId, TVShowEpisodeId, NULL)`
+
+**Verhalten:**
+1. Vor dem eigentlichen Playlist-Löschen: Alle `ContinueWatchingEntry`-Zeilen mit dieser `PlaylistId` werden geladen
+2. Für jede Zeile: Es wird geprüft, ob bereits ein playlist-loser Eintrag existiert (`UserId`, `MovieId`/`TVShowEpisodeId`, `PlaylistId = NULL`)
+3. Falls ja: Der playlist-gebundene Eintrag wird gelöscht (entfernt aus dem Datenbank-Change-Tracker)
+4. Falls nein: Der Eintrag wird wie geplant auf `PlaylistId = NULL` gesetzt (durch die FK-Aktion)
+5. Die Playlist wird gelöscht
+6. `SaveChangesAsync()` wird aufgerufen → kein Unique-Constraint-Fehler
+
+**Umsetzung:** 
+- `PlaylistService.DeletePlaylistAsync()` — Ruft `ResolvePlaylistDeletionConflictsAsync()` auf, bevor die Playlist gelöscht wird
+- `ContinueWatchingService.ResolvePlaylistDeletionConflictsAsync()` — Implementiert die Konfliktprüfung und Duplikat-Entfernung
+
+**Begründung:** Das Datenbankschema erzwingt Eindeutigkeit auf playlist-losen Einträgen. Wenn eine Playlist gelöscht wird und ihre Einträge auf NULL gesetzt werden sollen, aber bereits ein NULL-Eintrag für das gleiche Video existiert, schlägt die Operation ohne explizite Konfliktauflösung fehl. Die Entfernung des playlist-gebundenen Duplikats ist das sicherste Verfahren: Sie bewahrt den ursprünglichen playlist-losen Eintrag (einschließlich dessen Wiedergabeposition) und vermeidet gleichzeitig Duplikate.

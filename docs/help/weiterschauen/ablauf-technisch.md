@@ -172,6 +172,51 @@ flowchart TD
     N -->|Liste geändert| O
 ```
 
+## Anzeigedaten-Pufferung für mehrfache Varianten desselben Videos
+
+### Problematik bei mehrfachen Varianten
+
+Wenn dasselbe Video mehrfach in der Weiterschauen-Liste erscheint (mit unterschiedlichen Playlist-Bezügen oder gar ohne), müssen die Anzeigedaten (Titel, Bild, Playlist-Name) eindeutig jeder Variante zugeordnet werden. Eine Indizierung nach `Entry.Id` (Medien-ID) würde zu Kollisionen führen: mehrere `ContinueWatchingDto`-Instanzen mit derselben `Entry.Id` würden sich gegenseitig in den Dictionaries überschreiben.
+
+### Lösung: Indizierung nach ContinueWatchingDto.Id
+
+Die Lösung nutzt die eindeutige Datenbank-ID jedes `ContinueWatchingEntry`-Eintrags:
+
+1. **DTO-Erweiterung:** `ContinueWatchingDto.Id` speichert die Datenbank-ID der zugehörigen `ContinueWatchingEntry` (nicht die Media-ID).
+2. **Dictionary-Indizierung:** In `ContinueWatchingList.razor` werden alle Display-Data-Dictionaries (`titles`, `images`, `links`, `playlistSubtitles`) nach `it.Id` indiziert, nicht nach `it.Entry.Id`.
+3. **Blazor-Key:** Das `@key`-Attribut in der `MediaBox`-Schleife wird auf `@key="it.Id"` gesetzt, was Eindeutigkeit pro Datenbankzeile garantiert und Blazor-Key-Duplikat-Fehler verhindert.
+
+Beteiligte Komponenten:
+- `ContinueWatchingList.razor` — Umindizierung aller Display-Data-Dictionaries auf `it.Id`
+- `ContinueWatchingService.GetListAsync()` — Setzt `ContinueWatchingDto.Id` aus `ContinueWatchingEntry.Id`
+
+## Konfliktauflösung beim Löschen einer Playlist mit konkurrierendem playlist-losem Eintrag
+
+### Problematik: Unique-Constraint-Konflikt
+
+Das Datenbankschema erzwingt einen bedingten Unique-Index auf `(UserId, MovieId, NULL)` und `(UserId, TVShowEpisodeId, NULL)` für playlist-lose Einträge. Wenn eine Playlist gelöscht wird, setzt die FK-Aktion `ON DELETE SET NULL` automatisch `PlaylistId = NULL` für alle zugehörigen `ContinueWatchingEntry`-Zeilen. Kollidiert dies mit einem bereits existierenden playlist-losen Eintrag für das gleiche Video, schlägt `SaveChangesAsync()` mit einer Unique-Constraint-Verletzung fehl.
+
+**Beispiel:**
+- Zeile 1: `UserId=u1, MovieId=42, PlaylistId=1` (playlist-gebunden)
+- Zeile 2: `UserId=u1, MovieId=42, PlaylistId=NULL` (playlist-los, existiert bereits)
+- Aktion: Playlist mit ID=1 löschen
+- Fehler: FK-Aktion setzt Zeile 1 auf `PlaylistId=NULL`, kollidiert mit Zeile 2
+
+### Lösung: Explizite Konfliktauflösung
+
+Vor dem Löschen einer Playlist wird explizite Konfliktauflösungslogik ausgeführt:
+
+1. **Alle Einträge mit dieser `PlaylistId` laden** (für den aktuellen Benutzer)
+2. **Für jeden Eintrag:** Prüfen, ob bereits ein playlist-loser Eintrag existiert (`UserId`, `MovieId` oder `TVShowEpisodeId`, `PlaylistId = NULL`)
+3. **Falls ja:** Den playlist-gebundenen Eintrag löschen (statt ihn auf NULL zu setzen)
+4. **Falls nein:** Den Eintrag wie geplant auf NULL setzen
+5. **Dann:** Die Playlist selbst löschen
+6. **Abschließend:** `SaveChangesAsync()` aufrufen — keine Unique-Constraint-Verletzung mehr
+
+Beteiligte Komponenten:
+- `PlaylistService.DeletePlaylistAsync()` — Ruft vor dem eigentlichen Löschen die Konfliktauflösungslogik auf
+- `ContinueWatchingService.ResolvePlaylistDeletionConflictsAsync()` — Implementiert die Konfliktprüfung und Duplikat-Entfernung
+
 ## Error Handling
 
 | Szenario | Fehlerfall | Verhalten |
@@ -181,6 +226,7 @@ flowchart TD
 | Datenbank-Fehler bei Ermittlung | Exception in EF Core Query | Exception propagiert, Worker loggt Fehler, alte Media bleibt in "Weiterschauen"-Liste |
 | Datenbank-Fehler beim Update | Exception bei `SaveChangesAsync()` | Exception propagiert, Worker loggt Fehler, Benutzer erhält keine Benachrichtigung |
 | Filmsammlung ungültig | Movie ohne `MovieCollectionId` | `null` zurückgeben, alte Media entfernen |
+| Unique-Constraint-Konflikt beim Playlist-Löschen | Mehrere Einträge für das gleiche Video (`UserId`, `MovieId`, unterschiedliche `PlaylistId`) | Konfliktauflösungslogik entfernt playlist-gebundene Duplikate; kein Error, Operation erfolgreich |
 
 ## Performance-Überlegungen
 

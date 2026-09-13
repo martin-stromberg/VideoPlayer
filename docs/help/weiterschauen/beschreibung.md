@@ -57,7 +57,7 @@ Das Feature "Weiterschauen" ermöglicht es Benutzern, an der exakten Stelle fort
 
 ## Weiterschauen mit Playlist-Bezug
 
-Wenn ein Benutzer ein Video **aus einer Playlist heraus** startet, wird diese Information im Weiterschauen-Eintrag gespeichert. Die Wiedergabe wird dann später wieder **im gleichen Playlist-Kontext** fortgesetzt.
+Wenn ein Benutzer ein Video **aus einer Playlist heraus** startet, wird diese Information im Weiterschauen-Eintrag gespeichert. Die Wiedergabe wird dann später wieder **im gleichen Playlist-Kontext** fortgesetzt, einschließlich der gespeicherten Wiedergabeposition.
 
 ### Anzeige in der Weiterschauen-Liste
 
@@ -66,7 +66,7 @@ Einträge mit Playlist-Bezug werden mit einem Hinweis „In Playlist: [Name]" ge
 - Einmal ohne Playlist-Bezug (von normaler Wiedergabe)
 - Mehrfach mit unterschiedlichen Playlist-Bezügen (von verschiedenen Playlists)
 
-Alle diese Varianten sind **unabhängige Einträge** mit eigenem Fortschritt.
+Alle diese Varianten sind **unabhängige Einträge** mit eigenem Fortschritt. Jeder Eintrag wird eindeutig identifiziert und korrekt mit seinen Anzeigedaten (Titel, Bild, Wiedergabeposition, Playlist-Name) verknüpft, auch wenn mehrere Varianten desselben Videos nebeneinander in der Liste angezeigt werden.
 
 ### Verfügbare Aktionen
 
@@ -86,6 +86,7 @@ Wird eine Playlist gelöscht, bleiben die zugehörigen Weiterschauen-Einträge i
 - Der Eintrag wird zu einem normalen, playlistlosen Eintrag umgewandelt.
 - Der Hinweis „In Playlist: …" verschwindet.
 - Die zuletzt gespeicherte Wiedergabeposition bleibt erhalten.
+- Falls bereits ein playlist-loser Eintrag für das gleiche Video existiert, wird der playlist-gebundene Eintrag entfernt, um Duplikate zu vermeiden.
 
 ## Einschränkungen
 

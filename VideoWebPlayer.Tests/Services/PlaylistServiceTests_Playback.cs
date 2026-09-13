@@ -295,6 +295,50 @@ public class PlaylistServiceTests_Playback : PlaylistServiceTestBase
         Assert.Contains("/stream", start.StreamUrl);
     }
 
+    /// <summary>
+    /// Regression test for the "playback always resumes at 0:00 in a playlist context" bug (Weiterschauen
+    /// mit Playlist-Bezug, Schritt 6 Nachbesserung, Problem 4): <see cref="PlaylistService.StartPlaylistAsync"/>
+    /// must populate <see cref="DtoPlaylistPlaybackStart.StartPositionSeconds"/> from the matching
+    /// <see cref="ContinueWatchingEntry.Position"/> for the requesting user and playlist, instead of always
+    /// leaving it at its default of <c>0</c>.
+    /// </summary>
+    [Fact]
+    public async Task StartPlaylistAsync_WithContinueWatchingPosition_PopulatesStartPositionSeconds()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var movieId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Film mit Position");
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.Movie, movieId));
+        await GrantMediaSourceAccessForUserAsync(_testUserId);
+        var entryIds = await GetOrderedEntryIdsAsync(playlistId);
+
+        _db.ContinueWatchingEntries.Add(new ContinueWatchingEntry
+        {
+            UserId = _testUserId,
+            MovieId = movieId,
+            PlaylistId = playlistId,
+            Position = TimeSpan.FromSeconds(1200),
+            UpdatedAt = DateTime.UtcNow,
+            ListOrder = 1
+        });
+        await _db.SaveChangesAsync(ct);
+
+        var start = await _service.StartPlaylistAsync(playlistId, _testUserId, entryIds[0], ct);
+
+        Assert.Equal(1200, start.StartPositionSeconds);
+    }
+
+    [Fact]
+    public async Task StartPlaylistAsync_NoContinueWatchingEntry_StartPositionSecondsIsZero()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (byReleaseDatePlaylistId, _) = await CreatePlaylistWithMultipleSortOrdersAsync(_testUserId);
+        await GrantMediaSourceAccessForUserAsync(_testUserId);
+
+        var start = await _service.StartPlaylistAsync(byReleaseDatePlaylistId, _testUserId, entryId: null, ct);
+
+        Assert.Equal(0, start.StartPositionSeconds);
+    }
+
     [Fact]
     public async Task AdvancePlaylistAsync_CallsGetNextInternally()
     {

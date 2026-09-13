@@ -6,6 +6,14 @@ namespace VideoWebPlayer.Client.Models
     public class ContinueWatchingDto
     {
         /// <summary>
+        /// Gets or sets the database id of the underlying <c>ContinueWatchingEntry</c> row. Unlike
+        /// <see cref="Entry"/>'s id (the media id), this is unique per row even when the same media
+        /// appears multiple times in the list with different <see cref="PlaylistId"/> values, and is
+        /// therefore the correct key to index display data and Blazor <c>@key</c> values by.
+        /// </summary>
+        public long Id { get; set; }
+
+        /// <summary>
         /// Gets or sets the media type of the entry.
         /// </summary>
         public string MediaType { get; set; } = "";

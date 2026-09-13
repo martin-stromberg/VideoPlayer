@@ -112,6 +112,7 @@ namespace VideoWebPlayer.Services
                 .ToListAsync(ct))
                 .Select(x => new ContinueWatchingDto
                 {
+                    Id = x.Id,
                     MediaType = x.MovieId != null ? "movie" : "episode",
                     Entry = (x.MovieId != null) ? (_db.Movies.Where(m => m.Id == x.MovieId).ToList().Select(m =>
                     {
@@ -601,6 +602,45 @@ namespace VideoWebPlayer.Services
             }
 
             return next == 0 ? null : await _db.TVShowEpisodes.FindAsync(new object[] { next }, ct);
+        }
+
+        /// <summary>
+        /// Resolves unique-index conflicts that would otherwise occur once <paramref name="playlistId"/> is
+        /// deleted and the database's <c>ON DELETE SET NULL</c> foreign-key action sets
+        /// <see cref="ContinueWatchingEntry.PlaylistId"/> to <c>null</c> for its bound entries: for every
+        /// entry currently bound to <paramref name="playlistId"/>, removes it if a playlist-less entry for
+        /// the same media already exists for <paramref name="userId"/> (which would otherwise collide with
+        /// it once both have <see cref="ContinueWatchingEntry.PlaylistId"/> <c>null</c>); otherwise leaves
+        /// it in place, to be set to <c>null</c> by the database once the playlist itself is deleted.
+        /// Marks the affected rows for removal on the tracked <see cref="ApplicationDbContext"/> without
+        /// calling <see cref="ApplicationDbContext.SaveChangesAsync(CancellationToken)"/> itself; the caller
+        /// is expected to do so together with the playlist's own deletion.
+        /// </summary>
+        /// <param name="playlistId">The id of the playlist about to be deleted.</param>
+        /// <param name="userId">The id of the playlist's owning user.</param>
+        /// <param name="ct">A cancellation token.</param>
+        internal async Task ResolvePlaylistDeletionConflictsAsync(long playlistId, string userId, CancellationToken ct)
+        {
+            var boundEntries = await _db.ContinueWatchingEntries
+                .Where(x => x.UserId == userId && x.PlaylistId == playlistId)
+                .ToListAsync(ct);
+
+            if (boundEntries.Count == 0)
+                return;
+
+            var freeEntries = await _db.ContinueWatchingEntries
+                .Where(x => x.UserId == userId && x.PlaylistId == null)
+                .ToListAsync(ct);
+
+            foreach (var entry in boundEntries)
+            {
+                var hasConflict = freeEntries.Any(f =>
+                    (entry.MovieId != null && f.MovieId == entry.MovieId) ||
+                    (entry.TVShowEpisodeId != null && f.TVShowEpisodeId == entry.TVShowEpisodeId));
+
+                if (hasConflict)
+                    _db.ContinueWatchingEntries.Remove(entry);
+            }
         }
     }
 }

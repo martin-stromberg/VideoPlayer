@@ -585,6 +585,96 @@ Ab jetzt würde ein erneutes Entfernen von Episode 2 wieder eine neue Ausschluss
 
 ---
 
+## BR-20: Automatische Genre-Ableitung aus dem Playlist-Inhalt
+
+**Regel:** Solange `Playlist.GenresManuallyOverridden` nicht gesetzt ist, werden die Genres einer
+Playlist automatisch aus den Genres der aktuell enthaltenen Titel abgeleitet und bei jeder Änderung
+des Playlist-Inhalts (manuelles Hinzufügen, manuelles Entfernen, automatische Nachlieferung gemäß
+BR-18, stille Bereinigung verwaister Einträge gemäß BR-7) neu berechnet.
+
+**Quellen je Medientyp:**
+
+| Playlist-Eintragstyp | Genre-Quelle |
+|-----------------------|--------------|
+| `Movie` | eigene `MovieGenre`-Zeilen |
+| `TVShow` | eigene `TVShowGenre`-Zeilen |
+| `TVShowSeason` | `TVShowGenre`-Zeilen der übergeordneten Serie (Staffeln haben selbst keine Genre-Zuordnung) |
+| `TVShowEpisode` | `TVShowGenre`-Zeilen der übergeordneten Serie (über die Staffel) |
+| `MovieCollection` | kombinierte `MovieGenre`-Zeilen der enthaltenen Filme (`MediaHierarchyRegistry`-Cascade, dieselbe Abfrage wie bei BR-3) |
+
+**Implementierung (`PlaylistGenreService.RecomputeGenresAsync`):**
+- Für jeden Playlist-Eintrag werden die oben genannten zugrunde liegenden Film-/Serien-IDs
+  ermittelt und zu je einer Menge distinkter Film- bzw. Serien-IDs zusammengeführt (Mehrfachnennung
+  desselben Films/derselben Serie — z. B. eine Serie plus mehrere ihrer Episoden als eigene
+  Einträge — zählt dabei nur einmal)
+- Je Genre wird gezählt, bei wie vielen distinkten Filmen/Serien es vorkommt (`PlaylistGenre.Count`)
+  — diese Häufigkeit bestimmt die Anzeigereihenfolge (siehe unten)
+- Die bisherigen `PlaylistGenre`-Zeilen der Playlist werden vollständig durch die neu berechneten
+  ersetzt (kein inkrementelles Diffing) — eine bewusst einfache, für die hier relevanten
+  Playlist-Größen nicht unverhältnismäßig ineffiziente Lösung
+- Aufgerufen von `PlaylistService` nach `AddMediaToPlaylistAsync`, `RemoveMediaFromPlaylistAsync`
+  und der stillen Bereinigung verwaister Einträge, sowie von `PlaylistBackfillService` nach jedem
+  Nachlieferungs-Durchlauf, der tatsächlich Einträge hinzugefügt hat
+
+**Anzeige-Begrenzung:** `GET /api/playlists` und `GET /api/playlists/{id}` liefern in `genres` nur
+die ersten `Playlist.MaxDisplayedGenres` (5) Einträge, sortiert nach `Count` absteigend (bei
+Gleichstand nach Genre-Name aufsteigend). Gespeichert und für die Filterung (siehe BR-21) nutzbar
+bleiben jedoch **alle** abgeleiteten Genres, unabhängig von dieser Anzeige-Begrenzung — sie ist
+eine reine Darstellungsentscheidung.
+
+**Beispiel:**
+```
+Playlist "Serienabend":
+- Film "Film A" (Movie, Genres: Action, Drama)
+- Film "Film B" (Movie, Genres: Action, Komoedie)
+- Filmsammlung "Trilogie" (MovieCollection, enthaltene Filme mit Genres: Fantasy, Fantasy+Abenteuer)
+
+Genre-Zaehlung: Action=2, Drama=1, Komoedie=1, Fantasy=2, Abenteuer=1
+
+Angezeigte Genres (Count absteigend, Name als Tie-Break): Action, Fantasy, Abenteuer, Drama, Komoedie
+(alle 5 vorhandenen Genres, da nicht mehr als 5 abgeleitet wurden)
+```
+
+---
+
+## BR-21: Manuelles Überschreiben und Zurücksetzen der Playlist-Genres
+
+**Regel:** Der Besitzer einer Playlist kann die automatisch abgeleiteten Genres (BR-20) jederzeit
+durch eine eigene Auswahl ersetzen. Ab diesem Zeitpunkt greift BR-20 nicht mehr für diese Playlist,
+bis die Auswahl explizit wieder zurückgesetzt wird.
+
+**Implementierung (`PlaylistGenreService.SetManualGenresAsync` / `ResetGenresAsync`):**
+- `PUT /api/playlists/{id}/genres` (Body: `{ "genreIds": [...] }`) ersetzt die vorhandenen
+  `PlaylistGenre`-Zeilen der Playlist vollständig durch die angegebenen Genre-IDs (unbekannte IDs
+  werden stillschweigend ignoriert) und setzt `Playlist.GenresManuallyOverridden = true`
+- Eine manuell überschriebene Auswahl trägt keine aussagekräftige Häufigkeit; jede Zeile erhält
+  `Count = 1`, sodass die Anzeige-Begrenzung (BR-20) bei mehr als 5 gewählten Genres alphabetisch
+  statt nach Häufigkeit kürzt
+- `POST /api/playlists/{id}/genres/reset` setzt `Playlist.GenresManuallyOverridden = false` und
+  berechnet die Genres sofort aus dem aktuellen Playlist-Inhalt neu (dieselbe Logik wie BR-20)
+- Beide Endpunkte prüfen dieselbe Besitzer-Berechtigung wie alle übrigen Playlist-Operationen (siehe
+  BR-4)
+
+**Fehlerbehandlung:** HTTP 403 Forbidden bei fehlender Berechtigung, HTTP 404 Not Found bei
+unbekannter Playlist-ID (identisch zu den übrigen Playlist-Endpunkten).
+
+**Beispiel:**
+```
+Playlist "Serienabend" hat automatisch abgeleitete Genres: Action, Fantasy, Abenteuer, Drama, Komoedie
+
+Besitzer ruft PUT /api/playlists/1/genres mit genreIds=[5] auf (Genre 5 = "Handverlesen")
+→ Playlist fuehrt jetzt nur noch "Handverlesen", GenresManuallyOverridden = true
+
+Besitzer fuegt einen weiteren Film mit Genre "Thriller" hinzu
+→ Genres bleiben unveraendert bei "Handverlesen" (BR-20 greift nicht mehr)
+
+Besitzer ruft POST /api/playlists/1/genres/reset auf
+→ Genres werden neu aus dem aktuellen Inhalt abgeleitet (jetzt inkl. "Thriller"),
+  GenresManuallyOverridden = false
+```
+
+---
+
 ## Zusammenfassung der Validierungsregeln
 
 | Regel | Prüfpunkt | Fehler | HTTP-Status |
@@ -606,6 +696,8 @@ Ab jetzt würde ein erneutes Entfernen von Episode 2 wieder eine neue Ausschluss
 | BR-17: Sicherheitsabfrage bei Weiterschauen-Bezug | Vor Delete | `ContinueWatchingConfirmationRequiredException` | 409 Conflict |
 | BR-18: Automatische Nachlieferung neuer Inhalte | Periodischer Hintergrundprozess | Keine (still nachgeliefert, MaxItemCount begrenzt) | Keine |
 | BR-19: Bewusst entfernte Titel nicht erneut aufnehmen | Bei Nachlieferung | Keine (still übersprungen) | Keine |
+| BR-20: Automatische Genre-Ableitung | Bei jeder Inhaltsänderung | Keine (still neu berechnet) | Keine |
+| BR-21: Manuelles Genre-Überschreiben/Zurücksetzen | Bei `PUT`/`POST .../genres[/reset]` | `PlaylistAccessDeniedException` bei Fremdzugriff | 403 Forbidden / 404 Not Found |
 
 ---
 
@@ -668,3 +760,8 @@ Resultat: Serie A PLUS alle Staffeln und Episoden
 
 Diese Parameter werden in `PlaylistSettings` gelesen. Falls `MaxPlaylistItemCount` `null` ist,
 gibt es keine Prüfung der maximalen Eintragsanzahl.
+
+**Nicht konfigurierbar:** Die Anzahl der angezeigten Playlist-Genres (BR-20) ist als Konstante
+`Playlist.MaxDisplayedGenres = 5` im Code fest hinterlegt, analog zu anderen „höchstens N"-Grenzen
+in dieser Anwendung, statt über `PlaylistSettings` konfigurierbar zu sein — sie betrifft nur die
+Darstellung, nicht die zugrunde liegende Ableitung oder Filterbarkeit (siehe BR-20).

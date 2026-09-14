@@ -19,6 +19,14 @@ namespace VideoWebPlayer.Data
         public const int DescriptionMaxLength = 2000;
 
         /// <summary>
+        /// The maximum number of genres displayed for a playlist (in the overview and detail view), even
+        /// if more are derived from - or manually assigned to - its contents. Keeps the displayed genre
+        /// list readable; every derived/assigned genre is still stored and still usable for filtering and
+        /// searching (see <see cref="PlaylistGenre"/>), only the display is capped.
+        /// </summary>
+        public const int MaxDisplayedGenres = 5;
+
+        /// <summary>
         /// Gets or sets the playlist identifier.
         /// </summary>
         [Key]
@@ -60,8 +68,19 @@ namespace VideoWebPlayer.Data
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
         /// <summary>
+        /// Gets or sets a value indicating whether the owner has manually overridden the playlist's
+        /// genres (<see cref="PlaylistGenre"/> rows for this playlist). While <see langword="true"/>, the
+        /// genres are exactly what the owner picked and are no longer recomputed automatically when the
+        /// playlist's contents change (<see cref="Services.PlaylistGenreService.RecomputeGenresAsync"/>
+        /// becomes a no-op); resetting via <see cref="Services.PlaylistService.ResetPlaylistGenresAsync"/>
+        /// clears this flag and immediately recomputes from the current contents again.
+        /// </summary>
+        public bool GenresManuallyOverridden { get; set; }
+
+        /// <summary>
         /// Gets or sets the entries contained in this playlist.
         /// </summary>
-        public ICollection<PlaylistEntry> PlaylistEntries { get; set; } = new List<PlaylistEntry>();
+        public ICollection<PlaylistEntry> PlaylistEntries { get; set; } =
+            new List<PlaylistEntry>();
     }
 }

@@ -625,7 +625,150 @@ daraufhin „Ende der Playlist erreicht." an und stoppt die Wiedergabe.
 
 ---
 
+## Endpunkte für Playlist-Genres
+
+Ab Entwicklungsschritt 9 führt jede Playlist Genres: standardmäßig automatisch aus den Genres der
+enthaltenen Titel abgeleitet und bei jeder Änderung der Playlist-Inhalte (Hinzufügen, Entfernen,
+automatische Nachlieferung) neu berechnet, bis der Besitzer sie manuell überschreibt (siehe
+`playlists-business-rules.md`, BR-20 und BR-21, für das vollständige fachliche Verhalten). Es gibt
+dafür keinen eigenen Lese-Endpunkt — die Genres sind Teil des `DtoPlaylist`-Objekts, das
+`GET /api/playlists` und `GET /api/playlists/{id}` bereits liefern (siehe [DTO-Modelle](#dto-modelle)).
+
+### `GET /api/playlists?genreId={genreId}` — Playlists nach Genre filtern
+
+Der bestehende Endpunkt zum Abrufen aller Playlists des angemeldeten Benutzers akzeptiert
+zusätzlich einen optionalen `genreId`-Parameter, um nach Genre zu filtern und zu suchen — genau wie
+bei anderen Inhaltstypen (siehe `GET /api/items`).
+
+**Parameter:**
+
+| Name | Position | Typ | Erforderlich | Beschreibung |
+|------|----------|-----|-------------|--------------|
+| `genreId` | Query | long | Nein | Nur Playlists zurückgeben, die dieses Genre führen |
+
+**Erfolgreiche Antwort (HTTP 200):** Array von `DtoPlaylist`-Objekten. Ohne `genreId` unverändert
+alle Playlists des Benutzers. Mit `genreId` nur die Playlists, die dieses Genre in irgendeiner ihrer
+`PlaylistGenre`-Zeilen führen — nicht nur die tatsächlich angezeigten (siehe Hinweis zu `genres`
+unten), sodass die Filterung auch dann korrekt greift, wenn ein Genre selten ist und deshalb nicht
+unter den angezeigten Top-Genres einer Playlist auftaucht.
+
+---
+
+### `PUT /api/playlists/{id}/genres` — Genres manuell überschreiben
+
+Überschreibt die Genres einer Playlist mit genau den angegebenen Genre-IDs und setzt
+`genresManuallyOverridden` auf `true`. Ab diesem Zeitpunkt werden die Genres dieser Playlist nicht
+mehr automatisch aus ihren Inhalten neu berechnet, bis `POST /api/playlists/{id}/genres/reset`
+(siehe unten) aufgerufen wird.
+
+**Parameter:**
+
+| Name | Position | Typ | Erforderlich | Beschreibung |
+|------|----------|-----|-------------|--------------|
+| `id` | Route | long | Ja | Playlist-ID |
+| `genreIds` | Body | Array\<long\> | Ja | Genre-IDs, die die Playlist ab jetzt führen soll (ersetzt die bisherige Auswahl vollständig; unbekannte IDs werden stillschweigend ignoriert) |
+
+**Request-Body:**
+
+```json
+{
+  "genreIds": [12, 47]
+}
+```
+
+**Erfolgreiche Antwort (HTTP 200):** Das aktualisierte `DtoPlaylist`-Objekt mit
+`genresManuallyOverridden: true`.
+
+**Fehlerantworten:**
+
+| HTTP-Status | Grund |
+|-------------|-------|
+| 404 Not Found | Playlist nicht gefunden |
+| 403 Forbidden | Benutzer ist nicht der Besitzer der Playlist |
+| 401 Unauthorized | Fehlende oder ungültige Authentifizierung |
+
+---
+
+### `POST /api/playlists/{id}/genres/reset` — Genres auf automatische Ableitung zurücksetzen
+
+Hebt eine zuvor gesetzte manuelle Genre-Auswahl auf (`genresManuallyOverridden` wird `false`) und
+berechnet die Genres sofort neu aus den aktuell in der Playlist enthaltenen Titeln.
+
+**Parameter:**
+
+| Name | Position | Typ | Erforderlich | Beschreibung |
+|------|----------|-----|-------------|--------------|
+| `id` | Route | long | Ja | Playlist-ID |
+
+**Erfolgreiche Antwort (HTTP 200):** Das aktualisierte `DtoPlaylist`-Objekt mit
+`genresManuallyOverridden: false` und den neu abgeleiteten Genres.
+
+**Fehlerantworten:** wie bei `PUT /api/playlists/{id}/genres`.
+
+---
+
 ## DTO-Modelle
+
+### `DtoPlaylist`
+
+Repräsentiert eine Playlist selbst (nicht ihre Einträge). Wird von `GET /api/playlists`,
+`GET /api/playlists/{id}`, `POST /api/playlists`, `PUT /api/playlists/{id}`,
+`PATCH /api/playlists/{id}/sort-mode`, `PUT /api/playlists/{id}/genres` und
+`POST /api/playlists/{id}/genres/reset` zurückgegeben.
+
+```csharp
+public class DtoPlaylist
+{
+    public long Id { get; set; }
+    public string Name { get; set; }
+    public string? Description { get; set; }
+    public string SortMode { get; set; }                 // "ByReleaseDate" oder "Manual"
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+    public DtoGenreOption[] Genres { get; set; }          // angezeigte Genres, siehe Hinweis unten
+    public long[] AllGenreIds { get; set; }               // alle zugeordneten Genre-IDs, ungekuerzt
+    public bool GenresManuallyOverridden { get; set; }    // true, wenn der Besitzer die Genres manuell gesetzt hat
+}
+```
+
+**Hinweis zu `genres`:** Nach Häufigkeit absteigend sortiert (wie viele unterschiedliche Titel der
+Playlist dieses Genre tragen; bei einer manuellen Auswahl stattdessen alphabetisch, da eine
+Häufigkeit hier keinen Sinn ergibt) und auf die ersten fünf Einträge begrenzt, damit die Anzeige
+übersichtlich bleibt. Solange `genresManuallyOverridden` `false` ist, werden diese Genres
+automatisch aus den Genres der enthaltenen Titel abgeleitet und bei jeder Änderung der
+Playlist-Inhalte neu berechnet (siehe `playlists-business-rules.md`, BR-20). `Movie`- und
+`TVShow`-Einträge tragen ihre eigenen Genres bei; `TVShowSeason`- und `TVShowEpisode`-Einträge die
+Genres ihrer übergeordneten Serie; `MovieCollection`-Einträge die kombinierten Genres ihrer
+enthaltenen Filme.
+
+**Hinweis zu `allGenreIds`:** Enthält jedes der Playlist zugeordnete Genre, nicht nur die oben
+gekürzt angezeigte Teilmenge. Wird von der Oberfläche verwendet, um den
+Genre-Überschreiben-Dialog mit der tatsächlich vollständigen aktuellen Auswahl vorzubelegen;
+`GET /api/playlists?genreId=…` (siehe oben) filtert ebenfalls gegen die vollständige Menge, nicht
+nur gegen `genres`.
+
+### `DtoGenreOption`
+
+Ein einzelnes, auswählbares Genre (auch für andere Inhaltstypen verwendet, siehe `GET /api/items/genres`).
+
+```csharp
+public class DtoGenreOption
+{
+    public long Id { get; set; }
+    public string Name { get; set; }
+}
+```
+
+### `DtoSetPlaylistGenresRequest`
+
+Request-Format von `PUT /api/playlists/{id}/genres`.
+
+```csharp
+public class DtoSetPlaylistGenresRequest
+{
+    public long[] GenreIds { get; set; }
+}
+```
 
 ### `DtoPlaylistEntry`
 

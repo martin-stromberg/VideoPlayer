@@ -13,10 +13,11 @@ namespace VideoWebPlayer.Client
     public interface IPlaylistApiClient
     {
         /// <summary>
-        /// Requests all playlists of the current user.
+        /// Requests all playlists of the current user, optionally restricted to those carrying the given genre.
         /// </summary>
+        /// <param name="genreId">Optional genre id to restrict results to.</param>
         /// <returns>The current user's playlists.</returns>
-        Task<IEnumerable<DtoPlaylist>> RequestPlaylistsAsync();
+        Task<IEnumerable<DtoPlaylist>> RequestPlaylistsAsync(long? genreId = null);
 
         /// <summary>
         /// Requests a single playlist, or <c>null</c> if it does not exist.
@@ -104,6 +105,23 @@ namespace VideoWebPlayer.Client
         /// <param name="request">Data describing the new sort mode.</param>
         /// <returns>The updated playlist.</returns>
         Task<DtoPlaylist> ChangeSortModeAsync(long playlistId, DtoChangeSortModeRequest request);
+
+        /// <summary>
+        /// Manually overrides the genres of a playlist, replacing every automatically derived or
+        /// previously manually assigned genre.
+        /// </summary>
+        /// <param name="playlistId">Id of the playlist.</param>
+        /// <param name="request">The genre ids to assign.</param>
+        /// <returns>The updated playlist.</returns>
+        Task<DtoPlaylist> SetPlaylistGenresAsync(long playlistId, DtoSetPlaylistGenresRequest request);
+
+        /// <summary>
+        /// Clears a previous manual genre override (if any) of a playlist, immediately recomputing its
+        /// genres from its current contents.
+        /// </summary>
+        /// <param name="playlistId">Id of the playlist.</param>
+        /// <returns>The updated playlist.</returns>
+        Task<DtoPlaylist> ResetPlaylistGenresAsync(long playlistId);
 
         /// <summary>
         /// Requests the current maximum manual sort order across the entire playlist (not just a

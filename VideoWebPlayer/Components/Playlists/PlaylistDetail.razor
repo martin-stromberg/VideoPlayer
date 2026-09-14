@@ -64,6 +64,23 @@ else if (playlist is not null)
                 {
                     <div class="tvshow-plot" id="playlist-detail-description"></div>
                 }
+                <div class="playlist-detail-genres-row">
+                    @if (playlist.Genres.Length > 0)
+                    {
+                        <span class="playlist-genres-line" id="playlist-detail-genres">@string.Join(", ", playlist.Genres.Select(g => g.Name))</span>
+                    }
+                    @if (playlist.GenresManuallyOverridden)
+                    {
+                        <span class="playlist-genre-override-badge" id="playlist-detail-genres-override-badge">Manuell festgelegt</span>
+                    }
+                    <span class="playlist-genre-actions">
+                        <button class="metadata-icon-btn playlist-genre-edit-button" id="playlist-detail-edit-genres-button" @onclick="OpenGenreEditor" title="Genres bearbeiten">✎</button>
+                        @if (playlist.GenresManuallyOverridden)
+                        {
+                            <button class="metadata-icon-btn playlist-genre-reset-button" id="playlist-detail-reset-genres-button" @onclick="ResetGenresAsync" title="Auf automatische Genres zuruecksetzen">↺</button>
+                        }
+                    </span>
+                </div>
                 <div class="playlist-detail-dates-muted">
                     <span id="playlist-detail-created"><span class="playlist-detail-date-label">Erstellt</span>@playlist.CreatedAt.ToLocalTime()</span>
                     <span id="playlist-detail-updated"><span class="playlist-detail-date-label">Aktualisiert</span>@playlist.UpdatedAt.ToLocalTime()</span>
@@ -76,6 +93,11 @@ else if (playlist is not null)
         @if (!string.IsNullOrWhiteSpace(sortModeStatusMessage))
         {
             <div class="alert alert-danger" id="playlist-sortmode-status">@sortModeStatusMessage</div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(genreStatusMessage))
+        {
+            <div class="alert alert-danger" id="playlist-genre-status">@genreStatusMessage</div>
         }
 
         <PlaylistEntriesList @ref="entriesList" PlaylistId="Id" IsManualMode="IsManualMode" OnPlayEntry="PlayEntryAsync" />
@@ -117,6 +139,11 @@ else if (playlist is not null)
     <PlaylistSortModeConfirmationDialog OnConfirm="ConfirmSortModeChangeAsync" OnCancel="CancelSortModeChange" />
 }
 
+@if (showGenreEditor && playlist is not null)
+{
+    <PlaylistGenreEditor PlaylistId="Id" InitialGenreIds="playlist.AllGenreIds" OnSaved="HandleGenresSavedAsync" OnCancel="CloseGenreEditor" />
+}
+
 @code {
     [Parameter]
     public long Id { get; set; }
@@ -139,6 +166,8 @@ else if (playlist is not null)
     private string selectedSortMode = PlaylistSortModeValues.ByReleaseDate;
     private bool showSortModeConfirmation;
     private string? sortModeStatusMessage;
+    private bool showGenreEditor;
+    private string? genreStatusMessage;
     private PlaylistEntriesList? entriesList;
     private DtoPlaylistPlaybackStart? playbackStart;
 
@@ -393,4 +422,36 @@ else if (playlist is not null)
 
     private Task ReloadEntriesAsync()
         => entriesList is not null ? entriesList.ReloadAsync() : Task.CompletedTask;
+
+    private void OpenGenreEditor()
+    {
+        genreStatusMessage = null;
+        showGenreEditor = true;
+    }
+
+    private void CloseGenreEditor()
+    {
+        showGenreEditor = false;
+    }
+
+    private Task HandleGenresSavedAsync(DtoPlaylist updated)
+    {
+        playlist = updated;
+        showGenreEditor = false;
+        return Task.CompletedTask;
+    }
+
+    private async Task ResetGenresAsync()
+    {
+        genreStatusMessage = null;
+        try
+        {
+            playlist = await PlaylistClient.ResetPlaylistGenresAsync(Id);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Fehler beim Zuruecksetzen der Genres von Playlist {PlaylistId}", Id);
+            genreStatusMessage = $"Fehler beim Zuruecksetzen der Genres: {ex.Message}";
+        }
+    }
 }

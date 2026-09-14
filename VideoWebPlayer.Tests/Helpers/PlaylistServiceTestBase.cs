@@ -235,6 +235,92 @@ public abstract class PlaylistServiceTestBase : IDisposable
         }
     }
 
+    private readonly Dictionary<string, long> _genreIdsByName = new(StringComparer.OrdinalIgnoreCase);
+    private bool _mediaSourceEnsured;
+
+    /// <summary>
+    /// Returns the id of a <see cref="Genre"/> row named <paramref name="name"/>, creating it (and, the
+    /// first time, its required owning <see cref="MediaSource"/> row - these tests run against real
+    /// SQLite with foreign keys enforced, unlike some other tests backed by EF Core's in-memory provider)
+    /// if it does not exist yet. Reused across calls within one test so requesting the same genre name
+    /// twice returns the same id, for genre-derivation tests (Entwicklungsschritt 9).
+    /// </summary>
+    /// <param name="name">The genre name.</param>
+    /// <returns>The genre's id.</returns>
+    protected async Task<long> GetOrCreateGenreIdAsync(string name)
+    {
+        if (_genreIdsByName.TryGetValue(name, out var existingId))
+            return existingId;
+
+        if (!_mediaSourceEnsured)
+        {
+            if (!await _db.MediaSources.AnyAsync(s => s.Id == 1))
+                _db.MediaSources.Add(new MediaSource { Id = 1, Name = "Test Source", Path = "/test", Host = "localhost", Port = 22 });
+            await _db.SaveChangesAsync();
+            _mediaSourceEnsured = true;
+        }
+
+        var genre = new Genre { MediaSourceId = 1, Name = name };
+        _db.Genres.Add(genre);
+        await _db.SaveChangesAsync();
+        _genreIdsByName[name] = genre.Id;
+        return genre.Id;
+    }
+
+    /// <summary>
+    /// Creates a standalone movie directly in the database (bypassing the service) carrying the given
+    /// genres (created via <see cref="GetOrCreateGenreIdAsync"/> if not already known).
+    /// </summary>
+    /// <param name="name">The name of the movie to create.</param>
+    /// <param name="genreNames">The genre names to assign to the movie.</param>
+    /// <returns>The created movie's id.</returns>
+    protected Task<long> CreateMovieWithGenresAsync(string name, params string[] genreNames)
+        => CreateMovieWithGenresCoreAsync(name, null, genreNames);
+
+    /// <summary>
+    /// Creates a movie as part of an already-existing movie collection directly in the database (bypassing
+    /// the service), carrying the given genres (created via <see cref="GetOrCreateGenreIdAsync"/> if not
+    /// already known).
+    /// </summary>
+    /// <param name="movieCollectionId">The id of the already-existing movie collection.</param>
+    /// <param name="name">The name of the movie to create.</param>
+    /// <param name="genreNames">The genre names to assign to the movie.</param>
+    /// <returns>The created movie's id.</returns>
+    protected Task<long> CreateMovieInCollectionWithGenresAsync(long movieCollectionId, string name, params string[] genreNames)
+        => CreateMovieWithGenresCoreAsync(name, movieCollectionId, genreNames);
+
+    private async Task<long> CreateMovieWithGenresCoreAsync(string name, long? movieCollectionId, string[] genreNames)
+    {
+        var movie = new Movie { Name = name, MediaSourceId = 1, MovieCollectionId = movieCollectionId, CreatedAt = DateTime.UtcNow };
+        _db.Movies.Add(movie);
+        await _db.SaveChangesAsync();
+
+        foreach (var genreName in genreNames)
+        {
+            var genreId = await GetOrCreateGenreIdAsync(genreName);
+            _db.MovieGenres.Add(new MovieGenre { MovieId = movie.Id, GenreId = genreId });
+        }
+        await _db.SaveChangesAsync();
+
+        return movie.Id;
+    }
+
+    /// <summary>
+    /// Assigns the given genres (created via <see cref="GetOrCreateGenreIdAsync"/> if not already known)
+    /// to an already-existing TV show.
+    /// </summary>
+    /// <param name="showId">The id of the TV show to assign genres to.</param>
+    /// <param name="genreNames">The genre names to assign.</param>
+    protected async Task AddGenresToTVShowAsync(long showId, params string[] genreNames)
+    {
+        foreach (var genreName in genreNames)
+        {
+            var genreId = await GetOrCreateGenreIdAsync(genreName);
+            _db.TVShowGenres.Add(new TVShowGenre { TVShowId = showId, GenreId = genreId });
+        }
+        await _db.SaveChangesAsync();
+    }
+
     /// <summary>
     /// Creates and persists a new playlist for the given user with a randomly generated name and the
     /// given sort mode (defaulting to sorted by release date). Shared by the various
@@ -488,8 +574,8 @@ public abstract class PlaylistServiceTestBase : IDisposable
 
         public LazyPlaylistService(Func<IPlaylistService> resolve) => _resolve = resolve;
 
-        public Task<DtoPlaylist[]> GetPlaylistsAsync(string userId, CancellationToken cancellationToken = default)
-            => _resolve().GetPlaylistsAsync(userId, cancellationToken);
+        public Task<DtoPlaylist[]> GetPlaylistsAsync(string userId, long? genreId = null, CancellationToken cancellationToken = default)
+            => _resolve().GetPlaylistsAsync(userId, genreId, cancellationToken);
 
         public Task<DtoPlaylist?> GetPlaylistAsync(long playlistId, string userId, CancellationToken cancellationToken = default)
             => _resolve().GetPlaylistAsync(playlistId, userId, cancellationToken);
@@ -532,6 +618,12 @@ public abstract class PlaylistServiceTestBase : IDisposable
 
         public Task<DtoPlaylist> ChangeSortModeAsync(long playlistId, string userId, string newSortMode, bool? confirmLossOfManualOrder, CancellationToken cancellationToken = default)
             => _resolve().ChangeSortModeAsync(playlistId, userId, newSortMode, confirmLossOfManualOrder, cancellationToken);
+
+        public Task<DtoPlaylist> SetPlaylistGenresAsync(long playlistId, string userId, long[] genreIds, CancellationToken cancellationToken = default)
+            => _resolve().SetPlaylistGenresAsync(playlistId, userId, genreIds, cancellationToken);
+
+        public Task<DtoPlaylist> ResetPlaylistGenresAsync(long playlistId, string userId, CancellationToken cancellationToken = default)
+            => _resolve().ResetPlaylistGenresAsync(playlistId, userId, cancellationToken);
 
         public Task<DtoPlaylistNavigationResult?> GetNextPlaylistEntryAsync(long playlistId, string userId, long currentEntryId, CancellationToken cancellationToken = default)
             => _resolve().GetNextPlaylistEntryAsync(playlistId, userId, currentEntryId, cancellationToken);

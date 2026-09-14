@@ -157,6 +157,181 @@ public sealed class VideoWebPlayerBackupDataTests
     }
 
     /// <summary>
+    /// Verifies that a backup taken before the <c>PlaylistGenres</c> table existed (Entwicklungsschritt 9,
+    /// tracking a playlist's automatically derived or manually overridden genres) can still be restored,
+    /// analogous to <see cref="ReadFromAsync_LegacyBackupWithoutPlaylistEntryExclusions_RestoresSuccessfully"/> above.
+    /// </summary>
+    [Fact]
+    public async Task ReadFromAsync_LegacyBackupWithoutPlaylistGenres_RestoresSuccessfully()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var connection = new SqliteConnection("Data Source=file:backuptest-playlist-genres?mode=memory&cache=shared");
+        await connection.OpenAsync(ct);
+        var (db, backup, userId) = await CreateBackupWithSeededDatabaseAsync(connection, ct);
+        await using var _ = db;
+
+        var mediaSource = new MediaSource { Name = "Quelle", Path = "/test", Host = "localhost", Port = 22 };
+        db.MediaSources.Add(mediaSource);
+        await db.SaveChangesAsync(ct);
+        var genre = new Genre { MediaSourceId = mediaSource.Id, Name = "Action" };
+        db.Genres.Add(genre);
+        await db.SaveChangesAsync(ct);
+
+        var playlist = new Playlist
+        {
+            UserId = userId,
+            Name = "Playlist-Mit-Genre",
+            SortMode = PlaylistSortMode.ByReleaseDate,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        db.Playlists.Add(playlist);
+        await db.SaveChangesAsync(ct);
+        db.PlaylistGenres.Add(new PlaylistGenre { PlaylistId = playlist.Id, GenreId = genre.Id, Count = 1 });
+        await db.SaveChangesAsync(ct);
+
+        using var legacyStream = await BuildLegacyBackupStreamRemovingTablesAsync(backup, new[] { "PlaylistGenres" }, ct);
+
+        // This must not throw even though the backup lacks the new table.
+        var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
+
+        Assert.Null(exception);
+        Assert.False(await db.PlaylistGenres.AnyAsync(ct));
+        Assert.Equal(userId, (await db.Users.FirstAsync(ct)).Id);
+    }
+
+    /// <summary>
+    /// Verifies that a backup taken before <c>Playlists.GenresManuallyOverridden</c> existed
+    /// (Entwicklungsschritt 9, a legacy column-level gap analogous to
+    /// <see cref="ReadFromAsync_LegacyBackupWithoutSortOrderColumnInPlaylistEntries_RestoresSuccessfully"/>
+    /// above) can still be restored, with the missing column defaulting to <see langword="false"/> (i.e. the
+    /// restored playlist behaves as if its genres were never manually overridden, the correct fallback for
+    /// a pre-Schritt-9 backup).
+    /// </summary>
+    [Fact]
+    public async Task ReadFromAsync_LegacyBackupWithoutGenresManuallyOverriddenColumnInPlaylists_RestoresSuccessfully()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var connection = new SqliteConnection("Data Source=file:backuptest-no-genres-overridden-column?mode=memory&cache=shared");
+        await connection.OpenAsync(ct);
+        var (db, backup, userId) = await CreateBackupWithSeededDatabaseAsync(connection, ct);
+        await using var _ = db;
+
+        var playlist = new Playlist
+        {
+            UserId = userId,
+            Name = "Legacy-Playlist",
+            SortMode = PlaylistSortMode.ByReleaseDate,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            GenresManuallyOverridden = true
+        };
+        db.Playlists.Add(playlist);
+        await db.SaveChangesAsync(ct);
+
+        using var legacyStream = await BuildLegacyBackupStreamWithoutColumnAsync(backup, "Playlists", "GenresManuallyOverridden", ct);
+
+        // This must not throw even though the backup lacks the new column.
+        var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
+
+        Assert.Null(exception);
+        // AsNoTracking: ReadFromAsync restores via raw SQL, bypassing the change tracker entirely, so the
+        // still-tracked pre-restore "playlist" instance (GenresManuallyOverridden = true) would otherwise
+        // win identity resolution over the freshly queried row here.
+        var restoredPlaylist = await db.Playlists.AsNoTracking().SingleAsync(ct);
+        Assert.False(restoredPlaylist.GenresManuallyOverridden);
+        Assert.Equal(userId, (await db.Users.FirstAsync(ct)).Id);
+    }
+
+    /// <summary>
+    /// Backs up <paramref name="backup"/>'s current schema and rebuilds the archive with the given
+    /// table's given column removed from both the index metadata's column list and every already-backed-up
+    /// row's data, simulating a backup taken before that column existed. Generic counterpart of
+    /// <see cref="BuildLegacyBackupStreamWithoutPlaylistEntriesSortOrderColumnAsync"/> and
+    /// <see cref="BuildLegacyBackupStreamWithoutContinueWatchingEntriesPlaylistIdColumnAsync"/> above, used
+    /// where a single additional case does not warrant its own dedicated near-duplicate method.
+    /// </summary>
+    /// <param name="backup">The current-schema backup to derive the legacy archive from.</param>
+    /// <param name="tableName">The name of the table to remove the column from.</param>
+    /// <param name="columnName">The name of the column to remove.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The rebuilt legacy backup archive, positioned at the start.</returns>
+    private static async Task<MemoryStream> BuildLegacyBackupStreamWithoutColumnAsync(
+        VideoWebPlayerBackupData backup, string tableName, string columnName, CancellationToken cancellationToken)
+    {
+        using var currentStream = new MemoryStream();
+        await backup.WriteToAsync(currentStream, cancellationToken);
+        currentStream.Position = 0;
+
+        using var originalArchive = new ZipArchive(currentStream, ZipArchiveMode.Read, true);
+        var legacyStream = new MemoryStream();
+
+        using (var legacyArchive = new ZipArchive(legacyStream, ZipArchiveMode.Create, true))
+        {
+            var indexEntry = originalArchive.GetEntry("index.json")!;
+            JsonNode? indexNode;
+            using (var indexStream = indexEntry.Open())
+            {
+                indexNode = await JsonNode.ParseAsync(indexStream, cancellationToken: cancellationToken);
+            }
+
+            var tables = indexNode!["tables"]!.AsArray();
+            var table = tables.First(t =>
+                string.Equals(t!["name"]!.GetValue<string>(), tableName, StringComparison.OrdinalIgnoreCase))!;
+            var entryName = table["entryName"]!.GetValue<string>();
+
+            var columns = table["columns"]!.AsArray();
+            var column = columns.FirstOrDefault(c => string.Equals(c!.GetValue<string>(), columnName, StringComparison.OrdinalIgnoreCase));
+            if (column is not null)
+                columns.Remove(column);
+
+            var newIndexEntry = legacyArchive.CreateEntry("index.json");
+            using (var newIndexStream = newIndexEntry.Open())
+            {
+                await using var writer = new Utf8JsonWriter(newIndexStream, new JsonWriterOptions { Indented = true });
+                indexNode!.WriteTo(writer, JsonOptions);
+                await writer.FlushAsync(cancellationToken);
+            }
+
+            foreach (var entry in originalArchive.Entries)
+            {
+                if (entry.FullName == "index.json")
+                    continue;
+
+                if (string.Equals(entry.FullName, entryName, StringComparison.OrdinalIgnoreCase))
+                {
+                    JsonNode? dataNode;
+                    using (var dataStream = entry.Open())
+                    {
+                        dataNode = await JsonNode.ParseAsync(dataStream, cancellationToken: cancellationToken);
+                    }
+
+                    foreach (var row in dataNode!["rows"]!.AsArray())
+                        row!.AsObject().Remove(columnName);
+
+                    var newDataEntry = legacyArchive.CreateEntry(entry.FullName);
+                    using (var newDataStream = newDataEntry.Open())
+                    {
+                        await using var writer = new Utf8JsonWriter(newDataStream, new JsonWriterOptions { Indented = true });
+                        dataNode!.WriteTo(writer, JsonOptions);
+                        await writer.FlushAsync(cancellationToken);
+                    }
+                }
+                else
+                {
+                    var newEntry = legacyArchive.CreateEntry(entry.FullName);
+                    using var sourceStream = entry.Open();
+                    using var destinationStream = newEntry.Open();
+                    await sourceStream.CopyToAsync(destinationStream, cancellationToken);
+                }
+            }
+        }
+
+        legacyStream.Position = 0;
+        return legacyStream;
+    }
+
+    /// <summary>
     /// Verifies that a backup taken before <c>PlaylistEntries.SortOrder</c> existed (a legacy column-level
     /// gap, distinct from the whole-table-missing case covered by
     /// <see cref="ReadFromAsync_LegacyBackupWithoutPlaylistsAndPlaylistEntries_RestoresSuccessfully"/>

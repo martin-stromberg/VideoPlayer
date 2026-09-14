@@ -117,6 +117,11 @@ namespace VideoWebPlayer.Data
         /// </summary>
         public DbSet<PlaylistEntryExclusion> PlaylistEntryExclusions { get; set; }
         /// <summary>
+        /// Tabelle für die (automatisch abgeleiteten oder manuell überschriebenen) Genres einer Playlist
+        /// (<see cref="Services.PlaylistGenreService"/>).
+        /// </summary>
+        public DbSet<PlaylistGenre> PlaylistGenres { get; set; }
+        /// <summary>
         /// Tabelle für einzeln freigeschaltete Medieneinträge.
         /// </summary>
         public DbSet<UnlockedMediaEntry> UnlockedMediaEntries { get; set; }

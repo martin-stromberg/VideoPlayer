@@ -12,9 +12,14 @@ die manuelle Umsortierung der Einträge per Drag & Drop oder Schnellaktion.
 ## Übersicht
 
 Unter „Playlists" sieht ein Anwender seine eigenen Playlists als Kacheln (eine Kachel je Playlist)
-mit Titel, einer Grafik, einem Symbol für den Sortiermodus sowie dezent dargestelltem Erstellungs-
-und Aktualisierungszeitpunkt. Da Playlists noch kein eigenes Coverbild besitzen, zeigt die Kachel
-an dieser Stelle einen generischen, farblich je Playlist unterschiedlichen Platzhalter.
+mit Titel, einer Grafik, einem Symbol für den Sortiermodus, den Genres der Playlist (falls
+vorhanden, siehe Abschnitt „Genres") sowie dezent dargestelltem Erstellungs- und
+Aktualisierungszeitpunkt. Da Playlists noch kein eigenes Coverbild besitzen, zeigt die Kachel an
+dieser Stelle einen generischen, farblich je Playlist unterschiedlichen Platzhalter.
+
+Oberhalb der Kacheln steht, sobald mindestens ein Genre unter den eigenen Playlists vorkommt, ein
+Auswahlfeld „Nach Genre filtern" zur Verfügung, mit dem sich die Übersicht auf Playlists
+beschränken lässt, die ein bestimmtes Genre führen (siehe Abschnitt „Genres").
 
 Ein Klick (bzw. Tipp) auf eine Kachel öffnet die Detailseite der Playlist (siehe Abschnitt
 „Detailseite"). Neue Playlists werden über die Schaltfläche „Neue Playlist erstellen" oberhalb der
@@ -53,6 +58,8 @@ ebenfalls ein generischer Platzhalter, siehe Abschnitt „Übersicht"). Der Kopf
 - **Sortierung** — Symbol und Text für den aktuellen Sortiermodus, daneben eine Schaltfläche zum
   Wechseln (siehe Abschnitt „Sortiermodus ändern")
 - **Beschreibung** — Beschreibungstext (falls vorhanden)
+- **Genres** — die Genres der Playlist (falls vorhanden), mit Schaltflächen zum Bearbeiten und
+  ggf. Zurücksetzen (siehe Abschnitt „Genres")
 - **Erstellt** / **Aktualisiert** — Zeitpunkt der Erstellung bzw. letzten Änderung, dezent dargestellt
 
 Im Kopfbereich stehen zusätzlich als Symbol-Schaltflächen zur Verfügung:
@@ -228,6 +235,48 @@ Ein Titel, den der Anwender zuvor bewusst einzeln aus der Playlist entfernt hat 
 „Entfernen"), wird von dieser automatischen Nachlieferung nicht erneut aufgenommen. Ist für die
 Playlist eine maximale Anzahl an Einträgen konfiguriert (siehe Abschnitt „Konfiguration") und
 bereits erreicht, werden für diese Playlist keine weiteren Titel nachgeliefert.
+
+## Genres
+
+Zu jeder Playlist werden Genres geführt: In der Übersicht (als Kachel-Zeile) und im Kopfbereich der
+Detailseite werden sie angezeigt, nach Häufigkeit absteigend sortiert und auf die ersten fünf
+begrenzt, damit die Darstellung übersichtlich bleibt. Diese Genres lassen sich — wie die Genres
+anderer Inhalte — zum Filtern nutzen: Das Auswahlfeld „Nach Genre filtern" oberhalb der
+Playlist-Kacheln (siehe Abschnitt „Übersicht") beschränkt die Übersicht auf Playlists, die das
+gewählte Genre führen; dabei zählt jedes der Playlist zugeordnete Genre, nicht nur die tatsächlich
+angezeigten fünf.
+
+### Automatische Ableitung
+
+Standardmäßig ergeben sich die Genres einer Playlist automatisch aus den Genres der enthaltenen
+Titel und aktualisieren sich, sobald sich der Inhalt der Playlist ändert — beim manuellen
+Hinzufügen oder Entfernen eines Titels ebenso wie bei der automatischen Nachlieferung neuer Inhalte
+(siehe Abschnitt „Automatische Nachlieferung neuer Inhalte" oben). Dabei gilt:
+
+- Ein **Film** trägt seine eigenen Genres bei.
+- Eine **Serie** trägt ihre eigenen Genres bei.
+- Eine **Staffel** oder eine **Episode** trägt die Genres ihrer übergeordneten Serie bei (Staffeln
+  und Episoden haben selbst keine eigenen Genres).
+- Eine **Filmsammlung** trägt die kombinierten Genres der darin enthaltenen Filme bei.
+
+Übernommen werden dabei alle in den enthaltenen Titeln vorkommenden Genres — nicht nur die
+angezeigten fünf; die Begrenzung betrifft ausschließlich die Anzeige, nicht die Filterbarkeit
+(siehe oben) oder die zugrunde liegende Ableitung. Entfernt ein Anwender den letzten Titel mit
+einem bestimmten Genre aus der Playlist, verschwindet dieses Genre entsprechend wieder.
+
+### Manuelles Überschreiben und Zurücksetzen
+
+Über die Stift-Schaltfläche neben den Genres im Kopfbereich der Detailseite kann der Besitzer einer
+Playlist die automatisch abgeleiteten Genres von Hand überschreiben: Ein Dialog zeigt alle
+verfügbaren Genres als antippbare Auswahl-Schaltflächen (dasselbe Bedienmuster wie bei der
+Genre-Auswahl von Filmen und Serien), aus denen sich eine beliebige eigene Kombination
+zusammenstellen und speichern lässt.
+
+Ab dem Speichern bleibt diese manuelle Auswahl bestehen und wird **nicht mehr automatisch
+verändert**, auch wenn anschließend Titel zur Playlist hinzugefügt oder daraus entfernt werden. Ein
+Hinweis „Manuell festgelegt" neben den Genres zeigt diesen Zustand an, und eine zusätzliche
+Schaltfläche (Zurücksetzen-Symbol) erscheint, mit der sich die überschriebene Auswahl jederzeit
+wieder auf die automatische Ableitung aus dem aktuellen Playlist-Inhalt zurücksetzen lässt.
 
 ## Wiedergabe aus einer Playlist und Weiterschauen-Integration
 

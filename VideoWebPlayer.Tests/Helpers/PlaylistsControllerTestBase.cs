@@ -176,8 +176,8 @@ public abstract class PlaylistsControllerTestBase : IDisposable
 
         public LazyPlaylistService(Func<IPlaylistService> resolve) => _resolve = resolve;
 
-        public Task<DtoPlaylist[]> GetPlaylistsAsync(string userId, CancellationToken cancellationToken = default)
-            => _resolve().GetPlaylistsAsync(userId, cancellationToken);
+        public Task<DtoPlaylist[]> GetPlaylistsAsync(string userId, long? genreId = null, CancellationToken cancellationToken = default)
+            => _resolve().GetPlaylistsAsync(userId, genreId, cancellationToken);
 
         public Task<DtoPlaylist?> GetPlaylistAsync(long playlistId, string userId, CancellationToken cancellationToken = default)
             => _resolve().GetPlaylistAsync(playlistId, userId, cancellationToken);
@@ -220,6 +220,12 @@ public abstract class PlaylistsControllerTestBase : IDisposable
 
         public Task<DtoPlaylist> ChangeSortModeAsync(long playlistId, string userId, string newSortMode, bool? confirmLossOfManualOrder, CancellationToken cancellationToken = default)
             => _resolve().ChangeSortModeAsync(playlistId, userId, newSortMode, confirmLossOfManualOrder, cancellationToken);
+
+        public Task<DtoPlaylist> SetPlaylistGenresAsync(long playlistId, string userId, long[] genreIds, CancellationToken cancellationToken = default)
+            => _resolve().SetPlaylistGenresAsync(playlistId, userId, genreIds, cancellationToken);
+
+        public Task<DtoPlaylist> ResetPlaylistGenresAsync(long playlistId, string userId, CancellationToken cancellationToken = default)
+            => _resolve().ResetPlaylistGenresAsync(playlistId, userId, cancellationToken);
 
         public Task<DtoPlaylistNavigationResult?> GetNextPlaylistEntryAsync(long playlistId, string userId, long currentEntryId, CancellationToken cancellationToken = default)
             => _resolve().GetNextPlaylistEntryAsync(playlistId, userId, currentEntryId, cancellationToken);

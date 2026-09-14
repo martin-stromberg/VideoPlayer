@@ -2581,6 +2581,59 @@ input[type="text"]:focus {
     opacity: 0.8;
 }
 
+/* Genres einer Playlist (Entwicklungsschritt 9): dezente, kommagetrennte Zeile, analog zu
+   ".tvshow-genres" bei Serien - sowohl auf der Kachel (Uebersicht) als auch im Kopfbereich der
+   Detailansicht verwendet. */
+.playlist-genres-line {
+    display: block;
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 0.78rem;
+    margin-top: 0.2rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.playlist-detail-genres-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    margin-top: 0.4rem;
+}
+
+.playlist-genre-override-badge {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--vp-primary-soft);
+    opacity: 0.9;
+}
+
+.playlist-genre-actions {
+    display: inline-flex;
+    gap: 0.35rem;
+}
+
+/* Genre-Filter in der Playlist-Uebersicht (Entwicklungsschritt 9). */
+.admin-filter-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+.admin-filter-row label {
+    font-size: 0.85rem;
+    opacity: 0.8;
+}
+
+.admin-filter-row .form-select {
+    width: auto;
+    min-width: 200px;
+}
+
 /* Playlist-Eintraege: Kacheln im Stil der Episoden-Kacheln (episode-box) statt der bisherigen
    Tabellenzeilen. */
 .playlist-entries-list {

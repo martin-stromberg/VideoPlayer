@@ -18,7 +18,7 @@ public class PlaylistServiceTests_Read : PlaylistServiceTestBase
         await _service.CreatePlaylistAsync(_testUserId, "Playlist B", null, null, ct);
         await _service.CreatePlaylistAsync(_otherUserId, "Fremde Playlist", null, null, ct);
 
-        var result = await _service.GetPlaylistsAsync(_testUserId, ct);
+        var result = await _service.GetPlaylistsAsync(_testUserId, cancellationToken: ct);
 
         Assert.Equal(2, result.Length);
         Assert.All(result, dto => Assert.DoesNotContain("Fremde", dto.Name));
@@ -29,7 +29,7 @@ public class PlaylistServiceTests_Read : PlaylistServiceTestBase
     {
         var ct = TestContext.Current.CancellationToken;
 
-        var result = await _service.GetPlaylistsAsync(_testUserId, ct);
+        var result = await _service.GetPlaylistsAsync(_testUserId, cancellationToken: ct);
 
         Assert.Empty(result);
     }

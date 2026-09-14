@@ -138,16 +138,17 @@ public class PlaylistsController : ApiBaseController
     }
 
     /// <summary>
-    /// Gets all playlists for the current user.
+    /// Gets all playlists for the current user, optionally restricted to those carrying the given genre.
     /// </summary>
+    /// <param name="genreId">Optional genre id to restrict results to.</param>
     /// <returns>The playlists as <see cref="IEnumerable{DtoPlaylist}"/>, or an error result.</returns>
     [HttpGet]
-    public Task<IActionResult> GetPlaylists()
+    public Task<IActionResult> GetPlaylists([FromQuery] long? genreId = null)
     {
         return ExecuteAsync(async () =>
         {
             CheckLogedIn();
-            var result = await _playlistService.GetPlaylistsAsync(CurrentUser!.Id, HttpContext.RequestAborted);
+            var result = await _playlistService.GetPlaylistsAsync(CurrentUser!.Id, genreId, HttpContext.RequestAborted);
             return Ok(result);
         }, "Abrufen der Playlists");
     }
@@ -410,6 +411,40 @@ public class PlaylistsController : ApiBaseController
                 id, CurrentUser!.Id, req.NewSortMode, req.ConfirmLossOfManualOrder, HttpContext.RequestAborted);
             return Ok(result);
         }, $"Aendern des Sortiermodus von Playlist {id}");
+    }
+
+    /// <summary>
+    /// Manually overrides the genres of a playlist for the current user, replacing every automatically
+    /// derived or previously manually assigned genre.
+    /// </summary>
+    /// <param name="id">The playlist identifier.</param>
+    /// <param name="request">The set-genres request.</param>
+    /// <returns>The updated playlist as <see cref="DtoPlaylist"/>, or an error result.</returns>
+    [HttpPut("{id}/genres")]
+    public Task<IActionResult> SetPlaylistGenres(long id, [FromBody] DtoSetPlaylistGenresRequest request)
+    {
+        return ExecuteAsync(request, async req =>
+        {
+            var result = await _playlistService.SetPlaylistGenresAsync(id, CurrentUser!.Id, req.GenreIds, HttpContext.RequestAborted);
+            return Ok(result);
+        }, $"Ueberschreiben der Genres von Playlist {id}");
+    }
+
+    /// <summary>
+    /// Clears a previous manual genre override (if any) of a playlist for the current user, immediately
+    /// recomputing its genres from its current contents.
+    /// </summary>
+    /// <param name="id">The playlist identifier.</param>
+    /// <returns>The updated playlist as <see cref="DtoPlaylist"/>, or an error result.</returns>
+    [HttpPost("{id}/genres/reset")]
+    public Task<IActionResult> ResetPlaylistGenres(long id)
+    {
+        return ExecuteAsync(async () =>
+        {
+            CheckLogedIn();
+            var result = await _playlistService.ResetPlaylistGenresAsync(id, CurrentUser!.Id, HttpContext.RequestAborted);
+            return Ok(result);
+        }, $"Zuruecksetzen der Genres von Playlist {id}");
     }
 
     /// <summary>

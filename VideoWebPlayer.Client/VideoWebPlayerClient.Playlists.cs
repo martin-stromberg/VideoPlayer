@@ -8,9 +8,10 @@ namespace VideoWebPlayer.Client
     public partial class VideoWebPlayerClient
     {
         /// <inheritdoc />
-        public async Task<IEnumerable<DtoPlaylist>> RequestPlaylistsAsync()
+        public async Task<IEnumerable<DtoPlaylist>> RequestPlaylistsAsync(long? genreId = null)
         {
-            return await HttpGetAsync<DtoPlaylist[]>("api/playlists");
+            var query = genreId.HasValue ? $"?genreId={genreId.Value}" : string.Empty;
+            return await HttpGetAsync<DtoPlaylist[]>($"api/playlists{query}");
         }
 
         /// <inheritdoc />
@@ -79,6 +80,18 @@ namespace VideoWebPlayer.Client
         public async Task<DtoPlaylist> ChangeSortModeAsync(long playlistId, DtoChangeSortModeRequest request)
         {
             return await HttpPatchAsync<DtoPlaylist>($"api/playlists/{playlistId}/sort-mode", CreateJsonContent(request));
+        }
+
+        /// <inheritdoc />
+        public async Task<DtoPlaylist> SetPlaylistGenresAsync(long playlistId, DtoSetPlaylistGenresRequest request)
+        {
+            return await HttpPutAsync<DtoPlaylist>($"api/playlists/{playlistId}/genres", CreateJsonContent(request));
+        }
+
+        /// <inheritdoc />
+        public async Task<DtoPlaylist> ResetPlaylistGenresAsync(long playlistId)
+        {
+            return await HttpPostAsync<DtoPlaylist>($"api/playlists/{playlistId}/genres/reset", new StringContent(string.Empty));
         }
 
         /// <inheritdoc />

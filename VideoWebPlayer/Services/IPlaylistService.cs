@@ -10,12 +10,15 @@ namespace VideoWebPlayer.Services;
 public interface IPlaylistService
 {
     /// <summary>
-    /// Returns all playlists for the given user.
+    /// Returns all playlists for the given user, optionally restricted to those carrying the given genre
+    /// (matching against every genre the playlist has - derived or manually assigned - not just the
+    /// capped, frequency-sorted subset actually displayed).
     /// </summary>
     /// <param name="userId">The id of the requesting (owning) user.</param>
+    /// <param name="genreId">Optional genre id to restrict the result to.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The user's playlists.</returns>
-    Task<DtoPlaylist[]> GetPlaylistsAsync(string userId, CancellationToken cancellationToken = default);
+    Task<DtoPlaylist[]> GetPlaylistsAsync(string userId, long? genreId = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Returns a single playlist for the given user, or <c>null</c> if it does not exist.
@@ -145,6 +148,28 @@ public interface IPlaylistService
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The updated playlist.</returns>
     Task<DtoPlaylist> ChangeSortModeAsync(long playlistId, string userId, string newSortMode, bool? confirmLossOfManualOrder, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Manually overrides a playlist's genres with exactly <paramref name="genreIds"/> (unknown ids are
+    /// silently ignored), so they no longer follow the automatically derived genres of the playlist's
+    /// contents until <see cref="ResetPlaylistGenresAsync"/> is called.
+    /// </summary>
+    /// <param name="playlistId">The playlist identifier.</param>
+    /// <param name="userId">The id of the requesting (owning) user.</param>
+    /// <param name="genreIds">The genre ids to assign.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The updated playlist.</returns>
+    Task<DtoPlaylist> SetPlaylistGenresAsync(long playlistId, string userId, long[] genreIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Clears a previous manual genre override (if any) and immediately recomputes the playlist's genres
+    /// from its current contents.
+    /// </summary>
+    /// <param name="playlistId">The playlist identifier.</param>
+    /// <param name="userId">The id of the requesting (owning) user.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The updated playlist.</returns>
+    Task<DtoPlaylist> ResetPlaylistGenresAsync(long playlistId, string userId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Returns the current maximum <see cref="Data.PlaylistEntry.SortOrder"/> across the entire playlist

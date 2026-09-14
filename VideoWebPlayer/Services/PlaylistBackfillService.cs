@@ -55,6 +55,7 @@ internal sealed class PlaylistBackfillService
     private readonly ApplicationDbContext _db;
     private readonly PlaylistSettings _playlistSettings;
     private readonly PlaylistEntryReorderService _reorderService;
+    private readonly PlaylistGenreService _genreService;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PlaylistBackfillService"/> class.
@@ -66,6 +67,7 @@ internal sealed class PlaylistBackfillService
         _db = db;
         _playlistSettings = playlistSettings.Value;
         _reorderService = new PlaylistEntryReorderService(db);
+        _genreService = new PlaylistGenreService(db);
     }
 
     /// <summary>
@@ -169,6 +171,7 @@ internal sealed class PlaylistBackfillService
 
         await _db.PlaylistEntries.AddRangeAsync(toAdd, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
+        await _genreService.RecomputeGenresAsync(playlist, cancellationToken);
 
         return toAdd.Count;
     }

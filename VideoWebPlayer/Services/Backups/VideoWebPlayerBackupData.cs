@@ -30,7 +30,8 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         nameof(ApplicationDbContext.TVShowEpisodeActors),
         nameof(ApplicationDbContext.Playlists),
         nameof(ApplicationDbContext.PlaylistEntries),
-        nameof(ApplicationDbContext.PlaylistEntryExclusions)
+        nameof(ApplicationDbContext.PlaylistEntryExclusions),
+        nameof(ApplicationDbContext.PlaylistGenres)
     };
 
     private static readonly HashSet<string> OptionalRestoreColumns = new(StringComparer.OrdinalIgnoreCase)
@@ -56,7 +57,8 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         $"{nameof(ApplicationDbContext.MovieActors)}.{nameof(MovieActor.Order)}",
         $"{nameof(ApplicationDbContext.TVShowEpisodeActors)}.{nameof(TVShowEpisodeActor.Role)}",
         $"{nameof(ApplicationDbContext.TVShowEpisodeActors)}.{nameof(TVShowEpisodeActor.Order)}",
-        $"{nameof(ApplicationDbContext.PlaylistEntries)}.{nameof(PlaylistEntry.SortOrder)}"
+        $"{nameof(ApplicationDbContext.PlaylistEntries)}.{nameof(PlaylistEntry.SortOrder)}",
+        $"{nameof(ApplicationDbContext.Playlists)}.{nameof(Playlist.GenresManuallyOverridden)}"
     };
 
     private static readonly HashSet<string> IgnoredRestoreColumns = new(StringComparer.OrdinalIgnoreCase)
@@ -75,7 +77,8 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         (nameof(ApplicationDbContext.TVShowSeasons), nameof(TVShowSeason.IsManuallyEdited), false),
         (nameof(ApplicationDbContext.Movies), nameof(Movie.IsManuallyEdited), false),
         (nameof(ApplicationDbContext.MovieCollections), nameof(MovieCollection.IsManuallyEdited), false),
-        (nameof(ApplicationDbContext.Pictures), nameof(Picture.IsGeneratedBackground), false)
+        (nameof(ApplicationDbContext.Pictures), nameof(Picture.IsGeneratedBackground), false),
+        (nameof(ApplicationDbContext.Playlists), nameof(Playlist.GenresManuallyOverridden), false)
     };
 
     private static readonly (string Table, string Column, long DefaultValue)[] OptionalRestoreLongDefaults =

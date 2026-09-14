@@ -21,6 +21,7 @@ public sealed class PlaylistService : IPlaylistService
     private readonly PlaylistSettings _playlistSettings;
     private readonly PlaylistEntryAccessResolver _accessResolver;
     private readonly PlaylistEntryReorderService _reorderService;
+    private readonly PlaylistGenreService _genreService;
     private readonly IServiceProvider? _serviceProvider;
 
     /// <summary>
@@ -46,20 +47,28 @@ public sealed class PlaylistService : IPlaylistService
         _playlistSettings = playlistSettings.Value;
         _accessResolver = new PlaylistEntryAccessResolver(db, unlockedMediaService);
         _reorderService = new PlaylistEntryReorderService(db);
+        _genreService = new PlaylistGenreService(db);
         _serviceProvider = serviceProvider;
     }
 
     /// <inheritdoc />
-    public async Task<DtoPlaylist[]> GetPlaylistsAsync(string userId, CancellationToken cancellationToken = default)
+    /// <remarks>
+    /// When <paramref name="genreId"/> is given, a playlist matches as soon as any of its genres - not
+    /// just the ones actually displayed (<see cref="Data.Playlist.MaxDisplayedGenres"/>) - matches, mirroring
+    /// how genre filtering works for other content types (see <c>ItemsController</c>).
+    /// </remarks>
+    public async Task<DtoPlaylist[]> GetPlaylistsAsync(string userId, long? genreId = null, CancellationToken cancellationToken = default)
     {
-        var playlists = await _db.Playlists
-            .AsNoTracking()
-            .Where(p => p.UserId == userId)
+        var query = _db.Playlists.AsNoTracking().Where(p => p.UserId == userId);
+        if (genreId is long id)
+            query = query.Where(p => _db.PlaylistGenres.Any(pg => pg.PlaylistId == p.Id && pg.GenreId == id));
+
+        var playlists = await query
             .OrderBy(p => p.CreatedAt)
             .ThenBy(p => p.Id)
             .ToListAsync(cancellationToken);
 
-        return playlists.Select(ToDto).ToArray();
+        return await ToDtosAsync(playlists, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -72,7 +81,7 @@ public sealed class PlaylistService : IPlaylistService
         if (playlist.UserId != userId)
             throw new PlaylistAccessDeniedException("Sie haben keinen Zugriff auf diese Playlist.");
 
-        return ToDto(playlist);
+        return await ToDtoAsync(playlist, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -105,7 +114,7 @@ public sealed class PlaylistService : IPlaylistService
         await _db.Playlists.AddAsync(playlist, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
 
-        return ToDto(playlist);
+        return await ToDtoAsync(playlist, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -134,7 +143,7 @@ public sealed class PlaylistService : IPlaylistService
 
         await _db.SaveChangesAsync(cancellationToken);
 
-        return ToDto(playlist);
+        return await ToDtoAsync(playlist, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -193,6 +202,9 @@ public sealed class PlaylistService : IPlaylistService
 
         await _db.PlaylistEntries.AddRangeAsync(entriesToAdd, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
+
+        if (entriesToAdd.Count > 0)
+            await _genreService.RecomputeGenresAsync(playlist, cancellationToken);
 
         return await BuildAddResultAsync(entriesToAdd, skippedDuplicateCount, topLevelEntry, userId, cancellationToken);
     }
@@ -267,7 +279,7 @@ public sealed class PlaylistService : IPlaylistService
     /// </remarks>
     public async Task RemoveMediaFromPlaylistAsync(long playlistId, string userId, string mediaType, long mediaId, bool confirmContinueWatchingRemoval = false, CancellationToken cancellationToken = default)
     {
-        await GetOwnedPlaylistAsync(playlistId, userId, cancellationToken);
+        var playlist = await GetOwnedPlaylistAsync(playlistId, userId, cancellationToken);
 
         var normalizedMediaType = MediaHierarchyRegistry.ParseMediaType(mediaType).ToString();
 
@@ -291,6 +303,7 @@ public sealed class PlaylistService : IPlaylistService
                 await RecordExclusionAsync(playlistId, normalizedMediaType, mediaId, cancellationToken);
                 _db.PlaylistEntries.Remove(entry);
                 await _db.SaveChangesAsync(cancellationToken);
+                await _genreService.RecomputeGenresAsync(playlist, cancellationToken);
 
                 await continueWatchingService.ResolvePlaylistEntryRemovalAsync(
                     playlistId, userId, normalizedMediaType, mediaId, nextEntry?.MediaType, nextEntry?.MediaId, cancellationToken);
@@ -301,6 +314,7 @@ public sealed class PlaylistService : IPlaylistService
         await RecordExclusionAsync(playlistId, normalizedMediaType, mediaId, cancellationToken);
         _db.PlaylistEntries.Remove(entry);
         await _db.SaveChangesAsync(cancellationToken);
+        await _genreService.RecomputeGenresAsync(playlist, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -387,15 +401,70 @@ public sealed class PlaylistService : IPlaylistService
         return parsed;
     }
 
-    private static DtoPlaylist ToDto(Playlist playlist) => new()
+    /// <summary>
+    /// Converts a single <see cref="Playlist"/> to its DTO, including its genres. Thin wrapper around
+    /// <see cref="ToDtosAsync"/> for the many call sites that only ever have one playlist at hand.
+    /// </summary>
+    /// <param name="playlist">The playlist to convert.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The converted DTO.</returns>
+    private async Task<DtoPlaylist> ToDtoAsync(Playlist playlist, CancellationToken cancellationToken)
     {
-        Id = playlist.Id,
-        Name = playlist.Name,
-        Description = playlist.Description,
-        SortMode = playlist.SortMode.ToString(),
-        CreatedAt = playlist.CreatedAt,
-        UpdatedAt = playlist.UpdatedAt
-    };
+        var dtos = await ToDtosAsync(new List<Playlist> { playlist }, cancellationToken);
+        return dtos[0];
+    }
+
+    /// <summary>
+    /// Converts the given playlists to their DTOs, bulk-loading every playlist's <see cref="PlaylistGenre"/>
+    /// rows in a single query (via <see cref="PlaylistGenreService.LoadPlaylistGenresAsync"/>) rather than
+    /// one query per playlist - matters for <see cref="GetPlaylistsAsync"/>, the one caller that converts
+    /// more than a single playlist at once.
+    /// </summary>
+    /// <param name="playlists">The playlists to convert.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The converted DTOs, in the same order as <paramref name="playlists"/>.</returns>
+    private async Task<DtoPlaylist[]> ToDtosAsync(List<Playlist> playlists, CancellationToken cancellationToken)
+    {
+        var playlistIds = playlists.Select(p => p.Id).ToList();
+        var genresByPlaylist = await _genreService.LoadPlaylistGenresAsync(playlistIds, cancellationToken);
+
+        return playlists.Select(playlist => ToDto(playlist, genresByPlaylist)).ToArray();
+    }
+
+    /// <summary>
+    /// Converts a single <see cref="Playlist"/> to its DTO using already-loaded genre data, resolving
+    /// <see cref="DtoPlaylist.Genres"/> (frequency descending, name ascending as tie-break, capped to
+    /// <see cref="Playlist.MaxDisplayedGenres"/> - a purely presentational limit) and
+    /// <see cref="DtoPlaylist.AllGenreIds"/> (every derived/assigned genre id, uncapped, used to prefill
+    /// the manual-override editor) from it.
+    /// </summary>
+    /// <param name="playlist">The playlist to convert.</param>
+    /// <param name="genresByPlaylist">Every playlist's genre rows, keyed by playlist id (see <see cref="ToDtosAsync"/>).</param>
+    /// <returns>The converted DTO.</returns>
+    private static DtoPlaylist ToDto(Playlist playlist, Dictionary<long, List<(long GenreId, string GenreName, int Count)>> genresByPlaylist)
+    {
+        var genreRows = genresByPlaylist.TryGetValue(playlist.Id, out var rows) ? rows : new List<(long GenreId, string GenreName, int Count)>();
+
+        var displayGenres = genreRows
+            .OrderByDescending(r => r.Count)
+            .ThenBy(r => r.GenreName, StringComparer.OrdinalIgnoreCase)
+            .Take(Playlist.MaxDisplayedGenres)
+            .Select(r => new DtoGenreOption { Id = r.GenreId, Name = r.GenreName })
+            .ToArray();
+
+        return new DtoPlaylist
+        {
+            Id = playlist.Id,
+            Name = playlist.Name,
+            Description = playlist.Description,
+            SortMode = playlist.SortMode.ToString(),
+            CreatedAt = playlist.CreatedAt,
+            UpdatedAt = playlist.UpdatedAt,
+            Genres = displayGenres,
+            AllGenreIds = genreRows.Select(r => r.GenreId).ToArray(),
+            GenresManuallyOverridden = playlist.GenresManuallyOverridden
+        };
+    }
 
     private readonly record struct MediaRef(string MediaType, long MediaId);
 
@@ -789,7 +858,27 @@ public sealed class PlaylistService : IPlaylistService
         playlist.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
 
-        return ToDto(playlist);
+        return await ToDtoAsync(playlist, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<DtoPlaylist> SetPlaylistGenresAsync(long playlistId, string userId, long[] genreIds, CancellationToken cancellationToken = default)
+    {
+        var playlist = await GetOwnedPlaylistAsync(playlistId, userId, cancellationToken);
+
+        await _genreService.SetManualGenresAsync(playlist, genreIds, cancellationToken);
+
+        return await ToDtoAsync(playlist, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<DtoPlaylist> ResetPlaylistGenresAsync(long playlistId, string userId, CancellationToken cancellationToken = default)
+    {
+        var playlist = await GetOwnedPlaylistAsync(playlistId, userId, cancellationToken);
+
+        await _genreService.ResetGenresAsync(playlist, cancellationToken);
+
+        return await ToDtoAsync(playlist, cancellationToken);
     }
 
     /// <summary>
@@ -857,6 +946,7 @@ public sealed class PlaylistService : IPlaylistService
 
             _db.PlaylistEntries.RemoveRange(orphans);
             await _db.SaveChangesAsync(cancellationToken);
+            await _genreService.RecomputeGenresAsync(playlist, cancellationToken);
         }
 
         return validEntries;

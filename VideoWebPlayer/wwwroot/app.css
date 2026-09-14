@@ -2452,3 +2452,169 @@ input[type="text"]:focus {
     }
 }
 
+/* ---------------------------------------------------------------------------------------------
+   Playlists: Kachel-UI (Redesign gemaess Kundenfeedback zur Playlistuebersicht/-detailansicht)
+   --------------------------------------------------------------------------------------------- */
+
+.playlist-grid {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+
+.playlist-card {
+    aspect-ratio: 4 / 3;
+}
+
+/* Unsichtbare, die ganze Kachel ueberdeckende Schaltflaeche: macht "Klick auf die Kachel oeffnet die
+   Detailansicht" (Kundenfeedback) zu einem echten, per Tastatur bedienbaren Steuerelement, statt die
+   Kachel selbst (die auch Bild/Grafik und Metazeile enthaelt) klickbar zu machen. */
+.playlist-card-hitarea {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+}
+
+.playlist-card-cover {
+    width: 100%;
+    height: 100%;
+}
+
+/* Generischer Cover-Platzhalter (Playlists haben noch kein eigenes Bildfeld, siehe
+   PlaylistCoverPlaceholder.razor): Farbverlauf aus einem deterministisch aus der Playlist-Id
+   abgeleiteten Farbton plus zentriertem Playlist-Symbol. */
+.playlist-cover-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, hsl(var(--playlist-hue, 210) 45% 26%), hsl(calc(var(--playlist-hue, 210) + 40) 55% 14%));
+    color: rgba(255, 255, 255, 0.55);
+}
+
+.playlist-cover-icon {
+    width: 36%;
+    height: 36%;
+}
+
+.playlist-card-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.35rem;
+    font-weight: 500;
+}
+
+.playlist-sortmode-icon {
+    display: inline-flex;
+    flex: 0 0 auto;
+    color: var(--vp-primary-soft);
+}
+
+.playlist-card-dates {
+    overflow: hidden;
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 0.72rem;
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Kopfbereich der Detailansicht: erbt Layout/Groesse/Gradient-Overlay von .tvshow-header, der
+   Cover-Platzhalter liegt als Hintergrund absolut dahinter. */
+.playlist-header-fallback {
+    position: relative;
+}
+
+.playlist-header-fallback .playlist-header-cover {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+}
+
+.playlist-header-fallback .playlist-header-cover .playlist-cover-icon {
+    width: clamp(96px, 14vw, 200px);
+    height: clamp(96px, 14vw, 200px);
+}
+
+.playlist-header-fallback .tvshow-header-overlay {
+    position: relative;
+    z-index: 1;
+}
+
+.playlist-detail-meta {
+    align-items: center;
+}
+
+.playlist-sortmode-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.playlist-sortmode-toggle-button {
+    margin-left: 0.25rem;
+}
+
+.playlist-detail-dates-muted {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 1.25rem;
+    margin-top: 0.75rem;
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 0.78rem;
+}
+
+.playlist-detail-date-label {
+    margin-right: 0.3rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: 0.8;
+}
+
+/* Playlist-Eintraege: Kacheln im Stil der Episoden-Kacheln (episode-box) statt der bisherigen
+   Tabellenzeilen. */
+.playlist-entries-list {
+    overflow: visible;
+}
+
+.playlist-entry-parent {
+    margin-top: 0.35rem;
+    overflow: hidden;
+    color: var(--vp-text-muted);
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.playlist-entry-meta-muted {
+    margin-top: 0.5rem;
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 0.75rem;
+}
+
+.playlist-entry-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.65rem;
+}
+
+.playlist-entry-actions .metadata-icon-btn {
+    width: 34px;
+    height: 34px;
+    font-size: 1rem;
+}
+
+.playlist-entry-placeholder .episode-info {
+    display: flex;
+    align-items: center;
+    color: var(--vp-text-muted);
+}
+

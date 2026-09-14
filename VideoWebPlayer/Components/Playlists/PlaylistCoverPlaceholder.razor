@@ -1,0 +1,34 @@
+@* Generischer Platzhalter-Grafik fuer eine Playlist-Kachel bzw. den Kopfbereich-Hintergrund der
+   Detailansicht. Playlists besitzen (Stand dieser Korrektur) noch kein eigenes Cover-/Bildfeld - das ist
+   Gegenstand des separaten, noch nicht umgesetzten Entwicklungsschritts "Abbildungen fuer Playlists".
+   Bis dahin zeigt diese Komponente ein generisches Playlist-Symbol auf einem aus der Playlist-Id
+   abgeleiteten Farbverlauf, damit Playlists in der Kachel-UI trotzdem optisch unterscheidbar sind, statt
+   dass jede Kachel identisch aussieht. *@
+
+<div class="playlist-cover-placeholder @CssClass" style="--playlist-hue: @Hue">
+    <svg aria-hidden="true" class="playlist-cover-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 6h12" />
+        <path d="M4 12h12" />
+        <path d="M4 18h8" />
+        <circle cx="19" cy="17" r="3" />
+        <path d="M19 8v9" />
+    </svg>
+</div>
+
+@code {
+    /// <summary>
+    /// The id of the playlist the placeholder is shown for, used to derive a deterministic (but
+    /// arbitrary) hue so different playlists get visually distinct gradients.
+    /// </summary>
+    [Parameter, EditorRequired]
+    public long PlaylistId { get; set; }
+
+    /// <summary>
+    /// Additional CSS class(es) applied to the placeholder's root element, e.g. to size/position it
+    /// differently between the overview tile and the detail page header background.
+    /// </summary>
+    [Parameter]
+    public string? CssClass { get; set; }
+
+    private int Hue => (int)((PlaylistId * 47) % 360);
+}

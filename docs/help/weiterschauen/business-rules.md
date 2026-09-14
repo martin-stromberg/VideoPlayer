@@ -357,3 +357,34 @@ if (existingEntries.Count > 0)
 - `ContinueWatchingService.ResolvePlaylistDeletionConflictsAsync()` — Implementiert die Konfliktprüfung und Duplikat-Entfernung
 
 **Begründung:** Das Datenbankschema erzwingt Eindeutigkeit auf playlist-losen Einträgen. Wenn eine Playlist gelöscht wird und ihre Einträge auf NULL gesetzt werden sollen, aber bereits ein NULL-Eintrag für das gleiche Video existiert, schlägt die Operation ohne explizite Konfliktauflösung fehl. Die Entfernung des playlist-gebundenen Duplikats ist das sicherste Verfahren: Sie bewahrt den ursprünglichen playlist-losen Eintrag (einschließlich dessen Wiedergabeposition) und vermeidet gleichzeitig Duplikate.
+
+---
+
+## Regel: Sicherheitsabfrage beim Entfernen eines Titels mit Weiterschauen-Bezug
+
+**Beschreibung:** Wird ein einzelner Titel aus einer Playlist entfernt, für den in der Weiterschauen-Liste noch ein Eintrag mit Bezug zu genau dieser Playlist existiert, muss der Anwender das Entfernen ausdrücklich bestätigen ("Dieser Eintrag befindet sich in deiner Weiterschauen-Liste. Entfernen?"). Bestätigt er, wird der betroffene Weiterschauen-Eintrag durch den nächsten in dieser Playlist verfügbaren (abspielbaren und zugänglichen) Titel ersetzt; gibt es keinen, wird der Weiterschauen-Eintrag entfernt. Verschwindet ein Titel stattdessen still aus dem Medienbestand (z. B. weil die Datei nicht mehr existiert), entfällt die Sicherheitsabfrage, aber dasselbe Ersetzen-/Entfernen-Verhalten gilt sinngemäß.
+
+**Bedingungen:**
+- Ein einzelner `PlaylistEntry` wird entfernt (Benutzeraktion über `DELETE /api/playlists/{id}/entries/{mediaType}/{mediaId}`, oder das darunterliegende Media verschwindet und der Eintrag wird beim nächsten Laden der Playlist als Waise erkannt)
+- Ein `ContinueWatchingEntry` mit `PlaylistId` gleich dieser Playlist referenziert exakt dasselbe Video (`MovieId`/`TVShowEpisodeId`)
+
+**Verhalten (Benutzeraktion):**
+1. `PlaylistService.RemoveMediaFromPlaylistAsync()` prüft vor dem Entfernen, ob ein solcher `ContinueWatchingEntry` existiert (`ContinueWatchingService.HasPlaylistBoundEntryAsync()`)
+2. Existiert einer und wurde nicht bestätigt (`confirmContinueWatchingRemoval != true`): `ContinueWatchingConfirmationRequiredException` → Controller antwortet mit `409 Conflict` (`DtoRemovePlaylistEntryConflictResponse.IsContinueWatchingConfirmationRequired = true`)
+3. Der Client (`PlaylistEntriesList.razor`) zeigt den Bestätigungsdialog (`PlaylistEntryContinueWatchingConfirmationDialog.razor`) und wiederholt den Aufruf bei Bestätigung mit `confirmContinueWatchingRemoval: true`
+4. Vor dem eigentlichen Entfernen des `PlaylistEntry` wird der nächste abspielbare und zugängliche Titel der Playlist ab der Position des zu entfernenden Eintrags ermittelt (`PlaylistService.FindAdjacentPlayableEntryAsync()`, dieselbe Logik wie bei der Weiterschauen-Navigation)
+5. Der `PlaylistEntry` wird entfernt
+6. `ContinueWatchingService.ResolvePlaylistEntryRemovalAsync()` ersetzt den betroffenen `ContinueWatchingEntry` durch den ermittelten nächsten Titel (Position wird auf 0 zurückgesetzt) oder entfernt ihn, falls kein nächster Titel existiert
+
+**Verhalten (stilles Verschwinden aus dem Medienbestand):** Dieselbe Ersetzen-/Entfernen-Logik wird ohne Sicherheitsabfrage in `PlaylistService.LoadValidPlaylistEntriesAsync()` ausgelöst, sobald dort verwaiste `PlaylistEntry`-Zeilen erkannt und aus der Datenbank entfernt werden (`ResolveOrphanContinueWatchingReplacementsAsync()`). In der Praxis greift dieser Zweig für Filme/Episoden aber selten mit einem tatsächlichen Ersetzen: `ContinueWatchingEntryConfiguration` hinterlegt bereits eine echte Fremdschlüsselbeziehung mit `OnDelete(Cascade)` von `ContinueWatchingEntry.MovieId`/`TVShowEpisodeId` auf die zugehörige Film-/Episodenzeile. Sobald diese Zeile physisch gelöscht wird, entfernt die Datenbank einen daran gebundenen Weiterschauen-Eintrag sofort — noch bevor der träge, erst beim nächsten Laden laufende Playlist-Waisen-Scan überhaupt die Chance hat, einen Ersatztitel zu suchen. Das Ergebnis ist dann bereits "entfernt" (nicht "ersetzt"), was eine der beiden geforderten Ausgänge erfüllt.
+
+**Kollisionsfall beim Ersetzen:** Existiert für den Ersatztitel in derselben Playlist bereits ein eigener `ContinueWatchingEntry` (z. B. weil der Benutzer ihn separat schon einmal angesehen hat), würde ein Umhängen den Unique-Index `(UserId, MovieId/TVShowEpisodeId, PlaylistId)` verletzen. Analog zur bereits dokumentierten Konfliktauflösung beim Löschen einer ganzen Playlist bleibt der bereits vorhandene Eintrag (mit seinem echten Fortschritt) unverändert bestehen; der zu ersetzende Eintrag wird stattdessen entfernt statt umgehängt.
+
+**Umsetzung:**
+- `PlaylistService.RemoveMediaFromPlaylistAsync()` — Sicherheitsabfrage, Ermittlung des Ersatztitels, Aufruf der Ersetzen-/Entfernen-Logik
+- `PlaylistService.LoadValidPlaylistEntriesAsync()` / `ResolveOrphanContinueWatchingReplacementsAsync()` — stiller Zweig ohne Sicherheitsabfrage
+- `ContinueWatchingService.HasPlaylistBoundEntryAsync()` / `ResolvePlaylistEntryRemovalAsync()` — Prüfung bzw. Ersetzen/Entfernen des Weiterschauen-Eintrags, inkl. Kollisionsauflösung
+- `ContinueWatchingConfirmationRequiredException`, `DtoRemovePlaylistEntryConflictResponse` — Sicherheitsabfrage-Mechanik, analog zu `ManualSortOrderConfirmationRequiredException`/`DtoChangeSortModeConflictResponse` beim Sortiermodus-Wechsel
+- `PlaylistEntryContinueWatchingConfirmationDialog.razor` — Bestätigungsdialog in `PlaylistEntriesList.razor`
+
+**Begründung:** Ein Weiterschauen-Eintrag, der stillschweigend auf ein nicht mehr in der Playlist vorhandenes Video zeigt, würde beim Fortsetzen ins Leere laufen oder verwirrende Ergebnisse liefern. Das Ersetzen durch den nächsten verfügbaren Titel erhält den "roten Faden" beim Weiterschauen innerhalb der Playlist; wo das nicht möglich ist, ist ein sauberes Entfernen die einzige konsistente Alternative. Die Sicherheitsabfrage nur bei der Benutzeraktion (nicht beim stillen Verschwinden) entspricht dem Prinzip, dass nur eine vom Anwender selbst ausgelöste, überraschende Datenänderung eine explizite Bestätigung erfordert.

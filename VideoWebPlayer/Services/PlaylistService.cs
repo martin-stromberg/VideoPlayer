@@ -215,7 +215,21 @@ public sealed class PlaylistService : IPlaylistService
     }
 
     /// <inheritdoc />
-    public async Task RemoveMediaFromPlaylistAsync(long playlistId, string userId, string mediaType, long mediaId, CancellationToken cancellationToken = default)
+    /// <remarks>
+    /// Before removing the entry, checks whether a <see cref="Data.ContinueWatchingEntry"/> bound to this
+    /// same playlist (<see cref="Data.ContinueWatchingEntry.PlaylistId"/>) still references it (only
+    /// possible for a directly playable entry - <see cref="PlaylistEntryMediaTypeResolver.IsPlayable"/> -
+    /// since continue-watching entries only ever reference a movie or episode, never a collection entry
+    /// such as TVShow/TVShowSeason/MovieCollection). If so and <paramref name="confirmContinueWatchingRemoval"/>
+    /// was not given as <see langword="true"/>, throws <see cref="ContinueWatchingConfirmationRequiredException"/>
+    /// without removing anything, so the caller can surface a confirmation prompt. Once removal proceeds
+    /// (either because there was no such reference, or it was confirmed), the affected continue-watching
+    /// entry - if any - is resolved via <see cref="ContinueWatchingService.ResolvePlaylistEntryRemovalAsync"/>:
+    /// replaced with the next playable and accessible entry of this playlist (resolved via
+    /// <see cref="FindAdjacentPlayableEntryAsync"/> <b>before</b> the entry is actually removed, since that
+    /// method locates it by its still-valid <see cref="PlaylistEntry.Id"/>), or removed if no such entry exists.
+    /// </remarks>
+    public async Task RemoveMediaFromPlaylistAsync(long playlistId, string userId, string mediaType, long mediaId, bool confirmContinueWatchingRemoval = false, CancellationToken cancellationToken = default)
     {
         await GetOwnedPlaylistAsync(playlistId, userId, cancellationToken);
 
@@ -224,6 +238,28 @@ public sealed class PlaylistService : IPlaylistService
         var entry = await _db.PlaylistEntries.FirstOrDefaultAsync(
             e => e.PlaylistId == playlistId && e.MediaType == normalizedMediaType && e.MediaId == mediaId, cancellationToken)
             ?? throw new KeyNotFoundException("Eintrag wurde nicht gefunden.");
+
+        var continueWatchingService = _serviceProvider?.GetService<ContinueWatchingService>();
+        if (continueWatchingService is not null && PlaylistEntryMediaTypeResolver.IsPlayable(normalizedMediaType))
+        {
+            var hasContinueWatchingReference = await continueWatchingService.HasPlaylistBoundEntryAsync(
+                playlistId, userId, normalizedMediaType, mediaId, cancellationToken);
+
+            if (hasContinueWatchingReference)
+            {
+                if (!confirmContinueWatchingRemoval)
+                    throw new ContinueWatchingConfirmationRequiredException("Dieser Eintrag befindet sich in deiner Weiterschauen-Liste. Entfernen?");
+
+                var (nextEntry, _) = await FindAdjacentPlayableEntryAsync(playlistId, userId, entry.Id, forward: true, cancellationToken);
+
+                _db.PlaylistEntries.Remove(entry);
+                await _db.SaveChangesAsync(cancellationToken);
+
+                await continueWatchingService.ResolvePlaylistEntryRemovalAsync(
+                    playlistId, userId, normalizedMediaType, mediaId, nextEntry?.MediaType, nextEntry?.MediaId, cancellationToken);
+                return;
+            }
+        }
 
         _db.PlaylistEntries.Remove(entry);
         await _db.SaveChangesAsync(cancellationToken);
@@ -241,7 +277,7 @@ public sealed class PlaylistService : IPlaylistService
     {
         var playlist = await GetOwnedPlaylistAsync(playlistId, userId, cancellationToken);
 
-        var validEntries = await LoadValidPlaylistEntriesAsync(playlistId, cancellationToken);
+        var validEntries = await LoadValidPlaylistEntriesAsync(playlist, cancellationToken);
         var sortedEntries = await SortPlaylistEntriesForModeAsync(playlist.SortMode, validEntries, cancellationToken);
         return await BuildEntryDtosAsync(sortedEntries, userId, cancellationToken);
     }
@@ -599,7 +635,7 @@ public sealed class PlaylistService : IPlaylistService
     {
         var playlist = await GetOwnedPlaylistAsync(playlistId, userId, cancellationToken);
 
-        var validEntries = await LoadValidPlaylistEntriesAsync(playlistId, cancellationToken);
+        var validEntries = await LoadValidPlaylistEntriesAsync(playlist, cancellationToken);
         var sortedEntries = await SortPlaylistEntriesForModeAsync(playlist.SortMode, validEntries, cancellationToken);
 
         var totalCount = sortedEntries.Count;
@@ -695,7 +731,7 @@ public sealed class PlaylistService : IPlaylistService
 
         if (targetMode == PlaylistSortMode.Manual && playlist.SortMode != PlaylistSortMode.Manual)
         {
-            var validEntries = await LoadValidPlaylistEntriesAsync(playlistId, cancellationToken);
+            var validEntries = await LoadValidPlaylistEntriesAsync(playlist, cancellationToken);
             var sortedEntries = await SortPlaylistEntriesByReleaseDateAsync(validEntries, cancellationToken);
 
             for (var i = 0; i < sortedEntries.Count; i++)
@@ -724,13 +760,38 @@ public sealed class PlaylistService : IPlaylistService
     /// media (not its title), so the cost of this call does not depend on how many entries are actually
     /// going to be displayed by the caller.
     /// </summary>
-    /// <param name="playlistId">The playlist identifier.</param>
+    /// <remarks>
+    /// Before persisting the orphan removal, resolves any <see cref="Data.ContinueWatchingEntry"/> bound to
+    /// this playlist that references one of the orphaned entries (see
+    /// <see cref="ResolveOrphanContinueWatchingReplacementsAsync"/>) - the "silent" counterpart to
+    /// <see cref="RemoveMediaFromPlaylistAsync"/>'s user-confirmed removal: here the title disappeared from
+    /// the media library itself (not a user-triggered removal), so no confirmation is asked, but the same
+    /// replace-with-next-available-title-or-remove behavior applies.
+    /// <para>
+    /// In practice this only ever resolves to "no matching entry" for a <see cref="MediaTypeValues.Movie"/>
+    /// or <see cref="MediaTypeValues.TVShowEpisode"/> orphan, because <c>ContinueWatchingEntryConfiguration</c>
+    /// already declares a real foreign key with cascading delete from <c>ContinueWatchingEntry.MovieId</c>/
+    /// <c>TVShowEpisodeId</c> to the underlying <c>Movies</c>/<c>TVShowEpisodes</c> row (pre-existing, from
+    /// before this replace-with-next-available-title behavior was added): the moment that row is actually
+    /// deleted, the database removes any continue-watching entry still referencing it immediately - well
+    /// before this lazy, next-load orphan sweep (which exists only because <see cref="PlaylistEntry"/> has
+    /// no such real foreign key to the media it references) gets a chance to look for one to replace. This
+    /// code path is kept regardless, both for correctness should that cascade ever not apply and as the
+    /// single, symmetric implementation of the "silent" replace-or-remove rule described by the requirement
+    /// text; changing the cascading-delete behavior itself, to make the replace branch reachable for this
+    /// case too, was judged out of scope here (it would affect continue-watching cleanup for every movie/
+    /// episode deletion in the application, not just the playlist-bound case).
+    /// </para>
+    /// </remarks>
+    /// <param name="playlist">The owning playlist (its <see cref="Playlist.Id"/>, <see cref="Playlist.UserId"/>
+    /// and <see cref="Playlist.SortMode"/> are used to resolve entries, ownership and continue-watching
+    /// replacements).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The playlist entries whose referenced media still exists.</returns>
-    private async Task<List<PlaylistEntry>> LoadValidPlaylistEntriesAsync(long playlistId, CancellationToken cancellationToken)
+    private async Task<List<PlaylistEntry>> LoadValidPlaylistEntriesAsync(Playlist playlist, CancellationToken cancellationToken)
     {
         var entries = await _db.PlaylistEntries
-            .Where(e => e.PlaylistId == playlistId)
+            .Where(e => e.PlaylistId == playlist.Id)
             .ToListAsync(cancellationToken);
 
         var mediaIdsByType = MediaHierarchyRegistry.GroupMediaIdsByType(entries);
@@ -752,11 +813,76 @@ public sealed class PlaylistService : IPlaylistService
 
         if (orphans.Count > 0)
         {
+            var continueWatchingService = _serviceProvider?.GetService<ContinueWatchingService>();
+            if (continueWatchingService is not null)
+                await ResolveOrphanContinueWatchingReplacementsAsync(playlist, entries, orphans, validEntries, continueWatchingService, cancellationToken);
+
             _db.PlaylistEntries.RemoveRange(orphans);
             await _db.SaveChangesAsync(cancellationToken);
         }
 
         return validEntries;
+    }
+
+    /// <summary>
+    /// Resolves continue-watching replacements for orphaned entries that just disappeared from the media
+    /// library (see <see cref="LoadValidPlaylistEntriesAsync"/>), the silent counterpart of
+    /// <see cref="RemoveMediaFromPlaylistAsync"/>'s confirmed-removal path: for every orphan that is
+    /// directly playable (<see cref="PlaylistEntryMediaTypeResolver.IsPlayable"/> - a continue-watching
+    /// entry never references a collection entry), finds the next playable and accessible entry that
+    /// follows it in the playlist's current sort order among the entries that are <b>not</b> themselves
+    /// orphaned (<paramref name="validEntries"/>), and asks <paramref name="continueWatchingService"/> to
+    /// replace (or remove, if none) the matching continue-watching entry. Sorts <paramref name="allEntries"/>
+    /// (orphans included) once up front to establish each orphan's original position, rather than calling
+    /// <see cref="FindAdjacentPlayableEntryAsync"/> per orphan: that method locates its starting point by
+    /// <see cref="PlaylistEntry.Id"/> via a fresh <see cref="LoadValidPlaylistEntriesAsync"/> call, which
+    /// would no longer find an already-orphaned entry (it is excluded from <c>validEntries</c> by
+    /// definition), and would also try to persist the very same orphan removal this method is already in
+    /// the middle of - reusing it here would be both incorrect and reentrant.
+    /// </summary>
+    /// <param name="playlist">The owning playlist.</param>
+    /// <param name="allEntries">Every entry of the playlist (valid and orphaned), before orphan removal.</param>
+    /// <param name="orphans">The subset of <paramref name="allEntries"/> whose referenced media no longer exists.</param>
+    /// <param name="validEntries">The subset of <paramref name="allEntries"/> that is staying (not orphaned).</param>
+    /// <param name="continueWatchingService">The service used to resolve each orphan's continue-watching replacement.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    private async Task ResolveOrphanContinueWatchingReplacementsAsync(
+        Playlist playlist, List<PlaylistEntry> allEntries, List<PlaylistEntry> orphans, List<PlaylistEntry> validEntries,
+        ContinueWatchingService continueWatchingService, CancellationToken cancellationToken)
+    {
+        var playableOrphans = orphans.Where(o => PlaylistEntryMediaTypeResolver.IsPlayable(o.MediaType)).ToList();
+        if (playableOrphans.Count == 0)
+            return;
+
+        var fullSortedEntries = await SortPlaylistEntriesForModeAsync(playlist.SortMode, allEntries, cancellationToken);
+        var validSet = new HashSet<PlaylistEntry>(validEntries);
+
+        var idsByType = MediaHierarchyRegistry.GroupMediaIdsByType(validEntries);
+        var accessibilityByEntry = await _accessResolver.ResolveAccessibilityAsync(validEntries, playlist.UserId, idsByType, cancellationToken);
+
+        foreach (var orphan in playableOrphans)
+        {
+            var orphanIndex = fullSortedEntries.FindIndex(e => e.Id == orphan.Id);
+            if (orphanIndex < 0)
+                continue;
+
+            PlaylistEntry? nextEntry = null;
+            for (var i = orphanIndex + 1; i < fullSortedEntries.Count; i++)
+            {
+                var candidate = fullSortedEntries[i];
+                if (!validSet.Contains(candidate) || !PlaylistEntryMediaTypeResolver.IsPlayable(candidate.MediaType))
+                    continue;
+
+                if (accessibilityByEntry.TryGetValue(candidate, out var isAccessible) && isAccessible)
+                {
+                    nextEntry = candidate;
+                    break;
+                }
+            }
+
+            await continueWatchingService.ResolvePlaylistEntryRemovalAsync(
+                playlist.Id, playlist.UserId, orphan.MediaType, orphan.MediaId, nextEntry?.MediaType, nextEntry?.MediaId, cancellationToken);
+        }
     }
 
     /// <summary>
@@ -908,7 +1034,7 @@ public sealed class PlaylistService : IPlaylistService
     {
         var playlist = await GetOwnedPlaylistAsync(playlistId, userId, cancellationToken);
 
-        var validEntries = await LoadValidPlaylistEntriesAsync(playlistId, cancellationToken);
+        var validEntries = await LoadValidPlaylistEntriesAsync(playlist, cancellationToken);
         var sortedEntries = await SortPlaylistEntriesForModeAsync(playlist.SortMode, validEntries, cancellationToken);
 
         var idsByType = MediaHierarchyRegistry.GroupMediaIdsByType(sortedEntries);
@@ -1027,7 +1153,7 @@ public sealed class PlaylistService : IPlaylistService
     {
         var playlist = await GetOwnedPlaylistAsync(playlistId, userId, cancellationToken);
 
-        var validEntries = await LoadValidPlaylistEntriesAsync(playlistId, cancellationToken);
+        var validEntries = await LoadValidPlaylistEntriesAsync(playlist, cancellationToken);
         var sortedEntries = await SortPlaylistEntriesForModeAsync(playlist.SortMode, validEntries, cancellationToken);
 
         var currentIndex = sortedEntries.FindIndex(e => e.Id == currentEntryId);

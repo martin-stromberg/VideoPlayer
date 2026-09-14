@@ -107,6 +107,115 @@ public class PlaylistEntriesListTests
     }
 
     /// <summary>
+    /// Regression/behavior test for the Entwicklungsschritt-7 Sicherheitsabfrage: removing an entry that
+    /// the server reports as referenced by a continue-watching (Weiterschauen) entry bound to the same
+    /// playlist (409 Conflict, mirroring <c>PlaylistDetailTests</c>'s pattern for the sort-mode-change
+    /// confirmation) must show <see cref="PlaylistEntryContinueWatchingConfirmationDialog"/> instead of
+    /// removing anything or showing a plain error, and must not yet call
+    /// <c>RemoveMediaFromPlaylistAsync</c> a second time.
+    /// </summary>
+    [Fact]
+    public async Task PlaylistEntriesList_RemoveEntry_ContinueWatchingConflict_ShowsConfirmationDialog()
+    {
+        var entry = new DtoPlaylistEntry { Id = 4, PlaylistId = 1, MediaType = "Movie", MediaId = 40, MediaTitle = "Weiterschauen-Titel", IsAccessible = true };
+        var (cut, playlistClientMock) = RenderWithEntryAndMock(entry);
+
+        playlistClientMock
+            .Setup(c => c.RemoveMediaFromPlaylistAsync(1, "Movie", 40, false))
+            .ThrowsAsync(new HttpRequestException("Weiterschauen-Bezug", null, System.Net.HttpStatusCode.Conflict));
+
+        var removeButton = cut.Find("button.playlist-entry-remove-button");
+        await cut.InvokeAsync(() => removeButton.ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs()));
+
+        var dialog = cut.FindComponent<PlaylistEntryContinueWatchingConfirmationDialog>();
+        Assert.NotNull(dialog);
+        Assert.Contains("Weiterschauen-Liste", cut.Markup);
+
+        playlistClientMock.Verify(c => c.RemoveMediaFromPlaylistAsync(1, "Movie", 40, true), Times.Never);
+    }
+
+    /// <summary>
+    /// Confirming <see cref="PlaylistEntryContinueWatchingConfirmationDialog"/> must retry the removal with
+    /// <c>confirmContinueWatchingRemoval: true</c> and close the dialog again.
+    /// </summary>
+    [Fact]
+    public async Task PlaylistEntriesList_ConfirmContinueWatchingRemoval_RetriesWithConfirmationFlag()
+    {
+        var entry = new DtoPlaylistEntry { Id = 5, PlaylistId = 1, MediaType = "Movie", MediaId = 50, MediaTitle = "Weiterschauen-Titel", IsAccessible = true };
+        var (cut, playlistClientMock) = RenderWithEntryAndMock(entry);
+
+        playlistClientMock
+            .Setup(c => c.RemoveMediaFromPlaylistAsync(1, "Movie", 50, false))
+            .ThrowsAsync(new HttpRequestException("Weiterschauen-Bezug", null, System.Net.HttpStatusCode.Conflict));
+        playlistClientMock
+            .Setup(c => c.RemoveMediaFromPlaylistAsync(1, "Movie", 50, true))
+            .Returns(Task.CompletedTask);
+
+        var removeButton = cut.Find("button.playlist-entry-remove-button");
+        await cut.InvokeAsync(() => removeButton.ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs()));
+
+        var confirmButton = cut.Find("#confirm-remove-continuewatching-button");
+        await cut.InvokeAsync(() => confirmButton.ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs()));
+
+        playlistClientMock.Verify(c => c.RemoveMediaFromPlaylistAsync(1, "Movie", 50, true), Times.Once);
+        Assert.Empty(cut.FindComponents<PlaylistEntryContinueWatchingConfirmationDialog>());
+    }
+
+    /// <summary>
+    /// Canceling <see cref="PlaylistEntryContinueWatchingConfirmationDialog"/> must close the dialog and
+    /// must not retry the removal at all.
+    /// </summary>
+    [Fact]
+    public async Task PlaylistEntriesList_CancelContinueWatchingRemoval_ClosesDialogWithoutRetrying()
+    {
+        var entry = new DtoPlaylistEntry { Id = 6, PlaylistId = 1, MediaType = "Movie", MediaId = 60, MediaTitle = "Weiterschauen-Titel", IsAccessible = true };
+        var (cut, playlistClientMock) = RenderWithEntryAndMock(entry);
+
+        playlistClientMock
+            .Setup(c => c.RemoveMediaFromPlaylistAsync(1, "Movie", 60, false))
+            .ThrowsAsync(new HttpRequestException("Weiterschauen-Bezug", null, System.Net.HttpStatusCode.Conflict));
+
+        var removeButton = cut.Find("button.playlist-entry-remove-button");
+        await cut.InvokeAsync(() => removeButton.ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs()));
+
+        var cancelButton = cut.Find("#cancel-remove-continuewatching-button");
+        await cut.InvokeAsync(() => cancelButton.ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs()));
+
+        playlistClientMock.Verify(c => c.RemoveMediaFromPlaylistAsync(1, "Movie", 60, true), Times.Never);
+        Assert.Empty(cut.FindComponents<PlaylistEntryContinueWatchingConfirmationDialog>());
+    }
+
+    /// <summary>
+    /// Renders <see cref="PlaylistEntriesList"/> with a single given entry (like <see cref="RenderWithEntry"/>),
+    /// additionally returning the mocked <see cref="IPlaylistApiClient"/> so callers can set up/verify
+    /// <c>RemoveMediaFromPlaylistAsync</c> expectations.
+    /// </summary>
+    /// <param name="entry">The single entry the mocked <c>RequestPlaylistEntriesPagedAsync</c> call returns.</param>
+    /// <param name="Cut">(Return tuple field.) The rendered component.</param>
+    /// <param name="PlaylistClientMock">(Return tuple field.) The mocked <see cref="IPlaylistApiClient"/> backing the component.</param>
+    /// <returns>The rendered component and the mocked <see cref="IPlaylistApiClient"/> backing it.</returns>
+    private static (global::Bunit.IRenderedComponent<PlaylistEntriesList> Cut, Mock<IPlaylistApiClient> PlaylistClientMock) RenderWithEntryAndMock(DtoPlaylistEntry entry)
+    {
+        var ctx = new global::Bunit.BunitContext();
+
+        var playlistClientMock = new Mock<IPlaylistApiClient>();
+        playlistClientMock
+            .Setup(c => c.RequestPlaylistEntriesPagedAsync(It.IsAny<long>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DtoPlaylistEntriesPagedResult { Entries = new[] { entry }, HasNextPage = false, TotalCount = 1 });
+
+        ctx.Services.AddSingleton<VideoWebPlayerClient>(new NoOpVideoWebPlayerClient());
+        ctx.Services.AddSingleton(playlistClientMock.Object);
+        ctx.Services.AddSingleton<ILogger<PlaylistEntriesList>>(NullLogger<PlaylistEntriesList>.Instance);
+        ctx.Services.AddSingleton<ILogger<MediaSearchSelector>>(NullLogger<MediaSearchSelector>.Instance);
+
+        var cut = ctx.Render<PlaylistEntriesList>(parameters => parameters
+            .Add(p => p.PlaylistId, 1)
+            .Add(p => p.IsManualMode, false));
+
+        return (cut, playlistClientMock);
+    }
+
+    /// <summary>
     /// Renders <see cref="PlaylistEntriesList"/> with a single given entry, wiring
     /// <see cref="PlaylistEntriesList.OnPlayEntry"/> to append to the returned list. Shared by the
     /// "Abspielen"-button-visibility and double-click regression tests above.

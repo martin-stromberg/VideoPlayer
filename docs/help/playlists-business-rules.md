@@ -458,6 +458,28 @@ GET /api/playlists/1/entries/paged?pageSize=500
 
 ---
 
+## BR-17: Sicherheitsabfrage beim Entfernen eines Titels mit Weiterschauen-Bezug
+
+**Regel:** `DELETE /api/playlists/{id}/entries/{mediaType}/{mediaId}` prüft vor dem Entfernen, ob ein
+`ContinueWatchingEntry` mit `PlaylistId` gleich dieser Playlist auf exakt dieses Video verweist. Ist das der
+Fall und wurde nicht per `confirmContinueWatchingRemoval=true` bestätigt, wird der Eintrag nicht entfernt.
+
+**Implementierung (`PlaylistService.RemoveMediaFromPlaylistAsync`):**
+- Kein passender Weiterschauen-Eintrag → Entfernen wie bisher, keine Bestätigung nötig
+- Passender Eintrag vorhanden, `confirmContinueWatchingRemoval` nicht `true` → `ContinueWatchingConfirmationRequiredException`
+- Passender Eintrag vorhanden und bestätigt → Eintrag wird entfernt; der betroffene Weiterschauen-Eintrag wird
+  durch den nächsten verfügbaren Titel der Playlist ersetzt oder entfernt (siehe
+  `docs/help/weiterschauen/business-rules.md`, Abschnitt "Sicherheitsabfrage beim Entfernen eines Titels mit
+  Weiterschauen-Bezug", für das vollständige Verhalten inkl. des stillen Falls und der Kollisionsauflösung)
+
+**Fehlerbehandlung:** HTTP 409 Conflict — `DtoRemovePlaylistEntryConflictResponse.IsContinueWatchingConfirmationRequired = true`
+
+**Begründung:** Ohne Warnung würde das Entfernen eines Titels aus einer Playlist einen zugehörigen
+Weiterschauen-Fortschritt überraschend verändern (Ersetzen oder Verschwinden), ohne dass der Anwender das
+beabsichtigt oder bemerkt hat.
+
+---
+
 ## Zusammenfassung der Validierungsregeln
 
 | Regel | Prüfpunkt | Fehler | HTTP-Status |
@@ -476,6 +498,7 @@ GET /api/playlists/1/entries/paged?pageSize=500
 | BR-14: Paginierungsparameter gültig | Vor Berechtigungsprüfung | "pageNumber ..." / "pageSize ..." | 400 Bad Request |
 | BR-15: Case-insensitive Namenssuche | Immer aktiv in Get-Methoden | Keine | Keine — 200 OK |
 | BR-16: Opt-in für 5 Medientypen | Parameter gesteuert | Regression-Schutz für Quellen-Browsing | Keine — 200 OK |
+| BR-17: Sicherheitsabfrage bei Weiterschauen-Bezug | Vor Delete | `ContinueWatchingConfirmationRequiredException` | 409 Conflict |
 
 ---
 

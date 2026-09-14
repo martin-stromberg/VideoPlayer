@@ -75,14 +75,24 @@ public interface IPlaylistService
     Task<DtoPlaylistAddResult> AddMediaToPlaylistAsync(long playlistId, string userId, string mediaType, long mediaId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Removes a media entry from a playlist.
+    /// Removes a media entry from a playlist. If a <see cref="Data.ContinueWatchingEntry"/> bound to this
+    /// same playlist still references the entry being removed, the caller must confirm via
+    /// <paramref name="confirmContinueWatchingRemoval"/> (otherwise a
+    /// <see cref="ContinueWatchingConfirmationRequiredException"/> is thrown, without removing anything);
+    /// once confirmed, the affected continue-watching entry is replaced with the next playable and
+    /// accessible title of this playlist (after the removed entry's position), or removed entirely if no
+    /// such title exists.
     /// </summary>
     /// <param name="playlistId">The playlist identifier.</param>
     /// <param name="userId">The id of the requesting (owning) user.</param>
     /// <param name="mediaType">The type of the media entry to remove.</param>
     /// <param name="mediaId">The id of the media entry to remove.</param>
+    /// <param name="confirmContinueWatchingRemoval">
+    /// Whether the user has confirmed removal despite an existing continue-watching reference to this
+    /// playlist entry. Ignored (no confirmation required) when no such reference exists.
+    /// </param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task RemoveMediaFromPlaylistAsync(long playlistId, string userId, string mediaType, long mediaId, CancellationToken cancellationToken = default);
+    Task RemoveMediaFromPlaylistAsync(long playlistId, string userId, string mediaType, long mediaId, bool confirmContinueWatchingRemoval = false, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Returns all entries of a playlist, silently removing orphaned entries whose referenced media no longer exists.

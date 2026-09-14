@@ -94,6 +94,11 @@
     }
 </div>
 
+@if (showContinueWatchingConfirmation)
+{
+    <PlaylistEntryContinueWatchingConfirmationDialog OnConfirm="ConfirmRemoveEntryAsync" OnCancel="CancelRemoveEntry" />
+}
+
 @code {
     private const int PageSize = 20;
 
@@ -117,6 +122,8 @@
     private bool entriesStatusIsError;
     private DtoPlaylistEntry? draggedEntry;
     private MediaSearchSelector? searchSelectorRef;
+    private bool showContinueWatchingConfirmation;
+    private DtoPlaylistEntry? pendingRemovalEntry;
 
     private int currentPageNumber = 1;
     private bool isLoadingMore;
@@ -269,12 +276,53 @@
             return false;
         });
 
+    /// <summary>
+    /// Removes an entry from the playlist. If the server responds with 409 Conflict - a continue-watching
+    /// (Weiterschauen) entry bound to this playlist still references it, see
+    /// <c>PlaylistService.RemoveMediaFromPlaylistAsync</c> - shows <see cref="PlaylistEntryContinueWatchingConfirmationDialog"/>
+    /// (the required Sicherheitsabfrage) instead of removing anything, mirroring how
+    /// <c>PlaylistDetail.ApplySortModeAsync</c> handles the analogous sort-mode-change confirmation.
+    /// </summary>
     private Task RemoveEntryAsync(DtoPlaylistEntry entry)
         => RunEntryActionAsync(async () =>
         {
             await PlaylistClient.RemoveMediaFromPlaylistAsync(PlaylistId, entry.MediaType, entry.MediaId);
             await LoadInitialPageAsync();
+        }, "Fehler beim Entfernen", ex =>
+        {
+            if (ex is HttpRequestException { StatusCode: System.Net.HttpStatusCode.Conflict })
+            {
+                pendingRemovalEntry = entry;
+                showContinueWatchingConfirmation = true;
+                return true;
+            }
+            return false;
+        });
+
+    /// <summary>
+    /// Confirms removal of <see cref="pendingRemovalEntry"/> despite its continue-watching reference,
+    /// retrying <c>RemoveMediaFromPlaylistAsync</c> with <c>confirmContinueWatchingRemoval: true</c>.
+    /// </summary>
+    private Task ConfirmRemoveEntryAsync()
+    {
+        showContinueWatchingConfirmation = false;
+        var entry = pendingRemovalEntry;
+        pendingRemovalEntry = null;
+        if (entry is null)
+            return Task.CompletedTask;
+
+        return RunEntryActionAsync(async () =>
+        {
+            await PlaylistClient.RemoveMediaFromPlaylistAsync(PlaylistId, entry.MediaType, entry.MediaId, confirmContinueWatchingRemoval: true);
+            await LoadInitialPageAsync();
         }, "Fehler beim Entfernen");
+    }
+
+    private void CancelRemoveEntry()
+    {
+        showContinueWatchingConfirmation = false;
+        pendingRemovalEntry = null;
+    }
 
     /// <summary>
     /// Callback from <see cref="MediaSearchSelector"/>: sets <see cref="newEntryMediaType"/> and

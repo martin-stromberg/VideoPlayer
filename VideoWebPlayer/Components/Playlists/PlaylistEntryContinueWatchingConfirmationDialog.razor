@@ -1,0 +1,12 @@
+<ConfirmationDialog Title="Aus Playlist entfernen" OnConfirm="OnConfirm" OnCancel="OnCancel"
+                    ConfirmButtonText="Ja, entfernen" ConfirmButtonId="confirm-remove-continuewatching-button" CancelButtonId="cancel-remove-continuewatching-button">
+    <p>Dieser Eintrag befindet sich in deiner Weiterschauen-Liste. Entfernen?</p>
+</ConfirmationDialog>
+
+@code {
+    [Parameter]
+    public EventCallback OnConfirm { get; set; }
+
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
+}

@@ -152,7 +152,12 @@ derselbe Medientyp erkannt.
 
 ### `DELETE /api/playlists/{id}/entries/{mediaType}/{mediaId}` — Medieninhalt entfernen
 
-Entfernt einen spezifischen Medieninhalt aus einer Playlist.
+Entfernt einen spezifischen Medieninhalt aus einer Playlist. Existiert in der Weiterschauen-Liste noch ein
+Eintrag mit Bezug zu genau dieser Playlist, der auf diesen Titel verweist, muss der Aufrufer das Entfernen
+über `confirmContinueWatchingRemoval=true` ausdrücklich bestätigen (siehe Fehlerantworten) - andernfalls
+wird nichts verändert. Nach bestätigtem Entfernen wird der betroffene Weiterschauen-Eintrag durch den
+nächsten verfügbaren Titel dieser Playlist ersetzt, oder entfernt, falls keiner existiert (siehe
+`docs/help/weiterschauen/business-rules.md`).
 
 **Parameter:**
 
@@ -161,6 +166,7 @@ Entfernt einen spezifischen Medieninhalt aus einer Playlist.
 | `id` | Route | long | Ja | Playlist-ID |
 | `mediaType` | Route | string | Ja | Medientyp des zu entfernenden Eintrags |
 | `mediaId` | Route | long | Ja | ID des Medieninhalts |
+| `confirmContinueWatchingRemoval` | Query | bool | Nein (Standard `false`) | Bestätigt das Entfernen trotz bestehendem Weiterschauen-Bezug |
 
 **Erfolgreiche Antwort (HTTP 204):**
 
@@ -168,11 +174,12 @@ Keine Antwort-Body. Der Eintrag wurde entfernt.
 
 **Fehlerantworten:**
 
-| HTTP-Status | Grund |
-|-------------|-------|
-| 404 Not Found | Eintrag nicht in dieser Playlist oder Playlist nicht gefunden |
-| 403 Forbidden | Benutzer ist nicht der Besitzer der Playlist |
-| 401 Unauthorized | Fehlende oder ungültige Authentifizierung |
+| HTTP-Status | Grund | Response-Body |
+|-------------|-------|----------------|
+| 404 Not Found | Eintrag nicht in dieser Playlist oder Playlist nicht gefunden | — |
+| 403 Forbidden | Benutzer ist nicht der Besitzer der Playlist | — |
+| 401 Unauthorized | Fehlende oder ungültige Authentifizierung | — |
+| 409 Conflict | Ein Weiterschauen-Eintrag mit Bezug zu dieser Playlist referenziert diesen Titel und `confirmContinueWatchingRemoval` wurde nicht als `true` übergeben | `DtoRemovePlaylistEntryConflictResponse` (siehe [DTO-Modelle](#dto-modelle)), z. B. `{ "isContinueWatchingConfirmationRequired": true }` |
 
 ---
 
@@ -734,6 +741,19 @@ von `Manual` zu `ByReleaseDate` ohne Bestätigung angefragt wurde.
 public class DtoChangeSortModeConflictResponse
 {
     public bool IsLossOfDataConfirmationRequired { get; set; }  // stets true, wenn dieser Response-Typ zurueckgegeben wird
+}
+```
+
+### `DtoRemovePlaylistEntryConflictResponse`
+
+Response-Body bei `HTTP 409 Conflict` von `DELETE /api/playlists/{id}/entries/{mediaType}/{mediaId}`, wenn
+das Entfernen einen Weiterschauen-Eintrag mit Bezug zu dieser Playlist betreffen würde und nicht per
+`confirmContinueWatchingRemoval=true` bestätigt wurde.
+
+```csharp
+public class DtoRemovePlaylistEntryConflictResponse
+{
+    public bool IsContinueWatchingConfirmationRequired { get; set; }  // stets true, wenn dieser Response-Typ zurueckgegeben wird
 }
 ```
 

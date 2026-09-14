@@ -65,12 +65,21 @@ namespace VideoWebPlayer.Client
         Task<DtoPlaylistAddResult> AddMediaToPlaylistAsync(long playlistId, DtoAddMediaToPlaylistRequest request);
 
         /// <summary>
-        /// Removes a media entry from a playlist.
+        /// Removes a media entry from a playlist. If a continue-watching (Weiterschauen) entry bound to
+        /// this same playlist still references the entry being removed and
+        /// <paramref name="confirmContinueWatchingRemoval"/> is <see langword="false"/>, the request fails
+        /// with an <see cref="HttpRequestException"/> whose <c>StatusCode</c> is <c>409 Conflict</c>
+        /// (<see cref="Models.DtoRemovePlaylistEntryConflictResponse"/>); callers should surface a
+        /// confirmation prompt and retry with <paramref name="confirmContinueWatchingRemoval"/> set to
+        /// <see langword="true"/>.
         /// </summary>
         /// <param name="playlistId">Id of the playlist to remove the media entry from.</param>
         /// <param name="mediaType">Type of the media entry to remove.</param>
         /// <param name="mediaId">Id of the media entry to remove.</param>
-        Task RemoveMediaFromPlaylistAsync(long playlistId, string mediaType, long mediaId);
+        /// <param name="confirmContinueWatchingRemoval">
+        /// Whether the user confirmed removal despite an existing continue-watching reference.
+        /// </param>
+        Task RemoveMediaFromPlaylistAsync(long playlistId, string mediaType, long mediaId, bool confirmContinueWatchingRemoval = false);
 
         /// <summary>
         /// Changes the manual sort order of a single entry of a playlist.

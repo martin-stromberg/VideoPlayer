@@ -18,7 +18,7 @@ public class PlaylistServiceTests_RemoveMedia : PlaylistServiceTestBase
         var movieId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie);
         var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.Movie, movieId));
 
-        await _service.RemoveMediaFromPlaylistAsync(playlistId, _testUserId, MediaTypeValues.Movie, movieId, ct);
+        await _service.RemoveMediaFromPlaylistAsync(playlistId, _testUserId, MediaTypeValues.Movie, movieId, cancellationToken: ct);
 
         Assert.False(await _db.PlaylistEntries.AsNoTracking()
             .AnyAsync(e => e.PlaylistId == playlistId && e.MediaType == MediaTypeValues.Movie && e.MediaId == movieId, ct));
@@ -31,7 +31,7 @@ public class PlaylistServiceTests_RemoveMedia : PlaylistServiceTestBase
         var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId);
 
         await Assert.ThrowsAsync<KeyNotFoundException>(
-            () => _service.RemoveMediaFromPlaylistAsync(playlistId, _testUserId, MediaTypeValues.Movie, 999999, ct));
+            () => _service.RemoveMediaFromPlaylistAsync(playlistId, _testUserId, MediaTypeValues.Movie, 999999, cancellationToken: ct));
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public class PlaylistServiceTests_RemoveMedia : PlaylistServiceTestBase
         var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.Movie, movieId));
 
         await Assert.ThrowsAsync<PlaylistAccessDeniedException>(
-            () => _service.RemoveMediaFromPlaylistAsync(playlistId, _otherUserId, MediaTypeValues.Movie, movieId, ct));
+            () => _service.RemoveMediaFromPlaylistAsync(playlistId, _otherUserId, MediaTypeValues.Movie, movieId, cancellationToken: ct));
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public class PlaylistServiceTests_RemoveMedia : PlaylistServiceTestBase
         var movieId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie);
         var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.Movie, movieId));
 
-        await _service.RemoveMediaFromPlaylistAsync(playlistId, _testUserId, "movie", movieId, ct);
+        await _service.RemoveMediaFromPlaylistAsync(playlistId, _testUserId, "movie", movieId, cancellationToken: ct);
 
         Assert.False(await _db.PlaylistEntries.AsNoTracking()
             .AnyAsync(e => e.PlaylistId == playlistId && e.MediaType == MediaTypeValues.Movie && e.MediaId == movieId, ct));
@@ -65,6 +65,6 @@ public class PlaylistServiceTests_RemoveMedia : PlaylistServiceTestBase
         var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId);
 
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => _service.RemoveMediaFromPlaylistAsync(playlistId, _testUserId, "UnknownType", 1, ct));
+            () => _service.RemoveMediaFromPlaylistAsync(playlistId, _testUserId, "UnknownType", 1, cancellationToken: ct));
     }
 }

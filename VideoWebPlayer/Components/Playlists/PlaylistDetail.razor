@@ -92,6 +92,7 @@
                  MediaId="@playbackStart.MediaId"
                  AuthToken="@Client.AuthorizationToken"
                  AutoPlay="true"
+                 StartPositionSeconds="@playbackStart.StartPositionSeconds"
                  PlaylistContext="new PlaylistPlaybackContext(playbackStart.PlaylistId, playbackStart.CurrentEntryId, playbackStart.TotalCount, playbackStart.PlaylistName)"
                  CurrentPlaylistPosition="playbackStart.CurrentPosition"
                  CurrentPlaylistEntryIdChanged="OnPlaylistEntryIdChanged" />
@@ -119,7 +120,7 @@
     /// <summary>
     /// Optional playlist entry to resume playback at, supplied via the <c>?entryId=</c> URL query
     /// parameter. Populated on initial navigation from <see cref="PlaylistEntriesList.OnPlayEntry"/> and
-    /// kept in sync with the currently playing entry (see <see cref="OnPlaylistEntryIdChangedAsync"/>) so
+    /// kept in sync with the currently playing entry (see <see cref="OnPlaylistEntryIdChanged"/>) so
     /// a browser reload during playlist playback resumes at the same entry (Af-010).
     /// </summary>
     [Parameter]
@@ -196,7 +197,15 @@
     /// already resolved for its new current entry (Next/Previous/Advance/Restart), rather than re-deriving
     /// the stream URL here - which would be stale relative to what VideoPlayer is actually displaying and
     /// would overwrite it on the next render this NavigateTo call triggers (see
-    /// <see cref="VideoPlayer.CurrentPlaylistEntryIdChanged"/>).
+    /// <see cref="VideoPlayer.CurrentPlaylistEntryIdChanged"/>). <paramref name="info"/> now also carries the
+    /// new entry's playlist-specific <c>StartPositionSeconds</c> directly (resolved server-side together with
+    /// the entry itself), so this handler is purely synchronous - deliberately so: an earlier version fetched
+    /// <c>StartPositionSeconds</c> here via a separate <see cref="VideoWebPlayer.Client.IPlaylistApiClient.StartPlaylistAsync"/>
+    /// roundtrip, and Blazor Server renders as soon as an async event handler reaches its first <c>await</c>,
+    /// so <see cref="VideoPlayer"/> observed the new <c>StreamUrl</c> together with the still-stale previous
+    /// <c>StartPositionSeconds</c> in that intermediate render and applied it before the roundtrip resolved.
+    /// With no <c>await</c> in this method, all of <see cref="playbackStart"/>'s fields update atomically
+    /// within the single render triggered by the originating event, closing that window entirely.
     /// </summary>
     private void OnPlaylistEntryIdChanged(VideoPlayer.PlaylistEntryPlaybackInfo info)
     {
@@ -206,7 +215,9 @@
             playbackStart.MediaType = info.PlayerMediaType;
             playbackStart.MediaId = info.MediaId;
             playbackStart.StreamUrl = info.StreamUrl;
+            playbackStart.StartPositionSeconds = info.StartPositionSeconds;
         }
+
         NavigationManager.NavigateTo($"/playlists/{Id}?entryId={info.EntryId}", replace: true);
     }
 

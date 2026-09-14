@@ -214,3 +214,146 @@ if (position < MinStart) return Task.CompletedTask;
 ```
 
 **Begründung:** Verhindert Puffer-Überlauf durch kurze Testabrufe oder Ladezeit-Spitzen.
+
+---
+
+## Regel: Eindeutigkeit durch (UserId, MediaId, PlaylistId)
+
+**Beschreibung:** Ein Benutzer kann pro Media (Film oder Episode) pro Playlist nur einen Eintrag in der Weiterschauen-Liste haben. Zusätzlich kann ein Benutzer pro Media eine Variante ohne Playlist-Bezug (PlaylistId = NULL) haben. Kombinationen unterschiedlicher Playlists oder Playlist vs. Non-Playlist sind jedoch unabhängige Einträge.
+
+**Bedingungen:**
+- Ein Video wird aus einer Playlist heraus gestartet (PlaylistId gesetzt) oder außerhalb einer Playlist (PlaylistId = NULL)
+- Benutzer hat bereits einen Eintrag für dieses Video in derselben Playlist-Kombination
+
+**Verhalten:**
+- Das System sucht den vorhandenen Eintrag mit `(UserId, MovieId OR TVShowEpisodeId, PlaylistId)`
+- Falls vorhanden: Position wird aktualisiert (Upsert-Verhalten), kein neuer Eintrag wird erstellt
+- Falls nicht vorhanden: Ein neuer Eintrag wird erstellt
+- Sind verschiedene Playlist-Varianten vorhanden, werden diese als separate Einträge behandelt
+
+**Umsetzung:** `ContinueWatchingService.UpsertAsync()`:
+```csharp
+var entry = await _db.ContinueWatchingEntries
+    .FirstOrDefaultAsync(x => x.UserId == userId 
+                           && x.MovieId == nextMovieId 
+                           && x.TVShowEpisodeId == nextEpisodeId 
+                           && x.PlaylistId == playlistId, ct);
+
+if (entry == null)
+{
+    // Neuer Eintrag wird erstellt mit dieser PlaylistId
+}
+else
+{
+    // Position wird aktualisiert
+}
+```
+
+**Begründung:** Diese Regel ermöglicht es, dasselbe Video mehrfach in der Weiterschauen-Liste zu haben — einmal pro Playlist plus optional eine Non-Playlist-Variante — und jede Variante individuell zu verwalten (eigener Fortschritt, eigene Ausblendung, eigenes Überspringen).
+
+---
+
+## Regel: Gesehen-Markierung ist playlist-übergreifend
+
+**Beschreibung:** Wenn ein Benutzer ein Video zu Ende schaut (Fortschritt nahe am Ende), werden ALLE Varianten dieses Videos aus der Weiterschauen-Liste entfernt — unabhängig davon, mit welcher Playlist oder ohne Playlist sie verknüpft sind.
+
+**Bedingungen:**
+- Benutzer schaut ein Video bis zum Ende (weniger als 30 Sekunden verbleibend)
+- Es können mehrere Varianten des Videos in der Liste sein (verschiedene Playlists, mit/ohne Playlist)
+
+**Verhalten:**
+- Das System markiert das Video global als „gesehen" (registriert in der `WatchedEntry`-Tabelle)
+- Es entfernt alle `ContinueWatchingEntry` für `(UserId, MovieId OR TVShowEpisodeId)` **ohne PlaylistId-Filter**
+- Dies geschieht **vor** der Ermittlung des nächsten Videos
+- Anschließend wird die nächste Episode/nächster Film mit der **aktuellen** PlaylistId eingefügt (falls vorhanden)
+
+**Umsetzung:** `ContinueWatchingService.ProcessBufferedEntryAsync()` (Zeilen 265–275):
+```csharp
+// Gesehen-Markierung ist playlist-uebergreifend: ALLE Varianten dieses Videos werden
+// entfernt, unabhaengig von ihrer PlaylistId.
+var existingEntries = await _db.ContinueWatchingEntries
+    .Where(x => x.UserId == userId && x.MovieId == movieId && x.TVShowEpisodeId == episodeId)
+    .ToListAsync(ct);
+
+if (existingEntries.Count > 0)
+{
+    _db.ContinueWatchingEntries.RemoveRange(existingEntries);
+    await _db.SaveChangesAsync(ct);
+}
+```
+
+**Begründung:** Die Gesehen-Markierung ist eine globale, benutzerweite Information („dieses Video habe ich gesehen"). Sie sollte nicht playlist-spezifisch sein. Dies verhindert auch Verwirrung: Wenn ein Benutzer das gleiche Video in zwei verschiedenen Playlists zu Ende schaut, würde erwartet, dass es überall als gesehen markiert wird, nicht nur in einer Playlist.
+
+---
+
+## Regel: Ausblenden und Überspringen sind playlist-spezifisch
+
+**Beschreibung:** Die manuellen Aktionen „Ausblenden" und „Überspringen" wirken nur auf die jeweilige Playlist-Variante eines Eintrags.
+
+**Bedingungen:**
+- Benutzer klickt „Ausblenden" oder „Überspringen" auf einem Eintrag in der Weiterschauen-Liste
+- Der Eintrag hat optional eine PlaylistId
+
+**Verhalten (Ausblenden):**
+- Das System sucht den Eintrag mit `(UserId, MovieId OR TVShowEpisodeId, PlaylistId)`
+- Falls vorhanden: Dieser eine Eintrag wird gelöscht
+- Alle anderen Varianten (mit anderen Playlists oder ohne) bleiben erhalten
+
+**Verhalten (Überspringen):**
+- Das System sucht den Eintrag mit `(UserId, MovieId OR TVShowEpisodeId, PlaylistId)`
+- Falls vorhanden: Dieser Eintrag wird gelöscht
+- Beim Ermitteln der nächsten Media (Episode oder Film) wird aber die **aktuelle Playlist-ID beibehalten**
+- Der Eintrag für die nächste Media wird mit derselben PlaylistId erstellt
+- Alle anderen Varianten des alten Videos bleiben erhalten
+
+**Umsetzung:** `ContinueWatchingService.HideAsync()` und `SkipAsync()` verwenden beide die PlaylistId in der Eindeutigkeitsabfrage.
+
+**Begründung:** Dies ermöglicht eine granulare Verwaltung: Ein Benutzer kann z. B. ein Video in Playlist A ausblenden, es aber weiterhin in Playlist B und als Non-Playlist-Variante in der Weiterschauen-Liste haben. Dies ist nützlich, wenn der Benutzer den Titel „dort" fortsetzen, aber „hier" nicht mehr sehen möchte.
+
+---
+
+## Regel: Eindeutige Identifizierung der Weiterschauen-Einträge in der UI durch Entry-ID
+
+**Beschreibung:** Jeder Weiterschauen-Eintrag wird in der Benutzeroberfläche durch seine eindeutige Datenbank-ID (`ContinueWatchingEntry.Id`) identifiziert, nicht durch die Media-ID. Dies ist essentiell, wenn dasselbe Video mehrfach in der Liste erscheint (mit unterschiedlichen Playlists oder ohne).
+
+**Bedingungen:**
+- Weiterschauen-Liste wird geladen
+- Ein oder mehr Videos erscheinen mehrfach (mit verschiedenen `PlaylistId`-Werten)
+- Display-Daten (Titel, Bild, Playlist-Name) müssen eindeutig jeder Variante zugeordnet werden
+
+**Verhalten:**
+- Die Eigenschaft `ContinueWatchingDto.Id` wird mit der Datenbank-ID der `ContinueWatchingEntry` befüllt
+- In `ContinueWatchingList.razor` werden Display-Data-Dictionaries nach `ContinueWatchingDto.Id` indiziert: `titles[it.Id]`, `images[it.Id]`, `links[it.Id]`, `playlistSubtitles[it.Id]`
+- Das Blazor-`@key`-Attribut wird auf `@key="it.Id"` gesetzt, um eindeutige Keys pro Datenbankzeile zu garantieren
+- Jeder Eintrag erhält korrekt seine zugehörigen Anzeigedaten, auch wenn mehrere Varianten des gleichen Videos nebeneinander erscheinen
+
+**Umsetzung:** 
+- `ContinueWatchingService.GetListAsync()` — Befüllt `ContinueWatchingDto.Id` aus `entry.Id`
+- `ContinueWatchingList.razor` — Umindizierung aller Display-Data-Dictionaries auf `it.Id` statt `it.Entry.Id`
+
+**Begründung:** Eine Indizierung nach Media-ID (`Entry.Id`) würde zu Kollisionen führen, wenn das gleiche Video mehrfach mit unterschiedlichen Playlist-Bezügen in der Liste vorhanden ist: mehrere DTOs mit derselben `Entry.Id` würden sich gegenseitig im Dictionary überschreiben, und der Blazor-Renderer würde bei mehreren identischen `@key`-Werten fehlschlagen. Die Entry-ID ist eindeutig pro Datenbankzeile und behebt beide Probleme.
+
+---
+
+## Regel: Konfliktauflösung beim Löschen einer Playlist mit playlist-losem Duplikat
+
+**Beschreibung:** Wenn eine Playlist gelöscht wird und ein oder mehr ihrer Weiterschauen-Einträge ein Duplikat als playlist-loser Eintrag (PlaylistId = NULL) haben, wird das playlist-gebundene Duplikat entfernt statt auf NULL gesetzt. Dies verhindert Unique-Constraint-Verletzungen und bewahrt die Konsistenz der Datenbank.
+
+**Bedingungen:**
+- Benutzer löscht eine Playlist
+- Für ein oder mehr Videos in dieser Playlist existiert bereits ein playlist-loser Weiterschauen-Eintrag (gleicher User, gleiche Media)
+- Die Datenbank erzwingt einen bedingten Unique-Index auf `(UserId, MediaId, NULL)` und `(UserId, TVShowEpisodeId, NULL)`
+
+**Verhalten:**
+1. Vor dem eigentlichen Playlist-Löschen: Alle `ContinueWatchingEntry`-Zeilen mit dieser `PlaylistId` werden geladen
+2. Für jede Zeile: Es wird geprüft, ob bereits ein playlist-loser Eintrag existiert (`UserId`, `MovieId`/`TVShowEpisodeId`, `PlaylistId = NULL`)
+3. Falls ja: Der playlist-gebundene Eintrag wird gelöscht (entfernt aus dem Datenbank-Change-Tracker)
+4. Falls nein: Der Eintrag wird wie geplant auf `PlaylistId = NULL` gesetzt (durch die FK-Aktion)
+5. Die Playlist wird gelöscht
+6. `SaveChangesAsync()` wird aufgerufen → kein Unique-Constraint-Fehler
+
+**Umsetzung:** 
+- `PlaylistService.DeletePlaylistAsync()` — Ruft `ResolvePlaylistDeletionConflictsAsync()` auf, bevor die Playlist gelöscht wird
+- `ContinueWatchingService.ResolvePlaylistDeletionConflictsAsync()` — Implementiert die Konfliktprüfung und Duplikat-Entfernung
+
+**Begründung:** Das Datenbankschema erzwingt Eindeutigkeit auf playlist-losen Einträgen. Wenn eine Playlist gelöscht wird und ihre Einträge auf NULL gesetzt werden sollen, aber bereits ein NULL-Eintrag für das gleiche Video existiert, schlägt die Operation ohne explizite Konfliktauflösung fehl. Die Entfernung des playlist-gebundenen Duplikats ist das sicherste Verfahren: Sie bewahrt den ursprünglichen playlist-losen Eintrag (einschließlich dessen Wiedergabeposition) und vermeidet gleichzeitig Duplikate.

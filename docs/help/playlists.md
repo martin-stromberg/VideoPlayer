@@ -174,11 +174,14 @@ verschwindet der zugehörige Playlist-Eintrag beim nächsten Laden der Playlist 
 (ohne Fehlermeldung oder Hinweismeldung für den Anwender). Diese automatische Bereinigung
 verhindert, dass die Playlist auf nicht mehr existierende Inhalte verweist.
 
-## Wiedergabe aus einer Playlist
+## Wiedergabe aus einer Playlist und Weiterschauen-Integration
 
 Titel lassen sich direkt aus einer Playlist heraus abspielen, mit automatischem und manuellem
 Weiterschalten sowie einer durchgängigen Anzeige, aus welcher Playlist und an welcher Position
-gerade abgespielt wird.
+gerade abgespielt wird. Die Wiedergabe wird dabei automatisch mit der Weiterschauen-Liste verknüpft:
+Wird ein Video aus einer Playlist gestartet und später pausiert, speichert das System den Playlist-Bezug
+für diesen Eintrag sowie die Wiedergabeposition. Beim Fortsetzen wird die Wiedergabe im gleichen 
+Playlist-Kontext **mit der gespeicherten Position** rekonstruiert.
 
 ### Wiedergabe starten
 
@@ -186,7 +189,10 @@ Auf der Detailseite besitzt jeder abspielbare Eintrag (Film oder Episode) eine
 **Abspielen**-Schaltfläche; alternativ startet ein Doppelklick auf die Zeile die Wiedergabe ab
 genau diesem Eintrag. Der Video-Player öffnet sich daraufhin mit dem gewählten Titel und zeigt
 oberhalb des Players einen Playlist-Badge mit Playlist-Name und Position an, z. B.
-„[Meine Favoriten: 3/12]".
+„[Meine Favoriten: 3/12]". 
+
+Wurde ein Video aus dieser Playlist bereits früher pausiert und in der Weiterschauen-Liste gespeichert,
+startet der Player automatisch an der gespeicherten Wiedergabeposition statt bei 0:00.
 
 Sammel-Einträge (Serie, Staffel, Filmsammlung) besitzen keine Abspielen-Schaltfläche, da sie nicht
 direkt abspielbar sind — nur Filme und Episoden lassen sich starten. Dasselbe gilt für nicht
@@ -248,6 +254,30 @@ Playlists zugreifen: Der Versuch, eine fremde Playlist zu bearbeiten oder zu lö
 abgelehnt. Falls eine Playlist nicht existiert, wird ebenfalls eine Fehlermeldung angezeigt.
 
 Wird ein Benutzerkonto gelöscht, werden auch alle Playlists dieses Anwenders automatisch entfernt.
+
+## Weiterschauen mit Playlist-Bezug
+
+Jedes Mal, wenn Sie ein Video direkt aus einer Playlist heraus starten und später pausieren, wird
+diese Information gespeichert. In Ihrer **Weiterschauen-Liste** erscheint dieser Titel dann mit einem
+Hinweis wie „In Playlist: Meine Favoriten". Wenn Sie diesen Eintrag später anklicken, wird die
+Wiedergabe genau dort fortgesetzt, wo Sie pausiert haben — **im gleichen Playlist-Kontext mit der 
+gespeicherten Position**.
+
+Dies hat mehrere Vorteile:
+
+- Sie können dasselbe Video mehrfach in der Weiterschauen-Liste haben: einmal ohne Playlist (wenn Sie es
+  einzeln angesehen haben) und mehrfach mit verschiedenen Playlists (je nachdem, aus welcher Playlist
+  Sie es gestartet haben). Jede Variante hat ihren eigenen Fortschritt.
+- Die Funktionen „Ausblenden" und „Überspringen" wirken nur auf die jeweilige Playlist-Variante. Sie können
+  z. B. ein Video in einer Playlist ausblenden, es aber weiterhin in einer anderen Playlist fortsetzen.
+- Die globale Markierung „als gesehen" ist weiterhin playlist-übergreifend: Wenn Sie ein Video zu Ende
+  schauen, werden alle Varianten (mit und ohne Playlist-Bezug) aus der Weiterschauen-Liste entfernt.
+
+Wird eine Playlist gelöscht, bleiben die Weiterschauen-Einträge bestehen und verlieren ihren Playlist-Bezug —
+sie werden zu normalen Einträgen ohne Playlist-Zuordnung. Falls bereits ein Eintrag ohne Playlist-Bezug für 
+das gleiche Video existiert, wird das Duplikat automatisch entfernt, um Inkonsistenzen zu vermeiden.
+
+Weitere Details siehe [Weiterschauen – Beschreibung](weiterschauen/beschreibung.md).
 
 ## Konfiguration (Administratoren)
 

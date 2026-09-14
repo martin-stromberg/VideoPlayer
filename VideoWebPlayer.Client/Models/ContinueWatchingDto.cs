@@ -6,6 +6,14 @@ namespace VideoWebPlayer.Client.Models
     public class ContinueWatchingDto
     {
         /// <summary>
+        /// Gets or sets the database id of the underlying <c>ContinueWatchingEntry</c> row. Unlike
+        /// <see cref="Entry"/>'s id (the media id), this is unique per row even when the same media
+        /// appears multiple times in the list with different <see cref="PlaylistId"/> values, and is
+        /// therefore the correct key to index display data and Blazor <c>@key</c> values by.
+        /// </summary>
+        public long Id { get; set; }
+
+        /// <summary>
         /// Gets or sets the media type of the entry.
         /// </summary>
         public string MediaType { get; set; } = "";
@@ -39,5 +47,25 @@ namespace VideoWebPlayer.Client.Models
         /// Gets or sets the timestamp the entry was last watched at, or <c>null</c> if unknown.
         /// </summary>
         public DateTime? WatchedAt { get; set; }
+
+        /// <summary>
+        /// Gets or sets the id of the playlist this entry is associated with, or <c>null</c> if the
+        /// entry was created outside of a playlist playback context.
+        /// </summary>
+        public long? PlaylistId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the name of the playlist this entry is associated with, or <c>null</c> if
+        /// <see cref="PlaylistId"/> is <c>null</c>.
+        /// </summary>
+        public string? PlaylistName { get; set; }
+
+        /// <summary>
+        /// Gets or sets the id of the <c>PlaylistEntry</c> this entry's media currently corresponds to
+        /// within its playlist, or <c>null</c> if <see cref="PlaylistId"/> is <c>null</c> or the media is
+        /// no longer part of the playlist. Used to reconstruct the exact playback position when resuming
+        /// from a playlist-bound continue-watching entry (<c>/playlists/{PlaylistId}?entryId={PlaylistEntryId}</c>).
+        /// </summary>
+        public long? PlaylistEntryId { get; set; }
     }
 }

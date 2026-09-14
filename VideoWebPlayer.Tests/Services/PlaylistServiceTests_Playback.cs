@@ -295,6 +295,104 @@ public class PlaylistServiceTests_Playback : PlaylistServiceTestBase
         Assert.Contains("/stream", start.StreamUrl);
     }
 
+    /// <summary>
+    /// Regression test for the "playback always resumes at 0:00 in a playlist context" bug (Weiterschauen
+    /// mit Playlist-Bezug, Schritt 6 Nachbesserung, Problem 4): <see cref="PlaylistService.StartPlaylistAsync"/>
+    /// must populate <see cref="DtoPlaylistPlaybackStart.StartPositionSeconds"/> from the matching
+    /// <see cref="ContinueWatchingEntry.Position"/> for the requesting user and playlist, instead of always
+    /// leaving it at its default of <c>0</c>.
+    /// </summary>
+    [Fact]
+    public async Task StartPlaylistAsync_WithContinueWatchingPosition_PopulatesStartPositionSeconds()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var movieId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Film mit Position");
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.Movie, movieId));
+        await GrantMediaSourceAccessForUserAsync(_testUserId);
+        var entryIds = await GetOrderedEntryIdsAsync(playlistId);
+
+        _db.ContinueWatchingEntries.Add(new ContinueWatchingEntry
+        {
+            UserId = _testUserId,
+            MovieId = movieId,
+            PlaylistId = playlistId,
+            Position = TimeSpan.FromSeconds(1200),
+            UpdatedAt = DateTime.UtcNow,
+            ListOrder = 1
+        });
+        await _db.SaveChangesAsync(ct);
+
+        var start = await _service.StartPlaylistAsync(playlistId, _testUserId, entryIds[0], ct);
+
+        Assert.Equal(1200, start.StartPositionSeconds);
+    }
+
+    /// <summary>
+    /// Regression test for "Nachbesserung Weiterschauen mit Playlist-Bezug, Schritt 6, Runde 3": the
+    /// Next/Previous/Advance navigation results must carry the resolved entry's own
+    /// <see cref="DtoPlaylistNavigationResult.StartPositionSeconds"/> directly (mirroring
+    /// <see cref="PlaylistService.StartPlaylistAsync"/>'s <see cref="DtoPlaylistPlaybackStart.StartPositionSeconds"/>),
+    /// so the client can apply the new entry's stream URL and start position together in a single,
+    /// synchronous step instead of needing a second <see cref="PlaylistService.StartPlaylistAsync"/>
+    /// roundtrip - whose intervening <c>await</c> on the client was the root cause of the Runde-3 render
+    /// race (see <c>blocked.md</c> of this development step).
+    /// </summary>
+    [Fact]
+    public async Task GetNextPlaylistEntryAsync_TargetEntryHasContinueWatchingPosition_PopulatesStartPositionSeconds()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var firstMovieId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Erster Film");
+        var secondMovieId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Zweiter Film mit Position");
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId,
+            (MediaTypeValues.Movie, firstMovieId),
+            (MediaTypeValues.Movie, secondMovieId));
+        await GrantMediaSourceAccessForUserAsync(_testUserId);
+        var entryIds = await GetOrderedEntryIdsAsync(playlistId);
+
+        _db.ContinueWatchingEntries.Add(new ContinueWatchingEntry
+        {
+            UserId = _testUserId,
+            MovieId = secondMovieId,
+            PlaylistId = playlistId,
+            Position = TimeSpan.FromSeconds(450),
+            UpdatedAt = DateTime.UtcNow,
+            ListOrder = 1
+        });
+        await _db.SaveChangesAsync(ct);
+
+        var next = await _service.GetNextPlaylistEntryAsync(playlistId, _testUserId, entryIds[0], ct);
+
+        Assert.NotNull(next);
+        Assert.Equal(entryIds[1], next!.Entry.Id);
+        Assert.Equal(450, next.StartPositionSeconds);
+    }
+
+    [Fact]
+    public async Task GetNextPlaylistEntryAsync_TargetEntryHasNoContinueWatchingPosition_StartPositionSecondsIsZero()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (byReleaseDatePlaylistId, _) = await CreatePlaylistWithMultipleSortOrdersAsync(_testUserId);
+        await GrantMediaSourceAccessForUserAsync(_testUserId);
+        var entryIds = await GetOrderedEntryIdsAsync(byReleaseDatePlaylistId);
+
+        var next = await _service.GetNextPlaylistEntryAsync(byReleaseDatePlaylistId, _testUserId, entryIds[0], ct);
+
+        Assert.NotNull(next);
+        Assert.Equal(0, next!.StartPositionSeconds);
+    }
+
+    [Fact]
+    public async Task StartPlaylistAsync_NoContinueWatchingEntry_StartPositionSecondsIsZero()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (byReleaseDatePlaylistId, _) = await CreatePlaylistWithMultipleSortOrdersAsync(_testUserId);
+        await GrantMediaSourceAccessForUserAsync(_testUserId);
+
+        var start = await _service.StartPlaylistAsync(byReleaseDatePlaylistId, _testUserId, entryId: null, ct);
+
+        Assert.Equal(0, start.StartPositionSeconds);
+    }
+
     [Fact]
     public async Task AdvancePlaylistAsync_CallsGetNextInternally()
     {

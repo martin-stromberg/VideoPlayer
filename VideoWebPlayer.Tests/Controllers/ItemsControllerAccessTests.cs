@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Controllers.Models;
 using VideoWebPlayer.Data;
@@ -196,18 +195,5 @@ public class ItemsControllerAccessTests
         var (db, controller, user) = await ItemsControllerTestFactory.CreateAsync(connectionString, "regular@test.com", logger, ct);
 
         return (db, controller, user, logger);
-    }
-
-    private sealed class CapturingLogger<T> : ILogger<T>
-    {
-        public string? LastError { get; private set; }
-
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-        public bool IsEnabled(LogLevel logLevel) => true;
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
-        {
-            if (logLevel == LogLevel.Error && exception != null)
-                LastError = exception.ToString();
-        }
     }
 }

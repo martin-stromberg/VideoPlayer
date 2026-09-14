@@ -19,6 +19,7 @@ namespace VideoWebPlayer.Services
         private readonly ContinueWatchingBuffer _buffer;
         private readonly MediaUpdateNotificationService _notificationService;
         private readonly ProgramSettingsService _programSettings;
+        private readonly IPlaylistService _playlistService;
         private readonly WatchedStatusService _watchedStatusService;
         private readonly TimeProvider _timeProvider;
 
@@ -44,6 +45,7 @@ namespace VideoWebPlayer.Services
         /// <param name="buffer">In-memory buffer for progress entries.</param>
         /// <param name="notificationService">Service for sending SignalR notifications.</param>
         /// <param name="programSettings">Service for program-wide settings.</param>
+        /// <param name="playlistService">Service used to validate playlist ownership.</param>
         /// <param name="watchedStatusService">Optional watched-status service.</param>
         /// <param name="timeProvider">Optional time provider, primarily for testing.</param>
         public ContinueWatchingService(ApplicationDbContext db,
@@ -52,6 +54,7 @@ namespace VideoWebPlayer.Services
                                        ContinueWatchingBuffer buffer,
                                        MediaUpdateNotificationService notificationService,
                                        ProgramSettingsService programSettings,
+                                       IPlaylistService playlistService,
                                        WatchedStatusService? watchedStatusService = null,
                                        TimeProvider? timeProvider = null)
         {
@@ -61,6 +64,7 @@ namespace VideoWebPlayer.Services
             _buffer = buffer;
             _notificationService = notificationService;
             _programSettings = programSettings;
+            _playlistService = playlistService;
             _watchedStatusService = watchedStatusService ?? new WatchedStatusService(db);
             _timeProvider = timeProvider ?? TimeProvider.System;
         }
@@ -108,6 +112,7 @@ namespace VideoWebPlayer.Services
                 .ToListAsync(ct))
                 .Select(x => new ContinueWatchingDto
                 {
+                    Id = x.Id,
                     MediaType = x.MovieId != null ? "movie" : "episode",
                     Entry = (x.MovieId != null) ? (_db.Movies.Where(m => m.Id == x.MovieId).ToList().Select(m =>
                     {
@@ -128,6 +133,7 @@ namespace VideoWebPlayer.Services
                     }).FirstOrDefault(),
                     PositionSeconds = (long)x.Position.TotalSeconds,
                     DurationSeconds = x.Duration.HasValue ? (long?)x.Duration.Value.TotalSeconds : null,
+                    PlaylistId = x.PlaylistId,
                 })
                 .Select(t =>
                 {
@@ -142,7 +148,60 @@ namespace VideoWebPlayer.Services
             foreach (var item in list)
                 item.WatchedAt = item.Entry?.WatchedAt;
 
+            await EnrichPlaylistInfoAsync(list, ct);
+
             return list;
+        }
+
+        /// <summary>
+        /// Populates <see cref="ContinueWatchingDto.PlaylistName"/> and <see cref="ContinueWatchingDto.PlaylistEntryId"/>
+        /// for every entry with a <see cref="ContinueWatchingDto.PlaylistId"/>. <see cref="ContinueWatchingDto.PlaylistEntryId"/>
+        /// is resolved by looking up the <see cref="PlaylistEntry"/> that currently references the same media within that
+        /// playlist (unique per playlist by <c>MediaType</c>+<c>MediaId</c>), which lets
+        /// <c>ContinueWatchingList.razor</c> reconstruct the exact <c>PlaylistPlaybackContext</c> position when resuming
+        /// playback (<c>/playlists/{PlaylistId}?entryId={PlaylistEntryId}</c>) instead of only navigating to the playlist
+        /// overview. Left <c>null</c> when the media is no longer part of the playlist, in which case the caller falls
+        /// back to navigating without an <c>entryId</c>.
+        /// </summary>
+        /// <param name="list">The continue-watching DTOs to enrich, in place.</param>
+        /// <param name="ct">A cancellation token.</param>
+        private async Task EnrichPlaylistInfoAsync(List<ContinueWatchingDto> list, CancellationToken ct)
+        {
+            var playlistIds = list.Where(x => x.PlaylistId.HasValue).Select(x => x.PlaylistId!.Value).Distinct().ToList();
+            if (playlistIds.Count == 0)
+                return;
+
+            var playlistNames = await _db.Playlists
+                .AsNoTracking()
+                .Where(p => playlistIds.Contains(p.Id))
+                .ToDictionaryAsync(p => p.Id, p => p.Name, ct);
+
+            var playlistEntryIds = await _db.PlaylistEntries
+                .AsNoTracking()
+                .Where(pe => playlistIds.Contains(pe.PlaylistId))
+                .Select(pe => new { pe.PlaylistId, pe.MediaType, pe.MediaId, pe.Id })
+                .ToListAsync(ct);
+
+            foreach (var item in list)
+            {
+                if (!item.PlaylistId.HasValue)
+                    continue;
+
+                if (playlistNames.TryGetValue(item.PlaylistId.Value, out var name))
+                    item.PlaylistName = name;
+
+                var entryMediaType = item.MediaType == "movie" ? MediaTypeValues.Movie : MediaTypeValues.TVShowEpisode;
+                var mediaId = item.Entry?.Id;
+                if (mediaId.HasValue)
+                {
+                    var match = playlistEntryIds.FirstOrDefault(pe =>
+                        pe.PlaylistId == item.PlaylistId.Value &&
+                        pe.MediaType == entryMediaType &&
+                        pe.MediaId == mediaId.Value);
+                    if (match != null)
+                        item.PlaylistEntryId = match.Id;
+                }
+            }
         }
 
         /// <summary>
@@ -153,20 +212,23 @@ namespace VideoWebPlayer.Services
         /// <param name="episodeId">The episode identifier.</param>
         /// <param name="position">The playback position.</param>
         /// <param name="duration">The media duration.</param>
+        /// <param name="playlistId">The playlist identifier, when reported from within a playlist playback context.</param>
         /// <param name="ct">A cancellation token.</param>
-        public Task ReportProgressAsync(ApplicationUser user,
+        public async Task ReportProgressAsync(ApplicationUser user,
                                         long? movieId,
                                         long? episodeId,
                                         TimeSpan position,
                                         TimeSpan duration,
+                                        long? playlistId = null,
                                         CancellationToken ct = default)
         {
-            if (string.IsNullOrEmpty(user?.Id)) return Task.CompletedTask;
+            if (string.IsNullOrEmpty(user?.Id)) return;
             // Optional: Schon jetzt <5s herausfiltern, um Puffer zu entlasten
-            if (position < MinStart) return Task.CompletedTask;
+            if (position < MinStart) return;
 
-            _buffer.EnqueueOrUpdate(user.Id!, movieId, episodeId, position, duration);
-            return Task.CompletedTask;
+            await ValidatePlaylistOwnershipAsync(user!.Id!, playlistId, ct);
+
+            _buffer.EnqueueOrUpdate(user.Id!, movieId, episodeId, position, duration, playlistId);
         }
 
         /// <summary>
@@ -177,14 +239,18 @@ namespace VideoWebPlayer.Services
         /// <param name="episodeId">The episode identifier.</param>
         /// <param name="position">The playback position.</param>
         /// <param name="duration">The media duration.</param>
+        /// <param name="playlistId">The playlist identifier, when reported from within a playlist playback context.</param>
         /// <param name="ct">A cancellation token.</param>
         public async Task ProcessBufferedEntryAsync(string userId,
                                                    long? movieId,
                                                    long? episodeId,
                                                    TimeSpan position,
                                                    TimeSpan duration,
+                                                   long? playlistId = null,
                                                    CancellationToken ct = default)
         {
+            await ValidatePlaylistOwnershipAsync(userId, playlistId, ct);
+
             var endThreshold = await _programSettings.GetContinueWatchingEndThresholdAsync(ct);
 
             // Beendet?
@@ -197,12 +263,15 @@ namespace VideoWebPlayer.Services
                     _timeProvider.GetUtcNow().UtcDateTime,
                     ct);
 
-                var existing = await _db.ContinueWatchingEntries
-                    .FirstOrDefaultAsync(x => x.UserId == userId && x.MovieId == movieId && x.TVShowEpisodeId == episodeId, ct);
+                // Gesehen-Markierung ist playlist-uebergreifend: ALLE Varianten dieses Videos werden
+                // entfernt, unabhaengig von ihrer PlaylistId.
+                var existingEntries = await _db.ContinueWatchingEntries
+                    .Where(x => x.UserId == userId && x.MovieId == movieId && x.TVShowEpisodeId == episodeId)
+                    .ToListAsync(ct);
 
-                if (existing != null)
+                if (existingEntries.Count > 0)
                 {
-                    _db.ContinueWatchingEntries.Remove(existing);
+                    _db.ContinueWatchingEntries.RemoveRange(existingEntries);
                     await _db.SaveChangesAsync(ct);
                 }
 
@@ -210,18 +279,18 @@ namespace VideoWebPlayer.Services
                 {
                     var nextMovie = await GetNextMovieAsync(movieId.Value, ct);
                     if (nextMovie != null)
-                        await UpsertAsync(userId, nextMovieId: nextMovie.Id, nextEpisodeId: null, TimeSpan.Zero, duration: null, ct);
+                        await UpsertAsync(userId, nextMovieId: nextMovie.Id, nextEpisodeId: null, playlistId, TimeSpan.Zero, duration: null, ct);
                 }
                 else if (episodeId.HasValue)
                 {
                     var nextEpisode = await GetNextEpisodeAsync(episodeId.Value, ct);
                     if (nextEpisode != null)
-                        await UpsertAsync(userId, nextMovieId: null, nextEpisodeId: nextEpisode.Id, TimeSpan.Zero, duration: null, ct);
+                        await UpsertAsync(userId, nextMovieId: null, nextEpisodeId: nextEpisode.Id, playlistId, TimeSpan.Zero, duration: null, ct);
                 }
 
                 // Wenn wir wirklich etwas entfernt haben, aber kein nächstes Medium gefunden wurde,
                 // muss trotzdem ein Update raus.
-                if (existing != null)
+                if (existingEntries.Count > 0)
                 {
                     var hasNext = movieId.HasValue
                         ? (await GetNextMovieAsync(movieId.Value, ct)) != null
@@ -233,7 +302,7 @@ namespace VideoWebPlayer.Services
                 return;
             }
 
-            await UpsertAsync(userId, movieId, episodeId, position, duration, ct);
+            await UpsertAsync(userId, movieId, episodeId, playlistId, position, duration, ct);
         }
 
         /// <summary>
@@ -242,15 +311,16 @@ namespace VideoWebPlayer.Services
         /// <param name="userId">The authenticated user identifier.</param>
         /// <param name="movieId">The movie identifier, if the entry is a movie.</param>
         /// <param name="episodeId">The episode identifier, if the entry is an episode.</param>
+        /// <param name="playlistId">The playlist identifier of the entry to remove, or <c>null</c> for a non-playlist entry.</param>
         /// <param name="ct">A cancellation token.</param>
         /// <returns><c>true</c> when an entry was removed; otherwise <c>false</c>.</returns>
-        public async Task<bool> HideAsync(string userId, long? movieId, long? episodeId, CancellationToken ct = default)
+        public async Task<bool> HideAsync(string userId, long? movieId, long? episodeId, long? playlistId = null, CancellationToken ct = default)
         {
             if (string.IsNullOrWhiteSpace(userId))
                 return false;
 
             var entry = await _db.ContinueWatchingEntries
-                .FirstOrDefaultAsync(x => x.UserId == userId && x.MovieId == movieId && x.TVShowEpisodeId == episodeId, ct);
+                .FirstOrDefaultAsync(x => x.UserId == userId && x.MovieId == movieId && x.TVShowEpisodeId == episodeId && x.PlaylistId == playlistId, ct);
 
             if (entry is null)
                 return false;
@@ -267,15 +337,16 @@ namespace VideoWebPlayer.Services
         /// <param name="userId">The authenticated user identifier.</param>
         /// <param name="movieId">The movie identifier, if the entry is a movie.</param>
         /// <param name="episodeId">The episode identifier, if the entry is an episode.</param>
+        /// <param name="playlistId">The playlist identifier of the entry to skip, or <c>null</c> for a non-playlist entry.</param>
         /// <param name="ct">A cancellation token.</param>
         /// <returns>The skip result.</returns>
-        public async Task<SkipResult> SkipAsync(string userId, long? movieId, long? episodeId, CancellationToken ct = default)
+        public async Task<SkipResult> SkipAsync(string userId, long? movieId, long? episodeId, long? playlistId = null, CancellationToken ct = default)
         {
             if (string.IsNullOrWhiteSpace(userId))
                 return SkipResult.NotFound;
 
             var entry = await _db.ContinueWatchingEntries
-                .FirstOrDefaultAsync(x => x.UserId == userId && x.MovieId == movieId && x.TVShowEpisodeId == episodeId, ct);
+                .FirstOrDefaultAsync(x => x.UserId == userId && x.MovieId == movieId && x.TVShowEpisodeId == episodeId && x.PlaylistId == playlistId, ct);
 
             if (entry is null)
                 return SkipResult.NotFound;
@@ -296,11 +367,11 @@ namespace VideoWebPlayer.Services
             var nextMovieId = nextMovie?.Id;
             var nextEpisodeId = nextEpisode?.Id;
 
-            await RemoveExtsingMovieCollectionEntry(userId, nextMovieId, ct);
-            await RemoveExistingTVShowEntry(userId, nextEpisodeId, ct);
+            await RemoveExtsingMovieCollectionEntry(userId, nextMovieId, playlistId, ct);
+            await RemoveExistingTVShowEntry(userId, nextEpisodeId, playlistId, ct);
 
             var replacement = await _db.ContinueWatchingEntries
-                .FirstOrDefaultAsync(x => x.UserId == userId && x.MovieId == nextMovieId && x.TVShowEpisodeId == nextEpisodeId, ct);
+                .FirstOrDefaultAsync(x => x.UserId == userId && x.MovieId == nextMovieId && x.TVShowEpisodeId == nextEpisodeId && x.PlaylistId == playlistId, ct);
 
             if (replacement is null)
             {
@@ -309,6 +380,7 @@ namespace VideoWebPlayer.Services
                     UserId = userId,
                     MovieId = nextMovieId,
                     TVShowEpisodeId = nextEpisodeId,
+                    PlaylistId = playlistId,
                     Position = TimeSpan.Zero,
                     Duration = null,
                     UpdatedAt = DateTime.UtcNow,
@@ -328,10 +400,10 @@ namespace VideoWebPlayer.Services
             return SkipResult.Replaced;
         }
 
-        private async Task UpsertAsync(string userId, long? nextMovieId, long? nextEpisodeId, TimeSpan position, TimeSpan? duration, CancellationToken ct)
+        private async Task UpsertAsync(string userId, long? nextMovieId, long? nextEpisodeId, long? playlistId, TimeSpan position, TimeSpan? duration, CancellationToken ct)
         {
             var entry = await _db.ContinueWatchingEntries
-                .FirstOrDefaultAsync(x => x.UserId == userId && x.MovieId == nextMovieId && x.TVShowEpisodeId == nextEpisodeId, ct);
+                .FirstOrDefaultAsync(x => x.UserId == userId && x.MovieId == nextMovieId && x.TVShowEpisodeId == nextEpisodeId && x.PlaylistId == playlistId, ct);
 
             static bool DurationChanged(TimeSpan? a, TimeSpan? b)
             {
@@ -348,8 +420,8 @@ namespace VideoWebPlayer.Services
             // Nur wenn ein NEUER Eintrag erzeugt wird: vorhandene Einträge derselben Filmsammlung / Serie entfernen
             if (entry == null)
             {
-                await RemoveExtsingMovieCollectionEntry(userId, nextMovieId, ct);
-                await RemoveExistingTVShowEntry(userId, nextEpisodeId, ct);
+                await RemoveExtsingMovieCollectionEntry(userId, nextMovieId, playlistId, ct);
+                await RemoveExistingTVShowEntry(userId, nextEpisodeId, playlistId, ct);
 
                 // Wenn die obigen Methoden Entries entfernen, ändert sich die Liste auch ohne neuen Eintrag.
                 // (ChangeTracker enthält dann Deletes)
@@ -361,6 +433,7 @@ namespace VideoWebPlayer.Services
                     UserId = userId,
                     MovieId = nextMovieId,
                     TVShowEpisodeId = nextEpisodeId,
+                    PlaylistId = playlistId,
                     Position = position,
                     Duration = duration,
                     UpdatedAt = DateTime.UtcNow,
@@ -392,7 +465,7 @@ namespace VideoWebPlayer.Services
             await _notificationService.NotifyContinueWatchingUpdatedAsync(userId, ct);
         }
 
-        private async Task RemoveExistingTVShowEntry(string userId, long? nextEpisodeId, CancellationToken ct)
+        private async Task RemoveExistingTVShowEntry(string userId, long? nextEpisodeId, long? playlistId, CancellationToken ct)
         {
             if (!nextEpisodeId.HasValue) return;
             // Serien-ID über Episode -> Season -> Show ermitteln
@@ -405,7 +478,7 @@ namespace VideoWebPlayer.Services
 
             if (showId != 0)
             {
-                // Alle anderen Episoden-Einträge derselben Serie entfernen
+                // Alle anderen Episoden-Einträge derselben Serie MIT DERSELBEN PlaylistId entfernen
                 var obsoleteEpisodeEntries = await (
                     from cw in _db.ContinueWatchingEntries
                     join e in _db.TVShowEpisodes on cw.TVShowEpisodeId equals e.Id
@@ -413,6 +486,7 @@ namespace VideoWebPlayer.Services
                     where cw.UserId == userId
                           && cw.TVShowEpisodeId != null
                           && cw.TVShowEpisodeId != nextEpisodeId.Value
+                          && cw.PlaylistId == playlistId
                           && s.TVShowId == showId
                     select cw
                 ).ToListAsync(ct);
@@ -422,7 +496,7 @@ namespace VideoWebPlayer.Services
             }
         }
 
-        private async Task RemoveExtsingMovieCollectionEntry(string userId, long? nextMovieId, CancellationToken ct)
+        private async Task RemoveExtsingMovieCollectionEntry(string userId, long? nextMovieId, long? playlistId, CancellationToken ct)
         {
             if (!nextMovieId.HasValue)
                 return;
@@ -435,13 +509,14 @@ namespace VideoWebPlayer.Services
 
             if (collectionId.HasValue)
             {
-                // Alle anderen ContinueWatching-Einträge des Users aus derselben Sammlung entfernen
+                // Alle anderen ContinueWatching-Einträge des Users aus derselben Sammlung MIT DERSELBEN PlaylistId entfernen
                 var obsoleteMovieEntries = await (
                     from cw in _db.ContinueWatchingEntries
                     join m in _db.Movies on cw.MovieId equals m.Id
                     where cw.UserId == userId
                           && cw.MovieId != null
                           && cw.MovieId != nextMovieId.Value
+                          && cw.PlaylistId == playlistId
                           && m.MovieCollectionId == collectionId.Value
                     select cw
                 ).ToListAsync(ct);
@@ -449,6 +524,25 @@ namespace VideoWebPlayer.Services
                 if (obsoleteMovieEntries.Count > 0)
                     _db.ContinueWatchingEntries.RemoveRange(obsoleteMovieEntries);
             }
+        }
+
+        /// <summary>
+        /// Validates that <paramref name="userId"/> owns the playlist identified by <paramref name="playlistId"/>.
+        /// Does nothing when <paramref name="playlistId"/> is <c>null</c>.
+        /// </summary>
+        /// <param name="userId">The authenticated user identifier.</param>
+        /// <param name="playlistId">The playlist identifier to validate, or <c>null</c> for a non-playlist entry.</param>
+        /// <param name="ct">A cancellation token.</param>
+        /// <exception cref="KeyNotFoundException">The playlist does not exist.</exception>
+        /// <exception cref="PlaylistAccessDeniedException">The user does not own the playlist.</exception>
+        public async Task ValidatePlaylistOwnershipAsync(string userId, long? playlistId, CancellationToken ct = default)
+        {
+            if (!playlistId.HasValue)
+                return;
+
+            var playlist = await _playlistService.GetPlaylistAsync(playlistId.Value, userId, ct);
+            if (playlist is null)
+                throw new KeyNotFoundException("Die angegebene Playlist wurde nicht gefunden.");
         }
 
         private async Task<string?> GetUserIdAsync(ClaimsPrincipal principal, CancellationToken ct)
@@ -508,6 +602,45 @@ namespace VideoWebPlayer.Services
             }
 
             return next == 0 ? null : await _db.TVShowEpisodes.FindAsync(new object[] { next }, ct);
+        }
+
+        /// <summary>
+        /// Resolves unique-index conflicts that would otherwise occur once <paramref name="playlistId"/> is
+        /// deleted and the database's <c>ON DELETE SET NULL</c> foreign-key action sets
+        /// <see cref="ContinueWatchingEntry.PlaylistId"/> to <c>null</c> for its bound entries: for every
+        /// entry currently bound to <paramref name="playlistId"/>, removes it if a playlist-less entry for
+        /// the same media already exists for <paramref name="userId"/> (which would otherwise collide with
+        /// it once both have <see cref="ContinueWatchingEntry.PlaylistId"/> <c>null</c>); otherwise leaves
+        /// it in place, to be set to <c>null</c> by the database once the playlist itself is deleted.
+        /// Marks the affected rows for removal on the tracked <see cref="ApplicationDbContext"/> without
+        /// calling <see cref="ApplicationDbContext.SaveChangesAsync(CancellationToken)"/> itself; the caller
+        /// is expected to do so together with the playlist's own deletion.
+        /// </summary>
+        /// <param name="playlistId">The id of the playlist about to be deleted.</param>
+        /// <param name="userId">The id of the playlist's owning user.</param>
+        /// <param name="ct">A cancellation token.</param>
+        internal async Task ResolvePlaylistDeletionConflictsAsync(long playlistId, string userId, CancellationToken ct)
+        {
+            var boundEntries = await _db.ContinueWatchingEntries
+                .Where(x => x.UserId == userId && x.PlaylistId == playlistId)
+                .ToListAsync(ct);
+
+            if (boundEntries.Count == 0)
+                return;
+
+            var freeEntries = await _db.ContinueWatchingEntries
+                .Where(x => x.UserId == userId && x.PlaylistId == null)
+                .ToListAsync(ct);
+
+            foreach (var entry in boundEntries)
+            {
+                var hasConflict = freeEntries.Any(f =>
+                    (entry.MovieId != null && f.MovieId == entry.MovieId) ||
+                    (entry.TVShowEpisodeId != null && f.TVShowEpisodeId == entry.TVShowEpisodeId));
+
+                if (hasConflict)
+                    _db.ContinueWatchingEntries.Remove(entry);
+            }
         }
     }
 }

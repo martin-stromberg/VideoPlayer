@@ -36,7 +36,7 @@ public class ContinueWatchingListTests
         // Rendering itself must not throw: before the fix, three MediaBox siblings sharing the same
         // @key="it.Entry.Id" (all 42) crash the renderer with "More than one sibling ... has the same key
         // value" as soon as more than one variant of the same media is present.
-        var cut = ctx.RenderComponent<ContinueWatchingList>();
+        var cut = ctx.Render<ContinueWatchingList>();
 
         var shells = cut.FindAll(".media-box-shell");
         Assert.Equal(3, shells.Count);
@@ -63,7 +63,7 @@ public class ContinueWatchingListTests
         };
 
         using var ctx = CreateTestContext(client);
-        var cut = ctx.RenderComponent<ContinueWatchingList>();
+        var cut = ctx.Render<ContinueWatchingList>();
 
         var mediaBoxes = cut.FindComponents<MediaBox>();
         Assert.Equal(3, mediaBoxes.Count);
@@ -123,7 +123,7 @@ public class ContinueWatchingListTests
     private static global::Bunit.TestContext CreateTestContext(VideoWebPlayerClient client)
     {
         var ctx = new global::Bunit.TestContext();
-        ctx.AddTestAuthorization().SetAuthorized("test-user");
+        ctx.AddAuthorization().SetAuthorized("test-user");
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton(client);
         ctx.Services.AddSingleton(new EventManager());

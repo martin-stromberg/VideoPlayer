@@ -39,7 +39,7 @@ public class PlaylistDetailTests
         // EntryId is [SupplyParameterFromQuery]: it must come from the current URI (mirroring an initial
         // navigation with ?entryId=999 in the browser), not a direct RenderComponent parameter.
         ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("/playlists/1?entryId=999");
-        var cut = ctx.RenderComponent<PlaylistDetail>(parameters => parameters
+        var cut = ctx.Render<PlaylistDetail>(parameters => parameters
             .Add(p => p.Id, 1));
 
         // The playlist itself loaded fine: no top-level "loadError" box replacing the whole page, the
@@ -77,7 +77,7 @@ public class PlaylistDetailTests
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
 
         ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("/playlists/1?entryId=42");
-        var cut = ctx.RenderComponent<PlaylistDetail>(parameters => parameters
+        var cut = ctx.Render<PlaylistDetail>(parameters => parameters
             .Add(p => p.Id, 1));
 
         Assert.Empty(cut.FindAll("#playlist-detail-error"));
@@ -115,7 +115,7 @@ public class PlaylistDetailTests
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
 
         ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("/playlists/1?entryId=42");
-        var cut = ctx.RenderComponent<PlaylistDetail>(parameters => parameters
+        var cut = ctx.Render<PlaylistDetail>(parameters => parameters
             .Add(p => p.Id, 1));
 
         var videoPlayer = cut.FindComponent<VideoPlayer>();
@@ -152,7 +152,7 @@ public class PlaylistDetailTests
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
 
         ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("/playlists/1?entryId=100");
-        var cut = ctx.RenderComponent<PlaylistDetail>(parameters => parameters
+        var cut = ctx.Render<PlaylistDetail>(parameters => parameters
             .Add(p => p.Id, 1));
 
         var video = cut.Find("#video-player-element");
@@ -190,7 +190,7 @@ public class PlaylistDetailTests
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
 
         ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("/playlists/1?entryId=100");
-        var cut = ctx.RenderComponent<PlaylistDetail>(parameters => parameters
+        var cut = ctx.Render<PlaylistDetail>(parameters => parameters
             .Add(p => p.Id, 1));
 
         var nextButton = cut.Find(".playlist-next-button");
@@ -228,7 +228,7 @@ public class PlaylistDetailTests
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
 
         ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("/playlists/1?entryId=200");
-        var cut = ctx.RenderComponent<PlaylistDetail>(parameters => parameters
+        var cut = ctx.Render<PlaylistDetail>(parameters => parameters
             .Add(p => p.Id, 1));
 
         var previousButton = cut.Find(".playlist-previous-button");
@@ -288,7 +288,7 @@ public class PlaylistDetailTests
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
 
         ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("/playlists/1?entryId=200");
-        var cut = ctx.RenderComponent<PlaylistDetail>(parameters => parameters
+        var cut = ctx.Render<PlaylistDetail>(parameters => parameters
             .Add(p => p.Id, 1));
 
         var nextButton = cut.Find(".playlist-next-button");
@@ -329,7 +329,7 @@ public class PlaylistDetailTests
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
 
         ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("/playlists/1?entryId=100");
-        var cut = ctx.RenderComponent<PlaylistDetail>(parameters => parameters
+        var cut = ctx.Render<PlaylistDetail>(parameters => parameters
             .Add(p => p.Id, 1));
 
         var video = cut.Find("#video-player-element");
@@ -429,7 +429,7 @@ public class PlaylistDetailTests
     private static global::Bunit.TestContext CreateTestContext(Mock<IPlaylistApiClient> playlistClientMock, ILogger<PlaylistDetail>? playlistDetailLogger = null)
     {
         var ctx = new global::Bunit.TestContext();
-        ctx.AddTestAuthorization().SetAuthorized("test-user");
+        ctx.AddAuthorization().SetAuthorized("test-user");
         ctx.Services.AddSingleton<VideoWebPlayerClient>(new NoOpVideoWebPlayerClient());
         ctx.Services.AddSingleton(playlistClientMock.Object);
         ctx.Services.AddSingleton(playlistDetailLogger ?? NullLogger<PlaylistDetail>.Instance);

@@ -38,7 +38,7 @@ public class PlaylistEntriesListTests
         ctx.Services.AddSingleton<ILogger<PlaylistEntriesList>>(NullLogger<PlaylistEntriesList>.Instance);
         ctx.Services.AddSingleton<ILogger<MediaSearchSelector>>(NullLogger<MediaSearchSelector>.Instance);
 
-        var cut = ctx.RenderComponent<PlaylistEntriesList>(parameters => parameters
+        var cut = ctx.Render<PlaylistEntriesList>(parameters => parameters
             .Add(p => p.PlaylistId, 1)
             .Add(p => p.IsManualMode, false));
 
@@ -130,7 +130,7 @@ public class PlaylistEntriesListTests
         ctx.Services.AddSingleton<ILogger<MediaSearchSelector>>(NullLogger<MediaSearchSelector>.Instance);
 
         var calls = new List<DtoPlaylistEntry>();
-        var cut = ctx.RenderComponent<PlaylistEntriesList>(parameters => parameters
+        var cut = ctx.Render<PlaylistEntriesList>(parameters => parameters
             .Add(p => p.PlaylistId, 1)
             .Add(p => p.IsManualMode, false)
             .Add(p => p.OnPlayEntry, EventCallback.Factory.Create<DtoPlaylistEntry>(new object(), e => calls.Add(e))));

@@ -15,6 +15,12 @@ namespace VideoWebPlayer.Tests;
 [Trait("Category", "E2E")]
 public sealed class PlaylistMediaSearchE2ETests : PlaylistsE2ETestBase
 {
+    /// <summary>
+    /// Verifies that adding a season cascade-adds only that season's episodes server-side (the season
+    /// itself is added too, as organizational bookkeeping, and the show is not added at all). Per the
+    /// Kachel-UI redesign (see <c>PlaylistEntriesList.IsRenderableEntry</c>), only the 2 resulting
+    /// episodes render a tile - the season entry stays purely organizational and renders no tile.
+    /// </summary>
     [Fact]
     public async Task SelectSeason_CascadesOnlyThatSeasonsEpisodes()
     {
@@ -31,9 +37,10 @@ public sealed class PlaylistMediaSearchE2ETests : PlaylistsE2ETestBase
 
         await SelectSearchResultAsync("Gesuchte Staffel", "TVShowSeason", seasonId);
 
-        // 1 season + 2 episodes = 3 rows; the show itself is not added.
-        await Expect(Page.Locator(".playlist-entry-row")).ToHaveCountAsync(3);
-        await Expect(Page.Locator($".playlist-entry-row[data-media-type='TVShowSeason'][data-media-id='{seasonId}']")).ToBeVisibleAsync();
+        // Nur die 2 Episoden erhalten eine Kachel; die Staffel selbst (organisatorisch mitgespeichert)
+        // und die Serie (gar nicht hinzugefuegt) bleiben ohne eigene Kachel.
+        await Expect(Page.Locator(".playlist-entry-row")).ToHaveCountAsync(2);
+        await Expect(Page.Locator($".playlist-entry-row[data-media-type='TVShowSeason'][data-media-id='{seasonId}']")).ToHaveCountAsync(0);
         await Expect(Page.Locator(".playlist-entry-row[data-media-type='TVShowEpisode']")).ToHaveCountAsync(2);
         await Expect(Page.Locator($".playlist-entry-row[data-media-type='TVShow'][data-media-id='{showId}']")).ToHaveCountAsync(0);
     }
@@ -59,6 +66,12 @@ public sealed class PlaylistMediaSearchE2ETests : PlaylistsE2ETestBase
         await Expect(Page.Locator($".playlist-entry-row[data-media-type='TVShowEpisode'][data-media-id='{episodeId}']")).ToBeVisibleAsync();
     }
 
+    /// <summary>
+    /// Verifies that adding an (empty) movie collection succeeds server-side (confirmed via the
+    /// "hinzugefuegt" success status, since a collection without movies has no cascade children to prove
+    /// the addition via). Per the Kachel-UI redesign (see <c>PlaylistEntriesList.IsRenderableEntry</c>),
+    /// a MovieCollection entry - organizational only, like a TVShow/TVShowSeason - renders no tile.
+    /// </summary>
     [Fact]
     public async Task SelectMovieCollection_AddsCollection()
     {
@@ -75,8 +88,9 @@ public sealed class PlaylistMediaSearchE2ETests : PlaylistsE2ETestBase
 
         await SelectSearchResultAsync("Gesuchte Filmsammlung", "MovieCollection", collectionId);
 
-        await Expect(Page.Locator(".playlist-entry-row")).ToHaveCountAsync(1);
-        await Expect(Page.Locator($".playlist-entry-row[data-media-type='MovieCollection'][data-media-id='{collectionId}']")).ToBeVisibleAsync();
+        await Expect(Page.Locator("#playlist-entries-status")).ToContainTextAsync("1 Titel hinzugefuegt.");
+        await Expect(Page.Locator(".playlist-entry-row")).ToHaveCountAsync(0);
+        await Expect(Page.Locator($".playlist-entry-row[data-media-type='MovieCollection'][data-media-id='{collectionId}']")).ToHaveCountAsync(0);
     }
 
     [Fact]

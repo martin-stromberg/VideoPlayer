@@ -35,66 +35,61 @@
         {
             <p class="text-muted playlist-entries-draganddrop-hint">Tipp: Ziehen Sie einen Eintrag an eine neue Position, oder nutzen Sie die Schaltflaechen "An Anfang"/"An Ende".</p>
         }
+        @* Kacheln im Stil der Episoden-Kacheln der Serien-Detailansicht (TVShowDetails.episode-box) statt der
+           bisherigen Tabelle (Kundenfeedback: "Die aktuelle Scrollbox wirkt laienhaft"). Nur Filme und Episoden
+           erhalten eine eigene Kachel - Serien/Staffeln/Filmsammlungen, die beim Hinzufuegen einer ganzen Serie
+           als rein organisatorische Eintraege mitgespeichert werden (siehe IsRenderableEntry), werden hier
+           bewusst uebersprungen, bleiben aber Teil der zugrunde liegenden, weiterhin unveraendert seitenweise
+           geladenen Eintragsliste (Virtualize), damit Paging/Scroll-Nachladen unveraendert funktionieren. *@
         <div class="playlist-entries-scroll">
-            <table class="table table-dark table-striped align-middle">
-                <thead>
-                    <tr>
-                        <th>Bild</th>
-                        <th>Typ</th>
-                        <th>Titel</th>
-                        <th>Sammlung</th>
-                        <th>Hinzugefuegt</th>
-                        <th>Aktionen</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <Virtualize TItem="DtoPlaylistEntry" @ref="virtualizeRef" ItemsProvider="ItemsProviderAsync" Context="entry">
-                        <ItemContent>
-                            <tr class="playlist-entry-row @(entry.IsAccessible ? string.Empty : "opacity-50 text-muted")" data-media-type="@entry.MediaType" data-media-id="@entry.MediaId"
-                                draggable="@(IsManualMode ? "true" : "false")"
-                                @ondragstart="() => OnEntryDragStart(entry)"
-                                @ondragover:preventDefault="IsManualMode"
-                                @ondrop="() => OnEntryDropAsync(entry)"
-                                @ondragend="OnEntryDragEnd"
-                                @ondblclick="GetPlayEntryDoubleClickCallback(entry)">
-                                <td>
-                                    <img class="media-poster playlist-entry-image" src="@GetImageUrl(entry)" alt="@entry.MediaTitle" loading="lazy" onerror="this.onerror=null;this.src='/images/placeholder.png';" />
-                                </td>
-                                <td>@entry.MediaType</td>
-                                <td>@entry.MediaTitle</td>
-                                <td>@entry.ParentMediaTitle</td>
-                                <td>@entry.AddedAt.ToLocalTime()</td>
-                                <td>
-                                    @if (IsPlayableEntry(entry))
+            <div class="episode-list playlist-entries-list">
+                <Virtualize TItem="DtoPlaylistEntry" @ref="virtualizeRef" ItemsProvider="ItemsProviderAsync" Context="entry">
+                    <ItemContent>
+                        @if (IsRenderableEntry(entry))
+                        {
+                            <div class="episode-box playlist-entry-row @(entry.IsAccessible ? string.Empty : "opacity-50 text-muted")" data-media-type="@entry.MediaType" data-media-id="@entry.MediaId"
+                                 draggable="@(IsManualMode ? "true" : "false")"
+                                 @ondragstart="() => OnEntryDragStart(entry)"
+                                 @ondragover:preventDefault="IsManualMode"
+                                 @ondrop="() => OnEntryDropAsync(entry)"
+                                 @ondragend="OnEntryDragEnd"
+                                 @ondblclick="GetPlayEntryDoubleClickCallback(entry)">
+                                <img class="episode-poster episode-poster-left playlist-entry-image" src="@GetImageUrl(entry)" alt="@entry.MediaTitle" loading="lazy" onerror="this.onerror=null;this.src='/images/placeholder.png';" />
+                                <div class="episode-info">
+                                    <div class="episode-title">@entry.MediaTitle</div>
+                                    @if (!string.IsNullOrWhiteSpace(entry.ParentMediaTitle))
                                     {
-                                        <button class="btn btn-sm btn-success playlist-entry-play-button" @onclick="() => OnPlayEntry.InvokeAsync(entry)" @onclick:stopPropagation title="Abspielen">Abspielen</button>
+                                        <div class="playlist-entry-parent">@entry.ParentMediaTitle</div>
                                     }
-                                    <button class="btn btn-sm btn-danger playlist-entry-remove-button" @onclick="() => RemoveEntryAsync(entry)">Entfernen</button>
-                                    @if (IsManualMode)
-                                    {
-                                        <button class="btn btn-sm btn-secondary playlist-entry-move-start-button" @onclick="() => MoveEntryToBeginningAsync(entry)">An Anfang</button>
-                                        <button class="btn btn-sm btn-secondary playlist-entry-move-end-button" @onclick="() => MoveEntryToEndAsync(entry)">An Ende</button>
-                                    }
-                                </td>
-                            </tr>
-                        </ItemContent>
-                        <Placeholder>
-                            <tr class="playlist-entry-row playlist-entry-placeholder">
-                                <td colspan="6">Lade...</td>
-                            </tr>
-                        </Placeholder>
-                    </Virtualize>
-                </tbody>
-            </table>
+                                    <div class="playlist-entry-meta-muted">Hinzugefuegt: @entry.AddedAt.ToLocalTime()</div>
+                                    <div class="playlist-entry-actions">
+                                        @if (IsPlayableEntry(entry))
+                                        {
+                                            <button class="metadata-icon-btn playlist-entry-play-button" @onclick="() => OnPlayEntry.InvokeAsync(entry)" @onclick:stopPropagation title="Abspielen">▶</button>
+                                        }
+                                        @if (IsManualMode)
+                                        {
+                                            <button class="metadata-icon-btn playlist-entry-move-start-button" @onclick="() => MoveEntryToBeginningAsync(entry)" @onclick:stopPropagation title="An Anfang">⇤</button>
+                                            <button class="metadata-icon-btn playlist-entry-move-end-button" @onclick="() => MoveEntryToEndAsync(entry)" @onclick:stopPropagation title="An Ende">⇥</button>
+                                        }
+                                        <button class="metadata-icon-btn playlist-entry-remove-button" @onclick="() => RemoveEntryAsync(entry)" @onclick:stopPropagation title="Entfernen">✕</button>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </ItemContent>
+                    <Placeholder>
+                        <div class="episode-box playlist-entry-row playlist-entry-placeholder">
+                            <div class="episode-info">Lade...</div>
+                        </div>
+                    </Placeholder>
+                </Virtualize>
+            </div>
         </div>
 
         @if (isLoadingMore)
         {
             <p id="playlist-entries-loading-more">Lade weitere Eintraege...</p>
-        }
-        @if (hasMorePages)
-        {
-            <p id="playlist-entries-more-available">Weitere Eintraege werden beim Scrollen geladen.</p>
         }
     }
 </div>
@@ -309,6 +304,21 @@
     /// </summary>
     private static bool IsPlayableEntry(DtoPlaylistEntry entry)
         => PlaylistEntryMediaTypeResolver.IsPlayable(entry.MediaType) && entry.IsAccessible;
+
+    /// <summary>
+    /// Whether the given entry gets its own tile in the Kachel-UI: only movies and episodes (mirrors
+    /// <see cref="PlaylistEntryMediaTypeResolver.IsPlayable"/>, which already draws exactly this
+    /// distinction for the "Abspielen" button). TVShow/TVShowSeason/MovieCollection entries are added
+    /// alongside a whole show/season/collection purely as organizational bookkeeping (see
+    /// <c>PlaylistService.BuildTopLevelEntry</c>/<c>BuildCascadeEntries</c> and
+    /// <c>docs/help/playlists-business-rules.md</c>) and are already skipped during playback navigation
+    /// server-side; per customer feedback ("Wurde eine ganze Serie hinzugefuegt, so darf es keine Kachel
+    /// fuer die Serie selbst oder die Staffeln geben") they must not render as their own tile either. They
+    /// stay part of the underlying, unchanged paginated entry list (see the type-level remarks above the
+    /// Virtualize usage) so paging/scroll-loading math is unaffected - only their tile is suppressed here.
+    /// </summary>
+    private static bool IsRenderableEntry(DtoPlaylistEntry entry)
+        => PlaylistEntryMediaTypeResolver.IsPlayable(entry.MediaType);
 
     /// <summary>
     /// Builds the double-click callback for an entry row: the real "start playback" callback when

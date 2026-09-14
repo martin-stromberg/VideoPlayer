@@ -170,9 +170,12 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
         await Page.WaitForSelectorAsync("#playlist-detail-name");
         await Page.WaitForTimeoutAsync(1500);
 
+        // Der statische Hinweistext ("Weitere Eintraege werden beim Scrollen geladen.") wurde per
+        // Kundenfeedback entfernt (als selbstverstaendlich empfunden); das Laden in Seiten bleibt
+        // funktional bestehen und zeigt sich hier daran, dass die erste gerenderte Teilmenge kleiner als
+        // die Gesamtzahl der Eintraege ist.
         var renderedCount = await Page.Locator(".playlist-entry-row").CountAsync();
         Assert.True(renderedCount is > 0 and < 25, $"Erwartete eine virtualisierte Teilmenge der 25 Eintraege, aber es wurden {renderedCount} gerendert.");
-        await Expect(Page.Locator("#playlist-entries-more-available")).ToBeVisibleAsync();
     }
 
     [Fact]
@@ -221,32 +224,21 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
         await Expect(Page.Locator("#playlist-entries-more-available")).ToHaveCountAsync(0);
     }
 
-    /// <summary>
-    /// Verifies the appearance of a genuinely accessible entry: a TV show that has been explicitly
-    /// unlocked for the current user via the unlocked-media service is expected to be
-    /// rendered without the reduced-opacity styling reserved for inaccessible content.
-    /// </summary>
-    [Fact]
-    public async Task PlaylistDetail_DoesNotShowReducedOpacity_WhenEntryIsUnlocked()
-    {
-        if (SkipBrowser)
-            return;
-
-        await LoginAsync(UserAEmail);
-        var row = await CreatePlaylistViaUiAsync("Zugriffsstatus-Freigeschaltet");
-        var showId = await SeedTvShowIntoPlaylistAsync("Zugriffsstatus-Freigeschaltet", "Freigeschaltete Serie");
-        await UnlockMediaForUserAsync(UserAEmail, MediaTypeValues.TVShow, showId);
-        await row.Locator(".playlist-open-button").ClickAsync();
-        await Page.WaitForSelectorAsync("#playlist-detail-name");
-        await Page.WaitForTimeoutAsync(1500);
-
-        await Expect(Page.Locator($".playlist-entry-row[data-media-id='{showId}']")).Not.ToHaveClassAsync(new Regex("opacity-50"));
-    }
+    // Hinweis zum UI-Redesign (Kundenfeedback): Seit der Umstellung auf die Kachel-UI erhalten nur noch
+    // Filme und Episoden eine eigene Kachel (siehe PlaylistEntriesList.IsRenderableEntry); eine TVShow
+    // rendert keine eigene Zeile mehr. Ein zuvor hier vorhandener Test, der eine explizit ueber
+    // UnlockedMediaEntries freigeschaltete TVShow direkt als Zeile pruefte
+    // ("DoesNotShowReducedOpacity_WhenEntryIsUnlocked"), ist damit ohne UI-Aequivalent - dieses Szenario
+    // (Zugriff ueber die uebergeordnete Sammlung/Serie erben) deckt bereits
+    // PlaylistDetail_DoesNotShowReducedOpacity_WhenMovieCollectionIsUnlocked bzw.
+    // PlaylistDetail_DoesNotShowReducedOpacity_WhenEpisodeShowIsUnlocked unten ab. Die folgenden Tests
+    // pruefen den gemischten Zugriffsstatus sowie den Entfernen-Button daher anhand von Filmen, die
+    // (anders als eine TVShow) weiterhin eine eigene Kachel erhalten.
 
     /// <summary>
-    /// Verifies the actual graying behavior for entries without a real unlock: a TV show that has
-    /// not been explicitly unlocked for the current user is rendered with the reduced-opacity styling,
-    /// while a sibling entry that has been unlocked is not.
+    /// Verifies the actual graying behavior for entries without real access: a movie seeded on a
+    /// dedicated, never-granted media source is rendered with the reduced-opacity styling, while a
+    /// sibling movie the user has regular source access to is not.
     /// </summary>
     [Fact]
     public async Task PlaylistDetail_ShowsReducedOpacity_WhenEntryNotAccessible()
@@ -256,15 +248,15 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
 
         await LoginAsync(UserAEmail);
         var row = await CreatePlaylistViaUiAsync("Zugriffsstatus-Gemischt");
-        var lockedShowId = await SeedTvShowIntoPlaylistAsync("Zugriffsstatus-Gemischt", "Gesperrte Serie");
-        var unlockedShowId = await SeedTvShowIntoPlaylistAsync("Zugriffsstatus-Gemischt", "Freigeschaltete Serie");
-        await UnlockMediaForUserAsync(UserAEmail, MediaTypeValues.TVShow, unlockedShowId);
+        var lockedMovieId = await SeedLockedMovieIntoPlaylistAsync("Zugriffsstatus-Gemischt", "Gesperrter Film");
+        await GrantMediaSourceAccessForUserAsync(UserAEmail);
+        var unlockedMovieId = await SeedMovieAsync("Freigeschalteter Film");
         await row.Locator(".playlist-open-button").ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
-        await Page.WaitForTimeoutAsync(1500);
+        await SelectSearchResultAsync("Freigeschalteter Film", MediaTypeValues.Movie, unlockedMovieId);
 
-        await Expect(Page.Locator($".playlist-entry-row[data-media-id='{lockedShowId}']")).ToHaveClassAsync(new Regex("opacity-50"));
-        await Expect(Page.Locator($".playlist-entry-row[data-media-id='{unlockedShowId}']")).Not.ToHaveClassAsync(new Regex("opacity-50"));
+        await Expect(Page.Locator($".playlist-entry-row[data-media-type='{MediaTypeValues.Movie}'][data-media-id='{lockedMovieId}']")).ToHaveClassAsync(new Regex("opacity-50"));
+        await Expect(Page.Locator($".playlist-entry-row[data-media-type='{MediaTypeValues.Movie}'][data-media-id='{unlockedMovieId}']")).Not.ToHaveClassAsync(new Regex("opacity-50"));
     }
 
     /// <summary>
@@ -279,12 +271,12 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
 
         await LoginAsync(UserAEmail);
         var row = await CreatePlaylistViaUiAsync("Entfernen-Trotz-Sperre");
-        var lockedShowId = await SeedTvShowIntoPlaylistAsync("Entfernen-Trotz-Sperre", "Gesperrte Serie");
+        var lockedMovieId = await SeedLockedMovieIntoPlaylistAsync("Entfernen-Trotz-Sperre", "Gesperrter Film");
         await row.Locator(".playlist-open-button").ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
         await Page.WaitForTimeoutAsync(1500);
 
-        var lockedRow = Page.Locator($".playlist-entry-row[data-media-id='{lockedShowId}']");
+        var lockedRow = Page.Locator($".playlist-entry-row[data-media-type='{MediaTypeValues.Movie}'][data-media-id='{lockedMovieId}']");
         await Expect(lockedRow).ToHaveClassAsync(new Regex("opacity-50"));
         var removeButton = lockedRow.Locator(".playlist-entry-remove-button");
         await Expect(removeButton).ToBeVisibleAsync();
@@ -293,11 +285,11 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
         await removeButton.ClickAsync();
         await Page.WaitForTimeoutAsync(1000);
 
-        await Expect(Page.Locator($".playlist-entry-row[data-media-id='{lockedShowId}']")).ToHaveCountAsync(0);
+        await Expect(Page.Locator($".playlist-entry-row[data-media-type='{MediaTypeValues.Movie}'][data-media-id='{lockedMovieId}']")).ToHaveCountAsync(0);
     }
 
     /// <summary>
-    /// Verifies the corrected `hasSourceAccess OR isUnlocked` accessibility rule: a TV show the user
+    /// Verifies the corrected `hasSourceAccess OR isUnlocked` accessibility rule: a movie the user
     /// has regular access to via <see cref="VideoWebPlayer.Data.MediaSourceUser"/> is rendered without
     /// the reduced-opacity styling, even without an explicit individual unlock.
     /// </summary>
@@ -309,13 +301,13 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
 
         await LoginAsync(UserAEmail);
         var row = await CreatePlaylistViaUiAsync("Zugriffsstatus-Quellenzugriff");
-        var showId = await SeedTvShowIntoPlaylistAsync("Zugriffsstatus-Quellenzugriff", "Serie mit Quellenzugriff");
+        var movieId = await SeedMovieAsync("Film mit Quellenzugriff");
         await GrantMediaSourceAccessForUserAsync(UserAEmail);
         await row.Locator(".playlist-open-button").ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
-        await Page.WaitForTimeoutAsync(1500);
+        await SelectSearchResultAsync("Film mit Quellenzugriff", MediaTypeValues.Movie, movieId);
 
-        await Expect(Page.Locator($".playlist-entry-row[data-media-id='{showId}']")).Not.ToHaveClassAsync(new Regex("opacity-50"));
+        await Expect(Page.Locator($".playlist-entry-row[data-media-type='{MediaTypeValues.Movie}'][data-media-id='{movieId}']")).Not.ToHaveClassAsync(new Regex("opacity-50"));
     }
 
     /// <summary>
@@ -384,18 +376,21 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
         await LoginAsync(UserAEmail);
         var row = await CreatePlaylistViaUiAsync("Bildspalte-Test");
         var moviePosterId = await SeedMovieWithPosterIntoPlaylistAsync("Bildspalte-Test", "Film Mit Poster");
-        var showWithoutPosterId = await SeedTvShowIntoPlaylistAsync("Bildspalte-Test", "Serie Ohne Poster");
+        // Eine Episode ohne eigenes Poster statt einer TVShow direkt: seit dem UI-Redesign (Kundenfeedback)
+        // erhalten nur noch Filme/Episoden eine eigene Kachel, eine TVShow-Kachel gibt es nicht mehr (siehe
+        // PlaylistEntriesList.IsRenderableEntry).
+        var (episodeWithoutPosterId, _) = await SeedTvShowEpisodeIntoPlaylistAsync("Bildspalte-Test", "Serie Ohne Poster");
         await row.Locator(".playlist-open-button").ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
         await Page.WaitForTimeoutAsync(1500);
 
-        // Movie and TVShow ids are independently auto-incremented, so the media type must be
+        // Movie and TVShowEpisode ids are independently auto-incremented, so the media type must be
         // included in the selector to uniquely identify each row.
         var posterImage = Page.Locator($".playlist-entry-row[data-media-type='{MediaTypeValues.Movie}'][data-media-id='{moviePosterId}'] .playlist-entry-image");
         await Expect(posterImage).ToHaveCountAsync(1);
         await Expect(posterImage).ToHaveAttributeAsync("src", new Regex("/api/pictures/"));
 
-        var placeholderImage = Page.Locator($".playlist-entry-row[data-media-type='{MediaTypeValues.TVShow}'][data-media-id='{showWithoutPosterId}'] .playlist-entry-image");
+        var placeholderImage = Page.Locator($".playlist-entry-row[data-media-type='{MediaTypeValues.TVShowEpisode}'][data-media-id='{episodeWithoutPosterId}'] .playlist-entry-image");
         await Expect(placeholderImage).ToHaveCountAsync(1);
         await Expect(placeholderImage).ToHaveAttributeAsync("src", new Regex("/images/placeholder.png"));
 

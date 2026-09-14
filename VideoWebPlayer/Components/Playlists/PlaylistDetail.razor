@@ -11,68 +11,72 @@
 
 <PageTitle>Playlist</PageTitle>
 
-<section class="media-section">
-    <div class="admin-card-header">
-        <h1>Playlist</h1>
+@if (isLoading)
+{
+    <section class="media-section">
+        <p>Lade Daten...</p>
+    </section>
+}
+else if (!string.IsNullOrWhiteSpace(loadError))
+{
+    <section class="media-section">
+        <div class="alert alert-danger" id="playlist-detail-error">@loadError</div>
+    </section>
+}
+else if (playlist is not null)
+{
+    @* Kopfbereich mit Hintergrundbild, angelehnt an die Detailansichten von Filmen/Serien (TVShowDetails,
+       MovieCollectionDetails). Playlists haben noch kein eigenes Coverbild (siehe PlaylistCoverPlaceholder),
+       daher ein generischer, aus der Playlist-Id abgeleiteter Platzhalter-Hintergrund statt eines echten Fotos. *@
+    <div class="tvshow-header playlist-header-fallback">
+        <PlaylistCoverPlaceholder PlaylistId="Id" CssClass="playlist-header-cover" />
+
+        <button class="back-arrow playlist-detail-back-button" @onclick="NavigateToOverview" title="Zurueck zur Uebersicht">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+                <path d="M15 6l-6 6 6 6" stroke="#ffe066" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+        </button>
+
+        <div class="metadata-action-bar">
+            <button class="metadata-icon-btn playlist-detail-edit-button" @onclick="OpenEditForm" title="Bearbeiten">✎</button>
+            <button class="metadata-icon-btn playlist-detail-delete-button" @onclick="RequestDelete" title="Loeschen">
+                <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /></svg>
+            </button>
+        </div>
+
+        <div class="tvshow-header-overlay">
+            <div class="tvshow-header-content">
+                <h1 id="playlist-detail-name">@playlist.Name</h1>
+                <div class="tvshow-meta playlist-detail-meta">
+                    <span class="playlist-sortmode-badge">
+                        <PlaylistSortModeIcon SortMode="playlist.SortMode" />
+                        <span id="playlist-detail-sortmode">@PlaylistSortModeValues.GetDisplayLabel(playlist.SortMode)</span>
+                    </span>
+                    <button class="metadata-icon-btn playlist-sortmode-toggle-button" @onclick="ToggleSortModeAsync" title="@SortModeToggleTitle">
+                        <PlaylistSortModeIcon SortMode="selectedSortMode" Size="18" />
+                    </button>
+                </div>
+                @if (!string.IsNullOrWhiteSpace(playlist.Description))
+                {
+                    <div class="tvshow-plot" id="playlist-detail-description">@playlist.Description</div>
+                }
+                else
+                {
+                    <div class="tvshow-plot" id="playlist-detail-description"></div>
+                }
+                <div class="playlist-detail-dates-muted">
+                    <span id="playlist-detail-created"><span class="playlist-detail-date-label">Erstellt</span>@playlist.CreatedAt.ToLocalTime()</span>
+                    <span id="playlist-detail-updated"><span class="playlist-detail-date-label">Aktualisiert</span>@playlist.UpdatedAt.ToLocalTime()</span>
+                </div>
+            </div>
+        </div>
     </div>
 
-    @if (isLoading)
-    {
-        <p>Lade Daten...</p>
-    }
-    else if (!string.IsNullOrWhiteSpace(loadError))
-    {
-        <div class="alert alert-danger" id="playlist-detail-error">@loadError</div>
-    }
-    else if (playlist is not null)
-    {
-        <div class="admin-table-wrap">
-            <dl>
-                <div>
-                    <dt>Name</dt>
-                    <dd id="playlist-detail-name">@playlist.Name</dd>
-                </div>
-                <div>
-                    <dt>Beschreibung</dt>
-                    <dd id="playlist-detail-description">@playlist.Description</dd>
-                </div>
-                <div>
-                    <dt>Sortierung</dt>
-                    <dd id="playlist-detail-sortmode">@PlaylistSortModeValues.GetDisplayLabel(playlist.SortMode)</dd>
-                </div>
-                <div>
-                    <dt>Erstellt</dt>
-                    <dd id="playlist-detail-created">@playlist.CreatedAt.ToLocalTime()</dd>
-                </div>
-                <div>
-                    <dt>Aktualisiert</dt>
-                    <dd id="playlist-detail-updated">@playlist.UpdatedAt.ToLocalTime()</dd>
-                </div>
-            </dl>
-        </div>
-
-        <div class="admin-actions">
-            <button class="btn btn-primary playlist-detail-edit-button" @onclick="OpenEditForm">Bearbeiten</button>
-            <button class="btn btn-danger playlist-detail-delete-button" @onclick="RequestDelete">Loeschen</button>
-            <button class="btn btn-ghost playlist-detail-back-button" @onclick="NavigateToOverview">Zurueck zur Uebersicht</button>
-        </div>
-
+    <section class="media-section">
         @if (!string.IsNullOrWhiteSpace(sortModeStatusMessage))
         {
             <div class="alert alert-danger" id="playlist-sortmode-status">@sortModeStatusMessage</div>
         }
-
-        <div class="admin-actions playlist-sortmode-actions">
-            <label for="playlist-sortmode-change-select">Sortiermodus aendern</label>
-            <select id="playlist-sortmode-change-select" class="form-control" @bind="selectedSortMode">
-                <PlaylistSortModeOptions />
-            </select>
-            <button class="btn btn-primary playlist-sortmode-apply-button" @onclick="ApplySortModeAsync">Anwenden</button>
-        </div>
-
-        <div class="admin-card-header">
-            <h2>Inhalte</h2>
-        </div>
 
         <PlaylistEntriesList @ref="entriesList" PlaylistId="Id" IsManualMode="IsManualMode" OnPlayEntry="PlayEntryAsync" />
 
@@ -80,8 +84,8 @@
         {
             <div class="alert alert-danger" id="playlist-playback-error">@playbackError</div>
         }
-    }
-</section>
+    </section>
+}
 
 @if (playbackStart is not null)
 {
@@ -139,8 +143,8 @@
     private DtoPlaylistPlaybackStart? playbackStart;
 
     /// <summary>
-    /// Error from a failed <see cref="StartPlaybackAsync"/> call (e.g. the requested entry is locked or a
-    /// non-playable collection entry), kept separate from <see cref="loadError"/> - which means the
+    /// Error from a failed <see cref="StartPlaybackAsync"/> call (e.g. the requested entry is locked or
+    /// a non-playable collection entry), kept separate from <see cref="loadError"/> - which means the
     /// playlist's own metadata failed to load and, per the page's exclusive if/else-if rendering chain,
     /// replaces the entire detail page. A playback-start failure should instead leave the already-loaded
     /// playlist and its entries visible, with just an inline error shown below them, so the user can pick
@@ -149,6 +153,16 @@
     private string? playbackError;
 
     private bool IsManualMode => playlist?.SortMode == PlaylistSortModeValues.Manual;
+
+    /// <summary>
+    /// The sort mode a click on <see cref="ToggleSortModeAsync"/>'s icon button would switch to - the
+    /// mode the toggle currently does NOT show, of the two supported <see cref="PlaylistSortModeValues"/>.
+    /// </summary>
+    private string OtherSortMode
+        => selectedSortMode == PlaylistSortModeValues.Manual ? PlaylistSortModeValues.ByReleaseDate : PlaylistSortModeValues.Manual;
+
+    private string SortModeToggleTitle
+        => $"Sortierung wechseln zu \"{PlaylistSortModeValues.GetDisplayLabel(OtherSortMode)}\"";
 
     protected override async Task OnInitializedAsync()
     {
@@ -322,6 +336,20 @@
             Logger.LogWarning(ex, "{ErrorPrefix} (Playlist {PlaylistId})", errorPrefix, Id);
             sortModeStatusMessage = $"{errorPrefix}: {ex.Message}";
         }
+    }
+
+    /// <summary>
+    /// Handles the sort-mode-toggle icon button (replacing the former dropdown + "Anwenden" button, per
+    /// Kundenfeedback: "Der Wechsel zwischen den beiden Sortiermethoden soll ... ueber ein Symbolbutton
+    /// mit Sicherheitsabfrage erfolgen"): switches directly to <see cref="OtherSortMode"/> - the only other
+    /// value, since exactly two sort modes exist - and applies it via the existing
+    /// <see cref="ApplySortModeAsync"/> flow, which already shows <see cref="PlaylistSortModeConfirmationDialog"/>
+    /// (the pre-existing "Sicherheitsabfrage") when switching away from Manual would lose the manual order.
+    /// </summary>
+    private Task ToggleSortModeAsync()
+    {
+        selectedSortMode = OtherSortMode;
+        return ApplySortModeAsync();
     }
 
     private Task ApplySortModeAsync()

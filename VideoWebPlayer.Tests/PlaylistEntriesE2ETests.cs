@@ -102,6 +102,15 @@ public sealed class PlaylistEntriesE2ETests : PlaylistsE2ETestBase
         await Expect(Page.Locator("#playlist-entries-status")).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("alert-success"));
     }
 
+    /// <summary>
+    /// Verifies that adding a whole TV show still cascade-adds the show itself and all of its seasons
+    /// server-side (proven by the still-3 episode tiles rendering correctly with resolved parent-show
+    /// context - see <c>PlaylistServiceTests_AddMedia</c> for the full 1+2+3 = 6-entry server-side
+    /// assertion), but per the Kachel-UI redesign (Kundenfeedback: "Wurde eine ganze Serie hinzugefuegt,
+    /// so darf es keine Kachel fuer die Serie selbst oder die Staffeln geben") only the resulting episodes
+    /// get their own tile in the UI - the TVShow and TVShowSeason entries stay purely organizational and
+    /// render no tile at all (see <c>PlaylistEntriesList.IsRenderableEntry</c>).
+    /// </summary>
     [Fact]
     public async Task AddTVShow_CascadesSeasonsAndEpisodes()
     {
@@ -120,10 +129,11 @@ public sealed class PlaylistEntriesE2ETests : PlaylistsE2ETestBase
 
         await SelectSearchResultAsync("Kaskaden-Testserie", "TVShow", showId);
 
-        // 1 show + 2 seasons + 3 episodes = 6 rows
-        await Expect(Page.Locator(".playlist-entry-row")).ToHaveCountAsync(6);
-        await Expect(Page.Locator($".playlist-entry-row[data-media-type='TVShow'][data-media-id='{showId}']")).ToBeVisibleAsync();
-        await Expect(Page.Locator(".playlist-entry-row[data-media-type='TVShowSeason']")).ToHaveCountAsync(2);
+        // Nur die 3 Episoden erhalten eine Kachel; die Serie selbst und ihre 2 Staffeln (rein
+        // organisatorisch im Hintergrund weiterhin gespeichert) bleiben ohne eigene Kachel.
+        await Expect(Page.Locator(".playlist-entry-row")).ToHaveCountAsync(3);
+        await Expect(Page.Locator($".playlist-entry-row[data-media-type='TVShow'][data-media-id='{showId}']")).ToHaveCountAsync(0);
+        await Expect(Page.Locator(".playlist-entry-row[data-media-type='TVShowSeason']")).ToHaveCountAsync(0);
         await Expect(Page.Locator(".playlist-entry-row[data-media-type='TVShowEpisode']")).ToHaveCountAsync(3);
     }
 

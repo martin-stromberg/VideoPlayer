@@ -340,10 +340,12 @@ public sealed class PlaylistPlaybackE2ETests : PlaylistsE2ETestBase
     /// <summary>
     /// Regression test for the "double-click on a collection entry resolves the wrong media id" bug
     /// (Playlist-Wiedergabe Schritt 5, Runde 1 Nachbesserung, Punkt 3): a non-playable collection entry
-    /// (TVShow) must render no "Abspielen" button, and double-clicking its row must not attempt to start
-    /// playback - previously the double-click reached <c>PlaylistService.ResolveExplicitStartEntry</c>,
-    /// which (unlike the other navigation methods) did not check playability and would have interpreted the
-    /// TVShow's id as if it were a playable movie/episode id.
+    /// (TVShow) must never be double-clickable to start playback - previously the double-click reached
+    /// <c>PlaylistService.ResolveExplicitStartEntry</c>, which (unlike the other navigation methods) did
+    /// not check playability and would have interpreted the TVShow's id as if it were a playable
+    /// movie/episode id. Since the Kachel-UI redesign (Kundenfeedback), a TVShow entry does not render a
+    /// tile at all (see <c>PlaylistEntriesList.IsRenderableEntry</c>), which already rules out a
+    /// double-click on it entirely - this test locks in that stronger guarantee.
     /// </summary>
     [Fact]
     public async Task PlaylistDoubleClickCollectionEntryHasNoEffectE2ETest()
@@ -359,15 +361,9 @@ public sealed class PlaylistPlaybackE2ETests : PlaylistsE2ETestBase
         await Page.WaitForSelectorAsync("#playlist-detail-name");
         await Page.WaitForTimeoutAsync(1500);
 
-        var showRow = Page.Locator($".playlist-entry-row[data-media-type='TVShow'][data-media-id='{showId}']");
-        await Expect(showRow.Locator(".playlist-entry-play-button")).ToHaveCountAsync(0);
-
-        await showRow.DblClickAsync();
-        await Page.WaitForTimeoutAsync(1000);
-
+        await Expect(Page.Locator($".playlist-entry-row[data-media-type='TVShow'][data-media-id='{showId}']")).ToHaveCountAsync(0);
         await Expect(Page.Locator("#video-player-element")).ToHaveCountAsync(0);
         await Expect(Page.Locator("#playlist-detail-name")).ToBeVisibleAsync();
-        await Expect(showRow).ToBeVisibleAsync();
     }
 
     [Fact]

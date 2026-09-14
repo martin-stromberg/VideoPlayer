@@ -11,17 +11,17 @@ die manuelle Umsortierung der Einträge per Drag & Drop oder Schnellaktion.
 
 ## Übersicht
 
-Unter „Playlists" sieht ein Anwender eine Tabelle aller eigenen Playlists mit Name, Beschreibung,
-Sortiermodus sowie Erstellungs- und Aktualisierungszeitpunkt. Von hier aus lassen sich neue
-Playlists anlegen sowie bestehende öffnen, bearbeiten oder löschen.
+Unter „Playlists" sieht ein Anwender seine eigenen Playlists als Kacheln (eine Kachel je Playlist)
+mit Titel, einer Grafik, einem Symbol für den Sortiermodus sowie dezent dargestelltem Erstellungs-
+und Aktualisierungszeitpunkt. Da Playlists noch kein eigenes Coverbild besitzen, zeigt die Kachel
+an dieser Stelle einen generischen, farblich je Playlist unterschiedlichen Platzhalter.
 
-Für jede Playlist werden drei Aktionen angeboten:
+Ein Klick (bzw. Tipp) auf eine Kachel öffnet die Detailseite der Playlist (siehe Abschnitt
+„Detailseite"). Neue Playlists werden über die Schaltfläche „Neue Playlist erstellen" oberhalb der
+Kacheln angelegt. Bearbeiten und Löschen einer Playlist stehen ausschließlich auf der Detailseite
+zur Verfügung (siehe dort).
 
-- **Öffnen** — Navigiert zur Detailseite der Playlist (siehe Abschnitt „Detailseite")
-- **Bearbeiten** — Öffnet ein Formular zum Ändern der Stammdaten (Name, Beschreibung, Sortiermodus)
-- **Löschen** — Entfernt die Playlist nach Bestätigung in einem Dialog
-
-Ist noch keine Playlist vorhanden, zeigt die Übersicht einen Hinweis anstelle der Tabelle an.
+Ist noch keine Playlist vorhanden, zeigt die Übersicht einen Hinweis anstelle der Kacheln an.
 Schlägt das Laden der Playlists fehl (z. B. weil der Anwender nicht angemeldet ist), erscheint
 eine Fehlermeldung anstelle der Übersicht.
 
@@ -44,31 +44,34 @@ aussagekräftigen Fehlermeldung angezeigt.
 
 ## Detailseite
 
-Durch die "Öffnen"-Aktion in der Übersicht oder direkte Navigation gelangt ein Anwender zur
-Detailseite einer Playlist. Die Detailseite zeigt die Stammdaten der Playlist an:
+Durch einen Klick auf eine Kachel in der Übersicht oder direkte Navigation gelangt ein Anwender zur
+Detailseite einer Playlist. Die Detailseite ist - ähnlich wie die Detailansichten von Filmen und
+Serien - mit einem Kopfbereich mit Hintergrundbild aufgebaut (mangels eigenem Coverbild aktuell
+ebenfalls ein generischer Platzhalter, siehe Abschnitt „Übersicht"). Der Kopfbereich zeigt:
 
-- **Name** — Name der Playlist
+- **Name** — Name der Playlist (Überschrift)
+- **Sortierung** — Symbol und Text für den aktuellen Sortiermodus, daneben eine Schaltfläche zum
+  Wechseln (siehe Abschnitt „Sortiermodus ändern")
 - **Beschreibung** — Beschreibungstext (falls vorhanden)
-- **Sortierung** — Sortiermodus der Playlist („Nach Erscheinungsdatum" oder „Manuell")
-- **Erstellt** — Zeitpunkt der Erstellung
-- **Aktualisiert** — Zeitpunkt der letzten Änderung
+- **Erstellt** / **Aktualisiert** — Zeitpunkt der Erstellung bzw. letzten Änderung, dezent dargestellt
 
-Von der Detailseite aus lassen sich die gleichen Aktionen wie in der Übersicht durchführen:
+Im Kopfbereich stehen zusätzlich als Symbol-Schaltflächen zur Verfügung:
 
-- **Bearbeiten** — Öffnet das Bearbeitungsformular für die Playlist
-- **Löschen** — Löscht die Playlist nach Bestätigung
-- **Zurück zur Übersicht** — Kehrt zur Playlist-Übersicht zurück
+- **Bearbeiten** (Stiftsymbol) — Öffnet das Bearbeitungsformular für die Playlist
+- **Löschen** (Papierkorbsymbol) — Löscht die Playlist nach Bestätigung
+- **Zurück** (Pfeilsymbol, oben links) — Kehrt zur Playlist-Übersicht zurück
 
 ## Inhalte hinzufügen und entfernen
 
-Unterhalb der Stammdaten zeigt die Detailseite die Liste der Inhalte („Einträge") dieser Playlist
-mit Titelbild, Typ, Titel, zugehöriger Sammlung (falls vorhanden) und Hinzufügedatum.
+Unterhalb des Kopfbereichs zeigt die Detailseite die Inhalte („Einträge") dieser Playlist als
+Kacheln - im gleichen Stil wie die Episoden-Kacheln der Serien-Detailansicht - mit Titelbild, Titel,
+zugehöriger Sammlung (falls vorhanden) und Hinzufügedatum. Nur Filme und Episoden erhalten dabei
+eine eigene Kachel (siehe Abschnitt „Kaskaden-Logik" weiter unten für den Hintergrund).
 
 ### Titelbild
 
-Jeder Eintrag zeigt ein kleines Titelbild des referenzierten Inhalts (Film, Serie, Staffel,
-Episode oder Filmsammlung). Ist für den Inhalt kein eigenes Bild hinterlegt, erscheint stattdessen
-ein Platzhalterbild.
+Jeder Eintrag zeigt ein kleines Titelbild des referenzierten Inhalts (Film oder Episode). Ist für
+den Inhalt kein eigenes Bild hinterlegt, erscheint stattdessen ein Platzhalterbild.
 
 ### Zugriffsstatus in der Liste
 
@@ -93,9 +96,7 @@ selbst festgelegten Reihenfolge (siehe Abschnitt „Manuelle Sortierung").
 
 Enthält eine Playlist viele Einträge, werden zunächst nur die ersten davon angezeigt. Beim
 Herunterscrollen der Liste werden automatisch weitere Einträge nachgeladen und angehängt, sodass
-die Seite auch bei sehr umfangreichen Playlists flüssig bedienbar bleibt. Ein Hinweistext
-("Weitere Einträge werden beim Scrollen geladen.") zeigt an, dass noch nicht alle Einträge geladen
-sind; sobald die Liste vollständig geladen ist, verschwindet dieser Hinweis.
+die Seite auch bei sehr umfangreichen Playlists flüssig bedienbar bleibt.
 
 ### Manuelle Sortierung
 
@@ -117,9 +118,9 @@ Jede Umsortierung wird sofort gespeichert und bleibt auch nach einem Neuladen de
 
 ### Sortiermodus ändern
 
-Der Sortiermodus einer bestehenden Playlist lässt sich auf der Detailseite über die Auswahl
-„Sortiermodus ändern" (Dropdown mit „Nach Erscheinungsdatum" und „Manuell" sowie Schaltfläche
-„Anwenden") jederzeit umstellen:
+Der Sortiermodus einer bestehenden Playlist lässt sich im Kopfbereich der Detailseite über eine
+Symbol-Schaltfläche (zeigt das Symbol des aktuellen Sortiermodus) jederzeit auf den jeweils anderen
+Modus umstellen:
 
 - **Wechsel zu „Manuell"**: Die Einträge übernehmen als Ausgangsreihenfolge die zuletzt
   angezeigte, automatisch nach Erscheinungsdatum sortierte Reihenfolge. Ab diesem Zeitpunkt lässt
@@ -151,6 +152,11 @@ auch alle zugehörigen Staffeln/Episoden bzw. Filme mit aufgenommen. Beispiele:
 - Hinzufügen einer **Serie** → alle Staffeln und Episoden dieser Serie werden hinzugefügt
 - Hinzufügen einer **Staffel** → alle Episoden dieser Staffel werden hinzugefügt
 - Hinzufügen einer **Filmsammlung** → alle Filme dieser Sammlung werden hinzugefügt
+
+Die hinzugefügte Serie/Staffel/Filmsammlung selbst wird dabei ebenfalls als Eintrag der Playlist
+gespeichert (rein organisatorisch, u. a. damit sie beim Entfernen wiedererkannt wird), erscheint
+auf der Detailseite aber bewusst **nicht** als eigene Kachel — sichtbar sind ausschließlich die
+sich daraus ergebenden Filme und Episoden, da nur diese direkt abspielbar sind.
 
 Falls Teile der Kaskade bereits in der Playlist vorhanden sind, werden diese übersprungen,
 ohne dass dies dem Anwender als Fehler angezeigt wird. Nur neue Inhalte werden hinzugefügt.
@@ -186,7 +192,7 @@ Playlist-Kontext **mit der gespeicherten Position** rekonstruiert.
 ### Wiedergabe starten
 
 Auf der Detailseite besitzt jeder abspielbare Eintrag (Film oder Episode) eine
-**Abspielen**-Schaltfläche; alternativ startet ein Doppelklick auf die Zeile die Wiedergabe ab
+**Abspielen**-Schaltfläche; alternativ startet ein Doppelklick auf die Kachel die Wiedergabe ab
 genau diesem Eintrag. Der Video-Player öffnet sich daraufhin mit dem gewählten Titel und zeigt
 oberhalb des Players einen Playlist-Badge mit Playlist-Name und Position an, z. B.
 „[Meine Favoriten: 3/12]". 
@@ -194,10 +200,11 @@ oberhalb des Players einen Playlist-Badge mit Playlist-Name und Position an, z. 
 Wurde ein Video aus dieser Playlist bereits früher pausiert und in der Weiterschauen-Liste gespeichert,
 startet der Player automatisch an der gespeicherten Wiedergabeposition statt bei 0:00.
 
-Sammel-Einträge (Serie, Staffel, Filmsammlung) besitzen keine Abspielen-Schaltfläche, da sie nicht
-direkt abspielbar sind — nur Filme und Episoden lassen sich starten. Dasselbe gilt für nicht
-zugängliche (gesperrte) Einträge (siehe Abschnitt „Zugriffsstatus in der Liste"): auch sie zeigen
-keine Abspielen-Schaltfläche, und ein Doppelklick auf ihre Zeile bleibt wirkungslos.
+Sammel-Einträge (Serie, Staffel, Filmsammlung) erhalten wie beschrieben ohnehin keine eigene
+Kachel und damit auch keine Abspielen-Schaltfläche, da sie nicht direkt abspielbar sind — nur
+Filme und Episoden lassen sich starten. Nicht zugängliche (gesperrte) Einträge (siehe Abschnitt
+„Zugriffsstatus in der Liste") erhalten zwar eine Kachel, zeigen aber ebenfalls keine
+Abspielen-Schaltfläche, und ein Doppelklick auf ihre Kachel bleibt wirkungslos.
 
 ### Navigation innerhalb der Playlist
 

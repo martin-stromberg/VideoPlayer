@@ -88,6 +88,21 @@ Wird eine Playlist gelöscht, bleiben die zugehörigen Weiterschauen-Einträge i
 - Die zuletzt gespeicherte Wiedergabeposition bleibt erhalten.
 - Falls bereits ein playlist-loser Eintrag für das gleiche Video existiert, wird der playlist-gebundene Eintrag entfernt, um Duplikate zu vermeiden.
 
+### Einzelner Titel aus Playlist entfernt
+
+Entfernt der Anwender nur einen einzelnen Titel aus einer Playlist (nicht die ganze Playlist), und existiert
+dafür noch ein Weiterschauen-Eintrag mit Bezug zu genau dieser Playlist, erscheint vor dem Entfernen eine
+Sicherheitsabfrage: „Dieser Eintrag befindet sich in deiner Weiterschauen-Liste. Entfernen?"
+- Nach Bestätigung wird der Weiterschauen-Eintrag durch den nächsten in dieser Playlist verfügbaren Titel
+  ersetzt (Wiedergabeposition beginnt bei null); gibt es keinen weiteren verfügbaren Titel, wird der
+  Weiterschauen-Eintrag entfernt.
+- Weiterschauen-Einträge desselben Videos ohne Playlist-Bezug oder mit Bezug zu einer anderen Playlist
+  bleiben unangetastet.
+- Verschwindet der Titel stattdessen still aus dem Medienbestand (z. B. Datei gelöscht), entfällt die
+  Sicherheitsabfrage, aber dasselbe Ersetzen-/Entfernen-Verhalten gilt sinngemäß.
+
+Details siehe `docs/help/weiterschauen/business-rules.md`.
+
 ## Einschränkungen
 
 - **Nur eine Episode/Film pro Serie/Sammlung pro Playlist:** Ein Benutzer kann pro Serie/Sammlung/Playlist-Kombination nur einen Eintrag in der Weiterschauen-Liste haben. Alle anderen Einträge dieser Serie/Sammlung werden automatisch entfernt, wenn eine neue Episode/Film hinzugefügt wird.

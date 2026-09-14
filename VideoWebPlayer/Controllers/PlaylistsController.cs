@@ -76,6 +76,11 @@ public class PlaylistsController : ApiBaseController
             Logger.LogInformation(ex, "Bestaetigung erforderlich beim {LogContext}", logContext);
             return Conflict(new DtoChangeSortModeConflictResponse { IsLossOfDataConfirmationRequired = true });
         }
+        catch (ContinueWatchingConfirmationRequiredException ex)
+        {
+            Logger.LogInformation(ex, "Bestaetigung erforderlich (Weiterschauen-Bezug) beim {LogContext}", logContext);
+            return Conflict(new DtoRemovePlaylistEntryConflictResponse { IsContinueWatchingConfirmationRequired = true });
+        }
         catch (PlaylistNotInManualSortModeException ex)
         {
             Logger.LogWarning(ex, "Playlist nicht im manuellen Sortiermodus beim {LogContext}", logContext);
@@ -233,19 +238,27 @@ public class PlaylistsController : ApiBaseController
     }
 
     /// <summary>
-    /// Removes a media entry from a playlist for the current user.
+    /// Removes a media entry from a playlist for the current user. If a continue-watching (Weiterschauen)
+    /// entry bound to this same playlist still references the entry being removed, the caller must set
+    /// <paramref name="confirmContinueWatchingRemoval"/> to <see langword="true"/> - otherwise this returns
+    /// 409 Conflict with <see cref="DtoRemovePlaylistEntryConflictResponse"/> instead of removing anything.
     /// </summary>
     /// <param name="id">The playlist identifier.</param>
     /// <param name="mediaType">The media type of the entry to remove.</param>
     /// <param name="mediaId">The media identifier of the entry to remove.</param>
-    /// <returns>No content on success, or an error result.</returns>
+    /// <param name="confirmContinueWatchingRemoval">
+    /// Whether the user confirmed removal despite an existing continue-watching reference. Ignored when no
+    /// such reference exists.
+    /// </param>
+    /// <returns>No content on success, a conflict response if confirmation is required, or another error result.</returns>
     [HttpDelete("{id}/entries/{mediaType}/{mediaId}")]
-    public Task<IActionResult> RemoveMediaFromPlaylist(long id, string mediaType, long mediaId)
+    public Task<IActionResult> RemoveMediaFromPlaylist(long id, string mediaType, long mediaId, bool confirmContinueWatchingRemoval = false)
     {
         return ExecuteAsync(async () =>
         {
             CheckLogedIn();
-            await _playlistService.RemoveMediaFromPlaylistAsync(id, CurrentUser!.Id, mediaType, mediaId, HttpContext.RequestAborted);
+            await _playlistService.RemoveMediaFromPlaylistAsync(
+                id, CurrentUser!.Id, mediaType, mediaId, confirmContinueWatchingRemoval, HttpContext.RequestAborted);
             return NoContent();
         }, $"Entfernen aus Playlist {id}");
     }

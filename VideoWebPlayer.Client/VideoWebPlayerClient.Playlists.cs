@@ -57,9 +57,10 @@ namespace VideoWebPlayer.Client
         }
 
         /// <inheritdoc />
-        public async Task RemoveMediaFromPlaylistAsync(long playlistId, string mediaType, long mediaId)
+        public async Task RemoveMediaFromPlaylistAsync(long playlistId, string mediaType, long mediaId, bool confirmContinueWatchingRemoval = false)
         {
-            await HttpDeleteAsync($"api/playlists/{playlistId}/entries/{mediaType}/{mediaId}");
+            var query = confirmContinueWatchingRemoval ? "?confirmContinueWatchingRemoval=true" : string.Empty;
+            await HttpDeleteAsync($"api/playlists/{playlistId}/entries/{mediaType}/{mediaId}{query}");
         }
 
         /// <inheritdoc />

@@ -173,12 +173,24 @@ erfolgreich abgeschlossen (grüne Info-Meldung), auch wenn nichts Neues hinzugef
 Jeder Eintrag in der Liste besitzt einen **Entfernen**-Button. Ein Klick darauf entfernt
 genau diesen Eintrag sofort aus der Playlist. Die Liste wird unmittelbar aktualisiert.
 
+Befindet sich der zu entfernende Titel noch mit Bezug zu genau dieser Playlist in der
+Weiterschauen-Liste, erscheint zuvor eine Sicherheitsabfrage: „Dieser Eintrag befindet sich in
+deiner Weiterschauen-Liste. Entfernen?" Erst nach ausdrücklicher Bestätigung wird der Eintrag
+tatsächlich entfernt. Der betroffene Weiterschauen-Eintrag wird dabei durch den nächsten in
+dieser Playlist verfügbaren Titel ersetzt (die Wiedergabeposition beginnt dann wieder bei null);
+gibt es keinen weiteren verfügbaren Titel, wird der Weiterschauen-Eintrag entfernt. Weiterschauen-
+Einträge desselben Videos ohne Playlist-Bezug oder mit Bezug zu einer anderen Playlist bleiben in
+jedem Fall unangetastet.
+
 ### Automatische Bereinigung
 
 Wird ein Medieninhalt aus dem Bestand entfernt (z. B. eine Serie oder ein Film gelöscht),
 verschwindet der zugehörige Playlist-Eintrag beim nächsten Laden der Playlist still
 (ohne Fehlermeldung oder Hinweismeldung für den Anwender). Diese automatische Bereinigung
-verhindert, dass die Playlist auf nicht mehr existierende Inhalte verweist.
+verhindert, dass die Playlist auf nicht mehr existierende Inhalte verweist. Dasselbe
+Ersetzen-/Entfernen-Verhalten wie beim manuellen Entfernen gilt dabei sinngemäß auch für einen
+betroffenen Weiterschauen-Eintrag — allerdings ohne Sicherheitsabfrage, da der Anwender diesen
+Vorgang nicht selbst ausgelöst hat.
 
 ## Wiedergabe aus einer Playlist und Weiterschauen-Integration
 

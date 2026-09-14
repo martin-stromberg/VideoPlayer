@@ -642,5 +642,120 @@ namespace VideoWebPlayer.Services
                     _db.ContinueWatchingEntries.Remove(entry);
             }
         }
+
+        /// <summary>
+        /// Whether a continue-watching entry bound to <paramref name="playlistId"/> currently references
+        /// the given media, for <see cref="PlaylistService.RemoveMediaFromPlaylistAsync"/>'s
+        /// removal-confirmation check. Only movies and TV show episodes can ever be referenced (a
+        /// continue-watching entry never points at a collection entry such as TVShow/TVShowSeason/
+        /// MovieCollection), so any other <paramref name="mediaType"/> trivially returns <see langword="false"/>.
+        /// </summary>
+        /// <param name="playlistId">The id of the playlist the continue-watching entry must be bound to.</param>
+        /// <param name="userId">The id of the owning user.</param>
+        /// <param name="mediaType">The media type of the entry being checked (a <c>PlaylistEntry.MediaType</c> value).</param>
+        /// <param name="mediaId">The media id of the entry being checked.</param>
+        /// <param name="ct">A cancellation token.</param>
+        /// <returns><see langword="true"/> if a matching, playlist-bound continue-watching entry exists.</returns>
+        internal async Task<bool> HasPlaylistBoundEntryAsync(long playlistId, string userId, string mediaType, long mediaId, CancellationToken ct)
+        {
+            var (movieId, episodeId) = ResolveMovieAndEpisodeIds(mediaType, mediaId);
+            if (movieId is null && episodeId is null)
+                return false;
+
+            return await _db.ContinueWatchingEntries.AnyAsync(
+                x => x.UserId == userId && x.PlaylistId == playlistId && x.MovieId == movieId && x.TVShowEpisodeId == episodeId, ct);
+        }
+
+        /// <summary>
+        /// Resolves the continue-watching entry (if any) that a playlist entry removal affects, shared by
+        /// <see cref="PlaylistService.RemoveMediaFromPlaylistAsync"/> (user-confirmed removal of a single
+        /// entry) and <see cref="PlaylistService"/>'s silent orphan cleanup (a title disappeared from the
+        /// media library and its playlist entry was removed without user interaction) - both scenarios call
+        /// this the same way, since from this service's point of view a "removed playlist entry" looks
+        /// identical either way. If a continue-watching entry bound to <paramref name="playlistId"/>
+        /// references (<paramref name="removedMediaType"/>, <paramref name="removedMediaId"/>), it is either
+        /// replaced with (<paramref name="nextMediaType"/>, <paramref name="nextMediaId"/>) - resetting its
+        /// playback position, since the new title was not itself watched yet - when a next title was
+        /// resolved, or removed entirely when it was not (<paramref name="nextMediaType"/>/<paramref name="nextMediaId"/>
+        /// both <see langword="null"/>). Does nothing if no such continue-watching entry exists.
+        /// </summary>
+        /// <remarks>
+        /// Collision handling when replacing: if a distinct continue-watching entry already exists for
+        /// (<paramref name="userId"/>, <paramref name="playlistId"/>, next title) - e.g. because the user
+        /// already watched that next title separately within the same playlist context - writing the next
+        /// title onto the entry being replaced would violate the unique index on
+        /// (UserId, MovieId/TVShowEpisodeId, PlaylistId) (see <c>ContinueWatchingEntryConfiguration</c>).
+        /// Mirrors the decision already documented for <see cref="ResolvePlaylistDeletionConflictsAsync"/>:
+        /// the colliding entry - which carries real, already-existing progress for that title - is kept, and
+        /// the entry being replaced is removed instead of overwriting it.
+        /// </remarks>
+        /// <param name="playlistId">The id of the playlist the removed entry belonged to.</param>
+        /// <param name="userId">The id of the owning user.</param>
+        /// <param name="removedMediaType">The media type of the removed playlist entry.</param>
+        /// <param name="removedMediaId">The media id of the removed playlist entry.</param>
+        /// <param name="nextMediaType">The media type of the next available title to replace with, or <see langword="null"/>.</param>
+        /// <param name="nextMediaId">The media id of the next available title to replace with, or <see langword="null"/>.</param>
+        /// <param name="ct">A cancellation token.</param>
+        internal async Task ResolvePlaylistEntryRemovalAsync(
+            long playlistId, string userId, string removedMediaType, long removedMediaId,
+            string? nextMediaType, long? nextMediaId, CancellationToken ct)
+        {
+            var (removedMovieId, removedEpisodeId) = ResolveMovieAndEpisodeIds(removedMediaType, removedMediaId);
+            if (removedMovieId is null && removedEpisodeId is null)
+                return;
+
+            var entry = await _db.ContinueWatchingEntries.FirstOrDefaultAsync(
+                x => x.UserId == userId && x.PlaylistId == playlistId && x.MovieId == removedMovieId && x.TVShowEpisodeId == removedEpisodeId, ct);
+            if (entry is null)
+                return;
+
+            if (nextMediaType is null || nextMediaId is null)
+            {
+                _db.ContinueWatchingEntries.Remove(entry);
+                await _db.SaveChangesAsync(ct);
+                await _notificationService.NotifyContinueWatchingUpdatedAsync(userId, ct);
+                return;
+            }
+
+            var (nextMovieId, nextEpisodeId) = ResolveMovieAndEpisodeIds(nextMediaType, nextMediaId.Value);
+
+            var collidingEntry = await _db.ContinueWatchingEntries.FirstOrDefaultAsync(
+                x => x.Id != entry.Id && x.UserId == userId && x.PlaylistId == playlistId && x.MovieId == nextMovieId && x.TVShowEpisodeId == nextEpisodeId, ct);
+
+            if (collidingEntry is not null)
+            {
+                _db.ContinueWatchingEntries.Remove(entry);
+            }
+            else
+            {
+                entry.MovieId = nextMovieId;
+                entry.TVShowEpisodeId = nextEpisodeId;
+                entry.Position = TimeSpan.Zero;
+                entry.Duration = null;
+                entry.UpdatedAt = DateTime.UtcNow;
+            }
+
+            await _db.SaveChangesAsync(ct);
+            await _notificationService.NotifyContinueWatchingUpdatedAsync(userId, ct);
+        }
+
+        /// <summary>
+        /// Resolves a <c>PlaylistEntry.MediaType</c> value together with its media id to the underlying
+        /// movie/episode id pair used by <see cref="ContinueWatchingEntry"/>, shared by
+        /// <see cref="HasPlaylistBoundEntryAsync"/> and <see cref="ResolvePlaylistEntryRemovalAsync"/>.
+        /// </summary>
+        /// <param name="mediaType">The media type to resolve.</param>
+        /// <param name="mediaId">The media id to resolve.</param>
+        /// <param name="MovieId">(Return tuple field.) The movie id, if <paramref name="mediaType"/> is <see cref="MediaTypeValues.Movie"/>; otherwise <see langword="null"/>.</param>
+        /// <param name="EpisodeId">(Return tuple field.) The episode id, if <paramref name="mediaType"/> is <see cref="MediaTypeValues.TVShowEpisode"/>; otherwise <see langword="null"/>.</param>
+        /// <returns>Both <see langword="null"/> for any other (non-playable, collection) media type.</returns>
+        private static (long? MovieId, long? EpisodeId) ResolveMovieAndEpisodeIds(string mediaType, long mediaId)
+        {
+            if (string.Equals(mediaType, MediaTypeValues.Movie, StringComparison.OrdinalIgnoreCase))
+                return (mediaId, null);
+            if (string.Equals(mediaType, MediaTypeValues.TVShowEpisode, StringComparison.OrdinalIgnoreCase))
+                return (null, mediaId);
+            return (null, null);
+        }
     }
 }

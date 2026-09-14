@@ -9,7 +9,7 @@ Branch: `task/issue-207-fd729906880143ee8539fa3e046c88f4-playlists-fuer-serien-s
 | 3 | Playlist-Inhalte anzeigen und automatisch nach Erscheinungsdatum sortieren | 2 | `task/issue-207-fd729906880143ee8539fa3e046c88f4-playlists-fuer-serien-staffeln-schritt-3-automatische-sortierung-anzeige` | Fertig |
 | 4 | Manuelle Sortierung einer Playlist | 3 | `task/issue-207-fd729906880143ee8539fa3e046c88f4-playlists-fuer-serien-staffeln-schritt-4-manuelle-sortierung` | Fertig |
 | 5 | Wiedergabe aus einer Playlist heraus | 3 | `task/issue-207-fd729906880143ee8539fa3e046c88f4-playlists-fuer-serien-staffeln-schritt-5-wiedergabe-aus-playlist` | Fertig |
-| 6 | Weiterschauen-Einträge mit Playlist-Bezug | 5 | `task/issue-207-fd729906880143ee8539fa3e046c88f4-playlists-fuer-serien-staffeln-schritt-6-weiterschauen-playlist-bezug` | Blockiert |
+| 6 | Weiterschauen-Einträge mit Playlist-Bezug | 5 | `task/issue-207-fd729906880143ee8539fa3e046c88f4-playlists-fuer-serien-staffeln-schritt-6-weiterschauen-playlist-bezug` | In Arbeit |
 | 7 | Sicherheitsabfrage beim Entfernen von Titeln mit Weiterschauen-Bezug | 2, 6 | `task/issue-207-fd729906880143ee8539fa3e046c88f4-playlists-fuer-serien-staffeln-schritt-7-sicherheitsabfrage-entfernen` | Offen |
 | 8 | Automatische Nachlieferung neu erschienener Inhalte | 2, 3, 4 | `task/issue-207-fd729906880143ee8539fa3e046c88f4-playlists-fuer-serien-staffeln-schritt-8-automatische-nachlieferung` | Offen |
 | 9 | Genres einer Playlist | 2 | `task/issue-207-fd729906880143ee8539fa3e046c88f4-playlists-fuer-serien-staffeln-schritt-9-playlist-genres` | Offen |

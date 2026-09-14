@@ -120,9 +120,9 @@ public class ContinueWatchingListTests
         };
     }
 
-    private static global::Bunit.TestContext CreateTestContext(VideoWebPlayerClient client)
+    private static global::Bunit.BunitContext CreateTestContext(VideoWebPlayerClient client)
     {
-        var ctx = new global::Bunit.TestContext();
+        var ctx = new global::Bunit.BunitContext();
         ctx.AddAuthorization().SetAuthorized("test-user");
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.Services.AddSingleton(client);

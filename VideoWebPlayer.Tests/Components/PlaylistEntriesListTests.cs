@@ -23,7 +23,7 @@ public class PlaylistEntriesListTests
     [Fact]
     public async Task PlaylistEntriesList_OnMediaSelectedAsync_CallsAddEntryAsync()
     {
-        using var ctx = new global::Bunit.TestContext();
+        using var ctx = new global::Bunit.BunitContext();
 
         var playlistClientMock = new Mock<IPlaylistApiClient>();
         playlistClientMock
@@ -117,7 +117,7 @@ public class PlaylistEntriesListTests
     /// <returns>The rendered component and the list every <see cref="PlaylistEntriesList.OnPlayEntry"/> call appends to.</returns>
     private static (global::Bunit.IRenderedComponent<PlaylistEntriesList> Cut, List<DtoPlaylistEntry> OnPlayEntryCalls) RenderWithEntry(DtoPlaylistEntry entry)
     {
-        var ctx = new global::Bunit.TestContext();
+        var ctx = new global::Bunit.BunitContext();
 
         var playlistClientMock = new Mock<IPlaylistApiClient>();
         playlistClientMock

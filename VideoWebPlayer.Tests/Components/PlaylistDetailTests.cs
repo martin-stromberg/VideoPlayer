@@ -414,7 +414,7 @@ public class PlaylistDetailTests
     }
 
     /// <summary>
-    /// Builds a bUnit <see cref="global::Bunit.TestContext"/> with every dependency
+    /// Builds a bUnit <see cref="global::Bunit.BunitContext"/> with every dependency
     /// <see cref="PlaylistDetail"/> (and its child <see cref="PlaylistEntriesList"/>/<see cref="MediaSearchSelector"/>)
     /// injects, wired to <paramref name="playlistClientMock"/>. Shared by every test in this class so the
     /// DI-registration boilerplate is written once.
@@ -426,9 +426,9 @@ public class PlaylistDetailTests
     /// verify an error was logged (see <see cref="CapturingLogger{T}"/>).
     /// </param>
     /// <returns>The configured test context.</returns>
-    private static global::Bunit.TestContext CreateTestContext(Mock<IPlaylistApiClient> playlistClientMock, ILogger<PlaylistDetail>? playlistDetailLogger = null)
+    private static global::Bunit.BunitContext CreateTestContext(Mock<IPlaylistApiClient> playlistClientMock, ILogger<PlaylistDetail>? playlistDetailLogger = null)
     {
-        var ctx = new global::Bunit.TestContext();
+        var ctx = new global::Bunit.BunitContext();
         ctx.AddAuthorization().SetAuthorized("test-user");
         ctx.Services.AddSingleton<VideoWebPlayerClient>(new NoOpVideoWebPlayerClient());
         ctx.Services.AddSingleton(playlistClientMock.Object);

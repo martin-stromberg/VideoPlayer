@@ -24,7 +24,7 @@ public class MediaSearchSelectorTests
     [Fact]
     public async Task SearchTermInput_DebounceWorks_RespectsDelay()
     {
-        using var ctx = new global::Bunit.TestContext();
+        using var ctx = new global::Bunit.BunitContext();
         var fakeClient = CreateFakeClient(new MediaEntryDto { Type = "Movie", Id = 1, Title = "Breaking Point" });
         ctx.Services.AddSingleton<VideoWebPlayerClient>(fakeClient);
         ctx.Services.AddSingleton<ILogger<VideoWebPlayer.Components.Playlists.MediaSearchSelector>>(NullLogger<VideoWebPlayer.Components.Playlists.MediaSearchSelector>.Instance);
@@ -46,7 +46,7 @@ public class MediaSearchSelectorTests
     [Fact]
     public async Task HttpCall_ItemsEndpoint_ReceivesCorrectUrl()
     {
-        using var ctx = new global::Bunit.TestContext();
+        using var ctx = new global::Bunit.BunitContext();
         var fakeClient = CreateFakeClient(new MediaEntryDto { Type = "Movie", Id = 1, Title = "Breaking Point" });
         ctx.Services.AddSingleton<VideoWebPlayerClient>(fakeClient);
         ctx.Services.AddSingleton<ILogger<VideoWebPlayer.Components.Playlists.MediaSearchSelector>>(NullLogger<VideoWebPlayer.Components.Playlists.MediaSearchSelector>.Instance);
@@ -62,7 +62,7 @@ public class MediaSearchSelectorTests
     [Fact]
     public async Task EventCallback_OnMediaSelected_InvokedWithCorrectParameters()
     {
-        using var ctx = new global::Bunit.TestContext();
+        using var ctx = new global::Bunit.BunitContext();
         var fakeClient = CreateFakeClient(new MediaEntryDto { Type = "Movie", Id = 42, Title = "Breaking Point" });
         ctx.Services.AddSingleton<VideoWebPlayerClient>(fakeClient);
         ctx.Services.AddSingleton<ILogger<VideoWebPlayer.Components.Playlists.MediaSearchSelector>>(NullLogger<VideoWebPlayer.Components.Playlists.MediaSearchSelector>.Instance);
@@ -87,7 +87,7 @@ public class MediaSearchSelectorTests
     [Fact]
     public async Task Search_NoResults_ShowsEmptyMessage()
     {
-        using var ctx = new global::Bunit.TestContext();
+        using var ctx = new global::Bunit.BunitContext();
         var fakeClient = CreateFakeClient();
         ctx.Services.AddSingleton<VideoWebPlayerClient>(fakeClient);
         ctx.Services.AddSingleton<ILogger<VideoWebPlayer.Components.Playlists.MediaSearchSelector>>(NullLogger<VideoWebPlayer.Components.Playlists.MediaSearchSelector>.Instance);
@@ -103,7 +103,7 @@ public class MediaSearchSelectorTests
     [Fact]
     public async Task Search_HttpRequestFails_LogsAndShowsDistinctErrorState()
     {
-        using var ctx = new global::Bunit.TestContext();
+        using var ctx = new global::Bunit.BunitContext();
         var fakeClient = new ThrowingVideoWebPlayerClient();
         ctx.Services.AddSingleton<VideoWebPlayerClient>(fakeClient);
         var loggedMessages = new ConcurrentQueue<string>();
@@ -126,7 +126,7 @@ public class MediaSearchSelectorTests
     [Fact]
     public async Task Dispose_CancelsPendingDebouncedSearch_WithoutThrowing()
     {
-        using var ctx = new global::Bunit.TestContext();
+        using var ctx = new global::Bunit.BunitContext();
         var fakeClient = CreateFakeClient(new MediaEntryDto { Type = "Movie", Id = 1, Title = "Breaking Point" });
         ctx.Services.AddSingleton<VideoWebPlayerClient>(fakeClient);
         ctx.Services.AddSingleton<ILogger<VideoWebPlayer.Components.Playlists.MediaSearchSelector>>(NullLogger<VideoWebPlayer.Components.Playlists.MediaSearchSelector>.Instance);

@@ -1,6 +1,5 @@
 using Microsoft.Playwright;
 using static Microsoft.Playwright.Assertions;
-using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
@@ -37,8 +36,7 @@ public sealed class PlaylistReorderE2ETests : PlaylistsE2ETestBase
 
         await Expect(Page.Locator(".playlist-entry-move-start-button")).ToHaveCountAsync(0);
 
-        await Page.SelectOptionAsync("#playlist-sortmode-change-select", PlaylistSortModeValues.Manual);
-        await Page.ClickAsync(".playlist-sortmode-apply-button");
+        await Page.ClickAsync(".playlist-sortmode-toggle-button");
         await Page.WaitForTimeoutAsync(1000);
 
         await Expect(Page.Locator("#playlist-detail-sortmode")).ToHaveTextAsync("Manuell");
@@ -64,12 +62,10 @@ public sealed class PlaylistReorderE2ETests : PlaylistsE2ETestBase
         await Page.WaitForSelectorAsync("#playlist-detail-name");
         await Page.WaitForTimeoutAsync(1500);
 
-        await Page.SelectOptionAsync("#playlist-sortmode-change-select", PlaylistSortModeValues.Manual);
-        await Page.ClickAsync(".playlist-sortmode-apply-button");
+        await Page.ClickAsync(".playlist-sortmode-toggle-button");
         await Page.WaitForTimeoutAsync(1000);
 
-        await Page.SelectOptionAsync("#playlist-sortmode-change-select", PlaylistSortModeValues.ByReleaseDate);
-        await Page.ClickAsync(".playlist-sortmode-apply-button");
+        await Page.ClickAsync(".playlist-sortmode-toggle-button");
         await Page.WaitForSelectorAsync("#confirm-sortmode-change-button");
 
         await Page.ClickAsync("#confirm-sortmode-change-button");
@@ -96,12 +92,10 @@ public sealed class PlaylistReorderE2ETests : PlaylistsE2ETestBase
         await Page.WaitForSelectorAsync("#playlist-detail-name");
         await Page.WaitForTimeoutAsync(1500);
 
-        await Page.SelectOptionAsync("#playlist-sortmode-change-select", PlaylistSortModeValues.Manual);
-        await Page.ClickAsync(".playlist-sortmode-apply-button");
+        await Page.ClickAsync(".playlist-sortmode-toggle-button");
         await Page.WaitForTimeoutAsync(1000);
 
-        await Page.SelectOptionAsync("#playlist-sortmode-change-select", PlaylistSortModeValues.ByReleaseDate);
-        await Page.ClickAsync(".playlist-sortmode-apply-button");
+        await Page.ClickAsync(".playlist-sortmode-toggle-button");
         await Page.WaitForSelectorAsync("#cancel-sortmode-change-button");
         await Page.ClickAsync("#cancel-sortmode-change-button");
         await Page.WaitForTimeoutAsync(500);
@@ -125,8 +119,7 @@ public sealed class PlaylistReorderE2ETests : PlaylistsE2ETestBase
         await Page.WaitForSelectorAsync("#playlist-detail-name");
         await Page.WaitForTimeoutAsync(1500);
 
-        await Page.SelectOptionAsync("#playlist-sortmode-change-select", PlaylistSortModeValues.Manual);
-        await Page.ClickAsync(".playlist-sortmode-apply-button");
+        await Page.ClickAsync(".playlist-sortmode-toggle-button");
         await Page.WaitForTimeoutAsync(1000);
 
         var rowLocator = Page.Locator(".playlist-entries-scroll .playlist-entry-row");

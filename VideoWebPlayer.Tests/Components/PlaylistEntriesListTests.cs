@@ -65,7 +65,7 @@ public class PlaylistEntriesListTests
         var entry = new DtoPlaylistEntry { Id = 1, PlaylistId = 1, MediaType = "Movie", MediaId = 10, MediaTitle = "Gesperrter Film", IsAccessible = false };
         var (cut, onPlayEntryCalls) = RenderWithEntry(entry);
 
-        var row = cut.Find("tr.playlist-entry-row");
+        var row = cut.Find(".playlist-entry-row");
         Assert.Empty(cut.FindAll("button.playlist-entry-play-button"));
 
         await cut.InvokeAsync(() => row.DoubleClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs()));
@@ -73,17 +73,21 @@ public class PlaylistEntriesListTests
         Assert.Empty(onPlayEntryCalls);
     }
 
+    /// <summary>
+    /// Regression test for the Playlist-UI-Redesign requirement ("Wurde eine ganze Serie hinzugefuegt, so
+    /// darf es keine Kachel fuer die Serie selbst oder die Staffeln geben"): a non-playable collection
+    /// entry (e.g. TVShow, added alongside its show's cascade for organizational bookkeeping - see
+    /// <c>PlaylistEntriesList.IsRenderableEntry</c>) must not render its own tile at all, and consequently
+    /// cannot raise <see cref="PlaylistEntriesList.OnPlayEntry"/> either.
+    /// </summary>
     [Fact]
-    public async Task PlaylistEntriesList_CollectionEntry_HasNoPlayButtonAndDoubleClickHasNoEffect()
+    public void PlaylistEntriesList_CollectionEntry_RendersNoTile()
     {
         var entry = new DtoPlaylistEntry { Id = 2, PlaylistId = 1, MediaType = "TVShow", MediaId = 20, MediaTitle = "Serie", IsAccessible = true };
         var (cut, onPlayEntryCalls) = RenderWithEntry(entry);
 
-        var row = cut.Find("tr.playlist-entry-row");
+        Assert.Empty(cut.FindAll(".playlist-entry-row"));
         Assert.Empty(cut.FindAll("button.playlist-entry-play-button"));
-
-        await cut.InvokeAsync(() => row.DoubleClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs()));
-
         Assert.Empty(onPlayEntryCalls);
     }
 
@@ -93,7 +97,7 @@ public class PlaylistEntriesListTests
         var entry = new DtoPlaylistEntry { Id = 3, PlaylistId = 1, MediaType = "Movie", MediaId = 30, MediaTitle = "Zugaenglicher Film", IsAccessible = true };
         var (cut, onPlayEntryCalls) = RenderWithEntry(entry);
 
-        var row = cut.Find("tr.playlist-entry-row");
+        var row = cut.Find(".playlist-entry-row");
         Assert.Single(cut.FindAll("button.playlist-entry-play-button"));
 
         await cut.InvokeAsync(() => row.DoubleClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs()));

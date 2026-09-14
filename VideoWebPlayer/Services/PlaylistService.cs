@@ -883,7 +883,8 @@ public sealed class PlaylistService : IPlaylistService
             return null;
 
         var dtos = await BuildEntryDtosAsync(new List<PlaylistEntry> { entry }, userId, cancellationToken);
-        return new DtoPlaylistNavigationResult { Entry = dtos[0], Position = position };
+        var startPositionSeconds = await GetContinueWatchingPositionSecondsAsync(playlistId, userId, entry, cancellationToken);
+        return new DtoPlaylistNavigationResult { Entry = dtos[0], Position = position, StartPositionSeconds = startPositionSeconds };
     }
 
     /// <inheritdoc />
@@ -894,7 +895,8 @@ public sealed class PlaylistService : IPlaylistService
             return null;
 
         var dtos = await BuildEntryDtosAsync(new List<PlaylistEntry> { entry }, userId, cancellationToken);
-        return new DtoPlaylistNavigationResult { Entry = dtos[0], Position = position };
+        var startPositionSeconds = await GetContinueWatchingPositionSecondsAsync(playlistId, userId, entry, cancellationToken);
+        return new DtoPlaylistNavigationResult { Entry = dtos[0], Position = position, StartPositionSeconds = startPositionSeconds };
     }
 
     /// <inheritdoc />

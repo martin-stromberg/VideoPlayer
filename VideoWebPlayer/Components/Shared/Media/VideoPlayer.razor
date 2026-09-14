@@ -264,8 +264,8 @@
             ApplyPlaylistContext(
                 new PlaylistPlaybackContext(start.PlaylistId, start.CurrentEntryId, start.TotalCount, start.PlaylistName),
                 start.CurrentPosition);
-            ApplyEntryStreamInfo(start.MediaType, start.MediaId, start.CurrentEntry.MediaType);
-            await NotifyPlaylistEntryChangedAsync(start.CurrentEntryId);
+            ApplyEntryStreamInfo(start.MediaType, start.MediaId, start.CurrentEntry.MediaType, start.StartPositionSeconds);
+            await NotifyPlaylistEntryChangedAsync(start.CurrentEntryId, start.StartPositionSeconds);
             StateHasChanged();
         }, "Fehler beim Neustart der Playlist");
 
@@ -292,19 +292,24 @@
         }
     }
 
-    private Task NotifyPlaylistEntryChangedAsync(long entryId)
+    private Task NotifyPlaylistEntryChangedAsync(long entryId, long startPositionSeconds)
         => CurrentPlaylistEntryIdChanged.HasDelegate
-            ? CurrentPlaylistEntryIdChanged.InvokeAsync(new PlaylistEntryPlaybackInfo(entryId, MediaType, MediaId, StreamUrl))
+            ? CurrentPlaylistEntryIdChanged.InvokeAsync(new PlaylistEntryPlaybackInfo(entryId, MediaType, MediaId, StreamUrl, startPositionSeconds))
             : Task.CompletedTask;
 
     /// <summary>
     /// Applies the result of a Next/Previous/Advance navigation call: either the newly resolved entry
-    /// together with its actual position in the playlist (updating local context and starting playback of
-    /// it) or <c>null</c> (end/beginning of playlist reached), matching the "Automatisches/Manuelles
-    /// Weiterschalten" and "Endeverhalten" flows described in the plan. Uses the server-reported
-    /// <see cref="DtoPlaylistNavigationResult.Position"/> rather than incrementing/decrementing the
-    /// previous position by one, since the server may have skipped one or more non-playable or
-    /// inaccessible entries to reach this result.
+    /// together with its actual position in the playlist and its playlist-specific start position
+    /// (updating local context and starting playback of it) or <c>null</c> (end/beginning of playlist
+    /// reached), matching the "Automatisches/Manuelles Weiterschalten" and "Endeverhalten" flows described
+    /// in the plan. Uses the server-reported <see cref="DtoPlaylistNavigationResult.Position"/> rather than
+    /// incrementing/decrementing the previous position by one, since the server may have skipped one or
+    /// more non-playable or inaccessible entries to reach this result. Deliberately synchronous (no longer
+    /// fetches the start position via a separate roundtrip): <see cref="DtoPlaylistNavigationResult"/>
+    /// already carries <see cref="DtoPlaylistNavigationResult.StartPositionSeconds"/>, so the stream URL and
+    /// start position are applied together in one render pass - an earlier version awaited a follow-up
+    /// <c>StartPlaylistAsync</c> call here, which let <see cref="Components.Playlists.PlaylistDetail"/>
+    /// re-render with the new <c>StreamUrl</c> but the still-stale start position in between.
     /// </summary>
     /// <param name="result">The resolved next/previous entry, or <c>null</c> if there is none.</param>
     /// <param name="isForward">
@@ -332,23 +337,23 @@
         if (appliedPlaylistContext is not null)
             appliedPlaylistContext = appliedPlaylistContext with { CurrentEntryId = entry.Id };
 
-        ApplyEntryStreamInfo(PlaylistEntryMediaTypeResolver.ToPlayerMediaType(entry.MediaType), entry.MediaId, entry.MediaType);
-        await NotifyPlaylistEntryChangedAsync(entry.Id);
+        ApplyEntryStreamInfo(PlaylistEntryMediaTypeResolver.ToPlayerMediaType(entry.MediaType), entry.MediaId, entry.MediaType, result.StartPositionSeconds);
+        await NotifyPlaylistEntryChangedAsync(entry.Id, result.StartPositionSeconds);
         StateHasChanged();
     }
 
     /// <summary>
     /// Updates the media-related parameters (<see cref="MediaType"/>, <see cref="MediaId"/>,
-    /// <see cref="StreamUrl"/>) so the next render loads the newly resolved title.
-    /// <see cref="OnAfterRenderAsync"/> detects the changed <see cref="StreamUrl"/> and reloads the
-    /// <c>&lt;video&gt;</c> element accordingly.
+    /// <see cref="StreamUrl"/>, <see cref="StartPositionSeconds"/>) so the next render loads the newly
+    /// resolved title at its own playlist-specific start position. <see cref="OnAfterRenderAsync"/> detects
+    /// the changed <see cref="StreamUrl"/> and reloads the <c>&lt;video&gt;</c> element accordingly.
     /// </summary>
-    private void ApplyEntryStreamInfo(string playerMediaType, long mediaId, string entryMediaType)
+    private void ApplyEntryStreamInfo(string playerMediaType, long mediaId, string entryMediaType, long startPositionSeconds)
     {
         MediaType = playerMediaType;
         MediaId = mediaId;
         StreamUrl = $"/api/items/{PlaylistEntryMediaTypeResolver.ResolveItemStreamType(entryMediaType)}/{mediaId}/stream?access_token={AuthToken}";
-        StartPositionSeconds = null;
+        StartPositionSeconds = startPositionSeconds > 0 ? startPositionSeconds : null;
     }
 
     /// <summary>
@@ -359,7 +364,12 @@
     /// <param name="PlayerMediaType">The player-facing media type ("movie" or "episode").</param>
     /// <param name="MediaId">The media id of the new current entry.</param>
     /// <param name="StreamUrl">The resolved stream URL, including the access token.</param>
-    public sealed record PlaylistEntryPlaybackInfo(long EntryId, string PlayerMediaType, long MediaId, string StreamUrl);
+    /// <param name="StartPositionSeconds">
+    /// The playlist-specific playback position, in seconds, to resume the new entry's media at (<c>0</c> if
+    /// none). Carried directly rather than requiring the receiver to fetch it separately, so it can be
+    /// applied synchronously together with <see cref="StreamUrl"/>.
+    /// </param>
+    public sealed record PlaylistEntryPlaybackInfo(long EntryId, string PlayerMediaType, long MediaId, string StreamUrl, long StartPositionSeconds);
 }
 <script>
 window.videoPlayer = window.videoPlayer || {

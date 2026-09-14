@@ -1,4 +1,4 @@
-using System.Reflection;
+using System.Linq;
 using Bunit;
 using Bunit.TestDoubles;
 using Microsoft.AspNetCore.Components;
@@ -123,14 +123,16 @@ public class PlaylistDetailTests
     }
 
     /// <summary>
-    /// Regression test for "Nachbesserung Weiterschauen mit Playlist-Bezug, Schritt 6, Runde 2": after
-    /// auto-advance at media end, <see cref="PlaylistDetail.OnPlaylistEntryIdChangedAsync"/> must fetch and
-    /// apply the new entry's own <see cref="DtoPlaylistPlaybackStart.StartPositionSeconds"/> via
-    /// <see cref="IPlaylistApiClient.StartPlaylistAsync"/> instead of leaving the previous entry's stale
-    /// position in place.
+    /// Regression test for "Nachbesserung Weiterschauen mit Playlist-Bezug, Schritt 6, Runde 3": after
+    /// auto-advance at media end, the new entry's own <see cref="DtoPlaylistNavigationResult.StartPositionSeconds"/>
+    /// (carried directly on the navigation result, resolved server-side together with the entry itself)
+    /// must be applied - and no separate <see cref="IPlaylistApiClient.StartPlaylistAsync"/> roundtrip may
+    /// be issued to fetch it, since that roundtrip's intervening <c>await</c> was exactly what let Blazor
+    /// render an intermediate frame with the new <c>StreamUrl</c> but the previous entry's stale position
+    /// (Runde 3 finding, see <c>blocked.md</c> of this development step).
     /// </summary>
     [Fact]
-    public async Task OnPlaylistEntryIdChanged_AutoAdvance_FetchesAndAppliesNewStartPositionSeconds()
+    public async Task OnPlaylistEntryIdChanged_AutoAdvance_AppliesStartPositionFromNavigationResult()
     {
         var playlistClientMock = CreatePlaylistClientMockWithPerEntryPositions(1, new Dictionary<long, long>
         {
@@ -142,7 +144,8 @@ public class PlaylistDetailTests
             .ReturnsAsync(new DtoPlaylistNavigationResult
             {
                 Entry = new DtoPlaylistEntry { Id = 200, PlaylistId = 1, MediaType = "Movie", MediaId = 20 },
-                Position = 2
+                Position = 2,
+                StartPositionSeconds = 450
             });
 
         using var ctx = CreateTestContext(playlistClientMock);
@@ -157,16 +160,17 @@ public class PlaylistDetailTests
 
         var videoPlayer = cut.FindComponent<VideoPlayer>();
         Assert.Equal(450d, videoPlayer.Instance.StartPositionSeconds);
-        playlistClientMock.Verify(c => c.StartPlaylistAsync(1, 200), Times.Once);
+        playlistClientMock.Verify(c => c.StartPlaylistAsync(1, 200), Times.Never);
     }
 
     /// <summary>
-    /// Regression test for "Nachbesserung Weiterschauen mit Playlist-Bezug, Schritt 6, Runde 2": after a
-    /// manual "Nächster"-click, the new entry's own start position must be fetched and applied - see
-    /// <see cref="OnPlaylistEntryIdChanged_AutoAdvance_FetchesAndAppliesNewStartPositionSeconds"/>.
+    /// Regression test for "Nachbesserung Weiterschauen mit Playlist-Bezug, Schritt 6, Runde 3": after a
+    /// manual "Nächster"-click, the new entry's own start position (carried on the navigation result) must
+    /// be applied without a separate fetch - see
+    /// <see cref="OnPlaylistEntryIdChanged_AutoAdvance_AppliesStartPositionFromNavigationResult"/>.
     /// </summary>
     [Fact]
-    public async Task OnPlaylistEntryIdChanged_NextButton_FetchesAndAppliesNewStartPositionSeconds()
+    public async Task OnPlaylistEntryIdChanged_NextButton_AppliesStartPositionFromNavigationResult()
     {
         var playlistClientMock = CreatePlaylistClientMockWithPerEntryPositions(1, new Dictionary<long, long>
         {
@@ -178,7 +182,8 @@ public class PlaylistDetailTests
             .ReturnsAsync(new DtoPlaylistNavigationResult
             {
                 Entry = new DtoPlaylistEntry { Id = 200, PlaylistId = 1, MediaType = "Movie", MediaId = 20 },
-                Position = 2
+                Position = 2,
+                StartPositionSeconds = 450
             });
 
         using var ctx = CreateTestContext(playlistClientMock);
@@ -193,17 +198,17 @@ public class PlaylistDetailTests
 
         var videoPlayer = cut.FindComponent<VideoPlayer>();
         Assert.Equal(450d, videoPlayer.Instance.StartPositionSeconds);
-        playlistClientMock.Verify(c => c.StartPlaylistAsync(1, 200), Times.Once);
+        playlistClientMock.Verify(c => c.StartPlaylistAsync(1, 200), Times.Never);
     }
 
     /// <summary>
-    /// Regression test for "Nachbesserung Weiterschauen mit Playlist-Bezug, Schritt 6, Runde 2": after a
-    /// manual "Vorheriger"-click, the new entry's own start position must be fetched and applied - not the
-    /// position of the entry navigated away from. See
-    /// <see cref="OnPlaylistEntryIdChanged_AutoAdvance_FetchesAndAppliesNewStartPositionSeconds"/>.
+    /// Regression test for "Nachbesserung Weiterschauen mit Playlist-Bezug, Schritt 6, Runde 3": after a
+    /// manual "Vorheriger"-click, the new entry's own start position (carried on the navigation result)
+    /// must be applied - not the position of the entry navigated away from. See
+    /// <see cref="OnPlaylistEntryIdChanged_AutoAdvance_AppliesStartPositionFromNavigationResult"/>.
     /// </summary>
     [Fact]
-    public async Task OnPlaylistEntryIdChanged_PreviousButton_FetchesAndAppliesNewStartPositionSeconds()
+    public async Task OnPlaylistEntryIdChanged_PreviousButton_AppliesStartPositionFromNavigationResult()
     {
         var playlistClientMock = CreatePlaylistClientMockWithPerEntryPositions(1, new Dictionary<long, long>
         {
@@ -215,7 +220,8 @@ public class PlaylistDetailTests
             .ReturnsAsync(new DtoPlaylistNavigationResult
             {
                 Entry = new DtoPlaylistEntry { Id = 100, PlaylistId = 1, MediaType = "Movie", MediaId = 10 },
-                Position = 1
+                Position = 1,
+                StartPositionSeconds = 300
             });
 
         using var ctx = CreateTestContext(playlistClientMock);
@@ -230,24 +236,35 @@ public class PlaylistDetailTests
 
         var videoPlayer = cut.FindComponent<VideoPlayer>();
         Assert.Equal(300d, videoPlayer.Instance.StartPositionSeconds);
-        playlistClientMock.Verify(c => c.StartPlaylistAsync(1, 100), Times.Once);
+        playlistClientMock.Verify(c => c.StartPlaylistAsync(1, 100), Times.Never);
     }
 
     /// <summary>
-    /// Regression test for "Nachbesserung Weiterschauen mit Playlist-Bezug, Schritt 6, Runde 2": after
-    /// clicking "Neu starten" at the end of the playlist, the resulting entry's own start position must be
-    /// fetched and applied - not the stale position of the entry playback ended on, and not whatever
-    /// <see cref="IPlaylistApiClient.StartPlaylistAsync"/> happened to return for the internal
-    /// <c>entryId: null</c> resolve call <see cref="VideoPlayer"/> makes first.
+    /// Regression test for "Nachbesserung Weiterschauen mit Playlist-Bezug, Schritt 6, Runde 3": after
+    /// clicking "Neu starten" at the end of the playlist, the resolved entry's own start position - already
+    /// carried on the <see cref="IPlaylistApiClient.StartPlaylistAsync"/> response <see cref="VideoPlayer"/>
+    /// itself makes for the internal <c>entryId: null</c> resolve - must be applied directly, without any
+    /// further fetch by <see cref="PlaylistDetail"/>.
     /// </summary>
     [Fact]
-    public async Task OnPlaylistEntryIdChanged_RestartButton_FetchesAndAppliesNewStartPositionSeconds()
+    public async Task OnPlaylistEntryIdChanged_RestartButton_AppliesReturnedStartPositionSeconds()
     {
-        var playlistClientMock = CreatePlaylistClientMockWithPerEntryPositions(1, new Dictionary<long, long>
-        {
-            [100] = 300,
-            [200] = 450
-        });
+        var playlistClientMock = CreatePlaylistClientMock();
+        playlistClientMock
+            .Setup(c => c.StartPlaylistAsync(1, 200))
+            .ReturnsAsync(new DtoPlaylistPlaybackStart
+            {
+                PlaylistId = 1,
+                PlaylistName = "Test-Playlist",
+                TotalCount = 2,
+                CurrentPosition = 2,
+                CurrentEntryId = 200,
+                CurrentEntry = new DtoPlaylistEntry { Id = 200, PlaylistId = 1, MediaType = "Movie", MediaId = 20 },
+                StreamUrl = "/api/items/movie/20/stream",
+                MediaType = "movie",
+                MediaId = 20,
+                StartPositionSeconds = 450
+            });
         playlistClientMock
             .Setup(c => c.GetNextPlaylistEntryAsync(1, 200))
             .ReturnsAsync((DtoPlaylistNavigationResult?)null);
@@ -264,7 +281,7 @@ public class PlaylistDetailTests
                 StreamUrl = "/api/items/movie/10/stream",
                 MediaType = "movie",
                 MediaId = 10,
-                StartPositionSeconds = 999
+                StartPositionSeconds = 300
             });
 
         using var ctx = CreateTestContext(playlistClientMock);
@@ -281,102 +298,32 @@ public class PlaylistDetailTests
         await cut.InvokeAsync(() => restartButton.Click());
 
         var videoPlayer = cut.FindComponent<VideoPlayer>();
-        // The genuine per-entry position (300, fetched by PlaylistDetail for entry 100) must win, not the
-        // stale position of the entry playback ended on (450) and not the decoy value (999) the internal
-        // entryId:null resolve call returned.
         Assert.Equal(300d, videoPlayer.Instance.StartPositionSeconds);
-        playlistClientMock.Verify(c => c.StartPlaylistAsync(1, 100), Times.Once);
+        Assert.Equal(10, videoPlayer.Instance.MediaId);
+        playlistClientMock.Verify(c => c.StartPlaylistAsync(1, 100), Times.Never);
     }
 
     /// <summary>
-    /// Regression test for "Nachbesserung Weiterschauen mit Playlist-Bezug, Schritt 6, Runde 2": if the
-    /// additional <see cref="IPlaylistApiClient.StartPlaylistAsync"/> call
-    /// <see cref="PlaylistDetail.OnPlaylistEntryIdChangedAsync"/> makes to fetch the new entry's start
-    /// position fails, the error must be logged and <c>playbackStart.StartPositionSeconds</c> must fall
-    /// back to <c>0</c> (start from the beginning) instead of propagating the exception or keeping the
-    /// stale position - while the other fields (<c>MediaId</c>, <c>MediaType</c>, <c>StreamUrl</c>) are
-    /// still updated to the new entry.
+    /// Regression test for "Nachbesserung Weiterschauen mit Playlist-Bezug, Schritt 6, Runde 3" (see
+    /// <c>blocked.md</c>/<c>acceptance-schritt-6.2.md</c> of this development step): a delayed navigation
+    /// response used to let Blazor Server render an intermediate frame in which <see cref="VideoPlayer"/>
+    /// already carried the new entry's <c>StreamUrl</c>/<c>MediaId</c> but still the previous entry's
+    /// <c>StartPositionSeconds</c> - which <see cref="VideoPlayer.OnAfterRenderAsync"/> then applied to the
+    /// actual <c>&lt;video&gt;</c> element via the <c>videoPlayer.setStartPosition</c> JS call and never
+    /// corrected afterwards (its <c>_startApplied</c> guard was already set). Verified here the way the
+    /// acceptance check that found this verified it: with a genuinely delayed (not synchronously-completed)
+    /// navigation response, asserting on the actual JS interop call - not just the eventually-consistent
+    /// <c>StartPositionSeconds</c> parameter, which does not by itself prove what was applied to the player.
     /// </summary>
     [Fact]
-    public async Task OnPlaylistEntryIdChanged_StartPlaylistAsync_ThrowsException_FallsBackToZeroPosition()
+    public async Task OnMediaEnd_DelayedNavigationResponse_JSAppliesNewEntrysStartPositionNotStaleOne()
     {
-        var playlistClientMock = CreatePlaylistClientMock();
-        playlistClientMock
-            .Setup(c => c.StartPlaylistAsync(1, 100))
-            .ReturnsAsync(new DtoPlaylistPlaybackStart
-            {
-                PlaylistId = 1,
-                PlaylistName = "Test-Playlist",
-                TotalCount = 2,
-                CurrentPosition = 1,
-                CurrentEntryId = 100,
-                CurrentEntry = new DtoPlaylistEntry { Id = 100, PlaylistId = 1, MediaType = "Movie", MediaId = 10 },
-                StreamUrl = "/api/items/movie/10/stream",
-                MediaType = "movie",
-                MediaId = 10,
-                StartPositionSeconds = 300
-            });
-        playlistClientMock
-            .Setup(c => c.AdvancePlaylistAsync(1, 100))
-            .ReturnsAsync(new DtoPlaylistNavigationResult
-            {
-                Entry = new DtoPlaylistEntry { Id = 200, PlaylistId = 1, MediaType = "Movie", MediaId = 20 },
-                Position = 2
-            });
-        playlistClientMock
-            .Setup(c => c.StartPlaylistAsync(1, 200))
-            .ThrowsAsync(new HttpRequestException("Serverfehler", null, System.Net.HttpStatusCode.InternalServerError));
-
-        var logger = new CapturingLogger<PlaylistDetail>();
-        using var ctx = CreateTestContext(playlistClientMock, logger);
-        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
-
-        ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("/playlists/1?entryId=100");
-        var cut = ctx.RenderComponent<PlaylistDetail>(parameters => parameters
-            .Add(p => p.Id, 1));
-
-        var video = cut.Find("#video-player-element");
-        await cut.InvokeAsync(() => video.TriggerEventAsync("onended", new EventArgs()));
-
-        var videoPlayer = cut.FindComponent<VideoPlayer>();
-        Assert.Equal(0d, videoPlayer.Instance.StartPositionSeconds);
-        Assert.Equal(20, videoPlayer.Instance.MediaId);
-        Assert.Equal("movie", videoPlayer.Instance.MediaType);
-        Assert.True(logger.ErrorLogged);
-    }
-
-    /// <summary>
-    /// Regression test for the <c>CurrentEntryId</c> race-condition guard in
-    /// <see cref="PlaylistDetail.OnPlaylistEntryIdChangedAsync"/> (see <c>review-code.1.md</c>, Befund 2):
-    /// if two calls overlap - e.g. rapid successive entry changes - and the additional
-    /// <see cref="IPlaylistApiClient.StartPlaylistAsync"/> response for the entry navigated away from
-    /// arrives after the response for the entry actually navigated to, the stale, out-of-order response
-    /// must not overwrite the already-more-recent <c>playbackStart</c> state.
-    /// </summary>
-    [Fact]
-    public async Task OnPlaylistEntryIdChanged_OverlappingCalls_StaleResponseDoesNotOverwriteNewerState()
-    {
-        var playlistClientMock = CreatePlaylistClientMock();
-        playlistClientMock
-            .Setup(c => c.StartPlaylistAsync(1, 100))
-            .ReturnsAsync(new DtoPlaylistPlaybackStart
-            {
-                PlaylistId = 1,
-                PlaylistName = "Test-Playlist",
-                TotalCount = 3,
-                CurrentPosition = 1,
-                CurrentEntryId = 100,
-                CurrentEntry = new DtoPlaylistEntry { Id = 100, PlaylistId = 1, MediaType = "Movie", MediaId = 10 },
-                StreamUrl = "/api/items/movie/10/stream",
-                MediaType = "movie",
-                MediaId = 10,
-                StartPositionSeconds = 5
-            });
-
-        var staleResponse = new TaskCompletionSource<DtoPlaylistPlaybackStart>();
-        var freshResponse = new TaskCompletionSource<DtoPlaylistPlaybackStart>();
-        playlistClientMock.Setup(c => c.StartPlaylistAsync(1, 200)).Returns(staleResponse.Task);
-        playlistClientMock.Setup(c => c.StartPlaylistAsync(1, 300)).Returns(freshResponse.Task);
+        var playlistClientMock = CreatePlaylistClientMockWithPerEntryPositions(1, new Dictionary<long, long>
+        {
+            [100] = 300
+        });
+        var navigationResponse = new TaskCompletionSource<DtoPlaylistNavigationResult?>();
+        playlistClientMock.Setup(c => c.AdvancePlaylistAsync(1, 100)).Returns(navigationResponse.Task);
 
         using var ctx = CreateTestContext(playlistClientMock);
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
@@ -385,63 +332,31 @@ public class PlaylistDetailTests
         var cut = ctx.RenderComponent<PlaylistDetail>(parameters => parameters
             .Add(p => p.Id, 1));
 
-        // Simulates two rapid, overlapping entry changes: the request for entry 200 (navigated away from)
-        // is started first but its response is delayed; the request for entry 300 (the entry actually
-        // navigated to) is started while the first one is still in flight. Invoking the private
-        // OnPlaylistEntryIdChangedAsync method directly (rather than via VideoPlayer's EventCallback, whose
-        // ComponentBase.IHandleEvent wrapper calls StateHasChanged and therefore requires the bUnit
-        // renderer's Dispatcher) executes each call synchronously up to its first incomplete await (the
-        // gated StartPlaylistAsync response), giving deterministic control over the interleaving.
-        var onPlaylistEntryIdChangedAsync = typeof(PlaylistDetail).GetMethod("OnPlaylistEntryIdChangedAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
-        Task InvokeOnPlaylistEntryIdChangedAsync(VideoPlayer.PlaylistEntryPlaybackInfo info)
-            => (Task)onPlaylistEntryIdChangedAsync.Invoke(cut.Instance, new object[] { info })!;
+        var video = cut.Find("#video-player-element");
+        var endTask = cut.InvokeAsync(() => video.TriggerEventAsync("onended", new EventArgs()));
 
-        var staleCallTask = InvokeOnPlaylistEntryIdChangedAsync(new VideoPlayer.PlaylistEntryPlaybackInfo(200, "movie", 20, "/api/items/movie/20/stream"));
-        var freshCallTask = InvokeOnPlaylistEntryIdChangedAsync(new VideoPlayer.PlaylistEntryPlaybackInfo(300, "movie", 30, "/api/items/movie/30/stream"));
-
-        // The response for the currently displayed entry (300) arrives first and is applied.
-        freshResponse.SetResult(new DtoPlaylistPlaybackStart
+        // Arrives only now, after the event handler has already suspended at this await - reproducing the
+        // async gap the Runde-3 bug relied on.
+        navigationResponse.SetResult(new DtoPlaylistNavigationResult
         {
-            PlaylistId = 1,
-            PlaylistName = "Test-Playlist",
-            TotalCount = 3,
-            CurrentPosition = 3,
-            CurrentEntryId = 300,
-            CurrentEntry = new DtoPlaylistEntry { Id = 300, PlaylistId = 1, MediaType = "Movie", MediaId = 30 },
-            StreamUrl = "/api/items/movie/30/stream",
-            MediaType = "movie",
-            MediaId = 30,
-            StartPositionSeconds = 700
+            Entry = new DtoPlaylistEntry { Id = 200, PlaylistId = 1, MediaType = "Movie", MediaId = 20 },
+            Position = 2,
+            StartPositionSeconds = 450
         });
-        await freshCallTask;
+        await endTask;
 
-        // The stale response for the entry navigated away from (200) arrives afterwards and must be discarded.
-        staleResponse.SetResult(new DtoPlaylistPlaybackStart
-        {
-            PlaylistId = 1,
-            PlaylistName = "Test-Playlist",
-            TotalCount = 3,
-            CurrentPosition = 2,
-            CurrentEntryId = 200,
-            CurrentEntry = new DtoPlaylistEntry { Id = 200, PlaylistId = 1, MediaType = "Movie", MediaId = 20 },
-            StreamUrl = "/api/items/movie/20/stream",
-            MediaType = "movie",
-            MediaId = 20,
-            StartPositionSeconds = 999
-        });
-        await staleCallTask;
+        var videoPlayer = cut.FindComponent<VideoPlayer>();
+        Assert.Equal(20, videoPlayer.Instance.MediaId);
+        Assert.Equal(450d, videoPlayer.Instance.StartPositionSeconds);
 
-        var playbackStartField = typeof(PlaylistDetail).GetField("playbackStart", BindingFlags.NonPublic | BindingFlags.Instance)!;
-        var playbackStart = Assert.IsType<DtoPlaylistPlaybackStart>(playbackStartField.GetValue(cut.Instance));
-
-        Assert.Equal(300, playbackStart.CurrentEntryId);
-        Assert.Equal(700, playbackStart.StartPositionSeconds);
-
-        // The stale call for entry 200 must not navigate the URL back after the fresh call for entry 300
-        // already navigated forward - otherwise a reload would resume at the wrong (stale) entry (Af-010).
-        var currentUri = ctx.Services.GetRequiredService<NavigationManager>().Uri;
-        Assert.Contains("entryId=300", currentUri);
-        Assert.DoesNotContain("entryId=200", currentUri);
+        // Two calls are expected: the initial render applies entry 100's own position (300), and the
+        // auto-advance applies entry 200's own position (450). The Runde-3 bug would have made this second
+        // call apply the stale, previous entry's position (300) instead - or never correct it at all.
+        var setStartPositionCalls = ctx.JSInterop.Invocations
+            .Where(i => i.Identifier == "videoPlayer.setStartPosition")
+            .ToList();
+        Assert.Equal(2, setStartPositionCalls.Count);
+        Assert.Equal(450d, setStartPositionCalls[^1].Arguments[1]);
     }
 
     /// <summary>

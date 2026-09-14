@@ -95,7 +95,7 @@
                  StartPositionSeconds="@playbackStart.StartPositionSeconds"
                  PlaylistContext="new PlaylistPlaybackContext(playbackStart.PlaylistId, playbackStart.CurrentEntryId, playbackStart.TotalCount, playbackStart.PlaylistName)"
                  CurrentPlaylistPosition="playbackStart.CurrentPosition"
-                 CurrentPlaylistEntryIdChanged="OnPlaylistEntryIdChangedAsync" />
+                 CurrentPlaylistEntryIdChanged="OnPlaylistEntryIdChanged" />
 }
 
 @if (formState.IsOpen)
@@ -120,7 +120,7 @@
     /// <summary>
     /// Optional playlist entry to resume playback at, supplied via the <c>?entryId=</c> URL query
     /// parameter. Populated on initial navigation from <see cref="PlaylistEntriesList.OnPlayEntry"/> and
-    /// kept in sync with the currently playing entry (see <see cref="OnPlaylistEntryIdChangedAsync"/>) so
+    /// kept in sync with the currently playing entry (see <see cref="OnPlaylistEntryIdChanged"/>) so
     /// a browser reload during playlist playback resumes at the same entry (Af-010).
     /// </summary>
     [Parameter]
@@ -169,7 +169,7 @@
         {
             playbackStart = await PlaylistClient.StartPlaylistAsync(Id, entryId);
             // Append the access token once here, so playbackStart.StreamUrl is always ready-to-use both
-            // for this initial render and for later Next/Previous/Advance updates in OnPlaylistEntryIdChangedAsync.
+            // for this initial render and for later Next/Previous/Advance updates in OnPlaylistEntryIdChanged.
             playbackStart.StreamUrl = $"{playbackStart.StreamUrl}?access_token={Client.AuthorizationToken}";
             playbackError = null;
             NavigationManager.NavigateTo($"/playlists/{Id}?entryId={playbackStart.CurrentEntryId}", replace: true);
@@ -197,46 +197,28 @@
     /// already resolved for its new current entry (Next/Previous/Advance/Restart), rather than re-deriving
     /// the stream URL here - which would be stale relative to what VideoPlayer is actually displaying and
     /// would overwrite it on the next render this NavigateTo call triggers (see
-    /// <see cref="VideoPlayer.CurrentPlaylistEntryIdChanged"/>). In addition, issues a
-    /// <see cref="VideoWebPlayer.Client.IPlaylistApiClient.StartPlaylistAsync"/> roundtrip to determine the playlist-specific
-    /// <c>StartPositionSeconds</c> for the new entry (e.g. resuming a previously watched entry at its saved
-    /// position), since that value is not part of the stream information <see cref="VideoPlayer"/> resolves.
-    /// Because this roundtrip is asynchronous, <see cref="playbackStart"/> may already have moved on to a
-    /// newer entry by the time the response arrives (e.g. rapid Next/Previous clicks); <c>IsStillCurrentEntry</c>
-    /// guards the success path, the error path, and the trailing <see cref="NavigationManager.NavigateTo"/> call
-    /// so a stale/out-of-order response never overwrites a newer <c>StartPositionSeconds</c> nor navigates the
-    /// URL back to an entry that is no longer current (which would otherwise break the Af-010 reload guarantee
-    /// documented on <see cref="EntryId"/>). On failure, <c>StartPositionSeconds</c> falls back to <c>0</c> (as
-    /// long as the entry is still current) so playback simply starts from the beginning instead of leaving a
-    /// stale value.
+    /// <see cref="VideoPlayer.CurrentPlaylistEntryIdChanged"/>). <paramref name="info"/> now also carries the
+    /// new entry's playlist-specific <c>StartPositionSeconds</c> directly (resolved server-side together with
+    /// the entry itself), so this handler is purely synchronous - deliberately so: an earlier version fetched
+    /// <c>StartPositionSeconds</c> here via a separate <see cref="VideoWebPlayer.Client.IPlaylistApiClient.StartPlaylistAsync"/>
+    /// roundtrip, and Blazor Server renders as soon as an async event handler reaches its first <c>await</c>,
+    /// so <see cref="VideoPlayer"/> observed the new <c>StreamUrl</c> together with the still-stale previous
+    /// <c>StartPositionSeconds</c> in that intermediate render and applied it before the roundtrip resolved.
+    /// With no <c>await</c> in this method, all of <see cref="playbackStart"/>'s fields update atomically
+    /// within the single render triggered by the originating event, closing that window entirely.
     /// </summary>
-    private async Task OnPlaylistEntryIdChangedAsync(VideoPlayer.PlaylistEntryPlaybackInfo info)
+    private void OnPlaylistEntryIdChanged(VideoPlayer.PlaylistEntryPlaybackInfo info)
     {
-        bool IsStillCurrentEntry() => playbackStart is null || playbackStart.CurrentEntryId == info.EntryId;
-
         if (playbackStart is not null)
         {
             playbackStart.CurrentEntryId = info.EntryId;
             playbackStart.MediaType = info.PlayerMediaType;
             playbackStart.MediaId = info.MediaId;
             playbackStart.StreamUrl = info.StreamUrl;
-
-            try
-            {
-                var startPlaybackResponse = await PlaylistClient.StartPlaylistAsync(Id, info.EntryId);
-                if (IsStillCurrentEntry())
-                    playbackStart.StartPositionSeconds = startPlaybackResponse.StartPositionSeconds;
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError(ex, "Failed to fetch StartPositionSeconds for entry {EntryId} in playlist {PlaylistId}", info.EntryId, Id);
-                if (IsStillCurrentEntry())
-                    playbackStart.StartPositionSeconds = 0;
-            }
+            playbackStart.StartPositionSeconds = info.StartPositionSeconds;
         }
 
-        if (IsStillCurrentEntry())
-            NavigationManager.NavigateTo($"/playlists/{Id}?entryId={info.EntryId}", replace: true);
+        NavigationManager.NavigateTo($"/playlists/{Id}?entryId={info.EntryId}", replace: true);
     }
 
     private async Task LoadPlaylistAsync()

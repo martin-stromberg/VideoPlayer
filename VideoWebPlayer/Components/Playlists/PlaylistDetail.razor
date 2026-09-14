@@ -95,7 +95,7 @@
                  StartPositionSeconds="@playbackStart.StartPositionSeconds"
                  PlaylistContext="new PlaylistPlaybackContext(playbackStart.PlaylistId, playbackStart.CurrentEntryId, playbackStart.TotalCount, playbackStart.PlaylistName)"
                  CurrentPlaylistPosition="playbackStart.CurrentPosition"
-                 CurrentPlaylistEntryIdChanged="OnPlaylistEntryIdChanged" />
+                 CurrentPlaylistEntryIdChanged="OnPlaylistEntryIdChangedAsync" />
 }
 
 @if (formState.IsOpen)
@@ -169,7 +169,7 @@
         {
             playbackStart = await PlaylistClient.StartPlaylistAsync(Id, entryId);
             // Append the access token once here, so playbackStart.StreamUrl is always ready-to-use both
-            // for this initial render and for later Next/Previous/Advance updates in OnPlaylistEntryIdChanged.
+            // for this initial render and for later Next/Previous/Advance updates in OnPlaylistEntryIdChangedAsync.
             playbackStart.StreamUrl = $"{playbackStart.StreamUrl}?access_token={Client.AuthorizationToken}";
             playbackError = null;
             NavigationManager.NavigateTo($"/playlists/{Id}?entryId={playbackStart.CurrentEntryId}", replace: true);
@@ -197,18 +197,46 @@
     /// already resolved for its new current entry (Next/Previous/Advance/Restart), rather than re-deriving
     /// the stream URL here - which would be stale relative to what VideoPlayer is actually displaying and
     /// would overwrite it on the next render this NavigateTo call triggers (see
-    /// <see cref="VideoPlayer.CurrentPlaylistEntryIdChanged"/>).
+    /// <see cref="VideoPlayer.CurrentPlaylistEntryIdChanged"/>). In addition, issues a
+    /// <see cref="VideoWebPlayer.Client.IPlaylistApiClient.StartPlaylistAsync"/> roundtrip to determine the playlist-specific
+    /// <c>StartPositionSeconds</c> for the new entry (e.g. resuming a previously watched entry at its saved
+    /// position), since that value is not part of the stream information <see cref="VideoPlayer"/> resolves.
+    /// Because this roundtrip is asynchronous, <see cref="playbackStart"/> may already have moved on to a
+    /// newer entry by the time the response arrives (e.g. rapid Next/Previous clicks); <c>IsStillCurrentEntry</c>
+    /// guards the success path, the error path, and the trailing <see cref="NavigationManager.NavigateTo"/> call
+    /// so a stale/out-of-order response never overwrites a newer <c>StartPositionSeconds</c> nor navigates the
+    /// URL back to an entry that is no longer current (which would otherwise break the Af-010 reload guarantee
+    /// documented on <see cref="EntryId"/>). On failure, <c>StartPositionSeconds</c> falls back to <c>0</c> (as
+    /// long as the entry is still current) so playback simply starts from the beginning instead of leaving a
+    /// stale value.
     /// </summary>
-    private void OnPlaylistEntryIdChanged(VideoPlayer.PlaylistEntryPlaybackInfo info)
+    private async Task OnPlaylistEntryIdChangedAsync(VideoPlayer.PlaylistEntryPlaybackInfo info)
     {
+        bool IsStillCurrentEntry() => playbackStart is null || playbackStart.CurrentEntryId == info.EntryId;
+
         if (playbackStart is not null)
         {
             playbackStart.CurrentEntryId = info.EntryId;
             playbackStart.MediaType = info.PlayerMediaType;
             playbackStart.MediaId = info.MediaId;
             playbackStart.StreamUrl = info.StreamUrl;
+
+            try
+            {
+                var startPlaybackResponse = await PlaylistClient.StartPlaylistAsync(Id, info.EntryId);
+                if (IsStillCurrentEntry())
+                    playbackStart.StartPositionSeconds = startPlaybackResponse.StartPositionSeconds;
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to fetch StartPositionSeconds for entry {EntryId} in playlist {PlaylistId}", info.EntryId, Id);
+                if (IsStillCurrentEntry())
+                    playbackStart.StartPositionSeconds = 0;
+            }
         }
-        NavigationManager.NavigateTo($"/playlists/{Id}?entryId={info.EntryId}", replace: true);
+
+        if (IsStillCurrentEntry())
+            NavigationManager.NavigateTo($"/playlists/{Id}?entryId={info.EntryId}", replace: true);
     }
 
     private async Task LoadPlaylistAsync()

@@ -30,7 +30,7 @@ public sealed class PlaylistReorderE2ETests : PlaylistsE2ETestBase
         await LoginAsync(UserAEmail);
         var row = await CreatePlaylistViaUiAsync("Sortiermodus-Wechsel-Aktivierung");
         await SeedMoviesIntoPlaylistAsync("Sortiermodus-Wechsel-Aktivierung", 2);
-        await row.Locator(".playlist-open-button").ClickAsync();
+        await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
         await Page.WaitForTimeoutAsync(1500);
 
@@ -58,7 +58,7 @@ public sealed class PlaylistReorderE2ETests : PlaylistsE2ETestBase
         await LoginAsync(UserAEmail);
         var row = await CreatePlaylistViaUiAsync("Sortiermodus-Wechsel-Warnung");
         await SeedMoviesIntoPlaylistAsync("Sortiermodus-Wechsel-Warnung", 2);
-        await row.Locator(".playlist-open-button").ClickAsync();
+        await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
         await Page.WaitForTimeoutAsync(1500);
 
@@ -88,7 +88,7 @@ public sealed class PlaylistReorderE2ETests : PlaylistsE2ETestBase
         await LoginAsync(UserAEmail);
         var row = await CreatePlaylistViaUiAsync("Sortiermodus-Abbrechen");
         await SeedMoviesIntoPlaylistAsync("Sortiermodus-Abbrechen", 2);
-        await row.Locator(".playlist-open-button").ClickAsync();
+        await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
         await Page.WaitForTimeoutAsync(1500);
 
@@ -115,7 +115,7 @@ public sealed class PlaylistReorderE2ETests : PlaylistsE2ETestBase
         await LoginAsync(UserAEmail);
         var row = await CreatePlaylistViaUiAsync(playlistName);
         await SeedMoviesIntoPlaylistAsync(playlistName, 3);
-        await row.Locator(".playlist-open-button").ClickAsync();
+        await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
         await Page.WaitForTimeoutAsync(1500);
 

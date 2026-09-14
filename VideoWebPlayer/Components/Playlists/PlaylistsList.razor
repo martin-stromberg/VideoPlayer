@@ -4,7 +4,6 @@
 @inject VideoWebPlayer.Client.VideoWebPlayerClient Client
 @inject VideoWebPlayer.Client.IPlaylistApiClient PlaylistClient
 @inject AuthenticationStateProvider AuthStateProvider
-@inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 
 <PageTitle>Playlists</PageTitle>
@@ -34,29 +33,37 @@
     {
         @* Kachel-UI statt Tabelle (Kundenfeedback): Titel + Grafik pro Playlist, Sortierung als Symbol statt
            Text, "Erstellt"/"Aktualisiert" dezent dargestellt. Ein Klick auf die Kachel oeffnet die
-           Detailansicht; Bearbeiten/Loeschen gibt es nur noch dort (siehe PlaylistDetail.razor). *@
+           Detailansicht; Bearbeiten/Loeschen gibt es nur noch dort (siehe PlaylistDetail.razor).
+
+           Die Kachel ist ein echter Link (".media-box-link", dasselbe etablierte Muster wie bei
+           MediaBox.razor fuer Filme/Serien) und kein unsichtbares Button-Overlay per z-index: ein
+           <a href> ist sofort - auch ohne bereits verbundenen Blazor-Server-Circuit - klickbar/tippbar
+           und bringt automatisch "touch-action: manipulation" mit, was den fruehreren Button-Ansatz auf
+           Touch-Geraeten anfaellig fuer ausbleibende Klicks machte (siehe Regressionstests in
+           PlaylistsE2ETests, die genau das jetzt gegen die tatsaechlich sichtbaren Elemente prüfen). *@
         <div class="media-grid playlist-grid">
             @foreach (var playlist in playlists)
             {
-                <div class="media-box playlist-card playlist-row" data-playlist-name="@playlist.Name" title="@playlist.Name">
-                    <button type="button" class="playlist-card-hitarea playlist-open-button" @onclick="() => OpenDetail(playlist.Id)" aria-label="Playlist &quot;@(playlist.Name)&quot; oeffnen"></button>
-                    <PlaylistCoverPlaceholder PlaylistId="playlist.Id" CssClass="playlist-card-cover" />
-                    <div class="media-card-overlay">
-                        <div class="media-titles">
-                            <span class="media-title-text">@playlist.Name</span>
-                            @if (!string.IsNullOrWhiteSpace(playlist.Description))
-                            {
-                                <span class="media-subtitle-text">@TruncateDescription(playlist.Description)</span>
-                            }
-                        </div>
-                        <div class="playlist-card-meta">
-                            <PlaylistSortModeIcon SortMode="playlist.SortMode" Size="18" />
-                            <span class="playlist-card-dates">
-                                Erstellt @playlist.CreatedAt.ToLocalTime().ToString("d") &middot; Aktualisiert @playlist.UpdatedAt.ToLocalTime().ToString("d")
-                            </span>
+                <a class="media-box-link playlist-row" href="@($"/playlists/{playlist.Id}")" data-playlist-name="@playlist.Name" title="@playlist.Name" aria-label="Playlist &quot;@(playlist.Name)&quot; oeffnen">
+                    <div class="media-box playlist-card">
+                        <PlaylistCoverPlaceholder PlaylistId="playlist.Id" CssClass="playlist-card-cover" />
+                        <div class="media-card-overlay">
+                            <div class="media-titles">
+                                <span class="media-title-text playlist-card-title">@playlist.Name</span>
+                                @if (!string.IsNullOrWhiteSpace(playlist.Description))
+                                {
+                                    <span class="media-subtitle-text">@TruncateDescription(playlist.Description)</span>
+                                }
+                            </div>
+                            <div class="playlist-card-meta">
+                                <PlaylistSortModeIcon SortMode="playlist.SortMode" Size="14" />
+                                <span class="playlist-card-dates">
+                                    Erstellt @playlist.CreatedAt.ToLocalTime().ToString("d") &middot; Aktualisiert @playlist.UpdatedAt.ToLocalTime().ToString("d")
+                                </span>
+                            </div>
                         </div>
                     </div>
-                </div>
+                </a>
             }
         </div>
     }
@@ -125,10 +132,5 @@
         return description.Length > DescriptionTruncateLength
             ? description[..DescriptionTruncateLength] + DescriptionTruncateEllipsis
             : description;
-    }
-
-    private void OpenDetail(long playlistId)
-    {
-        NavigationManager.NavigateTo($"/playlists/{playlistId}");
     }
 }

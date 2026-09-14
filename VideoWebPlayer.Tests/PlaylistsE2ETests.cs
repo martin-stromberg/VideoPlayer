@@ -29,7 +29,7 @@ public sealed class PlaylistsE2ETests : PlaylistsE2ETestBase
         var row = await CreatePlaylistViaUiAsync("Serien-Marathon", "Meine Lieblingsserien");
 
         // Kachel oeffnet die Detailansicht
-        await row.Locator(".playlist-open-button").ClickAsync();
+        await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
 
         // Edit (Symbol-Button in der Detailansicht)
@@ -48,6 +48,40 @@ public sealed class PlaylistsE2ETests : PlaylistsE2ETestBase
         await Page.WaitForTimeoutAsync(1000);
 
         await Expect(Page.Locator(".playlist-row[data-playlist-name='Serien-Marathon Deluxe']")).ToHaveCountAsync(0);
+    }
+
+    /// <summary>
+    /// Regressionstest fuer einen realen Anwenderbefund: ein Klick auf die Playlist-Kachel in der
+    /// Uebersicht oeffnete trotz einer (fehlerhaft grünen) vorherigen automatisierten Pruefung nicht die
+    /// Detailansicht. Jener Test klickte nur auf eine interne Implementierungsdetail-Schaltflaeche, die
+    /// zwar selbst funktionierte, aber nicht zuverlaessig die komplette sichtbare Kachel abdeckte. Dieser
+    /// Test klickt stattdessen gezielt auf die tatsaechlich sichtbaren Elemente, auf die ein Anwender mit
+    /// Maus/Finger klickt/tippt (Titeltext, Cover-Grafik, Metazeile mit Sortiersymbol/Datumsangaben) und
+    /// haette den Bug erkannt, waere er erneut aufgetreten - jedes einzelne Element muss zur
+    /// Detailansicht navigieren, nicht nur ein unsichtbares Overlay-Element.
+    /// </summary>
+    [Fact]
+    public async Task Click_On_Any_Visible_Part_Of_The_Tile_Opens_Detail()
+    {
+        if (SkipBrowser)
+            return;
+
+        await LoginAsync(UserAEmail);
+
+        var rowForTitle = await CreatePlaylistViaUiAsync("Kachel-Klick-Titel", "Beschreibung");
+        await rowForTitle.Locator(".media-title-text").ClickAsync();
+        await Page.WaitForSelectorAsync("#playlist-detail-name");
+        await Expect(Page.Locator("#playlist-detail-name")).ToHaveTextAsync("Kachel-Klick-Titel");
+
+        var rowForCover = await CreatePlaylistViaUiAsync("Kachel-Klick-Cover", "Beschreibung");
+        await rowForCover.Locator(".playlist-card-cover").ClickAsync();
+        await Page.WaitForSelectorAsync("#playlist-detail-name");
+        await Expect(Page.Locator("#playlist-detail-name")).ToHaveTextAsync("Kachel-Klick-Cover");
+
+        var rowForMeta = await CreatePlaylistViaUiAsync("Kachel-Klick-Meta", "Beschreibung");
+        await rowForMeta.Locator(".playlist-card-dates").ClickAsync();
+        await Page.WaitForSelectorAsync("#playlist-detail-name");
+        await Expect(Page.Locator("#playlist-detail-name")).ToHaveTextAsync("Kachel-Klick-Meta");
     }
 
     [Fact]

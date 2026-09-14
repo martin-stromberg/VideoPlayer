@@ -122,10 +122,10 @@ namespace VideoWebPlayer.Services.EpisodeBackgroundImage
             }
 
             var dominant = buckets.Values.OrderByDescending(v => v.Count).First();
-            return Color.FromRgb(
+            return Color.FromPixel(new Rgba32(
                 (byte)(dominant.R / dominant.Count),
                 (byte)(dominant.G / dominant.Count),
-                (byte)(dominant.B / dominant.Count));
+                (byte)(dominant.B / dominant.Count)));
         }
 
         /// <summary>

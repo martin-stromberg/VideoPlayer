@@ -24,12 +24,12 @@ public class MediaSearchSelectorTests
     [Fact]
     public async Task SearchTermInput_DebounceWorks_RespectsDelay()
     {
-        using var ctx = new global::Bunit.TestContext();
+        using var ctx = new global::Bunit.BunitContext();
         var fakeClient = CreateFakeClient(new MediaEntryDto { Type = "Movie", Id = 1, Title = "Breaking Point" });
         ctx.Services.AddSingleton<VideoWebPlayerClient>(fakeClient);
         ctx.Services.AddSingleton<ILogger<VideoWebPlayer.Components.Playlists.MediaSearchSelector>>(NullLogger<VideoWebPlayer.Components.Playlists.MediaSearchSelector>.Instance);
 
-        var cut = ctx.RenderComponent<VideoWebPlayer.Components.Playlists.MediaSearchSelector>();
+        var cut = ctx.Render<VideoWebPlayer.Components.Playlists.MediaSearchSelector>();
         var input = cut.Find("input.media-search-input");
 
         await cut.InvokeAsync(() => input.Input("B"));
@@ -46,12 +46,12 @@ public class MediaSearchSelectorTests
     [Fact]
     public async Task HttpCall_ItemsEndpoint_ReceivesCorrectUrl()
     {
-        using var ctx = new global::Bunit.TestContext();
+        using var ctx = new global::Bunit.BunitContext();
         var fakeClient = CreateFakeClient(new MediaEntryDto { Type = "Movie", Id = 1, Title = "Breaking Point" });
         ctx.Services.AddSingleton<VideoWebPlayerClient>(fakeClient);
         ctx.Services.AddSingleton<ILogger<VideoWebPlayer.Components.Playlists.MediaSearchSelector>>(NullLogger<VideoWebPlayer.Components.Playlists.MediaSearchSelector>.Instance);
 
-        var cut = ctx.RenderComponent<VideoWebPlayer.Components.Playlists.MediaSearchSelector>();
+        var cut = ctx.Render<VideoWebPlayer.Components.Playlists.MediaSearchSelector>();
         var input = cut.Find("input.media-search-input");
 
         await cut.InvokeAsync(() => input.Input("Breaking"));
@@ -62,13 +62,13 @@ public class MediaSearchSelectorTests
     [Fact]
     public async Task EventCallback_OnMediaSelected_InvokedWithCorrectParameters()
     {
-        using var ctx = new global::Bunit.TestContext();
+        using var ctx = new global::Bunit.BunitContext();
         var fakeClient = CreateFakeClient(new MediaEntryDto { Type = "Movie", Id = 42, Title = "Breaking Point" });
         ctx.Services.AddSingleton<VideoWebPlayerClient>(fakeClient);
         ctx.Services.AddSingleton<ILogger<VideoWebPlayer.Components.Playlists.MediaSearchSelector>>(NullLogger<VideoWebPlayer.Components.Playlists.MediaSearchSelector>.Instance);
 
         (string MediaType, long MediaId)? received = null;
-        var cut = ctx.RenderComponent<VideoWebPlayer.Components.Playlists.MediaSearchSelector>(parameters => parameters
+        var cut = ctx.Render<VideoWebPlayer.Components.Playlists.MediaSearchSelector>(parameters => parameters
             .Add(p => p.OnMediaSelected, EventCallback.Factory.Create<(string MediaType, long MediaId)>(this, args => received = args)));
 
         var input = cut.Find("input.media-search-input");
@@ -87,12 +87,12 @@ public class MediaSearchSelectorTests
     [Fact]
     public async Task Search_NoResults_ShowsEmptyMessage()
     {
-        using var ctx = new global::Bunit.TestContext();
+        using var ctx = new global::Bunit.BunitContext();
         var fakeClient = CreateFakeClient();
         ctx.Services.AddSingleton<VideoWebPlayerClient>(fakeClient);
         ctx.Services.AddSingleton<ILogger<VideoWebPlayer.Components.Playlists.MediaSearchSelector>>(NullLogger<VideoWebPlayer.Components.Playlists.MediaSearchSelector>.Instance);
 
-        var cut = ctx.RenderComponent<VideoWebPlayer.Components.Playlists.MediaSearchSelector>();
+        var cut = ctx.Render<VideoWebPlayer.Components.Playlists.MediaSearchSelector>();
         var input = cut.Find("input.media-search-input");
 
         await cut.InvokeAsync(() => input.Input("Unbekannt"));
@@ -103,14 +103,14 @@ public class MediaSearchSelectorTests
     [Fact]
     public async Task Search_HttpRequestFails_LogsAndShowsDistinctErrorState()
     {
-        using var ctx = new global::Bunit.TestContext();
+        using var ctx = new global::Bunit.BunitContext();
         var fakeClient = new ThrowingVideoWebPlayerClient();
         ctx.Services.AddSingleton<VideoWebPlayerClient>(fakeClient);
         var loggedMessages = new ConcurrentQueue<string>();
         ctx.Services.AddSingleton<ILogger<VideoWebPlayer.Components.Playlists.MediaSearchSelector>>(
             new ListLogger<VideoWebPlayer.Components.Playlists.MediaSearchSelector>(loggedMessages));
 
-        var cut = ctx.RenderComponent<VideoWebPlayer.Components.Playlists.MediaSearchSelector>();
+        var cut = ctx.Render<VideoWebPlayer.Components.Playlists.MediaSearchSelector>();
         var input = cut.Find("input.media-search-input");
 
         await cut.InvokeAsync(() => input.Input("Breaking"));
@@ -126,19 +126,19 @@ public class MediaSearchSelectorTests
     [Fact]
     public async Task Dispose_CancelsPendingDebouncedSearch_WithoutThrowing()
     {
-        using var ctx = new global::Bunit.TestContext();
+        using var ctx = new global::Bunit.BunitContext();
         var fakeClient = CreateFakeClient(new MediaEntryDto { Type = "Movie", Id = 1, Title = "Breaking Point" });
         ctx.Services.AddSingleton<VideoWebPlayerClient>(fakeClient);
         ctx.Services.AddSingleton<ILogger<VideoWebPlayer.Components.Playlists.MediaSearchSelector>>(NullLogger<VideoWebPlayer.Components.Playlists.MediaSearchSelector>.Instance);
 
-        var cut = ctx.RenderComponent<VideoWebPlayer.Components.Playlists.MediaSearchSelector>();
+        var cut = ctx.Render<VideoWebPlayer.Components.Playlists.MediaSearchSelector>();
         var input = cut.Find("input.media-search-input");
 
         await cut.InvokeAsync(() => input.Input("Breaking"));
 
         // Dispose while the debounce delay is still pending: must not throw, and the debounced search
         // scheduled before disposal must not fire afterwards.
-        var exception = Record.Exception(() => ctx.DisposeComponents());
+        var exception = await Record.ExceptionAsync(() => ctx.DisposeComponentsAsync());
         Assert.Null(exception);
 
         await Task.Delay(TimeSpan.FromMilliseconds(600), global::Xunit.TestContext.Current.CancellationToken);

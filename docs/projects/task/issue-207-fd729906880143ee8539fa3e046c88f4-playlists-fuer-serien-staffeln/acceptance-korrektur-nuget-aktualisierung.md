@@ -2,7 +2,11 @@
 
 ## Ergebnis
 
-**Status:** Abweichungen gefunden
+**Status:** Erfüllt
+
+*(Ursprünglich „Abweichungen gefunden" – die unten dokumentierte kritische Abweichung wurde durch
+Commit `81adb6b` behoben und in der „Nachprüfung nach Korrektur" ganz unten erneut unabhängig
+verifiziert.)*
 
 Geprüft wurde der Stand `4164d34` auf Branch
 `task/issue-207-fd729906880143ee8539fa3e046c88f4-playlists-fuer-serien-staffeln-korrektur-nuget-aktualisierung`
@@ -121,7 +125,7 @@ gefunden.
 
 ## Abweichungen
 
-- **Kritisch — `SixLabors.ImageSharp 4.1.2` bricht den Release-Build.** Ab Version 4.x führt
+- **[BEHOBEN – siehe „Nachprüfung nach Korrektur" unten] Kritisch — `SixLabors.ImageSharp 4.1.2` bricht den Release-Build.** Ab Version 4.x führt
   ImageSharp bei jedem Nicht-Debug-Build eine Lizenzprüfung durch
   (`sixlabors.imagesharp/4.1.2/build/SixLabors.ImageSharp.targets`, Target
   `SixLabors_ValidateLicense`, `BeforeTargets="CoreCompile"`). Der Task
@@ -164,3 +168,65 @@ gefunden.
 - Alle übrigen sechs Prüfpunkte des Berichts (Patch-Updates, bunit-Migration inkl. NU1902-Fix,
   ImageSharp-Codeänderung selbst, xunit-Nichtmigration samt Begründung, Testergebnis 598/598,
   msTools/unbeteiligte Dateien) sind zutreffend und wurden unabhängig bestätigt.
+
+## Nachprüfung nach Korrektur
+
+Erneut unabhängig geprüft (eigener Agent, nicht der Implementierer, nicht der Orchestrator selbst)
+nach Commit `81adb6b` („fix: Nachbesserung NuGet-Aktualisierung - SixLabors.ImageSharp auf 3.1.11
+zurueckgesetzt"), Branchspitze zum Prüfzeitpunkt unverändert
+`task/issue-207-fd729906880143ee8539fa3e046c88f4-playlists-fuer-serien-staffeln-korrektur-nuget-aktualisierung`.
+
+**Diff von `81adb6b` gegen `git show` gelesen:** Der Commit ändert ausschließlich zwei Zeilen in
+`VideoWebPlayer/VideoWebPlayer.csproj` (`SixLabors.ImageSharp` `4.1.2 → 3.1.11`) und die dazugehörige
+Codestelle in `EpisodeBackgroundImageGenerator.cs` (`Color.FromRgb(...)` statt
+`Color.FromPixel(new Rgba32(...))`) – exakt die in der Commit-Beschreibung angekündigte,
+minimalinvasive Rücksetzung. Keine weiteren Dateien betroffen; die übrigen Aktualisierungen dieser
+Korrekturrunde (bunit 2.11.3, Patch-Updates, Playwright) sind im Diff nicht enthalten und damit
+unangetastet geblieben. Im aktuellen Stand von `VideoWebPlayer.csproj` (Zeile 30) und
+`EpisodeBackgroundImageGenerator.cs` (Zeilen 125–128) verifiziert – entspricht exakt dem Diff.
+
+**Ursprünglich gemeldeter Fehlerbefehl selbst reproduziert – schlägt jetzt nicht mehr fehl:**
+```
+dotnet restore VideoPlayer.sln
+dotnet build VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-restore -c Release -p:NoWarn=NU1903
+…
+149 Warnung(en)
+0 Fehler
+```
+Keine Spur der zuvor aufgetretenen Meldung „No Six Labors license found" mehr.
+
+**Vollständiger Solution-Build in beiden Konfigurationen grün:**
+- `dotnet build VideoPlayer.sln -c Release` → „Der Buildvorgang wurde erfolgreich ausgeführt.", 0
+  Fehler, 0 Warnungen.
+- `dotnet build VideoPlayer.sln -c Debug` → ebenfalls 0 Fehler, 0 Warnungen.
+
+**Volle Testsuite:** `dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-build -c Debug`
+→ `Bestanden! : Fehler: 0, erfolgreich: 598, übersprungen: 0, gesamt: 598, Dauer: 2 m 41 s`. Deckt sich
+exakt mit der in der vorherigen Runde und in der Commit-Beschreibung genannten Zahl.
+
+**Übrige Aktualisierungen dieser Korrekturrunde nicht versehentlich zurückgesetzt:**
+- `VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj`: `bunit` weiterhin `2.11.3`, `xunit.v3`
+  weiterhin `3.2.2`, `xunit.runner.visualstudio` weiterhin `3.1.5` – unverändert gegenüber der
+  vorherigen Abnahmerunde.
+- `dotnet list VideoPlayer.sln package --vulnerable --include-transitive` meldet für alle sechs
+  Projekte der Solution weiterhin „liegen gemäß den aktuellen Quellen keine anfälligen Pakete vor" –
+  die NU1902/AngleSharp-Behebung aus Punkt 2 der ursprünglichen Prüfung ist also durch die Korrektur
+  nicht wieder aufgehoben worden.
+
+**`Color.FromRgb` in ImageSharp 3.1.11 – Existenz und Pixelidentität geprüft:** Der Release-Build
+(siehe oben) kompiliert den Aufruf `Color.FromRgb(byte, byte, byte)` in
+`EpisodeBackgroundImageGenerator.cs` Zeile 125 fehlerfrei, die Methode existiert in 3.1.11 also
+tatsächlich (das ist zudem der ursprüngliche, vor der ersten Korrekturrunde bereits vorhandene Code,
+keine Neuerung). `Test_GetDominantColor_ReturnsCorrectColor`
+(`VideoWebPlayer.Tests/Services/EpisodeBackgroundImage/EpisodeBackgroundImageGeneratorTests.cs`,
+Zeilen 31–43) vergleicht das Ergebnis von `GetDominantColor` (nutzt `Color.FromRgb`) über
+`dominant.ToPixel<Rgba32>()` explizit gegen `Color.Blue.ToPixel<Rgba32>()` und lief im vollständigen
+Testlauf grün – die Pixelgleichheit zur vorherigen `Color.FromPixel(new Rgba32(...))`-Variante ist
+damit weiterhin durch einen echten Test abgesichert (beide Varianten setzen Alpha implizit auf 255,
+`Color.FromRgb` ist in ImageSharp seit jeher ein reiner Komfort-Wrapper um denselben opaken
+`Rgba32`-Konstruktor).
+
+**Fazit:** Die einzige in der vorherigen Runde gefundene, kritische Abweichung (Release-Build-Bruch
+durch die ImageSharp-Lizenzprüfung) ist durch Commit `81adb6b` behoben und eigenständig
+nachverifiziert. Keine neuen Abweichungen gefunden, keine der zuvor bestätigten Korrekturen
+versehentlich zurückgenommen. Status wird auf „Erfüllt" gesetzt.

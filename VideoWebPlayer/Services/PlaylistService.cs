@@ -179,7 +179,17 @@ public sealed class PlaylistService : IPlaylistService
             && existingEntryCount + entriesToAdd.Count > maxItemCount)
             throw new InvalidOperationException("Die maximale Anzahl an Playlist-Eintraegen wurde erreicht.");
 
-        await AssignSortOrderForNewEntriesAsync(playlist, entriesToAdd, cancellationToken);
+        await _reorderService.AssignSortOrderForNewEntriesAsync(playlist, entriesToAdd, cancellationToken);
+
+        // A manual add is an explicit, unambiguous inclusion decision: if the user previously removed one of
+        // these exact (media type, media id) references from this playlist (recorded as a
+        // PlaylistEntryExclusion by RemoveMediaFromPlaylistAsync), that earlier removal is superseded now -
+        // see the "lifted on manual re-add" remark on PlaylistEntryExclusion. Without this, manually
+        // re-adding an entire series after having removed a single episode from it would silently drop that
+        // episode again (BuildCascadeEntries does not consult exclusions - the automatic backfill mechanism
+        // is the only thing that does), and a plain single re-add of a previously removed title would leave
+        // a stale exclusion row around that no future backfill run could ever clear on its own.
+        await ClearExclusionsAsync(playlistId, entriesToAdd, cancellationToken);
 
         await _db.PlaylistEntries.AddRangeAsync(entriesToAdd, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
@@ -188,30 +198,56 @@ public sealed class PlaylistService : IPlaylistService
     }
 
     /// <summary>
-    /// Assigns <see cref="PlaylistEntry.SortOrder"/> to newly built entries before they are persisted:
-    /// ascending values appended after the playlist's current maximum when the playlist is in
-    /// <see cref="PlaylistSortMode.Manual"/> mode, or <c>null</c> for <see cref="PlaylistSortMode.ByReleaseDate"/>.
+    /// Removes any <see cref="PlaylistEntryExclusion"/> rows matching the (media type, media id) references
+    /// of the given entries, for the given playlist - see the remark on <see cref="AddMediaToPlaylistAsync"/>.
     /// </summary>
-    /// <param name="playlist">The playlist the entries are being added to.</param>
-    /// <param name="entriesToAdd">The newly built entries to assign a sort order to.</param>
+    /// <param name="playlistId">The playlist identifier.</param>
+    /// <param name="entries">The entries whose (media type, media id) references should no longer be excluded.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    private async Task AssignSortOrderForNewEntriesAsync(Playlist playlist, List<PlaylistEntry> entriesToAdd, CancellationToken cancellationToken)
+    private async Task ClearExclusionsAsync(long playlistId, List<PlaylistEntry> entries, CancellationToken cancellationToken)
     {
-        if (entriesToAdd.Count == 0)
+        if (entries.Count == 0)
             return;
 
-        if (playlist.SortMode == PlaylistSortMode.Manual)
-        {
-            var maxSortOrder = await _reorderService.GetMaxSortOrderAsync(playlist.Id, cancellationToken) ?? -1;
+        var mediaTypes = entries.Select(e => e.MediaType).Distinct().ToList();
+        var candidateExclusions = await _db.PlaylistEntryExclusions
+            .Where(x => x.PlaylistId == playlistId && mediaTypes.Contains(x.MediaType))
+            .ToListAsync(cancellationToken);
 
-            foreach (var entry in entriesToAdd)
-                entry.SortOrder = ++maxSortOrder;
-        }
-        else
+        if (candidateExclusions.Count == 0)
+            return;
+
+        var addedRefs = entries.Select(e => new MediaRef(e.MediaType, e.MediaId)).ToHashSet();
+        var toRemove = candidateExclusions.Where(x => addedRefs.Contains(new MediaRef(x.MediaType, x.MediaId))).ToList();
+        if (toRemove.Count > 0)
+            _db.PlaylistEntryExclusions.RemoveRange(toRemove);
+    }
+
+    /// <summary>
+    /// Records that the given (media type, media id) reference was deliberately removed from the given
+    /// playlist by the user, so the automatic backfill mechanism (<see cref="PlaylistBackfillService"/>)
+    /// will not re-add it. A no-op if such a record already exists (removing something twice - not possible
+    /// through normal use since the entry is gone after the first removal, but kept defensive - must not
+    /// throw a unique-constraint violation or reset <see cref="PlaylistEntryExclusion.ExcludedAt"/>).
+    /// </summary>
+    /// <param name="playlistId">The playlist identifier.</param>
+    /// <param name="mediaType">The media type of the removed reference.</param>
+    /// <param name="mediaId">The media id of the removed reference.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    private async Task RecordExclusionAsync(long playlistId, string mediaType, long mediaId, CancellationToken cancellationToken)
+    {
+        var alreadyExcluded = await _db.PlaylistEntryExclusions.AnyAsync(
+            x => x.PlaylistId == playlistId && x.MediaType == mediaType && x.MediaId == mediaId, cancellationToken);
+        if (alreadyExcluded)
+            return;
+
+        await _db.PlaylistEntryExclusions.AddAsync(new PlaylistEntryExclusion
         {
-            foreach (var entry in entriesToAdd)
-                entry.SortOrder = null;
-        }
+            PlaylistId = playlistId,
+            MediaType = mediaType,
+            MediaId = mediaId,
+            ExcludedAt = DateTime.UtcNow
+        }, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -252,6 +288,7 @@ public sealed class PlaylistService : IPlaylistService
 
                 var (nextEntry, _) = await FindAdjacentPlayableEntryAsync(playlistId, userId, entry.Id, forward: true, cancellationToken);
 
+                await RecordExclusionAsync(playlistId, normalizedMediaType, mediaId, cancellationToken);
                 _db.PlaylistEntries.Remove(entry);
                 await _db.SaveChangesAsync(cancellationToken);
 
@@ -261,6 +298,7 @@ public sealed class PlaylistService : IPlaylistService
             }
         }
 
+        await RecordExclusionAsync(playlistId, normalizedMediaType, mediaId, cancellationToken);
         _db.PlaylistEntries.Remove(entry);
         await _db.SaveChangesAsync(cancellationToken);
     }

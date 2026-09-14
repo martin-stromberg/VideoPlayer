@@ -231,6 +231,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IFavoritesService, FavoritesService>();
         services.AddScoped<IPlaylistService, PlaylistService>();
         services.Configure<PlaylistSettings>(configuration.GetSection("Playlists"));
+        services.AddScoped<PlaylistBackfillService>();
         services.AddScoped<IUnlockedMediaService, UnlockedMediaService>();
         services.AddScoped<IGenreService, GenreService>();
         services.AddScoped<SftpMediaSourceReader>();
@@ -274,6 +275,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<MediaUpdateNotificationService>();
         services.AddHostedService<ContinueWatchingWorker>();
         services.AddHostedService<ActorBackfillWorker>();
+        services.AddHostedService<PlaylistBackfillWorker>();
         services.AddScoped<IDemoDataSetService, FileSystemDemoDataSetService>();
 
         services.AddScoped<MediaSourceDetailsViewModel>();

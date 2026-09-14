@@ -111,6 +111,12 @@ namespace VideoWebPlayer.Data
         /// </summary>
         public DbSet<PlaylistEntry> PlaylistEntries { get; set; }
         /// <summary>
+        /// Tabelle für Playlist-Eintraege, die der Anwender bewusst einzeln aus einer Playlist entfernt hat
+        /// und die deshalb von der automatischen Nachlieferung (<see cref="Services.PlaylistBackfillService"/>)
+        /// nicht erneut hinzugefuegt werden sollen.
+        /// </summary>
+        public DbSet<PlaylistEntryExclusion> PlaylistEntryExclusions { get; set; }
+        /// <summary>
         /// Tabelle für einzeln freigeschaltete Medieneinträge.
         /// </summary>
         public DbSet<UnlockedMediaEntry> UnlockedMediaEntries { get; set; }

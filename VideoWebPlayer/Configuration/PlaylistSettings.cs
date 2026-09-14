@@ -25,5 +25,21 @@ namespace VideoWebPlayer.Configuration
         /// Gets or sets the maximum page size allowed for paginated retrieval of playlist entries.
         /// </summary>
         public int MaxPageSize { get; set; } = 100;
+
+        /// <summary>
+        /// Gets or sets the interval, in minutes, at which <see cref="Services.PlaylistBackfillWorker"/> checks
+        /// whether new content (e.g. a new season, episode or movie) needs to be backfilled into playlists
+        /// that contain a complete TV show, season or movie collection. Values below 1 are treated as 1.
+        /// </summary>
+        public int BackfillIntervalMinutes { get; set; } = 15;
+
+        /// <summary>
+        /// Gets or sets how many playlists <see cref="Services.PlaylistBackfillWorker"/> examines per run of
+        /// <see cref="Services.PlaylistBackfillService.RunBatchAsync"/>. Kept deliberately small and bounded
+        /// (rather than processing every eligible playlist in one run) so a single run stays short and does
+        /// not noticeably affect ongoing operation; playlists are visited round-robin across successive runs
+        /// so every playlist is eventually re-checked. Values below 1 are treated as 1.
+        /// </summary>
+        public int BackfillBatchSize { get; set; } = 25;
     }
 }

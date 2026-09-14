@@ -36,7 +36,7 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
 
         await LoginAsync(UserAEmail);
         var row = await CreatePlaylistViaUiAsync("Metadaten-Test", "Beschreibung fuer Metadaten-Test");
-        await row.Locator(".playlist-open-button").ClickAsync();
+        await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
 
         await Expect(Page.Locator("#playlist-detail-name")).ToHaveTextAsync("Metadaten-Test");
@@ -57,7 +57,7 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
 
         await LoginAsync(UserAEmail);
         var row = await CreatePlaylistViaUiAsync("Oeffnen-Navigation");
-        await row.Locator(".playlist-open-button").ClickAsync();
+        await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
 
         await Expect(Page.Locator("#playlist-detail-name")).ToHaveTextAsync("Oeffnen-Navigation");
@@ -71,7 +71,7 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
 
         await LoginAsync(UserAEmail);
         var row = await CreatePlaylistViaUiAsync("Bearbeiten-Von-Detail");
-        await row.Locator(".playlist-open-button").ClickAsync();
+        await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
 
         await Page.ClickAsync(".playlist-detail-edit-button");
@@ -91,7 +91,7 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
 
         await LoginAsync(UserAEmail);
         var row = await CreatePlaylistViaUiAsync("Loeschen-Von-Detail");
-        await row.Locator(".playlist-open-button").ClickAsync();
+        await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
 
         await Page.ClickAsync(".playlist-detail-delete-button");
@@ -112,7 +112,7 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
 
         await LoginAsync(UserAEmail);
         var row = await CreatePlaylistViaUiAsync("Zurueck-Von-Detail");
-        await row.Locator(".playlist-open-button").ClickAsync();
+        await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
 
         await Page.ClickAsync(".playlist-detail-back-button");
@@ -130,7 +130,7 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
 
         await LoginAsync(UserAEmail);
         var row = await CreatePlaylistViaUiAsync("Fremde-Playlist-Test");
-        await row.Locator(".playlist-open-button").ClickAsync();
+        await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
 
         var detailUrl = Page.Url;
@@ -166,7 +166,7 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
         await LoginAsync(UserAEmail);
         var row = await CreatePlaylistViaUiAsync("Infinity-Erste-Seite");
         await SeedMoviesIntoPlaylistAsync("Infinity-Erste-Seite", 25);
-        await row.Locator(".playlist-open-button").ClickAsync();
+        await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
         await Page.WaitForTimeoutAsync(1500);
 
@@ -187,7 +187,7 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
         await LoginAsync(UserAEmail);
         var row = await CreatePlaylistViaUiAsync("Infinity-Naechste-Seite");
         await SeedMoviesIntoPlaylistAsync("Infinity-Naechste-Seite", 25);
-        await row.Locator(".playlist-open-button").ClickAsync();
+        await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
         await Page.WaitForTimeoutAsync(1500);
 
@@ -216,7 +216,7 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
         await LoginAsync(UserAEmail);
         var row = await CreatePlaylistViaUiAsync("Infinity-Keine-Weiteren-Seiten");
         await SeedMoviesIntoPlaylistAsync("Infinity-Keine-Weiteren-Seiten", 5);
-        await row.Locator(".playlist-open-button").ClickAsync();
+        await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
         await Page.WaitForTimeoutAsync(1500);
 
@@ -251,7 +251,7 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
         var lockedMovieId = await SeedLockedMovieIntoPlaylistAsync("Zugriffsstatus-Gemischt", "Gesperrter Film");
         await GrantMediaSourceAccessForUserAsync(UserAEmail);
         var unlockedMovieId = await SeedMovieAsync("Freigeschalteter Film");
-        await row.Locator(".playlist-open-button").ClickAsync();
+        await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
         await SelectSearchResultAsync("Freigeschalteter Film", MediaTypeValues.Movie, unlockedMovieId);
 
@@ -272,7 +272,7 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
         await LoginAsync(UserAEmail);
         var row = await CreatePlaylistViaUiAsync("Entfernen-Trotz-Sperre");
         var lockedMovieId = await SeedLockedMovieIntoPlaylistAsync("Entfernen-Trotz-Sperre", "Gesperrter Film");
-        await row.Locator(".playlist-open-button").ClickAsync();
+        await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
         await Page.WaitForTimeoutAsync(1500);
 
@@ -303,7 +303,7 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
         var row = await CreatePlaylistViaUiAsync("Zugriffsstatus-Quellenzugriff");
         var movieId = await SeedMovieAsync("Film mit Quellenzugriff");
         await GrantMediaSourceAccessForUserAsync(UserAEmail);
-        await row.Locator(".playlist-open-button").ClickAsync();
+        await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
         await SelectSearchResultAsync("Film mit Quellenzugriff", MediaTypeValues.Movie, movieId);
 
@@ -326,7 +326,7 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
         var (movieId, collectionId) = await SeedMovieInCollectionIntoPlaylistAsync(
             "Zugriffsstatus-Sammlung-Freigeschaltet", "Freigeschaltete Sammlung", "Film in Sammlung");
         await UnlockMediaForUserAsync(UserAEmail, MediaTypeValues.MovieCollection, collectionId);
-        await row.Locator(".playlist-open-button").ClickAsync();
+        await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
         await Page.WaitForTimeoutAsync(1500);
 
@@ -349,7 +349,7 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
         var (episodeId, showId) = await SeedTvShowEpisodeIntoPlaylistAsync(
             "Zugriffsstatus-Episode-Serie-Freigeschaltet", "Serie fuer Episode");
         await UnlockMediaForUserAsync(UserAEmail, MediaTypeValues.TVShow, showId);
-        await row.Locator(".playlist-open-button").ClickAsync();
+        await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
         await Page.WaitForTimeoutAsync(1500);
 
@@ -380,7 +380,7 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
         // erhalten nur noch Filme/Episoden eine eigene Kachel, eine TVShow-Kachel gibt es nicht mehr (siehe
         // PlaylistEntriesList.IsRenderableEntry).
         var (episodeWithoutPosterId, _) = await SeedTvShowEpisodeIntoPlaylistAsync("Bildspalte-Test", "Serie Ohne Poster");
-        await row.Locator(".playlist-open-button").ClickAsync();
+        await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
         await Page.WaitForTimeoutAsync(1500);
 

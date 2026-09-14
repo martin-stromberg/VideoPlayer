@@ -24,7 +24,7 @@ public sealed class PlaylistEntriesE2ETests : PlaylistsE2ETestBase
         await LoginAsync(UserAEmail);
         await GrantMediaSourceAccessForUserAsync(UserAEmail);
         var row = await CreatePlaylistViaUiAsync("Playlist-Fuer-Hinzufuegen");
-        await row.Locator(".playlist-open-button").ClickAsync();
+        await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
 
         await SelectSearchResultAsync("Hinzufuegen-Testfilm", "Movie", movieId);
@@ -44,7 +44,7 @@ public sealed class PlaylistEntriesE2ETests : PlaylistsE2ETestBase
         await LoginAsync(UserAEmail);
         await GrantMediaSourceAccessForUserAsync(UserAEmail);
         var row = await CreatePlaylistViaUiAsync("Playlist-Fuer-Entfernen");
-        await row.Locator(".playlist-open-button").ClickAsync();
+        await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
         await SelectSearchResultAsync("Entfernen-Testfilm", "Movie", movieId);
         await Expect(Page.Locator($".playlist-entry-row[data-media-type='Movie'][data-media-id='{movieId}']")).ToBeVisibleAsync();
@@ -72,7 +72,7 @@ public sealed class PlaylistEntriesE2ETests : PlaylistsE2ETestBase
         await LoginAsync(UserAEmail);
         await GrantMediaSourceAccessForUserAsync(UserAEmail);
         var row = await CreatePlaylistViaUiAsync("Playlist-Fuer-Quellenzugriff");
-        await row.Locator(".playlist-open-button").ClickAsync();
+        await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
 
         await SelectSearchResultAsync("Quellenzugriff-Testfilm", "Movie", movieId);
@@ -92,7 +92,7 @@ public sealed class PlaylistEntriesE2ETests : PlaylistsE2ETestBase
         await LoginAsync(UserAEmail);
         await GrantMediaSourceAccessForUserAsync(UserAEmail);
         var row = await CreatePlaylistViaUiAsync("Playlist-Fuer-Duplikat");
-        await row.Locator(".playlist-open-button").ClickAsync();
+        await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
         await SelectSearchResultAsync("Duplikat-Testfilm", "Movie", movieId);
 
@@ -124,7 +124,7 @@ public sealed class PlaylistEntriesE2ETests : PlaylistsE2ETestBase
         await LoginAsync(UserAEmail);
         await GrantMediaSourceAccessForUserAsync(UserAEmail);
         var row = await CreatePlaylistViaUiAsync("Playlist-Fuer-Kaskade");
-        await row.Locator(".playlist-open-button").ClickAsync();
+        await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
 
         await SelectSearchResultAsync("Kaskaden-Testserie", "TVShow", showId);
@@ -147,7 +147,7 @@ public sealed class PlaylistEntriesE2ETests : PlaylistsE2ETestBase
 
         await LoginAsync(UserAEmail);
         var row = await CreatePlaylistViaUiAsync("Fremde-Playlist-Fuer-Eintraege");
-        await row.Locator(".playlist-open-button").ClickAsync();
+        await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
         var detailUrl = Page.Url;
 

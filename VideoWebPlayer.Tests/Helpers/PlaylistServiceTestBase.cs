@@ -65,6 +65,84 @@ public abstract class PlaylistServiceTestBase : IDisposable
     }
 
     /// <summary>
+    /// Builds a <see cref="PlaylistBackfillService"/> instance sharing this test's <see cref="_db"/>, for
+    /// tests of the automatic playlist backfill mechanism (Entwicklungsschritt 8).
+    /// </summary>
+    /// <param name="maxPlaylistItemCount">The configured maximum playlist item count, or <c>null</c> for unlimited.</param>
+    /// <returns>The constructed <see cref="PlaylistBackfillService"/> instance.</returns>
+    internal PlaylistBackfillService CreateBackfillService(int? maxPlaylistItemCount = null)
+    {
+        var settings = Microsoft.Extensions.Options.Options.Create(new PlaylistSettings
+        {
+            MaxPlaylistItemCount = maxPlaylistItemCount
+        });
+        return new PlaylistBackfillService(_db, settings);
+    }
+
+    /// <summary>
+    /// Creates a TV show with a single season and the given number of episodes directly in the database
+    /// (bypassing the service), for backfill tests that need to add further seasons/episodes to an
+    /// already-existing show afterwards. Returns the show, season and episode ids.
+    /// </summary>
+    /// <param name="showName">The name of the TV show to create.</param>
+    /// <param name="seasonName">The name of the season to create.</param>
+    /// <param name="episodeCount">How many episodes to create in the season.</param>
+    /// <returns>The created show id, season id, and the created episode ids in creation order.</returns>
+    protected async Task<(long ShowId, long SeasonId, long[] EpisodeIds)> CreateShowWithSeasonAsync(
+        string showName, string seasonName, int episodeCount)
+    {
+        var show = new TVShow { Name = showName, MediaSourceId = 1, CreatedAt = DateTime.UtcNow };
+        _db.TVShows.Add(show);
+        await _db.SaveChangesAsync();
+
+        var (seasonId, episodeIds) = await AddSeasonToShowAsync(show.Id, seasonName, episodeCount);
+        return (show.Id, seasonId, episodeIds);
+    }
+
+    /// <summary>
+    /// Adds a further season with the given number of episodes to an already-existing TV show directly in
+    /// the database (bypassing the service), simulating a new season/episodes appearing in the media
+    /// library after the playlist was originally populated.
+    /// </summary>
+    /// <param name="showId">The id of the already-existing TV show.</param>
+    /// <param name="seasonName">The name of the season to create.</param>
+    /// <param name="episodeCount">How many episodes to create in the season.</param>
+    /// <returns>The created season id, and the created episode ids in creation order.</returns>
+    protected async Task<(long SeasonId, long[] EpisodeIds)> AddSeasonToShowAsync(long showId, string seasonName, int episodeCount)
+    {
+        var season = new TVShowSeason { Name = seasonName, TVShowId = showId, MediaSourceId = 1, CreatedAt = DateTime.UtcNow };
+        _db.TVShowSeasons.Add(season);
+        await _db.SaveChangesAsync();
+
+        var episodeIds = new List<long>();
+        for (var i = 0; i < episodeCount; i++)
+        {
+            var episode = new TVShowEpisode { Name = $"{seasonName}-Episode-{i + 1}", TVShowSeasonId = season.Id, MediaSourceId = 1, CreatedAt = DateTime.UtcNow, Number = i + 1 };
+            _db.TVShowEpisodes.Add(episode);
+            await _db.SaveChangesAsync();
+            episodeIds.Add(episode.Id);
+        }
+
+        return (season.Id, episodeIds.ToArray());
+    }
+
+    /// <summary>
+    /// Adds a further movie to an already-existing movie collection directly in the database (bypassing the
+    /// service), simulating a new movie appearing in the media library after the playlist was originally
+    /// populated. Analogous to <see cref="AddSeasonToShowAsync"/> for TV shows.
+    /// </summary>
+    /// <param name="collectionId">The id of the already-existing movie collection.</param>
+    /// <param name="name">The name to give the created movie.</param>
+    /// <returns>The created movie id.</returns>
+    protected async Task<long> AddMovieToCollectionAsync(long collectionId, string name)
+    {
+        var movie = new Movie { Name = name, MediaSourceId = 1, MovieCollectionId = collectionId, CreatedAt = DateTime.UtcNow };
+        _db.Movies.Add(movie);
+        await _db.SaveChangesAsync();
+        return movie.Id;
+    }
+
+    /// <summary>
     /// Grants the given user unlocked access to a movie collection or TV show by inserting an
     /// <see cref="UnlockedMediaEntry"/> directly, bypassing <see cref="IUnlockedMediaService.SetUnlockedUsersAsync"/>.
     /// </summary>

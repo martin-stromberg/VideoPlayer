@@ -182,6 +182,13 @@ gibt es keinen weiteren verfügbaren Titel, wird der Weiterschauen-Eintrag entfe
 Einträge desselben Videos ohne Playlist-Bezug oder mit Bezug zu einer anderen Playlist bleiben in
 jedem Fall unangetastet.
 
+Ein so bewusst entfernter Titel wird sich gemerkt: Sollte dieser Titel später erneut Teil einer in
+dieser Playlist enthaltenen Serie, Staffel oder Filmsammlung sein (siehe Abschnitt „Automatische
+Nachlieferung neuer Inhalte" unten), nimmt die automatische Nachlieferung ihn **nicht** von selbst
+wieder auf. Fügt der Anwender den Titel später jedoch selbst erneut hinzu — einzeln oder als Teil
+einer erneut hinzugefügten Serie/Staffel/Sammlung —, gilt diese bewusste Entscheidung wieder und
+der Titel wird ab dann auch von der automatischen Nachlieferung wieder berücksichtigt.
+
 ### Automatische Bereinigung
 
 Wird ein Medieninhalt aus dem Bestand entfernt (z. B. eine Serie oder ein Film gelöscht),
@@ -191,6 +198,36 @@ verhindert, dass die Playlist auf nicht mehr existierende Inhalte verweist. Dass
 Ersetzen-/Entfernen-Verhalten wie beim manuellen Entfernen gilt dabei sinngemäß auch für einen
 betroffenen Weiterschauen-Eintrag — allerdings ohne Sicherheitsabfrage, da der Anwender diesen
 Vorgang nicht selbst ausgelöst hat.
+
+## Automatische Nachlieferung neuer Inhalte
+
+Enthält eine Playlist eine komplette Serie, eine komplette Staffel oder eine komplette
+Filmsammlung als Eintrag (siehe Abschnitt „Kaskaden-Logik" oben), werden später hinzukommende
+Inhalte dieses Sammel-Eintrags automatisch in die Playlist aufgenommen — der Anwender muss die
+Serie, Staffel oder Sammlung dafür nicht erneut hinzufügen:
+
+- Wird einer bereits enthaltenen **Serie** eine neue Staffel hinzugefügt, erscheinen deren Episoden
+  automatisch in der Playlist.
+- Wird einer bereits enthaltenen **Staffel** eine neue Episode hinzugefügt, erscheint diese
+  automatisch in der Playlist.
+- Wird einer bereits enthaltenen **Filmsammlung** ein neuer Film hinzugefügt, erscheint dieser
+  automatisch in der Playlist.
+
+Die Prüfung läuft regelmäßig im Hintergrund (Standard: alle 15 Minuten) und wirkt sich nicht
+spürbar auf die sonstige Nutzung der Anwendung aus; ein neu hinzugekommener Titel erscheint daher
+nicht sofort, sondern spätestens nach dem nächsten Durchlauf.
+
+Neu nachgelieferte Titel werden je nach Sortiermodus der Playlist einsortiert:
+
+- **„Nach Erscheinungsdatum"**: Der neue Titel erscheint automatisch an der zu seinem
+  Erscheinungsdatum passenden Stelle (siehe Abschnitt „Sortierung und Anzeige").
+- **„Manuell"**: Der neue Titel wird ans Ende der bisherigen, vom Anwender festgelegten
+  Reihenfolge angehängt, damit diese erhalten bleibt.
+
+Ein Titel, den der Anwender zuvor bewusst einzeln aus der Playlist entfernt hat (siehe Abschnitt
+„Entfernen"), wird von dieser automatischen Nachlieferung nicht erneut aufgenommen. Ist für die
+Playlist eine maximale Anzahl an Einträgen konfiguriert (siehe Abschnitt „Konfiguration") und
+bereits erreicht, werden für diese Playlist keine weiteren Titel nachgeliefert.
 
 ## Wiedergabe aus einer Playlist und Weiterschauen-Integration
 
@@ -309,7 +346,9 @@ Konfiguration festgelegt:
     "MaxPlaylistsPerUser": null,
     "MaxPlaylistItemCount": null,
     "DefaultPageSize": 20,
-    "MaxPageSize": 100
+    "MaxPageSize": 100,
+    "BackfillIntervalMinutes": 15,
+    "BackfillBatchSize": 25
   }
 }
 ```
@@ -318,10 +357,17 @@ Konfiguration festgelegt:
 der Playlists, die ein einzelner Anwender gleichzeitig anlegen kann; beim Überschreiten wird das
 Anlegen weiterer Playlists mit einer Fehlermeldung abgelehnt.
 
-`MaxPlaylistItemCount` ist für eine spätere Begrenzung der Anzahl an Einträgen pro Playlist
-vorbereitet. Die Konfiguration existiert bereits, wird aber aktuell noch nicht durchgesetzt
-(`null`, unbegrenzt).
+`MaxPlaylistItemCount` begrenzt die Anzahl an Einträgen pro Playlist (Standard: `null`,
+unbegrenzt). Ist die Grenze erreicht, lehnt sowohl das manuelle Hinzufügen weiterer Titel als
+auch die automatische Nachlieferung (siehe Abschnitt „Automatische Nachlieferung neuer Inhalte")
+weitere Titel für diese Playlist ab.
 
 `DefaultPageSize` legt fest, wie viele Einträge auf der Detailseite pro Ladevorgang beim Scrollen
 nachgeladen werden (Standard: 20). `MaxPageSize` begrenzt die höchstzulässige Anzahl an Einträgen
 pro Ladevorgang (Standard: 100).
+
+`BackfillIntervalMinutes` legt den zeitlichen Abstand zwischen zwei Durchläufen der automatischen
+Nachlieferung fest (Standard: 15 Minuten). `BackfillBatchSize` begrenzt, wie viele Playlists dabei
+je Durchlauf geprüft werden (Standard: 25), damit ein einzelner Durchlauf kurz bleibt und den
+laufenden Betrieb nicht spürbar beeinträchtigt; über mehrere Durchläufe hinweg werden alle
+betroffenen Playlists reihum abgedeckt.

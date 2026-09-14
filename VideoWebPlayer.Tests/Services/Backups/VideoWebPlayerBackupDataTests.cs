@@ -113,6 +113,50 @@ public sealed class VideoWebPlayerBackupDataTests
     }
 
     /// <summary>
+    /// Verifies that a backup taken before the <c>PlaylistEntryExclusions</c> table existed (Entwicklungsschritt 8,
+    /// tracking titles the user deliberately removed from a playlist so the automatic backfill mechanism
+    /// does not re-add them) can still be restored, analogous to
+    /// <see cref="ReadFromAsync_LegacyBackupWithoutPlaylistsAndPlaylistEntries_RestoresSuccessfully"/> above.
+    /// </summary>
+    [Fact]
+    public async Task ReadFromAsync_LegacyBackupWithoutPlaylistEntryExclusions_RestoresSuccessfully()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var connection = new SqliteConnection("Data Source=file:backuptest-playlist-exclusions?mode=memory&cache=shared");
+        await connection.OpenAsync(ct);
+        var (db, backup, userId) = await CreateBackupWithSeededDatabaseAsync(connection, ct);
+        await using var _ = db;
+
+        var playlist = new Playlist
+        {
+            UserId = userId,
+            Name = "Playlist-Mit-Ausschluss",
+            SortMode = PlaylistSortMode.ByReleaseDate,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        db.Playlists.Add(playlist);
+        await db.SaveChangesAsync(ct);
+        db.PlaylistEntryExclusions.Add(new PlaylistEntryExclusion
+        {
+            PlaylistId = playlist.Id,
+            MediaType = "Movie",
+            MediaId = 1,
+            ExcludedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync(ct);
+
+        using var legacyStream = await BuildLegacyBackupStreamRemovingTablesAsync(backup, new[] { "PlaylistEntryExclusions" }, ct);
+
+        // This must not throw even though the backup lacks the new table.
+        var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
+
+        Assert.Null(exception);
+        Assert.False(await db.PlaylistEntryExclusions.AnyAsync(ct));
+        Assert.Equal(userId, (await db.Users.FirstAsync(ct)).Id);
+    }
+
+    /// <summary>
     /// Verifies that a backup taken before <c>PlaylistEntries.SortOrder</c> existed (a legacy column-level
     /// gap, distinct from the whole-table-missing case covered by
     /// <see cref="ReadFromAsync_LegacyBackupWithoutPlaylistsAndPlaylistEntries_RestoresSuccessfully"/>

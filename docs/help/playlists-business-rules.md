@@ -266,7 +266,12 @@ Benutzer sieht: Episode 2 ist verschwunden (keine Fehlermeldung)
 
 **Fehlerbehandlung:** HTTP 400 Bad Request — "Die maximale Anzahl an Playlist-Eintraegen wurde erreicht."
 
-**Timing der Implementierung:** Diese Regel ist vorbereitet, aber enforcement erfolgt erst in späteren Schritten
+**Auswirkung auf die automatische Nachlieferung (BR-18):** Der Hintergrundprozess `PlaylistBackfillService`
+prüft dieselbe Grenze, weicht aber im Verhalten bewusst von der manuellen Add-Operation ab: Statt den
+gesamten Nachlieferungs-Versuch für eine Playlist abzulehnen, füllt er nur so viele Titel nach, wie noch
+Platz ist (`MaxPlaylistItemCount - vorhandene Eintragsanzahl`), und liefert den Rest nicht nach - ohne
+Fehler, da ein Hintergrundprozess niemandem eine Fehlermeldung anzeigen kann. Ist bereits kein Platz mehr
+vorhanden, liefert der Durchlauf für diese Playlist gar nichts nach.
 
 ---
 
@@ -480,6 +485,106 @@ beabsichtigt oder bemerkt hat.
 
 ---
 
+## BR-18: Automatische Nachlieferung neuer Inhalte für Sammel-Einträge
+
+**Regel:** Enthält eine Playlist einen Sammel-Eintrag (`TVShow`, `TVShowSeason` oder `MovieCollection`),
+werden später hinzukommende Kind-Inhalte dieses Sammel-Eintrags (neue Staffel einer Serie, neue Episode
+einer Staffel, neuer Film einer Filmsammlung) automatisch in die Playlist aufgenommen, ohne dass der
+Anwender die Serie/Sammlung erneut hinzufügen muss.
+
+**Implementierung (`PlaylistBackfillService` + `PlaylistBackfillWorker`):**
+- `PlaylistBackfillWorker` (Hintergrunddienst) ruft periodisch (`Playlists:BackfillIntervalMinutes`,
+  Standard 15 Minuten) `PlaylistBackfillService.RunBatchAsync()` für einen begrenzten Ausschnitt der
+  Playlists auf (`Playlists:BackfillBatchSize`, Standard 25 Playlists pro Durchlauf); über mehrere
+  Durchläufe hinweg werden so reihum (round-robin) alle Playlists mit einem Sammel-Eintrag abgedeckt
+- Für jeden in der Playlist vorhandenen Sammel-Eintrag wird dieselbe Cascade-Abfrage genutzt wie beim
+  manuellen Hinzufügen (siehe BR-3, `MediaTypeHandler.LoadCascadeChildrenAsync`), um die *aktuell*
+  existierenden Kind-Inhalte zu ermitteln
+- Kind-Inhalte, die bereits als `PlaylistEntry` vorhanden sind, werden übersprungen (kein Duplikat, siehe BR-1)
+- Kind-Inhalte, die der Anwender zuvor bewusst einzeln aus der Playlist entfernt hat, werden ebenfalls
+  übersprungen (siehe BR-19)
+- Verbleibende neue Kind-Inhalte werden als `PlaylistEntry` mit `ParentMediaType`/`ParentMediaId` auf den
+  jeweiligen Sammel-Eintrag hinzugefügt
+
+**Sortierung neu nachgelieferter Titel:**
+- Sortiermodus `ByReleaseDate` (Standard): `SortOrder = null`; die Einordnung nach Erscheinungsdatum
+  erfolgt wie gewohnt beim Lesen (siehe BR-13)
+- Sortiermodus `Manual`: Die neuen Titel werden ans Ende der bisherigen manuellen Reihenfolge angehängt
+  (aufsteigende `SortOrder`-Werte ab dem bisherigen Maximum), damit die vom Anwender festgelegte
+  Reihenfolge erhalten bleibt. Dieselbe Zuweisungslogik (`PlaylistEntryReorderService.AssignSortOrderForNewEntriesAsync`)
+  wird auch beim manuellen Hinzufügen verwendet, damit beide Wege nicht auseinanderlaufen können.
+
+**Betriebssicherheit:** Der Durchlauf nutzt denselben `IBackgroundProcessingGate` wie andere
+Hintergrundprozesse (z. B. der Medienquellen-Scan), um sich mit einem laufenden Backup zu koordinieren,
+und verarbeitet je Durchlauf nur eine begrenzte Anzahl Playlists (s. o.), damit der laufende Betrieb nicht
+spürbar beeinträchtigt wird.
+
+**Beispiel:**
+```
+Playlist "Meine Serien" enthält Sammel-Eintrag Serie "Show A" (Staffel 1+2 bereits vollständig enthalten)
+
+Im Medienbestand wird Staffel 3 von "Show A" mit 8 Episoden neu erkannt (z. B. durch den Medienquellen-Scan)
+
+Nächster Backfill-Durchlauf:
+- Sammel-Eintrag "Show A" wird geprüft → Cascade liefert jetzt auch Staffel 3 + deren 8 Episoden
+- Staffel 1+2 und deren Episoden: bereits vorhanden, übersprungen
+- Staffel 3 + 8 Episoden: neu, werden hinzugefügt
+
+Ergebnis: "Meine Serien" enthält jetzt auch Staffel 3 mit allen 8 Episoden, ohne dass der Anwender
+etwas tun musste.
+```
+
+**Konfiguration:** siehe Abschnitt „Konfigurationsparameter" unten (`BackfillIntervalMinutes`, `BackfillBatchSize`).
+
+---
+
+## BR-19: Bewusst entfernte Titel werden von der automatischen Nachlieferung nicht erneut aufgenommen
+
+**Regel:** Entfernt der Anwender einen einzelnen Titel bewusst aus einer Playlist (siehe „Entfernen" oben),
+liefert die automatische Nachlieferung (BR-18) genau diesen Titel für diese Playlist nicht erneut nach -
+auch wenn er weiterhin (oder erneut) ein Kind-Inhalt eines in der Playlist enthaltenen Sammel-Eintrags ist.
+
+**Implementierung (`PlaylistEntryExclusion`):**
+- `RemoveMediaFromPlaylistAsync()` legt bei jedem Entfernen zusätzlich zum Löschen des `PlaylistEntry`
+  einen `PlaylistEntryExclusion`-Datensatz an (Schlüssel: `PlaylistId` + `MediaType` + `MediaId`, analog
+  zum Duplikat-Schlüssel aus BR-1) - unabhängig davon, ob das Entfernen über die reguläre Löschung oder
+  über die Sicherheitsabfrage bei Weiterschauen-Bezug (BR-17) erfolgte
+- `PlaylistBackfillService` schließt beim Ermitteln nachzuliefernder Kind-Inhalte jeden Eintrag aus, für
+  den ein passender `PlaylistEntryExclusion`-Datensatz existiert
+
+**Aufhebung der Ausschluss-Markierung beim manuellen Wieder-Hinzufügen:** Fügt der Anwender denselben Titel
+später erneut manuell hinzu — entweder direkt (`AddMediaToPlaylistAsync()` für genau diesen Titel) oder
+indirekt als Kind-Inhalt eines erneut hinzugefügten Sammel-Eintrags (z. B. die ganze Serie erneut
+hinzufügen, nachdem zuvor nur eine einzelne Episode entfernt wurde) — wird die zugehörige
+`PlaylistEntryExclusion` gelöscht. Begründung: Ein manuelles Hinzufügen ist eine eindeutige, bewusste
+Einschluss-Entscheidung des Anwenders, die die frühere Entfernung aufhebt; ohne diese Aufhebung würde ein
+später aus einer Sammlung nachgelieferter Titel für den Anwender ohne erkennbaren Grund dauerhaft
+unsichtbar bleiben, obwohl er ihn gerade aktiv wieder hinzugefügt hat.
+
+**Löschung der Playlist:** Wird eine Playlist gelöscht, werden auch ihre `PlaylistEntryExclusion`-Datensätze
+automatisch mitgelöscht (Fremdschlüssel mit `ON DELETE CASCADE`, analog zu `PlaylistEntry`).
+
+**Beispiel:**
+```
+Playlist "Meine Serien" enthält Serie "Show A" vollständig (Staffel 1, 2 Episoden je Staffel)
+
+Anwender entfernt Episode 2 von Staffel 1 einzeln aus der Playlist
+→ PlaylistEntryExclusion(PlaylistId, MediaType=TVShowEpisode, MediaId=<Episode 2>) wird angelegt
+
+Staffel 1 wird im Medienbestand erneut gescannt (z. B. nach einer Reorganisation der Dateien),
+Episode 2 bleibt dabei unverändert vorhanden
+
+Nächster Backfill-Durchlauf: Episode 2 wird NICHT erneut hinzugefügt (Ausschluss greift)
+
+Anwender fügt später die ganze Serie "Show A" erneut manuell hinzu
+→ Episode 2 wird jetzt wieder hinzugefügt (expliziter manueller Einschluss),
+  die PlaylistEntryExclusion wird dabei gelöscht
+
+Ab jetzt würde ein erneutes Entfernen von Episode 2 wieder eine neue Ausschluss-Markierung anlegen.
+```
+
+---
+
 ## Zusammenfassung der Validierungsregeln
 
 | Regel | Prüfpunkt | Fehler | HTTP-Status |
@@ -499,6 +604,8 @@ beabsichtigt oder bemerkt hat.
 | BR-15: Case-insensitive Namenssuche | Immer aktiv in Get-Methoden | Keine | Keine — 200 OK |
 | BR-16: Opt-in für 5 Medientypen | Parameter gesteuert | Regression-Schutz für Quellen-Browsing | Keine — 200 OK |
 | BR-17: Sicherheitsabfrage bei Weiterschauen-Bezug | Vor Delete | `ContinueWatchingConfirmationRequiredException` | 409 Conflict |
+| BR-18: Automatische Nachlieferung neuer Inhalte | Periodischer Hintergrundprozess | Keine (still nachgeliefert, MaxItemCount begrenzt) | Keine |
+| BR-19: Bewusst entfernte Titel nicht erneut aufnehmen | Bei Nachlieferung | Keine (still übersprungen) | Keine |
 
 ---
 
@@ -553,9 +660,11 @@ Resultat: Serie A PLUS alle Staffeln und Episoden
 
 | Parameter | Typ | Standard | Beschreibung |
 |-----------|-----|---------|--------------|
-| `Playlists:MaxPlaylistItemCount` | `int?` | `null` (unbegrenzt) | Maximale Einträge pro Playlist (Enforcement noch nicht implementiert) |
+| `Playlists:MaxPlaylistItemCount` | `int?` | `null` (unbegrenzt) | Maximale Einträge pro Playlist; wird sowohl beim manuellen Hinzufügen (BR-9) als auch bei der automatischen Nachlieferung (BR-18) durchgesetzt |
 | `Playlists:DefaultPageSize` | `int` | `20` | Seitengröße für `GET /api/playlists/{id}/entries/paged`, wenn kein `pageSize`-Parameter übergeben wird |
 | `Playlists:MaxPageSize` | `int` | `100` | Obere Grenze für den `pageSize`-Parameter von `GET /api/playlists/{id}/entries/paged` |
+| `Playlists:BackfillIntervalMinutes` | `int` | `15` | Zeitabstand zwischen zwei Nachlieferungs-Durchläufen (BR-18); Werte < 1 werden wie 1 behandelt |
+| `Playlists:BackfillBatchSize` | `int` | `25` | Anzahl Playlists, die pro Nachlieferungs-Durchlauf höchstens geprüft werden (BR-18); Werte < 1 werden wie 1 behandelt |
 
 Diese Parameter werden in `PlaylistSettings` gelesen. Falls `MaxPlaylistItemCount` `null` ist,
 gibt es keine Prüfung der maximalen Eintragsanzahl.

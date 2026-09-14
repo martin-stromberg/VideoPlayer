@@ -892,11 +892,17 @@ Optional kann die maximale Anzahl von Einträgen pro Playlist begrenzt werden:
   "Playlists": {
     "MaxPlaylistItemCount": 1000,
     "DefaultPageSize": 20,
-    "MaxPageSize": 100
+    "MaxPageSize": 100,
+    "BackfillIntervalMinutes": 15,
+    "BackfillBatchSize": 25
   }
 }
 ```
 
-- `MaxPlaylistItemCount`: `null` (Standard) bedeutet keine Beschränkung. Bei Überschreitung wird HTTP 400 zurückgegeben.
+- `MaxPlaylistItemCount`: `null` (Standard) bedeutet keine Beschränkung. Bei Überschreitung wird HTTP 400 zurückgegeben. Wird eine Playlist durch die automatische Nachlieferung (siehe unten) nachbefüllt, gilt dasselbe Limit; ist es bereits erreicht, liefert der Hintergrundprozess für diese Playlist einfach nichts nach (kein Fehler).
 - `DefaultPageSize`: Seitengröße, die `GET /api/playlists/{id}/entries/paged` verwendet, wenn kein `pageSize`-Parameter übergeben wird (Standard: `20`).
 - `MaxPageSize`: obere Grenze für den `pageSize`-Parameter von `GET /api/playlists/{id}/entries/paged` (Standard: `100`); größere Werte führen zu HTTP 400.
+- `BackfillIntervalMinutes`: Zeitabstand in Minuten, in dem der Hintergrundprozess prüft, ob Playlists mit vollständig enthaltenen Serien/Staffeln/Filmsammlungen neue Inhalte (neue Staffel, neue Episode, neuer Film) nachgeliefert bekommen sollen (Standard: `15`). Werte kleiner 1 werden wie `1` behandelt.
+- `BackfillBatchSize`: wie viele Playlists der Hintergrundprozess pro Durchlauf höchstens prüft (Standard: `25`), damit ein einzelner Durchlauf kurz bleibt; alle betroffenen Playlists werden über mehrere Durchläufe reihum abgedeckt. Werte kleiner 1 werden wie `1` behandelt.
+
+Es gibt für die automatische Nachlieferung keinen eigenen REST-Endpunkt - der Mechanismus läuft ausschließlich als Hintergrundprozess (`PlaylistBackfillWorker`) und verändert Playlist-Einträge über dieselben Tabellen, die auch `POST /api/playlists/{id}/entries` verwendet. Details zum fachlichen Verhalten siehe `playlists-business-rules.md`, BR-18 und BR-19.

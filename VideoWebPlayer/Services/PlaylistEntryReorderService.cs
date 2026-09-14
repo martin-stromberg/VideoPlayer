@@ -52,6 +52,38 @@ internal sealed class PlaylistEntryReorderService
             .MaxAsync(e => (long?)e.SortOrder, cancellationToken);
 
     /// <summary>
+    /// Assigns <see cref="PlaylistEntry.SortOrder"/> to newly built (not yet persisted) entries: ascending
+    /// values appended after the playlist's current maximum when the playlist is in
+    /// <see cref="PlaylistSortMode.Manual"/> mode (so the user's manual order is preserved and the new
+    /// entries land at the end), or <c>null</c> for <see cref="PlaylistSortMode.ByReleaseDate"/> (where
+    /// display order is derived from release date on read, not stored). Shared by every code path that adds
+    /// new entries to a playlist - <see cref="PlaylistService.AddMediaToPlaylistAsync"/> (manual, user
+    /// triggered) and <see cref="PlaylistBackfillService"/> (automatic backfill) - so the "append at the end
+    /// in Manual mode" rule cannot drift between the two.
+    /// </summary>
+    /// <param name="playlist">The playlist the entries are being added to.</param>
+    /// <param name="entriesToAdd">The newly built entries to assign a sort order to.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task AssignSortOrderForNewEntriesAsync(Playlist playlist, List<PlaylistEntry> entriesToAdd, CancellationToken cancellationToken)
+    {
+        if (entriesToAdd.Count == 0)
+            return;
+
+        if (playlist.SortMode == PlaylistSortMode.Manual)
+        {
+            var maxSortOrder = await GetMaxSortOrderAsync(playlist.Id, cancellationToken) ?? -1;
+
+            foreach (var entry in entriesToAdd)
+                entry.SortOrder = ++maxSortOrder;
+        }
+        else
+        {
+            foreach (var entry in entriesToAdd)
+                entry.SortOrder = null;
+        }
+    }
+
+    /// <summary>
     /// Changes the manual sort order of a single entry of the given (already ownership-checked) playlist.
     /// </summary>
     /// <param name="playlist">The owning playlist, which must be in <see cref="PlaylistSortMode.Manual"/> mode.</param>

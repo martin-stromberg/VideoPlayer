@@ -466,5 +466,8 @@ public abstract class PlaylistServiceTestBase : IDisposable
 
         public Task<DtoPlaylistPlaybackStart> StartPlaylistAsync(long playlistId, string userId, long? entryId, CancellationToken cancellationToken = default)
             => _resolve().StartPlaylistAsync(playlistId, userId, entryId, cancellationToken);
+
+        public Task ResolvePlaylistBoundContinueWatchingReplacementsForSourceDeletionAsync(long mediaSourceId, CancellationToken cancellationToken = default)
+            => _resolve().ResolvePlaylistBoundContinueWatchingReplacementsForSourceDeletionAsync(mediaSourceId, cancellationToken);
     }
 }

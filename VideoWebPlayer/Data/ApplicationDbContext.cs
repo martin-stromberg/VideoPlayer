@@ -202,7 +202,23 @@ namespace VideoWebPlayer.Data
         /// <param name="source">Die zu l�schende MediaSource.</param>
         /// <param name="progress">Optional progress reporter.</param>
         /// <param name="cancellationToken">Cancellation token.</param>
-        public async Task DeleteMediaSourceAsync(MediaSource source, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
+        /// <param name="beforeContinueWatchingCleanupAsync">
+        /// Optional hook invoked, within this method's own transaction, immediately before the affected
+        /// <see cref="ContinueWatchingEntry"/> rows are unconditionally deleted. Exists so a higher service
+        /// layer (see <c>IPlaylistService.ResolvePlaylistBoundContinueWatchingReplacementsForSourceDeletionAsync</c>)
+        /// can first try to re-point playlist-bound continue-watching entries at another, still-existing
+        /// title of the same playlist, instead of this method's unconditional deletion always winning; this
+        /// data-access layer intentionally has no knowledge of that playlist/sort/accessibility logic
+        /// itself, only of when it must run for the result to stay transactionally consistent with the rest
+        /// of the source deletion. <see langword="null"/> (e.g. from tests, or callers that do not care
+        /// about this replacement behavior) simply skips the hook, preserving this method's previous,
+        /// unconditional-delete-only behavior.
+        /// </param>
+        public async Task DeleteMediaSourceAsync(
+            MediaSource source,
+            IProgress<double>? progress = null,
+            CancellationToken cancellationToken = default,
+            Func<CancellationToken, Task>? beforeContinueWatchingCleanupAsync = null)
         {
             ArgumentNullException.ThrowIfNull(source);
 
@@ -230,6 +246,9 @@ namespace VideoWebPlayer.Data
                                  (we.TVShowEpisode != null && we.TVShowEpisode.TVShowSeason.TVShow.MediaSourceId == source.Id))
                     .ExecuteDeleteAsync(cancellationToken);
                 Report();
+
+                if (beforeContinueWatchingCleanupAsync is not null)
+                    await beforeContinueWatchingCleanupAsync(cancellationToken);
 
                 await ContinueWatchingEntries
                     .Where(cwe => (cwe.Movie != null && cwe.Movie.MediaSourceId == source.Id) ||

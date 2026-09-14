@@ -885,6 +885,102 @@ public sealed class PlaylistService : IPlaylistService
         }
     }
 
+    /// <inheritdoc />
+    /// <remarks>
+    /// Structurally mirrors <see cref="ResolveOrphanContinueWatchingReplacementsAsync"/> (same per-playlist
+    /// sort + accessibility resolution, then a forward search for the next playable and accessible entry),
+    /// but is driven by <see cref="Data.ContinueWatchingEntry"/> rows rather than by already-orphaned
+    /// <see cref="PlaylistEntry"/> rows: at the point this runs (before <c>DeleteMediaSourceAsync</c> has
+    /// deleted anything), every entry referencing the doomed source's media is still a completely ordinary,
+    /// non-orphaned <see cref="PlaylistEntry"/> - what makes it "about to be removed" here is that its media
+    /// belongs to <paramref name="mediaSourceId"/>, not that it fails an existence check. The "next
+    /// available title" candidate set is therefore every playlist entry that does <b>not</b> itself belong to
+    /// <paramref name="mediaSourceId"/> (<c>survivorEntries</c>/<c>survivorSet</c> below), mirroring
+    /// <c>validEntries</c>/<c>validSet</c> there. Only playlists that actually have at least one
+    /// playlist-bound continue-watching entry pointing at the doomed source are touched (bulk-resolved via
+    /// a single query up front, then grouped by playlist), so the cost of this method scales with the number
+    /// of affected continue-watching entries, not with the size of the media source being deleted.
+    /// </remarks>
+    public async Task ResolvePlaylistBoundContinueWatchingReplacementsForSourceDeletionAsync(
+        long mediaSourceId, CancellationToken cancellationToken = default)
+    {
+        var continueWatchingService = _serviceProvider?.GetService<ContinueWatchingService>();
+        if (continueWatchingService is null)
+            return;
+
+        var affectedEntries = await _db.ContinueWatchingEntries
+            .Where(cwe => cwe.PlaylistId != null &&
+                          ((cwe.MovieId != null && cwe.Movie!.MediaSourceId == mediaSourceId) ||
+                           (cwe.TVShowEpisodeId != null && cwe.TVShowEpisode!.TVShowSeason.TVShow.MediaSourceId == mediaSourceId)))
+            .Select(cwe => new { PlaylistId = cwe.PlaylistId!.Value, cwe.MovieId, cwe.TVShowEpisodeId })
+            .ToListAsync(cancellationToken);
+
+        if (affectedEntries.Count == 0)
+            return;
+
+        // Every movie/episode belonging to the doomed source, so candidates for "next available title" can
+        // exclude them: all of them disappear together with the source, so none is actually available.
+        var movieIdsInSource = (await _db.Movies.AsNoTracking()
+            .Where(m => m.MediaSourceId == mediaSourceId)
+            .Select(m => m.Id)
+            .ToListAsync(cancellationToken)).ToHashSet();
+
+        var episodeIdsInSource = (await _db.TVShowEpisodes.AsNoTracking()
+            .Where(e => e.TVShowSeason.TVShow.MediaSourceId == mediaSourceId)
+            .Select(e => e.Id)
+            .ToListAsync(cancellationToken)).ToHashSet();
+
+        bool BelongsToDoomedSource(string mediaType, long mediaId) =>
+            (string.Equals(mediaType, MediaTypeValues.Movie, StringComparison.OrdinalIgnoreCase) && movieIdsInSource.Contains(mediaId)) ||
+            (string.Equals(mediaType, MediaTypeValues.TVShowEpisode, StringComparison.OrdinalIgnoreCase) && episodeIdsInSource.Contains(mediaId));
+
+        foreach (var group in affectedEntries.GroupBy(e => e.PlaylistId))
+        {
+            var playlistId = group.Key;
+            var playlist = await _db.Playlists.AsNoTracking().FirstOrDefaultAsync(p => p.Id == playlistId, cancellationToken);
+            if (playlist is null)
+                continue;
+
+            var allEntries = await _db.PlaylistEntries.Where(e => e.PlaylistId == playlistId).ToListAsync(cancellationToken);
+            var fullSortedEntries = await SortPlaylistEntriesForModeAsync(playlist.SortMode, allEntries, cancellationToken);
+
+            var survivorEntries = allEntries.Where(e => !BelongsToDoomedSource(e.MediaType, e.MediaId)).ToList();
+            var survivorSet = new HashSet<PlaylistEntry>(survivorEntries);
+
+            var idsByType = MediaHierarchyRegistry.GroupMediaIdsByType(survivorEntries);
+            var accessibilityByEntry = await _accessResolver.ResolveAccessibilityAsync(survivorEntries, playlist.UserId, idsByType, cancellationToken);
+
+            foreach (var affected in group)
+            {
+                var (removedMediaType, removedMediaId) = affected.MovieId is not null
+                    ? (MediaTypeValues.Movie, affected.MovieId.Value)
+                    : (MediaTypeValues.TVShowEpisode, affected.TVShowEpisodeId!.Value);
+
+                var doomedIndex = fullSortedEntries.FindIndex(e =>
+                    string.Equals(e.MediaType, removedMediaType, StringComparison.OrdinalIgnoreCase) && e.MediaId == removedMediaId);
+                if (doomedIndex < 0)
+                    continue;
+
+                PlaylistEntry? nextEntry = null;
+                for (var i = doomedIndex + 1; i < fullSortedEntries.Count; i++)
+                {
+                    var candidate = fullSortedEntries[i];
+                    if (!survivorSet.Contains(candidate) || !PlaylistEntryMediaTypeResolver.IsPlayable(candidate.MediaType))
+                        continue;
+
+                    if (accessibilityByEntry.TryGetValue(candidate, out var isAccessible) && isAccessible)
+                    {
+                        nextEntry = candidate;
+                        break;
+                    }
+                }
+
+                await continueWatchingService.ResolvePlaylistEntryRemovalAsync(
+                    playlistId, playlist.UserId, removedMediaType, removedMediaId, nextEntry?.MediaType, nextEntry?.MediaId, cancellationToken);
+            }
+        }
+    }
+
     /// <summary>
     /// Loads the media titles for the given (media type, media id) references, grouped by media type.
     /// Used both to resolve entries' own titles and the titles of their parents, scaled to only the

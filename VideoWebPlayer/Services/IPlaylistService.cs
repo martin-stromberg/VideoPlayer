@@ -230,4 +230,26 @@ public interface IPlaylistService
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The next playable and accessible entry with its position, or <c>null</c> if the end of the playlist is reached.</returns>
     Task<DtoPlaylistNavigationResult?> AdvancePlaylistAsync(long playlistId, string userId, long currentEntryId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Resolves playlist-bound continue-watching replacements for every title about to disappear together
+    /// with the media source identified by <paramref name="mediaSourceId"/> - the "silent" (not
+    /// user-triggered) counterpart of <see cref="RemoveMediaFromPlaylistAsync"/>'s confirmed-removal
+    /// replace-with-next-available-title-or-remove behavior, for the one place in the application where a
+    /// movie or TV show episode is actually deleted from the media library:
+    /// <c>ApplicationDbContext.DeleteMediaSourceAsync</c>.
+    /// </summary>
+    /// <remarks>
+    /// Must be invoked by the caller <b>before</b> <c>DeleteMediaSourceAsync</c> unconditionally deletes the
+    /// affected <see cref="Data.ContinueWatchingEntry"/> rows (and ideally within the very same database
+    /// transaction as the rest of that deletion, so a rollback of the source deletion also rolls back any
+    /// replacement made here) - after that point there is no longer anything left to resolve, since the row
+    /// this method would have replaced is already gone. The "next available title" search excludes every
+    /// title that itself belongs to <paramref name="mediaSourceId"/>, since all of them disappear together
+    /// with the source; a title from a different, still-existing media source mixed into the same playlist
+    /// remains eligible.
+    /// </remarks>
+    /// <param name="mediaSourceId">The id of the media source about to be deleted.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task ResolvePlaylistBoundContinueWatchingReplacementsForSourceDeletionAsync(long mediaSourceId, CancellationToken cancellationToken = default);
 }

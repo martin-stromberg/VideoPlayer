@@ -1,0 +1,64 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="faee38c5-f885-47be-913b-d566bdb05bdd" name="Martin@DESKTOP-CM8OBSG 2026-09-14 19:31:17" runUser="DESKTOP-CM8OBSG\Martin" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-09-14T19:31:17.7254403+02:00" queuing="2026-09-14T19:31:17.7254405+02:00" start="2026-09-14T19:31:15.6929189+02:00" finish="2026-09-14T19:31:17.7298047+02:00" />
+  <TestSettings name="default" id="43734b3a-c8c3-4a0a-99ae-7a77dbbfea80">
+    <Deployment runDeploymentRoot="Martin_DESKTOP-CM8OBSG_2026-09-14_19_31_17" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="6d5c1066-528a-49ed-b3ac-f00f9afdaee6" testId="41ee910b-6e5d-cd47-21aa-79cba9813724" testName="MarkdownLinkCheck.Tests.MarkdownLinkCheckerTests.ExternalLinksAreSkipped" computerName="DESKTOP-CM8OBSG" duration="00:00:00.1196216" startTime="2026-09-14T19:31:17.4524848+02:00" endTime="2026-09-14T19:31:17.5786483+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="6d5c1066-528a-49ed-b3ac-f00f9afdaee6" />
+    <UnitTestResult executionId="d346d89d-2f7d-4e11-a3c8-b08c8a28c5d6" testId="1a3b441c-a093-49ce-0b9f-1f44b63ea468" testName="MarkdownLinkCheck.Tests.MarkdownLinkCheckerTests.NodeModulesIsIgnored" computerName="DESKTOP-CM8OBSG" duration="00:00:00.0020599" startTime="2026-09-14T19:31:17.6318006+02:00" endTime="2026-09-14T19:31:17.6338999+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="d346d89d-2f7d-4e11-a3c8-b08c8a28c5d6" />
+    <UnitTestResult executionId="ab947dea-3be3-4daa-bae5-cca433f9212e" testId="80a3ed35-9668-b01a-6762-b82d9120b736" testName="MarkdownLinkCheck.Tests.MarkdownLinkCheckerTests.FragmentIsChecked" computerName="DESKTOP-CM8OBSG" duration="00:00:00.0092848" startTime="2026-09-14T19:31:17.6128257+02:00" endTime="2026-09-14T19:31:17.6221470+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="ab947dea-3be3-4daa-bae5-cca433f9212e" />
+    <UnitTestResult executionId="8f71a9dc-b3f0-44bc-977e-38a18858d048" testId="461eef4d-0089-0fa6-5b84-cb34a9275cd1" testName="MarkdownLinkCheck.Tests.MarkdownLinkCheckerTests.CasingMismatchFailsEvenOnWindows" computerName="DESKTOP-CM8OBSG" duration="00:00:00.0090313" startTime="2026-09-14T19:31:17.6224516+02:00" endTime="2026-09-14T19:31:17.6315270+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="8f71a9dc-b3f0-44bc-977e-38a18858d048" />
+    <UnitTestResult executionId="73881887-0c0c-4eb4-a2d2-166ea19efe69" testId="7986225b-063b-75d9-bb94-04c710f8e764" testName="MarkdownLinkCheck.Tests.MarkdownLinkCheckerTests.ExistingRelativeLinkPasses" computerName="DESKTOP-CM8OBSG" duration="00:00:00.0086941" startTime="2026-09-14T19:31:17.5830477+02:00" endTime="2026-09-14T19:31:17.5917979+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="73881887-0c0c-4eb4-a2d2-166ea19efe69" />
+    <UnitTestResult executionId="2439cac2-bcc9-4ce4-a4d7-1feea9d98af0" testId="f55f8f94-cd84-525c-bd1f-d854d76bf540" testName="MarkdownLinkCheck.Tests.MarkdownLinkCheckerTests.MissingFileFailsWithLine" computerName="DESKTOP-CM8OBSG" duration="00:00:00.0204208" startTime="2026-09-14T19:31:17.5920681+02:00" endTime="2026-09-14T19:31:17.6125320+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="2439cac2-bcc9-4ce4-a4d7-1feea9d98af0" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="MarkdownLinkCheck.Tests.MarkdownLinkCheckerTests.NodeModulesIsIgnored" storage="d:\repositories\softwareschmiede\fd729906-8801-43ee-8539-fa3e046c88f4\tools\markdownlinkcheck.tests\bin\debug\net10.0\markdownlinkcheck.tests.dll" id="1a3b441c-a093-49ce-0b9f-1f44b63ea468">
+      <Execution id="d346d89d-2f7d-4e11-a3c8-b08c8a28c5d6" />
+      <TestMethod codeBase="D:\Repositories\softwareschmiede\fd729906-8801-43ee-8539-fa3e046c88f4\tools\MarkdownLinkCheck.Tests\bin\Debug\net10.0\MarkdownLinkCheck.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="MarkdownLinkCheck.Tests.MarkdownLinkCheckerTests" name="NodeModulesIsIgnored" />
+    </UnitTest>
+    <UnitTest name="MarkdownLinkCheck.Tests.MarkdownLinkCheckerTests.CasingMismatchFailsEvenOnWindows" storage="d:\repositories\softwareschmiede\fd729906-8801-43ee-8539-fa3e046c88f4\tools\markdownlinkcheck.tests\bin\debug\net10.0\markdownlinkcheck.tests.dll" id="461eef4d-0089-0fa6-5b84-cb34a9275cd1">
+      <Execution id="8f71a9dc-b3f0-44bc-977e-38a18858d048" />
+      <TestMethod codeBase="D:\Repositories\softwareschmiede\fd729906-8801-43ee-8539-fa3e046c88f4\tools\MarkdownLinkCheck.Tests\bin\Debug\net10.0\MarkdownLinkCheck.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="MarkdownLinkCheck.Tests.MarkdownLinkCheckerTests" name="CasingMismatchFailsEvenOnWindows" />
+    </UnitTest>
+    <UnitTest name="MarkdownLinkCheck.Tests.MarkdownLinkCheckerTests.MissingFileFailsWithLine" storage="d:\repositories\softwareschmiede\fd729906-8801-43ee-8539-fa3e046c88f4\tools\markdownlinkcheck.tests\bin\debug\net10.0\markdownlinkcheck.tests.dll" id="f55f8f94-cd84-525c-bd1f-d854d76bf540">
+      <Execution id="2439cac2-bcc9-4ce4-a4d7-1feea9d98af0" />
+      <TestMethod codeBase="D:\Repositories\softwareschmiede\fd729906-8801-43ee-8539-fa3e046c88f4\tools\MarkdownLinkCheck.Tests\bin\Debug\net10.0\MarkdownLinkCheck.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="MarkdownLinkCheck.Tests.MarkdownLinkCheckerTests" name="MissingFileFailsWithLine" />
+    </UnitTest>
+    <UnitTest name="MarkdownLinkCheck.Tests.MarkdownLinkCheckerTests.ExistingRelativeLinkPasses" storage="d:\repositories\softwareschmiede\fd729906-8801-43ee-8539-fa3e046c88f4\tools\markdownlinkcheck.tests\bin\debug\net10.0\markdownlinkcheck.tests.dll" id="7986225b-063b-75d9-bb94-04c710f8e764">
+      <Execution id="73881887-0c0c-4eb4-a2d2-166ea19efe69" />
+      <TestMethod codeBase="D:\Repositories\softwareschmiede\fd729906-8801-43ee-8539-fa3e046c88f4\tools\MarkdownLinkCheck.Tests\bin\Debug\net10.0\MarkdownLinkCheck.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="MarkdownLinkCheck.Tests.MarkdownLinkCheckerTests" name="ExistingRelativeLinkPasses" />
+    </UnitTest>
+    <UnitTest name="MarkdownLinkCheck.Tests.MarkdownLinkCheckerTests.ExternalLinksAreSkipped" storage="d:\repositories\softwareschmiede\fd729906-8801-43ee-8539-fa3e046c88f4\tools\markdownlinkcheck.tests\bin\debug\net10.0\markdownlinkcheck.tests.dll" id="41ee910b-6e5d-cd47-21aa-79cba9813724">
+      <Execution id="6d5c1066-528a-49ed-b3ac-f00f9afdaee6" />
+      <TestMethod codeBase="D:\Repositories\softwareschmiede\fd729906-8801-43ee-8539-fa3e046c88f4\tools\MarkdownLinkCheck.Tests\bin\Debug\net10.0\MarkdownLinkCheck.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="MarkdownLinkCheck.Tests.MarkdownLinkCheckerTests" name="ExternalLinksAreSkipped" />
+    </UnitTest>
+    <UnitTest name="MarkdownLinkCheck.Tests.MarkdownLinkCheckerTests.FragmentIsChecked" storage="d:\repositories\softwareschmiede\fd729906-8801-43ee-8539-fa3e046c88f4\tools\markdownlinkcheck.tests\bin\debug\net10.0\markdownlinkcheck.tests.dll" id="80a3ed35-9668-b01a-6762-b82d9120b736">
+      <Execution id="ab947dea-3be3-4daa-bae5-cca433f9212e" />
+      <TestMethod codeBase="D:\Repositories\softwareschmiede\fd729906-8801-43ee-8539-fa3e046c88f4\tools\MarkdownLinkCheck.Tests\bin\Debug\net10.0\MarkdownLinkCheck.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="MarkdownLinkCheck.Tests.MarkdownLinkCheckerTests" name="FragmentIsChecked" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="41ee910b-6e5d-cd47-21aa-79cba9813724" executionId="6d5c1066-528a-49ed-b3ac-f00f9afdaee6" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="1a3b441c-a093-49ce-0b9f-1f44b63ea468" executionId="d346d89d-2f7d-4e11-a3c8-b08c8a28c5d6" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="80a3ed35-9668-b01a-6762-b82d9120b736" executionId="ab947dea-3be3-4daa-bae5-cca433f9212e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="461eef4d-0089-0fa6-5b84-cb34a9275cd1" executionId="8f71a9dc-b3f0-44bc-977e-38a18858d048" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="7986225b-063b-75d9-bb94-04c710f8e764" executionId="73881887-0c0c-4eb4-a2d2-166ea19efe69" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="f55f8f94-cd84-525c-bd1f-d854d76bf540" executionId="2439cac2-bcc9-4ce4-a4d7-1feea9d98af0" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Ergebnisse nicht in einer Liste" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="Alle geladenen Ergebnisse" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Completed">
+    <Counters total="6" executed="6" passed="6" failed="0" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v4.0.0+05679a7ab5 (64-bit .NET 10.0.12)&#xD;
+[xUnit.net 00:00:00.60]   Discovering: MarkdownLinkCheck.Tests&#xD;
+[xUnit.net 00:00:00.75]   Discovered:  MarkdownLinkCheck.Tests&#xD;
+[xUnit.net 00:00:00.89]   Starting:    MarkdownLinkCheck.Tests&#xD;
+[xUnit.net 00:00:01.13]   Finished:    MarkdownLinkCheck.Tests (ID = 'dd1d4f51597ff0516a1ab72850882a931c342eaa47f0e27049164d7d78e79177')&#xD;
+</StdOut>
+    </Output>
+  </ResultSummary>
+</TestRun>

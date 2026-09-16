@@ -185,31 +185,46 @@
         }
     }
 
+    /// <summary>
+    /// Virtualize items provider. A cancelled <paramref name="request"/> is normal operation - Virtualize
+    /// cancels superseded requests on fast scrolling and on RefreshDataAsync - so an
+    /// <see cref="OperationCanceledException"/> caused by <see cref="ItemsProviderRequest.CancellationToken"/>
+    /// is swallowed and the already-loaded snapshot returned instead of letting the exception escape into
+    /// <c>Virtualize.RefreshDataCoreAsync</c> (which would surface it as an unhandled component error and
+    /// break the debugger on every cancelled request).
+    /// </summary>
     private async ValueTask<ItemsProviderResult<DtoPlaylistEntry>> ItemsProviderAsync(ItemsProviderRequest request)
     {
-        await loadPageSemaphore.WaitAsync(request.CancellationToken);
         try
         {
-            while (allEntries.Count < request.StartIndex + request.Count && hasMorePages)
+            await loadPageSemaphore.WaitAsync(request.CancellationToken);
+            try
             {
-                isLoadingMore = true;
-                try
+                while (allEntries.Count < request.StartIndex + request.Count && hasMorePages)
                 {
-                    var page = await PlaylistClient.RequestPlaylistEntriesPagedAsync(PlaylistId, currentPageNumber, PageSize, request.CancellationToken);
-                    allEntries.AddRange(page.Entries);
-                    hasMorePages = page.HasNextPage;
-                    totalCount = page.TotalCount;
-                    currentPageNumber++;
-                }
-                finally
-                {
-                    isLoadingMore = false;
+                    isLoadingMore = true;
+                    try
+                    {
+                        var page = await PlaylistClient.RequestPlaylistEntriesPagedAsync(PlaylistId, currentPageNumber, PageSize, request.CancellationToken);
+                        allEntries.AddRange(page.Entries);
+                        hasMorePages = page.HasNextPage;
+                        totalCount = page.TotalCount;
+                        currentPageNumber++;
+                    }
+                    finally
+                    {
+                        isLoadingMore = false;
+                    }
                 }
             }
+            finally
+            {
+                loadPageSemaphore.Release();
+            }
         }
-        finally
+        catch (OperationCanceledException) when (request.CancellationToken.IsCancellationRequested)
         {
-            loadPageSemaphore.Release();
+            // Superseded by a newer Virtualize request - the result is discarded anyway.
         }
 
         var count = Math.Clamp(allEntries.Count - request.StartIndex, 0, request.Count);

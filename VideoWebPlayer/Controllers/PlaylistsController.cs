@@ -542,7 +542,7 @@ public class PlaylistsController : ApiBaseController
     /// oversized upload is rejected without ever being buffered into memory - only once that check passes
     /// is the (now known-bounded) content copied into a byte array for
     /// <see cref="IPlaylistService.SetPlaylistCoverAsync"/>, which re-validates via
-    /// <see cref="Services.PlaylistCover.PlaylistCoverValidator"/> regardless.
+    /// <see cref="PlaylistCover.PlaylistCoverValidator"/> regardless.
     /// </remarks>
     [HttpPost("{id}/cover/upload")]
     public Task<IActionResult> UploadPlaylistCover(long id, IFormFile file)

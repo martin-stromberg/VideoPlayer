@@ -89,11 +89,6 @@
                 </Virtualize>
             </div>
         </div>
-
-        @if (isLoadingMore)
-        {
-            <p id="playlist-entries-loading-more">Lade weitere Eintraege...</p>
-        }
     }
 </div>
 
@@ -129,7 +124,6 @@
     private DtoPlaylistEntry? pendingRemovalEntry;
 
     private int currentPageNumber = 1;
-    private bool isLoadingMore;
     private List<DtoPlaylistEntry> allEntries = new();
     private bool hasMorePages = true;
     private int totalCount;
@@ -203,21 +197,18 @@
             await loadPageSemaphore.WaitAsync(request.CancellationToken);
             try
             {
+                // Kein isLoadingMore-Toggle o. ae. hier: jeder StateHasChanged-Ausloeser waehrend eines
+                // Provider-Aufrufs rendert Virtualize neu, veranlasst eine Neumessung des
+                // Dokument-Scrollkontexts und kann so den naechsten Provider-Call triggern - eine
+                // Lade-Meldung, die durch das Laden selbst neu geladen wird (beobachtet als permanentes
+                // Flackern der Liste). Der Virtualize-Placeholder ("Lade...") deckt die Warte-Anzeige ab.
                 while (allEntries.Count < request.StartIndex + request.Count && hasMorePages)
                 {
-                    isLoadingMore = true;
-                    try
-                    {
-                        var page = await PlaylistClient.RequestPlaylistEntriesPagedAsync(PlaylistId, currentPageNumber, PageSize, request.CancellationToken);
-                        allEntries.AddRange(page.Entries);
-                        hasMorePages = page.HasNextPage;
-                        totalCount = page.TotalCount;
-                        currentPageNumber++;
-                    }
-                    finally
-                    {
-                        isLoadingMore = false;
-                    }
+                    var page = await PlaylistClient.RequestPlaylistEntriesPagedAsync(PlaylistId, currentPageNumber, PageSize, request.CancellationToken);
+                    allEntries.AddRange(page.Entries);
+                    hasMorePages = page.HasNextPage;
+                    totalCount = page.TotalCount;
+                    currentPageNumber++;
                 }
             }
             finally

@@ -7,6 +7,15 @@
     overflow-x: visible;
 }
 
+/* Virtualize rendert seine Vor-/Nach-Spacer als klassenlose <div style="height:Npx"> direkt in die
+   .episode-list. Im CSS-Grid werden sie sonst zu einzelnen Grid-Zellen: ihre Hoehe streckt nur die eine
+   Zeile, in der sie liegen, statt die Liste korrekt zu verlaengern - das fuehrt zu falschen
+   Hoehenmessungen von Virtualize und damit zu einem staendigen Nachlade-/Flacker-Loop. Die Spacer
+   muessen die volle Rasterbreite einnehmen. */
+.playlist-entries-list ::deep div:not([class]) {
+    grid-column: 1 / -1;
+}
+
 /* Usability: without this, a draggable row looks identical to a non-draggable one - nothing in the
    markup otherwise hints that it can be picked up and dropped elsewhere. */
 .playlist-entry-row[draggable="true"] {

@@ -40,8 +40,11 @@
            erhalten eine eigene Kachel - Serien/Staffeln/Filmsammlungen, die beim Hinzufuegen einer ganzen Serie
            als rein organisatorische Eintraege mitgespeichert werden (siehe IsRenderableEntry), werden hier
            bewusst uebersprungen, bleiben aber Teil der zugrunde liegenden, weiterhin unveraendert seitenweise
-           geladenen Eintragsliste (Virtualize), damit Paging/Scroll-Nachladen unveraendert funktionieren. *@
-        <div class="playlist-entries-scroll">
+           geladenen Eintragsliste (Virtualize), damit Paging/Scroll-Nachladen unveraendert funktionieren.
+           Wie auf der Serienseite scrollt die gesamte Seite, nicht eine eigene Scrollbox - Virtualize nutzt
+           dann das Dokument als Scroll-Kontext (vorausgesetzt, kein Vorfahre ist scrollbar, siehe
+           .admin-table-wrap-Override in PlaylistEntriesList.razor.css). *@
+        <div class="playlist-entries-list-wrap">
             <div class="episode-list playlist-entries-list">
                 <Virtualize TItem="DtoPlaylistEntry" @ref="virtualizeRef" ItemsProvider="ItemsProviderAsync" Context="entry">
                     <ItemContent>

@@ -1,6 +1,10 @@
-.playlist-entries-scroll {
-    max-height: 480px;
-    overflow-y: auto;
+/* Keine eigene Scrollbox mehr: die Eintragsliste scrollt wie auf der Serien-Detailseite mit der ganzen
+   Seite (Kundenfeedback). Wichtig: .admin-table-wrap setzt global overflow-x: auto, womit overflow-y
+   berechnet zu "auto" wird - Blazors Virtualize wuerde den Container sonst als Scroll-Parent waehlen, der
+   aber niemals vertikal scrollt (keine Hoehenbegrenzung), sodass das seitenweise Nachladen still
+   ausbleiben wuerde. Daher hier gezielt sichtbar machen, damit das Dokument der Scroll-Kontext bleibt. */
+.admin-table-wrap {
+    overflow-x: visible;
 }
 
 /* Usability: without this, a draggable row looks identical to a non-draggable one - nothing in the

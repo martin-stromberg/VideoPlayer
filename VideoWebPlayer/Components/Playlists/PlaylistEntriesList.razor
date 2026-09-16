@@ -1,11 +1,13 @@
+@using Microsoft.JSInterop
 @using VideoWebPlayer.Client.Models
-@implements IDisposable
+@implements IAsyncDisposable
 @inject VideoWebPlayer.Client.VideoWebPlayerClient Client
 @inject VideoWebPlayer.Client.IPlaylistApiClient PlaylistClient
+@inject IJSRuntime JS
 @inject ILogger<PlaylistEntriesList> Logger
 
-@* Owns the "Inhalte" section of the playlist detail page: the add-entry form, paginated/virtualized
-   entry table, drag & drop reordering and the "An Anfang"/"An Ende" quick actions. Extracted out of
+@* Owns the "Inhalte" section of the playlist detail page: the add-entry form, the page-loaded entry
+   list, drag & drop reordering and the "An Anfang"/"An Ende" quick actions. Extracted out of
    PlaylistDetail.razor (which otherwise combined this with playlist metadata display, the sort-mode
    change workflow and the delete workflow into a single ~500-line component) so each component stays
    focused on one concern. PlaylistDetail.razor still owns the sort-mode change workflow itself (it needs
@@ -40,54 +42,55 @@
            erhalten eine eigene Kachel - Serien/Staffeln/Filmsammlungen, die beim Hinzufuegen einer ganzen Serie
            als rein organisatorische Eintraege mitgespeichert werden (siehe IsRenderableEntry), werden hier
            bewusst uebersprungen, bleiben aber Teil der zugrunde liegenden, weiterhin unveraendert seitenweise
-           geladenen Eintragsliste (Virtualize), damit Paging/Scroll-Nachladen unveraendert funktionieren.
-           Wie auf der Serienseite scrollt die gesamte Seite, nicht eine eigene Scrollbox - Virtualize nutzt
-           dann das Dokument als Scroll-Kontext (vorausgesetzt, kein Vorfahre ist scrollbar, siehe
-           .admin-table-wrap-Override in PlaylistEntriesList.razor.css). *@
+           geladenen Eintragsliste.
+           Wie auf der Serienseite rendert die Liste einfach in den normalen Seitenfluss und scrollt mit dem
+           Dokument - kein Virtualize und keine eigene Scrollbox (Virtualize wuerde hier ohnehin den falschen
+           Scroll-Parent waehlen, weil .layout-flex/main ueber overflow-x: hidden berechnet overflow-y: auto
+           bekommen). Das seitenweise Nachladen laeuft ueber das Sentinel-Div am Listenende: sobald es in den
+           Viewport scrollt, meldet observeBottom (wwwroot/js/scroll.js, gleiches Muster wie
+           Actors.razor/MediaSourceDetails.razor) OnBottomVisible(). *@
         <div class="playlist-entries-list-wrap">
             <div class="episode-list playlist-entries-list">
-                <Virtualize TItem="DtoPlaylistEntry" @ref="virtualizeRef" ItemsProvider="ItemsProviderAsync" Context="entry">
-                    <ItemContent>
-                        @if (IsRenderableEntry(entry))
-                        {
-                            <div class="episode-box playlist-entry-row @(entry.IsAccessible ? string.Empty : "opacity-50 text-muted")" data-media-type="@entry.MediaType" data-media-id="@entry.MediaId"
-                                 draggable="@(IsManualMode ? "true" : "false")"
-                                 @ondragstart="() => OnEntryDragStart(entry)"
-                                 @ondragover:preventDefault="IsManualMode"
-                                 @ondrop="() => OnEntryDropAsync(entry)"
-                                 @ondragend="OnEntryDragEnd"
-                                 @ondblclick="GetPlayEntryDoubleClickCallback(entry)">
-                                <img class="episode-poster episode-poster-left playlist-entry-image" src="@GetImageUrl(entry)" alt="@entry.MediaTitle" loading="lazy" onerror="this.onerror=null;this.src='/images/placeholder.png';" />
-                                <div class="episode-info">
-                                    <div class="episode-title">@entry.MediaTitle</div>
-                                    @if (!string.IsNullOrWhiteSpace(entry.ParentMediaTitle))
+                @foreach (var entry in allEntries)
+                {
+                    @if (IsRenderableEntry(entry))
+                    {
+                        <div class="episode-box playlist-entry-row @(entry.IsAccessible ? string.Empty : "opacity-50 text-muted")" data-media-type="@entry.MediaType" data-media-id="@entry.MediaId"
+                             draggable="@(IsManualMode ? "true" : "false")"
+                             @ondragstart="() => OnEntryDragStart(entry)"
+                             @ondragover:preventDefault="IsManualMode"
+                             @ondrop="() => OnEntryDropAsync(entry)"
+                             @ondragend="OnEntryDragEnd"
+                             @ondblclick="GetPlayEntryDoubleClickCallback(entry)">
+                            <img class="episode-poster episode-poster-left playlist-entry-image" src="@GetImageUrl(entry)" alt="@entry.MediaTitle" loading="lazy" onerror="this.onerror=null;this.src='/images/placeholder.png';" />
+                            <div class="episode-info">
+                                <div class="episode-title">@entry.MediaTitle</div>
+                                @if (!string.IsNullOrWhiteSpace(entry.ParentMediaTitle))
+                                {
+                                    <div class="playlist-entry-parent">@entry.ParentMediaTitle</div>
+                                }
+                                <div class="playlist-entry-meta-muted">Hinzugefuegt: @entry.AddedAt.ToLocalTime()</div>
+                                <div class="playlist-entry-actions">
+                                    @if (IsPlayableEntry(entry))
                                     {
-                                        <div class="playlist-entry-parent">@entry.ParentMediaTitle</div>
+                                        <button class="metadata-icon-btn playlist-entry-play-button" @onclick="() => OnPlayEntry.InvokeAsync(entry)" @onclick:stopPropagation title="Abspielen">▶</button>
                                     }
-                                    <div class="playlist-entry-meta-muted">Hinzugefuegt: @entry.AddedAt.ToLocalTime()</div>
-                                    <div class="playlist-entry-actions">
-                                        @if (IsPlayableEntry(entry))
-                                        {
-                                            <button class="metadata-icon-btn playlist-entry-play-button" @onclick="() => OnPlayEntry.InvokeAsync(entry)" @onclick:stopPropagation title="Abspielen">▶</button>
-                                        }
-                                        @if (IsManualMode)
-                                        {
-                                            <button class="metadata-icon-btn playlist-entry-move-start-button" @onclick="() => MoveEntryToBeginningAsync(entry)" @onclick:stopPropagation title="An Anfang">⇤</button>
-                                            <button class="metadata-icon-btn playlist-entry-move-end-button" @onclick="() => MoveEntryToEndAsync(entry)" @onclick:stopPropagation title="An Ende">⇥</button>
-                                        }
-                                        <button class="metadata-icon-btn playlist-entry-remove-button" @onclick="() => RemoveEntryAsync(entry)" @onclick:stopPropagation title="Entfernen">✕</button>
-                                    </div>
+                                    @if (IsManualMode)
+                                    {
+                                        <button class="metadata-icon-btn playlist-entry-move-start-button" @onclick="() => MoveEntryToBeginningAsync(entry)" @onclick:stopPropagation title="An Anfang">⇤</button>
+                                        <button class="metadata-icon-btn playlist-entry-move-end-button" @onclick="() => MoveEntryToEndAsync(entry)" @onclick:stopPropagation title="An Ende">⇥</button>
+                                    }
+                                    <button class="metadata-icon-btn playlist-entry-remove-button" @onclick="() => RemoveEntryAsync(entry)" @onclick:stopPropagation title="Entfernen">✕</button>
                                 </div>
                             </div>
-                        }
-                    </ItemContent>
-                    <Placeholder>
-                        <div class="episode-box playlist-entry-row playlist-entry-placeholder">
-                            <div class="episode-info">Lade...</div>
                         </div>
-                    </Placeholder>
-                </Virtualize>
+                    }
+                }
             </div>
+            @if (hasMorePages)
+            {
+                <div @ref="bottomSentinelRef" class="playlist-entries-sentinel" aria-hidden="true"></div>
+            }
         </div>
     }
 </div>
@@ -126,9 +129,11 @@
     private int currentPageNumber = 1;
     private List<DtoPlaylistEntry> allEntries = new();
     private bool hasMorePages = true;
-    private int totalCount;
-    private Virtualize<DtoPlaylistEntry>? virtualizeRef;
     private readonly SemaphoreSlim loadPageSemaphore = new(1, 1);
+    private ElementReference bottomSentinelRef;
+    private DotNetObjectReference<PlaylistEntriesList>? dotNetRef;
+    private bool sentinelObserverConnected;
+    private bool isLoadingNextPage;
 
     protected override async Task OnInitializedAsync()
     {
@@ -143,7 +148,7 @@
 
     /// <summary>
     /// Resets paging state and (re)loads the first page. Guarded by <see cref="loadPageSemaphore"/> - the
-    /// same semaphore <see cref="ItemsProviderAsync"/> uses - so a scroll-triggered load-more triggered
+    /// same semaphore <see cref="LoadNextPageAsync"/> uses - so a scroll-triggered load-more triggered
     /// while this is still running cannot interleave with it and corrupt the paging fields (e.g. read
     /// <see cref="currentPageNumber"/> after it was reset to 1 here but before the first page's results
     /// were applied, causing the same page to be fetched twice or entries to be lost).
@@ -158,12 +163,10 @@
                 currentPageNumber = 1;
                 allEntries = new List<DtoPlaylistEntry>();
                 hasMorePages = true;
-                totalCount = 0;
 
                 var page = await PlaylistClient.RequestPlaylistEntriesPagedAsync(PlaylistId, currentPageNumber, PageSize);
                 allEntries.AddRange(page.Entries);
                 hasMorePages = page.HasNextPage;
-                totalCount = page.TotalCount;
                 currentPageNumber++;
             }
             finally
@@ -171,8 +174,9 @@
                 loadPageSemaphore.Release();
             }
 
-            if (virtualizeRef is not null)
-                await virtualizeRef.RefreshDataAsync();
+            // The sentinel element is re-created whenever hasMorePages toggles, and the JS observer still
+            // points at the previous element - mark it as needing (re-)connection on the next render.
+            sentinelObserverConnected = false;
         }
         catch (Exception ex)
         {
@@ -183,52 +187,104 @@
     }
 
     /// <summary>
-    /// Virtualize items provider. A cancelled <paramref name="request"/> is normal operation - Virtualize
-    /// cancels superseded requests on fast scrolling and on RefreshDataAsync - so an
-    /// <see cref="OperationCanceledException"/> caused by <see cref="ItemsProviderRequest.CancellationToken"/>
-    /// is swallowed and the already-loaded snapshot returned instead of letting the exception escape into
-    /// <c>Virtualize.RefreshDataCoreAsync</c> (which would surface it as an unhandled component error and
-    /// break the debugger on every cancelled request).
+    /// Connects the IntersectionObserver (window.observeBottom, wwwroot/js/scroll.js) to the sentinel div
+    /// whenever it is rendered (<see cref="hasMorePages"/>) but not yet observed. The observer reports
+    /// intersection with the top-level viewport, so scrolling the document - the only scrollbar on this
+    /// page, same as the series detail page - is what drives page-wise loading.
     /// </summary>
-    private async ValueTask<ItemsProviderResult<DtoPlaylistEntry>> ItemsProviderAsync(ItemsProviderRequest request)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        try
+        if (hasMorePages && !sentinelObserverConnected)
         {
-            await loadPageSemaphore.WaitAsync(request.CancellationToken);
+            // Set before the await so concurrent renders cannot double-connect while the interop call is
+            // still in flight; reset on failure so the next render retries.
+            sentinelObserverConnected = true;
             try
             {
-                // Kein isLoadingMore-Toggle o. ae. hier: jeder StateHasChanged-Ausloeser waehrend eines
-                // Provider-Aufrufs rendert Virtualize neu, veranlasst eine Neumessung des
-                // Dokument-Scrollkontexts und kann so den naechsten Provider-Call triggern - eine
-                // Lade-Meldung, die durch das Laden selbst neu geladen wird (beobachtet als permanentes
-                // Flackern der Liste). Der Virtualize-Placeholder ("Lade...") deckt die Warte-Anzeige ab.
-                while (allEntries.Count < request.StartIndex + request.Count && hasMorePages)
-                {
-                    var page = await PlaylistClient.RequestPlaylistEntriesPagedAsync(PlaylistId, currentPageNumber, PageSize, request.CancellationToken);
-                    allEntries.AddRange(page.Entries);
-                    hasMorePages = page.HasNextPage;
-                    totalCount = page.TotalCount;
-                    currentPageNumber++;
-                }
+                dotNetRef ??= DotNetObjectReference.Create(this);
+                await JS.InvokeVoidAsync("observeBottom", bottomSentinelRef, dotNetRef);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException || ex is JSDisconnectedException || ex is JSException)
+            {
+                // JS runtime unavailable (prerendering, tests) - retry on the next render.
+                sentinelObserverConnected = false;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Called by the IntersectionObserver in wwwroot/js/scroll.js once the sentinel at the end of the
+    /// list becomes fully visible. Loads the next page unless one is already in flight or the last page
+    /// was reached.
+    /// </summary>
+    [JSInvokable]
+    public async Task OnBottomVisible()
+    {
+        if (isLoadingNextPage || !hasMorePages)
+            return;
+
+        await LoadNextPageAsync();
+    }
+
+    /// <summary>
+    /// Appends the next page of entries. Afterwards the sentinel observer is deliberately re-armed
+    /// (see <see cref="OnAfterRenderAsync"/>): IntersectionObserver only reports threshold crossings,
+    /// so a sentinel that is still fully visible after the append would otherwise never fire again and
+    /// the list would stall mid-viewport until the user wiggles the scrollbar.
+    /// </summary>
+    private async Task LoadNextPageAsync()
+    {
+        isLoadingNextPage = true;
+        try
+        {
+            await loadPageSemaphore.WaitAsync();
+            try
+            {
+                if (!hasMorePages)
+                    return;
+
+                var page = await PlaylistClient.RequestPlaylistEntriesPagedAsync(PlaylistId, currentPageNumber, PageSize);
+                allEntries.AddRange(page.Entries);
+                hasMorePages = page.HasNextPage;
+                currentPageNumber++;
             }
             finally
             {
                 loadPageSemaphore.Release();
             }
         }
-        catch (OperationCanceledException) when (request.CancellationToken.IsCancellationRequested)
+        catch (Exception ex)
         {
-            // Superseded by a newer Virtualize request - the result is discarded anyway.
+            Logger.LogWarning(ex, "Fehler beim Nachladen der Eintraege von Playlist {PlaylistId}", PlaylistId);
+            entriesStatusIsError = true;
+            entriesStatusMessage = $"Fehler beim Nachladen der Eintraege: {ex.Message}";
+        }
+        finally
+        {
+            isLoadingNextPage = false;
         }
 
-        var count = Math.Clamp(allEntries.Count - request.StartIndex, 0, request.Count);
-        var items = allEntries.Skip(request.StartIndex).Take(count);
-        return new ItemsProviderResult<DtoPlaylistEntry>(items, totalCount);
+        sentinelObserverConnected = false;
+        await InvokeAsync(StateHasChanged);
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
-        loadPageSemaphore.Dispose();
+        dotNetRef?.Dispose();
+        dotNetRef = null;
+
+        if (sentinelObserverConnected)
+        {
+            sentinelObserverConnected = false;
+            try
+            {
+                await JS.InvokeVoidAsync("disconnectMediaSourceBottomObserver");
+            }
+            catch (Exception ex) when (ex is InvalidOperationException || ex is JSDisconnectedException || ex is JSException)
+            {
+                // JS runtime is no longer available.
+            }
+        }
     }
 
     /// <summary>

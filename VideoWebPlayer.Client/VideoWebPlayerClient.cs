@@ -228,6 +228,17 @@ namespace VideoWebPlayer.Client
         }
 
         /// <summary>
+        /// Sends a DELETE request to <paramref name="endPoint"/> and deserializes the JSON response body to <typeparamref name="T"/>.
+        /// </summary>
+        /// <typeparam name="T">The type to deserialize the response body into.</typeparam>
+        /// <param name="endPoint">The relative API endpoint to call.</param>
+        /// <returns>The deserialized response body.</returns>
+        protected virtual Task<T> HttpDeleteAsync<T>(string endPoint)
+        {
+            return SendAndDeserializeAsync<T>(endPoint, "DELETE", () => httpClient.DeleteAsync(endPoint));
+        }
+
+        /// <summary>
         /// Sends a DELETE request to <paramref name="endPoint"/>, without deserializing a response body.
         /// </summary>
         /// <param name="endPoint">The relative API endpoint to call.</param>

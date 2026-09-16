@@ -63,7 +63,16 @@
             {
                 <a class="media-box-link playlist-row" href="@($"/playlists/{playlist.Id}")" data-playlist-name="@playlist.Name" title="@playlist.Name" aria-label="Playlist &quot;@(playlist.Name)&quot; oeffnen">
                     <div class="media-box playlist-card">
+                        @* Platzhalter liegt immer darunter (billig: Farbverlauf + Symbol) und wird nur
+                           sichtbar, wenn kein Cover gesetzt ist oder das Bild nicht ladbar ist (onerror
+                           blendet das <img> aus) - vermeidet einen unnoetigen HTTP-Request, wenn ohnehin
+                           kein Cover existiert, ohne dedizierte JS-Interop fuer den Fallback zu brauchen. *@
                         <PlaylistCoverPlaceholder PlaylistId="playlist.Id" CssClass="playlist-card-cover" />
+                        @if (playlist.CoverPictureId.HasValue)
+                        {
+                            <img class="playlist-card-cover playlist-card-cover-image" src="@GetCoverImageUrl(playlist)" alt="@playlist.Name"
+                                 onerror="this.style.display='none'" />
+                        }
                         <div class="media-card-overlay">
                             <div class="media-titles">
                                 <span class="media-title-text playlist-card-title">@playlist.Name</span>
@@ -154,6 +163,17 @@
     {
         formState.Close();
     }
+
+    /// <summary>
+    /// URL of a playlist's cover image, carrying the access token needed since a plain <c>&lt;img&gt;</c>
+    /// request cannot send an <c>Authorization</c> header (same convention as the poster URLs built
+    /// throughout the app, e.g. <c>TVShowDetails.razor</c>), and cache-busted via
+    /// <see cref="DtoPlaylist.CoverPictureId"/> (which changes on every upload/regeneration) so the browser
+    /// fetches the new image instead of reusing a stale cached response for the same <c>/cover</c> endpoint
+    /// - same reasoning as <c>PlaylistDetail.razor.CoverImageUrl</c>.
+    /// </summary>
+    private string GetCoverImageUrl(DtoPlaylist playlist)
+        => $"/api/playlists/{playlist.Id}/cover?access_token={Client.AuthorizationToken}&v={playlist.CoverPictureId}";
 
     private static string TruncateDescription(string? description)
     {

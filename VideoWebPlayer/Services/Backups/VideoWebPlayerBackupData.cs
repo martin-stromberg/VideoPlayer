@@ -58,7 +58,10 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         $"{nameof(ApplicationDbContext.TVShowEpisodeActors)}.{nameof(TVShowEpisodeActor.Role)}",
         $"{nameof(ApplicationDbContext.TVShowEpisodeActors)}.{nameof(TVShowEpisodeActor.Order)}",
         $"{nameof(ApplicationDbContext.PlaylistEntries)}.{nameof(PlaylistEntry.SortOrder)}",
-        $"{nameof(ApplicationDbContext.Playlists)}.{nameof(Playlist.GenresManuallyOverridden)}"
+        $"{nameof(ApplicationDbContext.Playlists)}.{nameof(Playlist.GenresManuallyOverridden)}",
+        $"{nameof(ApplicationDbContext.Playlists)}.{nameof(Playlist.CoverPictureId)}",
+        $"{nameof(ApplicationDbContext.Playlists)}.{nameof(Playlist.CoverPictureIsUserUploaded)}",
+        $"{nameof(ApplicationDbContext.Pictures)}.{nameof(Picture.PlaylistId)}"
     };
 
     private static readonly HashSet<string> IgnoredRestoreColumns = new(StringComparer.OrdinalIgnoreCase)
@@ -78,7 +81,8 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         (nameof(ApplicationDbContext.Movies), nameof(Movie.IsManuallyEdited), false),
         (nameof(ApplicationDbContext.MovieCollections), nameof(MovieCollection.IsManuallyEdited), false),
         (nameof(ApplicationDbContext.Pictures), nameof(Picture.IsGeneratedBackground), false),
-        (nameof(ApplicationDbContext.Playlists), nameof(Playlist.GenresManuallyOverridden), false)
+        (nameof(ApplicationDbContext.Playlists), nameof(Playlist.GenresManuallyOverridden), false),
+        (nameof(ApplicationDbContext.Playlists), nameof(Playlist.CoverPictureIsUserUploaded), false)
     };
 
     private static readonly (string Table, string Column, long DefaultValue)[] OptionalRestoreLongDefaults =
@@ -365,6 +369,21 @@ public sealed class VideoWebPlayerBackupData : IBackupData
                 return $"NULL AS {QuoteIdentifier(column.Name)}";
             if (string.Equals(column.Name, nameof(TVShowEpisode.BackgroundImageRequiresUpdate), StringComparison.OrdinalIgnoreCase))
                 return $"1 AS {QuoteIdentifier(column.Name)}";
+        }
+
+        if (string.Equals(table.Name, nameof(ApplicationDbContext.Playlists), StringComparison.OrdinalIgnoreCase)
+            && string.Equals(column.Name, nameof(Playlist.CoverPictureId), StringComparison.OrdinalIgnoreCase))
+        {
+            // Pictures werden nur exportiert, wenn IsGeneratedBackground = 0 ist (siehe BuildTableFilter) -
+            // ein automatisch erzeugtes Collagen-Cover (CoverPictureIsUserUploaded = 0) haette im Backup
+            // also keine zugehoerige Pictures-Zeile mehr und wuerde beim Restore eine verwaiste
+            // Fremdschluessel-Referenz hinterlassen (analog zu TVShowEpisode.GeneratedBackgroundPictureId
+            // oben). Ein hochgeladenes Cover (CoverPictureIsUserUploaded = 1) bleibt dagegen erhalten, da
+            // seine Picture-Zeile mit exportiert wird. Nach dem Restore eines Backups mit generiertem Cover
+            // zeigt die Playlist bis zum naechsten manuellen "Neu erzeugen" den Platzhalter - konsistent mit
+            // der Designentscheidung, dass Neuerzeugung ausschliesslich manuell erfolgt.
+            return $"(CASE WHEN {QuoteIdentifier(nameof(Playlist.CoverPictureIsUserUploaded))} = 1 " +
+                   $"THEN {QuoteIdentifier(column.Name)} ELSE NULL END) AS {QuoteIdentifier(column.Name)}";
         }
 
         return QuoteIdentifier(column.Name);

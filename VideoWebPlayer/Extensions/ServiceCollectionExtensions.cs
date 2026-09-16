@@ -232,6 +232,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPlaylistService, PlaylistService>();
         services.Configure<PlaylistSettings>(configuration.GetSection("Playlists"));
         services.AddScoped<PlaylistBackfillService>();
+        services.AddScoped<VideoWebPlayer.Services.PlaylistCover.PlaylistCoverValidator>();
+        services.AddScoped<VideoWebPlayer.Services.PlaylistCover.PlaylistCoverImageGenerator>();
         services.AddScoped<IUnlockedMediaService, UnlockedMediaService>();
         services.AddScoped<IGenreService, GenreService>();
         services.AddScoped<SftpMediaSourceReader>();

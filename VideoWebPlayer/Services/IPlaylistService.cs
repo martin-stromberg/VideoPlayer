@@ -277,4 +277,42 @@ public interface IPlaylistService
     /// <param name="mediaSourceId">The id of the media source about to be deleted.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     Task ResolvePlaylistBoundContinueWatchingReplacementsForSourceDeletionAsync(long mediaSourceId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Regenerates a playlist's cover image as a collage of its current contents' poster pictures,
+    /// replacing its current cover (if any) - including a previously uploaded one, since this is an
+    /// explicit user action ("Neu erzeugen", Entwicklungsschritt 10).
+    /// </summary>
+    /// <param name="playlistId">The playlist identifier.</param>
+    /// <param name="userId">The id of the requesting (owning) user.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The id of the newly generated cover picture, or <c>null</c> if no source images were available.</returns>
+    Task<long?> GeneratePlaylistCoverAsync(long playlistId, string userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Saves an uploaded image as a playlist's cover, replacing its current cover (if any).
+    /// </summary>
+    /// <param name="playlistId">The playlist identifier.</param>
+    /// <param name="userId">The id of the requesting (owning) user.</param>
+    /// <param name="pictureData">The raw uploaded image bytes.</param>
+    /// <param name="contentType">The MIME type reported for the upload.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The id of the newly saved cover picture.</returns>
+    Task<long> SetPlaylistCoverAsync(long playlistId, string userId, byte[] pictureData, string? contentType, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Loads the picture currently used as a playlist's cover, regardless of owner.
+    /// </summary>
+    /// <param name="playlistId">The playlist identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The cover picture, or <c>null</c> if the playlist does not exist or has no cover set.</returns>
+    Task<Data.Picture?> GetPlaylistCoverAsync(long playlistId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Clears a playlist's cover (if any) and deletes the underlying picture.
+    /// </summary>
+    /// <param name="playlistId">The playlist identifier.</param>
+    /// <param name="userId">The id of the requesting (owning) user.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task DeletePlaylistCoverAsync(long playlistId, string userId, CancellationToken cancellationToken = default);
 }

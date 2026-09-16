@@ -147,5 +147,28 @@ namespace VideoWebPlayer.Client
                 "POST",
                 () => httpClient.PostAsync(endPoint, new StringContent(string.Empty)),
                 treatNoContentAsNull: true);
+
+        /// <inheritdoc />
+        public async Task<DtoPlaylistCoverResult> UploadPlaylistCoverAsync(long playlistId, byte[] fileContent, string fileName, string contentType)
+        {
+            using var content = new MultipartFormDataContent();
+            var fileContentPart = new ByteArrayContent(fileContent);
+            fileContentPart.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(contentType);
+            content.Add(fileContentPart, "file", fileName);
+
+            return await HttpPostAsync<DtoPlaylistCoverResult>($"api/playlists/{playlistId}/cover/upload", content);
+        }
+
+        /// <inheritdoc />
+        public async Task<DtoPlaylistCoverResult> RegeneratePlaylistCoverAsync(long playlistId)
+        {
+            return await HttpPostAsync<DtoPlaylistCoverResult>($"api/playlists/{playlistId}/cover/regenerate", new StringContent(string.Empty));
+        }
+
+        /// <inheritdoc />
+        public async Task<DtoPlaylistCoverResult> DeletePlaylistCoverAsync(long playlistId)
+        {
+            return await HttpDeleteAsync<DtoPlaylistCoverResult>($"api/playlists/{playlistId}/cover");
+        }
     }
 }

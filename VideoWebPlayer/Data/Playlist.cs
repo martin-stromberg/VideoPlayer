@@ -78,6 +78,27 @@ namespace VideoWebPlayer.Data
         public bool GenresManuallyOverridden { get; set; }
 
         /// <summary>
+        /// Gets or sets the foreign key of the picture used as this playlist's cover (either uploaded by
+        /// the owner or generated as a collage from the playlist's contents), or <see langword="null"/> if
+        /// none has been set yet (the UI then falls back to a neutral placeholder).
+        /// </summary>
+        public long? CoverPictureId { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether <see cref="CoverPictureId"/> was uploaded by the owner
+        /// (<see langword="true"/>) or automatically generated as a collage from the playlist's contents
+        /// (<see langword="false"/>). Mirrors the "manually overridden" flag pattern of
+        /// <see cref="GenresManuallyOverridden"/>: an uploaded cover always takes precedence and is never
+        /// silently replaced by a generated one.
+        /// </summary>
+        public bool CoverPictureIsUserUploaded { get; set; }
+
+        /// <summary>
+        /// Gets or sets the navigation property to the picture referenced by <see cref="CoverPictureId"/>.
+        /// </summary>
+        public Picture? CoverPicture { get; set; }
+
+        /// <summary>
         /// Gets or sets the entries contained in this playlist.
         /// </summary>
         public ICollection<PlaylistEntry> PlaylistEntries { get; set; } =

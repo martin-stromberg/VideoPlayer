@@ -13,6 +13,9 @@ namespace VideoWebPlayer.Data.Configurations
         {
             builder
                 .HasIndex(p => new { p.EpisodeId, p.IsGeneratedBackground });
+
+            builder
+                .HasIndex(p => new { p.PlaylistId, p.IsGeneratedBackground });
         }
     }
 }

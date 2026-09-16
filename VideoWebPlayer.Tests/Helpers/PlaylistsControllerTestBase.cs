@@ -241,5 +241,17 @@ public abstract class PlaylistsControllerTestBase : IDisposable
 
         public Task ResolvePlaylistBoundContinueWatchingReplacementsForSourceDeletionAsync(long mediaSourceId, CancellationToken cancellationToken = default)
             => _resolve().ResolvePlaylistBoundContinueWatchingReplacementsForSourceDeletionAsync(mediaSourceId, cancellationToken);
+
+        public Task<long?> GeneratePlaylistCoverAsync(long playlistId, string userId, CancellationToken cancellationToken = default)
+            => _resolve().GeneratePlaylistCoverAsync(playlistId, userId, cancellationToken);
+
+        public Task<long> SetPlaylistCoverAsync(long playlistId, string userId, byte[] pictureData, string? contentType, CancellationToken cancellationToken = default)
+            => _resolve().SetPlaylistCoverAsync(playlistId, userId, pictureData, contentType, cancellationToken);
+
+        public Task<Picture?> GetPlaylistCoverAsync(long playlistId, CancellationToken cancellationToken = default)
+            => _resolve().GetPlaylistCoverAsync(playlistId, cancellationToken);
+
+        public Task DeletePlaylistCoverAsync(long playlistId, string userId, CancellationToken cancellationToken = default)
+            => _resolve().DeletePlaylistCoverAsync(playlistId, userId, cancellationToken);
     }
 }

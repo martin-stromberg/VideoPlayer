@@ -186,5 +186,31 @@ namespace VideoWebPlayer.Client
         /// <param name="currentEntryId">Id of the entry that just finished playing.</param>
         /// <returns>The next playable and accessible entry, or <c>null</c> if there is none.</returns>
         Task<DtoPlaylistNavigationResult?> AdvancePlaylistAsync(long playlistId, long currentEntryId);
+
+        /// <summary>
+        /// Uploads a cover image for a playlist, replacing its current cover (if any). On a validation
+        /// failure (invalid format, file too large, not a genuine image), the request fails with an
+        /// <see cref="HttpRequestException"/> whose <c>Message</c> is the server's user-facing error text.
+        /// </summary>
+        /// <param name="playlistId">Id of the playlist to upload a cover for.</param>
+        /// <param name="fileContent">The raw file bytes.</param>
+        /// <param name="fileName">The uploaded file's name, forwarded as part of the multipart request.</param>
+        /// <param name="contentType">The MIME type of the uploaded file.</param>
+        /// <returns>The upload result.</returns>
+        Task<DtoPlaylistCoverResult> UploadPlaylistCoverAsync(long playlistId, byte[] fileContent, string fileName, string contentType);
+
+        /// <summary>
+        /// Regenerates a playlist's cover as a collage of its current contents (the "Neu erzeugen" UI action).
+        /// </summary>
+        /// <param name="playlistId">Id of the playlist to regenerate the cover for.</param>
+        /// <returns>The regeneration result; <see cref="DtoPlaylistCoverResult.Success"/> is <c>false</c> if no source images were available.</returns>
+        Task<DtoPlaylistCoverResult> RegeneratePlaylistCoverAsync(long playlistId);
+
+        /// <summary>
+        /// Deletes a playlist's cover (if any).
+        /// </summary>
+        /// <param name="playlistId">Id of the playlist to delete the cover of.</param>
+        /// <returns>The deletion result.</returns>
+        Task<DtoPlaylistCoverResult> DeletePlaylistCoverAsync(long playlistId);
     }
 }

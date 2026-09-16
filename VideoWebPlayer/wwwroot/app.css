@@ -2478,9 +2478,19 @@ input[type="text"]:focus {
     height: 100%;
 }
 
-/* Generischer Cover-Platzhalter (Playlists haben noch kein eigenes Bildfeld, siehe
-   PlaylistCoverPlaceholder.razor): Farbverlauf aus einem deterministisch aus der Playlist-Id
-   abgeleiteten Farbton plus zentriertem Playlist-Symbol. */
+/* Echtes Cover-Bild (hochgeladen oder generiert, Entwicklungsschritt 10): liegt ueber dem
+   PlaylistCoverPlaceholder (siehe .playlist-card-cover), deckt ihn bei erfolgreichem Laden vollstaendig ab;
+   das "onerror"-Attribut in PlaylistsList.razor blendet das Bild bei einem 404 wieder aus, sodass der
+   Platzhalter darunter sichtbar wird - ohne dedizierte JS-Interop fuer den Fallback. */
+.playlist-card-cover-image {
+    position: absolute;
+    inset: 0;
+    object-fit: cover;
+}
+
+/* Generischer Cover-Platzhalter (siehe PlaylistCoverPlaceholder.razor): Fallback-Platzhalter,
+   sichtbar wenn kein Cover gesetzt ist oder das Bild nicht ladbar ist. Farbverlauf aus einem
+   deterministisch aus der Playlist-Id abgeleiteten Farbton plus zentriertem Playlist-Symbol. */
 .playlist-cover-placeholder {
     width: 100%;
     height: 100%;
@@ -2544,6 +2554,14 @@ input[type="text"]:focus {
 .playlist-header-fallback .playlist-header-cover .playlist-cover-icon {
     width: clamp(96px, 14vw, 200px);
     height: clamp(96px, 14vw, 200px);
+}
+
+/* Echtes Cover-Bild (hochgeladen oder generiert, Entwicklungsschritt 10): liegt ueber dem
+   PlaylistCoverPlaceholder, siehe .playlist-card-cover-image fuer dasselbe Muster auf der Kachel. */
+.playlist-header-fallback .playlist-header-cover-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
 .playlist-header-fallback .tvshow-header-overlay {

@@ -244,6 +244,277 @@ public sealed class VideoWebPlayerBackupDataTests
     }
 
     /// <summary>
+    /// Verifies that a backup taken before <c>Playlists.CoverPictureId</c>/<c>Playlists.CoverPictureIsUserUploaded</c>
+    /// existed (Entwicklungsschritt 10, Playlist-Abbildungen) can still be restored, with both missing
+    /// columns defaulting to <see langword="null"/>/<see langword="false"/> respectively (i.e. the restored
+    /// playlist behaves as if it never had a cover, which is always safe regardless of what the pre-Schritt-10
+    /// backup's playlist actually looked like).
+    /// </summary>
+    [Fact]
+    public async Task ReadFromAsync_LegacyBackupWithoutCoverColumnsInPlaylists_RestoresSuccessfully()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var connection = new SqliteConnection("Data Source=file:backuptest-no-cover-columns?mode=memory&cache=shared");
+        await connection.OpenAsync(ct);
+        var (db, backup, userId) = await CreateBackupWithSeededDatabaseAsync(connection, ct);
+        await using var _ = db;
+
+        var playlist = new Playlist
+        {
+            UserId = userId,
+            Name = "Legacy-Playlist-Ohne-Cover",
+            SortMode = PlaylistSortMode.ByReleaseDate,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        db.Playlists.Add(playlist);
+        await db.SaveChangesAsync(ct);
+
+        using var legacyStream = await BuildLegacyBackupStreamWithoutColumnsAsync(
+            backup, "Playlists", new[] { "CoverPictureId", "CoverPictureIsUserUploaded" }, ct);
+
+        // This must not throw even though the backup lacks the new columns.
+        var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
+
+        Assert.Null(exception);
+        var restoredPlaylist = await db.Playlists.AsNoTracking().SingleAsync(ct);
+        Assert.Null(restoredPlaylist.CoverPictureId);
+        Assert.False(restoredPlaylist.CoverPictureIsUserUploaded);
+        Assert.Equal(userId, (await db.Users.FirstAsync(ct)).Id);
+    }
+
+    /// <summary>
+    /// Verifies that a backup taken before <c>Pictures.PlaylistId</c> existed (Entwicklungsschritt 10,
+    /// Playlist-Abbildungen - the back-reference used for Cover-Picture cleanup, analogous to
+    /// <c>Pictures.EpisodeId</c>) can still be restored, with the missing column defaulting to
+    /// <see langword="null"/>.
+    /// </summary>
+    [Fact]
+    public async Task ReadFromAsync_LegacyBackupWithoutPlaylistIdColumnInPictures_RestoresSuccessfully()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var connection = new SqliteConnection("Data Source=file:backuptest-no-picture-playlistid?mode=memory&cache=shared");
+        await connection.OpenAsync(ct);
+        var (db, backup, userId) = await CreateBackupWithSeededDatabaseAsync(connection, ct);
+        await using var _ = db;
+
+        var playlist = new Playlist
+        {
+            UserId = userId,
+            Name = "Legacy-Playlist-Mit-Bild",
+            SortMode = PlaylistSortMode.ByReleaseDate,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        db.Playlists.Add(playlist);
+        await db.SaveChangesAsync(ct);
+        db.Pictures.Add(new Picture { Type = "cover", Data = new byte[] { 1 }, ContentType = "image/jpeg", PlaylistId = playlist.Id });
+        await db.SaveChangesAsync(ct);
+
+        using var legacyStream = await BuildLegacyBackupStreamWithoutColumnAsync(backup, "Pictures", "PlaylistId", ct);
+
+        // This must not throw even though the backup lacks the new column.
+        var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
+
+        Assert.Null(exception);
+        var restoredPicture = await db.Pictures.AsNoTracking().SingleAsync(p => p.Data.Length == 1, ct);
+        Assert.Null(restoredPicture.PlaylistId);
+        Assert.Equal(userId, (await db.Users.FirstAsync(ct)).Id);
+    }
+
+    /// <summary>
+    /// Verifies the actual anti-orphan behavior (not just backward compatibility with a pre-Schritt-10
+    /// backup, see <see cref="ReadFromAsync_LegacyBackupWithoutCoverColumnsInPlaylists_RestoresSuccessfully"/>
+    /// above) for a playlist whose cover was automatically generated (<see cref="Playlist.CoverPictureIsUserUploaded"/>
+    /// = <see langword="false"/>): the underlying <see cref="Picture"/> (<see cref="Picture.IsGeneratedBackground"/>
+    /// = <see langword="true"/>) is excluded from the export by <c>BuildTableFilter</c>, so
+    /// <c>BuildColumnSelectExpression</c>'s <c>CASE</c> override must export <c>NULL</c> for
+    /// <c>Playlists.CoverPictureId</c> instead of the picture's id - otherwise the restore would leave a
+    /// foreign key referencing a row that was never written back, which <see cref="ReadFromAsync"/> would
+    /// catch via <c>PRAGMA foreign_key_check</c> (<c>EnsureNoSqliteForeignKeyViolationsAsync</c>) and fail
+    /// the whole restore.
+    /// </summary>
+    [Fact]
+    public async Task ReadFromAsync_RoundTripWithGeneratedCover_ClearsOrphanCoverPictureId()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var connection = new SqliteConnection("Data Source=file:backuptest-cover-generated?mode=memory&cache=shared");
+        await connection.OpenAsync(ct);
+        var (db, backup, userId) = await CreateBackupWithSeededDatabaseAsync(connection, ct);
+        await using var _ = db;
+
+        var picture = new Picture
+        {
+            Type = "cover",
+            Data = new byte[] { 1, 2, 3 },
+            ContentType = "image/jpeg",
+            IsGeneratedBackground = true
+        };
+        db.Pictures.Add(picture);
+        await db.SaveChangesAsync(ct);
+
+        var playlist = new Playlist
+        {
+            UserId = userId,
+            Name = "Playlist-Mit-Generiertem-Cover",
+            SortMode = PlaylistSortMode.ByReleaseDate,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            CoverPictureId = picture.Id,
+            CoverPictureIsUserUploaded = false
+        };
+        db.Playlists.Add(playlist);
+        await db.SaveChangesAsync(ct);
+        picture.PlaylistId = playlist.Id;
+        await db.SaveChangesAsync(ct);
+
+        using var backupStream = new MemoryStream();
+        await backup.WriteToAsync(backupStream, ct);
+        backupStream.Position = 0;
+
+        // This must not throw (in particular no SQLite foreign key violation) even though the generated
+        // picture was intentionally left out of the backup.
+        var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(backupStream, ct));
+
+        Assert.Null(exception);
+        var restoredPlaylist = await db.Playlists.AsNoTracking().SingleAsync(p => p.Name == "Playlist-Mit-Generiertem-Cover", ct);
+        Assert.Null(restoredPlaylist.CoverPictureId);
+        Assert.False(await db.Pictures.AnyAsync(p => p.Id == picture.Id, ct));
+    }
+
+    /// <summary>
+    /// Counterpart of <see cref="ReadFromAsync_RoundTripWithGeneratedCover_ClearsOrphanCoverPictureId"/> for
+    /// an uploaded cover (<see cref="Playlist.CoverPictureIsUserUploaded"/> = <see langword="true"/>): its
+    /// underlying <see cref="Picture"/> is not filtered out of the export (only
+    /// <see cref="Picture.IsGeneratedBackground"/> pictures are), so <c>Playlists.CoverPictureId</c> must
+    /// survive the round trip unchanged instead of being nulled out.
+    /// </summary>
+    [Fact]
+    public async Task ReadFromAsync_RoundTripWithUploadedCover_PreservesCoverPictureId()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var connection = new SqliteConnection("Data Source=file:backuptest-cover-uploaded?mode=memory&cache=shared");
+        await connection.OpenAsync(ct);
+        var (db, backup, userId) = await CreateBackupWithSeededDatabaseAsync(connection, ct);
+        await using var _ = db;
+
+        var picture = new Picture
+        {
+            Type = "cover",
+            Data = new byte[] { 4, 5, 6 },
+            ContentType = "image/jpeg",
+            IsGeneratedBackground = false
+        };
+        db.Pictures.Add(picture);
+        await db.SaveChangesAsync(ct);
+
+        var playlist = new Playlist
+        {
+            UserId = userId,
+            Name = "Playlist-Mit-Hochgeladenem-Cover",
+            SortMode = PlaylistSortMode.ByReleaseDate,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            CoverPictureId = picture.Id,
+            CoverPictureIsUserUploaded = true
+        };
+        db.Playlists.Add(playlist);
+        await db.SaveChangesAsync(ct);
+        picture.PlaylistId = playlist.Id;
+        await db.SaveChangesAsync(ct);
+
+        using var backupStream = new MemoryStream();
+        await backup.WriteToAsync(backupStream, ct);
+        backupStream.Position = 0;
+
+        var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(backupStream, ct));
+
+        Assert.Null(exception);
+        var restoredPlaylist = await db.Playlists.AsNoTracking().SingleAsync(p => p.Name == "Playlist-Mit-Hochgeladenem-Cover", ct);
+        Assert.Equal(picture.Id, restoredPlaylist.CoverPictureId);
+        Assert.True(restoredPlaylist.CoverPictureIsUserUploaded);
+        Assert.True(await db.Pictures.AnyAsync(p => p.Id == picture.Id, ct));
+    }
+
+    /// <summary>
+    /// Same as <see cref="BuildLegacyBackupStreamWithoutColumnAsync"/>, removing several columns from the
+    /// same table at once (used where a single legacy backup plausibly predates more than one column added
+    /// together, e.g. <c>CoverPictureId</c> and <c>CoverPictureIsUserUploaded</c> - both introduced by the
+    /// same Entwicklungsschritt-10 migration).
+    /// </summary>
+    /// <param name="backup">The current-schema backup to derive the legacy archive from.</param>
+    /// <param name="tableName">The name of the table to remove the columns from.</param>
+    /// <param name="columnNames">The names of the columns to remove.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The rebuilt legacy backup archive, positioned at the start.</returns>
+    private static async Task<MemoryStream> BuildLegacyBackupStreamWithoutColumnsAsync(
+        VideoWebPlayerBackupData backup, string tableName, string[] columnNames, CancellationToken cancellationToken)
+    {
+        using var currentStream = new MemoryStream();
+        await backup.WriteToAsync(currentStream, cancellationToken);
+        currentStream.Position = 0;
+
+        using var currentArchive = new ZipArchive(currentStream, ZipArchiveMode.Read, true);
+        var indexEntry = currentArchive.GetEntry("index.json")!;
+        JsonNode indexNode;
+        await using (var indexStream = indexEntry.Open())
+        {
+            indexNode = (await JsonNode.ParseAsync(indexStream, cancellationToken: cancellationToken))!;
+        }
+
+        var tableEntry = indexNode["tables"]!.AsArray()
+            .Single(t => string.Equals(t!["name"]!.GetValue<string>(), tableName, StringComparison.OrdinalIgnoreCase));
+        var columnsArray = tableEntry!["columns"]!.AsArray();
+        foreach (var columnName in columnNames)
+        {
+            var columnNode = columnsArray.FirstOrDefault(c => string.Equals(c!.GetValue<string>(), columnName, StringComparison.OrdinalIgnoreCase));
+            if (columnNode is not null)
+                columnsArray.Remove(columnNode);
+        }
+
+        var entryName = tableEntry["entryName"]!.GetValue<string>();
+        var dataEntry = currentArchive.GetEntry(entryName)!;
+        JsonNode dataNode;
+        await using (var dataStream = dataEntry.Open())
+        {
+            dataNode = (await JsonNode.ParseAsync(dataStream, cancellationToken: cancellationToken))!;
+        }
+        foreach (var row in dataNode["rows"]!.AsArray())
+        {
+            foreach (var columnName in columnNames)
+                row!.AsObject().Remove(columnName);
+        }
+
+        var result = new MemoryStream();
+        using (var resultArchive = new ZipArchive(result, ZipArchiveMode.Create, true))
+        {
+            foreach (var entry in currentArchive.Entries)
+            {
+                var newEntry = resultArchive.CreateEntry(entry.FullName);
+                if (string.Equals(entry.FullName, "index.json", StringComparison.Ordinal))
+                {
+                    await using var writeStream = newEntry.Open();
+                    await JsonSerializer.SerializeAsync(writeStream, indexNode, JsonOptions, cancellationToken);
+                }
+                else if (string.Equals(entry.FullName, entryName, StringComparison.Ordinal))
+                {
+                    await using var writeStream = newEntry.Open();
+                    await JsonSerializer.SerializeAsync(writeStream, dataNode, JsonOptions, cancellationToken);
+                }
+                else
+                {
+                    await using var sourceStream = entry.Open();
+                    await using var writeStream = newEntry.Open();
+                    await sourceStream.CopyToAsync(writeStream, cancellationToken);
+                }
+            }
+        }
+
+        result.Position = 0;
+        return result;
+    }
+
+    /// <summary>
     /// Backs up <paramref name="backup"/>'s current schema and rebuilds the archive with the given
     /// table's given column removed from both the index metadata's column list and every already-backed-up
     /// row's data, simulating a backup taken before that column existed. Generic counterpart of

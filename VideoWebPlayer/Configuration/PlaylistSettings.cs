@@ -41,5 +41,32 @@ namespace VideoWebPlayer.Configuration
         /// so every playlist is eventually re-checked. Values below 1 are treated as 1.
         /// </summary>
         public int BackfillBatchSize { get; set; } = 25;
+
+        /// <summary>
+        /// Gets or sets the comma-separated list of MIME types accepted for playlist cover uploads
+        /// (<see cref="Services.PlaylistCover.PlaylistCoverValidator"/>).
+        /// </summary>
+        public string AllowedCoverImageFormats { get; set; } = "image/jpeg,image/png,image/webp";
+
+        /// <summary>
+        /// Gets or sets the maximum accepted file size, in bytes, for playlist cover uploads.
+        /// </summary>
+        public long MaxCoverImageSizeBytes { get; set; } = 5 * 1024 * 1024;
+
+        /// <summary>
+        /// Gets or sets the target width, in pixels, of an automatically generated playlist cover collage
+        /// (<see cref="Services.PlaylistCover.PlaylistCoverImageGenerator"/>).
+        /// </summary>
+        public int GeneratedCoverWidthPixels { get; set; } = 1600;
+
+        /// <summary>
+        /// Gets or sets the target height, in pixels, of an automatically generated playlist cover collage.
+        /// </summary>
+        public int GeneratedCoverHeightPixels { get; set; } = 520;
+
+        /// <summary>
+        /// Gets or sets the JPEG encoding quality (0-100) used for an automatically generated playlist cover collage.
+        /// </summary>
+        public int GeneratedCoverJpegQuality { get; set; } = 85;
     }
 }

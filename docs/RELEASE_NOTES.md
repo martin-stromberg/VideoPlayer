@@ -1,64 +1,43 @@
 # Release Notes
 
-> As of the CI standardization migration, `.github/workflows/release.yml` (previously
-> `main-release.yml`) no longer reads this file as the GitHub release body. Releases now use
-> semantic-release's auto-generated notes (derived from conventional commit messages) instead
-> of this hand-curated changelog. This file is kept for historical reference; whether a
-> manually maintained changelog should be reintroduced is an open follow-up question.
->
-> Frühere Fassung: Diese Datei wurde von `main-release.yml` als Body des GitHub-Releases
-> verwendet. Seit der CI-Vereinheitlichung generiert semantic-release die Release-Notes
-> automatisch aus den Commit-Nachrichten; diese Datei wird nicht mehr automatisch verwendet.
-
 ## Important Notes Before Update
 
-- A new database migration adds the `UnlockedMediaEntries` table; it is applied automatically on startup. Backups from older versions remain restorable because missing new tables and fields are tolerated.
-- A new database migration adds the `WatchedEntries` table; it is applied automatically on startup. Backups from older versions remain restorable because the new table is optional during restore.
+- New database migrations add the playlist tables (`Playlists`, `PlaylistEntries`, `PlaylistEntryExclusions`, `PlaylistGenres`), playlist cover fields on `Playlists`/`Pictures` and a `PlaylistId` column on `ContinueWatchingEntries`; they are applied automatically on startup. Backups from older versions remain restorable because the new tables and columns are optional during restore.
+- A new optional `Playlists` section was added to `appsettings.json` (limits for playlists/entries, paging sizes, backfill interval and batch size, allowed cover upload formats and size, generated cover dimensions and JPEG quality); the defaults apply automatically if the section is absent.
+- Automatically generated playlist covers are not exported to backups (like other generated pictures); after a restore such playlists show the placeholder image until the cover is regenerated manually. Uploaded covers are included in backups.
 
 ## What's New
 
-- (Internal, no user-facing change) Release tooling now uses the Conventional Commits preset for version determination and release-notes generation, matching the other projects in the fleet; updated outdated `semantic-release` plugin versions; excluded `node_modules` from the local markdown-link-check hook.
-- (Internal, no user-facing change) Manual-tag releases now use the `gh` CLI directly instead of `softprops/action-gh-release`, matching the rest of the fleet and dropping a third-party action dependency.
-
-- Added actor extraction from NFO metadata for movies and TV show episodes, stored in new `Actors`, `MovieActors` and `TVShowEpisodeActors` tables.
-- Actor images are loaded from the `<thumb>` element of NFO metadata and shown in the overview and detail pages.
-- Added a background worker that backfills actor metadata for existing media on application startup.
-- Added the "Schauspieler" menu, overview with search and initial-letter filters, and a detail page.
-- The actor detail page aggregates appearances across movie collections, TV shows, seasons and episodes based on a configurable threshold.
-- Backup/restore now tolerates the new actor tables and `ActorsClassifiedAt` / `ActorCollectionThresholdPercent` fields.
-- Added help page `schauspieler`.
-
-- Movies and episodes are now marked per user as watched when playback reaches the configured continue-watching end threshold.
-- Watched movies and episodes show the existing eye symbol on title cards across home lists, collection details and TV show episode lists.
-- Fixed the title list not updating to the last selected source when switching sources through the menu.
-- Fixed source page rendering for users with only individually unlocked items; no more unhandled exceptions when opening a source.
-- Block direct URL manipulation for non-unlocked detail and stream endpoints.
-- Sources containing at least one unlocked item now appear in the user menu.
-- Source detail pages list only explicitly unlocked titles for users without full source access.
-- "Neu im Programm" / recent list shows only explicitly unlocked titles for sources the user cannot fully access.
-- Added user-specific individual unlocks for TV shows and movie collections, including a lock/unlock button and user-selection dialog on detail pages.
-- Backup/restore now tolerates missing `UnlockedMediaEntries` and `EndThreshold` fields.
-- Added controller, service and end-to-end tests for unlock visibility and authorization.
-- Added help page `einzelfreischaltungen`.
+- Playlist covers: upload a custom image (JPEG/PNG/WebP, validated against a configurable size limit) or generate a collage on demand from up to five images of the playlist's entries; an uploaded image takes precedence over a generated one; a neutral placeholder is shown when no cover exists; covers appear on the overview tiles and in the detail page header; new API endpoints under `/api/playlists/{id}/cover` (get, upload, regenerate, delete).
+- Playlist genres: automatically derived from the contained titles (seasons and episodes inherit their show's genres, movie collections combine their movies' genres) and updated whenever the content changes; manually overridable on the detail page and resettable to automatic derivation; a genre filter dropdown restricts the overview to playlists with a selected genre.
+- Automatic backfill of new content: a periodic background check (default every 15 minutes) adds newly available seasons, episodes or movies to playlists that contain a complete TV show, season or movie collection; titles deliberately removed by the user are not re-added.
+- Confirmation dialog when removing a playlist entry that has a continue-watching reference to that playlist; on confirmation the continue-watching entry is replaced by the next available title of that playlist or removed — the same replacement/removal applies silently when a media item or media source is deleted.
+- Continue watching with playlist reference: pausing a video started from a playlist stores the playlist context; the continue-watching list shows the playlist name and resumes playback within the same playlist at the saved position; the same video can appear multiple times with separate progress per playlist; deleting a playlist keeps the entries and drops the reference.
+- Playback from within a playlist: play button or double-click on an entry starts playback with a playlist badge showing name and position; previous/next buttons and automatic advancing skip non-playable and inaccessible entries; an end-of-playlist notice offers a restart; the position is restored after a page reload.
+- Manual sort mode: reorder playlist entries via drag & drop or "move to start/end" quick actions; the sort mode is chosen when creating a playlist and can be switched later — switching back to "by release date" asks for confirmation because the manual order is discarded.
+- Playlist contents shown as tiles with artwork, title, collection and added date; automatic sorting by release date with series/season/episode hierarchy fallback; infinite scrolling loads more entries while scrolling; entries without access are dimmed but remain removable; entries whose media was deleted are cleaned up silently.
+- Adding content via name search across all five media types (movie, TV show, season, episode, movie collection) with result tiles — no internal IDs needed; adding a show, season or collection cascades all contained items; duplicates are skipped with a summary message instead of an error.
+- Case-insensitive, umlaut-correct name search (Ä/Ö/Ü/ß) in the items search; `%` and `_` in the search term are matched literally.
+- New "Playlists" entry in the main menu: logged-in users manage their own private playlists — create (name, optional description, sort mode), rename, delete after confirmation, tile-based overview with a detail page; optional configurable limits for playlists per user and entries per playlist.
+- New help documentation for playlists (user guide, API reference, business rules, data model, technical flow).
 
 ## Wichtige Hinweise vor dem Update
 
-- Eine neue Datenbank-Migration fügt die Tabelle `UnlockedMediaEntries` hinzu; sie wird beim Start automatisch angewendet. Datensicherungen älterer Versionen bleiben wiederherstellbar, da fehlende neue Tabellen und Felder toleriert werden.
-- Eine neue Datenbank-Migration fügt die Tabelle `WatchedEntries` hinzu; sie wird beim Start automatisch angewendet. Datensicherungen älterer Versionen bleiben wiederherstellbar, da die neue Tabelle beim Restore optional ist.
+- Neue Datenbank-Migrationen fügen die Playlist-Tabellen (`Playlists`, `PlaylistEntries`, `PlaylistEntryExclusions`, `PlaylistGenres`), Cover-Felder an `Playlists`/`Pictures` und eine `PlaylistId`-Spalte an `ContinueWatchingEntries` hinzu; sie werden beim Start automatisch angewendet. Datensicherungen älterer Versionen bleiben wiederherstellbar, da die neuen Tabellen und Spalten beim Restore optional sind.
+- In `appsettings.json` wurde ein neuer optionaler Abschnitt `Playlists` ergänzt (Begrenzungen für Playlists/Einträge, Seitengrößen, Intervall und Batch-Größe der Nachlieferung, erlaubte Cover-Upload-Formate und -Größe, Abmessungen und JPEG-Qualität erzeugter Cover); fehlt der Abschnitt, gelten die Standardwerte automatisch.
+- Automatisch erzeugte Playlist-Cover werden nicht in Backups exportiert (wie andere generierte Bilder); nach einer Wiederherstellung zeigen solche Playlists das Platzhalterbild, bis das Cover manuell neu erzeugt wird. Hochgeladene Cover sind in Backups enthalten.
 
 ## Neuerungen
 
-- Filme und Episoden werden jetzt pro Benutzer als gesehen markiert, sobald die Wiedergabe die konfigurierte Weiterschauen-Endschwelle erreicht.
-- Gesehene Filme und Episoden zeigen das vorhandene Auge-Symbol auf Titelkarten in Startseitenlisten, Sammlungsdetails und Serien-/Episodenlisten.
-- Die Updates-Seite wurde neu strukturiert: Status, Versionsdetails und Konfiguration sind klar getrennt, bleiben deutsch beschriftet und sind für Desktop und Mobilansichten optimiert.
-- Update-Konfigurationen validieren Prüfintervalle und die Aufbewahrung von Update-Backups strenger; vorhandene Legacy-Werte werden beim Lesen bereinigt.
-- Fehler behoben, durch den die Titelliste beim Wechsel zwischen Quellen über das Menü nicht auf die zuletzt ausgewählte Quelle aktualisiert wurde.
-- Fehler bei der Quellenseite für Benutzer mit nur einzelnen Freischaltungen behoben; kein Seitenfehler mehr beim Aufrufen einer Quelle.
-- Direkte URL-Manipulation auf nicht freigegebene Detail- und Stream-Endpunkte wird blockiert.
-- Quellen mit mindestens einem freigeschalteten Titel erscheinen jetzt im Benutzermenü.
-- Quellenseiten zeigen Benutzern ohne vollen Quellenzugriff nur explizit freigegebene Titel.
-- "Neu im Programm" zeigt für eingeschränkte Quellen nur explizit freigegebene Titel.
-- Benutzerspezifische Einzelfreischaltungen für Serien und Filmsammlungen hinzugefügt, inklusive Freigabe-Schaltfläche und Benutzerauswahl-Dialog auf Detailseiten.
-- Backup/Wiederherstellung toleriert jetzt fehlende `UnlockedMediaEntries`- und `EndThreshold`-Felder.
-- Controller-, Service- und End-to-End-Tests für Sichtbarkeit und Autorisierung ergänzt.
-- Hilfeseite `einzelfreischaltungen` hinzugefügt.
+- Playlist-Abbildungen: eigenes Bild hochladen (JPEG/PNG/WebP, Validierung gegen konfigurierbare Größenbegrenzung) oder auf Knopfdruck eine Collage aus bis zu fünf Bildern der Playlist-Einträge erzeugen lassen; ein hochgeladenes Bild hat Vorrang vor einem erzeugten; ohne Cover erscheint ein neutraler Platzhalter; Abbildungen erscheinen auf den Übersichts-Kacheln und im Kopfbereich der Detailseite; neue API-Endpunkte unter `/api/playlists/{id}/cover` (Abruf, Upload, Neuerzeugung, Löschen).
+- Playlist-Genres: werden automatisch aus den enthaltenen Titeln abgeleitet (Staffeln und Episoden übernehmen die Genres ihrer Serie, Filmsammlungen die kombinierten Genres ihrer Filme) und bei Inhaltsänderungen aktualisiert; auf der Detailseite manuell überschreibbar und auf die automatische Ableitung zurücksetzbar; ein Genre-Filter in der Übersicht beschränkt die Anzeige auf Playlists mit dem gewählten Genre.
+- Automatische Nachlieferung neuer Inhalte: eine regelmäßige Hintergrundprüfung (Standard: alle 15 Minuten) nimmt neu hinzukommende Staffeln, Episoden oder Filme in Playlists auf, die eine komplette Serie, Staffel oder Filmsammlung enthalten; vom Anwender bewusst entfernte Titel werden nicht erneut hinzugefügt.
+- Sicherheitsabfrage beim Entfernen eines Playlist-Eintrags mit Weiterschauen-Bezug zu dieser Playlist; nach Bestätigung wird der Weiterschauen-Eintrag durch den nächsten verfügbaren Titel der Playlist ersetzt oder entfernt — dasselbe Ersetzen/Entfernen gilt still, wenn ein Medieninhalt oder eine Medienquelle gelöscht wird.
+- Weiterschauen mit Playlist-Bezug: beim Pausieren eines aus einer Playlist gestarteten Videos wird der Playlist-Kontext gespeichert; die Weiterschauen-Liste zeigt den Playlist-Namen und setzt die Wiedergabe im gleichen Playlist-Kontext an der gespeicherten Position fort; dasselbe Video kann mehrfach mit separatem Fortschritt je Playlist erscheinen; beim Löschen einer Playlist bleiben die Einträge bestehen und verlieren den Bezug.
+- Wiedergabe aus einer Playlist heraus: Abspielen-Schaltfläche oder Doppelklick auf einen Eintrag startet die Wiedergabe mit Playlist-Badge (Name und Position); Vorheriger-/Nächster-Schaltflächen und automatisches Weiterschalten überspringen nicht abspielbare und nicht zugängliche Einträge; am Ende erscheint ein Hinweis mit Neustart-Möglichkeit; die Position wird nach einem Seitenneuladen wiederhergestellt.
+- Manueller Sortiermodus: Einträge per Drag & Drop oder Schnellaktionen „An Anfang"/„An Ende" umsortieren; der Sortiermodus wird beim Anlegen gewählt und kann später gewechselt werden — die Rückkehr zu „Nach Erscheinungsdatum" erfordert eine Bestätigung, da die manuelle Reihenfolge verloren geht.
+- Playlist-Inhalte als Kacheln mit Titelbild, Titel, Sammlung und Hinzufügedatum; automatische Sortierung nach Erscheinungsdatum mit Serien-/Staffel-/Episoden-Hierarchie als Fallback; beim Scrollen werden weitere Einträge nachgeladen; Einträge ohne Zugriff werden abgeblendet, bleiben aber entfernbar; Einträge zu gelöschten Medien werden still bereinigt.
+- Hinzufügen von Inhalten über eine Namenssuche über alle fünf Medientypen (Film, Serie, Staffel, Episode, Filmsammlung) mit Ergebnis-Kacheln — keine internen IDs mehr nötig; beim Hinzufügen einer Serie, Staffel oder Sammlung werden alle enthaltenen Inhalte mit aufgenommen; Duplikate werden mit einer Zusammenfassung übersprungen statt einen Fehler zu melden.
+- Groß-/Kleinschreibung-unabhängige, umlaut-korrekte Namenssuche (Ä/Ö/Ü/ß) in der Mediensuche; `%` und `_` im Suchbegriff werden literal gesucht.
+- Neuer Menüeintrag „Playlists": angemeldete Anwender verwalten ihre eigenen privaten Playlists — anlegen (Name, optionale Beschreibung, Sortiermodus), umbenennen, nach Bestätigung löschen, Kachel-Übersicht mit Detailseite; optional konfigurierbare Begrenzungen für Playlists pro Anwender und Einträge pro Playlist.
+- Neue Hilfe-Dokumentation zu Playlists (Anwenderhilfe, API-Referenz, Geschäftsregeln, Datenmodell, technischer Ablauf).

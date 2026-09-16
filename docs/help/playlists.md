@@ -6,16 +6,21 @@ Playlists, unabhängig davon, welche anderen Anwender ebenfalls Playlists angele
 
 Dieser Abschnitt umfasst die Verwaltung der Playlists selbst (anlegen, öffnen, bearbeiten, löschen,
 Übersicht), das Befüllen einer Playlist mit konkreten Medieninhalten (Filme, Episoden, Staffeln,
-Serien, Filmsammlungen), die fortlaufend nachladende Anzeige der Inhalte auf der Detailseite sowie
-die manuelle Umsortierung der Einträge per Drag & Drop oder Schnellaktion.
+Serien, Filmsammlungen), die fortlaufend nachladende Anzeige der Inhalte auf der Detailseite, die
+manuelle Umsortierung der Einträge per Drag & Drop oder Schnellaktion sowie die Abbildung (das
+Coverbild) einer Playlist — hochgeladen oder automatisch als Collage aus den Bildern der enthaltenen
+Inhalte erzeugt (siehe Abschnitt „Abbildung (Cover)").
 
 ## Übersicht
 
 Unter „Playlists" sieht ein Anwender seine eigenen Playlists als Kacheln (eine Kachel je Playlist)
 mit Titel, einer Grafik, einem Symbol für den Sortiermodus, den Genres der Playlist (falls
 vorhanden, siehe Abschnitt „Genres") sowie dezent dargestelltem Erstellungs- und
-Aktualisierungszeitpunkt. Da Playlists noch kein eigenes Coverbild besitzen, zeigt die Kachel an
-dieser Stelle einen generischen, farblich je Playlist unterschiedlichen Platzhalter.
+Aktualisierungszeitpunkt. Als Grafik zeigt die Kachel die Abbildung (das Coverbild) der Playlist —
+entweder ein vom Besitzer hochgeladenes Bild oder eine automatisch aus den Bildern der enthaltenen
+Inhalte erzeugte Collage (siehe Abschnitt „Abbildung (Cover)"). Besitzt eine Playlist noch kein
+Coverbild, zeigt die Kachel stattdessen einen generischen, farblich je Playlist unterschiedlichen
+Platzhalter.
 
 Oberhalb der Kacheln steht, sobald mindestens ein Genre unter den eigenen Playlists vorkommt, ein
 Auswahlfeld „Nach Genre filtern" zur Verfügung, mit dem sich die Übersicht auf Playlists
@@ -51,8 +56,10 @@ aussagekräftigen Fehlermeldung angezeigt.
 
 Durch einen Klick auf eine Kachel in der Übersicht oder direkte Navigation gelangt ein Anwender zur
 Detailseite einer Playlist. Die Detailseite ist - ähnlich wie die Detailansichten von Filmen und
-Serien - mit einem Kopfbereich mit Hintergrundbild aufgebaut (mangels eigenem Coverbild aktuell
-ebenfalls ein generischer Platzhalter, siehe Abschnitt „Übersicht"). Der Kopfbereich zeigt:
+Serien - mit einem Kopfbereich mit Hintergrundbild aufgebaut. Als Hintergrundbild dient die
+Abbildung (das Coverbild) der Playlist; besitzt die Playlist noch kein Coverbild, erscheint
+stattdessen ein generischer Platzhalter (siehe Abschnitt „Abbildung (Cover)"). Der Kopfbereich
+zeigt:
 
 - **Name** — Name der Playlist (Überschrift)
 - **Sortierung** — Symbol und Text für den aktuellen Sortiermodus, daneben eine Schaltfläche zum
@@ -64,9 +71,55 @@ ebenfalls ein generischer Platzhalter, siehe Abschnitt „Übersicht"). Der Kopf
 
 Im Kopfbereich stehen zusätzlich als Symbol-Schaltflächen zur Verfügung:
 
+- **Bild hochladen** (Hochlade-Symbol) — Öffnet den Dialog zum Hochladen eines eigenen Coverbilds
+  (siehe Abschnitt „Abbildung (Cover)")
+- **Cover neu erzeugen** (Aktualisieren-Symbol) — Erzeugt das Coverbild automatisch neu aus den
+  Bildern der enthaltenen Inhalte (siehe Abschnitt „Abbildung (Cover)")
 - **Bearbeiten** (Stiftsymbol) — Öffnet das Bearbeitungsformular für die Playlist
 - **Löschen** (Papierkorbsymbol) — Löscht die Playlist nach Bestätigung
 - **Zurück** (Pfeilsymbol, oben links) — Kehrt zur Playlist-Übersicht zurück
+
+## Abbildung (Cover)
+
+Jede Playlist kann eine Abbildung (ein Coverbild) besitzen, die in der Übersicht auf der Kachel und
+auf der Detailseite als Hintergrundbild des Kopfbereichs angezeigt wird. Es gibt zwei Wege, zu einem
+Coverbild zu kommen — beide stehen ausschließlich dem Besitzer der Playlist über die beiden
+Symbol-Schaltflächen im Kopfbereich der Detailseite offen:
+
+- **Eigenes Bild hochladen**: Über die Schaltfläche „Bild hochladen" öffnet sich ein Dialog, in dem
+  eine Bilddatei ausgewählt wird. Der Dialog zeigt nach der Auswahl eine Vorschau des Bildes sowie
+  Dateiname und -größe an; die Schaltfläche „Hochladen" übernimmt das Bild als Cover, „Abbrechen"
+  schließt den Dialog ohne Änderung. Akzeptiert werden die gängigen Bildformate JPEG, PNG und WebP
+  bis zu einer Dateigröße von 5 MB (beides kann der Administrator in der Konfiguration anpassen,
+  siehe Abschnitt „Konfiguration"). Ungeeignete Dateien werden bereits bei der Auswahl bzw.
+  spätestens beim Hochladen mit einer verständlichen Fehlermeldung abgelehnt, z. B. „Format BMP
+  wird nicht unterstützt. Erlaubte Formate: JPEG, PNG, WebP.", „Datei zu groß, max. 5 MB erlaubt."
+  oder „Datei ist kein gültiges Bild.". Das hochgeladene Bild wird unverändert in seinem
+  Originalformat gespeichert.
+- **Automatisch erzeugen**: Über die Schaltfläche „Cover neu erzeugen" erzeugt die Anwendung das
+  Coverbild als Collage aus den Bildern der in der Playlist enthaltenen Inhalte — höchstens fünf
+  Bilder. Dabei werden zuerst die Bilder enthaltener Serien und Staffeln herangezogen (eine Staffel
+  besitzt kein eigenes Bild und verwendet daher das Bild ihrer Serie), danach die der Episoden, dann
+  die der Filmsammlungen und zuletzt die der Filme; innerhalb derselben Stufe zählt, welcher Inhalt
+  zuerst zur Playlist hinzugefügt wurde. Enthält die Playlist keine Inhalte mit Bildern, schlägt die
+  Erzeugung fehl und die Meldung „Keine Bilder verfuegbar." wird angezeigt — die bisherige Abbildung
+  bzw. der Platzhalter bleiben dabei unverändert bestehen.
+
+**Vorrang des eigenen Bildes:** Ein hochgeladenes Bild wird nie im Hintergrund durch eine automatisch
+erzeugte Collage ersetzt — nur eine ausdrückliche Aktion des Besitzers ändert das Cover (ein neuer
+Upload oder ein bewusst ausgelöstes „Cover neu erzeugen", das auch ein zuvor hochgeladenes Bild
+ersetzt).
+
+**Keine automatische Aktualisierung:** Anders als die Genres einer Playlist (siehe Abschnitt
+„Genres") wird das Coverbild bei Änderungen des Inhalts — beim Hinzufügen oder Entfernen von Titeln
+ebenso wie bei der automatischen Nachlieferung neuer Inhalte — bewusst **nicht** von selbst neu
+erzeugt. Damit das Cover den geänderten Inhalt widerspiegelt, löst der Anwender „Cover neu erzeugen"
+selbst aus.
+
+**Ersatzdarstellung:** Besitzt eine Playlist kein Coverbild (noch keines hochgeladen oder erzeugt,
+oder das Bild ist nicht ladbar), wird an beiden Stellen ein neutrales, je Playlist farblich
+unterschiedliches Platzhalterbild mit einem Playlist-Symbol angezeigt. Wird die Playlist gelöscht,
+wird auch ihr Coverbild mit entfernt.
 
 ## Inhalte hinzufügen und entfernen
 
@@ -397,7 +450,12 @@ Konfiguration festgelegt:
     "DefaultPageSize": 20,
     "MaxPageSize": 100,
     "BackfillIntervalMinutes": 15,
-    "BackfillBatchSize": 25
+    "BackfillBatchSize": 25,
+    "AllowedCoverImageFormats": "image/jpeg,image/png,image/webp",
+    "MaxCoverImageSizeBytes": 5242880,
+    "GeneratedCoverWidthPixels": 1600,
+    "GeneratedCoverHeightPixels": 520,
+    "GeneratedCoverJpegQuality": 85
   }
 }
 ```
@@ -420,3 +478,15 @@ Nachlieferung fest (Standard: 15 Minuten). `BackfillBatchSize` begrenzt, wie vie
 je Durchlauf geprüft werden (Standard: 25), damit ein einzelner Durchlauf kurz bleibt und den
 laufenden Betrieb nicht spürbar beeinträchtigt; über mehrere Durchläufe hinweg werden alle
 betroffenen Playlists reihum abgedeckt.
+
+Die folgenden Werte steuern die Abbildung (das Coverbild) einer Playlist (siehe Abschnitt
+„Abbildung (Cover)"):
+
+- `AllowedCoverImageFormats` legt fest, welche Bildformate beim Hochladen akzeptiert werden —
+  als kommagetrennte Liste der Format-Bezeichner (Standard: `image/jpeg,image/png,image/webp`).
+- `MaxCoverImageSizeBytes` begrenzt die Dateigröße eines hochgeladenen Bildes in Bytes
+  (Standard: 5242880 = 5 MB).
+- `GeneratedCoverWidthPixels` und `GeneratedCoverHeightPixels` legen die Abmessungen der
+  automatisch erzeugten Collage in Bildpunkten fest (Standard: 1600 × 520).
+- `GeneratedCoverJpegQuality` steuert die Bildqualität der erzeugten Collage auf einer Skala
+  von 0 bis 100 (Standard: 85).

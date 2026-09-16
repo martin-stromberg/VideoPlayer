@@ -1,9 +1,9 @@
 @* Generischer Platzhalter-Grafik fuer eine Playlist-Kachel bzw. den Kopfbereich-Hintergrund der
-   Detailansicht. Playlists besitzen (Stand dieser Korrektur) noch kein eigenes Cover-/Bildfeld - das ist
-   Gegenstand des separaten, noch nicht umgesetzten Entwicklungsschritts "Abbildungen fuer Playlists".
-   Bis dahin zeigt diese Komponente ein generisches Playlist-Symbol auf einem aus der Playlist-Id
-   abgeleiteten Farbverlauf, damit Playlists in der Kachel-UI trotzdem optisch unterscheidbar sind, statt
-   dass jede Kachel identisch aussieht. *@
+   Detailansicht. Wird als Fallback angezeigt, wenn die Playlist kein Cover besitzt (weder hochgeladen
+   noch automatisch erzeugt, siehe Entwicklungsschritt 10 "Abbildungen fuer Playlists") oder das Bild
+   nicht ladbar ist. Zeigt ein generisches Playlist-Symbol auf einem aus der Playlist-Id abgeleiteten
+   Farbverlauf, damit Playlists in der Kachel-UI trotzdem optisch unterscheidbar sind, statt dass jede
+   Kachel identisch aussieht. *@
 
 <div class="playlist-cover-placeholder @CssClass" style="--playlist-hue: @Hue">
     <svg aria-hidden="true" class="playlist-cover-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">

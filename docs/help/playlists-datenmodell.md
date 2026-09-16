@@ -3,10 +3,12 @@
 ## Übersicht
 
 Das Playlist-Feature verwendet zwei Hauptentitäten:
-1. **`Playlist`** (bestehend, Erweiterung)
+1. **`Playlist`** (bestehend, Erweiterung — u. a. Cover-Felder `CoverPictureId`/`CoverPictureIsUserUploaded`)
 2. **`PlaylistEntry`** (neu)
 
 Eine `Playlist` gehört einem Benutzer und enthält eine Sammlung von `PlaylistEntry`-Einträgen.
+Zusätzlich wurde die bestehende **`Picture`**-Entität um die Spalte `PlaylistId` erweitert, damit
+sie als Coverbild einer Playlist dienen kann.
 
 ---
 
@@ -25,23 +27,32 @@ Repräsentiert eine Benutzer-Playlist.
 | `SortMode` | `PlaylistSortMode` (Enum) | Sortiermodus: `ByReleaseDate` oder `Manual` |
 | `CreatedAt` | `DateTime` | Erstellungszeitpunkt (UTC) |
 | `UpdatedAt` | `DateTime` | Letzte Änderung (UTC) |
+| `GenresManuallyOverridden` | `bool` | `true`, wenn der Besitzer die Genres manuell gesetzt hat (dann keine automatische Neuberechnung, siehe BR-21) |
+| `CoverPictureId` | `long?` (FK) | Verweis auf `Pictures.Id` — das Coverbild der Playlist (hochgeladen oder generiert); `null` = kein Cover gesetzt |
+| `CoverPictureIsUserUploaded` | `bool` | `true` = Cover wurde vom Besitzer hochgeladen, `false` = automatisch als Collage erzeugt |
 
 ### Navigation
 
 | Navigation | Zieltyp | Multiplizität | Beschreibung |
 |------------|---------|---------------|--------------|
 | `PlaylistEntries` | `ICollection<PlaylistEntry>` | 1:n | Alle Einträge dieser Playlist |
+| `CoverPicture` | `Picture?` | n:1 | Das aktuelle Coverbild (über `CoverPictureId`) |
 
 ### Constraints
 
 - **Primary Key:** `Id`
 - **Foreign Key:** `UserId` → `ApplicationUser.Id` (mit CascadeDelete)
+- **Foreign Key:** `CoverPictureId` → `Pictures.Id` (optional, ohne explizites Löschverhalten — das
+  Aufräumen des referenzierten Bildes übernimmt `PlaylistService`, siehe `playlists-business-rules.md`,
+  BR-26)
 - **Eindeutigkeit:** Pro Benutzer: `(UserId, Name)` darf nicht doppelt vorkommen (Case-Insensitive)
 
 ### Indizes
 
 - Primary Index auf `Id`
 - Index auf `UserId` (zum schnellen Abrufen aller Playlists eines Benutzers)
+- Unique Index auf `(UserId, Name)` (Eindeutigkeit des Namens pro Benutzer, NOCASE)
+- Index auf `CoverPictureId` (Fremdschlüssel-Index, Migration `AddPlaylistCoverFields`)
 
 ---
 
@@ -56,11 +67,12 @@ Repräsentiert einen einzelnen Medieninhalt in einer Playlist.
 | `Id` | `long` (PK) | Eindeutige Identifier |
 | `PlaylistId` | `long` (FK) | Verweis auf `Playlist.Id` |
 | `Playlist` | Navigation | Referenz zur Besitzer-Playlist |
-| `MediaType` | `string` (Required) | Art des Medieninhalts (kanonische Schreibweise): `"Movie"`, `"TVShow"`, `"TVShowSeason"`, `"TVShowEpisode"`, `"MovieCollection`. Input wird normalisiert, um case-insensitive Duplikat-Erkennung zu gewährleisten. |
+| `MediaType` | `string` (Required) | Art des Medieninhalts (kanonische Schreibweise): `"Movie"`, `"TVShow"`, `"TVShowSeason"`, `"TVShowEpisode"`, `"MovieCollection"`. Input wird normalisiert, um case-insensitive Duplikat-Erkennung zu gewährleisten. |
 | `MediaId` | `long` | ID des Medieninhalts in seiner Tabelle (z. B. Movie.Id, TVShow.Id) |
 | `ParentMediaType` | `string?` | Medientyp des Sammelwerks, falls dieser Eintrag durch Cascade hinzugefügt wurde (z. B. `"TVShow"` oder `"TVShowSeason"` oder `"MovieCollection"`); `null` für Top-Level-Einträge |
 | `ParentMediaId` | `long?` | ID des Sammelwerks (z. B. der Serie, wenn dieser Eintrag eine Episode ist); `null` für Top-Level-Einträge |
 | `AddedAt` | `DateTime` | Zeitpunkt des Hinzufügens zur Playlist (UTC) |
+| `SortOrder` | `long?` | Position im Sortiermodus `Manual` (aufsteigend, kleiner = weiter vorne); `null` = noch keine Position zugewiesen bzw. im `ByReleaseDate`-Modus irrelevant (siehe `playlists-business-rules.md`, BR-13 und `playlists-api.md`, Hinweis zu `SortOrder`) |
 
 ### Navigation
 
@@ -81,6 +93,33 @@ Repräsentiert einen einzelnen Medieninhalt in einer Playlist.
 - Foreign Key Index auf `PlaylistId`
 - **Composite Index** auf `(PlaylistId, MediaType, MediaId)` (für Duplikatsprüfung)
 - Index auf `(PlaylistId, ParentMediaType, ParentMediaId)` (wird für die Fallback-Sortierung nach Hierarchie genutzt, siehe `playlists-business-rules.md`, BR-13)
+- Index auf `(PlaylistId, SortOrder)` (`IX_PlaylistEntries_PlaylistId_SortOrder`, für die manuelle Sortierreihenfolge)
+
+---
+
+## Entität: `Picture` (Erweiterung für Playlist-Cover)
+
+Die bestehende `Picture`-Entität (speichert Bilddaten samt `Type`, `ContentType`, `Width`,
+`Height`) wurde für die Playlist-Abbildungen um eine Spalte erweitert:
+
+| Spalte | Typ | Beschreibung |
+|--------|-----|--------------|
+| `PlaylistId` | `long?` | Rückverweis auf die `Playlist`, deren Cover dieses Bild ist — analog zum bestehenden `EpisodeId`-Muster für generierte Episoden-Hintergrundbilder |
+
+Ein als Playlist-Cover verwendetes `Picture` trägt `Type = "cover"` und `PlaylistId` = ID der
+Playlist. Zwei Varianten:
+
+- **Hochgeladen** (`IsGeneratedBackground = false`): `ContentType` = MIME-Type des Uploads,
+  `Width`/`Height` = ermittelte Bildabmessungen.
+- **Generiert** (`IsGeneratedBackground = true`): `ContentType = "image/jpeg"`,
+  `Width`/`Height` = konfigurierte Collage-Abmessungen (Standard 1600 × 520).
+
+Die Playlist verweist über `Playlist.CoverPictureId` auf das Bild; `Picture.PlaylistId` dient als
+Rückverweis für Abfragen und Cleanup. Index: `(PlaylistId, IsGeneratedBackground)` auf `Pictures`.
+
+**Backup-Hinweis:** `Picture`-Zeilen mit `IsGeneratedBackground = true` werden nicht ins Backup
+exportiert; beim Export wird `Playlist.CoverPictureId` daher nur für hochgeladene Cover
+mitgeschrieben (siehe `playlists-business-rules.md`, BR-24/BR-26).
 
 ---
 
@@ -99,17 +138,19 @@ Repräsentiert einen einzelnen Medieninhalt in einer Playlist.
          │ (1:n)
          │ UserId
          │
-┌──────────────────────────────────────┐
-│         Playlist                     │
-├──────────────────────────────────────┤
-│ Id (PK)                              │
-│ UserId (FK) ──────┐                  │
-│ Name              │                  │
-│ Description       │                  │
-│ SortMode          │                  │
-│ CreatedAt         │                  │
-│ UpdatedAt         │                  │
-│ PlaylistEntries   │                  │
+┌──────────────────────────────────────┐          ┌──────────────────────────┐
+│         Playlist                     │          │        Picture           │
+├──────────────────────────────────────┤          ├──────────────────────────┤
+│ Id (PK)                              │          │ Id (PK)                  │
+│ UserId (FK)                          │          │ Type ("cover")           │
+│ Name                                 │   (n:1)  │ Data, ContentType        │
+│ Description                          │ ────────→│ Width, Height            │
+│ SortMode                             │  Cover   │ IsGeneratedBackground    │
+│ CreatedAt                            │          │ PlaylistId (Rueckverweis)│
+│ UpdatedAt                            │          └──────────────────────────┘
+│ CoverPictureId (FK, nullable)        │
+│ CoverPictureIsUserUploaded           │
+│ PlaylistEntries                      │
 └──────────────────────────────────────┘
          ▲
          │ (1:n)
@@ -126,6 +167,7 @@ Repräsentiert einen einzelnen Medieninhalt in einer Playlist.
 │ ParentMediaType       │              │
 │ ParentMediaId         │              │
 │ AddedAt               │              │
+│ SortOrder             │              │
 │                       │              │
 │ UC: (PlaylistId,      │              │
 │      MediaType,       │              │
@@ -150,6 +192,7 @@ PlaylistEntry.MediaId  ──→ Movie.Id
 erDiagram
     APPLICATIONUSER ||--o{ PLAYLIST : owns
     PLAYLIST ||--o{ PLAYLISTENTRY : contains
+    PICTURE |o--o{ PLAYLIST : "cover of (CoverPictureId)"
     PLAYLISTENTRY }o--|| MOVIE : references
     PLAYLISTENTRY }o--|| TVSHOW : references
     PLAYLISTENTRY }o--|| TVSHOWSEASON : references
@@ -169,6 +212,9 @@ erDiagram
         string SortMode
         datetime CreatedAt
         datetime UpdatedAt
+        bool GenresManuallyOverridden
+        long CoverPictureId FK
+        bool CoverPictureIsUserUploaded
     }
 
     PLAYLISTENTRY {
@@ -179,6 +225,16 @@ erDiagram
         string ParentMediaType
         long ParentMediaId
         datetime AddedAt
+        long SortOrder
+    }
+
+    PICTURE {
+        long Id PK
+        string Type
+        bytes Data
+        string ContentType
+        bool IsGeneratedBackground
+        long PlaylistId
     }
 
     MOVIE {
@@ -212,6 +268,40 @@ erDiagram
 ---
 
 ## Datenbankmigrationen
+
+### Migration: `AddPlaylistCoverFields` (neu in Schritt 10)
+
+**Betroffene Tabellen:**
+- `Playlists` (neue Spalten `CoverPictureId`, `CoverPictureIsUserUploaded`, Index + Fremdschlüssel)
+- `Pictures` (neue Spalte `PlaylistId`, Index)
+
+**Beschreibung:** Fügt die Cover-Verwaltung hinzu. `CoverPictureId` ist ein optionaler
+Fremdschlüssel auf `Pictures.Id` (kein explizites `OnDelete`-Verhalten — das Aufräumen des
+referenzierten Bildes übernimmt der Service, siehe BR-26 in `playlists-business-rules.md`).
+`CoverPictureIsUserUploaded` ist ein nicht-nullbares `bool` mit Standardwert `false`. Auf
+`Pictures` wird `PlaylistId` (nullable, bewusst ohne Fremdschlüssel — Rückverweis analog zu
+`Picture.EpisodeId`) sowie ein Index auf `(PlaylistId, IsGeneratedBackground)` angelegt.
+
+**SQL-Aktion (vereinfacht):**
+```sql
+ALTER TABLE Playlists ADD COLUMN CoverPictureId INTEGER NULL;
+ALTER TABLE Playlists ADD COLUMN CoverPictureIsUserUploaded INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE Pictures ADD COLUMN PlaylistId INTEGER NULL;
+
+CREATE INDEX IX_Playlists_CoverPictureId ON Playlists(CoverPictureId);
+CREATE INDEX IX_Pictures_PlaylistId_IsGeneratedBackground ON Pictures(PlaylistId, IsGeneratedBackground);
+
+ALTER TABLE Playlists ADD CONSTRAINT FK_Playlists_Pictures_CoverPictureId
+    FOREIGN KEY (CoverPictureId) REFERENCES Pictures(Id);
+```
+
+**EF Core Konfiguration (`PlaylistConfiguration`):**
+```csharp
+builder
+    .HasOne(p => p.CoverPicture)
+    .WithMany()
+    .HasForeignKey(p => p.CoverPictureId);
+```
 
 ### Migration: `NormalizePlaylistEntryMediaTypes` (neu in Schritt 2.1)
 
@@ -321,6 +411,8 @@ Angenommen:
 | ApplicationUser → Playlist | 1:n | Ein Benutzer hat mehrere Playlists |
 | Playlist → PlaylistEntry | 1:n | Eine Playlist enthält mehrere Einträge |
 | PlaylistEntry → Playlist | n:1 | Jeder Eintrag gehört zu genau einer Playlist |
+| Playlist → Picture (Cover) | n:1 (optional) | Eine Playlist referenziert höchstens ein Cover-Bild; ein `Picture` kann als Cover mehrerer Kontexte dienen (kein Unique-Constraint auf `CoverPictureId`) |
+| Picture → Playlist (Rückverweis) | n:1 (optional, ohne FK) | `Picture.PlaylistId` ist nur eine Spalte, kein Fremdschlüssel |
 
 **Keine Fremdschlüssel zu Medien:** `PlaylistEntry` speichert nur die ID und den Typ des Medieninhalts, nicht eine Fremdschlüssel-Referenz. Dies ist bewusst, um Entkopplung zu erreichen (Medien-Tabellen sind separaten Services/Bounded Contexts).
 
@@ -365,6 +457,15 @@ var childEntries = db.PlaylistEntries
 Wenn eine `Playlist` gelöscht wird:
 - **Alle zugehörigen `PlaylistEntry`-Reihen werden automatisch gelöscht**
 - Foreign Key: `PlaylistEntry.PlaylistId` → `Playlist.Id` mit `DeleteBehavior.Cascade`
+- **Das Cover-`Picture` wird service-seitig gelöscht:** `PlaylistService.DeletePlaylistAsync` entfernt
+  die über `CoverPictureId` referenzierte `Picture`-Zeile zusammen mit der Playlist. Der
+  `CoverPictureId`-Fremdschlüssel hat kein `OnDelete`-Verhalten; das Cleanup liegt bewusst im
+  Service (analog zu `TVShowEpisode.GeneratedBackgroundPicture`).
+
+Beim **Ersetzen eines Covers** (neuer Upload oder Regenerierung):
+- `PlaylistService.ReplaceCoverPictureAsync` fügt das neue `Picture` ein, aktualisiert
+  `CoverPictureId`/`CoverPictureIsUserUploaded` und löscht das bisherige `Picture` in **einem**
+  `SaveChangesAsync`-Aufruf. Verwaiste Cover-Bilder entstehen dadurch nicht.
 
 Wenn ein Medieninhalt gelöscht wird:
 - **Zugehörige `PlaylistEntry`-Reihen werden NICHT automatisch gelöscht** (kein FK)
@@ -381,6 +482,8 @@ Wenn ein Medieninhalt gelöscht wird:
 | MediaId > 0 | Service | Business Logic | Positive IDs nur |
 | MediaType normalisiert | Service | Normalisierung | MediaType-Input wird auf kanonischen Enum-Wert normalisiert vor Speicherung |
 | ParentMediaType in {TVShow, TVShowSeason, MovieCollection, null} | Service | Enumeration | Nur gültige Parent-Typen |
+| Foreign Key (CoverPictureId) | DB | Referenzielle Integrität | `Playlist.CoverPictureId` muss auf existierende `Pictures.Id` zeigen (oder NULL sein) |
+| Cover-Upload validiert | Service | Business Logic | Größe, erlaubter MIME-Type und Dekodierbarkeit via ImageSharp — siehe `PlaylistCoverValidator` bzw. BR-22 in `playlists-business-rules.md` |
 
 ---
 
@@ -393,9 +496,9 @@ Mögliche zukünftige Änderungen für späteren Ausbau:
    Laufzeit berechnet (siehe `playlists-business-rules.md`, BR-13) und benötigt keine zusätzlichen
    Spalten an `PlaylistEntry`.
 
-2. **Manuelle Sortierung (Drag & Drop, zukünftig):**
-   - `SortOrder` (int, nullable) — Manuelle Sortierreihenfolge, sofern der Sortiermodus `Manual`
-     künftig eine explizite Reihenfolge statt der Reihenfolge nach `AddedAt` erhalten soll
+2. **Manuelle Sortierung — bereits umgesetzt:**
+   - `SortOrder` (long, nullable) existiert auf `PlaylistEntry` und trägt die manuelle
+     Sortierreihenfolge, wenn `SortMode = Manual` ist (siehe Spaltenliste oben).
 
 3. **Erweiterte Metadaten (zukünftig):**
    - `Notes` (string, nullable) — Benutzer-Notizen pro Eintrag

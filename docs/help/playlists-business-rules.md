@@ -675,6 +675,167 @@ Besitzer ruft POST /api/playlists/1/genres/reset auf
 
 ---
 
+## BR-22: Upload-Validierung für Cover-Bilder
+
+**Regel:** Ein über `POST /api/playlists/{id}/cover/upload` hochgeladenes Cover-Bild wird in drei
+Stufen geprüft: Datei vorhanden und nicht leer, Größe innerhalb der Grenze, Format erlaubt und
+Inhalt als echtes Bild dekodierbar.
+
+**Bedingungen / Implementierung (`PlaylistsController.UploadPlaylistCover` +
+`PlaylistCoverValidator.ValidateUploadAsync`):**
+
+- Keine oder leere Datei → `"Es wurde keine Datei ausgewaehlt."` (HTTP 400, direkt im Controller)
+- `file.Length > Playlists:MaxCoverImageSizeBytes` → `"Die Datei ist zu gross. Maximal erlaubt sind
+  {N} Bytes."` (HTTP 400, direkt im Controller) — diese Prüfung erfolgt an der gemeldeten
+  Dateilänge **bevor** der Inhalt in den Speicher gelesen wird, damit eine übergroße Datei nie
+  gepuffert wird; bewusst wird dafür kein `[RequestSizeLimit]`-Attribut verwendet, damit die Grenze
+  nicht als Kompilierzeit-Konstante von der Laufzeit-Konfiguration abweichen kann
+- Im Service erneut, diesmal am tatsächlichen Inhalt:
+  - `contentType` muss (case-insensitiv, getrimmt) in der kommagetrennten Liste
+    `Playlists:AllowedCoverImageFormats` enthalten sein → sonst `"Format {X} wird nicht
+    unterstützt. Erlaubte Formate: {Liste}."` (`{X}` ist ein Kurzname wie „BMP" bzw. bei
+    unbekannten MIME-Types der Teil nach dem `/` in Großbuchstaben)
+  - Dateigröße ≤ `Playlists:MaxCoverImageSizeBytes` → sonst `"Datei zu groß, max. {N} MB erlaubt."`
+  - `Image.Identify` (SixLabors.ImageSharp) muss die Datei dekodieren können → sonst
+    `"Datei ist kein gültiges Bild."`; die dabei ermittelten Abmessungen werden als
+    `Width`/`Height` der `Picture`-Zeile gespeichert
+
+**Fehlerbehandlung:** Validierungsverletzungen im Service werden als `InvalidOperationException`
+geworfen und über dasselbe generische Mapping wie die übrigen Playlist-Endpunkte zu HTTP 400 mit
+der Klartext-Meldung als Body — bewusst nicht als `DtoPlaylistCoverResult`, damit kein zweiter,
+endpunktspezifischer Fehlervertrag entsteht.
+
+**Beispiel:**
+```
+Upload einer 10-MB-BMP-Datei bei Standardkonfiguration (5 MB, JPEG/PNG/WebP):
+→ HTTP 400 "Format BMP wird nicht unterstuetzt. Erlaubte Formate: JPEG, PNG, WebP."
+
+Upload einer 10-MB-JPEG-Datei:
+→ Controller-Vorabpruefung: HTTP 400 "Die Datei ist zu gross. Maximal erlaubt sind 5242880 Bytes."
+```
+
+---
+
+## BR-23: Prioritätsreihenfolge der Medientypen bei der Collage-Erzeugung
+
+**Regel:** Die automatisch erzeugte Cover-Collage besteht aus höchstens
+`PlaylistCoverImageGenerator.MaxImages` (5) Poster-Bildern der Playlist-Einträge. Die Auswahl folgt
+einer festen Priorität **pro Medientyp**, nicht der Reihenfolge der Einträge in der Playlist:
+
+1. `TVShow` und `TVShowSeason` (Stufe 0) — eine Staffel besitzt kein eigenes Poster und löst daher
+   auf das `PosterPictureId` ihrer übergeordneten Serie auf
+2. `TVShowEpisode` (Stufe 1)
+3. `MovieCollection` (Stufe 2)
+4. `Movie` (Stufe 3)
+
+Innerhalb derselben Stufe entscheidet die Hinzufügereihenfolge (`AddedAt`, dann `Id`): Der früher
+hinzugefügte Eintrag wird zuerst berücksichtigt. Ein Eintrag einer späteren Stufe kann einen
+Eintrag einer früheren Stufe dagegen nie überholen — auch dann nicht, wenn er früher zur Playlist
+hinzugefügt wurde. Bereits verwendete Bild-IDs werden nicht doppelt in die Collage aufgenommen
+(z. B. Staffel und Serie mit demselben Poster).
+
+**Implementierung (`PlaylistCoverImageGenerator`):**
+- `CollectOrderedPictureIdsAsync()` lädt alle `PlaylistEntry` der Playlist (nach `AddedAt`
+  sortiert), weist jedem über `GetMediaTypePriority()` eine Stufe zu und sortiert stabil danach
+- `BuildPosterLookupAsync()` löst pro Medientyp gebündelt die `PosterPictureId` auf (für
+  `TVShowSeason` über den Umweg `TVShowSeason.TVShowId` → `TVShow.PosterPictureId`)
+- Die ersten `MaxImages` verfügbaren, deduplizierten Bilder werden geladen und per
+  `HomeBackgroundImageGenerator.Compose()` (Überlappungsbreite 32 px) zur Collage komponiert —
+  Abmessungen und JPEG-Qualität aus `Playlists:GeneratedCover*` (siehe Konfigurationsparameter)
+
+**Beispiel:**
+```
+Playlist-Eintraege (Hinzufuegereihenfolge): Film A, Serie B, Episode C, Sammlung D, Film E, Film F
+Aufgeloeste Bilder in der Collage (max. 5):
+1. Serie-B-Poster      (Stufe 0)
+2. Episode-C-Poster    (Stufe 1)
+3. Sammlung-D-Poster   (Stufe 2)
+4. Film-A-Poster       (Stufe 3, zuerst hinzugefuegt)
+5. Film-E-Poster       (Stufe 3)
+Film F wird nicht mehr beruecksichtigt (Maximum erreicht).
+```
+
+---
+
+## BR-24: Hochgeladenes Cover hat Vorrang vor dem erzeugten
+
+**Regel:** Ein vom Besitzer hochgeladenes Cover (`Playlist.CoverPictureIsUserUploaded = true`) wird
+nie ohne dessen ausdrückliche Aktion ersetzt — insbesondere gibt es keinen automatischen Prozess,
+der es durch eine Collage überschreiben könnte. Eine explizit ausgelöste Neuerzeugung (BR-25) oder
+ein erneuter Upload ersetzt es dagegen bewusst.
+
+**Implementierung:**
+- `PlaylistService.SetPlaylistCoverAsync()` speichert ein hochgeladenes Bild mit
+  `IsGeneratedBackground = false` und setzt `CoverPictureIsUserUploaded = true`
+- `PlaylistService.GeneratePlaylistCoverAsync()` speichert die Collage mit
+  `IsGeneratedBackground = true` und setzt `CoverPictureIsUserUploaded = false`; sie ersetzt auch
+  ein hochgeladenes Cover, da der Aufruf selbst die ausdrückliche Aktion des Besitzers ist
+- `ReplaceCoverPictureAsync()` (gemeinsame Hilfsmethode) fügt die neue `Picture`-Zeile hinzu, setzt
+  die `CoverPicture`-Navigation der Playlist (EF Core vergibt dabei die neue Fremdschlüssel-ID
+  selbst) und löscht die zuvor referenzierte `Picture`-Zeile — alles innerhalb **eines**
+  `SaveChangesAsync`-Aufrufs, sodass Einfügen, Referenz-Umsetzen und Löschen atomar sind und kein
+  verwaistes Bild zurückbleiben kann
+- Backup-Export: Da `Picture`-Zeilen mit `IsGeneratedBackground = true` grundsätzlich nicht
+  exportiert werden (siehe `VideoWebPlayerBackupData`), wird `Playlist.CoverPictureId` beim Export
+  nur dann mitgeschrieben, wenn `CoverPictureIsUserUploaded = 1` — sonst `NULL`, damit beim
+  Wiederherstellen keine verwaiste Fremdschlüssel-Referenz entsteht. Ein wiederhergestelltes,
+  zuvor generiertes Cover zeigt daher den Platzhalter, bis es erneut manuell erzeugt wird
+
+**Beispiel:**
+```
+Playlist hat generiertes Cover (CoverPictureIsUserUploaded = false)
+→ Besitzer lädt eigenes Bild hoch: alte Picture-Zeile wird geloescht,
+  CoverPictureId zeigt auf das neue Bild, CoverPictureIsUserUploaded = true
+
+Besitzer loest anschließend "Cover neu erzeugen" aus:
+→ hochgeladenes Bild wird geloescht, neue Collage ersetzt es,
+  CoverPictureIsUserUploaded = false
+```
+
+---
+
+## BR-25: „Cover neu erzeugen" ist ausschließlich eine manuelle Aktion
+
+**Regel:** Die Cover-Collage wird nur dann (neu) erzeugt, wenn der Besitzer es ausdrücklich
+anstößt (`POST /api/playlists/{id}/cover/regenerate`, in der Oberfläche die Schaltfläche „Cover neu
+erzeugen"). Inhaltsänderungen — manuelles Hinzufügen/Entfernen, automatische Nachlieferung (BR-18),
+stille Bereinigung verwaister Einträge (BR-7) — lösen keine Neuerzeugung aus; auch beim Anlegen
+einer Playlist wird kein Cover automatisch erzeugt.
+
+**Begründung / Umsetzung:**
+- Anders als die Genre-Ableitung (BR-20), die bei jeder Inhaltsänderung automatisch neu berechnet
+  wird, verändert `AddMediaToPlaylistAsync`/`RemoveMediaFromPlaylistAsync` das Cover nie — ein
+  bewusst hochgeladenes Bild (BR-24) darf nicht bei der nächsten beliebigen Inhaltsänderung
+  unbemerkt durch eine Collage ersetzt werden, und temporäre Änderungen sollen nicht jedes Mal
+  eine Neuerzeugung auslösen
+- Kann keine Collage erzeugt werden (keine Quellbilder vorhanden oder Erzeugung fehlgeschlagen),
+  liefert `PlaylistCoverImageGenerator.GeneratePlaylistCoverAsync()` `null` zurück; der Endpunkt
+  antwortet dann mit `DtoPlaylistCoverResult { Success = false, Message = "Keine Bilder
+  verfuegbar." }` und das bisherige Cover (oder der Platzhalter) bleibt unverändert — ein Fehler
+  wird wie bei den übrigen Bild-Generatoren geloggt statt an den Anwender weitergereicht
+
+---
+
+## BR-26: Aufräumen von Cover-Bildern
+
+**Regel:** Ein Cover-Bild (`Picture` mit `Type = "cover"` und `PlaylistId` auf die Playlist) bleibt
+nie verwaist zurück: Beim Ersetzen (Upload oder Regenerierung) wird das bisherige Bild gelöscht
+(BR-24), beim expliziten Entfernen (`DELETE /api/playlists/{id}/cover` →
+`PlaylistService.DeletePlaylistCoverAsync()`) werden `CoverPictureId`/`CoverPictureIsUserUploaded`
+zurückgesetzt und die `Picture`-Zeile gelöscht, und `PlaylistService.DeletePlaylistAsync()` löscht
+das referenzierte Cover-Bild beim Löschen der Playlist mit.
+
+**Implementierung:**
+- `Playlist.CoverPictureId` ist ein optionaler Fremdschlüssel auf `Pictures` (ohne kaskadiertes
+  Löschverhalten); das Aufräumen erfolgt daher bewusst im Service statt über einen DB-Cascade
+- `Picture.PlaylistId` ist der Rückverweis auf die Playlist (analog zu `Picture.EpisodeId` bei
+  generierten Episoden-Hintergrundbildern); auf die `Pictures`-Tabelle liegt ein Index auf
+  `(PlaylistId, IsGeneratedBackground)`
+- Fehlt beim Löschen das referenzierte Bild bereits in der Datenbank, schlägt der Vorgang nicht
+  fehl — die Referenz wird trotzdem zurückgesetzt
+
+---
+
 ## Zusammenfassung der Validierungsregeln
 
 | Regel | Prüfpunkt | Fehler | HTTP-Status |
@@ -698,6 +859,11 @@ Besitzer ruft POST /api/playlists/1/genres/reset auf
 | BR-19: Bewusst entfernte Titel nicht erneut aufnehmen | Bei Nachlieferung | Keine (still übersprungen) | Keine |
 | BR-20: Automatische Genre-Ableitung | Bei jeder Inhaltsänderung | Keine (still neu berechnet) | Keine |
 | BR-21: Manuelles Genre-Überschreiben/Zurücksetzen | Bei `PUT`/`POST .../genres[/reset]` | `PlaylistAccessDeniedException` bei Fremdzugriff | 403 Forbidden / 404 Not Found |
+| BR-22: Cover-Upload-Validierung | Bei `POST .../cover/upload` | `InvalidOperationException` bzw. direkte Ablehnung im Controller | 400 Bad Request |
+| BR-23: Medientyp-Priorität der Collage | Bei `POST .../cover/regenerate` | Keine (deterministische Auswahl) | Keine — 200 OK (ggf. `success: false`) |
+| BR-24: Vorrang hochgeladenes Cover | Bei Upload/Regenerierung | Keine (Ersetzen nur per ausdrücklicher Aktion) | Keine |
+| BR-25: Neuerzeugung nur manuell | Nie automatisch | Keine | Keine |
+| BR-26: Cover-Bild-Aufräumung | Bei Ersetzen/Entfernen/Playlist-Löschung | Keine (tolerantes Verhalten) | Keine |
 
 ---
 
@@ -757,6 +923,11 @@ Resultat: Serie A PLUS alle Staffeln und Episoden
 | `Playlists:MaxPageSize` | `int` | `100` | Obere Grenze für den `pageSize`-Parameter von `GET /api/playlists/{id}/entries/paged` |
 | `Playlists:BackfillIntervalMinutes` | `int` | `15` | Zeitabstand zwischen zwei Nachlieferungs-Durchläufen (BR-18); Werte < 1 werden wie 1 behandelt |
 | `Playlists:BackfillBatchSize` | `int` | `25` | Anzahl Playlists, die pro Nachlieferungs-Durchlauf höchstens geprüft werden (BR-18); Werte < 1 werden wie 1 behandelt |
+| `Playlists:AllowedCoverImageFormats` | `string` | `"image/jpeg,image/png,image/webp"` | Kommagetrennte Liste erlaubter MIME-Types für den Cover-Upload (BR-22); Vergleich case-insensitiv |
+| `Playlists:MaxCoverImageSizeBytes` | `long` | `5242880` (5 MB) | Maximale Dateigröße eines Cover-Uploads (BR-22); geprüft im Controller an der gemeldeten Länge und erneut im Validator |
+| `Playlists:GeneratedCoverWidthPixels` | `int` | `1600` | Zielbreite der automatisch erzeugten Cover-Collage (BR-23) |
+| `Playlists:GeneratedCoverHeightPixels` | `int` | `520` | Zielhöhe der automatisch erzeugten Cover-Collage (BR-23) |
+| `Playlists:GeneratedCoverJpegQuality` | `int` | `85` | JPEG-Qualität (0–100) der erzeugten Collage (BR-23) |
 
 Diese Parameter werden in `PlaylistSettings` gelesen. Falls `MaxPlaylistItemCount` `null` ist,
 gibt es keine Prüfung der maximalen Eintragsanzahl.

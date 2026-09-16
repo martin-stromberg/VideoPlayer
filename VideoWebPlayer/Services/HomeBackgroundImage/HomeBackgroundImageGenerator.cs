@@ -29,6 +29,9 @@ namespace VideoWebPlayer.Services.HomeBackgroundImage
         /// <summary>
         /// Initializes a new instance of the <see cref="HomeBackgroundImageGenerator"/> class.
         /// </summary>
+        /// <param name="continueWatchingService">Service used to load the current user's continue-watching list.</param>
+        /// <param name="db">Database context used to resolve the referenced poster pictures.</param>
+        /// <param name="logger">Logger for generation errors.</param>
         public HomeBackgroundImageGenerator(
             ContinueWatchingService continueWatchingService,
             ApplicationDbContext db,
@@ -42,6 +45,13 @@ namespace VideoWebPlayer.Services.HomeBackgroundImage
         /// <summary>
         /// Generates a JPEG composite background from the current user's continue-watching posters.
         /// </summary>
+        /// <param name="user">The user whose continue-watching list provides the source posters.</param>
+        /// <param name="targetWidth">The width, in pixels, of the composed collage.</param>
+        /// <param name="targetHeight">The height, in pixels, of the composed collage.</param>
+        /// <param name="transition">The width, in pixels, of the cross-fade between adjacent strips.</param>
+        /// <param name="quality">The JPEG encoding quality (0-100) of the composed collage.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        /// <returns>The composed collage, JPEG-encoded, or <c>null</c> if no usable posters exist.</returns>
         public async Task<byte[]?> GenerateAsync(
             ClaimsPrincipal user,
             int targetWidth = 1600,
@@ -90,7 +100,20 @@ namespace VideoWebPlayer.Services.HomeBackgroundImage
             }
         }
 
-        private static byte[] Compose(List<byte[]> imageData, int targetWidth, int targetHeight, int transition, int quality)
+        /// <summary>
+        /// Composes a collage from up to a handful of images, cropping/resizing each into a strip and
+        /// cross-fading strip boundaries. Shared with <see cref="PlaylistCover.PlaylistCoverImageGenerator"/>
+        /// (Entwicklungsschritt 10, Playlist-Abbildungen): internal rather than private so it can reuse this
+        /// already battle-tested composition instead of duplicating it (see the design decision documented
+        /// on <see cref="PlaylistCover.PlaylistCoverImageGenerator.GeneratePlaylistCoverAsync"/>).
+        /// </summary>
+        /// <param name="imageData">The source image bytes, in the order they should appear left-to-right.</param>
+        /// <param name="targetWidth">The width, in pixels, of the composed collage.</param>
+        /// <param name="targetHeight">The height, in pixels, of the composed collage.</param>
+        /// <param name="transition">The width, in pixels, of the cross-fade between adjacent strips.</param>
+        /// <param name="quality">The JPEG encoding quality (0-100) of the composed collage.</param>
+        /// <returns>The composed collage, JPEG-encoded.</returns>
+        internal static byte[] Compose(List<byte[]> imageData, int targetWidth, int targetHeight, int transition, int quality)
         {
             var count = imageData.Count;
             var stripWidths = Distribute(targetWidth, count);
@@ -112,70 +135,78 @@ namespace VideoWebPlayer.Services.HomeBackgroundImage
                 prefix += stripWidths[i];
             }
 
-            // Load and crop a center strip for each source.
+            // Load and crop a center strip for each source. Loaded strips are tracked in this list as they
+            // are created so the finally block below can dispose everything already loaded so far even if
+            // Image.Load/Resize throws partway through (e.g. for a corrupted Picture.Data) - without this,
+            // the Image<Rgba32> instances loaded before the failing one would never be disposed.
             var strips = new List<Image<Rgba32>>(count);
-            for (var i = 0; i < count; i++)
+            try
             {
-                var strip = Image.Load<Rgba32>(imageData[i]);
-                strip.Mutate(ctx => ctx.Resize(new ResizeOptions
+                for (var i = 0; i < count; i++)
                 {
-                    Mode = ResizeMode.Crop,
-                    Position = AnchorPositionMode.Center,
-                    Size = new Size(drawW[i], targetHeight)
-                }));
-                strips.Add(strip);
-            }
+                    var strip = Image.Load<Rgba32>(imageData[i]);
+                    strips.Add(strip);
+                    strip.Mutate(ctx => ctx.Resize(new ResizeOptions
+                    {
+                        Mode = ResizeMode.Crop,
+                        Position = AnchorPositionMode.Center,
+                        Size = new Size(drawW[i], targetHeight)
+                    }));
+                }
 
-            using var canvas = new Image<Rgba32>(targetWidth, targetHeight);
+                using var canvas = new Image<Rgba32>(targetWidth, targetHeight);
 
-            for (var y = 0; y < targetHeight; y++)
-            {
-                for (var x = 0; x < targetWidth; x++)
+                for (var y = 0; y < targetHeight; y++)
                 {
-                    var r = 0f;
-                    var g = 0f;
-                    var b = 0f;
-                    var weight = 0f;
-
-                    for (var i = 0; i < count; i++)
+                    for (var x = 0; x < targetWidth; x++)
                     {
-                        var lx = x - drawX[i];
-                        if (lx < 0 || lx >= drawW[i])
-                            continue;
+                        var r = 0f;
+                        var g = 0f;
+                        var b = 0f;
+                        var weight = 0f;
 
-                        var w = GetWeight(i, count, lx, drawW[i], transition);
-                        if (w <= 0)
-                            continue;
+                        for (var i = 0; i < count; i++)
+                        {
+                            var lx = x - drawX[i];
+                            if (lx < 0 || lx >= drawW[i])
+                                continue;
 
-                        var source = strips[i][lx, y];
-                        r += source.R * w;
-                        g += source.G * w;
-                        b += source.B * w;
-                        weight += w;
-                    }
+                            var w = GetWeight(i, count, lx, drawW[i], transition);
+                            if (w <= 0)
+                                continue;
 
-                    if (weight > 0)
-                    {
-                        var inv = 1f / weight;
-                        canvas[x, y] = new Rgba32(
-                            (byte)Math.Clamp(r * inv, 0, 255),
-                            (byte)Math.Clamp(g * inv, 0, 255),
-                            (byte)Math.Clamp(b * inv, 0, 255),
-                            255);
-                    }
-                    else
-                    {
-                        canvas[x, y] = new Rgba32(0, 0, 0, 255);
+                            var source = strips[i][lx, y];
+                            r += source.R * w;
+                            g += source.G * w;
+                            b += source.B * w;
+                            weight += w;
+                        }
+
+                        if (weight > 0)
+                        {
+                            var inv = 1f / weight;
+                            canvas[x, y] = new Rgba32(
+                                (byte)Math.Clamp(r * inv, 0, 255),
+                                (byte)Math.Clamp(g * inv, 0, 255),
+                                (byte)Math.Clamp(b * inv, 0, 255),
+                                255);
+                        }
+                        else
+                        {
+                            canvas[x, y] = new Rgba32(0, 0, 0, 255);
+                        }
                     }
                 }
+
+                using var stream = new MemoryStream();
+                canvas.SaveAsJpeg(stream, new JpegEncoder { Quality = Math.Clamp(quality, 1, 100) });
+                return stream.ToArray();
             }
-
-            foreach (var strip in strips)
-                strip.Dispose();
-
-            using var stream = new MemoryStream();
-            canvas.SaveAsJpeg(stream, new JpegEncoder { Quality = Math.Clamp(quality, 1, 100) });
-            return stream.ToArray();
+            finally
+            {
+                foreach (var strip in strips)
+                    strip.Dispose();
+            }
         }
 
         private static float GetWeight(int index, int count, int lx, int drawW, int transition)

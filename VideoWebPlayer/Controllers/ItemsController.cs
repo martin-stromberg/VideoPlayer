@@ -304,6 +304,7 @@ public class ItemsController : ApiBaseController
                                             var season = Create<DtoTVShowSeason>(ts);
                                             season.Show = _db.TVShows
                                                 .Where(s => s.Id == ts.TVShowId)
+                                                .ToList()
                                                 .Select(s => Create<DtoTVShow>(s))
                                                 .FirstOrDefault();
                                             return season;

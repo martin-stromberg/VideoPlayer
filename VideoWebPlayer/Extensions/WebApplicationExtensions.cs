@@ -37,6 +37,20 @@ public static class WebApplicationExtensions
     /// <returns>The same <see cref="WebApplication"/> instance.</returns>
     public static WebApplication UseVideoWebPlayer(this WebApplication app)
     {
+        // Requests mit ungültigem Host-Header früh ablehnen: Razor-Endpunkte würden sonst
+        // bei der Initialisierung des NavigationManager mit UriFormatException scheitern
+        // und auch der Error-Handler würde erneut werfen.
+        app.Use(async (context, next) =>
+        {
+            var host = context.Request.Host;
+            if (!host.HasValue || Uri.CheckHostName(host.Host) == UriHostNameType.Unknown)
+            {
+                context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                return;
+            }
+            await next();
+        });
+
         // Fehler-/Sicherheitskonfiguration
         if (app.Environment.IsDevelopment())
         {

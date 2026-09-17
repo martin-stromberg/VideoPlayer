@@ -72,7 +72,7 @@ namespace VideoWebPlayer.Controllers
         /// <typeparam name="T">The DTO type.</typeparam>
         /// <param name="ms">The source instance.</param>
         /// <returns>The populated DTO.</returns>
-        protected T Create<T>(object ms)
+        protected static T Create<T>(object ms)
         {
             var sourceType = ms.GetType();
             var record = Activator.CreateInstance<T>();

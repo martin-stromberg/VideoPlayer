@@ -124,7 +124,14 @@ namespace VideoWebPlayer.Services.Authentication
                                 currentUser = await userManager.FindByNameAsync(name);
                         }
                         if (currentUser is null)
+                        {
+                            if (user.Identity?.IsAuthenticated != true)
+                            {
+                                Logger.LogWarning("Could not impersonate anonymous request: no authenticated identity present.");
+                                throw new UnauthorizedAccessException("Not authenticated.");
+                            }
                             throw new InvalidOperationException($"Could not resolve user from principal. Claims: {string.Join(", ", user.Claims.Select(c => $"{c.Type}={c.Value}"))}");
+                        }
 
                         var token = authtorizationTokenService.CreateToken(currentUser);
                         base.SetAuthorizationToken(token);
@@ -132,7 +139,8 @@ namespace VideoWebPlayer.Services.Authentication
                 }
                 catch (Exception ex)
                 {
-                    Logger.LogError(ex, "Could not impersonate current user.");
+                    if (ex is not UnauthorizedAccessException)
+                        Logger.LogError(ex, "Could not impersonate current user.");
                     throw;
                 }
                 finally

@@ -217,6 +217,16 @@ Beteiligte Komponenten:
 - `PlaylistService.DeletePlaylistAsync()` — Ruft vor dem eigentlichen Löschen die Konfliktauflösungslogik auf
 - `ContinueWatchingService.ResolvePlaylistDeletionConflictsAsync()` — Implementiert die Konfliktprüfung und Duplikat-Entfernung
 
+### Erweiterung in Schritt 11 (öffentliche Playlists)
+
+`ResolvePlaylistDeletionConflictsAsync(playlistId)` betrachtet nicht mehr nur die Einträge des Besitzers, sondern die
+**aller** Anwender mit Bezug zu der Playlist: pro Anwender wird der gebundene Eintrag entfernt, wenn ein Eintrag ohne
+Playlist-Bezug für dasselbe Video existiert (zusätzlich wird verhindert, dass zwei gebundene Einträge desselben Anwenders
+für dasselbe Video aus verschiedenen, gleichzeitig entfallenden Playlists kollidieren). Derselbe Mechanismus (mit
+`PlaylistId = NULL` für die Überlebenden) löst die Einträge anderer Anwender, wenn die Kennzeichnung „öffentlich" entfernt
+wird (`DetachOtherUsersFromPlaylistAsync`, in einem `SaveChangesAsync` mit der Playlist-Änderung), und wird vor dem Löschen
+eines Benutzerkontos für dessen Playlists ausgeführt (`ResolveDeletionConflictsForOwnedPlaylistsAsync`).
+
 ## Error Handling
 
 | Szenario | Fehlerfall | Verhalten |

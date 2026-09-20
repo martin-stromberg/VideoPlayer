@@ -103,6 +103,18 @@ Sicherheitsabfrage: „Dieser Eintrag befindet sich in deiner Weiterschauen-List
 
 Details siehe `docs/help/weiterschauen/business-rules.md`.
 
+### Öffentliche Playlists anderer Anwender
+
+Spielen Sie eine **öffentliche Playlist** (von einem Administrator für alle freigegeben) ab, wird Ihr Fortschritt in
+**Ihrer eigenen** Weiterschauen-Liste geführt, mit Bezug zu dieser Playlist — der Fortschritt des Besitzers und
+anderer Anwender sowie die Playlist selbst bleiben unverändert. Ändert der Besitzer die Playlist:
+
+- **Titel entfernt:** Ihr Eintrag wird ohne Nachfrage durch den nächsten Titel der Playlist ersetzt, den *Sie* abspielen
+  dürfen (Position zurückgesetzt), oder entfernt, wenn es keinen gibt.
+- **Playlist gelöscht:** Ihr Eintrag bleibt mit seiner Position erhalten und verliert den Playlist-Bezug.
+- **Kennzeichnung „öffentlich" entfernt:** Sie verlieren den Zugriff auf die Playlist sofort; Ihr Eintrag verliert den
+  Playlist-Bezug und ist ein normaler Eintrag (Position bleibt), ohne Link und ohne Anzeige des Playlist-Namens.
+
 ## Einschränkungen
 
 - **Nur eine Episode/Film pro Serie/Sammlung pro Playlist:** Ein Benutzer kann pro Serie/Sammlung/Playlist-Kombination nur einen Eintrag in der Weiterschauen-Liste haben. Alle anderen Einträge dieser Serie/Sammlung werden automatisch entfernt, wenn eine neue Episode/Film hinzugefügt wird.

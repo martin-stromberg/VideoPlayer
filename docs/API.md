@@ -287,18 +287,32 @@ Antwortstatuswerte:
 ## Playlists
 
 Alle Playlist-Endpunkte sind benutzerbezogen: Sie wirken ausschließlich auf die Playlists des
-aktuell authentifizierten Anwenders.
+aktuell authentifizierten Anwenders. Ausnahme sind öffentliche Playlists (von einem Administrator als
+öffentlich gekennzeichnet): Sie dürfen alle Anwender **lesen** (Abruf, Einträge, Wiedergabe, Cover), ändern
+darf sie weiterhin nur der Besitzer (`403 Forbidden` für jeden anderen, auch für Administratoren). Die
+vollständige Zuordnung lesend/schreibend je Endpunkt steht in
+[Playlists – API-Dokumentation](help/playlists-api.md).
 
 ### GET /api/playlists
 
-Liefert alle Playlists des aktuellen Benutzers als `DtoPlaylist[]`.
+Liefert alle Playlists des aktuellen Benutzers als `DtoPlaylist[]` (nur die eigenen, keine öffentlichen
+Playlists anderer).
+
+### GET /api/playlists/public
+
+Liefert alle öffentlich gekennzeichneten Playlists als `DtoPlaylist[]`; optional `?genreId=` als Filter.
+
+### PUT /api/playlists/{id}/public
+
+Setzt oder entfernt die Kennzeichnung „öffentlich" (Request `{ "isPublic": true }`). Nur für Administratoren, die
+Besitzer der Playlist sind; sonst `403 Forbidden`. Das Entfernen entzieht anderen Anwendern sofort den Zugriff.
 
 ### GET /api/playlists/{id}
 
 Liefert eine einzelne Playlist als `DtoPlaylist`.
 
 - `404 Not Found`, wenn keine Playlist mit dieser ID existiert.
-- `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
+- `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört und nicht öffentlich ist.
 
 ### POST /api/playlists
 

@@ -2,7 +2,7 @@
 
 ## Übersicht
 
-Die Playlist-API bietet Endpunkte zur Verwaltung von Benutzer-Playlists und deren Medieninhalte. Alle Operationen erfordern Authentifizierung via Bearer Token und unterliegen Berechtigungsprüfung: Nur der Besitzer einer Playlist darf diese ändern.
+Die Playlist-API bietet Endpunkte zur Verwaltung von Benutzer-Playlists und deren Medieninhalte. Alle Operationen erfordern Authentifizierung via Bearer Token und unterliegen Berechtigungsprüfung: Nur der Besitzer einer Playlist darf diese ändern. Ab Entwicklungsschritt 11 können Administratoren eigene Playlists als **öffentlich** kennzeichnen; eine öffentliche Playlist dürfen alle Anwender **lesen** (ansehen, abspielen), ändern darf sie weiterhin nur der Besitzer (siehe „Berechtigungen je Endpunkt" und „Endpunkte für öffentliche Playlists").
 
 ## Authentifizierung
 
@@ -13,6 +13,32 @@ Authorization: Bearer {token}
 ```
 
 Fehlerhafte oder fehlende Authentifizierung führt zu HTTP 401 (Unauthorized).
+
+## Berechtigungen je Endpunkt
+
+Lesend = Besitzer **oder** beliebiger Anwender, solange die Playlist öffentlich ist. Schreibend = ausschließlich
+der Besitzer, unabhängig davon, ob die Playlist öffentlich ist und ob der Anfragende Administrator ist.
+Verstöße antworten mit `403 Forbidden` (nicht angemeldet: `401`, unbekannte Playlist: `404`); die Prüfung
+erfolgt serverseitig im `PlaylistService`, nicht (nur) in der Oberfläche.
+
+| Endpunkt | Zuordnung | Wer darf |
+|----------|-----------|----------|
+| `GET /api/playlists` | lesend (eigene) | jeder Angemeldete — liefert nur die **eigenen** Playlists |
+| `GET /api/playlists/public` | lesend | jeder Angemeldete — alle öffentlichen Playlists |
+| `GET /api/playlists/{id}` | lesend | Besitzer; andere nur bei öffentlicher Playlist |
+| `GET /api/playlists/{id}/entries`, `/entries/paged` | lesend | Besitzer; andere nur bei öffentlicher Playlist |
+| `POST /api/playlists/{id}/play`, `/play/next`, `/play/previous`, `/play/advance` | lesend | Besitzer; andere nur bei öffentlicher Playlist (Freischaltung je Anfragendem) |
+| `GET /api/playlists/{id}/cover` | lesend | Besitzer; andere nur bei öffentlicher Playlist |
+| `POST /api/playlists` | eigene Playlist anlegen | jeder Angemeldete |
+| `PUT /api/playlists/{id}` (Umbenennen) | schreibend | nur Besitzer |
+| `DELETE /api/playlists/{id}` | schreibend | nur Besitzer |
+| `POST /api/playlists/{id}/entries`, `DELETE /api/playlists/{id}/entries/{mediaType}/{mediaId}` | schreibend | nur Besitzer |
+| `PUT /api/playlists/{id}/entries/{entryId}/order`, `POST .../entries/batch-reorder`, `POST .../entries/{entryId}/move-to-beginning`, `POST .../entries/{entryId}/move-between` | schreibend | nur Besitzer |
+| `GET /api/playlists/{id}/entries/max-sort-order` | Hilfsabfrage der Umsortierung, daher wie schreibend | nur Besitzer |
+| `PATCH /api/playlists/{id}/sort-mode` | schreibend | nur Besitzer |
+| `PUT /api/playlists/{id}/genres`, `POST /api/playlists/{id}/genres/reset` | schreibend | nur Besitzer |
+| `POST /api/playlists/{id}/cover/upload`, `POST .../cover/regenerate`, `DELETE .../cover` | schreibend | nur Besitzer |
+| `PUT /api/playlists/{id}/public` | schreibend (Kennzeichnung) | nur Besitzer **und** Administrator |
 
 ## Medien-Suche für die Auswahl-Oberfläche
 
@@ -851,9 +877,11 @@ Abmessungen gespeichert; `Playlist.CoverPictureIsUserUploaded` wird `false`.
 
 ### `GET /api/playlists/{id}/cover` — Coverbild abrufen
 
-Liefert das aktuelle Coverbild der Playlist (hochgeladen oder generiert) als Bilddaten. Steht jedem
-angemeldeten Benutzer offen — nicht nur dem Besitzer — analog zum allgemeinen Bild-Endpunkt
-`GET /api/pictures/{id}`; nur das Ändern des Covers erfordert Besitz.
+Liefert das aktuelle Coverbild der Playlist (hochgeladen oder generiert) als Bilddaten. **Lesender Zugriff
+(ab Schritt 11):** der Besitzer, oder jeder angemeldete Benutzer, solange die Playlist öffentlich ist (die
+Kacheln der öffentlichen Übersicht zeigen das Bild). Für eine private Playlist eines anderen Anwenders antwortet
+der Endpunkt mit `403` — ein generiertes Cover ist eine Collage der Inhalte der Playlist; nur das Ändern des
+Covers erfordert stets Besitz.
 
 **Parameter:**
 
@@ -872,6 +900,7 @@ mitgelieferte Oberfläche hängt dabei — wie bei anderen Bild-/Stream-URLs —
 || HTTP-Status | Grund |
 ||-------------|-------|
 || 404 Not Found | Playlist nicht gefunden oder besitzt kein Cover (der Client zeigt dann den Platzhalter) |
+|| 403 Forbidden | Playlist ist privat und gehört einem anderen Benutzer |
 || 401 Unauthorized | Fehlende oder ungültige Authentifizierung |
 
 ---
@@ -907,6 +936,46 @@ Aufruf wirkungslos erfolgreich.
 
 ---
 
+## Endpunkte für öffentliche Playlists
+
+### `GET /api/playlists/public` — Öffentliche Playlists abrufen
+
+Liefert alle Playlists, die als öffentlich gekennzeichnet sind, als `DtoPlaylist[]` (Quelle der getrennten
+Übersicht „Öffentliche Playlists"). Optional mit `?genreId={genreId}` auf ein Genre beschränkt (wie
+`GET /api/playlists`). Enthält auch die eigenen öffentlichen Playlists des Anfragenden
+(`isOwner = true`); private Playlists — auch eigene — erscheinen nie. Die DTOs sind auf den Anfragenden
+zugeschnitten (siehe `DtoPlaylist`), enthalten keine Benutzer-ID und keine E-Mail-Adresse des Besitzers.
+
+**Antworten:** `200 OK` (`DtoPlaylist[]`), `401 Unauthorized`.
+
+### `PUT /api/playlists/{id}/public` — Kennzeichnung „öffentlich" setzen oder entfernen
+
+Setzt oder entfernt die Kennzeichnung. Nur ein **Administrator, der Besitzer der Playlist ist**, darf das.
+Der Administrator-Status wird aus dem Benutzerdatensatz in der Datenbank gelesen (nicht aus dem Token-Claim),
+so dass ein entzogenes Administratorrecht sofort wirkt.
+
+**Request-Body (`DtoSetPlaylistPublicRequest`):**
+
+```json
+{ "isPublic": true }
+```
+
+Das Entfernen (`false`) entzieht allen anderen Anwendern sofort den Zugriff und löst deren
+Weiterschauen-Einträge mit Bezug zu dieser Playlist vom Playlist-Bezug (siehe `weiterschauen/business-rules.md`).
+Das erneute Setzen des bereits vorhandenen Werts ist ein wirkungsloser Erfolg.
+
+**Antworten:**
+
+| HTTP-Status | Grund |
+|-------------|-------|
+| 200 OK | Aktualisierte Playlist (`DtoPlaylist`) |
+| 400 Bad Request | Leerer Request-Body |
+| 401 Unauthorized | Nicht angemeldet |
+| 403 Forbidden | Anfragender ist kein Administrator, oder nicht der Besitzer (auch ein Administrator, der nicht Besitzer ist) |
+| 404 Not Found | Playlist existiert nicht |
+
+---
+
 ## DTO-Modelle
 
 ### `DtoPlaylist`
@@ -930,8 +999,17 @@ public class DtoPlaylist
     public bool GenresManuallyOverridden { get; set; }    // true, wenn der Besitzer die Genres manuell gesetzt hat
     public long? CoverPictureId { get; set; }             // Bild-ID des Covers, siehe Hinweis unten
     public bool CoverPictureIsUserUploaded { get; set; }  // true = hochgeladen, false = generierte Collage
+    public bool IsPublic { get; set; }                    // Kennzeichnung "öffentlich" (Schritt 11)
+    public bool IsOwner { get; set; }                     // gehört die Playlist dem Anfragenden? (Schritt 11)
 }
 ```
+
+**Hinweis zu `isPublic`/`isOwner` (Schritt 11):** `isOwner` ist relativ zum Anfragenden und bestimmt, ob die Oberfläche
+Bearbeitungsmöglichkeiten anbietet (nur für den Besitzer). Es ist keine Sicherheitsgrenze — der Server lehnt jede
+Änderung durch Nicht-Besitzer unabhängig davon ab. Für einen **Betrachter** (`isOwner = false`) wird das DTO auf das
+Nötige zum Ansehen und Abspielen reduziert: `allGenreIds` ist leer, `genresManuallyOverridden` und
+`coverPictureIsUserUploaded` sind `false`; `genres`, `name`, `description`, `coverPictureId` usw. bleiben sichtbar. Das
+DTO enthält nie die Benutzer-ID oder E-Mail-Adresse des Besitzers.
 
 **Hinweis zu `coverPictureId`/`coverPictureIsUserUploaded`:** `coverPictureId` verweist auf das
 aktuelle Coverbild der Playlist (`null` = kein Cover gesetzt; die Oberfläche zeigt dann den

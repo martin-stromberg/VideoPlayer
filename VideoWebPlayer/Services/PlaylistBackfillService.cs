@@ -7,22 +7,47 @@ using VideoWebPlayer.Data;
 namespace VideoWebPlayer.Services;
 
 /// <summary>
-/// The outcome of one <see cref="PlaylistBackfillService.RunBatchAsync"/> run.
+/// The snapshot of a marker (<see cref="PlaylistBackfillMarker"/>) taken when a backfill run was planned: its
+/// id and the <see cref="PlaylistBackfillMarker.Version"/> that was processed. The marker is removed afterwards
+/// only if its version is still this one.
 /// </summary>
-/// <param name="LastProcessedPlaylistId">
-/// The highest playlist id examined in this run - the cursor <see cref="PlaylistBackfillWorker"/> resumes
-/// from on the next run, so successive runs sweep round-robin through every eligible playlist instead of
-/// repeatedly re-checking only the first ones.
-/// </param>
+/// <param name="Id">The marker identifier.</param>
+/// <param name="Version">The marker version at snapshot time.</param>
+/// <returns>A value pairing a marker id with its processed version.</returns>
+internal readonly record struct PlaylistBackfillMarkerSnapshot(long Id, long Version);
+
+/// <summary>
+/// The work derived from the pending markers: which playlists have to be processed, and which markers relate
+/// to which playlist (so a marker stays when one of "its" playlists failed).
+/// </summary>
+/// <param name="Markers">Every marker that existed when the plan was made.</param>
+/// <param name="PlaylistIds">The ids of exactly those playlists containing a marked collection medium as an entry, ascending.</param>
+/// <param name="MarkerIdsByPlaylist">For each playlist the ids of the (snapshot) markers it contains an entry for.</param>
+/// <returns>A plan describing what a marker-driven backfill run has to process.</returns>
+internal sealed record PlaylistBackfillPlan(
+    IReadOnlyList<PlaylistBackfillMarkerSnapshot> Markers,
+    IReadOnlyList<long> PlaylistIds,
+    IReadOnlyDictionary<long, List<long>> MarkerIdsByPlaylist)
+{
+    /// <summary>
+    /// Gets a value indicating whether nothing is marked at all.
+    /// </summary>
+    public bool IsEmpty => Markers.Count == 0;
+}
+
+/// <summary>
+/// The outcome of backfilling one block of playlists.
+/// </summary>
 /// <param name="PlaylistsExamined">How many playlists were examined (whether or not anything was added).</param>
-/// <param name="EntriesAdded">How many <see cref="PlaylistEntry"/> rows were added across all examined playlists.</param>
-/// <returns>A value combining the round-robin cursor position with how much work this run did.</returns>
-public readonly record struct PlaylistBackfillRunResult(long LastProcessedPlaylistId, int PlaylistsExamined, int EntriesAdded);
+/// <param name="EntriesAdded">How many <see cref="PlaylistEntry"/> rows were added across the block.</param>
+/// <param name="FailedPlaylistIds">The playlists whose backfill threw (the block goes on without them).</param>
+/// <returns>A value describing what one block of playlists yielded.</returns>
+internal readonly record struct PlaylistBackfillBlockResult(int PlaylistsExamined, int EntriesAdded, IReadOnlyList<long> FailedPlaylistIds);
 
 /// <summary>
 /// Implements the automatic-backfill business logic (Entwicklungsschritt 8): playlists that contain a
-/// complete TV show, TV show season or movie collection as one of their entries are periodically checked
-/// for newly added children (a new season, a new episode, a new movie in the collection) via the same
+/// complete TV show, TV show season or movie collection as one of their entries pick up newly added children
+/// (a new season, a new episode, a new movie in the collection) via the same
 /// <see cref="MediaHierarchyRegistry.Handlers"/> cascade-lookup <see cref="PlaylistService.AddMediaToPlaylistAsync"/>
 /// itself uses when the user manually adds such a collection; anything found that is not already in the
 /// playlist and was not deliberately removed by the user before (<see cref="PlaylistEntryExclusion"/>) is
@@ -33,15 +58,14 @@ public readonly record struct PlaylistBackfillRunResult(long LastProcessedPlayli
 /// places it correctly by release date.
 /// </summary>
 /// <remarks>
-/// Driven entirely by <see cref="PlaylistBackfillWorker"/>, which calls <see cref="RunBatchAsync"/>
-/// periodically with a bounded <c>playlistBatchSize</c> so a single run only examines a handful of
-/// playlists (see <see cref="PlaylistSettings.BackfillBatchSize"/>) instead of the entire table, keeping
-/// each run short enough not to noticeably affect ongoing operation as required. This class itself is
-/// side-effect-scoped to the given batch and does not own scheduling, cancellation-friendliness across
-/// playlists (each playlist is one bounded unit of work; the caller's <see cref="CancellationToken"/> is
-/// checked between playlists), or the "don't run while a backup is in progress" gate - those are
-/// <see cref="PlaylistBackfillWorker"/>'s responsibility, mirroring how <c>MediaSourceScanService</c> and
-/// <c>ActorBackfillWorker</c> divide those concerns.
+/// What to look at is decided by markers (<see cref="PlaylistBackfillMarker"/>), which
+/// <see cref="ApplicationDbContext"/> writes when a child is created: <see cref="PlanPendingAsync"/> turns them
+/// into exactly the playlists that contain a marked collection medium, <see cref="BackfillPlaylistsAsync"/>
+/// processes one block of playlists, and <see cref="ReleaseMarkersAsync"/> removes the processed markers (only
+/// at the processed version, so a marker set meanwhile is never lost). The daily safety sweep instead walks
+/// all playlists with a collection entry (<see cref="LoadSweepBlockAsync"/>) without looking at markers. This
+/// class does not own scheduling, pauses between blocks or the "don't run while a backup is in progress" gate -
+/// that is <see cref="PlaylistBackfillCoordinator"/> / <see cref="PlaylistBackfillWorker"/>.
 /// </remarks>
 internal sealed class PlaylistBackfillService
 {
@@ -51,6 +75,8 @@ internal sealed class PlaylistBackfillService
         MediaTypeValues.TVShowSeason,
         MediaTypeValues.MovieCollection
     };
+
+    private const int DeleteChunkSize = 500;
 
     private readonly ApplicationDbContext _db;
     private readonly PlaylistSettings _playlistSettings;
@@ -71,46 +97,120 @@ internal sealed class PlaylistBackfillService
     }
 
     /// <summary>
-    /// Examines up to <paramref name="playlistBatchSize"/> playlists (that contain at least one TVShow/
-    /// TVShowSeason/MovieCollection entry) with an id greater than <paramref name="afterPlaylistId"/>, and
-    /// backfills any newly available cascade children into each. If no such playlist exists above
-    /// <paramref name="afterPlaylistId"/> (the round-robin sweep reached the end), wraps around and takes
-    /// the batch from the beginning instead, so a single call never silently does nothing just because the
-    /// cursor ran past the last eligible playlist id.
+    /// Snapshots the pending markers and determines - with one join query against the
+    /// <c>(MediaType, MediaId)</c> index of the playlist entries - exactly the playlists that contain a marked
+    /// collection medium. With no markers this is a single cheap query and nothing else.
     /// </summary>
-    /// <param name="afterPlaylistId">
-    /// Resume the round-robin sweep after this playlist id (0 to start from the beginning).
-    /// </param>
-    /// <param name="playlistBatchSize">The maximum number of playlists to examine in this run.</param>
-    /// <param name="cancellationToken">Cancellation token, checked between playlists.</param>
-    /// <returns>How much of the batch was examined, and how many entries were added.</returns>
-    public async Task<PlaylistBackfillRunResult> RunBatchAsync(long afterPlaylistId, int playlistBatchSize, CancellationToken cancellationToken)
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The plan (possibly empty).</returns>
+    public async Task<PlaylistBackfillPlan> PlanPendingAsync(CancellationToken cancellationToken)
     {
-        var candidatePlaylistIds = await LoadCandidatePlaylistIdsAsync(afterPlaylistId, playlistBatchSize, cancellationToken);
-        if (candidatePlaylistIds.Count == 0 && afterPlaylistId > 0)
-            candidatePlaylistIds = await LoadCandidatePlaylistIdsAsync(0, playlistBatchSize, cancellationToken);
+        var markers = await _db.PlaylistBackfillMarkers.AsNoTracking()
+            .Select(m => new PlaylistBackfillMarkerSnapshot(m.Id, m.Version))
+            .ToListAsync(cancellationToken);
+        if (markers.Count == 0)
+            return new PlaylistBackfillPlan(markers, Array.Empty<long>(), new Dictionary<long, List<long>>());
 
-        var totalAdded = 0;
-        var lastProcessedId = afterPlaylistId;
+        var pairs = await (
+                from e in _db.PlaylistEntries.AsNoTracking()
+                join m in _db.PlaylistBackfillMarkers.AsNoTracking()
+                    on new { e.MediaType, e.MediaId } equals new { m.MediaType, m.MediaId }
+                select new { e.PlaylistId, MarkerId = m.Id })
+            .ToListAsync(cancellationToken);
 
-        foreach (var playlistId in candidatePlaylistIds)
+        var snapshotIds = markers.Select(m => m.Id).ToHashSet();
+        var markerIdsByPlaylist = new Dictionary<long, List<long>>();
+        foreach (var pair in pairs.Where(p => snapshotIds.Contains(p.MarkerId)))
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            totalAdded += await BackfillPlaylistAsync(playlistId, cancellationToken);
-            lastProcessedId = playlistId;
+            if (!markerIdsByPlaylist.TryGetValue(pair.PlaylistId, out var ids))
+                markerIdsByPlaylist[pair.PlaylistId] = ids = new List<long>();
+            ids.Add(pair.MarkerId);
         }
 
-        return new PlaylistBackfillRunResult(lastProcessedId, candidatePlaylistIds.Count, totalAdded);
+        // Playlists found only through a marker newer than the snapshot are processed as well (harmless, and
+        // their marker is not removed by this run).
+        var playlistIds = pairs.Select(p => p.PlaylistId).Distinct().OrderBy(id => id).ToList();
+        return new PlaylistBackfillPlan(markers, playlistIds, markerIdsByPlaylist);
     }
 
-    private Task<List<long>> LoadCandidatePlaylistIdsAsync(long afterPlaylistId, int playlistBatchSize, CancellationToken cancellationToken)
+    /// <summary>
+    /// Removes the markers of a finished plan - except those belonging to a playlist whose backfill failed
+    /// (they stay for the next attempt) and except those re-marked since the snapshot (their version
+    /// changed, so the conditional delete does not match): a marker set while the run was in progress is
+    /// never lost.
+    /// </summary>
+    /// <param name="plan">The plan whose markers were processed.</param>
+    /// <param name="failedPlaylistIds">The playlists whose backfill failed.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A task completing when the markers are removed.</returns>
+    public async Task ReleaseMarkersAsync(PlaylistBackfillPlan plan, IReadOnlyCollection<long> failedPlaylistIds, CancellationToken cancellationToken)
+    {
+        var blocked = new HashSet<long>();
+        foreach (var failedId in failedPlaylistIds)
+        {
+            if (plan.MarkerIdsByPlaylist.TryGetValue(failedId, out var markerIds))
+                blocked.UnionWith(markerIds);
+        }
+
+        foreach (var versionGroup in plan.Markers.Where(m => !blocked.Contains(m.Id)).GroupBy(m => m.Version))
+        {
+            var version = versionGroup.Key;
+            foreach (var chunk in versionGroup.Select(m => m.Id).Chunk(DeleteChunkSize))
+            {
+                await _db.PlaylistBackfillMarkers
+                    .Where(m => chunk.Contains(m.Id) && m.Version == version)
+                    .ExecuteDeleteAsync(cancellationToken);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Loads the next block of the safety sweep: up to <paramref name="blockSize"/> ids, ascending, of
+    /// playlists that contain at least one TVShow/TVShowSeason/MovieCollection entry, with an id greater than
+    /// <paramref name="afterPlaylistId"/> (0 to start from the beginning).
+    /// </summary>
+    /// <param name="afterPlaylistId">Continue after this playlist id.</param>
+    /// <param name="blockSize">The maximum number of playlists.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The playlist ids of the block (empty when the sweep is through).</returns>
+    public Task<List<long>> LoadSweepBlockAsync(long afterPlaylistId, int blockSize, CancellationToken cancellationToken)
         => _db.PlaylistEntries
             .Where(e => CollectionMediaTypes.Contains(e.MediaType) && e.PlaylistId > afterPlaylistId)
             .Select(e => e.PlaylistId)
             .Distinct()
             .OrderBy(id => id)
-            .Take(playlistBatchSize)
+            .Take(blockSize)
             .ToListAsync(cancellationToken);
+
+    /// <summary>
+    /// Backfills newly available cascade children into every playlist of the given block. A failure in one
+    /// playlist does not stop the others: it is reported in the result, the change tracker is cleared and the
+    /// next playlist is processed.
+    /// </summary>
+    /// <param name="playlistIds">The playlist ids of the block.</param>
+    /// <param name="cancellationToken">Cancellation token, checked between playlists (cancellation is not treated as a failure).</param>
+    /// <returns>How many playlists were examined, how many entries were added, and which playlists failed.</returns>
+    public async Task<PlaylistBackfillBlockResult> BackfillPlaylistsAsync(IReadOnlyList<long> playlistIds, CancellationToken cancellationToken)
+    {
+        var totalAdded = 0;
+        var failed = new List<long>();
+
+        foreach (var playlistId in playlistIds)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                totalAdded += await BackfillPlaylistAsync(playlistId, cancellationToken);
+            }
+            catch (Exception) when (!cancellationToken.IsCancellationRequested)
+            {
+                failed.Add(playlistId);
+                _db.ChangeTracker.Clear(); // Half-built entries of the failed playlist must not poison the next one.
+            }
+        }
+
+        return new PlaylistBackfillBlockResult(playlistIds.Count, totalAdded, failed);
+    }
 
     /// <summary>
     /// Backfills newly available cascade children into a single playlist's TVShow/TVShowSeason/

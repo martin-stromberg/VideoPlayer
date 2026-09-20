@@ -22,10 +22,12 @@ namespace VideoWebPlayer.Data
         /// </summary>
         /// <param name="options">Konfigurationsoptionen f�r den DbContext.</param>
         /// <param name="eventManager">EventManager f�r das Publizieren von Events.</param>
-        public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options, EventManager eventManager)
+        /// <param name="backfillSignal">Optional wake-up line for the playlist backfill worker (null in tests / when unused).</param>
+        public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options, EventManager eventManager, IPlaylistBackfillSignal? backfillSignal = null)
             : base(options)
         {
             _eventManager = eventManager;
+            _backfillSignal = backfillSignal;
 
             // Die per [DbFunction]/HasDbFunction() angebundene Funktion lower_invariant() existiert nicht
             // von sich aus in SQLite; sie muss zusaetzlich auf der zugrunde liegenden Verbindung als

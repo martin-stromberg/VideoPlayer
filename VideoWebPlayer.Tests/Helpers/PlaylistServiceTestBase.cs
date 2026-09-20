@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -77,6 +77,21 @@ public abstract class PlaylistServiceTestBase : IDisposable
             MaxPlaylistItemCount = maxPlaylistItemCount
         });
         return new PlaylistBackfillService(_db, settings);
+    }
+
+    /// <summary>
+    /// Runs one marker-driven backfill pass the way <see cref="PlaylistBackfillCoordinator"/> does: plans the
+    /// pending markers, backfills exactly the affected playlists in one block, and releases the markers.
+    /// </summary>
+    /// <param name="backfillService">The backfill service under test.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The block result.</returns>
+    internal async Task<PlaylistBackfillBlockResult> RunPendingBackfillAsync(PlaylistBackfillService backfillService, CancellationToken cancellationToken)
+    {
+        var plan = await backfillService.PlanPendingAsync(cancellationToken);
+        var result = await backfillService.BackfillPlaylistsAsync(plan.PlaylistIds, cancellationToken);
+        await backfillService.ReleaseMarkersAsync(plan, result.FailedPlaylistIds, cancellationToken);
+        return result;
     }
 
     /// <summary>

@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Tests.Helpers;
@@ -15,7 +15,7 @@ namespace VideoWebPlayer.Tests.Services;
 public class PlaylistBackfillServiceTests_Genres : PlaylistServiceTestBase
 {
     [Fact]
-    public async Task RunBatchAsync_NewMovieAddedToCollection_RecomputesPlaylistGenres()
+    public async Task Backfill_NewMovieAddedToCollection_RecomputesPlaylistGenres()
     {
         var ct = TestContext.Current.CancellationToken;
         var collection = new MovieCollection { Name = "Sammlung", MediaSourceId = 1, CreatedAt = DateTime.UtcNow };
@@ -36,7 +36,7 @@ public class PlaylistBackfillServiceTests_Genres : PlaylistServiceTestBase
         await CreateMovieInCollectionWithGenresAsync(collection.Id, "Film 2", "Fantasy");
 
         var backfillService = CreateBackfillService();
-        var result = await backfillService.RunBatchAsync(afterPlaylistId: 0, playlistBatchSize: 10, ct);
+        var result = await RunPendingBackfillAsync(backfillService, ct);
         Assert.Equal(1, result.EntriesAdded);
 
         var afterBackfill = await _service.GetPlaylistAsync(playlist.Id, _testUserId, ct);
@@ -46,7 +46,7 @@ public class PlaylistBackfillServiceTests_Genres : PlaylistServiceTestBase
     }
 
     [Fact]
-    public async Task RunBatchAsync_GenresManuallyOverridden_DoesNotChangeGenresOnBackfill()
+    public async Task Backfill_GenresManuallyOverridden_DoesNotChangeGenresOnBackfill()
     {
         var ct = TestContext.Current.CancellationToken;
         var collection = new MovieCollection { Name = "Sammlung", MediaSourceId = 1, CreatedAt = DateTime.UtcNow };
@@ -64,7 +64,7 @@ public class PlaylistBackfillServiceTests_Genres : PlaylistServiceTestBase
         await CreateMovieInCollectionWithGenresAsync(collection.Id, "Film 2", "Fantasy");
 
         var backfillService = CreateBackfillService();
-        await backfillService.RunBatchAsync(afterPlaylistId: 0, playlistBatchSize: 10, ct);
+        await RunPendingBackfillAsync(backfillService, ct);
 
         var afterBackfill = await _service.GetPlaylistAsync(playlistId, _testUserId, ct);
         Assert.NotNull(afterBackfill);

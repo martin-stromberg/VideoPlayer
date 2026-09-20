@@ -24,6 +24,11 @@ namespace VideoWebPlayer.Data.Configurations
 
             builder.HasIndex(e => new { e.PlaylistId, e.MediaType, e.MediaId }).IsUnique();
 
+            // Lookup "which playlists contain this collection medium" for the marker-driven backfill
+            // (PlaylistBackfillService); the unique index above starts with PlaylistId and cannot serve it.
+            builder.HasIndex(e => new { e.MediaType, e.MediaId })
+                .HasDatabaseName("IX_PlaylistEntries_MediaType_MediaId");
+
             builder.HasIndex(e => new { e.PlaylistId, e.SortOrder })
                 .HasDatabaseName("IX_PlaylistEntries_PlaylistId_SortOrder");
         }

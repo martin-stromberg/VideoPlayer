@@ -27,20 +27,35 @@ namespace VideoWebPlayer.Configuration
         public int MaxPageSize { get; set; } = 100;
 
         /// <summary>
-        /// Gets or sets the interval, in minutes, at which <see cref="Services.PlaylistBackfillWorker"/> checks
-        /// whether new content (e.g. a new season, episode or movie) needs to be backfilled into playlists
-        /// that contain a complete TV show, season or movie collection. Values below 1 are treated as 1.
-        /// </summary>
-        public int BackfillIntervalMinutes { get; set; } = 15;
-
-        /// <summary>
-        /// Gets or sets how many playlists <see cref="Services.PlaylistBackfillWorker"/> examines per run of
-        /// <see cref="Services.PlaylistBackfillService.RunBatchAsync"/>. Kept deliberately small and bounded
-        /// (rather than processing every eligible playlist in one run) so a single run stays short and does
-        /// not noticeably affect ongoing operation; playlists are visited round-robin across successive runs
-        /// so every playlist is eventually re-checked. Values below 1 are treated as 1.
+        /// Gets or sets how many playlists <see cref="Services.PlaylistBackfillCoordinator"/> processes per
+        /// work unit (block) - both for the marker-driven backfill (only playlists that contain a marked
+        /// collection medium) and for the daily safety sweep. Kept deliberately small and bounded so a single
+        /// unit stays short and even a large catch-up does not cause a load spike; between two blocks the
+        /// coordinator pauses for <see cref="BackfillBlockPauseSeconds"/>. Values below 1 are treated as 1.
         /// </summary>
         public int BackfillBatchSize { get; set; } = 25;
+
+        /// <summary>
+        /// Gets or sets the pause, in seconds, between two blocks of <see cref="BackfillBatchSize"/> playlists
+        /// (marker-driven backfill and safety sweep alike). Values below 0 are treated as 0 (no pause).
+        /// </summary>
+        public int BackfillBlockPauseSeconds { get; set; } = 2;
+
+        /// <summary>
+        /// Gets or sets how long, in seconds, <see cref="Services.PlaylistBackfillWorker"/> waits after it was
+        /// woken (end of a scan, or media created outside a scan) before it processes the markers, so a burst
+        /// of changes is handled in one go. Values below 0 are treated as 0.
+        /// </summary>
+        public int BackfillSettleSeconds { get; set; } = 10;
+
+        /// <summary>
+        /// Gets or sets the interval, in hours, of the daily safety sweep: a full check of every playlist
+        /// that contains a TV show, season or movie collection, as a net against a forgotten marker (for
+        /// example media created by a path that bypasses <c>SaveChanges</c>). The time of the last sweep is
+        /// stored persistently, so it runs at most once per interval even across restarts, and an overdue
+        /// sweep is caught up shortly after start. 0 (or less) switches the sweep off. Default: 24.
+        /// </summary>
+        public int BackfillSafetySweepIntervalHours { get; set; } = 24;
 
         /// <summary>
         /// Gets or sets the comma-separated list of MIME types accepted for playlist cover uploads

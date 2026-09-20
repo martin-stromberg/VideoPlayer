@@ -61,6 +61,74 @@ public class PlaylistsOverviewTests
         Assert.Equal(2, cut.FindAll(".playlist-foreign-badge").Count);
     }
 
+    /// <summary>
+    /// Kundenrückmeldung zur Übersicht: the tile follows the film/series tiles - the image fills the whole tile
+    /// and the title is the ONLY text, in the overlay at the bottom. No public-status wording, no created/updated
+    /// dates, no sort-mode hint, no description and no genres.
+    /// </summary>
+    [Fact]
+    public void Tile_ShowsOnlyTheTitle_NoDatesNoStatusTextNoDescriptionNoSortInfo()
+    {
+        var detailed = new DtoPlaylist
+        {
+            Id = 3,
+            Name = "Mit allem",
+            Description = "Eine Beschreibung, die nicht in die Kachel gehört",
+            IsOwner = true,
+            IsPublic = true,
+            SortMode = PlaylistSortModeValues.Manual,
+            CreatedAt = new DateTime(2026, 9, 7, 6, 23, 0, DateTimeKind.Utc),
+            UpdatedAt = new DateTime(2026, 9, 8, 21, 7, 0, DateTimeKind.Utc),
+            Genres = [new DtoGenreOption { Id = 1, Name = "Action" }]
+        };
+        using var ctx = CreateContext(own: [detailed], publicPlaylists: []);
+
+        var cut = ctx.Render<PlaylistsList>();
+
+        var tile = cut.Find("a.playlist-row[data-playlist-name='Mit allem']");
+        // Same structure as MediaBox: overlay at the bottom containing the title.
+        var title = Assert.Single(tile.QuerySelectorAll(".media-card-overlay .media-titles .media-title-text"));
+        Assert.Equal("Mit allem", title.TextContent.Trim());
+        Assert.Equal("de", title.GetAttribute("lang"));
+
+        Assert.Empty(tile.QuerySelectorAll(".playlist-card-dates"));
+        Assert.Empty(tile.QuerySelectorAll(".playlist-card-meta"));
+        Assert.Empty(tile.QuerySelectorAll(".media-subtitle-text"));
+        Assert.Empty(tile.QuerySelectorAll(".playlist-card-genres"));
+        Assert.Empty(tile.QuerySelectorAll(".playlist-sortmode-icon"));
+        Assert.DoesNotContain("Erstellt", tile.TextContent);
+        Assert.DoesNotContain("Aktualisiert", tile.TextContent);
+        Assert.DoesNotContain("Action", tile.TextContent);
+        Assert.DoesNotContain("Beschreibung", tile.TextContent);
+        // "Öffentlich" only as the symbol's accessible name, never as visible tile text.
+        Assert.Equal("Mit allem", tile.TextContent.Trim());
+    }
+
+    /// <summary>
+    /// The public/foreign symbol sits in the top right corner of the tile (same shell for both), outside the
+    /// title overlay at the bottom.
+    /// </summary>
+    [Fact]
+    public void TileBadges_SitInTheTopRightCorner_AndAreSymbolsOnly()
+    {
+        using var ctx = CreateContext(own: [OwnPublic], publicPlaylists: [OwnPublic, ForeignA]);
+
+        var cut = ctx.Render<PlaylistsList>();
+
+        foreach (var name in new[] { "Eigene öffentliche", "Für alle" })
+        {
+            var tile = cut.Find($"a.playlist-row[data-playlist-name='{name}']");
+            var badge = Assert.Single(tile.QuerySelectorAll(".playlist-tile-badge"));
+            Assert.Equal("img", badge.GetAttribute("role"));
+            Assert.False(string.IsNullOrWhiteSpace(badge.GetAttribute("title")));
+            Assert.Equal(badge.GetAttribute("title"), badge.GetAttribute("aria-label"));
+            Assert.Equal(string.Empty, badge.TextContent.Trim());
+            Assert.Single(badge.QuerySelectorAll("svg"));
+            // Not inside the bottom title overlay.
+            Assert.Empty(tile.QuerySelectorAll(".media-card-overlay .playlist-tile-badge"));
+        }
+    }
+
     [Fact]
     public void ForeignTile_LinksToDetailView_AndShowsNoOwnerInformation()
     {

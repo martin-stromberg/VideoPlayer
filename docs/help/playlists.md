@@ -18,27 +18,34 @@ Inhalte erzeugt (siehe Abschnitt „Abbildung (Cover)").
 
 Unter „Playlists" (ein einziger Menüpunkt) sieht ein Anwender seine eigenen Playlists als Kacheln
 (eine Kachel je Playlist) — gefolgt von den Playlists, die andere Anwender öffentlich freigegeben haben
-(siehe „Filterleiste" und „Fremde Playlists" unten). Jede Kachel zeigt Titel, eine Grafik, einem Symbol für den Sortiermodus, den Genres der Playlist (falls
-vorhanden, siehe Abschnitt „Genres") sowie dezent dargestelltem Erstellungs- und
-Aktualisierungszeitpunkt. Als Grafik zeigt die Kachel die Abbildung (das Coverbild) der Playlist —
-entweder ein vom Besitzer hochgeladenes Bild oder eine automatisch aus den Bildern der enthaltenen
-Inhalte erzeugte Collage (siehe Abschnitt „Abbildung (Cover)"). Besitzt eine Playlist noch kein
-Coverbild, zeigt die Kachel stattdessen einen generischen, farblich je Playlist unterschiedlichen
-Platzhalter.
+(siehe „Filterleiste" und „Fremde Playlists" unten). Die Kacheln sind wie die Film- und Serienkacheln in
+deren Übersichten aufgebaut: Das Bild füllt die gesamte Kachelfläche, und der Titel steht als einzige
+Beschriftung in einem Verlaufs-Overlay am unteren Rand. Er darf mehrzeilig werden und wird an
+Silbengrenzen umgebrochen, damit auch ein sehr langer Name vollständig lesbar bleibt. Weitere Texte
+(Öffentlichkeitsstatus als Wort, Erstellungs- und Aktualisierungszeitpunkt, Sortiermodus, Beschreibung,
+Genres) zeigt die Kachel bewusst nicht — sie stehen auf der Detailseite. Als Bild zeigt die Kachel die
+Abbildung (das Coverbild) der Playlist — entweder ein vom Besitzer hochgeladenes Bild oder eine
+automatisch aus den Bildern der enthaltenen Inhalte erzeugte Collage (siehe Abschnitt
+„Abbildung (Cover)"). Besitzt eine Playlist noch kein Coverbild, zeigt die Kachel stattdessen einen
+generischen, farblich je Playlist unterschiedlichen Platzhalter mit einem dezenten Playlist-Symbol.
 
 Oberhalb der Kacheln steht, sobald mindestens ein Genre unter den eigenen Playlists vorkommt, ein
 Auswahlfeld „Nach Genre filtern" zur Verfügung, mit dem sich die Übersicht auf Playlists
 beschränken lässt, die ein bestimmtes Genre führen (siehe Abschnitt „Genres").
 
-Ist eine der eigenen Playlists öffentlich, trägt ihre Kachel ein dezentes Kennzeichen „Öffentlich"
-(siehe Abschnitt „Öffentliche Playlists").
+Ist eine der eigenen Playlists öffentlich, trägt ihre Kachel in der rechten oberen Ecke ein
+Globus-Symbol (zugänglicher Name „Öffentlich — für alle Anwender sichtbar und abspielbar (nur lesend)",
+siehe Abschnitt „Öffentliche Playlists") — an derselben Stelle wie das Fremd-Symbol fremder Playlists.
 
 ### Filterleiste
 
-Rechts oberhalb der Kacheln steht eine Leiste aus drei aneinanderhängenden Symbol-Schaltflächen, mit
-der die Übersicht gefiltert wird. Der aktuell gewählte Filter ist deutlich hervorgehoben (roter, gefüllter
-Hintergrund mit weißem Symbol); jede Schaltfläche hat einen Tooltip und einen zugänglichen Namen
-(„Alle Playlists", „Eigene Playlists", „Öffentliche Playlists").
+Rechts oberhalb der Kacheln steht die Filterleiste: **ein** Panel mit drei Schaltbereichen, die durch je
+eine senkrechte Trennlinie voneinander abgesetzt sind. Der Rahmen und die Rundung gehören der Leiste als
+Ganzes, die Schaltbereiche selbst haben keinen eigenen Rahmen. Der aktuell gewählte Filter ist deutlich
+hervorgehoben (gefüllter Akzenthintergrund mit weißem Symbol); jede Schaltfläche hat einen Tooltip und
+einen zugänglichen Namen („Alle Playlists", „Eigene Playlists", „Öffentliche Playlists"). Die
+Schaltfläche „Neue Playlist" steht rechts daneben auf derselben horizontalen Ebene und hat dieselbe Höhe,
+dieselbe Rundung und denselben Stil wie die Schaltbereiche der Filterleiste.
 
 | Symbol | Filter | Zeigt |
 |--------|--------|-------|
@@ -95,9 +102,11 @@ Durch einen Klick auf eine Kachel in der Übersicht oder direkte Navigation gela
 Detailseite einer Playlist. Sie ist nach dem Muster der Detailseiten von Serien und Filmen aufgebaut:
 oben ein **Kopfbereich** mit Hintergrundbild, darunter der Inhaltsbereich mit den Titeln der Playlist.
 
-**Kopfbereich.** Er hat wie bei Serien und Filmen eine **vorgegebene Höhe**, die nicht vom Bild
-bestimmt wird: Ob das Bild der Playlist sehr hoch, sehr breit oder sehr klein ist oder gar keines
-vorhanden ist — der Kopfbereich bleibt gleich hoch, das Bild wird passend eingepasst (zugeschnitten).
+**Kopfbereich.** Er hat wie bei Serien und Filmen eine **vorgegebene Höhe**, die weder vom Bild noch vom
+Textumfang bestimmt wird: Ob das Bild der Playlist sehr hoch, sehr breit oder sehr klein ist oder gar keines
+vorhanden ist und wie lang Name und Beschreibung sind — der Kopfbereich bleibt gleich hoch, das Bild wird
+passend eingepasst (zugeschnitten), und Name bzw. Beschreibung werden nach wenigen Zeilen mit „…" abgekürzt
+(der vollständige Text steht im Bearbeitungsformular).
 Das Bild wird wie bei Serien und Filmen **gedämpft** dargestellt (ein Abdunklungsverlauf liegt darüber),
 sodass die Informationen der Playlist darüber gut lesbar bleiben. Als Hintergrundbild dient die Abbildung
 (das Coverbild) der Playlist; besitzt die Playlist noch kein Coverbild, erscheint stattdessen ein
@@ -132,6 +141,10 @@ angezeigt (siehe Abschnitt „Öffentliche Playlists"); stattdessen zeigt der Ko
   Playlist. Der Tooltip nennt den Zustand und was ein Klick bewirkt, z. B. „Privat - nur für Sie sichtbar.
   Klicken, um für alle Anwender zu veröffentlichen" bzw. „Öffentlich - für alle Anwender sichtbar. Klicken, um
   die Veröffentlichung zurückzunehmen".
+- **Bereich wechseln** — wechselt zwischen der Titelliste und dem Hinzufügen von Titeln (siehe Abschnitt
+  „Zwei getrennte Bereiche"). Wie die Öffentlich-Kennzeichnung zeigt diese Schaltfläche immer nur **ein**
+  Symbol, nämlich das des Bereichs, in den ein Klick wechselt: ein **Plus** für „Titel hinzufügen" bzw. eine
+  **Liste** für „Titel der Playlist auflisten".
 - **Playlist-Bild** (Bild-Symbol) — öffnet das Bild-Panel zum Hochladen, Erzeugen und Entfernen des Bildes
   (siehe Abschnitt „Abbildung (Cover)")
 - **Bearbeiten** (Stiftsymbol) — Öffnet das Bearbeitungsformular für die Playlist
@@ -159,15 +172,19 @@ Im Kopfbereich eines ausgewählten Titels stehen zur Verfügung:
 - **Abspielen** (große Schaltfläche unten rechts, wie bei Episoden) — startet die Wiedergabe ab diesem Titel
   im Playlist-Kontext (siehe Abschnitt „Wiedergabe starten"). Für einen Titel, für den der Betrachter nicht
   freigeschaltet ist, gibt es sie nicht; stattdessen erklärt ein Hinweis, dass der Titel nicht abspielbar ist.
-- **Aus der Playlist entfernen** (Papierkorbsymbol) — nur für den Besitzer: entfernt genau diesen Titel (siehe
-  Abschnitt „Entfernen"). Die Schaltflächen der Playlist selbst (Bearbeiten, Löschen, Bild, ...) werden
-  währenddessen nicht angezeigt, damit es keine zwei verwechselbaren „Löschen"-Schaltflächen gibt.
+- **Aus der Playlist entfernen** (Papierkorbsymbol in der Schaltflächenleiste **auf dem Bild**) — nur für den
+  Besitzer und nur, solange ein Titel ausgewählt ist: entfernt genau diesen Titel (siehe Abschnitt
+  „Entfernen"). Die Schaltflächen der Playlist selbst (Bearbeiten, Löschen, Bild, ...) werden währenddessen
+  nicht angezeigt, damit es keine zwei verwechselbaren „Löschen"-Schaltflächen gibt; der Wechsel des Bereichs
+  bleibt daneben verfügbar.
 
 ### Zwei getrennte Bereiche: Titel der Playlist und Titel hinzufügen
 
 Unterhalb des Kopfbereichs stehen die Bereiche **„Titel der Playlist"** (die Liste) und **„Titel hinzufügen"**
-(die Suche) nicht mehr gleichzeitig auf der Seite, sondern werden über einen Umschalter aus zwei
-aneinanderhängenden Schaltflächen mit Symbol und Text gewechselt; der aktive Bereich ist farbig hervorgehoben.
+(die Suche) nicht gleichzeitig auf der Seite. Gewechselt wird über eine **Symbol-Schaltfläche im Kopfbereich
+auf dem Bild**, bei den übrigen Aktionsschaltflächen — nicht mehr über Schaltflächen im Inhaltsbereich. Es
+wird immer nur **eine** Schaltfläche gezeigt, nämlich die für den Wechsel in den jeweils anderen Bereich
+(Plus-Symbol „Titel hinzufügen" bzw. Listensymbol „Titel der Playlist auflisten").
 Ist die Playlist leer, wird sofort „Titel hinzufügen" angeboten, andernfalls hat die Titelliste Vorrang. Beim
 Hinzufügen bleibt der Bereich „Titel hinzufügen" geöffnet, damit mehrere Titel nacheinander hinzugefügt werden
 können; wird der letzte Titel entfernt, wechselt die Seite zum Hinzufügen. Beim Wechsel zum Hinzufügen wird
@@ -182,7 +199,9 @@ Besitzer über **eine** Symbol-Schaltfläche (Bild-Symbol) im Kopfbereich der De
 
 - **Vorschau** — zeigt das aktuelle Bild der Playlist (mit dem Hinweis, ob es hochgeladen oder automatisch
   erzeugt wurde) bzw. „Kein Bild vorhanden". Sobald eine Datei gewählt oder ein Bild erzeugt wurde, zeigt sie
-  stattdessen dieses **neue Bild als Vorschau** mit dem Hinweis „noch nicht gespeichert".
+  stattdessen dieses **neue Bild als Vorschau** mit dem Hinweis „noch nicht gespeichert". Die Vorschau wird
+  immer auf die Breite und Höhe des Panels begrenzt — auch ein sehr großes, sehr breites oder sehr hohes Bild
+  erzeugt keine Scrollbalken im Panel.
 - **Bild hochladen** — Auswahl einer Bilddatei. Nach der Auswahl erscheinen die Vorschau sowie Dateiname und
   -größe; der Bestätigungsbutton heißt dann **„Hochladen"** und übernimmt das Bild als Cover.
 - **Bild erzeugen** („Aus den Titeln erzeugen") — erzeugt eine Vorschau des automatisch aus den Bildern der

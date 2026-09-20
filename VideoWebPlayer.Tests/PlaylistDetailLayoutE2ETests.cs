@@ -249,6 +249,87 @@ public sealed class PlaylistDetailLayoutE2ETests : PlaylistsE2ETestBase
         await AssertDialogHasFrameAsync("Bild-Entfernen-Bestätigung", ".admin-dialog:has(#confirm-remove-cover-button)");
     }
 
+    /// <summary>
+    /// The preview inside the image panel must never be wider than the panel: an unrestricted image used to push
+    /// the panel into horizontal (and vertical) scrollbars. Checked with a very wide and a very tall image, both
+    /// as the current cover and as a freshly generated preview.
+    /// </summary>
+    /// <param name="width">The width of the test image in pixels.</param>
+    /// <param name="height">The height of the test image in pixels.</param>
+    [Theory]
+    [InlineData(4000, 300)]
+    [InlineData(400, 3000)]
+    public async Task CoverPanel_PreviewNeverExceedsThePanel_AndCausesNoScrollbars(int width, int height)
+    {
+        if (SkipBrowser)
+            return;
+
+        await Page.SetViewportSizeAsync(1400, 900);
+        var playlistId = await PrepareOwnerWithPlaylistAsync($"Vorschau {width}x{height}");
+        await SetPlaylistCoverAsync($"Vorschau {width}x{height}", TestImages.Png(width, height), isUserUploaded: true);
+        await OpenPlaylistAsync(playlistId);
+
+        await Page.ClickAsync("#playlist-detail-cover-button");
+        await Page.WaitForSelectorAsync("#playlist-cover-panel");
+        await Expect(Page.Locator("#playlist-cover-current")).ToBeVisibleAsync();
+        await Page.WaitForTimeoutAsync(400);
+        await AssertPreviewFitsAsync($"aktuelles Bild {width}x{height}");
+
+        // Same for a generated preview (the collage is a wide banner).
+        await Page.ClickAsync("#playlist-cover-generate-button");
+        await Page.WaitForSelectorAsync("#playlist-cover-preview");
+        await Page.WaitForTimeoutAsync(400);
+        await AssertPreviewFitsAsync("erzeugtes Bild");
+    }
+
+    private async Task AssertPreviewFitsAsync(string name)
+    {
+        var image = Page.Locator("#playlist-cover-panel img").Last;
+        var imageBox = await image.BoundingBoxAsync();
+        var areaBox = await Page.Locator("#playlist-cover-preview-area").BoundingBoxAsync();
+        Assert.NotNull(imageBox);
+        Assert.NotNull(areaBox);
+        Assert.True(imageBox!.Width <= areaBox!.Width + 1, $"{name}: Vorschau {imageBox.Width}px breiter als das Panel ({areaBox.Width}px)");
+        Assert.True(imageBox.Height <= areaBox.Height + 1, $"{name}: Vorschau {imageBox.Height}px hoeher als der Vorschaubereich ({areaBox.Height}px)");
+
+        foreach (var selector in new[] { "#playlist-cover-panel", "#playlist-cover-preview-area" })
+        {
+            var metrics = await Page.Locator(selector).EvaluateAsync<System.Text.Json.JsonElement>(
+                "e => ({ sw: e.scrollWidth, cw: e.clientWidth, sh: e.scrollHeight, ch: e.clientHeight })");
+            Assert.True(metrics.GetProperty("sw").GetDouble() <= metrics.GetProperty("cw").GetDouble() + 1,
+                $"{name}: {selector} hat einen horizontalen Scrollbalken ({metrics.GetProperty("sw")} > {metrics.GetProperty("cw")})");
+            Assert.True(metrics.GetProperty("sh").GetDouble() <= metrics.GetProperty("ch").GetDouble() + 1,
+                $"{name}: {selector} hat einen vertikalen Scrollbalken ({metrics.GetProperty("sh")} > {metrics.GetProperty("ch")})");
+        }
+    }
+
+    /// <summary>
+    /// The header's height must stay the one prescribed by CSS even with a very long title and description - it
+    /// is the image that adapts, never the header (Kundenrückmeldung).
+    /// </summary>
+    [Fact]
+    public async Task Header_KeepsItsHeight_WithAVeryLongTitleAndDescription()
+    {
+        if (SkipBrowser)
+            return;
+
+        await Page.SetViewportSizeAsync(1400, 900);
+        var playlistId = await PrepareOwnerWithPlaylistAsync("Kurz und knapp");
+        await OpenPlaylistAsync(playlistId);
+        var shortHeight = await HeightOfAsync(HeaderSelector);
+
+        await Page.ClickAsync(".playlist-detail-edit-button");
+        await Page.WaitForSelectorAsync("#playlist-name-input");
+        await Page.FillAsync("#playlist-name-input", string.Join(" ", Enumerable.Repeat("Außergewöhnlichkeitsbetrachtung", 6)));
+        await Page.FillAsync("#playlist-description-input", string.Join(" ", Enumerable.Repeat("Eine sehr ausführliche Beschreibung dieser Playlist.", 20)));
+        await Page.ClickAsync("#playlist-save-button");
+        await Page.WaitForTimeoutAsync(1200);
+
+        var longHeight = await HeightOfAsync(HeaderSelector);
+        Assert.True(Math.Abs(longHeight - shortHeight) <= 1,
+            $"Der Kopfbereich waechst mit langem Titel/Beschreibung: {longHeight}px statt {shortHeight}px");
+    }
+
     private async Task AssertDialogHasFrameAsync(string name, string selector = ".admin-dialog")
     {
         var style = await Page.Locator(selector).Last.EvaluateAsync<System.Text.Json.JsonElement>(
@@ -300,8 +381,9 @@ public sealed class PlaylistDetailLayoutE2ETests : PlaylistsE2ETestBase
         var playlistId = await PrepareOwnerWithPlaylistAsync("Schmal");
         await OpenPlaylistAsync(playlistId);
 
+        // Moduswechsel, Veroeffentlichen, Bild, Bearbeiten, Loeschen - alle fuenf in der Leiste auf dem Bild.
         var buttons = Page.Locator($"{HeaderSelector} .metadata-action-bar button");
-        Assert.True(await buttons.CountAsync() >= 4);
+        Assert.True(await buttons.CountAsync() >= 5, $"Fuenf Aktionsbuttons erwartet, {await buttons.CountAsync()} gefunden");
         for (var i = 0; i < await buttons.CountAsync(); i++)
         {
             var box = await buttons.Nth(i).BoundingBoxAsync();
@@ -309,9 +391,9 @@ public sealed class PlaylistDetailLayoutE2ETests : PlaylistsE2ETestBase
             Assert.True(box!.X >= 0 && box.X + box.Width <= 400, $"Button {i} liegt außerhalb (x={box.X}, Breite {box.Width})");
         }
 
-        var group = await Page.Locator("#playlist-content-mode-group").BoundingBoxAsync();
-        Assert.NotNull(group);
-        Assert.True(group!.X + group.Width <= 400, $"Moduswechsel ragt aus dem Bildschirm (rechter Rand {group.X + group.Width}px)");
+        var toggle = await Page.Locator($"{HeaderSelector} .metadata-action-bar .playlist-mode-toggle-button").BoundingBoxAsync();
+        Assert.NotNull(toggle);
+        Assert.True(toggle!.X >= 0 && toggle.X + toggle.Width <= 400, $"Moduswechsel ragt aus dem Bildschirm (rechter Rand {toggle.X + toggle.Width}px)");
     }
 
     private async Task SeedGenreAsync(string name)

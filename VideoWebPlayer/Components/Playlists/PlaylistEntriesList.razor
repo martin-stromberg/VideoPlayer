@@ -18,7 +18,11 @@
    Kundenrückmeldung zur Detailansicht: Auflistung und Hinzufügen sind getrennte Bereiche (Moduswechsel). Ist
    die Playlist leer, wird sofort das Hinzufügen angeboten, andernfalls die Titelliste. Die Kacheln tragen keine
    Abspielen-/Entfernen-Buttons mehr: ein Klick wählt den Titel aus (Informationen erscheinen im Kopfbereich der
-   Detailseite, dort auch Abspielen und - nur für den Besitzer - Entfernen), wie bei den Episoden der Serien. *@
+   Detailseite, dort auch Abspielen und - nur für den Besitzer - Entfernen), wie bei den Episoden der Serien.
+   Der Umschalter zwischen den beiden Bereichen steht ebenfalls nicht mehr hier im Inhaltsbereich, sondern als
+   einzelner Symbolbutton im Kopfbereich bei den übrigen Aktionsbuttons (PlaylistDetail.razor); diese Komponente
+   meldet den aktuellen Bereich über <see cref="OnModeChanged"/> und wird über <see cref="ToggleModeAsync"/>
+   umgeschaltet. *@
 
 @if (!string.IsNullOrWhiteSpace(entriesStatusMessage))
 {
@@ -26,36 +30,6 @@
 }
 
 <div class="admin-table-wrap">
-    @if (!IsReadOnly)
-    {
-        @* Nur für den Besitzer (Entwicklungsschritt 11): in der Nur-Lese-Ansicht (öffentliche Playlist eines
-           anderen Anwenders) gibt es weder Umschalter noch Hinzufügen-Bereich, nur die Titelliste. *@
-        <div class="playlist-mode-group playlist-filter-group" id="playlist-content-mode-group" role="group" aria-label="Bereich der Playlist">
-            <button type="button"
-                    class="playlist-filter-button playlist-mode-button@(mode == ContentMode.Entries ? " active" : string.Empty)"
-                    id="playlist-mode-entries-button"
-                    data-mode="entries"
-                    title="Titel der Playlist"
-                    aria-label="Titel der Playlist"
-                    aria-pressed="@(mode == ContentMode.Entries ? "true" : "false")"
-                    @onclick="() => SetModeAsync(ContentMode.Entries)">
-                <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13" /><path d="M8 12h13" /><path d="M8 18h13" /><path d="M3 6h.01" /><path d="M3 12h.01" /><path d="M3 18h.01" /></svg>
-                <span class="playlist-mode-label">Titel der Playlist</span>
-            </button>
-            <button type="button"
-                    class="playlist-filter-button playlist-mode-button@(mode == ContentMode.Add ? " active" : string.Empty)"
-                    id="playlist-mode-add-button"
-                    data-mode="add"
-                    title="Titel hinzufügen"
-                    aria-label="Titel hinzufügen"
-                    aria-pressed="@(mode == ContentMode.Add ? "true" : "false")"
-                    @onclick="() => SetModeAsync(ContentMode.Add)">
-                <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14" /><path d="M5 12h14" /></svg>
-                <span class="playlist-mode-label">Titel hinzufügen</span>
-            </button>
-        </div>
-    }
-
     @if (ShowAddMode)
     {
         <div class="playlist-add-area" id="playlist-add-area">
@@ -71,7 +45,7 @@
             <strong>Keine Einträge vorhanden</strong>
             @if (!IsReadOnly)
             {
-                <span>Wechseln Sie zu "Titel hinzufügen", um einen Medieninhalt hinzuzufügen.</span>
+                <span>Wechseln Sie oben im Kopfbereich zu "Titel hinzufügen", um einen Medieninhalt hinzuzufügen.</span>
             }
         </div>
     }
@@ -194,6 +168,16 @@
     [Parameter]
     public EventCallback<DtoPlaylistEntry> OnEntryRemoved { get; set; }
 
+    /// <summary>
+    /// Raised whenever the shown content area changes - with <see langword="true"/> for "Titel hinzufügen" and
+    /// <see langword="false"/> for the title list. The mode toggle itself lives in the header of
+    /// <c>PlaylistDetail</c> (Kundenrückmeldung), which needs to know the current area to offer the button for
+    /// the respective OTHER one. Also raised once after the first successful load, which decides the initial
+    /// area (an empty playlist starts in "Titel hinzufügen").
+    /// </summary>
+    [Parameter]
+    public EventCallback<bool> OnModeChanged { get; set; }
+
     private enum ContentMode
     {
         Entries,
@@ -298,7 +282,7 @@
                 // an (nur dem Besitzer), sonst hat die Titelliste Vorrang. Später ändert sich der Modus nur durch
                 // den Umschalter oder das Entfernen des letzten Titels.
                 modeInitialized = true;
-                mode = !IsReadOnly && IsEmpty ? ContentMode.Add : ContentMode.Entries;
+                await SetModeAsync(!IsReadOnly && IsEmpty ? ContentMode.Add : ContentMode.Entries, force: true);
             }
 
             // The sentinel element is re-created whenever hasMorePages toggles, and the JS observer still
@@ -570,7 +554,7 @@
     {
         await LoadInitialPageAsync();
         if (!IsReadOnly && IsEmpty)
-            mode = ContentMode.Add;
+            await SetModeAsync(ContentMode.Add);
 
         await OnEntryRemoved.InvokeAsync(entry);
     }
@@ -596,15 +580,34 @@
     }
 
     /// <summary>
-    /// Switches between the two content areas. Entering the "Titel hinzufügen" area clears the selection (the
-    /// header then shows the playlist again instead of a title that is no longer visible in the list).
+    /// Switches to the respectively other content area. Called by the mode toggle in the header of
+    /// <c>PlaylistDetail</c> (Kundenrückmeldung: the toggle sits with the other action buttons on the image,
+    /// not in the content area) and renders afterwards, since the call does not originate from an event
+    /// handler of this component.
     /// </summary>
-    private async Task SetModeAsync(ContentMode newMode)
+    public async Task ToggleModeAsync()
     {
-        if (IsReadOnly || mode == newMode)
+        await SetModeAsync(mode == ContentMode.Add ? ContentMode.Entries : ContentMode.Add);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>
+    /// Switches between the two content areas and reports the new one through <see cref="OnModeChanged"/> (the
+    /// header offers the button for the other area). Entering the "Titel hinzufügen" area clears the selection
+    /// (the header then shows the playlist again instead of a title that is no longer visible in the list).
+    /// </summary>
+    /// <param name="newMode">The content area to switch to.</param>
+    /// <param name="force">
+    /// Whether to report the mode even if it did not change - used for the one-time initialization after the
+    /// first load, so the header learns the initial area (an empty playlist starts in "Titel hinzufügen").
+    /// </param>
+    private async Task SetModeAsync(ContentMode newMode, bool force = false)
+    {
+        if (IsReadOnly || (mode == newMode && !force))
             return;
 
         mode = newMode;
+        await OnModeChanged.InvokeAsync(mode == ContentMode.Add);
         if (newMode == ContentMode.Add)
             await OnEntrySelected.InvokeAsync(null);
     }

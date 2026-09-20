@@ -129,7 +129,9 @@ public sealed class PlaylistDetailInteractionE2ETests : PlaylistsE2ETestBase
 
         // Empty playlist: adding is offered at once, the list is not shown.
         await Expect(Page.Locator("#playlist-add-area")).ToBeVisibleAsync();
-        await Expect(Page.Locator("#playlist-mode-add-button")).ToHaveAttributeAsync("aria-pressed", "true");
+        // Only ONE mode button is shown - the one for the respective other area (here: back to the list).
+        await Expect(Page.Locator(".metadata-action-bar #playlist-mode-entries-button")).ToBeVisibleAsync();
+        await Expect(Page.Locator("#playlist-mode-add-button")).ToHaveCountAsync(0);
         await Expect(Page.Locator(".playlist-entries-list")).ToHaveCountAsync(0);
 
         // Several titles can be added in a row without leaving the add area.
@@ -141,7 +143,8 @@ public sealed class PlaylistDetailInteractionE2ETests : PlaylistsE2ETestBase
 
         // Switching shows the titles and hides the search.
         await Page.ClickAsync("#playlist-mode-entries-button");
-        await Expect(Page.Locator("#playlist-mode-entries-button")).ToHaveAttributeAsync("aria-pressed", "true");
+        await Expect(Page.Locator(".metadata-action-bar #playlist-mode-add-button")).ToBeVisibleAsync();
+        await Expect(Page.Locator("#playlist-mode-entries-button")).ToHaveCountAsync(0);
         await Expect(Page.Locator(".playlist-entry-row")).ToHaveCountAsync(2);
         await Expect(Page.Locator(".media-search-input")).ToHaveCountAsync(0);
 
@@ -153,7 +156,8 @@ public sealed class PlaylistDetailInteractionE2ETests : PlaylistsE2ETestBase
         await SelectEntryAsync("Movie", second);
         await Page.ClickAsync("#playlist-detail-remove-entry-button");
         await Expect(Page.Locator("#playlist-add-area")).ToBeVisibleAsync();
-        await Expect(Page.Locator("#playlist-mode-add-button")).ToHaveAttributeAsync("aria-pressed", "true");
+        await Expect(Page.Locator("#playlist-mode-entries-button")).ToBeVisibleAsync();
+        await Expect(Page.Locator("#playlist-mode-add-button")).ToHaveCountAsync(0);
     }
 
     [Fact]
@@ -166,7 +170,8 @@ public sealed class PlaylistDetailInteractionE2ETests : PlaylistsE2ETestBase
         var movieId = await SeedDetailedMovieIntoPlaylistAsync("Listenvorrang", "Vorhandener Film", TestImages.Png(300, 450));
         await ReloadDetailAsync(playlistId);
 
-        await Expect(Page.Locator("#playlist-mode-entries-button")).ToHaveAttributeAsync("aria-pressed", "true");
+        await Expect(Page.Locator(".metadata-action-bar #playlist-mode-add-button")).ToBeVisibleAsync();
+        await Expect(Page.Locator("#playlist-mode-entries-button")).ToHaveCountAsync(0);
         await Expect(Page.Locator(".playlist-entry-row")).ToHaveCountAsync(1);
         await Expect(Page.Locator(".media-search-input")).ToHaveCountAsync(0);
 
@@ -407,7 +412,7 @@ public sealed class PlaylistDetailInteractionE2ETests : PlaylistsE2ETestBase
         {
             ".metadata-action-bar", "#playlist-detail-cover-button", ".playlist-detail-edit-button", ".playlist-detail-delete-button",
             "#playlist-detail-toggle-public-button", ".playlist-sortmode-toggle-button", "#playlist-detail-edit-genres-button",
-            "#playlist-content-mode-group", "#playlist-mode-add-button", ".media-search-input"
+            "#playlist-mode-add-button", "#playlist-mode-entries-button", ".media-search-input"
         })
         {
             await Expect(Page.Locator(selector)).ToHaveCountAsync(0);

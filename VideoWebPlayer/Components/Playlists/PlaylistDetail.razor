@@ -61,6 +61,26 @@ else if (playlist is not null)
         @if (IsOwner)
         {
             <div class="metadata-action-bar playlist-action-bar">
+                @* Umschalter der Inhaltsbereiche (Kundenrückmeldung): steht bei den übrigen Aktionsbuttons auf dem
+                   Bild statt im Inhaltsbereich und zeigt - wie der Veröffentlichen-Button, der immer nur das
+                   aktuelle Symbol trägt - immer nur EINEN Button, nämlich den für den Wechsel in den jeweils
+                   anderen Bereich. Nur für den Besitzer (die umgebende Leiste wird für andere gar nicht gerendert).
+                   Die Ids bleiben die bisherigen, damit Bedeutung und Tests eindeutig bleiben:
+                   "playlist-mode-add-button" wechselt zum Hinzufügen, "playlist-mode-entries-button" zur Titelliste. *@
+                <button class="metadata-icon-btn playlist-mode-toggle-button"
+                        id="@(isAddMode ? "playlist-mode-entries-button" : "playlist-mode-add-button")"
+                        data-mode="@(isAddMode ? "entries" : "add")"
+                        title="@ModeToggleTitle" aria-label="@ModeToggleTitle"
+                        @onclick="ToggleContentModeAsync">
+                    @if (isAddMode)
+                    {
+                        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13" /><path d="M8 12h13" /><path d="M8 18h13" /><path d="M3 6h.01" /><path d="M3 12h.01" /><path d="M3 18h.01" /></svg>
+                    }
+                    else
+                    {
+                        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14" /><path d="M5 12h14" /></svg>
+                    }
+                </button>
                 @if (selectedEntry is not null)
                 {
                     <button class="metadata-icon-btn playlist-detail-remove-entry-button" id="playlist-detail-remove-entry-button" @onclick="RemoveSelectedEntryAsync" title="Titel aus der Playlist entfernen" aria-label="Titel aus der Playlist entfernen">
@@ -212,7 +232,7 @@ else if (playlist is not null)
 
         <PlaylistEntriesList @ref="entriesList" PlaylistId="Id" IsManualMode="IsManualMode" IsReadOnly="!IsOwner"
                              SelectedEntryId="selectedEntry?.Id" OnEntrySelected="SelectEntry" OnEntryRemoved="HandleEntryRemoved"
-                             OnPlayEntry="PlayEntryAsync" />
+                             OnPlayEntry="PlayEntryAsync" OnModeChanged="HandleContentModeChanged" />
 
         @if (!string.IsNullOrWhiteSpace(playbackError))
         {
@@ -298,6 +318,13 @@ else if (playlist is not null)
     private string? publicStatusMessage;
 
     /// <summary>
+    /// Whether the content section currently shows the "Titel hinzufügen" area rather than the title list, as
+    /// reported by <see cref="PlaylistEntriesList.OnModeChanged"/>. Only decides which of the two mode symbols
+    /// the header's single toggle shows (the one for the respective other area).
+    /// </summary>
+    private bool isAddMode;
+
+    /// <summary>
     /// Whether the current user owns the playlist (as reported by the server, see
     /// <see cref="DtoPlaylist.IsOwner"/>). Only the owner is offered any editing; everybody else gets the
     /// read-only view of a public playlist. Not a security boundary - the server refuses non-owner
@@ -343,6 +370,30 @@ else if (playlist is not null)
 
     private string SortModeToggleTitle
         => $"Sortierung wechseln zu \"{PlaylistSortModeValues.GetDisplayLabel(OtherSortMode)}\"";
+
+    /// <summary>
+    /// Title/accessible name of the content-area toggle: names the area a click switches TO, since the button
+    /// always shows only that one symbol (same principle as the publish button).
+    /// </summary>
+    private string ModeToggleTitle
+        => isAddMode ? "Titel der Playlist auflisten" : "Titel hinzufügen";
+
+    /// <summary>
+    /// Switches the content section between the title list and the "Titel hinzufügen" area (owner only - the
+    /// surrounding action bar is not rendered for anybody else).
+    /// </summary>
+    private Task ToggleContentModeAsync()
+        => entriesList is not null && IsOwner ? entriesList.ToggleModeAsync() : Task.CompletedTask;
+
+    /// <summary>
+    /// Callback of <see cref="PlaylistEntriesList.OnModeChanged"/>: keeps <see cref="isAddMode"/> in sync so the
+    /// header's toggle shows the symbol of the respective other area.
+    /// </summary>
+    /// <param name="addMode">Whether the "Titel hinzufügen" area is shown now.</param>
+    private void HandleContentModeChanged(bool addMode)
+    {
+        isAddMode = addMode;
+    }
 
     protected override async Task OnInitializedAsync()
     {

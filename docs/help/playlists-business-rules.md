@@ -677,9 +677,11 @@ Besitzer ruft POST /api/playlists/1/genres/reset auf
 
 ## BR-22: Upload-Validierung für Cover-Bilder
 
-**Regel:** Ein über `POST /api/playlists/{id}/cover/upload` hochgeladenes Cover-Bild wird in drei
-Stufen geprüft: Datei vorhanden und nicht leer, Größe innerhalb der Grenze, Format erlaubt und
-Inhalt als echtes Bild dekodierbar.
+**Regel:** Ein über `POST /api/playlists/{id}/cover/upload` hochgeladenes Cover-Bild wird in
+mehreren Stufen geprüft: Datei vorhanden und nicht leer, Größe innerhalb der Grenze, gemeldeter
+**und** tatsächlich im Inhalt erkannter Format-Typ erlaubt, Pixelmaße innerhalb der Grenzen (am
+Bildkopf, vor der Dekodierung) und Bild vollständig dekodierbar (keine abgeschnittene oder
+beschädigte Datei).
 
 **Bedingungen / Implementierung (`PlaylistsController.UploadPlaylistCover` +
 `PlaylistCoverValidator.ValidateUploadAsync`):**
@@ -696,9 +698,36 @@ Inhalt als echtes Bild dekodierbar.
     unterstützt. Erlaubte Formate: {Liste}."` (`{X}` ist ein Kurzname wie „BMP" bzw. bei
     unbekannten MIME-Types der Teil nach dem `/` in Großbuchstaben)
   - Dateigröße ≤ `Playlists:MaxCoverImageSizeBytes` → sonst `"Datei zu groß, max. {N} MB erlaubt."`
-  - `Image.Identify` (SixLabors.ImageSharp) muss die Datei dekodieren können → sonst
-    `"Datei ist kein gültiges Bild."`; die dabei ermittelten Abmessungen werden als
-    `Width`/`Height` der `Picture`-Zeile gespeichert
+  - `Image.Identify` (SixLabors.ImageSharp, liest nur den Bildkopf) muss die Datei erkennen →
+    sonst `"Datei ist kein gültiges Bild."`
+  - Das dabei **tatsächlich erkannte** Format (`DecodedImageFormat.DefaultMimeType`, nicht der vom
+    Client gemeldete Content-Type) muss ebenfalls in `Playlists:AllowedCoverImageFormats` stehen →
+    sonst dieselbe `"Format {X} wird nicht unterstützt. …"`-Meldung (z. B. für ein GIF, das als
+    `image/png` hochgeladen wird). Weicht der gemeldete Typ vom erkannten ab, aber beide sind
+    erlaubt (z. B. PNG als `image/jpeg`), wird die Datei akzeptiert und mit dem **erkannten**
+    `ContentType` gespeichert
+  - Pixelgrenzen, ebenfalls nur anhand des Bildkopfs und **vor** jeder Dekodierung (damit ein
+    „Decompression Bomb"-Bild nie dekodiert wird): Breite ≤ `Playlists:MaxCoverImageWidthPixels`,
+    Höhe ≤ `Playlists:MaxCoverImageHeightPixels`, Breite × Höhe ≤ `Playlists:MaxCoverImageTotalPixels`
+    (Standard 4096 / 4096 / 16777216; ein Wert ≤ 0 schaltet die jeweilige Prüfung ab) → sonst
+    `"Bild zu groß (B x H Pixel). Erlaubt sind höchstens … Bitte verkleinern Sie das Bild."`
+  - Vollständige, strikte Dekodierung des Bildes (erster Frame, ohne Metadaten) → sonst
+    `"Datei ist beschädigt oder unvollständig und kann nicht als Bild gelesen werden."`. Da
+    ImageSharps JPEG-Decoder abgeschnittene oder in den Bilddaten zerstörte JPEGs stillschweigend
+    als teilweise graues Bild „dekodiert", prüft zusätzlich `JpegIntegrityChecker` (vor der
+    Dekodierung, ohne Pixel zu rekonstruieren) die JPEG-Struktur: fehlender Abschluss-Marker
+    (EOI) = abgeschnitten; bei Baseline-/Extended-Sequential-Huffman-JPEGs (praktisch alle
+    Kamera- und Web-JPEGs) werden die Huffman-kodierten Bilddaten Symbol für Symbol auf gültige
+    Codes, gültige Koeffizientenpositionen, korrekte Anzahl der MCUs und Restart-Marker geprüft.
+    Progressive/arithmetisch kodierte JPEGs werden nur auf Vollständigkeit der Marker-Struktur
+    geprüft; im Zweifel gilt die Datei als gültig, ein legales Bild wird nicht abgelehnt. PNG- und
+    WebP-Decoder schlagen bei unvollständigen/beschädigten Daten selbst fehl
+  - Die bei der Prüfung ermittelten Abmessungen werden als `Width`/`Height` der `Picture`-Zeile
+    gespeichert
+  - Speicherbedarf: erst die (billige) Header-/Pixelprüfung, dann die Volldekodierung mit rund
+    4 Byte je Bildpunkt (bei der Standardgrenze 4096 × 4096 ≈ 64 MB kurzzeitig); jede von
+    ImageSharp beim Lesen geworfene Ausnahme wird zu einer sauberen Ablehnung (HTTP 400), nie zu
+    einem 500
 
 **Fehlerbehandlung:** Validierungsverletzungen im Service werden als `InvalidOperationException`
 geworfen und über dasselbe generische Mapping wie die übrigen Playlist-Endpunkte zu HTTP 400 mit
@@ -712,6 +741,16 @@ Upload einer 10-MB-BMP-Datei bei Standardkonfiguration (5 MB, JPEG/PNG/WebP):
 
 Upload einer 10-MB-JPEG-Datei:
 → Controller-Vorabpruefung: HTTP 400 "Die Datei ist zu gross. Maximal erlaubt sind 5242880 Bytes."
+
+Upload einer GIF-Datei mit Content-Type image/png:
+→ HTTP 400 "Format GIF wird nicht unterstützt. Erlaubte Formate: JPEG, PNG, WebP."
+
+Upload einer wenige Dutzend Byte großen PNG-Datei mit Kopfdaten 30000 x 30000 Pixel:
+→ HTTP 400 "Bild zu groß (30000 x 30000 Pixel). Erlaubt sind höchstens 4096 x 4096 Pixel. …"
+  (ohne dass das Bild dekodiert wird)
+
+Upload eines nach einem Drittel abgeschnittenen JPEG:
+→ HTTP 400 "Datei ist beschädigt oder unvollständig und kann nicht als Bild gelesen werden."
 ```
 
 ---
@@ -761,15 +800,26 @@ Film F wird nicht mehr beruecksichtigt (Maximum erreicht).
 
 **Regel:** Ein vom Besitzer hochgeladenes Cover (`Playlist.CoverPictureIsUserUploaded = true`) wird
 nie ohne dessen ausdrückliche Aktion ersetzt — insbesondere gibt es keinen automatischen Prozess,
-der es durch eine Collage überschreiben könnte. Eine explizit ausgelöste Neuerzeugung (BR-25) oder
-ein erneuter Upload ersetzt es dagegen bewusst.
+der es durch eine Collage überschreiben könnte. Ein erneuter Upload ersetzt es bewusst; eine
+explizit ausgelöste Neuerzeugung (BR-25) ersetzt es nur nach ausdrücklicher Bestätigung
+(Sicherheitsabfrage, siehe unten), damit es nicht durch einen versehentlichen Klick unwiderruflich
+verloren geht.
 
 **Implementierung:**
 - `PlaylistService.SetPlaylistCoverAsync()` speichert ein hochgeladenes Bild mit
   `IsGeneratedBackground = false` und setzt `CoverPictureIsUserUploaded = true`
 - `PlaylistService.GeneratePlaylistCoverAsync()` speichert die Collage mit
-  `IsGeneratedBackground = true` und setzt `CoverPictureIsUserUploaded = false`; sie ersetzt auch
-  ein hochgeladenes Cover, da der Aufruf selbst die ausdrückliche Aktion des Besitzers ist
+  `IsGeneratedBackground = true` und setzt `CoverPictureIsUserUploaded = false`. Ist das aktuelle
+  Cover hochgeladen und die Collage könnte erzeugt werden, wird ohne Parameter
+  `confirmReplaceUploadedCover = true` eine `UploadedCoverReplacementConfirmationRequiredException`
+  geworfen und nichts geändert; `PlaylistsController.RegeneratePlaylistCover` übersetzt sie in
+  HTTP 409 Conflict mit `DtoRegeneratePlaylistCoverConflictResponse`, die Oberfläche
+  (`PlaylistCoverRegenerateConfirmationDialog`, „Hochgeladenes Bild ersetzen") zeigt einen Dialog und
+  ruft bei „Ja, ersetzen" erneut mit Bestätigung auf — dasselbe Muster wie beim Sortiermodus-Wechsel
+  (`ManualSortOrderConfirmationRequiredException`) und beim Entfernen mit Weiterschauen-Bezug
+  (`ContinueWatchingConfirmationRequiredException`). Ein generiertes oder fehlendes Cover wird ohne
+  Rückfrage ersetzt; ist keine Collage erzeugbar (keine Quellbilder), bleibt ein hochgeladenes Cover
+  ohne Rückfrage unverändert (`Success = false`)
 - `ReplaceCoverPictureAsync()` (gemeinsame Hilfsmethode) fügt die neue `Picture`-Zeile hinzu, setzt
   die `CoverPicture`-Navigation der Playlist (EF Core vergibt dabei die neue Fremdschlüssel-ID
   selbst) und löscht die zuvor referenzierte `Picture`-Zeile — alles innerhalb **eines**
@@ -788,7 +838,10 @@ Playlist hat generiertes Cover (CoverPictureIsUserUploaded = false)
   CoverPictureId zeigt auf das neue Bild, CoverPictureIsUserUploaded = true
 
 Besitzer loest anschließend "Cover neu erzeugen" aus:
-→ hochgeladenes Bild wird geloescht, neue Collage ersetzt es,
+→ Server antwortet mit 409 Conflict, das hochgeladene Bild bleibt unverändert;
+  die Oberfläche fragt nach ("Hochgeladenes Bild ersetzen")
+→ Erst nach "Ja, ersetzen" (Wiederholung mit confirmReplaceUploadedCover=true):
+  hochgeladenes Bild wird geloescht, neue Collage ersetzt es,
   CoverPictureIsUserUploaded = false
 ```
 
@@ -861,7 +914,7 @@ das referenzierte Cover-Bild beim Löschen der Playlist mit.
 | BR-21: Manuelles Genre-Überschreiben/Zurücksetzen | Bei `PUT`/`POST .../genres[/reset]` | `PlaylistAccessDeniedException` bei Fremdzugriff | 403 Forbidden / 404 Not Found |
 | BR-22: Cover-Upload-Validierung | Bei `POST .../cover/upload` | `InvalidOperationException` bzw. direkte Ablehnung im Controller | 400 Bad Request |
 | BR-23: Medientyp-Priorität der Collage | Bei `POST .../cover/regenerate` | Keine (deterministische Auswahl) | Keine — 200 OK (ggf. `success: false`) |
-| BR-24: Vorrang hochgeladenes Cover | Bei Upload/Regenerierung | Keine (Ersetzen nur per ausdrücklicher Aktion) | Keine |
+| BR-24: Vorrang hochgeladenes Cover | Bei Upload/Regenerierung | `UploadedCoverReplacementConfirmationRequiredException`, wenn ein hochgeladenes Cover ohne Bestätigung ersetzt würde | 409 Conflict (`DtoRegeneratePlaylistCoverConflictResponse`) |
 | BR-25: Neuerzeugung nur manuell | Nie automatisch | Keine | Keine |
 | BR-26: Cover-Bild-Aufräumung | Bei Ersetzen/Entfernen/Playlist-Löschung | Keine (tolerantes Verhalten) | Keine |
 
@@ -925,6 +978,9 @@ Resultat: Serie A PLUS alle Staffeln und Episoden
 | `Playlists:BackfillBatchSize` | `int` | `25` | Anzahl Playlists, die pro Nachlieferungs-Durchlauf höchstens geprüft werden (BR-18); Werte < 1 werden wie 1 behandelt |
 | `Playlists:AllowedCoverImageFormats` | `string` | `"image/jpeg,image/png,image/webp"` | Kommagetrennte Liste erlaubter MIME-Types für den Cover-Upload (BR-22); Vergleich case-insensitiv |
 | `Playlists:MaxCoverImageSizeBytes` | `long` | `5242880` (5 MB) | Maximale Dateigröße eines Cover-Uploads (BR-22); geprüft im Controller an der gemeldeten Länge und erneut im Validator |
+| `Playlists:MaxCoverImageWidthPixels` | `int` | `4096` | Maximale Breite eines hochgeladenen Cover-Bildes in Pixeln (BR-22); geprüft am Bildkopf vor der Dekodierung; ≤ 0 schaltet die Prüfung ab |
+| `Playlists:MaxCoverImageHeightPixels` | `int` | `4096` | Maximale Höhe eines hochgeladenen Cover-Bildes in Pixeln (BR-22); geprüft am Bildkopf vor der Dekodierung; ≤ 0 schaltet die Prüfung ab |
+| `Playlists:MaxCoverImageTotalPixels` | `long` | `16777216` (4096 × 4096) | Maximale Gesamtpixelzahl (Breite × Höhe) eines hochgeladenen Cover-Bildes (BR-22); begrenzt den Speicherbedarf der Volldekodierung; ≤ 0 schaltet die Prüfung ab |
 | `Playlists:GeneratedCoverWidthPixels` | `int` | `1600` | Zielbreite der automatisch erzeugten Cover-Collage (BR-23) |
 | `Playlists:GeneratedCoverHeightPixels` | `int` | `520` | Zielhöhe der automatisch erzeugten Cover-Collage (BR-23) |
 | `Playlists:GeneratedCoverJpegQuality` | `int` | `85` | JPEG-Qualität (0–100) der erzeugten Collage (BR-23) |

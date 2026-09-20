@@ -741,9 +741,13 @@ Cover (hochgeladen oder generiert); das bisherige Bild wird gelöscht.
    Maximal erlaubt sind {N} Bytes."` — diese Vorab-Prüfung erfolgt bereits an der gemeldeten Länge,
    bevor der Inhalt überhaupt in den Speicher gelesen wird
 3. Validierung des Dateiinhalts über `PlaylistCoverValidator` (siehe
-   `playlists-business-rules.md`, BR-22): MIME-Type in `Playlists:AllowedCoverImageFormats`,
-   Dateigröße ≤ `Playlists:MaxCoverImageSizeBytes`, und der Inhalt muss sich als echtes Bild
-   dekodieren lassen. Jeder Verstoß liefert HTTP 400 mit einer deutschen Klartext-Meldung als
+   `playlists-business-rules.md`, BR-22): gemeldeter MIME-Type in `Playlists:AllowedCoverImageFormats`,
+   Dateigröße ≤ `Playlists:MaxCoverImageSizeBytes`, das **tatsächlich im Inhalt erkannte** Bildformat
+   (nicht der vom Client gemeldete MIME-Type) ebenfalls in `Playlists:AllowedCoverImageFormats`,
+   Pixelmaße gemäß `Playlists:MaxCoverImageWidthPixels`, `Playlists:MaxCoverImageHeightPixels` und
+   `Playlists:MaxCoverImageTotalPixels` (geprüft am Bildkopf, **bevor** das Bild dekodiert wird), und
+   das Bild muss sich vollständig dekodieren lassen (abgeschnittene oder beschädigte Dateien werden
+   abgelehnt). Jeder Verstoß liefert HTTP 400 mit einer deutschen Klartext-Meldung als
    Body — bewusst **nicht** im `DtoPlaylistCoverResult`-Format, sondern über dasselbe generische
    Fehler-Mapping (`InvalidOperationException` → HTTP 400) wie die übrigen Playlist-Endpunkte.
 
@@ -758,15 +762,16 @@ Cover (hochgeladen oder generiert); das bisherige Bild wird gelöscht.
 ```
 
 Die Antwort ist ein `DtoPlaylistCoverResult`-Objekt (siehe [DTO-Modelle](#dto-modelle)). Das Bild
-wird unverändert in seinem Originalformat gespeichert (`ContentType` = gemeldeter MIME-Type;
-`Width`/`Height` werden aus dem Bild ermittelt; `Picture.Type = "cover"`;
+wird unverändert in seinem Originalformat gespeichert (`ContentType` = der aus dem Bildinhalt
+erkannte MIME-Type — bei abweichender Client-Angabe, z. B. ein PNG mit `Content-Type: image/jpeg`,
+wird also `image/png` gespeichert und später ausgeliefert; `Width`/`Height` werden aus dem Bild ermittelt; `Picture.Type = "cover"`;
 `IsGeneratedBackground = false`; `Playlist.CoverPictureIsUserUploaded = true`).
 
 **Fehlerantworten:**
 
 || HTTP-Status | Grund | Response-Body |
 ||-------------|-------|----------------|
-|| 400 Bad Request | Keine Datei, zu groß, Format nicht erlaubt oder kein gültiges Bild | Klartext-Fehlermeldung |
+|| 400 Bad Request | Keine Datei, zu groß (Bytes oder Pixel), Format nicht erlaubt (auch das tatsächlich erkannte), kein gültiges Bild oder beschädigte/unvollständige Datei | Klartext-Fehlermeldung |
 || 404 Not Found | Playlist nicht gefunden | Fehlertext |
 || 403 Forbidden | Benutzer ist nicht der Besitzer der Playlist | Fehlertext |
 || 401 Unauthorized | Fehlende oder ungültige Authentifizierung | Fehlertext |
@@ -780,8 +785,16 @@ als Kompilierzeit-Attributwert von der Konfiguration abzuweichen.
 ### `POST /api/playlists/{id}/cover/regenerate` — Cover automatisch neu erzeugen
 
 Erzeugt das Cover der Playlist neu als Collage aus den Poster-Bildern ihrer aktuellen Inhalte
-(die „Cover neu erzeugen"-Aktion der Oberfläche) und ersetzt dabei ein vorhandenes Cover —
-einschließlich eines zuvor hochgeladenen, da es sich um eine ausdrückliche Anwenderaktion handelt.
+(die „Cover neu erzeugen"-Aktion der Oberfläche) und ersetzt dabei ein vorhandenes Cover.
+Ein zuvor **hochgeladenes** Cover (`Playlist.CoverPictureIsUserUploaded = true`) hat Vorrang und wird
+nur mit ausdrücklicher Bestätigung ersetzt: Ohne `confirmReplaceUploadedCover=true` antwortet der
+Endpunkt mit HTTP 409 Conflict (`DtoRegeneratePlaylistCoverConflictResponse`) und ändert nichts; die
+Oberfläche zeigt daraufhin einen Bestätigungsdialog und wiederholt den Aufruf mit
+`confirmReplaceUploadedCover=true` (gleiches Muster wie beim Sortiermodus-Wechsel und beim Entfernen
+eines Eintrags mit Weiterschauen-Bezug). Die Bestätigung wird erst verlangt, wenn tatsächlich eine
+Collage erzeugt werden könnte — enthält die Playlist keine Inhalte mit Bildern, bleibt die Antwort
+`success: false` (HTTP 200) ohne Rückfrage, und ein hochgeladenes Cover bleibt unverändert. Ein
+erzeugtes oder fehlendes Cover wird ohne Rückfrage ersetzt.
 Es findet **keine** automatische Neuerzeugung bei Inhaltsänderungen statt (siehe BR-25).
 
 **Parameter:**
@@ -789,6 +802,7 @@ Es findet **keine** automatische Neuerzeugung bei Inhaltsänderungen statt (sieh
 || Name | Position | Typ | Erforderlich | Beschreibung |
 ||------|----------|-----|-------------|--------------|
 || `id` | Route | long | Ja | Playlist-ID |
+|| `confirmReplaceUploadedCover` | Query | bool | Nein (Standard `false`) | Bestätigt das Ersetzen eines hochgeladenen Covers |
 
 **Erfolgreiche Antwort (HTTP 200):**
 
@@ -816,10 +830,19 @@ Das erzeugte Bild wird als JPEG (`ContentType = "image/jpeg"`, `IsGeneratedBackg
 `Playlists:GeneratedCoverHeightPixels` und `Playlists:GeneratedCoverJpegQuality` konfigurierten
 Abmessungen gespeichert; `Playlist.CoverPictureIsUserUploaded` wird `false`.
 
+**Bestätigung erforderlich (HTTP 409 Conflict):**
+
+```json
+{
+  "isUploadedCoverReplacementConfirmationRequired": true
+}
+```
+
 **Fehlerantworten:**
 
 || HTTP-Status | Grund |
 ||-------------|-------|
+|| 409 Conflict | Das aktuelle Cover ist hochgeladen und `confirmReplaceUploadedCover` ist nicht `true` |
 || 404 Not Found | Playlist nicht gefunden |
 || 403 Forbidden | Benutzer ist nicht der Besitzer der Playlist |
 || 401 Unauthorized | Fehlende oder ungültige Authentifizierung |
@@ -1088,6 +1111,19 @@ public class DtoRemovePlaylistEntryConflictResponse
 }
 ```
 
+### `DtoRegeneratePlaylistCoverConflictResponse`
+
+Response-Body bei `HTTP 409 Conflict` von `POST /api/playlists/{id}/cover/regenerate`, wenn das
+Neuerzeugen ein hochgeladenes Cover ersetzen würde und nicht per `confirmReplaceUploadedCover=true`
+bestätigt wurde.
+
+```csharp
+public class DtoRegeneratePlaylistCoverConflictResponse
+{
+    public bool IsUploadedCoverReplacementConfirmationRequired { get; set; }  // stets true, wenn dieser Response-Typ zurueckgegeben wird
+}
+```
+
 ### `DtoReorderPlaylistEntryRequest`
 
 Request-Format von `PUT /api/playlists/{id}/entries/{entryId}/order`.
@@ -1209,7 +1245,7 @@ Die folgenden Medientypen werden unterstützt:
 | Medieninhalt | Muss in der Datenbank existieren | 404 Not Found |
 | Duplikat | Eintrag `(PlaylistId, MediaType, MediaId)` darf nur einmal existieren; wird beim Hinzufügen jedoch übersprungen statt einen Fehler auszulösen (siehe unten) | Kein Fehler — `HTTP 200 OK` mit `skippedDuplicateCount` |
 | Berechtigung | Anfragender Benutzer muss Besitzer der Playlist sein | 403 Forbidden |
-| Cover-Upload `file` | Datei vorhanden und nicht leer; MIME-Type in `Playlists:AllowedCoverImageFormats`; Größe ≤ `Playlists:MaxCoverImageSizeBytes`; Inhalt dekodiert als echtes Bild | 400 Bad Request (Klartext-Meldung) |
+| Cover-Upload `file` | Datei vorhanden und nicht leer; MIME-Type in `Playlists:AllowedCoverImageFormats`; Größe ≤ `Playlists:MaxCoverImageSizeBytes`; tatsächlich erkanntes Bildformat in `Playlists:AllowedCoverImageFormats`; Breite/Höhe/Gesamtpixel innerhalb `Playlists:MaxCoverImageWidthPixels`/`…HeightPixels`/`…TotalPixels`; Inhalt dekodiert vollständig als echtes Bild | 400 Bad Request (Klartext-Meldung) |
 
 ---
 
@@ -1248,6 +1284,9 @@ Optional kann die maximale Anzahl von Einträgen pro Playlist begrenzt werden:
     "BackfillBatchSize": 25,
     "AllowedCoverImageFormats": "image/jpeg,image/png,image/webp",
     "MaxCoverImageSizeBytes": 5242880,
+    "MaxCoverImageWidthPixels": 4096,
+    "MaxCoverImageHeightPixels": 4096,
+    "MaxCoverImageTotalPixels": 16777216,
     "GeneratedCoverWidthPixels": 1600,
     "GeneratedCoverHeightPixels": 520,
     "GeneratedCoverJpegQuality": 85
@@ -1262,6 +1301,7 @@ Optional kann die maximale Anzahl von Einträgen pro Playlist begrenzt werden:
 - `BackfillBatchSize`: wie viele Playlists der Hintergrundprozess pro Durchlauf höchstens prüft (Standard: `25`), damit ein einzelner Durchlauf kurz bleibt; alle betroffenen Playlists werden über mehrere Durchläufe reihum abgedeckt. Werte kleiner 1 werden wie `1` behandelt.
 - `AllowedCoverImageFormats`: kommagetrennte Liste der für `POST /api/playlists/{id}/cover/upload` akzeptierten MIME-Types (Standard: `image/jpeg,image/png,image/webp`); Vergleich erfolgt case-insensitiv.
 - `MaxCoverImageSizeBytes`: maximale Dateigröße eines Cover-Uploads in Bytes (Standard: `5242880` = 5 MB); wird im Controller bereits vor dem Einlesen des Inhalts und erneut im `PlaylistCoverValidator` geprüft.
+- `MaxCoverImageWidthPixels` / `MaxCoverImageHeightPixels` / `MaxCoverImageTotalPixels`: maximale Breite, Höhe und Gesamtzahl der Bildpunkte (Breite × Höhe) eines Cover-Uploads (Standard: `4096` / `4096` / `16777216`); geprüft am Bildkopf, bevor das Bild dekodiert wird (Schutz vor „Decompression Bombs"). Ein Wert ≤ `0` schaltet die jeweilige Prüfung ab. Die vollständige Dekodierung zur Integritätsprüfung benötigt kurzzeitig rund 4 Byte je Bildpunkt Arbeitsspeicher.
 - `GeneratedCoverWidthPixels` / `GeneratedCoverHeightPixels`: Zielabmessungen der automatisch erzeugten Cover-Collage in Pixeln (Standard: `1600` × `520`); werden auch als `Width`/`Height` der gespeicherten `Picture`-Zeile übernommen.
 - `GeneratedCoverJpegQuality`: JPEG-Qualität (0–100) der erzeugten Collage (Standard: `85`).
 

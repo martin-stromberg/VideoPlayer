@@ -429,7 +429,8 @@ flowchart TD
 
 ### Schritt-für-Schritt
 
-**Auslöser:** Client (`PlaylistDetail.razor`, über `Virtualize`) ruft
+**Auslöser:** Client (`PlaylistEntriesList.razor`, über einen `IntersectionObserver`-Sentinel am
+Listenende) ruft
 `GET /api/playlists/{id}/entries/paged?pageNumber=N&pageSize=M` auf, initial für Seite 1 und dann
 erneut mit fortlaufend höherem `pageNumber`, sobald der Anwender in der Liste weiter nach unten
 scrollt.
@@ -482,15 +483,26 @@ scrollt.
    - Rückgabe: `DtoPlaylistEntriesPagedResult { Entries, TotalCount, HasNextPage, PageNumber, PageSize }`
      mit `HasNextPage = skip + pageSize < totalCount`
 
-**Client-seitiges Nachladen (`PlaylistDetail.razor`):**
+**Client-seitiges Nachladen (`PlaylistEntriesList.razor`):**
 - `LoadInitialPageAsync()` lädt beim Öffnen der Seite die erste Seite (`PageSize = 20`) und setzt
-  `allEntries`, `hasMorePages`, `totalCount`
-- `ItemsProviderAsync()` wird von der `Virtualize`-Komponente aufgerufen, sobald weitere,
-  noch nicht geladene Zeilen sichtbar werden sollen; lädt bei Bedarf weitere Seiten nach, bis genug
-  Einträge für den angeforderten Bereich vorhanden sind oder `hasMorePages == false`
+  `allEntries`, `hasMorePages`
+- Die Liste rendert normal im Seitenfluss (kein `Virtualize`, keine eigene Scrollbox); solange
+  `hasMorePages` gilt, steht am Listenende ein Sentinel-`div`. `OnAfterRenderAsync()` verbindet
+  darauf den `IntersectionObserver` (`window.observeBottom`, `wwwroot/js/scroll.js`), der
+  `OnBottomVisible()` aufruft, sobald der Sentinel sichtbar wird; `LoadNextPageAsync()` hängt dann
+  die nächste Seite an und verbindet den Observer danach neu (ein noch sichtbarer Sentinel meldet
+  sich sonst nicht erneut)
 - Eine `SemaphoreSlim` (`loadPageSemaphore`) verhindert, dass bei schnellem Scrollen mehrere
-  überlappende Ladevorgänge gleichzeitig laufen; das `CancellationToken` der jeweiligen
-  `ItemsProviderRequest` wird an den Server-Aufruf weitergereicht
+  überlappende Ladevorgänge gleichzeitig laufen
+- **Fehlerverhalten:** Schlägt ein Ladevorgang fehl (initial oder beim Nachladen), wird
+  `loadMoreFailed` gesetzt, die Fehlermeldung (`entriesStatusMessage`) angezeigt und der Observer
+  **nicht** neu verbunden — ein frisch verbundener Observer meldet einen sichtbaren Sentinel sofort,
+  was bei anhaltendem Fehler eine Endlosschleife an Wiederholungsversuchen ausgelöst hätte. Solange
+  `loadMoreFailed` gesetzt ist, ignoriert `OnBottomVisible()` Observer-Meldungen; erneut geladen
+  wird erst über die Schaltfläche „Erneut versuchen" (`RetryLoadNextPageAsync()`) oder durch ein
+  vollständiges Neuladen der Liste (`LoadInitialPageAsync()`, z. B. nach Hinzufügen/Entfernen)
+- Nach der letzten Seite (`hasMorePages == false`) wird der Observer getrennt
+  (`disconnectMediaSourceBottomObserver`), ebenso beim Entfernen der Komponente
 
 ### Beteiligte Klassen/Komponenten
 
@@ -504,8 +516,9 @@ scrollt.
 | `PlaylistService` | `BuildEntryDtosAsync()` | Entity → DTO Konvertierung (Titel, `ResolvedPictureId`, `IsAccessible`), gemeinsam mit Ablauf 1/3 |
 | `PlaylistService` | `LoadPictureIdsForMediaRefsAsync()` | Bild-ID-Auflösung (Poster → Banner → Fanart), beschränkt auf die übergebenen Referenzen |
 | `PlaylistService` | `LoadUnlockedMediaIdsAsync()` | Bulk-Freischaltungsprüfung über `IUnlockedMediaService` für alle Einträge der Seite |
-| `PlaylistDetail.razor` | `LoadInitialPageAsync()` | Lädt die erste Seite beim Öffnen/Neuladen der Playlist |
-| `PlaylistDetail.razor` | `ItemsProviderAsync()` | Liefert der `Virtualize`-Komponente Einträge, lädt bei Bedarf weitere Seiten nach |
+| `PlaylistEntriesList.razor` | `LoadInitialPageAsync()` | Lädt die erste Seite beim Öffnen/Neuladen der Playlist |
+| `PlaylistEntriesList.razor` | `OnBottomVisible()` / `LoadNextPageAsync()` | Vom Sentinel-Observer aufgerufen; hängt die nächste Seite an (nicht nach einem Ladefehler) |
+| `PlaylistEntriesList.razor` | `RetryLoadNextPageAsync()` | „Erneut versuchen" nach einem Ladefehler |
 
 ### Diagramm
 
@@ -566,17 +579,27 @@ Upload-Schaltfläche; der Dialog ruft `IPlaylistApiClient.UploadPlaylistCoverAsy
 5. `PlaylistService.SetPlaylistCoverAsync()`:
    - `GetOwnedPlaylistAsync()` → 403/404 bei Fremdzugriff bzw. nicht existierender Playlist
    - `PlaylistCoverValidator.ValidateUploadAsync()` prüft in dieser Reihenfolge:
-     1. `ContentType` in `AllowedCoverImageFormats`-Allowlist (Case-insensitive; leerer/unbekannter
-        Typ → Fehler mit „Friendly Name", z. B. `"Format BMP wird nicht unterstützt. Erlaubte
-        Formate: JPEG, PNG, WebP."`)
+     1. Gemeldeter `ContentType` in `AllowedCoverImageFormats`-Allowlist (Case-insensitive;
+        leerer/unbekannter Typ → Fehler mit „Friendly Name", z. B. `"Format BMP wird nicht
+        unterstützt. Erlaubte Formate: JPEG, PNG, WebP."`)
      2. `fileSize > MaxCoverImageSizeBytes` → `"Datei zu groß, max. X MB erlaubt."`
-     3. Dekodierbarkeit via ImageSharp `Image.Identify()` (fängt `UnknownImageFormatException`/
-        `InvalidImageContentException`) → `"Datei ist kein gültiges Bild."`
+     3. Erkennung via ImageSharp `Image.Identify()` (nur Bildkopf; jede dabei geworfene Ausnahme →
+        `"Datei ist kein gültiges Bild."`)
+     4. Das **tatsächlich erkannte** Format (`DecodedImageFormat.DefaultMimeType`) muss ebenfalls in
+        der Allowlist stehen (sonst dieselbe „Format … wird nicht unterstützt"-Meldung); der
+        erkannte MIME-Type wird im Ergebnis mitgegeben und später als `Picture.ContentType`
+        gespeichert
+     5. Pixelgrenzen am Bildkopf, **vor** der Dekodierung: `MaxCoverImageWidthPixels`,
+        `MaxCoverImageHeightPixels`, `MaxCoverImageTotalPixels` → `"Bild zu groß (B x H Pixel). …"`
+     6. Bei JPEG: `JpegIntegrityChecker.Check()` (Marker-Struktur + Huffman-Scan-Konsistenz, ohne
+        Pixelrekonstruktion), danach vollständige strikte Dekodierung (`Image.Load` mit
+        `MaxFrames = 1`, `SkipMetadata = true`); schlägt eines davon fehl →
+        `"Datei ist beschädigt oder unvollständig und kann nicht als Bild gelesen werden."`
    - Validierungsfehler → `InvalidOperationException` → HTTP 400 (generisches Fehler-Mapping,
      kein `DtoPlaylistCoverResult`)
    - Bei Erfolg tragen `Width`/`Height` des Ergebnisses die ermittelten Bildabmessungen
-6. Neues `Picture` anlegen: `Type = "cover"`, `Data` = Upload-Bytes, `ContentType` = gemeldeter
-   MIME-Type, `Width`/`Height` aus der Validierung, `IsGeneratedBackground = false`,
+6. Neues `Picture` anlegen: `Type = "cover"`, `Data` = Upload-Bytes, `ContentType` = aus dem Bild
+   erkannter MIME-Type (nicht der vom Client gemeldete), `Width`/`Height` aus der Validierung, `IsGeneratedBackground = false`,
    `PlaylistId` = Playlist-Id
 7. `ReplaceCoverPictureAsync(playlist, newPicture, isUserUploaded: true)` — siehe unten
 8. HTTP 200 mit `DtoPlaylistCoverResult { Success = true, Message = "Bild erfolgreich
@@ -588,8 +611,9 @@ Upload-Schaltfläche; der Dialog ruft `IPlaylistApiClient.UploadPlaylistCoverAsy
 `RegenerateCoverAsync()` → `IPlaylistApiClient.RegeneratePlaylistCoverAsync()` →
 `POST /api/playlists/{id}/cover/regenerate`.
 
-1. `CheckLogedIn()`; `PlaylistService.GeneratePlaylistCoverAsync()` →
-   `GetOwnedPlaylistAsync()` (403/404)
+1. `CheckLogedIn()`; `PlaylistService.GeneratePlaylistCoverAsync(id, userId,
+   confirmReplaceUploadedCover)` → `GetOwnedPlaylistAsync()` (403/404). `confirmReplaceUploadedCover`
+   stammt aus dem Query-Parameter gleichen Namens (Standard `false`)
 2. `PlaylistCoverImageGenerator.GeneratePlaylistCoverAsync(playlistId)`:
    - `CollectOrderedPictureIdsAsync()`:
      - Lädt alle `PlaylistEntry` der Playlist, sortiert nach `AddedAt`, dann `Id`
@@ -612,12 +636,20 @@ Upload-Schaltfläche; der Dialog ruft `IPlaylistApiClient.UploadPlaylistCoverAsy
      geworfen — konsistent mit den übrigen Bild-Generatoren)
 3. Bei `null`: HTTP 200 mit `DtoPlaylistCoverResult { Success = false, Message = "Keine Bilder
    verfuegbar." }` — das bestehende Cover bleibt **unverändert** (auch ein hochgeladenes)
-4. Bei Erfolg: neues `Picture` mit `Type = "cover"`, `ContentType = "image/jpeg"`,
+4. **Sicherheitsabfrage:** Ist `Playlist.CoverPictureIsUserUploaded` gesetzt und
+   `confirmReplaceUploadedCover` nicht `true`, wirft der Service (erst nach erfolgreicher
+   Collage-Erzeugung, damit ohne Quellbilder keine sinnlose Rückfrage entsteht) eine
+   `UploadedCoverReplacementConfirmationRequiredException`; nichts wird geändert. Der Controller
+   antwortet mit HTTP 409 Conflict und `DtoRegeneratePlaylistCoverConflictResponse {
+   IsUploadedCoverReplacementConfirmationRequired = true }` (Client: `HttpRequestException` mit
+   `StatusCode = Conflict` → `PlaylistDetail` zeigt `PlaylistCoverRegenerateConfirmationDialog`;
+   „Ja, ersetzen" wiederholt den Aufruf mit `confirmReplaceUploadedCover = true`)
+5. Bei Erfolg: neues `Picture` mit `Type = "cover"`, `ContentType = "image/jpeg"`,
    `Width`/`Height` = konfigurierte Collage-Abmessungen, `IsGeneratedBackground = true`,
    `PlaylistId` = Playlist-Id; `ReplaceCoverPictureAsync(..., isUserUploaded: false)`
-   ersetzt das bisherige Cover — **auch ein hochgeladenes**, da Regenerierung eine explizite
-   Besitzer-Aktion ist (siehe BR-24/BR-25 in `playlists-business-rules.md`)
-5. HTTP 200 mit `{ Success = true, Message = "Cover neu erzeugt.", PictureId }`;
+   ersetzt das bisherige Cover — ein hochgeladenes nur nach der Bestätigung aus Schritt 4 (siehe
+   BR-24/BR-25 in `playlists-business-rules.md`)
+6. HTTP 200 mit `{ Success = true, Message = "Cover neu erzeugt.", PictureId }`;
    `PlaylistDetail` lädt die Playlist neu; bei `Success = false` wird `result.Message` als
    `coverStatusMessage` angezeigt
 
@@ -699,7 +731,7 @@ zweiten Aufrufs das bereits committed neue Bild dauerhaft verweisen lassen (sieh
 | `PlaylistCoverPlaceholder.razor` | — | Deterministischer Platzhalter (Farbverlauf aus `PlaylistId * 47 % 360`) |
 | `IPlaylistApiClient`/`VideoWebPlayerClient` | `UploadPlaylistCoverAsync()`/`RegeneratePlaylistCoverAsync()`/`DeletePlaylistCoverAsync()` | Client-Methoden; Upload sendet `multipart/form-data` |
 | `DtoPlaylistCoverResult` | — | Ergebnis-Typ (`Success`, `Message`, `PictureId`) |
-| `PlaylistSettings` | — | `AllowedCoverImageFormats`, `MaxCoverImageSizeBytes`, `GeneratedCoverWidthPixels`, `GeneratedCoverHeightPixels`, `GeneratedCoverJpegQuality` |
+| `PlaylistSettings` | — | `AllowedCoverImageFormats`, `MaxCoverImageSizeBytes`, `MaxCoverImageWidthPixels`, `MaxCoverImageHeightPixels`, `MaxCoverImageTotalPixels`, `GeneratedCoverWidthPixels`, `GeneratedCoverHeightPixels`, `GeneratedCoverJpegQuality` |
 
 ### Diagramm (Upload / Regenerierung)
 

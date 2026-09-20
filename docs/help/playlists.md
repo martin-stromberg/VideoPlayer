@@ -94,8 +94,14 @@ Symbol-Schaltflächen im Kopfbereich der Detailseite offen:
   siehe Abschnitt „Konfiguration"). Ungeeignete Dateien werden bereits bei der Auswahl bzw.
   spätestens beim Hochladen mit einer verständlichen Fehlermeldung abgelehnt, z. B. „Format BMP
   wird nicht unterstützt. Erlaubte Formate: JPEG, PNG, WebP.", „Datei zu groß, max. 5 MB erlaubt."
-  oder „Datei ist kein gültiges Bild.". Das hochgeladene Bild wird unverändert in seinem
-  Originalformat gespeichert.
+  oder „Datei ist kein gültiges Bild.". Maßgeblich ist dabei das Format, das die Datei
+  tatsächlich enthält — nicht die Dateiendung oder die vom Browser gemeldete Typangabe: Eine GIF-Datei
+  wird also auch dann abgelehnt, wenn sie als „.png" umbenannt wurde. Zu große Bilder (Standard: mehr
+  als 4096 Bildpunkte in Breite oder Höhe bzw. mehr als rund 16,8 Megapixel insgesamt) werden mit
+  „Bild zu groß (… x … Pixel). Erlaubt sind höchstens … Bitte verkleinern Sie das Bild." abgelehnt,
+  und unvollständig übertragene oder beschädigte Dateien mit „Datei ist beschädigt oder unvollständig
+  und kann nicht als Bild gelesen werden.". Das hochgeladene Bild wird unverändert im tatsächlich
+  erkannten Originalformat gespeichert.
 - **Automatisch erzeugen**: Über die Schaltfläche „Cover neu erzeugen" erzeugt die Anwendung das
   Coverbild als Collage aus den Bildern der in der Playlist enthaltenen Inhalte — höchstens fünf
   Bilder. Dabei werden zuerst die Bilder enthaltener Serien und Staffeln herangezogen (eine Staffel
@@ -107,8 +113,14 @@ Symbol-Schaltflächen im Kopfbereich der Detailseite offen:
 
 **Vorrang des eigenen Bildes:** Ein hochgeladenes Bild wird nie im Hintergrund durch eine automatisch
 erzeugte Collage ersetzt — nur eine ausdrückliche Aktion des Besitzers ändert das Cover (ein neuer
-Upload oder ein bewusst ausgelöstes „Cover neu erzeugen", das auch ein zuvor hochgeladenes Bild
-ersetzt).
+Upload oder ein bewusst ausgelöstes „Cover neu erzeugen"). Damit ein hochgeladenes Bild nicht
+versehentlich verloren geht, fragt die Anwendung vor „Cover neu erzeugen" nach, sofern das aktuelle
+Cover ein hochgeladenes Bild ist: Ein Dialog „Hochgeladenes Bild ersetzen" weist darauf hin, dass das
+von Ihnen hochgeladene Bild durch ein automatisch erzeugtes ersetzt wird und nicht wiederhergestellt
+werden kann. Erst „Ja, ersetzen" führt die Erzeugung aus, „Abbrechen" lässt das Bild unverändert. Ist
+das aktuelle Cover selbst schon automatisch erzeugt oder noch gar nicht vorhanden, entfällt die
+Rückfrage. Ebenso entfällt sie, wenn die Playlist keine Inhalte mit Bildern enthält — dann wird ohnehin
+nichts ersetzt.
 
 **Keine automatische Aktualisierung:** Anders als die Genres einer Playlist (siehe Abschnitt
 „Genres") wird das Coverbild bei Änderungen des Inhalts — beim Hinzufügen oder Entfernen von Titeln
@@ -156,7 +168,10 @@ selbst festgelegten Reihenfolge (siehe Abschnitt „Manuelle Sortierung").
 
 Enthält eine Playlist viele Einträge, werden zunächst nur die ersten davon angezeigt. Beim
 Herunterscrollen der Liste werden automatisch weitere Einträge nachgeladen und angehängt, sodass
-die Seite auch bei sehr umfangreichen Playlists flüssig bedienbar bleibt.
+die Seite auch bei sehr umfangreichen Playlists flüssig bedienbar bleibt. Schlägt das Nachladen
+fehl (z. B. wegen eines Verbindungsproblems), erscheint eine Fehlermeldung mit der Schaltfläche
+„Erneut versuchen"; die Anwendung wiederholt den Ladevorgang nicht von selbst, sondern erst nach
+einem Klick darauf.
 
 ### Manuelle Sortierung
 
@@ -453,6 +468,9 @@ Konfiguration festgelegt:
     "BackfillBatchSize": 25,
     "AllowedCoverImageFormats": "image/jpeg,image/png,image/webp",
     "MaxCoverImageSizeBytes": 5242880,
+    "MaxCoverImageWidthPixels": 4096,
+    "MaxCoverImageHeightPixels": 4096,
+    "MaxCoverImageTotalPixels": 16777216,
     "GeneratedCoverWidthPixels": 1600,
     "GeneratedCoverHeightPixels": 520,
     "GeneratedCoverJpegQuality": 85
@@ -486,6 +504,13 @@ Die folgenden Werte steuern die Abbildung (das Coverbild) einer Playlist (siehe 
   als kommagetrennte Liste der Format-Bezeichner (Standard: `image/jpeg,image/png,image/webp`).
 - `MaxCoverImageSizeBytes` begrenzt die Dateigröße eines hochgeladenen Bildes in Bytes
   (Standard: 5242880 = 5 MB).
+- `MaxCoverImageWidthPixels` und `MaxCoverImageHeightPixels` begrenzen die Breite bzw. Höhe eines
+  hochgeladenen Bildes in Bildpunkten (Standard: je 4096), `MaxCoverImageTotalPixels` zusätzlich die
+  Gesamtzahl der Bildpunkte (Breite × Höhe; Standard: 16777216, also 4096 × 4096). Die Prüfung erfolgt
+  anhand der Bildkopfdaten, bevor das Bild dekodiert wird; ein Wert von 0 oder kleiner schaltet die
+  jeweilige Prüfung ab. Beim vollständigen Prüfen eines Bildes wird kurzzeitig Arbeitsspeicher in
+  der Größenordnung von vier Byte je Bildpunkt benötigt (bei 4096 × 4096 rund 64 MB) — die Grenzen
+  sollten daher nicht ohne Not stark angehoben werden.
 - `GeneratedCoverWidthPixels` und `GeneratedCoverHeightPixels` legen die Abmessungen der
   automatisch erzeugten Collage in Bildpunkten fest (Standard: 1600 × 520).
 - `GeneratedCoverJpegQuality` steuert die Bildqualität der erzeugten Collage auf einer Skala

@@ -533,7 +533,26 @@ public abstract class PlaylistServiceTestBase : IDisposable
         return playlistService;
     }
 
-    private ContinueWatchingService BuildContinueWatchingService(Func<IPlaylistService> resolvePlaylistService)
+    /// <summary>
+    /// Marks the given playlist as public directly in the database (bypassing the administrator check of
+    /// <see cref="PlaylistService.SetPlaylistPublicAsync"/>), for tests of the read-only viewer behavior
+    /// of public playlists (Entwicklungsschritt 11).
+    /// </summary>
+    /// <param name="playlistId">The id of the playlist to mark as public.</param>
+    protected async Task MakePlaylistPublicAsync(long playlistId)
+    {
+        var playlist = await _db.Playlists.SingleAsync(p => p.Id == playlistId);
+        playlist.IsPublic = true;
+        await _db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Builds a real <see cref="ContinueWatchingService"/> (see <see cref="CreatePlaylistServiceWithConflictResolution"/>)
+    /// on the shared real-SQLite <see cref="_db"/>, resolving its <see cref="IPlaylistService"/> lazily.
+    /// </summary>
+    /// <param name="resolvePlaylistService">Resolves the playlist service on demand.</param>
+    /// <returns>The continue-watching service.</returns>
+    protected ContinueWatchingService BuildContinueWatchingService(Func<IPlaylistService> resolvePlaylistService)
     {
         var store = new Mock<IUserStore<ApplicationUser>>();
         var userManagerMock = new Mock<UserManager<ApplicationUser>>(store.Object, null!, null!, null!, null!, null!, null!, null!, null!);

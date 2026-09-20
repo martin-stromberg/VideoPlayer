@@ -173,7 +173,7 @@ public class ContinueWatchingListTests
             if (endPoint == "api/continue-watching/skip")
             {
                 Calls.Add((mediaType, mediaId, playlistId, "skip"));
-                return Task.FromResult((T)(object)new ContinueWatchingMutationResult("skipped", "Uebersprungen."));
+                return Task.FromResult((T)(object)new ContinueWatchingMutationResult("skipped", "Übersprungen."));
             }
 
             throw new InvalidOperationException($"Unerwarteter POST-Aufruf: {endPoint}");

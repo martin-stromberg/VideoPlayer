@@ -143,7 +143,7 @@ namespace VideoWebPlayer.Controllers
             var result = await _service.SkipAsync(CurrentUser!.Id, ids.Value.MovieId, ids.Value.EpisodeId, req.PlaylistId, ct);
             return result switch
             {
-                ContinueWatchingService.SkipResult.Replaced => Ok(new ContinueWatchingMutationResult("replaced", "Eintrag wurde uebersprungen.")),
+                ContinueWatchingService.SkipResult.Replaced => Ok(new ContinueWatchingMutationResult("replaced", "Eintrag wurde übersprungen.")),
                 ContinueWatchingService.SkipResult.RemovedWithoutNext => Ok(new ContinueWatchingMutationResult("removed", "Eintrag wurde entfernt; es gibt kein Folgemedium.")),
                 _ => NotFound("Der Eintrag wurde nicht gefunden.")
             };

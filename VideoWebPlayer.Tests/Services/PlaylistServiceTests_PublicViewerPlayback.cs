@@ -21,7 +21,7 @@ public class PlaylistServiceTests_PublicViewerPlayback : PlaylistServiceTestBase
     {
         var ct = TestContext.Current.CancellationToken;
         var collectionId = await CreateTestMediaEntryAsync(MediaTypeValues.MovieCollection, "Sammlung");
-        var movieId = await AddMovieToCollectionAsync(collectionId, "Nur fuer den Besitzer");
+        var movieId = await AddMovieToCollectionAsync(collectionId, "Nur für den Besitzer");
         // ONLY the owner has the collection unlocked.
         await UnlockMediaForUserAsync(_otherUserId, MediaTypeValues.MovieCollection, collectionId);
         var playlistId = await CreateTestPlaylistWithEntriesAsync(_otherUserId, (MediaTypeValues.Movie, movieId));
@@ -39,7 +39,7 @@ public class PlaylistServiceTests_PublicViewerPlayback : PlaylistServiceTestBase
     {
         var ct = TestContext.Current.CancellationToken;
         var collectionId = await CreateTestMediaEntryAsync(MediaTypeValues.MovieCollection, "Sammlung");
-        var movieId = await AddMovieToCollectionAsync(collectionId, "Gesperrt fuer Betrachter");
+        var movieId = await AddMovieToCollectionAsync(collectionId, "Gesperrt für Betrachter");
         await UnlockMediaForUserAsync(_otherUserId, MediaTypeValues.MovieCollection, collectionId);
         var playlistId = await CreateTestPlaylistWithEntriesAsync(_otherUserId, (MediaTypeValues.Movie, movieId));
         await MakePlaylistPublicAsync(playlistId);
@@ -81,7 +81,7 @@ public class PlaylistServiceTests_PublicViewerPlayback : PlaylistServiceTestBase
         // collection of the LAST title unlocked.
         await GrantMediaSourceAccessForUserAsync(_otherUserId);
         var first = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Erster");
-        var second = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Zweiter (fuer Betrachter gesperrt)");
+        var second = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Zweiter (für Betrachter gesperrt)");
         var collectionId = await CreateTestMediaEntryAsync(MediaTypeValues.MovieCollection, "Sammlung");
         var third = await AddMovieToCollectionAsync(collectionId, "Dritter");
         await UnlockMediaForUserAsync(_testUserId, MediaTypeValues.MovieCollection, collectionId);

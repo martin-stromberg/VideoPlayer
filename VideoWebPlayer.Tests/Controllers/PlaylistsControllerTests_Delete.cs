@@ -13,7 +13,7 @@ public class PlaylistsControllerTests_Delete : PlaylistsControllerTestBase
     [Fact]
     public async Task DeletePlaylist_ValidInput_Returns204NoContent()
     {
-        var createResult = await _controller.CreatePlaylist(new DtoCreatePlaylistRequest { Name = "Zu Loeschen" });
+        var createResult = await _controller.CreatePlaylist(new DtoCreatePlaylistRequest { Name = "Zu Löschen" });
         var created = Assert.IsType<OkObjectResult>(createResult).Value as DtoPlaylist;
 
         var result = await _controller.DeletePlaylist(created!.Id);

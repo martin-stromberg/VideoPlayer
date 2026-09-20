@@ -141,13 +141,13 @@ public sealed class PlaylistsE2ETests : PlaylistsE2ETestBase
             return;
 
         await LoginAsync(UserAEmail);
-        await CreatePlaylistViaUiAsync("Nur fuer Benutzer A");
+        await CreatePlaylistViaUiAsync("Nur für Benutzer A");
 
         await LoginAsync(UserBEmail);
         await Page.GotoAsync($"{ServerUrl}/playlists");
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
         await Page.WaitForTimeoutAsync(1500);
 
-        await Expect(Page.Locator(".playlist-row[data-playlist-name='Nur fuer Benutzer A']")).ToHaveCountAsync(0);
+        await Expect(Page.Locator(".playlist-row[data-playlist-name='Nur für Benutzer A']")).ToHaveCountAsync(0);
     }
 }

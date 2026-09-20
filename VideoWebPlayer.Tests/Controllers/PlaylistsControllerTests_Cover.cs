@@ -61,7 +61,7 @@ public class PlaylistsControllerTests_Cover : PlaylistsControllerTestBase
         var result = await _controller.UploadPlaylistCover(playlistId, file);
 
         var badRequest = Assert.IsType<BadRequestObjectResult>(result);
-        Assert.Contains("zu gross", badRequest.Value!.ToString(), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("zu groß", badRequest.Value!.ToString(), StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -227,10 +227,10 @@ public class PlaylistsControllerTests_Cover : PlaylistsControllerTestBase
         public string Name => "file";
         public string FileName => "large.jpg";
 
-        public void CopyTo(Stream target) => throw new InvalidOperationException("Sollte fuer diesen Test nicht aufgerufen werden.");
+        public void CopyTo(Stream target) => throw new InvalidOperationException("Sollte für diesen Test nicht aufgerufen werden.");
 
-        public Task CopyToAsync(Stream target, CancellationToken cancellationToken = default) => throw new InvalidOperationException("Sollte fuer diesen Test nicht aufgerufen werden.");
+        public Task CopyToAsync(Stream target, CancellationToken cancellationToken = default) => throw new InvalidOperationException("Sollte für diesen Test nicht aufgerufen werden.");
 
-        public Stream OpenReadStream() => throw new InvalidOperationException("Sollte fuer diesen Test nicht aufgerufen werden.");
+        public Stream OpenReadStream() => throw new InvalidOperationException("Sollte für diesen Test nicht aufgerufen werden.");
     }
 }

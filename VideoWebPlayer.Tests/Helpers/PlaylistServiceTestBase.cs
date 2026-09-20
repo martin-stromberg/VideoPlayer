@@ -432,7 +432,7 @@ public abstract class PlaylistServiceTestBase : IDisposable
                     mediaId = collection.Id;
                     break;
                 default:
-                    throw new ArgumentException($"Nicht unterstuetzter MediaType fuer Erscheinungsdatum-Test: {mediaType}", nameof(entries));
+                    throw new ArgumentException($"Nicht unterstützter MediaType für Erscheinungsdatum-Test: {mediaType}", nameof(entries));
             }
 
             _db.PlaylistEntries.Add(new PlaylistEntry

@@ -40,7 +40,7 @@ else if (playlist is not null)
                  onerror="this.style.display='none'" />
         }
 
-        <button class="back-arrow playlist-detail-back-button" @onclick="NavigateToOverview" title="Zurueck zur Uebersicht">
+        <button class="back-arrow playlist-detail-back-button" @onclick="NavigateToOverview" title="Zurück zur Übersicht">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
                 <path d="M15 6l-6 6 6 6" stroke="#ffe066" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
@@ -68,7 +68,7 @@ else if (playlist is not null)
                 <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v6h6" /><path d="M20 20v-6h-6" /><path d="M4.5 15a8 8 0 0 0 14.13 3.36L20 15" /><path d="M19.5 9a8 8 0 0 0-14.13-3.36L4 9" /></svg>
             </button>
             <button class="metadata-icon-btn playlist-detail-edit-button" @onclick="OpenEditForm" title="Bearbeiten">✎</button>
-            <button class="metadata-icon-btn playlist-detail-delete-button" @onclick="RequestDelete" title="Loeschen">
+            <button class="metadata-icon-btn playlist-detail-delete-button" @onclick="RequestDelete" title="Löschen">
                 <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /></svg>
             </button>
         </div>
@@ -90,7 +90,7 @@ else if (playlist is not null)
                     }
                     @if (playlist.IsPublic)
                     {
-                        <span class="playlist-public-badge" id="playlist-detail-public-badge" title="Oeffentlich - fuer alle Anwender sichtbar und abspielbar (nur lesend)">Oeffentlich</span>
+                        <span class="playlist-public-badge" id="playlist-detail-public-badge" title="Öffentlich - für alle Anwender sichtbar und abspielbar (nur lesend)">Öffentlich</span>
                     }
                 </div>
                 @if (!string.IsNullOrWhiteSpace(playlist.Description))
@@ -116,7 +116,7 @@ else if (playlist is not null)
                             <button class="metadata-icon-btn playlist-genre-edit-button" id="playlist-detail-edit-genres-button" @onclick="OpenGenreEditor" title="Genres bearbeiten">✎</button>
                             @if (playlist.GenresManuallyOverridden)
                             {
-                                <button class="metadata-icon-btn playlist-genre-reset-button" id="playlist-detail-reset-genres-button" @onclick="ResetGenresAsync" title="Auf automatische Genres zuruecksetzen">↺</button>
+                                <button class="metadata-icon-btn playlist-genre-reset-button" id="playlist-detail-reset-genres-button" @onclick="ResetGenresAsync" title="Auf automatische Genres zurücksetzen">↺</button>
                             }
                         </span>
                     }
@@ -248,8 +248,8 @@ else if (playlist is not null)
 
     private string PublicToggleTitle
         => playlist?.IsPublic == true
-            ? "Kennzeichnung \"oeffentlich\" entfernen (Playlist wieder privat)"
-            : "Als oeffentlich kennzeichnen (fuer alle Anwender sichtbar, nur lesend)";
+            ? "Kennzeichnung \"öffentlich\" entfernen (Playlist wieder privat)"
+            : "Als öffentlich kennzeichnen (für alle Anwender sichtbar, nur lesend)";
 
     /// <summary>
     /// URL of the playlist's cover image, cache-busted via <see cref="DtoPlaylist.CoverPictureId"/> (which
@@ -424,7 +424,7 @@ else if (playlist is not null)
         catch (Exception ex)
         {
             Logger.LogWarning(ex, "Fehler beim Loeschen der Playlist {PlaylistId}", Id);
-            loadError = $"Fehler beim Loeschen der Playlist: {ex.Message}";
+            loadError = $"Fehler beim Löschen der Playlist: {ex.Message}";
             deleteState.Cancel();
         }
     }
@@ -454,8 +454,8 @@ else if (playlist is not null)
         {
             Logger.LogWarning(ex, "Fehler beim Aendern der Oeffentlich-Kennzeichnung von Playlist {PlaylistId}", Id);
             publicStatusMessage = ex is HttpRequestException { StatusCode: System.Net.HttpStatusCode.Forbidden }
-                ? "Nur Administratoren duerfen die Kennzeichnung \"oeffentlich\" aendern."
-                : $"Fehler beim Aendern der Kennzeichnung: {ex.Message}";
+                ? "Nur Administratoren dürfen die Kennzeichnung \"öffentlich\" ändern."
+                : $"Fehler beim Ändern der Kennzeichnung: {ex.Message}";
         }
         finally
         {
@@ -510,7 +510,7 @@ else if (playlist is not null)
                 ConfirmLossOfManualOrder = false
             });
             await ReloadEntriesAsync();
-        }, "Fehler beim Aendern des Sortiermodus", ex =>
+        }, "Fehler beim Ändern des Sortiermodus", ex =>
         {
             if (ex is HttpRequestException { StatusCode: System.Net.HttpStatusCode.Conflict })
             {
@@ -531,7 +531,7 @@ else if (playlist is not null)
                 ConfirmLossOfManualOrder = true
             });
             await ReloadEntriesAsync();
-        }, "Fehler beim Aendern des Sortiermodus");
+        }, "Fehler beim Ändern des Sortiermodus");
     }
 
     private void CancelSortModeChange()
@@ -571,7 +571,7 @@ else if (playlist is not null)
         catch (Exception ex)
         {
             Logger.LogWarning(ex, "Fehler beim Zuruecksetzen der Genres von Playlist {PlaylistId}", Id);
-            genreStatusMessage = $"Fehler beim Zuruecksetzen der Genres: {ex.Message}";
+            genreStatusMessage = $"Fehler beim Zurücksetzen der Genres: {ex.Message}";
         }
     }
 

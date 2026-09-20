@@ -77,15 +77,15 @@ public sealed class PlaylistPlaybackE2ETests : PlaylistsE2ETestBase
         if (SkipBrowser)
             return;
 
-        var movie1Id = await SeedMovieAsync("Zurueckschalten-Film-1");
+        var movie1Id = await SeedMovieAsync("Zurückschalten-Film-1");
         await LoginAsync(UserAEmail);
         await GrantMediaSourceAccessForUserAsync(UserAEmail);
-        var row = await CreatePlaylistViaUiAsync("Zurueckschalten-Playlist");
+        var row = await CreatePlaylistViaUiAsync("Zurückschalten-Playlist");
         await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
-        await SelectSearchResultAsync("Zurueckschalten-Film-1", "Movie", movie1Id);
-        var movie2Id = await SeedMovieAsync("Zurueckschalten-Film-2");
-        await SelectSearchResultAsync("Zurueckschalten-Film-2", "Movie", movie2Id);
+        await SelectSearchResultAsync("Zurückschalten-Film-1", "Movie", movie1Id);
+        var movie2Id = await SeedMovieAsync("Zurückschalten-Film-2");
+        await SelectSearchResultAsync("Zurückschalten-Film-2", "Movie", movie2Id);
 
         await Page.Locator($".playlist-entry-row[data-media-type='Movie'][data-media-id='{movie2Id}'] .playlist-entry-play-button").ClickAsync();
         await Page.WaitForSelectorAsync("#video-player-element");

@@ -116,8 +116,8 @@ public class PlaylistServiceTests_GetEntriesPaged : PlaylistServiceTestBase
     public async Task GetEntriesPaged_SortsWithFallbackToAddedAt_WhenDateAndHierarchyMissing()
     {
         var ct = TestContext.Current.CancellationToken;
-        var movieAId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Spaeter hinzugefuegt");
-        var movieBId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Zuerst hinzugefuegt");
+        var movieAId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Später hinzugefügt");
+        var movieBId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Zuerst hinzugefügt");
 
         var playlist = new Playlist
         {
@@ -172,14 +172,14 @@ public class PlaylistServiceTests_GetEntriesPaged : PlaylistServiceTestBase
         var episode = await _db.TVShowEpisodes.AsNoTracking().FirstAsync(ct);
 
         var playlistId = await CreateTestPlaylistWithReleaseDatesAsync(_testUserId,
-            (MediaTypeValues.Movie, "Film Frueh", new DateTime(2020, 1, 1)),
-            (MediaTypeValues.Movie, "Film Spaet", new DateTime(2022, 1, 1)));
+            (MediaTypeValues.Movie, "Film Früh", new DateTime(2020, 1, 1)),
+            (MediaTypeValues.Movie, "Film Spät", new DateTime(2022, 1, 1)));
         _db.PlaylistEntries.Add(new PlaylistEntry { PlaylistId = playlistId, MediaType = MediaTypeValues.TVShowEpisode, MediaId = episode.Id, AddedAt = DateTime.UtcNow });
         await _db.SaveChangesAsync(ct);
 
         var result = await _service.GetPlaylistEntriesPagedAsync(playlistId, _testUserId, 1, 20, ct);
 
-        Assert.Equal(new[] { "Film Frueh", episode.Name, "Film Spaet" }, result.Entries.Select(e => e.MediaTitle));
+        Assert.Equal(new[] { "Film Früh", episode.Name, "Film Spät" }, result.Entries.Select(e => e.MediaTitle));
     }
 
     [Fact]
@@ -337,8 +337,8 @@ public class PlaylistServiceTests_GetEntriesPaged : PlaylistServiceTestBase
     public async Task GetEntriesPaged_ManualMode_NullSortOrder_FallsBackToAddedAt()
     {
         var ct = TestContext.Current.CancellationToken;
-        var movie1Id = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Spaeter hinzugefuegt");
-        var movie2Id = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Zuerst hinzugefuegt");
+        var movie1Id = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Später hinzugefügt");
+        var movie2Id = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Zuerst hinzugefügt");
         var playlistId = await CreateTestManualPlaylistWithEntriesAsync(_testUserId);
         var baseTime = DateTime.UtcNow;
         _db.PlaylistEntries.Add(new PlaylistEntry { PlaylistId = playlistId, MediaType = MediaTypeValues.Movie, MediaId = movie1Id, SortOrder = null, AddedAt = baseTime.AddMinutes(10) });

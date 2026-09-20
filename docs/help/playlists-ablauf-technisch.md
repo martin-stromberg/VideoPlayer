@@ -524,7 +524,7 @@ scrollt.
 
 ```mermaid
 flowchart TD
-    A[GET .../entries/paged] --> B{pageNumber/pageSize gueltig?}
+    A[GET .../entries/paged] --> B{pageNumber/pageSize gültig?}
     B -->|Nein| B1[400 Bad Request]
     B -->|Ja| C[GetOwnedPlaylist]
     C -->|Not Owner| C1[403 Forbidden]
@@ -535,7 +535,7 @@ flowchart TD
     E -->|Manual| G[SortByAddedAt]
     F --> H[Skip/Take Seite]
     G --> H
-    H --> I[LoadTitles nur fuer Seite]
+    H --> I[LoadTitles nur für Seite]
     I --> J[BuildDtoPlaylistEntriesPagedResult]
     J --> K[200 OK]
 ```
@@ -571,7 +571,7 @@ Upload-Schaltfläche; der Dialog ruft `IPlaylistApiClient.UploadPlaylistCoverAsy
 **Server-seitig (`PlaylistsController.UploadPlaylistCover`):**
 
 1. `CheckLogedIn()` — Authentifizierung
-2. `file is null || file.Length == 0` → HTTP 400 (`"Es wurde keine Datei ausgewaehlt."`)
+2. `file is null || file.Length == 0` → HTTP 400 (`"Es wurde keine Datei ausgewählt."`)
 3. `file.Length > MaxCoverImageSizeBytes` → HTTP 400 **vor** jedem Stream-Zugriff — ein übergroßer
    Upload wird nie in den Speicher gepuffert. Bewusst kein `[RequestSizeLimit]`: das Limit ist
    zur Laufzeit konfigurierbar und soll nicht mit einem Compile-Zeit-Attribut auseinanderlaufen.
@@ -635,7 +635,7 @@ Upload-Schaltfläche; der Dialog ruft `IPlaylistApiClient.UploadPlaylistCoverAsy
    - Keine Bilder vorhanden oder Generierungsfehler → `null` (Fehler werden geloggt, nicht
      geworfen — konsistent mit den übrigen Bild-Generatoren)
 3. Bei `null`: HTTP 200 mit `DtoPlaylistCoverResult { Success = false, Message = "Keine Bilder
-   verfuegbar." }` — das bestehende Cover bleibt **unverändert** (auch ein hochgeladenes)
+   verfügbar." }` — das bestehende Cover bleibt **unverändert** (auch ein hochgeladenes)
 4. **Sicherheitsabfrage:** Ist `Playlist.CoverPictureIsUserUploaded` gesetzt und
    `confirmReplaceUploadedCover` nicht `true`, wirft der Service (erst nach erfolgreicher
    Collage-Erzeugung, damit ohne Quellbilder keine sinnlose Rückfrage entsteht) eine
@@ -695,7 +695,7 @@ Upload und Regenerierung enden beide hier:
 ```csharp
 var oldPictureId = playlist.CoverPictureId;
 await _db.Pictures.AddAsync(newPicture, cancellationToken);
-playlist.CoverPicture = newPicture;                    // Navigation statt Id: EF loest die neue
+playlist.CoverPicture = newPicture;                    // Navigation statt Id: EF löst die neue
 playlist.CoverPictureIsUserUploaded = isUserUploaded;  // Id nach dem Insert selbst auf
 if (oldPictureId.HasValue) { /* altes Picture laden und Remove() */ }
 await _db.SaveChangesAsync(cancellationToken);
@@ -740,14 +740,14 @@ flowchart TD
     A[POST cover/upload] --> B[CheckLogedIn]
     B --> C{file leer?}
     C -->|Ja| C1[400 keine Datei]
-    C -->|Nein| D{file.Length groesser max?}
-    D -->|Ja| D1[400 zu gross - vor dem Puffern]
+    C -->|Nein| D{file.Length größer max?}
+    D -->|Ja| D1[400 zu groß - vor dem Puffern]
     D -->|Nein| E[Puffern zu byte-Array]
     E --> F[SetPlaylistCoverAsync]
     F --> G[GetOwnedPlaylistAsync]
     G -->|403/404| G1[Fehler]
     G -->|OK| H[PlaylistCoverValidator]
-    H -->|ungueltig| H1[400 InvalidOperationException]
+    H -->|ungültig| H1[400 InvalidOperationException]
     H -->|OK| I[Neues Picture IsGeneratedBackground=false]
     I --> J[ReplaceCoverPictureAsync]
 
@@ -760,7 +760,7 @@ flowchart TD
     N -->|Ja| O[Compose JPEG-Collage]
     O --> P[Neues Picture IsGeneratedBackground=true]
     P --> J
-    J --> Q[Ein SaveChangesAsync: Insert + FK + altes Bild loeschen]
+    J --> Q[Ein SaveChangesAsync: Insert + FK + altes Bild löschen]
     Q --> R[200 Success=true + PictureId]
 ```
 

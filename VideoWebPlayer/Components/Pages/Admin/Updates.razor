@@ -32,7 +32,7 @@ else
             <div>
                 <span class="admin-kicker">Administration</span>
                 <h1>Systemupdates</h1>
-                <p>Update-Status pruefen, Versionen vergleichen und automatische Update- sowie Backup-Einstellungen verwalten.</p>
+                <p>Update-Status prüfen, Versionen vergleichen und automatische Update- sowie Backup-Einstellungen verwalten.</p>
             </div>
             <span class="admin-chip @GetStatusChipClass(status)" data-testid="update-state">@GetStateLabel(status.State)</span>
         </header>
@@ -68,11 +68,11 @@ else
                         <dd>@Empty(status.InstalledVersion)</dd>
                     </div>
                     <div>
-                        <dt>Verfuegbar</dt>
+                        <dt>Verfügbar</dt>
                         <dd>@Empty(status.AvailableVersion ?? status.LastCheckResult?.AvailableVersion)</dd>
                     </div>
                     <div>
-                        <dt>Letzte Pruefung</dt>
+                        <dt>Letzte Prüfung</dt>
                         <dd>@FormatDate(status.LastCheckedAt)</dd>
                     </div>
                 </dl>
@@ -91,14 +91,14 @@ else
                 else if (!string.IsNullOrWhiteSpace(checkSuccessMessage))
                 {
                     <div class="update-inline-message update-inline-message-success" role="status">
-                        <strong>Updatepruefung abgeschlossen</strong>
+                        <strong>Updateprüfung abgeschlossen</strong>
                         <span>@checkSuccessMessage</span>
                     </div>
                 }
                 else if (!string.IsNullOrWhiteSpace(checkErrorMessage))
                 {
                     <div class="update-inline-message update-inline-message-danger" role="alert">
-                        <strong>Updatepruefung fehlgeschlagen</strong>
+                        <strong>Updateprüfung fehlgeschlagen</strong>
                         <span>@checkErrorMessage</span>
                     </div>
                 }
@@ -107,7 +107,7 @@ else
                 {
                     <div class="update-inline-message update-inline-message-warning" role="status">
                         <strong>Update-Sperre aktiv</strong>
-                        <span>Seit @FormatDate(status.LockCreatedAt) koennen keine weiteren Aktionen gestartet werden.</span>
+                        <span>Seit @FormatDate(status.LockCreatedAt) können keine weiteren Aktionen gestartet werden.</span>
                     </div>
                 }
 
@@ -144,7 +144,7 @@ else
                         <dd>@Empty(status.InstalledVersion)</dd>
                     </div>
                     <div>
-                        <dt>Verfuegbare Version</dt>
+                        <dt>Verfügbare Version</dt>
                         <dd>@Empty(status.AvailableVersion ?? status.LastCheckResult?.AvailableVersion)</dd>
                     </div>
                     <div>
@@ -186,13 +186,13 @@ else
                         <label class="update-toggle" for="automatic-checks">
                             <InputCheckbox id="automatic-checks" class="form-check-input" @bind-Value="model.AutomaticChecksEnabled" />
                             <span>
-                                <strong>Automatische Pruefung</strong>
-                                <small>Regelmaessig nach neuen Versionen suchen.</small>
+                                <strong>Automatische Prüfung</strong>
+                                <small>Regelmäßig nach neuen Versionen suchen.</small>
                             </span>
                         </label>
 
                         <div class="update-field">
-                            <label class="form-label" for="check-interval">Pruefintervall in Minuten</label>
+                            <label class="form-label" for="check-interval">Prüfintervall in Minuten</label>
                             <InputNumber id="check-interval" class="form-control admin-mono" @bind-Value="model.CheckIntervalMinutes" min="1" max="1440" />
                             <ValidationMessage For="@(() => model.CheckIntervalMinutes)" />
                         </div>
@@ -201,17 +201,17 @@ else
                             <InputCheckbox id="allow-prerelease" class="form-check-input" @bind-Value="model.AllowPrereleaseUpdates" />
                             <span>
                                 <strong>Vorabversionen akzeptieren</strong>
-                                <small>Prerelease-Versionen in die Pruefung einbeziehen.</small>
+                                <small>Prerelease-Versionen in die Prüfung einbeziehen.</small>
                             </span>
                         </label>
 
                         @if (model.AllowPrereleaseUpdates && !prereleaseWasEnabled)
                         {
                             <div class="update-inline-message update-inline-message-warning">
-                                <strong>Vorabversionen koennen experimentell sein.</strong>
+                                <strong>Vorabversionen können experimentell sein.</strong>
                                 <label class="update-toggle update-toggle-compact" for="confirm-prerelease">
                                     <InputCheckbox id="confirm-prerelease" class="form-check-input" @bind-Value="confirmPrerelease" />
-                                    <span>Prerelease-Aktivierung bestaetigen</span>
+                                    <span>Prerelease-Aktivierung bestätigen</span>
                                 </label>
                             </div>
                         }
@@ -225,7 +225,7 @@ else
                         </label>
 
                         <div class="update-field">
-                            <label class="form-label" for="service-name">Dienstname fuer Neustart</label>
+                            <label class="form-label" for="service-name">Dienstname für Neustart</label>
                             <InputText id="service-name" class="form-control" @bind-Value="model.ServiceName" />
                             <ValidationMessage For="@(() => model.ServiceName)" />
                         </div>
@@ -265,7 +265,7 @@ else
                 </div>
 
                 <div class="update-form-actions">
-                    <button class="btn btn-ghost" type="button" @onclick="ResetDefaults" disabled="@(isBusy || defaultModel is null)" data-testid="reset-defaults">Standards zuruecksetzen</button>
+                    <button class="btn btn-ghost" type="button" @onclick="ResetDefaults" disabled="@(isBusy || defaultModel is null)" data-testid="reset-defaults">Standards zurücksetzen</button>
                     <button class="btn btn-primary update-primary-action" type="submit" disabled="@isBusy">Konfiguration speichern</button>
                 </div>
             </EditForm>
@@ -362,7 +362,7 @@ else
 
         model = defaultModel.Clone();
         confirmPrerelease = false;
-        successMessage = "Standardwerte wurden im Formular geladen. Zum Uebernehmen bitte die Konfiguration speichern.";
+        successMessage = "Standardwerte wurden im Formular geladen. Zum Übernehmen bitte die Konfiguration speichern.";
         errorMessage = null;
     }
 
@@ -374,7 +374,7 @@ else
         if (model.AllowPrereleaseUpdates && !prereleaseWasEnabled && !confirmPrerelease)
         {
             model.AllowPrereleaseUpdates = false;
-            errorMessage = "Prerelease-Versionen wurden nicht aktiviert, weil die Sicherheitsabfrage nicht bestaetigt wurde.";
+            errorMessage = "Prerelease-Versionen wurden nicht aktiviert, weil die Sicherheitsabfrage nicht bestätigt wurde.";
             successMessage = null;
             return;
         }
@@ -458,8 +458,8 @@ else
 
     private static string GetStateLabel(AutoUpdateState state) => state switch
     {
-        AutoUpdateState.Checking => "Pruefung",
-        AutoUpdateState.UpdateAvailable => "Update verfuegbar",
+        AutoUpdateState.Checking => "Prüfung",
+        AutoUpdateState.UpdateAvailable => "Update verfügbar",
         AutoUpdateState.Downloading => "Download",
         AutoUpdateState.ReadyToInstall => "Bereit",
         AutoUpdateState.Installing => "Installation",
@@ -472,11 +472,11 @@ else
 
     private static string GetStatusText(AutoUpdateStatusSnapshot snapshot) => snapshot.State switch
     {
-        AutoUpdateState.Checking => "Update-Pruefung laeuft.",
-        AutoUpdateState.UpdateAvailable => "Eine neue Version ist verfuegbar.",
+        AutoUpdateState.Checking => "Update-Prüfung läuft.",
+        AutoUpdateState.UpdateAvailable => "Eine neue Version ist verfügbar.",
         AutoUpdateState.Downloading => "Update-Paket wird heruntergeladen.",
         AutoUpdateState.ReadyToInstall => "Das Update ist bereit zur Installation.",
-        AutoUpdateState.Installing => "Installation laeuft.",
+        AutoUpdateState.Installing => "Installation läuft.",
         AutoUpdateState.Success => "Die letzte Update-Aktion war erfolgreich.",
         AutoUpdateState.Failed => "Die letzte Update-Aktion ist fehlgeschlagen.",
         AutoUpdateState.Disabled => "Automatische Updates sind deaktiviert.",
@@ -489,7 +489,7 @@ else
         if (string.IsNullOrWhiteSpace(availableVersion))
             return $"Installierte Version {Empty(snapshot.InstalledVersion)}";
 
-        return $"Installierte Version {Empty(snapshot.InstalledVersion)}, verfuegbare Version {availableVersion}";
+        return $"Installierte Version {Empty(snapshot.InstalledVersion)}, verfügbare Version {availableVersion}";
     }
 
     private static string FormatDate(DateTimeOffset? value)
@@ -498,7 +498,7 @@ else
     private static string FormatDownload(AutoUpdateDownloadResult? result)
         => result is null
             ? "Noch kein Download vorhanden."
-            : $"{Path.GetFileName(result.LocalPath)} ({FormatBytes(result.SizeBytes)}, Pruefsumme {(result.ChecksumValid ? "gueltig" : "ungueltig")})";
+            : $"{Path.GetFileName(result.LocalPath)} ({FormatBytes(result.SizeBytes)}, Prüfsumme {(result.ChecksumValid ? "gültig" : "ungültig")})";
 
     private static string FormatInstall(AutoUpdateInstallResult? result)
         => result is null
@@ -538,14 +538,14 @@ else
     {
         public bool AutomaticChecksEnabled { get; set; } = true;
 
-        [Range(1, 24 * 60, ErrorMessage = "Das Pruefintervall muss zwischen 1 und 1440 Minuten liegen.")]
+        [Range(1, 24 * 60, ErrorMessage = "Das Prüfintervall muss zwischen 1 und 1440 Minuten liegen.")]
         public int CheckIntervalMinutes { get; set; } = 360;
 
         public bool AllowPrereleaseUpdates { get; set; }
 
         public bool AutomaticInstallationEnabled { get; set; }
 
-        [MaxLength(200, ErrorMessage = "Der Dienstname darf hoechstens 200 Zeichen lang sein.")]
+        [MaxLength(200, ErrorMessage = "Der Dienstname darf höchstens 200 Zeichen lang sein.")]
         public string? ServiceName { get; set; }
 
         public bool CreateBackupBeforeInstallation { get; set; } = true;
@@ -553,10 +553,10 @@ else
         public bool CancelInstallationOnBackupFailure { get; set; } = true;
 
         [Required(ErrorMessage = "Der Backup-Pfad ist erforderlich.")]
-        [MaxLength(1024, ErrorMessage = "Der Backup-Pfad darf hoechstens 1024 Zeichen lang sein.")]
+        [MaxLength(1024, ErrorMessage = "Der Backup-Pfad darf höchstens 1024 Zeichen lang sein.")]
         public string UpdateBackupPath { get; set; } = "Backups";
 
-        [Range(1, 10, ErrorMessage = "Es koennen 1 bis 10 Update-Backups aufbewahrt werden.")]
+        [Range(1, 10, ErrorMessage = "Es können 1 bis 10 Update-Backups aufbewahrt werden.")]
         public int RetainedUpdateBackupCount { get; set; } = 5;
 
         public static SettingsModel FromSettings(VideoWebPlayer.Data.UpdateSettings settings)

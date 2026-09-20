@@ -29,7 +29,7 @@ public class PlaylistServiceTests_AddMedia : PlaylistServiceTestBase
         Assert.Null(result.TopLevelEntry.ParentMediaId);
         Assert.Single(result.AddedEntries);
         Assert.Equal(0, result.SkippedDuplicateCount);
-        Assert.Equal("1 Titel hinzugefuegt.", result.Message);
+        Assert.Equal("1 Titel hinzugefügt.", result.Message);
     }
 
     [Fact]
@@ -62,7 +62,7 @@ public class PlaylistServiceTests_AddMedia : PlaylistServiceTestBase
         // Show + Season + 2 new episodes = 4 added; 1 episode already existed and is skipped.
         Assert.Equal(4, result.AddedEntries.Length);
         Assert.Equal(1, result.SkippedDuplicateCount);
-        Assert.Equal("4 Titel hinzugefuegt, 1 bereits vorhanden und uebersprungen.", result.Message);
+        Assert.Equal("4 Titel hinzugefügt, 1 bereits vorhanden und übersprungen.", result.Message);
     }
 
     [Fact]
@@ -108,7 +108,7 @@ public class PlaylistServiceTests_AddMedia : PlaylistServiceTestBase
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(
             () => _service.AddMediaToPlaylistAsync(playlistId, _testUserId, "UnknownType", 1, ct));
 
-        Assert.Equal("Ungueltiger Medientyp.", ex.Message);
+        Assert.Equal("Ungültiger Medientyp.", ex.Message);
     }
 
     [Fact]
@@ -222,7 +222,7 @@ public class PlaylistServiceTests_AddMedia : PlaylistServiceTestBase
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(
             () => limitedService.AddMediaToPlaylistAsync(playlistId, _testUserId, MediaTypeValues.Movie, newMovieId, ct));
 
-        Assert.Equal("Die maximale Anzahl an Playlist-Eintraegen wurde erreicht.", ex.Message);
+        Assert.Equal("Die maximale Anzahl an Playlist-Einträgen wurde erreicht.", ex.Message);
         Assert.False(await _db.PlaylistEntries.AsNoTracking()
             .AnyAsync(e => e.PlaylistId == playlistId && e.MediaType == MediaTypeValues.Movie && e.MediaId == newMovieId, ct));
     }

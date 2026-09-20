@@ -11,7 +11,7 @@
 
    Datenschutz: gezeigt wird nur, was zum Ansehen/Abspielen noetig ist (Name, Beschreibung, Genres, Cover,
    Sortiersymbol, Daten) - niemals Angaben zum Besitzer. *@
-<a class="media-box-link playlist-row" href="@($"/playlists/{Playlist.Id}")" data-playlist-name="@Playlist.Name" title="@Playlist.Name" aria-label="Playlist &quot;@(Playlist.Name)&quot; oeffnen">
+<a class="media-box-link playlist-row" href="@($"/playlists/{Playlist.Id}")" data-playlist-name="@Playlist.Name" title="@Playlist.Name" aria-label="Playlist &quot;@(Playlist.Name)&quot; öffnen">
     <div class="media-box playlist-card">
         @* Platzhalter liegt immer darunter (billig: Farbverlauf + Symbol) und wird nur sichtbar, wenn kein
            Cover gesetzt ist oder das Bild nicht ladbar ist (onerror blendet das <img> aus) - vermeidet einen
@@ -39,9 +39,9 @@
                 @if (ShowPublicBadge && Playlist.IsPublic)
                 {
                     @* Dezentes Kennzeichen (Entwicklungsschritt 11): diese eigene Playlist ist oeffentlich. *@
-                    <span class="playlist-public-badge" title="Oeffentlich - fuer alle Anwender sichtbar und abspielbar (nur lesend)">
+                    <span class="playlist-public-badge" title="Öffentlich - für alle Anwender sichtbar und abspielbar (nur lesend)">
                         <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M3 12h18" /><path d="M12 3a14 14 0 0 1 0 18" /><path d="M12 3a14 14 0 0 0 0 18" /></svg>
-                        <span>Oeffentlich</span>
+                        <span>Öffentlich</span>
                     </span>
                 }
                 <span class="playlist-card-dates">

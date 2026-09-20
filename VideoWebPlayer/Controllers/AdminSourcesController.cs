@@ -51,7 +51,7 @@ public class AdminSourcesController : ApiBaseController
                 return Unauthorized("Benutzer ist nicht authentifiziert.");
 
             if (!User.HasClaim("IsAdmin", "True"))
-                return Forbid("Nur Administratoren duerfen Quellen loeschen.");
+                return Forbid("Nur Administratoren dürfen Quellen löschen.");
 
             var source = await _db.MediaSources.FindAsync(new object[] { id }, cancellationToken);
             if (source is null)

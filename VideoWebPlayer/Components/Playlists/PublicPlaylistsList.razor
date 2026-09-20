@@ -6,7 +6,7 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @rendermode InteractiveServer
 
-<PageTitle>Oeffentliche Playlists</PageTitle>
+<PageTitle>Öffentliche Playlists</PageTitle>
 
 @* Eigene, von den eigenen Playlists getrennte Uebersicht (Entwicklungsschritt 11): alle Playlists, die ein
    Administrator als oeffentlich gekennzeichnet hat. Sie sind fuer jeden Anwender sichtbar und abspielbar,
@@ -15,7 +15,7 @@
    (PlaylistDetail.razor), die fuer Nicht-Besitzer im Nur-Lese-Modus rendert. *@
 <section class="media-section">
     <div class="admin-card-header">
-        <h1>Oeffentliche Playlists</h1>
+        <h1>Öffentliche Playlists</h1>
         <a class="btn btn-outline-primary" id="own-playlists-link" href="/playlists">Meine Playlists</a>
     </div>
 
@@ -44,8 +44,8 @@
     else if (playlists.Count == 0)
     {
         <div class="admin-empty-state" id="public-playlists-empty">
-            <strong>Keine oeffentlichen Playlists vorhanden</strong>
-            <span>Sobald ein Administrator eine Playlist oeffentlich macht, erscheint sie hier.</span>
+            <strong>Keine öffentlichen Playlists vorhanden</strong>
+            <span>Sobald ein Administrator eine Playlist öffentlich macht, erscheint sie hier.</span>
         </div>
     }
     else
@@ -84,7 +84,7 @@
         }
         catch (Exception ex)
         {
-            loadError = $"Fehler beim Laden der oeffentlichen Playlists: {ex.Message}";
+            loadError = $"Fehler beim Laden der öffentlichen Playlists: {ex.Message}";
         }
         finally
         {

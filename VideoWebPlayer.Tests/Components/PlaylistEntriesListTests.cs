@@ -31,7 +31,7 @@ public class PlaylistEntriesListTests
             .ReturnsAsync(new DtoPlaylistEntriesPagedResult { Entries = Array.Empty<DtoPlaylistEntry>(), HasNextPage = false, TotalCount = 0 });
         playlistClientMock
             .Setup(c => c.AddMediaToPlaylistAsync(It.IsAny<long>(), It.IsAny<DtoAddMediaToPlaylistRequest>()))
-            .ReturnsAsync(new DtoPlaylistAddResult { Message = "1 Titel hinzugefuegt." });
+            .ReturnsAsync(new DtoPlaylistAddResult { Message = "1 Titel hinzugefügt." });
 
         ctx.Services.AddSingleton<VideoWebPlayerClient>(new NoOpVideoWebPlayerClient());
         ctx.Services.AddSingleton(playlistClientMock.Object);
@@ -94,7 +94,7 @@ public class PlaylistEntriesListTests
     [Fact]
     public async Task PlaylistEntriesList_PlayableAccessibleEntry_HasPlayButtonAndDoubleClickInvokesOnPlayEntry()
     {
-        var entry = new DtoPlaylistEntry { Id = 3, PlaylistId = 1, MediaType = "Movie", MediaId = 30, MediaTitle = "Zugaenglicher Film", IsAccessible = true };
+        var entry = new DtoPlaylistEntry { Id = 3, PlaylistId = 1, MediaType = "Movie", MediaId = 30, MediaTitle = "Zugänglicher Film", IsAccessible = true };
         var (cut, onPlayEntryCalls) = RenderWithEntry(entry);
 
         var row = cut.Find(".playlist-entry-row");

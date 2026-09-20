@@ -124,7 +124,7 @@ Symbol-Schaltflächen im Kopfbereich der Detailseite offen:
   besitzt kein eigenes Bild und verwendet daher das Bild ihrer Serie), danach die der Episoden, dann
   die der Filmsammlungen und zuletzt die der Filme; innerhalb derselben Stufe zählt, welcher Inhalt
   zuerst zur Playlist hinzugefügt wurde. Enthält die Playlist keine Inhalte mit Bildern, schlägt die
-  Erzeugung fehl und die Meldung „Keine Bilder verfuegbar." wird angezeigt — die bisherige Abbildung
+  Erzeugung fehl und die Meldung „Keine Bilder verfügbar." wird angezeigt — die bisherige Abbildung
   bzw. der Platzhalter bleiben dabei unverändert bestehen.
 
 **Vorrang des eigenen Bildes:** Ein hochgeladenes Bild wird nie im Hintergrund durch eine automatisch

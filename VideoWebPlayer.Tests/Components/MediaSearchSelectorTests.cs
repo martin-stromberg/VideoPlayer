@@ -182,7 +182,7 @@ public class MediaSearchSelectorTests
             if (ResultsToReturn is T typedResult)
                 return Task.FromResult(typedResult);
 
-            throw new NotSupportedException($"Unerwarteter Rueckgabetyp {typeof(T)} in FakeVideoWebPlayerClient.");
+            throw new NotSupportedException($"Unerwarteter Rückgabetyp {typeof(T)} in FakeVideoWebPlayerClient.");
         }
     }
 }

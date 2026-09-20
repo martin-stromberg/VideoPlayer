@@ -84,12 +84,12 @@ public class PlaylistServiceTests_Playback : PlaylistServiceTestBase
         var ct = TestContext.Current.CancellationToken;
         // movieA and episodeC use the default MediaSourceId (1), which is granted source access below.
         // movieB uses a different, never-granted MediaSourceId, so it stays locked and must be skipped.
-        var movieA = new Movie { Name = "Zugaenglicher Film", MediaSourceId = 1, CreatedAt = DateTime.UtcNow };
+        var movieA = new Movie { Name = "Zugänglicher Film", MediaSourceId = 1, CreatedAt = DateTime.UtcNow };
         _db.Movies.Add(movieA);
         var movieB = new Movie { Name = "Gesperrter Film", MediaSourceId = 99, CreatedAt = DateTime.UtcNow };
         _db.Movies.Add(movieB);
         await _db.SaveChangesAsync(ct);
-        var episodeCId = await CreateTestMediaEntryAsync(MediaTypeValues.TVShowEpisode, "Zugaengliche Episode");
+        var episodeCId = await CreateTestMediaEntryAsync(MediaTypeValues.TVShowEpisode, "Zugängliche Episode");
 
         var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId,
             (MediaTypeValues.Movie, movieA.Id),

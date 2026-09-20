@@ -14,7 +14,7 @@ public class PlaylistServiceTests_Delete : PlaylistServiceTestBase
     public async Task DeletePlaylist_ValidInput_RemovesFromDb()
     {
         var ct = TestContext.Current.CancellationToken;
-        var created = await _service.CreatePlaylistAsync(_testUserId, "Zu Loeschen", null, null, ct);
+        var created = await _service.CreatePlaylistAsync(_testUserId, "Zu Löschen", null, null, ct);
 
         await _service.DeletePlaylistAsync(created.Id, _testUserId, ct);
 

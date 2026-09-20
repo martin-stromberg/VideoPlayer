@@ -21,7 +21,7 @@ public class PublicPlaylistsListTests
         var mock = new Mock<IPlaylistApiClient>();
         mock.Setup(c => c.RequestPublicPlaylistsAsync(null)).ReturnsAsync(new[]
         {
-            new DtoPlaylist { Id = 7, Name = "Fuer alle", IsPublic = true, SortMode = PlaylistSortModeValues.ByReleaseDate, CoverPictureId = 5 },
+            new DtoPlaylist { Id = 7, Name = "Für alle", IsPublic = true, SortMode = PlaylistSortModeValues.ByReleaseDate, CoverPictureId = 5 },
             new DtoPlaylist { Id = 8, Name = "Noch eine", IsPublic = true, SortMode = PlaylistSortModeValues.Manual }
         });
         using var ctx = CreateContext(mock);
@@ -31,7 +31,7 @@ public class PublicPlaylistsListTests
         var tiles = cut.FindAll("a.playlist-row");
         Assert.Equal(2, tiles.Count);
         Assert.Equal("/playlists/7", tiles[0].GetAttribute("href"));
-        Assert.Equal("Fuer alle", tiles[0].GetAttribute("data-playlist-name"));
+        Assert.Equal("Für alle", tiles[0].GetAttribute("data-playlist-name"));
         Assert.Contains("/api/playlists/7/cover", cut.Find(".playlist-card-cover-image").GetAttribute("src"));
     }
 
@@ -41,7 +41,7 @@ public class PublicPlaylistsListTests
         var mock = new Mock<IPlaylistApiClient>();
         mock.Setup(c => c.RequestPublicPlaylistsAsync(null)).ReturnsAsync(new[]
         {
-            new DtoPlaylist { Id = 7, Name = "Fuer alle", IsPublic = true, IsOwner = false }
+            new DtoPlaylist { Id = 7, Name = "Für alle", IsPublic = true, IsOwner = false }
         });
         using var ctx = CreateContext(mock);
 
@@ -85,14 +85,14 @@ public class PublicPlaylistsListTests
         mock.Setup(c => c.RequestPlaylistsAsync(null)).ReturnsAsync(new[]
         {
             new DtoPlaylist { Id = 1, Name = "Privat", IsOwner = true, IsPublic = false },
-            new DtoPlaylist { Id = 2, Name = "Oeffentlich", IsOwner = true, IsPublic = true }
+            new DtoPlaylist { Id = 2, Name = "Öffentlich", IsOwner = true, IsPublic = true }
         });
         using var ctx = CreateContext(mock);
 
         var cut = ctx.Render<PlaylistsList>();
 
         var privateTile = cut.Find("a.playlist-row[data-playlist-name='Privat']");
-        var publicTile = cut.Find("a.playlist-row[data-playlist-name='Oeffentlich']");
+        var publicTile = cut.Find("a.playlist-row[data-playlist-name='Öffentlich']");
         Assert.Empty(privateTile.QuerySelectorAll(".playlist-public-badge"));
         Assert.Single(publicTile.QuerySelectorAll(".playlist-public-badge"));
         Assert.Equal("/playlists/public", cut.Find("#public-playlists-link").GetAttribute("href"));

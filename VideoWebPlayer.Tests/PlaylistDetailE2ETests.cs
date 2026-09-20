@@ -35,12 +35,12 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
             return;
 
         await LoginAsync(UserAEmail);
-        var row = await CreatePlaylistViaUiAsync("Metadaten-Test", "Beschreibung fuer Metadaten-Test");
+        var row = await CreatePlaylistViaUiAsync("Metadaten-Test", "Beschreibung für Metadaten-Test");
         await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
 
         await Expect(Page.Locator("#playlist-detail-name")).ToHaveTextAsync("Metadaten-Test");
-        await Expect(Page.Locator("#playlist-detail-description")).ToHaveTextAsync("Beschreibung fuer Metadaten-Test");
+        await Expect(Page.Locator("#playlist-detail-description")).ToHaveTextAsync("Beschreibung für Metadaten-Test");
         await Expect(Page.Locator("#playlist-detail-sortmode")).ToHaveTextAsync("Nach Erscheinungsdatum");
 
         var createdText = await Page.Locator("#playlist-detail-created").InnerTextAsync();
@@ -56,11 +56,11 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
             return;
 
         await LoginAsync(UserAEmail);
-        var row = await CreatePlaylistViaUiAsync("Oeffnen-Navigation");
+        var row = await CreatePlaylistViaUiAsync("Öffnen-Navigation");
         await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
 
-        await Expect(Page.Locator("#playlist-detail-name")).ToHaveTextAsync("Oeffnen-Navigation");
+        await Expect(Page.Locator("#playlist-detail-name")).ToHaveTextAsync("Öffnen-Navigation");
     }
 
     [Fact]
@@ -90,7 +90,7 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
             return;
 
         await LoginAsync(UserAEmail);
-        var row = await CreatePlaylistViaUiAsync("Loeschen-Von-Detail");
+        var row = await CreatePlaylistViaUiAsync("Löschen-Von-Detail");
         await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
 
@@ -101,7 +101,7 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
 
         var currentUrl = new Uri(Page.Url);
         Assert.Equal("/playlists", currentUrl.AbsolutePath);
-        await Expect(Page.Locator(".playlist-row[data-playlist-name='Loeschen-Von-Detail']")).ToHaveCountAsync(0);
+        await Expect(Page.Locator(".playlist-row[data-playlist-name='Löschen-Von-Detail']")).ToHaveCountAsync(0);
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
             return;
 
         await LoginAsync(UserAEmail);
-        var row = await CreatePlaylistViaUiAsync("Zurueck-Von-Detail");
+        var row = await CreatePlaylistViaUiAsync("Zurück-Von-Detail");
         await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
 
@@ -175,7 +175,7 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
         // funktional bestehen und zeigt sich hier daran, dass die erste gerenderte Teilmenge kleiner als
         // die Gesamtzahl der Eintraege ist.
         var renderedCount = await Page.Locator(".playlist-entry-row").CountAsync();
-        Assert.True(renderedCount is > 0 and < 25, $"Erwartete eine virtualisierte Teilmenge der 25 Eintraege, aber es wurden {renderedCount} gerendert.");
+        Assert.True(renderedCount is > 0 and < 25, $"Erwartete eine virtualisierte Teilmenge der 25 Einträge, aber es wurden {renderedCount} gerendert.");
     }
 
     [Fact]
@@ -185,8 +185,8 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
             return;
 
         await LoginAsync(UserAEmail);
-        var row = await CreatePlaylistViaUiAsync("Infinity-Naechste-Seite");
-        await SeedMoviesIntoPlaylistAsync("Infinity-Naechste-Seite", 25);
+        var row = await CreatePlaylistViaUiAsync("Infinity-Nächste-Seite");
+        await SeedMoviesIntoPlaylistAsync("Infinity-Nächste-Seite", 25);
         await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
         await Page.WaitForTimeoutAsync(1500);
@@ -350,7 +350,7 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
         await LoginAsync(UserAEmail);
         var row = await CreatePlaylistViaUiAsync("Zugriffsstatus-Episode-Serie-Freigeschaltet");
         var (episodeId, showId) = await SeedTvShowEpisodeIntoPlaylistAsync(
-            "Zugriffsstatus-Episode-Serie-Freigeschaltet", "Serie fuer Episode");
+            "Zugriffsstatus-Episode-Serie-Freigeschaltet", "Serie für Episode");
         await UnlockMediaForUserAsync(UserAEmail, MediaTypeValues.TVShow, showId);
         await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");

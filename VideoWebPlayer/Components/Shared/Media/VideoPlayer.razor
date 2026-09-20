@@ -231,7 +231,7 @@
 
             var next = await PlaylistClient.GetNextPlaylistEntryAsync(currentPlaylistId.Value, currentPlaylistEntryId.Value);
             await ApplyPlaylistNavigationResultAsync(next, isForward: true);
-        }, "Fehler beim Wechsel zum naechsten Titel");
+        }, "Fehler beim Wechsel zum nächsten Titel");
 
     private Task OnPreviousPlaylistEntryAsync()
         => RunPlaylistNavigationActionAsync(async () =>

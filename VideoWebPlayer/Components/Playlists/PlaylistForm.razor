@@ -8,7 +8,7 @@
     <div class="admin-dialog" @onclick:stopPropagation>
         <header class="admin-card-header">
             <h2>@(PlaylistId.HasValue ? "Playlist bearbeiten" : "Neue Playlist")</h2>
-            <button class="btn btn-sm btn-outline-light" @onclick="Cancel">Schliessen</button>
+            <button class="btn btn-sm btn-outline-light" @onclick="Cancel">Schließen</button>
         </header>
 
         @if (isLoading)
@@ -50,7 +50,7 @@
                     <div class="mb-3">
                         <span class="form-label">Sortierung</span>
                         <p id="playlist-form-sortmode-readonly">
-                            @PlaylistSortModeValues.GetDisplayLabel(playlist.SortMode) (Aenderung ueber "Sortiermodus aendern" auf der Playlist-Detailseite)
+                            @PlaylistSortModeValues.GetDisplayLabel(playlist.SortMode) (Änderung über "Sortiermodus ändern" auf der Playlist-Detailseite)
                         </p>
                     </div>
                 }

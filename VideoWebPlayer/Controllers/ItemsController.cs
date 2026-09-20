@@ -87,7 +87,7 @@ public class ItemsController : ApiBaseController
         {
             CheckLogedIn();
             if (!User.HasClaim("IsAdmin", "True"))
-                return Unauthorized("Nur Administratoren duerfen Metadaten speichern.");
+                return Unauthorized("Nur Administratoren dürfen Metadaten speichern.");
 
             await _metadataEditor.UpdateAsync(request, HttpContext.RequestAborted);
             return Ok(true);
@@ -528,7 +528,7 @@ public class ItemsController : ApiBaseController
         var hasSourceAccess = await _db.MediaSourceUsers.AnyAsync(u => u.UserId == CurrentUser.Id && u.MediaSourceId == source.Id);
         var isUnlocked = await IsUnlockedAsync(entry);
         if (!_unlockedMediaService.IsAccessible(hasSourceAccess, isUnlocked))
-            throw new UnauthorizedAccessException("Fehlende Berechtigung fuer Medienquelle");
+            throw new UnauthorizedAccessException("Fehlende Berechtigung für Medienquelle");
     }
 
     private async Task<bool> IsUnlockedAsync(MediaBaseEntry entry)
@@ -570,7 +570,7 @@ public class ItemsController : ApiBaseController
             _ => null
         };
         if (mediaItem is null)
-            throw new RecordNotFoundException("Keine Medienitems fuer diesen Eintrag gefunden");
+            throw new RecordNotFoundException("Keine Medienitems für diesen Eintrag gefunden");
         return mediaItem;
     }
 
@@ -590,9 +590,9 @@ public class ItemsController : ApiBaseController
                 type = nameof(TVShowEpisode).ToLower();
 
             if (type != nameof(Movie).ToLower() && type != nameof(TVShowEpisode).ToLower())
-                return BadRequest("Ungueltiger Medientyp");
+                return BadRequest("Ungültiger Medientyp");
             if (id <= 0)
-                return BadRequest("Ungueltige ID");
+                return BadRequest("Ungültige ID");
 
             var mediaItem = await FindMediaItemAsync(type, id);
             if (mediaItem == null)

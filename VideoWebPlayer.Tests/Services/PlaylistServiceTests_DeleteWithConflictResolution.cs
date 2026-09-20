@@ -26,7 +26,7 @@ public class PlaylistServiceTests_DeleteWithConflictResolution : PlaylistService
         var ct = TestContext.Current.CancellationToken;
         var movieId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Film 42");
         var service = CreatePlaylistServiceWithConflictResolution();
-        var playlist = await service.CreatePlaylistAsync(_testUserId, "Zu Loeschen", null, null, ct);
+        var playlist = await service.CreatePlaylistAsync(_testUserId, "Zu Löschen", null, null, ct);
 
         var boundEntry = new ContinueWatchingEntry
         {
@@ -71,7 +71,7 @@ public class PlaylistServiceTests_DeleteWithConflictResolution : PlaylistService
         var ct = TestContext.Current.CancellationToken;
         var movieId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie, "Film 43");
         var service = CreatePlaylistServiceWithConflictResolution();
-        var playlist = await service.CreatePlaylistAsync(_testUserId, "Zu Loeschen Ohne Konflikt", null, null, ct);
+        var playlist = await service.CreatePlaylistAsync(_testUserId, "Zu Löschen Ohne Konflikt", null, null, ct);
 
         var boundEntry = new ContinueWatchingEntry
         {

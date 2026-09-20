@@ -36,6 +36,12 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
     protected string ServerUrl { get; private set; } = null!;
     protected bool SkipBrowser { get; private set; }
 
+    /// <summary>
+    /// The service provider of the hosted application, for E2E tests that need to seed data the
+    /// dedicated <c>Seed*</c> helpers do not cover (e.g. pictures of a specific size).
+    /// </summary>
+    protected IServiceProvider Services => _factory.Services;
+
     protected PlaylistsE2ETestBase()
     {
         _dbPath = Path.Combine(Path.GetTempPath(), $"vwp-playlists-e2e-{Guid.NewGuid()}.db");

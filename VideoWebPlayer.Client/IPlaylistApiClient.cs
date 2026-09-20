@@ -230,6 +230,15 @@ namespace VideoWebPlayer.Client
         Task<DtoPlaylistCoverResult> RegeneratePlaylistCoverAsync(long playlistId, bool confirmReplaceUploadedCover = false);
 
         /// <summary>
+        /// Composes the automatic cover collage of a playlist's current contents and returns it as image data
+        /// without saving anything (preview in the cover panel; the collage only becomes the cover via
+        /// <see cref="RegeneratePlaylistCoverAsync"/>).
+        /// </summary>
+        /// <param name="playlistId">Id of the playlist to preview the collage for.</param>
+        /// <returns>The preview; <see cref="DtoPlaylistCoverPreview.Success"/> is <c>false</c> if no source images were available.</returns>
+        Task<DtoPlaylistCoverPreview> PreviewPlaylistCoverAsync(long playlistId);
+
+        /// <summary>
         /// Deletes a playlist's cover (if any).
         /// </summary>
         /// <param name="playlistId">Id of the playlist to delete the cover of.</param>

@@ -640,6 +640,29 @@ public class PlaylistsController : ApiBaseController
     }
 
     /// <summary>
+    /// Composes the automatic cover collage of a playlist's current contents and returns it as image data
+    /// <b>without saving anything</b> (the preview in the cover panel of the detail page). The playlist's current
+    /// cover stays untouched - hence no confirmation is required here, even for an uploaded cover; the
+    /// collage only replaces the cover if the owner then applies it via <see cref="RegeneratePlaylistCover"/>
+    /// (which keeps the 409 confirmation for uploaded covers). Owner only (403 for everybody else, also for
+    /// public playlists - the collage is a mutation preview, not a read view).
+    /// </summary>
+    /// <param name="id">The playlist identifier.</param>
+    /// <returns>The preview as <see cref="DtoPlaylistCoverPreview"/>; <c>Success = false</c> if no source images are available.</returns>
+    [HttpPost("{id}/cover/preview")]
+    public Task<IActionResult> PreviewPlaylistCover(long id)
+    {
+        return ExecuteAsync(async () =>
+        {
+            CheckLogedIn();
+            var collageBytes = await _playlistService.PreviewPlaylistCoverAsync(id, CurrentUser!.Id, HttpContext.RequestAborted);
+            return collageBytes is null
+                ? Ok(new DtoPlaylistCoverPreview { Success = false, Message = "Keine Bilder verfügbar." })
+                : Ok(new DtoPlaylistCoverPreview { Success = true, ContentType = "image/jpeg", ImageData = collageBytes });
+        }, $"Erzeugen der Cover-Vorschau von Playlist {id}");
+    }
+
+    /// <summary>
     /// Gets a playlist's cover image (uploaded or generated). READ access (Entwicklungsschritt 11): the owner,
     /// or any logged-in user while the playlist is public; the cover of a private playlist of somebody else is
     /// refused with 403 (a generated cover is a collage of the playlist's contents). Mutating the cover

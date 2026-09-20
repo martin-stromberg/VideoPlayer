@@ -180,6 +180,12 @@ namespace VideoWebPlayer.Client
         }
 
         /// <inheritdoc />
+        public async Task<DtoPlaylistCoverPreview> PreviewPlaylistCoverAsync(long playlistId)
+        {
+            return await HttpPostAsync<DtoPlaylistCoverPreview>($"api/playlists/{playlistId}/cover/preview", new StringContent(string.Empty));
+        }
+
+        /// <inheritdoc />
         public async Task<DtoPlaylistCoverResult> DeletePlaylistCoverAsync(long playlistId)
         {
             return await HttpDeleteAsync<DtoPlaylistCoverResult>($"api/playlists/{playlistId}/cover");

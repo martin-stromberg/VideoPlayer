@@ -815,6 +815,10 @@ public sealed class PlaylistService : IPlaylistService
         var parentTitlesByType = await LoadTitlesForMediaRefsAsync(GetParentMediaRefs(entries), cancellationToken);
         var pictureIdsByType = await LoadPictureIdsForIdsByTypeAsync(ownIdsByType, cancellationToken);
         var accessibilityByEntry = await _accessResolver.ResolveAccessibilityAsync(entries, userId, ownIdsByType, cancellationToken);
+        var details = await LoadEntryDetailsAsync(ownIdsByType, cancellationToken);
+        var releaseDatesByType = details.ReleaseDates;
+        var plotsByType = details.Plots;
+        var episodeNumbersById = details.EpisodeNumbers;
 
         var dtos = new DtoPlaylistEntry[entries.Count];
         for (var i = 0; i < entries.Count; i++)
@@ -834,11 +838,67 @@ public sealed class PlaylistService : IPlaylistService
                 AddedAt = entry.AddedAt,
                 ResolvedPictureId = GetPictureId(entry, pictureIdsByType),
                 IsAccessible = accessibilityByEntry[entry],
-                SortOrder = entry.SortOrder
+                SortOrder = entry.SortOrder,
+                ReleaseDate = releaseDatesByType.TryGetValue(entry.MediaType, out var dates) && dates.TryGetValue(entry.MediaId, out var releaseDate) ? releaseDate : null,
+                Plot = plotsByType.TryGetValue(entry.MediaType, out var plots) && plots.TryGetValue(entry.MediaId, out var plot) ? plot : null,
+                EpisodeNumber = string.Equals(entry.MediaType, MediaTypeValues.TVShowEpisode, StringComparison.OrdinalIgnoreCase)
+                    && episodeNumbersById.TryGetValue(entry.MediaId, out var number) ? number : null
             };
         }
 
         return dtos;
+    }
+
+    /// <summary>
+    /// Bulk-loads the additional information shown for a selected entry in the header of the playlist detail
+    /// page (release date, plot, episode number) for the given ids, a handful of queries scaled to media type,
+    /// not to the number of entries.
+    /// </summary>
+    /// <param name="idsByType">The entries' own media ids, grouped by media type.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The looked-up release dates, plots and episode numbers.</returns>
+    private async Task<EntryDetailLookups> LoadEntryDetailsAsync(
+        Dictionary<string, HashSet<long>> idsByType, CancellationToken cancellationToken)
+    {
+        var releaseDates = new Dictionary<string, Dictionary<long, DateTime?>>();
+        var plots = new Dictionary<string, Dictionary<long, string?>>();
+        var episodeNumbers = new Dictionary<long, int?>();
+
+        foreach (var (mediaType, ids) in idsByType)
+        {
+            if (!MediaHierarchyRegistry.TryParseKnownMediaType(mediaType, out var parsedType))
+                continue;
+
+            var handler = MediaHierarchyRegistry.Handlers[parsedType];
+            releaseDates[mediaType] = await handler.LoadReleaseDateAsync(_db, ids, cancellationToken);
+
+            if (handler.LoadPlotAsync is not null)
+                plots[mediaType] = await handler.LoadPlotAsync(_db, ids, cancellationToken);
+
+            if (parsedType == MediaType.TVShowEpisode)
+            {
+                var sequence = await handler.GetHierarchySequenceAsync(_db, ids, cancellationToken);
+                foreach (var (id, info) in sequence)
+                    episodeNumbers[id] = info.SequenceNumber;
+            }
+        }
+
+        return new EntryDetailLookups { ReleaseDates = releaseDates, Plots = plots, EpisodeNumbers = episodeNumbers };
+    }
+
+    /// <summary>
+    /// The bulk-loaded per-entry header information of <see cref="LoadEntryDetailsAsync"/>.
+    /// </summary>
+    private sealed class EntryDetailLookups
+    {
+        /// <summary>Gets the release dates by media type and media id.</summary>
+        public required Dictionary<string, Dictionary<long, DateTime?>> ReleaseDates { get; init; }
+
+        /// <summary>Gets the plots by media type and media id.</summary>
+        public required Dictionary<string, Dictionary<long, string?>> Plots { get; init; }
+
+        /// <summary>Gets the episode numbers by episode id.</summary>
+        public required Dictionary<long, int?> EpisodeNumbers { get; init; }
     }
 
     /// <summary>
@@ -1664,6 +1724,15 @@ public sealed class PlaylistService : IPlaylistService
         };
 
         return await ReplaceCoverPictureAsync(playlist, newPicture, isUserUploaded: false, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<byte[]?> PreviewPlaylistCoverAsync(long playlistId, string userId, CancellationToken cancellationToken = default)
+    {
+        // Ownership is checked first (a foreign user must not even learn whether a collage could be
+        // composed); afterwards this only reads - nothing is added to the change tracker or saved.
+        await GetOwnedPlaylistAsync(playlistId, userId, cancellationToken);
+        return await _coverImageGenerator.GeneratePlaylistCoverAsync(playlistId, cancellationToken);
     }
 
     /// <summary>

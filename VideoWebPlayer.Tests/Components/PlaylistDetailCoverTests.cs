@@ -65,7 +65,7 @@ public class PlaylistDetailCoverTests
     {
         var playlistClientMock = CreatePlaylistClientMock(coverPictureId: null);
         playlistClientMock
-            .Setup(c => c.RegeneratePlaylistCoverAsync(1))
+            .Setup(c => c.RegeneratePlaylistCoverAsync(1, false))
             .ReturnsAsync(new DtoPlaylistCoverResult { Success = true, Message = "Cover neu erzeugt.", PictureId = 99 });
 
         using var ctx = CreateTestContext(playlistClientMock);
@@ -74,7 +74,7 @@ public class PlaylistDetailCoverTests
 
         await cut.InvokeAsync(() => cut.Find("#playlist-detail-regenerate-cover-button").Click());
 
-        playlistClientMock.Verify(c => c.RegeneratePlaylistCoverAsync(1), Times.Once);
+        playlistClientMock.Verify(c => c.RegeneratePlaylistCoverAsync(1, false), Times.Once);
         // RequestPlaylistAsync is called once for the initial load, once more after regeneration succeeds.
         playlistClientMock.Verify(c => c.RequestPlaylistAsync(1), Times.Exactly(2));
     }
@@ -84,7 +84,7 @@ public class PlaylistDetailCoverTests
     {
         var playlistClientMock = CreatePlaylistClientMock(coverPictureId: null);
         playlistClientMock
-            .Setup(c => c.RegeneratePlaylistCoverAsync(1))
+            .Setup(c => c.RegeneratePlaylistCoverAsync(1, false))
             .ReturnsAsync(new DtoPlaylistCoverResult { Success = false, Message = "Keine Bilder verfuegbar." });
 
         using var ctx = CreateTestContext(playlistClientMock);
@@ -95,6 +95,71 @@ public class PlaylistDetailCoverTests
 
         var status = Assert.Single(cut.FindAll("#playlist-cover-status"));
         Assert.Equal("Keine Bilder verfuegbar.", status.TextContent);
+    }
+
+    /// <summary>
+    /// Regression test for Abnahme-Abweichung 1 (Nachbesserungsrunde 1, Schritt 10): when the server answers
+    /// 409 Conflict because an uploaded cover would be replaced, a confirmation dialog appears instead of
+    /// the cover being replaced immediately.
+    /// </summary>
+    [Fact]
+    public async Task PlaylistDetail_ClickRegenerateButton_ServerRequiresConfirmation_ShowsDialogWithoutConfirming()
+    {
+        var playlistClientMock = CreatePlaylistClientMock(coverPictureId: 42);
+        playlistClientMock
+            .Setup(c => c.RegeneratePlaylistCoverAsync(1, false))
+            .ThrowsAsync(new HttpRequestException("Conflict", null, System.Net.HttpStatusCode.Conflict));
+
+        using var ctx = CreateTestContext(playlistClientMock);
+        ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("/playlists/1");
+        var cut = ctx.Render<PlaylistDetail>(parameters => parameters.Add(p => p.Id, 1));
+
+        await cut.InvokeAsync(() => cut.Find("#playlist-detail-regenerate-cover-button").Click());
+
+        Assert.Single(cut.FindComponents<PlaylistCoverRegenerateConfirmationDialog>());
+        Assert.Empty(cut.FindAll("#playlist-cover-status"));
+        playlistClientMock.Verify(c => c.RegeneratePlaylistCoverAsync(1, true), Times.Never);
+    }
+
+    [Fact]
+    public async Task PlaylistDetail_RegenerateConfirmationDialog_Confirm_RepeatsCallWithConfirmation()
+    {
+        var playlistClientMock = CreatePlaylistClientMock(coverPictureId: 42);
+        playlistClientMock
+            .Setup(c => c.RegeneratePlaylistCoverAsync(1, false))
+            .ThrowsAsync(new HttpRequestException("Conflict", null, System.Net.HttpStatusCode.Conflict));
+        playlistClientMock
+            .Setup(c => c.RegeneratePlaylistCoverAsync(1, true))
+            .ReturnsAsync(new DtoPlaylistCoverResult { Success = true, Message = "Cover neu erzeugt.", PictureId = 99 });
+
+        using var ctx = CreateTestContext(playlistClientMock);
+        ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("/playlists/1");
+        var cut = ctx.Render<PlaylistDetail>(parameters => parameters.Add(p => p.Id, 1));
+        await cut.InvokeAsync(() => cut.Find("#playlist-detail-regenerate-cover-button").Click());
+
+        await cut.InvokeAsync(() => cut.Find("#confirm-regenerate-cover-button").Click());
+
+        playlistClientMock.Verify(c => c.RegeneratePlaylistCoverAsync(1, true), Times.Once);
+        Assert.Empty(cut.FindComponents<PlaylistCoverRegenerateConfirmationDialog>());
+    }
+
+    [Fact]
+    public async Task PlaylistDetail_RegenerateConfirmationDialog_Cancel_ClosesDialogWithoutRegenerating()
+    {
+        var playlistClientMock = CreatePlaylistClientMock(coverPictureId: 42);
+        playlistClientMock
+            .Setup(c => c.RegeneratePlaylistCoverAsync(1, false))
+            .ThrowsAsync(new HttpRequestException("Conflict", null, System.Net.HttpStatusCode.Conflict));
+
+        using var ctx = CreateTestContext(playlistClientMock);
+        ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("/playlists/1");
+        var cut = ctx.Render<PlaylistDetail>(parameters => parameters.Add(p => p.Id, 1));
+        await cut.InvokeAsync(() => cut.Find("#playlist-detail-regenerate-cover-button").Click());
+
+        await cut.InvokeAsync(() => cut.Find("#cancel-regenerate-cover-button").Click());
+
+        playlistClientMock.Verify(c => c.RegeneratePlaylistCoverAsync(1, true), Times.Never);
+        Assert.Empty(cut.FindComponents<PlaylistCoverRegenerateConfirmationDialog>());
     }
 
     [Fact]

@@ -280,14 +280,23 @@ public interface IPlaylistService
 
     /// <summary>
     /// Regenerates a playlist's cover image as a collage of its current contents' poster pictures,
-    /// replacing its current cover (if any) - including a previously uploaded one, since this is an
-    /// explicit user action ("Neu erzeugen", Entwicklungsschritt 10).
+    /// replacing its current cover (if any). Replacing a cover the user uploaded themselves
+    /// (<see cref="Data.Playlist.CoverPictureIsUserUploaded"/>) requires <paramref name="confirmReplaceUploadedCover"/>
+    /// (otherwise an <see cref="UploadedCoverReplacementConfirmationRequiredException"/> is thrown, without
+    /// changing anything) - "Neu erzeugen", Entwicklungsschritt 10.
     /// </summary>
     /// <param name="playlistId">The playlist identifier.</param>
     /// <param name="userId">The id of the requesting (owning) user.</param>
+    /// <param name="confirmReplaceUploadedCover">
+    /// Whether the user confirmed replacing an uploaded cover image. Ignored when the current cover is
+    /// not user-uploaded, or when no source images are available (nothing would be replaced).
+    /// </param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The id of the newly generated cover picture, or <c>null</c> if no source images were available.</returns>
-    Task<long?> GeneratePlaylistCoverAsync(long playlistId, string userId, CancellationToken cancellationToken = default);
+    /// <exception cref="UploadedCoverReplacementConfirmationRequiredException">
+    /// An uploaded cover would be replaced and <paramref name="confirmReplaceUploadedCover"/> is <see langword="false"/>.
+    /// </exception>
+    Task<long?> GeneratePlaylistCoverAsync(long playlistId, string userId, bool confirmReplaceUploadedCover = false, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Saves an uploaded image as a playlist's cover, replacing its current cover (if any).

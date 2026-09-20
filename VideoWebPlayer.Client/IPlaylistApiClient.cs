@@ -201,10 +201,16 @@ namespace VideoWebPlayer.Client
 
         /// <summary>
         /// Regenerates a playlist's cover as a collage of its current contents (the "Neu erzeugen" UI action).
+        /// If the current cover was uploaded by the user and <paramref name="confirmReplaceUploadedCover"/> is
+        /// <see langword="false"/>, the request fails with an <see cref="System.Net.Http.HttpRequestException"/>
+        /// carrying HTTP 409 Conflict (<see cref="Models.DtoRegeneratePlaylistCoverConflictResponse"/>); callers
+        /// should surface a confirmation prompt and retry with <paramref name="confirmReplaceUploadedCover"/>
+        /// set to <see langword="true"/>.
         /// </summary>
         /// <param name="playlistId">Id of the playlist to regenerate the cover for.</param>
+        /// <param name="confirmReplaceUploadedCover">Whether the user confirmed replacing an uploaded cover image.</param>
         /// <returns>The regeneration result; <see cref="DtoPlaylistCoverResult.Success"/> is <c>false</c> if no source images were available.</returns>
-        Task<DtoPlaylistCoverResult> RegeneratePlaylistCoverAsync(long playlistId);
+        Task<DtoPlaylistCoverResult> RegeneratePlaylistCoverAsync(long playlistId, bool confirmReplaceUploadedCover = false);
 
         /// <summary>
         /// Deletes a playlist's cover (if any).

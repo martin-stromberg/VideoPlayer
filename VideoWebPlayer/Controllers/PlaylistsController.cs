@@ -83,6 +83,11 @@ public class PlaylistsController : ApiBaseController
             Logger.LogInformation(ex, "Bestaetigung erforderlich (Weiterschauen-Bezug) beim {LogContext}", logContext);
             return Conflict(new DtoRemovePlaylistEntryConflictResponse { IsContinueWatchingConfirmationRequired = true });
         }
+        catch (UploadedCoverReplacementConfirmationRequiredException ex)
+        {
+            Logger.LogInformation(ex, "Bestaetigung erforderlich (hochgeladenes Cover wuerde ersetzt) beim {LogContext}", logContext);
+            return Conflict(new DtoRegeneratePlaylistCoverConflictResponse { IsUploadedCoverReplacementConfirmationRequired = true });
+        }
         catch (PlaylistNotInManualSortModeException ex)
         {
             Logger.LogWarning(ex, "Playlist nicht im manuellen Sortiermodus beim {LogContext}", logContext);
@@ -572,16 +577,24 @@ public class PlaylistsController : ApiBaseController
 
     /// <summary>
     /// Regenerates a playlist's cover as a collage of its current contents (the "Neu erzeugen" UI action).
+    /// If the current cover was uploaded by the user, the caller must set
+    /// <paramref name="confirmReplaceUploadedCover"/> to <see langword="true"/> - otherwise this returns
+    /// 409 Conflict with <see cref="DtoRegeneratePlaylistCoverConflictResponse"/> instead of replacing
+    /// anything ("Ein hochgeladenes Bild hat immer Vorrang").
     /// </summary>
     /// <param name="id">The playlist identifier.</param>
-    /// <returns>The regeneration result as <see cref="DtoPlaylistCoverResult"/>, or an error result.</returns>
+    /// <param name="confirmReplaceUploadedCover">
+    /// Whether the user confirmed replacing an uploaded cover image. Ignored when the current cover is not
+    /// user-uploaded.
+    /// </param>
+    /// <returns>The regeneration result as <see cref="DtoPlaylistCoverResult"/>, a conflict response if confirmation is required, or another error result.</returns>
     [HttpPost("{id}/cover/regenerate")]
-    public Task<IActionResult> RegeneratePlaylistCover(long id)
+    public Task<IActionResult> RegeneratePlaylistCover(long id, bool confirmReplaceUploadedCover = false)
     {
         return ExecuteAsync(async () =>
         {
             CheckLogedIn();
-            var pictureId = await _playlistService.GeneratePlaylistCoverAsync(id, CurrentUser!.Id, HttpContext.RequestAborted);
+            var pictureId = await _playlistService.GeneratePlaylistCoverAsync(id, CurrentUser!.Id, confirmReplaceUploadedCover, HttpContext.RequestAborted);
             return pictureId is null
                 ? Ok(new DtoPlaylistCoverResult { Success = false, Message = "Keine Bilder verfuegbar." })
                 : Ok(new DtoPlaylistCoverResult { Success = true, Message = "Cover neu erzeugt.", PictureId = pictureId });

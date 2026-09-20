@@ -160,9 +160,10 @@ namespace VideoWebPlayer.Client
         }
 
         /// <inheritdoc />
-        public async Task<DtoPlaylistCoverResult> RegeneratePlaylistCoverAsync(long playlistId)
+        public async Task<DtoPlaylistCoverResult> RegeneratePlaylistCoverAsync(long playlistId, bool confirmReplaceUploadedCover = false)
         {
-            return await HttpPostAsync<DtoPlaylistCoverResult>($"api/playlists/{playlistId}/cover/regenerate", new StringContent(string.Empty));
+            var query = confirmReplaceUploadedCover ? "?confirmReplaceUploadedCover=true" : string.Empty;
+            return await HttpPostAsync<DtoPlaylistCoverResult>($"api/playlists/{playlistId}/cover/regenerate{query}", new StringContent(string.Empty));
         }
 
         /// <inheritdoc />

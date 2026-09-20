@@ -1449,8 +1449,14 @@ public sealed class PlaylistService : IPlaylistService
     /// <summary>
     /// Regenerates a playlist's cover image as a collage of its current contents' poster pictures (see
     /// <see cref="PlaylistCoverImageGenerator.GeneratePlaylistCoverAsync"/> for the priority order), and
-    /// replaces the playlist's current cover (if any) with it - including an uploaded one, since this is
-    /// an explicit user action.
+    /// replaces the playlist's current cover (if any) with it. An uploaded cover
+    /// (<see cref="Playlist.CoverPictureIsUserUploaded"/>) has priority over a generated one ("Ein
+    /// hochgeladenes Bild hat immer Vorrang"), so replacing it is only allowed with an explicit
+    /// confirmation (<paramref name="confirmReplaceUploadedCover"/>) - otherwise
+    /// <see cref="UploadedCoverReplacementConfirmationRequiredException"/> is thrown and nothing changes
+    /// (same pattern as <see cref="ChangeSortModeAsync"/> and <see cref="RemoveMediaFromPlaylistAsync"/>).
+    /// The confirmation is only demanded once a collage could actually be composed: if no source images
+    /// are available, nothing is replaced and the uploaded cover stays untouched without any prompt.
     ///
     /// DESIGN DECISION (Schritt 10, Anforderung): Regeneration only ever happens here, i.e. only when
     /// explicitly triggered via the "Neu erzeugen" UI action calling this method through
@@ -1464,15 +1470,21 @@ public sealed class PlaylistService : IPlaylistService
     /// </summary>
     /// <param name="playlistId">The playlist identifier.</param>
     /// <param name="userId">The id of the requesting (owning) user.</param>
+    /// <param name="confirmReplaceUploadedCover">Whether the user confirmed replacing an uploaded cover image.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The id of the newly generated cover picture, or <c>null</c> if no source images were available.</returns>
-    public async Task<long?> GeneratePlaylistCoverAsync(long playlistId, string userId, CancellationToken cancellationToken = default)
+    /// <exception cref="UploadedCoverReplacementConfirmationRequiredException">An uploaded cover would be replaced without confirmation.</exception>
+    public async Task<long?> GeneratePlaylistCoverAsync(long playlistId, string userId, bool confirmReplaceUploadedCover = false, CancellationToken cancellationToken = default)
     {
         var playlist = await GetOwnedPlaylistAsync(playlistId, userId, cancellationToken);
 
         var collageBytes = await _coverImageGenerator.GeneratePlaylistCoverAsync(playlistId, cancellationToken);
         if (collageBytes is null)
             return null;
+
+        if (playlist.CoverPictureIsUserUploaded && !confirmReplaceUploadedCover)
+            throw new UploadedCoverReplacementConfirmationRequiredException(
+                "Das hochgeladene Bild wird durch ein automatisch erzeugtes ersetzt. Bitte bestaetigen.");
 
         var newPicture = new Picture
         {

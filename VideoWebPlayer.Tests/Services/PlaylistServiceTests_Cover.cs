@@ -123,7 +123,7 @@ public class PlaylistServiceTests_Cover : PlaylistServiceTestBase
         var ct = TestContext.Current.CancellationToken;
         var playlist = await _service.CreatePlaylistAsync(_testUserId, "Leer", null, null, ct);
 
-        var pictureId = await _service.GeneratePlaylistCoverAsync(playlist.Id, _testUserId, ct);
+        var pictureId = await _service.GeneratePlaylistCoverAsync(playlist.Id, _testUserId, cancellationToken: ct);
 
         Assert.Null(pictureId);
         var stored = await _db.Playlists.AsNoTracking().SingleAsync(p => p.Id == playlist.Id, ct);
@@ -137,7 +137,7 @@ public class PlaylistServiceTests_Cover : PlaylistServiceTestBase
         var movieId = await CreateMovieWithPosterAsync("Film");
         var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.Movie, movieId));
 
-        var pictureId = await _service.GeneratePlaylistCoverAsync(playlistId, _testUserId, ct);
+        var pictureId = await _service.GeneratePlaylistCoverAsync(playlistId, _testUserId, cancellationToken: ct);
 
         Assert.NotNull(pictureId);
         var stored = await _db.Playlists.AsNoTracking().SingleAsync(p => p.Id == playlistId, ct);
@@ -155,13 +155,13 @@ public class PlaylistServiceTests_Cover : PlaylistServiceTestBase
         var movie1 = await CreateMovieWithPosterAsync("Film 1");
         var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.Movie, movie1));
 
-        var firstPictureId = await _service.GeneratePlaylistCoverAsync(playlistId, _testUserId, ct);
+        var firstPictureId = await _service.GeneratePlaylistCoverAsync(playlistId, _testUserId, cancellationToken: ct);
         Assert.NotNull(firstPictureId);
 
         var movie2 = await CreateMovieWithPosterAsync("Film 2");
         await _service.AddMediaToPlaylistAsync(playlistId, _testUserId, MediaTypeValues.Movie, movie2, ct);
 
-        var secondPictureId = await _service.GeneratePlaylistCoverAsync(playlistId, _testUserId, ct);
+        var secondPictureId = await _service.GeneratePlaylistCoverAsync(playlistId, _testUserId, cancellationToken: ct);
 
         Assert.NotNull(secondPictureId);
         Assert.NotEqual(firstPictureId, secondPictureId);
@@ -217,6 +217,74 @@ public class PlaylistServiceTests_Cover : PlaylistServiceTestBase
         await _service.DeletePlaylistAsync(playlist.Id, _testUserId, ct);
 
         Assert.False(await _db.Pictures.AsNoTracking().AnyAsync(p => p.Id == pictureId, ct));
+    }
+
+    /// <summary>
+    /// Regression test for Abnahme-Abweichung 1 (Nachbesserungsrunde 1, Schritt 10): "Neu erzeugen"
+    /// replaced an uploaded cover without any confirmation, contradicting "Ein hochgeladenes Bild hat
+    /// immer Vorrang".
+    /// </summary>
+    [Fact]
+    public async Task GeneratePlaylistCover_UploadedCoverWithoutConfirmation_ThrowsAndKeepsUploadedCover()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var movieId = await CreateMovieWithPosterAsync("Film");
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.Movie, movieId));
+        var uploadedPictureId = await _service.SetPlaylistCoverAsync(playlistId, _testUserId, CreateJpegBytes(), "image/jpeg", ct);
+
+        await Assert.ThrowsAsync<UploadedCoverReplacementConfirmationRequiredException>(
+            () => _service.GeneratePlaylistCoverAsync(playlistId, _testUserId, cancellationToken: ct));
+
+        var stored = await _db.Playlists.AsNoTracking().SingleAsync(p => p.Id == playlistId, ct);
+        Assert.Equal(uploadedPictureId, stored.CoverPictureId);
+        Assert.True(stored.CoverPictureIsUserUploaded);
+        Assert.True(await _db.Pictures.AsNoTracking().AnyAsync(p => p.Id == uploadedPictureId, ct));
+    }
+
+    [Fact]
+    public async Task GeneratePlaylistCover_UploadedCoverWithConfirmation_ReplacesWithGeneratedCover()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var movieId = await CreateMovieWithPosterAsync("Film");
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.Movie, movieId));
+        var uploadedPictureId = await _service.SetPlaylistCoverAsync(playlistId, _testUserId, CreateJpegBytes(), "image/jpeg", ct);
+
+        var newPictureId = await _service.GeneratePlaylistCoverAsync(playlistId, _testUserId, confirmReplaceUploadedCover: true, cancellationToken: ct);
+
+        Assert.NotNull(newPictureId);
+        var stored = await _db.Playlists.AsNoTracking().SingleAsync(p => p.Id == playlistId, ct);
+        Assert.Equal(newPictureId, stored.CoverPictureId);
+        Assert.False(stored.CoverPictureIsUserUploaded);
+        Assert.False(await _db.Pictures.AsNoTracking().AnyAsync(p => p.Id == uploadedPictureId, ct));
+    }
+
+    [Fact]
+    public async Task GeneratePlaylistCover_GeneratedCoverWithoutConfirmation_ReplacesWithoutPrompt()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var movieId = await CreateMovieWithPosterAsync("Film");
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.Movie, movieId));
+        var firstPictureId = await _service.GeneratePlaylistCoverAsync(playlistId, _testUserId, cancellationToken: ct);
+
+        var secondPictureId = await _service.GeneratePlaylistCoverAsync(playlistId, _testUserId, cancellationToken: ct);
+
+        Assert.NotNull(secondPictureId);
+        Assert.NotEqual(firstPictureId, secondPictureId);
+    }
+
+    [Fact]
+    public async Task GeneratePlaylistCover_UploadedCoverButNoSourceImages_ReturnsNullWithoutPromptAndKeepsCover()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var playlist = await _service.CreatePlaylistAsync(_testUserId, "Leer", null, null, ct);
+        var uploadedPictureId = await _service.SetPlaylistCoverAsync(playlist.Id, _testUserId, CreateJpegBytes(), "image/jpeg", ct);
+
+        var result = await _service.GeneratePlaylistCoverAsync(playlist.Id, _testUserId, cancellationToken: ct);
+
+        Assert.Null(result);
+        var stored = await _db.Playlists.AsNoTracking().SingleAsync(p => p.Id == playlist.Id, ct);
+        Assert.Equal(uploadedPictureId, stored.CoverPictureId);
+        Assert.True(stored.CoverPictureIsUserUploaded);
     }
 
     private async Task<long> CreateMovieWithPosterAsync(string name)

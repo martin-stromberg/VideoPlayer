@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using VideoWebPlayer.Client.Models;
@@ -100,6 +101,43 @@ public class PlaylistsControllerTests_Cover : PlaylistsControllerTestBase
         var dto = Assert.IsType<DtoPlaylistCoverResult>(okResult.Value);
         Assert.True(dto.Success);
         Assert.NotNull(dto.PictureId);
+    }
+
+    /// <summary>
+    /// Regression test for Abnahme-Abweichung 1 (Nachbesserungsrunde 1, Schritt 10): regenerating over an
+    /// uploaded cover must require confirmation (409 Conflict) instead of silently replacing it.
+    /// </summary>
+    [Fact]
+    public async Task RegeneratePlaylistCover_UploadedCoverWithoutConfirmation_Returns409ConflictAndKeepsCover()
+    {
+        var playlistId = await CreatePlaylistAsync();
+        var movieId = await CreateMovieWithPosterAsync("Film");
+        await _controller.AddMediaToPlaylist(playlistId, new DtoAddMediaToPlaylistRequest { MediaType = MediaTypeValues.Movie, MediaId = movieId });
+        await _controller.UploadPlaylistCover(playlistId, CreateFormFile(CreateJpegBytes(), "cover.jpg", "image/jpeg"));
+
+        var result = await _controller.RegeneratePlaylistCover(playlistId);
+
+        var conflict = Assert.IsType<ConflictObjectResult>(result);
+        var dto = Assert.IsType<DtoRegeneratePlaylistCoverConflictResponse>(conflict.Value);
+        Assert.True(dto.IsUploadedCoverReplacementConfirmationRequired);
+        var stored = _db.Playlists.AsNoTracking().Single(p => p.Id == playlistId);
+        Assert.True(stored.CoverPictureIsUserUploaded);
+    }
+
+    [Fact]
+    public async Task RegeneratePlaylistCover_UploadedCoverWithConfirmation_Returns200OkAndReplacesCover()
+    {
+        var playlistId = await CreatePlaylistAsync();
+        var movieId = await CreateMovieWithPosterAsync("Film");
+        await _controller.AddMediaToPlaylist(playlistId, new DtoAddMediaToPlaylistRequest { MediaType = MediaTypeValues.Movie, MediaId = movieId });
+        await _controller.UploadPlaylistCover(playlistId, CreateFormFile(CreateJpegBytes(), "cover.jpg", "image/jpeg"));
+
+        var result = await _controller.RegeneratePlaylistCover(playlistId, confirmReplaceUploadedCover: true);
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        Assert.True(Assert.IsType<DtoPlaylistCoverResult>(okResult.Value).Success);
+        var stored = _db.Playlists.AsNoTracking().Single(p => p.Id == playlistId);
+        Assert.False(stored.CoverPictureIsUserUploaded);
     }
 
     [Fact]

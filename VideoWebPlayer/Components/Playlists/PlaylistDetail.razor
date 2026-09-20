@@ -159,6 +159,11 @@ else if (playlist is not null)
     <PlaylistSortModeConfirmationDialog OnConfirm="ConfirmSortModeChangeAsync" OnCancel="CancelSortModeChange" />
 }
 
+@if (showRegenerateCoverConfirmation)
+{
+    <PlaylistCoverRegenerateConfirmationDialog OnConfirm="ConfirmRegenerateCoverAsync" OnCancel="CancelRegenerateCover" />
+}
+
 @if (showGenreEditor && playlist is not null)
 {
     <PlaylistGenreEditor PlaylistId="Id" InitialGenreIds="playlist.AllGenreIds" OnSaved="HandleGenresSavedAsync" OnCancel="CloseGenreEditor" />
@@ -197,6 +202,7 @@ else if (playlist is not null)
     private DtoPlaylistPlaybackStart? playbackStart;
     private bool showUploadDialog;
     private bool isRegeneratingCover;
+    private bool showRegenerateCoverConfirmation;
     private string? coverStatusMessage;
 
     /// <summary>
@@ -511,19 +517,40 @@ else if (playlist is not null)
     /// <summary>
     /// Handles the "Neu erzeugen" icon button: triggers <see cref="IPlaylistApiClient.RegeneratePlaylistCoverAsync"/>
     /// and reloads the playlist so <see cref="CoverImageUrl"/> picks up the new (or, if no source images
-    /// were available, unchanged) cover.
+    /// were available, unchanged) cover. If the current cover was uploaded by the user, the server answers
+    /// 409 Conflict first (an uploaded image has priority over a generated one) and
+    /// <see cref="PlaylistCoverRegenerateConfirmationDialog"/> is shown; only its confirmation repeats the
+    /// call with <c>confirmReplaceUploadedCover</c> (see <see cref="ConfirmRegenerateCoverAsync"/>).
     /// </summary>
-    private async Task RegenerateCoverAsync()
+    private Task RegenerateCoverAsync() => RunRegenerateCoverAsync(confirmReplaceUploadedCover: false);
+
+    private Task ConfirmRegenerateCoverAsync()
+    {
+        showRegenerateCoverConfirmation = false;
+        return RunRegenerateCoverAsync(confirmReplaceUploadedCover: true);
+    }
+
+    private void CancelRegenerateCover()
+    {
+        showRegenerateCoverConfirmation = false;
+    }
+
+    private async Task RunRegenerateCoverAsync(bool confirmReplaceUploadedCover)
     {
         coverStatusMessage = null;
         isRegeneratingCover = true;
         try
         {
-            var result = await PlaylistClient.RegeneratePlaylistCoverAsync(Id);
+            var result = await PlaylistClient.RegeneratePlaylistCoverAsync(Id, confirmReplaceUploadedCover);
             if (!result.Success)
                 coverStatusMessage = result.Message;
 
             await LoadPlaylistAsync();
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Conflict)
+        {
+            // Der Server verlangt die Bestaetigung, weil ein hochgeladenes Bild ersetzt wuerde.
+            showRegenerateCoverConfirmation = true;
         }
         catch (Exception ex)
         {

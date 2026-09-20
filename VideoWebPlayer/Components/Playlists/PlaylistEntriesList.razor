@@ -91,6 +91,15 @@
             {
                 <div @ref="bottomSentinelRef" class="playlist-entries-sentinel" aria-hidden="true"></div>
             }
+            @if (loadMoreFailed)
+            {
+                @* Nach einem Ladefehler laedt die Liste NICHT von selbst nach (sonst haelte ein anhaltender
+                   Server-/Netzfehler bei sichtbarem Sentinel eine Endlosschleife an Wiederholungen am Laufen),
+                   sondern erst auf ausdruecklichen Wunsch des Nutzers. *@
+                <div class="playlist-entries-retry">
+                    <button type="button" class="btn btn-outline-primary" id="playlist-entries-retry-button" @onclick="RetryLoadNextPageAsync">Erneut versuchen</button>
+                </div>
+            }
         </div>
     }
 </div>
@@ -133,7 +142,17 @@
     private ElementReference bottomSentinelRef;
     private DotNetObjectReference<PlaylistEntriesList>? dotNetRef;
     private bool sentinelObserverConnected;
+    private bool jsObserverCreated;
     private bool isLoadingNextPage;
+
+    /// <summary>
+    /// Set when loading a page (initial or next) failed. While set, <see cref="OnBottomVisible"/> ignores
+    /// the observer and the observer is not re-armed, so a persistent error cannot turn into an endless
+    /// loop of immediate retries (a freshly connected IntersectionObserver reports a still-visible sentinel
+    /// at once); loading continues only after the user clicks "Erneut versuchen"
+    /// (<see cref="RetryLoadNextPageAsync"/>) or the list is reloaded (<see cref="LoadInitialPageAsync"/>).
+    /// </summary>
+    private bool loadMoreFailed;
 
     protected override async Task OnInitializedAsync()
     {
@@ -155,6 +174,7 @@
     /// </summary>
     private async Task LoadInitialPageAsync()
     {
+        loadMoreFailed = false;
         try
         {
             await loadPageSemaphore.WaitAsync();
@@ -183,14 +203,19 @@
             Logger.LogWarning(ex, "Fehler beim Laden der Eintraege von Playlist {PlaylistId}", PlaylistId);
             entriesStatusIsError = true;
             entriesStatusMessage = $"Fehler beim Laden der Eintraege: {ex.Message}";
+
+            // hasMorePages stays true (unknown) with an empty list: the sentinel would otherwise fire
+            // straight away and re-request the failed page - see loadMoreFailed.
+            loadMoreFailed = true;
         }
     }
 
     /// <summary>
     /// Connects the IntersectionObserver (window.observeBottom, wwwroot/js/scroll.js) to the sentinel div
-    /// whenever it is rendered (<see cref="hasMorePages"/>) but not yet observed. The observer reports
-    /// intersection with the top-level viewport, so scrolling the document - the only scrollbar on this
-    /// page, same as the series detail page - is what drives page-wise loading.
+    /// whenever it is rendered (<see cref="hasMorePages"/>) but not yet observed, and disconnects it again
+    /// once the last page is loaded (no sentinel left to observe). The observer reports intersection with
+    /// the top-level viewport, so scrolling the document - the only scrollbar on this page, same as the
+    /// series detail page - is what drives page-wise loading.
     /// </summary>
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -203,6 +228,7 @@
             {
                 dotNetRef ??= DotNetObjectReference.Create(this);
                 await JS.InvokeVoidAsync("observeBottom", bottomSentinelRef, dotNetRef);
+                jsObserverCreated = true;
             }
             catch (Exception ex) when (ex is InvalidOperationException || ex is JSDisconnectedException || ex is JSException)
             {
@@ -210,27 +236,69 @@
                 sentinelObserverConnected = false;
             }
         }
+        else if (!hasMorePages && jsObserverCreated)
+        {
+            // Last page loaded: the sentinel is gone, so the observer would only keep watching a detached
+            // element until another page calls observeBottom.
+            sentinelObserverConnected = false;
+            await DisconnectObserverAsync();
+        }
+    }
+
+    /// <summary>
+    /// Disconnects the shared JS IntersectionObserver, tolerating an already gone JS runtime.
+    /// </summary>
+    private async Task DisconnectObserverAsync()
+    {
+        jsObserverCreated = false;
+        try
+        {
+            await JS.InvokeVoidAsync("disconnectMediaSourceBottomObserver");
+        }
+        catch (Exception ex) when (ex is InvalidOperationException || ex is JSDisconnectedException || ex is JSException)
+        {
+            // JS runtime is no longer available.
+        }
     }
 
     /// <summary>
     /// Called by the IntersectionObserver in wwwroot/js/scroll.js once the sentinel at the end of the
-    /// list becomes fully visible. Loads the next page unless one is already in flight or the last page
-    /// was reached.
+    /// list becomes fully visible. Loads the next page unless one is already in flight, the last page
+    /// was reached, or the previous load failed (<see cref="loadMoreFailed"/> - then only the explicit
+    /// "Erneut versuchen" button retries).
     /// </summary>
     [JSInvokable]
     public async Task OnBottomVisible()
     {
-        if (isLoadingNextPage || !hasMorePages)
+        if (isLoadingNextPage || !hasMorePages || loadMoreFailed)
             return;
 
         await LoadNextPageAsync();
     }
 
     /// <summary>
-    /// Appends the next page of entries. Afterwards the sentinel observer is deliberately re-armed
-    /// (see <see cref="OnAfterRenderAsync"/>): IntersectionObserver only reports threshold crossings,
-    /// so a sentinel that is still fully visible after the append would otherwise never fire again and
-    /// the list would stall mid-viewport until the user wiggles the scrollbar.
+    /// The "Erneut versuchen" button shown after a failed page load: clears the error and loads the
+    /// failed page again. On success the observer is re-armed as after any successful append.
+    /// </summary>
+    private async Task RetryLoadNextPageAsync()
+    {
+        if (isLoadingNextPage)
+            return;
+
+        loadMoreFailed = false;
+        entriesStatusMessage = null;
+        entriesStatusIsError = false;
+        await LoadNextPageAsync();
+    }
+
+    /// <summary>
+    /// Appends the next page of entries. After a successful append the sentinel observer is deliberately
+    /// re-armed (see <see cref="OnAfterRenderAsync"/>): IntersectionObserver only reports threshold
+    /// crossings, so a sentinel that is still fully visible after the append would otherwise never fire
+    /// again and the list would stall mid-viewport until the user wiggles the scrollbar. After a FAILED
+    /// load it is deliberately NOT re-armed - a fresh observer reports a still-visible sentinel
+    /// immediately, which would retry the failing request in an endless loop; <see cref="loadMoreFailed"/>
+    /// makes the user retry explicitly instead.
     /// </summary>
     private async Task LoadNextPageAsync()
     {
@@ -258,6 +326,10 @@
             Logger.LogWarning(ex, "Fehler beim Nachladen der Eintraege von Playlist {PlaylistId}", PlaylistId);
             entriesStatusIsError = true;
             entriesStatusMessage = $"Fehler beim Nachladen der Eintraege: {ex.Message}";
+            loadMoreFailed = true;
+            isLoadingNextPage = false;
+            await InvokeAsync(StateHasChanged);
+            return;
         }
         finally
         {
@@ -273,17 +345,10 @@
         dotNetRef?.Dispose();
         dotNetRef = null;
 
-        if (sentinelObserverConnected)
+        if (jsObserverCreated)
         {
             sentinelObserverConnected = false;
-            try
-            {
-                await JS.InvokeVoidAsync("disconnectMediaSourceBottomObserver");
-            }
-            catch (Exception ex) when (ex is InvalidOperationException || ex is JSDisconnectedException || ex is JSException)
-            {
-                // JS runtime is no longer available.
-            }
+            await DisconnectObserverAsync();
         }
     }
 
@@ -427,8 +492,8 @@
     /// <c>docs/help/playlists-business-rules.md</c>) and are already skipped during playback navigation
     /// server-side; per customer feedback ("Wurde eine ganze Serie hinzugefuegt, so darf es keine Kachel
     /// fuer die Serie selbst oder die Staffeln geben") they must not render as their own tile either. They
-    /// stay part of the underlying, unchanged paginated entry list (see the type-level remarks above the
-    /// Virtualize usage) so paging/scroll-loading math is unaffected - only their tile is suppressed here.
+    /// stay part of the underlying, unchanged paginated entry list (see the remarks above the entry list
+    /// markup) so paging/scroll-loading math is unaffected - only their tile is suppressed here.
     /// </summary>
     private static bool IsRenderableEntry(DtoPlaylistEntry entry)
         => PlaylistEntryMediaTypeResolver.IsPlayable(entry.MediaType);

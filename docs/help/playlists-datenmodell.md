@@ -95,6 +95,29 @@ Repräsentiert einen einzelnen Medieninhalt in einer Playlist.
 - **Composite Index** auf `(PlaylistId, MediaType, MediaId)` (für Duplikatsprüfung)
 - Index auf `(PlaylistId, ParentMediaType, ParentMediaId)` (wird für die Fallback-Sortierung nach Hierarchie genutzt, siehe `playlists-business-rules.md`, BR-13)
 - Index auf `(PlaylistId, SortOrder)` (`IX_PlaylistEntries_PlaylistId_SortOrder`, für die manuelle Sortierreihenfolge)
+- Index auf `(MediaType, MediaId)` (`IX_PlaylistEntries_MediaType_MediaId`, für die Suche „welche Playlists enthalten diesen Sammel-Inhalt" bei der markierungsgesteuerten Nachlieferung, BR-18)
+
+---
+
+## Entität: `PlaylistBackfillMarker`
+
+Dauerhafte Vormerkung „dieser Sammel-Inhalt hat neue Kinder" für die automatische Nachlieferung (siehe
+`playlists-business-rules.md`, BR-18). Geschrieben vom `ApplicationDbContext` beim Speichern neuer Filme,
+Staffeln und Episoden, gelesen und entfernt vom `PlaylistBackfillCoordinator`.
+
+| Spalte | Typ | Beschreibung |
+|--------|-----|--------------|
+| `Id` | `INTEGER` (PK, Autoincrement) | Kennung |
+| `MediaType` | `TEXT`, NOT NULL | `TVShow`, `TVShowSeason` oder `MovieCollection` |
+| `MediaId` | `INTEGER`, NOT NULL | Kennung des markierten Sammel-Inhalts (kein Fremdschlüssel, wie bei `PlaylistEntry`) |
+| `MarkedAt` | `TEXT` (UTC), NOT NULL | Zeitpunkt der letzten Markierung |
+| `Version` | `INTEGER`, NOT NULL | 1 beim Anlegen, bei jeder erneuten Markierung + 1; eine Markierung wird nur entfernt, wenn ihre `Version` noch dem verarbeiteten Stand entspricht |
+
+**Unique Index** auf `(MediaType, MediaId)` - je Sammel-Inhalt höchstens eine Zeile (idempotentes Markieren per
+`INSERT ... ON CONFLICT DO UPDATE`).
+
+Zusätzlich speichert `Setups.PlaylistBackfillLastSweepAt` (`TEXT`, nullable, UTC) den Zeitpunkt des letzten
+abgeschlossenen täglichen Sicherheitslaufs.
 
 ---
 
@@ -269,6 +292,15 @@ erDiagram
 ---
 
 ## Datenbankmigrationen
+
+### Migration: `AddPlaylistBackfillMarkers` (Korrektur der automatischen Nachlieferung)
+
+Legt die Tabelle `PlaylistBackfillMarkers` (mit Unique Index auf `(MediaType, MediaId)`), den Index
+`IX_PlaylistEntries_MediaType_MediaId` auf `PlaylistEntries` und die Spalte `Setups.PlaylistBackfillLastSweepAt`
+(nullable) an. Tabelle und Spalte sind in `VideoWebPlayerBackupData` (`OptionalRestoreTables` bzw.
+`OptionalRestoreColumns`) registriert, so dass Backups aus früheren Versionen weiterhin wiederherstellbar sind
+(Regressionstests in `VideoWebPlayerBackupDataTests`). Nach dem Update gilt der Sicherheitslauf als nie gelaufen und
+wird einmal kurz nach dem ersten Start durchgeführt.
 
 ### Migration: `AddPlaylistIsPublic` (neu in Schritt 11)
 

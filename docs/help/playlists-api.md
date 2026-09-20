@@ -1435,8 +1435,10 @@ Optional kann die maximale Anzahl von Einträgen pro Playlist begrenzt werden:
     "MaxPlaylistItemCount": 1000,
     "DefaultPageSize": 20,
     "MaxPageSize": 100,
-    "BackfillIntervalMinutes": 15,
     "BackfillBatchSize": 25,
+    "BackfillBlockPauseSeconds": 2,
+    "BackfillSettleSeconds": 10,
+    "BackfillSafetySweepIntervalHours": 24,
     "AllowedCoverImageFormats": "image/jpeg,image/png,image/webp",
     "MaxCoverImageSizeBytes": 5242880,
     "MaxCoverImageWidthPixels": 4096,
@@ -1452,12 +1454,14 @@ Optional kann die maximale Anzahl von Einträgen pro Playlist begrenzt werden:
 - `MaxPlaylistItemCount`: `null` (Standard) bedeutet keine Beschränkung. Bei Überschreitung wird HTTP 400 zurückgegeben. Wird eine Playlist durch die automatische Nachlieferung (siehe unten) nachbefüllt, gilt dasselbe Limit; ist es bereits erreicht, liefert der Hintergrundprozess für diese Playlist einfach nichts nach (kein Fehler).
 - `DefaultPageSize`: Seitengröße, die `GET /api/playlists/{id}/entries/paged` verwendet, wenn kein `pageSize`-Parameter übergeben wird (Standard: `20`).
 - `MaxPageSize`: obere Grenze für den `pageSize`-Parameter von `GET /api/playlists/{id}/entries/paged` (Standard: `100`); größere Werte führen zu HTTP 400.
-- `BackfillIntervalMinutes`: Zeitabstand in Minuten, in dem der Hintergrundprozess prüft, ob Playlists mit vollständig enthaltenen Serien/Staffeln/Filmsammlungen neue Inhalte (neue Staffel, neue Episode, neuer Film) nachgeliefert bekommen sollen (Standard: `15`). Werte kleiner 1 werden wie `1` behandelt.
-- `BackfillBatchSize`: wie viele Playlists der Hintergrundprozess pro Durchlauf höchstens prüft (Standard: `25`), damit ein einzelner Durchlauf kurz bleibt; alle betroffenen Playlists werden über mehrere Durchläufe reihum abgedeckt. Werte kleiner 1 werden wie `1` behandelt.
+- `BackfillBatchSize`: wie viele Playlists der Hintergrundprozess je Arbeitseinheit (Block) höchstens verarbeitet (Standard: `25`), sowohl bei der durch Markierungen angestoßenen Nachlieferung (nur Playlists, die einen markierten Sammel-Inhalt enthalten) als auch beim täglichen Sicherheitslauf. Werte kleiner 1 werden wie `1` behandelt.
+- `BackfillBlockPauseSeconds`: Pause in Sekunden zwischen zwei Blöcken (Standard: `2`); Werte kleiner 0 werden wie `0` behandelt.
+- `BackfillSettleSeconds`: Beruhigungszeit in Sekunden zwischen dem Wecken des Hintergrundprozesses (Scan-Ende bzw. Medien außerhalb eines Scans) und der Verarbeitung (Standard: `10`); Werte kleiner 0 werden wie `0` behandelt.
+- `BackfillSafetySweepIntervalHours`: Abstand des täglichen Sicherheitslaufs über alle Playlists mit Serien/Staffeln/Filmsammlungen in Stunden (Standard: `24`); `0` schaltet ihn aus. Der Zeitpunkt des letzten Laufs wird dauerhaft gespeichert (`Setups.PlaylistBackfillLastSweepAt`). Den früheren Wert `BackfillIntervalMinutes` (Dauerprüfung alle 15 Minuten) gibt es nicht mehr; ein noch vorhandener Eintrag in der Konfiguration wird ignoriert.
 - `AllowedCoverImageFormats`: kommagetrennte Liste der für `POST /api/playlists/{id}/cover/upload` akzeptierten MIME-Types (Standard: `image/jpeg,image/png,image/webp`); Vergleich erfolgt case-insensitiv.
 - `MaxCoverImageSizeBytes`: maximale Dateigröße eines Cover-Uploads in Bytes (Standard: `5242880` = 5 MB); wird im Controller bereits vor dem Einlesen des Inhalts und erneut im `PlaylistCoverValidator` geprüft.
 - `MaxCoverImageWidthPixels` / `MaxCoverImageHeightPixels` / `MaxCoverImageTotalPixels`: maximale Breite, Höhe und Gesamtzahl der Bildpunkte (Breite × Höhe) eines Cover-Uploads (Standard: `4096` / `4096` / `16777216`); geprüft am Bildkopf, bevor das Bild dekodiert wird (Schutz vor „Decompression Bombs"). Ein Wert ≤ `0` schaltet die jeweilige Prüfung ab. Die vollständige Dekodierung zur Integritätsprüfung benötigt kurzzeitig rund 4 Byte je Bildpunkt Arbeitsspeicher.
 - `GeneratedCoverWidthPixels` / `GeneratedCoverHeightPixels`: Zielabmessungen der automatisch erzeugten Cover-Collage in Pixeln (Standard: `1600` × `520`); werden auch als `Width`/`Height` der gespeicherten `Picture`-Zeile übernommen.
 - `GeneratedCoverJpegQuality`: JPEG-Qualität (0–100) der erzeugten Collage (Standard: `85`).
 
-Es gibt für die automatische Nachlieferung keinen eigenen REST-Endpunkt - der Mechanismus läuft ausschließlich als Hintergrundprozess (`PlaylistBackfillWorker`) und verändert Playlist-Einträge über dieselben Tabellen, die auch `POST /api/playlists/{id}/entries` verwendet. Details zum fachlichen Verhalten siehe `playlists-business-rules.md`, BR-18 und BR-19.
+Es gibt für die automatische Nachlieferung keinen eigenen REST-Endpunkt - der Mechanismus läuft ausschließlich als Hintergrundprozess (`PlaylistBackfillWorker`, angestoßen durch Markierungen neu erfasster Medien, das Scan-Ende und den Serverstart, dazu ein täglicher Sicherheitslauf) und verändert Playlist-Einträge über dieselben Tabellen, die auch `POST /api/playlists/{id}/entries` verwendet. Details zum fachlichen Verhalten siehe `playlists-business-rules.md`, BR-18 und BR-19.

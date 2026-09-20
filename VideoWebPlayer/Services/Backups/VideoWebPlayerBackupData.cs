@@ -31,7 +31,8 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         nameof(ApplicationDbContext.Playlists),
         nameof(ApplicationDbContext.PlaylistEntries),
         nameof(ApplicationDbContext.PlaylistEntryExclusions),
-        nameof(ApplicationDbContext.PlaylistGenres)
+        nameof(ApplicationDbContext.PlaylistGenres),
+        nameof(ApplicationDbContext.PlaylistBackfillMarkers)
     };
 
     private static readonly HashSet<string> OptionalRestoreColumns = new(StringComparer.OrdinalIgnoreCase)
@@ -62,7 +63,8 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         $"{nameof(ApplicationDbContext.Playlists)}.{nameof(Playlist.CoverPictureId)}",
         $"{nameof(ApplicationDbContext.Playlists)}.{nameof(Playlist.CoverPictureIsUserUploaded)}",
         $"{nameof(ApplicationDbContext.Playlists)}.{nameof(Playlist.IsPublic)}",
-        $"{nameof(ApplicationDbContext.Pictures)}.{nameof(Picture.PlaylistId)}"
+        $"{nameof(ApplicationDbContext.Pictures)}.{nameof(Picture.PlaylistId)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.PlaylistBackfillLastSweepAt)}"
     };
 
     private static readonly HashSet<string> IgnoredRestoreColumns = new(StringComparer.OrdinalIgnoreCase)

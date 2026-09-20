@@ -232,6 +232,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPlaylistService, PlaylistService>();
         services.Configure<PlaylistSettings>(configuration.GetSection("Playlists"));
         services.AddScoped<PlaylistBackfillService>();
+        services.AddSingleton<PlaylistBackfillSignal>();
+        services.AddSingleton<IPlaylistBackfillSignal>(sp => sp.GetRequiredService<PlaylistBackfillSignal>());
+        services.AddSingleton<PlaylistBackfillCoordinator>();
         services.AddScoped<VideoWebPlayer.Services.PlaylistCover.PlaylistCoverValidator>();
         services.AddScoped<VideoWebPlayer.Services.PlaylistCover.PlaylistCoverImageGenerator>();
         services.AddScoped<IUnlockedMediaService, UnlockedMediaService>();

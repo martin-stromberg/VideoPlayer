@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -25,10 +25,12 @@ public abstract class PlaylistServiceTestBase : IDisposable
     protected readonly FakeAuthService _fakeAuthService;
     protected readonly IUnlockedMediaService _unlockedMediaService;
     private readonly SqliteConnection _keeperConnection;
+    protected readonly string _connectionString;
 
     protected PlaylistServiceTestBase()
     {
         var connectionString = $"Data Source=file:playlist-service-{Guid.NewGuid()}?mode=memory&cache=shared";
+        _connectionString = connectionString;
         _keeperConnection = new SqliteConnection(connectionString);
         _keeperConnection.Open();
 
@@ -77,6 +79,35 @@ public abstract class PlaylistServiceTestBase : IDisposable
             MaxPlaylistItemCount = maxPlaylistItemCount
         });
         return new PlaylistBackfillService(_db, settings);
+    }
+
+    /// <summary>
+    /// Reads the pending playlist backfill markers straight from the database (no tracking).
+    /// </summary>
+    /// <returns>The markers, ordered by media type and id.</returns>
+    protected Task<List<PlaylistBackfillMarker>> GetMarkersAsync()
+        => _db.PlaylistBackfillMarkers.AsNoTracking().OrderBy(m => m.MediaType).ThenBy(m => m.MediaId).ToListAsync();
+
+    /// <summary>
+    /// Removes all pending backfill markers, so a test can start from "nothing marked" after arranging its data.
+    /// </summary>
+    /// <returns>A task completing when the markers are removed.</returns>
+    protected Task ClearMarkersAsync()
+        => _db.PlaylistBackfillMarkers.ExecuteDeleteAsync();
+
+    /// <summary>
+    /// Runs one marker-driven backfill pass the way <see cref="PlaylistBackfillCoordinator"/> does: plans the
+    /// pending markers, backfills exactly the affected playlists in one block, and releases the markers.
+    /// </summary>
+    /// <param name="backfillService">The backfill service under test.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The block result.</returns>
+    internal async Task<PlaylistBackfillBlockResult> RunPendingBackfillAsync(PlaylistBackfillService backfillService, CancellationToken cancellationToken)
+    {
+        var plan = await backfillService.PlanPendingAsync(cancellationToken);
+        var result = await backfillService.BackfillPlaylistsAsync(plan.PlaylistIds, cancellationToken);
+        await backfillService.ReleaseMarkersAsync(plan, result.FailedPlaylistIds, cancellationToken);
+        return result;
     }
 
     /// <summary>

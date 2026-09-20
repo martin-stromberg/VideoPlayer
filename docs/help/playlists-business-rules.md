@@ -275,7 +275,7 @@ prüft dieselbe Grenze, weicht aber im Verhalten bewusst von der manuellen Add-O
 gesamten Nachlieferungs-Versuch für eine Playlist abzulehnen, füllt er nur so viele Titel nach, wie noch
 Platz ist (`MaxPlaylistItemCount - vorhandene Eintragsanzahl`), und liefert den Rest nicht nach - ohne
 Fehler, da ein Hintergrundprozess niemandem eine Fehlermeldung anzeigen kann. Ist bereits kein Platz mehr
-vorhanden, liefert der Durchlauf für diese Playlist gar nichts nach.
+vorhanden, liefert die Nachlieferung für diese Playlist gar nichts nach.
 
 ---
 
@@ -496,19 +496,76 @@ werden später hinzukommende Kind-Inhalte dieses Sammel-Eintrags (neue Staffel e
 einer Staffel, neuer Film einer Filmsammlung) automatisch in die Playlist aufgenommen, ohne dass der
 Anwender die Serie/Sammlung erneut hinzufügen muss.
 
-**Implementierung (`PlaylistBackfillService` + `PlaylistBackfillWorker`):**
-- `PlaylistBackfillWorker` (Hintergrunddienst) ruft periodisch (`Playlists:BackfillIntervalMinutes`,
-  Standard 15 Minuten) `PlaylistBackfillService.RunBatchAsync()` für einen begrenzten Ausschnitt der
-  Playlists auf (`Playlists:BackfillBatchSize`, Standard 25 Playlists pro Durchlauf); über mehrere
-  Durchläufe hinweg werden so reihum (round-robin) alle Playlists mit einem Sammel-Eintrag abgedeckt
-- Für jeden in der Playlist vorhandenen Sammel-Eintrag wird dieselbe Cascade-Abfrage genutzt wie beim
-  manuellen Hinzufügen (siehe BR-3, `MediaTypeHandler.LoadCascadeChildrenAsync`), um die *aktuell*
-  existierenden Kind-Inhalte zu ermitteln
-- Kind-Inhalte, die bereits als `PlaylistEntry` vorhanden sind, werden übersprungen (kein Duplikat, siehe BR-1)
-- Kind-Inhalte, die der Anwender zuvor bewusst einzeln aus der Playlist entfernt hat, werden ebenfalls
-  übersprungen (siehe BR-19)
-- Verbleibende neue Kind-Inhalte werden als `PlaylistEntry` mit `ParentMediaType`/`ParentMediaId` auf den
-  jeweiligen Sammel-Eintrag hinzugefügt
+**Grundprinzip - Markierung statt Dauerprüfung:** Es gibt keine periodische Prüfung aller Playlists. Wird
+ein Kind-Inhalt neu erfasst, wird der betroffene Sammel-Inhalt (Serie, Staffel, Filmsammlung) **dauerhaft
+als „hat neue Kinder" markiert**; verarbeitet werden anschließend genau die Playlists, die diesen Sammel-Inhalt
+als Eintrag enthalten. Ohne Änderung im Medienbestand entsteht dadurch keine Grundlast.
+
+**1. Markierung beim Erfassen (`ApplicationDbContext`, Tabelle `PlaylistBackfillMarkers`):**
+- Eine zentrale Stelle - das Überschreiben von `SaveChanges`/`SaveChangesAsync` im `ApplicationDbContext` -
+  wertet aus, welche `Movie`/`TVShowSeason`/`TVShowEpisode` gerade hinzugefügt oder umgehängt werden. Damit
+  wird *jeder* EF-basierte Weg erfasst (der Medienquellen-Scan mit seinen vielen Anlegestellen in
+  `MediaSourceClassifier`, das Bearbeiten von Metadaten, künftige Wege), ohne dass dort etwas markiert werden muss.
+- Regeln: neue (oder in eine andere Staffel umgehängte) **Episode** → ihre **Staffel und ihre Serie** (ein
+  Serien-Eintrag in einer Playlist umfasst alle Staffeln und Episoden, ein Staffel-Eintrag nur seine Episoden);
+  neue **Staffel** → ihre **Serie**; neuer **Film** in einer Filmsammlung sowie ein **in eine andere Sammlung
+  umgehängter Film** → die (neue) **Sammlung**. Ein Sammel-Inhalt, der im selben Speichervorgang selbst erst
+  angelegt wird, wird nicht markiert (in keiner Playlist enthalten).
+- Je Sammel-Inhalt genau eine Zeile (`MediaType`, `MediaId`, eindeutiger Index); mehrfaches Markieren ist
+  idempotent und erhöht nur den Zähler `Version`. Je Speichervorgang werden die Markierungen im Speicher
+  dedupliziert und gebündelt geschrieben (ein `INSERT ... ON CONFLICT DO UPDATE`, höchstens eine zusätzliche
+  Abfrage), ohne relevante Änderung entsteht kein Mehraufwand. Der Klassifizierer speichert beim Erfassen
+  jede Episode einzeln; bei einem Erst-Scan mit 500 Episoden entstehen deshalb rund 500 solcher Upserts (im
+  Test: 11 Markierungszeilen, etwa 5 % mehr SQL-Befehle und etwa 4 % längere Laufzeit), nicht nur einer.
+- Die Markierung wird **in derselben Datenbanktransaktion** wie das neue Medium geschrieben: Sie überlebt
+  Neustarts, und ein Rollback (Fehler beim Speichern, verworfener Scan-Schritt) hinterlässt weder Medium noch
+  Markierung.
+
+**2. Nur betroffene Playlists (`PlaylistBackfillService`):**
+- Eine einzige Join-Abfrage zwischen den Markierungen und `PlaylistEntries` (Index
+  `IX_PlaylistEntries_MediaType_MediaId`) liefert genau die Playlists, die einen markierten Sammel-Inhalt
+  enthalten; nur diese werden geladen und geprüft. Ohne Markierung kostet ein Anstoß genau eine billige Abfrage.
+- Je Playlist gilt unverändert die bisherige Nachlieferungslogik: Für jeden Sammel-Eintrag wird dieselbe
+  Cascade-Abfrage genutzt wie beim manuellen Hinzufügen (siehe BR-3, `MediaTypeHandler.LoadCascadeChildrenAsync`);
+  bereits vorhandene Kind-Inhalte werden übersprungen (siehe BR-1), bewusst entfernte ebenfalls (siehe BR-19),
+  `MaxPlaylistItemCount` wird berücksichtigt (siehe BR-9); verbleibende neue Kind-Inhalte werden als
+  `PlaylistEntry` mit `ParentMediaType`/`ParentMediaId` auf den jeweiligen Sammel-Eintrag hinzugefügt,
+  anschließend werden die Genres neu berechnet (siehe BR-20).
+- **Blockweise Verarbeitung:** Der `PlaylistBackfillCoordinator` verarbeitet die Playlists in Blöcken von
+  höchstens `Playlists:BackfillBatchSize` (Standard 25) mit einer Pause von `Playlists:BackfillBlockPauseSeconds`
+  (Standard 2 s) zwischen den Blöcken; jeder Block läuft in einem eigenen Scope und unter dem
+  `IBackgroundProcessingGate` (nicht während Backup/Restore). Auch ein großer Nachzug erzeugt so keine Lastspitze.
+- **Markierungen entfernen, ohne etwas zu verlieren:** Verarbeitete Markierungen werden entfernt - aber nur
+  die, deren `Version` noch dem verarbeiteten Stand entspricht. Eine Markierung, die während der Verarbeitung
+  erneut gesetzt wurde (weitere Episode während des Laufs), bleibt bestehen und wird im nächsten Lauf behandelt.
+  Markierungen ohne betroffene Playlist werden einfach entfernt. Schlägt die Nachlieferung in einer Playlist
+  fehl, bleiben deren Markierungen für den nächsten Versuch bestehen; die übrigen Playlists sind davon nicht
+  betroffen und der Lauf bricht nicht ab.
+
+**3. Auslöser (`PlaylistBackfillWorker`, `PlaylistBackfillSignal`) - kein Takt:**
+- **Ende eines Scans** (automatischer Scan-Prozess, manueller Komplettscan der Administration und „Neu
+  erfassen“ einer Collection im Quellen-Explorer): Der Scan meldet sich über
+  `IPlaylistBackfillSignal.BeginScan()` an; am Ende wird der Worker einmal geweckt.
+- **Medien außerhalb eines Scans** (jeder andere Weg über Entity Framework, der ein Medium anlegt oder
+  umhängt; einen solchen Weg über die Oberfläche gibt es derzeit nicht - die Metadaten-Bearbeitung hängt
+  keine Filme um): Der
+  `SaveChanges`-Hook meldet geschriebene Markierungen, der Worker wird sofort (nach `Playlists:BackfillSettleSeconds`,
+  Standard 10 s, damit eine Serie von Änderungen gebündelt wird) geweckt. Während eines laufenden Scans weckt
+  der Hook den Worker nicht - dafür sorgt das Scan-Ende.
+- **Start des Servers:** Einmal, nach einer Anlaufverzögerung (30 s), werden beim letzten Herunterfahren noch
+  offene Markierungen verarbeitet.
+- Der Worker wartet ansonsten ohne Zeitschleife; die einzige Uhr ist der Zeitgeber für den Sicherheitslauf (s. u.).
+
+**4. Sicherheitslauf einmal am Tag:** Als Netz gegen eine vergessene Markierung läuft einmal je
+`Playlists:BackfillSafetySweepIntervalHours` (Standard 24; 0 = aus) ein voller Abgleich über alle Playlists mit
+einem Sammel-Eintrag, ebenfalls blockweise mit Pausen. Der Zeitpunkt des letzten abgeschlossenen Laufs steht
+dauerhaft in `Setups.PlaylistBackfillLastSweepAt`: Auch bei häufigen Neustarts läuft der Sicherheitslauf nicht
+öfter als einmal je Intervall, und ein fälliger Lauf wird nach einem Start (verzögert) nachgeholt. Ein
+abgebrochener Lauf (z. B. Herunterfahren) gilt nicht als erledigt. Liegt der gespeicherte Zeitpunkt in der
+Zukunft (Systemuhr wurde vor- und wieder zurückgestellt), gilt er als ungültig: Der Lauf ist dann sofort fällig und
+speichert den richtigen Zeitpunkt, statt für die Dauer des Uhrsprungs auszusetzen. Der Sicherheitslauf liest und entfernt keine
+Markierungen und kann daher keine verlieren; scheitert er insgesamt (Infrastrukturfehler), wird nach einer Stunde
+erneut versucht.
 
 **Sortierung neu nachgelieferter Titel:**
 - Sortiermodus `ByReleaseDate` (Standard): `SortOrder = null`; die Einordnung nach Erscheinungsdatum
@@ -518,27 +575,34 @@ Anwender die Serie/Sammlung erneut hinzufügen muss.
   Reihenfolge erhalten bleibt. Dieselbe Zuweisungslogik (`PlaylistEntryReorderService.AssignSortOrderForNewEntriesAsync`)
   wird auch beim manuellen Hinzufügen verwendet, damit beide Wege nicht auseinanderlaufen können.
 
-**Betriebssicherheit:** Der Durchlauf nutzt denselben `IBackgroundProcessingGate` wie andere
-Hintergrundprozesse (z. B. der Medienquellen-Scan), um sich mit einem laufenden Backup zu koordinieren,
-und verarbeitet je Durchlauf nur eine begrenzte Anzahl Playlists (s. o.), damit der laufende Betrieb nicht
-spürbar beeinträchtigt wird.
+**Grenzen (ehrlich):**
+- Erfasst wird, was über `SaveChanges` läuft. Medien, die per Roh-SQL/Massenbefehl (`ExecuteSql`,
+  `ExecuteUpdate`) angelegt werden, umgehen den Hook und werden erst vom täglichen Sicherheitslauf gefunden
+  (bis zu einem Intervall später; bei ausgeschaltetem Sicherheitslauf gar nicht). Der Backup-Restore schreibt
+  ebenfalls direkt, bringt aber die Markierungstabelle aus dem Backup mit; ein Backup ohne diese Tabelle
+  stellt ohne Markierungen wieder her.
+- Ein neuer Titel erscheint nicht sofort, sondern nach dem Scan-Ende bzw. der Beruhigungszeit und ggf. der Blockpause.
+- Bricht der Server mitten in der Verarbeitung ab, bleiben die Markierungen bestehen und werden nach dem
+  Start erneut verarbeitet (idempotent, kein Duplikat durch den Eindeutigkeits-Index auf `PlaylistEntries`).
 
 **Beispiel:**
 ```
 Playlist "Meine Serien" enthält Sammel-Eintrag Serie "Show A" (Staffel 1+2 bereits vollständig enthalten)
 
-Im Medienbestand wird Staffel 3 von "Show A" mit 8 Episoden neu erkannt (z. B. durch den Medienquellen-Scan)
+Der Medienquellen-Scan erkennt Staffel 3 von "Show A" mit 8 Episoden neu
+→ beim Speichern werden Serie "Show A" (neue Staffel und neue Episoden) und Staffel 3 markiert
 
-Nächster Backfill-Durchlauf:
-- Sammel-Eintrag "Show A" wird geprüft → Cascade liefert jetzt auch Staffel 3 + deren 8 Episoden
-- Staffel 1+2 und deren Episoden: bereits vorhanden, übersprungen
-- Staffel 3 + 8 Episoden: neu, werden hinzugefügt
+Scan-Ende → Worker wird geweckt, verarbeitet die Markierungen:
+- Nur Playlists mit "Show A" (oder Staffel 3) als Eintrag werden geladen, z. B. "Meine Serien"
+- Cascade liefert jetzt auch Staffel 3 + deren 8 Episoden; Staffel 1+2 sind bereits vorhanden und werden übersprungen
+- Staffel 3 + 8 Episoden werden hinzugefügt, die Markierungen anschließend entfernt
 
 Ergebnis: "Meine Serien" enthält jetzt auch Staffel 3 mit allen 8 Episoden, ohne dass der Anwender
-etwas tun musste.
+etwas tun musste - und ohne dass zwischendurch alle 15 Minuten alle Playlists geprüft wurden.
 ```
 
-**Konfiguration:** siehe Abschnitt „Konfigurationsparameter" unten (`BackfillIntervalMinutes`, `BackfillBatchSize`).
+**Konfiguration:** siehe Abschnitt „Konfigurationsparameter" unten (`BackfillBatchSize`,
+`BackfillBlockPauseSeconds`, `BackfillSettleSeconds`, `BackfillSafetySweepIntervalHours`).
 
 ---
 
@@ -578,7 +642,7 @@ Anwender entfernt Episode 2 von Staffel 1 einzeln aus der Playlist
 Staffel 1 wird im Medienbestand erneut gescannt (z. B. nach einer Reorganisation der Dateien),
 Episode 2 bleibt dabei unverändert vorhanden
 
-Nächster Backfill-Durchlauf: Episode 2 wird NICHT erneut hinzugefügt (Ausschluss greift)
+Nächste Nachlieferung (Markierung, Scan-Ende oder Sicherheitslauf): Episode 2 wird NICHT erneut hinzugefügt (Ausschluss greift)
 
 Anwender fügt später die ganze Serie "Show A" erneut manuell hinzu
 → Episode 2 wird jetzt wieder hinzugefügt (expliziter manueller Einschluss),
@@ -618,7 +682,7 @@ BR-18, stille Bereinigung verwaister Einträge gemäß BR-7) neu berechnet.
   Playlist-Größen nicht unverhältnismäßig ineffiziente Lösung
 - Aufgerufen von `PlaylistService` nach `AddMediaToPlaylistAsync`, `RemoveMediaFromPlaylistAsync`
   und der stillen Bereinigung verwaister Einträge, sowie von `PlaylistBackfillService` nach jedem
-  Nachlieferungs-Durchlauf, der tatsächlich Einträge hinzugefügt hat
+  Nachlieferung, die tatsächlich Einträge hinzugefügt hat
 
 **Anzeige-Begrenzung:** `GET /api/playlists` und `GET /api/playlists/{id}` liefern in `genres` nur
 die ersten `Playlist.MaxDisplayedGenres` (5) Einträge, sortiert nach `Count` absteigend (bei
@@ -1044,7 +1108,7 @@ Fortschritt melden (`ContinueWatchingService.ValidatePlaylistAccessAsync`) darf,
 | BR-15: Case-insensitive Namenssuche | Immer aktiv in Get-Methoden | Keine | Keine — 200 OK |
 | BR-16: Opt-in für 5 Medientypen | Parameter gesteuert | Regression-Schutz für Quellen-Browsing | Keine — 200 OK |
 | BR-17: Sicherheitsabfrage bei Weiterschauen-Bezug | Vor Delete | `ContinueWatchingConfirmationRequiredException` | 409 Conflict |
-| BR-18: Automatische Nachlieferung neuer Inhalte | Periodischer Hintergrundprozess | Keine (still nachgeliefert, MaxItemCount begrenzt) | Keine |
+| BR-18: Automatische Nachlieferung neuer Inhalte | Hintergrundprozess, angestoßen durch Markierung/Scan-Ende/Start, dazu täglicher Sicherheitslauf | Keine (still nachgeliefert, MaxItemCount begrenzt) | Keine |
 | BR-19: Bewusst entfernte Titel nicht erneut aufnehmen | Bei Nachlieferung | Keine (still übersprungen) | Keine |
 | BR-20: Automatische Genre-Ableitung | Bei jeder Inhaltsänderung | Keine (still neu berechnet) | Keine |
 | BR-21: Manuelles Genre-Überschreiben/Zurücksetzen | Bei `PUT`/`POST .../genres[/reset]` | `PlaylistAccessDeniedException` bei Fremdzugriff | 403 Forbidden / 404 Not Found |
@@ -1111,8 +1175,10 @@ Resultat: Serie A PLUS alle Staffeln und Episoden
 | `Playlists:MaxPlaylistItemCount` | `int?` | `null` (unbegrenzt) | Maximale Einträge pro Playlist; wird sowohl beim manuellen Hinzufügen (BR-9) als auch bei der automatischen Nachlieferung (BR-18) durchgesetzt |
 | `Playlists:DefaultPageSize` | `int` | `20` | Seitengröße für `GET /api/playlists/{id}/entries/paged`, wenn kein `pageSize`-Parameter übergeben wird |
 | `Playlists:MaxPageSize` | `int` | `100` | Obere Grenze für den `pageSize`-Parameter von `GET /api/playlists/{id}/entries/paged` |
-| `Playlists:BackfillIntervalMinutes` | `int` | `15` | Zeitabstand zwischen zwei Nachlieferungs-Durchläufen (BR-18); Werte < 1 werden wie 1 behandelt |
-| `Playlists:BackfillBatchSize` | `int` | `25` | Anzahl Playlists, die pro Nachlieferungs-Durchlauf höchstens geprüft werden (BR-18); Werte < 1 werden wie 1 behandelt |
+| `Playlists:BackfillBatchSize` | `int` | `25` | Anzahl Playlists je Arbeitseinheit (Block) der Nachlieferung und des Sicherheitslaufs (BR-18); Werte < 1 werden wie 1 behandelt |
+| `Playlists:BackfillBlockPauseSeconds` | `int` | `2` | Pause in Sekunden zwischen zwei Blöcken (BR-18); Werte < 0 werden wie 0 behandelt |
+| `Playlists:BackfillSettleSeconds` | `int` | `10` | Beruhigungszeit in Sekunden zwischen dem Wecken des Workers (Scan-Ende, Medien außerhalb eines Scans) und der Verarbeitung (BR-18); Werte < 0 werden wie 0 behandelt |
+| `Playlists:BackfillSafetySweepIntervalHours` | `int` | `24` | Abstand des täglichen Sicherheitslaufs über alle Playlists mit Sammel-Einträgen in Stunden (BR-18); 0 (oder kleiner) schaltet ihn aus. Der Zeitpunkt des letzten Laufs wird dauerhaft gespeichert |
 | `Playlists:AllowedCoverImageFormats` | `string` | `"image/jpeg,image/png,image/webp"` | Kommagetrennte Liste erlaubter MIME-Types für den Cover-Upload (BR-22); Vergleich case-insensitiv |
 | `Playlists:MaxCoverImageSizeBytes` | `long` | `5242880` (5 MB) | Maximale Dateigröße eines Cover-Uploads (BR-22); geprüft im Controller an der gemeldeten Länge und erneut im Validator |
 | `Playlists:MaxCoverImageWidthPixels` | `int` | `4096` | Maximale Breite eines hochgeladenen Cover-Bildes in Pixeln (BR-22); geprüft am Bildkopf vor der Dekodierung; ≤ 0 schaltet die Prüfung ab |

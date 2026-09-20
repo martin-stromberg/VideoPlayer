@@ -505,6 +505,90 @@ public sealed class VideoWebPlayerBackupDataTests
     }
 
     /// <summary>
+    /// Verifies that a backup taken before the <c>PlaylistBackfillMarkers</c> table existed (automatic
+    /// playlist backfill driven by markers, correction of Entwicklungsschritt 8) can still be restored: the
+    /// table is optional, and no marker remains afterwards (the daily safety sweep catches up whatever a
+    /// pre-marker backup could not know about).
+    /// </summary>
+    [Fact]
+    public async Task ReadFromAsync_LegacyBackupWithoutPlaylistBackfillMarkers_RestoresSuccessfully()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var connection = new SqliteConnection("Data Source=file:backuptest-no-backfill-markers?mode=memory&cache=shared");
+        await connection.OpenAsync(ct);
+        var (db, backup, _) = await CreateBackupWithSeededDatabaseAsync(connection, ct);
+        await using var __ = db;
+
+        db.PlaylistBackfillMarkers.Add(new PlaylistBackfillMarker { MediaType = "TVShow", MediaId = 7 });
+        await db.SaveChangesAsync(ct);
+
+        using var legacyStream = await BuildLegacyBackupStreamRemovingTablesAsync(backup, new[] { "PlaylistBackfillMarkers" }, ct);
+
+        var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
+
+        Assert.Null(exception);
+        Assert.False(await db.PlaylistBackfillMarkers.AsNoTracking().AnyAsync(ct));
+    }
+
+    /// <summary>
+    /// Verifies that a current backup round-trips the pending backfill markers, so a restore does not lose
+    /// "this collection medium has new children".
+    /// </summary>
+    [Fact]
+    public async Task WriteToAndReadFromAsync_PlaylistBackfillMarkers_AreKept()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var connection = new SqliteConnection("Data Source=file:backuptest-backfill-markers-roundtrip?mode=memory&cache=shared");
+        await connection.OpenAsync(ct);
+        var (db, backup, _) = await CreateBackupWithSeededDatabaseAsync(connection, ct);
+        await using var __ = db;
+
+        db.PlaylistBackfillMarkers.Add(new PlaylistBackfillMarker { MediaType = "MovieCollection", MediaId = 3, Version = 4 });
+        await db.SaveChangesAsync(ct);
+
+        using var stream = new MemoryStream();
+        await backup.WriteToAsync(stream, ct);
+        stream.Position = 0;
+        await backup.ReadFromAsync(stream, ct);
+
+        var marker = await db.PlaylistBackfillMarkers.AsNoTracking().SingleAsync(ct);
+        Assert.Equal("MovieCollection", marker.MediaType);
+        Assert.Equal(3, marker.MediaId);
+        Assert.Equal(4, marker.Version);
+    }
+
+    /// <summary>
+    /// Verifies that a backup taken before <c>Setups.PlaylistBackfillLastSweepAt</c> existed can still be
+    /// restored, with the missing column staying <see langword="null"/> (the safety sweep then counts as never
+    /// run and is caught up shortly after the next start).
+    /// </summary>
+    [Fact]
+    public async Task ReadFromAsync_LegacyBackupWithoutPlaylistBackfillLastSweepAtColumn_RestoresWithNull()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var connection = new SqliteConnection("Data Source=file:backuptest-no-lastsweep-column?mode=memory&cache=shared");
+        await connection.OpenAsync(ct);
+        var (db, backup, _) = await CreateBackupWithSeededDatabaseAsync(connection, ct);
+        await using var __ = db;
+
+        var setup = await db.Setups.FirstOrDefaultAsync(ct);
+        if (setup is null)
+        {
+            setup = new Setup();
+            db.Setups.Add(setup);
+        }
+        setup.PlaylistBackfillLastSweepAt = DateTime.UtcNow;
+        await db.SaveChangesAsync(ct);
+
+        using var legacyStream = await BuildLegacyBackupStreamWithoutColumnAsync(backup, "Setups", "PlaylistBackfillLastSweepAt", ct);
+
+        var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
+
+        Assert.Null(exception);
+        Assert.Null((await db.Setups.AsNoTracking().FirstAsync(ct)).PlaylistBackfillLastSweepAt);
+    }
+
+    /// <summary>
     /// Same as <see cref="BuildLegacyBackupStreamWithoutColumnAsync"/>, removing several columns from the
     /// same table at once (used where a single legacy backup plausibly predates more than one column added
     /// together, e.g. <c>CoverPictureId</c> and <c>CoverPictureIsUserUploaded</c> - both introduced by the

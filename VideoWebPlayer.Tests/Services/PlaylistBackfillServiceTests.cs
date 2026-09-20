@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Tests.Helpers;
@@ -13,7 +13,7 @@ namespace VideoWebPlayer.Tests.Services;
 public class PlaylistBackfillServiceTests : PlaylistServiceTestBase
 {
     [Fact]
-    public async Task RunBatchAsync_NewSeasonAddedToShow_AddsNewEpisodesToPlaylist()
+    public async Task Backfill_NewSeasonAddedToShow_AddsNewEpisodesToPlaylist()
     {
         var ct = TestContext.Current.CancellationToken;
         var (showId, season1Id, season1EpisodeIds) = await CreateShowWithSeasonAsync("Serie", "Staffel 1", 2);
@@ -27,7 +27,7 @@ public class PlaylistBackfillServiceTests : PlaylistServiceTestBase
         var (season2Id, season2EpisodeIds) = await AddSeasonToShowAsync(showId, "Staffel 2", 2);
 
         var backfillService = CreateBackfillService();
-        var result = await backfillService.RunBatchAsync(afterPlaylistId: 0, playlistBatchSize: 10, ct);
+        var result = await RunPendingBackfillAsync(backfillService, ct);
 
         Assert.Equal(3, result.EntriesAdded);
         var entryRefs = await _db.PlaylistEntries.AsNoTracking()
@@ -40,7 +40,7 @@ public class PlaylistBackfillServiceTests : PlaylistServiceTestBase
     }
 
     [Fact]
-    public async Task RunBatchAsync_NewMovieAddedToCollection_AddsMovieToPlaylist()
+    public async Task Backfill_NewMovieAddedToCollection_AddsMovieToPlaylist()
     {
         var ct = TestContext.Current.CancellationToken;
         var collectionId = await CreateTestMediaEntryAsync(MediaTypeValues.MovieCollection, "Sammlung");
@@ -52,7 +52,7 @@ public class PlaylistBackfillServiceTests : PlaylistServiceTestBase
         var newMovieId = await AddMovieToCollectionAsync(collectionId, "Film 2");
 
         var backfillService = CreateBackfillService();
-        var result = await backfillService.RunBatchAsync(afterPlaylistId: 0, playlistBatchSize: 10, ct);
+        var result = await RunPendingBackfillAsync(backfillService, ct);
 
         Assert.Equal(1, result.EntriesAdded);
         Assert.True(await _db.PlaylistEntries.AsNoTracking()
@@ -60,7 +60,7 @@ public class PlaylistBackfillServiceTests : PlaylistServiceTestBase
     }
 
     [Fact]
-    public async Task RunBatchAsync_ManualSortMode_AppendsNewEntryAtEnd()
+    public async Task Backfill_ManualSortMode_AppendsNewEntryAtEnd()
     {
         var ct = TestContext.Current.CancellationToken;
         var collectionId = await CreateTestMediaEntryAsync(MediaTypeValues.MovieCollection, "Sammlung");
@@ -72,7 +72,7 @@ public class PlaylistBackfillServiceTests : PlaylistServiceTestBase
         var newMovieId = await AddMovieToCollectionAsync(collectionId, "Film 2");
 
         var backfillService = CreateBackfillService();
-        await backfillService.RunBatchAsync(afterPlaylistId: 0, playlistBatchSize: 10, ct);
+        await RunPendingBackfillAsync(backfillService, ct);
 
         var newEntry = await _db.PlaylistEntries.AsNoTracking()
             .SingleAsync(e => e.PlaylistId == playlistId && e.MediaType == MediaTypeValues.Movie && e.MediaId == newMovieId, ct);
@@ -80,7 +80,7 @@ public class PlaylistBackfillServiceTests : PlaylistServiceTestBase
     }
 
     [Fact]
-    public async Task RunBatchAsync_PreviouslyExcludedTitle_IsNotReAdded()
+    public async Task Backfill_PreviouslyExcludedTitle_IsNotReAdded()
     {
         var ct = TestContext.Current.CancellationToken;
         var (showId, seasonId, episodeIds) = await CreateShowWithSeasonAsync("Serie", "Staffel 1", 2);
@@ -99,7 +99,7 @@ public class PlaylistBackfillServiceTests : PlaylistServiceTestBase
         await _db.SaveChangesAsync(ct);
 
         var backfillService = CreateBackfillService();
-        var result = await backfillService.RunBatchAsync(afterPlaylistId: 0, playlistBatchSize: 10, ct);
+        var result = await RunPendingBackfillAsync(backfillService, ct);
 
         Assert.Equal(0, result.EntriesAdded);
         Assert.False(await _db.PlaylistEntries.AsNoTracking()
@@ -107,7 +107,7 @@ public class PlaylistBackfillServiceTests : PlaylistServiceTestBase
     }
 
     [Fact]
-    public async Task RunBatchAsync_MaxPlaylistItemCountAlreadyReached_AddsNothing()
+    public async Task Backfill_MaxPlaylistItemCountAlreadyReached_AddsNothing()
     {
         var ct = TestContext.Current.CancellationToken;
         var (showId, seasonId, episodeIds) = await CreateShowWithSeasonAsync("Serie", "Staffel 1", 1);
@@ -120,7 +120,7 @@ public class PlaylistBackfillServiceTests : PlaylistServiceTestBase
 
         // The playlist already has 3 entries (show, season 1, episode 1) - at the configured maximum.
         var backfillService = CreateBackfillService(maxPlaylistItemCount: 3);
-        var result = await backfillService.RunBatchAsync(afterPlaylistId: 0, playlistBatchSize: 10, ct);
+        var result = await RunPendingBackfillAsync(backfillService, ct);
 
         Assert.Equal(0, result.EntriesAdded);
         Assert.False(await _db.PlaylistEntries.AsNoTracking()
@@ -128,7 +128,7 @@ public class PlaylistBackfillServiceTests : PlaylistServiceTestBase
     }
 
     [Fact]
-    public async Task RunBatchAsync_MaxPlaylistItemCountPartiallyReached_FillsOnlyUpToLimit()
+    public async Task Backfill_MaxPlaylistItemCountPartiallyReached_FillsOnlyUpToLimit()
     {
         var ct = TestContext.Current.CancellationToken;
         var (showId, seasonId, episodeIds) = await CreateShowWithSeasonAsync("Serie", "Staffel 1", 1);
@@ -141,14 +141,14 @@ public class PlaylistBackfillServiceTests : PlaylistServiceTestBase
         await AddSeasonToShowAsync(showId, "Staffel 2", 2);
 
         var backfillService = CreateBackfillService(maxPlaylistItemCount: 4);
-        var result = await backfillService.RunBatchAsync(afterPlaylistId: 0, playlistBatchSize: 10, ct);
+        var result = await RunPendingBackfillAsync(backfillService, ct);
 
         Assert.Equal(1, result.EntriesAdded);
         Assert.Equal(4, await _db.PlaylistEntries.AsNoTracking().CountAsync(e => e.PlaylistId == playlistId, ct));
     }
 
     [Fact]
-    public async Task RunBatchAsync_EveryChildAlreadyPresent_AddsNothingAndDoesNotThrow()
+    public async Task Backfill_EveryChildAlreadyPresent_AddsNothingAndDoesNotThrow()
     {
         var ct = TestContext.Current.CancellationToken;
         var (showId, seasonId, episodeIds) = await CreateShowWithSeasonAsync("Serie", "Staffel 1", 2);
@@ -160,64 +160,23 @@ public class PlaylistBackfillServiceTests : PlaylistServiceTestBase
 
         var backfillService = CreateBackfillService();
 
-        var result = await backfillService.RunBatchAsync(afterPlaylistId: 0, playlistBatchSize: 10, ct);
+        var result = await RunPendingBackfillAsync(backfillService, ct);
 
         Assert.Equal(0, result.EntriesAdded);
         Assert.Equal(4, await _db.PlaylistEntries.AsNoTracking().CountAsync(e => e.PlaylistId == playlistId, ct));
     }
 
     [Fact]
-    public async Task RunBatchAsync_PlaylistWithoutCollectionEntry_IsIgnored()
+    public async Task Backfill_PlaylistWithoutCollectionEntry_IsIgnored()
     {
         var ct = TestContext.Current.CancellationToken;
         var movieId = await CreateTestMediaEntryAsync(MediaTypeValues.Movie);
         await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.Movie, movieId));
 
         var backfillService = CreateBackfillService();
-        var result = await backfillService.RunBatchAsync(afterPlaylistId: 0, playlistBatchSize: 10, ct);
+        var result = await RunPendingBackfillAsync(backfillService, ct);
 
         Assert.Equal(0, result.PlaylistsExamined);
         Assert.Equal(0, result.EntriesAdded);
-    }
-
-    [Fact]
-    public async Task RunBatchAsync_BatchSizeSmallerThanCandidateCount_ProcessesOnlyBatchAndAdvancesCursor()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var playlistIds = new List<long>();
-        for (var i = 0; i < 3; i++)
-        {
-            var collectionId = await CreateTestMediaEntryAsync(MediaTypeValues.MovieCollection, $"Sammlung {i}");
-            await AddMovieToCollectionAsync(collectionId, $"Bestehender Film {i}");
-            var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.MovieCollection, collectionId));
-            await AddMovieToCollectionAsync(collectionId, $"Neuer Film {i}");
-            playlistIds.Add(playlistId);
-        }
-
-        var backfillService = CreateBackfillService();
-        var firstResult = await backfillService.RunBatchAsync(afterPlaylistId: 0, playlistBatchSize: 2, ct);
-
-        Assert.Equal(2, firstResult.PlaylistsExamined);
-        Assert.Equal(playlistIds[1], firstResult.LastProcessedPlaylistId);
-
-        var secondResult = await backfillService.RunBatchAsync(firstResult.LastProcessedPlaylistId, playlistBatchSize: 2, ct);
-
-        Assert.Equal(1, secondResult.PlaylistsExamined);
-        Assert.Equal(playlistIds[2], secondResult.LastProcessedPlaylistId);
-    }
-
-    [Fact]
-    public async Task RunBatchAsync_CursorPastLastCandidate_WrapsAroundToBeginning()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var collectionId = await CreateTestMediaEntryAsync(MediaTypeValues.MovieCollection, "Sammlung");
-        var existingMovieId = await AddMovieToCollectionAsync(collectionId, "Film 1");
-        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.MovieCollection, collectionId), (MediaTypeValues.Movie, existingMovieId));
-
-        var backfillService = CreateBackfillService();
-        var result = await backfillService.RunBatchAsync(afterPlaylistId: playlistId, playlistBatchSize: 10, ct);
-
-        Assert.Equal(1, result.PlaylistsExamined);
-        Assert.Equal(playlistId, result.LastProcessedPlaylistId);
     }
 }

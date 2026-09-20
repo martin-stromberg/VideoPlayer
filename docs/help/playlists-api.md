@@ -881,7 +881,9 @@ Liefert das aktuelle Coverbild der Playlist (hochgeladen oder generiert) als Bil
 (ab Schritt 11):** der Besitzer, oder jeder angemeldete Benutzer, solange die Playlist öffentlich ist (die
 Kacheln der öffentlichen Übersicht zeigen das Bild). Für eine private Playlist eines anderen Anwenders antwortet
 der Endpunkt mit `403` — ein generiertes Cover ist eine Collage der Inhalte der Playlist; nur das Ändern des
-Covers erfordert stets Besitz.
+Covers erfordert stets Besitz. Dieselbe Prüfung gilt, wenn das Coverbild über den allgemeinen Endpunkt
+`GET /api/pictures/{id}` abgerufen wird: Ein Playlist-Cover liefert er nur an Anwender, die die Playlist lesen
+dürfen (sonst `403`), so dass das Bild einer privaten Playlist nicht über seine Bild-ID erreichbar ist.
 
 **Parameter:**
 

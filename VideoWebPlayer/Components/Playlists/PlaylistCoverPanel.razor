@@ -1,0 +1,377 @@
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.Extensions.Options
+@using VideoWebPlayer.Client.Models
+@using VideoWebPlayer.Configuration
+@inject VideoWebPlayer.Client.IPlaylistApiClient PlaylistClient
+@inject IOptions<PlaylistSettings> PlaylistSettings
+@* Overlay-Panel für das Playlist-Bild (Kundenrückmeldung zur Detailansicht): ersetzt die bisherigen zwei
+   Einzelbuttons "Bild hochladen" und "Cover neu erzeugen" samt ihrer Dialoge. Im Panel kann eine Datei
+   ausgewählt ODER die Generierung einer Collage angestoßen werden; beides erscheint zunächst nur als Vorschau
+   und ist noch NICHT gespeichert. Erst der Bestätigungsbutton ("Hochladen" bei einer gewählten Datei,
+   "Anwenden" bei einem erzeugten Bild) übernimmt die Vorschau. Zusätzlich kann das bestehende Bild entfernt
+   werden.
+
+   Schutz aus Entwicklungsschritt 10 bleibt erhalten: Ersetzt die Übernahme ein vom Anwender hochgeladenes Bild,
+   zeigt das Panel das vorher deutlich an (Hinweis unter der Vorschau); der ausdrückliche Klick auf
+   "Hochladen"/"Anwenden" gilt dann als Bestätigung und schickt confirmReplaceUploadedCover=true. Der Server
+   verlangt es weiterhin (409 ohne Bestätigung), unabhängig von dieser Oberfläche. Ein hochgeladenes Bild wird
+   nur nach Rückfrage entfernt; ein bloß erzeugtes ohne Rückfrage (jederzeit neu erzeugbar).
+   Folgt dem admin-dialog-overlay/admin-dialog-Markup (Rahmen, siehe app.css). *@
+
+<div class="admin-dialog-overlay" @onclick="CancelAsync">
+    <div class="admin-dialog playlist-cover-panel" id="playlist-cover-panel" role="dialog" aria-modal="true" aria-labelledby="playlist-cover-panel-title" @onclick:stopPropagation>
+        <header class="admin-card-header">
+            <h2 id="playlist-cover-panel-title">Playlist-Bild</h2>
+        </header>
+
+        <div class="playlist-cover-panel-preview" id="playlist-cover-preview-area">
+            @if (stagedSource is not null)
+            {
+                <img class="playlist-cover-panel-image" src="@stagedSource" alt="Vorschau des neuen Bildes" id="playlist-cover-preview" onerror="this.style.display='none'" />
+            }
+            else if (HasCover)
+            {
+                <img class="playlist-cover-panel-image" src="@CoverImageUrl" alt="Aktuelles Bild der Playlist" id="playlist-cover-current" onerror="this.style.display='none'" />
+            }
+            else
+            {
+                <div class="playlist-cover-panel-empty" id="playlist-cover-empty">Kein Bild vorhanden</div>
+            }
+        </div>
+        <div class="form-text" id="playlist-cover-preview-caption">@PreviewCaption</div>
+
+        @if (stagedKind != StagedKind.None && CoverIsUserUploaded)
+        {
+            <div class="alert alert-warning" id="playlist-cover-replace-warning">
+                Das aktuell hochgeladene Bild wird ersetzt und kann nicht wiederhergestellt werden.
+            </div>
+        }
+
+        <div class="playlist-cover-panel-sources">
+            <div class="playlist-cover-panel-source">
+                <label class="form-label" for="playlist-cover-upload-input">Bild hochladen</label>
+                <InputFile @key="inputKey" OnChange="OnFileSelectedAsync" accept="@AcceptAttribute" id="playlist-cover-upload-input" disabled="@IsBusy" />
+                @if (selectedFileName is not null)
+                {
+                    <div class="form-text" id="playlist-cover-upload-filename">@selectedFileName (@FormatFileSize(selectedFileSize))</div>
+                }
+            </div>
+            <div class="playlist-cover-panel-source">
+                <span class="form-label">Bild erzeugen</span>
+                <div>
+                    <button type="button" class="btn btn-outline-light" id="playlist-cover-generate-button" disabled="@IsBusy" @onclick="GenerateAsync">
+                        @(isGenerating ? "Wird erzeugt..." : "Aus den Titeln erzeugen")
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="alert alert-danger" id="playlist-cover-error" role="alert">@errorMessage</div>
+        }
+
+        <div class="admin-actions">
+            <button class="btn btn-primary" id="playlist-cover-apply-button" disabled="@(!CanApply)" @onclick="ApplyAsync">
+                @ApplyButtonText
+            </button>
+            @if (HasCover)
+            {
+                <button type="button" class="btn btn-outline-danger" id="playlist-cover-remove-button" disabled="@IsBusy" @onclick="RequestRemove" title="Aktuelles Bild entfernen">
+                    Bild entfernen
+                </button>
+            }
+            <button class="btn btn-ghost" id="playlist-cover-cancel-button" @onclick="CancelAsync">Abbrechen</button>
+        </div>
+    </div>
+</div>
+
+@if (showRemoveConfirmation)
+{
+    <PlaylistCoverRemoveConfirmationDialog OnConfirm="ConfirmRemoveAsync" OnCancel="CancelRemove" />
+}
+
+@code {
+    private enum StagedKind
+    {
+        None,
+        Upload,
+        Generated
+    }
+
+    /// <summary>
+    /// Gets or sets the id of the playlist whose image is edited.
+    /// </summary>
+    [Parameter, EditorRequired]
+    public long PlaylistId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the URL of the playlist's current image, or <c>null</c> if it has none.
+    /// </summary>
+    [Parameter]
+    public string? CoverImageUrl { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the current image was uploaded by the user (and is therefore
+    /// protected: replacing or removing it is only done after an explicit confirmation).
+    /// </summary>
+    [Parameter]
+    public bool CoverIsUserUploaded { get; set; }
+
+    /// <summary>
+    /// Gets or sets the callback invoked after the image was changed (uploaded, applied or removed); the
+    /// host reloads the playlist and closes the panel.
+    /// </summary>
+    [Parameter, EditorRequired]
+    public EventCallback OnChanged { get; set; }
+
+    /// <summary>
+    /// Gets or sets the callback invoked when the panel is closed without changing anything.
+    /// </summary>
+    [Parameter, EditorRequired]
+    public EventCallback OnCancel { get; set; }
+
+    private StagedKind stagedKind;
+    private string? stagedSource;
+    private byte[]? selectedFileBytes;
+    private string? selectedFileName;
+    private long selectedFileSize;
+    private string? selectedContentType;
+    private string? errorMessage;
+    private bool isUploading;
+    private bool isGenerating;
+    private bool isApplying;
+    private bool isRemoving;
+    private bool showRemoveConfirmation;
+    private bool conflictSeen;
+    private int inputKey;
+
+    private bool HasCover => !string.IsNullOrEmpty(CoverImageUrl);
+
+    private bool IsBusy => isUploading || isGenerating || isApplying || isRemoving;
+
+    private bool CanApply => stagedKind != StagedKind.None && !IsBusy;
+
+    private string AcceptAttribute
+        => string.Join(",", AllowedFormats());
+
+    private string ApplyButtonText
+        => isApplying || isUploading
+            ? "Wird übernommen..."
+            : stagedKind == StagedKind.Generated ? "Anwenden" : "Hochladen";
+
+    private string PreviewCaption
+        => stagedKind switch
+        {
+            StagedKind.Upload => "Vorschau der gewählten Datei - noch nicht gespeichert",
+            StagedKind.Generated => "Vorschau des erzeugten Bildes - noch nicht gespeichert",
+            _ => HasCover
+                ? (CoverIsUserUploaded ? "Aktuelles Bild (hochgeladen)" : "Aktuelles Bild (automatisch erzeugt)")
+                : "Die Playlist hat noch kein Bild.",
+        };
+
+    private IEnumerable<string> AllowedFormats()
+        => (PlaylistSettings.Value.AllowedCoverImageFormats ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    private async Task OnFileSelectedAsync(InputFileChangeEventArgs e)
+    {
+        errorMessage = null;
+        var file = e.File;
+
+        // Clientseitige Vorvalidierung (Format/Größe) für bessere UX - die maßgebliche Prüfung (inkl. "ist echtes
+        // Bild") erfolgt serverseitig über PlaylistCoverValidator. Nur ablehnen, wenn ein ContentType tatsächlich
+        // gemeldet wurde und nicht erlaubt ist: manche Browser liefern keinen ContentType.
+        if (!string.IsNullOrWhiteSpace(file.ContentType) && !AllowedFormats().Contains(file.ContentType, StringComparer.OrdinalIgnoreCase))
+        {
+            errorMessage = $"Format {file.ContentType} wird nicht unterstützt.";
+            ClearStaged();
+            return;
+        }
+
+        if (file.Size > PlaylistSettings.Value.MaxCoverImageSizeBytes)
+        {
+            var maxMegabytes = PlaylistSettings.Value.MaxCoverImageSizeBytes / (1024.0 * 1024.0);
+            errorMessage = $"Datei zu groß, max. {maxMegabytes:0.#} MB erlaubt.";
+            ClearStaged();
+            return;
+        }
+
+        await using var stream = file.OpenReadStream(maxAllowedSize: PlaylistSettings.Value.MaxCoverImageSizeBytes);
+        using var memoryStream = new MemoryStream();
+        await stream.CopyToAsync(memoryStream);
+
+        selectedFileBytes = memoryStream.ToArray();
+        selectedFileName = file.Name;
+        selectedFileSize = file.Size;
+        selectedContentType = file.ContentType;
+        stagedKind = StagedKind.Upload;
+        stagedSource = $"data:{file.ContentType};base64,{Convert.ToBase64String(selectedFileBytes)}";
+    }
+
+    private void ClearStaged()
+    {
+        stagedKind = StagedKind.None;
+        stagedSource = null;
+        selectedFileBytes = null;
+        selectedFileName = null;
+        selectedFileSize = 0;
+        selectedContentType = null;
+    }
+
+    private static string FormatFileSize(long bytes)
+        => bytes >= 1024 * 1024 ? $"{bytes / (1024.0 * 1024.0):0.#} MB" : $"{bytes / 1024.0:0.#} KB";
+
+    /// <summary>
+    /// Asks the server for a collage preview (nothing is saved) and stages it. A previously chosen file is
+    /// dropped - only one candidate (file OR generated image) is staged at a time.
+    /// </summary>
+    private async Task GenerateAsync()
+    {
+        errorMessage = null;
+        isGenerating = true;
+        try
+        {
+            var preview = await PlaylistClient.PreviewPlaylistCoverAsync(PlaylistId);
+            if (!preview.Success || preview.ImageData is null || preview.ImageData.Length == 0)
+            {
+                errorMessage = string.IsNullOrWhiteSpace(preview.Message)
+                    ? "Keine Bilder verfügbar. Fügen Sie Titel mit Bild hinzu, um ein Bild erzeugen zu lassen."
+                    : $"{preview.Message} Fügen Sie Titel mit Bild hinzu, um ein Bild erzeugen zu lassen.";
+                return;
+            }
+
+            ClearStaged();
+            inputKey++;
+            stagedKind = StagedKind.Generated;
+            stagedSource = $"data:{preview.ContentType ?? "image/jpeg"};base64,{Convert.ToBase64String(preview.ImageData)}";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Fehler beim Erzeugen des Bildes: {ex.Message}";
+        }
+        finally
+        {
+            isGenerating = false;
+        }
+    }
+
+    private Task ApplyAsync()
+        => stagedKind switch
+        {
+            StagedKind.Upload => UploadAsync(),
+            StagedKind.Generated => ApplyGeneratedAsync(),
+            _ => Task.CompletedTask,
+        };
+
+    private async Task UploadAsync()
+    {
+        if (selectedFileBytes is null || selectedFileName is null || selectedContentType is null)
+            return;
+
+        errorMessage = null;
+        isUploading = true;
+        try
+        {
+            await PlaylistClient.UploadPlaylistCoverAsync(PlaylistId, selectedFileBytes, selectedFileName, selectedContentType);
+            await OnChanged.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            // Validierungsfehler des Servers (Format/Größe/kein Bild, Schritt 10) erscheinen hier im Panel.
+            errorMessage = $"Fehler beim Hochladen: {ex.Message}";
+        }
+        finally
+        {
+            isUploading = false;
+        }
+    }
+
+    /// <summary>
+    /// Applies the generated preview by regenerating the cover server-side (the composition is deterministic for
+    /// unchanged contents, so the stored image equals the previewed one). The click is the explicit confirmation to
+    /// replace an uploaded image - the panel showed the warning beforehand.
+    /// </summary>
+    private async Task ApplyGeneratedAsync()
+    {
+        errorMessage = null;
+        isApplying = true;
+        try
+        {
+            var result = await PlaylistClient.RegeneratePlaylistCoverAsync(PlaylistId, confirmReplaceUploadedCover: CoverIsUserUploaded || conflictSeen);
+            if (!result.Success)
+            {
+                errorMessage = string.IsNullOrWhiteSpace(result.Message) ? "Keine Bilder verfügbar." : result.Message;
+                return;
+            }
+
+            await OnChanged.InvokeAsync();
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Conflict)
+        {
+            // Der Server verlangt die Bestätigung, obwohl das Panel kein hochgeladenes Bild kannte (Bild wurde
+            // zwischenzeitlich hochgeladen): Hinweis zeigen, der nächste Klick auf "Anwenden" bestätigt ausdrücklich.
+            conflictSeen = true;
+            errorMessage = "Es gibt inzwischen ein hochgeladenes Bild, das ersetzt würde. Klicken Sie erneut auf \"Anwenden\", um es zu ersetzen.";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Fehler beim Anwenden des Bildes: {ex.Message}";
+        }
+        finally
+        {
+            isApplying = false;
+        }
+    }
+
+    private Task RequestRemove()
+    {
+        errorMessage = null;
+        if (CoverIsUserUploaded)
+        {
+            // Hochgeladenes Bild: nur nach Rückfrage (es ist nicht wiederherstellbar).
+            showRemoveConfirmation = true;
+            return Task.CompletedTask;
+        }
+
+        // Nur erzeugtes Bild: ohne Rückfrage, jederzeit neu erzeugbar.
+        return RemoveAsync();
+    }
+
+    private Task ConfirmRemoveAsync()
+    {
+        showRemoveConfirmation = false;
+        return RemoveAsync();
+    }
+
+    private void CancelRemove()
+    {
+        showRemoveConfirmation = false;
+    }
+
+    private async Task RemoveAsync()
+    {
+        isRemoving = true;
+        try
+        {
+            await PlaylistClient.DeletePlaylistCoverAsync(PlaylistId);
+            await OnChanged.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Fehler beim Entfernen des Bildes: {ex.Message}";
+        }
+        finally
+        {
+            isRemoving = false;
+        }
+    }
+
+    private async Task CancelAsync()
+    {
+        if (IsBusy || showRemoveConfirmation)
+            return;
+
+        await OnCancel.InvokeAsync();
+    }
+}

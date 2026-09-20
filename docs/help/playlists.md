@@ -92,11 +92,21 @@ aussagekräftigen Fehlermeldung angezeigt.
 ## Detailseite
 
 Durch einen Klick auf eine Kachel in der Übersicht oder direkte Navigation gelangt ein Anwender zur
-Detailseite einer Playlist. Die Detailseite ist - ähnlich wie die Detailansichten von Filmen und
-Serien - mit einem Kopfbereich mit Hintergrundbild aufgebaut. Als Hintergrundbild dient die
-Abbildung (das Coverbild) der Playlist; besitzt die Playlist noch kein Coverbild, erscheint
-stattdessen ein generischer Platzhalter (siehe Abschnitt „Abbildung (Cover)"). Der Kopfbereich
-zeigt:
+Detailseite einer Playlist. Sie ist nach dem Muster der Detailseiten von Serien und Filmen aufgebaut:
+oben ein **Kopfbereich** mit Hintergrundbild, darunter der Inhaltsbereich mit den Titeln der Playlist.
+
+**Kopfbereich.** Er hat wie bei Serien und Filmen eine **vorgegebene Höhe**, die nicht vom Bild
+bestimmt wird: Ob das Bild der Playlist sehr hoch, sehr breit oder sehr klein ist oder gar keines
+vorhanden ist — der Kopfbereich bleibt gleich hoch, das Bild wird passend eingepasst (zugeschnitten).
+Das Bild wird wie bei Serien und Filmen **gedämpft** dargestellt (ein Abdunklungsverlauf liegt darüber),
+sodass die Informationen der Playlist darüber gut lesbar bleiben. Als Hintergrundbild dient die Abbildung
+(das Coverbild) der Playlist; besitzt die Playlist noch kein Coverbild, erscheint stattdessen ein
+generischer Platzhalter (siehe Abschnitt „Abbildung (Cover)"). Die Symbol-Schaltflächen sitzen wie bei
+Serien **auf dem Bild** (oben rechts im Kopfbereich), nicht darüber.
+
+### Playlist-Informationen im Kopfbereich
+
+Solange kein Titel ausgewählt ist, zeigt der Kopfbereich die Informationen zur Playlist:
 
 - **Name** — Name der Playlist (Überschrift)
 - **Sortierung** — Symbol und Text für den aktuellen Sortiermodus, daneben eine Schaltfläche zum
@@ -104,74 +114,120 @@ zeigt:
 - **Beschreibung** — Beschreibungstext (falls vorhanden)
 - **Genres** — die Genres der Playlist (falls vorhanden), mit Schaltflächen zum Bearbeiten und
   ggf. Zurücksetzen (siehe Abschnitt „Genres")
-- **Erstellt** / **Aktualisiert** — Zeitpunkt der Erstellung bzw. letzten Änderung, dezent dargestellt
+- **Erstellt** / **Aktualisiert** — Zeitpunkt der Erstellung bzw. letzten Änderung als zwei klar getrennte,
+  beschriftete Angaben im deutschen Format, z. B. „Erstellt: 07.09.2026, 06:23 Uhr" und „Aktualisiert:
+  08.09.2026, 21:07 Uhr", dezent dargestellt
+
+### Symbol-Schaltflächen im Kopfbereich
 
 Alle Bearbeitungsmöglichkeiten der Detailseite (die nachfolgenden Symbol-Schaltflächen, der Sortiermodus-Wechsel,
 die Genre-Bearbeitung sowie im Inhaltsbereich das Hinzufügen, Entfernen und Umsortieren) stehen ausschließlich
 dem **Besitzer** zur Verfügung. Öffnet ein anderer Anwender eine öffentliche Playlist, werden sie nicht
 angezeigt (siehe Abschnitt „Öffentliche Playlists"); stattdessen zeigt der Kopfbereich das Kennzeichen
-„Öffentlich".
+„Öffentlich". Alle reinen Symbol-Schaltflächen haben einen Tooltip und einen zugänglichen Namen.
 
-Im Kopfbereich stehen zusätzlich als Symbol-Schaltflächen zur Verfügung:
-
-- **Öffentlich-Kennzeichnung** (Globus-Symbol) — nur für Administratoren, die Besitzer der Playlist sind:
-  setzt bzw. entfernt die Kennzeichnung „öffentlich" (siehe Abschnitt „Öffentliche Playlists")
-- **Bild hochladen** (Hochlade-Symbol) — Öffnet den Dialog zum Hochladen eines eigenen Coverbilds
+- **Öffentlich-Kennzeichnung** — nur für Administratoren, die Besitzer der Playlist sind: setzt bzw. entfernt
+  die Kennzeichnung „öffentlich" (siehe Abschnitt „Öffentliche Playlists"). Das Symbol zeigt den Zustand:
+  ein **Globus** auf farbigem Grund für eine öffentliche, ein **geschlossenes Schloss** für eine private
+  Playlist. Der Tooltip nennt den Zustand und was ein Klick bewirkt, z. B. „Privat - nur für Sie sichtbar.
+  Klicken, um für alle Anwender zu veröffentlichen" bzw. „Öffentlich - für alle Anwender sichtbar. Klicken, um
+  die Veröffentlichung zurückzunehmen".
+- **Playlist-Bild** (Bild-Symbol) — öffnet das Bild-Panel zum Hochladen, Erzeugen und Entfernen des Bildes
   (siehe Abschnitt „Abbildung (Cover)")
-- **Cover neu erzeugen** (Aktualisieren-Symbol) — Erzeugt das Coverbild automatisch neu aus den
-  Bildern der enthaltenen Inhalte (siehe Abschnitt „Abbildung (Cover)")
 - **Bearbeiten** (Stiftsymbol) — Öffnet das Bearbeitungsformular für die Playlist
 - **Löschen** (Papierkorbsymbol) — Löscht die Playlist nach Bestätigung
-- **Zurück** (Pfeilsymbol, oben links) — Kehrt zur Playlist-Übersicht zurück
+- **Zurück** (Pfeilsymbol, oben links) — Kehrt zur Playlist-Übersicht zurück (bei einem ausgewählten Titel
+  hebt er stattdessen die Auswahl auf, siehe unten)
+
+Das Bearbeitungsformular, die Bestätigung zum Löschen der Playlist, das Bild-Panel, der Genre-Editor und die
+Sicherheitsabfragen sind Overlay-Fenster mit **sichtbarem Rahmen** und deckendem Hintergrund, damit sie sich
+klar vom restlichen Seiteninhalt abheben.
+
+### Titel auswählen
+
+Ein Klick auf einen Titel in der Liste **wählt ihn aus** — wie die Auswahl einer Episode auf der Serienseite.
+Die Kachel ist dann markiert, und der Kopfbereich zeigt statt der Playlist die Informationen des Titels:
+Titel, Erscheinungsjahr (falls bekannt), Art (Film bzw. „Episode 3"), die Zugehörigkeit zu Serie, Staffel oder
+Filmsammlung, die Handlung (falls vorhanden), das Bild des Titels und das Datum, an dem er hinzugefügt wurde.
+Die Auswahl ist auch per Tastatur bedienbar (mit der Tabulatortaste zur Kachel, **Eingabe** oder
+**Leertaste** wählt aus, **Escape** hebt die Auswahl auf) und lässt sich mit dem Zurück-Pfeil im Kopfbereich
+aufheben; dann zeigt der Kopfbereich wieder die Playlist. Die Auswahl hat nichts mit der Wiedergabe zu tun und
+ändert die Adresse der Seite nicht.
+
+Im Kopfbereich eines ausgewählten Titels stehen zur Verfügung:
+
+- **Abspielen** (große Schaltfläche unten rechts, wie bei Episoden) — startet die Wiedergabe ab diesem Titel
+  im Playlist-Kontext (siehe Abschnitt „Wiedergabe starten"). Für einen Titel, für den der Betrachter nicht
+  freigeschaltet ist, gibt es sie nicht; stattdessen erklärt ein Hinweis, dass der Titel nicht abspielbar ist.
+- **Aus der Playlist entfernen** (Papierkorbsymbol) — nur für den Besitzer: entfernt genau diesen Titel (siehe
+  Abschnitt „Entfernen"). Die Schaltflächen der Playlist selbst (Bearbeiten, Löschen, Bild, ...) werden
+  währenddessen nicht angezeigt, damit es keine zwei verwechselbaren „Löschen"-Schaltflächen gibt.
+
+### Zwei getrennte Bereiche: Titel der Playlist und Titel hinzufügen
+
+Unterhalb des Kopfbereichs stehen die Bereiche **„Titel der Playlist"** (die Liste) und **„Titel hinzufügen"**
+(die Suche) nicht mehr gleichzeitig auf der Seite, sondern werden über einen Umschalter aus zwei
+aneinanderhängenden Schaltflächen mit Symbol und Text gewechselt; der aktive Bereich ist farbig hervorgehoben.
+Ist die Playlist leer, wird sofort „Titel hinzufügen" angeboten, andernfalls hat die Titelliste Vorrang. Beim
+Hinzufügen bleibt der Bereich „Titel hinzufügen" geöffnet, damit mehrere Titel nacheinander hinzugefügt werden
+können; wird der letzte Titel entfernt, wechselt die Seite zum Hinzufügen. Beim Wechsel zum Hinzufügen wird
+eine Titelauswahl aufgehoben. Anwender, die nicht Besitzer sind, sehen keinen Umschalter, sondern nur die Liste.
 
 ## Abbildung (Cover)
 
 Jede Playlist kann eine Abbildung (ein Coverbild) besitzen, die in der Übersicht auf der Kachel und
-auf der Detailseite als Hintergrundbild des Kopfbereichs angezeigt wird. Es gibt zwei Wege, zu einem
-Coverbild zu kommen — beide stehen ausschließlich dem Besitzer der Playlist über die beiden
-Symbol-Schaltflächen im Kopfbereich der Detailseite offen:
+auf der Detailseite als Hintergrundbild des Kopfbereichs angezeigt wird. Bedient wird sie ausschließlich vom
+Besitzer über **eine** Symbol-Schaltfläche (Bild-Symbol) im Kopfbereich der Detailseite. Sie öffnet das
+**Bild-Panel**, ein Overlay-Fenster mit Rahmen:
 
-- **Eigenes Bild hochladen**: Über die Schaltfläche „Bild hochladen" öffnet sich ein Dialog, in dem
-  eine Bilddatei ausgewählt wird. Der Dialog zeigt nach der Auswahl eine Vorschau des Bildes sowie
-  Dateiname und -größe an; die Schaltfläche „Hochladen" übernimmt das Bild als Cover, „Abbrechen"
-  schließt den Dialog ohne Änderung. Akzeptiert werden die gängigen Bildformate JPEG, PNG und WebP
-  bis zu einer Dateigröße von 5 MB (beides kann der Administrator in der Konfiguration anpassen,
-  siehe Abschnitt „Konfiguration"). Ungeeignete Dateien werden bereits bei der Auswahl bzw.
-  spätestens beim Hochladen mit einer verständlichen Fehlermeldung abgelehnt, z. B. „Format BMP
-  wird nicht unterstützt. Erlaubte Formate: JPEG, PNG, WebP.", „Datei zu groß, max. 5 MB erlaubt."
-  oder „Datei ist kein gültiges Bild.". Maßgeblich ist dabei das Format, das die Datei
-  tatsächlich enthält — nicht die Dateiendung oder die vom Browser gemeldete Typangabe: Eine GIF-Datei
-  wird also auch dann abgelehnt, wenn sie als „.png" umbenannt wurde. Zu große Bilder (Standard: mehr
-  als 4096 Bildpunkte in Breite oder Höhe bzw. mehr als rund 16,8 Megapixel insgesamt) werden mit
-  „Bild zu groß (… x … Pixel). Erlaubt sind höchstens … Bitte verkleinern Sie das Bild." abgelehnt,
-  und unvollständig übertragene oder beschädigte Dateien mit „Datei ist beschädigt oder unvollständig
-  und kann nicht als Bild gelesen werden.". Das hochgeladene Bild wird unverändert im tatsächlich
-  erkannten Originalformat gespeichert.
-- **Automatisch erzeugen**: Über die Schaltfläche „Cover neu erzeugen" erzeugt die Anwendung das
-  Coverbild als Collage aus den Bildern der in der Playlist enthaltenen Inhalte — höchstens fünf
-  Bilder. Dabei werden zuerst die Bilder enthaltener Serien und Staffeln herangezogen (eine Staffel
-  besitzt kein eigenes Bild und verwendet daher das Bild ihrer Serie), danach die der Episoden, dann
-  die der Filmsammlungen und zuletzt die der Filme; innerhalb derselben Stufe zählt, welcher Inhalt
-  zuerst zur Playlist hinzugefügt wurde. Enthält die Playlist keine Inhalte mit Bildern, schlägt die
-  Erzeugung fehl und die Meldung „Keine Bilder verfügbar." wird angezeigt — die bisherige Abbildung
-  bzw. der Platzhalter bleiben dabei unverändert bestehen.
+- **Vorschau** — zeigt das aktuelle Bild der Playlist (mit dem Hinweis, ob es hochgeladen oder automatisch
+  erzeugt wurde) bzw. „Kein Bild vorhanden". Sobald eine Datei gewählt oder ein Bild erzeugt wurde, zeigt sie
+  stattdessen dieses **neue Bild als Vorschau** mit dem Hinweis „noch nicht gespeichert".
+- **Bild hochladen** — Auswahl einer Bilddatei. Nach der Auswahl erscheinen die Vorschau sowie Dateiname und
+  -größe; der Bestätigungsbutton heißt dann **„Hochladen"** und übernimmt das Bild als Cover.
+- **Bild erzeugen** („Aus den Titeln erzeugen") — erzeugt eine Vorschau des automatisch aus den Bildern der
+  Playlist-Inhalte zusammengesetzten Bildes. Erzeugen speichert **nichts**; der Bestätigungsbutton heißt dann
+  **„Anwenden"** und übernimmt die angezeigte Vorschau erst als Cover. „Abbrechen" schließt das Panel ohne
+  Änderung. Es ist immer nur ein Kandidat (Datei **oder** erzeugtes Bild) ausgewählt; ein neuer ersetzt den
+  bisherigen.
+- **Bild entfernen** — nur sichtbar, wenn die Playlist ein Bild hat; entfernt das bestehende Bild (die Playlist
+  zeigt dann wieder den Platzhalter). Ein **hochgeladenes** Bild wird nur nach Rückfrage entfernt („Hochgeladenes
+  Bild entfernen — kann nicht wiederhergestellt werden"); ein bloß **automatisch erzeugtes** ohne Rückfrage, da
+  es sich jederzeit neu erzeugen lässt.
+
+Akzeptiert werden die gängigen Bildformate JPEG, PNG und WebP bis zu einer Dateigröße von 5 MB (beides kann der
+Administrator in der Konfiguration anpassen, siehe Abschnitt „Konfiguration"). Ungeeignete Dateien werden bereits
+bei der Auswahl bzw. spätestens beim Hochladen mit einer verständlichen Fehlermeldung **im Panel** abgelehnt,
+z. B. „Format BMP wird nicht unterstützt. Erlaubte Formate: JPEG, PNG, WebP.", „Datei zu groß, max. 5 MB erlaubt."
+oder „Datei ist kein gültiges Bild.". Maßgeblich ist dabei das Format, das die Datei
+tatsächlich enthält — nicht die Dateiendung oder die vom Browser gemeldete Typangabe: Eine GIF-Datei
+wird also auch dann abgelehnt, wenn sie als „.png" umbenannt wurde. Zu große Bilder (Standard: mehr
+als 4096 Bildpunkte in Breite oder Höhe bzw. mehr als rund 16,8 Megapixel insgesamt) werden mit
+„Bild zu groß (… x … Pixel). Erlaubt sind höchstens … Bitte verkleinern Sie das Bild." abgelehnt,
+und unvollständig übertragene oder beschädigte Dateien mit „Datei ist beschädigt oder unvollständig
+und kann nicht als Bild gelesen werden.". Das hochgeladene Bild wird unverändert im tatsächlich
+erkannten Originalformat gespeichert. Das automatisch erzeugte Bild ist eine Collage aus den Bildern der in der
+Playlist enthaltenen Inhalte — höchstens fünf Bilder. Dabei werden zuerst die Bilder enthaltener Serien und
+Staffeln herangezogen (eine Staffel besitzt kein eigenes Bild und verwendet daher das Bild ihrer Serie), danach
+die der Episoden, dann die der Filmsammlungen und zuletzt die der Filme; innerhalb derselben Stufe zählt, welcher
+Inhalt zuerst zur Playlist hinzugefügt wurde. Enthält die Playlist keine Inhalte mit Bildern, meldet das Panel
+„Keine Bilder verfügbar." — die bisherige Abbildung bzw. der Platzhalter bleiben dabei unverändert bestehen.
 
 **Vorrang des eigenen Bildes:** Ein hochgeladenes Bild wird nie im Hintergrund durch eine automatisch
-erzeugte Collage ersetzt — nur eine ausdrückliche Aktion des Besitzers ändert das Cover (ein neuer
-Upload oder ein bewusst ausgelöstes „Cover neu erzeugen"). Damit ein hochgeladenes Bild nicht
-versehentlich verloren geht, fragt die Anwendung vor „Cover neu erzeugen" nach, sofern das aktuelle
-Cover ein hochgeladenes Bild ist: Ein Dialog „Hochgeladenes Bild ersetzen" weist darauf hin, dass das
-von Ihnen hochgeladene Bild durch ein automatisch erzeugtes ersetzt wird und nicht wiederhergestellt
-werden kann. Erst „Ja, ersetzen" führt die Erzeugung aus, „Abbrechen" lässt das Bild unverändert. Ist
-das aktuelle Cover selbst schon automatisch erzeugt oder noch gar nicht vorhanden, entfällt die
-Rückfrage. Ebenso entfällt sie, wenn die Playlist keine Inhalte mit Bildern enthält — dann wird ohnehin
-nichts ersetzt.
+erzeugte Collage ersetzt — nur eine ausdrückliche Aktion des Besitzers ändert das Cover. Damit ein hochgeladenes
+Bild nicht versehentlich verloren geht, weist das Panel **vorher** deutlich darauf hin: Ist das aktuelle Bild ein
+hochgeladenes und wurde ein Kandidat gewählt, steht unter der Vorschau „Das aktuell hochgeladene Bild wird ersetzt
+und kann nicht wiederhergestellt werden." Erst der ausdrückliche Klick auf „Hochladen" bzw. „Anwenden" führt den
+Austausch aus, „Abbrechen" lässt das Bild unverändert. (Der Server verlangt die Bestätigung für das Ersetzen
+eines hochgeladenen Bildes durch ein erzeugtes weiterhin selbst — das Panel sendet sie mit dem Klick auf
+„Anwenden" mit; ohne sie antwortet der Server mit einem Konflikt, siehe API-Referenz.) Ist das aktuelle Cover
+schon automatisch erzeugt oder noch gar nicht vorhanden, entfällt der Hinweis.
 
 **Keine automatische Aktualisierung:** Anders als die Genres einer Playlist (siehe Abschnitt
 „Genres") wird das Coverbild bei Änderungen des Inhalts — beim Hinzufügen oder Entfernen von Titeln
 ebenso wie bei der automatischen Nachlieferung neuer Inhalte — bewusst **nicht** von selbst neu
-erzeugt. Damit das Cover den geänderten Inhalt widerspiegelt, löst der Anwender „Cover neu erzeugen"
-selbst aus.
+erzeugt. Damit das Cover den geänderten Inhalt widerspiegelt, erzeugt der Anwender es im Bild-Panel
+selbst neu und wendet es an.
 
 **Ersatzdarstellung:** Besitzt eine Playlist kein Coverbild (noch keines hochgeladen oder erzeugt,
 oder das Bild ist nicht ladbar), wird an beiden Stellen ein neutrales, je Playlist farblich
@@ -180,10 +236,12 @@ wird auch ihr Coverbild mit entfernt.
 
 ## Inhalte hinzufügen und entfernen
 
-Unterhalb des Kopfbereichs zeigt die Detailseite die Inhalte („Einträge") dieser Playlist als
-Kacheln - im gleichen Stil wie die Episoden-Kacheln der Serien-Detailansicht - mit Titelbild, Titel,
-zugehöriger Sammlung (falls vorhanden) und Hinzufügedatum. Nur Filme und Episoden erhalten dabei
-eine eigene Kachel (siehe Abschnitt „Kaskaden-Logik" weiter unten für den Hintergrund).
+Unterhalb des Kopfbereichs zeigt die Detailseite im Bereich „Titel der Playlist" die Inhalte („Einträge")
+dieser Playlist als Kacheln - im gleichen Stil wie die Episoden-Kacheln der Serien-Detailansicht - mit
+Titelbild, Titel, zugehöriger Sammlung (falls vorhanden) und Hinzufügedatum. Die Kacheln tragen keine
+Abspielen- oder Entfernen-Schaltflächen: ein Klick wählt den Titel aus, seine Informationen sowie
+**Abspielen** und **Entfernen** stehen dann im Kopfbereich (siehe Abschnitt „Titel auswählen"). Nur Filme und
+Episoden erhalten eine eigene Kachel (siehe Abschnitt „Kaskaden-Logik" weiter unten für den Hintergrund).
 
 ### Titelbild
 
@@ -197,9 +255,9 @@ optisch abgeblendet dargestellt, um anzuzeigen, dass die enthaltenen Inhalte der
 angeschaut werden können. Zugriff besteht, wenn der Anwender entweder regulären Zugriff auf die
 zugrunde liegende Mediaquelle hat oder der Inhalt individuell für ihn freigeschaltet wurde
 (bei Filmen, Staffeln und Episoden über die übergeordnete Filmsammlung bzw. Serie); dies gilt für
-alle Medientypen. Der **Entfernen**-Button bleibt für solche Einträge weiterhin nutzbar — der
+alle Medientypen. Das **Entfernen** im Kopfbereich bleibt für solche Einträge weiterhin nutzbar — der
 Anwender kann einen nicht zugänglichen Eintrag also jederzeit aus der Playlist entfernen. Die
-**Abspielen**-Schaltfläche erscheint dagegen nicht, und ein Doppelklick auf die Zeile startet
+**Abspielen**-Schaltfläche erscheint dagegen nicht, und ein Doppelklick auf die Kachel startet
 keine Wiedergabe (siehe Abschnitt „Wiedergabe starten").
 
 ### Sortierung und Anzeige
@@ -252,8 +310,8 @@ Modus umstellen:
 
 ### Hinzufügen
 
-Zum Hinzufügen eines Medieninhalts gibt der Anwender einen Suchbegriff in das Suchfeld oberhalb der
-Einträge-Liste ein. Bereits während der Eingabe (mit einer kurzen Verzögerung, damit nicht bei
+Zum Hinzufügen eines Medieninhalts wechselt der Besitzer mit dem Umschalter zum Bereich „Titel hinzufügen"
+(bei einer leeren Playlist ist er von Anfang an geöffnet) und gibt einen Suchbegriff in das Suchfeld ein. Bereits während der Eingabe (mit einer kurzen Verzögerung, damit nicht bei
 jedem Tastendruck eine eigene Suche ausgelöst wird) durchsucht das System alle fünf Medientypen —
 **Film**, **Serie**, **Staffel**, **Episode** und **Filmsammlung** — nach passenden Namen und zeigt
 die Treffer als Kacheln mit Titelbild, Titel und Medientyp an. Ein Klick auf eine Kachel fügt den
@@ -290,8 +348,10 @@ erfolgreich abgeschlossen (grüne Info-Meldung), auch wenn nichts Neues hinzugef
 
 ### Entfernen
 
-Jeder Eintrag in der Liste besitzt einen **Entfernen**-Button. Ein Klick darauf entfernt
-genau diesen Eintrag sofort aus der Playlist. Die Liste wird unmittelbar aktualisiert.
+Zum Entfernen wählt der Besitzer den Titel in der Liste aus und klickt im Kopfbereich auf das
+**Löschen-Symbol** („Titel aus der Playlist entfernen"). Das entfernt genau diesen Eintrag sofort aus der
+Playlist. Die Liste wird unmittelbar aktualisiert, die Auswahl aufgehoben; war es der letzte Titel, wechselt die
+Seite zum Bereich „Titel hinzufügen".
 
 Befindet sich der zu entfernende Titel noch mit Bezug zu genau dieser Playlist in der
 Weiterschauen-Liste, erscheint zuvor eine Sicherheitsabfrage: „Dieser Eintrag befindet sich in
@@ -402,9 +462,10 @@ Playlist-Kontext **mit der gespeicherten Position** rekonstruiert.
 
 ### Wiedergabe starten
 
-Auf der Detailseite besitzt jeder abspielbare Eintrag (Film oder Episode) eine
-**Abspielen**-Schaltfläche; alternativ startet ein Doppelklick auf die Kachel die Wiedergabe ab
-genau diesem Eintrag. Der Video-Player öffnet sich daraufhin mit dem gewählten Titel und zeigt
+Auf der Detailseite wählt der Anwender einen abspielbaren Eintrag (Film oder Episode) aus und klickt im
+Kopfbereich auf **Abspielen**; alternativ startet ein Doppelklick auf die Kachel die Wiedergabe ab
+genau diesem Eintrag. (Das Abspielen aus der Weiterschauen-Liste läuft unabhängig davon über die Adresse mit
+dem Eintrag und wählt keinen Titel aus.) Der Video-Player öffnet sich daraufhin mit dem gewählten Titel und zeigt
 oberhalb des Players einen Playlist-Badge mit Playlist-Name und Position an, z. B.
 „[Meine Favoriten: 3/12]". 
 
@@ -414,8 +475,8 @@ startet der Player automatisch an der gespeicherten Wiedergabeposition statt bei
 Sammel-Einträge (Serie, Staffel, Filmsammlung) erhalten wie beschrieben ohnehin keine eigene
 Kachel und damit auch keine Abspielen-Schaltfläche, da sie nicht direkt abspielbar sind — nur
 Filme und Episoden lassen sich starten. Nicht zugängliche (gesperrte) Einträge (siehe Abschnitt
-„Zugriffsstatus in der Liste") erhalten zwar eine Kachel, zeigen aber ebenfalls keine
-Abspielen-Schaltfläche, und ein Doppelklick auf ihre Kachel bleibt wirkungslos.
+„Zugriffsstatus in der Liste") erhalten zwar eine Kachel und lassen sich auswählen, zeigen aber im Kopfbereich
+keine Abspielen-Schaltfläche, und ein Doppelklick auf ihre Kachel bleibt wirkungslos.
 
 ### Navigation innerhalb der Playlist
 
@@ -469,7 +530,8 @@ Playlists werden nach Bestätigung in einem Dialog endgültig gelöscht (kein Pa
 
 Ein Administrator kann seine **eigenen** Playlists als „öffentlich" kennzeichnen — und die Kennzeichnung
 jederzeit wieder entfernen. Dafür gibt es auf der Detailseite (im Kopfbereich, in der Reihe der
-Symbol-Schaltflächen) einen Symbol-Button mit einem Globus-Symbol. Regulären Anwendern wird dieser
+Symbol-Schaltflächen) einen Symbol-Button, dessen Symbol den Zustand zeigt (Globus = öffentlich, Schloss =
+privat, siehe Abschnitt „Detailseite"). Regulären Anwendern wird dieser
 Button gar nicht erst angezeigt (nicht ausgegraut, sondern nicht vorhanden); ihre Playlists bleiben
 stets privat. Auch der Server lehnt das Setzen oder Entfernen der Kennzeichnung durch Nicht-Administratoren
 ab (HTTP 403).
@@ -490,10 +552,11 @@ angezeigt. Die eigenen öffentlichen Playlists eines Administrators erscheinen n
 der Übersicht, im Filter „Öffentliche" ebenfalls.
 
 Die Detailseite einer öffentlichen Playlist ist für alle außer dem Besitzer **ausschließlich lesend**. Es
-gibt weder Bearbeiten noch Löschen, weder Bild hochladen noch „Neu erzeugen", keine Genre-Bearbeitung
-oder -Rücksetzung, keinen Wechsel des Sortiermodus, kein Suchfeld zum Hinzufügen, keine Entfernen-Schaltflächen
-und keine Umsortierung (weder „An Anfang"/„An Ende" noch Drag & Drop) — diese Elemente werden nicht
-angezeigt. Das gilt auch für einen Administrator, der nicht der Besitzer ist. Abspielen bleibt möglich,
+gibt weder Bearbeiten noch Löschen, kein Bild-Panel (Hochladen, Erzeugen, Entfernen), keine Genre-Bearbeitung
+oder -Rücksetzung, keinen Wechsel des Sortiermodus, keinen Umschalter und keine Suche zum Hinzufügen, kein
+Entfernen eines Titels im Kopfbereich und keine Umsortierung (weder „An Anfang"/„An Ende" noch Drag & Drop) —
+diese Elemente werden nicht angezeigt. Das gilt auch für einen Administrator, der nicht der Besitzer ist.
+Titel lassen sich auswählen (der Kopfbereich zeigt ihre Informationen), Abspielen bleibt möglich,
 mit Weiterschalten, Playlist-Badge und Positionswiederherstellung wie bei eigenen Playlists.
 
 **Freischaltung je Betrachter.** Ob ein Titel abspielbar ist, hängt immer vom Betrachter ab (regulärer

@@ -61,6 +61,7 @@ public class PlaylistServiceTests_PublicAccessMatrix : PlaylistServiceTestBase
         Op("SetGenres", (s, p, u, e, m, ct) => s.SetPlaylistGenresAsync(p, u, Array.Empty<long>(), ct)),
         Op("ResetGenres", (s, p, u, e, m, ct) => s.ResetPlaylistGenresAsync(p, u, ct)),
         Op("GenerateCover", (s, p, u, e, m, ct) => s.GeneratePlaylistCoverAsync(p, u, true, ct)),
+        Op("PreviewCover", (s, p, u, e, m, ct) => s.PreviewPlaylistCoverAsync(p, u, ct)),
         Op("SetCover", (s, p, u, e, m, ct) => s.SetPlaylistCoverAsync(p, u, TinyPng, "image/png", ct)),
         Op("DeleteCover", (s, p, u, e, m, ct) => s.DeletePlaylistCoverAsync(p, u, ct)),
         Op("SetPublicTrueAsAdmin", (s, p, u, e, m, ct) => s.SetPlaylistPublicAsync(p, u, true, true, ct)),

@@ -727,6 +727,26 @@ input[type="text"]:focus {
     height: 5rem;
 }
 
+/* Die --admin-*-Farben sind sonst nur innerhalb von ".admin-console" definiert. Dialoge ausserhalb davon (die
+   Playlist-Dialoge: Bearbeiten, Loeschen, Bild, Genres, Sortiermodus, Titel entfernen) bekamen dadurch weder
+   Hintergrund noch Rahmen (ungueltiges var() -> transparent/kein Rahmen) und waren vom Seiteninhalt kaum zu
+   unterscheiden. Innerhalb von ".admin-console" sind die Werte identisch, dort aendert sich nichts. */
+.admin-dialog-overlay {
+    --admin-bg: #0b1326;
+    --admin-surface: #171f33;
+    --admin-surface-low: #131b2e;
+    --admin-surface-high: #222a3d;
+    --admin-border: #424754;
+    --admin-text: #dae2fd;
+    --admin-muted: #c2c6d6;
+    --admin-primary: #adc6ff;
+    --admin-primary-strong: #4d8eff;
+    --admin-success: #4edea3;
+    --admin-warning: #ffcf66;
+    --admin-danger: #ffb4ab;
+    color: var(--admin-text);
+}
+
 .admin-dialog-overlay {
     position: fixed;
     inset: 0;
@@ -747,6 +767,12 @@ input[type="text"]:focus {
     border: 1px solid var(--admin-border);
     border-radius: var(--vp-radius);
     background: var(--admin-surface);
+    box-shadow: 0 0 0 1px rgba(173, 198, 255, 0.22), 0 24px 64px rgba(0, 0, 0, 0.65);
+}
+
+.admin-dialog h2 {
+    margin: 0;
+    font-size: 1.25rem;
 }
 
 .admin-dialog-preview {
@@ -2654,32 +2680,83 @@ input[type="text"]:focus {
 
 /* Kopfbereich der Detailansicht: erbt Layout/Groesse/Gradient-Overlay von .tvshow-header, der
    Cover-Platzhalter liegt als Hintergrund absolut dahinter. */
-.playlist-header-fallback {
+.playlist-header {
     position: relative;
 }
 
-.playlist-header-fallback .playlist-header-cover {
+.playlist-header .playlist-header-cover {
     position: absolute;
     inset: 0;
     z-index: 0;
 }
 
-.playlist-header-fallback .playlist-header-cover .playlist-cover-icon {
+.playlist-header .playlist-header-cover .playlist-cover-icon {
     width: clamp(96px, 14vw, 200px);
     height: clamp(96px, 14vw, 200px);
 }
 
 /* Echtes Cover-Bild (hochgeladen oder generiert, Entwicklungsschritt 10): liegt ueber dem
    PlaylistCoverPlaceholder, siehe .playlist-card-cover-image fuer dasselbe Muster auf der Kachel. */
-.playlist-header-fallback .playlist-header-cover-image {
+.playlist-header .playlist-header-cover-image {
     width: 100%;
     height: 100%;
     object-fit: cover;
 }
 
-.playlist-header-fallback .tvshow-header-overlay {
+.playlist-header .tvshow-header-overlay {
     position: relative;
     z-index: 1;
+}
+
+/* Lange Namen ohne Leerzeichen duerfen bei schmaler Breite nicht am Rand abgeschnitten werden. */
+.playlist-header h1,
+.playlist-header .tvshow-plot {
+    overflow-wrap: anywhere;
+}
+
+/* Aktionsbuttons AUF dem Bild, rechtsbuendig wie auf der Serienseite (dort belegen Favorit-/Freischalt-Button
+   die rechte Ecke und die Leiste rueckt um deren Breite ein; die Playlist hat diese beiden nicht). */
+.playlist-header .playlist-action-bar {
+    right: var(--vp-gutter);
+}
+
+/* Angaben zum ausgewaehlten Titel im Kopfbereich: kleines Poster links neben Titel/Meta/Handlung. */
+.playlist-header-entry {
+    display: flex;
+    align-items: flex-end;
+    gap: 1.25rem;
+}
+
+.playlist-header-poster {
+    flex: 0 0 auto;
+    width: clamp(72px, 9vw, 130px);
+    aspect-ratio: 2 / 3;
+    object-fit: cover;
+    border: 1px solid var(--vp-border-strong);
+    border-radius: var(--vp-radius);
+    background: var(--vp-surface-low);
+}
+
+.playlist-header-entry-text {
+    min-width: 0;
+}
+
+.playlist-detail-entry-locked {
+    margin-top: 0.75rem;
+    color: #ffcf66;
+    font-size: 0.9rem;
+}
+
+/* Veroeffentlichen-Button: Zustand am Symbol erkennbar. Oeffentlich = Globus auf Akzentgrund, privat = Schloss
+   auf dem neutralen Grund der uebrigen Symbolbuttons. */
+.playlist-detail-toggle-public-button.playlist-public-active {
+    color: #fff;
+    background: var(--vp-primary);
+    border-color: var(--vp-primary);
+}
+
+.playlist-detail-toggle-public-button.playlist-public-active:hover {
+    background: var(--vp-primary-hover);
 }
 
 .playlist-detail-meta {
@@ -2699,17 +2776,17 @@ input[type="text"]:focus {
 .playlist-detail-dates-muted {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.35rem 1.25rem;
+    gap: 0.35rem 1.75rem;
     margin-top: 0.75rem;
-    color: rgba(255, 255, 255, 0.45);
-    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 0.85rem;
 }
 
+/* Beschriftung ("Erstellt:") von Wert getrennt (Leerzeichen im Markup + Abstand), nicht mehr zusammengezogen. */
 .playlist-detail-date-label {
-    margin-right: 0.3rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    opacity: 0.8;
+    margin-right: 0.25rem;
+    font-weight: 600;
+    opacity: 0.85;
 }
 
 /* Genres einer Playlist (Entwicklungsschritt 9): dezente, kommagetrennte Zeile, analog zu
@@ -2806,3 +2883,93 @@ input[type="text"]:focus {
     color: var(--vp-text-muted);
 }
 
+/* Moduswechsel der Inhaltsbereiche (Titel der Playlist / Titel hinzufuegen): gleiche verbundene Symbolbutton-Gruppe
+   wie die Filterleiste der Uebersicht (.playlist-filter-group), hier mit Beschriftung neben dem Symbol. */
+.playlist-mode-group {
+    margin-bottom: 1.25rem;
+}
+
+.playlist-mode-button {
+    width: auto;
+    gap: 0.5rem;
+    padding: 0 1rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.playlist-add-hint {
+    max-width: 760px;
+}
+
+/* Overlay-Panel fuer das Playlist-Bild. Rahmen und Hintergrund kommen von .admin-dialog. */
+.playlist-cover-panel {
+    width: min(640px, 100%);
+}
+
+.playlist-cover-panel-preview {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 140px;
+    max-height: 260px;
+    overflow: hidden;
+    border: 1px solid var(--admin-border);
+    border-radius: var(--vp-radius-sm);
+    background: var(--admin-bg);
+}
+
+.playlist-cover-panel-image {
+    display: block;
+    max-width: 100%;
+    max-height: 260px;
+    object-fit: contain;
+}
+
+.playlist-cover-panel-empty {
+    color: var(--admin-muted);
+}
+
+.playlist-cover-panel-sources {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+}
+
+/* Der Bestaetigungsbutton ist ohne Auswahl deaktiviert: gedaempft in der Akzentfarbe statt im blauen Standard-
+   Deaktiviert-Ton von Bootstrap. */
+.playlist-cover-panel .btn-primary:disabled {
+    color: #fff;
+    background: var(--vp-primary);
+    border-color: var(--vp-primary);
+    opacity: 0.4;
+}
+
+#playlist-cover-replace-warning {
+    border-left-color: #ffcf66;
+}
+
+@media (max-width: 768px) {
+    /* Platz fuer den Abspielen-Button (58px) rechts unten, damit er den Text des Titels nicht ueberdeckt. */
+    .playlist-header-entry {
+        padding-right: 4.5rem;
+    }
+}
+
+@media (max-width: 640px) {
+    .playlist-header .playlist-action-bar {
+        right: var(--vp-mobile-gutter);
+    }
+
+    .playlist-header-poster {
+        width: 64px;
+    }
+}
+
+@media (max-width: 480px) {
+    /* Umschalter passt auch auf ~400px breite Bildschirme in die Zeile. */
+    .playlist-mode-button {
+        padding: 0 0.6rem;
+        gap: 0.35rem;
+        font-size: 0.85rem;
+    }
+}

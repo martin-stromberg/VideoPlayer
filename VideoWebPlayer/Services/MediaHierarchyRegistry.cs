@@ -42,6 +42,13 @@ internal sealed class MediaTypeHandler
     public required Func<ApplicationDbContext, IReadOnlyCollection<long>, CancellationToken, Task<Dictionary<long, long?>>> LoadPictureIdsAsync { get; init; }
 
     /// <summary>
+    /// Bulk-loads the plot (description) of each of the given ids in a single query, for the media types
+    /// that are directly playable (movies and episodes) - the entry information shown in the header of the
+    /// playlist detail page. <see langword="null"/> for types whose entries never get an own tile.
+    /// </summary>
+    public Func<ApplicationDbContext, IReadOnlyCollection<long>, CancellationToken, Task<Dictionary<long, string?>>>? LoadPlotAsync { get; init; }
+
+    /// <summary>
     /// Whether an entry of this media type is itself the entity whose individual unlock status is
     /// checked (a TV show or movie collection), as opposed to needing hierarchy resolution up to such
     /// an ancestor (a movie, TV show season or TV show episode).
@@ -69,6 +76,7 @@ internal static class MediaHierarchyRegistry
             LoadTitlesAsync = (db, ids, ct) => db.Movies.AsNoTracking().Where(m => ids.Contains(m.Id)).ToDictionaryAsync(m => m.Id, m => m.Name, ct),
             LoadExistingIdsAsync = (db, ids, ct) => db.Movies.AsNoTracking().Where(m => ids.Contains(m.Id)).Select(m => m.Id).ToHashSetAsync(ct),
             LoadReleaseDateAsync = (db, ids, ct) => db.Movies.AsNoTracking().Where(m => ids.Contains(m.Id)).ToDictionaryAsync(m => m.Id, m => m.ReleaseDate ?? m.PremieredAt, ct),
+            LoadPlotAsync = (db, ids, ct) => db.Movies.AsNoTracking().Where(m => ids.Contains(m.Id)).ToDictionaryAsync(m => m.Id, m => m.Plot, ct),
             GetHierarchySequenceAsync = NoHierarchyAsync,
             LoadPictureIdsAsync = async (db, ids, ct) =>
             {
@@ -93,6 +101,7 @@ internal static class MediaHierarchyRegistry
                     .ToListAsync(ct);
                 return episodes.ToDictionary(e => e.Id, e => e.ReleaseDate ?? e.PremieredAt ?? e.ShowPremieredAt);
             },
+            LoadPlotAsync = (db, ids, ct) => db.TVShowEpisodes.AsNoTracking().Where(e => ids.Contains(e.Id)).ToDictionaryAsync(e => e.Id, e => e.Plot, ct),
             GetHierarchySequenceAsync = async (db, ids, ct) =>
             {
                 var episodes = await db.TVShowEpisodes.AsNoTracking()

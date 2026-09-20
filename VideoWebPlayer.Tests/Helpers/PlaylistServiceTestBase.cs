@@ -668,6 +668,9 @@ public abstract class PlaylistServiceTestBase : IDisposable
         public Task<long?> GeneratePlaylistCoverAsync(long playlistId, string userId, bool confirmReplaceUploadedCover = false, CancellationToken cancellationToken = default)
             => _resolve().GeneratePlaylistCoverAsync(playlistId, userId, confirmReplaceUploadedCover, cancellationToken);
 
+        public Task<byte[]?> PreviewPlaylistCoverAsync(long playlistId, string userId, CancellationToken cancellationToken = default)
+            => _resolve().PreviewPlaylistCoverAsync(playlistId, userId, cancellationToken);
+
         public Task<long> SetPlaylistCoverAsync(long playlistId, string userId, byte[] pictureData, string? contentType, CancellationToken cancellationToken = default)
             => _resolve().SetPlaylistCoverAsync(playlistId, userId, pictureData, contentType, cancellationToken);
 

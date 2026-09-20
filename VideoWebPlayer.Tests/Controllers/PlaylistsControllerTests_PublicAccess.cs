@@ -62,6 +62,7 @@ public class PlaylistsControllerTests_PublicAccess : PlaylistsControllerTestBase
         Ep("ResetPlaylistGenres", (c, id, e, m) => c.ResetPlaylistGenres(id)),
         Ep("UploadPlaylistCover", (c, id, e, m) => c.UploadPlaylistCover(id, CreateFormFile())),
         Ep("RegeneratePlaylistCover", (c, id, e, m) => c.RegeneratePlaylistCover(id, true)),
+        Ep("PreviewPlaylistCover", (c, id, e, m) => c.PreviewPlaylistCover(id)),
         Ep("DeletePlaylistCover", (c, id, e, m) => c.DeletePlaylistCover(id)),
         Ep("SetPlaylistPublicTrue", (c, id, e, m) => c.SetPlaylistPublic(id, new DtoSetPlaylistPublicRequest { IsPublic = true })),
         Ep("SetPlaylistPublicFalse", (c, id, e, m) => c.SetPlaylistPublic(id, new DtoSetPlaylistPublicRequest { IsPublic = false })),

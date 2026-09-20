@@ -28,20 +28,19 @@ public class PlaylistDetailPublicTests
     public static IEnumerable<object[]> EditingAffordances() => new[]
     {
         new object[] { "Aktionsleiste", ".metadata-action-bar" },
-        new object[] { "Bild hochladen", "#playlist-detail-upload-cover-button" },
-        new object[] { "Cover neu erzeugen", "#playlist-detail-regenerate-cover-button" },
+        new object[] { "Bild-Panel-Button", "#playlist-detail-cover-button" },
         new object[] { "Bearbeiten", ".playlist-detail-edit-button" },
         new object[] { "Löschen", ".playlist-detail-delete-button" },
         new object[] { "Öffentlich-Umschalter", "#playlist-detail-toggle-public-button" },
         new object[] { "Sortiermodus-Wechsel", ".playlist-sortmode-toggle-button" },
         new object[] { "Genres bearbeiten", "#playlist-detail-edit-genres-button" },
         new object[] { "Genres zurücksetzen", "#playlist-detail-reset-genres-button" },
-        new object[] { "Eintrag entfernen", ".playlist-entry-remove-button" },
+        new object[] { "Modus-Umschalter (Titel/Hinzufügen)", "#playlist-content-mode-group" },
+        new object[] { "Hinzufügen-Modus", "#playlist-add-area" },
         new object[] { "An Anfang", ".playlist-entry-move-start-button" },
         new object[] { "An Ende", ".playlist-entry-move-end-button" },
         new object[] { "Drag & Drop", ".playlist-entry-row[draggable=true]" },
         new object[] { "Drag&Drop-Hinweis", ".playlist-entries-draganddrop-hint" },
-        new object[] { "Suchfeld zum Hinzufügen", ".admin-actions" },
     };
 
     [Theory]
@@ -79,6 +78,9 @@ public class PlaylistDetailPublicTests
         using var ctx = CreateContext(CreatePlaylist(isOwner: true, isPublic: true), isAdmin: true);
 
         var cut = RenderDetail(ctx);
+        // The add area is only shown in the "Titel hinzufügen" mode (a non-empty list starts in the list mode).
+        if (selector == "#playlist-add-area")
+            cut.Find("#playlist-mode-add-button").Click();
 
         Assert.True(cut.FindAll(selector).Count > 0, $"'{name}' ({selector}) should be rendered for the owner.");
     }
@@ -94,11 +96,52 @@ public class PlaylistDetailPublicTests
         Assert.Equal(2, rows.Count);
         var accessible = rows.Single(r => r.TextContent.Contains("Freigeschaltet"));
         var locked = rows.Single(r => r.TextContent.Contains("Gesperrt"));
-        Assert.Single(accessible.QuerySelectorAll(".playlist-entry-play-button"));
+        // No play/remove buttons on the tiles any more; playing happens from the header of a selected entry.
+        Assert.Empty(cut.FindAll(".playlist-entry-play-button"));
         Assert.DoesNotContain("opacity-50", accessible.ClassName);
-        Assert.Empty(locked.QuerySelectorAll(".playlist-entry-play-button"));
         Assert.Contains("opacity-50", locked.ClassName);
         Assert.NotNull(cut.Find("#playlist-detail-public-badge"));
+
+        // Selecting the accessible entry offers "Abspielen" in the header ...
+        accessible.Click();
+        Assert.Single(cut.FindAll("#playlist-detail-play-entry-button"));
+        // ... selecting the locked one does not (playing stays impossible), it explains why instead.
+        cut.FindAll(".playlist-entry-row").Single(r => r.TextContent.Contains("Gesperrt")).Click();
+        Assert.Empty(cut.FindAll("#playlist-detail-play-entry-button"));
+        Assert.Single(cut.FindAll("#playlist-detail-entry-locked"));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Viewer_SelectingAnEntry_ShowsPlayButtonButNoEditingAffordance(bool isAdmin)
+    {
+        using var ctx = CreateContext(CreatePlaylist(isOwner: false, isPublic: true), isAdmin: isAdmin);
+        var cut = RenderDetail(ctx);
+
+        cut.FindAll(".playlist-entry-row").Single(r => r.TextContent.Contains("Freigeschaltet")).Click();
+
+        Assert.Single(cut.FindAll("#playlist-detail-selected-entry"));
+        Assert.Single(cut.FindAll("#playlist-detail-play-entry-button"));
+        // No delete button, no action bar at all, no add mode - for regular users and administrators alike.
+        Assert.Empty(cut.FindAll("#playlist-detail-remove-entry-button"));
+        Assert.Empty(cut.FindAll(".metadata-action-bar"));
+        Assert.Empty(cut.FindAll("#playlist-content-mode-group"));
+        Assert.Empty(cut.FindComponents<MediaSearchSelector>());
+    }
+
+    [Fact]
+    public void Owner_SelectingAnEntry_ShowsRemoveButtonInHeader_ViewerNever()
+    {
+        using var ctx = CreateContext(CreatePlaylist(isOwner: true, isPublic: false), isAdmin: false);
+        var cut = RenderDetail(ctx);
+        Assert.Empty(cut.FindAll("#playlist-detail-remove-entry-button"));
+
+        cut.FindAll(".playlist-entry-row").Single(r => r.TextContent.Contains("Freigeschaltet")).Click();
+
+        var remove = Assert.Single(cut.FindAll("#playlist-detail-remove-entry-button"));
+        Assert.False(string.IsNullOrWhiteSpace(remove.GetAttribute("title")));
+        Assert.Equal(remove.GetAttribute("title"), remove.GetAttribute("aria-label"));
     }
 
     [Fact]
@@ -121,8 +164,12 @@ public class PlaylistDetailPublicTests
 
         Assert.Single(cut.FindAll(".playlist-detail-edit-button"));
         Assert.Single(cut.FindAll(".playlist-detail-delete-button"));
-        Assert.Single(cut.FindAll("#playlist-detail-upload-cover-button"));
+        Assert.Single(cut.FindAll("#playlist-detail-cover-button"));
         Assert.Single(cut.FindAll(".playlist-sortmode-toggle-button"));
+        Assert.Single(cut.FindAll("#playlist-content-mode-group"));
+        // A non-empty list starts in the list mode: the search to add titles is a separate mode.
+        Assert.Empty(cut.FindComponents<MediaSearchSelector>());
+        cut.Find("#playlist-mode-add-button").Click();
         Assert.Single(cut.FindComponents<MediaSearchSelector>());
         // The toggle is not greyed out - it is not there at all.
         Assert.Empty(cut.FindAll("#playlist-detail-toggle-public-button"));
@@ -144,6 +191,51 @@ public class PlaylistDetailPublicTests
         playlistClientMock.Verify(c => c.SetPlaylistPublicAsync(1, It.Is<DtoSetPlaylistPublicRequest>(r => r.IsPublic)), Times.Once);
         cut.WaitForAssertion(() => Assert.Single(cut.FindAll("#playlist-detail-public-badge")));
         Assert.Equal("true", cut.Find("#playlist-detail-toggle-public-button").GetAttribute("aria-pressed"));
+    }
+
+    /// <summary>
+    /// D10: the publish button shows a different symbol (globe = public, lock = private) and a different
+    /// title/aria-label in each state, plus aria-pressed - it is no longer the same picture for both states.
+    /// </summary>
+    [Fact]
+    public void Owner_Admin_PublishButton_ShowsDifferentSymbolAndLabelPerState()
+    {
+        using var privateCtx = CreateContext(CreatePlaylist(isOwner: true, isPublic: false), isAdmin: true);
+        var privateButton = RenderDetail(privateCtx).Find("#playlist-detail-toggle-public-button");
+        using var publicCtx = CreateContext(CreatePlaylist(isOwner: true, isPublic: true), isAdmin: true);
+        var publicButton = RenderDetail(publicCtx).Find("#playlist-detail-toggle-public-button");
+
+        Assert.NotNull(privateButton.QuerySelector("svg.playlist-private-icon"));
+        Assert.Null(privateButton.QuerySelector("svg.playlist-public-icon"));
+        Assert.NotNull(publicButton.QuerySelector("svg.playlist-public-icon"));
+        Assert.Null(publicButton.QuerySelector("svg.playlist-private-icon"));
+        // The two states are distinguishable by the actual symbol markup, not just a CSS class.
+        Assert.NotEqual(privateButton.QuerySelector("svg")!.InnerHtml, publicButton.QuerySelector("svg")!.InnerHtml);
+
+        Assert.Equal("false", privateButton.GetAttribute("aria-pressed"));
+        Assert.Equal("true", publicButton.GetAttribute("aria-pressed"));
+        Assert.StartsWith("Privat", privateButton.GetAttribute("title"));
+        Assert.StartsWith("Öffentlich", publicButton.GetAttribute("title"));
+        Assert.Equal(privateButton.GetAttribute("title"), privateButton.GetAttribute("aria-label"));
+        Assert.Equal(publicButton.GetAttribute("title"), publicButton.GetAttribute("aria-label"));
+        Assert.NotEqual(privateButton.GetAttribute("title"), publicButton.GetAttribute("title"));
+    }
+
+    [Fact]
+    public void Owner_Admin_PublishButton_SymbolChangesAfterToggling()
+    {
+        var playlistClientMock = CreatePlaylistClientMock(CreatePlaylist(isOwner: true, isPublic: false));
+        playlistClientMock
+            .Setup(c => c.SetPlaylistPublicAsync(1, It.Is<DtoSetPlaylistPublicRequest>(r => r.IsPublic)))
+            .ReturnsAsync(CreatePlaylist(isOwner: true, isPublic: true));
+        using var ctx = CreateContext(playlistClientMock, isAdmin: true);
+        var cut = RenderDetail(ctx);
+        Assert.NotNull(cut.Find("#playlist-detail-toggle-public-button svg.playlist-private-icon"));
+
+        cut.Find("#playlist-detail-toggle-public-button").Click();
+
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("#playlist-detail-toggle-public-button svg.playlist-public-icon")));
+        Assert.Empty(cut.FindAll("#playlist-detail-toggle-public-button svg.playlist-private-icon"));
     }
 
     [Fact]

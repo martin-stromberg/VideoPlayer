@@ -75,5 +75,23 @@ namespace VideoWebPlayer.Client.Models
         /// <c>ByReleaseDate</c>.
         /// </summary>
         public long? SortOrder { get; set; }
+
+        /// <summary>
+        /// Gets or sets the release date of the referenced media entity (release date, falling back to its
+        /// premiere date), or <c>null</c> if unknown. Shown in the header of the playlist detail page when the
+        /// entry is selected.
+        /// </summary>
+        public DateTime? ReleaseDate { get; set; }
+
+        /// <summary>
+        /// Gets or sets the plot (description) of the referenced movie or episode, or <c>null</c> if it has none.
+        /// </summary>
+        public string? Plot { get; set; }
+
+        /// <summary>
+        /// Gets or sets the episode number within its season for a <c>TVShowEpisode</c> entry, <c>null</c> for
+        /// every other media type.
+        /// </summary>
+        public int? EpisodeNumber { get; set; }
     }
 }

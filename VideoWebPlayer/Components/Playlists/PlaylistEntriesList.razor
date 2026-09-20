@@ -6,13 +6,19 @@
 @inject IJSRuntime JS
 @inject ILogger<PlaylistEntriesList> Logger
 
-@* Owns the "Inhalte" section of the playlist detail page: the add-entry form, the page-loaded entry
-   list, drag & drop reordering and the "An Anfang"/"An Ende" quick actions. Extracted out of
-   PlaylistDetail.razor (which otherwise combined this with playlist metadata display, the sort-mode
-   change workflow and the delete workflow into a single ~500-line component) so each component stays
-   focused on one concern. PlaylistDetail.razor still owns the sort-mode change workflow itself (it needs
-   to update the playlist's SortMode and show the confirmation dialog), but tells this component to
-   reload afterwards via ReloadAsync(), since a sort-mode change affects every entry's SortOrder. *@
+@* Owns the "Inhalte" section of the playlist detail page: the two separated content areas (the playlist's titles
+   and the search to add titles, switched by a mode toggle), the page-loaded entry list, drag & drop reordering and
+   the "An Anfang"/"An Ende" quick actions. Extracted out of PlaylistDetail.razor (which otherwise combined this
+   with playlist metadata display, the sort-mode change workflow and the delete workflow into a single
+   ~500-line component) so each component stays focused on one concern. PlaylistDetail.razor still owns the
+   sort-mode change workflow itself (it needs to update the playlist's SortMode and show the confirmation
+   dialog), but tells this component to reload afterwards via ReloadAsync(), since a sort-mode change affects
+   every entry's SortOrder.
+
+   Kundenrückmeldung zur Detailansicht: Auflistung und Hinzufügen sind getrennte Bereiche (Moduswechsel). Ist
+   die Playlist leer, wird sofort das Hinzufügen angeboten, andernfalls die Titelliste. Die Kacheln tragen keine
+   Abspielen-/Entfernen-Buttons mehr: ein Klick wählt den Titel aus (Informationen erscheinen im Kopfbereich der
+   Detailseite, dort auch Abspielen und - nur für den Besitzer - Entfernen), wie bei den Episoden der Serien. *@
 
 @if (!string.IsNullOrWhiteSpace(entriesStatusMessage))
 {
@@ -22,20 +28,50 @@
 <div class="admin-table-wrap">
     @if (!IsReadOnly)
     {
-        @* Nur fuer den Besitzer (Entwicklungsschritt 11): in der Nur-Lese-Ansicht (oeffentliche Playlist eines
-           anderen Anwenders) wird das Suchfeld zum Hinzufuegen gar nicht erst gerendert. *@
-        <div class="admin-actions">
-            <MediaSearchSelector @ref="searchSelectorRef" OnMediaSelected="OnMediaSelectedAsync" />
+        @* Nur für den Besitzer (Entwicklungsschritt 11): in der Nur-Lese-Ansicht (öffentliche Playlist eines
+           anderen Anwenders) gibt es weder Umschalter noch Hinzufügen-Bereich, nur die Titelliste. *@
+        <div class="playlist-mode-group playlist-filter-group" id="playlist-content-mode-group" role="group" aria-label="Bereich der Playlist">
+            <button type="button"
+                    class="playlist-filter-button playlist-mode-button@(mode == ContentMode.Entries ? " active" : string.Empty)"
+                    id="playlist-mode-entries-button"
+                    data-mode="entries"
+                    title="Titel der Playlist"
+                    aria-label="Titel der Playlist"
+                    aria-pressed="@(mode == ContentMode.Entries ? "true" : "false")"
+                    @onclick="() => SetModeAsync(ContentMode.Entries)">
+                <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13" /><path d="M8 12h13" /><path d="M8 18h13" /><path d="M3 6h.01" /><path d="M3 12h.01" /><path d="M3 18h.01" /></svg>
+                <span class="playlist-mode-label">Titel der Playlist</span>
+            </button>
+            <button type="button"
+                    class="playlist-filter-button playlist-mode-button@(mode == ContentMode.Add ? " active" : string.Empty)"
+                    id="playlist-mode-add-button"
+                    data-mode="add"
+                    title="Titel hinzufügen"
+                    aria-label="Titel hinzufügen"
+                    aria-pressed="@(mode == ContentMode.Add ? "true" : "false")"
+                    @onclick="() => SetModeAsync(ContentMode.Add)">
+                <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14" /><path d="M5 12h14" /></svg>
+                <span class="playlist-mode-label">Titel hinzufügen</span>
+            </button>
         </div>
     }
 
-    @if (allEntries.Count == 0 && !hasMorePages)
+    @if (ShowAddMode)
+    {
+        <div class="playlist-add-area" id="playlist-add-area">
+            <p class="text-muted playlist-add-hint">Suchen Sie einen Film, eine Serie, Staffel, Episode oder Filmsammlung und wählen Sie ein Ergebnis aus, um es der Playlist hinzuzufügen. Sie können nacheinander mehrere Titel hinzufügen.</p>
+            <div class="admin-actions">
+                <MediaSearchSelector @ref="searchSelectorRef" OnMediaSelected="OnMediaSelectedAsync" />
+            </div>
+        </div>
+    }
+    else if (IsEmpty)
     {
         <div class="admin-empty-state">
             <strong>Keine Einträge vorhanden</strong>
             @if (!IsReadOnly)
             {
-                <span>Fügen Sie einen Medieninhalt hinzu.</span>
+                <span>Wechseln Sie zu "Titel hinzufügen", um einen Medieninhalt hinzuzufügen.</span>
             }
         </div>
     }
@@ -47,24 +83,30 @@
         }
         @* Kacheln im Stil der Episoden-Kacheln der Serien-Detailansicht (TVShowDetails.episode-box) statt der
            bisherigen Tabelle (Kundenfeedback: "Die aktuelle Scrollbox wirkt laienhaft"). Nur Filme und Episoden
-           erhalten eine eigene Kachel - Serien/Staffeln/Filmsammlungen, die beim Hinzufuegen einer ganzen Serie
-           als rein organisatorische Eintraege mitgespeichert werden (siehe IsRenderableEntry), werden hier
-           bewusst uebersprungen, bleiben aber Teil der zugrunde liegenden, weiterhin unveraendert seitenweise
+           erhalten eine eigene Kachel - Serien/Staffeln/Filmsammlungen, die beim Hinzufügen einer ganzen Serie
+           als rein organisatorische Einträge mitgespeichert werden (siehe IsRenderableEntry), werden hier
+           bewusst übersprungen, bleiben aber Teil der zugrunde liegenden, weiterhin unverändert seitenweise
            geladenen Eintragsliste.
            Wie auf der Serienseite rendert die Liste einfach in den normalen Seitenfluss und scrollt mit dem
-           Dokument - kein Virtualize und keine eigene Scrollbox (Virtualize wuerde hier ohnehin den falschen
-           Scroll-Parent waehlen, weil .layout-flex/main ueber overflow-x: hidden berechnet overflow-y: auto
-           bekommen). Das seitenweise Nachladen laeuft ueber das Sentinel-Div am Listenende: sobald es in den
+           Dokument - kein Virtualize und keine eigene Scrollbox (Virtualize würde hier ohnehin den falschen
+           Scroll-Parent wählen, weil .layout-flex/main über overflow-x: hidden berechnet overflow-y: auto
+           bekommen). Das seitenweise Nachladen läuft über das Sentinel-Div am Listenende: sobald es in den
            Viewport scrollt, meldet observeBottom (wwwroot/js/scroll.js, gleiches Muster wie
-           Actors.razor/MediaSourceDetails.razor) OnBottomVisible(). *@
+           Actors.razor/MediaSourceDetails.razor) OnBottomVisible().
+           Auswahl: role="option" + aria-selected + tabindex, Enter/Leertaste wählen aus (wie bei den Episoden
+           der Serienseite), Escape hebt die Auswahl auf. Doppelklick spielt ab (bestehendes Verhalten). *@
         <div class="playlist-entries-list-wrap">
-            <div class="episode-list playlist-entries-list">
+            <div class="episode-list playlist-entries-list" role="listbox" aria-label="Titel der Playlist">
                 @foreach (var entry in allEntries)
                 {
                     @if (IsRenderableEntry(entry))
                     {
-                        <div class="episode-box playlist-entry-row @(entry.IsAccessible ? string.Empty : "opacity-50 text-muted")" data-media-type="@entry.MediaType" data-media-id="@entry.MediaId"
+                        var isSelected = SelectedEntryId == entry.Id;
+                        <div class="episode-box playlist-entry-row @(isSelected ? "selected" : string.Empty) @(entry.IsAccessible ? string.Empty : "opacity-50 text-muted")" data-media-type="@entry.MediaType" data-media-id="@entry.MediaId" data-entry-id="@entry.Id"
+                             role="option" tabindex="0" aria-selected="@(isSelected ? "true" : "false")"
                              draggable="@(IsReorderable ? "true" : "false")"
+                             @onclick="() => SelectEntryAsync(entry)"
+                             @onkeydown="args => OnEntryKeyDownAsync(args, entry)"
                              @ondragstart="() => OnEntryDragStart(entry)"
                              @ondragover:preventDefault="IsReorderable"
                              @ondrop="() => OnEntryDropAsync(entry)"
@@ -78,21 +120,13 @@
                                     <div class="playlist-entry-parent">@entry.ParentMediaTitle</div>
                                 }
                                 <div class="playlist-entry-meta-muted">Hinzugefügt: @entry.AddedAt.ToLocalTime()</div>
-                                <div class="playlist-entry-actions">
-                                    @if (IsPlayableEntry(entry))
-                                    {
-                                        <button class="metadata-icon-btn playlist-entry-play-button" @onclick="() => OnPlayEntry.InvokeAsync(entry)" @onclick:stopPropagation title="Abspielen">▶</button>
-                                    }
-                                    @if (IsReorderable)
-                                    {
-                                        <button class="metadata-icon-btn playlist-entry-move-start-button" @onclick="() => MoveEntryToBeginningAsync(entry)" @onclick:stopPropagation title="An Anfang">⇤</button>
-                                        <button class="metadata-icon-btn playlist-entry-move-end-button" @onclick="() => MoveEntryToEndAsync(entry)" @onclick:stopPropagation title="An Ende">⇥</button>
-                                    }
-                                    @if (!IsReadOnly)
-                                    {
-                                        <button class="metadata-icon-btn playlist-entry-remove-button" @onclick="() => RemoveEntryAsync(entry)" @onclick:stopPropagation title="Entfernen">✕</button>
-                                    }
-                                </div>
+                                @if (IsReorderable)
+                                {
+                                    <div class="playlist-entry-actions">
+                                        <button class="metadata-icon-btn playlist-entry-move-start-button" @onclick="() => MoveEntryToBeginningAsync(entry)" @onclick:stopPropagation title="An Anfang" aria-label="An Anfang">⇤</button>
+                                        <button class="metadata-icon-btn playlist-entry-move-end-button" @onclick="() => MoveEntryToEndAsync(entry)" @onclick:stopPropagation title="An Ende" aria-label="An Ende">⇥</button>
+                                    </div>
+                                }
                             </div>
                         </div>
                     }
@@ -104,9 +138,9 @@
             }
             @if (loadMoreFailed)
             {
-                @* Nach einem Ladefehler laedt die Liste NICHT von selbst nach (sonst haelte ein anhaltender
+                @* Nach einem Ladefehler lädt die Liste NICHT von selbst nach (sonst hielte ein anhaltender
                    Server-/Netzfehler bei sichtbarem Sentinel eine Endlosschleife an Wiederholungen am Laufen),
-                   sondern erst auf ausdruecklichen Wunsch des Nutzers. *@
+                   sondern erst auf ausdrücklichen Wunsch des Nutzers. *@
                 <div class="playlist-entries-retry">
                     <button type="button" class="btn btn-outline-primary" id="playlist-entries-retry-button" @onclick="RetryLoadNextPageAsync">Erneut versuchen</button>
                 </div>
@@ -140,13 +174,51 @@
     public bool IsReadOnly { get; set; }
 
     /// <summary>
+    /// The id of the currently selected entry (owned by <c>PlaylistDetail</c>, which shows the entry's
+    /// information in its header), or <see langword="null"/> if none is selected.
+    /// </summary>
+    [Parameter]
+    public long? SelectedEntryId { get; set; }
+
+    /// <summary>
+    /// Raised when the user selects an entry (click, Enter, Space) - with the entry - or clears the selection
+    /// (Escape, or switching to the "Titel hinzufügen" area) - with <see langword="null"/>.
+    /// </summary>
+    [Parameter]
+    public EventCallback<DtoPlaylistEntry?> OnEntrySelected { get; set; }
+
+    /// <summary>
+    /// Raised after an entry was actually removed from the playlist (directly, or after the continue-watching
+    /// confirmation), so <c>PlaylistDetail</c> can drop its selection.
+    /// </summary>
+    [Parameter]
+    public EventCallback<DtoPlaylistEntry> OnEntryRemoved { get; set; }
+
+    private enum ContentMode
+    {
+        Entries,
+        Add
+    }
+
+    private ContentMode mode = ContentMode.Entries;
+    private bool modeInitialized;
+
+    private bool ShowAddMode => !IsReadOnly && mode == ContentMode.Add;
+
+    /// <summary>
+    /// Whether the playlist has nothing to show: no entry that gets its own tile and nothing left to load.
+    /// While a load failed the list is not "empty" (its content is merely unknown).
+    /// </summary>
+    private bool IsEmpty => !hasMorePages && !loadMoreFailed && !allEntries.Any(IsRenderableEntry);
+
+    /// <summary>
     /// Whether entries can be reordered (manual sort mode AND the user may edit the playlist).
     /// </summary>
     private bool IsReorderable => IsManualMode && !IsReadOnly;
 
     /// <summary>
-    /// Raised when the user double-clicks an entry row or clicks its "Abspielen" button, to start
-    /// playlist playback from that entry. Handled by <c>PlaylistDetail</c>, which owns navigation to
+    /// Raised when the user double-clicks an entry row, to start playlist playback from that entry (the
+    /// "Abspielen" button of a selected entry lives in the header of <c>PlaylistDetail</c>). Handled by <c>PlaylistDetail</c>, which owns navigation to
     /// <c>VideoPlayer</c>.
     /// </summary>
     [Parameter]
@@ -218,6 +290,15 @@
             finally
             {
                 loadPageSemaphore.Release();
+            }
+
+            if (!modeInitialized)
+            {
+                // Einmalig nach dem ersten erfolgreichen Laden: eine leere Playlist bietet sofort das Hinzufügen
+                // an (nur dem Besitzer), sonst hat die Titelliste Vorrang. Später ändert sich der Modus nur durch
+                // den Umschalter oder das Entfernen des letzten Titels.
+                modeInitialized = true;
+                mode = !IsReadOnly && IsEmpty ? ContentMode.Add : ContentMode.Entries;
             }
 
             // The sentinel element is re-created whenever hasMorePages toggles, and the JS observer still
@@ -439,11 +520,12 @@
     /// (the required Sicherheitsabfrage) instead of removing anything, mirroring how
     /// <c>PlaylistDetail.ApplySortModeAsync</c> handles the analogous sort-mode-change confirmation.
     /// </summary>
-    private Task RemoveEntryAsync(DtoPlaylistEntry entry)
-        => RunEntryActionAsync(async () =>
+    public async Task RemoveEntryAsync(DtoPlaylistEntry entry)
+    {
+        await RunEntryActionAsync(async () =>
         {
             await PlaylistClient.RemoveMediaFromPlaylistAsync(PlaylistId, entry.MediaType, entry.MediaId);
-            await LoadInitialPageAsync();
+            await AfterEntryRemovedAsync(entry);
         }, "Fehler beim Entfernen", ex =>
         {
             if (ex is HttpRequestException { StatusCode: System.Net.HttpStatusCode.Conflict })
@@ -454,6 +536,11 @@
             }
             return false;
         });
+
+        // Called from the header of PlaylistDetail, i.e. not from an event handler of this component: render
+        // explicitly so the reloaded list, the confirmation dialog or an error message show up.
+        await InvokeAsync(StateHasChanged);
+    }
 
     /// <summary>
     /// Confirms removal of <see cref="pendingRemovalEntry"/> despite its continue-watching reference,
@@ -470,8 +557,22 @@
         return RunEntryActionAsync(async () =>
         {
             await PlaylistClient.RemoveMediaFromPlaylistAsync(PlaylistId, entry.MediaType, entry.MediaId, confirmContinueWatchingRemoval: true);
-            await LoadInitialPageAsync();
+            await AfterEntryRemovedAsync(entry);
         }, "Fehler beim Entfernen");
+    }
+
+    /// <summary>
+    /// Reloads the list after an entry was removed, tells the host (which drops its selection) and - when the
+    /// removed entry was the last title - switches to the "Titel hinzufügen" area, since an empty list has
+    /// nothing to offer but adding.
+    /// </summary>
+    private async Task AfterEntryRemovedAsync(DtoPlaylistEntry entry)
+    {
+        await LoadInitialPageAsync();
+        if (!IsReadOnly && IsEmpty)
+            mode = ContentMode.Add;
+
+        await OnEntryRemoved.InvokeAsync(entry);
     }
 
     private void CancelRemoveEntry()
@@ -494,6 +595,34 @@
         searchSelectorRef?.Reset();
     }
 
+    /// <summary>
+    /// Switches between the two content areas. Entering the "Titel hinzufügen" area clears the selection (the
+    /// header then shows the playlist again instead of a title that is no longer visible in the list).
+    /// </summary>
+    private async Task SetModeAsync(ContentMode newMode)
+    {
+        if (IsReadOnly || mode == newMode)
+            return;
+
+        mode = newMode;
+        if (newMode == ContentMode.Add)
+            await OnEntrySelected.InvokeAsync(null);
+    }
+
+    private Task SelectEntryAsync(DtoPlaylistEntry entry)
+        => OnEntrySelected.InvokeAsync(entry);
+
+    private Task OnEntryKeyDownAsync(KeyboardEventArgs args, DtoPlaylistEntry entry)
+    {
+        if (args.Key is "Enter" or " " or "Spacebar")
+            return SelectEntryAsync(entry);
+
+        if (args.Key == "Escape" && SelectedEntryId.HasValue)
+            return OnEntrySelected.InvokeAsync(null);
+
+        return Task.CompletedTask;
+    }
+
     private string GetImageUrl(DtoPlaylistEntry entry)
         => MediaPictureUrlResolver.Resolve(entry.ResolvedPictureId, Client.AuthorizationToken);
 
@@ -502,11 +631,11 @@
     /// (Movie or TVShowEpisode; collection entries like TVShow, TVShowSeason, MovieCollection are not,
     /// mirroring <c>PlaylistService.GetNextPlaylistEntryAsync</c>'s playback-navigation filtering) and it
     /// must be accessible to the current user (<see cref="DtoPlaylistEntry.IsAccessible"/>) - locked
-    /// entries offer no "Abspielen" button and cannot be started via double-click either, instead of
+    /// entries cannot be started via double-click (nor via the header's "Abspielen" button) either, instead of
     /// letting the click reach the server and fail with a 403 that used to replace the whole detail page
     /// (see <see cref="PlaylistDetail.playbackError"/>).
     /// </summary>
-    private static bool IsPlayableEntry(DtoPlaylistEntry entry)
+    internal static bool IsPlayableEntry(DtoPlaylistEntry entry)
         => PlaylistEntryMediaTypeResolver.IsPlayable(entry.MediaType) && entry.IsAccessible;
 
     /// <summary>

@@ -326,6 +326,20 @@ public interface IPlaylistService
     Task<long?> GeneratePlaylistCoverAsync(long playlistId, string userId, bool confirmReplaceUploadedCover = false, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Composes the automatic cover collage of a playlist's current contents exactly like
+    /// <see cref="GeneratePlaylistCoverAsync"/> would, but only <b>returns</b> the JPEG bytes - nothing is
+    /// saved, the playlist's current cover (uploaded or generated) stays untouched, so no confirmation is
+    /// needed. Backs the preview in the cover panel of the detail page: the collage is only applied once
+    /// the owner confirms ("Anwenden", which calls <see cref="GeneratePlaylistCoverAsync"/>). Owner only,
+    /// like every cover mutation.
+    /// </summary>
+    /// <param name="playlistId">The playlist identifier.</param>
+    /// <param name="userId">The id of the requesting (owning) user.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The JPEG-encoded collage, or <c>null</c> if no source images were available.</returns>
+    Task<byte[]?> PreviewPlaylistCoverAsync(long playlistId, string userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Saves an uploaded image as a playlist's cover, replacing its current cover (if any).
     /// </summary>
     /// <param name="playlistId">The playlist identifier.</param>

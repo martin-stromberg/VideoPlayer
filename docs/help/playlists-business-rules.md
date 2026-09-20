@@ -823,9 +823,11 @@ verloren geht.
   Cover hochgeladen und die Collage könnte erzeugt werden, wird ohne Parameter
   `confirmReplaceUploadedCover = true` eine `UploadedCoverReplacementConfirmationRequiredException`
   geworfen und nichts geändert; `PlaylistsController.RegeneratePlaylistCover` übersetzt sie in
-  HTTP 409 Conflict mit `DtoRegeneratePlaylistCoverConflictResponse`, die Oberfläche
-  (`PlaylistCoverRegenerateConfirmationDialog`, „Hochgeladenes Bild ersetzen") zeigt einen Dialog und
-  ruft bei „Ja, ersetzen" erneut mit Bestätigung auf — dasselbe Muster wie beim Sortiermodus-Wechsel
+  HTTP 409 Conflict mit `DtoRegeneratePlaylistCoverConflictResponse`. Die Oberfläche (Bild-Panel,
+  `PlaylistCoverPanel`) kündigt das Ersetzen eines hochgeladenen Bildes bereits **vor** dem Übernehmen unter der
+  Vorschau an („Das aktuell hochgeladene Bild wird ersetzt …"); der ausdrückliche Klick auf „Anwenden" gilt als
+  Bestätigung und sendet `confirmReplaceUploadedCover=true` (kommt trotzdem ein 409, zeigt das Panel einen Hinweis und
+  der nächste Klick bestätigt) — dasselbe Schutzmuster wie beim Sortiermodus-Wechsel
   (`ManualSortOrderConfirmationRequiredException`) und beim Entfernen mit Weiterschauen-Bezug
   (`ContinueWatchingConfirmationRequiredException`). Ein generiertes oder fehlendes Cover wird ohne
   Rückfrage ersetzt; ist keine Collage erzeugbar (keine Quellbilder), bleibt ein hochgeladenes Cover
@@ -847,10 +849,12 @@ Playlist hat generiertes Cover (CoverPictureIsUserUploaded = false)
 → Besitzer lädt eigenes Bild hoch: alte Picture-Zeile wird gelöscht,
   CoverPictureId zeigt auf das neue Bild, CoverPictureIsUserUploaded = true
 
-Besitzer löst anschließend "Cover neu erzeugen" aus:
-→ Server antwortet mit 409 Conflict, das hochgeladene Bild bleibt unverändert;
-  die Oberfläche fragt nach ("Hochgeladenes Bild ersetzen")
-→ Erst nach "Ja, ersetzen" (Wiederholung mit confirmReplaceUploadedCover=true):
+Besitzer erzeugt im Bild-Panel eine Vorschau (nichts wird gespeichert):
+→ Das Panel zeigt: "Das aktuell hochgeladene Bild wird ersetzt und kann nicht
+  wiederhergestellt werden."
+→ Ohne confirmReplaceUploadedCover=true antwortet der Server auf regenerate mit 409 Conflict,
+  das hochgeladene Bild bliebe unverändert
+→ Erst der Klick auf "Anwenden" (regenerate mit confirmReplaceUploadedCover=true):
   hochgeladenes Bild wird gelöscht, neue Collage ersetzt es,
   CoverPictureIsUserUploaded = false
 ```
@@ -859,9 +863,10 @@ Besitzer löst anschließend "Cover neu erzeugen" aus:
 
 ## BR-25: „Cover neu erzeugen" ist ausschließlich eine manuelle Aktion
 
-**Regel:** Die Cover-Collage wird nur dann (neu) erzeugt, wenn der Besitzer es ausdrücklich
-anstößt (`POST /api/playlists/{id}/cover/regenerate`, in der Oberfläche die Schaltfläche „Cover neu
-erzeugen"). Inhaltsänderungen — manuelles Hinzufügen/Entfernen, automatische Nachlieferung (BR-18),
+**Regel:** Die Cover-Collage wird nur dann (neu) **gespeichert**, wenn der Besitzer es ausdrücklich
+anstößt (`POST /api/playlists/{id}/cover/regenerate`, in der Oberfläche der Button „Anwenden" im Bild-Panel nach einer
+Vorschau; eine bloße Vorschau über `POST .../cover/preview` erzeugt die Collage nur als Bild und speichert nichts,
+siehe BR-32). Inhaltsänderungen — manuelles Hinzufügen/Entfernen, automatische Nachlieferung (BR-18),
 stille Bereinigung verwaister Einträge (BR-7) — lösen keine Neuerzeugung aus; auch beim Anlegen
 einer Playlist wird kein Cover automatisch erzeugt.
 
@@ -876,6 +881,50 @@ einer Playlist wird kein Cover automatisch erzeugt.
   antwortet dann mit `DtoPlaylistCoverResult { Success = false, Message = "Keine Bilder
   verfügbar." }` und das bisherige Cover (oder der Platzhalter) bleibt unverändert — ein Fehler
   wird wie bei den übrigen Bild-Generatoren geloggt statt an den Anwender weitergereicht
+
+---
+
+## BR-32: Cover-Vorschau speichert nichts, nur der Besitzer
+
+**Regel:** Die Vorschau einer automatisch erzeugten Collage (`POST /api/playlists/{id}/cover/preview`) liefert nur
+Bilddaten und **verändert nichts**: kein neues `Picture`, `Playlist.CoverPictureId` und
+`CoverPictureIsUserUploaded` bleiben unangetastet — daher ist auch für ein hochgeladenes Cover keine Bestätigung
+nötig (BR-24 betrifft das Ersetzen, nicht das Anzeigen einer Vorschau). Die Vorschau darf **nur der Besitzer** abrufen
+(403 für alle anderen, auch bei öffentlicher Playlist; 404 unbekannt; 401 nicht angemeldet) — sie zählt zum
+Änderungsablauf und verrät den Inhalt einer Collage.
+
+**Umsetzung:** `PlaylistService.PreviewPlaylistCoverAsync()` prüft den Besitz über `GetOwnedPlaylistAsync()` und ruft
+danach nur `PlaylistCoverImageGenerator.GeneratePlaylistCoverAsync()` auf (dieselbe Erzeugung wie `regenerate`).
+Übernommen wird die Vorschau, indem die Oberfläche `regenerate` aufruft — es gibt bewusst keinen Endpunkt, der
+Bilddaten als „erzeugtes" Cover entgegennimmt. Die Erzeugung ist für unveränderte Inhalte deterministisch.
+
+---
+
+## BR-33: Entfernen im Bild-Panel — Rückfrage nur für hochgeladene Bilder
+
+**Regel:** Das Entfernen des bestehenden Bildes im Bild-Panel fragt bei einem **hochgeladenen** Bild zuvor nach
+(nicht wiederherstellbar, siehe BR-24) und entfernt ein bloß **automatisch erzeugtes** Bild ohne Rückfrage, weil es
+sich jederzeit neu erzeugen lässt. Der Server-Endpunkt `DELETE /api/playlists/{id}/cover` bleibt unverändert und
+verlangt keine Bestätigung; der Schutz ist eine Eigenschaft der Oberfläche.
+
+---
+
+## BR-34: Titelauswahl und Bereiche der Detailseite (Oberfläche)
+
+**Regeln:**
+- Ein Klick (Enter, Leertaste) auf einen Titel **wählt** ihn aus; seine Angaben (Titel, Jahr, Art, Zugehörigkeit,
+  Handlung, Bild) erscheinen im Kopfbereich. „Abspielen" (nur für abspielbare **und** für den Betrachter
+  freigeschaltete Titel) und „Entfernen" (nur Besitzer) stehen im Kopfbereich, nicht an der Kachel. Die Auswahl ist
+  unabhängig vom Query-Parameter `?entryId=`, der ausschließlich die Wiedergabe steuert.
+- „Titel der Playlist" und „Titel hinzufügen" sind getrennte Bereiche mit Umschalter (nur für den Besitzer). Eine leere
+  Playlist (kein Eintrag mit eigener Kachel) startet im Hinzufügen-Bereich, sonst in der Titelliste. Hinzufügen belässt
+  den Bereich (mehrere Titel nacheinander), das Entfernen des letzten Titels wechselt zum Hinzufügen, der Wechsel zum
+  Hinzufügen hebt eine Auswahl auf.
+- Für Nicht-Besitzer gibt es weder Umschalter noch Hinzufügen-Bereich, kein Bild-Panel, kein Entfernen; nur Auswahl
+  und Abspielen (BR-28).
+
+**Hinweis:** Reine Oberflächenregeln — die Berechtigungen (BR-4, BR-28) erzwingt weiterhin der Server; ein
+ausgeblendeter Button ist keine Absicherung.
 
 ---
 
@@ -1003,6 +1052,7 @@ Fortschritt melden (`ContinueWatchingService.ValidatePlaylistAccessAsync`) darf,
 | BR-23: Medientyp-Priorität der Collage | Bei `POST .../cover/regenerate` | Keine (deterministische Auswahl) | Keine — 200 OK (ggf. `success: false`) |
 | BR-24: Vorrang hochgeladenes Cover | Bei Upload/Regenerierung | `UploadedCoverReplacementConfirmationRequiredException`, wenn ein hochgeladenes Cover ohne Bestätigung ersetzt würde | 409 Conflict (`DtoRegeneratePlaylistCoverConflictResponse`) |
 | BR-25: Neuerzeugung nur manuell | Nie automatisch | Keine | Keine |
+| BR-32: Cover-Vorschau speichert nichts, nur Besitzer | Bei `POST .../cover/preview` | `PlaylistAccessDeniedException` bei Fremdzugriff | 403 Forbidden / 404 Not Found — sonst 200 OK (ggf. `success: false`) |
 | BR-26: Cover-Bild-Aufräumung | Bei Ersetzen/Entfernen/Playlist-Löschung | Keine (tolerantes Verhalten) | Keine |
 
 ---
@@ -1068,7 +1118,7 @@ Resultat: Serie A PLUS alle Staffeln und Episoden
 | `Playlists:MaxCoverImageWidthPixels` | `int` | `4096` | Maximale Breite eines hochgeladenen Cover-Bildes in Pixeln (BR-22); geprüft am Bildkopf vor der Dekodierung; ≤ 0 schaltet die Prüfung ab |
 | `Playlists:MaxCoverImageHeightPixels` | `int` | `4096` | Maximale Höhe eines hochgeladenen Cover-Bildes in Pixeln (BR-22); geprüft am Bildkopf vor der Dekodierung; ≤ 0 schaltet die Prüfung ab |
 | `Playlists:MaxCoverImageTotalPixels` | `long` | `16777216` (4096 × 4096) | Maximale Gesamtpixelzahl (Breite × Höhe) eines hochgeladenen Cover-Bildes (BR-22); begrenzt den Speicherbedarf der Volldekodierung; ≤ 0 schaltet die Prüfung ab |
-| `Playlists:GeneratedCoverWidthPixels` | `int` | `1600` | Zielbreite der automatisch erzeugten Cover-Collage (BR-23) |
+| `Playlists:GeneratedCoverWidthPixels` | `int` | `1600` | Zielbreite der automatisch erzeugten Cover-Collage (BR-23, auch der Vorschau BR-32) |
 | `Playlists:GeneratedCoverHeightPixels` | `int` | `520` | Zielhöhe der automatisch erzeugten Cover-Collage (BR-23) |
 | `Playlists:GeneratedCoverJpegQuality` | `int` | `85` | JPEG-Qualität (0–100) der erzeugten Collage (BR-23) |
 

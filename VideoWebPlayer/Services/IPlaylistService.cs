@@ -21,10 +21,37 @@ public interface IPlaylistService
     Task<DtoPlaylist[]> GetPlaylistsAsync(string userId, long? genreId = null, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Returns a single playlist for the given user, or <c>null</c> if it does not exist.
+    /// Returns every playlist currently marked public (Entwicklungsschritt 11), optionally restricted to
+    /// those carrying the given genre - the source of the separate "Oeffentliche Playlists" overview. Includes
+    /// the requesting user's own public playlists; private playlists of anybody never appear. The DTOs are
+    /// scoped to the requester (<see cref="DtoPlaylist.IsOwner"/>).
+    /// </summary>
+    /// <param name="userId">The id of the requesting user.</param>
+    /// <param name="genreId">Optional genre id to restrict the result to.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The public playlists.</returns>
+    Task<DtoPlaylist[]> GetPublicPlaylistsAsync(string userId, long? genreId = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sets or clears the "public" flag of a playlist (Entwicklungsschritt 11). Restricted to administrators
+    /// AND to the playlist's owner: everybody else - a regular user, or an administrator who does not own the
+    /// playlist - is refused with <see cref="PlaylistAccessDeniedException"/>. Clearing the flag revokes other
+    /// users' access at once and detaches their playlist-bound continue-watching entries.
     /// </summary>
     /// <param name="playlistId">The playlist identifier.</param>
-    /// <param name="userId">The id of the requesting (owning) user.</param>
+    /// <param name="userId">The id of the requesting user.</param>
+    /// <param name="requesterIsAdmin">Whether the requesting user is an administrator (determined by the caller from the user record).</param>
+    /// <param name="isPublic">The new value of the flag.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The updated playlist.</returns>
+    Task<DtoPlaylist> SetPlaylistPublicAsync(long playlistId, string userId, bool requesterIsAdmin, bool isPublic, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns a single playlist for the given user, or <c>null</c> if it does not exist. READ access: the
+    /// owner, or any user while the playlist is public (otherwise <see cref="PlaylistAccessDeniedException"/>).
+    /// </summary>
+    /// <param name="playlistId">The playlist identifier.</param>
+    /// <param name="userId">The id of the requesting user.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The playlist, or <c>null</c> if it does not exist.</returns>
     Task<DtoPlaylist?> GetPlaylistAsync(long playlistId, string userId, CancellationToken cancellationToken = default);
@@ -310,12 +337,14 @@ public interface IPlaylistService
     Task<long> SetPlaylistCoverAsync(long playlistId, string userId, byte[] pictureData, string? contentType, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Loads the picture currently used as a playlist's cover, regardless of owner.
+    /// Loads the picture currently used as a playlist's cover. READ access: the owner, or any user while the
+    /// playlist is public (otherwise <see cref="PlaylistAccessDeniedException"/>).
     /// </summary>
     /// <param name="playlistId">The playlist identifier.</param>
+    /// <param name="userId">The id of the requesting user.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The cover picture, or <c>null</c> if the playlist does not exist or has no cover set.</returns>
-    Task<Data.Picture?> GetPlaylistCoverAsync(long playlistId, CancellationToken cancellationToken = default);
+    Task<Data.Picture?> GetPlaylistCoverAsync(long playlistId, string userId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Clears a playlist's cover (if any) and deletes the underlying picture.

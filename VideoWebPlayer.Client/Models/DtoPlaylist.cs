@@ -77,5 +77,20 @@ namespace VideoWebPlayer.Client.Models
         /// (<see langword="true"/>) or automatically generated as a collage (<see langword="false"/>).
         /// </summary>
         public bool CoverPictureIsUserUploaded { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the playlist is marked as public (Entwicklungsschritt 11):
+        /// visible and playable - but read-only - for every authorized user. Only administrators can set or
+        /// clear this flag, and only for playlists they own.
+        /// </summary>
+        public bool IsPublic { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the requesting user owns the playlist. Only the owner is
+        /// offered editing (rename, contents, order, cover, genres, sort mode, delete); for everybody else the
+        /// playlist is strictly read-only, and the server refuses every mutation with 403 regardless. Defaults
+        /// to <see langword="false"/> (fail-safe: no editing offered unless the server confirmed ownership).
+        /// </summary>
+        public bool IsOwner { get; set; }
     }
 }

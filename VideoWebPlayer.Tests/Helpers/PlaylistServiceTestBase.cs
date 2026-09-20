@@ -577,6 +577,12 @@ public abstract class PlaylistServiceTestBase : IDisposable
         public Task<DtoPlaylist[]> GetPlaylistsAsync(string userId, long? genreId = null, CancellationToken cancellationToken = default)
             => _resolve().GetPlaylistsAsync(userId, genreId, cancellationToken);
 
+        public Task<DtoPlaylist[]> GetPublicPlaylistsAsync(string userId, long? genreId = null, CancellationToken cancellationToken = default)
+            => _resolve().GetPublicPlaylistsAsync(userId, genreId, cancellationToken);
+
+        public Task<DtoPlaylist> SetPlaylistPublicAsync(long playlistId, string userId, bool requesterIsAdmin, bool isPublic, CancellationToken cancellationToken = default)
+            => _resolve().SetPlaylistPublicAsync(playlistId, userId, requesterIsAdmin, isPublic, cancellationToken);
+
         public Task<DtoPlaylist?> GetPlaylistAsync(long playlistId, string userId, CancellationToken cancellationToken = default)
             => _resolve().GetPlaylistAsync(playlistId, userId, cancellationToken);
 
@@ -646,8 +652,8 @@ public abstract class PlaylistServiceTestBase : IDisposable
         public Task<long> SetPlaylistCoverAsync(long playlistId, string userId, byte[] pictureData, string? contentType, CancellationToken cancellationToken = default)
             => _resolve().SetPlaylistCoverAsync(playlistId, userId, pictureData, contentType, cancellationToken);
 
-        public Task<Picture?> GetPlaylistCoverAsync(long playlistId, CancellationToken cancellationToken = default)
-            => _resolve().GetPlaylistCoverAsync(playlistId, cancellationToken);
+        public Task<Picture?> GetPlaylistCoverAsync(long playlistId, string userId, CancellationToken cancellationToken = default)
+            => _resolve().GetPlaylistCoverAsync(playlistId, userId, cancellationToken);
 
         public Task DeletePlaylistCoverAsync(long playlistId, string userId, CancellationToken cancellationToken = default)
             => _resolve().DeletePlaylistCoverAsync(playlistId, userId, cancellationToken);

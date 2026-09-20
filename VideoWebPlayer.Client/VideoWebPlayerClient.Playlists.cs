@@ -15,6 +15,19 @@ namespace VideoWebPlayer.Client
         }
 
         /// <inheritdoc />
+        public async Task<IEnumerable<DtoPlaylist>> RequestPublicPlaylistsAsync(long? genreId = null)
+        {
+            var query = genreId.HasValue ? $"?genreId={genreId.Value}" : string.Empty;
+            return await HttpGetAsync<DtoPlaylist[]>($"api/playlists/public{query}");
+        }
+
+        /// <inheritdoc />
+        public async Task<DtoPlaylist> SetPlaylistPublicAsync(long playlistId, DtoSetPlaylistPublicRequest request)
+        {
+            return await HttpPutAsync<DtoPlaylist>($"api/playlists/{playlistId}/public", CreateJsonContent(request));
+        }
+
+        /// <inheritdoc />
         public async Task<DtoPlaylist?> RequestPlaylistAsync(long playlistId)
         {
             try

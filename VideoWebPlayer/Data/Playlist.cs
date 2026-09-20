@@ -78,6 +78,15 @@ namespace VideoWebPlayer.Data
         public bool GenresManuallyOverridden { get; set; }
 
         /// <summary>
+        /// Gets or sets a value indicating whether the playlist is marked as public (Entwicklungsschritt 11).
+        /// Only administrators may set or clear this flag, and only on playlists they own themselves; every
+        /// other user's playlists stay private. A public playlist can be viewed and played by every
+        /// authorized user, but only read - every mutation remains reserved for the owner
+        /// (<see cref="UserId"/>). Clearing the flag revokes other users' access immediately.
+        /// </summary>
+        public bool IsPublic { get; set; }
+
+        /// <summary>
         /// Gets or sets the foreign key of the picture used as this playlist's cover (either uploaded by
         /// the owner or generated as a collage from the playlist's contents), or <see langword="null"/> if
         /// none has been set yet (the UI then falls back to a neutral placeholder).

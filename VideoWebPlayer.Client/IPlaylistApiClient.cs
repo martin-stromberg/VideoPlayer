@@ -20,6 +20,23 @@ namespace VideoWebPlayer.Client
         Task<IEnumerable<DtoPlaylist>> RequestPlaylistsAsync(long? genreId = null);
 
         /// <summary>
+        /// Requests every playlist currently marked public (Entwicklungsschritt 11), optionally restricted to
+        /// those carrying the given genre - the source of the separate public-playlists overview.
+        /// </summary>
+        /// <param name="genreId">Optional genre id to restrict results to.</param>
+        /// <returns>The public playlists.</returns>
+        Task<IEnumerable<DtoPlaylist>> RequestPublicPlaylistsAsync(long? genreId = null);
+
+        /// <summary>
+        /// Sets or clears a playlist's "public" flag (administrators, owner only - the server answers 403 to
+        /// everybody else).
+        /// </summary>
+        /// <param name="playlistId">The playlist identifier.</param>
+        /// <param name="request">The request carrying the new flag value.</param>
+        /// <returns>The updated playlist.</returns>
+        Task<DtoPlaylist> SetPlaylistPublicAsync(long playlistId, DtoSetPlaylistPublicRequest request);
+
+        /// <summary>
         /// Requests a single playlist, or <c>null</c> if it does not exist.
         /// </summary>
         /// <param name="playlistId">Id of the playlist.</param>

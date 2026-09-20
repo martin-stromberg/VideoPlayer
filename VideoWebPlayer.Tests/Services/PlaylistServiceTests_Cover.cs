@@ -175,7 +175,7 @@ public class PlaylistServiceTests_Cover : PlaylistServiceTestBase
         var playlist = await _service.CreatePlaylistAsync(_testUserId, "Playlist", null, null, ct);
         var pictureId = await _service.SetPlaylistCoverAsync(playlist.Id, _testUserId, CreateJpegBytes(), "image/jpeg", ct);
 
-        var picture = await _service.GetPlaylistCoverAsync(playlist.Id, ct);
+        var picture = await _service.GetPlaylistCoverAsync(playlist.Id, _testUserId, ct);
 
         Assert.NotNull(picture);
         Assert.Equal(pictureId, picture!.Id);
@@ -187,7 +187,7 @@ public class PlaylistServiceTests_Cover : PlaylistServiceTestBase
         var ct = TestContext.Current.CancellationToken;
         var playlist = await _service.CreatePlaylistAsync(_testUserId, "Playlist", null, null, ct);
 
-        var picture = await _service.GetPlaylistCoverAsync(playlist.Id, ct);
+        var picture = await _service.GetPlaylistCoverAsync(playlist.Id, _testUserId, ct);
 
         Assert.Null(picture);
     }

@@ -46,7 +46,21 @@ else if (playlist is not null)
             </svg>
         </button>
 
+        @* Bearbeitungsleiste ausschliesslich fuer den Besitzer (Entwicklungsschritt 11): fuer alle anderen
+           (oeffentliche Playlist eines anderen Anwenders - auch fuer Administratoren, die nicht Besitzer
+           sind) wird sie gar nicht erst gerendert. Der Server lehnt jede Aenderung durch Nicht-Besitzer
+           unabhaengig davon mit 403 ab. *@
+        @if (IsOwner)
+        {
         <div class="metadata-action-bar">
+            @if (isAdmin)
+            {
+                @* Nur Administratoren, die Besitzer sind: Kennzeichnung "oeffentlich" setzen/entfernen. Regulaeren
+                   Anwendern wird der Button nicht angeboten (nicht ausgegraut, sondern gar nicht gerendert). *@
+                <button class="metadata-icon-btn playlist-detail-toggle-public-button @(playlist.IsPublic ? "playlist-public-active" : string.Empty)" id="playlist-detail-toggle-public-button" @onclick="TogglePublicAsync" disabled="@isTogglingPublic" title="@PublicToggleTitle" aria-pressed="@(playlist.IsPublic ? "true" : "false")">
+                    <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M3 12h18" /><path d="M12 3a14 14 0 0 1 0 18" /><path d="M12 3a14 14 0 0 0 0 18" /></svg>
+                </button>
+            }
             <button class="metadata-icon-btn playlist-detail-upload-cover-button" id="playlist-detail-upload-cover-button" @onclick="OpenUploadDialog" title="Bild hochladen">
                 <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4" /><path d="M6 10l6-6 6 6" /><path d="M4 20h16" /></svg>
             </button>
@@ -58,6 +72,7 @@ else if (playlist is not null)
                 <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /></svg>
             </button>
         </div>
+        }
 
         <div class="tvshow-header-overlay">
             <div class="tvshow-header-content">
@@ -67,9 +82,16 @@ else if (playlist is not null)
                         <PlaylistSortModeIcon SortMode="playlist.SortMode" />
                         <span id="playlist-detail-sortmode">@PlaylistSortModeValues.GetDisplayLabel(playlist.SortMode)</span>
                     </span>
-                    <button class="metadata-icon-btn playlist-sortmode-toggle-button" @onclick="ToggleSortModeAsync" title="@SortModeToggleTitle">
-                        <PlaylistSortModeIcon SortMode="selectedSortMode" Size="18" />
-                    </button>
+                    @if (IsOwner)
+                    {
+                        <button class="metadata-icon-btn playlist-sortmode-toggle-button" @onclick="ToggleSortModeAsync" title="@SortModeToggleTitle">
+                            <PlaylistSortModeIcon SortMode="selectedSortMode" Size="18" />
+                        </button>
+                    }
+                    @if (playlist.IsPublic)
+                    {
+                        <span class="playlist-public-badge" id="playlist-detail-public-badge" title="Oeffentlich - fuer alle Anwender sichtbar und abspielbar (nur lesend)">Oeffentlich</span>
+                    }
                 </div>
                 @if (!string.IsNullOrWhiteSpace(playlist.Description))
                 {
@@ -88,13 +110,16 @@ else if (playlist is not null)
                     {
                         <span class="playlist-genre-override-badge" id="playlist-detail-genres-override-badge">Manuell festgelegt</span>
                     }
-                    <span class="playlist-genre-actions">
-                        <button class="metadata-icon-btn playlist-genre-edit-button" id="playlist-detail-edit-genres-button" @onclick="OpenGenreEditor" title="Genres bearbeiten">✎</button>
-                        @if (playlist.GenresManuallyOverridden)
-                        {
-                            <button class="metadata-icon-btn playlist-genre-reset-button" id="playlist-detail-reset-genres-button" @onclick="ResetGenresAsync" title="Auf automatische Genres zuruecksetzen">↺</button>
-                        }
-                    </span>
+                    @if (IsOwner)
+                    {
+                        <span class="playlist-genre-actions">
+                            <button class="metadata-icon-btn playlist-genre-edit-button" id="playlist-detail-edit-genres-button" @onclick="OpenGenreEditor" title="Genres bearbeiten">✎</button>
+                            @if (playlist.GenresManuallyOverridden)
+                            {
+                                <button class="metadata-icon-btn playlist-genre-reset-button" id="playlist-detail-reset-genres-button" @onclick="ResetGenresAsync" title="Auf automatische Genres zuruecksetzen">↺</button>
+                            }
+                        </span>
+                    }
                 </div>
                 <div class="playlist-detail-dates-muted">
                     <span id="playlist-detail-created"><span class="playlist-detail-date-label">Erstellt</span>@playlist.CreatedAt.ToLocalTime()</span>
@@ -120,7 +145,12 @@ else if (playlist is not null)
             <div class="alert alert-danger" id="playlist-cover-status">@coverStatusMessage</div>
         }
 
-        <PlaylistEntriesList @ref="entriesList" PlaylistId="Id" IsManualMode="IsManualMode" OnPlayEntry="PlayEntryAsync" />
+        @if (!string.IsNullOrWhiteSpace(publicStatusMessage))
+        {
+            <div class="alert alert-danger" id="playlist-public-status">@publicStatusMessage</div>
+        }
+
+        <PlaylistEntriesList @ref="entriesList" PlaylistId="Id" IsManualMode="IsManualMode" IsReadOnly="!IsOwner" OnPlayEntry="PlayEntryAsync" />
 
         @if (!string.IsNullOrWhiteSpace(playbackError))
         {
@@ -204,6 +234,22 @@ else if (playlist is not null)
     private bool isRegeneratingCover;
     private bool showRegenerateCoverConfirmation;
     private string? coverStatusMessage;
+    private bool isAdmin;
+    private bool isTogglingPublic;
+    private string? publicStatusMessage;
+
+    /// <summary>
+    /// Whether the current user owns the playlist (as reported by the server, see
+    /// <see cref="DtoPlaylist.IsOwner"/>). Only the owner is offered any editing; everybody else gets the
+    /// read-only view of a public playlist. Not a security boundary - the server refuses non-owner
+    /// mutations with 403 regardless.
+    /// </summary>
+    private bool IsOwner => playlist?.IsOwner == true;
+
+    private string PublicToggleTitle
+        => playlist?.IsPublic == true
+            ? "Kennzeichnung \"oeffentlich\" entfernen (Playlist wieder privat)"
+            : "Als oeffentlich kennzeichnen (fuer alle Anwender sichtbar, nur lesend)";
 
     /// <summary>
     /// URL of the playlist's cover image, cache-busted via <see cref="DtoPlaylist.CoverPictureId"/> (which
@@ -238,6 +284,9 @@ else if (playlist is not null)
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        // Only decides whether the "oeffentlich" toggle is offered (same claim check as the other admin
+        // UI); the server independently verifies administrator status against the user record.
+        isAdmin = authState.User.HasClaim("IsAdmin", "True");
         await Client.EnsureAuthorizationTokenSilentlyAsync(authState.User);
         await LoadPlaylistAsync();
 
@@ -382,7 +431,36 @@ else if (playlist is not null)
 
     private void NavigateToOverview()
     {
-        NavigationManager.NavigateTo("/playlists");
+        // A viewer of somebody else's public playlist came from the public overview.
+        NavigationManager.NavigateTo(playlist is not null && !playlist.IsOwner ? "/playlists/public" : "/playlists");
+    }
+
+    /// <summary>
+    /// Sets or clears the "oeffentlich" flag (administrator who owns the playlist only - the button is not
+    /// rendered for anybody else). Removing the flag revokes other users' access at once.
+    /// </summary>
+    private async Task TogglePublicAsync()
+    {
+        if (playlist is null || !playlist.IsOwner)
+            return;
+
+        publicStatusMessage = null;
+        isTogglingPublic = true;
+        try
+        {
+            playlist = await PlaylistClient.SetPlaylistPublicAsync(Id, new DtoSetPlaylistPublicRequest { IsPublic = !playlist.IsPublic });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Fehler beim Aendern der Oeffentlich-Kennzeichnung von Playlist {PlaylistId}", Id);
+            publicStatusMessage = ex is HttpRequestException { StatusCode: System.Net.HttpStatusCode.Forbidden }
+                ? "Nur Administratoren duerfen die Kennzeichnung \"oeffentlich\" aendern."
+                : $"Fehler beim Aendern der Kennzeichnung: {ex.Message}";
+        }
+        finally
+        {
+            isTogglingPublic = false;
+        }
     }
 
     /// <summary>

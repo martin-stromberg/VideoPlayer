@@ -371,7 +371,7 @@ public class PlaylistDetailTests
         var playlistClientMock = new Mock<IPlaylistApiClient>();
         playlistClientMock
             .Setup(c => c.RequestPlaylistAsync(1))
-            .ReturnsAsync(new DtoPlaylist { Id = 1, Name = "Test-Playlist", SortMode = PlaylistSortModeValues.ByReleaseDate });
+            .ReturnsAsync(new DtoPlaylist { Id = 1, Name = "Test-Playlist", IsOwner = true, SortMode = PlaylistSortModeValues.ByReleaseDate });
         playlistClientMock
             .Setup(c => c.RequestPlaylistEntriesPagedAsync(1, It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new DtoPlaylistEntriesPagedResult { Entries = Array.Empty<DtoPlaylistEntry>(), HasNextPage = false, TotalCount = 0 });

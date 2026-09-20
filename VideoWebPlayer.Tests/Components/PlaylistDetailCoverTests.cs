@@ -219,6 +219,7 @@ public class PlaylistDetailCoverTests
             {
                 Id = 1,
                 Name = "Test-Playlist",
+                IsOwner = true,
                 SortMode = PlaylistSortModeValues.ByReleaseDate,
                 CoverPictureId = coverPictureId,
                 CoverPictureIsUserUploaded = coverPictureId.HasValue

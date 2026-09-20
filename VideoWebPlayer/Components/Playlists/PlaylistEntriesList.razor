@@ -20,20 +20,28 @@
 }
 
 <div class="admin-table-wrap">
-    <div class="admin-actions">
-        <MediaSearchSelector @ref="searchSelectorRef" OnMediaSelected="OnMediaSelectedAsync" />
-    </div>
+    @if (!IsReadOnly)
+    {
+        @* Nur fuer den Besitzer (Entwicklungsschritt 11): in der Nur-Lese-Ansicht (oeffentliche Playlist eines
+           anderen Anwenders) wird das Suchfeld zum Hinzufuegen gar nicht erst gerendert. *@
+        <div class="admin-actions">
+            <MediaSearchSelector @ref="searchSelectorRef" OnMediaSelected="OnMediaSelectedAsync" />
+        </div>
+    }
 
     @if (allEntries.Count == 0 && !hasMorePages)
     {
         <div class="admin-empty-state">
             <strong>Keine Eintraege vorhanden</strong>
-            <span>Fuegen Sie einen Medieninhalt hinzu.</span>
+            @if (!IsReadOnly)
+            {
+                <span>Fuegen Sie einen Medieninhalt hinzu.</span>
+            }
         </div>
     }
     else
     {
-        @if (IsManualMode)
+        @if (IsReorderable)
         {
             <p class="text-muted playlist-entries-draganddrop-hint">Tipp: Ziehen Sie einen Eintrag an eine neue Position, oder nutzen Sie die Schaltflaechen "An Anfang"/"An Ende".</p>
         }
@@ -56,9 +64,9 @@
                     @if (IsRenderableEntry(entry))
                     {
                         <div class="episode-box playlist-entry-row @(entry.IsAccessible ? string.Empty : "opacity-50 text-muted")" data-media-type="@entry.MediaType" data-media-id="@entry.MediaId"
-                             draggable="@(IsManualMode ? "true" : "false")"
+                             draggable="@(IsReorderable ? "true" : "false")"
                              @ondragstart="() => OnEntryDragStart(entry)"
-                             @ondragover:preventDefault="IsManualMode"
+                             @ondragover:preventDefault="IsReorderable"
                              @ondrop="() => OnEntryDropAsync(entry)"
                              @ondragend="OnEntryDragEnd"
                              @ondblclick="GetPlayEntryDoubleClickCallback(entry)">
@@ -75,12 +83,15 @@
                                     {
                                         <button class="metadata-icon-btn playlist-entry-play-button" @onclick="() => OnPlayEntry.InvokeAsync(entry)" @onclick:stopPropagation title="Abspielen">▶</button>
                                     }
-                                    @if (IsManualMode)
+                                    @if (IsReorderable)
                                     {
                                         <button class="metadata-icon-btn playlist-entry-move-start-button" @onclick="() => MoveEntryToBeginningAsync(entry)" @onclick:stopPropagation title="An Anfang">⇤</button>
                                         <button class="metadata-icon-btn playlist-entry-move-end-button" @onclick="() => MoveEntryToEndAsync(entry)" @onclick:stopPropagation title="An Ende">⇥</button>
                                     }
-                                    <button class="metadata-icon-btn playlist-entry-remove-button" @onclick="() => RemoveEntryAsync(entry)" @onclick:stopPropagation title="Entfernen">✕</button>
+                                    @if (!IsReadOnly)
+                                    {
+                                        <button class="metadata-icon-btn playlist-entry-remove-button" @onclick="() => RemoveEntryAsync(entry)" @onclick:stopPropagation title="Entfernen">✕</button>
+                                    }
                                 </div>
                             </div>
                         </div>
@@ -117,6 +128,21 @@
 
     [Parameter, EditorRequired]
     public bool IsManualMode { get; set; }
+
+    /// <summary>
+    /// Read-only presentation (Entwicklungsschritt 11): set by <c>PlaylistDetail</c> whenever the current
+    /// user is not the playlist's owner (public playlist of somebody else). No editing affordance is rendered
+    /// at all - no search field to add titles, no remove button, no move-to-start/-end buttons, no drag & drop -
+    /// while playing entries stays possible. Purely presentational: the server independently refuses every
+    /// mutation by a non-owner with 403.
+    /// </summary>
+    [Parameter]
+    public bool IsReadOnly { get; set; }
+
+    /// <summary>
+    /// Whether entries can be reordered (manual sort mode AND the user may edit the playlist).
+    /// </summary>
+    private bool IsReorderable => IsManualMode && !IsReadOnly;
 
     /// <summary>
     /// Raised when the user double-clicks an entry row or clicks its "Abspielen" button, to start
@@ -560,7 +586,7 @@
     /// </summary>
     private void OnEntryDragStart(DtoPlaylistEntry entry)
     {
-        if (!IsManualMode)
+        if (!IsReorderable)
             return;
 
         draggedEntry = entry;
@@ -568,7 +594,7 @@
 
     private async Task OnEntryDropAsync(DtoPlaylistEntry targetEntry)
     {
-        if (!IsManualMode || draggedEntry is null || draggedEntry.Id == targetEntry.Id)
+        if (!IsReorderable || draggedEntry is null || draggedEntry.Id == targetEntry.Id)
             return;
 
         var entryToMove = draggedEntry;

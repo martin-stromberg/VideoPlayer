@@ -61,6 +61,7 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         $"{nameof(ApplicationDbContext.Playlists)}.{nameof(Playlist.GenresManuallyOverridden)}",
         $"{nameof(ApplicationDbContext.Playlists)}.{nameof(Playlist.CoverPictureId)}",
         $"{nameof(ApplicationDbContext.Playlists)}.{nameof(Playlist.CoverPictureIsUserUploaded)}",
+        $"{nameof(ApplicationDbContext.Playlists)}.{nameof(Playlist.IsPublic)}",
         $"{nameof(ApplicationDbContext.Pictures)}.{nameof(Picture.PlaylistId)}"
     };
 
@@ -82,7 +83,8 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         (nameof(ApplicationDbContext.MovieCollections), nameof(MovieCollection.IsManuallyEdited), false),
         (nameof(ApplicationDbContext.Pictures), nameof(Picture.IsGeneratedBackground), false),
         (nameof(ApplicationDbContext.Playlists), nameof(Playlist.GenresManuallyOverridden), false),
-        (nameof(ApplicationDbContext.Playlists), nameof(Playlist.CoverPictureIsUserUploaded), false)
+        (nameof(ApplicationDbContext.Playlists), nameof(Playlist.CoverPictureIsUserUploaded), false),
+        (nameof(ApplicationDbContext.Playlists), nameof(Playlist.IsPublic), false)
     };
 
     private static readonly (string Table, string Column, long DefaultValue)[] OptionalRestoreLongDefaults =

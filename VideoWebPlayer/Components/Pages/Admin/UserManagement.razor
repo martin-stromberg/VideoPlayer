@@ -3,8 +3,10 @@
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.EntityFrameworkCore
 @using VideoWebPlayer.Data
+@using VideoWebPlayer.Services
 @inject UserManager<ApplicationUser> UserManager
 @inject ApplicationDbContext DbContext
+@inject ContinueWatchingService ContinueWatchingService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
@@ -249,6 +251,11 @@
         }
 
         await DbContext.SaveChangesAsync();
+
+        // Entwicklungsschritt 11: deleting the account cascades to the user's playlists. Other users may hold
+        // continue-watching entries bound to one of their (public) playlists; the database would set those
+        // to "no playlist" and could hit the unique index for playlist-less entries. Resolve that up front.
+        await ContinueWatchingService.ResolveDeletionConflictsForOwnedPlaylistsAsync(user.Id);
 
         var result = await UserManager.DeleteAsync(user);
         if (result.Succeeded)

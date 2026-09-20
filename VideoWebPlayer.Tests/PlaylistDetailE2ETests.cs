@@ -194,8 +194,11 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
         // Page 1 (pageSize 20) only ever contains media ids 1-20; a row referencing an id beyond
         // that can only appear once the component has lazy-loaded page 2 in reaction to scrolling.
         var beyondFirstPageRow = Page.Locator(".playlist-entry-row[data-media-id='21']");
-        var scrollContainer = Page.Locator(".playlist-entries-scroll");
-        await scrollContainer.HoverAsync();
+        // Die Eintragsliste hat keine eigene Scrollbox mehr - die ganze Seite scrollt (wie auf der
+        // Serien-Detailseite). Das Hovern ueber der Liste reicht dennoch: Wheel-Events auf einem nicht
+        // scrollbaren Element gehen an den naechsten scrollbaren Vorfahren, d. h. das Dokument.
+        var entriesArea = Page.Locator(".playlist-entries-list-wrap");
+        await entriesArea.HoverAsync();
 
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         while (await beyondFirstPageRow.CountAsync() == 0 && stopwatch.Elapsed < TimeSpan.FromSeconds(30))

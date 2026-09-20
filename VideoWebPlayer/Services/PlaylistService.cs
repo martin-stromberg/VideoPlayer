@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
@@ -9,6 +10,7 @@ using System.Threading.Tasks;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Configuration;
 using VideoWebPlayer.Data;
+using VideoWebPlayer.Services.PlaylistCover;
 
 namespace VideoWebPlayer.Services;
 
@@ -22,6 +24,8 @@ public sealed class PlaylistService : IPlaylistService
     private readonly PlaylistEntryAccessResolver _accessResolver;
     private readonly PlaylistEntryReorderService _reorderService;
     private readonly PlaylistGenreService _genreService;
+    private readonly PlaylistCoverValidator _coverValidator;
+    private readonly PlaylistCoverImageGenerator _coverImageGenerator;
     private readonly IServiceProvider? _serviceProvider;
 
     /// <summary>
@@ -37,17 +41,30 @@ public sealed class PlaylistService : IPlaylistService
     /// a circular dependency. <c>null</c> (e.g. in tests that construct this class directly) simply skips
     /// that conflict resolution.
     /// </param>
+    /// <param name="coverValidator">
+    /// Validates uploaded cover images (Entwicklungsschritt 10). Optional so existing call sites (tests,
+    /// other constructor overload users) keep compiling unchanged; falls back to a plain instance built
+    /// from <paramref name="playlistSettings"/> when not supplied via dependency injection.
+    /// </param>
+    /// <param name="coverImageGenerator">
+    /// Generates automatic cover collages (Entwicklungsschritt 10). Optional for the same reason as
+    /// <paramref name="coverValidator"/>.
+    /// </param>
     public PlaylistService(
         ApplicationDbContext db,
         IUnlockedMediaService unlockedMediaService,
         IOptions<PlaylistSettings> playlistSettings,
-        IServiceProvider? serviceProvider = null)
+        IServiceProvider? serviceProvider = null,
+        PlaylistCoverValidator? coverValidator = null,
+        PlaylistCoverImageGenerator? coverImageGenerator = null)
     {
         _db = db;
         _playlistSettings = playlistSettings.Value;
         _accessResolver = new PlaylistEntryAccessResolver(db, unlockedMediaService);
         _reorderService = new PlaylistEntryReorderService(db);
         _genreService = new PlaylistGenreService(db);
+        _coverValidator = coverValidator ?? new PlaylistCoverValidator(playlistSettings);
+        _coverImageGenerator = coverImageGenerator ?? new PlaylistCoverImageGenerator(db, playlistSettings, NullLogger<PlaylistCoverImageGenerator>.Instance);
         _serviceProvider = serviceProvider;
     }
 
@@ -161,6 +178,17 @@ public sealed class PlaylistService : IPlaylistService
         var continueWatchingService = _serviceProvider?.GetService<ContinueWatchingService>();
         if (continueWatchingService is not null)
             await continueWatchingService.ResolvePlaylistDeletionConflictsAsync(playlistId, userId, cancellationToken);
+
+        // Entwicklungsschritt 10: Cover-Picture (hochgeladen oder generiert) verwaist sonst in der
+        // Pictures-Tabelle - EF loescht das abhaengige Playlist zuerst (Fremdschluessel liegt auf
+        // Playlist.CoverPictureId), das Picture-Remove hier ist daher innerhalb derselben SaveChangesAsync
+        // unproblematisch.
+        if (playlist.CoverPictureId is long coverPictureId)
+        {
+            var coverPicture = await _db.Pictures.FirstOrDefaultAsync(p => p.Id == coverPictureId, cancellationToken);
+            if (coverPicture is not null)
+                _db.Pictures.Remove(coverPicture);
+        }
 
         _db.Playlists.Remove(playlist);
         await _db.SaveChangesAsync(cancellationToken);
@@ -462,7 +490,9 @@ public sealed class PlaylistService : IPlaylistService
             UpdatedAt = playlist.UpdatedAt,
             Genres = displayGenres,
             AllGenreIds = genreRows.Select(r => r.GenreId).ToArray(),
-            GenresManuallyOverridden = playlist.GenresManuallyOverridden
+            GenresManuallyOverridden = playlist.GenresManuallyOverridden,
+            CoverPictureId = playlist.CoverPictureId,
+            CoverPictureIsUserUploaded = playlist.CoverPictureIsUserUploaded
         };
     }
 
@@ -1415,4 +1445,175 @@ public sealed class PlaylistService : IPlaylistService
     /// <returns>The relative stream URL, without an <c>access_token</c> query parameter.</returns>
     private static string BuildStreamUrl(string mediaType, long mediaId)
         => $"/api/items/{PlaylistEntryMediaTypeResolver.ResolveItemStreamType(mediaType)}/{mediaId}/stream";
+
+    /// <summary>
+    /// Regenerates a playlist's cover image as a collage of its current contents' poster pictures (see
+    /// <see cref="PlaylistCoverImageGenerator.GeneratePlaylistCoverAsync"/> for the priority order), and
+    /// replaces the playlist's current cover (if any) with it. An uploaded cover
+    /// (<see cref="Playlist.CoverPictureIsUserUploaded"/>) has priority over a generated one ("Ein
+    /// hochgeladenes Bild hat immer Vorrang"), so replacing it is only allowed with an explicit
+    /// confirmation (<paramref name="confirmReplaceUploadedCover"/>) - otherwise
+    /// <see cref="UploadedCoverReplacementConfirmationRequiredException"/> is thrown and nothing changes
+    /// (same pattern as <see cref="ChangeSortModeAsync"/> and <see cref="RemoveMediaFromPlaylistAsync"/>).
+    /// The confirmation is only demanded once a collage could actually be composed: if no source images
+    /// are available, nothing is replaced and the uploaded cover stays untouched without any prompt.
+    ///
+    /// DESIGN DECISION (Schritt 10, Anforderung): Regeneration only ever happens here, i.e. only when
+    /// explicitly triggered via the "Neu erzeugen" UI action calling this method through
+    /// <c>PlaylistsController</c>. Unlike genre derivation (Schritt 9), which recomputes automatically
+    /// whenever playlist content changes (<see cref="PlaylistGenreService.RecomputeGenresAsync"/>), the
+    /// cover is intentionally left untouched by <see cref="AddMediaToPlaylistAsync"/>/
+    /// <see cref="RemoveMediaFromPlaylistAsync"/> and the automatic backfill mechanism: the requirement
+    /// only asks that regeneration "let itself be triggered" (on-demand), not that every content change
+    /// regenerate the cover - which would also mean discarding a deliberately uploaded cover on the next
+    /// unrelated content edit.
+    /// </summary>
+    /// <param name="playlistId">The playlist identifier.</param>
+    /// <param name="userId">The id of the requesting (owning) user.</param>
+    /// <param name="confirmReplaceUploadedCover">Whether the user confirmed replacing an uploaded cover image.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The id of the newly generated cover picture, or <c>null</c> if no source images were available.</returns>
+    /// <exception cref="UploadedCoverReplacementConfirmationRequiredException">An uploaded cover would be replaced without confirmation.</exception>
+    public async Task<long?> GeneratePlaylistCoverAsync(long playlistId, string userId, bool confirmReplaceUploadedCover = false, CancellationToken cancellationToken = default)
+    {
+        var playlist = await GetOwnedPlaylistAsync(playlistId, userId, cancellationToken);
+
+        var collageBytes = await _coverImageGenerator.GeneratePlaylistCoverAsync(playlistId, cancellationToken);
+        if (collageBytes is null)
+            return null;
+
+        if (playlist.CoverPictureIsUserUploaded && !confirmReplaceUploadedCover)
+            throw new UploadedCoverReplacementConfirmationRequiredException(
+                "Das hochgeladene Bild wird durch ein automatisch erzeugtes ersetzt. Bitte bestaetigen.");
+
+        var newPicture = new Picture
+        {
+            Type = "cover",
+            Data = collageBytes,
+            ContentType = "image/jpeg",
+            Width = _playlistSettings.GeneratedCoverWidthPixels,
+            Height = _playlistSettings.GeneratedCoverHeightPixels,
+            IsGeneratedBackground = true,
+            PlaylistId = playlistId
+        };
+
+        return await ReplaceCoverPictureAsync(playlist, newPicture, isUserUploaded: false, cancellationToken);
+    }
+
+    /// <summary>
+    /// Saves an uploaded image as a playlist's cover, replacing its current cover (if any) - including a
+    /// previously generated one.
+    /// </summary>
+    /// <param name="playlistId">The playlist identifier.</param>
+    /// <param name="userId">The id of the requesting (owning) user.</param>
+    /// <param name="pictureData">The raw uploaded image bytes.</param>
+    /// <param name="contentType">The MIME type reported for the upload.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The id of the newly saved cover picture.</returns>
+    /// <exception cref="InvalidOperationException">The upload failed <see cref="PlaylistCoverValidator.ValidateUploadAsync"/> (invalid format, too large, or not a genuine image).</exception>
+    public async Task<long> SetPlaylistCoverAsync(long playlistId, string userId, byte[] pictureData, string? contentType, CancellationToken cancellationToken = default)
+    {
+        var playlist = await GetOwnedPlaylistAsync(playlistId, userId, cancellationToken);
+
+        var validation = await _coverValidator.ValidateUploadAsync(pictureData, contentType, pictureData?.Length ?? 0, cancellationToken);
+        if (!validation.IsValid)
+            throw new InvalidOperationException(validation.ErrorMessage);
+
+        var newPicture = new Picture
+        {
+            Type = "cover",
+            Data = pictureData!,
+            // The format the bytes actually contain (detected by the validator), not the client-supplied header.
+            ContentType = validation.ContentType!,
+            Width = validation.Width,
+            Height = validation.Height,
+            IsGeneratedBackground = false,
+            PlaylistId = playlistId
+        };
+
+        return await ReplaceCoverPictureAsync(playlist, newPicture, isUserUploaded: true, cancellationToken);
+    }
+
+    /// <summary>
+    /// Loads the picture currently used as a playlist's cover, regardless of owner (mirrors
+    /// <c>PicturesController.GetPicture</c>'s "any logged-in user may view it" access level, since the
+    /// cover image is not sensitive data), for the image-delivery endpoint.
+    /// </summary>
+    /// <param name="playlistId">The playlist identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The cover <see cref="Picture"/>, or <c>null</c> if the playlist does not exist or has no cover set.</returns>
+    public async Task<Picture?> GetPlaylistCoverAsync(long playlistId, CancellationToken cancellationToken = default)
+    {
+        var playlist = await _db.Playlists.AsNoTracking().FirstOrDefaultAsync(p => p.Id == playlistId, cancellationToken);
+        if (playlist?.CoverPictureId is not long pictureId)
+            return null;
+
+        return await _db.Pictures.AsNoTracking().FirstOrDefaultAsync(p => p.Id == pictureId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Clears a playlist's cover (if any) and deletes the underlying picture. A no-op if the playlist has
+    /// no cover set.
+    /// </summary>
+    /// <param name="playlistId">The playlist identifier.</param>
+    /// <param name="userId">The id of the requesting (owning) user.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task DeletePlaylistCoverAsync(long playlistId, string userId, CancellationToken cancellationToken = default)
+    {
+        var playlist = await GetOwnedPlaylistAsync(playlistId, userId, cancellationToken);
+        if (playlist.CoverPictureId is not long pictureId)
+            return;
+
+        var picture = await _db.Pictures.FirstOrDefaultAsync(p => p.Id == pictureId, cancellationToken);
+
+        playlist.CoverPictureId = null;
+        playlist.CoverPictureIsUserUploaded = false;
+
+        if (picture is not null)
+            _db.Pictures.Remove(picture);
+
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Saves <paramref name="newPicture"/> as <paramref name="playlist"/>'s new cover, deleting the
+    /// previously referenced cover picture (if any). Shared by <see cref="GeneratePlaylistCoverAsync"/> and
+    /// <see cref="SetPlaylistCoverAsync"/> - see the "Picture Cleanup" design decision in the implementation
+    /// plan: an old cover (uploaded or generated) is always deleted, never left orphaned.
+    /// </summary>
+    /// <remarks>
+    /// Everything below is staged against the change tracker and persisted via a single
+    /// <see cref="DbContext.SaveChangesAsync(CancellationToken)"/> call (assigning
+    /// <see cref="Playlist.CoverPicture"/> rather than <see cref="Playlist.CoverPictureId"/> lets EF Core
+    /// resolve the new picture's not-yet-known id itself once it inserts the row), instead of two separate
+    /// calls with the new <see cref="Picture"/> committed first: with two calls, a failure of the second one
+    /// (e.g. a dropped connection) would leave the already-committed new picture permanently orphaned in the
+    /// <c>Pictures</c> table, referenced by no playlist. A single call makes the insert of the new picture,
+    /// the update of <paramref name="playlist"/>'s foreign key and the deletion of the old picture (if any)
+    /// atomic - either all of them apply, or none do.
+    /// </remarks>
+    /// <param name="playlist">The tracked playlist entity to update.</param>
+    /// <param name="newPicture">The new cover picture to save (not yet added to the context).</param>
+    /// <param name="isUserUploaded">The value to set <see cref="Playlist.CoverPictureIsUserUploaded"/> to.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The id of the newly saved cover picture.</returns>
+    private async Task<long> ReplaceCoverPictureAsync(Playlist playlist, Picture newPicture, bool isUserUploaded, CancellationToken cancellationToken)
+    {
+        var oldPictureId = playlist.CoverPictureId;
+
+        await _db.Pictures.AddAsync(newPicture, cancellationToken);
+
+        playlist.CoverPicture = newPicture;
+        playlist.CoverPictureIsUserUploaded = isUserUploaded;
+
+        if (oldPictureId.HasValue)
+        {
+            var oldPicture = await _db.Pictures.FirstOrDefaultAsync(p => p.Id == oldPictureId.Value, cancellationToken);
+            if (oldPicture is not null)
+                _db.Pictures.Remove(oldPicture);
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+        return newPicture.Id;
+    }
 }

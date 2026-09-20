@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Configuration;
 using VideoWebPlayer.Controllers;
@@ -80,6 +82,11 @@ public class PlaylistsController : ApiBaseController
         {
             Logger.LogInformation(ex, "Bestaetigung erforderlich (Weiterschauen-Bezug) beim {LogContext}", logContext);
             return Conflict(new DtoRemovePlaylistEntryConflictResponse { IsContinueWatchingConfirmationRequired = true });
+        }
+        catch (UploadedCoverReplacementConfirmationRequiredException ex)
+        {
+            Logger.LogInformation(ex, "Bestaetigung erforderlich (hochgeladenes Cover wuerde ersetzt) beim {LogContext}", logContext);
+            return Conflict(new DtoRegeneratePlaylistCoverConflictResponse { IsUploadedCoverReplacementConfirmationRequired = true });
         }
         catch (PlaylistNotInManualSortModeException ex)
         {
@@ -517,5 +524,118 @@ public class PlaylistsController : ApiBaseController
             var result = await _playlistService.AdvancePlaylistAsync(id, CurrentUser!.Id, currentEntryId, HttpContext.RequestAborted);
             return result is null ? NoContent() : Ok(result);
         }, $"Automatisches Weiterschalten von Playlist {id}");
+    }
+
+    /// <summary>
+    /// Uploads a cover image for a playlist, replacing its current cover (if any). Validation (format,
+    /// size, whether the file is a genuine image) happens in <see cref="IPlaylistService.SetPlaylistCoverAsync"/>;
+    /// a validation failure surfaces as HTTP 400 with the validator's message as the response body, via the
+    /// same generic <see cref="InvalidOperationException"/> mapping every other playlist endpoint already
+    /// uses (see <see cref="ExecuteAsync(Func{Task{IActionResult}}, string, Func{InvalidOperationException, IActionResult}?)"/>) -
+    /// deliberately not the <c>{ success, message }</c> shape used for the endpoint's success response, to
+    /// avoid a second, endpoint-specific error contract next to the controller's established one. No
+    /// <c>[RequestSizeLimit]</c> attribute is used: the maximum size is configurable at runtime
+    /// (<see cref="PlaylistSettings.MaxCoverImageSizeBytes"/>), so it is enforced by the validator instead
+    /// of a compile-time attribute value that could drift out of sync with it.
+    /// </summary>
+    /// <param name="id">The playlist identifier.</param>
+    /// <param name="file">The uploaded image file.</param>
+    /// <returns>The upload result as <see cref="DtoPlaylistCoverResult"/>, or an error result.</returns>
+    /// <remarks>
+    /// Checks <paramref name="file"/>'s reported <see cref="IFormFile.Length"/> against
+    /// <see cref="PlaylistSettings.MaxCoverImageSizeBytes"/> <b>before</b> touching its stream at all, so an
+    /// oversized upload is rejected without ever being buffered into memory - only once that check passes
+    /// is the (now known-bounded) content copied into a byte array for
+    /// <see cref="IPlaylistService.SetPlaylistCoverAsync"/>, which re-validates via
+    /// <see cref="PlaylistCover.PlaylistCoverValidator"/> regardless.
+    /// </remarks>
+    [HttpPost("{id}/cover/upload")]
+    public Task<IActionResult> UploadPlaylistCover(long id, IFormFile file)
+    {
+        return ExecuteAsync(async () =>
+        {
+            CheckLogedIn();
+
+            if (file is null || file.Length == 0)
+                return BadRequest("Es wurde keine Datei ausgewaehlt.");
+
+            if (file.Length > _playlistSettings.MaxCoverImageSizeBytes)
+                return BadRequest($"Die Datei ist zu gross. Maximal erlaubt sind {_playlistSettings.MaxCoverImageSizeBytes} Bytes.");
+
+            byte[] fileBytes;
+            await using (var stream = file.OpenReadStream())
+            {
+                using var memoryStream = new MemoryStream();
+                await stream.CopyToAsync(memoryStream, HttpContext.RequestAborted);
+                fileBytes = memoryStream.ToArray();
+            }
+
+            var pictureId = await _playlistService.SetPlaylistCoverAsync(id, CurrentUser!.Id, fileBytes, file.ContentType, HttpContext.RequestAborted);
+            return Ok(new DtoPlaylistCoverResult { Success = true, Message = "Bild erfolgreich hochgeladen.", PictureId = pictureId });
+        }, $"Hochladen des Covers von Playlist {id}");
+    }
+
+    /// <summary>
+    /// Regenerates a playlist's cover as a collage of its current contents (the "Neu erzeugen" UI action).
+    /// If the current cover was uploaded by the user, the caller must set
+    /// <paramref name="confirmReplaceUploadedCover"/> to <see langword="true"/> - otherwise this returns
+    /// 409 Conflict with <see cref="DtoRegeneratePlaylistCoverConflictResponse"/> instead of replacing
+    /// anything ("Ein hochgeladenes Bild hat immer Vorrang").
+    /// </summary>
+    /// <param name="id">The playlist identifier.</param>
+    /// <param name="confirmReplaceUploadedCover">
+    /// Whether the user confirmed replacing an uploaded cover image. Ignored when the current cover is not
+    /// user-uploaded.
+    /// </param>
+    /// <returns>The regeneration result as <see cref="DtoPlaylistCoverResult"/>, a conflict response if confirmation is required, or another error result.</returns>
+    [HttpPost("{id}/cover/regenerate")]
+    public Task<IActionResult> RegeneratePlaylistCover(long id, bool confirmReplaceUploadedCover = false)
+    {
+        return ExecuteAsync(async () =>
+        {
+            CheckLogedIn();
+            var pictureId = await _playlistService.GeneratePlaylistCoverAsync(id, CurrentUser!.Id, confirmReplaceUploadedCover, HttpContext.RequestAborted);
+            return pictureId is null
+                ? Ok(new DtoPlaylistCoverResult { Success = false, Message = "Keine Bilder verfuegbar." })
+                : Ok(new DtoPlaylistCoverResult { Success = true, Message = "Cover neu erzeugt.", PictureId = pictureId });
+        }, $"Neuerzeugen des Covers von Playlist {id}");
+    }
+
+    /// <summary>
+    /// Gets a playlist's cover image (uploaded or generated). Available to any logged-in user (not only
+    /// the owner), matching <c>PicturesController.GetPicture</c>'s access level - the cover image itself is
+    /// not sensitive data, only mutating it requires ownership.
+    /// </summary>
+    /// <param name="id">The playlist identifier.</param>
+    /// <returns>The cover image content, or 404 Not Found if the playlist has no cover set.</returns>
+    [HttpGet("{id}/cover")]
+    public Task<IActionResult> GetPlaylistCover(long id)
+    {
+        return ExecuteAsync(async () =>
+        {
+            CheckLogedIn();
+
+            var picture = await _playlistService.GetPlaylistCoverAsync(id, HttpContext.RequestAborted);
+            if (picture is null || picture.Data is null || picture.Data.Length == 0)
+                return NotFound();
+
+            return File(picture.Data, picture.ContentType ?? "image/jpeg");
+        }, $"Abrufen des Covers von Playlist {id}");
+    }
+
+    /// <summary>
+    /// Deletes a playlist's cover (if any).
+    /// </summary>
+    /// <param name="id">The playlist identifier.</param>
+    /// <returns>The deletion result as <see cref="DtoPlaylistCoverResult"/>, or an error result.</returns>
+    [HttpDelete("{id}/cover")]
+    public Task<IActionResult> DeletePlaylistCover(long id)
+    {
+        return ExecuteAsync(async () =>
+        {
+            CheckLogedIn();
+            await _playlistService.DeletePlaylistCoverAsync(id, CurrentUser!.Id, HttpContext.RequestAborted);
+            return Ok(new DtoPlaylistCoverResult { Success = true });
+        }, $"Loeschen des Covers von Playlist {id}");
     }
 }

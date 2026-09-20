@@ -1,0 +1,166 @@
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.Extensions.Options
+@using VideoWebPlayer.Configuration
+@inject VideoWebPlayer.Client.IPlaylistApiClient PlaylistClient
+@inject IOptions<PlaylistSettings> PlaylistSettings
+@* Modal-Dialog zum Hochladen eines Playlist-Covers (Entwicklungsschritt 10). Folgt dem etablierten
+   admin-dialog-overlay/admin-dialog-Markup (siehe GenreAdmin.razor), nicht dem einfacheren
+   ConfirmationDialog-Baustein: Datei-Vorschau, Dateiname/-groesse und ein waehrend des Uploads
+   deaktivierter Hochladen-Button gehen ueber dessen simples Bestaetigen/Abbrechen hinaus. *@
+
+<div class="admin-dialog-overlay" @onclick="CancelAsync">
+    <div class="admin-dialog" @onclick:stopPropagation>
+        <header class="admin-card-header">
+            <h2>Bild hochladen</h2>
+        </header>
+
+        <div class="admin-dialog-preview">
+            @if (previewDataUrl is not null)
+            {
+                <img class="admin-preview-image" src="@previewDataUrl" alt="Vorschau" id="playlist-cover-upload-preview" />
+            }
+        </div>
+
+        <label class="form-label">Datei</label>
+        <InputFile OnChange="OnFileSelectedAsync" accept="@AcceptAttribute" id="playlist-cover-upload-input" />
+
+        @if (selectedFileName is not null)
+        {
+            <div class="form-text" id="playlist-cover-upload-filename">@selectedFileName (@FormatFileSize(selectedFileSize))</div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="alert alert-danger" id="playlist-cover-upload-error">@errorMessage</div>
+        }
+
+        <div class="admin-actions">
+            <button class="btn btn-primary" id="playlist-cover-upload-button" disabled="@(!CanUpload)" @onclick="UploadAsync">
+                @(isUploading ? "Wird hochgeladen..." : "Hochladen")
+            </button>
+            <button class="btn btn-ghost" id="playlist-cover-upload-cancel-button" @onclick="CancelAsync">Abbrechen</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// Gets or sets the id of the playlist the uploaded image becomes the cover of.
+    /// </summary>
+    [Parameter, EditorRequired]
+    public long PlaylistId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the callback invoked with the upload result once the upload succeeded.
+    /// </summary>
+    [Parameter, EditorRequired]
+    public EventCallback<VideoWebPlayer.Client.Models.DtoPlaylistCoverResult> OnUploaded { get; set; }
+
+    /// <summary>
+    /// Gets or sets the callback invoked when the dialog is closed without uploading.
+    /// </summary>
+    [Parameter, EditorRequired]
+    public EventCallback OnCancel { get; set; }
+
+    private byte[]? selectedFileBytes;
+    private string? selectedFileName;
+    private long selectedFileSize;
+    private string? selectedContentType;
+    private string? previewDataUrl;
+    private string? errorMessage;
+    private bool isUploading;
+
+    private string AcceptAttribute
+        => string.Join(",", AllowedFormats());
+
+    private bool CanUpload => selectedFileBytes is not null && !isUploading;
+
+    private IEnumerable<string> AllowedFormats()
+        => (PlaylistSettings.Value.AllowedCoverImageFormats ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    private async Task OnFileSelectedAsync(InputFileChangeEventArgs e)
+    {
+        errorMessage = null;
+        var file = e.File;
+
+        // Clientseitige Vorvalidierung (Format/Groesse) fuer bessere UX - die massgebliche Pruefung
+        // (inkl. "ist echtes Bild") erfolgt serverseitig ueber PlaylistCoverValidator.
+        // Nur ablehnen, wenn ein ContentType tatsaechlich gemeldet wurde und nicht erlaubt ist: manche
+        // Browser/Dateiauswahl-Dialoge liefern keinen ContentType, ein leerer Wert soll nicht faelschlich
+        // als "nicht unterstuetztes Format" abgelehnt werden - die massgebliche Pruefung erfolgt ohnehin
+        // serverseitig ueber PlaylistCoverValidator (siehe oben).
+        if (!string.IsNullOrWhiteSpace(file.ContentType) && !AllowedFormats().Contains(file.ContentType, StringComparer.OrdinalIgnoreCase))
+        {
+            errorMessage = $"Format {file.ContentType} wird nicht unterstützt.";
+            ClearSelection();
+            return;
+        }
+
+        if (file.Size > PlaylistSettings.Value.MaxCoverImageSizeBytes)
+        {
+            var maxMegabytes = PlaylistSettings.Value.MaxCoverImageSizeBytes / (1024.0 * 1024.0);
+            errorMessage = $"Datei zu groß, max. {maxMegabytes:0.#} MB erlaubt.";
+            ClearSelection();
+            return;
+        }
+
+        await using var stream = file.OpenReadStream(maxAllowedSize: PlaylistSettings.Value.MaxCoverImageSizeBytes);
+        using var memoryStream = new MemoryStream();
+        await stream.CopyToAsync(memoryStream);
+
+        selectedFileBytes = memoryStream.ToArray();
+        selectedFileName = file.Name;
+        selectedFileSize = file.Size;
+        selectedContentType = file.ContentType;
+        previewDataUrl = $"data:{file.ContentType};base64,{Convert.ToBase64String(selectedFileBytes)}";
+    }
+
+    private void ClearSelection()
+    {
+        selectedFileBytes = null;
+        selectedFileName = null;
+        selectedFileSize = 0;
+        selectedContentType = null;
+        previewDataUrl = null;
+    }
+
+    private static string FormatFileSize(long bytes)
+        => bytes >= 1024 * 1024 ? $"{bytes / (1024.0 * 1024.0):0.#} MB" : $"{bytes / 1024.0:0.#} KB";
+
+    private async Task UploadAsync()
+    {
+        if (selectedFileBytes is null || selectedFileName is null || selectedContentType is null)
+            return;
+
+        errorMessage = null;
+        isUploading = true;
+        try
+        {
+            var result = await PlaylistClient.UploadPlaylistCoverAsync(PlaylistId, selectedFileBytes, selectedFileName, selectedContentType);
+
+            // Keine Erfolgsmeldung hier: OnUploaded.InvokeAsync loest in PlaylistDetail.razor ein
+            // synchrones Schliessen dieses Dialogs aus (showUploadDialog = false), bevor ein Render-Zyklus
+            // stattfinden koennte - eine hier gesetzte Meldung waere fuer den Nutzer nie sichtbar. Sofortiges
+            // Schliessen ohne Zwischenmeldung ist die bessere UX (kein zusaetzlicher Klick/Delay); das
+            // aktualisierte Cover ist direkt danach auf der Detailseite sichtbar.
+            await OnUploaded.InvokeAsync(result);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Fehler beim Hochladen: {ex.Message}";
+        }
+        finally
+        {
+            isUploading = false;
+        }
+    }
+
+    private async Task CancelAsync()
+    {
+        if (isUploading)
+            return;
+
+        await OnCancel.InvokeAsync();
+    }
+}

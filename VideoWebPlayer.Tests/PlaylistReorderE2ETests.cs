@@ -122,7 +122,7 @@ public sealed class PlaylistReorderE2ETests : PlaylistsE2ETestBase
         await Page.ClickAsync(".playlist-sortmode-toggle-button");
         await Page.WaitForTimeoutAsync(1000);
 
-        var rowLocator = Page.Locator(".playlist-entries-scroll .playlist-entry-row");
+        var rowLocator = Page.Locator(".playlist-entries-list-wrap .playlist-entry-row");
         var initialOrder = await rowLocator.EvaluateAllAsync<string[]>("els => els.map(e => e.getAttribute('data-media-id'))");
         Assert.Equal(3, initialOrder.Length);
 

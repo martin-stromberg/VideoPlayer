@@ -26,10 +26,19 @@ else if (!string.IsNullOrWhiteSpace(loadError))
 else if (playlist is not null)
 {
     @* Kopfbereich mit Hintergrundbild, angelehnt an die Detailansichten von Filmen/Serien (TVShowDetails,
-       MovieCollectionDetails). Playlists haben noch kein eigenes Coverbild (siehe PlaylistCoverPlaceholder),
-       daher ein generischer, aus der Playlist-Id abgeleiteter Platzhalter-Hintergrund statt eines echten Fotos. *@
+       MovieCollectionDetails). Playlists zeigen ihr Cover (hochgeladen oder automatisch als Collage
+       erzeugt, Entwicklungsschritt 10) als Hintergrundbild; ist keines gesetzt, der bisherige aus der
+       Playlist-Id abgeleitete Platzhalter (PlaylistCoverPlaceholder). *@
     <div class="tvshow-header playlist-header-fallback">
+        @* Platzhalter liegt immer darunter (billig: Farbverlauf + Symbol) und wird nur sichtbar, wenn kein
+           Cover gesetzt ist oder das Bild nicht ladbar ist (onerror blendet das <img> aus) - siehe gleiches
+           Muster in PlaylistsList.razor. *@
         <PlaylistCoverPlaceholder PlaylistId="Id" CssClass="playlist-header-cover" />
+        @if (playlist.CoverPictureId.HasValue)
+        {
+            <img class="playlist-header-cover playlist-header-cover-image" id="playlist-detail-cover-image" src="@CoverImageUrl" alt="@playlist.Name"
+                 onerror="this.style.display='none'" />
+        }
 
         <button class="back-arrow playlist-detail-back-button" @onclick="NavigateToOverview" title="Zurueck zur Uebersicht">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
@@ -38,6 +47,12 @@ else if (playlist is not null)
         </button>
 
         <div class="metadata-action-bar">
+            <button class="metadata-icon-btn playlist-detail-upload-cover-button" id="playlist-detail-upload-cover-button" @onclick="OpenUploadDialog" title="Bild hochladen">
+                <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4" /><path d="M6 10l6-6 6 6" /><path d="M4 20h16" /></svg>
+            </button>
+            <button class="metadata-icon-btn playlist-detail-regenerate-cover-button" id="playlist-detail-regenerate-cover-button" @onclick="RegenerateCoverAsync" disabled="@isRegeneratingCover" title="Cover neu erzeugen">
+                <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v6h6" /><path d="M20 20v-6h-6" /><path d="M4.5 15a8 8 0 0 0 14.13 3.36L20 15" /><path d="M19.5 9a8 8 0 0 0-14.13-3.36L4 9" /></svg>
+            </button>
             <button class="metadata-icon-btn playlist-detail-edit-button" @onclick="OpenEditForm" title="Bearbeiten">✎</button>
             <button class="metadata-icon-btn playlist-detail-delete-button" @onclick="RequestDelete" title="Loeschen">
                 <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /></svg>
@@ -100,6 +115,11 @@ else if (playlist is not null)
             <div class="alert alert-danger" id="playlist-genre-status">@genreStatusMessage</div>
         }
 
+        @if (!string.IsNullOrWhiteSpace(coverStatusMessage))
+        {
+            <div class="alert alert-danger" id="playlist-cover-status">@coverStatusMessage</div>
+        }
+
         <PlaylistEntriesList @ref="entriesList" PlaylistId="Id" IsManualMode="IsManualMode" OnPlayEntry="PlayEntryAsync" />
 
         @if (!string.IsNullOrWhiteSpace(playbackError))
@@ -139,9 +159,19 @@ else if (playlist is not null)
     <PlaylistSortModeConfirmationDialog OnConfirm="ConfirmSortModeChangeAsync" OnCancel="CancelSortModeChange" />
 }
 
+@if (showRegenerateCoverConfirmation)
+{
+    <PlaylistCoverRegenerateConfirmationDialog OnConfirm="ConfirmRegenerateCoverAsync" OnCancel="CancelRegenerateCover" />
+}
+
 @if (showGenreEditor && playlist is not null)
 {
     <PlaylistGenreEditor PlaylistId="Id" InitialGenreIds="playlist.AllGenreIds" OnSaved="HandleGenresSavedAsync" OnCancel="CloseGenreEditor" />
+}
+
+@if (showUploadDialog)
+{
+    <PlaylistCoverUploadDialog PlaylistId="Id" OnUploaded="HandleCoverUploadedAsync" OnCancel="CloseUploadDialog" />
 }
 
 @code {
@@ -170,6 +200,18 @@ else if (playlist is not null)
     private string? genreStatusMessage;
     private PlaylistEntriesList? entriesList;
     private DtoPlaylistPlaybackStart? playbackStart;
+    private bool showUploadDialog;
+    private bool isRegeneratingCover;
+    private bool showRegenerateCoverConfirmation;
+    private string? coverStatusMessage;
+
+    /// <summary>
+    /// URL of the playlist's cover image, cache-busted via <see cref="DtoPlaylist.CoverPictureId"/> (which
+    /// changes on every upload/regeneration) so the browser fetches the new image instead of reusing a
+    /// stale cached response for the same <c>/cover</c> endpoint.
+    /// </summary>
+    private string CoverImageUrl
+        => $"/api/playlists/{Id}/cover?access_token={Client.AuthorizationToken}&v={playlist?.CoverPictureId}";
 
     /// <summary>
     /// Error from a failed <see cref="StartPlaybackAsync"/> call (e.g. the requested entry is locked or
@@ -452,6 +494,72 @@ else if (playlist is not null)
         {
             Logger.LogWarning(ex, "Fehler beim Zuruecksetzen der Genres von Playlist {PlaylistId}", Id);
             genreStatusMessage = $"Fehler beim Zuruecksetzen der Genres: {ex.Message}";
+        }
+    }
+
+    private void OpenUploadDialog()
+    {
+        coverStatusMessage = null;
+        showUploadDialog = true;
+    }
+
+    private void CloseUploadDialog()
+    {
+        showUploadDialog = false;
+    }
+
+    private async Task HandleCoverUploadedAsync(DtoPlaylistCoverResult result)
+    {
+        showUploadDialog = false;
+        await LoadPlaylistAsync();
+    }
+
+    /// <summary>
+    /// Handles the "Neu erzeugen" icon button: triggers <see cref="IPlaylistApiClient.RegeneratePlaylistCoverAsync"/>
+    /// and reloads the playlist so <see cref="CoverImageUrl"/> picks up the new (or, if no source images
+    /// were available, unchanged) cover. If the current cover was uploaded by the user, the server answers
+    /// 409 Conflict first (an uploaded image has priority over a generated one) and
+    /// <see cref="PlaylistCoverRegenerateConfirmationDialog"/> is shown; only its confirmation repeats the
+    /// call with <c>confirmReplaceUploadedCover</c> (see <see cref="ConfirmRegenerateCoverAsync"/>).
+    /// </summary>
+    private Task RegenerateCoverAsync() => RunRegenerateCoverAsync(confirmReplaceUploadedCover: false);
+
+    private Task ConfirmRegenerateCoverAsync()
+    {
+        showRegenerateCoverConfirmation = false;
+        return RunRegenerateCoverAsync(confirmReplaceUploadedCover: true);
+    }
+
+    private void CancelRegenerateCover()
+    {
+        showRegenerateCoverConfirmation = false;
+    }
+
+    private async Task RunRegenerateCoverAsync(bool confirmReplaceUploadedCover)
+    {
+        coverStatusMessage = null;
+        isRegeneratingCover = true;
+        try
+        {
+            var result = await PlaylistClient.RegeneratePlaylistCoverAsync(Id, confirmReplaceUploadedCover);
+            if (!result.Success)
+                coverStatusMessage = result.Message;
+
+            await LoadPlaylistAsync();
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Conflict)
+        {
+            // Der Server verlangt die Bestaetigung, weil ein hochgeladenes Bild ersetzt wuerde.
+            showRegenerateCoverConfirmation = true;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Fehler beim Neuerzeugen des Covers von Playlist {PlaylistId}", Id);
+            coverStatusMessage = $"Fehler beim Neuerzeugen des Covers: {ex.Message}";
+        }
+        finally
+        {
+            isRegeneratingCover = false;
         }
     }
 }

@@ -63,5 +63,19 @@ namespace VideoWebPlayer.Client.Models
         /// contents change.
         /// </summary>
         public bool GenresManuallyOverridden { get; set; }
+
+        /// <summary>
+        /// Gets or sets the id of the picture used as this playlist's cover (either uploaded by the owner
+        /// or generated as a collage), or <c>null</c> if none has been set yet. Used by
+        /// <c>PlaylistsList.razor</c>/<c>PlaylistDetail.razor</c> to decide whether to render the cover
+        /// image (<c>/api/playlists/{id}/cover</c>) or fall back to <c>PlaylistCoverPlaceholder</c>.
+        /// </summary>
+        public long? CoverPictureId { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether <see cref="CoverPictureId"/> was uploaded by the owner
+        /// (<see langword="true"/>) or automatically generated as a collage (<see langword="false"/>).
+        /// </summary>
+        public bool CoverPictureIsUserUploaded { get; set; }
     }
 }

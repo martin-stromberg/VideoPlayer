@@ -747,11 +747,13 @@ zweiten Aufrufs das bereits committed neue Bild dauerhaft verweisen lassen (sieh
 | Klasse | Methode | Zweck |
 |--------|---------|-------|
 | `PlaylistsController` | `UploadPlaylistCover()` | Upload-Endpunkt inkl. Größen-Vorprüfung vor dem Puffern |
-| `PlaylistsController` | `RegeneratePlaylistCover()` | Regenerierungs-Endpunkt, mappt `null` auf `Success = false` |
+| `PlaylistsController` | `PreviewPlaylistCover()` | Vorschau-Endpunkt: Collage als `DtoPlaylistCoverPreview`, speichert nichts, nur Besitzer |
+| `PlaylistsController` | `RegeneratePlaylistCover()` | Regenerierungs-Endpunkt („Anwenden"), mappt `null` auf `Success = false` |
 | `PlaylistsController` | `GetPlaylistCover()` | Bild-Auslieferung (`FileResult`) für alle angemeldeten Benutzer |
 | `PlaylistsController` | `DeletePlaylistCover()` | Lösch-Endpunkt |
 | `PlaylistService` | `SetPlaylistCoverAsync()` | Upload: Besitzprüfung, Validierung, `Picture`-Anlage |
 | `PlaylistService` | `GeneratePlaylistCoverAsync()` | Regenerierung: Besitzprüfung, Generator-Aufruf, `Picture`-Anlage |
+| `PlaylistService` | `PreviewPlaylistCoverAsync()` | Vorschau: Besitzprüfung + Generator-Aufruf, keine Persistenz |
 | `PlaylistService` | `GetPlaylistCoverAsync()` | Cover-Auflösung für den GET-Endpunkt (`AsNoTracking`) |
 | `PlaylistService` | `DeletePlaylistCoverAsync()` | Referenz leeren + `Picture` löschen (No-Op ohne Cover) |
 | `PlaylistService` | `ReplaceCoverPictureAsync()` | Atomarer Austausch: neues Bild einfügen, FK setzen, altes löschen |
@@ -761,11 +763,13 @@ zweiten Aufrufs das bereits committed neue Bild dauerhaft verweisen lassen (sieh
 | `PlaylistCoverImageGenerator` | `CollectOrderedPictureIdsAsync()` | Prioritäts- und Reihenfolgenlogik (max. 5 deduplizierte Poster-IDs) |
 | `PlaylistCoverImageGenerator` | `BuildPosterLookupAsync()` | Bulk-Auflösung der `PosterPictureId` pro Referenz, Staffel-Fallback auf Serienposter |
 | `HomeBackgroundImageGenerator` | `Compose()` | Wiederverwendeter Collagen-Renderer (Cross-Fade, `TransitionWidth = 32`) |
-| `PlaylistCoverUploadDialog.razor` | — | Upload-Dialog: Vorvalidierung, Vorschau, `InputFile`, Upload via Client |
-| `PlaylistDetail.razor` | `OpenUploadDialog()`/`RegenerateCoverAsync()`/`CoverImageUrl` | Kopfbereich: Cover-Anzeige, Upload- und Regenerieren-Aktionen, Statusmeldung |
+| `PlaylistCoverPanel.razor` | `OnFileSelectedAsync()`/`GenerateAsync()`/`ApplyAsync()`/`RemoveAsync()` | Bild-Panel: Vorvalidierung und Vorschau (Datei oder erzeugt), „Hochladen"/„Anwenden", Entfernen; Fehlermeldungen im Panel |
+| `PlaylistCoverRemoveConfirmationDialog.razor` | — | Rückfrage vor dem Entfernen eines hochgeladenen Bildes |
+| `PlaylistDetail.razor` | `OpenCoverPanel()`/`HandleCoverChangedAsync()`/`CoverImageUrl` | Kopfbereich: Cover-Anzeige, Bild-Symbol-Button, stilles Aktualisieren nach Änderung |
 | `PlaylistsList.razor` | `GetCoverImageUrl()` | Kachel-Cover-URL mit `access_token` + `v={CoverPictureId}` |
 | `PlaylistCoverPlaceholder.razor` | — | Deterministischer Platzhalter (Farbverlauf aus `PlaylistId * 47 % 360`) |
-| `IPlaylistApiClient`/`VideoWebPlayerClient` | `UploadPlaylistCoverAsync()`/`RegeneratePlaylistCoverAsync()`/`DeletePlaylistCoverAsync()` | Client-Methoden; Upload sendet `multipart/form-data` |
+| `IPlaylistApiClient`/`VideoWebPlayerClient` | `UploadPlaylistCoverAsync()`/`PreviewPlaylistCoverAsync()`/`RegeneratePlaylistCoverAsync()`/`DeletePlaylistCoverAsync()` | Client-Methoden; Upload sendet `multipart/form-data` |
+| `DtoPlaylistCoverPreview` | — | Ergebnis der Vorschau (`Success`, `Message`, `ContentType`, `ImageData`) |
 | `DtoPlaylistCoverResult` | — | Ergebnis-Typ (`Success`, `Message`, `PictureId`) |
 | `PlaylistSettings` | — | `AllowedCoverImageFormats`, `MaxCoverImageSizeBytes`, `MaxCoverImageWidthPixels`, `MaxCoverImageHeightPixels`, `MaxCoverImageTotalPixels`, `GeneratedCoverWidthPixels`, `GeneratedCoverHeightPixels`, `GeneratedCoverJpegQuality` |
 
@@ -786,6 +790,12 @@ flowchart TD
     H -->|ungültig| H1[400 InvalidOperationException]
     H -->|OK| I[Neues Picture IsGeneratedBackground=false]
     I --> J[ReplaceCoverPictureAsync]
+
+    V[POST cover/preview] --> W[PreviewPlaylistCoverAsync]
+    W --> G4[GetOwnedPlaylistAsync]
+    G4 -->|403/404| G5[Fehler]
+    G4 -->|OK| X[Generator: JPEG-Collage oder null]
+    X --> Y[200 DtoPlaylistCoverPreview - nichts gespeichert]
 
     K[POST cover/regenerate] --> L[GeneratePlaylistCoverAsync]
     L --> G2[GetOwnedPlaylistAsync]

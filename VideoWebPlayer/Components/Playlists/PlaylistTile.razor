@@ -2,23 +2,37 @@
 @inject VideoWebPlayer.Client.VideoWebPlayerClient Client
 
 @* Kachel einer Playlist in der zusammengefassten Playlist-Übersicht (PlaylistsList.razor): eigene Playlists
-   (mit dezentem "Öffentlich"-Kennzeichen, falls öffentlich) und von anderen Benutzern freigegebene Playlists
-   (mit Fremd-Symbol in der rechten oberen Ecke, IsForeign) nutzen dieselbe Kachel-UI.
+   (mit Öffentlich-Symbol in der rechten oberen Ecke, falls öffentlich) und von anderen Benutzern freigegebene
+   Playlists (mit Fremd-Symbol an derselben Stelle, IsForeign) nutzen dieselbe Kachel-UI.
+
+   Aufbau wie die Film-/Serienkacheln ihrer Übersichten (MediaBox.razor): dieselben Klassen ".media-box-link",
+   ".media-box", ".media-card-overlay", ".media-titles" und ".media-title-text". Das Bild füllt die gesamte
+   Kachelfläche (object-fit: cover), der Titel steht als einzige Beschriftung im Verlaufs-Overlay am unteren
+   Rand. Kundenrückmeldung zur Übersicht: keine weiteren Texte (Öffentlichkeitsstatus als Wort, Erstell-/
+   Aktualisierungsdatum, Sortierhinweis, Beschreibung, Genres) - die gehören in die Detailansicht.
 
    Die Kachel ist ein echter Link (".media-box-link", dasselbe etablierte Muster wie bei MediaBox.razor für
    Filme/Serien) und kein unsichtbares Button-Overlay per z-index: ein <a href> ist sofort - auch ohne
    bereits verbundenen Blazor-Server-Circuit - klickbar/tippbar (siehe Regressionstests in PlaylistsE2ETests).
 
-   Datenschutz: gezeigt wird nur, was zum Ansehen/Abspielen nötig ist (Name, Beschreibung, Genres, Cover,
-   Sortiersymbol, Daten) - niemals Angaben zum Besitzer. *@
+   Datenschutz: gezeigt wird nur, was zum Ansehen/Abspielen nötig ist (Name, Cover) - niemals Angaben zum
+   Besitzer. *@
 <a class="media-box-link playlist-row" href="@($"/playlists/{Playlist.Id}")" data-playlist-name="@Playlist.Name" data-playlist-foreign="@(IsForeign ? "true" : "false")" title="@Playlist.Name" aria-label="Playlist &quot;@(Playlist.Name)&quot; öffnen">
     <div class="media-box playlist-card">
         @if (IsForeign)
         {
             @* Fremd-Symbol (Kundenfeedback): kennzeichnet eine von einem anderen Benutzer freigegebene Playlist in der
                rechten oberen Ecke der Kachel. Bewusst ohne Angaben zum Besitzer (Datenschutz). *@
-            <span class="playlist-foreign-badge" role="img" title="Von einem anderen Benutzer freigegeben" aria-label="Von einem anderen Benutzer freigegeben">
+            <span class="playlist-tile-badge playlist-foreign-badge" role="img" title="Von einem anderen Benutzer freigegeben" aria-label="Von einem anderen Benutzer freigegeben">
                 <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+            </span>
+        }
+        else if (ShowPublicBadge && Playlist.IsPublic)
+        {
+            @* Öffentlich-Symbol (Kundenfeedback): an derselben Stelle wie das Fremd-Symbol, rein grafisch (der
+               frühere Text "Öffentlich" in der Kachel entfällt). *@
+            <span class="playlist-tile-badge playlist-public-badge" role="img" title="Öffentlich - für alle Anwender sichtbar und abspielbar (nur lesend)" aria-label="Öffentlich - für alle Anwender sichtbar und abspielbar (nur lesend)">
+                <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M3 12h18" /><path d="M12 3a14 14 0 0 1 0 18" /><path d="M12 3a14 14 0 0 0 0 18" /></svg>
             </span>
         }
         @* Platzhalter liegt immer darunter (billig: Farbverlauf + Symbol) und wird nur sichtbar, wenn kein
@@ -32,38 +46,15 @@
         }
         <div class="media-card-overlay">
             <div class="media-titles">
-                <span class="media-title-text playlist-card-title">@Playlist.Name</span>
-                @if (!string.IsNullOrWhiteSpace(Playlist.Description))
-                {
-                    <span class="media-subtitle-text">@TruncateDescription(Playlist.Description)</span>
-                }
-                @if (Playlist.Genres.Length > 0)
-                {
-                    <span class="playlist-genres-line playlist-card-genres">@string.Join(", ", Playlist.Genres.Select(g => g.Name))</span>
-                }
-            </div>
-            <div class="playlist-card-meta">
-                <PlaylistSortModeIcon SortMode="Playlist.SortMode" Size="14" />
-                @if (ShowPublicBadge && !IsForeign && Playlist.IsPublic)
-                {
-                    @* Dezentes Kennzeichen (Entwicklungsschritt 11): diese eigene Playlist ist oeffentlich. *@
-                    <span class="playlist-public-badge" title="Öffentlich - für alle Anwender sichtbar und abspielbar (nur lesend)">
-                        <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M3 12h18" /><path d="M12 3a14 14 0 0 1 0 18" /><path d="M12 3a14 14 0 0 0 0 18" /></svg>
-                        <span>Öffentlich</span>
-                    </span>
-                }
-                <span class="playlist-card-dates">
-                    Erstellt @Playlist.CreatedAt.ToLocalTime().ToString("d") &middot; Aktualisiert @Playlist.UpdatedAt.ToLocalTime().ToString("d")
-                </span>
+                @* lang="de" aktiviert die deutsche Silbentrennung (hyphens: auto, siehe .playlist-card-title),
+                   damit auch ein sehr langer Name sauber umbricht statt abgeschnitten zu werden. *@
+                <span class="media-title-text playlist-card-title" lang="de">@Playlist.Name</span>
             </div>
         </div>
     </div>
 </a>
 
 @code {
-    private const int DescriptionTruncateLength = 100;
-    private const string DescriptionTruncateEllipsis = "…";
-
     [Parameter, EditorRequired]
     public DtoPlaylist Playlist { get; set; } = default!;
 
@@ -90,14 +81,4 @@
     /// </summary>
     private string CoverImageUrl
         => $"/api/playlists/{Playlist.Id}/cover?access_token={Client.AuthorizationToken}&v={Playlist.CoverPictureId}";
-
-    private static string TruncateDescription(string? description)
-    {
-        if (string.IsNullOrEmpty(description))
-            return string.Empty;
-
-        return description.Length > DescriptionTruncateLength
-            ? description[..DescriptionTruncateLength] + DescriptionTruncateEllipsis
-            : description;
-    }
 }

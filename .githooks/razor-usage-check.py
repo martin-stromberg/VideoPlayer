@@ -11,7 +11,8 @@ so pre-existing orphans caused by the current change are still surfaced.
 Pass --all to run the audit unconditionally (e.g. outside of a commit).
 
 Exceptions (not checked):
-  - Files with an @page directive (pages are entry points)
+  - Files with an @page directive (pages are entry points; a UTF-8 BOM is ignored)
+  - Layouts (@inherits LayoutComponentBase)
   - _Imports.razor (global imports)
   - App.razor, Routes.razor (app-level entry points)
   - Any file whose name starts with _
@@ -85,6 +86,9 @@ def is_entry_point(path, content):
         return True
     if re.search(r"^\s*@page\s+", content, re.MULTILINE):
         return True
+    # Layouts are referenced through @layout attributes / the router's DefaultLayout, not as tags.
+    if re.search(r"^\s*@inherits\s+(?:\w+\.)*LayoutComponentBase\b", content, re.MULTILINE):
+        return True
     return False
 
 
@@ -108,7 +112,7 @@ def find_unused_components(root):
     file_contents = {}
     for f in razor_files:
         try:
-            file_contents[f] = f.read_text(encoding='utf-8', errors='replace')
+            file_contents[f] = f.read_text(encoding='utf-8-sig', errors='replace')
         except OSError:
             continue
 

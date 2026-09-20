@@ -13,5 +13,5 @@ Branch: `task/issue-207-fd729906880143ee8539fa3e046c88f4-playlists-fuer-serien-s
 | 7 | Sicherheitsabfrage beim Entfernen von Titeln mit Weiterschauen-Bezug | 2, 6 | `task/issue-207-fd729906880143ee8539fa3e046c88f4-playlists-fuer-serien-staffeln-schritt-7-sicherheitsabfrage-entfernen` | Fertig |
 | 8 | Automatische Nachlieferung neu erschienener Inhalte | 2, 3, 4 | `task/issue-207-fd729906880143ee8539fa3e046c88f4-playlists-fuer-serien-staffeln-schritt-8-automatische-nachlieferung` | Fertig |
 | 9 | Genres einer Playlist | 2 | `task/issue-207-fd729906880143ee8539fa3e046c88f4-playlists-fuer-serien-staffeln-schritt-9-playlist-genres` | Fertig |
-| 10 | Abbildungen für Playlists | 1, 2 | `task/issue-207-fd729906880143ee8539fa3e046c88f4-playlists-fuer-serien-staffeln-schritt-10-playlist-abbildungen` | In Arbeit |
+| 10 | Abbildungen für Playlists | 1, 2 | `task/issue-207-fd729906880143ee8539fa3e046c88f4-playlists-fuer-serien-staffeln-schritt-10-playlist-abbildungen` | Fertig |
 | 11 | Öffentliche Playlists mit Leseberechtigung | 1, 3, 5, 6 | `task/issue-207-fd729906880143ee8539fa3e046c88f4-playlists-fuer-serien-staffeln-schritt-11-oeffentliche-playlists` | Offen |

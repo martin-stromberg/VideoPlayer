@@ -8,7 +8,7 @@ sowie Mutationstests. Die Probe-Tests wurden nach der Prüfung gelöscht und nic
 
 ## Ergebnis
 
-**Status:** Abweichungen gefunden (ausschließlich niedrige Schwere: zwei Ungenauigkeiten in der Dokumentation und
+**Status:** Erfüllt (die vier niedrigen Abweichungen wurden nach der Prüfung vom Orchestrator behoben, siehe „Behebung der Abweichungen“ am Ende; diese Behebungen wurden nicht mehr von einem separaten Prüf-Agenten gegengeprüft)
 zwei Kleinigkeiten am Verhalten; keine der fünf fachlichen Anforderungen ist verfehlt)
 
 Der Kern hält: Markierung beim Erfassen (Staffel UND Serie, Staffel → Serie, Film → Sammlung) atomar mit dem
@@ -176,3 +176,14 @@ Ende. Volle Suite 1187/1187 (zweiter Lauf), Debug und Release bauen fehlerfrei.
   die ohne Playlist-Bezug bei der ersten Verarbeitung wieder verschwinden.
 - Nicht geprüft: zwei gleichzeitig laufende Serverinstanzen gegen dieselbe Datenbank (nicht vorgesehen; die parallele
   Verarbeitung im selben Prozess mit zwei Kontexten zeigt, dass Unique-Konflikte nicht zu Schaden führen).
+
+## Behebung der Abweichungen
+
+1. **Doku „ein Upsert“ beim Erst-Scan (BR-18):** korrigiert. Die Bündelung gilt je Speichervorgang; der Klassifizierer speichert je Episode einzeln, bei 500 Episoden entstehen rund 500 Upserts (deduplizierte 11 Zeilen, etwa +5 % SQL-Befehle, etwa +4 % Laufzeit, Messwerte der Prüfung).
+2. **Doku „per Metadaten-Bearbeitung umgehängter Film“:** korrigiert. Es gibt keinen solchen Pfad über die Oberfläche; der Hook erfasst jeden Entity-Framework-Weg, der Medien anlegt oder umhängt. Auch die Überschrift im technischen Ablauf („Scan / Metadaten-Bearbeitung“) angepasst.
+3. **„Neu erfassen“ im Quellen-Explorer meldete sich nicht als Scan an:** `MediaSourceExplorer.razor` ruft jetzt wie der Komplettscan `IPlaylistBackfillSignal.BeginScan()` auf; der Worker wird am Ende einmal geweckt und nicht je Commit mit Zwischenständen. Doku nennt den Weg. Kein eigener Test (Komponente mit Scanner/Classifier ohne bestehende Testabdeckung); `BeginScan` selbst ist durch die Signal-Tests abgedeckt.
+4. **Uhrsprung des Sicherheitslaufs:** Ein gespeicherter Zeitpunkt des letzten Laufs, der in der Zukunft liegt, gilt jetzt als ungültig; der Lauf ist dann sofort fällig und speichert den richtigen Zeitpunkt (statt für die Dauer des Uhrsprungs auszusetzen). Neuer Test `SafetySweep_StoredTimeInTheFuture_CountsAsNeverRan_AndRunsAgain`, Doku (BR-18) ergänzt.
+
+**Hinweis Architektur:** Ein Hook des Projekts meldet, dass Blazor-Komponenten keine Services direkt injizieren sollen. `MediaSourceExplorer.razor` injizierte `ApplicationDbContext`, `MediaSourceScanner` und `MediaSourceClassifier` schon vorher direkt (ebenso `MediaSourceAdmin.razor`); die Signal-Injektion folgt demselben Muster.
+
+Testlauf danach: 1188 Tests. Im ersten Gesamtlauf fielen fünf zeitabhängige Tests aus (vier in `MediaSearchSelectorTests`, bUnit-Debounce, und `PlaylistPlaybackE2ETests.PlaylistBadgeDisplayE2ETest`, Playwright-Zeitüberschreitung); diese Klassen bestanden danach dreimal einzeln (28 von 28, darunter der neue Test). `dotnet build VideoPlayer.sln` in Debug und Release: 0 Fehler.

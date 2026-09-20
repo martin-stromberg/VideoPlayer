@@ -512,9 +512,11 @@ als Eintrag enthalten. Ohne Änderung im Medienbestand entsteht dadurch keine Gr
   umgehängter Film** → die (neue) **Sammlung**. Ein Sammel-Inhalt, der im selben Speichervorgang selbst erst
   angelegt wird, wird nicht markiert (in keiner Playlist enthalten).
 - Je Sammel-Inhalt genau eine Zeile (`MediaType`, `MediaId`, eindeutiger Index); mehrfaches Markieren ist
-  idempotent und erhöht nur den Zähler `Version`. Bei einem großen Erst-Scan werden die Markierungen im
-  Speicher dedupliziert und gebündelt geschrieben (ein `INSERT ... ON CONFLICT DO UPDATE`, höchstens eine
-  zusätzliche Abfrage), ohne relevante Änderung entsteht kein Mehraufwand.
+  idempotent und erhöht nur den Zähler `Version`. Je Speichervorgang werden die Markierungen im Speicher
+  dedupliziert und gebündelt geschrieben (ein `INSERT ... ON CONFLICT DO UPDATE`, höchstens eine zusätzliche
+  Abfrage), ohne relevante Änderung entsteht kein Mehraufwand. Der Klassifizierer speichert beim Erfassen
+  jede Episode einzeln; bei einem Erst-Scan mit 500 Episoden entstehen deshalb rund 500 solcher Upserts (im
+  Test: 11 Markierungszeilen, etwa 5 % mehr SQL-Befehle und etwa 4 % längere Laufzeit), nicht nur einer.
 - Die Markierung wird **in derselben Datenbanktransaktion** wie das neue Medium geschrieben: Sie überlebt
   Neustarts, und ein Rollback (Fehler beim Speichern, verworfener Scan-Schritt) hinterlässt weder Medium noch
   Markierung.
@@ -541,9 +543,12 @@ als Eintrag enthalten. Ohne Änderung im Medienbestand entsteht dadurch keine Gr
   betroffen und der Lauf bricht nicht ab.
 
 **3. Auslöser (`PlaylistBackfillWorker`, `PlaylistBackfillSignal`) - kein Takt:**
-- **Ende eines Scans** (automatischer Scan-Prozess und manueller Komplettscan der Administration): Der Scan
-  meldet sich über `IPlaylistBackfillSignal.BeginScan()` an; am Ende wird der Worker einmal geweckt.
-- **Medien außerhalb eines Scans** (z. B. ein per Metadaten-Bearbeitung umgehängter Film): Der
+- **Ende eines Scans** (automatischer Scan-Prozess, manueller Komplettscan der Administration und „Neu
+  erfassen“ einer Collection im Quellen-Explorer): Der Scan meldet sich über
+  `IPlaylistBackfillSignal.BeginScan()` an; am Ende wird der Worker einmal geweckt.
+- **Medien außerhalb eines Scans** (jeder andere Weg über Entity Framework, der ein Medium anlegt oder
+  umhängt; einen solchen Weg über die Oberfläche gibt es derzeit nicht - die Metadaten-Bearbeitung hängt
+  keine Filme um): Der
   `SaveChanges`-Hook meldet geschriebene Markierungen, der Worker wird sofort (nach `Playlists:BackfillSettleSeconds`,
   Standard 10 s, damit eine Serie von Änderungen gebündelt wird) geweckt. Während eines laufenden Scans weckt
   der Hook den Worker nicht - dafür sorgt das Scan-Ende.
@@ -556,7 +561,9 @@ als Eintrag enthalten. Ohne Änderung im Medienbestand entsteht dadurch keine Gr
 einem Sammel-Eintrag, ebenfalls blockweise mit Pausen. Der Zeitpunkt des letzten abgeschlossenen Laufs steht
 dauerhaft in `Setups.PlaylistBackfillLastSweepAt`: Auch bei häufigen Neustarts läuft der Sicherheitslauf nicht
 öfter als einmal je Intervall, und ein fälliger Lauf wird nach einem Start (verzögert) nachgeholt. Ein
-abgebrochener Lauf (z. B. Herunterfahren) gilt nicht als erledigt. Der Sicherheitslauf liest und entfernt keine
+abgebrochener Lauf (z. B. Herunterfahren) gilt nicht als erledigt. Liegt der gespeicherte Zeitpunkt in der
+Zukunft (Systemuhr wurde vor- und wieder zurückgestellt), gilt er als ungültig: Der Lauf ist dann sofort fällig und
+speichert den richtigen Zeitpunkt, statt für die Dauer des Uhrsprungs auszusetzen. Der Sicherheitslauf liest und entfernt keine
 Markierungen und kann daher keine verlieren; scheitert er insgesamt (Infrastrukturfehler), wird nach einer Stunde
 erneut versucht.
 

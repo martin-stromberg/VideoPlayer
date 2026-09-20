@@ -146,6 +146,29 @@ public class PlaylistBackfillCoordinatorTests : PlaylistServiceTestBase, IDispos
         Assert.Equal(_time.GetUtcNow().AddHours(-23).AddHours(24).UtcDateTime, (await afterRestart.GetSafetySweepDueAtAsync(ct))!.Value.UtcDateTime);
     }
 
+    /// <summary>
+    /// Regression (Abnahme Korrektur gezielter Abgleich): a stored last-sweep time that lies in the future -
+    /// only possible after a system clock that was set ahead and back - must not suspend the safety net for
+    /// as long as the clock had been off; it counts as "never ran" and the sweep is due at once.
+    /// </summary>
+    [Fact]
+    public async Task SafetySweep_StoredTimeInTheFuture_CountsAsNeverRan_AndRunsAgain()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await CreatePlaylistsWithNewSeasonAsync(1);
+        var settings = Settings();
+        Assert.True(await CreateCoordinator(settings).RunSafetySweepIfDueAsync(ct));
+
+        _time.Advance(TimeSpan.FromDays(-3)); // the clock was set ahead when the sweep ran and is right again now
+
+        var afterClockCorrection = CreateCoordinator(settings);
+        Assert.Equal(DateTimeOffset.MinValue, await afterClockCorrection.GetSafetySweepDueAtAsync(ct));
+        Assert.True(await afterClockCorrection.RunSafetySweepIfDueAsync(ct));
+
+        // The sweep stored the correct time again: right afterwards it is not due.
+        Assert.False(await CreateCoordinator(settings).RunSafetySweepIfDueAsync(ct));
+    }
+
     [Fact]
     public async Task SafetySweep_DueAgainAfterTheInterval_AlsoAfterARestart()
     {

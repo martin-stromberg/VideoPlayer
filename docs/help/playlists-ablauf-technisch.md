@@ -931,7 +931,7 @@ Fachliche Regeln: `playlists-business-rules.md`, BR-18/BR-19. Hier der Ablauf au
 ### Diagramm
 
 ```
-Scan / Metadaten-Bearbeitung
+Scan (oder jeder andere EF-Weg, der Medien anlegt)
    │  SaveChanges (Movie/Season/Episode neu oder umgehängt)
    ▼
 ApplicationDbContext ── eine Transaktion ──► Medium + Upsert PlaylistBackfillMarkers (Version+1)

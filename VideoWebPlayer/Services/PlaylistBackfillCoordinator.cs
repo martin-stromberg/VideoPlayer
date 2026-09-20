@@ -170,7 +170,8 @@ public sealed class PlaylistBackfillCoordinator
 
     /// <summary>
     /// Gets the time the next safety sweep is due: the persisted time of the last completed sweep plus the
-    /// configured interval, or "now" if it never ran.
+    /// configured interval, or "now" if it never ran (or if the stored time lies in the future, i.e. after a
+    /// system clock that was set ahead and back).
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The due time, or <c>null</c> when the sweep is switched off.</returns>
@@ -185,7 +186,15 @@ public sealed class PlaylistBackfillCoordinator
         if (setup.PlaylistBackfillLastSweepAt is not { } last)
             return DateTimeOffset.MinValue;
 
-        return new DateTimeOffset(DateTime.SpecifyKind(last, DateTimeKind.Utc)).AddHours(hours);
+        var lastSweep = new DateTimeOffset(DateTime.SpecifyKind(last, DateTimeKind.Utc));
+
+        // A stored time that lies in the future can only come from a system clock that was set ahead and back
+        // again. Trusting it would suspend the safety net for as long as the clock had been off, so it counts
+        // as "never ran" and the sweep is due at once (it then stores the correct time).
+        if (lastSweep > _timeProvider.GetUtcNow())
+            return DateTimeOffset.MinValue;
+
+        return lastSweep.AddHours(hours);
     }
 
     private async Task SetLastSweepAsync(DateTimeOffset completedAt, CancellationToken cancellationToken)

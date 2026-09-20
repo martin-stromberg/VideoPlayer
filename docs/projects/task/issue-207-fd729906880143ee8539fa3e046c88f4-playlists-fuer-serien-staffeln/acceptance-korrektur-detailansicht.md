@@ -7,7 +7,7 @@ Probe-Tests, nach der Prüfung gelöscht), nicht der Selbstbericht.
 
 ## Ergebnis
 
-**Status:** Abweichungen gefunden
+**Status:** Erfüllt (das Informationsleck und die zwei kleinen Restpunkte wurden nach der Prüfung vom Orchestrator behoben, siehe „Behebung der Abweichungen“ am Ende; diese Behebungen wurden nicht mehr von einem separaten Prüf-Agenten gegengeprüft, sind aber durch Tests belegt, die ohne die Behebung fehlschlagen)
 
 Die elf Kundenpunkte D1–D11 sind im Browser erfüllt und sehen sauber aus. Eine Abweichung mittlerer Schwere betrifft die
 Rechte (Informationsleck bei gesperrten Titeln), dazu drei kleinere Punkte. Die Abweichung ist am Code belegt und
@@ -122,3 +122,13 @@ Hell/Dunkel: die App hat nur ein dunkles Design.
   Sprache, wie im Genre-Dialog); Genre-Editor ohne Genres ist leer ohne Hinweistext.
 - Alle Probe-Tests und Screenshots wurden gelöscht; nur dieser Bericht ist committet. `docs/features/task/` und
   `.claude/` unangetastet.
+
+## Behebung der Abweichungen
+
+1. **Informationsleck (mittel) – Handlung, Erscheinungsdatum und Episodennummer gesperrter Titel:** `PlaylistService.BuildEntryDtosAsync` füllt `ReleaseDate`, `Plot` und `EpisodeNumber` jetzt nur noch, wenn der ANFRAGENDE den Titel freigeschaltet hat (`IsAccessible`). Ein gesperrter Titel liefert weiter Titel, Zugehörigkeit und Bild (ausgegraut, nicht abspielbar). Das gilt auch für den Besitzer, für den dieselbe Regel wie auf den Film- und Serienseiten gilt. Neue Tests in `PlaylistServiceTests_EntryDetails`: gesperrter Film, gesperrte Episode und der Betrachter einer öffentlichen Playlist (Freischaltung des Besitzers wirkt nicht für den Betrachter; mit eigener Freischaltung erhält der Betrachter die Angaben). **Alle drei schlagen gegen den Stand ohne die Behebung fehl und bestehen mit ihr.** Zwei bestehende Tests der freigeschalteten Fälle hatten bisher keine Freischaltung angelegt und waren nur wegen des Lecks grün; sie legen die Freischaltung jetzt an. Doku (`playlists-api.md`) nennt die Regel.
+2. **Kaputtes Vorschaubild bei einer Nicht-Bilddatei:** Die Vorschau im Bild-Panel blendet ein nicht darstellbares Bild jetzt aus (`onerror`), statt ein defektes Bild zu zeigen. Die verständliche Meldung kommt weiterhin von der Server-Prüfung beim Hochladen (unverändert).
+3. **Langer Name ohne Leerzeichen bei 400 px:** `overflow-wrap: anywhere` für Überschrift und Handlung im Playlist-Kopfbereich. Nicht erneut im Browser nachgestellt.
+
+Bewusst unverändert: „Anwenden“ ruft `regenerate` auf; ändert sich der Playlist-Inhalt zwischen Vorschau und Anwenden, wird ein anderes Bild gespeichert als das gesehene (in der API-Doku beschrieben, Abnahme: geringe Abweichung). Das native englische „Choose File“ des Datei-Feldes und der leere Genre-Editor ohne Hinweis bleiben.
+
+Testlauf danach: 1143 Tests, 1142 grün. Der eine Ausfall (`MediaSearchSelectorTests.SearchTermInput_DebounceWorks_RespectsDelay`, zeitabhängiger bUnit-Test) bestand danach dreimal einzeln (6 von 6); derselbe Testtyp flackerte schon im Prüflauf des Reviewers. `dotnet build VideoPlayer.sln` in Debug und Release: 0 Fehler.

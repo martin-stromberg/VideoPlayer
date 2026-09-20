@@ -21,6 +21,7 @@ public class PlaylistServiceTests_EntryDetails : PlaylistServiceTestBase
         var movie = new Movie { Name = "Film", MediaSourceId = 1, CreatedAt = DateTime.UtcNow, ReleaseDate = new DateTime(2019, 5, 17), Plot = "Eine Handlung." };
         _db.Movies.Add(movie);
         await _db.SaveChangesAsync(ct);
+        await GrantMediaSourceAccessForUserAsync(_testUserId);
         var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.Movie, movie.Id));
 
         var page = await _service.GetPlaylistEntriesPagedAsync(playlistId, _testUserId, 1, 20, ct);
@@ -40,6 +41,7 @@ public class PlaylistServiceTests_EntryDetails : PlaylistServiceTestBase
         episode.Plot = "Episodenhandlung";
         episode.ReleaseDate = new DateTime(2021, 3, 4);
         await _db.SaveChangesAsync(ct);
+        await GrantMediaSourceAccessForUserAsync(_testUserId);
         var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.TVShowEpisode, episodeIds[1]));
 
         var page = await _service.GetPlaylistEntriesPagedAsync(playlistId, _testUserId, 1, 20, ct);
@@ -62,6 +64,80 @@ public class PlaylistServiceTests_EntryDetails : PlaylistServiceTestBase
         var entry = Assert.Single(page.Entries);
         Assert.Null(entry.Plot);
         Assert.Null(entry.ReleaseDate);
+    }
+
+    /// <summary>
+    /// Regression (Abnahme Korrektur Detailansicht): plot, release date and episode number are content details
+    /// that the item endpoints refuse without an unlock, so a playlist must not deliver them for a locked
+    /// entry either - the entry keeps showing its title (grayed out), nothing more.
+    /// </summary>
+    [Fact]
+    public async Task GetEntriesPaged_LockedMovie_HidesPlotAndReleaseDate_ButKeepsTitle()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var movie = new Movie { Name = "Gesperrter Film", MediaSourceId = 99, CreatedAt = DateTime.UtcNow, ReleaseDate = new DateTime(2019, 5, 17), Plot = "Geheime Handlung." };
+        _db.Movies.Add(movie);
+        await _db.SaveChangesAsync(ct);
+        await GrantMediaSourceAccessForUserAsync(_testUserId, mediaSourceId: 1);
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.Movie, movie.Id));
+
+        var page = await _service.GetPlaylistEntriesPagedAsync(playlistId, _testUserId, 1, 20, ct);
+
+        var entry = Assert.Single(page.Entries);
+        Assert.False(entry.IsAccessible);
+        Assert.Equal("Gesperrter Film", entry.MediaTitle);
+        Assert.Null(entry.Plot);
+        Assert.Null(entry.ReleaseDate);
+        Assert.Null(entry.EpisodeNumber);
+    }
+
+    [Fact]
+    public async Task GetEntriesPaged_LockedEpisode_HidesEpisodeNumberPlotAndReleaseDate()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (_, _, episodeIds) = await CreateShowWithSeasonAsync("Serie", "Staffel 1", 3);
+        var episode = await _db.TVShowEpisodes.SingleAsync(e => e.Id == episodeIds[1], ct);
+        episode.Plot = "Geheime Episodenhandlung";
+        episode.ReleaseDate = new DateTime(2021, 3, 4);
+        await _db.SaveChangesAsync(ct);
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.TVShowEpisode, episodeIds[1]));
+
+        var page = await _service.GetPlaylistEntriesPagedAsync(playlistId, _testUserId, 1, 20, ct);
+
+        var entry = Assert.Single(page.Entries);
+        Assert.False(entry.IsAccessible);
+        Assert.Null(entry.EpisodeNumber);
+        Assert.Null(entry.Plot);
+        Assert.Null(entry.ReleaseDate);
+    }
+
+    /// <summary>
+    /// A viewer of a public playlist gets the details only when the VIEWER has access - the owner's unlock
+    /// must not carry over (the same viewer/owner mix-up class as the unlock id-space bug of Schritt 3).
+    /// </summary>
+    [Fact]
+    public async Task GetEntriesPaged_PublicPlaylist_DetailsFollowTheViewersAccess_NotTheOwners()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var movie = new Movie { Name = "Film", MediaSourceId = 1, CreatedAt = DateTime.UtcNow, ReleaseDate = new DateTime(2019, 5, 17), Plot = "Eine Handlung." };
+        _db.Movies.Add(movie);
+        await _db.SaveChangesAsync(ct);
+        await GrantMediaSourceAccessForUserAsync(_testUserId);
+        var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.Movie, movie.Id));
+        await MakePlaylistPublicAsync(playlistId);
+
+        var ownerEntry = Assert.Single((await _service.GetPlaylistEntriesPagedAsync(playlistId, _testUserId, 1, 20, ct)).Entries);
+        var lockedViewerEntry = Assert.Single((await _service.GetPlaylistEntriesPagedAsync(playlistId, _otherUserId, 1, 20, ct)).Entries);
+        await GrantMediaSourceAccessForUserAsync(_otherUserId);
+        var unlockedViewerEntry = Assert.Single((await _service.GetPlaylistEntriesPagedAsync(playlistId, _otherUserId, 1, 20, ct)).Entries);
+
+        Assert.Equal("Eine Handlung.", ownerEntry.Plot);
+        Assert.False(lockedViewerEntry.IsAccessible);
+        Assert.Null(lockedViewerEntry.Plot);
+        Assert.Null(lockedViewerEntry.ReleaseDate);
+        Assert.True(unlockedViewerEntry.IsAccessible);
+        Assert.Equal("Eine Handlung.", unlockedViewerEntry.Plot);
+        Assert.Equal(new DateTime(2019, 5, 17), unlockedViewerEntry.ReleaseDate);
     }
 
     [Fact]

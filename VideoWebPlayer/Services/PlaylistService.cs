@@ -824,7 +824,12 @@ public sealed class PlaylistService : IPlaylistService
         for (var i = 0; i < entries.Count; i++)
         {
             var entry = entries[i];
+            var isAccessible = accessibilityByEntry[entry];
 
+            // Release date, plot and episode number are content details of the media itself: like the item
+            // endpoints (which refuse them without an unlock), they are only delivered for entries the
+            // requesting user may access. A locked entry keeps showing just its title, parent and picture
+            // (grayed out, not playable), as before.
             dtos[i] = new DtoPlaylistEntry
             {
                 Id = entry.Id,
@@ -837,11 +842,12 @@ public sealed class PlaylistService : IPlaylistService
                 ParentMediaTitle = GetParentTitle(entry, parentTitlesByType),
                 AddedAt = entry.AddedAt,
                 ResolvedPictureId = GetPictureId(entry, pictureIdsByType),
-                IsAccessible = accessibilityByEntry[entry],
+                IsAccessible = isAccessible,
                 SortOrder = entry.SortOrder,
-                ReleaseDate = releaseDatesByType.TryGetValue(entry.MediaType, out var dates) && dates.TryGetValue(entry.MediaId, out var releaseDate) ? releaseDate : null,
-                Plot = plotsByType.TryGetValue(entry.MediaType, out var plots) && plots.TryGetValue(entry.MediaId, out var plot) ? plot : null,
-                EpisodeNumber = string.Equals(entry.MediaType, MediaTypeValues.TVShowEpisode, StringComparison.OrdinalIgnoreCase)
+                ReleaseDate = isAccessible && releaseDatesByType.TryGetValue(entry.MediaType, out var dates) && dates.TryGetValue(entry.MediaId, out var releaseDate) ? releaseDate : null,
+                Plot = isAccessible && plotsByType.TryGetValue(entry.MediaType, out var plots) && plots.TryGetValue(entry.MediaId, out var plot) ? plot : null,
+                EpisodeNumber = isAccessible
+                    && string.Equals(entry.MediaType, MediaTypeValues.TVShowEpisode, StringComparison.OrdinalIgnoreCase)
                     && episodeNumbersById.TryGetValue(entry.MediaId, out var number) ? number : null
             };
         }

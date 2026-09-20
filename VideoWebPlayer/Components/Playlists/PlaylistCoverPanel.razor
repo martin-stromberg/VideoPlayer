@@ -27,7 +27,7 @@
         <div class="playlist-cover-panel-preview" id="playlist-cover-preview-area">
             @if (stagedSource is not null)
             {
-                <img class="playlist-cover-panel-image" src="@stagedSource" alt="Vorschau des neuen Bildes" id="playlist-cover-preview" />
+                <img class="playlist-cover-panel-image" src="@stagedSource" alt="Vorschau des neuen Bildes" id="playlist-cover-preview" onerror="this.style.display='none'" />
             }
             else if (HasCover)
             {

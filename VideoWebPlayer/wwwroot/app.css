@@ -2708,6 +2708,12 @@ input[type="text"]:focus {
     z-index: 1;
 }
 
+/* Lange Namen ohne Leerzeichen duerfen bei schmaler Breite nicht am Rand abgeschnitten werden. */
+.playlist-header h1,
+.playlist-header .tvshow-plot {
+    overflow-wrap: anywhere;
+}
+
 /* Aktionsbuttons AUF dem Bild, rechtsbuendig wie auf der Serienseite (dort belegen Favorit-/Freischalt-Button
    die rechte Ecke und die Leiste rueckt um deren Breite ein; die Playlist hat diese beiden nicht). */
 .playlist-header .playlist-action-bar {

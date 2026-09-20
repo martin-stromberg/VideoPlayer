@@ -1137,6 +1137,12 @@ public class DtoPlaylistEntry
 Titel ausgewählt ist (Titel, Jahr, Art, Zugehörigkeit, Handlung). Sie werden wie Titel und Bild gesammelt je Medientyp
 geladen (keine Abfrage pro Eintrag). `plot` gibt es nur für Filme und Episoden (die einzigen Einträge mit eigener
 Kachel), `episodeNumber` nur für Episoden; wo die Daten fehlen, sind die Felder `null`.
+**Nur für freigeschaltete Titel:** Diese Angaben gehören zum Inhalt des Titels selbst und werden – wie bei den
+Film- und Serien-Endpunkten – nur geliefert, wenn der ANFRAGENDE den Titel sehen darf (`isAccessible = true`). Für
+einen gesperrten Titel bleiben `releaseDate`, `plot` und `episodeNumber` `null`; Titel, Zugehörigkeit und Bild
+werden wie bisher mitgeliefert (der Eintrag erscheint ausgegraut und nicht abspielbar). Maßgeblich ist der
+Anfragende, nicht der Besitzer der Playlist: Ein Betrachter einer öffentlichen Playlist sieht die Angaben nur für
+Titel, die er selbst freigeschaltet hat.
 
 **Hinweis zu `SortOrder`:** Nur im Sortiermodus `Manual` relevant. Bestimmt die Position des
 Eintrags in der manuellen Reihenfolge (aufsteigend, kleinerer Wert = weiter vorne); `null` bedeutet,

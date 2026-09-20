@@ -806,7 +806,7 @@ SignalR benachrichtigt.
 ### Beteiligte Klassen/Komponenten
 
 `PlaylistsController` (`GET public`, `PUT {id}/public`), `PlaylistService`, `ContinueWatchingService`,
-`PlaylistDetail`/`PlaylistEntriesList` (Nur-Lese-Modus), `PublicPlaylistsList`, `PlaylistTile`.
+`PlaylistDetail`/`PlaylistEntriesList` (Nur-Lese-Modus), `PlaylistsList` (zusammengefasste Übersicht: lädt `GET /api/playlists` und `GET /api/playlists/public` parallel mit demselben Genre-Filter, führt sie clientseitig zusammen — eigene zuerst, fremde öffentliche danach, Duplikate über die Playlist-Id ausgeschlossen — und filtert nach „Alle/Eigene/Öffentliche"; Alias-Route `/playlists/public` wählt den Filter „Öffentliche" vor), `PlaylistTile` (mit Fremd-Symbol für fremde Playlists).
 
 ---
 

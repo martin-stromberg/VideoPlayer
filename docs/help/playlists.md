@@ -16,8 +16,9 @@ Inhalte erzeugt (siehe Abschnitt „Abbildung (Cover)").
 
 ## Übersicht
 
-Unter „Playlists" sieht ein Anwender seine eigenen Playlists als Kacheln (eine Kachel je Playlist)
-mit Titel, einer Grafik, einem Symbol für den Sortiermodus, den Genres der Playlist (falls
+Unter „Playlists" (ein einziger Menüpunkt) sieht ein Anwender seine eigenen Playlists als Kacheln
+(eine Kachel je Playlist) — gefolgt von den Playlists, die andere Anwender öffentlich freigegeben haben
+(siehe „Filterleiste" und „Fremde Playlists" unten). Jede Kachel zeigt Titel, eine Grafik, einem Symbol für den Sortiermodus, den Genres der Playlist (falls
 vorhanden, siehe Abschnitt „Genres") sowie dezent dargestelltem Erstellungs- und
 Aktualisierungszeitpunkt. Als Grafik zeigt die Kachel die Abbildung (das Coverbild) der Playlist —
 entweder ein vom Besitzer hochgeladenes Bild oder eine automatisch aus den Bildern der enthaltenen
@@ -30,13 +31,41 @@ Auswahlfeld „Nach Genre filtern" zur Verfügung, mit dem sich die Übersicht a
 beschränken lässt, die ein bestimmtes Genre führen (siehe Abschnitt „Genres").
 
 Ist eine der eigenen Playlists öffentlich, trägt ihre Kachel ein dezentes Kennzeichen „Öffentlich"
-(siehe Abschnitt „Öffentliche Playlists"). Über die Schaltfläche „Öffentliche Playlists" oberhalb der
-Kacheln (bzw. den gleichnamigen Menüeintrag) gelangt man zur getrennten Übersicht der öffentlichen
-Playlists.
+(siehe Abschnitt „Öffentliche Playlists").
+
+### Filterleiste
+
+Rechts oberhalb der Kacheln steht eine Leiste aus drei aneinanderhängenden Symbol-Schaltflächen, mit
+der die Übersicht gefiltert wird. Der aktuell gewählte Filter ist deutlich hervorgehoben (roter, gefüllter
+Hintergrund mit weißem Symbol); jede Schaltfläche hat einen Tooltip und einen zugänglichen Namen
+(„Alle Playlists", „Eigene Playlists", „Öffentliche Playlists").
+
+| Symbol | Filter | Zeigt |
+|--------|--------|-------|
+| vier Kacheln | **Alle** (Voreinstellung) | eigene Playlists (zuerst) und danach die öffentlichen Playlists anderer Anwender |
+| Person | **Eigene** | nur die eigenen Playlists, auch die eigenen öffentlichen |
+| Globus | **Öffentliche** | alle öffentlichen Playlists: die eigenen öffentlichen und die anderer Anwender |
+
+Eine eigene öffentliche Playlist wird nie doppelt aufgeführt: Sie erscheint einmal als eigene Playlist
+(mit dem Kennzeichen „Öffentlich"), nicht zusätzlich als fremde. Der Filter „Nach Genre filtern" wirkt
+in allen drei Ansichten (er wird auf eigene und fremde Playlists angewendet) und lässt sich mit der
+Filterleiste kombinieren. Gibt es im gewählten Filter keine Playlists, erscheint ein passender Hinweis
+(z. B. „Keine eigenen Playlists vorhanden").
+
+Die frühere eigene Adresse `/playlists/public` (öffentliche Übersicht) funktioniert weiter: Sie zeigt
+dieselbe Übersicht mit vorgewähltem Filter „Öffentliche". Einen zweiten Menüpunkt „Öffentliche
+Playlists" gibt es nicht mehr.
+
+### Fremde Playlists
+
+Kacheln von Playlists, die ein anderer Anwender öffentlich freigegeben hat, tragen in der rechten oberen
+Ecke ein kleines Personengruppen-Symbol (Tooltip „Von einem anderen Benutzer freigegeben"). Sie sind
+strikt nur lesend: Ein Klick öffnet die Detailseite im Lesemodus, in der Übersicht gibt es keine
+Bearbeitungsmöglichkeit. Angaben zum Besitzer werden nicht angezeigt.
 
 Ein Klick (bzw. Tipp) auf eine Kachel öffnet die Detailseite der Playlist (siehe Abschnitt
-„Detailseite"). Neue Playlists werden über die Schaltfläche „Neue Playlist erstellen" oberhalb der
-Kacheln angelegt. Bearbeiten und Löschen einer Playlist stehen ausschließlich auf der Detailseite
+„Detailseite"). Neue Playlists werden über den Symbol-Button „Neue Playlist" (Plus-Symbol, Tooltip und
+zugänglicher Name „Neue Playlist") oberhalb der Kacheln angelegt. Bearbeiten und Löschen einer Playlist stehen ausschließlich auf der Detailseite
 zur Verfügung (siehe dort).
 
 Ist noch keine Playlist vorhanden, zeigt die Übersicht einen Hinweis anstelle der Kacheln an.
@@ -452,11 +481,13 @@ Playlists sehen, um sie zu veröffentlichen, wäre das ein Widerspruch dazu.
 
 ### Was andere Anwender sehen und tun dürfen
 
-Öffentliche Playlists erscheinen für alle angemeldeten Anwender in einer **eigenen Übersicht „Öffentliche
-Playlists"** (Menüeintrag im Hauptmenü, Adresse `/playlists/public`), getrennt von den eigenen Playlists:
-Kacheln wie in der eigenen Übersicht (mit Genre-Filter), Klick öffnet die Detailseite. Es werden keine
-Angaben zum Besitzer angezeigt. Die eigenen Playlists eines Administrators, die öffentlich sind, erscheinen
-sowohl in der eigenen als auch in der öffentlichen Übersicht.
+Öffentliche Playlists erscheinen für alle angemeldeten Anwender in der **zusammengefassten Playlist-Übersicht**
+(ein Menüpunkt „Playlists"): am Ende der Liste der eigenen Playlists, mit einem Symbol in der rechten
+oberen Ecke der Kachel, das auf eine fremde Playlist hinweist; mit dem Filter „Öffentliche" der Filterleiste
+(oder über die alte Adresse `/playlists/public`) werden nur die öffentlichen Playlists gezeigt. Kacheln wie
+bei eigenen Playlists (mit Genre-Filter), Klick öffnet die Detailseite. Es werden keine Angaben zum Besitzer
+angezeigt. Die eigenen öffentlichen Playlists eines Administrators erscheinen nur einmal (als eigene) in
+der Übersicht, im Filter „Öffentliche" ebenfalls.
 
 Die Detailseite einer öffentlichen Playlist ist für alle außer dem Besitzer **ausschließlich lesend**. Es
 gibt weder Bearbeiten noch Löschen, weder Bild hochladen noch „Neu erzeugen", keine Genre-Bearbeitung
@@ -477,7 +508,7 @@ gewohnt in seiner **eigenen** Weiterschauen-Liste geführt, mit Bezug zu dieser 
 
 **Kennzeichnung wird entfernt.** Entfernt der Besitzer die Kennzeichnung, verlieren alle anderen Anwender
 sofort den Zugriff auf die Playlist (Detailseite, Einträge, Wiedergabe und Cover werden mit 403 abgelehnt;
-sie verschwindet aus der öffentlichen Übersicht). Die Weiterschauen-Einträge der anderen Anwender mit
+sie verschwindet aus der Übersicht der anderen Anwender). Die Weiterschauen-Einträge der anderen Anwender mit
 Bezug zu dieser Playlist verlieren dabei ihren Playlist-Bezug und werden zu normalen Einträgen ohne
 Playlist-Zuordnung (Position bleibt erhalten; existiert für dasselbe Video bereits ein Eintrag ohne
 Playlist-Bezug, bleibt dieser bestehen und der Duplikat-Eintrag entfällt). So gibt es keinen Link mehr in

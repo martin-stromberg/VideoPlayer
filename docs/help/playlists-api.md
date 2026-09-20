@@ -879,7 +879,7 @@ Abmessungen gespeichert; `Playlist.CoverPictureIsUserUploaded` wird `false`.
 
 Liefert das aktuelle Coverbild der Playlist (hochgeladen oder generiert) als Bilddaten. **Lesender Zugriff
 (ab Schritt 11):** der Besitzer, oder jeder angemeldete Benutzer, solange die Playlist öffentlich ist (die
-Kacheln der öffentlichen Übersicht zeigen das Bild). Für eine private Playlist eines anderen Anwenders antwortet
+Kacheln der zusammengefassten Übersicht zeigen das Bild). Für eine private Playlist eines anderen Anwenders antwortet
 der Endpunkt mit `403` — ein generiertes Cover ist eine Collage der Inhalte der Playlist; nur das Ändern des
 Covers erfordert stets Besitz. Dieselbe Prüfung gilt, wenn das Coverbild über den allgemeinen Endpunkt
 `GET /api/pictures/{id}` abgerufen wird: Ein Playlist-Cover liefert er nur an Anwender, die die Playlist lesen
@@ -942,8 +942,8 @@ Aufruf wirkungslos erfolgreich.
 
 ### `GET /api/playlists/public` — Öffentliche Playlists abrufen
 
-Liefert alle Playlists, die als öffentlich gekennzeichnet sind, als `DtoPlaylist[]` (Quelle der getrennten
-Übersicht „Öffentliche Playlists"). Optional mit `?genreId={genreId}` auf ein Genre beschränkt (wie
+Liefert alle Playlists, die als öffentlich gekennzeichnet sind, als `DtoPlaylist[]` (Quelle der öffentlichen Playlists in der
+zusammengefassten Playlist-Übersicht). Optional mit `?genreId={genreId}` auf ein Genre beschränkt (wie
 `GET /api/playlists`). Enthält auch die eigenen öffentlichen Playlists des Anfragenden
 (`isOwner = true`); private Playlists — auch eigene — erscheinen nie. Die DTOs sind auf den Anfragenden
 zugeschnitten (siehe `DtoPlaylist`), enthalten keine Benutzer-ID und keine E-Mail-Adresse des Besitzers.

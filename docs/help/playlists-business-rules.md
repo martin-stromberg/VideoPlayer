@@ -930,7 +930,7 @@ Administratoren. In der Oberfläche werden Bearbeitungsmöglichkeiten für Nicht
 **Datenschutz:** Ein Betrachter sieht nur, was zum Ansehen/Abspielen nötig ist. `DtoPlaylist` enthält nie die
 Benutzer-ID/E-Mail des Besitzers; für Betrachter sind `AllGenreIds`, `GenresManuallyOverridden` und
 `CoverPictureIsUserUploaded` zurückgesetzt; Ausschluss-Einträge (BR-19) sind nicht Teil irgendeines DTO. In der
-öffentlichen Übersicht wird kein Besitzer angezeigt. Das Cover einer *privaten* fremden Playlist wird nicht mehr
+Übersicht wird kein Besitzer angezeigt. Das Cover einer *privaten* fremden Playlist wird nicht mehr
 ausgeliefert (403) — weder über `GET /api/playlists/{id}/cover` noch über `GET /api/pictures/{id}`.
 
 ---

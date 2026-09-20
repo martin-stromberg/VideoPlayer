@@ -2,7 +2,7 @@
 
 ## Ergebnis
 
-**Status:** Abweichungen gefunden (nach Korrektur bleibt ein kleiner Restpunkt zu Abweichung 2 offen; Abweichung 1 und 3 sind behoben, siehe Abschnitt „Nachprüfung nach Korrektur" unten)
+**Status:** Erfüllt (Restpunkt zu Abweichung 2 – abgeschnittene WebP-Dateien – nach der Nachprüfung vom Orchestrator behoben, siehe Abschnitt „Behebung des WebP-Restpunkts" am Ende; diese letzte Behebung wurde nicht mehr durch einen separaten Prüf-Agenten gegengeprüft, sondern durch Fail-before/Pass-after-Tests belegt)
 
 Geprüft wurde der tatsächliche Codezustand auf `task/issue-207-fd729906880143ee8539fa3e046c88f4-playlists-fuer-serien-staffeln-schritt-10-playlist-abbildungen` gegen den Basisbranch (Diff: 49 Dateien, `+5823/-229`), einschließlich der vier nicht zum Auftrag gehörenden `fix:`-Commits an `PlaylistEntriesList`. Jeder Satz der Anforderung wurde mit eigenen Szenarien gegen echtes SQLite bzw. einen echten Chromium-Browser (Playwright) nachvollzogen; die dafür angelegten temporären Testdateien (`PlaylistCoverAcceptanceTmpTests.cs`, `PlaylistAcceptanceTmpE2ETests.cs`, zusammen 12 Szenarien, alle grün) wurden nach der Prüfung wieder gelöscht und sind nicht Teil dieses Commits.
 
@@ -82,3 +82,13 @@ Collage-Reihenfolge, höchstens fünf Bilder, Vorrang des hochgeladenen Bildes, 
 ### Testlauf und Build
 
 `dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj`: 749 von 749 grün (2 min 41 s, einschließlich echter Playwright-E2E-Tests). `dotnet build VideoPlayer.sln -c Release`: 0 Fehler. Nach den vier genannten Commits sind keine unerwarteten Fremd-Commits hinzugekommen. Die temporären Prüfdateien wurden gelöscht.
+
+## Behebung des WebP-Restpunkts
+
+Der in der Nachprüfung verbliebene Restpunkt zu Abweichung 2 (abgeschnittene WebP-Dateien wurden mit `200` angenommen, obwohl `playlists-api.md` deren Ablehnung zusagte und `playlists-business-rules.md` fälschlich behauptete, der WebP-Decoder scheitere selbst) wurde direkt behoben:
+
+- `PlaylistCoverValidator` vergleicht bei WebP die tatsächliche Dateilänge mit der im RIFF-Kopf angegebenen Länge (`IsRiffTruncated`); eine kürzere Datei wird mit derselben Meldung wie andere beschädigte Bilder abgelehnt (`400`, „Datei ist beschädigt oder unvollständig …"). Überstehende Bytes hinter dem angegebenen Ende werden weiter toleriert, damit kein gültiges Bild fälschlich abgelehnt wird.
+- Zusätzlich gilt ein Bildkopf mit Breite oder Höhe ≤ 0 (Überlauf, etwa 4e9 Pixel) jetzt als „kein gültiges Bild"; vorher konnte das Produkt eines negativen und eines positiven Wertes die Pixelgrenzen umgehen und wurde erst von der Volldekodierung abgefangen. Das behebt zugleich die kosmetisch negativen Zahlen in der Meldung.
+- Die Doku in `playlists-business-rules.md` wurde korrigiert (WebP-Decoder erkennt Abschneiden nicht; nur die Längenprüfung; zerstörte Daten in vollständig langen WebP-Dateien werden nicht gesondert erkannt).
+- Neue Tests in `PlaylistCoverValidatorContentTests`: abgeschnittenes WebP (1 und 40 Byte fehlen) wird abgelehnt – **beide Tests schlagen gegen den Stand ohne die Behebung fehl und bestehen mit ihr**; gültiges verlustfreies WebP wird weiter akzeptiert; Header mit überlaufender Breite wird abgelehnt.
+- Testlauf: 753 Tests. Beim ersten vollständigen Lauf schlug einmal `PlaylistPlaybackE2ETests.PlaylistNextEntryE2ETest` fehl (Playwright-Zeitverhalten unter Last, ohne Bezug zur Änderung); die gesamte Klasse (13 Tests) bestand danach dreimal in Folge einzeln, ein erneuter Gesamtlauf war 753/753 grün. `dotnet build VideoPlayer.sln -c Release`: 0 Fehler.

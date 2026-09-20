@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -81,7 +82,7 @@ namespace VideoWebPlayer.Services.PlaylistCover
                 return Task.FromResult(PlaylistCoverValidationResult.Failure(NotAnImageMessage));
 
             var info = TryIdentify(fileContent);
-            if (info is null)
+            if (info is null || info.Width <= 0 || info.Height <= 0)
                 return Task.FromResult(PlaylistCoverValidationResult.Failure(NotAnImageMessage));
 
             // The client-supplied MIME type is only a claim: what counts is the format the bytes really
@@ -96,16 +97,35 @@ namespace VideoWebPlayer.Services.PlaylistCover
 
             // ImageSharp's JPEG decoder silently renders truncated/destroyed JPEGs as partly grey images
             // instead of failing, so JPEGs additionally get a strict integrity check (memory-free, it does
-            // not reconstruct pixels). PNG and WebP decoders already fail on incomplete/damaged data.
+            // not reconstruct pixels). The PNG decoder already fails on incomplete/damaged data; the WebP
+            // decoder does NOT fail on a truncated file, so WebP is checked against the length its RIFF
+            // header declares.
             var jpegCorrupt = string.Equals(actualMimeType, "image/jpeg", StringComparison.OrdinalIgnoreCase)
                               && JpegIntegrityChecker.Check(fileContent) == JpegIntegrity.Corrupt;
-            if (jpegCorrupt || !CanBeDecoded(fileContent))
+            var webpTruncated = string.Equals(actualMimeType, "image/webp", StringComparison.OrdinalIgnoreCase)
+                                && IsRiffTruncated(fileContent);
+            if (jpegCorrupt || webpTruncated || !CanBeDecoded(fileContent))
             {
                 return Task.FromResult(PlaylistCoverValidationResult.Failure(
                     "Datei ist beschädigt oder unvollständig und kann nicht als Bild gelesen werden."));
             }
 
             return Task.FromResult(PlaylistCoverValidationResult.Success(info.Width, info.Height, actualMimeType));
+        }
+
+        /// <summary>
+        /// Whether a RIFF container (WebP) is shorter than the size its own header declares, i.e. was cut off.
+        /// Trailing bytes after the declared end are tolerated; only a file that is too short is rejected.
+        /// </summary>
+        /// <param name="data">The raw uploaded file bytes.</param>
+        /// <returns><see langword="true"/> if the file is shorter than its RIFF header declares.</returns>
+        private static bool IsRiffTruncated(byte[] data)
+        {
+            if (data.Length < 12)
+                return true;
+
+            var declaredPayloadSize = BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(4, 4));
+            return (long)declaredPayloadSize + 8 > data.Length;
         }
 
         private HashSet<string> GetAllowedFormats()

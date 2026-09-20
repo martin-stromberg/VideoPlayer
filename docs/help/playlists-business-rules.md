@@ -720,8 +720,14 @@ beschädigte Datei).
     Kamera- und Web-JPEGs) werden die Huffman-kodierten Bilddaten Symbol für Symbol auf gültige
     Codes, gültige Koeffizientenpositionen, korrekte Anzahl der MCUs und Restart-Marker geprüft.
     Progressive/arithmetisch kodierte JPEGs werden nur auf Vollständigkeit der Marker-Struktur
-    geprüft; im Zweifel gilt die Datei als gültig, ein legales Bild wird nicht abgelehnt. PNG- und
-    WebP-Decoder schlagen bei unvollständigen/beschädigten Daten selbst fehl
+    geprüft; im Zweifel gilt die Datei als gültig, ein legales Bild wird nicht abgelehnt. Der
+    PNG-Decoder schlägt bei unvollständigen/beschädigten Daten selbst fehl. Der WebP-Decoder tut
+    das bei einer abgeschnittenen Datei NICHT (schon ein fehlendes Byte wird stillschweigend
+    akzeptiert); deshalb wird bei WebP die tatsächliche Dateilänge gegen die im RIFF-Kopf
+    angegebene Länge geprüft - ist die Datei kürzer, gilt sie als unvollständig. Zerstörte
+    Bilddaten innerhalb einer vollständig langen WebP-Datei werden von dieser Prüfung nicht
+    erkannt, sondern nur, soweit der Decoder selbst daran scheitert. Ein Kopf mit Breite oder Höhe
+    ≤ 0 (etwa durch Überlauf) gilt als „kein gültiges Bild"
   - Die bei der Prüfung ermittelten Abmessungen werden als `Width`/`Height` der `Picture`-Zeile
     gespeichert
   - Speicherbedarf: erst die (billige) Header-/Pixelprüfung, dann die Volldekodierung mit rund

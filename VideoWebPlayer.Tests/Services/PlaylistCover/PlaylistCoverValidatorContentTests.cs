@@ -57,6 +57,54 @@ public class PlaylistCoverValidatorContentTests
     }
 
     [Fact]
+    public async Task ValidateUpload_ValidLosslessWebp_Success()
+    {
+        var validator = CreateValidator();
+        var webpBytes = Encode(CreateNoiseImage(64, 64), new WebpEncoder { FileFormat = WebpFileFormatType.Lossless });
+
+        var result = await validator.ValidateUploadAsync(webpBytes, "image/webp", webpBytes.Length);
+
+        Assert.True(result.IsValid);
+        Assert.Equal("image/webp", result.ContentType);
+    }
+
+    /// <summary>
+    /// ImageSharp's WebP decoder accepts a file that was cut off (even by a single byte), so a truncated
+    /// WebP must be rejected via the length its RIFF header declares - the documentation promises that.
+    /// </summary>
+    /// <param name="bytesCutOff">How many bytes are removed from the end of a valid WebP file.</param>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(40)]
+    public async Task ValidateUpload_TruncatedWebp_IsRejectedAsCorrupt(int bytesCutOff)
+    {
+        var validator = CreateValidator();
+        var webpBytes = Encode(CreateNoiseImage(64, 64), new WebpEncoder());
+        var truncated = webpBytes[..(webpBytes.Length - bytesCutOff)];
+
+        var result = await validator.ValidateUploadAsync(truncated, "image/webp", truncated.Length);
+
+        Assert.False(result.IsValid);
+        Assert.Contains("beschädigt oder unvollständig", result.ErrorMessage);
+    }
+
+    /// <summary>
+    /// A header whose dimension overflows to a non-positive value (4e9 does not fit an int) must not slip
+    /// past the pixel limits because the product of a negative and a positive number is negative.
+    /// </summary>
+    [Fact]
+    public async Task ValidateUpload_PngHeaderWithOverflowingWidth_IsRejectedAsNotAnImage()
+    {
+        var validator = CreateValidator();
+        var bomb = CreatePngHeaderOnly(4_000_000_000u, 100);
+
+        var result = await validator.ValidateUploadAsync(bomb, "image/png", bomb.Length);
+
+        Assert.False(result.IsValid);
+        Assert.False(string.IsNullOrWhiteSpace(result.ErrorMessage));
+    }
+
+    [Fact]
     public async Task ValidateUpload_TruncatedJpeg_IsRejectedAsCorrupt()
     {
         var validator = CreateValidator();

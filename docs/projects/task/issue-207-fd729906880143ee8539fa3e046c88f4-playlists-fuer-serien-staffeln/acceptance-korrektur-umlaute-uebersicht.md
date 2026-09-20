@@ -2,7 +2,7 @@
 
 ## Ergebnis
 
-**Status:** Abweichungen gefunden
+**Status:** Erfüllt (die drei kleinen Abweichungen wurden nach der Prüfung vom Orchestrator behoben, siehe „Behebung der Abweichungen“ am Ende; diese Behebungen wurden nicht mehr von einem separaten Prüf-Agenten gegengeprüft)
 
 Geprüft wurde der Stand `4120cf1` (Commits `d1b94ff` Umlaute, `4120cf1` Übersicht) auf dem Branch
 `task/issue-207-…-playlists-fuer-serien-staffeln-korrektur-umlaute-uebersicht` gegen den Basis-Branch
@@ -156,3 +156,13 @@ Szenario: Benutzer A besitzt „A-Privat" (privat), „A-Öffentlich" (öffentli
    Auftrag (nicht sichtbar für Anwender).
 7. Die Probe-Testklasse und eine temporäre Hilfsmethode in `PlaylistsE2ETestBase.cs` wurden nach der Prüfung wieder
    entfernt (`git checkout`); Screenshots lagen ausschließlich im Scratchpad-Verzeichnis.
+
+## Behebung der Abweichungen
+
+1. **Defekte Umlaute in Statusmeldungen:** In `MediaSourceClassifier.cs` standen an vier sichtbaren Stellen echte Ersatzzeichen (U+FFFD): „Dateien übrig.“ (Zeile 320), „Verzeichnisse übrig.“ (Zeilen 345 und 394) und „Neue Staffel … für TVShow …“ (Zeile 600). Korrigiert; die Änderung betrifft genau diese vier Zeilen (`git diff` geprüft), die Datei bleibt UTF-8 ohne BOM mit unveränderten Zeilenenden. Die übrigen Ersatzzeichen in dieser Datei stehen nur in Kommentaren und Log-Meldungen und bleiben wie bei der restlichen Umlaut-Korrektur unverändert.
+2. **Filter blieb nach Menüklick auf „Öffentliche“ stehen:** `PlaylistsList` wertete die Route nur in `OnInitializedAsync` aus. Die Komponente hört jetzt auf `NavigationManager.LocationChanged` (und meldet sich in `Dispose` ab): „/playlists/public“ wählt „Öffentliche“, „/playlists“ wählt „Alle“, jede andere Route (z. B. eine Detailansicht) ändert die Auswahl nicht. Neue bUnit-Tests `NavigatingFromPublicAliasToPlaylists_ResetsTheFilterToAll_AndBack` (**schlägt gegen den Stand ohne die Behebung fehl, besteht mit ihr**) und `NavigatingToADetailPage_KeepsTheSelectedFilter`. Nicht im echten Browser erneut nachgestellt.
+3. **Veraltetes Beispiel in `docs/API.md`:** Beispielmeldung auf „1 Titel hinzugefügt.“ korrigiert (entspricht dem Serverwortlaut).
+
+Nicht behoben (kosmetisch, nicht Teil der Abweichungen): das Datum in der Kachel-Metazeile wird bei etwa 245 px Breite abgeschnitten. Der Regressionstest `PlaylistUiUmlautTests` deckt weiterhin nur die Playlist-Razor-Dateien, `NavMenu` und vier Playlist-Klassen ab, nicht Controller oder Admin-Seiten.
+
+Testlauf danach: 1049 von 1049 grün (2 min 52 s); `dotnet build VideoPlayer.sln` in Debug und Release: 0 Fehler.

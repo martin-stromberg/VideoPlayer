@@ -382,7 +382,7 @@ Antwort: `DtoPlaylistAddResult`:
   "topLevelEntry": { "id": 456, "playlistId": 1, "mediaType": "Movie", "mediaId": 42, "..." : "..." },
   "addedEntries": [ { "id": 456, "playlistId": 1, "mediaType": "Movie", "mediaId": 42, "..." : "..." } ],
   "skippedDuplicateCount": 0,
-  "message": "1 Titel hinzugefuegt."
+  "message": "1 Titel hinzugefügt."
 }
 ```
 

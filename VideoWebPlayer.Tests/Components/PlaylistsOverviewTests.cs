@@ -141,6 +141,49 @@ public class PlaylistsOverviewTests
         Assert.Equal(["Eigene öffentliche", "Für alle"], TileNames(cut));
     }
 
+    /// <summary>
+    /// Regression: clicking the "Playlists" menu entry while the alias route "/playlists/public" is open
+    /// navigates to "/playlists" but reuses the same component instance, which used to keep the "Öffentliche"
+    /// filter active (the route was only evaluated once, on initialization).
+    /// </summary>
+    [Fact]
+    public void NavigatingFromPublicAliasToPlaylists_ResetsTheFilterToAll_AndBack()
+    {
+        using var ctx = CreateContext(own: [Private, OwnPublic], publicPlaylists: [OwnPublic, ForeignA]);
+        var navigation = ctx.Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/playlists/public");
+        var cut = ctx.Render<PlaylistsList>();
+        Assert.Equal("true", cut.Find("#playlist-filter-public").GetAttribute("aria-pressed"));
+
+        cut.InvokeAsync(() => navigation.NavigateTo("/playlists"));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal("true", cut.Find("#playlist-filter-all").GetAttribute("aria-pressed"));
+            Assert.Equal("false", cut.Find("#playlist-filter-public").GetAttribute("aria-pressed"));
+        });
+        Assert.Equal(["Privat", "Eigene öffentliche", "Für alle"], TileNames(cut));
+
+        cut.InvokeAsync(() => navigation.NavigateTo("/playlists/public"));
+
+        cut.WaitForAssertion(() =>
+            Assert.Equal("true", cut.Find("#playlist-filter-public").GetAttribute("aria-pressed")));
+    }
+
+    [Fact]
+    public void NavigatingToADetailPage_KeepsTheSelectedFilter()
+    {
+        using var ctx = CreateContext(own: [Private], publicPlaylists: [ForeignA]);
+        var navigation = ctx.Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/playlists");
+        var cut = ctx.Render<PlaylistsList>();
+        cut.Find("#playlist-filter-own").Click();
+
+        cut.InvokeAsync(() => navigation.NavigateTo("/playlists/5"));
+
+        Assert.Equal("true", cut.Find("#playlist-filter-own").GetAttribute("aria-pressed"));
+    }
+
     [Fact]
     public void OwnRoute_PreselectsTheAllFilter()
     {

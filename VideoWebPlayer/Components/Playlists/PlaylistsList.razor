@@ -7,6 +7,7 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
+@implements IDisposable
 
 <PageTitle>Playlists</PageTitle>
 
@@ -177,12 +178,27 @@
             _ => "Erstellen Sie Ihre erste Playlist."
         };
 
+    /// <summary>
+    /// The filter a route selects: "/playlists/public" (alias of the former separate overview) preselects
+    /// "Öffentliche", "/playlists" selects "Alle". Any other route (e.g. a playlist's detail page) selects nothing.
+    /// </summary>
+    private static PlaylistOverviewFilter? FilterForLocation(string location)
+    {
+        var path = new Uri(location).AbsolutePath.TrimEnd('/');
+        if (path.EndsWith("/playlists/public", StringComparison.OrdinalIgnoreCase))
+            return PlaylistOverviewFilter.Public;
+        if (path.EndsWith("/playlists", StringComparison.OrdinalIgnoreCase))
+            return PlaylistOverviewFilter.All;
+        return null;
+    }
+
     protected override async Task OnInitializedAsync()
     {
-        // Alias-Route "/playlists/public" (frühere eigene Übersicht): Filter "Öffentliche" vorwählen.
-        var path = new Uri(NavigationManager.Uri).AbsolutePath.TrimEnd('/');
-        if (path.EndsWith("/playlists/public", StringComparison.OrdinalIgnoreCase))
-            filter = PlaylistOverviewFilter.Public;
+        filter = FilterForLocation(NavigationManager.Uri) ?? filter;
+
+        // Navigating between "/playlists" and "/playlists/public" (e.g. the menu entry while the alias is open)
+        // reuses this component instance, so OnInitializedAsync does not run again: follow the location.
+        NavigationManager.LocationChanged += OnLocationChanged;
 
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         await Client.EnsureAuthorizationTokenSilentlyAsync(authState.User);
@@ -210,6 +226,21 @@
         {
             isLoading = false;
         }
+    }
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        var routeFilter = FilterForLocation(e.Location);
+        if (routeFilter is null || routeFilter == filter)
+            return;
+
+        filter = routeFilter.Value;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        NavigationManager.LocationChanged -= OnLocationChanged;
     }
 
     private void SelectFilter(PlaylistOverviewFilter selected)

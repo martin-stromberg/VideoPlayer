@@ -81,6 +81,7 @@ namespace VideoWebPlayer.Services
         /// <summary>
         /// F�hrt die Klassifizierung aller relevanten MediaItems und MediaCollections durch.
         /// </summary>
+        /// <param name="cancellationToken">Token zum Abbrechen der Verarbeitung.</param>
         public async Task ClassifyAllAsync(CancellationToken cancellationToken)
         {
             if (!TryBeginClassification())
@@ -106,6 +107,7 @@ namespace VideoWebPlayer.Services
         /// <summary>
         /// F�hrt nur die Klassifizierung der relevanten MediaItems durch.
         /// </summary>
+        /// <param name="cancellationToken">Token zum Abbrechen der Verarbeitung.</param>
         public async Task ClassifyMediaItemsAsync(CancellationToken cancellationToken)
         {
             if (!TryBeginClassification())
@@ -130,6 +132,7 @@ namespace VideoWebPlayer.Services
         /// <summary>
         /// F�hrt nur die Klassifizierung der relevanten MediaCollections durch.
         /// </summary>
+        /// <param name="cancellationToken">Token zum Abbrechen der Verarbeitung.</param>
         public async Task ClassifyMediaCollectionsAsync(CancellationToken cancellationToken)
         {
             if (!TryBeginClassification())
@@ -156,6 +159,7 @@ namespace VideoWebPlayer.Services
         /// </summary>
         /// <param name="rootMediaCollectionId">Root-Collection (Startpunkt).</param>
         /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>Eine Aufgabe, die den Abschluss der Klassifizierung darstellt.</returns>
         public async Task<bool> ClassifyCollectionTreeAsync(long rootMediaCollectionId, CancellationToken cancellationToken)
         {
             if (!TryBeginClassificationForCollectionTree(rootMediaCollectionId))
@@ -317,7 +321,7 @@ namespace VideoWebPlayer.Services
                 item.ClassifiedAt = DateTime.UtcNow;
                 await _db.SaveChangesAsync(cancellationToken);
                 if (count % 100 == 0)
-                    PublishStatus($"Klassifizierung: {count} Dateien �brig.");
+                    PublishStatus($"Klassifizierung: {count} Dateien übrig.");
                 await Task.Delay(10);
             }
         }
@@ -342,7 +346,7 @@ namespace VideoWebPlayer.Services
                         break;
 
                     if (count % 100 == 0)
-                        PublishStatus($"Klassifizierung: {count} Verzeichnisse �brig.");
+                        PublishStatus($"Klassifizierung: {count} Verzeichnisse übrig.");
 
                     _logger.LogInformation("Verarbeite Collection '{CollectionName}' (ID: {CollectionId})", collection.Name, collection.Id);
 
@@ -391,7 +395,7 @@ namespace VideoWebPlayer.Services
                         break;
 
                     if (count % 100 == 0)
-                        PublishStatus($"Klassifizierung: {count} Verzeichnisse �brig.");
+                        PublishStatus($"Klassifizierung: {count} Verzeichnisse übrig.");
 
                     _logger.LogInformation("Verarbeite Collection '{CollectionName}' (ID: {CollectionId})", collection.Name, collection.Id);
 
@@ -419,6 +423,8 @@ namespace VideoWebPlayer.Services
         /// <summary>
         /// Pr�ft und verarbeitet eine Collection als TVShow (z.B. wenn tvshow.nfo existiert).
         /// </summary>
+        /// <param name="collection">Die zu verarbeitende Collection.</param>
+        /// <param name="cancellationToken">Token zum Abbrechen der Verarbeitung.</param>
         private async Task ProcessCollectionAsTVShowAsync(MediaCollection collection, CancellationToken cancellationToken)
         {
             bool hasTvShowNfo = await _sftpReader.FileExistsAsync(collection, "tvshow.nfo");
@@ -597,7 +603,7 @@ namespace VideoWebPlayer.Services
                     _db.TVShowSeasons.Add(season);
                     await _db.SaveChangesAsync(cancellationToken);
                     await _recentEntryService.AddTVShowSeasonAsync(season).ConfigureAwait(false);
-                    PublishStatus($"Neue Staffel '{seasonName}' f�r TVShow '{show.Name}' angelegt.");
+                    PublishStatus($"Neue Staffel '{seasonName}' für TVShow '{show.Name}' angelegt.");
                 }
                 else
                 {
@@ -735,6 +741,8 @@ namespace VideoWebPlayer.Services
         /// <summary>
         /// Pr�ft und verarbeitet eine Collection als Movie-Collection.
         /// </summary>
+        /// <param name="collection">Die zu verarbeitende Collection.</param>
+        /// <param name="cancellationToken">Token zum Abbrechen der Verarbeitung.</param>
         private async Task ProcessCollectionAsMovieAsync(MediaCollection collection, CancellationToken cancellationToken)
         {
             // 1. Alle MediaItems (Videodateien) der Collection laden
@@ -1266,6 +1274,8 @@ namespace VideoWebPlayer.Services
         /// <summary>
         /// Gibt das l�ngste gemeinsame Pr�fix aller Strings in der Liste zur�ck.
         /// </summary>
+        /// <param name="strings">Die Strings, deren gemeinsames Präfix gesucht wird.</param>
+        /// <returns>Das längste gemeinsame Präfix aller Strings.</returns>
         private static string GetCommonPrefix(List<string> strings)
         {
             if (strings == null || strings.Count == 0)

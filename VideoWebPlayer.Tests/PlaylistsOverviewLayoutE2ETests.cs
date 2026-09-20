@@ -1,4 +1,4 @@
-using Microsoft.Playwright;
+﻿using Microsoft.Playwright;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Tests.Helpers;
 using Xunit;
@@ -94,13 +94,29 @@ public sealed class PlaylistsOverviewLayoutE2ETests : PlaylistsE2ETestBase
             previousRight = box!.X + box.Width;
         }
 
-        // Vertical rule between the areas: the ::before pseudo element of a following area is visible.
-        var ruleColor = await Page.Locator("#playlist-filter-public").EvaluateAsync<string>(
-            "e => getComputedStyle(e, '::before').backgroundColor");
-        Assert.NotEqual("rgba(0, 0, 0, 0)", ruleColor);
+        // Vertical rule between the areas - in EVERY filter state, also next to the filled active area
+        // (regression: the rule beside the active area used to be transparent, so with "Eigene" active
+        // no rule was visible at all).
+        foreach (var active in new[] { "#playlist-filter-all", "#playlist-filter-own", "#playlist-filter-public" })
+        {
+            await Page.Locator(active).ClickAsync();
+            await Expect(Page.Locator(active)).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("active"));
+            foreach (var follower in new[] { "#playlist-filter-own", "#playlist-filter-public" })
+            {
+                var ruleColor = await Page.Locator(follower).EvaluateAsync<string>(
+                    "e => getComputedStyle(e, '::before').backgroundColor");
+                Assert.True(ruleColor != "rgba(0, 0, 0, 0)" && ruleColor != "transparent",
+                    $"Keine Trennlinie vor {follower}, wenn {active} aktiv ist");
+            }
+        }
+
+        await Page.Locator("#playlist-filter-all").ClickAsync();
+        await Expect(Page.Locator("#playlist-filter-all")).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("active"));
 
         // Exactly one area is marked as active, and it is filled with the accent colour.
         await Expect(Page.Locator(".playlist-filter-button.active")).ToHaveCountAsync(1);
+        // The fill fades in through a short CSS transition, so wait for the final colour instead of sampling it.
+        await Expect(Page.Locator("#playlist-filter-all")).ToHaveCSSAsync("background-color", "rgb(229, 9, 20)");
         var activeBackground = await Page.Locator("#playlist-filter-all").EvaluateAsync<string>("e => getComputedStyle(e).backgroundColor");
         var inactiveBackground = await Page.Locator("#playlist-filter-own").EvaluateAsync<string>("e => getComputedStyle(e).backgroundColor");
         Assert.NotEqual(activeBackground, inactiveBackground);
@@ -184,6 +200,49 @@ public sealed class PlaylistsOverviewLayoutE2ETests : PlaylistsE2ETestBase
         Assert.Equal("anywhere", metrics.GetProperty("wrap").GetString());
         Assert.Equal("auto", metrics.GetProperty("hyphens").GetString());
         await Expect(title).ToHaveTextAsync(longName);
+    }
+
+    /// <summary>
+    /// The longest realistic names (well above three lines) are never cut off in the tile: the customer asked for a
+    /// completely readable title. (The former three-line limit ended such names with an ellipsis.)
+    /// </summary>
+    [Fact]
+    public async Task VeryLongTitle_IsNeverTruncatedInTheTile()
+    {
+        if (SkipBrowser)
+            return;
+
+        var longName = string.Join(' ', Enumerable.Repeat("Die grosse Sammlung", 6)) + " Ende"; // 117 characters
+        await LoginAsync(UserAEmail);
+        await CreatePlaylistViaUiAsync(longName);
+        await OpenOverviewAsync();
+
+        var title = Page.Locator($".playlist-row[data-playlist-name='{longName}'] .playlist-card-title");
+        await Expect(title).ToHaveTextAsync(longName);
+        var metrics = await title.EvaluateAsync<System.Text.Json.JsonElement>(
+            "e => ({ scrollH: e.scrollHeight, clientH: e.clientHeight, overlayScrollH: e.parentElement.scrollHeight, overlayClientH: e.parentElement.clientHeight })");
+        Assert.True(metrics.GetProperty("scrollH").GetDouble() <= metrics.GetProperty("clientH").GetDouble() + 1,
+            "Der Titel wird abgeschnitten (Zeilenbegrenzung)");
+        Assert.True(metrics.GetProperty("overlayScrollH").GetDouble() <= metrics.GetProperty("overlayClientH").GetDouble() + 1,
+            "Der Titel passt nicht in die Kachel und muss gescrollt werden");
+    }
+
+    /// <summary>
+    /// The stylesheet has no fingerprint in its file name, so it must be revalidated by the browser on every use;
+    /// otherwise a heuristically cached app.css shows outdated layouts after an update.
+    /// </summary>
+    [Fact]
+    public async Task StaticCssAndJavaScript_AreServedWithNoCache()
+    {
+        if (SkipBrowser)
+            return;
+
+        foreach (var path in new[] { "/app.css", "/js/scroll.js" })
+        {
+            var response = await Page.APIRequest.GetAsync($"{ServerUrl}{path}");
+            Assert.True(response.Ok, $"{path} nicht abrufbar ({response.Status})");
+            Assert.Contains("no-cache", response.Headers.GetValueOrDefault("cache-control") ?? string.Empty);
+        }
     }
 
     /// <summary>

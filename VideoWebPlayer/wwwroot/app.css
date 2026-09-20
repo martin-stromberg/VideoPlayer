@@ -2496,14 +2496,22 @@ input[type="text"]:focus {
 }
 
 /* Der Titel ist die einzige Beschriftung der Kachel und darf deshalb die volle Kachelbreite nutzen. Er wird
-   bis zu drei Zeilen lang (statt zwei wie bei Filmen/Serien, deren Titel neben dem Poster kuerzer sind),
-   bricht an Silbengrenzen (hyphens: auto, dazu lang="de" am Element) und notfalls auch innerhalb eines
-   Wortes (overflow-wrap: anywhere), damit ein langer Name lesbar bleibt statt abgeschnitten zu werden. */
+   nicht gekuerzt (Kunde: ein langer Titel muss komplett lesbar sein), sondern bricht an Silbengrenzen
+   (hyphens: auto, dazu lang="de" am Element) und notfalls auch innerhalb eines Wortes
+   (overflow-wrap: anywhere). */
 .playlist-card-title {
     font-size: 1rem;
-    -webkit-line-clamp: 3;
+    display: block;
+    -webkit-line-clamp: unset;
+    overflow: visible;
     overflow-wrap: anywhere;
     hyphens: auto;
+}
+
+/* Der Titel wird nie gekuerzt; nur im Extremfall (Name laenger als die Kachelhoehe) scrollt das Overlay. */
+.playlist-card .media-card-overlay {
+    max-height: 100%;
+    overflow-y: auto;
 }
 
 .playlist-card-cover {
@@ -2610,10 +2618,11 @@ input[type="text"]:focus {
     background: var(--vp-border-strong);
 }
 
-/* Keine Trennlinie unmittelbar neben der gefuellten Flaeche des aktiven Bereichs. */
+/* Neben der gefuellten Flaeche des aktiven Bereichs bleibt die Trennlinie erhalten (Kunde: zwischen den
+   Bereichen immer je eine Linie), wird dort aber hell gezeichnet, damit sie auf dem Akzent sichtbar ist. */
 .playlist-filter-button.active::before,
 .playlist-filter-button.active + .playlist-filter-button::before {
-    background: transparent;
+    background: rgba(255, 255, 255, 0.45);
 }
 
 .playlist-filter-button:hover {

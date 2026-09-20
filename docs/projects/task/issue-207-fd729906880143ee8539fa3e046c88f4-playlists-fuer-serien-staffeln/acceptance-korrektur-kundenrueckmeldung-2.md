@@ -352,3 +352,24 @@ sichtbare Trennlinien) und **A3** (Cache-Busting) behoben werden; beides ist kle
 zwei Punkte, an denen die Rückmeldung sonst wieder auflaufen wird. **A2a** sollte mindestens in der
 Dokumentation ehrlich gestellt werden. **A2b** ist eine Gestaltungsentscheidung und gehört dem Kunden
 vorgelegt, nicht vom Projekt entschieden.
+
+## Behebung der Abweichungen
+
+Direkt behoben (kleine, eindeutig diagnostizierte Mängel; die Behebung wurde nicht erneut von einem
+separaten Prüfer abgenommen, sondern durch Tests abgesichert, die ohne die Änderung scheitern):
+
+- **A1 Trennlinien der Filterleiste:** Die Linie neben dem aktiven Bereich ist nicht mehr transparent, sondern
+  hell (`rgba(255, 255, 255, 0.45)`) und damit auf dem Akzent sichtbar. Test
+  `FilterBar_IsOnePanelWithThreeSwitchAreasAndVerticalRules` prüft jetzt alle drei Filterzustände.
+- **A2a Kacheltitel:** Die Zeilenbegrenzung entfällt; der Titel wird nie gekürzt. Nur wenn ein Name länger als
+  die Kachelhöhe wäre, scrollt das Overlay. Test `VeryLongTitle_IsNeverTruncatedInTheTile` (117 Zeichen).
+  Release Notes entsprechend richtiggestellt.
+- **A3 Caching:** `.css`- und `.js`-Dateien werden mit `Cache-Control: no-cache` ausgeliefert (Revalidierung per
+  ETag). Test `StaticCssAndJavaScript_AreServedWithNoCache`.
+
+Offen / dem Kunden vorzulegen:
+
+- **A2b Kachelformat 16/9 statt Hochformat** der Film-/Serienkacheln (bewusste Abweichung, Entscheidung beim
+  Kunden).
+- Testlücke Kopfhöhe: Der Test `Header_KeepsItsHeight_WithAVeryLongTitleAndDescription` sichert die feste Höhe
+  nur zusammen mit der Zeilenbegrenzung ab.

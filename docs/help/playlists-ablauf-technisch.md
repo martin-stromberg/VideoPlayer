@@ -2,7 +2,7 @@
 
 ## Übersicht
 
-Die Playlist-Verwaltung besteht aus sechs Hauptabläufen:
+Die Playlist-Verwaltung besteht aus sieben Hauptabläufen (dazu der Hintergrundprozess in „Ablauf 8"):
 1. Hinzufügen von Medieninhalten (mit Cascade-Logik)
 2. Entfernen von Medieninhalten
 3. Abrufen aller Einträge (mit Bereinigung verwaister Einträge)
@@ -10,6 +10,7 @@ Die Playlist-Verwaltung besteht aus sechs Hauptabläufen:
 5. Abrufen einer sortierten, paginierten Seite von Einträgen (für die Infinity-List der Detailseite)
 6. Playlist-Abbildung (Cover): Upload, Vorschau und Übernehmen einer Collage, Abruf und Löschen (Bild-Panel der Detailseite)
 7. Aufbau der Detailseite: Kopfbereich, Titelauswahl und Moduswechsel (nur Oberfläche)
+8. Automatische Nachlieferung neuer Inhalte (Hintergrundprozess: Markierung, Anstoß, blockweise Verarbeitung, Sicherheitslauf)
 
 Diese Dokumentation beschreibt den internen Ablauf auf Code-Ebene.
 
@@ -853,6 +854,106 @@ SignalR benachrichtigt.
 
 `PlaylistsController` (`GET public`, `PUT {id}/public`), `PlaylistService`, `ContinueWatchingService`,
 `PlaylistDetail`/`PlaylistEntriesList` (Nur-Lese-Modus), `PlaylistsList` (zusammengefasste Übersicht: lädt `GET /api/playlists` und `GET /api/playlists/public` parallel mit demselben Genre-Filter, führt sie clientseitig zusammen — eigene zuerst, fremde öffentliche danach, Duplikate über die Playlist-Id ausgeschlossen — und filtert nach „Alle/Eigene/Öffentliche"; Alias-Route `/playlists/public` wählt den Filter „Öffentliche" vor), `PlaylistTile` (mit Fremd-Symbol für fremde Playlists).
+
+---
+
+## Ablauf 8: Automatische Nachlieferung neuer Inhalte (Markierung statt Dauerprüfung)
+
+Fachliche Regeln: `playlists-business-rules.md`, BR-18/BR-19. Hier der Ablauf auf Code-Ebene.
+
+### Schritt-für-Schritt
+
+1. **Markieren beim Speichern** (`ApplicationDbContext.SaveChanges`/`SaveChangesAsync`, Datei
+   `ApplicationDbContext.PlaylistBackfillMarking.cs`): Der `ChangeTracker` wird einmal nach hinzugefügten oder
+   umgehängten `Movie` (`MovieCollectionId`), `TVShowSeason` (`TVShowId`) und `TVShowEpisode`
+   (`TVShowSeasonId`) durchsucht. Ohne solche Einträge geschieht nichts weiter (keine Abfrage, keine Transaktion).
+   Sonst werden die Markierungen im Speicher dedupliziert (Episode → Staffel + Serie, Staffel → Serie, Film →
+   Sammlung; die Serie einer nicht getrackten Staffel wird mit höchstens einer Abfrage je 500 Staffeln ermittelt;
+   in derselben Speicherung neu angelegte Eltern zählen nicht). Dann läuft in **einer Transaktion**:
+   `base.SaveChanges` → gebündelter Upsert `INSERT ... ON CONFLICT(MediaType, MediaId) DO UPDATE SET Version =
+   Version + 1` (je 200 Zeilen) → Commit. Besteht bereits eine äußere Transaktion, nimmt der Upsert daran teil.
+   Beim EF-InMemory-Provider (nur Tests) gibt es einen Fallback ohne Roh-SQL.
+2. **Signal:** Nach dem Commit ruft der Kontext `IPlaylistBackfillSignal.NotifyMarkersWritten()`. Solange ein Scan
+   läuft (`BeginScan()` in `MediaSourceScanService` und im manuellen Komplettscan `MediaSourceAdmin.razor`), weckt das
+   nicht; das Ende des letzten offenen Scan-Bereichs weckt den Worker einmal. Mehrere Signale werden zu einem
+   zusammengefasst (Kanal mit einem Platz).
+3. **Worker** (`PlaylistBackfillWorker`): Nach einer Anlaufverzögerung (30 s) verarbeitet er einmal offene
+   Markierungen aus der Zeit vor dem Herunterfahren und holt einen fälligen Sicherheitslauf nach. Danach wartet er ohne Zeitschleife mit `Task.WhenAny` auf (a) das Signal - dann
+   `BackfillSettleSeconds` Beruhigungszeit und `ProcessPendingAsync` - oder (b) den einzigen Zeitgeber, der auf den
+   persistierten Fälligkeitszeitpunkt des Sicherheitslaufs gestellt ist (`RunSafetySweepIfDueAsync`).
+4. **Koordinator** (`PlaylistBackfillCoordinator.ProcessPendingAsync`): `PlaylistBackfillService.PlanPendingAsync`
+   liest die Markierungen (Id + Version) und die betroffenen Playlists per Join
+   `PlaylistEntries ⋈ PlaylistBackfillMarkers` auf `(MediaType, MediaId)` (Index
+   `IX_PlaylistEntries_MediaType_MediaId`). Ist nichts markiert, endet der Lauf nach dieser einen Abfrage.
+   Die Playlist-Ids werden in Blöcke zu `BackfillBatchSize` geteilt; je Block ein eigener DI-Scope, ein Lease auf
+   `IBackgroundProcessingGate` und `PlaylistBackfillService.BackfillPlaylistsAsync` (je Playlist `try/catch`; bei einem
+   Fehler wird der `ChangeTracker` geleert und mit der nächsten Playlist fortgefahren); zwischen den Blöcken
+   `BackfillBlockPauseSeconds` Pause.
+5. **Nachlieferungslogik je Playlist** (unverändert gegenüber Schritt 8): Sammel-Einträge laden, Kind-Inhalte per
+   `MediaHierarchyRegistry.LoadCascadeChildrenAsync` ermitteln, gegen vorhandene Einträge und
+   `PlaylistEntryExclusion` abgleichen, `MaxPlaylistItemCount` (Teilauffüllen) anwenden, Sortierung
+   (`Manual` → ans Ende, `ByReleaseDate` → `SortOrder = null`) über `PlaylistEntryReorderService`, speichern, Genres
+   neu berechnen (`PlaylistGenreService`).
+6. **Markierungen freigeben** (`ReleaseMarkersAsync`): Entfernt werden die Markierungen des Plans, außer denen einer
+   fehlgeschlagenen Playlist; das Löschen erfolgt bedingt (`WHERE Id IN (...) AND Version = <verarbeitete Version>`,
+   nach Version gruppiert in Blöcken von 500), so dass eine inzwischen erneut markierte Zeile (höhere `Version`)
+   bestehen bleibt.
+7. **Sicherheitslauf** (`RunSafetySweepAsync`): läuft, wenn `BackfillSafetySweepIntervalHours` > 0 und der in
+   `Setups.PlaylistBackfillLastSweepAt` gespeicherte Zeitpunkt des letzten abgeschlossenen Laufs mindestens ein Intervall
+   zurückliegt (nie gelaufen = fällig). Er geht per Cursor (`LoadSweepBlockAsync`, aufsteigende Playlist-Id) alle
+   Playlists mit einem Sammel-Eintrag blockweise mit denselben Pausen durch, liest/entfernt keine Markierungen und
+   speichert erst nach vollständigem Durchlauf den Zeitpunkt. Scheitert er insgesamt, versucht der Worker es nach
+   einer Stunde erneut.
+
+### Beteiligte Klassen/Komponenten
+
+| Klasse | Aufgabe |
+|--------|---------|
+| `ApplicationDbContext` (partial `ApplicationDbContext.PlaylistBackfillMarking.cs`) | Markierungs-Hook in `SaveChanges`/`SaveChangesAsync`, `DbSet<PlaylistBackfillMarker>` |
+| `PlaylistBackfillMarker` | Persistente Markierung (`MediaType`, `MediaId`, `MarkedAt`, `Version`) |
+| `IPlaylistBackfillSignal` / `PlaylistBackfillSignal` (Singleton) | Wecksignal: `NotifyMarkersWritten`, `BeginScan`, `WaitAsync` |
+| `PlaylistBackfillWorker` (`BackgroundService`) | Wartet auf Signal, Start-Nachholung und Sicherheitslauf-Zeitgeber; keine Zeitschleife |
+| `PlaylistBackfillCoordinator` (Singleton) | Blockweise Arbeitseinheiten mit Pausen, Gate, Scope je Block; Sicherheitslauf inkl. Fälligkeit |
+| `PlaylistBackfillService` (scoped) | Plan aus Markierungen, Nachlieferungslogik je Playlist, Markierungen freigeben, Sicherheitslauf-Blöcke |
+| `ProgramSettingsService` / `Setup` | Ablage des Zeitpunkts des letzten Sicherheitslaufs |
+
+### Konfiguration (`Playlists`)
+
+| Schlüssel | Standard | Wirkung |
+|-----------|----------|---------|
+| `BackfillBatchSize` | `25` | Playlists je Block |
+| `BackfillBlockPauseSeconds` | `2` | Pause zwischen Blöcken |
+| `BackfillSettleSeconds` | `10` | Beruhigungszeit nach dem Wecken |
+| `BackfillSafetySweepIntervalHours` | `24` | Abstand des Sicherheitslaufs, `0` = aus |
+
+`BackfillIntervalMinutes` (früherer 15-Minuten-Takt) entfällt.
+
+### Diagramm
+
+```
+Scan / Metadaten-Bearbeitung
+   │  SaveChanges (Movie/Season/Episode neu oder umgehängt)
+   ▼
+ApplicationDbContext ── eine Transaktion ──► Medium + Upsert PlaylistBackfillMarkers (Version+1)
+   │  nach Commit: NotifyMarkersWritten (außerhalb eines Scans)      Scan-Ende: BeginScan-Scope disposed
+   ▼                                                                       │
+PlaylistBackfillSignal ◄──────────────────────────────────────────────────┘
+   ▼
+PlaylistBackfillWorker ── Beruhigungszeit ──► Coordinator.ProcessPendingAsync
+                                                 │ PlanPendingAsync (Join auf Index) ─ nichts markiert → Ende
+                                                 ▼
+                                   Blöcke (BatchSize) + Pause ─ je Block: Scope + Gate + BackfillPlaylistsAsync
+                                                 ▼
+                                   ReleaseMarkersAsync (nur verarbeitete Version, nicht bei Fehler)
+
+Zeitgeber (1x, fällig laut Setups.PlaylistBackfillLastSweepAt) ──► Coordinator.RunSafetySweepAsync (alle Playlists, Blöcke)
+```
+
+### Grenzen
+
+- Nur Wege über `SaveChanges` markieren; Roh-SQL/Massenbefehle werden erst vom Sicherheitslauf erfasst (siehe BR-18, Grenzen).
+- Eine äußere Transaktion, die nach dem Speichern zurückgerollt wird, hat das Signal bereits ausgelöst (folgenlos:
+  der Lauf findet dann keine Markierung).
 
 ---
 

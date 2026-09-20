@@ -393,9 +393,14 @@ Serie, Staffel oder Sammlung dafür nicht erneut hinzufügen:
 - Wird einer bereits enthaltenen **Filmsammlung** ein neuer Film hinzugefügt, erscheint dieser
   automatisch in der Playlist.
 
-Die Prüfung läuft regelmäßig im Hintergrund (Standard: alle 15 Minuten) und wirkt sich nicht
-spürbar auf die sonstige Nutzung der Anwendung aus; ein neu hinzugekommener Titel erscheint daher
-nicht sofort, sondern spätestens nach dem nächsten Durchlauf.
+Sobald ein neuer Titel in den Medienbestand aufgenommen wird, merkt sich die Anwendung die betroffene
+Serie, Staffel oder Filmsammlung. Nach dem Ende des Scans (oder kurz nach einer Änderung außerhalb eines
+Scans) werden genau die Playlists aktualisiert, die diese Serie, Staffel oder Sammlung enthalten - alle
+anderen Playlists werden dabei nicht angefasst, und ohne Änderung im Medienbestand findet gar keine
+Prüfung statt. Die Aktualisierung läuft in kleinen Blöcken mit Pausen und wirkt sich nicht spürbar auf die
+sonstige Nutzung der Anwendung aus; ein neuer Titel erscheint daher nicht sofort, sondern kurz nach dem
+Scan-Ende. Zusätzlich gleicht die Anwendung einmal täglich alle Playlists mit Serien, Staffeln oder
+Filmsammlungen ab, falls einmal eine Vormerkung verloren gegangen sein sollte.
 
 Neu nachgelieferte Titel werden je nach Sortiermodus der Playlist einsortiert:
 
@@ -652,8 +657,10 @@ Konfiguration festgelegt:
     "MaxPlaylistItemCount": null,
     "DefaultPageSize": 20,
     "MaxPageSize": 100,
-    "BackfillIntervalMinutes": 15,
     "BackfillBatchSize": 25,
+    "BackfillBlockPauseSeconds": 2,
+    "BackfillSettleSeconds": 10,
+    "BackfillSafetySweepIntervalHours": 24,
     "AllowedCoverImageFormats": "image/jpeg,image/png,image/webp",
     "MaxCoverImageSizeBytes": 5242880,
     "MaxCoverImageWidthPixels": 4096,
@@ -679,11 +686,15 @@ weitere Titel für diese Playlist ab.
 nachgeladen werden (Standard: 20). `MaxPageSize` begrenzt die höchstzulässige Anzahl an Einträgen
 pro Ladevorgang (Standard: 100).
 
-`BackfillIntervalMinutes` legt den zeitlichen Abstand zwischen zwei Durchläufen der automatischen
-Nachlieferung fest (Standard: 15 Minuten). `BackfillBatchSize` begrenzt, wie viele Playlists dabei
-je Durchlauf geprüft werden (Standard: 25), damit ein einzelner Durchlauf kurz bleibt und den
-laufenden Betrieb nicht spürbar beeinträchtigt; über mehrere Durchläufe hinweg werden alle
-betroffenen Playlists reihum abgedeckt.
+Die automatische Nachlieferung läuft nicht in einem festen Takt, sondern wird durch neu erfasste Titel
+angestoßen (siehe Abschnitt „Automatische Nachlieferung neuer Inhalte"). `BackfillBatchSize` begrenzt,
+wie viele Playlists in einer Arbeitseinheit (Block) aktualisiert werden (Standard: 25);
+`BackfillBlockPauseSeconds` ist die Pause zwischen zwei Blöcken (Standard: 2 Sekunden), damit auch ein großer
+Nachzug den laufenden Betrieb nicht spürbar beeinträchtigt. `BackfillSettleSeconds` (Standard: 10 Sekunden)
+ist die kurze Wartezeit nach dem Scan-Ende, damit mehrere Änderungen gebündelt werden.
+`BackfillSafetySweepIntervalHours` legt den Abstand des täglichen Sicherheitslaufs über alle betroffenen
+Playlists fest (Standard: 24 Stunden, `0` schaltet ihn aus); der Zeitpunkt des letzten Laufs wird
+gespeichert, so dass er auch bei häufigen Neustarts nicht öfter als einmal je Intervall läuft.
 
 Die folgenden Werte steuern die Abbildung (das Coverbild) einer Playlist (siehe Abschnitt
 „Abbildung (Cover)"):

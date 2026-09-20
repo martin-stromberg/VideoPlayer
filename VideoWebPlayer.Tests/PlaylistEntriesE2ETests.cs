@@ -28,6 +28,7 @@ public sealed class PlaylistEntriesE2ETests : PlaylistsE2ETestBase
         await Page.WaitForSelectorAsync("#playlist-detail-name");
 
         await SelectSearchResultAsync("Hinzufügen-Testfilm", "Movie", movieId);
+        await ShowEntriesAsync();
 
         await Expect(Page.Locator($".playlist-entry-row[data-media-type='Movie'][data-media-id='{movieId}']")).ToBeVisibleAsync();
         await Expect(Page.Locator($".playlist-entry-row[data-media-type='Movie'][data-media-id='{movieId}']")).ToContainTextAsync("Hinzufügen-Testfilm");
@@ -47,12 +48,21 @@ public sealed class PlaylistEntriesE2ETests : PlaylistsE2ETestBase
         await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
         await SelectSearchResultAsync("Entfernen-Testfilm", "Movie", movieId);
+        await ShowEntriesAsync();
         await Expect(Page.Locator($".playlist-entry-row[data-media-type='Movie'][data-media-id='{movieId}']")).ToBeVisibleAsync();
+        // The tile itself has no remove button any more.
+        await Expect(Page.Locator($".playlist-entry-row[data-media-type='Movie'][data-media-id='{movieId}'] button")).ToHaveCountAsync(0);
 
-        await Page.ClickAsync($".playlist-entry-row[data-media-type='Movie'][data-media-id='{movieId}'] .playlist-entry-remove-button");
+        // Select the title, then remove it with the delete symbol button in the header.
+        await SelectEntryAsync("Movie", movieId);
+        await Page.ClickAsync("#playlist-detail-remove-entry-button");
         await Page.WaitForTimeoutAsync(1000);
 
         await Expect(Page.Locator($".playlist-entry-row[data-media-type='Movie'][data-media-id='{movieId}']")).ToHaveCountAsync(0);
+        // The selection is gone (header shows the playlist again) and, the list being empty now, adding is offered.
+        await Expect(Page.Locator("#playlist-detail-selected-entry")).ToHaveCountAsync(0);
+        await Expect(Page.Locator("#playlist-detail-name")).ToBeVisibleAsync();
+        await Expect(Page.Locator("#playlist-add-area")).ToBeVisibleAsync();
     }
 
     /// <summary>
@@ -76,6 +86,7 @@ public sealed class PlaylistEntriesE2ETests : PlaylistsE2ETestBase
         await Page.WaitForSelectorAsync("#playlist-detail-name");
 
         await SelectSearchResultAsync("Quellenzugriff-Testfilm", "Movie", movieId);
+        await ShowEntriesAsync();
 
         await Expect(Page.Locator($".playlist-entry-row[data-media-type='Movie'][data-media-id='{movieId}']"))
             .Not.ToHaveClassAsync(new System.Text.RegularExpressions.Regex("opacity-50"));
@@ -128,6 +139,7 @@ public sealed class PlaylistEntriesE2ETests : PlaylistsE2ETestBase
         await Page.WaitForSelectorAsync("#playlist-detail-name");
 
         await SelectSearchResultAsync("Kaskaden-Testserie", "TVShow", showId);
+        await ShowEntriesAsync();
 
         // Nur die 3 Episoden erhalten eine Kachel; die Serie selbst und ihre 2 Staffeln (rein
         // organisatorisch im Hintergrund weiterhin gespeichert) bleiben ohne eigene Kachel.

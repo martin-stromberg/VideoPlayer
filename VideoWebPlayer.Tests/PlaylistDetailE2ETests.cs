@@ -257,6 +257,7 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
         await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
         await SelectSearchResultAsync("Freigeschalteter Film", MediaTypeValues.Movie, unlockedMovieId);
+        await ShowEntriesAsync();
 
         await Expect(Page.Locator($".playlist-entry-row[data-media-type='{MediaTypeValues.Movie}'][data-media-id='{lockedMovieId}']")).ToHaveClassAsync(new Regex("opacity-50"));
         await Expect(Page.Locator($".playlist-entry-row[data-media-type='{MediaTypeValues.Movie}'][data-media-id='{unlockedMovieId}']")).Not.ToHaveClassAsync(new Regex("opacity-50"));
@@ -281,7 +282,9 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
 
         var lockedRow = Page.Locator($".playlist-entry-row[data-media-type='{MediaTypeValues.Movie}'][data-media-id='{lockedMovieId}']");
         await Expect(lockedRow).ToHaveClassAsync(new Regex("opacity-50"));
-        var removeButton = lockedRow.Locator(".playlist-entry-remove-button");
+        // Removing happens in the header of the selected title (the tile has no button): also for a locked one.
+        await SelectEntryAsync(MediaTypeValues.Movie, lockedMovieId);
+        var removeButton = Page.Locator("#playlist-detail-remove-entry-button");
         await Expect(removeButton).ToBeVisibleAsync();
         await Expect(removeButton).ToBeEnabledAsync();
 
@@ -309,6 +312,7 @@ public sealed class PlaylistDetailE2ETests : PlaylistsE2ETestBase
         await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
         await SelectSearchResultAsync("Film mit Quellenzugriff", MediaTypeValues.Movie, movieId);
+        await ShowEntriesAsync();
 
         await Expect(Page.Locator($".playlist-entry-row[data-media-type='{MediaTypeValues.Movie}'][data-media-id='{movieId}']")).Not.ToHaveClassAsync(new Regex("opacity-50"));
     }

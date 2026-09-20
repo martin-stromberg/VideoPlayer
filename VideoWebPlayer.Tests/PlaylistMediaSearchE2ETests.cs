@@ -36,6 +36,7 @@ public sealed class PlaylistMediaSearchE2ETests : PlaylistsE2ETestBase
         await Page.WaitForSelectorAsync("#playlist-detail-name");
 
         await SelectSearchResultAsync("Gesuchte Staffel", "TVShowSeason", seasonId);
+        await ShowEntriesAsync();
 
         // Nur die 2 Episoden erhalten eine Kachel; die Staffel selbst (organisatorisch mitgespeichert)
         // und die Serie (gar nicht hinzugefuegt) bleiben ohne eigene Kachel.
@@ -61,6 +62,7 @@ public sealed class PlaylistMediaSearchE2ETests : PlaylistsE2ETestBase
         await Page.WaitForSelectorAsync("#playlist-detail-name");
 
         await SelectSearchResultAsync("Staffel Eins Episode 1", "TVShowEpisode", episodeId);
+        await ShowEntriesAsync();
 
         await Expect(Page.Locator(".playlist-entry-row")).ToHaveCountAsync(1);
         await Expect(Page.Locator($".playlist-entry-row[data-media-type='TVShowEpisode'][data-media-id='{episodeId}']")).ToBeVisibleAsync();
@@ -89,7 +91,9 @@ public sealed class PlaylistMediaSearchE2ETests : PlaylistsE2ETestBase
         await SelectSearchResultAsync("Gesuchte Filmsammlung", "MovieCollection", collectionId);
 
         await Expect(Page.Locator("#playlist-entries-status")).ToContainTextAsync("1 Titel hinzugefügt.");
+        await ShowEntriesAsync();
         await Expect(Page.Locator(".playlist-entry-row")).ToHaveCountAsync(0);
+        await Expect(Page.Locator(".admin-empty-state")).ToBeVisibleAsync();
         await Expect(Page.Locator($".playlist-entry-row[data-media-type='MovieCollection'][data-media-id='{collectionId}']")).ToHaveCountAsync(0);
     }
 
@@ -145,6 +149,7 @@ public sealed class PlaylistMediaSearchE2ETests : PlaylistsE2ETestBase
         await Page.WaitForSelectorAsync("#playlist-detail-name");
 
         await SelectSearchResultAsync("breaking bad", "Movie", movieId);
+        await ShowEntriesAsync();
 
         await Expect(Page.Locator($".playlist-entry-row[data-media-type='Movie'][data-media-id='{movieId}']")).ToBeVisibleAsync();
         await Expect(Page.Locator($".playlist-entry-row[data-media-type='Movie'][data-media-id='{movieId}']")).ToContainTextAsync("Breaking Bad");

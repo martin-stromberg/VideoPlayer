@@ -36,7 +36,7 @@ public sealed class PlaylistPlaybackE2ETests : PlaylistsE2ETestBase
         await Page.WaitForSelectorAsync("#playlist-detail-name");
         await SelectSearchResultAsync("Wiedergabe-Startfilm", "Movie", movieId);
 
-        await Page.ClickAsync(".playlist-entry-play-button");
+        await PlaySoleEntryFromHeaderAsync();
         await Page.WaitForSelectorAsync("#video-player-element");
 
         await Expect(Page.Locator("#playlist-playback-badge")).ToBeVisibleAsync();
@@ -60,7 +60,7 @@ public sealed class PlaylistPlaybackE2ETests : PlaylistsE2ETestBase
         var movie2Id = await SeedMovieAsync("Weiterschalten-Film-2");
         await SelectSearchResultAsync("Weiterschalten-Film-2", "Movie", movie2Id);
 
-        await Page.Locator($".playlist-entry-row[data-media-type='Movie'][data-media-id='{movie1Id}'] .playlist-entry-play-button").ClickAsync();
+        await PlayEntryFromHeaderAsync("Movie", movie1Id);
         await Page.WaitForSelectorAsync("#video-player-element");
         await Expect(Page.Locator("#playlist-playback-badge")).ToContainTextAsync("1/2");
 
@@ -87,7 +87,7 @@ public sealed class PlaylistPlaybackE2ETests : PlaylistsE2ETestBase
         var movie2Id = await SeedMovieAsync("Zurückschalten-Film-2");
         await SelectSearchResultAsync("Zurückschalten-Film-2", "Movie", movie2Id);
 
-        await Page.Locator($".playlist-entry-row[data-media-type='Movie'][data-media-id='{movie2Id}'] .playlist-entry-play-button").ClickAsync();
+        await PlayEntryFromHeaderAsync("Movie", movie2Id);
         await Page.WaitForSelectorAsync("#video-player-element");
         await Expect(Page.Locator("#playlist-playback-badge")).ToContainTextAsync("2/2");
 
@@ -114,7 +114,7 @@ public sealed class PlaylistPlaybackE2ETests : PlaylistsE2ETestBase
         var movie2Id = await SeedMovieAsync("Autoadvance-Film-2");
         await SelectSearchResultAsync("Autoadvance-Film-2", "Movie", movie2Id);
 
-        await Page.Locator($".playlist-entry-row[data-media-type='Movie'][data-media-id='{movie1Id}'] .playlist-entry-play-button").ClickAsync();
+        await PlayEntryFromHeaderAsync("Movie", movie1Id);
         await Page.WaitForSelectorAsync("#video-player-element");
         await Expect(Page.Locator("#playlist-playback-badge")).ToContainTextAsync("1/2");
 
@@ -139,7 +139,7 @@ public sealed class PlaylistPlaybackE2ETests : PlaylistsE2ETestBase
         await Page.WaitForSelectorAsync("#playlist-detail-name");
         await SelectSearchResultAsync("Ende-Film-1", "Movie", movie1Id);
 
-        await Page.Locator($".playlist-entry-row[data-media-type='Movie'][data-media-id='{movie1Id}'] .playlist-entry-play-button").ClickAsync();
+        await PlayEntryFromHeaderAsync("Movie", movie1Id);
         await Page.WaitForSelectorAsync("#video-player-element");
         await Expect(Page.Locator("#playlist-playback-badge")).ToContainTextAsync("1/1");
 
@@ -175,7 +175,7 @@ public sealed class PlaylistPlaybackE2ETests : PlaylistsE2ETestBase
         await Page.ReloadAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
 
-        await Page.Locator($".playlist-entry-row[data-media-type='Movie'][data-media-id='{movie1Id}'] .playlist-entry-play-button").ClickAsync();
+        await PlayEntryFromHeaderAsync("Movie", movie1Id);
         await Page.WaitForSelectorAsync("#video-player-element");
 
         await Page.ClickAsync(".playlist-next-button");
@@ -202,7 +202,7 @@ public sealed class PlaylistPlaybackE2ETests : PlaylistsE2ETestBase
         await Page.WaitForSelectorAsync("#playlist-detail-name");
         await SelectSearchResultAsync("Badge-Film", "Movie", movieId);
 
-        await Page.ClickAsync(".playlist-entry-play-button");
+        await PlaySoleEntryFromHeaderAsync();
         await Page.WaitForSelectorAsync("#video-player-element");
 
         await Expect(Page.Locator("#playlist-playback-badge")).ToBeVisibleAsync();
@@ -256,7 +256,7 @@ public sealed class PlaylistPlaybackE2ETests : PlaylistsE2ETestBase
         await Page.ReloadAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
 
-        await Page.Locator($".playlist-entry-row[data-media-type='Movie'][data-media-id='{movie1Id}'] .playlist-entry-play-button").ClickAsync();
+        await PlayEntryFromHeaderAsync("Movie", movie1Id);
         await Page.WaitForSelectorAsync("#video-player-element");
 
         await Page.ClickAsync(".playlist-next-button");
@@ -291,7 +291,7 @@ public sealed class PlaylistPlaybackE2ETests : PlaylistsE2ETestBase
         await Page.WaitForSelectorAsync("#playlist-detail-name");
         await SelectSearchResultAsync("Anfang-Film-1", "Movie", movieId);
 
-        await Page.ClickAsync(".playlist-entry-play-button");
+        await PlaySoleEntryFromHeaderAsync();
         await Page.WaitForSelectorAsync("#video-player-element");
         await Expect(Page.Locator("#playlist-playback-badge")).ToContainTextAsync("1/1");
 
@@ -326,14 +326,17 @@ public sealed class PlaylistPlaybackE2ETests : PlaylistsE2ETestBase
         await Page.WaitForTimeoutAsync(1500);
 
         var lockedRow = Page.Locator($".playlist-entry-row[data-media-type='Movie'][data-media-id='{lockedMovieId}']");
-        await Expect(lockedRow.Locator(".playlist-entry-play-button")).ToHaveCountAsync(0);
+        // Selecting a locked entry shows its information, but offers no "Abspielen" (only an explanation).
+        await SelectEntryAsync("Movie", lockedMovieId);
+        await Expect(Page.Locator("#playlist-detail-play-entry-button")).ToHaveCountAsync(0);
+        await Expect(Page.Locator("#playlist-detail-entry-locked")).ToBeVisibleAsync();
 
         await lockedRow.DblClickAsync();
         await Page.WaitForTimeoutAsync(1000);
 
         await Expect(Page.Locator("#video-player-element")).ToHaveCountAsync(0);
         // The detail page (name, entries list) must still be intact - not replaced by an error box.
-        await Expect(Page.Locator("#playlist-detail-name")).ToBeVisibleAsync();
+        await Expect(Page.Locator("#playlist-detail-selected-entry")).ToBeVisibleAsync();
         await Expect(lockedRow).ToBeVisibleAsync();
     }
 
@@ -382,7 +385,7 @@ public sealed class PlaylistPlaybackE2ETests : PlaylistsE2ETestBase
         var movie2Id = await SeedMovieAsync("Reload-Film-2");
         await SelectSearchResultAsync("Reload-Film-2", "Movie", movie2Id);
 
-        await Page.Locator($".playlist-entry-row[data-media-type='Movie'][data-media-id='{movie1Id}'] .playlist-entry-play-button").ClickAsync();
+        await PlayEntryFromHeaderAsync("Movie", movie1Id);
         await Page.WaitForSelectorAsync("#video-player-element");
         await Page.ClickAsync(".playlist-next-button");
         await Page.WaitForTimeoutAsync(500);

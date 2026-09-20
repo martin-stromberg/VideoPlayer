@@ -56,10 +56,35 @@ public class PlaylistUiUmlautTests
             Path.Combine(root, "VideoWebPlayer.Client", "Models", "PlaylistSortModeValues.cs"),
             Path.Combine(root, "VideoWebPlayer", "Services", "PlaylistService.cs"),
             Path.Combine(root, "VideoWebPlayer", "Services", "PlaylistEntryReorderService.cs"),
-            Path.Combine(root, "VideoWebPlayer", "Services", "PlaylistCover", "PlaylistCoverValidator.cs")
+            Path.Combine(root, "VideoWebPlayer", "Services", "PlaylistCover", "PlaylistCoverValidator.cs"),
+            // Kundenrückmeldung zur Detailansicht: neues Anzeige-Modell der Cover-Vorschau. (Der PlaylistsController
+            // trägt bewusst nicht in dieser Liste: seine ASCII-Texte sind nur Log-Kontexte, keine sichtbaren Meldungen.)
+            Path.Combine(root, "VideoWebPlayer.Client", "Models", "DtoPlaylistCoverPreview.cs")
         };
 
         AssertNoAsciiTranscription(files);
+    }
+
+    /// <summary>
+    /// The new components of the detail page (cover panel, its remove confirmation, entry list with mode
+    /// toggle) are part of the folder scan above; this guard makes sure they cannot silently drop out of it
+    /// (e.g. by moving them) and that the German texts they introduce use real umlauts.
+    /// </summary>
+    /// <param name="fileName">The component file inside the playlist components folder.</param>
+    /// <param name="expectedText">A German text with umlauts that the component must contain.</param>
+    [Theory]
+    [InlineData("PlaylistCoverPanel.razor", "Hochgeladenes")]
+    [InlineData("PlaylistCoverRemoveConfirmationDialog.razor", "Hochgeladenes Bild entfernen")]
+    [InlineData("PlaylistEntriesList.razor", "Titel hinzufügen")]
+    [InlineData("PlaylistDetail.razor", "Öffentlich")]
+    public void DetailPageComponents_AreScanned_AndUseRealUmlauts(string fileName, string expectedText)
+    {
+        var root = FindRepositoryRoot();
+        var path = Path.Combine(root, "VideoWebPlayer", "Components", "Playlists", fileName);
+
+        Assert.True(File.Exists(path), $"Datei nicht gefunden: {path}");
+        Assert.Contains(expectedText, File.ReadAllText(path));
+        AssertNoAsciiTranscription([path]);
     }
 
     [Fact]

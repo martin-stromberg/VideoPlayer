@@ -132,11 +132,74 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
     /// <param name="mediaId">The media id of the expected result tile.</param>
     protected async Task SelectSearchResultAsync(string searchTerm, string mediaType, long mediaId)
     {
+        await ShowAddModeAsync();
         await Page.FillAsync(".media-search-input", searchTerm);
         var resultLocator = Page.Locator($".media-search-result[data-media-type='{mediaType}'][data-media-id='{mediaId}']");
         await resultLocator.WaitForAsync(new LocatorWaitForOptions { Timeout = 5000 });
         await resultLocator.ClickAsync();
         await Page.WaitForTimeoutAsync(1000);
+    }
+
+    /// <summary>
+    /// Switches the detail page to the "Titel hinzufügen" area (search to add titles) if it is not shown yet.
+    /// An empty playlist starts in that mode, a non-empty one in the list mode.
+    /// </summary>
+    protected async Task ShowAddModeAsync()
+    {
+        var searchInput = Page.Locator(".media-search-input");
+        if (await searchInput.CountAsync() > 0)
+            return;
+
+        await Page.ClickAsync("#playlist-mode-add-button");
+        await searchInput.WaitForAsync(new LocatorWaitForOptions { Timeout = 5000 });
+    }
+
+    /// <summary>
+    /// Switches the detail page to the "Titel der Playlist" area (the entry tiles) if it is not shown yet.
+    /// </summary>
+    protected async Task ShowEntriesAsync()
+    {
+        var toggle = Page.Locator("#playlist-mode-entries-button");
+        if (await toggle.CountAsync() > 0 && await toggle.GetAttributeAsync("aria-pressed") != "true")
+            await toggle.ClickAsync();
+
+        // The tiles (or the empty state) render right after the switch.
+        await Page.WaitForTimeoutAsync(300);
+    }
+
+    /// <summary>
+    /// Selects the entry tile of the given media (click) - its information then shows in the header.
+    /// </summary>
+    /// <param name="mediaType">The media type of the entry.</param>
+    /// <param name="mediaId">The media id of the entry.</param>
+    protected async Task SelectEntryAsync(string mediaType, long mediaId)
+    {
+        await ShowEntriesAsync();
+        await Page.ClickAsync($".playlist-entry-row[data-media-type='{mediaType}'][data-media-id='{mediaId}']");
+        await Page.WaitForSelectorAsync("#playlist-detail-selected-entry");
+    }
+
+    /// <summary>
+    /// Starts playlist playback at the given entry the way the detail page now offers it: select the tile, then
+    /// click "Abspielen" in the header (the tiles no longer carry a play button).
+    /// </summary>
+    /// <param name="mediaType">The media type of the entry.</param>
+    /// <param name="mediaId">The media id of the entry.</param>
+    protected async Task PlayEntryFromHeaderAsync(string mediaType, long mediaId)
+    {
+        await SelectEntryAsync(mediaType, mediaId);
+        await Page.ClickAsync("#playlist-detail-play-entry-button");
+    }
+
+    /// <summary>
+    /// Like <see cref="PlayEntryFromHeaderAsync"/> for a playlist that has exactly one entry tile.
+    /// </summary>
+    protected async Task PlaySoleEntryFromHeaderAsync()
+    {
+        await ShowEntriesAsync();
+        await Page.ClickAsync(".playlist-entry-row");
+        await Page.WaitForSelectorAsync("#playlist-detail-selected-entry");
+        await Page.ClickAsync("#playlist-detail-play-entry-button");
     }
 
     protected async Task<ILocator> CreatePlaylistViaUiAsync(string name, string? description = null)
@@ -432,6 +495,102 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
             });
             await db.SaveChangesAsync();
 
+            return movie.Id;
+        });
+
+    /// <summary>
+    /// Makes the user with the given email address an administrator (flag and <c>IsAdmin</c> claim), so the detail
+    /// page offers the "öffentlich" toggle to them as the owner of a playlist.
+    /// </summary>
+    /// <param name="userEmail">The email address of the user to promote.</param>
+    protected async Task MakeUserAdminAsync(string userEmail)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = await ResolveUserByEmailAsync(scope.ServiceProvider, userEmail);
+
+        user.IsAdmin = true;
+        await userManager.UpdateAsync(user);
+        await userManager.AddClaimAsync(user, new System.Security.Claims.Claim("IsAdmin", "True"));
+    }
+
+    /// <summary>
+    /// Sets (or, with <see langword="null"/>, clears) the cover of the playlist with the given name directly in the
+    /// database, for E2E tests that need a specific image (e.g. extreme sizes) or cover state.
+    /// </summary>
+    /// <param name="playlistName">The name of the existing playlist.</param>
+    /// <param name="imageData">The PNG bytes of the cover, or <see langword="null"/> for no cover.</param>
+    /// <param name="isUserUploaded">Whether the cover counts as uploaded by the user.</param>
+    /// <returns>The id of the playlist.</returns>
+    protected Task<long> SetPlaylistCoverAsync(string playlistName, byte[]? imageData, bool isUserUploaded)
+        => RunScopedWithPlaylistAsync(playlistName, async (db, _, playlist) =>
+        {
+            if (imageData is null)
+            {
+                playlist.CoverPictureId = null;
+                playlist.CoverPictureIsUserUploaded = false;
+            }
+            else
+            {
+                var picture = new Picture { Type = "cover", Data = imageData, ContentType = "image/png", PlaylistId = playlist.Id };
+                db.Pictures.Add(picture);
+                await db.SaveChangesAsync();
+                playlist.CoverPictureId = picture.Id;
+                playlist.CoverPictureIsUserUploaded = isUserUploaded;
+            }
+
+            await db.SaveChangesAsync();
+            return playlist.Id;
+        });
+
+    /// <summary>
+    /// Reads the current cover state of the playlist with the given name straight from the database.
+    /// </summary>
+    /// <param name="playlistName">The name of the existing playlist.</param>
+    /// <returns>The cover picture id (or <see langword="null"/>) and whether it counts as uploaded.</returns>
+    protected async Task<(long? CoverPictureId, bool IsUserUploaded)> GetPlaylistCoverStateAsync(string playlistName)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var playlist = await db.Playlists.AsNoTracking().FirstAsync(p => p.Name == playlistName);
+        return (playlist.CoverPictureId, playlist.CoverPictureIsUserUploaded);
+    }
+
+    /// <summary>
+    /// Seeds a movie with a poster picture, a plot and a release date into the playlist, for E2E tests of the
+    /// entry information shown in the header.
+    /// </summary>
+    /// <param name="playlistName">The name of the existing playlist.</param>
+    /// <param name="movieName">The name of the movie.</param>
+    /// <param name="posterPng">The PNG bytes of the poster.</param>
+    /// <returns>The id of the created movie.</returns>
+    protected Task<long> SeedDetailedMovieIntoPlaylistAsync(string playlistName, string movieName, byte[] posterPng)
+        => RunScopedWithPlaylistAsync(playlistName, async (db, sourceId, playlist) =>
+        {
+            var picture = new Picture { Type = "poster", Data = posterPng, ContentType = "image/png" };
+            db.Pictures.Add(picture);
+            await db.SaveChangesAsync();
+
+            var movie = new Movie
+            {
+                Name = movieName,
+                MediaSourceId = sourceId,
+                CreatedAt = DateTime.UtcNow,
+                PosterPictureId = picture.Id,
+                ReleaseDate = new DateTime(2018, 4, 12),
+                Plot = $"Handlung von {movieName}."
+            };
+            db.Movies.Add(movie);
+            await db.SaveChangesAsync();
+
+            db.PlaylistEntries.Add(new PlaylistEntry
+            {
+                PlaylistId = playlist.Id,
+                MediaType = MediaTypeValues.Movie,
+                MediaId = movie.Id,
+                AddedAt = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync();
             return movie.Id;
         });
 

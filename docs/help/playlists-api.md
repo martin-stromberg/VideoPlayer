@@ -37,7 +37,7 @@ erfolgt serverseitig im `PlaylistService`, nicht (nur) in der Oberfläche.
 | `GET /api/playlists/{id}/entries/max-sort-order` | Hilfsabfrage der Umsortierung, daher wie schreibend | nur Besitzer |
 | `PATCH /api/playlists/{id}/sort-mode` | schreibend | nur Besitzer |
 | `PUT /api/playlists/{id}/genres`, `POST /api/playlists/{id}/genres/reset` | schreibend | nur Besitzer |
-| `POST /api/playlists/{id}/cover/upload`, `POST .../cover/regenerate`, `DELETE .../cover` | schreibend | nur Besitzer |
+| `POST /api/playlists/{id}/cover/upload`, `POST .../cover/preview`, `POST .../cover/regenerate`, `DELETE .../cover` | schreibend (auch die Vorschau: sie ist Teil des Änderungsablaufs und verrät den Inhalt einer Collage) | nur Besitzer |
 | `PUT /api/playlists/{id}/public` | schreibend (Kennzeichnung) | nur Besitzer **und** Administrator |
 
 ## Medien-Suche für die Auswahl-Oberfläche
@@ -742,7 +742,7 @@ ausgelöst wird, beschreibt `playlists-business-rules.md` (BR-23, BR-24, BR-25).
 aktuell ein Cover besitzt, ist am `coverPictureId`-Feld des `DtoPlaylist`-Objekts erkennbar (siehe
 [DTO-Modelle](#dto-modelle)).
 
-Die drei ändernden Endpunkte (`upload`, `regenerate`, `DELETE`) prüfen wie alle übrigen
+Die ändernden Endpunkte (`upload`, `preview`, `regenerate`, `DELETE`) prüfen wie alle übrigen
 Playlist-Operationen die Besitzer-Berechtigung (`Playlist.UserId == CurrentUser.Id`). Der
 Lese-Endpunkt `GET /api/playlists/{id}/cover` steht dagegen — analog zu
 `GET /api/pictures/{id}` — jedem angemeldeten Benutzer offen, da das Bild selbst keine
@@ -808,15 +808,62 @@ als Kompilierzeit-Attributwert von der Konfiguration abzuweichen.
 
 ---
 
+### `POST /api/playlists/{id}/cover/preview` — Vorschau der automatischen Collage (speichert nichts)
+
+Erzeugt die Collage aus den Poster-Bildern der aktuellen Inhalte genau wie `regenerate` (mit demselben
+`PlaylistCoverImageGenerator`, also gleicher Bildauswahl und Zusammensetzung), **liefert sie aber nur als Bilddaten
+zurück und speichert nichts**: kein neues `Picture`, `Playlist.CoverPictureId` und `CoverPictureIsUserUploaded`
+bleiben unverändert. Deshalb ist hier — anders als bei `regenerate` — auch für ein hochgeladenes Cover **keine
+Bestätigung** nötig (es passiert nichts). Der Endpunkt speist die Vorschau im Bild-Panel der Detailseite.
+**Nur der Besitzer** darf ihn aufrufen (`403` für alle anderen, auch bei einer öffentlichen Playlist).
+
+**Übernehmen der Vorschau („Anwenden"):** Es gibt bewusst keinen zweiten Endpunkt, der Bilddaten als „erzeugtes"
+Cover entgegennimmt. Die Oberfläche übernimmt die Vorschau, indem sie `POST .../cover/regenerate` aufruft (mit
+`confirmReplaceUploadedCover=true`, wenn das Panel vorher darauf hingewiesen hat, dass ein hochgeladenes Bild ersetzt
+wird). Die Zusammensetzung ist für unveränderte Inhalte deterministisch, das gespeicherte Bild entspricht daher der
+Vorschau; ändern sich die Inhalte zwischen Vorschau und „Anwenden", gilt der Stand beim Anwenden.
+
+**Parameter:**
+
+|| Name | Position | Typ | Erforderlich | Beschreibung |
+||------|----------|-----|-------------|--------------|
+|| `id` | Route | long | Ja | Playlist-ID |
+
+**Erfolgreiche Antwort (HTTP 200):** `DtoPlaylistCoverPreview`
+
+```json
+{
+  "success": true,
+  "message": null,
+  "contentType": "image/jpeg",
+  "imageData": "/9j/4AAQSkZJRgABAQ..."
+}
+```
+
+`imageData` ist der Base64-kodierte JPEG-Inhalt (in C# `byte[]`). Enthält die Playlist keine Inhalte mit Bildern
+(oder schlägt die Collage-Erzeugung fehl), bleibt die Antwort HTTP 200 mit `success: false`,
+`message: "Keine Bilder verfügbar."` und ohne Bilddaten.
+
+**Fehlerantworten:**
+
+|| HTTP-Status | Grund |
+||-------------|-------|
+|| 404 Not Found | Playlist nicht gefunden |
+|| 403 Forbidden | Benutzer ist nicht der Besitzer der Playlist |
+|| 401 Unauthorized | Fehlende oder ungültige Authentifizierung |
+
+---
+
 ### `POST /api/playlists/{id}/cover/regenerate` — Cover automatisch neu erzeugen
 
 Erzeugt das Cover der Playlist neu als Collage aus den Poster-Bildern ihrer aktuellen Inhalte
-(die „Cover neu erzeugen"-Aktion der Oberfläche) und ersetzt dabei ein vorhandenes Cover.
+(die „Anwenden"-Aktion des Bild-Panels nach einer Vorschau, siehe `cover/preview`) und ersetzt dabei ein vorhandenes Cover.
 Ein zuvor **hochgeladenes** Cover (`Playlist.CoverPictureIsUserUploaded = true`) hat Vorrang und wird
 nur mit ausdrücklicher Bestätigung ersetzt: Ohne `confirmReplaceUploadedCover=true` antwortet der
 Endpunkt mit HTTP 409 Conflict (`DtoRegeneratePlaylistCoverConflictResponse`) und ändert nichts; die
-Oberfläche zeigt daraufhin einen Bestätigungsdialog und wiederholt den Aufruf mit
-`confirmReplaceUploadedCover=true` (gleiches Muster wie beim Sortiermodus-Wechsel und beim Entfernen
+Oberfläche kündigt das Ersetzen eines hochgeladenen Bildes bereits im Bild-Panel an und sendet
+`confirmReplaceUploadedCover=true` mit dem ausdrücklichen Klick auf „Anwenden" (kommt dennoch ein 409, weil das Bild
+zwischenzeitlich hochgeladen wurde, zeigt das Panel einen Hinweis; der nächste Klick auf „Anwenden" bestätigt) (gleiches Muster wie beim Sortiermodus-Wechsel und beim Entfernen
 eines Eintrags mit Weiterschauen-Bezug). Die Bestätigung wird erst verlangt, wenn tatsächlich eine
 Collage erzeugt werden könnte — enthält die Playlist keine Inhalte mit Bildern, bleibt die Antwort
 `success: false` (HTTP 200) ohne Rückfrage, und ein hochgeladenes Cover bleibt unverändert. Ein
@@ -1080,8 +1127,16 @@ public class DtoPlaylistEntry
     public long? ResolvedPictureId { get; set; }   // Bild-ID für die Anzeige, siehe Hinweis unten
     public bool IsAccessible { get; set; }         // echte Freischaltungsprüfung, siehe Hinweis unten
     public long? SortOrder { get; set; }           // manuelle Sortierposition, siehe Hinweis unten
+    public DateTime? ReleaseDate { get; set; }     // Erscheinungsdatum (Erscheinungsdatum, sonst Premiere), null wenn unbekannt
+    public string? Plot { get; set; }              // Handlung des Films bzw. der Episode, sonst null
+    public int? EpisodeNumber { get; set; }        // Episodennummer, nur bei TVShowEpisode
 }
 ```
+
+**Hinweis zu `ReleaseDate`, `Plot`, `EpisodeNumber`:** Zusatzangaben für den Kopfbereich der Detailseite, wenn ein
+Titel ausgewählt ist (Titel, Jahr, Art, Zugehörigkeit, Handlung). Sie werden wie Titel und Bild gesammelt je Medientyp
+geladen (keine Abfrage pro Eintrag). `plot` gibt es nur für Filme und Episoden (die einzigen Einträge mit eigener
+Kachel), `episodeNumber` nur für Episoden; wo die Daten fehlen, sind die Felder `null`.
 
 **Hinweis zu `SortOrder`:** Nur im Sortiermodus `Manual` relevant. Bestimmt die Position des
 Eintrags in der manuellen Reihenfolge (aufsteigend, kleinerer Wert = weiter vorne); `null` bedeutet,
@@ -1280,6 +1335,20 @@ von `Entry` in der vollständigen (auch nicht-abspielbare und gesperrte Einträg
 Sortierreihenfolge — nicht der Position des vorherigen Eintrags plus/minus eins. Das ist relevant,
 weil die Navigation dabei einen oder mehrere nicht-abspielbare Sammel-Einträge (`TVShow`,
 `TVShowSeason`, `MovieCollection`) oder für den Benutzer gesperrte Einträge überspringen kann.
+
+### `DtoPlaylistCoverPreview`
+
+Response-Format von `POST /api/playlists/{id}/cover/preview`.
+
+```csharp
+public class DtoPlaylistCoverPreview
+{
+    public bool Success { get; set; }        // false, wenn keine Quellbilder verfügbar sind
+    public string? Message { get; set; }     // z. B. "Keine Bilder verfügbar."
+    public string? ContentType { get; set; } // "image/jpeg" bei Erfolg
+    public byte[]? ImageData { get; set; }   // Collage (JSON: Base64); wird nicht gespeichert
+}
+```
 
 ### `DtoPlaylistCoverResult`
 

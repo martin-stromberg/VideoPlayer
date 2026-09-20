@@ -380,7 +380,6 @@ FodyWeavers.xsd
 /VideoWebPlayer/wwwroot/images/genres/
 issue.md
 /.agents
-/AGENTS.md
 
 # Eigenstaendiger MAUI-Repository-Klon; wird separat versioniert.
 /Sub-Repository/

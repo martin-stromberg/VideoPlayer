@@ -520,8 +520,9 @@
     /// (the required Sicherheitsabfrage) instead of removing anything, mirroring how
     /// <c>PlaylistDetail.ApplySortModeAsync</c> handles the analogous sort-mode-change confirmation.
     /// </summary>
-    public Task RemoveEntryAsync(DtoPlaylistEntry entry)
-        => RunEntryActionAsync(async () =>
+    public async Task RemoveEntryAsync(DtoPlaylistEntry entry)
+    {
+        await RunEntryActionAsync(async () =>
         {
             await PlaylistClient.RemoveMediaFromPlaylistAsync(PlaylistId, entry.MediaType, entry.MediaId);
             await AfterEntryRemovedAsync(entry);
@@ -535,6 +536,11 @@
             }
             return false;
         });
+
+        // Called from the header of PlaylistDetail, i.e. not from an event handler of this component: render
+        // explicitly so the reloaded list, the confirmation dialog or an error message show up.
+        await InvokeAsync(StateHasChanged);
+    }
 
     /// <summary>
     /// Confirms removal of <see cref="pendingRemovalEntry"/> despite its continue-watching reference,

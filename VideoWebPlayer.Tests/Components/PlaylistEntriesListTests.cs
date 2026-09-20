@@ -53,8 +53,8 @@ public class PlaylistEntriesListTests
     /// <summary>
     /// Regression tests for the "IsPlayableEntry ignores IsAccessible" and "@ondblclick unconditionally
     /// bound" bugs (Playlist-Wiedergabe Schritt 5, Runde 1 Nachbesserung, Punkte 2/3): a locked
-    /// (<c>IsAccessible == false</c>) or non-playable collection entry (e.g. TVShow) must render no
-    /// "Abspielen" button, and double-clicking its row must not raise <see cref="PlaylistEntriesList.OnPlayEntry"/>
+    /// (<c>IsAccessible == false</c>) or non-playable collection entry (e.g. TVShow) must not be playable:
+    /// double-clicking its row must not raise <see cref="PlaylistEntriesList.OnPlayEntry"/>
     /// - previously a locked entry's "Abspielen" button led into a 403 that replaced the whole
     /// PlaylistDetail page, and a collection entry's row double-click resolved its collection MediaId as if
     /// it were a playable movie/episode id.
@@ -66,7 +66,7 @@ public class PlaylistEntriesListTests
         var (cut, onPlayEntryCalls) = RenderWithEntry(entry);
 
         var row = cut.Find(".playlist-entry-row");
-        Assert.Empty(cut.FindAll("button.playlist-entry-play-button"));
+        Assert.Contains("opacity-50", row.ClassName);
 
         await cut.InvokeAsync(() => row.DoubleClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs()));
 
@@ -87,18 +87,20 @@ public class PlaylistEntriesListTests
         var (cut, onPlayEntryCalls) = RenderWithEntry(entry);
 
         Assert.Empty(cut.FindAll(".playlist-entry-row"));
-        Assert.Empty(cut.FindAll("button.playlist-entry-play-button"));
         Assert.Empty(onPlayEntryCalls);
     }
 
     [Fact]
-    public async Task PlaylistEntriesList_PlayableAccessibleEntry_HasPlayButtonAndDoubleClickInvokesOnPlayEntry()
+    public async Task PlaylistEntriesList_PlayableAccessibleEntry_HasNoTileButtonsAndDoubleClickInvokesOnPlayEntry()
     {
         var entry = new DtoPlaylistEntry { Id = 3, PlaylistId = 1, MediaType = "Movie", MediaId = 30, MediaTitle = "Zugänglicher Film", IsAccessible = true };
         var (cut, onPlayEntryCalls) = RenderWithEntry(entry);
 
         var row = cut.Find(".playlist-entry-row");
-        Assert.Single(cut.FindAll("button.playlist-entry-play-button"));
+        // The tiles carry no "Abspielen"/"Entfernen" buttons any more (they live in the header of the selected entry).
+        Assert.Empty(cut.FindAll("button.playlist-entry-play-button"));
+        Assert.Empty(cut.FindAll("button.playlist-entry-remove-button"));
+        Assert.Empty(row.QuerySelectorAll("button"));
 
         await cut.InvokeAsync(() => row.DoubleClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs()));
 
@@ -124,8 +126,8 @@ public class PlaylistEntriesListTests
             .Setup(c => c.RemoveMediaFromPlaylistAsync(1, "Movie", 40, false))
             .ThrowsAsync(new HttpRequestException("Weiterschauen-Bezug", null, System.Net.HttpStatusCode.Conflict));
 
-        var removeButton = cut.Find("button.playlist-entry-remove-button");
-        await cut.InvokeAsync(() => removeButton.ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs()));
+        // The header of PlaylistDetail triggers the removal of the selected entry through this method.
+        await cut.InvokeAsync(() => cut.Instance.RemoveEntryAsync(entry));
 
         var dialog = cut.FindComponent<PlaylistEntryContinueWatchingConfirmationDialog>();
         Assert.NotNull(dialog);
@@ -151,8 +153,8 @@ public class PlaylistEntriesListTests
             .Setup(c => c.RemoveMediaFromPlaylistAsync(1, "Movie", 50, true))
             .Returns(Task.CompletedTask);
 
-        var removeButton = cut.Find("button.playlist-entry-remove-button");
-        await cut.InvokeAsync(() => removeButton.ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs()));
+        // The header of PlaylistDetail triggers the removal of the selected entry through this method.
+        await cut.InvokeAsync(() => cut.Instance.RemoveEntryAsync(entry));
 
         var confirmButton = cut.Find("#confirm-remove-continuewatching-button");
         await cut.InvokeAsync(() => confirmButton.ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs()));
@@ -175,8 +177,8 @@ public class PlaylistEntriesListTests
             .Setup(c => c.RemoveMediaFromPlaylistAsync(1, "Movie", 60, false))
             .ThrowsAsync(new HttpRequestException("Weiterschauen-Bezug", null, System.Net.HttpStatusCode.Conflict));
 
-        var removeButton = cut.Find("button.playlist-entry-remove-button");
-        await cut.InvokeAsync(() => removeButton.ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs()));
+        // The header of PlaylistDetail triggers the removal of the selected entry through this method.
+        await cut.InvokeAsync(() => cut.Instance.RemoveEntryAsync(entry));
 
         var cancelButton = cut.Find("#cancel-remove-continuewatching-button");
         await cut.InvokeAsync(() => cancelButton.ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs()));

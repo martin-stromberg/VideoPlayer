@@ -30,6 +30,7 @@ Repräsentiert eine Benutzer-Playlist.
 | `GenresManuallyOverridden` | `bool` | `true`, wenn der Besitzer die Genres manuell gesetzt hat (dann keine automatische Neuberechnung, siehe BR-21) |
 | `CoverPictureId` | `long?` (FK) | Verweis auf `Pictures.Id` — das Coverbild der Playlist (hochgeladen oder generiert); `null` = kein Cover gesetzt |
 | `CoverPictureIsUserUploaded` | `bool` | `true` = Cover wurde vom Besitzer hochgeladen, `false` = automatisch als Collage erzeugt |
+| `IsPublic` | `bool` | Kennzeichnung „öffentlich" (Schritt 11): für alle Anwender sichtbar/abspielbar, nur lesend; nur Administratoren setzen/entfernen sie, nur bei eigenen Playlists (BR-27). Standard `false` |
 
 ### Navigation
 
@@ -268,6 +269,13 @@ erDiagram
 ---
 
 ## Datenbankmigrationen
+
+### Migration: `AddPlaylistIsPublic` (neu in Schritt 11)
+
+Fügt `Playlists.IsPublic` (`INTEGER`, `NOT NULL`, Standardwert `0`) hinzu; bestehende Playlists bleiben privat.
+Die Spalte ist in `VideoWebPlayerBackupData` (`OptionalRestoreColumns` + `OptionalRestoreBoolDefaults`, Standard
+`false`) registriert, so dass Backups aus früheren Versionen ohne die Spalte weiterhin wiederherstellbar sind (die
+Playlists bleiben dann privat).
 
 ### Migration: `AddPlaylistCoverFields` (neu in Schritt 10)
 

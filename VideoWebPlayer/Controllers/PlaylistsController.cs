@@ -161,7 +161,45 @@ public class PlaylistsController : ApiBaseController
     }
 
     /// <summary>
-    /// Gets a single playlist for the current user.
+    /// Gets every playlist currently marked public (Entwicklungsschritt 11), optionally restricted to those
+    /// carrying the given genre. Available to every logged-in user (READ).
+    /// </summary>
+    /// <param name="genreId">Optional genre id to restrict results to.</param>
+    /// <returns>The public playlists as <see cref="IEnumerable{DtoPlaylist}"/>, or an error result.</returns>
+    [HttpGet("public")]
+    public Task<IActionResult> GetPublicPlaylists([FromQuery] long? genreId = null)
+    {
+        return ExecuteAsync(async () =>
+        {
+            CheckLogedIn();
+            var result = await _playlistService.GetPublicPlaylistsAsync(CurrentUser!.Id, genreId, HttpContext.RequestAborted);
+            return Ok(result);
+        }, "Abrufen der oeffentlichen Playlists");
+    }
+
+    /// <summary>
+    /// Sets or clears the "public" flag of a playlist (Entwicklungsschritt 11). Only an administrator who
+    /// OWNS the playlist may do so: a regular user, and an administrator who is not the owner, receive 403.
+    /// The administrator status is read from the user record in the database (not from the possibly stale
+    /// token claim), so a revoked administrator loses the ability at once. Clearing the flag revokes other
+    /// users' access immediately.
+    /// </summary>
+    /// <param name="id">The playlist identifier.</param>
+    /// <param name="request">The request carrying the new flag value.</param>
+    /// <returns>The updated playlist as <see cref="DtoPlaylist"/>, or an error result.</returns>
+    [HttpPut("{id}/public")]
+    public Task<IActionResult> SetPlaylistPublic(long id, [FromBody] DtoSetPlaylistPublicRequest request)
+    {
+        return ExecuteAsync(request, async req =>
+        {
+            var result = await _playlistService.SetPlaylistPublicAsync(
+                id, CurrentUser!.Id, CurrentUser.IsAdmin, req.IsPublic, HttpContext.RequestAborted);
+            return Ok(result);
+        }, $"Aendern der Oeffentlich-Kennzeichnung von Playlist {id}");
+    }
+
+    /// <summary>
+    /// Gets a single playlist for the current user (READ: the owner, or any user while the playlist is public).
     /// </summary>
     /// <param name="id">The playlist identifier.</param>
     /// <returns>The playlist as <see cref="DtoPlaylist"/>, or an error result.</returns>
@@ -602,9 +640,10 @@ public class PlaylistsController : ApiBaseController
     }
 
     /// <summary>
-    /// Gets a playlist's cover image (uploaded or generated). Available to any logged-in user (not only
-    /// the owner), matching <c>PicturesController.GetPicture</c>'s access level - the cover image itself is
-    /// not sensitive data, only mutating it requires ownership.
+    /// Gets a playlist's cover image (uploaded or generated). READ access (Entwicklungsschritt 11): the owner,
+    /// or any logged-in user while the playlist is public; the cover of a private playlist of somebody else is
+    /// refused with 403 (a generated cover is a collage of the playlist's contents). Mutating the cover
+    /// always requires ownership.
     /// </summary>
     /// <param name="id">The playlist identifier.</param>
     /// <returns>The cover image content, or 404 Not Found if the playlist has no cover set.</returns>
@@ -615,7 +654,7 @@ public class PlaylistsController : ApiBaseController
         {
             CheckLogedIn();
 
-            var picture = await _playlistService.GetPlaylistCoverAsync(id, HttpContext.RequestAborted);
+            var picture = await _playlistService.GetPlaylistCoverAsync(id, CurrentUser!.Id, HttpContext.RequestAborted);
             if (picture is null || picture.Data is null || picture.Data.Length == 0)
                 return NotFound();
 

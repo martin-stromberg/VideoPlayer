@@ -1,0 +1,88 @@
+@using VideoWebPlayer.Client.Models
+@inject VideoWebPlayer.Client.VideoWebPlayerClient Client
+
+@* Kachel einer Playlist, gemeinsam genutzt von der Uebersicht der eigenen Playlists (PlaylistsList.razor)
+   und der Uebersicht der oeffentlichen Playlists (PublicPlaylistsList.razor, Entwicklungsschritt 11) -
+   ausgelagert, damit beide Uebersichten dieselbe Kachel-UI zeigen, ohne das Markup zu duplizieren.
+
+   Die Kachel ist ein echter Link (".media-box-link", dasselbe etablierte Muster wie bei MediaBox.razor fuer
+   Filme/Serien) und kein unsichtbares Button-Overlay per z-index: ein <a href> ist sofort - auch ohne
+   bereits verbundenen Blazor-Server-Circuit - klickbar/tippbar (siehe Regressionstests in PlaylistsE2ETests).
+
+   Datenschutz: gezeigt wird nur, was zum Ansehen/Abspielen noetig ist (Name, Beschreibung, Genres, Cover,
+   Sortiersymbol, Daten) - niemals Angaben zum Besitzer. *@
+<a class="media-box-link playlist-row" href="@($"/playlists/{Playlist.Id}")" data-playlist-name="@Playlist.Name" title="@Playlist.Name" aria-label="Playlist &quot;@(Playlist.Name)&quot; oeffnen">
+    <div class="media-box playlist-card">
+        @* Platzhalter liegt immer darunter (billig: Farbverlauf + Symbol) und wird nur sichtbar, wenn kein
+           Cover gesetzt ist oder das Bild nicht ladbar ist (onerror blendet das <img> aus) - vermeidet einen
+           unnoetigen HTTP-Request, wenn ohnehin kein Cover existiert, ohne dedizierte JS-Interop. *@
+        <PlaylistCoverPlaceholder PlaylistId="Playlist.Id" CssClass="playlist-card-cover" />
+        @if (Playlist.CoverPictureId.HasValue)
+        {
+            <img class="playlist-card-cover playlist-card-cover-image" src="@CoverImageUrl" alt="@Playlist.Name"
+                 onerror="this.style.display='none'" />
+        }
+        <div class="media-card-overlay">
+            <div class="media-titles">
+                <span class="media-title-text playlist-card-title">@Playlist.Name</span>
+                @if (!string.IsNullOrWhiteSpace(Playlist.Description))
+                {
+                    <span class="media-subtitle-text">@TruncateDescription(Playlist.Description)</span>
+                }
+                @if (Playlist.Genres.Length > 0)
+                {
+                    <span class="playlist-genres-line playlist-card-genres">@string.Join(", ", Playlist.Genres.Select(g => g.Name))</span>
+                }
+            </div>
+            <div class="playlist-card-meta">
+                <PlaylistSortModeIcon SortMode="Playlist.SortMode" Size="14" />
+                @if (ShowPublicBadge && Playlist.IsPublic)
+                {
+                    @* Dezentes Kennzeichen (Entwicklungsschritt 11): diese eigene Playlist ist oeffentlich. *@
+                    <span class="playlist-public-badge" title="Oeffentlich - fuer alle Anwender sichtbar und abspielbar (nur lesend)">
+                        <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M3 12h18" /><path d="M12 3a14 14 0 0 1 0 18" /><path d="M12 3a14 14 0 0 0 0 18" /></svg>
+                        <span>Oeffentlich</span>
+                    </span>
+                }
+                <span class="playlist-card-dates">
+                    Erstellt @Playlist.CreatedAt.ToLocalTime().ToString("d") &middot; Aktualisiert @Playlist.UpdatedAt.ToLocalTime().ToString("d")
+                </span>
+            </div>
+        </div>
+    </div>
+</a>
+
+@code {
+    private const int DescriptionTruncateLength = 100;
+    private const string DescriptionTruncateEllipsis = "…";
+
+    [Parameter, EditorRequired]
+    public DtoPlaylist Playlist { get; set; } = default!;
+
+    /// <summary>
+    /// Whether an "Oeffentlich" badge is shown for a public playlist. Wanted in the overview of the user's
+    /// own playlists (so they can tell which of them are public), pointless in the public overview where every
+    /// tile is public anyway.
+    /// </summary>
+    [Parameter]
+    public bool ShowPublicBadge { get; set; }
+
+    /// <summary>
+    /// URL of the playlist's cover image, carrying the access token needed since a plain <c>&lt;img&gt;</c>
+    /// request cannot send an <c>Authorization</c> header (same convention as the poster URLs built
+    /// throughout the app), and cache-busted via <see cref="DtoPlaylist.CoverPictureId"/> (which changes on
+    /// every upload/regeneration) so the browser fetches the new image instead of a stale cached response.
+    /// </summary>
+    private string CoverImageUrl
+        => $"/api/playlists/{Playlist.Id}/cover?access_token={Client.AuthorizationToken}&v={Playlist.CoverPictureId}";
+
+    private static string TruncateDescription(string? description)
+    {
+        if (string.IsNullOrEmpty(description))
+            return string.Empty;
+
+        return description.Length > DescriptionTruncateLength
+            ? description[..DescriptionTruncateLength] + DescriptionTruncateEllipsis
+            : description;
+    }
+}

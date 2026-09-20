@@ -148,7 +148,7 @@ namespace VideoWebPlayer.Services
             foreach (var item in list)
                 item.WatchedAt = item.Entry?.WatchedAt;
 
-            await EnrichPlaylistInfoAsync(list, ct);
+            await EnrichPlaylistInfoAsync(list, userId, ct);
 
             return list;
         }
@@ -163,9 +163,17 @@ namespace VideoWebPlayer.Services
         /// overview. Left <c>null</c> when the media is no longer part of the playlist, in which case the caller falls
         /// back to navigating without an <c>entryId</c>.
         /// </summary>
+        /// <remarks>
+        /// Entwicklungsschritt 11: only playlists <paramref name="userId"/> may currently read (owned by the
+        /// user, or marked public) contribute their name and entry id. A continue-watching entry that still
+        /// points at a playlist the user can no longer see (defensive - clearing the public flag already
+        /// detaches other users' entries, see <see cref="DetachOtherUsersFromPlaylistAsync"/>) therefore
+        /// never discloses that playlist's name or contents.
+        /// </remarks>
         /// <param name="list">The continue-watching DTOs to enrich, in place.</param>
+        /// <param name="userId">The id of the user the list is built for.</param>
         /// <param name="ct">A cancellation token.</param>
-        private async Task EnrichPlaylistInfoAsync(List<ContinueWatchingDto> list, CancellationToken ct)
+        private async Task EnrichPlaylistInfoAsync(List<ContinueWatchingDto> list, string userId, CancellationToken ct)
         {
             var playlistIds = list.Where(x => x.PlaylistId.HasValue).Select(x => x.PlaylistId!.Value).Distinct().ToList();
             if (playlistIds.Count == 0)
@@ -173,12 +181,13 @@ namespace VideoWebPlayer.Services
 
             var playlistNames = await _db.Playlists
                 .AsNoTracking()
-                .Where(p => playlistIds.Contains(p.Id))
+                .Where(p => playlistIds.Contains(p.Id) && (p.UserId == userId || p.IsPublic))
                 .ToDictionaryAsync(p => p.Id, p => p.Name, ct);
 
+            var readablePlaylistIds = playlistNames.Keys.ToList();
             var playlistEntryIds = await _db.PlaylistEntries
                 .AsNoTracking()
-                .Where(pe => playlistIds.Contains(pe.PlaylistId))
+                .Where(pe => readablePlaylistIds.Contains(pe.PlaylistId))
                 .Select(pe => new { pe.PlaylistId, pe.MediaType, pe.MediaId, pe.Id })
                 .ToListAsync(ct);
 
@@ -226,7 +235,7 @@ namespace VideoWebPlayer.Services
             // Optional: Schon jetzt <5s herausfiltern, um Puffer zu entlasten
             if (position < MinStart) return;
 
-            await ValidatePlaylistOwnershipAsync(user!.Id!, playlistId, ct);
+            await ValidatePlaylistAccessAsync(user!.Id!, playlistId, ct);
 
             _buffer.EnqueueOrUpdate(user.Id!, movieId, episodeId, position, duration, playlistId);
         }
@@ -249,7 +258,7 @@ namespace VideoWebPlayer.Services
                                                    long? playlistId = null,
                                                    CancellationToken ct = default)
         {
-            await ValidatePlaylistOwnershipAsync(userId, playlistId, ct);
+            await ValidatePlaylistAccessAsync(userId, playlistId, ct);
 
             var endThreshold = await _programSettings.GetContinueWatchingEndThresholdAsync(ct);
 
@@ -527,15 +536,19 @@ namespace VideoWebPlayer.Services
         }
 
         /// <summary>
-        /// Validates that <paramref name="userId"/> owns the playlist identified by <paramref name="playlistId"/>.
+        /// Validates that <paramref name="userId"/> may read the playlist identified by
+        /// <paramref name="playlistId"/> (Entwicklungsschritt 11: the owner, or any user while the playlist is
+        /// marked public) - the precondition for reporting playback progress bound to that playlist. The
+        /// resulting continue-watching entry always belongs to <paramref name="userId"/> itself, so a viewer of
+        /// a public playlist keeps their own progress without touching the owner's or anybody else's.
         /// Does nothing when <paramref name="playlistId"/> is <c>null</c>.
         /// </summary>
         /// <param name="userId">The authenticated user identifier.</param>
         /// <param name="playlistId">The playlist identifier to validate, or <c>null</c> for a non-playlist entry.</param>
         /// <param name="ct">A cancellation token.</param>
         /// <exception cref="KeyNotFoundException">The playlist does not exist.</exception>
-        /// <exception cref="PlaylistAccessDeniedException">The user does not own the playlist.</exception>
-        public async Task ValidatePlaylistOwnershipAsync(string userId, long? playlistId, CancellationToken ct = default)
+        /// <exception cref="PlaylistAccessDeniedException">The playlist is private and owned by somebody else.</exception>
+        public async Task ValidatePlaylistAccessAsync(string userId, long? playlistId, CancellationToken ct = default)
         {
             if (!playlistId.HasValue)
                 return;
@@ -608,39 +621,142 @@ namespace VideoWebPlayer.Services
         /// Resolves unique-index conflicts that would otherwise occur once <paramref name="playlistId"/> is
         /// deleted and the database's <c>ON DELETE SET NULL</c> foreign-key action sets
         /// <see cref="ContinueWatchingEntry.PlaylistId"/> to <c>null</c> for its bound entries: for every
-        /// entry currently bound to <paramref name="playlistId"/>, removes it if a playlist-less entry for
-        /// the same media already exists for <paramref name="userId"/> (which would otherwise collide with
-        /// it once both have <see cref="ContinueWatchingEntry.PlaylistId"/> <c>null</c>); otherwise leaves
-        /// it in place, to be set to <c>null</c> by the database once the playlist itself is deleted.
-        /// Marks the affected rows for removal on the tracked <see cref="ApplicationDbContext"/> without
-        /// calling <see cref="ApplicationDbContext.SaveChangesAsync(CancellationToken)"/> itself; the caller
-        /// is expected to do so together with the playlist's own deletion.
+        /// entry currently bound to <paramref name="playlistId"/> - of <b>every</b> user, not just the owner
+        /// (Entwicklungsschritt 11: viewers of a public playlist carry playlist-bound entries too) - removes it
+        /// if a playlist-less entry for the same user and media already exists (which would otherwise
+        /// collide with it once both have <see cref="ContinueWatchingEntry.PlaylistId"/> <c>null</c>);
+        /// otherwise leaves it in place, to be set to <c>null</c> by the database once the playlist itself is
+        /// deleted. Marks the affected rows for removal on the tracked <see cref="ApplicationDbContext"/>
+        /// without calling <see cref="ApplicationDbContext.SaveChangesAsync(CancellationToken)"/> itself; the
+        /// caller is expected to do so together with the playlist's own deletion.
         /// </summary>
         /// <param name="playlistId">The id of the playlist about to be deleted.</param>
-        /// <param name="userId">The id of the playlist's owning user.</param>
         /// <param name="ct">A cancellation token.</param>
-        internal async Task ResolvePlaylistDeletionConflictsAsync(long playlistId, string userId, CancellationToken ct)
+        /// <returns>The ids of the users whose continue-watching list is affected.</returns>
+        internal Task<IReadOnlyCollection<string>> ResolvePlaylistDeletionConflictsAsync(long playlistId, CancellationToken ct)
+            => ResolveDeletionConflictsAsync(new[] { playlistId }, detachSurvivors: false, excludeUserId: null, ct);
+
+        /// <summary>
+        /// Same as <see cref="ResolvePlaylistDeletionConflictsAsync"/>, but for every playlist owned by
+        /// <paramref name="ownerUserId"/> at once - used before a user account is deleted (its playlists are
+        /// removed by the database's cascading delete, so other users' entries bound to the owner's public
+        /// playlists would hit the same UNIQUE-index conflict). Persists the removals itself.
+        /// </summary>
+        /// <param name="ownerUserId">The id of the user about to be deleted.</param>
+        /// <param name="ct">A cancellation token.</param>
+        /// <returns>The ids of the users whose continue-watching list is affected.</returns>
+        public async Task<IReadOnlyCollection<string>> ResolveDeletionConflictsForOwnedPlaylistsAsync(string ownerUserId, CancellationToken ct = default)
         {
+            var playlistIds = await _db.Playlists.AsNoTracking()
+                .Where(p => p.UserId == ownerUserId)
+                .Select(p => p.Id)
+                .ToListAsync(ct);
+
+            var affected = await ResolveDeletionConflictsAsync(playlistIds, detachSurvivors: false, excludeUserId: null, ct);
+            await _db.SaveChangesAsync(ct);
+            return affected;
+        }
+
+        /// <summary>
+        /// Detaches every user's continue-watching entries except the owner's from
+        /// <paramref name="playlistId"/> and persists the result (together with any other pending change on
+        /// the shared <see cref="ApplicationDbContext"/>, notably the playlist's own
+        /// <see cref="Playlist.IsPublic"/> = <see langword="false"/> - so both happen in one atomic
+        /// <c>SaveChangesAsync</c>). Entwicklungsschritt 11 decision for "the public flag was removed": other
+        /// users lose access to the playlist at once, so their continue-watching entries must not keep
+        /// pointing at it (no deep link into it, no playlist name shown). Each such entry becomes a plain,
+        /// playlist-less entry (the viewer keeps their playback position); if the viewer already has a
+        /// playlist-less entry for the same media, that existing entry wins and the bound one is removed
+        /// (same rule as for playlist deletion, see <see cref="ResolvePlaylistDeletionConflictsAsync"/>).
+        /// </summary>
+        /// <param name="playlistId">The id of the playlist that stops being public.</param>
+        /// <param name="ownerUserId">The id of the owner, whose own entries stay bound to the playlist.</param>
+        /// <param name="ct">A cancellation token.</param>
+        /// <returns>The ids of the users whose continue-watching list changed.</returns>
+        internal async Task<IReadOnlyCollection<string>> DetachOtherUsersFromPlaylistAsync(long playlistId, string ownerUserId, CancellationToken ct)
+        {
+            var affected = await ResolveDeletionConflictsAsync(new[] { playlistId }, detachSurvivors: true, excludeUserId: ownerUserId, ct);
+            await _db.SaveChangesAsync(ct);
+            return affected;
+        }
+
+        /// <summary>
+        /// Notifies the given users (over SignalR) that their continue-watching list changed. No-op for an
+        /// empty collection.
+        /// </summary>
+        /// <param name="userIds">The users to notify.</param>
+        /// <param name="ct">A cancellation token.</param>
+        internal async Task NotifyUsersAsync(IEnumerable<string> userIds, CancellationToken ct)
+        {
+            foreach (var userId in userIds.Distinct())
+                await _notificationService.NotifyContinueWatchingUpdatedAsync(userId, ct);
+        }
+
+        /// <summary>
+        /// Returns the ids of every user that has a continue-watching entry bound to
+        /// <paramref name="playlistId"/> referencing the given media (movies/episodes only; any other media
+        /// type yields an empty result), for resolving what a playlist entry removal does to each user.
+        /// </summary>
+        /// <param name="playlistId">The playlist the entries must be bound to.</param>
+        /// <param name="mediaType">The media type of the removed playlist entry.</param>
+        /// <param name="mediaId">The media id of the removed playlist entry.</param>
+        /// <param name="ct">A cancellation token.</param>
+        /// <returns>The distinct user ids.</returns>
+        internal async Task<IReadOnlyCollection<string>> GetUserIdsWithPlaylistBoundEntryAsync(long playlistId, string mediaType, long mediaId, CancellationToken ct)
+        {
+            var (movieId, episodeId) = ResolveMovieAndEpisodeIds(mediaType, mediaId);
+            if (movieId is null && episodeId is null)
+                return Array.Empty<string>();
+
+            return await _db.ContinueWatchingEntries.AsNoTracking()
+                .Where(x => x.PlaylistId == playlistId && x.MovieId == movieId && x.TVShowEpisodeId == episodeId)
+                .Select(x => x.UserId)
+                .Distinct()
+                .ToListAsync(ct);
+        }
+
+        private async Task<IReadOnlyCollection<string>> ResolveDeletionConflictsAsync(
+            IReadOnlyCollection<long> playlistIds, bool detachSurvivors, string? excludeUserId, CancellationToken ct)
+        {
+            if (playlistIds.Count == 0)
+                return Array.Empty<string>();
+
             var boundEntries = await _db.ContinueWatchingEntries
-                .Where(x => x.UserId == userId && x.PlaylistId == playlistId)
+                .Where(x => x.PlaylistId != null && playlistIds.Contains(x.PlaylistId.Value) && (excludeUserId == null || x.UserId != excludeUserId))
+                .OrderByDescending(x => x.UpdatedAt)
+                .ThenByDescending(x => x.Id)
                 .ToListAsync(ct);
 
             if (boundEntries.Count == 0)
-                return;
+                return Array.Empty<string>();
 
+            var userIds = boundEntries.Select(x => x.UserId).Distinct().ToList();
             var freeEntries = await _db.ContinueWatchingEntries
-                .Where(x => x.UserId == userId && x.PlaylistId == null)
+                .Where(x => x.PlaylistId == null && userIds.Contains(x.UserId))
                 .ToListAsync(ct);
+
+            // The keys (user, movie/episode) that will hold a playlist-less entry after this operation: the
+            // already existing ones, plus - as each surviving bound entry is claimed - that entry itself, so
+            // two bound entries of one user for the same media (from different playlists being removed at
+            // once, e.g. on account deletion) cannot collide with each other either. The most recently
+            // updated bound entry wins.
+            var occupied = new HashSet<(string UserId, long? MovieId, long? EpisodeId)>(
+                freeEntries.Select(f => (f.UserId, f.MovieId, f.TVShowEpisodeId)));
 
             foreach (var entry in boundEntries)
             {
-                var hasConflict = freeEntries.Any(f =>
-                    (entry.MovieId != null && f.MovieId == entry.MovieId) ||
-                    (entry.TVShowEpisodeId != null && f.TVShowEpisodeId == entry.TVShowEpisodeId));
-
-                if (hasConflict)
+                var key = (entry.UserId, entry.MovieId, entry.TVShowEpisodeId);
+                if (!occupied.Add(key))
+                {
                     _db.ContinueWatchingEntries.Remove(entry);
+                    continue;
+                }
+
+                if (detachSurvivors)
+                    entry.PlaylistId = null;
             }
+
+            return userIds;
         }
 
         /// <summary>

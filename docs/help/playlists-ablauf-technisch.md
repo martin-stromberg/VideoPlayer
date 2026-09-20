@@ -766,6 +766,50 @@ flowchart TD
 
 ---
 
+## Ablauf 7: Öffentliche Playlists (Schritt 11)
+
+### 7a: Lesender Zugriff (Betrachter)
+
+1. `PlaylistsController` liest den Anfragenden (`CurrentUser`) und ruft die Service-Methode mit dessen ID auf.
+2. `PlaylistService.GetReadablePlaylistAsync` lädt die Playlist (`KeyNotFoundException` → 404) und prüft
+   `UserId == userId || IsPublic` (sonst `PlaylistAccessDeniedException` → 403); zurückgegeben wird zusätzlich `isOwner`.
+3. `LoadValidPlaylistEntriesAsync(playlist, removeOrphans: isOwner)`: verwaiste Einträge werden nur für den Besitzer
+   entfernt (BR-30); Betrachter erhalten die gültigen Einträge.
+4. `PlaylistEntryAccessResolver.ResolveAccessibilityAsync(entries, userId, …)` mit der ID des **Anfragenden** (BR-29);
+   dieselbe ID wird von `StartPlaylistAsync`/`FindAdjacentPlayableEntryAsync` (Next/Previous/Advance) verwendet.
+5. `ToDto(playlist, genres, requesterId)` schneidet das DTO auf den Anfragenden zu (`IsOwner`, BR-28).
+
+### 7b: Schreibender Zugriff
+
+Jede schreibende Methode beginnt mit `GetOwnedPlaylistAsync` (Besitzprüfung → 403 für alle Nicht-Besitzer).
+`SetPlaylistPublicAsync` prüft zusätzlich den Administrator-Status (vom Controller aus `CurrentUser.IsAdmin`).
+
+### 7c: Kennzeichnung entfernen
+
+`SetPlaylistPublicAsync(…, isPublic: false)` setzt `IsPublic = false` am getrackten Entity und ruft
+`ContinueWatchingService.DetachOtherUsersFromPlaylistAsync`, das für alle anderen Anwender (a) gebundene Einträge
+entfernt, wenn bereits ein Eintrag ohne Playlist-Bezug für dasselbe Video existiert, und (b) sonst `PlaylistId = null`
+setzt — alles in **einem** `SaveChangesAsync` mit der Playlist-Änderung. Danach werden die betroffenen Anwender per
+SignalR benachrichtigt.
+
+### 7d: Titel entfernen / Playlist löschen
+
+- `RemoveMediaFromPlaylistAsync`: `ContinueWatchingService.GetUserIdsWithPlaylistBoundEntryAsync` liefert alle Anwender mit
+  gebundenem Eintrag für den Titel. Ist der Besitzer darunter und nicht bestätigt → `ContinueWatchingConfirmationRequiredException`
+  (409). Für jeden Anwender wird der nächste für **ihn** zugängliche Titel vor dem Entfernen bestimmt
+  (`ResolveNextEntriesPerUserAsync`) und nach dem Entfernen über `ResolvePlaylistEntryRemovalAsync` angewendet.
+- Dieselbe Auflösung gilt für die stillen Pfade (Waisen-Bereinigung des Besitzers, `ResolvePlaylistBoundContinueWatchingReplacementsForSourceDeletionAsync`).
+- `DeletePlaylistAsync`: `ResolvePlaylistDeletionConflictsAsync(playlistId)` löst die UNIQUE-Konflikte für **alle** Anwender
+  (nicht nur den Besitzer); `UserManagement.DeleteUser` ruft vor dem Löschen eines Kontos
+  `ResolveDeletionConflictsForOwnedPlaylistsAsync` auf (Kaskade über die Playlists des Kontos).
+
+### Beteiligte Klassen/Komponenten
+
+`PlaylistsController` (`GET public`, `PUT {id}/public`), `PlaylistService`, `ContinueWatchingService`,
+`PlaylistDetail`/`PlaylistEntriesList` (Nur-Lese-Modus), `PublicPlaylistsList`, `PlaylistTile`.
+
+---
+
 ## Cascade-Logik im Detail
 
 ### MediaTypeHandler

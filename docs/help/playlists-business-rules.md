@@ -114,17 +114,21 @@ Eingefügte Einträge:
 
 ---
 
-## BR-4: Berechtigungsprüfung — Nur Besitzer
+## BR-4: Berechtigungsprüfung — Nur Besitzer (schreibend), Besitzer oder öffentlich (lesend)
 
-**Regel:** Nur der Besitzer einer Playlist darf deren Einträge verwalten.
+**Regel:** Nur der Besitzer einer Playlist darf sie ändern (umbenennen, Inhalt ändern, umsortieren, Bild, Genres,
+Sortiermodus, löschen). **Lesend** darf zugreifen, wer Besitzer ist — oder jeder Anwender, solange die Playlist
+öffentlich gekennzeichnet ist (siehe BR-27/BR-28, seit Entwicklungsschritt 11).
 
 **Implementierung:**
-- Vor jeder Operation: Prüfe `playlist.UserId == currentUser.Id`
+- Schreibende Operationen: `PlaylistService.GetOwnedPlaylistAsync` prüft `playlist.UserId == currentUser.Id`
+- Lesende Operationen: `GetReadablePlaylistAsync`/`EnsureReadable` prüfen `playlist.UserId == currentUser.Id || playlist.IsPublic`
 - Falls nicht → `PlaylistAccessDeniedException`
 
 **Fehlerbehandlung:** HTTP 403 Forbidden
 
-**Scope:** Alle Operationen (Add, Remove, Get)
+**Scope:** Alle Operationen (Add, Remove, Get, Play, Cover, …) — die Zuordnung je Endpunkt steht in `playlists-api.md`
+(„Berechtigungen je Endpunkt")
 
 **Beispiel:**
 ```
@@ -892,6 +896,83 @@ das referenzierte Cover-Bild beim Löschen der Playlist mit.
   `(PlaylistId, IsGeneratedBackground)`
 - Fehlt beim Löschen das referenzierte Bild bereits in der Datenbank, schlägt der Vorgang nicht
   fehl — die Referenz wird trotzdem zurückgesetzt
+
+---
+
+## BR-27: Kennzeichnung „öffentlich" — nur Administratoren, nur eigene Playlists
+
+**Regel:** `Playlist.IsPublic` kann ausschließlich von einem Administrator gesetzt und wieder entfernt werden, und
+nur bei Playlists, die dem Administrator selbst gehören. Regulären Anwendern wird die Möglichkeit nicht angeboten
+(Button nicht gerendert) und vom Server mit 403 abgelehnt; ihre Playlists bleiben stets privat.
+
+**Auslegung („darf ein Administrator die Kennzeichnung auch bei Playlists anderer setzen?"):** Nein. Begründung:
+Die Anforderung verlangt „nur der Besitzer darf sie umbenennen, ihren Inhalt ändern, … löschen" und „ihre Playlists
+bleiben stets privat". Um fremde Playlists zu veröffentlichen, müsste ein Administrator sie sehen können — das
+widerspricht der Privatsphäre der Anwender. Die konservative Lesart ist daher: eigene Playlists.
+
+**Implementierung:** `PlaylistService.SetPlaylistPublicAsync(playlistId, userId, requesterIsAdmin, isPublic)` —
+zuerst Besitzprüfung, dann Administratorprüfung, beides als `PlaylistAccessDeniedException` (403). Der
+Controller liest den Administrator-Status aus dem Benutzerdatensatz (`CurrentUser.IsAdmin`), nicht aus dem
+Token-Claim (Wirkung eines entzogenen Rechts sofort). Das Entfernen der Kennzeichnung erfordert ebenfalls
+Administratorrechte („setzen und wieder entfernen"). Bekannte Randfolge: Verliert ein Besitzer seine
+Administratorrechte, während seine Playlist öffentlich ist, kann er die Kennzeichnung selbst nicht mehr
+entfernen (die Oberfläche zur Rechteverwaltung kann derzeit keine Rechte entziehen).
+
+---
+
+## BR-28: Öffentliche Playlists sind ausschließlich lesend; Sichtbarkeit für Betrachter
+
+**Regel:** Für alle außer dem Besitzer ist eine öffentliche Playlist read-only. Serverseitig erzwungen: jede
+schreibende Operation (BR-4) wirft für Nicht-Besitzer `PlaylistAccessDeniedException` (403) — auch für
+Administratoren. In der Oberfläche werden Bearbeitungsmöglichkeiten für Nicht-Besitzer gar nicht gerendert
+(Komponenten `PlaylistDetail`/`PlaylistEntriesList` mit `IsOwner`/`IsReadOnly`).
+
+**Datenschutz:** Ein Betrachter sieht nur, was zum Ansehen/Abspielen nötig ist. `DtoPlaylist` enthält nie die
+Benutzer-ID/E-Mail des Besitzers; für Betrachter sind `AllGenreIds`, `GenresManuallyOverridden` und
+`CoverPictureIsUserUploaded` zurückgesetzt; Ausschluss-Einträge (BR-19) sind nicht Teil irgendeines DTO. In der
+öffentlichen Übersicht wird kein Besitzer angezeigt. Das Cover einer *privaten* fremden Playlist wird nicht mehr
+ausgeliefert (403) — weder über `GET /api/playlists/{id}/cover` noch über `GET /api/pictures/{id}`.
+
+---
+
+## BR-29: Freischaltung wird je Betrachter aufgelöst
+
+**Regel:** Ob ein Eintrag zugänglich (`IsAccessible`) und abspielbar ist, wird immer für den **Anfragenden**
+bestimmt (regulärer Quellenzugriff oder dessen Einzelfreischaltung), nie für den Besitzer. Nicht zugängliche Titel
+sind für den Betrachter abgeblendet, nicht abspielbar (`StartPlaylistAsync` mit diesem Eintrag → 403) und werden
+beim Weiterschalten übersprungen. Das gilt auch für die Ersatztitel-Suche der Weiterschauen-Auflösung (BR-31):
+Ein Anwender wird nie auf einen Titel umgehängt, den nur der Besitzer freigeschaltet hat.
+
+---
+
+## BR-30: Lesender Zugriff eines Betrachters verändert die Playlist nicht (Waisen-Bereinigung)
+
+**Regel:** Die stille Bereinigung verwaister Einträge (BR-7) — samt Genre-Neuberechnung und Weiterschauen-Ersetzung —
+ist eine Nebenwirkung, die nur ein Zugriff des **Besitzers** auslöst (`LoadValidPlaylistEntriesAsync(playlist,
+removeOrphans: isOwner)`). Greift ein anderer Anwender lesend zu, werden verwaiste Einträge lediglich nicht
+angezeigt (und nicht gezählt); die Playlist des Besitzers bleibt unverändert. Begründung: „ohne die Playlist selbst
+oder die Fortschritte anderer zu verändern".
+
+---
+
+## BR-31: Auswirkungen auf die Weiterschauen-Einträge anderer Anwender
+
+Bei einer öffentlichen Playlist besitzen auch Betrachter Weiterschauen-Einträge mit `PlaylistId` (die Einträge
+gehören dem Betrachter, `ContinueWatchingEntry.UserId` = Betrachter). Was mit ihnen passiert, wenn der Besitzer ändert:
+
+| Ereignis | Eintrag des Besitzers | Einträge anderer Anwender |
+|----------|----------------------|---------------------------|
+| Titel entfernen (`RemoveMediaFromPlaylistAsync`) | Sicherheitsabfrage (409), dann ersetzen/entfernen | **keine** Abfrage; still: ersetzen durch den nächsten für **diesen** Anwender zugänglichen Titel (Position zurückgesetzt) oder entfernen; bei Kollision mit vorhandenem Eintrag für den Ersatztitel bleibt dieser und der ersetzte entfällt |
+| Titel verschwindet aus der Bibliothek (Waisen-Bereinigung, Quellenlöschung) | ersetzen/entfernen ohne Abfrage | dieselbe stille Regel für jeden betroffenen Anwender |
+| Playlist löschen | Bezug entfällt (`ON DELETE SET NULL`), Duplikat-Auflösung | für **alle** Anwender: Bezug entfällt; existiert ein Eintrag ohne Playlist-Bezug für dasselbe Video, wird der gebundene entfernt (kein UNIQUE-Fehler) |
+| Kennzeichnung entfernen | bleibt an der Playlist gebunden | wird zu einem Eintrag ohne Playlist-Bezug (Position bleibt), bei vorhandenem Eintrag ohne Bezug entfällt der gebundene; in derselben Transaktion wie das Entfernen der Kennzeichnung |
+| Benutzerkonto des Besitzers löschen | Playlists entfallen | Bezug entfällt wie beim Löschen; Duplikate (auch zwischen mehreren Playlists des Besitzers) werden vorab aufgelöst |
+
+Die Sicherheitsabfrage (409) erscheint ausschließlich, wenn ein **eigener** Eintrag des Besitzers betroffen ist;
+Einträge anderer lösen sie nicht aus und werden in der Antwort nicht erwähnt. Zusätzlich zeigt die
+Weiterschauen-Liste nur dann Playlist-Name und `PlaylistEntryId` (Deep-Link `?entryId=`), wenn der Anwender die Playlist
+lesen darf (Besitzer oder öffentlich) — ein veralteter Eintrag verrät den Namen einer für ihn privaten Playlist nicht.
+Fortschritt melden (`ContinueWatchingService.ValidatePlaylistAccessAsync`) darf, wer die Playlist lesen darf.
 
 ---
 

@@ -85,20 +85,77 @@ public sealed class PlaylistService : IPlaylistService
             .ThenBy(p => p.Id)
             .ToListAsync(cancellationToken);
 
-        return await ToDtosAsync(playlists, cancellationToken);
+        return await ToDtosAsync(playlists, userId, cancellationToken);
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// Lists every playlist currently marked public (<see cref="Playlist.IsPublic"/>), including the
+    /// requesting user's own public playlists. Nothing about private playlists is ever returned.
+    /// </remarks>
+    public async Task<DtoPlaylist[]> GetPublicPlaylistsAsync(string userId, long? genreId = null, CancellationToken cancellationToken = default)
+    {
+        var query = _db.Playlists.AsNoTracking().Where(p => p.IsPublic);
+        if (genreId is long id)
+            query = query.Where(p => _db.PlaylistGenres.Any(pg => pg.PlaylistId == p.Id && pg.GenreId == id));
+
+        var playlists = await query
+            .OrderBy(p => p.CreatedAt)
+            .ThenBy(p => p.Id)
+            .ToListAsync(cancellationToken);
+
+        return await ToDtosAsync(playlists, userId, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// READ access: the owner, or any user while the playlist is public (Entwicklungsschritt 11). The DTO is
+    /// scoped to the requester (see <see cref="ToDto"/>).
+    /// </remarks>
     public async Task<DtoPlaylist?> GetPlaylistAsync(long playlistId, string userId, CancellationToken cancellationToken = default)
     {
         var playlist = await _db.Playlists.AsNoTracking().FirstOrDefaultAsync(p => p.Id == playlistId, cancellationToken);
         if (playlist is null)
             return null;
 
-        if (playlist.UserId != userId)
-            throw new PlaylistAccessDeniedException("Sie haben keinen Zugriff auf diese Playlist.");
+        EnsureReadable(playlist, userId);
 
-        return await ToDtoAsync(playlist, cancellationToken);
+        return await ToDtoAsync(playlist, userId, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Entwicklungsschritt 11. Only administrators may set or clear the flag, and only on playlists they own
+    /// themselves (conservative reading of "ihre Playlists bleiben stets privat" / "nur der Besitzer"): a
+    /// non-owner - including an administrator - is refused, so an administrator can neither publish another
+    /// user's playlist nor learn anything about it. Refusals are <see cref="PlaylistAccessDeniedException"/>
+    /// (403). Clearing the flag revokes other users' access immediately; their playlist-bound
+    /// continue-watching entries are detached in the same <c>SaveChangesAsync</c> (see
+    /// <see cref="ContinueWatchingService.DetachOtherUsersFromPlaylistAsync"/>).
+    /// </remarks>
+    public async Task<DtoPlaylist> SetPlaylistPublicAsync(long playlistId, string userId, bool requesterIsAdmin, bool isPublic, CancellationToken cancellationToken = default)
+    {
+        var playlist = await GetOwnedPlaylistAsync(playlistId, userId, cancellationToken);
+
+        if (!requesterIsAdmin)
+            throw new PlaylistAccessDeniedException("Nur Administratoren duerfen Playlists als oeffentlich kennzeichnen.");
+
+        if (playlist.IsPublic == isPublic)
+            return await ToDtoAsync(playlist, userId, cancellationToken);
+
+        playlist.IsPublic = isPublic;
+
+        var continueWatchingService = _serviceProvider?.GetService<ContinueWatchingService>();
+        IReadOnlyCollection<string> affectedUserIds = Array.Empty<string>();
+        if (!isPublic && continueWatchingService is not null)
+            affectedUserIds = await continueWatchingService.DetachOtherUsersFromPlaylistAsync(playlistId, userId, cancellationToken);
+        else
+            await _db.SaveChangesAsync(cancellationToken);
+
+        if (continueWatchingService is not null)
+            await continueWatchingService.NotifyUsersAsync(affectedUserIds, cancellationToken);
+
+        return await ToDtoAsync(playlist, userId, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -131,7 +188,7 @@ public sealed class PlaylistService : IPlaylistService
         await _db.Playlists.AddAsync(playlist, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
 
-        return await ToDtoAsync(playlist, cancellationToken);
+        return await ToDtoAsync(playlist, userId, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -160,7 +217,7 @@ public sealed class PlaylistService : IPlaylistService
 
         await _db.SaveChangesAsync(cancellationToken);
 
-        return await ToDtoAsync(playlist, cancellationToken);
+        return await ToDtoAsync(playlist, userId, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -175,9 +232,12 @@ public sealed class PlaylistService : IPlaylistService
     {
         var playlist = await GetOwnedPlaylistAsync(playlistId, userId, cancellationToken);
 
+        // Resolved for EVERY user with entries bound to this playlist (viewers of a public playlist
+        // included), not just the owner - their rows would otherwise collide the same way.
         var continueWatchingService = _serviceProvider?.GetService<ContinueWatchingService>();
+        IReadOnlyCollection<string> affectedUserIds = Array.Empty<string>();
         if (continueWatchingService is not null)
-            await continueWatchingService.ResolvePlaylistDeletionConflictsAsync(playlistId, userId, cancellationToken);
+            affectedUserIds = await continueWatchingService.ResolvePlaylistDeletionConflictsAsync(playlistId, cancellationToken);
 
         // Entwicklungsschritt 10: Cover-Picture (hochgeladen oder generiert) verwaist sonst in der
         // Pictures-Tabelle - EF loescht das abhaengige Playlist zuerst (Fremdschluessel liegt auf
@@ -192,6 +252,9 @@ public sealed class PlaylistService : IPlaylistService
 
         _db.Playlists.Remove(playlist);
         await _db.SaveChangesAsync(cancellationToken);
+
+        if (continueWatchingService is not null)
+            await continueWatchingService.NotifyUsersAsync(affectedUserIds.Where(id => id != userId), cancellationToken);
     }
 
     /// <inheritdoc />
@@ -315,27 +378,33 @@ public sealed class PlaylistService : IPlaylistService
             e => e.PlaylistId == playlistId && e.MediaType == normalizedMediaType && e.MediaId == mediaId, cancellationToken)
             ?? throw new KeyNotFoundException("Eintrag wurde nicht gefunden.");
 
+        // Per user affected by this removal (the owner, and - on a public playlist - every viewer with a
+        // playlist-bound continue-watching entry for this title): the next playable title THAT user may
+        // access, resolved before the entry disappears (its position is looked up by its still-valid id).
         var continueWatchingService = _serviceProvider?.GetService<ContinueWatchingService>();
+        var replacements = new List<(string UserId, PlaylistEntry? Next)>();
         if (continueWatchingService is not null && PlaylistEntryMediaTypeResolver.IsPlayable(normalizedMediaType))
         {
-            var hasContinueWatchingReference = await continueWatchingService.HasPlaylistBoundEntryAsync(
-                playlistId, userId, normalizedMediaType, mediaId, cancellationToken);
+            var affectedUserIds = await continueWatchingService.GetUserIdsWithPlaylistBoundEntryAsync(
+                playlistId, normalizedMediaType, mediaId, cancellationToken);
 
-            if (hasContinueWatchingReference)
+            // The Sicherheitsabfrage only ever concerns the OWNER's own continue-watching entry; viewers'
+            // entries are resolved silently (they do not trigger the removal) and never surface here, so
+            // nothing about other users leaks through the 409 response.
+            if (affectedUserIds.Contains(userId) && !confirmContinueWatchingRemoval)
+                throw new ContinueWatchingConfirmationRequiredException("Dieser Eintrag befindet sich in deiner Weiterschauen-Liste. Entfernen?");
+
+            if (affectedUserIds.Count > 0)
             {
-                if (!confirmContinueWatchingRemoval)
-                    throw new ContinueWatchingConfirmationRequiredException("Dieser Eintrag befindet sich in deiner Weiterschauen-Liste. Entfernen?");
+                var validEntries = await LoadValidPlaylistEntriesAsync(playlist, removeOrphans: true, cancellationToken);
+                if (_db.Entry(entry).State == EntityState.Detached)
+                    return; // The entry itself turned out to be an orphan and was just swept away.
 
-                var (nextEntry, _) = await FindAdjacentPlayableEntryAsync(playlistId, userId, entry.Id, forward: true, cancellationToken);
-
-                await RecordExclusionAsync(playlistId, normalizedMediaType, mediaId, cancellationToken);
-                _db.PlaylistEntries.Remove(entry);
-                await _db.SaveChangesAsync(cancellationToken);
-                await _genreService.RecomputeGenresAsync(playlist, cancellationToken);
-
-                await continueWatchingService.ResolvePlaylistEntryRemovalAsync(
-                    playlistId, userId, normalizedMediaType, mediaId, nextEntry?.MediaType, nextEntry?.MediaId, cancellationToken);
-                return;
+                var sortedEntries = await SortPlaylistEntriesForModeAsync(playlist.SortMode, validEntries, cancellationToken);
+                var removedIndex = sortedEntries.FindIndex(e => e.Id == entry.Id);
+                var survivors = validEntries.Where(e => e.Id != entry.Id).ToList();
+                replacements = await ResolveNextEntriesPerUserAsync(
+                    sortedEntries, removedIndex, survivors, affectedUserIds, new Dictionary<string, Dictionary<PlaylistEntry, bool>>(), cancellationToken);
             }
         }
 
@@ -343,6 +412,12 @@ public sealed class PlaylistService : IPlaylistService
         _db.PlaylistEntries.Remove(entry);
         await _db.SaveChangesAsync(cancellationToken);
         await _genreService.RecomputeGenresAsync(playlist, cancellationToken);
+
+        foreach (var (affectedUserId, nextEntry) in replacements)
+        {
+            await continueWatchingService!.ResolvePlaylistEntryRemovalAsync(
+                playlistId, affectedUserId, normalizedMediaType, mediaId, nextEntry?.MediaType, nextEntry?.MediaId, cancellationToken);
+        }
     }
 
     /// <inheritdoc />
@@ -355,11 +430,38 @@ public sealed class PlaylistService : IPlaylistService
     /// </remarks>
     public async Task<DtoPlaylistEntry[]> GetPlaylistEntriesAsync(long playlistId, string userId, CancellationToken cancellationToken = default)
     {
-        var playlist = await GetOwnedPlaylistAsync(playlistId, userId, cancellationToken);
+        var (playlist, isOwner) = await GetReadablePlaylistAsync(playlistId, userId, cancellationToken);
 
-        var validEntries = await LoadValidPlaylistEntriesAsync(playlist, cancellationToken);
+        var validEntries = await LoadValidPlaylistEntriesAsync(playlist, removeOrphans: isOwner, cancellationToken);
         var sortedEntries = await SortPlaylistEntriesForModeAsync(playlist.SortMode, validEntries, cancellationToken);
         return await BuildEntryDtosAsync(sortedEntries, userId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Loads a playlist for a READ operation: allowed for the owner and - while <see cref="Playlist.IsPublic"/>
+    /// is set - for any other user (Entwicklungsschritt 11). Every mutating operation must use
+    /// <see cref="GetOwnedPlaylistAsync"/> instead.
+    /// </summary>
+    /// <param name="playlistId">The playlist identifier.</param>
+    /// <param name="userId">The id of the requesting user.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The playlist and whether <paramref name="userId"/> is its owner.</returns>
+    /// <exception cref="KeyNotFoundException">The playlist does not exist.</exception>
+    /// <exception cref="PlaylistAccessDeniedException">The playlist is private and owned by somebody else.</exception>
+    private async Task<(Playlist Playlist, bool IsOwner)> GetReadablePlaylistAsync(long playlistId, string userId, CancellationToken cancellationToken)
+    {
+        var playlist = await _db.Playlists.FirstOrDefaultAsync(p => p.Id == playlistId, cancellationToken)
+            ?? throw new KeyNotFoundException("Playlist wurde nicht gefunden.");
+
+        EnsureReadable(playlist, userId);
+
+        return (playlist, playlist.UserId == userId);
+    }
+
+    private static void EnsureReadable(Playlist playlist, string userId)
+    {
+        if (playlist.UserId != userId && !playlist.IsPublic)
+            throw new PlaylistAccessDeniedException("Sie haben keinen Zugriff auf diese Playlist.");
     }
 
     private async Task<Playlist> GetOwnedPlaylistAsync(long playlistId, string userId, CancellationToken cancellationToken)
@@ -434,11 +536,12 @@ public sealed class PlaylistService : IPlaylistService
     /// <see cref="ToDtosAsync"/> for the many call sites that only ever have one playlist at hand.
     /// </summary>
     /// <param name="playlist">The playlist to convert.</param>
+    /// <param name="requesterId">The id of the requesting user (decides the requester-scoped fields, see <see cref="ToDto"/>).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The converted DTO.</returns>
-    private async Task<DtoPlaylist> ToDtoAsync(Playlist playlist, CancellationToken cancellationToken)
+    private async Task<DtoPlaylist> ToDtoAsync(Playlist playlist, string requesterId, CancellationToken cancellationToken)
     {
-        var dtos = await ToDtosAsync(new List<Playlist> { playlist }, cancellationToken);
+        var dtos = await ToDtosAsync(new List<Playlist> { playlist }, requesterId, cancellationToken);
         return dtos[0];
     }
 
@@ -449,14 +552,15 @@ public sealed class PlaylistService : IPlaylistService
     /// more than a single playlist at once.
     /// </summary>
     /// <param name="playlists">The playlists to convert.</param>
+    /// <param name="requesterId">The id of the requesting user (decides the requester-scoped fields, see <see cref="ToDto"/>).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The converted DTOs, in the same order as <paramref name="playlists"/>.</returns>
-    private async Task<DtoPlaylist[]> ToDtosAsync(List<Playlist> playlists, CancellationToken cancellationToken)
+    private async Task<DtoPlaylist[]> ToDtosAsync(List<Playlist> playlists, string requesterId, CancellationToken cancellationToken)
     {
         var playlistIds = playlists.Select(p => p.Id).ToList();
         var genresByPlaylist = await _genreService.LoadPlaylistGenresAsync(playlistIds, cancellationToken);
 
-        return playlists.Select(playlist => ToDto(playlist, genresByPlaylist)).ToArray();
+        return playlists.Select(playlist => ToDto(playlist, genresByPlaylist, requesterId)).ToArray();
     }
 
     /// <summary>
@@ -466,11 +570,20 @@ public sealed class PlaylistService : IPlaylistService
     /// <see cref="DtoPlaylist.AllGenreIds"/> (every derived/assigned genre id, uncapped, used to prefill
     /// the manual-override editor) from it.
     /// </summary>
+    /// <remarks>
+    /// The DTO is scoped to the requester (Entwicklungsschritt 11): a viewer who is not the owner of a public
+    /// playlist only receives what is needed to view and play it - <see cref="DtoPlaylist.IsOwner"/> is
+    /// <see langword="false"/> and the owner-only editing state (<see cref="DtoPlaylist.AllGenreIds"/>,
+    /// <see cref="DtoPlaylist.GenresManuallyOverridden"/>, <see cref="DtoPlaylist.CoverPictureIsUserUploaded"/>)
+    /// is withheld. The DTO never contains the owner's user id.
+    /// </remarks>
     /// <param name="playlist">The playlist to convert.</param>
     /// <param name="genresByPlaylist">Every playlist's genre rows, keyed by playlist id (see <see cref="ToDtosAsync"/>).</param>
+    /// <param name="requesterId">The id of the requesting user.</param>
     /// <returns>The converted DTO.</returns>
-    private static DtoPlaylist ToDto(Playlist playlist, Dictionary<long, List<(long GenreId, string GenreName, int Count)>> genresByPlaylist)
+    private static DtoPlaylist ToDto(Playlist playlist, Dictionary<long, List<(long GenreId, string GenreName, int Count)>> genresByPlaylist, string requesterId)
     {
+        var isOwner = playlist.UserId == requesterId;
         var genreRows = genresByPlaylist.TryGetValue(playlist.Id, out var rows) ? rows : new List<(long GenreId, string GenreName, int Count)>();
 
         var displayGenres = genreRows
@@ -489,10 +602,12 @@ public sealed class PlaylistService : IPlaylistService
             CreatedAt = playlist.CreatedAt,
             UpdatedAt = playlist.UpdatedAt,
             Genres = displayGenres,
-            AllGenreIds = genreRows.Select(r => r.GenreId).ToArray(),
-            GenresManuallyOverridden = playlist.GenresManuallyOverridden,
+            AllGenreIds = isOwner ? genreRows.Select(r => r.GenreId).ToArray() : Array.Empty<long>(),
+            GenresManuallyOverridden = isOwner && playlist.GenresManuallyOverridden,
             CoverPictureId = playlist.CoverPictureId,
-            CoverPictureIsUserUploaded = playlist.CoverPictureIsUserUploaded
+            CoverPictureIsUserUploaded = isOwner && playlist.CoverPictureIsUserUploaded,
+            IsPublic = playlist.IsPublic,
+            IsOwner = isOwner
         };
     }
 
@@ -770,9 +885,9 @@ public sealed class PlaylistService : IPlaylistService
     /// <inheritdoc />
     public async Task<DtoPlaylistEntriesPagedResult> GetPlaylistEntriesPagedAsync(long playlistId, string userId, int pageNumber, int pageSize, CancellationToken cancellationToken = default)
     {
-        var playlist = await GetOwnedPlaylistAsync(playlistId, userId, cancellationToken);
+        var (playlist, isOwner) = await GetReadablePlaylistAsync(playlistId, userId, cancellationToken);
 
-        var validEntries = await LoadValidPlaylistEntriesAsync(playlist, cancellationToken);
+        var validEntries = await LoadValidPlaylistEntriesAsync(playlist, removeOrphans: isOwner, cancellationToken);
         var sortedEntries = await SortPlaylistEntriesForModeAsync(playlist.SortMode, validEntries, cancellationToken);
 
         var totalCount = sortedEntries.Count;
@@ -868,7 +983,7 @@ public sealed class PlaylistService : IPlaylistService
 
         if (targetMode == PlaylistSortMode.Manual && playlist.SortMode != PlaylistSortMode.Manual)
         {
-            var validEntries = await LoadValidPlaylistEntriesAsync(playlist, cancellationToken);
+            var validEntries = await LoadValidPlaylistEntriesAsync(playlist, removeOrphans: true, cancellationToken);
             var sortedEntries = await SortPlaylistEntriesByReleaseDateAsync(validEntries, cancellationToken);
 
             for (var i = 0; i < sortedEntries.Count; i++)
@@ -888,7 +1003,7 @@ public sealed class PlaylistService : IPlaylistService
         playlist.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
 
-        return await ToDtoAsync(playlist, cancellationToken);
+        return await ToDtoAsync(playlist, userId, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -898,7 +1013,7 @@ public sealed class PlaylistService : IPlaylistService
 
         await _genreService.SetManualGenresAsync(playlist, genreIds, cancellationToken);
 
-        return await ToDtoAsync(playlist, cancellationToken);
+        return await ToDtoAsync(playlist, userId, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -908,7 +1023,7 @@ public sealed class PlaylistService : IPlaylistService
 
         await _genreService.ResetGenresAsync(playlist, cancellationToken);
 
-        return await ToDtoAsync(playlist, cancellationToken);
+        return await ToDtoAsync(playlist, userId, cancellationToken);
     }
 
     /// <summary>
@@ -940,12 +1055,18 @@ public sealed class PlaylistService : IPlaylistService
     /// episode deletion in the application, not just the playlist-bound case).
     /// </para>
     /// </remarks>
-    /// <param name="playlist">The owning playlist (its <see cref="Playlist.Id"/>, <see cref="Playlist.UserId"/>
-    /// and <see cref="Playlist.SortMode"/> are used to resolve entries, ownership and continue-watching
-    /// replacements).</param>
+    /// <param name="playlist">The playlist (its <see cref="Playlist.Id"/> and <see cref="Playlist.SortMode"/>
+    /// are used to resolve entries and continue-watching replacements).</param>
+    /// <param name="removeOrphans">
+    /// Whether orphaned entries are also deleted (and continue-watching/genres updated accordingly).
+    /// Entwicklungsschritt 11 decision: <see langword="true"/> only when the OWNER is the requester. A viewer
+    /// of a public playlist merely does not see orphaned entries - a read-only access must not modify the
+    /// owner's playlist (or, through the replacement logic, other users' continue-watching entries); the
+    /// owner's next access performs the cleanup as before.
+    /// </param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The playlist entries whose referenced media still exists.</returns>
-    private async Task<List<PlaylistEntry>> LoadValidPlaylistEntriesAsync(Playlist playlist, CancellationToken cancellationToken)
+    private async Task<List<PlaylistEntry>> LoadValidPlaylistEntriesAsync(Playlist playlist, bool removeOrphans, CancellationToken cancellationToken)
     {
         var entries = await _db.PlaylistEntries
             .Where(e => e.PlaylistId == playlist.Id)
@@ -968,7 +1089,7 @@ public sealed class PlaylistService : IPlaylistService
                 orphans.Add(entry);
         }
 
-        if (orphans.Count > 0)
+        if (orphans.Count > 0 && removeOrphans)
         {
             var continueWatchingService = _serviceProvider?.GetService<ContinueWatchingService>();
             if (continueWatchingService is not null)
@@ -1013,34 +1134,86 @@ public sealed class PlaylistService : IPlaylistService
             return;
 
         var fullSortedEntries = await SortPlaylistEntriesForModeAsync(playlist.SortMode, allEntries, cancellationToken);
-        var validSet = new HashSet<PlaylistEntry>(validEntries);
-
-        var idsByType = MediaHierarchyRegistry.GroupMediaIdsByType(validEntries);
-        var accessibilityByEntry = await _accessResolver.ResolveAccessibilityAsync(validEntries, playlist.UserId, idsByType, cancellationToken);
+        var accessibilityCache = new Dictionary<string, Dictionary<PlaylistEntry, bool>>();
 
         foreach (var orphan in playableOrphans)
         {
+            // Entwicklungsschritt 11: every user with a playlist-bound entry for the vanished title (the
+            // owner and, on a public playlist, viewers), each with the next title THEY may access.
+            var affectedUserIds = await continueWatchingService.GetUserIdsWithPlaylistBoundEntryAsync(
+                playlist.Id, orphan.MediaType, orphan.MediaId, cancellationToken);
+            if (affectedUserIds.Count == 0)
+                continue;
+
             var orphanIndex = fullSortedEntries.FindIndex(e => e.Id == orphan.Id);
             if (orphanIndex < 0)
                 continue;
 
-            PlaylistEntry? nextEntry = null;
-            for (var i = orphanIndex + 1; i < fullSortedEntries.Count; i++)
+            var replacements = await ResolveNextEntriesPerUserAsync(
+                fullSortedEntries, orphanIndex, validEntries, affectedUserIds, accessibilityCache, cancellationToken);
+
+            foreach (var (affectedUserId, nextEntry) in replacements)
             {
-                var candidate = fullSortedEntries[i];
-                if (!validSet.Contains(candidate) || !PlaylistEntryMediaTypeResolver.IsPlayable(candidate.MediaType))
+                await continueWatchingService.ResolvePlaylistEntryRemovalAsync(
+                    playlist.Id, affectedUserId, orphan.MediaType, orphan.MediaId, nextEntry?.MediaType, nextEntry?.MediaId, cancellationToken);
+            }
+        }
+    }
+
+    /// <summary>
+    /// For each of <paramref name="userIds"/>, finds the next playable entry after position
+    /// <paramref name="removedIndex"/> in <paramref name="sortedEntries"/> that survives the removal
+    /// (<paramref name="survivors"/>) AND is accessible to that user - accessibility is always resolved for
+    /// the user whose continue-watching entry is being replaced (owner or viewer), never for the owner on
+    /// behalf of others: a viewer must not be pointed at a title only the owner has unlocked.
+    /// </summary>
+    /// <param name="sortedEntries">Every entry of the playlist (the removed one included), in sort order.</param>
+    /// <param name="removedIndex">The position of the removed entry within <paramref name="sortedEntries"/>.</param>
+    /// <param name="survivors">The entries that remain after the removal.</param>
+    /// <param name="userIds">The users whose continue-watching entry must be replaced.</param>
+    /// <param name="accessibilityCache">Per-user accessibility of <paramref name="survivors"/>, filled lazily and reused across calls.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Per user the entry to replace with, or <see langword="null"/> when no such entry exists.</returns>
+    private async Task<List<(string UserId, PlaylistEntry? Next)>> ResolveNextEntriesPerUserAsync(
+        List<PlaylistEntry> sortedEntries, int removedIndex, List<PlaylistEntry> survivors, IEnumerable<string> userIds,
+        Dictionary<string, Dictionary<PlaylistEntry, bool>> accessibilityCache, CancellationToken cancellationToken)
+    {
+        var survivorSet = new HashSet<PlaylistEntry>(survivors);
+        var result = new List<(string UserId, PlaylistEntry? Next)>();
+
+        foreach (var userId in userIds)
+        {
+            if (removedIndex < 0)
+            {
+                result.Add((userId, null));
+                continue;
+            }
+
+            if (!accessibilityCache.TryGetValue(userId, out var accessibility))
+            {
+                var idsByType = MediaHierarchyRegistry.GroupMediaIdsByType(survivors);
+                accessibility = await _accessResolver.ResolveAccessibilityAsync(survivors, userId, idsByType, cancellationToken);
+                accessibilityCache[userId] = accessibility;
+            }
+
+            PlaylistEntry? next = null;
+            for (var i = removedIndex + 1; i < sortedEntries.Count; i++)
+            {
+                var candidate = sortedEntries[i];
+                if (!survivorSet.Contains(candidate) || !PlaylistEntryMediaTypeResolver.IsPlayable(candidate.MediaType))
                     continue;
 
-                if (accessibilityByEntry.TryGetValue(candidate, out var isAccessible) && isAccessible)
+                if (accessibility.TryGetValue(candidate, out var isAccessible) && isAccessible)
                 {
-                    nextEntry = candidate;
+                    next = candidate;
                     break;
                 }
             }
 
-            await continueWatchingService.ResolvePlaylistEntryRemovalAsync(
-                playlist.Id, playlist.UserId, orphan.MediaType, orphan.MediaId, nextEntry?.MediaType, nextEntry?.MediaId, cancellationToken);
+            result.Add((userId, next));
         }
+
+        return result;
     }
 
     /// <inheritdoc />
@@ -1070,7 +1243,7 @@ public sealed class PlaylistService : IPlaylistService
             .Where(cwe => cwe.PlaylistId != null &&
                           ((cwe.MovieId != null && cwe.Movie!.MediaSourceId == mediaSourceId) ||
                            (cwe.TVShowEpisodeId != null && cwe.TVShowEpisode!.TVShowSeason.TVShow.MediaSourceId == mediaSourceId)))
-            .Select(cwe => new { PlaylistId = cwe.PlaylistId!.Value, cwe.MovieId, cwe.TVShowEpisodeId })
+            .Select(cwe => new { cwe.UserId, PlaylistId = cwe.PlaylistId!.Value, cwe.MovieId, cwe.TVShowEpisodeId })
             .ToListAsync(cancellationToken);
 
         if (affectedEntries.Count == 0)
@@ -1103,11 +1276,10 @@ public sealed class PlaylistService : IPlaylistService
             var fullSortedEntries = await SortPlaylistEntriesForModeAsync(playlist.SortMode, allEntries, cancellationToken);
 
             var survivorEntries = allEntries.Where(e => !BelongsToDoomedSource(e.MediaType, e.MediaId)).ToList();
-            var survivorSet = new HashSet<PlaylistEntry>(survivorEntries);
+            var accessibilityCache = new Dictionary<string, Dictionary<PlaylistEntry, bool>>();
 
-            var idsByType = MediaHierarchyRegistry.GroupMediaIdsByType(survivorEntries);
-            var accessibilityByEntry = await _accessResolver.ResolveAccessibilityAsync(survivorEntries, playlist.UserId, idsByType, cancellationToken);
-
+            // One row per (user, title): on a public playlist several users may have a playlist-bound entry
+            // for the same doomed title, each replaced with the next title THAT user may access.
             foreach (var affected in group)
             {
                 var (removedMediaType, removedMediaId) = affected.MovieId is not null
@@ -1119,22 +1291,14 @@ public sealed class PlaylistService : IPlaylistService
                 if (doomedIndex < 0)
                     continue;
 
-                PlaylistEntry? nextEntry = null;
-                for (var i = doomedIndex + 1; i < fullSortedEntries.Count; i++)
+                var replacements = await ResolveNextEntriesPerUserAsync(
+                    fullSortedEntries, doomedIndex, survivorEntries, new[] { affected.UserId }, accessibilityCache, cancellationToken);
+
+                foreach (var (affectedUserId, nextEntry) in replacements)
                 {
-                    var candidate = fullSortedEntries[i];
-                    if (!survivorSet.Contains(candidate) || !PlaylistEntryMediaTypeResolver.IsPlayable(candidate.MediaType))
-                        continue;
-
-                    if (accessibilityByEntry.TryGetValue(candidate, out var isAccessible) && isAccessible)
-                    {
-                        nextEntry = candidate;
-                        break;
-                    }
+                    await continueWatchingService.ResolvePlaylistEntryRemovalAsync(
+                        playlistId, affectedUserId, removedMediaType, removedMediaId, nextEntry?.MediaType, nextEntry?.MediaId, cancellationToken);
                 }
-
-                await continueWatchingService.ResolvePlaylistEntryRemovalAsync(
-                    playlistId, playlist.UserId, removedMediaType, removedMediaId, nextEntry?.MediaType, nextEntry?.MediaId, cancellationToken);
             }
         }
     }
@@ -1286,9 +1450,11 @@ public sealed class PlaylistService : IPlaylistService
     /// <inheritdoc />
     public async Task<DtoPlaylistPlaybackStart> StartPlaylistAsync(long playlistId, string userId, long? entryId, CancellationToken cancellationToken = default)
     {
-        var playlist = await GetOwnedPlaylistAsync(playlistId, userId, cancellationToken);
+        // READ access (owner, or any user on a public playlist). Accessibility is always resolved for the
+        // REQUESTING user (userId) - a viewer must never see/play titles that only the owner has unlocked.
+        var (playlist, isOwner) = await GetReadablePlaylistAsync(playlistId, userId, cancellationToken);
 
-        var validEntries = await LoadValidPlaylistEntriesAsync(playlist, cancellationToken);
+        var validEntries = await LoadValidPlaylistEntriesAsync(playlist, removeOrphans: isOwner, cancellationToken);
         var sortedEntries = await SortPlaylistEntriesForModeAsync(playlist.SortMode, validEntries, cancellationToken);
 
         var idsByType = MediaHierarchyRegistry.GroupMediaIdsByType(sortedEntries);
@@ -1405,9 +1571,9 @@ public sealed class PlaylistService : IPlaylistService
     /// <returns>The found entry and its 1-based position, or <c>(null, 0)</c> if none matches.</returns>
     private async Task<(PlaylistEntry? Entry, int Position)> FindAdjacentPlayableEntryAsync(long playlistId, string userId, long currentEntryId, bool forward, CancellationToken cancellationToken)
     {
-        var playlist = await GetOwnedPlaylistAsync(playlistId, userId, cancellationToken);
+        var (playlist, isOwner) = await GetReadablePlaylistAsync(playlistId, userId, cancellationToken);
 
-        var validEntries = await LoadValidPlaylistEntriesAsync(playlist, cancellationToken);
+        var validEntries = await LoadValidPlaylistEntriesAsync(playlist, removeOrphans: isOwner, cancellationToken);
         var sortedEntries = await SortPlaylistEntriesForModeAsync(playlist.SortMode, validEntries, cancellationToken);
 
         var currentIndex = sortedEntries.FindIndex(e => e.Id == currentEntryId);
@@ -1535,17 +1701,23 @@ public sealed class PlaylistService : IPlaylistService
     }
 
     /// <summary>
-    /// Loads the picture currently used as a playlist's cover, regardless of owner (mirrors
-    /// <c>PicturesController.GetPicture</c>'s "any logged-in user may view it" access level, since the
-    /// cover image is not sensitive data), for the image-delivery endpoint.
+    /// Loads the picture currently used as a playlist's cover for the image-delivery endpoint - READ access
+    /// (Entwicklungsschritt 11): the owner, or any user while the playlist is public. A private playlist's
+    /// cover is a collage of its contents' posters, so it is no longer handed out to other users.
     /// </summary>
     /// <param name="playlistId">The playlist identifier.</param>
+    /// <param name="userId">The id of the requesting user.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The cover <see cref="Picture"/>, or <c>null</c> if the playlist does not exist or has no cover set.</returns>
-    public async Task<Picture?> GetPlaylistCoverAsync(long playlistId, CancellationToken cancellationToken = default)
+    public async Task<Picture?> GetPlaylistCoverAsync(long playlistId, string userId, CancellationToken cancellationToken = default)
     {
         var playlist = await _db.Playlists.AsNoTracking().FirstOrDefaultAsync(p => p.Id == playlistId, cancellationToken);
-        if (playlist?.CoverPictureId is not long pictureId)
+        if (playlist is null)
+            return null;
+
+        EnsureReadable(playlist, userId);
+
+        if (playlist.CoverPictureId is not long pictureId)
             return null;
 
         return await _db.Pictures.AsNoTracking().FirstOrDefaultAsync(p => p.Id == pictureId, cancellationToken);

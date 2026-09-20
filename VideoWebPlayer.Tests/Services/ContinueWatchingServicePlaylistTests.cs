@@ -75,7 +75,7 @@ public sealed class ContinueWatchingServicePlaylistTests : ContinueWatchingServi
         var playlist = await CreateTestPlaylistAsync("other-user", "Fremde Playlist");
 
         await Assert.ThrowsAsync<PlaylistAccessDeniedException>(
-            () => _service.ValidatePlaylistOwnershipAsync(_testUserId, playlist.Id, ct));
+            () => _service.ValidatePlaylistAccessAsync(_testUserId, playlist.Id, ct));
     }
 
     [Fact]
@@ -84,6 +84,6 @@ public sealed class ContinueWatchingServicePlaylistTests : ContinueWatchingServi
         var ct = TestContext.Current.CancellationToken;
 
         await Assert.ThrowsAsync<KeyNotFoundException>(
-            () => _service.ValidatePlaylistOwnershipAsync(_testUserId, 999_999, ct));
+            () => _service.ValidatePlaylistAccessAsync(_testUserId, 999_999, ct));
     }
 }

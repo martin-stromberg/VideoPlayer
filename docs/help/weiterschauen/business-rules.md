@@ -360,6 +360,28 @@ if (existingEntries.Count > 0)
 
 ---
 
+## Regel: Fortschritt auf öffentlichen Playlists gehört dem Betrachter (Schritt 11)
+
+Fortschritt mit `PlaylistId` darf melden, wer die Playlist lesen darf: der Besitzer, oder jeder Anwender, solange die
+Playlist öffentlich ist (`ContinueWatchingService.ValidatePlaylistAccessAsync`). Der Eintrag gehört immer dem Melder
+(`UserId` = Betrachter); Playlist und Einträge anderer werden nicht verändert. Ist die Playlist privat und gehört
+einem anderen (auch nachdem die Kennzeichnung entfernt wurde) → `PlaylistAccessDeniedException` (403); ein bereits
+gepufferter Fortschritt wird dann vom Worker verworfen.
+
+**Anzeige:** Playlist-Name und `PlaylistEntryId` (Deep-Link) werden nur für Playlists ermittelt, die der Anwender lesen
+darf (Besitzer oder öffentlich).
+
+## Regel: Auswirkungen von Änderungen des Besitzers auf Einträge anderer Anwender (Schritt 11)
+
+- **Titel entfernen** (auch still: Waisen-Bereinigung, Quellenlöschung): jeder betroffene Anwender wird auf den
+  nächsten für **ihn** zugänglichen Titel umgehängt oder der Eintrag entfällt; Kollision mit einem vorhandenen Eintrag
+  für den Ersatztitel: der vorhandene bleibt. Die Sicherheitsabfrage betrifft nur den eigenen Eintrag des Besitzers.
+- **Playlist löschen / Konto des Besitzers löschen:** Konfliktauflösung für alle Anwender (siehe nächste Regel), auch
+  wenn ein Anwender über mehrere gelöschte Playlists hinweg dasselbe Video gebunden hat (der zuletzt aktualisierte
+  Eintrag überlebt).
+- **Kennzeichnung entfernen:** Einträge anderer Anwender verlieren den Playlist-Bezug (`PlaylistId = NULL`), bei
+  Konflikt mit einem vorhandenen Eintrag ohne Bezug entfällt der gebundene — atomar mit dem Entfernen der Kennzeichnung.
+
 ## Regel: Sicherheitsabfrage beim Entfernen eines Titels mit Weiterschauen-Bezug
 
 **Beschreibung:** Wird ein einzelner Titel aus einer Playlist entfernt, für den in der Weiterschauen-Liste noch ein Eintrag mit Bezug zu genau dieser Playlist existiert, muss der Anwender das Entfernen ausdrücklich bestätigen ("Dieser Eintrag befindet sich in deiner Weiterschauen-Liste. Entfernen?"). Bestätigt er, wird der betroffene Weiterschauen-Eintrag durch den nächsten in dieser Playlist verfügbaren (abspielbaren und zugänglichen) Titel ersetzt; gibt es keinen, wird der Weiterschauen-Eintrag entfernt. Verschwindet ein Titel stattdessen still aus dem Medienbestand (z. B. weil die Datei nicht mehr existiert), entfällt die Sicherheitsabfrage, aber dasselbe Ersetzen-/Entfernen-Verhalten gilt sinngemäß.

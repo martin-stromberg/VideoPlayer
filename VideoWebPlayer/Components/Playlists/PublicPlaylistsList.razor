@@ -1,0 +1,101 @@
+@page "/playlists/public"
+@using Microsoft.AspNetCore.Components.Authorization
+@using VideoWebPlayer.Client.Models
+@inject VideoWebPlayer.Client.VideoWebPlayerClient Client
+@inject VideoWebPlayer.Client.IPlaylistApiClient PlaylistClient
+@inject AuthenticationStateProvider AuthStateProvider
+@rendermode InteractiveServer
+
+<PageTitle>Oeffentliche Playlists</PageTitle>
+
+@* Eigene, von den eigenen Playlists getrennte Uebersicht (Entwicklungsschritt 11): alle Playlists, die ein
+   Administrator als oeffentlich gekennzeichnet hat. Sie sind fuer jeden Anwender sichtbar und abspielbar,
+   aber ausschliesslich lesend - es gibt hier bewusst weder "Neue Playlist" noch irgendeine Bearbeitungs-
+   moeglichkeit, und es werden keine Angaben zum Besitzer gezeigt. Ein Klick oeffnet die Detailansicht
+   (PlaylistDetail.razor), die fuer Nicht-Besitzer im Nur-Lese-Modus rendert. *@
+<section class="media-section">
+    <div class="admin-card-header">
+        <h1>Oeffentliche Playlists</h1>
+        <a class="btn btn-outline-primary" id="own-playlists-link" href="/playlists">Meine Playlists</a>
+    </div>
+
+    @if (genreOptions.Count > 0)
+    {
+        <div class="admin-filter-row">
+            <label for="public-playlists-genre-filter">Nach Genre filtern</label>
+            <select class="form-select" id="public-playlists-genre-filter" value="@(selectedGenreId?.ToString() ?? string.Empty)" @onchange="OnGenreFilterChangedAsync">
+                <option value="">Alle Genres</option>
+                @foreach (var genre in genreOptions.OrderBy(g => g.Name, StringComparer.OrdinalIgnoreCase))
+                {
+                    <option value="@genre.Id">@genre.Name</option>
+                }
+            </select>
+        </div>
+    }
+
+    @if (isLoading)
+    {
+        <p>Lade Daten...</p>
+    }
+    else if (!string.IsNullOrWhiteSpace(loadError))
+    {
+        <div class="alert alert-danger" id="public-playlists-load-error">@loadError</div>
+    }
+    else if (playlists.Count == 0)
+    {
+        <div class="admin-empty-state" id="public-playlists-empty">
+            <strong>Keine oeffentlichen Playlists vorhanden</strong>
+            <span>Sobald ein Administrator eine Playlist oeffentlich macht, erscheint sie hier.</span>
+        </div>
+    }
+    else
+    {
+        <div class="media-grid playlist-grid" id="public-playlists-grid">
+            @foreach (var playlist in playlists)
+            {
+                <PlaylistTile Playlist="playlist" ShowPublicBadge="false" />
+            }
+        </div>
+    }
+</section>
+
+@code {
+    private List<DtoPlaylist> playlists = new();
+    private List<DtoGenreOption> genreOptions = new();
+    private long? selectedGenreId;
+    private bool isLoading = true;
+    private string? loadError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        await Client.EnsureAuthorizationTokenSilentlyAsync(authState.User);
+        genreOptions = await Client.RequestGenreOptionsAsync();
+        await LoadPlaylistsAsync();
+    }
+
+    private async Task LoadPlaylistsAsync()
+    {
+        isLoading = true;
+        loadError = null;
+        try
+        {
+            playlists = (await PlaylistClient.RequestPublicPlaylistsAsync(selectedGenreId)).ToList();
+        }
+        catch (Exception ex)
+        {
+            loadError = $"Fehler beim Laden der oeffentlichen Playlists: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task OnGenreFilterChangedAsync(ChangeEventArgs args)
+    {
+        var value = args.Value as string;
+        selectedGenreId = long.TryParse(value, out var genreId) ? genreId : null;
+        await LoadPlaylistsAsync();
+    }
+}

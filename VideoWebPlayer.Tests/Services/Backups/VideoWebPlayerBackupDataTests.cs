@@ -244,6 +244,74 @@ public sealed class VideoWebPlayerBackupDataTests
     }
 
     /// <summary>
+    /// Verifies that a backup taken before <c>Playlists.IsPublic</c> existed (Entwicklungsschritt 11,
+    /// oeffentliche Playlists) can still be restored, with the missing column defaulting to
+    /// <see langword="false"/> - the restored playlist stays private, the only safe fallback for a
+    /// pre-Schritt-11 backup (no playlist may become visible to other users by accident).
+    /// </summary>
+    [Fact]
+    public async Task ReadFromAsync_LegacyBackupWithoutIsPublicColumnInPlaylists_RestoresAsPrivate()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var connection = new SqliteConnection("Data Source=file:backuptest-no-ispublic-column?mode=memory&cache=shared");
+        await connection.OpenAsync(ct);
+        var (db, backup, userId) = await CreateBackupWithSeededDatabaseAsync(connection, ct);
+        await using var _ = db;
+
+        db.Playlists.Add(new Playlist
+        {
+            UserId = userId,
+            Name = "Legacy-Playlist-Ohne-IsPublic",
+            SortMode = PlaylistSortMode.ByReleaseDate,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            IsPublic = true
+        });
+        await db.SaveChangesAsync(ct);
+
+        using var legacyStream = await BuildLegacyBackupStreamWithoutColumnAsync(backup, "Playlists", "IsPublic", ct);
+
+        var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
+
+        Assert.Null(exception);
+        // AsNoTracking: the restore bypasses the change tracker (see the GenresManuallyOverridden test).
+        var restoredPlaylist = await db.Playlists.AsNoTracking().SingleAsync(ct);
+        Assert.False(restoredPlaylist.IsPublic);
+        Assert.Equal(userId, (await db.Users.FirstAsync(ct)).Id);
+    }
+
+    /// <summary>
+    /// Verifies that a current backup round-trips <c>Playlists.IsPublic</c> = <see langword="true"/>
+    /// unchanged (the column is optional on restore only for legacy backups, it is exported normally).
+    /// </summary>
+    [Fact]
+    public async Task WriteToAndReadFromAsync_PublicPlaylist_KeepsIsPublic()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var connection = new SqliteConnection("Data Source=file:backuptest-ispublic-roundtrip?mode=memory&cache=shared");
+        await connection.OpenAsync(ct);
+        var (db, backup, userId) = await CreateBackupWithSeededDatabaseAsync(connection, ct);
+        await using var _ = db;
+
+        db.Playlists.Add(new Playlist
+        {
+            UserId = userId,
+            Name = "Oeffentliche Playlist",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            IsPublic = true
+        });
+        await db.SaveChangesAsync(ct);
+
+        using var stream = new MemoryStream();
+        await backup.WriteToAsync(stream, ct);
+        stream.Position = 0;
+        await backup.ReadFromAsync(stream, ct);
+
+        Assert.True((await db.Playlists.AsNoTracking().SingleAsync(ct)).IsPublic);
+    }
+
+    /// <summary>
     /// Verifies that a backup taken before <c>Playlists.CoverPictureId</c>/<c>Playlists.CoverPictureIsUserUploaded</c>
     /// existed (Entwicklungsschritt 10, Playlist-Abbildungen) can still be restored, with both missing
     /// columns defaulting to <see langword="null"/>/<see langword="false"/> respectively (i.e. the restored

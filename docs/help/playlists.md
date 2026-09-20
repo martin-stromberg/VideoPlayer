@@ -1,8 +1,11 @@
 # Playlists
 
 Angemeldete Anwender können eigene Playlists anlegen, öffnen, bearbeiten und löschen. Playlists sind
-benutzerbezogen und privat: Jeder Anwender sieht und verwaltet ausschließlich seine eigenen
-Playlists, unabhängig davon, welche anderen Anwender ebenfalls Playlists angelegt haben.
+benutzerbezogen und standardmäßig privat: Jeder Anwender sieht und verwaltet ausschließlich seine
+eigenen Playlists, unabhängig davon, welche anderen Anwender ebenfalls Playlists angelegt haben.
+Ausschließlich Administratoren können eigene Playlists als **öffentlich** kennzeichnen; eine
+öffentliche Playlist ist für alle Anwender sichtbar und abspielbar, aber nur lesend (siehe Abschnitt
+„Öffentliche Playlists").
 
 Dieser Abschnitt umfasst die Verwaltung der Playlists selbst (anlegen, öffnen, bearbeiten, löschen,
 Übersicht), das Befüllen einer Playlist mit konkreten Medieninhalten (Filme, Episoden, Staffeln,
@@ -25,6 +28,11 @@ Platzhalter.
 Oberhalb der Kacheln steht, sobald mindestens ein Genre unter den eigenen Playlists vorkommt, ein
 Auswahlfeld „Nach Genre filtern" zur Verfügung, mit dem sich die Übersicht auf Playlists
 beschränken lässt, die ein bestimmtes Genre führen (siehe Abschnitt „Genres").
+
+Ist eine der eigenen Playlists öffentlich, trägt ihre Kachel ein dezentes Kennzeichen „Öffentlich"
+(siehe Abschnitt „Öffentliche Playlists"). Über die Schaltfläche „Öffentliche Playlists" oberhalb der
+Kacheln (bzw. den gleichnamigen Menüeintrag) gelangt man zur getrennten Übersicht der öffentlichen
+Playlists.
 
 Ein Klick (bzw. Tipp) auf eine Kachel öffnet die Detailseite der Playlist (siehe Abschnitt
 „Detailseite"). Neue Playlists werden über die Schaltfläche „Neue Playlist erstellen" oberhalb der
@@ -69,8 +77,16 @@ zeigt:
   ggf. Zurücksetzen (siehe Abschnitt „Genres")
 - **Erstellt** / **Aktualisiert** — Zeitpunkt der Erstellung bzw. letzten Änderung, dezent dargestellt
 
+Alle Bearbeitungsmöglichkeiten der Detailseite (die nachfolgenden Symbol-Schaltflächen, der Sortiermodus-Wechsel,
+die Genre-Bearbeitung sowie im Inhaltsbereich das Hinzufügen, Entfernen und Umsortieren) stehen ausschließlich
+dem **Besitzer** zur Verfügung. Öffnet ein anderer Anwender eine öffentliche Playlist, werden sie nicht
+angezeigt (siehe Abschnitt „Öffentliche Playlists"); stattdessen zeigt der Kopfbereich das Kennzeichen
+„Öffentlich".
+
 Im Kopfbereich stehen zusätzlich als Symbol-Schaltflächen zur Verfügung:
 
+- **Öffentlich-Kennzeichnung** (Globus-Symbol) — nur für Administratoren, die Besitzer der Playlist sind:
+  setzt bzw. entfernt die Kennzeichnung „öffentlich" (siehe Abschnitt „Öffentliche Playlists")
 - **Bild hochladen** (Hochlade-Symbol) — Öffnet den Dialog zum Hochladen eines eigenen Coverbilds
   (siehe Abschnitt „Abbildung (Cover)")
 - **Cover neu erzeugen** (Aktualisieren-Symbol) — Erzeugt das Coverbild automatisch neu aus den
@@ -420,13 +436,87 @@ Position automatisch wiederhergestellt.
 
 Playlists werden nach Bestätigung in einem Dialog endgültig gelöscht (kein Papierkorb).
 
+## Öffentliche Playlists
+
+Ein Administrator kann seine **eigenen** Playlists als „öffentlich" kennzeichnen — und die Kennzeichnung
+jederzeit wieder entfernen. Dafür gibt es auf der Detailseite (im Kopfbereich, in der Reihe der
+Symbol-Schaltflächen) einen Symbol-Button mit einem Globus-Symbol. Regulären Anwendern wird dieser
+Button gar nicht erst angezeigt (nicht ausgegraut, sondern nicht vorhanden); ihre Playlists bleiben
+stets privat. Auch der Server lehnt das Setzen oder Entfernen der Kennzeichnung durch Nicht-Administratoren
+ab (HTTP 403).
+
+**Eigene Playlists des Administrators.** Ein Administrator kann die Kennzeichnung nur bei Playlists setzen,
+die ihm selbst gehören — nicht bei Playlists anderer Anwender. Die Anforderung verlangt, dass die Playlists
+der Anwender stets privat bleiben und nur der Besitzer sie verändern darf; müsste ein Administrator fremde
+Playlists sehen, um sie zu veröffentlichen, wäre das ein Widerspruch dazu.
+
+### Was andere Anwender sehen und tun dürfen
+
+Öffentliche Playlists erscheinen für alle angemeldeten Anwender in einer **eigenen Übersicht „Öffentliche
+Playlists"** (Menüeintrag im Hauptmenü, Adresse `/playlists/public`), getrennt von den eigenen Playlists:
+Kacheln wie in der eigenen Übersicht (mit Genre-Filter), Klick öffnet die Detailseite. Es werden keine
+Angaben zum Besitzer angezeigt. Die eigenen Playlists eines Administrators, die öffentlich sind, erscheinen
+sowohl in der eigenen als auch in der öffentlichen Übersicht.
+
+Die Detailseite einer öffentlichen Playlist ist für alle außer dem Besitzer **ausschließlich lesend**. Es
+gibt weder Bearbeiten noch Löschen, weder Bild hochladen noch „Neu erzeugen", keine Genre-Bearbeitung
+oder -Rücksetzung, keinen Wechsel des Sortiermodus, kein Suchfeld zum Hinzufügen, keine Entfernen-Schaltflächen
+und keine Umsortierung (weder „An Anfang"/„An Ende" noch Drag & Drop) — diese Elemente werden nicht
+angezeigt. Das gilt auch für einen Administrator, der nicht der Besitzer ist. Abspielen bleibt möglich,
+mit Weiterschalten, Playlist-Badge und Positionswiederherstellung wie bei eigenen Playlists.
+
+**Freischaltung je Betrachter.** Ob ein Titel abspielbar ist, hängt immer vom Betrachter ab (regulärer
+Quellenzugriff oder Einzelfreischaltung des *Betrachters*), nicht vom Besitzer: Titel, für die der
+Betrachter keine Freischaltung besitzt, werden ihm abgeblendet dargestellt und lassen sich nicht abspielen
+(das automatische und manuelle Weiterschalten überspringt sie). Eine Freischaltung, die nur der Besitzer
+hat, gilt für den Betrachter nicht.
+
+**Weiterschauen.** Spielt ein anderer Anwender eine öffentliche Playlist ab, wird sein Fortschritt wie
+gewohnt in seiner **eigenen** Weiterschauen-Liste geführt, mit Bezug zu dieser Playlist („In Playlist:
+…"). Weder die Playlist noch der Fortschritt des Besitzers oder anderer Anwender werden dadurch verändert.
+
+**Kennzeichnung wird entfernt.** Entfernt der Besitzer die Kennzeichnung, verlieren alle anderen Anwender
+sofort den Zugriff auf die Playlist (Detailseite, Einträge, Wiedergabe und Cover werden mit 403 abgelehnt;
+sie verschwindet aus der öffentlichen Übersicht). Die Weiterschauen-Einträge der anderen Anwender mit
+Bezug zu dieser Playlist verlieren dabei ihren Playlist-Bezug und werden zu normalen Einträgen ohne
+Playlist-Zuordnung (Position bleibt erhalten; existiert für dasselbe Video bereits ein Eintrag ohne
+Playlist-Bezug, bleibt dieser bestehen und der Duplikat-Eintrag entfällt). So gibt es keinen Link mehr in
+die jetzt private Playlist und ihr Name wird nicht mehr angezeigt.
+
+### Wenn der Besitzer eine öffentliche Playlist ändert
+
+- **Titel entfernen:** Die Sicherheitsabfrage („Dieser Eintrag befindet sich in deiner Weiterschauen-Liste …")
+  erscheint weiterhin nur, wenn der Besitzer selbst einen solchen Weiterschauen-Eintrag hat. Weiterschauen-Einträge
+  anderer Anwender für den entfernten Titel werden ohne Nachfrage still aufgelöst — dieselbe Regel wie beim
+  Besitzer: Ersetzen durch den nächsten Titel der Playlist, der für **diesen** Anwender abspielbar ist
+  (Position zurückgesetzt), oder Entfernen, wenn es keinen gibt. Die Abfrage gibt nichts über andere Anwender preis.
+- **Playlist löschen:** Die Weiterschauen-Einträge aller Anwender behalten ihre Position und verlieren den
+  Playlist-Bezug (Duplikate zu bereits vorhandenen Einträgen ohne Playlist werden entfernt), wie bei eigenen Einträgen.
+- **Verschwindet ein Titel aus der Bibliothek** (Medium oder Medienquelle gelöscht), gilt die Ersetzen-/Entfernen-Regel
+  ebenfalls für die Einträge aller Anwender.
+- **Lesender Zugriff verändert nichts:** Öffnet ein anderer Anwender die Playlist, werden Einträge, deren Medium nicht
+  mehr existiert, für ihn lediglich nicht angezeigt; die automatische Bereinigung dieser verwaisten Einträge
+  (siehe „Automatische Bereinigung") führt nur ein Zugriff des Besitzers durch.
+
 ## Zugriff und Berechtigungen
 
-Alle Playlist-Funktionen erfordern eine Anmeldung. Jeder Anwender kann nur auf seine eigenen
-Playlists zugreifen: Der Versuch, eine fremde Playlist zu bearbeiten oder zu löschen, wird
-abgelehnt. Falls eine Playlist nicht existiert, wird ebenfalls eine Fehlermeldung angezeigt.
+Alle Playlist-Funktionen erfordern eine Anmeldung. Der Zugriff folgt diesem Rollenmodell:
 
-Wird ein Benutzerkonto gelöscht, werden auch alle Playlists dieses Anwenders automatisch entfernt.
+| Aktion | Besitzer | Anderer Anwender, Playlist privat | Anderer Anwender, Playlist öffentlich |
+|--------|----------|-----------------------------------|---------------------------------------|
+| Playlist ansehen (Detail, Einträge, Cover) | ja | nein (403) | ja |
+| Abspielen, Weiterschalten | ja | nein (403) | ja — nur freigeschaltete Titel |
+| Umbenennen, Inhalt ändern, umsortieren, Bild, Genres, Sortiermodus, löschen | ja | nein (403) | **nein (403)** |
+| „öffentlich" setzen/entfernen | nur als Administrator | nein (403) | nein (403), auch nicht als Administrator |
+
+Ein Administrator, der nicht der Besitzer ist, hat also keinerlei zusätzliche Rechte an fremden Playlists.
+Der Versuch, eine fremde Playlist zu bearbeiten oder zu löschen, wird serverseitig abgelehnt — unabhängig davon,
+ob die Oberfläche die Bedienelemente anbietet. Falls eine Playlist nicht existiert, wird ebenfalls eine
+Fehlermeldung angezeigt.
+
+Wird ein Benutzerkonto gelöscht, werden auch alle Playlists dieses Anwenders automatisch entfernt; die
+Weiterschauen-Einträge anderer Anwender mit Bezug zu dessen öffentlichen Playlists verlieren dabei ihren
+Playlist-Bezug (wie beim Löschen einer Playlist).
 
 ## Weiterschauen mit Playlist-Bezug
 
@@ -449,6 +539,10 @@ Dies hat mehrere Vorteile:
 Wird eine Playlist gelöscht, bleiben die Weiterschauen-Einträge bestehen und verlieren ihren Playlist-Bezug —
 sie werden zu normalen Einträgen ohne Playlist-Zuordnung. Falls bereits ein Eintrag ohne Playlist-Bezug für 
 das gleiche Video existiert, wird das Duplikat automatisch entfernt, um Inkonsistenzen zu vermeiden.
+
+Bei einer **öffentlichen Playlist eines anderen Anwenders** entsteht der Weiterschauen-Eintrag in Ihrer
+eigenen Liste und verändert weder die Playlist noch den Fortschritt des Besitzers (siehe Abschnitt „Öffentliche
+Playlists"). Wird die Kennzeichnung „öffentlich" entfernt, verliert Ihr Eintrag den Playlist-Bezug.
 
 Weitere Details siehe [Weiterschauen – Beschreibung](weiterschauen/beschreibung.md).
 

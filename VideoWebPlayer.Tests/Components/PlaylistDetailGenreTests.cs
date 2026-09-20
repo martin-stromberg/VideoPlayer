@@ -85,6 +85,7 @@ public class PlaylistDetailGenreTests
             {
                 Id = 1,
                 Name = "Test-Playlist",
+                IsOwner = true,
                 SortMode = PlaylistSortModeValues.ByReleaseDate,
                 Genres = new[] { new DtoGenreOption { Id = 2, Name = "Action" } },
                 GenresManuallyOverridden = false
@@ -119,6 +120,7 @@ public class PlaylistDetailGenreTests
             {
                 Id = 1,
                 Name = "Test-Playlist",
+                IsOwner = true,
                 SortMode = PlaylistSortModeValues.ByReleaseDate,
                 Genres = genres,
                 AllGenreIds = genres.Select(g => g.Id).ToArray(),

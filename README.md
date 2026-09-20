@@ -33,7 +33,10 @@ VideoWebPlayer ist eine selbst gehostete ASP.NET-Core-/Blazor-Anwendung für die
   (JPEG, PNG oder WebP, max. 5 MB) oder auf Knopfdruck („Neu erzeugen") automatisch als Collage
   aus bis zu fünf Titelbildern der Einträge erzeugt — mit Priorität Serien- vor Episoden-,
   Filmsammlungs- und Filmbildern; ein hochgeladenes Bild hat stets Vorrang, ohne Coverbild greift
-  ein Platzhalter.
+  ein Platzhalter. Administratoren können eigene Playlists als „öffentlich" kennzeichnen: Sie sind
+  dann für alle Anwender in einer eigenen Übersicht sichtbar und abspielbar, aber ausschließlich
+  lesend (nur der Besitzer darf sie ändern); nicht freigeschaltete Titel erscheinen abgeblendet, und
+  der Fortschritt eines Betrachters landet in dessen eigener Weiterschauen-Liste.
 - Einzelne Serien und Filmsammlungen fuer andere Anwender freischalten, ohne die gesamte Quelle freizugeben.
 - Browserbasierte Oberfläche für Bibliothek, Wiedergabe und Administration.
 - Automatische Erfassung und Übersicht von Schauspielern inklusive Such- und Filtermöglichkeiten.
@@ -75,7 +78,7 @@ Details stehen in [docs/SECRETS_MANAGEMENT.md](./docs/SECRETS_MANAGEMENT.md).
 - [Dokumentationsindex](./docs/INDEX.md)
 - [Hilfe zu Programmupdates](./docs/help/updates.md)
 - [Hilfe zum Gesehen-Kennzeichen](./docs/help/gesehen-status.md)
-- [Hilfe zu Playlists](./docs/help/playlists.md)
+- [Hilfe zu Playlists](./docs/help/playlists.md) (inkl. öffentliche Playlists)
 
 ## Entwicklung
 

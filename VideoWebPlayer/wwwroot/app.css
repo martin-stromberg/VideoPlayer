@@ -2530,6 +2530,22 @@ input[type="text"]:focus {
     color: rgba(255, 255, 255, 0.55);
 }
 
+/* Dezentes "Oeffentlich"-Kennzeichen einer eigenen Playlist (Entwicklungsschritt 11). */
+.playlist-public-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 0.72rem;
+    font-weight: 500;
+}
+
+.playlist-overview-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
 .playlist-card-dates {
     overflow: hidden;
     color: rgba(255, 255, 255, 0.55);

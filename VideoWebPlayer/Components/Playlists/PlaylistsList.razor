@@ -11,7 +11,10 @@
 <section class="media-section">
     <div class="admin-card-header">
         <h1>Playlists</h1>
-        <button class="btn btn-primary" id="create-playlist-button" @onclick="OpenCreateForm">Neue Playlist erstellen</button>
+        <div class="playlist-overview-actions">
+            <a class="btn btn-outline-primary" id="public-playlists-link" href="/playlists/public">Oeffentliche Playlists</a>
+            <button class="btn btn-primary" id="create-playlist-button" @onclick="OpenCreateForm">Neue Playlist erstellen</button>
+        </div>
     </div>
 
     @if (genreOptions.Count > 0)
@@ -50,50 +53,13 @@
     {
         @* Kachel-UI statt Tabelle (Kundenfeedback): Titel + Grafik pro Playlist, Sortierung als Symbol statt
            Text, "Erstellt"/"Aktualisiert" dezent dargestellt. Ein Klick auf die Kachel oeffnet die
-           Detailansicht; Bearbeiten/Loeschen gibt es nur noch dort (siehe PlaylistDetail.razor).
-
-           Die Kachel ist ein echter Link (".media-box-link", dasselbe etablierte Muster wie bei
-           MediaBox.razor fuer Filme/Serien) und kein unsichtbares Button-Overlay per z-index: ein
-           <a href> ist sofort - auch ohne bereits verbundenen Blazor-Server-Circuit - klickbar/tippbar
-           und bringt automatisch "touch-action: manipulation" mit, was den fruehreren Button-Ansatz auf
-           Touch-Geraeten anfaellig fuer ausbleibende Klicks machte (siehe Regressionstests in
-           PlaylistsE2ETests, die genau das jetzt gegen die tatsaechlich sichtbaren Elemente prüfen). *@
+           Detailansicht; Bearbeiten/Loeschen gibt es nur noch dort (siehe PlaylistDetail.razor). Das
+           Kachel-Markup liegt in PlaylistTile.razor (gemeinsam mit der Uebersicht der oeffentlichen
+           Playlists); hier zusaetzlich mit dezentem "Oeffentlich"-Kennzeichen (Entwicklungsschritt 11). *@
         <div class="media-grid playlist-grid">
             @foreach (var playlist in playlists)
             {
-                <a class="media-box-link playlist-row" href="@($"/playlists/{playlist.Id}")" data-playlist-name="@playlist.Name" title="@playlist.Name" aria-label="Playlist &quot;@(playlist.Name)&quot; oeffnen">
-                    <div class="media-box playlist-card">
-                        @* Platzhalter liegt immer darunter (billig: Farbverlauf + Symbol) und wird nur
-                           sichtbar, wenn kein Cover gesetzt ist oder das Bild nicht ladbar ist (onerror
-                           blendet das <img> aus) - vermeidet einen unnoetigen HTTP-Request, wenn ohnehin
-                           kein Cover existiert, ohne dedizierte JS-Interop fuer den Fallback zu brauchen. *@
-                        <PlaylistCoverPlaceholder PlaylistId="playlist.Id" CssClass="playlist-card-cover" />
-                        @if (playlist.CoverPictureId.HasValue)
-                        {
-                            <img class="playlist-card-cover playlist-card-cover-image" src="@GetCoverImageUrl(playlist)" alt="@playlist.Name"
-                                 onerror="this.style.display='none'" />
-                        }
-                        <div class="media-card-overlay">
-                            <div class="media-titles">
-                                <span class="media-title-text playlist-card-title">@playlist.Name</span>
-                                @if (!string.IsNullOrWhiteSpace(playlist.Description))
-                                {
-                                    <span class="media-subtitle-text">@TruncateDescription(playlist.Description)</span>
-                                }
-                                @if (playlist.Genres.Length > 0)
-                                {
-                                    <span class="playlist-genres-line playlist-card-genres">@string.Join(", ", playlist.Genres.Select(g => g.Name))</span>
-                                }
-                            </div>
-                            <div class="playlist-card-meta">
-                                <PlaylistSortModeIcon SortMode="playlist.SortMode" Size="14" />
-                                <span class="playlist-card-dates">
-                                    Erstellt @playlist.CreatedAt.ToLocalTime().ToString("d") &middot; Aktualisiert @playlist.UpdatedAt.ToLocalTime().ToString("d")
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </a>
+                <PlaylistTile Playlist="playlist" ShowPublicBadge="true" />
             }
         </div>
     }
@@ -105,9 +71,6 @@
 }
 
 @code {
-    private const int DescriptionTruncateLength = 100;
-    private const string DescriptionTruncateEllipsis = "…";
-
     private List<DtoPlaylist> playlists = new();
     private List<DtoGenreOption> genreOptions = new();
     private long? selectedGenreId;
@@ -162,26 +125,5 @@
     private void HandleCancel()
     {
         formState.Close();
-    }
-
-    /// <summary>
-    /// URL of a playlist's cover image, carrying the access token needed since a plain <c>&lt;img&gt;</c>
-    /// request cannot send an <c>Authorization</c> header (same convention as the poster URLs built
-    /// throughout the app, e.g. <c>TVShowDetails.razor</c>), and cache-busted via
-    /// <see cref="DtoPlaylist.CoverPictureId"/> (which changes on every upload/regeneration) so the browser
-    /// fetches the new image instead of reusing a stale cached response for the same <c>/cover</c> endpoint
-    /// - same reasoning as <c>PlaylistDetail.razor.CoverImageUrl</c>.
-    /// </summary>
-    private string GetCoverImageUrl(DtoPlaylist playlist)
-        => $"/api/playlists/{playlist.Id}/cover?access_token={Client.AuthorizationToken}&v={playlist.CoverPictureId}";
-
-    private static string TruncateDescription(string? description)
-    {
-        if (string.IsNullOrEmpty(description))
-            return string.Empty;
-
-        return description.Length > DescriptionTruncateLength
-            ? description[..DescriptionTruncateLength] + DescriptionTruncateEllipsis
-            : description;
     }
 }

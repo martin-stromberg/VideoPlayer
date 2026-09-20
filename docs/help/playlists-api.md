@@ -126,7 +126,7 @@ Fügt einen Medieninhalt (oder mehrere bei Cascade) zu einer Playlist hinzu.
     }
   ],
   "skippedDuplicateCount": 0,
-  "message": "3 Titel hinzugefuegt."
+  "message": "3 Titel hinzugefügt."
 }
 ```
 
@@ -762,8 +762,8 @@ Cover (hochgeladen oder generiert); das bisherige Bild wird gelöscht.
 
 **Serverseitige Prüfungen (in dieser Reihenfolge):**
 
-1. `file` fehlt oder ist leer → HTTP 400 `"Es wurde keine Datei ausgewaehlt."`
-2. `file.Length` größer als `Playlists:MaxCoverImageSizeBytes` → HTTP 400 `"Die Datei ist zu gross.
+1. `file` fehlt oder ist leer → HTTP 400 `"Es wurde keine Datei ausgewählt."`
+2. `file.Length` größer als `Playlists:MaxCoverImageSizeBytes` → HTTP 400 `"Die Datei ist zu groß.
    Maximal erlaubt sind {N} Bytes."` — diese Vorab-Prüfung erfolgt bereits an der gemeldeten Länge,
    bevor der Inhalt überhaupt in den Speicher gelesen wird
 3. Validierung des Dateiinhalts über `PlaylistCoverValidator` (siehe
@@ -846,7 +846,7 @@ die Antwort ebenfalls HTTP 200, jedoch mit `success: false` und ohne `pictureId`
 ```json
 {
   "success": false,
-  "message": "Keine Bilder verfuegbar.",
+  "message": "Keine Bilder verfügbar.",
   "pictureId": null
 }
 ```
@@ -879,7 +879,7 @@ Abmessungen gespeichert; `Playlist.CoverPictureIsUserUploaded` wird `false`.
 
 Liefert das aktuelle Coverbild der Playlist (hochgeladen oder generiert) als Bilddaten. **Lesender Zugriff
 (ab Schritt 11):** der Besitzer, oder jeder angemeldete Benutzer, solange die Playlist öffentlich ist (die
-Kacheln der öffentlichen Übersicht zeigen das Bild). Für eine private Playlist eines anderen Anwenders antwortet
+Kacheln der zusammengefassten Übersicht zeigen das Bild). Für eine private Playlist eines anderen Anwenders antwortet
 der Endpunkt mit `403` — ein generiertes Cover ist eine Collage der Inhalte der Playlist; nur das Ändern des
 Covers erfordert stets Besitz. Dieselbe Prüfung gilt, wenn das Coverbild über den allgemeinen Endpunkt
 `GET /api/pictures/{id}` abgerufen wird: Ein Playlist-Cover liefert er nur an Anwender, die die Playlist lesen
@@ -942,8 +942,8 @@ Aufruf wirkungslos erfolgreich.
 
 ### `GET /api/playlists/public` — Öffentliche Playlists abrufen
 
-Liefert alle Playlists, die als öffentlich gekennzeichnet sind, als `DtoPlaylist[]` (Quelle der getrennten
-Übersicht „Öffentliche Playlists"). Optional mit `?genreId={genreId}` auf ein Genre beschränkt (wie
+Liefert alle Playlists, die als öffentlich gekennzeichnet sind, als `DtoPlaylist[]` (Quelle der öffentlichen Playlists in der
+zusammengefassten Playlist-Übersicht). Optional mit `?genreId={genreId}` auf ein Genre beschränkt (wie
 `GET /api/playlists`). Enthält auch die eigenen öffentlichen Playlists des Anfragenden
 (`isOwner = true`); private Playlists — auch eigene — erscheinen nie. Die DTOs sind auf den Anfragenden
 zugeschnitten (siehe `DtoPlaylist`), enthalten keine Benutzer-ID und keine E-Mail-Adresse des Besitzers.
@@ -1133,9 +1133,9 @@ Response-Format von `POST /api/playlists/{id}/entries`.
 public class DtoPlaylistAddResult
 {
     public DtoPlaylistEntry? TopLevelEntry { get; set; }  // null, falls Top-Level-Eintrag ein Duplikat war
-    public DtoPlaylistEntry[] AddedEntries { get; set; }  // alle tatsaechlich neu angelegten Eintraege
-    public int SkippedDuplicateCount { get; set; }        // Anzahl uebersprungener Duplikate (Top-Level + Cascade)
-    public string Message { get; set; }                   // Zusammenfassung fuer die Anzeige in der UI
+    public DtoPlaylistEntry[] AddedEntries { get; set; }  // alle tatsächlich neu angelegten Einträge
+    public int SkippedDuplicateCount { get; set; }        // Anzahl übersprungener Duplikate (Top-Level + Cascade)
+    public string Message { get; set; }                   // Zusammenfassung für die Anzeige in der UI
 }
 ```
 
@@ -1146,11 +1146,11 @@ Response-Format von `GET /api/playlists/{id}/entries/paged`.
 ```csharp
 public class DtoPlaylistEntriesPagedResult
 {
-    public DtoPlaylistEntry[] Entries { get; set; }  // Eintraege der aktuellen Seite, sortiert gemaess SortMode
-    public int TotalCount { get; set; }              // Gesamtzahl aller (nicht verwaisten) Eintraege der Playlist
-    public bool HasNextPage { get; set; }            // true, wenn nach dieser Seite weitere Eintraege folgen
+    public DtoPlaylistEntry[] Entries { get; set; }  // Einträge der aktuellen Seite, sortiert gemäß SortMode
+    public int TotalCount { get; set; }              // Gesamtzahl aller (nicht verwaisten) Einträge der Playlist
+    public bool HasNextPage { get; set; }            // true, wenn nach dieser Seite weitere Einträge folgen
     public int PageNumber { get; set; }              // angeforderte (1-basierte) Seitennummer
-    public int PageSize { get; set; }                // tatsaechlich verwendete Seitengroesse
+    public int PageSize { get; set; }                // tatsächlich verwendete Seitengröße
 }
 ```
 
@@ -1174,7 +1174,7 @@ von `Manual` zu `ByReleaseDate` ohne Bestätigung angefragt wurde.
 ```csharp
 public class DtoChangeSortModeConflictResponse
 {
-    public bool IsLossOfDataConfirmationRequired { get; set; }  // stets true, wenn dieser Response-Typ zurueckgegeben wird
+    public bool IsLossOfDataConfirmationRequired { get; set; }  // stets true, wenn dieser Response-Typ zurückgegeben wird
 }
 ```
 
@@ -1187,7 +1187,7 @@ das Entfernen einen Weiterschauen-Eintrag mit Bezug zu dieser Playlist betreffen
 ```csharp
 public class DtoRemovePlaylistEntryConflictResponse
 {
-    public bool IsContinueWatchingConfirmationRequired { get; set; }  // stets true, wenn dieser Response-Typ zurueckgegeben wird
+    public bool IsContinueWatchingConfirmationRequired { get; set; }  // stets true, wenn dieser Response-Typ zurückgegeben wird
 }
 ```
 
@@ -1200,7 +1200,7 @@ bestätigt wurde.
 ```csharp
 public class DtoRegeneratePlaylistCoverConflictResponse
 {
-    public bool IsUploadedCoverReplacementConfirmationRequired { get; set; }  // stets true, wenn dieser Response-Typ zurueckgegeben wird
+    public bool IsUploadedCoverReplacementConfirmationRequired { get; set; }  // stets true, wenn dieser Response-Typ zurückgegeben wird
 }
 ```
 
@@ -1252,7 +1252,7 @@ public class DtoPlaylistPlaybackStart
 {
     public long PlaylistId { get; set; }
     public string PlaylistName { get; set; }
-    public int TotalCount { get; set; }            // Gesamtzahl aller (nicht verwaisten) Eintraege der Playlist
+    public int TotalCount { get; set; }            // Gesamtzahl aller (nicht verwaisten) Einträge der Playlist
     public int CurrentPosition { get; set; }        // 1-basierte Position des Starttitels in der Sortierreihenfolge
     public long CurrentEntryId { get; set; }
     public DtoPlaylistEntry CurrentEntry { get; set; }
@@ -1271,7 +1271,7 @@ bei HTTP 200.
 public class DtoPlaylistNavigationResult
 {
     public DtoPlaylistEntry Entry { get; set; }
-    public int Position { get; set; }  // 1-basierte Position von Entry in der aktuell gueltigen Sortierreihenfolge
+    public int Position { get; set; }  // 1-basierte Position von Entry in der aktuell gültigen Sortierreihenfolge
 }
 ```
 
@@ -1289,8 +1289,8 @@ Response-Format der drei ändernden Cover-Endpunkte `POST /api/playlists/{id}/co
 ```csharp
 public class DtoPlaylistCoverResult
 {
-    public bool Success { get; set; }       // false nur bei Regenerierung ohne verfuegbare Quellbilder
-    public string? Message { get; set; }    // fuer die Anzeige aufbereiteter Ergebnistext
+    public bool Success { get; set; }       // false nur bei Regenerierung ohne verfügbare Quellbilder
+    public string? Message { get; set; }    // für die Anzeige aufbereiteter Ergebnistext
     public long? PictureId { get; set; }    // ID des neuen Cover-Bildes; null bei Misserfolg oder nach Delete
 }
 ```
@@ -1342,7 +1342,7 @@ schlägt dabei nie fehl; die Antwort bleibt `HTTP 200 OK`.
 - Benutzer fügt Season 1 hinzu
 - Resultat: Season 1 und Episode 1–4 werden hinzugefügt (`addedEntries`), Episode 5 wird
   übersprungen (`skippedDuplicateCount = 1`)
-- `message`: `"5 Titel hinzugefuegt, 1 bereits vorhanden und uebersprungen."`
+- `message`: `"5 Titel hinzugefügt, 1 bereits vorhanden und übersprungen."`
 
 ### Verwaiste Einträge
 

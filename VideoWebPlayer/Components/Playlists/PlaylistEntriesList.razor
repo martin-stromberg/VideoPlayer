@@ -32,10 +32,10 @@
     @if (allEntries.Count == 0 && !hasMorePages)
     {
         <div class="admin-empty-state">
-            <strong>Keine Eintraege vorhanden</strong>
+            <strong>Keine Einträge vorhanden</strong>
             @if (!IsReadOnly)
             {
-                <span>Fuegen Sie einen Medieninhalt hinzu.</span>
+                <span>Fügen Sie einen Medieninhalt hinzu.</span>
             }
         </div>
     }
@@ -43,7 +43,7 @@
     {
         @if (IsReorderable)
         {
-            <p class="text-muted playlist-entries-draganddrop-hint">Tipp: Ziehen Sie einen Eintrag an eine neue Position, oder nutzen Sie die Schaltflaechen "An Anfang"/"An Ende".</p>
+            <p class="text-muted playlist-entries-draganddrop-hint">Tipp: Ziehen Sie einen Eintrag an eine neue Position, oder nutzen Sie die Schaltflächen "An Anfang"/"An Ende".</p>
         }
         @* Kacheln im Stil der Episoden-Kacheln der Serien-Detailansicht (TVShowDetails.episode-box) statt der
            bisherigen Tabelle (Kundenfeedback: "Die aktuelle Scrollbox wirkt laienhaft"). Nur Filme und Episoden
@@ -77,7 +77,7 @@
                                 {
                                     <div class="playlist-entry-parent">@entry.ParentMediaTitle</div>
                                 }
-                                <div class="playlist-entry-meta-muted">Hinzugefuegt: @entry.AddedAt.ToLocalTime()</div>
+                                <div class="playlist-entry-meta-muted">Hinzugefügt: @entry.AddedAt.ToLocalTime()</div>
                                 <div class="playlist-entry-actions">
                                     @if (IsPlayableEntry(entry))
                                     {
@@ -228,7 +228,7 @@
         {
             Logger.LogWarning(ex, "Fehler beim Laden der Eintraege von Playlist {PlaylistId}", PlaylistId);
             entriesStatusIsError = true;
-            entriesStatusMessage = $"Fehler beim Laden der Eintraege: {ex.Message}";
+            entriesStatusMessage = $"Fehler beim Laden der Einträge: {ex.Message}";
 
             // hasMorePages stays true (unknown) with an empty list: the sentinel would otherwise fire
             // straight away and re-request the failed page - see loadMoreFailed.
@@ -351,7 +351,7 @@
         {
             Logger.LogWarning(ex, "Fehler beim Nachladen der Eintraege von Playlist {PlaylistId}", PlaylistId);
             entriesStatusIsError = true;
-            entriesStatusMessage = $"Fehler beim Nachladen der Eintraege: {ex.Message}";
+            entriesStatusMessage = $"Fehler beim Nachladen der Einträge: {ex.Message}";
             loadMoreFailed = true;
             isLoadingNextPage = false;
             await InvokeAsync(StateHasChanged);
@@ -415,7 +415,7 @@
             entriesStatusMessage = result.Message;
             await LoadInitialPageAsync();
             newEntryMediaId = 0;
-        }, "Fehler beim Hinzufuegen", ex =>
+        }, "Fehler beim Hinzufügen", ex =>
         {
             if (ex is HttpRequestException { StatusCode: System.Net.HttpStatusCode.NotFound })
             {
@@ -608,7 +608,7 @@
             // was violated, so this is surfaced as an error instead of silently defaulting to 0 and
             // moving the entry to a position that was never actually requested.
             entriesStatusIsError = true;
-            entriesStatusMessage = "Fehler beim Umordnen: Zielposition hat keine gueltige Sortierreihenfolge.";
+            entriesStatusMessage = "Fehler beim Umordnen: Zielposition hat keine gültige Sortierreihenfolge.";
             return;
         }
 

@@ -85,7 +85,7 @@ public class PlaylistDetailCoverTests
         var playlistClientMock = CreatePlaylistClientMock(coverPictureId: null);
         playlistClientMock
             .Setup(c => c.RegeneratePlaylistCoverAsync(1, false))
-            .ReturnsAsync(new DtoPlaylistCoverResult { Success = false, Message = "Keine Bilder verfuegbar." });
+            .ReturnsAsync(new DtoPlaylistCoverResult { Success = false, Message = "Keine Bilder verfügbar." });
 
         using var ctx = CreateTestContext(playlistClientMock);
         ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("/playlists/1");
@@ -94,7 +94,7 @@ public class PlaylistDetailCoverTests
         await cut.InvokeAsync(() => cut.Find("#playlist-detail-regenerate-cover-button").Click());
 
         var status = Assert.Single(cut.FindAll("#playlist-cover-status"));
-        Assert.Equal("Keine Bilder verfuegbar.", status.TextContent);
+        Assert.Equal("Keine Bilder verfügbar.", status.TextContent);
     }
 
     /// <summary>

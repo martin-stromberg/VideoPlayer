@@ -113,7 +113,7 @@ public sealed class MediaSourceSwitchE2ETests : IAsyncLifetime
     public async Task User_Can_Switch_Source_From_Menu_And_Sees_Only_Selected_Source_Titles()
     {
         if (_skipBrowser)
-            Assert.Fail($"Playwright-/Browser-Infrastruktur ist nicht verfuegbar: {_browserInfrastructureError}");
+            Assert.Fail($"Playwright-/Browser-Infrastruktur ist nicht verfügbar: {_browserInfrastructureError}");
 
         await LoginAsync();
         await _page.GotoAsync($"{_serverUrl}/");

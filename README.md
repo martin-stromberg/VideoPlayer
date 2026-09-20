@@ -37,7 +37,7 @@ VideoWebPlayer ist eine selbst gehostete ASP.NET-Core-/Blazor-Anwendung für die
   dann für alle Anwender in einer eigenen Übersicht sichtbar und abspielbar, aber ausschließlich
   lesend (nur der Besitzer darf sie ändern); nicht freigeschaltete Titel erscheinen abgeblendet, und
   der Fortschritt eines Betrachters landet in dessen eigener Weiterschauen-Liste.
-- Einzelne Serien und Filmsammlungen fuer andere Anwender freischalten, ohne die gesamte Quelle freizugeben.
+- Einzelne Serien und Filmsammlungen für andere Anwender freischalten, ohne die gesamte Quelle freizugeben.
 - Browserbasierte Oberfläche für Bibliothek, Wiedergabe und Administration.
 - Automatische Erfassung und Übersicht von Schauspielern inklusive Such- und Filtermöglichkeiten.
 - Backups, strukturierte Programmupdates, Benutzer, Genres und Sicherheitseinstellungen verwalten.

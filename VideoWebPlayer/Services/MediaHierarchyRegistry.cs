@@ -232,7 +232,7 @@ internal static class MediaHierarchyRegistry
     public static MediaType ParseMediaType(string mediaType)
     {
         if (!TryParseKnownMediaType(mediaType, out var parsed))
-            throw new InvalidOperationException("Ungueltiger Medientyp.");
+            throw new InvalidOperationException("Ungültiger Medientyp.");
 
         return parsed;
     }

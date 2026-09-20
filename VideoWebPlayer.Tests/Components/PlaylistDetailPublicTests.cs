@@ -31,17 +31,17 @@ public class PlaylistDetailPublicTests
         new object[] { "Bild hochladen", "#playlist-detail-upload-cover-button" },
         new object[] { "Cover neu erzeugen", "#playlist-detail-regenerate-cover-button" },
         new object[] { "Bearbeiten", ".playlist-detail-edit-button" },
-        new object[] { "Loeschen", ".playlist-detail-delete-button" },
-        new object[] { "Oeffentlich-Umschalter", "#playlist-detail-toggle-public-button" },
+        new object[] { "Löschen", ".playlist-detail-delete-button" },
+        new object[] { "Öffentlich-Umschalter", "#playlist-detail-toggle-public-button" },
         new object[] { "Sortiermodus-Wechsel", ".playlist-sortmode-toggle-button" },
         new object[] { "Genres bearbeiten", "#playlist-detail-edit-genres-button" },
-        new object[] { "Genres zuruecksetzen", "#playlist-detail-reset-genres-button" },
+        new object[] { "Genres zurücksetzen", "#playlist-detail-reset-genres-button" },
         new object[] { "Eintrag entfernen", ".playlist-entry-remove-button" },
         new object[] { "An Anfang", ".playlist-entry-move-start-button" },
         new object[] { "An Ende", ".playlist-entry-move-end-button" },
         new object[] { "Drag & Drop", ".playlist-entry-row[draggable=true]" },
         new object[] { "Drag&Drop-Hinweis", ".playlist-entries-draganddrop-hint" },
-        new object[] { "Suchfeld zum Hinzufuegen", ".admin-actions" },
+        new object[] { "Suchfeld zum Hinzufügen", ".admin-actions" },
     };
 
     [Theory]

@@ -342,7 +342,7 @@ public class PlaylistsController : ApiBaseController
             var resolvedPageSize = pageSize ?? _playlistSettings.DefaultPageSize;
 
             if (pageNumber < 1)
-                return BadRequest("pageNumber muss groesser oder gleich 1 sein.");
+                return BadRequest("pageNumber muss größer oder gleich 1 sein.");
 
             if (resolvedPageSize < 1 || resolvedPageSize > _playlistSettings.MaxPageSize)
                 return BadRequest($"pageSize muss zwischen 1 und {_playlistSettings.MaxPageSize} liegen.");
@@ -595,10 +595,10 @@ public class PlaylistsController : ApiBaseController
             CheckLogedIn();
 
             if (file is null || file.Length == 0)
-                return BadRequest("Es wurde keine Datei ausgewaehlt.");
+                return BadRequest("Es wurde keine Datei ausgewählt.");
 
             if (file.Length > _playlistSettings.MaxCoverImageSizeBytes)
-                return BadRequest($"Die Datei ist zu gross. Maximal erlaubt sind {_playlistSettings.MaxCoverImageSizeBytes} Bytes.");
+                return BadRequest($"Die Datei ist zu groß. Maximal erlaubt sind {_playlistSettings.MaxCoverImageSizeBytes} Bytes.");
 
             byte[] fileBytes;
             await using (var stream = file.OpenReadStream())
@@ -634,7 +634,7 @@ public class PlaylistsController : ApiBaseController
             CheckLogedIn();
             var pictureId = await _playlistService.GeneratePlaylistCoverAsync(id, CurrentUser!.Id, confirmReplaceUploadedCover, HttpContext.RequestAborted);
             return pictureId is null
-                ? Ok(new DtoPlaylistCoverResult { Success = false, Message = "Keine Bilder verfuegbar." })
+                ? Ok(new DtoPlaylistCoverResult { Success = false, Message = "Keine Bilder verfügbar." })
                 : Ok(new DtoPlaylistCoverResult { Success = true, Message = "Cover neu erzeugt.", PictureId = pictureId });
         }, $"Neuerzeugen des Covers von Playlist {id}");
     }

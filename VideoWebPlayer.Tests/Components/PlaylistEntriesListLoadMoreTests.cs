@@ -36,7 +36,7 @@ public class PlaylistEntriesListLoadMoreTests
 
         await cut.InvokeAsync(() => cut.Instance.OnBottomVisible());
 
-        Assert.Contains("Fehler beim Nachladen der Eintraege", cut.Find("#playlist-entries-status").TextContent);
+        Assert.Contains("Fehler beim Nachladen der Einträge", cut.Find("#playlist-entries-status").TextContent);
         Assert.Single(cut.FindAll("#playlist-entries-retry-button"));
         Assert.Equal(1, ObserveBottomCalls(ctx));
         VerifyPageRequests(clientMock, 2, Times.Once());
@@ -101,7 +101,7 @@ public class PlaylistEntriesListLoadMoreTests
         RegisterServices(ctx, clientMock);
 
         var cut = ctx.Render<PlaylistEntriesList>(p => p.Add(x => x.PlaylistId, 1).Add(x => x.IsManualMode, false));
-        Assert.Contains("Fehler beim Laden der Eintraege", cut.Find("#playlist-entries-status").TextContent);
+        Assert.Contains("Fehler beim Laden der Einträge", cut.Find("#playlist-entries-status").TextContent);
         Assert.Single(cut.FindAll("#playlist-entries-retry-button"));
 
         await cut.InvokeAsync(() => cut.Instance.OnBottomVisible());

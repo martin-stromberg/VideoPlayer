@@ -58,11 +58,11 @@ public class PlaylistServiceTests_Update : PlaylistServiceTestBase
     public async Task UpdatePlaylist_SameNameAsBefore_DoesNotThrow()
     {
         var ct = TestContext.Current.CancellationToken;
-        var created = await _service.CreatePlaylistAsync(_testUserId, "Unveraendert", "Alt", null, ct);
+        var created = await _service.CreatePlaylistAsync(_testUserId, "Unverändert", "Alt", null, ct);
 
-        var updated = await _service.UpdatePlaylistAsync(created.Id, _testUserId, "Unveraendert", "Neu", null, ct);
+        var updated = await _service.UpdatePlaylistAsync(created.Id, _testUserId, "Unverändert", "Neu", null, ct);
 
-        Assert.Equal("Unveraendert", updated.Name);
+        Assert.Equal("Unverändert", updated.Name);
         Assert.Equal("Neu", updated.Description);
     }
 

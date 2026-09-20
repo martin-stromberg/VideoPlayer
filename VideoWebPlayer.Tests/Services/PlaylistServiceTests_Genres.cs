@@ -24,7 +24,7 @@ public class PlaylistServiceTests_Genres : PlaylistServiceTestBase
         var playlist = await _service.CreatePlaylistAsync(_testUserId, "Filme", null, null, ct);
 
         var movieA = await CreateMovieWithGenresAsync("Film A", "Action", "Drama");
-        var movieB = await CreateMovieWithGenresAsync("Film B", "Action", "Komoedie");
+        var movieB = await CreateMovieWithGenresAsync("Film B", "Action", "Komödie");
 
         await _service.AddMediaToPlaylistAsync(playlist.Id, _testUserId, MediaTypeValues.Movie, movieA, ct);
         await _service.AddMediaToPlaylistAsync(playlist.Id, _testUserId, MediaTypeValues.Movie, movieB, ct);
@@ -36,7 +36,7 @@ public class PlaylistServiceTests_Genres : PlaylistServiceTestBase
         Assert.Equal("Action", result!.Genres[0].Name);
         Assert.Equal(3, result.Genres.Length);
         Assert.Contains(result.Genres, g => g.Name == "Drama");
-        Assert.Contains(result.Genres, g => g.Name == "Komoedie");
+        Assert.Contains(result.Genres, g => g.Name == "Komödie");
         Assert.Equal(3, result.AllGenreIds.Length);
         Assert.False(result.GenresManuallyOverridden);
     }

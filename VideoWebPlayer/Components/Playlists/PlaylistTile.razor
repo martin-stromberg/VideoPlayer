@@ -1,18 +1,26 @@
 @using VideoWebPlayer.Client.Models
 @inject VideoWebPlayer.Client.VideoWebPlayerClient Client
 
-@* Kachel einer Playlist, gemeinsam genutzt von der Uebersicht der eigenen Playlists (PlaylistsList.razor)
-   und der Uebersicht der oeffentlichen Playlists (PublicPlaylistsList.razor, Entwicklungsschritt 11) -
-   ausgelagert, damit beide Uebersichten dieselbe Kachel-UI zeigen, ohne das Markup zu duplizieren.
+@* Kachel einer Playlist in der zusammengefassten Playlist-Übersicht (PlaylistsList.razor): eigene Playlists
+   (mit dezentem "Öffentlich"-Kennzeichen, falls öffentlich) und von anderen Benutzern freigegebene Playlists
+   (mit Fremd-Symbol in der rechten oberen Ecke, IsForeign) nutzen dieselbe Kachel-UI.
 
-   Die Kachel ist ein echter Link (".media-box-link", dasselbe etablierte Muster wie bei MediaBox.razor fuer
+   Die Kachel ist ein echter Link (".media-box-link", dasselbe etablierte Muster wie bei MediaBox.razor für
    Filme/Serien) und kein unsichtbares Button-Overlay per z-index: ein <a href> ist sofort - auch ohne
    bereits verbundenen Blazor-Server-Circuit - klickbar/tippbar (siehe Regressionstests in PlaylistsE2ETests).
 
-   Datenschutz: gezeigt wird nur, was zum Ansehen/Abspielen noetig ist (Name, Beschreibung, Genres, Cover,
+   Datenschutz: gezeigt wird nur, was zum Ansehen/Abspielen nötig ist (Name, Beschreibung, Genres, Cover,
    Sortiersymbol, Daten) - niemals Angaben zum Besitzer. *@
-<a class="media-box-link playlist-row" href="@($"/playlists/{Playlist.Id}")" data-playlist-name="@Playlist.Name" title="@Playlist.Name" aria-label="Playlist &quot;@(Playlist.Name)&quot; oeffnen">
+<a class="media-box-link playlist-row" href="@($"/playlists/{Playlist.Id}")" data-playlist-name="@Playlist.Name" data-playlist-foreign="@(IsForeign ? "true" : "false")" title="@Playlist.Name" aria-label="Playlist &quot;@(Playlist.Name)&quot; öffnen">
     <div class="media-box playlist-card">
+        @if (IsForeign)
+        {
+            @* Fremd-Symbol (Kundenfeedback): kennzeichnet eine von einem anderen Benutzer freigegebene Playlist in der
+               rechten oberen Ecke der Kachel. Bewusst ohne Angaben zum Besitzer (Datenschutz). *@
+            <span class="playlist-foreign-badge" role="img" title="Von einem anderen Benutzer freigegeben" aria-label="Von einem anderen Benutzer freigegeben">
+                <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+            </span>
+        }
         @* Platzhalter liegt immer darunter (billig: Farbverlauf + Symbol) und wird nur sichtbar, wenn kein
            Cover gesetzt ist oder das Bild nicht ladbar ist (onerror blendet das <img> aus) - vermeidet einen
            unnoetigen HTTP-Request, wenn ohnehin kein Cover existiert, ohne dedizierte JS-Interop. *@
@@ -36,12 +44,12 @@
             </div>
             <div class="playlist-card-meta">
                 <PlaylistSortModeIcon SortMode="Playlist.SortMode" Size="14" />
-                @if (ShowPublicBadge && Playlist.IsPublic)
+                @if (ShowPublicBadge && !IsForeign && Playlist.IsPublic)
                 {
                     @* Dezentes Kennzeichen (Entwicklungsschritt 11): diese eigene Playlist ist oeffentlich. *@
-                    <span class="playlist-public-badge" title="Oeffentlich - fuer alle Anwender sichtbar und abspielbar (nur lesend)">
+                    <span class="playlist-public-badge" title="Öffentlich - für alle Anwender sichtbar und abspielbar (nur lesend)">
                         <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M3 12h18" /><path d="M12 3a14 14 0 0 1 0 18" /><path d="M12 3a14 14 0 0 0 0 18" /></svg>
-                        <span>Oeffentlich</span>
+                        <span>Öffentlich</span>
                     </span>
                 }
                 <span class="playlist-card-dates">
@@ -60,12 +68,19 @@
     public DtoPlaylist Playlist { get; set; } = default!;
 
     /// <summary>
-    /// Whether an "Oeffentlich" badge is shown for a public playlist. Wanted in the overview of the user's
-    /// own playlists (so they can tell which of them are public), pointless in the public overview where every
-    /// tile is public anyway.
+    /// Whether an "Öffentlich" badge is shown for a public playlist, so the user can tell which of their
+    /// own playlists are public.
     /// </summary>
     [Parameter]
     public bool ShowPublicBadge { get; set; }
+
+    /// <summary>
+    /// Whether the playlist belongs to another user (a public playlist shared by somebody else). Foreign
+    /// tiles carry a symbol in the top right corner and never the "Öffentlich" badge (which marks the
+    /// user's own public playlists).
+    /// </summary>
+    [Parameter]
+    public bool IsForeign { get; set; }
 
     /// <summary>
     /// URL of the playlist's cover image, carrying the access token needed since a plain <c>&lt;img&gt;</c>

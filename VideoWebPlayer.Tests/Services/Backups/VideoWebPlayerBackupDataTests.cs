@@ -296,7 +296,7 @@ public sealed class VideoWebPlayerBackupDataTests
         db.Playlists.Add(new Playlist
         {
             UserId = userId,
-            Name = "Oeffentliche Playlist",
+            Name = "Öffentliche Playlist",
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
             IsPublic = true

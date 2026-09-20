@@ -167,7 +167,7 @@ internal sealed class PlaylistEntryReorderService
             .Where(e => e.PlaylistId == playlist.Id && entryIds.Contains(e.Id))
             .ToListAsync(cancellationToken);
         if (entries.Count != reorderOperations.Count)
-            throw new KeyNotFoundException("Ein oder mehrere Playlist-Eintraege wurden nicht gefunden.");
+            throw new KeyNotFoundException("Ein oder mehrere Playlist-Einträge wurden nicht gefunden.");
 
         foreach (var operation in reorderOperations)
         {
@@ -205,7 +205,7 @@ internal sealed class PlaylistEntryReorderService
             ?? throw new KeyNotFoundException("Playlist-Eintrag wurde nicht gefunden.");
 
         if (entry.SortOrder is not { } currentSortOrder)
-            throw new InvalidOperationException("Eintrag hat keine gueltige Sortierreihenfolge.");
+            throw new InvalidOperationException("Eintrag hat keine gültige Sortierreihenfolge.");
 
         await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
 

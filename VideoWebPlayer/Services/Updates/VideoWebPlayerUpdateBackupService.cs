@@ -16,6 +16,10 @@ public sealed class VideoWebPlayerUpdateBackupService : IUpdateBackupService
     /// <summary>
     /// Creates a new update backup adapter.
     /// </summary>
+    /// <param name="backupService">The backup service creating the backup.</param>
+    /// <param name="dataSource">The backup data source.</param>
+    /// <param name="historyService">The backup operation history service.</param>
+    /// <param name="logger">The logger.</param>
     public VideoWebPlayerUpdateBackupService(
         IBackupService backupService,
         IBackupDataSource dataSource,
@@ -60,7 +64,7 @@ public sealed class VideoWebPlayerUpdateBackupService : IUpdateBackupService
                 return UpdateBackupResult.Failure(ToMessage(result));
 
             if (result.Descriptor is null)
-                return UpdateBackupResult.Failure("Backup wurde erstellt, aber ohne Dateiinformation zurueckgegeben.");
+                return UpdateBackupResult.Failure("Backup wurde erstellt, aber ohne Dateiinformation zurückgegeben.");
 
             return UpdateBackupResult.Success(result.Descriptor.Path, result.Message);
         }

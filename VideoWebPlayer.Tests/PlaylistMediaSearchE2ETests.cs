@@ -31,7 +31,7 @@ public sealed class PlaylistMediaSearchE2ETests : PlaylistsE2ETestBase
 
         await LoginAsync(UserAEmail);
         await GrantMediaSourceAccessForUserAsync(UserAEmail);
-        var row = await CreatePlaylistViaUiAsync("Playlist-Fuer-Staffel-Suche");
+        var row = await CreatePlaylistViaUiAsync("Playlist-Für-Staffel-Suche");
         await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
 
@@ -56,7 +56,7 @@ public sealed class PlaylistMediaSearchE2ETests : PlaylistsE2ETestBase
 
         await LoginAsync(UserAEmail);
         await GrantMediaSourceAccessForUserAsync(UserAEmail);
-        var row = await CreatePlaylistViaUiAsync("Playlist-Fuer-Episoden-Suche");
+        var row = await CreatePlaylistViaUiAsync("Playlist-Für-Episoden-Suche");
         await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
 
@@ -82,13 +82,13 @@ public sealed class PlaylistMediaSearchE2ETests : PlaylistsE2ETestBase
 
         await LoginAsync(UserAEmail);
         await GrantMediaSourceAccessForUserAsync(UserAEmail);
-        var row = await CreatePlaylistViaUiAsync("Playlist-Fuer-Sammlung-Suche");
+        var row = await CreatePlaylistViaUiAsync("Playlist-Für-Sammlung-Suche");
         await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
 
         await SelectSearchResultAsync("Gesuchte Filmsammlung", "MovieCollection", collectionId);
 
-        await Expect(Page.Locator("#playlist-entries-status")).ToContainTextAsync("1 Titel hinzugefuegt.");
+        await Expect(Page.Locator("#playlist-entries-status")).ToContainTextAsync("1 Titel hinzugefügt.");
         await Expect(Page.Locator(".playlist-entry-row")).ToHaveCountAsync(0);
         await Expect(Page.Locator($".playlist-entry-row[data-media-type='MovieCollection'][data-media-id='{collectionId}']")).ToHaveCountAsync(0);
     }
@@ -102,7 +102,7 @@ public sealed class PlaylistMediaSearchE2ETests : PlaylistsE2ETestBase
         await SeedMovieAsync("Nicht Zugreifbarer Film");
 
         await LoginAsync(UserAEmail);
-        var row = await CreatePlaylistViaUiAsync("Playlist-Fuer-Zugriffsschutz-Suche");
+        var row = await CreatePlaylistViaUiAsync("Playlist-Für-Zugriffsschutz-Suche");
         await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
 
@@ -120,7 +120,7 @@ public sealed class PlaylistMediaSearchE2ETests : PlaylistsE2ETestBase
             return;
 
         await LoginAsync(UserAEmail);
-        var row = await CreatePlaylistViaUiAsync("Playlist-Fuer-Leere-Suche");
+        var row = await CreatePlaylistViaUiAsync("Playlist-Für-Leere-Suche");
         await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
 
@@ -140,7 +140,7 @@ public sealed class PlaylistMediaSearchE2ETests : PlaylistsE2ETestBase
 
         await LoginAsync(UserAEmail);
         await GrantMediaSourceAccessForUserAsync(UserAEmail);
-        var row = await CreatePlaylistViaUiAsync("Playlist-Fuer-GrossKleinschreibung-Suche");
+        var row = await CreatePlaylistViaUiAsync("Playlist-Für-GrossKleinschreibung-Suche");
         await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
 
@@ -162,7 +162,7 @@ public sealed class PlaylistMediaSearchE2ETests : PlaylistsE2ETestBase
 
         await LoginAsync(UserAEmail);
         await GrantMediaSourceAccessForUserAsync(UserAEmail);
-        var row = await CreatePlaylistViaUiAsync("Playlist-Fuer-Fuenf-Typen-Suche");
+        var row = await CreatePlaylistViaUiAsync("Playlist-Für-Fünf-Typen-Suche");
         await row.ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
 

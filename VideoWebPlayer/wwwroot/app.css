@@ -2512,10 +2512,20 @@ input[type="text"]:focus {
 .playlist-card-meta {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.4rem;
     margin-top: 0.35rem;
     font-weight: 500;
     opacity: 0.85;
+}
+
+/* Titel-/Metabereich untereinander statt nebeneinander: ".media-card-overlay" ist eine Flex-Zeile (fuer die
+   schmalen Film-/Serien-Kacheln), sodass die breite Metazeile (Sortiersymbol, Oeffentlich-Kennzeichen,
+   Datumsangaben) den Titel auf wenige Zeichen gequetscht hat. */
+.playlist-card .media-card-overlay {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-end;
 }
 
 .playlist-sortmode-icon {
@@ -2543,10 +2553,97 @@ input[type="text"]:focus {
 .playlist-overview-actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5rem;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+/* Filterleiste der zusammengefassten Playlist-Uebersicht (Alle / Eigene / Oeffentliche): drei aneinander-
+   haengende Symbolbuttons. Der aktive Filter ist deutlich hervorgehoben (gefuellter Akzenthintergrund,
+   weisses Symbol), die uebrigen sind gedaempft auf dunklem Grund. */
+.playlist-filter-group {
+    display: inline-flex;
+    align-items: stretch;
+}
+
+.playlist-filter-button {
+    position: relative;
+    width: 46px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    color: var(--vp-primary-soft);
+    background: var(--vp-surface);
+    border: 1px solid var(--vp-border-strong);
+    border-radius: 0;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.playlist-filter-button + .playlist-filter-button {
+    margin-left: -1px;
+}
+
+.playlist-filter-button:first-child {
+    border-radius: var(--vp-radius) 0 0 var(--vp-radius);
+}
+
+.playlist-filter-button:last-child {
+    border-radius: 0 var(--vp-radius) var(--vp-radius) 0;
+}
+
+.playlist-filter-button:hover {
+    background: var(--vp-surface-bright);
+}
+
+.playlist-filter-button.active,
+.playlist-filter-button.active:hover {
+    z-index: 1;
+    color: #fff;
+    background: var(--vp-primary);
+    border-color: var(--vp-primary);
+    box-shadow: 0 0 0 1px var(--vp-primary), 0 2px 10px rgba(229, 9, 20, 0.45);
+}
+
+.playlist-filter-button:focus-visible {
+    z-index: 2;
+    outline: none;
+    box-shadow: var(--vp-focus);
+}
+
+/* "Neue Playlist" als reiner Symbolbutton (Kundenfeedback: Text durch Symbol ersetzen). */
+.playlist-create-icon-button {
+    width: 46px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+/* Fremd-Symbol (rechte obere Ecke der Kachel): kennzeichnet eine von einem anderen Benutzer freigegebene
+   Playlist. Liegt ueber dem Cover, bleibt aber auf hellen Bildern durch den dunklen Grund lesbar. */
+.playlist-foreign-badge {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    z-index: 2;
+    width: 30px;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    background: rgba(18, 18, 18, 0.78);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 999px;
+    backdrop-filter: blur(8px);
+    pointer-events: none;
 }
 
 .playlist-card-dates {
+    min-width: 0;
     overflow: hidden;
     color: rgba(255, 255, 255, 0.55);
     font-size: 0.72rem;

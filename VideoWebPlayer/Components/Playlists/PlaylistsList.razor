@@ -1,25 +1,72 @@
 @page "/playlists"
+@page "/playlists/public"
 @using Microsoft.AspNetCore.Components.Authorization
 @using VideoWebPlayer.Client.Models
 @inject VideoWebPlayer.Client.VideoWebPlayerClient Client
 @inject VideoWebPlayer.Client.IPlaylistApiClient PlaylistClient
 @inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager NavigationManager
 @rendermode InteractiveServer
+@implements IDisposable
 
 <PageTitle>Playlists</PageTitle>
 
+@* Zusammengefasste Playlist-Übersicht (Kundenfeedback zu Entwicklungsschritt 11): eigene Playlists zuerst, danach
+   die von anderen Benutzern freigegebenen (fremde öffentliche) am Ende. Eine eigene öffentliche Playlist erscheint
+   nur einmal (als eigene, mit dem dezenten "Öffentlich"-Kennzeichen), nie zusätzlich als fremde.
+
+   Filterleiste (Symbolbuttons): "Alle" = eigene + fremde öffentliche, "Eigene" = nur eigene (inkl. eigener öffentlicher),
+   "Öffentliche" = alle öffentlichen (fremde UND eigene öffentliche). Der Genre-Filter wird serverseitig auf beide
+   Abfragen angewendet und ist mit der Filterleiste kombinierbar.
+
+   Die frühere eigene Route "/playlists/public" bleibt als Alias erhalten (bestehende Lesezeichen) und zeigt diese
+   Übersicht mit vorgewähltem Filter "Öffentliche".
+
+   Fremde Kacheln sind strikt nur lesend (Klick öffnet die Detailansicht im Lesemodus) und zeigen keine Angaben
+   zum Besitzer. *@
 <section class="media-section">
     <div class="admin-card-header">
         <h1>Playlists</h1>
         <div class="playlist-overview-actions">
-            <a class="btn btn-outline-primary" id="public-playlists-link" href="/playlists/public">Oeffentliche Playlists</a>
-            <button class="btn btn-primary" id="create-playlist-button" @onclick="OpenCreateForm">Neue Playlist erstellen</button>
+            <div class="playlist-filter-group" id="playlist-filter-group" role="group" aria-label="Playlists filtern">
+                @foreach (var option in FilterOptions)
+                {
+                    var isActive = filter == option.Filter;
+                    <button type="button"
+                            class="playlist-filter-button@(isActive ? " active" : string.Empty)"
+                            id="@option.Id"
+                            data-filter="@option.Value"
+                            title="@option.Label"
+                            aria-label="@option.Label"
+                            aria-pressed="@(isActive ? "true" : "false")"
+                            @onclick="() => SelectFilter(option.Filter)">
+                        @switch (option.Filter)
+                        {
+                            case PlaylistOverviewFilter.Own:
+                                @* Einzelne Person: eigene Playlists *@
+                                <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></svg>
+                                break;
+                            case PlaylistOverviewFilter.Public:
+                                @* Globus: öffentliche Playlists (gleiches Symbol wie das Öffentlich-Kennzeichen) *@
+                                <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M3 12h18" /><path d="M12 3a14 14 0 0 1 0 18" /><path d="M12 3a14 14 0 0 0 0 18" /></svg>
+                                break;
+                            default:
+                                @* Vier Kacheln: alles *@
+                                <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>
+                                break;
+                        }
+                    </button>
+                }
+            </div>
+            <button type="button" class="btn btn-primary playlist-create-icon-button" id="create-playlist-button" title="Neue Playlist" aria-label="Neue Playlist" @onclick="OpenCreateForm">
+                <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14" /><path d="M5 12h14" /></svg>
+            </button>
         </div>
     </div>
 
     @if (genreOptions.Count > 0)
     {
-        @* Genre-Filter fuer Playlists (Entwicklungsschritt 9): "lassen sich wie die Genres anderer Inhalte
+        @* Genre-Filter für Playlists (Entwicklungsschritt 9): "lassen sich wie die Genres anderer Inhalte
            zum Filtern und Suchen nutzen" - Auswahl aus dem globalen Genre-Katalog, analog zur
            Genre-Auswahl bei Filmen/Serien. *@
         <div class="admin-filter-row">
@@ -42,24 +89,24 @@
     {
         <div class="alert alert-danger" id="playlists-load-error">@loadError</div>
     }
-    else if (playlists.Count == 0)
+    else if (VisiblePlaylists.Count == 0)
     {
-        <div class="admin-empty-state">
-            <strong>Keine Playlists vorhanden</strong>
-            <span>Erstellen Sie Ihre erste Playlist.</span>
+        <div class="admin-empty-state" id="playlists-empty">
+            <strong>@EmptyTitle</strong>
+            <span>@EmptyHint</span>
         </div>
     }
     else
     {
         @* Kachel-UI statt Tabelle (Kundenfeedback): Titel + Grafik pro Playlist, Sortierung als Symbol statt
-           Text, "Erstellt"/"Aktualisiert" dezent dargestellt. Ein Klick auf die Kachel oeffnet die
-           Detailansicht; Bearbeiten/Loeschen gibt es nur noch dort (siehe PlaylistDetail.razor). Das
-           Kachel-Markup liegt in PlaylistTile.razor (gemeinsam mit der Uebersicht der oeffentlichen
-           Playlists); hier zusaetzlich mit dezentem "Oeffentlich"-Kennzeichen (Entwicklungsschritt 11). *@
-        <div class="media-grid playlist-grid">
-            @foreach (var playlist in playlists)
+           Text, "Erstellt"/"Aktualisiert" dezent dargestellt. Ein Klick auf die Kachel öffnet die
+           Detailansicht; Bearbeiten/Löschen gibt es nur noch dort (siehe PlaylistDetail.razor). Das
+           Kachel-Markup liegt in PlaylistTile.razor; eigene öffentliche Playlists tragen das dezente
+           "Öffentlich"-Kennzeichen, fremde Playlists das Fremd-Symbol in der rechten oberen Ecke. *@
+        <div class="media-grid playlist-grid" id="playlists-grid">
+            @foreach (var entry in VisiblePlaylists)
             {
-                <PlaylistTile Playlist="playlist" ShowPublicBadge="true" />
+                <PlaylistTile Playlist="entry.Playlist" ShowPublicBadge="true" IsForeign="entry.IsForeign" />
             }
         </div>
     }
@@ -71,15 +118,88 @@
 }
 
 @code {
-    private List<DtoPlaylist> playlists = new();
+    private sealed record FilterOption(PlaylistOverviewFilter Filter, string Value, string Id, string Label);
+
+    private sealed record VisiblePlaylist(DtoPlaylist Playlist, bool IsForeign);
+
+    private static readonly FilterOption[] FilterOptions =
+    [
+        new(PlaylistOverviewFilter.All, "all", "playlist-filter-all", "Alle Playlists"),
+        new(PlaylistOverviewFilter.Own, "own", "playlist-filter-own", "Eigene Playlists"),
+        new(PlaylistOverviewFilter.Public, "public", "playlist-filter-public", "Öffentliche Playlists")
+    ];
+
+    private List<DtoPlaylist> ownPlaylists = new();
+    private List<DtoPlaylist> publicPlaylists = new();
     private List<DtoGenreOption> genreOptions = new();
+    private PlaylistOverviewFilter filter = PlaylistOverviewFilter.All;
     private long? selectedGenreId;
     private bool isLoading = true;
     private string? loadError;
     private readonly PlaylistFormState formState = new();
 
+    /// <summary>
+    /// The playlists shown for the current filter, in display order: the user's own playlists first, then the
+    /// public playlists of other users. A public playlist of the user is only ever listed once (as own), since
+    /// the foreign part is computed by excluding every id already contained in the own list.
+    /// </summary>
+    private List<VisiblePlaylist> VisiblePlaylists
+    {
+        get
+        {
+            var ownIds = ownPlaylists.Select(p => p.Id).ToHashSet();
+            var foreign = publicPlaylists
+                .Where(p => !ownIds.Contains(p.Id))
+                .Select(p => new VisiblePlaylist(p, true));
+
+            return filter switch
+            {
+                PlaylistOverviewFilter.Own => ownPlaylists.Select(p => new VisiblePlaylist(p, false)).ToList(),
+                PlaylistOverviewFilter.Public => ownPlaylists.Where(p => p.IsPublic).Select(p => new VisiblePlaylist(p, false)).Concat(foreign).ToList(),
+                _ => ownPlaylists.Select(p => new VisiblePlaylist(p, false)).Concat(foreign).ToList()
+            };
+        }
+    }
+
+    private string EmptyTitle => selectedGenreId is not null
+        ? "Keine Playlists mit diesem Genre"
+        : filter switch
+        {
+            PlaylistOverviewFilter.Own => "Keine eigenen Playlists vorhanden",
+            PlaylistOverviewFilter.Public => "Keine öffentlichen Playlists vorhanden",
+            _ => "Keine Playlists vorhanden"
+        };
+
+    private string EmptyHint => selectedGenreId is not null
+        ? "Wählen Sie ein anderes Genre oder \"Alle Genres\"."
+        : filter switch
+        {
+            PlaylistOverviewFilter.Public => "Sobald ein Administrator eine Playlist öffentlich macht, erscheint sie hier.",
+            _ => "Erstellen Sie Ihre erste Playlist."
+        };
+
+    /// <summary>
+    /// The filter a route selects: "/playlists/public" (alias of the former separate overview) preselects
+    /// "Öffentliche", "/playlists" selects "Alle". Any other route (e.g. a playlist's detail page) selects nothing.
+    /// </summary>
+    private static PlaylistOverviewFilter? FilterForLocation(string location)
+    {
+        var path = new Uri(location).AbsolutePath.TrimEnd('/');
+        if (path.EndsWith("/playlists/public", StringComparison.OrdinalIgnoreCase))
+            return PlaylistOverviewFilter.Public;
+        if (path.EndsWith("/playlists", StringComparison.OrdinalIgnoreCase))
+            return PlaylistOverviewFilter.All;
+        return null;
+    }
+
     protected override async Task OnInitializedAsync()
     {
+        filter = FilterForLocation(NavigationManager.Uri) ?? filter;
+
+        // Navigating between "/playlists" and "/playlists/public" (e.g. the menu entry while the alias is open)
+        // reuses this component instance, so OnInitializedAsync does not run again: follow the location.
+        NavigationManager.LocationChanged += OnLocationChanged;
+
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         await Client.EnsureAuthorizationTokenSilentlyAsync(authState.User);
         genreOptions = await Client.RequestGenreOptionsAsync();
@@ -92,7 +212,11 @@
         loadError = null;
         try
         {
-            playlists = (await PlaylistClient.RequestPlaylistsAsync(selectedGenreId)).ToList();
+            var ownTask = PlaylistClient.RequestPlaylistsAsync(selectedGenreId);
+            var publicTask = PlaylistClient.RequestPublicPlaylistsAsync(selectedGenreId);
+            await Task.WhenAll(ownTask, publicTask);
+            ownPlaylists = (await ownTask).ToList();
+            publicPlaylists = (await publicTask).ToList();
         }
         catch (Exception ex)
         {
@@ -102,6 +226,26 @@
         {
             isLoading = false;
         }
+    }
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        var routeFilter = FilterForLocation(e.Location);
+        if (routeFilter is null || routeFilter == filter)
+            return;
+
+        filter = routeFilter.Value;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        NavigationManager.LocationChanged -= OnLocationChanged;
+    }
+
+    private void SelectFilter(PlaylistOverviewFilter selected)
+    {
+        filter = selected;
     }
 
     private async Task OnGenreFilterChangedAsync(ChangeEventArgs args)
@@ -125,5 +269,20 @@
     private void HandleCancel()
     {
         formState.Close();
+    }
+
+    /// <summary>
+    /// The filter modes of the combined playlist overview.
+    /// </summary>
+    private enum PlaylistOverviewFilter
+    {
+        /// <summary>Own playlists plus public playlists of other users.</summary>
+        All,
+
+        /// <summary>Only the user's own playlists (including own public ones).</summary>
+        Own,
+
+        /// <summary>Every public playlist (of other users and own public ones).</summary>
+        Public
     }
 }

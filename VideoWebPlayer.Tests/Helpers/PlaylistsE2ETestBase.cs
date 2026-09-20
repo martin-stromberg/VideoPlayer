@@ -430,6 +430,18 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
         });
 
     /// <summary>
+    /// Marks the playlist with the given name as public directly in the database (the UI only offers this to
+    /// administrators), so E2E tests can show it to other users as a foreign public playlist.
+    /// </summary>
+    /// <param name="playlistName">The name of the existing playlist to mark as public.</param>
+    protected Task MakePlaylistPublicAsync(string playlistName)
+        => RunScopedWithPlaylistAsync(playlistName, async (db, _, playlist) =>
+        {
+            playlist.IsPublic = true;
+            await db.SaveChangesAsync();
+        });
+
+    /// <summary>
     /// Grants the given user unlocked access to a movie collection or TV show by inserting an
     /// <see cref="UnlockedMediaEntry"/> directly in the database, for use in E2E tests that need to
     /// manipulate the real per-user unlock/access status of a playlist entry.

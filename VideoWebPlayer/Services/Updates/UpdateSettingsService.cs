@@ -12,26 +12,35 @@ public interface IUpdateSettingsService
     /// <summary>
     /// Gets the default settings that would be used for a new settings row.
     /// </summary>
+    /// <returns>The default settings.</returns>
     UpdateSettings GetDefaultSettings();
 
     /// <summary>
     /// Gets the default settings that would be used for a new settings row.
     /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The persisted settings.</returns>
     Task<UpdateSettings> GetOrCreateAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Updates persisted settings and applies them to runtime options.
     /// </summary>
+    /// <param name="update">The new settings values.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The persisted settings.</returns>
     Task<UpdateSettings> UpdateAsync(UpdateSettingsUpdate update, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Applies persisted settings to runtime updater options.
     /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
     Task ApplyToRuntimeOptionsAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets current update backup options from persisted settings.
     /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The update backup options.</returns>
     Task<UpdateBackupOptions> GetBackupOptionsAsync(CancellationToken cancellationToken = default);
 }
 
@@ -53,6 +62,10 @@ public sealed class UpdateSettingsService : IUpdateSettingsService
     /// <summary>
     /// Creates a new update settings service.
     /// </summary>
+    /// <param name="db">The database context.</param>
+    /// <param name="configuration">The application configuration providing default values.</param>
+    /// <param name="autoUpdateOptions">The runtime-mutable updater options.</param>
+    /// <param name="sourceFactory">The factory creating the update source.</param>
     public UpdateSettingsService(
         ApplicationDbContext db,
         IConfiguration configuration,
@@ -68,12 +81,15 @@ public sealed class UpdateSettingsService : IUpdateSettingsService
     /// <summary>
     /// Gets the singleton settings row, creating it from configuration when missing.
     /// </summary>
+    /// <returns>The default settings.</returns>
     public UpdateSettings GetDefaultSettings()
         => CreateDefaults();
 
     /// <summary>
     /// Gets the singleton settings row, creating it from configuration when missing.
     /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The persisted settings.</returns>
     public async Task<UpdateSettings> GetOrCreateAsync(CancellationToken cancellationToken = default)
     {
         var settings = await _db.UpdateSettings.FirstOrDefaultAsync(x => x.Id == SettingsRowId, cancellationToken);
@@ -94,6 +110,9 @@ public sealed class UpdateSettingsService : IUpdateSettingsService
     /// <summary>
     /// Updates persisted settings and applies them to the updater runtime options.
     /// </summary>
+    /// <param name="update">The new settings values.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The persisted settings.</returns>
     public async Task<UpdateSettings> UpdateAsync(UpdateSettingsUpdate update, CancellationToken cancellationToken = default)
     {
         ValidateUpdate(update);
@@ -121,6 +140,7 @@ public sealed class UpdateSettingsService : IUpdateSettingsService
     /// <summary>
     /// Applies persisted settings to runtime updater options.
     /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
     public async Task ApplyToRuntimeOptionsAsync(CancellationToken cancellationToken = default)
     {
         var settings = await GetOrCreateAsync(cancellationToken);
@@ -130,6 +150,8 @@ public sealed class UpdateSettingsService : IUpdateSettingsService
     /// <summary>
     /// Gets current update backup options from persisted settings.
     /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The update backup options.</returns>
     public async Task<UpdateBackupOptions> GetBackupOptionsAsync(CancellationToken cancellationToken = default)
     {
         var settings = await GetOrCreateAsync(cancellationToken);
@@ -186,12 +208,12 @@ public sealed class UpdateSettingsService : IUpdateSettingsService
         if (update.CheckIntervalMinutes is < 1 or > 24 * 60)
             throw new ArgumentOutOfRangeException(
                 nameof(update.CheckIntervalMinutes),
-                "Das Pruefintervall muss zwischen 1 und 1440 Minuten liegen.");
+                "Das Prüfintervall muss zwischen 1 und 1440 Minuten liegen.");
 
         if (update.RetainedUpdateBackupCount is < 1 or > 10)
             throw new ArgumentOutOfRangeException(
                 nameof(update.RetainedUpdateBackupCount),
-                "Es koennen 1 bis 10 Update-Backups aufbewahrt werden.");
+                "Es können 1 bis 10 Update-Backups aufbewahrt werden.");
     }
 
     private static bool NormalizePersistedSettings(UpdateSettings settings)
@@ -231,6 +253,17 @@ public sealed class UpdateSettingsService : IUpdateSettingsService
 /// <summary>
 /// Describes administrator-submitted update settings.
 /// </summary>
+/// <param name="AutomaticChecksEnabled">Whether automatic update checks are enabled.</param>
+/// <param name="CheckIntervalMinutes">The interval between automatic checks in minutes.</param>
+/// <param name="AllowPrereleaseUpdates">Whether prerelease versions are accepted.</param>
+/// <param name="AutomaticInstallationEnabled">Whether found updates are installed automatically.</param>
+/// <param name="AutomaticDownloadEnabled">Whether found updates are downloaded automatically.</param>
+/// <param name="ServiceName">The name of the service to restart after an installation.</param>
+/// <param name="CreateBackupBeforeInstallation">Whether a backup is created before an installation.</param>
+/// <param name="CancelInstallationOnBackupFailure">Whether a failed backup cancels the installation.</param>
+/// <param name="UpdateBackupPath">The directory update backups are stored in.</param>
+/// <param name="RetainedUpdateBackupCount">The number of update backups to keep.</param>
+/// <returns>The settings value.</returns>
 public sealed record UpdateSettingsUpdate(
     bool AutomaticChecksEnabled,
     int CheckIntervalMinutes,

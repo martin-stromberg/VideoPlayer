@@ -43,8 +43,8 @@ Ergebnis: HTTP 200 OK — AddedEntries=[], SkippedDuplicateCount=1,
 - Speichere nur die neuen Einträge (`AddedEntries`) in einem Rutsch
 
 **Benutzer-Feedback:** Kein Fehler; `DtoPlaylistAddResult.Message` beschreibt das Ergebnis in Textform:
-- `entriesToAdd.Count > 0 && SkippedDuplicateCount > 0`: `"{N} Titel hinzugefuegt, {M} bereits vorhanden und uebersprungen."`
-- `entriesToAdd.Count > 0 && SkippedDuplicateCount == 0`: `"{N} Titel hinzugefuegt."`
+- `entriesToAdd.Count > 0 && SkippedDuplicateCount > 0`: `"{N} Titel hinzugefügt, {M} bereits vorhanden und übersprungen."`
+- `entriesToAdd.Count > 0 && SkippedDuplicateCount == 0`: `"{N} Titel hinzugefügt."`
 - `entriesToAdd.Count == 0`: `"Alle {M} Titel waren bereits vorhanden."`
 
 **Beispiel:**
@@ -62,7 +62,7 @@ Cascade-Ergebnis:
 - Episode 2 (TVShowEpisode, ID=1002) — Duplikat, übersprungen
 - Episode 3 (TVShowEpisode, ID=1003) — neu hinzugefügt
 
-Benutzer sieht: HTTP 200 OK, Message="3 Titel hinzugefuegt, 2 bereits vorhanden und uebersprungen."
+Benutzer sieht: HTTP 200 OK, Message="3 Titel hinzugefügt, 2 bereits vorhanden und übersprungen."
 ```
 
 ---
@@ -185,7 +185,7 @@ Validierung schlägt fehl: "Book" ist nicht in der Liste gültiger Typen
 Antwort: HTTP 400 Bad Request — "Ungültiger Medientyp."
 
 Request: POST /api/playlists/1/entries (zweiter Aufruf mit anderer Schreibweise)
-Body: { "mediaType": "movie", "mediaId": 42 }   // zuvor bereits mit "Movie" hinzugefuegt
+Body: { "mediaType": "movie", "mediaId": 42 }   // zuvor bereits mit "Movie" hinzugefügt
 
 Ergebnis: HTTP 200 OK — SkippedDuplicateCount=1 (als Duplikat von "Movie" erkannt)
 ```
@@ -268,7 +268,7 @@ Benutzer sieht: Episode 2 ist verschwunden (keine Fehlermeldung)
 - Berechnung: `existingKeys.Count + newEntryCount <= maxItemCount`
 - `newEntryCount = 1 (Top-Level) + newCascadeEntries.Count`
 
-**Fehlerbehandlung:** HTTP 400 Bad Request — "Die maximale Anzahl an Playlist-Eintraegen wurde erreicht."
+**Fehlerbehandlung:** HTTP 400 Bad Request — "Die maximale Anzahl an Playlist-Einträgen wurde erreicht."
 
 **Auswirkung auf die automatische Nachlieferung (BR-18):** Der Hintergrundprozess `PlaylistBackfillService`
 prüft dieselbe Grenze, weicht aber im Verhalten bewusst von der manuellen Add-Operation ab: Statt den
@@ -451,7 +451,7 @@ GET /api/items?mediaSourceId=123
 die Playlist-Berechtigung geprüft wird.
 
 **Implementierung (`PlaylistsController.GetPlaylistEntriesPaged`):**
-- `pageNumber < 1` → HTTP 400 Bad Request ("pageNumber muss groesser oder gleich 1 sein.")
+- `pageNumber < 1` → HTTP 400 Bad Request ("pageNumber muss größer oder gleich 1 sein.")
 - `pageSize` (nach Anwendung des Standardwerts `Playlists:DefaultPageSize`) `< 1` oder
   `> Playlists:MaxPageSize` → HTTP 400 Bad Request ("pageSize muss zwischen 1 und {MaxPageSize} liegen.")
 - Wird kein `pageSize`-Query-Parameter übergeben, wird `Playlists:DefaultPageSize` (Standard: `20`) verwendet.
@@ -459,7 +459,7 @@ die Playlist-Berechtigung geprüft wird.
 **Beispiel:**
 ```
 GET /api/playlists/1/entries/paged?pageNumber=0
-→ 400 Bad Request: "pageNumber muss groesser oder gleich 1 sein."
+→ 400 Bad Request: "pageNumber muss größer oder gleich 1 sein."
 
 GET /api/playlists/1/entries/paged?pageSize=500
 → 400 Bad Request: "pageSize muss zwischen 1 und 100 liegen."
@@ -630,12 +630,12 @@ eine reine Darstellungsentscheidung.
 ```
 Playlist "Serienabend":
 - Film "Film A" (Movie, Genres: Action, Drama)
-- Film "Film B" (Movie, Genres: Action, Komoedie)
+- Film "Film B" (Movie, Genres: Action, Komödie)
 - Filmsammlung "Trilogie" (MovieCollection, enthaltene Filme mit Genres: Fantasy, Fantasy+Abenteuer)
 
-Genre-Zaehlung: Action=2, Drama=1, Komoedie=1, Fantasy=2, Abenteuer=1
+Genre-Zählung: Action=2, Drama=1, Komödie=1, Fantasy=2, Abenteuer=1
 
-Angezeigte Genres (Count absteigend, Name als Tie-Break): Action, Fantasy, Abenteuer, Drama, Komoedie
+Angezeigte Genres (Count absteigend, Name als Tie-Break): Action, Fantasy, Abenteuer, Drama, Komödie
 (alle 5 vorhandenen Genres, da nicht mehr als 5 abgeleitet wurden)
 ```
 
@@ -664,13 +664,13 @@ unbekannter Playlist-ID (identisch zu den übrigen Playlist-Endpunkten).
 
 **Beispiel:**
 ```
-Playlist "Serienabend" hat automatisch abgeleitete Genres: Action, Fantasy, Abenteuer, Drama, Komoedie
+Playlist "Serienabend" hat automatisch abgeleitete Genres: Action, Fantasy, Abenteuer, Drama, Komödie
 
 Besitzer ruft PUT /api/playlists/1/genres mit genreIds=[5] auf (Genre 5 = "Handverlesen")
-→ Playlist fuehrt jetzt nur noch "Handverlesen", GenresManuallyOverridden = true
+→ Playlist führt jetzt nur noch "Handverlesen", GenresManuallyOverridden = true
 
-Besitzer fuegt einen weiteren Film mit Genre "Thriller" hinzu
-→ Genres bleiben unveraendert bei "Handverlesen" (BR-20 greift nicht mehr)
+Besitzer fügt einen weiteren Film mit Genre "Thriller" hinzu
+→ Genres bleiben unverändert bei "Handverlesen" (BR-20 greift nicht mehr)
 
 Besitzer ruft POST /api/playlists/1/genres/reset auf
 → Genres werden neu aus dem aktuellen Inhalt abgeleitet (jetzt inkl. "Thriller"),
@@ -690,8 +690,8 @@ beschädigte Datei).
 **Bedingungen / Implementierung (`PlaylistsController.UploadPlaylistCover` +
 `PlaylistCoverValidator.ValidateUploadAsync`):**
 
-- Keine oder leere Datei → `"Es wurde keine Datei ausgewaehlt."` (HTTP 400, direkt im Controller)
-- `file.Length > Playlists:MaxCoverImageSizeBytes` → `"Die Datei ist zu gross. Maximal erlaubt sind
+- Keine oder leere Datei → `"Es wurde keine Datei ausgewählt."` (HTTP 400, direkt im Controller)
+- `file.Length > Playlists:MaxCoverImageSizeBytes` → `"Die Datei ist zu groß. Maximal erlaubt sind
   {N} Bytes."` (HTTP 400, direkt im Controller) — diese Prüfung erfolgt an der gemeldeten
   Dateilänge **bevor** der Inhalt in den Speicher gelesen wird, damit eine übergroße Datei nie
   gepuffert wird; bewusst wird dafür kein `[RequestSizeLimit]`-Attribut verwendet, damit die Grenze
@@ -747,10 +747,10 @@ endpunktspezifischer Fehlervertrag entsteht.
 **Beispiel:**
 ```
 Upload einer 10-MB-BMP-Datei bei Standardkonfiguration (5 MB, JPEG/PNG/WebP):
-→ HTTP 400 "Format BMP wird nicht unterstuetzt. Erlaubte Formate: JPEG, PNG, WebP."
+→ HTTP 400 "Format BMP wird nicht unterstützt. Erlaubte Formate: JPEG, PNG, WebP."
 
 Upload einer 10-MB-JPEG-Datei:
-→ Controller-Vorabpruefung: HTTP 400 "Die Datei ist zu gross. Maximal erlaubt sind 5242880 Bytes."
+→ Controller-Vorabprüfung: HTTP 400 "Die Datei ist zu groß. Maximal erlaubt sind 5242880 Bytes."
 
 Upload einer GIF-Datei mit Content-Type image/png:
 → HTTP 400 "Format GIF wird nicht unterstützt. Erlaubte Formate: JPEG, PNG, WebP."
@@ -794,14 +794,14 @@ hinzugefügt wurde. Bereits verwendete Bild-IDs werden nicht doppelt in die Coll
 
 **Beispiel:**
 ```
-Playlist-Eintraege (Hinzufuegereihenfolge): Film A, Serie B, Episode C, Sammlung D, Film E, Film F
+Playlist-Einträge (Hinzufügereihenfolge): Film A, Serie B, Episode C, Sammlung D, Film E, Film F
 Aufgeloeste Bilder in der Collage (max. 5):
 1. Serie-B-Poster      (Stufe 0)
 2. Episode-C-Poster    (Stufe 1)
 3. Sammlung-D-Poster   (Stufe 2)
-4. Film-A-Poster       (Stufe 3, zuerst hinzugefuegt)
+4. Film-A-Poster       (Stufe 3, zuerst hinzugefügt)
 5. Film-E-Poster       (Stufe 3)
-Film F wird nicht mehr beruecksichtigt (Maximum erreicht).
+Film F wird nicht mehr berücksichtigt (Maximum erreicht).
 ```
 
 ---
@@ -844,14 +844,14 @@ verloren geht.
 **Beispiel:**
 ```
 Playlist hat generiertes Cover (CoverPictureIsUserUploaded = false)
-→ Besitzer lädt eigenes Bild hoch: alte Picture-Zeile wird geloescht,
+→ Besitzer lädt eigenes Bild hoch: alte Picture-Zeile wird gelöscht,
   CoverPictureId zeigt auf das neue Bild, CoverPictureIsUserUploaded = true
 
-Besitzer loest anschließend "Cover neu erzeugen" aus:
+Besitzer löst anschließend "Cover neu erzeugen" aus:
 → Server antwortet mit 409 Conflict, das hochgeladene Bild bleibt unverändert;
   die Oberfläche fragt nach ("Hochgeladenes Bild ersetzen")
 → Erst nach "Ja, ersetzen" (Wiederholung mit confirmReplaceUploadedCover=true):
-  hochgeladenes Bild wird geloescht, neue Collage ersetzt es,
+  hochgeladenes Bild wird gelöscht, neue Collage ersetzt es,
   CoverPictureIsUserUploaded = false
 ```
 
@@ -874,7 +874,7 @@ einer Playlist wird kein Cover automatisch erzeugt.
 - Kann keine Collage erzeugt werden (keine Quellbilder vorhanden oder Erzeugung fehlgeschlagen),
   liefert `PlaylistCoverImageGenerator.GeneratePlaylistCoverAsync()` `null` zurück; der Endpunkt
   antwortet dann mit `DtoPlaylistCoverResult { Success = false, Message = "Keine Bilder
-  verfuegbar." }` und das bisherige Cover (oder der Platzhalter) bleibt unverändert — ein Fehler
+  verfügbar." }` und das bisherige Cover (oder der Platzhalter) bleibt unverändert — ein Fehler
   wird wie bei den übrigen Bild-Generatoren geloggt statt an den Anwender weitergereicht
 
 ---
@@ -930,7 +930,7 @@ Administratoren. In der Oberfläche werden Bearbeitungsmöglichkeiten für Nicht
 **Datenschutz:** Ein Betrachter sieht nur, was zum Ansehen/Abspielen nötig ist. `DtoPlaylist` enthält nie die
 Benutzer-ID/E-Mail des Besitzers; für Betrachter sind `AllGenreIds`, `GenresManuallyOverridden` und
 `CoverPictureIsUserUploaded` zurückgesetzt; Ausschluss-Einträge (BR-19) sind nicht Teil irgendeines DTO. In der
-öffentlichen Übersicht wird kein Besitzer angezeigt. Das Cover einer *privaten* fremden Playlist wird nicht mehr
+Übersicht wird kein Besitzer angezeigt. Das Cover einer *privaten* fremden Playlist wird nicht mehr
 ausgeliefert (403) — weder über `GET /api/playlists/{id}/cover` noch über `GET /api/pictures/{id}`.
 
 ---
@@ -987,7 +987,7 @@ Fortschritt melden (`ContinueWatchingService.ValidatePlaylistAccessAsync`) darf,
 | BR-5: Medieninhalt existiert | Vor Insert | `KeyNotFoundException` | 404 Not Found |
 | BR-6: MediaType gültig und normalisiert | Bei Validierung | "Ungültiger Medientyp" | 400 Bad Request |
 | BR-7: Verwaiste Bereinigung | Bei Get | Still gelöscht | Keine |
-| BR-8: MediaId > 0 | Bei Validierung | "MediaId muss groesser als 0 sein" | 400 Bad Request |
+| BR-8: MediaId > 0 | Bei Validierung | "MediaId muss größer als 0 sein" | 400 Bad Request |
 | BR-9: MaxItemCount | Vor Insert (optional) | "... maximale Anzahl ... erreicht" | 400 Bad Request |
 | BR-10: Remove-Eintrag vorhanden | Vor Delete | `KeyNotFoundException` | 404 Not Found |
 | BR-13: Sortierung mit Fallback-Kette | Bei paginiertem Get | Keine (deterministische Sortierung) | Keine |

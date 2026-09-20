@@ -138,7 +138,7 @@ public sealed class PlaylistService : IPlaylistService
         var playlist = await GetOwnedPlaylistAsync(playlistId, userId, cancellationToken);
 
         if (!requesterIsAdmin)
-            throw new PlaylistAccessDeniedException("Nur Administratoren duerfen Playlists als oeffentlich kennzeichnen.");
+            throw new PlaylistAccessDeniedException("Nur Administratoren dürfen Playlists als öffentlich kennzeichnen.");
 
         if (playlist.IsPublic == isPublic)
             return await ToDtoAsync(playlist, userId, cancellationToken);
@@ -266,7 +266,7 @@ public sealed class PlaylistService : IPlaylistService
         var normalizedMediaType = parsedMediaType.ToString();
 
         if (mediaId <= 0)
-            throw new InvalidOperationException("MediaId muss groesser als 0 sein.");
+            throw new InvalidOperationException("MediaId muss größer als 0 sein.");
 
         var mediaTitle = await GetMediaTitleAsync(mediaType, mediaId, cancellationToken);
         if (mediaTitle is null)
@@ -277,7 +277,7 @@ public sealed class PlaylistService : IPlaylistService
 
         if (_playlistSettings.MaxPlaylistItemCount is int maxItemCount
             && existingEntryCount + entriesToAdd.Count > maxItemCount)
-            throw new InvalidOperationException("Die maximale Anzahl an Playlist-Eintraegen wurde erreicht.");
+            throw new InvalidOperationException("Die maximale Anzahl an Playlist-Einträgen wurde erreicht.");
 
         await _reorderService.AssignSortOrderForNewEntriesAsync(playlist, entriesToAdd, cancellationToken);
 
@@ -526,7 +526,7 @@ public sealed class PlaylistService : IPlaylistService
     private static PlaylistSortMode ParseSortModeOrThrow(string sortMode)
     {
         if (!Enum.TryParse<PlaylistSortMode>(sortMode, ignoreCase: true, out var parsed))
-            throw new ArgumentException("Ungueltiger Sortiermodus-Wert.");
+            throw new ArgumentException("Ungültiger Sortiermodus-Wert.");
 
         return parsed;
     }
@@ -738,9 +738,9 @@ public sealed class PlaylistService : IPlaylistService
         var message = entriesToAdd.Count switch
         {
             > 0 when skippedDuplicateCount > 0 =>
-                $"{entriesToAdd.Count} Titel hinzugefuegt, {skippedDuplicateCount} bereits vorhanden und uebersprungen.",
+                $"{entriesToAdd.Count} Titel hinzugefügt, {skippedDuplicateCount} bereits vorhanden und übersprungen.",
             > 0 =>
-                $"{entriesToAdd.Count} Titel hinzugefuegt.",
+                $"{entriesToAdd.Count} Titel hinzugefügt.",
             _ =>
                 $"Alle {skippedDuplicateCount} Titel waren bereits vorhanden."
         };
@@ -1524,7 +1524,7 @@ public sealed class PlaylistService : IPlaylistService
         List<PlaylistEntry> sortedEntries, long entryId, Dictionary<PlaylistEntry, bool> accessibilityByEntry)
     {
         var entry = sortedEntries.FirstOrDefault(e => e.Id == entryId)
-            ?? throw new KeyNotFoundException("Der angegebene Eintrag gehoert nicht zu dieser Playlist.");
+            ?? throw new KeyNotFoundException("Der angegebene Eintrag gehört nicht zu dieser Playlist.");
 
         if (!PlaylistEntryMediaTypeResolver.IsPlayable(entry.MediaType))
             throw new InvalidOperationException("Der angegebene Eintrag ist nicht abspielbar.");
@@ -1550,7 +1550,7 @@ public sealed class PlaylistService : IPlaylistService
                 return entry;
         }
 
-        throw new InvalidOperationException("Diese Playlist enthaelt keine abspielbaren Eintraege.");
+        throw new InvalidOperationException("Diese Playlist enthält keine abspielbaren Einträge.");
     }
 
     /// <summary>
@@ -1578,7 +1578,7 @@ public sealed class PlaylistService : IPlaylistService
 
         var currentIndex = sortedEntries.FindIndex(e => e.Id == currentEntryId);
         if (currentIndex < 0)
-            throw new InvalidOperationException("Der aktuelle Eintrag gehoert nicht zu dieser Playlist.");
+            throw new InvalidOperationException("Der aktuelle Eintrag gehört nicht zu dieser Playlist.");
 
         var idsByType = MediaHierarchyRegistry.GroupMediaIdsByType(sortedEntries);
         var accessibilityByEntry = await _accessResolver.ResolveAccessibilityAsync(sortedEntries, userId, idsByType, cancellationToken);
@@ -1650,7 +1650,7 @@ public sealed class PlaylistService : IPlaylistService
 
         if (playlist.CoverPictureIsUserUploaded && !confirmReplaceUploadedCover)
             throw new UploadedCoverReplacementConfirmationRequiredException(
-                "Das hochgeladene Bild wird durch ein automatisch erzeugtes ersetzt. Bitte bestaetigen.");
+                "Das hochgeladene Bild wird durch ein automatisch erzeugtes ersetzt. Bitte bestätigen.");
 
         var newPicture = new Picture
         {

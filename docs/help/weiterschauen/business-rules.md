@@ -269,8 +269,8 @@ else
 
 **Umsetzung:** `ContinueWatchingService.ProcessBufferedEntryAsync()` (Zeilen 265–275):
 ```csharp
-// Gesehen-Markierung ist playlist-uebergreifend: ALLE Varianten dieses Videos werden
-// entfernt, unabhaengig von ihrer PlaylistId.
+// Gesehen-Markierung ist playlist-übergreifend: ALLE Varianten dieses Videos werden
+// entfernt, unabhängig von ihrer PlaylistId.
 var existingEntries = await _db.ContinueWatchingEntries
     .Where(x => x.UserId == userId && x.MovieId == movieId && x.TVShowEpisodeId == episodeId)
     .ToListAsync(ct);

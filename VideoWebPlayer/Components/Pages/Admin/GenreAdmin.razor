@@ -26,20 +26,20 @@ else
                 <h1>Genres</h1>
                 <p>Genre-Metadaten, saisonale Sichtbarkeit und Bilder pflegen.</p>
             </div>
-            <a class="btn btn-outline-light" href="/admin">Zurueck</a>
+            <a class="btn btn-outline-light" href="/admin">Zurück</a>
         </header>
 
         <div class="admin-card admin-card-wide">
             <div class="admin-card-header">
                 <h2>Genre-Verwaltung</h2>
-                <span class="admin-chip">@uniqueGenres.Count Eintraege</span>
+                <span class="admin-chip">@uniqueGenres.Count Einträge</span>
             </div>
 
             @if (uniqueGenres.Count == 0)
             {
                 <div class="admin-empty-state">
                     <strong>Keine Genres vorhanden</strong>
-                    <span>Beim naechsten Scan werden Genres automatisch angelegt.</span>
+                    <span>Beim nächsten Scan werden Genres automatisch angelegt.</span>
                 </div>
             }
             else
@@ -103,7 +103,7 @@ else
                 <div class="admin-dialog" @onclick:stopPropagation>
                     <header class="admin-card-header">
                         <h2>@editGenre.Name</h2>
-                        <button class="btn btn-sm btn-outline-light" @onclick="CancelEdit">Schliessen</button>
+                        <button class="btn btn-sm btn-outline-light" @onclick="CancelEdit">Schließen</button>
                     </header>
 
                     <div class="admin-dialog-preview">
@@ -120,7 +120,7 @@ else
                             <InputFile OnChange="OnIconFileChanged" accept="image/png,image/jpeg,image/webp,image/gif" />
                             @if (hasPendingIcon)
                             {
-                                <div class="form-text text-warning">Neues Bild wird beim Speichern uebernommen.</div>
+                                <div class="form-text text-warning">Neues Bild wird beim Speichern übernommen.</div>
                             }
                         </div>
                     </div>

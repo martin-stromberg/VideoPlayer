@@ -138,8 +138,7 @@ public class PlaylistEntriesListSelectionTests
         var (cut, _, _) = Render(entries: Array.Empty<DtoPlaylistEntry>());
 
         Assert.Single(cut.FindComponents<MediaSearchSelector>());
-        Assert.Equal("true", cut.Find("#playlist-mode-add-button").GetAttribute("aria-pressed"));
-        Assert.Equal("false", cut.Find("#playlist-mode-entries-button").GetAttribute("aria-pressed"));
+        Assert.True(Assert.Single(ReportedModes));
         Assert.Empty(cut.FindAll(".playlist-entries-list"));
     }
 
@@ -148,68 +147,68 @@ public class PlaylistEntriesListSelectionTests
     {
         var (cut, _, _) = Render(entries: Movies(2));
 
-        Assert.Equal("true", cut.Find("#playlist-mode-entries-button").GetAttribute("aria-pressed"));
-        Assert.Equal("false", cut.Find("#playlist-mode-add-button").GetAttribute("aria-pressed"));
+        Assert.False(Assert.Single(ReportedModes));
         Assert.Equal(2, cut.FindAll(".playlist-entry-row").Count);
         // The two areas are separated: no search field next to the list.
         Assert.Empty(cut.FindComponents<MediaSearchSelector>());
         Assert.Empty(cut.FindAll("#playlist-add-area"));
     }
 
+    /// <summary>
+    /// The mode toggle moved to the header (Kundenrückmeldung): the content area itself must not render any
+    /// switch of its own any more.
+    /// </summary>
     [Fact]
-    public void ModeToggle_HasAccessibleNamesAndMarksTheActiveMode()
+    public void ContentArea_HasNoModeToggleOfItsOwnAnyMore()
     {
         var (cut, _, _) = Render(entries: Movies(1));
 
-        var group = cut.Find("#playlist-content-mode-group");
-        Assert.Equal("group", group.GetAttribute("role"));
-        Assert.False(string.IsNullOrWhiteSpace(group.GetAttribute("aria-label")));
-        foreach (var id in new[] { "#playlist-mode-entries-button", "#playlist-mode-add-button" })
-        {
-            var button = cut.Find(id);
-            Assert.False(string.IsNullOrWhiteSpace(button.GetAttribute("title")));
-            Assert.Equal(button.GetAttribute("title"), button.GetAttribute("aria-label"));
-            Assert.NotNull(button.QuerySelector("svg"));
-        }
-
-        Assert.Contains("active", cut.Find("#playlist-mode-entries-button").ClassList);
-        Assert.DoesNotContain("active", cut.Find("#playlist-mode-add-button").ClassList);
+        Assert.Empty(cut.FindAll("#playlist-content-mode-group"));
+        Assert.Empty(cut.FindAll(".playlist-mode-button"));
+        Assert.Empty(cut.FindAll("#playlist-mode-add-button"));
+        Assert.Empty(cut.FindAll("#playlist-mode-entries-button"));
     }
 
     [Fact]
-    public void SwitchingModes_ShowsExactlyOneAreaAtATime()
+    public async Task SwitchingModes_ShowsExactlyOneAreaAtATime_AndReportsTheNewOne()
     {
         var (cut, _, _) = Render(entries: Movies(2));
 
-        cut.Find("#playlist-mode-add-button").Click();
+        await cut.InvokeAsync(() => cut.Instance.ToggleModeAsync());
 
         Assert.Single(cut.FindComponents<MediaSearchSelector>());
         Assert.Empty(cut.FindAll(".playlist-entry-row"));
-        Assert.Contains("active", cut.Find("#playlist-mode-add-button").ClassList);
+        Assert.Equal(new[] { false, true }, ReportedModes);
 
-        cut.Find("#playlist-mode-entries-button").Click();
+        await cut.InvokeAsync(() => cut.Instance.ToggleModeAsync());
 
         Assert.Empty(cut.FindComponents<MediaSearchSelector>());
         Assert.Equal(2, cut.FindAll(".playlist-entry-row").Count);
+        Assert.Equal(new[] { false, true, false }, ReportedModes);
     }
 
     [Fact]
-    public void SwitchingToAddMode_ClearsTheSelection()
+    public async Task SwitchingToAddMode_ClearsTheSelection()
     {
         var (cut, selections, _) = Render(entries: Movies(2), selectedEntryId: 10);
 
-        cut.Find("#playlist-mode-add-button").Click();
+        await cut.InvokeAsync(() => cut.Instance.ToggleModeAsync());
 
         Assert.Null(Assert.Single(selections));
     }
 
+    /// <summary>
+    /// Read-only (a public playlist of somebody else): the mode never leaves the title list, so the header is
+    /// never told to offer a toggle and no add area is rendered.
+    /// </summary>
     [Fact]
-    public void ReadOnly_HasNoModeToggleAndNoAddArea_OnlyTheList()
+    public async Task ReadOnly_NeverSwitchesToTheAddArea_OnlyTheList()
     {
         var (cut, _, _) = Render(entries: Movies(2), isReadOnly: true);
 
-        Assert.Empty(cut.FindAll("#playlist-content-mode-group"));
-        Assert.Empty(cut.FindAll("#playlist-mode-add-button"));
+        await cut.InvokeAsync(() => cut.Instance.ToggleModeAsync());
+
+        Assert.Empty(ReportedModes);
         Assert.Empty(cut.FindAll("#playlist-add-area"));
         Assert.Empty(cut.FindComponents<MediaSearchSelector>());
         Assert.Equal(2, cut.FindAll(".playlist-entry-row").Count);
@@ -239,7 +238,7 @@ public class PlaylistEntriesListSelectionTests
         await cut.InvokeAsync(() => cut.FindComponent<MediaSearchSelector>().Instance.OnMediaSelected.InvokeAsync(("Movie", 2L)));
 
         Assert.Single(cut.FindComponents<MediaSearchSelector>());
-        Assert.Equal("true", cut.Find("#playlist-mode-add-button").GetAttribute("aria-pressed"));
+        Assert.True(ReportedModes[^1]);
         mock.Verify(c => c.AddMediaToPlaylistAsync(1, It.IsAny<DtoAddMediaToPlaylistRequest>()), Times.Exactly(2));
         // The success message of the add stays visible.
         Assert.Contains("hinzugefügt", cut.Find("#playlist-entries-status").TextContent);
@@ -254,13 +253,13 @@ public class PlaylistEntriesListSelectionTests
         mock.Setup(c => c.RemoveMediaFromPlaylistAsync(1, "Movie", entry.MediaId, false)).Returns(Task.CompletedTask);
         mock.Setup(c => c.RequestPlaylistEntriesPagedAsync(1, It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new DtoPlaylistEntriesPagedResult { Entries = Array.Empty<DtoPlaylistEntry>(), HasNextPage = false, TotalCount = 0 });
-        Assert.Equal("true", cut.Find("#playlist-mode-entries-button").GetAttribute("aria-pressed"));
+        Assert.False(Assert.Single(ReportedModes));
 
         await cut.InvokeAsync(() => cut.Instance.RemoveEntryAsync(entry));
 
         Assert.Equal(entry.Id, Assert.Single(removed).Id);
         Assert.Single(cut.FindComponents<MediaSearchSelector>());
-        Assert.Equal("true", cut.Find("#playlist-mode-add-button").GetAttribute("aria-pressed"));
+        Assert.True(ReportedModes[^1]);
     }
 
     [Fact]
@@ -306,6 +305,10 @@ public class PlaylistEntriesListSelectionTests
             })
             .ToArray();
 
+    // Collects every content area reported through PlaylistEntriesList.OnModeChanged - the mode toggle itself
+    // lives in the header of PlaylistDetail, so the mode is only observable here.
+    private static readonly List<bool> ReportedModes = new();
+
     private static (IRenderedComponent<PlaylistEntriesList> Cut, List<DtoPlaylistEntry?> Selections, Mock<IPlaylistApiClient> Mock) Render(
         DtoPlaylistEntry[] entries,
         long? selectedEntryId = null,
@@ -313,6 +316,7 @@ public class PlaylistEntriesListSelectionTests
         bool isReadOnly = false,
         Action<DtoPlaylistEntry>? onEntryRemoved = null)
     {
+        ReportedModes.Clear();
         var ctx = new global::Bunit.BunitContext();
         var mock = new Mock<IPlaylistApiClient>();
         mock.Setup(c => c.RequestPlaylistEntriesPagedAsync(It.IsAny<long>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
@@ -331,7 +335,8 @@ public class PlaylistEntriesListSelectionTests
                 .Add(p => p.IsManualMode, isManualMode)
                 .Add(p => p.IsReadOnly, isReadOnly)
                 .Add(p => p.SelectedEntryId, selectedEntryId)
-                .Add(p => p.OnEntrySelected, EventCallback.Factory.Create<DtoPlaylistEntry?>(new object(), e => selections.Add(e)));
+                .Add(p => p.OnEntrySelected, EventCallback.Factory.Create<DtoPlaylistEntry?>(new object(), e => selections.Add(e)))
+                .Add(p => p.OnModeChanged, EventCallback.Factory.Create<bool>(new object(), ReportedModes.Add));
             if (onEntryRemoved is not null)
                 parameters.Add(p => p.OnEntryRemoved, EventCallback.Factory.Create<DtoPlaylistEntry>(new object(), onEntryRemoved));
         });

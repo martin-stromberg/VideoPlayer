@@ -78,10 +78,11 @@ public sealed class PlaylistsE2ETests : PlaylistsE2ETestBase
         await Page.WaitForSelectorAsync("#playlist-detail-name");
         await Expect(Page.Locator("#playlist-detail-name")).ToHaveTextAsync("Kachel-Klick-Cover");
 
-        var rowForMeta = await CreatePlaylistViaUiAsync("Kachel-Klick-Meta", "Beschreibung");
-        await rowForMeta.Locator(".playlist-card-dates").ClickAsync();
+        // Der Verlaufsbereich am unteren Rand (Titel-Overlay) ist ebenfalls Teil des Links.
+        var rowForOverlay = await CreatePlaylistViaUiAsync("Kachel-Klick-Overlay", "Beschreibung");
+        await rowForOverlay.Locator(".media-card-overlay").ClickAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
-        await Expect(Page.Locator("#playlist-detail-name")).ToHaveTextAsync("Kachel-Klick-Meta");
+        await Expect(Page.Locator("#playlist-detail-name")).ToHaveTextAsync("Kachel-Klick-Overlay");
     }
 
     [Fact]

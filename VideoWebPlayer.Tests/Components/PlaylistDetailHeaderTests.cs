@@ -410,6 +410,66 @@ public class PlaylistDetailHeaderTests
         Assert.Single(cut.FindAll("#playlist-detail-remove-entry-button"));
     }
 
+    // ----- D10: the content-area toggle lives in the header --------------------------------------------
+
+    /// <summary>
+    /// Kundenrückmeldung: the two mode buttons moved out of the content area into the action bar on the image,
+    /// and only ONE of them is shown - the one switching to the respective other area (like the publish button,
+    /// which also only ever carries the current symbol).
+    /// </summary>
+    [Fact]
+    public void ModeToggle_SitsInTheHeaderActionBar_AndShowsOnlyTheButtonForTheOtherArea()
+    {
+        using var ctx = CreateContext(CreatePlaylist(isOwner: true), Entries());
+        var cut = RenderDetail(ctx);
+
+        // A non-empty playlist starts in the list mode, so only the "Titel hinzufügen" button exists.
+        var toggle = Assert.Single(cut.FindAll(".tvshow-header .metadata-action-bar #playlist-mode-add-button"));
+        Assert.Empty(cut.FindAll("#playlist-mode-entries-button"));
+        Assert.Contains("metadata-icon-btn", toggle.ClassList);
+        Assert.Equal("Titel hinzufügen", toggle.GetAttribute("title"));
+        Assert.Equal(toggle.GetAttribute("title"), toggle.GetAttribute("aria-label"));
+        Assert.NotNull(toggle.QuerySelector("svg"));
+
+        cut.Find("#playlist-mode-add-button").Click();
+
+        // Now the opposite: only the button back to the list, and the add area is shown.
+        Assert.Single(cut.FindAll(".tvshow-header .metadata-action-bar #playlist-mode-entries-button"));
+        Assert.Empty(cut.FindAll("#playlist-mode-add-button"));
+        Assert.Equal("Titel der Playlist auflisten", cut.Find("#playlist-mode-entries-button").GetAttribute("title"));
+        Assert.Single(cut.FindComponents<MediaSearchSelector>());
+    }
+
+    [Fact]
+    public void ModeToggle_EmptyPlaylist_StartsInAddMode_AndOffersOnlyTheWayBackToTheList()
+    {
+        using var ctx = CreateContext(CreatePlaylist(isOwner: true), Array.Empty<DtoPlaylistEntry>());
+        var cut = RenderDetail(ctx);
+
+        Assert.Single(cut.FindComponents<MediaSearchSelector>());
+        Assert.Single(cut.FindAll("#playlist-mode-entries-button"));
+        Assert.Empty(cut.FindAll("#playlist-mode-add-button"));
+    }
+
+    /// <summary>
+    /// The toggle stays reachable while a title is selected - switching to "Titel hinzufügen" then clears the
+    /// selection, so the header shows the playlist again instead of a title that is no longer listed.
+    /// </summary>
+    [Fact]
+    public void ModeToggle_WithASelectedTitle_SwitchesAndClearsTheSelection()
+    {
+        using var ctx = CreateContext(CreatePlaylist(isOwner: true), Entries());
+        var cut = RenderDetail(ctx);
+        cut.FindAll(".playlist-entry-row").First().Click();
+        Assert.Single(cut.FindAll("#playlist-detail-selected-entry"));
+
+        cut.Find("#playlist-mode-add-button").Click();
+
+        Assert.Empty(cut.FindAll("#playlist-detail-selected-entry"));
+        Assert.Equal("Meine Playlist", cut.Find("#playlist-detail-name").TextContent);
+        Assert.Single(cut.FindComponents<MediaSearchSelector>());
+    }
+
     // ----- helpers -----------------------------------------------------------------------------------------
 
     private static DtoPlaylist CreatePlaylist(bool isOwner, bool isPublic = false, long? coverPictureId = null) => new()

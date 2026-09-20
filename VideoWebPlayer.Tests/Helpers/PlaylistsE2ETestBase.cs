@@ -137,6 +137,9 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
         var resultLocator = Page.Locator($".media-search-result[data-media-type='{mediaType}'][data-media-id='{mediaId}']");
         await resultLocator.WaitForAsync(new LocatorWaitForOptions { Timeout = 5000 });
         await resultLocator.ClickAsync();
+        // The add is only finished once the server reported its result (status message) - waiting a fixed
+        // second alone let a slow roundtrip slip through and left the entry list empty.
+        await Page.WaitForSelectorAsync("#playlist-entries-status");
         await Page.WaitForTimeoutAsync(1000);
     }
 
@@ -144,9 +147,16 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
     /// Switches the detail page to the "Titel hinzufügen" area (search to add titles) if it is not shown yet.
     /// An empty playlist starts in that mode, a non-empty one in the list mode.
     /// </summary>
+    /// <remarks>
+    /// The header's mode toggle shows only the button for the respective OTHER area, so
+    /// <c>#playlist-mode-add-button</c> exists exactly while the title list is shown. Waiting for "search field
+    /// OR add button" first is therefore required: the detail page decides its area only after the first page
+    /// of entries has loaded, and before that neither of the two exists.
+    /// </remarks>
     protected async Task ShowAddModeAsync()
     {
         var searchInput = Page.Locator(".media-search-input");
+        await Page.WaitForSelectorAsync(".media-search-input, #playlist-mode-add-button");
         if (await searchInput.CountAsync() > 0)
             return;
 
@@ -157,11 +167,21 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
     /// <summary>
     /// Switches the detail page to the "Titel der Playlist" area (the entry tiles) if it is not shown yet.
     /// </summary>
+    /// <remarks>
+    /// <c>#playlist-mode-entries-button</c> exists exactly while the add area is shown (see
+    /// <see cref="ShowAddModeAsync"/>), so its mere presence means "not in the list area yet". In the read-only
+    /// view no toggle exists at all and the list is the only area.
+    /// </remarks>
     protected async Task ShowEntriesAsync()
     {
+        await Page.WaitForSelectorAsync(".playlist-entries-list, .admin-empty-state, #playlist-mode-entries-button");
         var toggle = Page.Locator("#playlist-mode-entries-button");
-        if (await toggle.CountAsync() > 0 && await toggle.GetAttributeAsync("aria-pressed") != "true")
+        if (await toggle.CountAsync() > 0)
+        {
             await toggle.ClickAsync();
+            // Wait for the switch to have happened instead of relying on the fixed delay alone.
+            await Page.WaitForSelectorAsync(".playlist-entries-list, .admin-empty-state");
+        }
 
         // The tiles (or the empty state) render right after the switch.
         await Page.WaitForTimeoutAsync(300);

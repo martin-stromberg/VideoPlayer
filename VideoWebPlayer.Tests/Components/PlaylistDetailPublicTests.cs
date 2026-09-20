@@ -35,7 +35,7 @@ public class PlaylistDetailPublicTests
         new object[] { "Sortiermodus-Wechsel", ".playlist-sortmode-toggle-button" },
         new object[] { "Genres bearbeiten", "#playlist-detail-edit-genres-button" },
         new object[] { "Genres zurücksetzen", "#playlist-detail-reset-genres-button" },
-        new object[] { "Modus-Umschalter (Titel/Hinzufügen)", "#playlist-content-mode-group" },
+        new object[] { "Modus-Umschalter (Titel/Hinzufügen)", ".playlist-mode-toggle-button" },
         new object[] { "Hinzufügen-Modus", "#playlist-add-area" },
         new object[] { "An Anfang", ".playlist-entry-move-start-button" },
         new object[] { "An Ende", ".playlist-entry-move-end-button" },
@@ -126,7 +126,7 @@ public class PlaylistDetailPublicTests
         // No delete button, no action bar at all, no add mode - for regular users and administrators alike.
         Assert.Empty(cut.FindAll("#playlist-detail-remove-entry-button"));
         Assert.Empty(cut.FindAll(".metadata-action-bar"));
-        Assert.Empty(cut.FindAll("#playlist-content-mode-group"));
+        Assert.Empty(cut.FindAll(".playlist-mode-toggle-button"));
         Assert.Empty(cut.FindComponents<MediaSearchSelector>());
     }
 
@@ -166,7 +166,7 @@ public class PlaylistDetailPublicTests
         Assert.Single(cut.FindAll(".playlist-detail-delete-button"));
         Assert.Single(cut.FindAll("#playlist-detail-cover-button"));
         Assert.Single(cut.FindAll(".playlist-sortmode-toggle-button"));
-        Assert.Single(cut.FindAll("#playlist-content-mode-group"));
+        Assert.Single(cut.FindAll(".playlist-mode-toggle-button"));
         // A non-empty list starts in the list mode: the search to add titles is a separate mode.
         Assert.Empty(cut.FindComponents<MediaSearchSelector>());
         cut.Find("#playlist-mode-add-button").Click();

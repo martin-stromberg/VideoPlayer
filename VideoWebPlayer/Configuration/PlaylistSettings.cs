@@ -54,6 +54,28 @@ namespace VideoWebPlayer.Configuration
         public long MaxCoverImageSizeBytes { get; set; } = 5 * 1024 * 1024;
 
         /// <summary>
+        /// Gets or sets the maximum accepted width, in pixels, of an uploaded playlist cover image. Checked
+        /// against the image header (before the image is fully decoded), so an image with absurd dimensions
+        /// (decompression bomb) is rejected without being decoded. A value of 0 or less disables the check.
+        /// </summary>
+        public int MaxCoverImageWidthPixels { get; set; } = 4096;
+
+        /// <summary>
+        /// Gets or sets the maximum accepted height, in pixels, of an uploaded playlist cover image. Checked
+        /// against the image header, like <see cref="MaxCoverImageWidthPixels"/>. A value of 0 or less
+        /// disables the check.
+        /// </summary>
+        public int MaxCoverImageHeightPixels { get; set; } = 4096;
+
+        /// <summary>
+        /// Gets or sets the maximum accepted total number of pixels (width times height) of an uploaded
+        /// playlist cover image, bounding the memory needed to decode it even when the width and height
+        /// limits are raised. Checked against the image header, like <see cref="MaxCoverImageWidthPixels"/>.
+        /// A value of 0 or less disables the check.
+        /// </summary>
+        public long MaxCoverImageTotalPixels { get; set; } = 4096L * 4096L;
+
+        /// <summary>
         /// Gets or sets the target width, in pixels, of an automatically generated playlist cover collage
         /// (<see cref="Services.PlaylistCover.PlaylistCoverImageGenerator"/>).
         /// </summary>

@@ -1523,7 +1523,8 @@ public sealed class PlaylistService : IPlaylistService
         {
             Type = "cover",
             Data = pictureData!,
-            ContentType = contentType!,
+            // The format the bytes actually contain (detected by the validator), not the client-supplied header.
+            ContentType = validation.ContentType!,
             Width = validation.Width,
             Height = validation.Height,
             IsGeneratedBackground = false,

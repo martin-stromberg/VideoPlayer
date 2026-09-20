@@ -25,12 +25,20 @@ namespace VideoWebPlayer.Services.PlaylistCover
         /// </summary>
         public int? Height { get; }
 
-        private PlaylistCoverValidationResult(bool isValid, string? errorMessage, int? width, int? height)
+        /// <summary>
+        /// Gets the MIME type of the format the validated image bytes actually contain (detected from the
+        /// image data, not taken from the client-supplied header), or <see langword="null"/> when
+        /// <see cref="IsValid"/> is <see langword="false"/>.
+        /// </summary>
+        public string? ContentType { get; }
+
+        private PlaylistCoverValidationResult(bool isValid, string? errorMessage, int? width, int? height, string? contentType)
         {
             IsValid = isValid;
             ErrorMessage = errorMessage;
             Width = width;
             Height = height;
+            ContentType = contentType;
         }
 
         /// <summary>
@@ -38,9 +46,10 @@ namespace VideoWebPlayer.Services.PlaylistCover
         /// </summary>
         /// <param name="width">The width, in pixels, of the validated image.</param>
         /// <param name="height">The height, in pixels, of the validated image.</param>
+        /// <param name="contentType">The MIME type of the format the image bytes actually contain.</param>
         /// <returns>The successful validation result.</returns>
-        public static PlaylistCoverValidationResult Success(int width, int height)
-            => new(true, null, width, height);
+        public static PlaylistCoverValidationResult Success(int width, int height, string contentType)
+            => new(true, null, width, height, contentType);
 
         /// <summary>
         /// Builds a failed result carrying the given user-facing error message.
@@ -48,6 +57,6 @@ namespace VideoWebPlayer.Services.PlaylistCover
         /// <param name="errorMessage">The user-facing error message describing why validation failed.</param>
         /// <returns>The failed validation result.</returns>
         public static PlaylistCoverValidationResult Failure(string errorMessage)
-            => new(false, errorMessage, null, null);
+            => new(false, errorMessage, null, null, null);
     }
 }

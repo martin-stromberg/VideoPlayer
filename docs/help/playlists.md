@@ -307,12 +307,21 @@ angehängt. Zum Umsortieren stehen zwei gleichwertige Wege zur Verfügung:
   gewünschten Position ziehen; er nimmt dann deren Platz ein, die übrigen Einträge rücken
   entsprechend auf. Während des Ziehens wird die gezogene Kachel gedämpft dargestellt und die Kachel
   unter dem Zeiger als Ziel markiert (farbiger Rahmen und eine Einfügelinie an der Kante, an der der
-  Titel landet), so dass die Zielposition jederzeit sichtbar ist. Steht der Zeiger dabei am oberen
-  oder unteren Fensterrand, scrollt die Liste von selbst weiter, so dass auch entfernte Positionen
-  erreichbar sind. Mit Finger oder Stift funktioniert das ebenfalls: die Kachel kurz gedrückt halten
-  (etwa eine halbe Sekunde), bis sie sich löst, und dann ziehen — ein einfaches Wischen scrollt
-  weiterhin die Seite. Ein Abbruch ist jederzeit mit der Escape-Taste möglich. Ein kurzer Hinweistext
-  oberhalb der Liste erinnert im manuellen Modus an diese Möglichkeit.
+  Titel landet), so dass die Zielposition jederzeit sichtbar ist. Die Kacheln stehen je nach
+  Fensterbreite in mehreren Spalten mit Abstand dazwischen; wird knapp neben einer Kachel losgelassen,
+  gilt die nächstliegende als Ziel. Wird dagegen weit außerhalb der Liste losgelassen, bleibt die
+  Reihenfolge unverändert und ein kurzer Hinweis am unteren Rand sagt das. Steht der Zeiger am oberen
+  oder unteren Fensterrand, scrollt die Liste von selbst weiter, so dass auch Positionen außerhalb des
+  Sichtbereichs erreichbar sind. Ein Abbruch ist jederzeit mit der Escape-Taste möglich (der Eintrag
+  bleibt dann, wo er war, und wird auch nicht ausgewählt). Ein kurzer Hinweistext oberhalb der Liste
+  erinnert im manuellen Modus an diese Möglichkeit.
+
+  Mit Finger oder Stift funktioniert das Ziehen ebenfalls: die Kachel kurz gedrückt halten (etwa eine
+  halbe Sekunde), bis sie sich löst, und dann ziehen — ein einfaches Wischen scrollt weiterhin die
+  Seite. Auf schmalen Bildschirmen (Handy) füllt eine Kachel allerdings einen großen Teil der Anzeige,
+  die Nachbarkachel liegt also außerhalb des Sichtbereichs: Man zieht den Finger dann an den unteren
+  oder oberen Rand und wartet, bis die gewünschte Position herangescrollt ist. Für größere Sprünge
+  sind dort die Schaltflächen "An Anfang"/"An Ende" der bequemere Weg.
 - **Schnellaktionen**: Jeder Eintrag besitzt im manuellen Modus zusätzlich die Schaltflächen
   **„An Anfang"** und **„An Ende"**, mit denen sich der Eintrag ohne Ziehen sofort an den Anfang
   bzw. das Ende der Liste verschieben lässt — nützlich insbesondere bei vielen Einträgen oder wenn

@@ -205,3 +205,104 @@ Desktop 1440x900, Bilder im Scratchpad (nicht im Repository):
   der bequemere Weg (so steht es auch in der Hilfe).
 - **Tastatur:** unverändert keine Tastaturalternative zum Ziehen (nicht verlangt); die Schaltflächen
   "An Anfang"/"An Ende" sind weiterhin die tastaturbedienbare Möglichkeit.
+
+## 7. Nachbesserung nach Abnahme
+
+Grundlage: `acceptance-korrektur-drag-drop.md` (Prüfstand `80a5585`), Gesamturteil "Abweichungen gefunden",
+acht Punkte. Der Prüfer hat dabei etwas gefunden, das mir entgangen war und das die wahrscheinlichste
+Erklärung der Kundenmeldung ist: **die alte Fassung wirkte nur, wenn exakt über einer Kachel losgelassen
+wurde.** Die Kacheln stehen in einem mehrspaltigen Raster mit 1 rem Abstand; ein Loslassen in der Lücke,
+neben der Liste oder unter der letzten Reihe tat wortlos nichts — in Chromium und Edge nachgestellt. Der
+alte Hinweistext ("an eine neue Position") legte genau das nahe. Diese Lücke ist jetzt geschlossen (A4).
+
+Belege der Nachbesserung, Punkt für Punkt:
+
+| Punkt | Behebung | Beleg |
+| --- | --- | --- |
+| **A4** Loslassen neben der Kachel | `findDropTarget` nimmt die Kachel unter dem Zeiger und, wenn dort keine ist, die nächstgelegene — solange der Zeiger nicht weiter als eine Kachelhöhe (80–340 px) neben der Liste steht. Die Markierung wandert dabei über die Lücken mit. Weiter weg gibt es kein Ziel, und das Loslassen erzeugt einen sichtbaren Hinweis statt wortlos nichts zu tun. | `E2E_DropInGapBetweenTiles_MovesEntryToNearestTile`, `E2E_DropFarOutsideTheList_KeepsOrder_AndShowsHint` (beide ohne die Korrektur rot); Bilder `06-ziehen-in-die-luecke.png`, `07-nach-drop-in-die-luecke.png`, `08-hinweis-weit-daneben.png` |
+| **A1** unbelegte Ursache als Tatsache | Release Notes (beide Sprachabschnitte), `playlists.md`, `playlists-ablauf-technisch.md`, der Kopfkommentar von `playlistDragDrop.js` und die Testbeschreibung sagen jetzt "nachgestellt … ob der Melder genau das erlebt hat, ist nicht belegt" und nennen beide Kandidaten; "wieder zuverlässig" ist gestrichen. | `git show` der Doku-Änderung; `grep` auf "wieder zuverlässig"/"genau das vom Kunden" liefert nichts mehr |
+| **A2** abgelehnte Zusage des Serveraufrufs | `sendReorder` wertet die Zusage aus (`then`/`catch`): bei Ablehnung `console.warn` **und** sichtbarer Hinweis "Die neue Reihenfolge konnte nicht gespeichert werden. Bitte laden Sie die Seite neu."; der synchrone `try/catch` bleibt zusätzlich. | Code; der Hinweis nutzt denselben Weg wie in `08-hinweis-weit-daneben.png` gezeigt |
+| **A9** Fingerbedienung auf Handy-Größe | Zwei echte Fehler gefunden: (1) die Schrittweite hing an der Taktzahl des `setInterval`, das unter Last statt alle 16 ms nur alle ~90 ms lief; jetzt wird in px/s gerechnet und mit der vergangenen Zeit multipliziert. (2) **Bootstrap setzt auf `:root` ein `scroll-behavior: smooth`** — jedes `scrollBy` startete eine Animation, die der nächste Takt abbrach; gemessen blieben von ~1700 px/s nur ~150 px/s übrig. Jetzt `scrollTo({ behavior: "instant" })`. Randstreifen bei Finger/Stift 120 px statt 56 px, Geschwindigkeit 400–2000 px/s je nach Randnähe. | `E2E_DragWithTouch_OnPhoneScreen_AutoScrollsToATileBelowTheFold` (390x844, echte Touch-Ereignisse) misst die Scrollstrecke: ohne die Korrektur **51 px in 700 ms** (deckt sich mit den ~70 px/s des Prüfers), mit ihr über 1000 px, und der Titel landet auf der herangescrollten Kachel |
+| **A3** stille Rückgaben serverseitig | `MoveEntryToTargetPositionAsync` meldet jetzt jeden Abbruchgrund: nicht (mehr) sortierbar bzw. Eintrag/Ziel nicht mehr geladen ⇒ `Logger.LogWarning` + Statusmeldung + Neuladen der Liste. | Code; das Neuladen ist zusammen mit dem Zusatzpunkt getestet |
+| **Zusatz** Neuladen nach gescheitertem Serveraufruf | Nach einem Fehler wird die Liste neu geladen (die Fehlermeldung bleibt stehen). | `E2E_ServerRefusesReorder_ShowsError_AndReloadsList`: der gezogene Eintrag wird während der gedrückten Maustaste aus der Datenbank entfernt; danach erscheint "Fehler beim Umordnen …" und die Liste zeigt nur noch die verbliebenen zwei Kacheln (ohne die Korrektur rot) |
+| **A6** Escape und der folgende Klick | `cancelGesture` setzt die Klick-Unterdrückung auch beim Abbruch; sie gilt bis zum nächsten Klick (längstens 2 s) statt nur bis zum nächsten Ereigniszyklus. | `E2E_EscapeDuringDrag_KeepsOrder_AndDoesNotSelectEntry` — zieht innerhalb derselben Kachel (nur so trifft der Klick danach diese Kachel), ohne die Korrektur rot |
+| **A7** überlappende Drops | Im Browser beginnt keine neue Geste, solange ein Serveraufruf läuft; die Komponente weist einen trotzdem eintreffenden zweiten Aufruf ab (`isReordering`, mit Protokolleintrag). | Code |
+| **A8** Ziel- und Auswahlfarbe | Die Zielkachel ist jetzt in der Zweitfarbe (`--vp-secondary`, blau) statt im Rot der Auswahl. | Bild `05-ziel-und-auswahl-unterscheidbar.png`: die ausgewählte Kachel ist gleichzeitig Ziel und trotzdem eindeutig zu lesen |
+| **A5** Testlücken | Neue Tests mit echter Eingabe: Doppelklick spielt ab, Loslassen in der Lücke, Loslassen weit daneben, Escape-dann-Loslassen, Serverfehler mit Neuladen, Fingerbedienung auf Handy-Größe. | siehe unten |
+
+### Tests nach der Nachbesserung
+
+`PlaylistDragDropReorderE2ETests` hat jetzt 13 Tests (neu: Doppelklick spielt ab; Fingerbedienung auf
+390x844 mit Auto-Scroll zu einer nicht sichtbaren Kachel). Neu ist die Klasse
+`PlaylistDragDropFeedbackE2ETests` (4 Tests) für alles, was schiefgehen kann: Lücke, weit daneben, Escape,
+Serverfehler. Die gemeinsamen Zieh-Helfer (`DragEntryOntoEntryAsync`, `BeginEntryDragAsync`,
+`ReadEntryOrderAsync`, `RequireBoundingBoxAsync`, `DispatchTouchAsync`, `EntryRowSelector`) liegen jetzt in
+`PlaylistsE2ETestBase`, damit beide Klassen sie nutzen können; neu dort auch
+`RemoveEntryFromDatabaseAsync` für den Serverfehler-Test.
+
+**Gegenprobe gegen den Stand VOR der Nachbesserung** (`f70ed54`, nur `PlaylistEntriesList.razor`,
+`playlistDragDrop.js` und `app.css` zurückgenommen, Tests unverändert):
+
+```
+Fehler E2E_DropInGapBetweenTiles_MovesEntryToNearestTile
+Fehler E2E_DropFarOutsideTheList_KeepsOrder_AndShowsHint
+Fehler E2E_EscapeDuringDrag_KeepsOrder_AndDoesNotSelectEntry
+Fehler E2E_ServerRefusesReorder_ShowsError_AndReloadsList
+Fehler E2E_DragWithTouch_OnPhoneScreen_AutoScrollsToATileBelowTheFold
+   (Das automatische Scrollen war zu langsam: nur 51 px in 700 ms.)
+```
+
+Fünf der sechs neuen Tests unterscheiden also "nachgebessert" von "nicht nachgebessert". Der sechste
+(`E2E_DoubleClickOnEntry_StartsPlayback`) ist bewusst ein reiner Regressionsschutz: er sichert ab, dass die
+Klick-Unterdrückung den Doppelklick nicht mitverschluckt, und läuft in beiden Ständen grün.
+
+**Builds und Testläufe:** `dotnet build VideoPlayer.sln` in Debug und Release fehlerfrei; strikte Hooks
+(`razor-usage-check.py`, `enum-coverage-check.py`, `no-notimplemented-check.py`, je `--all --strict`) sowie
+die pre-commit-Hooks laufen durch. Die beiden Zieh-Testklassen (17 Tests) liefen dreimal hintereinander
+vollständig grün.
+
+Bei der vollständigen Suite (jetzt 1247 Tests) bin ich zur Ehrlichkeit verpflichtet: **fünf von sechs
+Durchläufen hatten je genau einen Fehlschlag, und zwar jedes Mal einen anderen, mit dem Ziehen nicht
+verwandten Test**:
+
+| Durchlauf | Fehlschlag | einzeln wiederholt |
+| --- | --- | --- |
+| 1 | `PlaylistPlaybackE2ETests.PlaylistPreviousEntryE2ETest` | grün |
+| 2 | `PlaylistMediaSearchE2ETests.SelectMovieCollection_AddsCollection` | grün |
+| 3 | `PlaylistBackfillSignalTests.NotifyDuringAScan_WakesOnlyWhenTheScanEnds` | grün |
+| 4 | `PlaylistPlaybackE2ETests.PlaylistPreviousAtBeginningDoesNotShowEndReachedE2ETest` | grün |
+| 5 | keiner - 1247/1247 grün | — |
+| 6 | `Components.MediaSearchSelectorTests.HttpCall_ItemsEndpoint_ReceivesCorrectUrl` | grün (2 s) |
+
+Alle sind zeit- bzw. wartebasiert (Playwright-Zeitüberschreitungen, ein Signal-Test mit Wartezeiten, im
+letzten Fall sogar ein reiner bUnit-Test ohne Browser und ohne Server), und der Rechner trägt parallel einen
+zweiten Agenten in einem anderen Arbeitsverzeichnis. Kein Test wurde deaktiviert oder abgeschwächt. Ein
+Zusammenhang mit dieser Änderung ist nicht erkennbar - keiner der sechs berührt das Ziehen, und der
+bUnit-Fall kann es gar nicht -, mit letzter Sicherheit ausgeschlossen ist er nicht. Wer nachprüft, sollte die
+Suite mehrfach laufen lassen und auf dieses Muster achten; die beiden Zieh-Testklassen selbst waren in jedem
+Lauf grün, auch dreimal hintereinander allein ausgeführt.
+
+### Neue Bilder (Scratchpad, nicht im Repository)
+
+| Bild | Inhalt |
+| --- | --- |
+| `screenshots\05-ziel-und-auswahl-unterscheidbar.png` | die ausgewählte Kachel (rot) ist gleichzeitig Ziel (blau mit Einfügelinie) |
+| `screenshots\06-ziehen-in-die-luecke.png` | Zeiger in der Lücke zwischen zwei Kacheln, die nächstliegende ist markiert |
+| `screenshots\07-nach-drop-in-die-luecke.png` | Ergebnis nach dem Loslassen in der Lücke |
+| `screenshots\08-hinweis-weit-daneben.png` | Hinweis "Nicht umsortiert: Lassen Sie den Titel auf der Kachel der gewünschten Position los." |
+
+### Was nach der Nachbesserung offen bleibt
+
+- **Die Kundenursache bleibt unbelegt.** Es gibt jetzt zwei nachgestellte Kandidaten (Roundtrip-Abhängigkeit,
+  Loslassen neben der Kachel); beide sind ausgeschlossen. Der Prüfer hält den zweiten für wahrscheinlicher,
+  ich teile diese Einschätzung nach seinem Nachweis.
+- **Zwei-Tab-Betrieb:** ändert ein zweiter Tab die Reihenfolge, arbeitet der erste bis zum nächsten Laden mit
+  veralteten Sortierwerten; das Ergebnis kann dann von der erwarteten Position abweichen, ohne dass ein
+  Fehler entsteht. Die Liste wird nach jedem Umordnen neu geladen und zeigt danach den tatsächlichen Stand.
+  Eine echte Absicherung bräuchte eine Server-Prüfung (z. B. erwartete Position mitsenden) und damit eine
+  API-Änderung, die hier ausdrücklich nicht vorgenommen werden sollte.
+- **Nicht mit echter Eingabe gesehen:** Firefox und WebKit/Safari (die Nachbesserung ist nur in Chromium
+  gefahren; die erste Runde war zusätzlich in echtem Edge und Firefox geprüft), echte Mobilgeräte, echte
+  Stift-Eingabe. Die Fingerbedienung ist ausschließlich mit Touch-Emulation belegt.
+- **Der Hinweis am unteren Rand** ist bewusst eine reine Browser-Anzeige (kein Blazor-Element), damit er auch
+  ohne Serververbindung erscheint. Er verschwindet nach fünf Sekunden von selbst und ist nicht anklickbar.

@@ -222,6 +222,41 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
         await Page.ClickAsync("#playlist-detail-play-entry-button");
     }
 
+    /// <summary>
+    /// The locator of the rendered entry tiles of the detail page. Shared by the reorder E2E tests.
+    /// </summary>
+    protected const string EntryRowSelector = ".playlist-entries-list-wrap .playlist-entry-row";
+
+    /// <summary>
+    /// Sets up a playlist with three movies in manual sort mode on its detail page: creates it via the UI,
+    /// seeds three movies, opens the detail page and switches the sort mode to "Manuell". Shared by the
+    /// reorder E2E tests (<c>PlaylistReorderE2ETests</c> for the quick actions,
+    /// <c>PlaylistDragDropReorderE2ETests</c> for the drag gesture), which all need exactly this starting
+    /// point.
+    /// </summary>
+    /// <param name="playlistName">The name to create the playlist with.</param>
+    /// <returns>The entry tile locator and the initial front-to-back media-id order.</returns>
+    protected async Task<(ILocator RowLocator, string[] InitialOrder)> SetupManualPlaylistWithThreeEntriesAsync(string playlistName)
+    {
+        await LoginAsync(UserAEmail);
+        // 1440x900 (Desktop): bei der Standardgröße liegen die Kacheln teils unterhalb des Sichtbereichs.
+        await Page.SetViewportSizeAsync(1440, 900);
+        var row = await CreatePlaylistViaUiAsync(playlistName);
+        await SeedMoviesIntoPlaylistAsync(playlistName, 3);
+        await row.ClickAsync();
+        await Page.WaitForSelectorAsync("#playlist-detail-name");
+        await Page.WaitForTimeoutAsync(1500);
+
+        await Page.ClickAsync(".playlist-sortmode-toggle-button");
+        await Page.WaitForTimeoutAsync(1000);
+
+        var rowLocator = Page.Locator(".playlist-entries-list-wrap .playlist-entry-row");
+        var initialOrder = await rowLocator.EvaluateAllAsync<string[]>("els => els.map(e => e.getAttribute('data-media-id'))");
+        Assert.Equal(3, initialOrder.Length);
+
+        return (rowLocator, initialOrder);
+    }
+
     protected async Task<ILocator> CreatePlaylistViaUiAsync(string name, string? description = null)
     {
         await Page.GotoAsync($"{ServerUrl}/playlists");
@@ -453,6 +488,21 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
                     AddedAt = DateTime.UtcNow
                 });
             }
+            await db.SaveChangesAsync();
+        });
+
+    /// <summary>
+    /// Removes the entry of the given media from the playlist directly in the database (bypassing the UI
+    /// and the API), for E2E tests that need the server to refuse an action on an entry which vanished
+    /// while the browser was still showing it - e.g. dropping a tile that no longer exists.
+    /// </summary>
+    /// <param name="playlistName">The name of the existing playlist.</param>
+    /// <param name="mediaId">The media id of the entry to remove.</param>
+    protected Task RemoveEntryFromDatabaseAsync(string playlistName, long mediaId)
+        => RunScopedWithPlaylistAsync(playlistName, async (db, _, playlist) =>
+        {
+            var entry = await db.PlaylistEntries.FirstAsync(e => e.PlaylistId == playlist.Id && e.MediaId == mediaId);
+            db.PlaylistEntries.Remove(entry);
             await db.SaveChangesAsync();
         });
 
@@ -810,4 +860,88 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
         if (!createB.Succeeded)
             throw new InvalidOperationException($"Benutzer B konnte nicht erstellt werden: {string.Join(", ", createB.Errors.Select(e => e.Description))}");
     }
+
+    /// <summary>
+    /// Reads the current front-to-back media-id order of the rendered entry tiles.
+    /// </summary>
+    /// <param name="rowLocator">The locator matching the entry tiles.</param>
+    /// <returns>The media ids in the rendered order.</returns>
+    protected static Task<string[]> ReadEntryOrderAsync(ILocator rowLocator)
+        => rowLocator.EvaluateAllAsync<string[]>("els => els.map(e => e.getAttribute('data-media-id'))");
+
+    /// <summary>
+    /// Drags the tile of the given media onto the tile of the other media with real mouse input, the way
+    /// a person does it: press, many small moves with pauses in between, release.
+    /// </summary>
+    /// <param name="sourceMediaId">The media id of the tile to drag.</param>
+    /// <param name="targetMediaId">The media id of the tile to drop it on.</param>
+    /// <param name="sourceChildSelector">An element inside the source tile to start the gesture on (poster, title, ...); the tile itself when omitted.</param>
+    /// <param name="settleMilliseconds">How long to wait for the reordered list after releasing the mouse.</param>
+    protected async Task DragEntryOntoEntryAsync(string sourceMediaId, string targetMediaId, string? sourceChildSelector = null, int settleMilliseconds = 2000)
+    {
+        var sourceRow = Page.Locator($"{EntryRowSelector}[data-media-id='{sourceMediaId}']");
+        var source = sourceChildSelector is null ? sourceRow : sourceRow.Locator(sourceChildSelector);
+        var target = Page.Locator($"{EntryRowSelector}[data-media-id='{targetMediaId}']");
+
+        await BeginEntryDragAsync(source, target);
+        await Page.Mouse.UpAsync();
+        await Page.WaitForTimeoutAsync(settleMilliseconds);
+    }
+
+    /// <summary>
+    /// Presses the mouse on the source element and moves it onto the target element, leaving the button
+    /// pressed, so the caller can inspect the running gesture before releasing it.
+    /// </summary>
+    /// <param name="source">The element to start the gesture on.</param>
+    /// <param name="target">The tile to move the pointer onto.</param>
+    protected async Task BeginEntryDragAsync(ILocator source, ILocator target)
+    {
+        await source.ScrollIntoViewIfNeededAsync();
+        var sourceBox = await RequireBoundingBoxAsync(source);
+        var targetBox = await RequireBoundingBoxAsync(target);
+
+        // Oberer rechter Bereich der Kachel: dort liegen weder das Poster (links) noch die
+        // Schnellaktions-Schaltflaechen (unten), wenn keine abweichende Startstelle verlangt wurde.
+        var startX = sourceBox.X + sourceBox.Width * 0.75f;
+        var startY = sourceBox.Y + sourceBox.Height * 0.3f;
+        var endX = targetBox.X + targetBox.Width * 0.75f;
+        var endY = targetBox.Y + targetBox.Height * 0.3f;
+
+        await Page.Mouse.MoveAsync(startX, startY);
+        await Page.Mouse.DownAsync();
+        await Page.WaitForTimeoutAsync(120);
+        for (var step = 1; step <= 12; step++)
+        {
+            await Page.Mouse.MoveAsync(startX + (endX - startX) * step / 12f, startY + (endY - startY) * step / 12f);
+            await Page.WaitForTimeoutAsync(40);
+        }
+
+        await Page.WaitForTimeoutAsync(200);
+    }
+
+    /// <summary>
+    /// Returns the bounding box of the given element, failing the test if it has none (not rendered).
+    /// </summary>
+    /// <param name="locator">The element to measure.</param>
+    /// <returns>The element's bounding box.</returns>
+    protected static async Task<LocatorBoundingBoxResult> RequireBoundingBoxAsync(ILocator locator)
+        => await locator.BoundingBoxAsync()
+            ?? throw new InvalidOperationException("Das Element ist nicht sichtbar und hat keine Ausmaße.");
+
+    /// <summary>
+    /// Dispatches a single-finger touch event through the Chrome DevTools Protocol (Playwright's own
+    /// touch API only offers taps, not a drag).
+    /// </summary>
+    /// <param name="cdp">The DevTools session of the page.</param>
+    /// <param name="type">The touch event type (<c>touchStart</c>, <c>touchMove</c>, <c>touchEnd</c>).</param>
+    /// <param name="x">The horizontal position of the finger.</param>
+    /// <param name="y">The vertical position of the finger.</param>
+    protected static Task DispatchTouchAsync(ICDPSession cdp, string type, float x, float y)
+        => cdp.SendAsync("Input.dispatchTouchEvent", new Dictionary<string, object>
+        {
+            ["type"] = type,
+            ["touchPoints"] = type == "touchEnd"
+                ? Array.Empty<object>()
+                : new object[] { new Dictionary<string, object> { ["x"] = x, ["y"] = y, ["id"] = 1 } }
+        });
 }

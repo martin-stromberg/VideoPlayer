@@ -1114,3 +1114,54 @@ er einmalig gesetzt: leere Liste (kein Eintrag mit eigener Kachel, nichts nachzu
 den Besitzer gerendert; im Lesemodus (`IsReadOnly`) gibt es weder Umschalter noch Suche. Hinzufügen belässt den
 Modus (mehrere Titel nacheinander), das Entfernen des letzten Titels schaltet auf `Add`, der Wechsel nach `Add`
 hebt die Auswahl auf.
+
+**Umordnen per Ziehen.** Die Kacheln tragen keine nativen Drag-&-Drop-Attribute (`draggable`,
+`@ondragstart`, `@ondragover:preventDefault`, `@ondrop`) mehr. Die gesamte Geste läuft im Browser in
+`wwwroot/js/playlistDragDrop.js` über Pointer-Ereignisse ab: `pointerdown` auf einer Kachel (nicht auf den
+Schnellaktions-Schaltflächen), ab 6 px Mausbewegung — bei Finger/Stift nach 400 ms Halten — beginnt das
+Ziehen, `pointermove` bestimmt die Zielkachel und markiert Quelle (`playlist-entry-dragging`) und Ziel
+(`playlist-entry-drop-target` plus `-before`/`-after` für die Einfügelinie; bewusst in der Zweitfarbe, damit
+Ziel und Auswahl unterscheidbar bleiben). `Escape` und `pointercancel` brechen ab; danach wird auch der
+folgende `click` verschluckt, damit ein Abbruch keine Auswahl auslöst. Erst `pointerup` ruft einmalig
+`ReorderEntryByDropAsync(gezogeneId, zielId)` per `DotNetObjectReference` auf; die zurückgegebene Zusage
+wird ausgewertet (`console.warn` plus sichtbarer Hinweis, wenn der Aufruf abgelehnt wird, etwa weil der
+Circuit beendet ist). Die Komponente schlägt beide Ids in `allEntries` nach und ruft unverändert
+`MoveEntryBetweenAsync` mit `NewSortOrder` = `SortOrder` der Zielkachel (Ablauf 6). An- und abgemeldet wird
+das Modul in `OnAfterRenderAsync` über `UpdateReorderHandlersAsync`, und zwar nur für den Besitzer im
+manuellen Sortiermodus bei sichtbarer Titelliste; der Server weist Umordnungen anderer Benutzer bzw. im
+Datumsmodus unabhängig davon ab.
+
+*Zielbestimmung.* `document.elementFromPoint` liefert die Kachel unter dem Zeiger. Liegt dort keine (die
+Kacheln stehen in einem mehrspaltigen Raster mit 1 rem Abstand, am Listenende folgt freier Raum), wird die
+nächstgelegene Kachel genommen, solange der Zeiger nicht weiter als eine Kachelhöhe (mindestens 80 px,
+höchstens 340 px) neben der Liste steht; darüber hinaus gibt es kein Ziel, und das Loslassen erzeugt einen
+sichtbaren Hinweis, statt wortlos nichts zu tun. Diese Hinweise hängen direkt am `<body>`
+(`#playlist-reorder-hint`), nicht im von Blazor verwalteten Baum, und brauchen keine Serververbindung.
+
+*Automatisches Scrollen am Rand.* Nähert sich der Zeiger während des Ziehens dem oberen oder unteren
+Fensterrand (Maus 56 px, Finger/Stift 120 px), scrollt die Seite selbsttätig weiter, mit 400 bis 2000 px/s
+je nach Randnähe. Zwei Fallstricke stecken darin: die Geschwindigkeit wird in px/s gerechnet und mit der
+tatsächlich vergangenen Zeit multipliziert (ein `setInterval` lief unter Last nur alle ~90 ms statt alle
+16 ms), und gescrollt wird mit `behavior: "instant"` — Bootstrap setzt auf `:root` ein
+`scroll-behavior: smooth`, wodurch jedes `scrollBy` eine Animation startet, die der nächste Takt sofort
+abbricht; gemessen blieben davon statt der angeforderten rund 1700 px/s nur etwa 150 px/s übrig, und auf
+Handy-Größe kam die Nachbarkachel nie heran.
+
+*Gleichzeitige Umordnungen.* Solange ein Serveraufruf läuft, beginnt das Modul keine neue Geste, und
+`ReorderEntryByDropAsync` weist einen trotzdem eintreffenden zweiten Aufruf ab (`isReordering`): er würde
+seine Zielposition aus der noch nicht neu geladenen Liste lesen. Nach einem gescheiterten Aufruf wird die
+Liste neu geladen, damit ein zwischenzeitlich entfernter Eintrag nicht als Kachel stehen bleibt. Ändert ein
+zweiter Browser-Tab die Reihenfolge, arbeitet dieser Tab bis zum nächsten Laden mit veralteten
+Sortierwerten; das Ergebnis kann dann von der erwarteten Position abweichen (die Liste wird nach jedem
+Umordnen neu geladen und zeigt den tatsächlichen Stand).
+
+*Warum kein natives Drag & Drop:* dort verteilt sich der Ablauf auf zwei Server-Roundtrips — `@ondragstart`
+merkt sich den gezogenen Eintrag serverseitig, `@ondrop` liest ihn zurück. Erreicht die dragstart-Nachricht
+den Server nicht vor dem Drop (langsame oder unzuverlässige Verbindung, SignalR-Long-Polling ohne
+garantierte Reihenfolge, kurzer Verbindungsabbruch), ist das Feld beim Drop noch `null` und der Drop wird
+ohne jede Meldung verworfen. Das ist im Browser nachgestellt (der E2E-Test
+`E2E_DragWithMouse_FirstMessageDelayed_StillReordersEntry` hält den Fall fest); **ob der Melder genau das
+erlebt hat, ist nicht belegt** — ebenso plausibel ist, dass neben eine Kachel losgelassen wurde, was in der
+alten Fassung ebenfalls wortlos nichts bewirkte. Beides ist jetzt ausgeschlossen. Zusätzlich kennt natives
+Drag & Drop keine Touch-Eingabe, und jede optische Rückmeldung während des Ziehens hätte einen weiteren
+Roundtrip gekostet.

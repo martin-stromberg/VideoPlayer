@@ -39,8 +39,8 @@ public class PlaylistDetailPublicTests
         new object[] { "Hinzufügen-Modus", "#playlist-add-area" },
         new object[] { "An Anfang", ".playlist-entry-move-start-button" },
         new object[] { "An Ende", ".playlist-entry-move-end-button" },
-        new object[] { "Drag & Drop", ".playlist-entry-row[draggable=true]" },
-        new object[] { "Drag&Drop-Hinweis", ".playlist-entries-draganddrop-hint" },
+        new object[] { "Ziehbare Kachel", ".playlist-entry-row.playlist-entry-reorderable" },
+        new object[] { "Hinweis zum Ziehen", ".playlist-entries-draganddrop-hint" },
     };
 
     [Theory]
@@ -314,6 +314,10 @@ public class PlaylistDetailPublicTests
         ctx.Services.AddSingleton<ILogger<PlaylistDetail>>(NullLogger<PlaylistDetail>.Instance);
         ctx.Services.AddSingleton<ILogger<PlaylistEntriesList>>(NullLogger<PlaylistEntriesList>.Instance);
         ctx.Services.AddSingleton<ILogger<MediaSearchSelector>>(NullLogger<MediaSearchSelector>.Instance);
+        // Die Eintragsliste meldet ihre Kachelliste beim Zieh-Modul an (wwwroot/js/playlistDragDrop.js),
+        // sobald der Besitzer eine Playlist im manuellen Sortiermodus sieht.
+        ctx.JSInterop.SetupVoid("playlistEntryReorder.attach", _ => true).SetVoidResult();
+        ctx.JSInterop.SetupVoid("playlistEntryReorder.detach", _ => true).SetVoidResult();
         return ctx;
     }
 

@@ -106,7 +106,8 @@ public class PlaylistEntriesListSelectionTests
         var (cut, _, _) = Render(entries: Movies(2), isManualMode: true);
 
         var row = cut.FindAll(".playlist-entry-row")[0];
-        Assert.Equal("true", row.GetAttribute("draggable"));
+        // Die Kachel ist als ziehbar markiert (playlistDragDrop.js erkennt daran, was gezogen werden darf).
+        Assert.Contains("playlist-entry-reorderable", row.ClassList);
         Assert.Single(row.QuerySelectorAll(".playlist-entry-move-start-button"));
         Assert.Single(row.QuerySelectorAll(".playlist-entry-move-end-button"));
         Assert.All(row.QuerySelectorAll(".playlist-entry-actions button"), b =>
@@ -326,6 +327,9 @@ public class PlaylistEntriesListSelectionTests
         ctx.Services.AddSingleton(mock.Object);
         ctx.Services.AddSingleton<ILogger<PlaylistEntriesList>>(NullLogger<PlaylistEntriesList>.Instance);
         ctx.Services.AddSingleton<ILogger<MediaSearchSelector>>(NullLogger<MediaSearchSelector>.Instance);
+        // Im manuellen Modus meldet die Liste ihre Kacheln beim Zieh-Modul an (playlistDragDrop.js).
+        ctx.JSInterop.SetupVoid("playlistEntryReorder.attach", _ => true).SetVoidResult();
+        ctx.JSInterop.SetupVoid("playlistEntryReorder.detach", _ => true).SetVoidResult();
 
         var selections = new List<DtoPlaylistEntry?>();
         var cut = ctx.Render<PlaylistEntriesList>(parameters =>

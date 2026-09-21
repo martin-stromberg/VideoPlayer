@@ -20,8 +20,6 @@ namespace VideoWebPlayer.Tests;
 [Trait("Category", "E2E")]
 public sealed class PlaylistDragDropReorderE2ETests : PlaylistsE2ETestBase
 {
-    private const string RowSelector = ".playlist-entries-list-wrap .playlist-entry-row";
-
     /// <summary>
     /// Verifies the main gesture: dragging the first entry onto the third entry's tile puts it at the
     /// third position, and the new order survives a full page reload (i.e. it was persisted server-side,
@@ -39,13 +37,13 @@ public sealed class PlaylistDragDropReorderE2ETests : PlaylistsE2ETestBase
 
         // Der gezogene Titel steht auf der Position des Ziels, die beiden anderen ruecken auf.
         var expected = new[] { initialOrder[1], initialOrder[2], initialOrder[0] };
-        Assert.Equal(expected, await ReadOrderAsync(rowLocator));
+        Assert.Equal(expected, await ReadEntryOrderAsync(rowLocator));
 
         await Page.ReloadAsync();
         await Page.WaitForSelectorAsync("#playlist-detail-name");
         await Page.WaitForTimeoutAsync(1500);
 
-        Assert.Equal(expected, await ReadOrderAsync(rowLocator));
+        Assert.Equal(expected, await ReadEntryOrderAsync(rowLocator));
     }
 
     /// <summary>
@@ -62,7 +60,7 @@ public sealed class PlaylistDragDropReorderE2ETests : PlaylistsE2ETestBase
 
         await DragEntryOntoEntryAsync(initialOrder[2], initialOrder[0]);
 
-        Assert.Equal(new[] { initialOrder[2], initialOrder[0], initialOrder[1] }, await ReadOrderAsync(rowLocator));
+        Assert.Equal(new[] { initialOrder[2], initialOrder[0], initialOrder[1] }, await ReadEntryOrderAsync(rowLocator));
     }
 
     /// <summary>
@@ -80,7 +78,7 @@ public sealed class PlaylistDragDropReorderE2ETests : PlaylistsE2ETestBase
 
         await DragEntryOntoEntryAsync(initialOrder[0], initialOrder[2], sourceChildSelector: ".playlist-entry-image");
 
-        Assert.Equal(new[] { initialOrder[1], initialOrder[2], initialOrder[0] }, await ReadOrderAsync(rowLocator));
+        Assert.Equal(new[] { initialOrder[1], initialOrder[2], initialOrder[0] }, await ReadEntryOrderAsync(rowLocator));
     }
 
     /// <summary>
@@ -97,7 +95,7 @@ public sealed class PlaylistDragDropReorderE2ETests : PlaylistsE2ETestBase
 
         await DragEntryOntoEntryAsync(initialOrder[0], initialOrder[2], sourceChildSelector: ".episode-title");
 
-        Assert.Equal(new[] { initialOrder[1], initialOrder[2], initialOrder[0] }, await ReadOrderAsync(rowLocator));
+        Assert.Equal(new[] { initialOrder[1], initialOrder[2], initialOrder[0] }, await ReadEntryOrderAsync(rowLocator));
     }
 
     /// <summary>
@@ -113,9 +111,9 @@ public sealed class PlaylistDragDropReorderE2ETests : PlaylistsE2ETestBase
 
         var (_, initialOrder) = await SetupManualPlaylistWithThreeEntriesAsync("Ziehen-Rueckmeldung");
 
-        var source = Page.Locator($"{RowSelector}[data-media-id='{initialOrder[0]}']");
-        var target = Page.Locator($"{RowSelector}[data-media-id='{initialOrder[2]}']");
-        await BeginDragAsync(source, target);
+        var source = Page.Locator($"{EntryRowSelector}[data-media-id='{initialOrder[0]}']");
+        var target = Page.Locator($"{EntryRowSelector}[data-media-id='{initialOrder[2]}']");
+        await BeginEntryDragAsync(source, target);
 
         await Expect(source).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("playlist-entry-dragging"));
         await Expect(target).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("playlist-entry-drop-target"));
@@ -147,6 +145,33 @@ public sealed class PlaylistDragDropReorderE2ETests : PlaylistsE2ETestBase
     }
 
     /// <summary>
+    /// Verifies that a double-click on a tile still starts playback while the reorder gesture is active.
+    /// </summary>
+    /// <remarks>
+    /// The positive counterpart to <see cref="E2E_Drag_DoesNotSelectEntry_AndDoesNotStartPlayback"/>: the
+    /// gesture swallows the click after a drag and a double-click shortly after one, so the behavior it
+    /// must NOT swallow needs its own test - the existing double-click tests cover only a locked entry
+    /// (where nothing may happen anyway).
+    /// </remarks>
+    [Fact]
+    public async Task E2E_DoubleClickOnEntry_StartsPlayback()
+    {
+        if (SkipBrowser)
+            return;
+
+        var (_, initialOrder) = await SetupManualPlaylistWithThreeEntriesAsync("Doppelklick-Abspielen");
+        await GrantMediaSourceAccessForUserAsync(UserAEmail);
+        await Page.ReloadAsync();
+        await Page.WaitForSelectorAsync("#playlist-detail-name");
+        await Page.WaitForTimeoutAsync(1500);
+
+        await Page.DblClickAsync($"{EntryRowSelector}[data-media-id='{initialOrder[0]}'] .episode-title");
+        await Page.WaitForTimeoutAsync(2000);
+
+        Assert.Contains("entryId=", Page.Url);
+    }
+
+    /// <summary>
     /// Verifies that a plain click still selects an entry after a drag was performed before - the click
     /// suppression must apply to the drag's own click only.
     /// </summary>
@@ -162,7 +187,7 @@ public sealed class PlaylistDragDropReorderE2ETests : PlaylistsE2ETestBase
 
         // Auf den Titeltext klicken: die Mitte der Kachel liegt im manuellen Modus ueber den
         // Schnellaktions-Schaltflaechen.
-        await Page.ClickAsync($"{RowSelector}[data-media-id='{initialOrder[0]}'] .episode-title");
+        await Page.ClickAsync($"{EntryRowSelector}[data-media-id='{initialOrder[0]}'] .episode-title");
         await Expect(Page.Locator("#playlist-detail-selected-entry")).ToBeVisibleAsync();
     }
 
@@ -173,12 +198,14 @@ public sealed class PlaylistDragDropReorderE2ETests : PlaylistsE2ETestBase
     /// frame, SignalR long polling without guaranteed order) does to the message order.
     /// </summary>
     /// <remarks>
-    /// This is the regression guard for the reported bug. The previous implementation used native HTML5
-    /// drag &amp; drop and needed the <c>dragstart</c> message - the first one of the gesture - to be
-    /// processed by the server BEFORE the drop arrived, because it remembered the dragged entry in a
-    /// server-side field. Arriving late, that field was still <see langword="null"/> when the drop was
-    /// handled and the drop was discarded without any message: "dragging does nothing, only the buttons
-    /// work". The gesture now runs entirely in the browser and reaches the server exactly once, on
+    /// One of the two ways in which a drag used to end without any effect and without a message (the
+    /// other one - letting go beside a tile - is covered by
+    /// <see cref="PlaylistDragDropFeedbackE2ETests"/>); which of them the reporter ran into is not
+    /// established. The previous implementation used native HTML5 drag &amp; drop and needed the
+    /// <c>dragstart</c> message - the first one of the gesture - to be processed by the server BEFORE the
+    /// drop arrived, because it remembered the dragged entry in a server-side field. Arriving late, that
+    /// field was still <see langword="null"/> when the drop was handled and the drop was discarded
+    /// silently. The gesture now runs entirely in the browser and reaches the server exactly once, on
     /// release, carrying both entry ids - so a delayed message only delays the reordering.
     /// </remarks>
     [Fact]
@@ -205,7 +232,7 @@ public sealed class PlaylistDragDropReorderE2ETests : PlaylistsE2ETestBase
 
         await DragEntryOntoEntryAsync(initialOrder[0], initialOrder[2], settleMilliseconds: 12000);
 
-        Assert.Equal(new[] { initialOrder[1], initialOrder[2], initialOrder[0] }, await ReadOrderAsync(rowLocator));
+        Assert.Equal(new[] { initialOrder[1], initialOrder[2], initialOrder[0] }, await ReadEntryOrderAsync(rowLocator));
     }
 
     /// <summary>
@@ -220,8 +247,8 @@ public sealed class PlaylistDragDropReorderE2ETests : PlaylistsE2ETestBase
 
         var (rowLocator, initialOrder) = await SetupManualPlaylistWithThreeEntriesAsync("Ziehen-Mit-Finger");
 
-        var source = Page.Locator($"{RowSelector}[data-media-id='{initialOrder[0]}']");
-        var target = Page.Locator($"{RowSelector}[data-media-id='{initialOrder[2]}']");
+        var source = Page.Locator($"{EntryRowSelector}[data-media-id='{initialOrder[0]}']");
+        var target = Page.Locator($"{EntryRowSelector}[data-media-id='{initialOrder[2]}']");
         await source.ScrollIntoViewIfNeededAsync();
         var sourceBox = await RequireBoundingBoxAsync(source);
         var targetBox = await RequireBoundingBoxAsync(target);
@@ -249,7 +276,85 @@ public sealed class PlaylistDragDropReorderE2ETests : PlaylistsE2ETestBase
         await DispatchTouchAsync(cdp, "touchEnd", endX, endY);
         await Page.WaitForTimeoutAsync(2000);
 
-        Assert.Equal(new[] { initialOrder[1], initialOrder[2], initialOrder[0] }, await ReadOrderAsync(rowLocator));
+        Assert.Equal(new[] { initialOrder[1], initialOrder[2], initialOrder[0] }, await ReadEntryOrderAsync(rowLocator));
+    }
+
+    /// <summary>
+    /// Verifies that a finger can reach a tile that is not visible at all on a phone-sized screen: a tile
+    /// is roughly a third of the screen there, so the next one already starts below the fold. Holding the
+    /// finger at the lower edge has to scroll the list along fast enough to bring a target up within a
+    /// normal gesture.
+    /// </summary>
+    /// <remarks>
+    /// The target is whatever tile the automatic scrolling brings under the finger, so the test reads the
+    /// marked drop target from the page right before letting go and then expects the dragged entry at
+    /// exactly that tile's original position - deterministic without assuming a scroll distance.
+    /// </remarks>
+    [Fact]
+    public async Task E2E_DragWithTouch_OnPhoneScreen_AutoScrollsToATileBelowTheFold()
+    {
+        if (SkipBrowser)
+            return;
+
+        await LoginAsync(UserAEmail);
+        await Page.SetViewportSizeAsync(390, 844);
+        var row = await CreatePlaylistViaUiAsync("Ziehen-Handy");
+        await SeedMoviesIntoPlaylistAsync("Ziehen-Handy", 4);
+        await row.ClickAsync();
+        await Page.WaitForSelectorAsync("#playlist-detail-name");
+        await Page.WaitForTimeoutAsync(1500);
+        await Page.ClickAsync(".playlist-sortmode-toggle-button");
+        await Page.WaitForTimeoutAsync(1500);
+
+        var rowLocator = Page.Locator(EntryRowSelector);
+        var initialOrder = await ReadEntryOrderAsync(rowLocator);
+        Assert.Equal(4, initialOrder.Length);
+
+        var source = Page.Locator($"{EntryRowSelector}[data-media-id='{initialOrder[0]}']");
+        await source.ScrollIntoViewIfNeededAsync();
+        var sourceBox = await RequireBoundingBoxAsync(source);
+
+        var cdp = await Page.Context.NewCDPSessionAsync(Page);
+        await cdp.SendAsync("Emulation.setTouchEmulationEnabled", new Dictionary<string, object>
+        {
+            ["enabled"] = true,
+            ["maxTouchPoints"] = 1
+        });
+
+        var startX = sourceBox.X + sourceBox.Width / 2;
+        var startY = sourceBox.Y + sourceBox.Height * 0.25f;
+        // Knapp über dem unteren Fensterrand: dort scrollt die Liste während des Ziehens weiter.
+        var holdY = 844 - 25;
+
+        await DispatchTouchAsync(cdp, "touchStart", startX, startY);
+        await Page.WaitForTimeoutAsync(700);
+        for (var step = 1; step <= 8; step++)
+        {
+            await DispatchTouchAsync(cdp, "touchMove", startX, startY + (holdY - startY) * step / 8f);
+            await Page.WaitForTimeoutAsync(50);
+        }
+
+        // Finger am Rand halten, ohne weitere Bewegung - das Scrollen läuft von selbst weiter. Bewusst
+        // kurz: so lange hält ein Mensch den Finger am Rand, bevor er die Geste für wirkungslos hält.
+        var scrollBeforeHold = await Page.EvaluateAsync<float>("() => window.scrollY");
+        await Page.WaitForTimeoutAsync(700);
+        var scrollAfterHold = await Page.EvaluateAsync<float>("() => window.scrollY");
+
+        // In dieser kurzen Zeit muss mehr als eine Kachelhöhe herangescrollt werden, sonst ist die
+        // Nachbarkachel nicht erreichbar (sie ist auf Handy-Größe rund ein Drittel des Bildschirms hoch).
+        Assert.True(scrollAfterHold - scrollBeforeHold >= 400,
+            $"Das automatische Scrollen war zu langsam: nur {scrollAfterHold - scrollBeforeHold} px in 700 ms.");
+
+        var markedTarget = await Page.EvaluateAsync<string?>(
+            "() => document.querySelector('.playlist-entry-drop-target')?.getAttribute('data-media-id') ?? null");
+        Assert.False(string.IsNullOrEmpty(markedTarget), "Das automatische Scrollen hat keine Zielkachel unter den Finger gebracht.");
+
+        await DispatchTouchAsync(cdp, "touchEnd", startX, holdY);
+        await Page.WaitForTimeoutAsync(2500);
+
+        var expected = initialOrder.Where(id => id != initialOrder[0]).ToList();
+        expected.Insert(Array.IndexOf(initialOrder, markedTarget), initialOrder[0]);
+        Assert.Equal(expected, await ReadEntryOrderAsync(rowLocator));
     }
 
     /// <summary>
@@ -270,14 +375,14 @@ public sealed class PlaylistDragDropReorderE2ETests : PlaylistsE2ETestBase
         await Page.WaitForSelectorAsync("#playlist-detail-name");
         await Page.WaitForTimeoutAsync(1500);
 
-        var rowLocator = Page.Locator(RowSelector);
-        var initialOrder = await ReadOrderAsync(rowLocator);
+        var rowLocator = Page.Locator(EntryRowSelector);
+        var initialOrder = await ReadEntryOrderAsync(rowLocator);
         Assert.Equal(3, initialOrder.Length);
         await Expect(Page.Locator(".playlist-entries-draganddrop-hint")).ToHaveCountAsync(0);
 
         await DragEntryOntoEntryAsync(initialOrder[0], initialOrder[2]);
 
-        Assert.Equal(initialOrder, await ReadOrderAsync(rowLocator));
+        Assert.Equal(initialOrder, await ReadEntryOrderAsync(rowLocator));
     }
 
     /// <summary>
@@ -299,96 +404,12 @@ public sealed class PlaylistDragDropReorderE2ETests : PlaylistsE2ETestBase
         await Page.WaitForSelectorAsync("#playlist-detail-name");
         await Page.WaitForTimeoutAsync(1500);
 
-        var rowLocator = Page.Locator(RowSelector);
-        Assert.Equal(initialOrder, await ReadOrderAsync(rowLocator));
+        var rowLocator = Page.Locator(EntryRowSelector);
+        Assert.Equal(initialOrder, await ReadEntryOrderAsync(rowLocator));
         await Expect(Page.Locator(".playlist-entries-draganddrop-hint")).ToHaveCountAsync(0);
 
         await DragEntryOntoEntryAsync(initialOrder[0], initialOrder[2]);
 
-        Assert.Equal(initialOrder, await ReadOrderAsync(rowLocator));
+        Assert.Equal(initialOrder, await ReadEntryOrderAsync(rowLocator));
     }
-
-    /// <summary>
-    /// Reads the current front-to-back media-id order of the rendered entry tiles.
-    /// </summary>
-    /// <param name="rowLocator">The locator matching the entry tiles.</param>
-    /// <returns>The media ids in the rendered order.</returns>
-    private static Task<string[]> ReadOrderAsync(ILocator rowLocator)
-        => rowLocator.EvaluateAllAsync<string[]>("els => els.map(e => e.getAttribute('data-media-id'))");
-
-    /// <summary>
-    /// Drags the tile of the given media onto the tile of the other media with real mouse input, the way
-    /// a person does it: press, many small moves with pauses in between, release.
-    /// </summary>
-    /// <param name="sourceMediaId">The media id of the tile to drag.</param>
-    /// <param name="targetMediaId">The media id of the tile to drop it on.</param>
-    /// <param name="sourceChildSelector">An element inside the source tile to start the gesture on (poster, title, ...); the tile itself when omitted.</param>
-    /// <param name="settleMilliseconds">How long to wait for the reordered list after releasing the mouse.</param>
-    private async Task DragEntryOntoEntryAsync(string sourceMediaId, string targetMediaId, string? sourceChildSelector = null, int settleMilliseconds = 2000)
-    {
-        var sourceRow = Page.Locator($"{RowSelector}[data-media-id='{sourceMediaId}']");
-        var source = sourceChildSelector is null ? sourceRow : sourceRow.Locator(sourceChildSelector);
-        var target = Page.Locator($"{RowSelector}[data-media-id='{targetMediaId}']");
-
-        await BeginDragAsync(source, target);
-        await Page.Mouse.UpAsync();
-        await Page.WaitForTimeoutAsync(settleMilliseconds);
-    }
-
-    /// <summary>
-    /// Presses the mouse on the source element and moves it onto the target element, leaving the button
-    /// pressed, so the caller can inspect the running gesture before releasing it.
-    /// </summary>
-    /// <param name="source">The element to start the gesture on.</param>
-    /// <param name="target">The tile to move the pointer onto.</param>
-    private async Task BeginDragAsync(ILocator source, ILocator target)
-    {
-        await source.ScrollIntoViewIfNeededAsync();
-        var sourceBox = await RequireBoundingBoxAsync(source);
-        var targetBox = await RequireBoundingBoxAsync(target);
-
-        // Oberer rechter Bereich der Kachel: dort liegen weder das Poster (links) noch die
-        // Schnellaktions-Schaltflaechen (unten), wenn keine abweichende Startstelle verlangt wurde.
-        var startX = sourceBox.X + sourceBox.Width * 0.75f;
-        var startY = sourceBox.Y + sourceBox.Height * 0.3f;
-        var endX = targetBox.X + targetBox.Width * 0.75f;
-        var endY = targetBox.Y + targetBox.Height * 0.3f;
-
-        await Page.Mouse.MoveAsync(startX, startY);
-        await Page.Mouse.DownAsync();
-        await Page.WaitForTimeoutAsync(120);
-        for (var step = 1; step <= 12; step++)
-        {
-            await Page.Mouse.MoveAsync(startX + (endX - startX) * step / 12f, startY + (endY - startY) * step / 12f);
-            await Page.WaitForTimeoutAsync(40);
-        }
-
-        await Page.WaitForTimeoutAsync(200);
-    }
-
-    /// <summary>
-    /// Returns the bounding box of the given element, failing the test if it has none (not rendered).
-    /// </summary>
-    /// <param name="locator">The element to measure.</param>
-    /// <returns>The element's bounding box.</returns>
-    private static async Task<LocatorBoundingBoxResult> RequireBoundingBoxAsync(ILocator locator)
-        => await locator.BoundingBoxAsync()
-            ?? throw new InvalidOperationException("Das Element ist nicht sichtbar und hat keine Ausmaße.");
-
-    /// <summary>
-    /// Dispatches a single-finger touch event through the Chrome DevTools Protocol (Playwright's own
-    /// touch API only offers taps, not a drag).
-    /// </summary>
-    /// <param name="cdp">The DevTools session of the page.</param>
-    /// <param name="type">The touch event type (<c>touchStart</c>, <c>touchMove</c>, <c>touchEnd</c>).</param>
-    /// <param name="x">The horizontal position of the finger.</param>
-    /// <param name="y">The vertical position of the finger.</param>
-    private static Task DispatchTouchAsync(ICDPSession cdp, string type, float x, float y)
-        => cdp.SendAsync("Input.dispatchTouchEvent", new Dictionary<string, object>
-        {
-            ["type"] = type,
-            ["touchPoints"] = type == "touchEnd"
-                ? Array.Empty<object>()
-                : new object[] { new Dictionary<string, object> { ["x"] = x, ["y"] = y, ["id"] = 1 } }
-        });
 }

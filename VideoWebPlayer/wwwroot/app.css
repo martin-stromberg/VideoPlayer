@@ -2927,11 +2927,12 @@ input[type="text"]:focus {
     opacity: 0.45;
 }
 
-/* Zielkachel: Rahmen in der Akzentfarbe plus Einfuegelinie an der Kante, an der der gezogene Titel
-   landet (vorne, wenn er nach vorn wandert, sonst hinten). */
+/* Zielkachel: bewusst in der Zweitfarbe (Blau) statt im Rot der Auswahl - sonst waere beim Ziehen auf
+   die gerade ausgewaehlte Kachel nicht zu unterscheiden, was Auswahl und was Ziel ist. Dazu die
+   Einfuegelinie an der Kante, an der der gezogene Titel landet (vorne, wenn er nach vorn wandert). */
 .playlist-entry-row.playlist-entry-drop-target {
-    border-color: var(--vp-primary);
-    background: rgba(229, 9, 20, 0.1);
+    border-color: var(--vp-secondary);
+    background: rgba(0, 168, 232, 0.14);
 }
 
 .playlist-entry-row.playlist-entry-drop-target::after {
@@ -2940,7 +2941,7 @@ input[type="text"]:focus {
     top: 0;
     bottom: 0;
     width: 4px;
-    background: var(--vp-primary);
+    background: var(--vp-secondary);
     pointer-events: none;
 }
 
@@ -2950,6 +2951,38 @@ input[type="text"]:focus {
 
 .playlist-entry-row.playlist-entry-drop-after::after {
     right: 0;
+}
+
+/* Kurze Rueckmeldung des Zieh-Moduls (wwwroot/js/playlistDragDrop.js), z. B. wenn neben der Liste
+   losgelassen wurde oder die neue Reihenfolge nicht gesendet werden konnte. Liegt direkt am <body>,
+   damit sie den von Blazor verwalteten Baum nicht stoert, und braucht keine Serververbindung. */
+.playlist-reorder-hint {
+    position: fixed;
+    bottom: 1.5rem;
+    left: 50%;
+    z-index: 2000;
+    max-width: min(520px, calc(100vw - 2rem));
+    padding: 0.7rem 1.1rem;
+    border: 1px solid var(--vp-border-strong);
+    border-radius: var(--vp-radius);
+    background: var(--vp-surface-high);
+    color: var(--vp-text);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+    font-size: 0.9rem;
+    opacity: 0;
+    transform: translate(-50%, 1rem);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    pointer-events: none;
+}
+
+.playlist-reorder-hint-visible {
+    opacity: 1;
+    transform: translate(-50%, 0);
+}
+
+.playlist-reorder-hint-error {
+    border-color: var(--vp-primary);
+    color: var(--vp-danger);
 }
 
 .playlist-entry-parent {

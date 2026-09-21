@@ -10,7 +10,7 @@ Ausschließlich Administratoren können eigene Playlists als **öffentlich** ken
 Dieser Abschnitt umfasst die Verwaltung der Playlists selbst (anlegen, öffnen, bearbeiten, löschen,
 Übersicht), das Befüllen einer Playlist mit konkreten Medieninhalten (Filme, Episoden, Staffeln,
 Serien, Filmsammlungen), die fortlaufend nachladende Anzeige der Inhalte auf der Detailseite, die
-manuelle Umsortierung der Einträge per Drag & Drop oder Schnellaktion sowie die Abbildung (das
+manuelle Umsortierung der Einträge per Ziehen oder Schnellaktion sowie die Abbildung (das
 Coverbild) einer Playlist — hochgeladen oder automatisch als Collage aus den Bildern der enthaltenen
 Inhalte erzeugt (siehe Abschnitt „Abbildung (Cover)").
 
@@ -303,14 +303,20 @@ Steht eine Playlist im Sortiermodus „Manuell", kann der Anwender die Reihenfol
 selbst festlegen. Neu hinzugefügte Einträge werden dabei stets ans Ende der bisherigen Reihenfolge
 angehängt. Zum Umsortieren stehen zwei gleichwertige Wege zur Verfügung:
 
-- **Drag & Drop**: Ein Eintrag lässt sich per Maus greifen (Mauszeiger wechselt über einer
-  ziehbaren Zeile zu einer Greifhand) und auf einen anderen Eintrag ziehen, um ihn dorthin zu
-  verschieben. Ein kurzer Hinweistext oberhalb der Liste erinnert im manuellen Modus an diese
-  Möglichkeit.
+- **Ziehen einer Kachel**: Ein Eintrag lässt sich mit der Maus greifen und auf die Kachel der
+  gewünschten Position ziehen; er nimmt dann deren Platz ein, die übrigen Einträge rücken
+  entsprechend auf. Während des Ziehens wird die gezogene Kachel gedämpft dargestellt und die Kachel
+  unter dem Zeiger als Ziel markiert (farbiger Rahmen und eine Einfügelinie an der Kante, an der der
+  Titel landet), so dass die Zielposition jederzeit sichtbar ist. Steht der Zeiger dabei am oberen
+  oder unteren Fensterrand, scrollt die Liste von selbst weiter, so dass auch entfernte Positionen
+  erreichbar sind. Mit Finger oder Stift funktioniert das ebenfalls: die Kachel kurz gedrückt halten
+  (etwa eine halbe Sekunde), bis sie sich löst, und dann ziehen — ein einfaches Wischen scrollt
+  weiterhin die Seite. Ein Abbruch ist jederzeit mit der Escape-Taste möglich. Ein kurzer Hinweistext
+  oberhalb der Liste erinnert im manuellen Modus an diese Möglichkeit.
 - **Schnellaktionen**: Jeder Eintrag besitzt im manuellen Modus zusätzlich die Schaltflächen
   **„An Anfang"** und **„An Ende"**, mit denen sich der Eintrag ohne Ziehen sofort an den Anfang
   bzw. das Ende der Liste verschieben lässt — nützlich insbesondere bei vielen Einträgen oder wenn
-  Drag & Drop nicht bequem nutzbar ist. Für eine Zielposition mitten in der Liste bleibt Drag & Drop
+  das Ziehen nicht bequem nutzbar ist. Für eine Zielposition mitten in der Liste bleibt das Ziehen
   der einzige Weg.
 
 Jede Umsortierung wird sofort gespeichert und bleibt auch nach einem Neuladen der Seite erhalten.

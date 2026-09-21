@@ -1114,3 +1114,27 @@ er einmalig gesetzt: leere Liste (kein Eintrag mit eigener Kachel, nichts nachzu
 den Besitzer gerendert; im Lesemodus (`IsReadOnly`) gibt es weder Umschalter noch Suche. Hinzufügen belässt den
 Modus (mehrere Titel nacheinander), das Entfernen des letzten Titels schaltet auf `Add`, der Wechsel nach `Add`
 hebt die Auswahl auf.
+
+**Umordnen per Ziehen.** Die Kacheln tragen keine nativen Drag-&-Drop-Attribute (`draggable`,
+`@ondragstart`, `@ondragover:preventDefault`, `@ondrop`) mehr. Die gesamte Geste läuft im Browser in
+`wwwroot/js/playlistDragDrop.js` über Pointer-Ereignisse ab: `pointerdown` auf einer Kachel (nicht auf den
+Schnellaktions-Schaltflächen), ab 6 px Mausbewegung — bei Finger/Stift nach 400 ms Halten — beginnt das
+Ziehen, `pointermove` bestimmt über `document.elementFromPoint` die Zielkachel und markiert Quelle
+(`playlist-entry-dragging`) und Ziel (`playlist-entry-drop-target` plus `-before`/`-after` für die
+Einfügelinie), am Fensterrand wird automatisch gescrollt, `Escape` und `pointercancel` brechen ab. Erst
+`pointerup` ruft einmalig `ReorderEntryByDropAsync(gezogeneId, zielId)` per `DotNetObjectReference` auf;
+die Komponente schlägt beide Ids in `allEntries` nach und ruft unverändert `MoveEntryBetweenAsync` mit
+`NewSortOrder` = `SortOrder` der Zielkachel (Ablauf 6). Der auf das Loslassen folgende `click` wird
+verschluckt, damit ein Ziehen weder die Auswahl ändert noch (per Doppelklick) die Wiedergabe startet.
+An-/Abgemeldet wird das Modul in `OnAfterRenderAsync` über `UpdateReorderHandlersAsync`, und zwar nur für
+den Besitzer im manuellen Sortiermodus bei sichtbarer Titelliste; der Server weist Umordnungen anderer
+Benutzer bzw. im Datumsmodus unabhängig davon ab.
+
+*Warum kein natives Drag & Drop:* dort verteilt sich der Ablauf auf zwei Server-Roundtrips — `@ondragstart`
+merkt sich den gezogenen Eintrag serverseitig, `@ondrop` liest ihn zurück. Erreicht die dragstart-Nachricht
+den Server nicht vor dem Drop (langsame oder unzuverlässige Verbindung, SignalR-Long-Polling ohne
+garantierte Reihenfolge, kurzer Verbindungsabbruch), ist das Feld beim Drop noch `null` und der Drop wird
+ohne jede Meldung verworfen (gemeldete Kundenrückmeldung: „Ziehen bewirkt nichts, nur die Schaltflächen
+funktionieren"). Zusätzlich kennt natives Drag & Drop keine Touch-Eingabe, und jede optische Rückmeldung
+während des Ziehens hätte einen weiteren Roundtrip gekostet. Der E2E-Test
+`E2E_DragWithMouse_FirstMessageDelayed_StillReordersEntry` hält genau diesen Fall fest.

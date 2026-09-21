@@ -73,6 +73,9 @@
     // Solange ein Umordnen beim Server laeuft, wird keine neue Geste begonnen: sonst liefe die zweite
     // Geste gegen die noch nicht aktualisierte Liste und koennte eine veraltete Zielposition senden.
     let reorderInFlight = false;
+    let reorderAttempt = 0;
+    // Ueber window.playlistEntryReorder.reorderTimeoutMilliseconds ueberschreibbar (nur fuer Tests).
+    const defaultReorderTimeoutMilliseconds = 15000;
 
     /// Beginnt die Beobachtung einer Eintragsliste. Mehrfaches Aufrufen mit derselben Liste ist
     /// wirkungslos, ein Aufruf mit einer anderen Liste loest die bisherige ab.
@@ -106,6 +109,7 @@
     function detach() {
         cancelGesture();
         reorderInFlight = false;
+        reorderAttempt++;
 
         if (!listElement)
             return;
@@ -237,19 +241,35 @@
     /// bleiben - sonst waere genau die Wirkung zurueck, die diese Umstellung beseitigen soll.
     function sendReorder(sourceId, targetId) {
         reorderInFlight = true;
+        // Bleibt die Zusage schwebend (Senden schlaegt fehl, der Circuit endet mitten im Aufruf), kaeme weder
+        // Erfolg noch Ablehnung: ohne Zeitgrenze bliebe reorderInFlight gesetzt und jedes weitere Ziehen im
+        // Tab wuerde wortlos blockiert. Ein spaeter eintreffendes Ergebnis wird ueber den Zaehler erkannt.
+        const attempt = ++reorderAttempt;
+        const timeout = setTimeout(() => {
+            if (attempt !== reorderAttempt)
+                return;
+            reorderInFlight = false;
+            console.warn("Der Server hat das Umordnen nicht rechtzeitig bestaetigt.");
+            showHint("Der Server hat das Umordnen nicht bestätigt. Bitte prüfen Sie die Reihenfolge, gegebenenfalls laden Sie die Seite neu.", true);
+        }, window.playlistEntryReorder.reorderTimeoutMilliseconds || defaultReorderTimeoutMilliseconds);
+
+        const finish = () => {
+            clearTimeout(timeout);
+            if (attempt === reorderAttempt)
+                reorderInFlight = false;
+        };
+
         let promise;
         try {
             promise = dotNetReference.invokeMethodAsync("ReorderEntryByDropAsync", sourceId, targetId);
         } catch (error) {
-            reorderInFlight = false;
+            finish();
             reportReorderFailure(error);
             return;
         }
 
-        Promise.resolve(promise).then(() => {
-            reorderInFlight = false;
-        }, (error) => {
-            reorderInFlight = false;
+        Promise.resolve(promise).then(finish, (error) => {
+            finish();
             reportReorderFailure(error);
         });
     }
@@ -516,6 +536,7 @@
 
     window.playlistEntryReorder = {
         attach: attach,
-        detach: detach
+        detach: detach,
+        reorderTimeoutMilliseconds: defaultReorderTimeoutMilliseconds
     };
 })();

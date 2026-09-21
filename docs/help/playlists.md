@@ -308,7 +308,7 @@ angehängt. Zum Umsortieren stehen zwei gleichwertige Wege zur Verfügung:
   entsprechend auf. Während des Ziehens wird die gezogene Kachel gedämpft dargestellt und die Kachel
   unter dem Zeiger als Ziel markiert (farbiger Rahmen und eine Einfügelinie an der Kante, an der der
   Titel landet), so dass die Zielposition jederzeit sichtbar ist. Die Kacheln stehen je nach
-  Fensterbreite in mehreren Spalten mit Abstand dazwischen; wird knapp neben einer Kachel losgelassen,
+  Fensterbreite in mehreren Spalten mit Abstand dazwischen; wird in der Lücke zwischen Kacheln oder bis etwa eine Kachelhöhe neben einer Kachel losgelassen,
   gilt die nächstliegende als Ziel. Wird dagegen weit außerhalb der Liste losgelassen, bleibt die
   Reihenfolge unverändert und ein kurzer Hinweis am unteren Rand sagt das. Steht der Zeiger am oberen
   oder unteren Fensterrand, scrollt die Liste von selbst weiter, so dass auch Positionen außerhalb des

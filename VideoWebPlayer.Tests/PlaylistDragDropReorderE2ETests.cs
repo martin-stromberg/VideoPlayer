@@ -236,6 +236,43 @@ public sealed class PlaylistDragDropReorderE2ETests : PlaylistsE2ETestBase
     }
 
     /// <summary>
+    /// Regression (Nachprüfung Drag &amp; Drop, N1): if the server call never completes - the message is not sent, the
+    /// circuit ends in the middle of the call - neither success nor failure is ever reported. Without a time limit
+    /// the "call in flight" flag stayed set and every further drag in the tab was blocked silently until a reload.
+    /// The browser now reports the missing confirmation after a time limit and accepts new gestures again.
+    /// </summary>
+    [Fact]
+    public async Task E2E_ServerCallNeverCompletes_ReportsItAfterTheTimeLimit_AndAcceptsANewDrag()
+    {
+        if (SkipBrowser)
+            return;
+
+        var (rowLocator, initialOrder) = await SetupManualPlaylistWithThreeEntriesAsync("Ziehen-Haengender-Aufruf");
+
+        await Page.EvaluateAsync(@"() => {
+            window.playlistEntryReorder.reorderTimeoutMilliseconds = 800;
+            window.__swallowMessages = true;
+            const originalSend = WebSocket.prototype.send;
+            WebSocket.prototype.send = function (data) {
+                if (window.__swallowMessages)
+                    return;
+                return originalSend.call(this, data);
+            };
+        }");
+
+        await DragEntryOntoEntryAsync(initialOrder[0], initialOrder[2]);
+
+        var hint = Page.Locator(".playlist-reorder-hint-visible");
+        await Expect(hint).ToContainTextAsync("nicht bestätigt", new() { Timeout = 5000 });
+
+        // The tab is not blocked any more: with the connection working again, the next drag reaches the server.
+        await Page.EvaluateAsync("() => { window.__swallowMessages = false; }");
+        await DragEntryOntoEntryAsync(initialOrder[0], initialOrder[2], settleMilliseconds: 3000);
+
+        Assert.Equal(new[] { initialOrder[1], initialOrder[2], initialOrder[0] }, await ReadEntryOrderAsync(rowLocator));
+    }
+
+    /// <summary>
     /// Verifies that reordering works with a finger as well: native HTML5 drag &amp; drop does not react
     /// to touch input at all, the pointer-based gesture starts after a short press and hold.
     /// </summary>

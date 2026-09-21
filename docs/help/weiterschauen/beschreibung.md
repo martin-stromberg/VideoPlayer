@@ -66,13 +66,31 @@ Einträge mit Playlist-Bezug werden mit einem Hinweis „In Playlist: [Name]" ge
 - Einmal ohne Playlist-Bezug (von normaler Wiedergabe)
 - Mehrfach mit unterschiedlichen Playlist-Bezügen (von verschiedenen Playlists)
 
+Je Playlist gibt es dabei aber immer nur **einen einzigen** Eintrag: Wird aus derselben Playlist ein
+anderer Titel aufgerufen, ersetzt dessen Eintrag den bisherigen — auch über Serien- und Filmgrenzen
+hinweg. Einträge anderer Playlists und Einträge ohne Playlist-Bezug bleiben unberührt.
+
 Alle diese Varianten sind **unabhängige Einträge** mit eigenem Fortschritt. Jeder Eintrag wird eindeutig identifiziert und korrekt mit seinen Anzeigedaten (Titel, Bild, Wiedergabeposition, Playlist-Name) verknüpft, auch wenn mehrere Varianten desselben Videos nebeneinander in der Liste angezeigt werden.
 
 ### Verfügbare Aktionen
 
 Die Kontextmenü-Aktionen „Ausblenden" und „Überspringen" wirken nur auf die jeweilige Playlist-Variante:
 - **Ausblenden:** Entfernt nur den Eintrag mit dieser Playlist-ID aus der Weiterschauen-Liste; andere Varianten (mit anderen Playlists oder ohne) bleiben erhalten.
-- **Überspringen:** Ersetzt nur diese Variante durch das nächste Medium der gleichen Playlist oder Serie.
+- **Überspringen:** Ersetzt nur diese Variante durch den nächsten Titel — bei einem Eintrag mit
+  Playlist-Bezug ist das der nächste Titel dieser Playlist, sonst die nächste Episode der Serie bzw. der
+  nächste Film der Sammlung.
+
+### Der nächste Titel kommt aus der Playlist
+
+Erreicht ein aus einer Playlist gestarteter Titel seine Endsequenz (standardmäßig die letzten 30 Sekunden),
+rückt der nächste Titel **der Playlist** in deren aktueller Sortierung nach — nicht die nächste Episode der
+Serie. Am Ende einer Serie geht es also mit der nächsten Serie oder dem nächsten Film derselben Playlist
+weiter. Aus der Playlist entfernte Titel, für den Anwender gesperrte Titel und nicht direkt abspielbare
+Sammel-Einträge (Serie, Staffel, Filmsammlung) werden übersprungen. Gibt die Playlist keinen Nachfolger
+mehr her, verschwindet der Eintrag ersatzlos aus der Weiterschauen-Liste.
+
+Ohne Playlist-Bezug bleibt es beim gewohnten Verhalten (nächste Episode der Serie bzw. nächster Film der
+Sammlung).
 
 ### Video als gesehen markieren
 

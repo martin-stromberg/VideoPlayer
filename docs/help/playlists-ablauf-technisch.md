@@ -1165,3 +1165,60 @@ erlebt hat, ist nicht belegt** — ebenso plausibel ist, dass neben eine Kachel 
 alten Fassung ebenfalls wortlos nichts bewirkte. Beides ist jetzt ausgeschlossen. Zusätzlich kennt natives
 Drag & Drop keine Touch-Eingabe, und jede optische Rückmeldung während des Ziehens hätte einen weiteren
 Roundtrip gekostet.
+
+---
+
+## Ablauf 9: Weiterschauen-Eintrag einer Playlist — ein Eintrag je Playlist, Nachfolger aus der Playlist
+
+Betrifft BR-35 und BR-36 (`docs/help/playlists-business-rules.md`). Auslöser sind die drei Stellen, an
+denen `ContinueWatchingService` einen Eintrag mit `PlaylistId` schreibt.
+
+### Schritt-für-Schritt
+
+1. Der Player meldet Fortschritt mit `playlistId` (`PlaylistPlaybackContext` → `POST /api/continue-watching/progress`).
+   `ReportProgressAsync` prüft den Lesezugriff auf die Playlist (`ValidatePlaylistAccessAsync`) und legt die
+   Meldung in den `ContinueWatchingBuffer` (Schlüssel inkl. `playlistId`).
+2. `ContinueWatchingWorker` ruft `ProcessBufferedEntryAsync`.
+3. **Vor der Endsequenz:** `UpsertAsync` legt den Eintrag an oder aktualisiert ihn. Bei gesetzter
+   `PlaylistId` entfernt `RemoveOtherEntriesOfPlaylistAsync` zuvor alle übrigen Einträge desselben
+   Anwenders mit derselben `PlaylistId` (BR-35). Die Bereinigung läuft auch beim reinen Aktualisieren,
+   damit Altbestände von selbst verschwinden. Ohne `PlaylistId` gilt unverändert die engere Regel
+   `RemoveExistingTVShowEntry`/`RemoveExtsingMovieCollectionEntry` (nur beim Anlegen).
+4. **Endsequenz erreicht** (`duration - position <= GetContinueWatchingEndThresholdAsync()`):
+   `MarkWatchedAsync`, danach werden **alle** Einträge dieses Videos entfernt (playlist-übergreifend,
+   unverändert), dann liefert `ResolveNextMediaAsync` den Nachfolger:
+   - mit `playlistId`: `ResolvePlaylistSuccessorAsync` → aktuellen Titel über (`PlaylistId`, `MediaType`,
+     `MediaId`) auf seinen `PlaylistEntry` abbilden (je Playlist eindeutig, Unique-Index) und
+     `IPlaylistService.GetNextPlaylistEntryAsync` aufrufen — dieselbe Navigation wie beim Weiterschalten
+     (`FindAdjacentPlayableEntryAsync`: Sortiermodus der Playlist, überspringt nicht abspielbare und für
+     den Anwender nicht zugängliche Einträge).
+   - ohne `playlistId`: `GetNextMovieAsync`/`GetNextEpisodeAsync` wie bisher.
+5. Gibt es einen Nachfolger, schreibt `UpsertAsync` ihn mit derselben `PlaylistId` und Position `0`
+   (und räumt dabei nach Schritt 3 auf). Gibt es keinen, bleibt die Playlist ohne Eintrag; wurde etwas
+   entfernt, geht trotzdem eine SignalR-Benachrichtigung raus.
+6. `SkipAsync` nutzt denselben `ResolveNextMediaAsync` und dieselbe Aufräumregel
+   (`RemoveSupersededEntriesAsync`), behält aber die `ListOrder` des ersetzten Eintrags.
+7. `GetListAsync`/`EnrichPlaylistInfoAsync` löst für den neuen Eintrag wieder `PlaylistName` und
+   `PlaylistEntryId` auf (Deep-Link `/playlists/{PlaylistId}?entryId={PlaylistEntryId}`), weil der
+   Nachfolger selbst ein Eintrag dieser Playlist ist.
+
+### Randfälle
+
+- **Aktueller Titel nicht (mehr) in der Playlist:** `ResolvePlaylistSuccessorAsync` findet keinen
+  `PlaylistEntry` und liefert „kein Nachfolger" statt einer Ausnahme. Der Ersatz wurde beim Entfernen
+  bereits gesetzt (`ResolvePlaylistEntryRemovalAsync`, BR-17) und bleibt unangetastet.
+- **Playlist nicht mehr lesbar / gelöscht:** `GetNextPlaylistEntryAsync` wirft `KeyNotFoundException`
+  bzw. `PlaylistAccessDeniedException`; beides wird abgefangen und als „kein Nachfolger" behandelt.
+- **Öffentliche Playlist:** Der Nachfolger wird für den **meldenden** Anwender aufgelöst (BR-29), die
+  Ein-Eintrag-Regel gilt je Anwender.
+- **Verspätete Fortschrittsmeldung nach dem Wechsel:** Eine Meldung des alten Titels, die nach dem
+  Wechsel eintrifft, erzeugt keinen zweiten Eintrag, sondern ersetzt den vorhandenen (letzter Schreiber
+  gewinnt — dieselbe Semantik, die `UpdatedAt`/`ListOrder` ohnehin haben).
+
+### Beteiligte Klassen/Komponenten
+
+`ContinueWatchingService` (`ProcessBufferedEntryAsync`, `SkipAsync`, `UpsertAsync`,
+`ResolveNextMediaAsync`, `ResolvePlaylistSuccessorAsync`, `RemoveSupersededEntriesAsync`,
+`RemoveOtherEntriesOfPlaylistAsync`), `ContinueWatchingBuffer`/`ContinueWatchingWorker`,
+`PlaylistService.GetNextPlaylistEntryAsync`/`FindAdjacentPlayableEntryAsync`, `ProgramSettingsService`,
+`ContinueWatchingList.razor`.

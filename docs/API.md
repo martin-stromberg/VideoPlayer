@@ -277,7 +277,15 @@ Antwort:
 
 ### POST /api/continue-watching/skip
 
-Überspringt einen Eintrag und ersetzt ihn gegebenenfalls durch die nächste Episode.
+Überspringt einen Eintrag und ersetzt ihn gegebenenfalls durch den nächsten Titel.
+
+Der Nachfolger hängt davon ab, ob der Eintrag an eine Playlist gebunden ist (`playlistId` im Rumpf):
+
+- **mit `playlistId`:** der nächste abspielbare und für den anfragenden Anwender zugängliche Titel
+  dieser Playlist in deren aktueller Sortierung (nicht abspielbare Sammel-Einträge und gesperrte Titel
+  werden übersprungen; aus der Playlist entfernte Titel kommen nicht vor). Gibt es keinen, wird der
+  Eintrag entfernt (`removed`).
+- **ohne `playlistId`:** wie bisher die nächste Episode der Serie bzw. der nächste Film der Sammlung.
 
 Antwortstatuswerte:
 

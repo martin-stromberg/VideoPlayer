@@ -665,11 +665,30 @@ Dies hat mehrere Vorteile:
 
 - Sie können dasselbe Video mehrfach in der Weiterschauen-Liste haben: einmal ohne Playlist (wenn Sie es
   einzeln angesehen haben) und mehrfach mit verschiedenen Playlists (je nachdem, aus welcher Playlist
-  Sie es gestartet haben). Jede Variante hat ihren eigenen Fortschritt.
+  Sie es gestartet haben). Jede Variante hat ihren eigenen Fortschritt — je Playlist aber immer nur
+  einen einzigen Eintrag (siehe unten).
 - Die Funktionen „Ausblenden" und „Überspringen" wirken nur auf die jeweilige Playlist-Variante. Sie können
   z. B. ein Video in einer Playlist ausblenden, es aber weiterhin in einer anderen Playlist fortsetzen.
 - Die globale Markierung „als gesehen" ist weiterhin playlist-übergreifend: Wenn Sie ein Video zu Ende
   schauen, werden alle Varianten (mit und ohne Playlist-Bezug) aus der Weiterschauen-Liste entfernt.
+
+**Eine Playlist — ein Eintrag.** Je Playlist gibt es immer höchstens **einen** Eintrag in Ihrer
+Weiterschauen-Liste. Rufen Sie aus derselben Playlist einen anderen Titel auf, ersetzt dieser den
+bisherigen Eintrag — auch dann, wenn es sich um eine andere Serie oder um einen Film handelt. Eine
+Playlist wird also als Ganzes fortgesetzt und nicht in mehrere Einträge aufgeteilt. Einträge anderer
+Playlists und Einträge ohne Playlist-Bezug bleiben davon unberührt.
+
+**Der Nachfolger ist der nächste Titel der Playlist.** Erreicht ein aus einer Playlist gestarteter
+Titel seine Endsequenz (standardmäßig die letzten 30 Sekunden, konfigurierbar) oder wählen Sie
+„Überspringen", rückt der nächste Titel **der Playlist** in deren aktueller Sortierung nach — nicht
+die nächste Episode der Serie. Dadurch geht es am Ende einer Serie mit der nächsten Serie derselben
+Playlist weiter; Titel, die Sie aus der Playlist entfernt haben, sowie für Sie gesperrte und nicht
+direkt abspielbare Sammel-Einträge (Serie, Staffel, Filmsammlung) werden dabei übersprungen. Ist die
+Playlist zu Ende, verschwindet der Eintrag ersatzlos aus der Weiterschauen-Liste — auch dann, wenn die
+Serie selbst noch weitergehen würde.
+
+Ohne Playlist-Bezug bleibt es beim gewohnten Verhalten: Nachfolger ist die nächste Episode der Serie
+bzw. der nächste Film der Sammlung.
 
 Wird eine Playlist gelöscht, bleiben die Weiterschauen-Einträge bestehen und verlieren ihren Playlist-Bezug —
 sie werden zu normalen Einträgen ohne Playlist-Zuordnung. Falls bereits ein Eintrag ohne Playlist-Bezug für 

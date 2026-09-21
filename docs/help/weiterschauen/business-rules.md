@@ -60,7 +60,8 @@ var nextSeason = (await _db.TVShowSeasons.Where(s => s.TVShowId == season.TVShow
 
 ## Regel: Nur eine Episode pro Serie in der "Weiterschauen"-Liste
 
-**Beschreibung:** Ein Benutzer kann pro Serie nur eine Episode in der "Weiterschauen"-Liste haben. Wenn eine neue Episode hinzugefügt wird, werden alle anderen Episoden derselben Serie aus der Liste entfernt.
+**Beschreibung:** Ein Benutzer kann pro Serie nur eine Episode in der "Weiterschauen"-Liste haben.
+*Gilt für Einträge **ohne** Playlist-Bezug.* Für Einträge mit `PlaylistId` gilt stattdessen die weitergehende Regel „Genau ein Eintrag je Anwender und Playlist" (siehe unten). Wenn eine neue Episode hinzugefügt wird, werden alle anderen Episoden derselben Serie aus der Liste entfernt.
 
 **Bedingungen:**
 - Benutzer hat eine Episode einer Serie zu Ende angesehen
@@ -140,6 +141,7 @@ private async Task RemoveExtsingMovieCollectionEntry(string userId, long? nextMo
 ## Regel: Serienwechsel ist nicht möglich über nächste Episode
 
 **Beschreibung:** Wenn ein Benutzer die letzte Episode der letzten Staffel einer Serie zu Ende schaut, wird keine nächste Episode vorgeschlagen. Die Serie gilt dann als abgeschlossen.
+*Gilt für Einträge **ohne** Playlist-Bezug.* Stammt der Eintrag aus einer Playlist, geht es mit dem nächsten Titel dieser Playlist weiter — auch über Seriengrenzen hinweg (siehe unten).
 
 **Bedingungen:**
 - Benutzer schaut die letzte Episode einer Serie
@@ -414,3 +416,61 @@ darf (Besitzer oder öffentlich).
 - `PlaylistEntryContinueWatchingConfirmationDialog.razor` — Bestätigungsdialog in `PlaylistEntriesList.razor`
 
 **Begründung:** Ein Weiterschauen-Eintrag, der stillschweigend auf ein nicht mehr in der Playlist vorhandenes Video zeigt, würde beim Fortsetzen ins Leere laufen oder verwirrende Ergebnisse liefern. Das Ersetzen durch den nächsten verfügbaren Titel erhält den "roten Faden" beim Weiterschauen innerhalb der Playlist; wo das nicht möglich ist, ist ein sauberes Entfernen die einzige konsistente Alternative. Die Sicherheitsabfrage nur bei der Benutzeraktion (nicht beim stillen Verschwinden) entspricht dem Prinzip, dass nur eine vom Anwender selbst ausgelöste, überraschende Datenänderung eine explizite Bestätigung erfordert.
+
+---
+
+## Regel: Genau ein Eintrag je Anwender und Playlist
+
+**Beschreibung:** Ein `ContinueWatchingEntry` mit gesetzter `PlaylistId` ist je (`UserId`, `PlaylistId`)
+höchstens einmal vorhanden. Eine Playlist wird als Einheit weitergeschaut.
+
+**Bedingungen:**
+- Ein Fortschritt wird für eine Playlist geschrieben (Fortschrittsmeldung, Nachfolger nach der
+  Endsequenz, Überspringen)
+- Es können bereits Einträge derselben Playlist für andere Titel bestehen
+
+**Verhalten:**
+- Alle übrigen Einträge desselben Anwenders mit derselben `PlaylistId` werden entfernt — unabhängig von
+  Serie, Staffel oder Filmsammlung
+- Einträge mit `PlaylistId = NULL` und Einträge anderer Playlists bleiben unberührt
+- Die Regel gilt je Anwender; Besitzer und Betrachter einer öffentlichen Playlist haben jeweils ihren
+  eigenen einen Eintrag
+
+**Umsetzung:** `ContinueWatchingService.RemoveOtherEntriesOfPlaylistAsync()`, aufgerufen aus
+`UpsertAsync()` (auch beim reinen Aktualisieren, damit Altbestände mit mehreren Einträgen je Playlist
+beim nächsten Schreiben verschwinden) und aus `SkipAsync()` über `RemoveSupersededEntriesAsync()`.
+
+**Begründung:** Zwei Einträge derselben Playlist beantworten die Frage „wo war ich in dieser Playlist?"
+widersprüchlich. Wer aus einer Playlist einen anderen Titel aufruft, hat den bisherigen verlassen.
+
+---
+
+## Regel: Nachfolger eines Playlist-Eintrags ist der nächste Titel der Playlist
+
+**Beschreibung:** Ist ein Eintrag an eine Playlist gebunden, wird sein Nachfolger aus dieser Playlist
+bestimmt, nicht aus der Serien- oder Sammlungsreihenfolge.
+
+**Bedingungen:**
+- Die Endsequenz eines aus der Playlist gestarteten Titels ist erreicht
+  (`ProgramSettings.GetContinueWatchingEndThresholdAsync()`, Standard 30 Sekunden), **oder**
+- der Anwender wählt „Überspringen" für einen Eintrag mit `PlaylistId`
+
+**Verhalten:**
+- Der aktuelle Titel wird über (`PlaylistId`, `MediaType`, `MediaId`) auf seinen `PlaylistEntry`
+  abgebildet (je Playlist eindeutig)
+- `IPlaylistService.GetNextPlaylistEntryAsync()` liefert den nächsten abspielbaren und für diesen
+  Anwender zugänglichen Eintrag in der aktuellen Sortierung der Playlist; nicht abspielbare
+  Sammel-Einträge und gesperrte Titel werden übersprungen, aus der Playlist entfernte Titel kommen gar
+  nicht erst vor
+- Der neue Eintrag ist wieder an dieselbe Playlist gebunden, Position `0`
+- Gibt es keinen Nachfolger, wird der Eintrag ersatzlos entfernt — auch dann, wenn die Serie selbst
+  weiterginge
+- Gehört der gemeldete Titel gar nicht (mehr) zur Playlist oder ist die Playlist nicht mehr lesbar,
+  wird kein Nachfolger ermittelt (kein Fehler)
+
+**Umsetzung:** `ContinueWatchingService.ResolveNextMediaAsync()` /
+`ResolvePlaylistSuccessorAsync()`, genutzt von `ProcessBufferedEntryAsync()` und `SkipAsync()`.
+
+**Begründung:** Ein Eintrag, der aus einer Playlist entstanden ist, muss die gesamte Playlist
+berücksichtigen: Serien-Fortsetzungen in derselben Playlist gehen weiter, bewusst ausgeschlossene Titel
+werden nicht wieder angeboten.

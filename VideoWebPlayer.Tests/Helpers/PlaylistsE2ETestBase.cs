@@ -222,6 +222,36 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
         await Page.ClickAsync("#playlist-detail-play-entry-button");
     }
 
+    /// <summary>
+    /// Sets up a playlist with three movies in manual sort mode on its detail page: creates it via the UI,
+    /// seeds three movies, opens the detail page and switches the sort mode to "Manuell". Shared by the
+    /// reorder E2E tests (<c>PlaylistReorderE2ETests</c> for the quick actions,
+    /// <c>PlaylistDragDropReorderE2ETests</c> for the drag gesture), which all need exactly this starting
+    /// point.
+    /// </summary>
+    /// <param name="playlistName">The name to create the playlist with.</param>
+    /// <returns>The entry tile locator and the initial front-to-back media-id order.</returns>
+    protected async Task<(ILocator RowLocator, string[] InitialOrder)> SetupManualPlaylistWithThreeEntriesAsync(string playlistName)
+    {
+        await LoginAsync(UserAEmail);
+        // 1440x900 (Desktop): bei der Standardgröße liegen die Kacheln teils unterhalb des Sichtbereichs.
+        await Page.SetViewportSizeAsync(1440, 900);
+        var row = await CreatePlaylistViaUiAsync(playlistName);
+        await SeedMoviesIntoPlaylistAsync(playlistName, 3);
+        await row.ClickAsync();
+        await Page.WaitForSelectorAsync("#playlist-detail-name");
+        await Page.WaitForTimeoutAsync(1500);
+
+        await Page.ClickAsync(".playlist-sortmode-toggle-button");
+        await Page.WaitForTimeoutAsync(1000);
+
+        var rowLocator = Page.Locator(".playlist-entries-list-wrap .playlist-entry-row");
+        var initialOrder = await rowLocator.EvaluateAllAsync<string[]>("els => els.map(e => e.getAttribute('data-media-id'))");
+        Assert.Equal(3, initialOrder.Length);
+
+        return (rowLocator, initialOrder);
+    }
+
     protected async Task<ILocator> CreatePlaylistViaUiAsync(string name, string? description = null)
     {
         await Page.GotoAsync($"{ServerUrl}/playlists");

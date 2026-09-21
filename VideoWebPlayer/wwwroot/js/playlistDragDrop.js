@@ -3,13 +3,17 @@
 // Bewusst NICHT ueber natives HTML5-Drag & Drop (draggable + dragstart/dragover/drop), sondern ueber
 // Pointer-Ereignisse:
 //
-//  * Natives Drag & Drop haette den Ablauf auf zwei getrennte Server-Roundtrips verteilt: @ondragstart
-//    merkt sich den gezogenen Eintrag auf dem Server, @ondrop wertet ihn beim Loslassen aus. Erreicht die
+//  * Natives Drag & Drop verteilte den Ablauf auf zwei getrennte Server-Roundtrips: @ondragstart merkte
+//    sich den gezogenen Eintrag auf dem Server, @ondrop wertete ihn beim Loslassen aus. Erreicht die
 //    dragstart-Nachricht den Server nicht rechtzeitig (langsame oder unzuverlaessige Verbindung, SignalR
 //    Long-Polling ohne garantierte Reihenfolge, kurzzeitiger Verbindungsabbruch), ist der gemerkte Eintrag
-//    beim Drop noch null und der Drop wird still verworfen - genau das vom Kunden gemeldete Verhalten
-//    ("Ziehen bewirkt nichts, nur die Schaltflaechen funktionieren"), ohne Fehlermeldung. Hier laeuft die
-//    gesamte Geste im Browser ab; der Server wird genau einmal gerufen, beim Loslassen, mit beiden Ids.
+//    beim Drop noch null und der Drop wurde still verworfen. Nachgestellt, indem gezielt nur die
+//    dragstart-Nachricht verzoegert wurde; ob der Kunde genau das erlebt hat, ist NICHT belegt. Hier laeuft
+//    die gesamte Geste im Browser ab; der Server wird genau einmal gerufen, beim Loslassen, mit beiden Ids.
+//  * Natives Drag & Drop wirkte nur beim Loslassen exakt ueber einer Kachel. Die Kacheln stehen in einem
+//    mehrspaltigen Raster mit Luecken; ein Loslassen dazwischen tat wortlos nichts. Hier wird beim
+//    Loslassen neben einer Kachel die naechstliegende genommen (findDropTarget), und ein Loslassen weit
+//    ausserhalb sagt das ausdruecklich (showHint) statt wortlos nichts zu tun.
 //  * Natives Drag & Drop funktioniert auf Touch-Geraeten grundsaetzlich nicht. Pointer-Ereignisse decken
 //    Maus, Stift und Touch (Ziehen nach kurzem Halten) mit demselben Code ab.
 //  * Waehrend des Ziehens ist eine Rueckmeldung noetig (gedaempfte Quelle, markiertes Ziel). Mit nativem
@@ -23,6 +27,7 @@
     // Nur Kacheln mit der Markierung aus PlaylistEntriesList.razor (Besitzer, manueller Modus).
     const rowSelector = ".playlist-entry-row.playlist-entry-reorderable";
     const interactiveSelector = "button, a, input, select, textarea";
+    const hintElementId = "playlist-reorder-hint";
 
     // Ab dieser Strecke (in px) gilt eine Mausbewegung als Ziehen und nicht mehr als Klick.
     const mouseDragThreshold = 6;
@@ -30,20 +35,44 @@
     const touchMoveTolerance = 12;
     // So lange muss ein Finger stillhalten, bis das Ziehen beginnt (sonst bleibt Scrollen moeglich).
     const touchHoldMilliseconds = 400;
-    // Abstand zum Fensterrand, ab dem waehrend des Ziehens automatisch weitergescrollt wird. Bewusst
-    // schmal: ein zu breiter Streifen wuerde schon beim Ziehen auf eine tief stehende Kachel losscrollen
-    // und dem Zeiger das Ziel unter dem Finger wegziehen.
-    const autoScrollMargin = 40;
-    const autoScrollMaximumStep = 12;
+    // So weit darf der Zeiger beim Loslassen neben der Liste bzw. neben einer Kachel stehen, damit die
+    // naechstliegende Kachel noch als Ziel gilt (Luecken des Rasters, Rand der Liste, und am Ende der
+    // Liste der Bereich unterhalb der letzten Kachel - dort steht der Finger, wenn er zum Weiterscrollen
+    // am unteren Fensterrand gehalten wurde). Als Mass dient die Hoehe einer Kachel: was naeher als eine
+    // Kachel an der Liste liegt, ist erkennbar gemeint; alles weiter weg gilt als "danebengelassen" und
+    // ordnet nichts um.
+    const minimumDropTolerance = 80;
+    const maximumDropTolerance = 340;
+    // Abstand zum Fensterrand, ab dem waehrend des Ziehens automatisch weitergescrollt wird. Mit dem
+    // Finger ist der Streifen breiter: auf Handy-Groesse ist eine Kachel hoeher als ein halber Bildschirm,
+    // die Nachbarkachel liegt also ausserhalb des Sichtbereichs und muss herangescrollt werden.
+    const autoScrollMarginMouse = 56;
+    const autoScrollMarginTouch = 120;
+    // Scrollgeschwindigkeit in px/s: am Rand des Streifens langsam, direkt am Fensterrand schnell.
+    // Bewusst in px/s und nicht in "px je Takt": wie oft ein setInterval wirklich laeuft, haengt vom
+    // Browser ab (gemessen: unter Last statt alle 16 ms nur alle ~90 ms) - mit einer festen Schrittweite
+    // je Takt waere die Geschwindigkeit dann um ein Vielfaches zu niedrig, und auf Handy-Groesse kaeme
+    // die Nachbarkachel nicht rechtzeitig heran.
+    const autoScrollMinimumSpeed = 400;
+    const autoScrollMaximumSpeed = 2000;
     const autoScrollIntervalMilliseconds = 16;
+    // So lange nach einem Ziehen (oder einem Abbruch) wird der naechste Klick verschluckt, falls er
+    // ueberhaupt kommt; nach dem ersten Klick endet die Unterdrueckung sofort.
+    const clickSuppressionMilliseconds = 2000;
+    const hintVisibleMilliseconds = 5000;
 
     let listElement = null;
     let dotNetReference = null;
     let gesture = null;
     let autoScrollTimer = null;
-    let autoScrollStep = 0;
-    let suppressNextClick = false;
+    let autoScrollSpeed = 0;
+    let autoScrollLastTick = 0;
+    let suppressClickUntil = 0;
     let dragFinishedAt = 0;
+    let hintTimer = null;
+    // Solange ein Umordnen beim Server laeuft, wird keine neue Geste begonnen: sonst liefe die zweite
+    // Geste gegen die noch nicht aktualisierte Liste und koennte eine veraltete Zielposition senden.
+    let reorderInFlight = false;
 
     /// Beginnt die Beobachtung einer Eintragsliste. Mehrfaches Aufrufen mit derselben Liste ist
     /// wirkungslos, ein Aufruf mit einer anderen Liste loest die bisherige ab.
@@ -76,6 +105,7 @@
     /// Beendet die Beobachtung (anderer Bereich, Datumsmodus, fremde Playlist, Verlassen der Seite).
     function detach() {
         cancelGesture();
+        reorderInFlight = false;
 
         if (!listElement)
             return;
@@ -99,7 +129,7 @@
     }
 
     function onPointerDown(event) {
-        if (!listElement || gesture)
+        if (!listElement || gesture || reorderInFlight)
             return;
         if (!event.isPrimary)
             return;
@@ -127,6 +157,7 @@
             lastY: event.clientY,
             dragging: false,
             target: null,
+            overSource: false,
             holdTimer: null
         };
 
@@ -176,17 +207,21 @@
         const wasDragging = gesture.dragging;
         const sourceRow = gesture.row;
         const targetRow = gesture.target;
+        const wasOverSource = gesture.overSource;
         cancelGesture();
 
         if (!wasDragging)
             return;
 
-        // Ein Ziehen darf weder eine Auswahl noch (per Doppelklick) das Abspielen ausloesen.
-        suppressNextClick = true;
-        dragFinishedAt = Date.now();
-        window.setTimeout(() => { suppressNextClick = false; }, 0);
+        if (!targetRow) {
+            // Frueher blieb genau dieser Fall wortlos: der Anwender sieht dann ein Ziehen, das nichts
+            // bewirkt. Auf der eigenen Kachel losgelassen ist dagegen erkennbar ein "doch nicht".
+            if (!wasOverSource)
+                showHint("Nicht umsortiert: Lassen Sie den Titel auf der Kachel der gewünschten Position los.", false);
+            return;
+        }
 
-        if (!targetRow || !dotNetReference)
+        if (!dotNetReference)
             return;
 
         const sourceId = Number(sourceRow.getAttribute("data-entry-id"));
@@ -194,11 +229,34 @@
         if (!Number.isFinite(sourceId) || !Number.isFinite(targetId) || sourceId === targetId)
             return;
 
+        sendReorder(sourceId, targetId);
+    }
+
+    /// Meldet das Umordnen an die Komponente. Der Aufruf liefert eine Zusage; wird sie abgelehnt (Circuit
+    /// beendet, Seitenwechsel waehrend des Ziehens, verworfene Objektreferenz), darf das nicht wortlos
+    /// bleiben - sonst waere genau die Wirkung zurueck, die diese Umstellung beseitigen soll.
+    function sendReorder(sourceId, targetId) {
+        reorderInFlight = true;
+        let promise;
         try {
-            dotNetReference.invokeMethodAsync("ReorderEntryByDropAsync", sourceId, targetId);
+            promise = dotNetReference.invokeMethodAsync("ReorderEntryByDropAsync", sourceId, targetId);
         } catch (error) {
-            // Die Komponente ist bereits verschwunden (Seitenwechsel waehrend des Ziehens).
+            reorderInFlight = false;
+            reportReorderFailure(error);
+            return;
         }
+
+        Promise.resolve(promise).then(() => {
+            reorderInFlight = false;
+        }, (error) => {
+            reorderInFlight = false;
+            reportReorderFailure(error);
+        });
+    }
+
+    function reportReorderFailure(error) {
+        console.warn("Das Umordnen konnte nicht an den Server gemeldet werden.", error);
+        showHint("Die neue Reihenfolge konnte nicht gespeichert werden. Bitte laden Sie die Seite neu.", true);
     }
 
     function onPointerCancel(event) {
@@ -212,10 +270,11 @@
     }
 
     function onClickCapture(event) {
-        if (!suppressNextClick)
+        if (Date.now() >= suppressClickUntil)
             return;
 
-        suppressNextClick = false;
+        // Genau ein Klick wird verschluckt: der, den der Browser nach dem Loslassen ausloest.
+        suppressClickUntil = 0;
         event.stopPropagation();
         event.preventDefault();
     }
@@ -248,19 +307,63 @@
         updateDropTarget();
     }
 
-    /// Bestimmt die Kachel unter dem Zeiger und markiert sie als Ziel (mit Einfuegelinie vor oder hinter
-    /// der Kachel, je nachdem, ob der Titel nach vorn oder nach hinten wandert).
+    /// Bestimmt die Kachel, auf der der Titel landen wuerde: die Kachel unter dem Zeiger, und wenn dort
+    /// keine ist (Luecke im Raster, Rand der Liste), die naechstgelegene im Umfeld der Liste. Steht der
+    /// Zeiger weit ausserhalb, gibt es kein Ziel.
+    function findDropTarget(x, y) {
+        const elementUnderPointer = document.elementFromPoint(x, y);
+        const direct = elementUnderPointer && elementUnderPointer.closest
+            ? elementUnderPointer.closest(rowSelector)
+            : null;
+        if (direct && listElement.contains(direct))
+            return direct;
+
+        const tolerance = dropTolerance();
+        const listRectangle = listElement.getBoundingClientRect();
+        if (x < listRectangle.left - tolerance || x > listRectangle.right + tolerance
+            || y < listRectangle.top - tolerance || y > listRectangle.bottom + tolerance)
+            return null;
+
+        let nearest = null;
+        let nearestDistance = Number.POSITIVE_INFINITY;
+        const rows = listElement.querySelectorAll(rowSelector);
+        for (let index = 0; index < rows.length; index++) {
+            const row = rows[index];
+            // Die gezogene Kachel selbst zaehlt hier nicht mit, sonst waere die Luecke direkt neben ihr
+            // wieder eine tote Zone.
+            if (gesture && row === gesture.row)
+                continue;
+
+            const rectangle = row.getBoundingClientRect();
+            const horizontal = Math.max(rectangle.left - x, 0, x - rectangle.right);
+            const vertical = Math.max(rectangle.top - y, 0, y - rectangle.bottom);
+            const distance = Math.hypot(horizontal, vertical);
+            if (distance < nearestDistance) {
+                nearestDistance = distance;
+                nearest = row;
+            }
+        }
+
+        return nearestDistance <= tolerance ? nearest : null;
+    }
+
+    /// Die Kachelhoehe als Mass dafuer, was noch "neben der Kachel" und was schon "weit daneben" ist -
+    /// auf dem Handy ist eine Kachel rund ein Drittel des Bildschirms hoch, auf dem Schreibtisch deutlich
+    /// flacher, ein fester Wert waere fuer das eine zu klein und fuer das andere zu grosszuegig.
+    function dropTolerance() {
+        const height = gesture && gesture.row ? gesture.row.getBoundingClientRect().height : 0;
+        return Math.min(Math.max(height, minimumDropTolerance), maximumDropTolerance);
+    }
+
+    /// Markiert die Zielkachel (mit Einfuegelinie vor oder hinter der Kachel, je nachdem, ob der Titel
+    /// nach vorn oder nach hinten wandert). Die Markierung wandert mit dem Zeiger, auch ueber Luecken.
     function updateDropTarget() {
         if (!gesture || !gesture.dragging || !listElement)
             return;
 
-        const elementUnderPointer = document.elementFromPoint(gesture.lastX, gesture.lastY);
-        const candidate = elementUnderPointer && elementUnderPointer.closest
-            ? elementUnderPointer.closest(rowSelector)
-            : null;
-        const target = candidate && listElement.contains(candidate) && candidate !== gesture.row
-            ? candidate
-            : null;
+        const candidate = findDropTarget(gesture.lastX, gesture.lastY);
+        gesture.overSource = candidate === gesture.row;
+        const target = candidate && candidate !== gesture.row ? candidate : null;
 
         if (target === gesture.target)
             return;
@@ -277,44 +380,62 @@
     }
 
     /// Scrollt die Seite weiter, solange der Zeiger waehrend des Ziehens am oberen oder unteren Rand steht
-    /// (sonst waeren nur die gerade sichtbaren Kacheln als Ziel erreichbar).
+    /// (sonst waeren nur die gerade sichtbaren Kacheln als Ziel erreichbar - auf Handy-Groesse ist das
+    /// nicht einmal die Nachbarkachel).
     function updateAutoScroll() {
         if (!gesture || !gesture.dragging) {
             stopAutoScroll();
             return;
         }
 
+        const margin = gesture.pointerType === "mouse" ? autoScrollMarginMouse : autoScrollMarginTouch;
         const distanceToTop = gesture.lastY;
         const distanceToBottom = window.innerHeight - gesture.lastY;
-        // Je naeher am Rand, desto schneller - direkt am Rand mit voller Schrittweite.
-        const step = distanceToTop < autoScrollMargin
-            ? -Math.ceil(autoScrollMaximumStep * (autoScrollMargin - distanceToTop) / autoScrollMargin)
-            : (distanceToBottom < autoScrollMargin
-                ? Math.ceil(autoScrollMaximumStep * (autoScrollMargin - distanceToBottom) / autoScrollMargin)
-                : 0);
+        const direction = distanceToTop < margin ? -1 : (distanceToBottom < margin ? 1 : 0);
 
-        autoScrollStep = step;
-        if (step === 0) {
+        if (direction === 0) {
             stopAutoScroll();
             return;
         }
 
+        // Je naeher am Fensterrand, desto schneller.
+        const distance = direction < 0 ? distanceToTop : distanceToBottom;
+        const depth = Math.min(Math.max((margin - distance) / margin, 0), 1);
+        autoScrollSpeed = direction * (autoScrollMinimumSpeed + (autoScrollMaximumSpeed - autoScrollMinimumSpeed) * depth);
+
         if (autoScrollTimer)
             return;
 
+        autoScrollLastTick = Date.now();
         autoScrollTimer = window.setInterval(() => {
-            if (!gesture || !gesture.dragging || autoScrollStep === 0) {
+            if (!gesture || !gesture.dragging || autoScrollSpeed === 0) {
                 stopAutoScroll();
                 return;
             }
 
-            window.scrollBy(0, autoScrollStep);
+            const now = Date.now();
+            const elapsedSeconds = Math.min((now - autoScrollLastTick) / 1000, 0.25);
+            autoScrollLastTick = now;
+            scrollWindowBy(autoScrollSpeed * elapsedSeconds);
             updateDropTarget();
         }, autoScrollIntervalMilliseconds);
     }
 
+    /// Scrollt sofort um den gegebenen Betrag. Bootstrap setzt auf :root ein "scroll-behavior: smooth"
+    /// (ausser bei "prefers-reduced-motion"); ein gewoehnliches window.scrollBy waere damit eine
+    /// Animation, die der naechste Takt sofort wieder abbricht - gemessen blieben von den angeforderten
+    /// rund 1700 px/s nur etwa 150 px/s uebrig, und auf Handy-Groesse kam die Nachbarkachel nie heran.
+    function scrollWindowBy(amount) {
+        try {
+            window.scrollTo({ top: window.scrollY + amount, left: window.scrollX, behavior: "instant" });
+        } catch (error) {
+            // Aeltere Browser kennen "instant" nicht.
+            window.scrollBy(0, amount);
+        }
+    }
+
     function stopAutoScroll() {
-        autoScrollStep = 0;
+        autoScrollSpeed = 0;
         if (!autoScrollTimer)
             return;
 
@@ -339,11 +460,18 @@
         gesture.holdTimer = null;
     }
 
-    /// Beendet die laufende Geste und raeumt Markierungen, Pointer Capture und Timer auf.
+    /// Beendet die laufende Geste und raeumt Markierungen, Pointer Capture und Timer auf. War ein Ziehen
+    /// im Gange (auch bei Abbruch mit Escape), wird der anschliessende Klick des Browsers verschluckt:
+    /// ein Ziehen - und erst recht ein abgebrochenes - darf keinen Titel auswaehlen.
     function cancelGesture() {
         stopAutoScroll();
         if (!gesture)
             return;
+
+        if (gesture.dragging) {
+            suppressClickUntil = Date.now() + clickSuppressionMilliseconds;
+            dragFinishedAt = Date.now();
+        }
 
         clearHoldTimer();
         clearTargetMarker();
@@ -359,6 +487,31 @@
         }
 
         gesture = null;
+    }
+
+    /// Zeigt eine kurze Rueckmeldung am unteren Bildschirmrand. Bewusst direkt am <body> und nicht
+    /// innerhalb der von Blazor gerenderten Liste (fremde Knoten dort wuerden dessen Abgleich stoeren),
+    /// und bewusst ohne Server: die Meldung muss auch dann erscheinen, wenn die Verbindung gerade weg ist.
+    function showHint(message, isError) {
+        let hint = document.getElementById(hintElementId);
+        if (!hint) {
+            hint = document.createElement("div");
+            hint.id = hintElementId;
+            hint.className = "playlist-reorder-hint";
+            hint.setAttribute("role", "status");
+            document.body.appendChild(hint);
+        }
+
+        hint.textContent = message;
+        hint.classList.toggle("playlist-reorder-hint-error", !!isError);
+        hint.classList.add("playlist-reorder-hint-visible");
+
+        if (hintTimer)
+            window.clearTimeout(hintTimer);
+        hintTimer = window.setTimeout(() => {
+            hint.classList.remove("playlist-reorder-hint-visible");
+            hintTimer = null;
+        }, hintVisibleMilliseconds);
     }
 
     window.playlistEntryReorder = {

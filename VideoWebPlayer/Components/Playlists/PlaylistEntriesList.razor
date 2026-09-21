@@ -240,6 +240,13 @@
     private bool reorderHandlersAttached;
 
     /// <summary>
+    /// Whether a drop is currently being carried out (see <see cref="ReorderEntryByDropAsync"/>). A second
+    /// drop arriving meanwhile is rejected instead of computing its target position from the list of the
+    /// first one, which has not been reloaded yet.
+    /// </summary>
+    private bool isReordering;
+
+    /// <summary>
     /// Set when loading a page (initial or next) failed. While set, <see cref="OnBottomVisible"/> ignores
     /// the observer and the observer is not re-armed, so a persistent error cannot turn into an endless
     /// loop of immediate retries (a freshly connected IntersectionObserver reports a still-visible sentinel
@@ -774,17 +781,33 @@
     /// released) runs in the browser and reaches the server in this single call with both ids. The
     /// previous implementation used native HTML5 drag &amp; drop and split this over two independent
     /// SignalR round-trips - <c>@ondragstart</c> remembered the dragged entry in a server-side field,
-    /// <c>@ondrop</c> read it back. Whenever the dragstart message was not processed before the drop
-    /// (slow, unordered or briefly interrupted connection), that field was still <see langword="null"/>
-    /// and the drop was silently discarded: exactly the reported "dragging does nothing, only the
-    /// buttons work" behavior. See the file header of <c>playlistDragDrop.js</c>.
+    /// <c>@ondrop</c> read it back - so a dragstart message that was not processed before the drop (slow,
+    /// unordered or briefly interrupted connection) left that field <see langword="null"/> and the drop
+    /// was discarded without any message. See the file header of <c>playlistDragDrop.js</c>.
+    /// Reordering twice at the same time is prevented on both sides: the browser starts no new gesture
+    /// while a call is in flight, and <see cref="isReordering"/> rejects a second call that arrives
+    /// nonetheless (it would read its target position from the not yet reloaded list).
     /// </remarks>
     /// <param name="draggedEntryId">The id of the dragged playlist entry.</param>
     /// <param name="targetEntryId">The id of the entry whose position the dragged entry takes.</param>
     [JSInvokable]
     public async Task ReorderEntryByDropAsync(long draggedEntryId, long targetEntryId)
     {
-        await MoveEntryToTargetPositionAsync(draggedEntryId, targetEntryId);
+        if (isReordering)
+        {
+            Logger.LogWarning("Umordnen wurde uebersprungen, weil bereits eines laeuft (Playlist {PlaylistId})", PlaylistId);
+            return;
+        }
+
+        isReordering = true;
+        try
+        {
+            await MoveEntryToTargetPositionAsync(draggedEntryId, targetEntryId);
+        }
+        finally
+        {
+            isReordering = false;
+        }
 
         // Called from JS, i.e. not from an event handler of this component: render explicitly so the
         // reordered list or an error message shows up.
@@ -795,17 +818,42 @@
     /// Moves the entry with the given id to the position of the entry with the given target id, after
     /// re-checking both against the entries actually loaded here (the ids come from the browser).
     /// </summary>
+    /// <remarks>
+    /// Every path that cannot carry out the move reports it - in the status message, in the log, or both -
+    /// and reloads the list where its content may no longer match the browser's (an entry that vanished
+    /// between picking it up and dropping it must not keep its tile). Returning silently is what made the
+    /// previous implementation look broken and is deliberately not done here.
+    /// </remarks>
     /// <param name="draggedEntryId">The id of the entry to move.</param>
     /// <param name="targetEntryId">The id of the entry whose position the moved entry takes.</param>
     private async Task MoveEntryToTargetPositionAsync(long draggedEntryId, long targetEntryId)
     {
-        if (!IsReorderable || draggedEntryId == targetEntryId)
+        if (draggedEntryId == targetEntryId)
             return;
+
+        if (!IsReorderable)
+        {
+            // The sort mode or the ownership changed while the tile was being dragged (e.g. the sort mode
+            // was switched in another tab). The server would refuse the request anyway.
+            Logger.LogWarning("Umordnen abgelehnt: Playlist {PlaylistId} ist nicht (mehr) manuell sortierbar", PlaylistId);
+            entriesStatusIsError = true;
+            entriesStatusMessage = "Umordnen ist hier nicht möglich: Die Playlist steht nicht (mehr) im manuellen Sortiermodus.";
+            await LoadInitialPageAsync();
+            return;
+        }
 
         var entryToMove = allEntries.FirstOrDefault(e => e.Id == draggedEntryId);
         var targetEntry = allEntries.FirstOrDefault(e => e.Id == targetEntryId);
         if (entryToMove is null || targetEntry is null)
+        {
+            Logger.LogWarning(
+                "Umordnen abgelehnt: Eintrag {DraggedEntryId} oder Ziel {TargetEntryId} ist in Playlist {PlaylistId} nicht (mehr) geladen",
+                draggedEntryId, targetEntryId, PlaylistId);
+            entriesStatusIsError = true;
+            entriesStatusMessage = "Umordnen nicht möglich: Die Liste hat sich zwischenzeitlich geändert. Bitte versuchen Sie es erneut.";
+            await LoadInitialPageAsync();
             return;
+        }
 
         if (targetEntry.SortOrder is not { } targetSortOrder)
         {
@@ -824,5 +872,14 @@
             await PlaylistClient.MoveEntryBetweenAsync(PlaylistId, entryToMove.Id, new DtoReorderPlaylistEntryRequest { NewSortOrder = targetSortOrder });
             await LoadInitialPageAsync();
         }, "Fehler beim Umordnen");
+
+        if (!entriesStatusIsError)
+            return;
+
+        // Nach einem gescheiterten Umordnen bildet die Liste den Serverstand nicht mehr sicher ab (der
+        // Eintrag kann zwischenzeitlich entfernt, die Playlist umgestellt worden sein). Neu laden, ohne
+        // die Fehlermeldung zu verlieren - LoadInitialPageAsync setzt entriesStatusMessage nur, wenn das
+        // Laden selbst scheitert.
+        await LoadInitialPageAsync();
     }
 }

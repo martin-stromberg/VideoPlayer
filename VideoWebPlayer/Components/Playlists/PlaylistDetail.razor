@@ -47,6 +47,13 @@ else if (playlist is not null)
             <img class="playlist-header-cover playlist-header-cover-image" id="playlist-detail-cover-image" src="@CoverImageUrl" alt="@playlist.Name"
                  onerror="this.style.display='none'" />
         }
+        @if (SelectedEntryBackgroundUrl is { } entryBackgroundUrl)
+        {
+            @* Wie auf der Serienseite: Bei ausgewählter Episode wird deren Bild zum Hintergrund des Kopfbereichs. Es
+               liegt über dem Playlist-Cover; schlägt das Laden fehl, blendet onerror es aus und das Cover bleibt. *@
+            <img class="playlist-header-cover playlist-header-cover-image playlist-header-entry-background" id="playlist-detail-entry-background" src="@entryBackgroundUrl" alt=""
+                 onerror="this.style.display='none'" />
+        }
 
         <button class="back-arrow playlist-detail-back-button" id="playlist-detail-back-button" @onclick="HandleBack" title="@BackButtonTitle" aria-label="@BackButtonTitle">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
@@ -127,7 +134,10 @@ else if (playlist is not null)
                 @if (selectedEntry is not null)
                 {
                     <div class="playlist-header-entry" id="playlist-detail-selected-entry">
-                        <img class="playlist-header-poster" id="playlist-detail-entry-poster" src="@SelectedEntryImageUrl" alt="" onerror="this.onerror=null;this.src='/images/placeholder.png';" />
+                        @if (SelectedEntryBackgroundUrl is null)
+                        {
+                            <img class="playlist-header-poster" id="playlist-detail-entry-poster" src="@SelectedEntryImageUrl" alt="" onerror="this.onerror=null;this.src='/images/placeholder.png';" />
+                        }
                         <div class="playlist-header-entry-text">
                             <h1 id="playlist-detail-entry-title">@selectedEntry.MediaTitle</h1>
                             <div class="tvshow-meta playlist-detail-meta">
@@ -732,6 +742,18 @@ else if (playlist is not null)
 
     private string BackButtonTitle
         => selectedEntry is not null ? "Auswahl aufheben - zurück zur Playlist" : "Zurück zur Übersicht";
+
+    /// <summary>
+    /// The image the header shows behind the information of the selected title, as on the series page: the
+    /// episode's background image. <see langword="null"/> for movies (no background image is known for them, the
+    /// header shows their poster next to the text instead), for titles the viewer has not unlocked and without a
+    /// selection.
+    /// </summary>
+    private string? SelectedEntryBackgroundUrl
+        => selectedEntry is { IsAccessible: true } entry
+           && string.Equals(entry.MediaType, MediaTypeValues.TVShowEpisode, StringComparison.OrdinalIgnoreCase)
+            ? VideoWebPlayer.Components.Pages.TV.TVShowDetails.BuildEpisodeBackgroundImageUrl(entry.MediaId, Client.AuthorizationToken)
+            : null;
 
     private string SelectedEntryImageUrl
         => MediaPictureUrlResolver.Resolve(selectedEntry?.ResolvedPictureId, Client.AuthorizationToken);

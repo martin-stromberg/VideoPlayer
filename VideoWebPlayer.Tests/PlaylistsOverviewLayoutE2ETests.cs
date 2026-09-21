@@ -246,11 +246,11 @@ public sealed class PlaylistsOverviewLayoutE2ETests : PlaylistsE2ETestBase
     }
 
     /// <summary>
-    /// The placeholder for a playlist without an image stays discreet instead of dominating the tile with an
-    /// oversized list symbol ("wirkt amateurhaft").
+    /// A playlist without an image shows a plain colour gradient - the list symbol was removed on the customer's
+    /// request ("wirkt amateurhaft"), so neither the tile nor the placeholder contains any symbol.
     /// </summary>
     [Fact]
-    public async Task PlaceholderSymbol_StaysSmallComparedToTheTile()
+    public async Task PlaylistWithoutImage_ShowsNoListSymbolOnTheTile()
     {
         if (SkipBrowser)
             return;
@@ -260,14 +260,31 @@ public sealed class PlaylistsOverviewLayoutE2ETests : PlaylistsE2ETestBase
         await OpenOverviewAsync();
 
         var tile = Page.Locator(".playlist-row[data-playlist-name='Ohne Bild']");
-        var card = await tile.Locator(".media-box").BoundingBoxAsync();
-        var icon = await tile.Locator(".playlist-cover-icon").BoundingBoxAsync();
-        Assert.NotNull(card);
-        Assert.NotNull(icon);
+        await Expect(tile.Locator(".playlist-cover-placeholder")).ToHaveCountAsync(1);
+        await Expect(tile.Locator(".playlist-cover-placeholder svg")).ToHaveCountAsync(0);
+        await Expect(tile.Locator(".playlist-cover-icon")).ToHaveCountAsync(0);
+    }
 
-        Assert.True(icon!.Height <= card!.Height * 0.5, $"Das Platzhaltersymbol ist {icon.Height}px hoch bei {card.Height}px Kachelhoehe");
-        var opacity = await tile.Locator(".playlist-cover-icon").EvaluateAsync<double>("e => parseFloat(getComputedStyle(e).opacity)");
-        Assert.True(opacity < 0.6, $"Das Platzhaltersymbol ist mit Deckkraft {opacity} zu praesent");
+    /// <summary>
+    /// The stylesheet and script links carry a content fingerprint, so a browser that still holds an older copy of
+    /// app.css (heuristic caching of the former unfingerprinted URL) is forced to fetch the current one.
+    /// </summary>
+    [Fact]
+    public async Task StylesheetAndScriptLinks_CarryAContentFingerprint()
+    {
+        if (SkipBrowser)
+            return;
+
+        await LoginAsync(UserAEmail);
+        await OpenOverviewAsync();
+
+        var href = await Page.Locator("link[rel=stylesheet][href^='app.css']").GetAttributeAsync("href");
+        Assert.Matches(@"^app\.css\?v=[0-9a-f]{12}$", href ?? string.Empty);
+        var script = await Page.Locator("script[src^='js/scroll.js']").GetAttributeAsync("src");
+        Assert.Matches(@"^js/scroll\.js\?v=[0-9a-f]{12}$", script ?? string.Empty);
+
+        var css = await Page.APIRequest.GetAsync($"{ServerUrl}/{href}");
+        Assert.True(css.Ok);
     }
 
     /// <summary>

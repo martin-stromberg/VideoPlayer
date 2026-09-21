@@ -81,9 +81,9 @@ public sealed class VideoWebPlayerBackupFacade
     }
 
     /// <summary>
-    /// Imports an uploaded backup and records history.
+    /// Imports an uploaded backup temp file and records history.
     /// </summary>
-    public async Task<BackupOperationResult> ImportUploadAsync(Stream stream, string fileName, string? userId, CancellationToken cancellationToken = default)
+    public async Task<BackupOperationResult> ImportUploadFileAsync(string tempFilePath, string fileName, string? userId, CancellationToken cancellationToken = default)
     {
         var started = DateTime.UtcNow;
 
@@ -107,15 +107,13 @@ public sealed class VideoWebPlayerBackupFacade
 
             Directory.CreateDirectory(fullStoragePath);
 
-            var tempPath = Path.Combine(Path.GetTempPath(), $"vwp-backup-import-{Guid.NewGuid():N}.tmp");
-            await using var temp = new FileStream(tempPath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 81920, FileOptions.DeleteOnClose);
-            await stream.CopyToAsync(temp, cancellationToken);
-            if (temp.Length == 0)
+            var fileInfo = new FileInfo(tempFilePath);
+            if (!fileInfo.Exists || fileInfo.Length == 0)
                 return BackupOperationResult.Failure("Die hochgeladene Datei ist leer.", fileName);
 
-            temp.Position = 0;
             try
             {
+                await using var temp = new FileStream(tempFilePath, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, FileOptions.Asynchronous);
                 using var archive = new ZipArchive(temp, ZipArchiveMode.Read, leaveOpen: true);
                 var manifestEntry = archive.GetEntry("manifest.json");
                 if (manifestEntry is null)
@@ -127,11 +125,7 @@ public sealed class VideoWebPlayerBackupFacade
             }
 
             var targetPath = Path.Combine(fullStoragePath, safeFileName);
-            await using (var fileStream = new FileStream(targetPath, FileMode.Create, FileAccess.Write, FileShare.None))
-            {
-                temp.Position = 0;
-                await temp.CopyToAsync(fileStream, cancellationToken);
-            }
+            await MoveTempFileAsync(tempFilePath, targetPath, cancellationToken);
 
             var descriptors = await _backupService.ListBackupsAsync(cancellationToken);
             var descriptor = descriptors.FirstOrDefault(d =>
@@ -147,6 +141,91 @@ public sealed class VideoWebPlayerBackupFacade
             _logger.LogError(ex, "Import of uploaded backup {FileName} failed.", fileName);
             return BackupOperationResult.Failure($"Import fehlgeschlagen: {ex.Message}", ex.Message);
         }
+    }
+
+    private async Task MoveTempFileAsync(string sourcePath, string targetPath, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (IsSameFileSystem(sourcePath, targetPath))
+        {
+            File.Move(sourcePath, targetPath, overwrite: true);
+            return;
+        }
+
+        // Copy into a ".part" file next to the target so that the final File.Move
+        // is a guaranteed rename and a partial copy never appears as a ".bak" file.
+        var stagingPath = targetPath + ".part";
+        try
+        {
+            await using (var source = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.None, 81920, FileOptions.Asynchronous | FileOptions.SequentialScan))
+            await using (var target = new FileStream(stagingPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, FileOptions.Asynchronous))
+            {
+                await source.CopyToAsync(target, cancellationToken);
+            }
+
+            File.Move(stagingPath, targetPath, overwrite: true);
+        }
+        catch
+        {
+            try
+            {
+                if (File.Exists(stagingPath))
+                    File.Delete(stagingPath);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not remove partially copied backup upload {StagingPath}.", stagingPath);
+            }
+
+            throw;
+        }
+
+        File.Delete(sourcePath);
+    }
+
+    // Path.GetPathRoot alone is not enough on Linux: /tmp (tmpfs) and the storage
+    // path can share the "/" root while living on different filesystems, where
+    // File.Move would silently fall back to a synchronous, non-cancellable copy.
+    private static bool IsSameFileSystem(string sourcePath, string targetPath)
+    {
+        var sourceRoot = Path.GetPathRoot(Path.GetFullPath(sourcePath));
+        var targetRoot = Path.GetPathRoot(Path.GetFullPath(targetPath));
+        if (!string.Equals(sourceRoot, targetRoot, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        try
+        {
+            var sourceMount = GetMountPoint(sourcePath);
+            var targetMount = GetMountPoint(targetPath);
+            return sourceMount is not null
+                && targetMount is not null
+                && string.Equals(sourceMount, targetMount, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            return false;
+        }
+    }
+
+    private static string? GetMountPoint(string path)
+    {
+        var fullPath = Path.GetFullPath(path);
+        string? best = null;
+        foreach (var drive in DriveInfo.GetDrives())
+        {
+            var root = drive.RootDirectory.FullName;
+            if (!fullPath.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var endsAtBoundary = fullPath.Length == root.Length
+                || root.EndsWith(Path.DirectorySeparatorChar)
+                || fullPath[root.Length] is '/' or '\\';
+            if (endsAtBoundary && (best is null || root.Length > best.Length))
+                best = root;
+        }
+
+        return best;
     }
 
     /// <summary>

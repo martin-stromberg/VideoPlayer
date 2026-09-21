@@ -1,18 +1,11 @@
 @* Generischer Platzhalter-Grafik fuer eine Playlist-Kachel bzw. den Kopfbereich-Hintergrund der
    Detailansicht. Wird als Fallback angezeigt, wenn die Playlist kein Cover besitzt (weder hochgeladen
    noch automatisch erzeugt, siehe Entwicklungsschritt 10 "Abbildungen fuer Playlists") oder das Bild
-   nicht ladbar ist. Zeigt ein generisches Playlist-Symbol auf einem aus der Playlist-Id abgeleiteten
-   Farbverlauf, damit Playlists in der Kachel-UI trotzdem optisch unterscheidbar sind, statt dass jede
+   nicht ladbar ist. Zeigt einen aus der Playlist-Id abgeleiteten Farbverlauf (bewusst OHNE Symbol - Kundenrueckmeldung:
+   das Listensymbol wirkt amateurhaft), damit Playlists in der Kachel-UI trotzdem optisch unterscheidbar sind, statt dass jede
    Kachel identisch aussieht. *@
 
-<div class="playlist-cover-placeholder @CssClass" style="--playlist-hue: @Hue">
-    <svg aria-hidden="true" class="playlist-cover-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M4 6h12" />
-        <path d="M4 12h12" />
-        <path d="M4 18h8" />
-        <circle cx="19" cy="17" r="3" />
-        <path d="M19 8v9" />
-    </svg>
+<div class="playlist-cover-placeholder @CssClass" style="--playlist-hue: @Hue" aria-hidden="true">
 </div>
 
 @code {

@@ -1,4 +1,6 @@
-﻿<!DOCTYPE html>
+﻿@inject VideoWebPlayer.Services.StaticAssetVersioner Assets
+
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -6,15 +8,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/" />
     <link rel="stylesheet" href="bootstrap/bootstrap.min.css" />
-    <link rel="stylesheet" href="app.css" />
-    <link rel="stylesheet" href="VideoWebPlayer.styles.css" />
+    <link rel="stylesheet" href="@Assets.Url("app.css")" />
+    <link rel="stylesheet" href="@Assets.Url("VideoWebPlayer.styles.css")" />
     <link rel="icon" type="image/png" href="favicon.png" />
-    <script src="js/scroll.js"></script>
-    <script src="js/continueWatching.js"></script>
-    <script src="js/layoutNavigation.js"></script>
-    <script src="js/statusTicker.js"></script>
-    <script src="js/mediaContextMenu.js"></script>
-    <script src="js/playlistDragDrop.js"></script>
+    <script src="@Assets.Url("js/scroll.js")"></script>
+    <script src="@Assets.Url("js/continueWatching.js")"></script>
+    <script src="@Assets.Url("js/layoutNavigation.js")"></script>
+    <script src="@Assets.Url("js/statusTicker.js")"></script>
+    <script src="@Assets.Url("js/mediaContextMenu.js")"></script>
+    <script src="@Assets.Url("js/playlistDragDrop.js")"></script>
     <HeadOutlet />
 </head>
 

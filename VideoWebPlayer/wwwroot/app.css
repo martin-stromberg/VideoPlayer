@@ -2542,15 +2542,6 @@ input[type="text"]:focus {
     color: rgba(255, 255, 255, 0.55);
 }
 
-/* Dezent statt dominant (Kundenfeedback: "das ueberdimensionierte Listensymbol wirkt amateurhaft"): das
-   Symbol ist nur eine leise Andeutung auf dem Farbverlauf, nicht der Blickfang der Kachel. Im Kopfbereich
-   der Detailansicht wird es weiter unten eigens groesser gesetzt. */
-.playlist-cover-icon {
-    width: 64px;
-    height: 64px;
-    opacity: 0.35;
-}
-
 .playlist-sortmode-icon {
     display: inline-flex;
     flex: 0 0 auto;
@@ -2739,11 +2730,6 @@ input[type="text"]:focus {
     position: absolute;
     inset: 0;
     z-index: 0;
-}
-
-.playlist-header .playlist-header-cover .playlist-cover-icon {
-    width: clamp(96px, 14vw, 200px);
-    height: clamp(96px, 14vw, 200px);
 }
 
 /* Echtes Cover-Bild (hochgeladen oder generiert, Entwicklungsschritt 10): liegt ueber dem

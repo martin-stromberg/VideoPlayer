@@ -162,6 +162,61 @@ public class PlaylistDetailHeaderTests
         Assert.Equal("Serie: Die Serie", cut.Find("#playlist-detail-entry-parent").TextContent);
     }
 
+    /// <summary>
+    /// As on the series page, the image of a selected episode becomes the background of the header (customer
+    /// feedback: the title's image and information are shown in the header); the small poster is then not needed.
+    /// </summary>
+    [Fact]
+    public void SelectingAnEpisode_ShowsItsBackgroundImageInTheHeader_InsteadOfThePoster()
+    {
+        using var ctx = CreateContext(CreatePlaylist(isOwner: true), Entries());
+        var cut = RenderDetail(ctx);
+
+        cut.FindAll(".playlist-entry-row").Single(r => r.TextContent.Contains("Die Folge")).Click();
+
+        Assert.Contains("/api/episodes/200/background-image", cut.Find("#playlist-detail-entry-background").GetAttribute("src"));
+        Assert.Empty(cut.FindAll("#playlist-detail-entry-poster"));
+
+        // Back to the playlist: the header shows the playlist again, without an entry background.
+        cut.Find("#playlist-detail-back-button").Click();
+        Assert.Empty(cut.FindAll("#playlist-detail-entry-background"));
+    }
+
+    [Fact]
+    public void SelectingAMovie_KeepsThePosterAndShowsNoEpisodeBackground()
+    {
+        using var ctx = CreateContext(CreatePlaylist(isOwner: true), Entries());
+        var cut = RenderDetail(ctx);
+
+        cut.FindAll(".playlist-entry-row").Single(r => r.TextContent.Contains("Der Film")).Click();
+
+        Assert.Empty(cut.FindAll("#playlist-detail-entry-background"));
+        Assert.NotEmpty(cut.FindAll("#playlist-detail-entry-poster"));
+    }
+
+    /// <summary>
+    /// A locked episode (public playlist of another user, not unlocked for the viewer) must not load its
+    /// background image into the header.
+    /// </summary>
+    [Fact]
+    public void SelectingALockedEpisode_LoadsNoBackgroundImage()
+    {
+        var entries = new[]
+        {
+            new DtoPlaylistEntry
+            {
+                Id = 12, PlaylistId = 1, MediaType = "TVShowEpisode", MediaId = 201, MediaTitle = "Gesperrte Folge", IsAccessible = false,
+                ParentMediaType = "TVShow", ParentMediaId = 5, ParentMediaTitle = "Die Serie", AddedAt = DateTime.UtcNow
+            }
+        };
+        using var ctx = CreateContext(CreatePlaylist(isOwner: false), entries);
+        var cut = RenderDetail(ctx);
+
+        cut.Find(".playlist-entry-row").Click();
+
+        Assert.Empty(cut.FindAll("#playlist-detail-entry-background"));
+    }
+
     [Fact]
     public void SelectedEntry_WithoutOptionalData_ShowsTitleTypeAndImageWithoutEmptyFields()
     {

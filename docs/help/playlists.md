@@ -27,7 +27,7 @@ Genres) zeigt die Kachel bewusst nicht — sie stehen auf der Detailseite. Als B
 Abbildung (das Coverbild) der Playlist — entweder ein vom Besitzer hochgeladenes Bild oder eine
 automatisch aus den Bildern der enthaltenen Inhalte erzeugte Collage (siehe Abschnitt
 „Abbildung (Cover)"). Besitzt eine Playlist noch kein Coverbild, zeigt die Kachel stattdessen einen
-generischen, farblich je Playlist unterschiedlichen Platzhalter mit einem dezenten Playlist-Symbol.
+generischen, farblich je Playlist unterschiedlichen Farbverlauf als Platzhalter (bewusst ohne Symbol).
 
 Oberhalb der Kacheln steht, sobald mindestens ein Genre unter den eigenen Playlists vorkommt, ein
 Auswahlfeld „Nach Genre filtern" zur Verfügung, mit dem sich die Übersicht auf Playlists
@@ -162,6 +162,8 @@ Ein Klick auf einen Titel in der Liste **wählt ihn aus** — wie die Auswahl ei
 Die Kachel ist dann markiert, und der Kopfbereich zeigt statt der Playlist die Informationen des Titels:
 Titel, Erscheinungsjahr (falls bekannt), Art (Film bzw. „Episode 3"), die Zugehörigkeit zu Serie, Staffel oder
 Filmsammlung, die Handlung (falls vorhanden), das Bild des Titels und das Datum, an dem er hinzugefügt wurde.
+Bei einer **Episode** wird – wie auf der Serienseite – deren Bild zum Hintergrund des Kopfbereichs; bei einem Film
+erscheint sein Poster neben den Angaben. Für einen nicht freigeschalteten Titel wird kein Bild nachgeladen.
 Die Auswahl ist auch per Tastatur bedienbar (mit der Tabulatortaste zur Kachel, **Eingabe** oder
 **Leertaste** wählt aus, **Escape** hebt die Auswahl auf) und lässt sich mit dem Zurück-Pfeil im Kopfbereich
 aufheben; dann zeigt der Kopfbereich wieder die Playlist. Die Auswahl hat nichts mit der Wiedergabe zu tun und
@@ -250,7 +252,7 @@ selbst neu und wendet es an.
 
 **Ersatzdarstellung:** Besitzt eine Playlist kein Coverbild (noch keines hochgeladen oder erzeugt,
 oder das Bild ist nicht ladbar), wird an beiden Stellen ein neutrales, je Playlist farblich
-unterschiedliches Platzhalterbild mit einem Playlist-Symbol angezeigt. Wird die Playlist gelöscht,
+unterschiedlicher Farbverlauf (ohne Symbol) angezeigt. Wird die Playlist gelöscht,
 wird auch ihr Coverbild mit entfernt.
 
 ## Inhalte hinzufügen und entfernen

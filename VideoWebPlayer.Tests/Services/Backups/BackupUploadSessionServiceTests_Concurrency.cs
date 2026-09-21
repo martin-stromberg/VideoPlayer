@@ -11,7 +11,8 @@ public sealed class BackupUploadSessionServiceTests_Concurrency
     public async Task AppendChunkAsync_AfterSessionAborted_ReturnsRejectedInsteadOfThrowing()
     {
         using var provider = CreateProvider();
-        var service = CreateService(provider);
+        using var tempDir = TempDirectory.Create();
+        var service = CreateService(provider, tempDir.Path);
         var session = (await service.BeginSessionAsync("test.bak", 10, TestContext.Current.CancellationToken)).Session!;
 
         await service.AbortSessionAsync(session);
@@ -25,7 +26,8 @@ public sealed class BackupUploadSessionServiceTests_Concurrency
     public async Task AppendChunkAsync_WhenSessionDisposedWhileWaiting_ReturnsRejectedInsteadOfThrowing()
     {
         using var provider = CreateProvider();
-        var service = CreateService(provider);
+        using var tempDir = TempDirectory.Create();
+        var service = CreateService(provider, tempDir.Path);
         var session = (await service.BeginSessionAsync("test.bak", 10, TestContext.Current.CancellationToken)).Session!;
 
         try
@@ -51,8 +53,9 @@ public sealed class BackupUploadSessionServiceTests_Concurrency
     public async Task GetSession_ExpiredSessionWhoseWriteLockIsHeld_IsNotDisposed()
     {
         using var provider = CreateProvider();
+        using var tempDir = TempDirectory.Create();
         var time = new IncrementingTimeProvider(DateTimeOffset.UtcNow, TimeSpan.FromMilliseconds(1));
-        var service = CreateService(provider, time);
+        var service = CreateService(provider, tempDir.Path, time);
         var session = (await service.BeginSessionAsync("active.bak", 10, TestContext.Current.CancellationToken)).Session!;
 
         try

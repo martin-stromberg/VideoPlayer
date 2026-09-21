@@ -6,6 +6,7 @@ window.backupUpload = (() => {
   const MAX_RESTARTS = 3;
   const STORAGE_PREFIX = 'vwp-backup-upload:';
   const RESUME_HINT = 'Der Upload kann fortgesetzt werden: dieselbe Datei erneut auswählen und auf "Backup hochladen" klicken.';
+  const ALREADY_RUNNING_MESSAGE = 'Es läuft bereits ein Upload. Bitte warten Sie, bis er abgeschlossen ist.';
 
   let activeRun = null;
 
@@ -57,6 +58,9 @@ window.backupUpload = (() => {
     const text = document.createElement('div');
     text.className = 'backup-upload-progress-text form-text mt-1';
 
+    const notice = document.createElement('div');
+    notice.className = 'backup-upload-notice form-text text-warning mt-1';
+
     const abortButton = document.createElement('button');
     abortButton.type = 'button';
     abortButton.className = 'btn btn-outline-secondary btn-sm mt-2';
@@ -64,9 +68,10 @@ window.backupUpload = (() => {
 
     wrapper.appendChild(bar);
     wrapper.appendChild(text);
+    wrapper.appendChild(notice);
     wrapper.appendChild(abortButton);
     container.appendChild(wrapper);
-    return { fill, text, abortButton };
+    return { fill, text, notice, abortButton };
   };
 
   const updateProgress = (ui, sent, total, note) => {
@@ -228,7 +233,13 @@ window.backupUpload = (() => {
 
     if (activeRun) {
       if (activeRun.containerEl.isConnected) {
-        showMessage(containerEl, 'Es läuft bereits ein Upload. Bitte warten Sie, bis er abgeschlossen ist.');
+        // Write the hint into the running upload's own notice element instead of
+        // clearing the container, which would destroy the progress bar and the
+        // abort button of the active run.
+        if (activeRun.ui)
+          activeRun.ui.notice.textContent = ALREADY_RUNNING_MESSAGE;
+        if (activeRun.containerEl !== containerEl)
+          showMessage(containerEl, ALREADY_RUNNING_MESSAGE);
         return;
       }
 
@@ -251,7 +262,7 @@ window.backupUpload = (() => {
     const key = storageKey(file);
     const ui = createUi(containerEl);
     const controller = new AbortController();
-    const run = { containerEl, controller, done: null, resolveDone: null };
+    const run = { containerEl, controller, done: null, resolveDone: null, ui };
     run.done = new Promise((resolve) => { run.resolveDone = resolve; });
     activeRun = run;
 

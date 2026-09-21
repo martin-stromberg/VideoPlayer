@@ -4,12 +4,12 @@
 
 **Status:** Keine Fehler
 
-Alle 286 ausgeführten Tests bestanden (235 Nicht-E2E + 45 E2E + 6 MarkdownLinkCheck). Alle geplanten E2E-Szenarien existieren und sind bestanden — die `BackupUploadE2ETests` umfassen inzwischen 11 Szenarien, einschließlich der in Iteration 3 hinzugekommenen Tests `BackupUpload_InterruptedSession_CanDiscardResumeHint`, `BackupUpload_NonJsonErrorResponse_ShowsFriendlyMessage` und `BackupUpload_NavigatingAwayDuringUpload_AbortsWithoutRedirectBack`.
+Alle 296 ausgeführten Tests bestanden (245 Nicht-E2E + 45 E2E + 6 MarkdownLinkCheck). Alle geplanten E2E-Szenarien existieren und sind bestanden — die `BackupUploadE2ETests` umfassen 11 Szenarien. Der Lauf deckt die Auslagerung von `FormatBytes` nach `ByteSizeHelper` (`@using static VideoWebPlayer.Utils.ByteSizeHelper` in `_Imports.razor`) ab; `ByteSizeHelper.cs` erreicht 100,0 % Zeilenabdeckung über die neuen `ByteSizeHelperTests`. Die Nicht-E2E-Anzahl stieg von 237 auf 245.
 
 Ausgeführte Befehle (Arbeitsverzeichnis: Repo-Root, `-c Release`):
 
 - `dotnet build VideoPlayer.sln -c Release -p:NoWarn=NU1903` — 0 Fehler, 0 Warnungen
-- `dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-build -c Release --filter "Category!=E2E" --collect:"XPlat Code Coverage" --logger "console;verbosity=normal"` — 235/235 bestanden
+- `dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-build -c Release --filter "Category!=E2E" --collect:"XPlat Code Coverage" --logger "console;verbosity=normal"` — 245/245 bestanden
 - `dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --no-build -c Release --filter "Category=E2E" --collect:"XPlat Code Coverage" --logger "console;verbosity=normal"` — 45/45 bestanden
 - `dotnet test tools/MarkdownLinkCheck.Tests/MarkdownLinkCheck.Tests.csproj --no-build -c Release --logger "console;verbosity=normal"` — 6/6 bestanden
 
@@ -24,23 +24,23 @@ Ausgeführte Befehle (Arbeitsverzeichnis: Repo-Root, `-c Release`):
 | Limit-Überschreitung (`Backups:MaxUploadSizeBytes` klein gesetzt) → Fehlermeldung, kein Import | `BackupUploadE2ETests.BackupUpload_ExceedingLimit_ShowsError` | Bestanden |
 | Nicht-Admin (eingeloggter regulärer Benutzer) sieht „Nicht autorisiert", kein Upload-Control | `BackupUploadE2ETests.BackupUpload_NonAdmin_SeesNoUploadControl` | Bestanden |
 | Unterbrochene Session: Resume-Hinweis in der UI bei vorhandener `localStorage`-Session | `BackupUploadE2ETests.BackupUpload_InterruptedSession_ShowsResumeHint` | Bestanden |
-| Unterbrochene Session (Iteration 3): Resume-Hinweis lässt sich verwerfen | `BackupUploadE2ETests.BackupUpload_InterruptedSession_CanDiscardResumeHint` | Bestanden |
+| Unterbrochene Session: Resume-Hinweis lässt sich verwerfen | `BackupUploadE2ETests.BackupUpload_InterruptedSession_CanDiscardResumeHint` | Bestanden |
 | Laufender Upload: Upload-Button während des Laufs deaktiviert | `BackupUploadE2ETests.BackupUpload_WhileRunning_DisablesUploadButton` | Bestanden |
-| Nicht-JSON-Fehlerantwort (Iteration 3): freundliche Fehlermeldung statt Roh-Response | `BackupUploadE2ETests.BackupUpload_NonJsonErrorResponse_ShowsFriendlyMessage` | Bestanden |
-| Navigation während Upload (Iteration 3): Upload bricht ab, keine Rück-Navigation | `BackupUploadE2ETests.BackupUpload_NavigatingAwayDuringUpload_AbortsWithoutRedirectBack` | Bestanden |
+| Nicht-JSON-Fehlerantwort: freundliche Fehlermeldung statt Roh-Response | `BackupUploadE2ETests.BackupUpload_NonJsonErrorResponse_ShowsFriendlyMessage` | Bestanden |
+| Navigation während Upload: Upload bricht ab, keine Rück-Navigation | `BackupUploadE2ETests.BackupUpload_NavigatingAwayDuringUpload_AbortsWithoutRedirectBack` | Bestanden |
 
 ## Zusammenfassung
 
-- Gesamt: 286 (235 Nicht-E2E + 45 E2E + 6 MarkdownLinkCheck)
-- Bestanden: 286
+- Gesamt: 296 (245 Nicht-E2E + 45 E2E + 6 MarkdownLinkCheck)
+- Bestanden: 296
 - Fehlgeschlagen: 0
 - Übersprungen: 0
 
 ## Testabdeckung
 
-**Abdeckung:** 92,4 % (Zeilen, gemergte Cobertura-Daten aus Nicht-E2E- und E2E-Lauf mit `XPlat Code Coverage`; Quelldatei-Ebene, ohne generierte Migrations-/Designer-Dateien und `Program.cs` als Einstiegspunkt)
+**Abdeckung:** 92,4 % (Zeilen, gemergte Cobertura-Daten aus Nicht-E2E- und E2E-Lauf mit `XPlat Code Coverage`, alle instrumentierten Quelldateien inkl. generierter Migrationsdateien; die Tabelle unten listet Quelldatei-Ebene ohne generierte Migrations-/Designer-Dateien und `Program.cs` als Einstiegspunkt)
 
-Feature-relevante Dateien: `KestrelLimits.cs` 100,0 %, `BackupUploadSessionService.cs` 88,5 %, `BackupsController.cs` 73,0 %, `VideoWebPlayerBackupFacade.cs` 63,6 %, `Backups.razor` 48,7 % (UI-Anteile nur über E2E erreichbar).
+Feature-relevante Dateien: `ByteSizeHelper.cs` 100,0 %, `KestrelLimits.cs` 100,0 %, `BackupUploadSessionService.cs` 87,1 %, `BackupsController.cs` 73,0 %, `VideoWebPlayerBackupFacade.cs` 63,6 %, `Backups.razor` 47,5 % (UI-Anteile nur über E2E erreichbar).
 
 | Datei | Abdeckung |
 |-------|-----------|
@@ -115,13 +115,13 @@ Feature-relevante Dateien: `KestrelLimits.cs` 100,0 %, `BackupUploadSessionServi
 | `VideoWebPlayer/Data/Genre.cs` | 27.3 % |
 | `VideoWebPlayer/Data/Movie.cs` | 27.6 % |
 | `VideoWebPlayer/Services/Backups/ManualBackupJobService.cs` | 29.9 % |
+| `VideoWebPlayer/Controllers/FavoritesController.cs` | 29.7 % |
 | `VideoWebPlayer/Services/LoginIpBlockService.cs` | 30.1 % |
 | `VideoWebPlayer.Client/VideoWebPlayerClient.cs` | 32.2 % |
 | `VideoWebPlayer/Services/RecentEntryService.cs` | 33.3 % |
 | `VideoWebPlayer/Controllers/PicturesController.cs` | 34.3 % |
 | `VideoWebPlayer/Controllers/SourceGenresController.cs` | 36.9 % |
 | `VideoWebPlayer/Services/FavoritesService.cs` | 37.2 % |
-| `VideoWebPlayer/Controllers/FavoritesController.cs` | 37.8 % |
 | `VideoWebPlayer/Components/Shared/Home/RecentEntriesList.razor` | 39.6 % |
 | `VideoWebPlayer/Components/Shared/Home/ContinueWatchingList.razor` | 41.5 % |
 | `VideoWebPlayer/Controllers/AuthController.cs` | 41.7 % |
@@ -130,7 +130,7 @@ Feature-relevante Dateien: `KestrelLimits.cs` 100,0 %, `BackupUploadSessionServi
 | `VideoWebPlayer/Components/Account/Pages/Shared/LoginForm.razor` | 44.4 % |
 | `VideoWebPlayer/Services/GenreService.cs` | 45.8 % |
 | `VideoWebPlayer/Services/ContinueWatchingWorker.cs` | 46.7 % |
-| `VideoWebPlayer/Components/Pages/Admin/Backups.razor` | 48.7 % |
+| `VideoWebPlayer/Components/Pages/Admin/Backups.razor` | 47.5 % |
 | `VideoWebPlayer/Controllers/ItemsController.cs` | 49.5 % |
 | `VideoWebPlayer/Data/Entities/WatchedEntry.cs` | 50.0 % |
 | `VideoWebPlayer/Data/GenreName.cs` | 50.0 % |
@@ -138,11 +138,11 @@ Feature-relevante Dateien: `KestrelLimits.cs` 100,0 %, `BackupUploadSessionServi
 | `VideoWebPlayer/Data/MovieGenre.cs` | 50.0 % |
 | `VideoWebPlayer/Data/TVShowGenre.cs` | 50.0 % |
 | `VideoWebPlayer/Services/MediaUpdateNotificationService.cs` | 50.0 % |
+| `VideoWebPlayer/Components/Shared/Home/FavoritesList.razor` | 51.9 % |
 | `VideoWebPlayer/Controllers/AdminSourcesController.cs` | 52.6 % |
 | `VideoWebPlayer/Services/Backups/RestoreInProgressMiddleware.cs` | 52.9 % |
 | `VideoWebPlayer/Services/EpisodeBackgroundImage/EpisodeBackgroundImageOptionsValidator.cs` | 53.8 % |
 | `VideoWebPlayer/Components/Pages/Movies/MovieCollectionDetails.razor` | 54.5 % |
-| `VideoWebPlayer/Components/Shared/Home/FavoritesList.razor` | 55.7 % |
 | `VideoWebPlayer/Components/Account/IdentityRedirectManager.cs` | 58.3 % |
 | `VideoWebPlayer/Data/TVShowEpisode.cs` | 58.8 % |
 | `VideoWebPlayer/Controllers/UnlockedMediaController.cs` | 59.5 % |
@@ -152,8 +152,8 @@ Feature-relevante Dateien: `KestrelLimits.cs` 100,0 %, `BackupUploadSessionServi
 | `VideoWebPlayer/Data/ApplicationDbContext.cs` | 60.8 % |
 | `VideoWebPlayer/Components/Pages/MediaSources/MediaSourceDetails.razor` | 63.0 % |
 | `VideoWebPlayer/Services/Backups/VideoWebPlayerBackupFacade.cs` | 63.6 % |
-| `VideoWebPlayer/Data/UnlockedMediaEntry.cs` | 66.7 % |
 | `VideoWebPlayer/Components/Account/Shared/StatusMessage.razor` | 66.7 % |
+| `VideoWebPlayer/Data/UnlockedMediaEntry.cs` | 66.7 % |
 | `VideoWebPlayer/Services/WhitelistIpMiddleware.cs` | 66.7 % |
 | `VideoWebPlayer/Controllers/ActorsController.cs` | 67.5 % |
 | `VideoWebPlayer/Controllers/Attributes/ApiTokenCheckAttribute.cs` | 69.4 % |
@@ -178,7 +178,7 @@ Feature-relevante Dateien: `KestrelLimits.cs` 100,0 %, `BackupUploadSessionServi
 
 Quelle: `Coverage-Daten`
 
-Alle folgenden Quelldateien haben 0 % Zeilenabdeckung (gemergte Coverage aus Nicht-E2E- und E2E-Lauf). Es handelt sich ausschließlich um **vor der Umsetzung bereits ungetestete** Dateien (überwiegend Identity-Scaffold-Seiten, Demo-/Sample-Seiten, DTOs) — keine davon wurde durch dieses Feature angelegt oder geändert. Alle neuen Feature-Dateien sind abgedeckt (`KestrelLimits.cs` 100,0 %, `BackupUploadSessionService.cs` 88,5 %; `backupUpload.js` ist JS und wird über die E2E-Tests `BackupUploadE2ETests` funktional nachgewiesen, Coverlet erfasst kein JavaScript).
+Alle folgenden Quelldateien haben 0 % Zeilenabdeckung (gemergte Coverage aus Nicht-E2E- und E2E-Lauf). Es handelt sich ausschließlich um **vor der Umsetzung bereits ungetestete** Dateien (überwiegend Identity-Scaffold-Seiten, Demo-/Sample-Seiten, DTOs) — keine davon wurde durch dieses Feature angelegt oder geändert. Alle neuen Feature-Dateien sind abgedeckt (`ByteSizeHelper.cs` 100,0 %, `KestrelLimits.cs` 100,0 %, `BackupUploadSessionService.cs` 87,1 %; `backupUpload.js` ist JS und wird über die E2E-Tests `BackupUploadE2ETests` funktional nachgewiesen, Coverlet erfasst kein JavaScript).
 
 - `VideoWebPlayer.Client/Models/ContinueWatchingMutationResult.cs` — 0 % Abdeckung
 - `VideoWebPlayer.Client/Models/DtoRecentEntry.cs` — 0 % Abdeckung

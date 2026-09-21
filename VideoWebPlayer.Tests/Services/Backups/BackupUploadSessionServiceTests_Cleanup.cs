@@ -11,8 +11,9 @@ public sealed class BackupUploadSessionServiceTests_Cleanup
     public async Task GetSession_WhenSessionExpired_RemovesSessionAndTempFile()
     {
         using var provider = CreateProvider();
+        using var tempDir = TempDirectory.Create();
         var time = new IncrementingTimeProvider(DateTimeOffset.UtcNow, TimeSpan.FromMilliseconds(1));
-        var service = CreateService(provider, time);
+        var service = CreateService(provider, tempDir.Path, time);
         var expired = (await service.BeginSessionAsync("old.bak", 10, TestContext.Current.CancellationToken)).Session!;
 
         try
@@ -32,8 +33,9 @@ public sealed class BackupUploadSessionServiceTests_Cleanup
     public async Task BeginSessionAsync_WhenOrphanedTempFileIsOld_DeletesOrphan()
     {
         using var provider = CreateProvider();
-        var service = CreateService(provider);
-        var orphanPath = Path.Combine(Path.GetTempPath(), $"vwp-backup-upload-{Guid.NewGuid():N}.tmp");
+        using var tempDir = TempDirectory.Create();
+        var service = CreateService(provider, tempDir.Path);
+        var orphanPath = Path.Combine(tempDir.Path, $"vwp-backup-upload-{Guid.NewGuid():N}.tmp");
         await File.WriteAllTextAsync(orphanPath, "orphan", TestContext.Current.CancellationToken);
         File.SetLastWriteTimeUtc(orphanPath, DateTime.UtcNow.AddHours(-25));
 
@@ -55,13 +57,41 @@ public sealed class BackupUploadSessionServiceTests_Cleanup
     }
 
     [Fact]
+    public async Task BeginSessionAsync_OrphanedTempFileOutsideOwnDirectory_IsNotScanned()
+    {
+        using var provider = CreateProvider();
+        using var tempDir = TempDirectory.Create();
+        using var foreignDir = TempDirectory.Create();
+        var service = CreateService(provider, tempDir.Path);
+        var foreignOrphanPath = Path.Combine(foreignDir.Path, $"vwp-backup-upload-{Guid.NewGuid():N}.tmp");
+        await File.WriteAllTextAsync(foreignOrphanPath, "orphan", TestContext.Current.CancellationToken);
+        File.SetLastWriteTimeUtc(foreignOrphanPath, DateTime.UtcNow.AddHours(-25));
+
+        BackupUploadSession? fresh = null;
+        try
+        {
+            fresh = (await service.BeginSessionAsync("fresh.bak", 10, TestContext.Current.CancellationToken)).Session!;
+
+            Assert.True(File.Exists(foreignOrphanPath));
+            Assert.True(File.Exists(fresh.TempPath));
+        }
+        finally
+        {
+            await DisposeSessionAsync(fresh);
+            if (File.Exists(foreignOrphanPath))
+                File.Delete(foreignOrphanPath);
+        }
+    }
+
+    [Fact]
     public async Task GetSession_WithinCleanupInterval_SkipsTempFileScan()
     {
         using var provider = CreateProvider();
+        using var tempDir = TempDirectory.Create();
         var time = new IncrementingTimeProvider(DateTimeOffset.UtcNow, TimeSpan.FromSeconds(1));
-        var service = CreateService(provider, time);
+        var service = CreateService(provider, tempDir.Path, time);
         var session = (await service.BeginSessionAsync("test.bak", 10, TestContext.Current.CancellationToken)).Session!;
-        var orphanPath = Path.Combine(Path.GetTempPath(), $"vwp-backup-upload-{Guid.NewGuid():N}.tmp");
+        var orphanPath = Path.Combine(tempDir.Path, $"vwp-backup-upload-{Guid.NewGuid():N}.tmp");
         await File.WriteAllTextAsync(orphanPath, "orphan", TestContext.Current.CancellationToken);
         File.SetLastWriteTimeUtc(orphanPath, DateTime.UtcNow.AddHours(-25));
 

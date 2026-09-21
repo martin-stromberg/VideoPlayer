@@ -1,7 +1,7 @@
 # Offene Aufgaben
 
 Erstellt am: 2026-09-21
-Abbruchgrund: Maximale Iterationsanzahl erreicht
+Abbruchgrund: Maximale Iterationsanzahl erreicht (Hauptlauf); Fortsetzungslauf: kein weiterer Fortschritt in der Punktzahl (1 → 1)
 
 Die folgenden Aufgaben konnten im automatisierten Zyklus nicht abgeschlossen werden
 und müssen manuell oder in einem erneuten Lauf bearbeitet werden.
@@ -12,17 +12,19 @@ Keine — `review.md` trägt den Status `Vollständig umgesetzt`.
 
 ## Code-Review-Befunde
 
-- [ ] `BackupUploadSessionServiceTests_*` — Test-Isolation: Tests mit `IncrementingTimeProvider` + `Advance(25h)` verschieben den Cleanup-Cutoff ~1h in die reale Zukunft. `CleanupOrphanedTempFiles` (`BackupUploadSessionService.cs` Z. 209–239) löscht dann alle `vwp-backup-upload-*.tmp` im gemeinsamen `%TEMP%`, die nicht in `_sessions` der eigenen Instanz stehen — inkl. Temp-Dateien parallel laufender xUnit-Testklassen (kein `DisableTestParallelization`). Unter Linux wird sogar der offene `FileShare.None`-Stream per Unlink entfernt → flaky Tests. Empfehlung: Temp-Verzeichnis pro Service-Instanz injizierbar machen oder betroffene Klassen in eine `[Collection]`.
-- [ ] `backupUpload.js` Z. 229–233 — `showMessage(containerEl, ...)` im `activeRun`-Guard leert den kompletten Container und zerstört Fortschrittsbalken + Abbrechen-Button des laufenden Uploads, wenn `containerEl` dasselbe Element ist (erreichbar, sobald Blazor den `disabled`-Button nach Re-Render reaktiviert, z. B. bei `IsRestoreActive`-Wechsel). Empfehlung: Hinweis in `ui.text` des laufenden Runs schreiben statt Container zu leeren.
+- [x] `BackupUploadSessionServiceTests_*` — Test-Isolation (gelöst: injizierbares `tempDirectory`, `TempDirectory.Create()` pro Test, `CleanupOrphanedTempFiles` scannt nur das Instanz-Verzeichnis)
+- [x] `backupUpload.js` `activeRun`-Guard — `showMessage` leerte den Container (gelöst: Hinweis geht in `ui.notice`-Element)
+- [x] `FormatBytes`-Duplikation (gelöst: `VideoWebPlayer/Utils/ByteSizeHelper.cs`, `@using static` in `_Imports.razor`, `ByteSizeHelperTests`)
 
 ## Usability-Befunde
 
-- [ ] `BackupUploadSessionService.cs` (Z. 73) / Upload-Fehlermeldung auf `/admin/backups` — Bei Überschreiten des Upload-Limits wird „Die Datei überschreitet das Upload-Limit von 5368709120 Bytes." angezeigt — rohe Bytes sind für nicht-technische Anwender unverständlich. Empfehlung: Limit menschenlesbar formatieren („5 GB"), analog zum vorhandenen `FormatBytes`.
+- [x] Limit-Fehlermeldung in rohen Bytes (gelöst: `FormatBytes` → „5 GB")
+- [ ] `Backups.razor` (`/admin/backups`, Einstellungen, Z. 339–343) — Das administrierbare Upload-Limit (`MaxUploadSizeBytes`) muss in rohen Bytes eingegeben werden. Für 6 GB müsste ein nicht-technischer Admin „6442450944" selbst berechnen. Empfehlung: Eingabe in MB/GB bzw. Zahlenfeld mit Einheiten-Auswahl. (Vorbestand der Einstellungs-UI; relevant geworden, da das Limit nun serverseitig durchgesetzt wird. Fachliche Entscheidung nötig, ob im Scope.)
 
 ## Fehlgeschlagene Tests
 
-Keine — `test-results.md` (Runde 3): 286/286 bestanden.
+Keine — `test-results.md`: 296/296 bestanden.
 
 ## Sonstiges
 
-- [ ] Stray-Datei `nul` (77 Bytes) im Repo-Root löschen (aus Code-Review Runde 3).
+- [x] Stray-Datei `nul` im Repo-Root (gelöscht und committet)

@@ -10,7 +10,8 @@ public sealed class BackupUploadSessionServiceTests_GetSession
     public void GetSession_WithUnknownId_ReturnsNull()
     {
         using var provider = CreateProvider();
-        var service = CreateService(provider);
+        using var tempDir = TempDirectory.Create();
+        var service = CreateService(provider, tempDir.Path);
 
         Assert.Null(service.GetSession(Guid.NewGuid()));
     }
@@ -19,7 +20,8 @@ public sealed class BackupUploadSessionServiceTests_GetSession
     public async Task GetSession_WithActiveSession_ReturnsSession()
     {
         using var provider = CreateProvider();
-        var service = CreateService(provider);
+        using var tempDir = TempDirectory.Create();
+        var service = CreateService(provider, tempDir.Path);
         var session = (await service.BeginSessionAsync("test.bak", 10, TestContext.Current.CancellationToken)).Session!;
 
         try
@@ -36,8 +38,9 @@ public sealed class BackupUploadSessionServiceTests_GetSession
     public async Task GetSession_WhenSessionExpired_ReturnsNull()
     {
         using var provider = CreateProvider();
+        using var tempDir = TempDirectory.Create();
         var time = new IncrementingTimeProvider(DateTimeOffset.UtcNow, TimeSpan.FromSeconds(1));
-        var service = CreateService(provider, time);
+        var service = CreateService(provider, tempDir.Path, time);
         var session = (await service.BeginSessionAsync("test.bak", 10, TestContext.Current.CancellationToken)).Session!;
 
         try

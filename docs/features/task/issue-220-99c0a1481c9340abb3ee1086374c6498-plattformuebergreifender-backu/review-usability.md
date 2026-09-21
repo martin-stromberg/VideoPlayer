@@ -6,30 +6,28 @@
 
 ## Befunde
 
-### Backups.razor / BackupUploadSessionService (Seite `/admin/backups`, Upload-Fehlermeldung)
+### Backups.razor (Admin-Seite `/admin/backups`, Bereich „Einstellungen")
 
-- **Erreichbarkeit** — Lehnt der Server eine zu große Datei ab, wird dem Anwender der Fehlertext `Die Datei überschreitet das Upload-Limit von {maxUploadSizeBytes} Bytes.` (`BackupUploadSessionService.cs`, `BeginSessionResult.TooLarge`, Zeile 73) unverändert im roten Fehlerhinweis angezeigt (über `readErrorMessage` in `backupUpload.js` → Redirect `backupError` → Alert in `Backups.razor`). Ein Laie sieht dort z. B. „5368709120 Bytes" und kann weder erkennen, wie groß das Limit in vertrauten Einheiten ist, noch wie weit seine Datei darüber liegt. Gerade weil das Feature für Dateien ab 6 GB gedacht ist, das konfigurierbare Limit aber standardmäßig bei 5 GiB liegt, ist genau dieser Fall ein erwartbarer Fehlerpfad.
+- **Interne Kennung / technischer Wert** — Die Anforderung sieht `MaxUploadSizeBytes` als „administrierbares Limit" vor. Die Pflege erfolgt über ein Zahlenfeld „Upload-Limit in Bytes" (Zeilen 339–343): Wer das Limit z. B. auf 6 GB anheben will, muss den Wert in Bytes (6 442 450 944) selbst berechnen und fehlerfrei eintippen. Ein nicht-technischer Admin kann diese Umrechnung nicht leisten; eine Vertipper-Einordnung (KB vs. GB) ist praktisch nicht erkennbar. Der Hinweis „Aktuell: …" zeigt den bestehenden Wert zwar formatiert, hilft aber bei der Neueingabe nicht.
 
-  Empfehlung: Das Limit in der Meldung serverseitig in menschenlesbarer Form ausgeben (z. B. „5 GB"), analog zur vorhandenen `FormatBytes`-Darstellung, die auf derselben Seite bereits „Maximal X" als Klartext zeigt.
+  Empfehlung: Eingabe in einer verständlichen Einheit ermöglichen — z. B. Zahlenfeld „Upload-Limit in MB/GB" mit serverseitiger Umrechnung oder Einheiten-Auswahl (Dropdown MB/GB) neben dem Zahlenfeld.
 
 ## Geprüfte Interaktionen
 
 Liste der aus der Anforderung geprüften Benutzerinteraktionen:
-- Backup-Datei (.bak) über Dateiauswahl auswählen → unauffällig (Standard-Dateidialog mit `accept=".bak"`, kein technischer Wert erforderlich)
-- Upload über beschriftete Schaltfläche „Backup hochladen" starten → unauffällig
-- Fortschritt während des Uploads verfolgen → unauffällig (Fortschrittsbalken mit Klartext „Übertragen: X von Y (Z %)")
-- Upload abbrechen → unauffällig (Schaltfläche „Abbrechen" mit verständlichem Hinweistext zum Fortsetzen)
-- Unterbrochenen Upload fortsetzen → unauffällig (Info-Hinweis nennt den Dateinamen und beschreibt in Klartext: dieselbe Datei erneut auswählen und „Backup hochladen" klicken)
-- Unterbrochenen Upload verwerfen → unauffällig (beschriftete Schaltfläche „Verwerfen")
-- Erfolgs- und Fehlermeldungen nach Abschluss/Abbruch wahrnehmen → unauffällig (deutsche Klartext-Meldungen über das bestehende `backupStatus`/`backupError`-Query-Parametermuster; `describeHttpError` mappt Statuscodes auf verständliche Texte)
-- Fehlermeldung bei Überschreiten des Upload-Limits verstehen → Befund vorhanden (Limit wird in rohen Bytes statt in GB ausgegeben)
-- Interne/technische Kennungen eingeben → unauffällig (keine; Upload-Id/Offsets werden unsichtbar via Header/localStorage verwaltet)
+- Backupdatei auswählen und hochladen (Datei-Dialog, `accept=".bak"`, Button „Backup hochladen") → unauffällig
+- Fortschritt des Uploads verfolgen (Fortschrittsbalken mit Bytes/Prozent, Klartext) → unauffällig
+- Upload abbrechen (Button „Abbrechen" mit anschließendem Klartext-Hinweis zur Fortsetzung) → unauffällig
+- Unterbrochenen Upload fortsetzen (Info-Banner nennt Dateinamen und beschreibt die Schritte in Klartext) → unauffällig
+- Unterbrochenen Upload verwerfen (Button „Verwerfen") → unauffällig
+- Fehlerfälle verstehen (deutsche Klartext-Meldungen für 401/403, 404, 413, 5xx, Netzwerkfehler; Erfolgs-/Fehlermeldung via `backupStatus`/`backupError`) → unauffällig
+- Upload-Limit (`MaxUploadSizeBytes`) administrieren → Befund vorhanden (Eingabe in Bytes)
 
 ## Geprüfte Dateien
 
 Liste aller geprüften UI-Dateien:
 - `VideoWebPlayer/Components/Pages/Admin/Backups.razor`
-- `VideoWebPlayer/Components/App.razor`
+- `VideoWebPlayer/Components/Pages/Admin/Updates.razor` (nur Refactoring `FormatBytes` → `ByteSizeHelper`, keine Bedienänderung)
+- `VideoWebPlayer/Components/App.razor` (nur Script-Einbindung `backupUpload.js`)
+- `VideoWebPlayer/Components/_Imports.razor` (nur `@using static`)
 - `VideoWebPlayer/wwwroot/js/backupUpload.js`
-- `VideoWebPlayer/Controllers/BackupsController.cs` (nur anwendersichtbare Fehlertexte)
-- `VideoWebPlayer/Services/Backups/BackupUploadSessionService.cs` (nur anwendersichtbare Fehlertexte)

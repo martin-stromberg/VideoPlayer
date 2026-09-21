@@ -10,7 +10,8 @@ public sealed class BackupUploadSessionServiceTests_AppendChunk
     public async Task AppendChunk_WritesAtOffsetAndTracksReceivedBytes()
     {
         using var provider = CreateProvider();
-        var service = CreateService(provider);
+        using var tempDir = TempDirectory.Create();
+        var service = CreateService(provider, tempDir.Path);
         var session = (await service.BeginSessionAsync("test.bak", 10, TestContext.Current.CancellationToken)).Session!;
 
         try
@@ -39,7 +40,8 @@ public sealed class BackupUploadSessionServiceTests_AppendChunk
     public async Task AppendChunk_WithMismatchedOffset_RequiresResume()
     {
         using var provider = CreateProvider();
-        var service = CreateService(provider);
+        using var tempDir = TempDirectory.Create();
+        var service = CreateService(provider, tempDir.Path);
         var session = (await service.BeginSessionAsync("test.bak", 10, TestContext.Current.CancellationToken)).Session!;
 
         try
@@ -60,7 +62,8 @@ public sealed class BackupUploadSessionServiceTests_AppendChunk
     public async Task AppendChunk_WithOverflowBeyondTotalLength_IsRejected()
     {
         using var provider = CreateProvider();
-        var service = CreateService(provider);
+        using var tempDir = TempDirectory.Create();
+        var service = CreateService(provider, tempDir.Path);
         var session = (await service.BeginSessionAsync("test.bak", 10, TestContext.Current.CancellationToken)).Session!;
 
         try

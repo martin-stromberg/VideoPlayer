@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using msTools.Backup;
+using VideoWebPlayer.Utils;
 
 namespace VideoWebPlayer.Services.Backups;
 
@@ -29,20 +30,30 @@ public sealed class BackupUploadSessionService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<BackupUploadSessionService> _logger;
+    private readonly string _tempDirectory;
     private int _cleanupInProgress;
     private long _lastCleanupTicks;
 
     /// <summary>
     /// Creates a new upload session service.
     /// </summary>
+    /// <param name="scopeFactory">Scope factory used to resolve scoped services per call.</param>
+    /// <param name="timeProvider">Time source for session expiry and cleanup.</param>
+    /// <param name="logger">The logger.</param>
+    /// <param name="tempDirectory">
+    /// Directory that receives the temporary upload files and is scanned for orphans.
+    /// Defaults to <see cref="Path.GetTempPath"/>; tests inject an isolated directory.
+    /// </param>
     public BackupUploadSessionService(
         IServiceScopeFactory scopeFactory,
         TimeProvider timeProvider,
-        ILogger<BackupUploadSessionService> logger)
+        ILogger<BackupUploadSessionService> logger,
+        string? tempDirectory = null)
     {
         _scopeFactory = scopeFactory;
         _timeProvider = timeProvider;
         _logger = logger;
+        _tempDirectory = string.IsNullOrWhiteSpace(tempDirectory) ? Path.GetTempPath() : tempDirectory;
     }
 
     /// <summary>
@@ -70,13 +81,14 @@ public sealed class BackupUploadSessionService
         }
 
         if (totalLength > maxUploadSizeBytes)
-            return BeginSessionResult.TooLarge($"Die Datei überschreitet das Upload-Limit von {maxUploadSizeBytes} Bytes.");
+            return BeginSessionResult.TooLarge($"Die Datei überschreitet das Upload-Limit von {ByteSizeHelper.FormatBytes(maxUploadSizeBytes)}.");
 
         var id = Guid.NewGuid();
-        var tempPath = Path.Combine(Path.GetTempPath(), $"{TempFilePrefix}{id:N}.tmp");
+        var tempPath = Path.Combine(_tempDirectory, $"{TempFilePrefix}{id:N}.tmp");
         FileStream stream;
         try
         {
+            Directory.CreateDirectory(_tempDirectory);
             stream = new FileStream(tempPath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 81920, FileOptions.Asynchronous);
         }
         catch (Exception ex)
@@ -211,7 +223,7 @@ public sealed class BackupUploadSessionService
         string[] files;
         try
         {
-            files = Directory.GetFiles(Path.GetTempPath(), $"{TempFilePrefix}*.tmp");
+            files = Directory.GetFiles(_tempDirectory, $"{TempFilePrefix}*.tmp");
         }
         catch (Exception ex)
         {

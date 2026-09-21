@@ -582,8 +582,13 @@ public abstract class PlaylistServiceTestBase : IDisposable
     /// on the shared real-SQLite <see cref="_db"/>, resolving its <see cref="IPlaylistService"/> lazily.
     /// </summary>
     /// <param name="resolvePlaylistService">Resolves the playlist service on demand.</param>
+    /// <param name="buffer">
+    /// The progress buffer to wire the service to, so a test can drive the full
+    /// <c>ReportProgressAsync</c> -&gt; buffer -&gt; <c>ProcessBufferedEntryAsync</c> path the
+    /// <see cref="ContinueWatchingWorker"/> runs in production; a fresh, private buffer when omitted.
+    /// </param>
     /// <returns>The continue-watching service.</returns>
-    protected ContinueWatchingService BuildContinueWatchingService(Func<IPlaylistService> resolvePlaylistService)
+    protected ContinueWatchingService BuildContinueWatchingService(Func<IPlaylistService> resolvePlaylistService, ContinueWatchingBuffer? buffer = null)
     {
         var store = new Mock<IUserStore<ApplicationUser>>();
         var userManagerMock = new Mock<UserManager<ApplicationUser>>(store.Object, null!, null!, null!, null!, null!, null!, null!, null!);
@@ -605,7 +610,7 @@ public abstract class PlaylistServiceTestBase : IDisposable
             _db,
             userManagerMock.Object,
             Mock.Of<ILogger<ContinueWatchingService>>(),
-            new ContinueWatchingBuffer(),
+            buffer ?? new ContinueWatchingBuffer(),
             notificationService,
             programSettings,
             new LazyPlaylistService(resolvePlaylistService));

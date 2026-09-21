@@ -2697,6 +2697,12 @@ input[type="text"]:focus {
     height: clamp(440px, 52vw, 620px);
 }
 
+.playlist-header .playlist-header-entry-background {
+    /* Bild des ausgewaehlten Titels: liegt auf derselben Ebene wie das Playlist-Cover, aber spaeter im DOM und
+       deckt es deshalb ab; das Verlaufs-Overlay (z-index 1) und der Inhalt (z-index 2) liegen darueber. */
+    z-index: 0;
+}
+
 .playlist-header .tvshow-header-overlay {
     height: 100%;
     overflow: hidden;

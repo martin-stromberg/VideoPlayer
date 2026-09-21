@@ -339,3 +339,13 @@ Ich habe die abgesicherten Stellen jeweils kurz kaputtgemacht und geprüft, dass
 - Belege liegen bewusst außerhalb des Repositories (`<SCRATCH>`); es wurden keine Skripte oder Bilder
   eingecheckt. Der für die Prüfung angelegte temporäre Testtyp wurde nach dem Lauf wieder entfernt,
   Produktivcode wurde nicht verändert.
+
+## Behebung der Abweichungen
+
+- **M1 (Sicherheit):** `EpisodesController.GetBackgroundImage` prüft jetzt `hasSourceAccess OR isUnlocked` (wie
+  `ItemsController.EnsureAccessAsync`) und antwortet sonst mit 403, ohne Bilddaten. Tests: Controller-Tests
+  (gesperrt → 403, Serie freigeschaltet → Bild) und E2E `GetBackgroundImage_WithValidTokenButNoAccessToTheSource_ReturnsForbidden`.
+  Nicht erneut von einem separaten Prüfer abgenommen.
+- **M3:** explizite Regel `.playlist-header-entry-background { z-index: 0 }`.
+- **Bewusst nicht geändert:** M2 (Fingerabdruck je Prozess, durch `no-cache` entschärft), M4 (bei Ladefehler des
+  Episodenbilds bleibt das Playlist-Cover sichtbar; der Endpunkt liefert selbst einen Platzhalter), M5, M6 (kosmetisch).

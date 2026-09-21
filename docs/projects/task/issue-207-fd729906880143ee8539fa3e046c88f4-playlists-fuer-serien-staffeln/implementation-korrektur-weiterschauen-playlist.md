@@ -140,9 +140,17 @@ erweitert: `PlaylistServiceTestBase.BuildContinueWatchingService` nimmt optional
 
 ### Läufe
 
+- `dotnet build VideoPlayer.sln -c Debug` → 0 Fehler (245 Warnungen, unverändert zum Ausgangsstand).
 - `dotnet build VideoPlayer.sln -c Release` → 0 Fehler (245 Warnungen, unverändert zum Ausgangsstand).
-- `dotnet test VideoWebPlayer.Tests` (vollständig, inkl. Playwright-E2E) → **1274 erfolgreich, 0 Fehler**,
-  4 min 34 s. Kein Test musste wiederholt werden, es gab keine flackernden Ausfälle.
+- `dotnet test VideoWebPlayer.Tests` (vollständig, inkl. Playwright-E2E), zwei Läufe:
+  - Lauf 1 (vor der letzten, reinen XML-Doc-Ergänzung an `ResolvePlaylistEntryRemovalAsync`):
+    **1274 erfolgreich, 0 Fehler**, 4 min 34 s.
+  - Lauf 2 (Stand der Commits): **1273 erfolgreich, 1 Fehler**, 3 min 57 s. Fehlgeschlagen ist
+    `Components/MediaSearchSelectorTests.Search_NoResults_ShowsEmptyMessage` — ein bUnit-Test mit
+    `WaitForAssertion`, der die Playlist- und Weiterschauen-Logik nicht berührt und in Lauf 1 grün war.
+    Einzeln dreimal wiederholt: dreimal grün (je 6/6 der Klasse). Bewertung: Flackern unter Last, nicht
+    durch diese Änderung verursacht. Der Test wurde nicht angefasst, nicht abgeschwächt und nicht
+    deaktiviert.
 - `python .githooks/razor-usage-check.py --all --strict` → OK
 - `python .githooks/enum-coverage-check.py --all --strict` → OK
 - `python .githooks/no-notimplemented-check.py --all --strict` → OK

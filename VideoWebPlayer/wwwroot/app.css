@@ -2893,6 +2893,59 @@ input[type="text"]:focus {
     overflow: visible;
 }
 
+/* Umordnen per Ziehen (wwwroot/js/playlistDragDrop.js). Die Kacheln sind bewusst nicht nativ ziehbar;
+   die Geste laeuft ueber Pointer-Ereignisse, damit sie auch mit Finger/Stift funktioniert und beim
+   Loslassen nur EIN Server-Aufruf noetig ist. */
+.playlist-entries-list .playlist-entry-row {
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* Greif-Affordanz: nur Kacheln, die tatsaechlich gezogen werden duerfen. */
+.playlist-entry-row.playlist-entry-reorderable {
+    cursor: grab;
+}
+
+.playlist-entries-list.playlist-entries-reordering {
+    cursor: grabbing;
+}
+
+.playlist-entries-list.playlist-entries-reordering .playlist-entry-row {
+    /* Waehrend des Ziehens darf die Seite nicht unter dem Finger wegscrollen. */
+    touch-action: none;
+    cursor: grabbing;
+}
+
+/* Die gezogene Kachel bleibt an ihrem Platz, wird aber gedaempft dargestellt. */
+.playlist-entry-row.playlist-entry-dragging {
+    opacity: 0.45;
+}
+
+/* Zielkachel: Rahmen in der Akzentfarbe plus Einfuegelinie an der Kante, an der der gezogene Titel
+   landet (vorne, wenn er nach vorn wandert, sonst hinten). */
+.playlist-entry-row.playlist-entry-drop-target {
+    border-color: var(--vp-primary);
+    background: rgba(229, 9, 20, 0.1);
+}
+
+.playlist-entry-row.playlist-entry-drop-target::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: var(--vp-primary);
+    pointer-events: none;
+}
+
+.playlist-entry-row.playlist-entry-drop-before::after {
+    left: 0;
+}
+
+.playlist-entry-row.playlist-entry-drop-after::after {
+    right: 0;
+}
+
 .playlist-entry-parent {
     margin-top: 0.35rem;
     overflow: hidden;

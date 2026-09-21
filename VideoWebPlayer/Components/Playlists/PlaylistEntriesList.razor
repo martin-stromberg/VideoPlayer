@@ -53,7 +53,7 @@
     {
         @if (IsReorderable)
         {
-            <p class="text-muted playlist-entries-draganddrop-hint">Tipp: Ziehen Sie einen Eintrag an eine neue Position, oder nutzen Sie die Schaltflächen "An Anfang"/"An Ende".</p>
+            <p class="text-muted playlist-entries-draganddrop-hint">Tipp: Ziehen Sie einen Eintrag auf die Kachel der gewünschten Position (mit dem Finger: kurz gedrückt halten, dann ziehen), oder nutzen Sie die Schaltflächen "An Anfang"/"An Ende".</p>
         }
         @* Kacheln im Stil der Episoden-Kacheln der Serien-Detailansicht (TVShowDetails.episode-box) statt der
            bisherigen Tabelle (Kundenfeedback: "Die aktuelle Scrollbox wirkt laienhaft"). Nur Filme und Episoden
@@ -68,25 +68,31 @@
            Viewport scrollt, meldet observeBottom (wwwroot/js/scroll.js, gleiches Muster wie
            Actors.razor/MediaSourceDetails.razor) OnBottomVisible().
            Auswahl: role="option" + aria-selected + tabindex, Enter/Leertaste wählen aus (wie bei den Episoden
-           der Serienseite), Escape hebt die Auswahl auf. Doppelklick spielt ab (bestehendes Verhalten). *@
+           der Serienseite), Escape hebt die Auswahl auf. Doppelklick spielt ab (bestehendes Verhalten).
+           Umordnen: Die Kacheln tragen KEINE nativen Drag-&-Drop-Attribute (draggable/@@ondragstart/@@ondrop)
+           mehr. Das Ziehen läuft vollständig im Browser über Pointer-Ereignisse
+           (wwwroot/js/playlistDragDrop.js, angebunden über UpdateReorderHandlersAsync) und meldet erst beim
+           Loslassen einmalig ReorderEntryByDropAsync(gezogen, Ziel) an den Server - siehe die Begründung im
+           Kopf jener Datei und an ReorderEntryByDropAsync. *@
         <div class="playlist-entries-list-wrap">
-            <div class="episode-list playlist-entries-list" role="listbox" aria-label="Titel der Playlist">
+            <div @ref="entriesListRef" class="episode-list playlist-entries-list" role="listbox" aria-label="Titel der Playlist">
                 @foreach (var entry in allEntries)
                 {
                     @if (IsRenderableEntry(entry))
                     {
                         var isSelected = SelectedEntryId == entry.Id;
-                        <div class="episode-box playlist-entry-row @(isSelected ? "selected" : string.Empty) @(entry.IsAccessible ? string.Empty : "opacity-50 text-muted")" data-media-type="@entry.MediaType" data-media-id="@entry.MediaId" data-entry-id="@entry.Id"
+                        @* playlist-entry-reorderable: markiert die Kacheln, die gezogen werden dürfen (Besitzer,
+                           manueller Modus). Die Klasse ist die Greif-Affordanz (Cursor) und zugleich das
+                           Kennzeichen, an dem playlistDragDrop.js eine ziehbare Kachel erkennt. *@
+                        <div class="episode-box playlist-entry-row @(IsReorderable ? "playlist-entry-reorderable" : string.Empty) @(isSelected ? "selected" : string.Empty) @(entry.IsAccessible ? string.Empty : "opacity-50 text-muted")" data-media-type="@entry.MediaType" data-media-id="@entry.MediaId" data-entry-id="@entry.Id"
                              role="option" tabindex="0" aria-selected="@(isSelected ? "true" : "false")"
-                             draggable="@(IsReorderable ? "true" : "false")"
                              @onclick="() => SelectEntryAsync(entry)"
                              @onkeydown="args => OnEntryKeyDownAsync(args, entry)"
-                             @ondragstart="() => OnEntryDragStart(entry)"
-                             @ondragover:preventDefault="IsReorderable"
-                             @ondrop="() => OnEntryDropAsync(entry)"
-                             @ondragend="OnEntryDragEnd"
                              @ondblclick="GetPlayEntryDoubleClickCallback(entry)">
-                            <img class="episode-poster episode-poster-left playlist-entry-image" src="@GetImageUrl(entry)" alt="@entry.MediaTitle" loading="lazy" onerror="this.onerror=null;this.src='/images/placeholder.png';" />
+                            @* draggable="false": Bilder sind von Haus aus nativ ziehbar - ein solcher
+                               Browser-Drag wuerde die Zieh-Geste aus playlistDragDrop.js abbrechen
+                               (pointercancel), sobald jemand die Kachel am Poster anfasst. *@
+                            <img class="episode-poster episode-poster-left playlist-entry-image" src="@GetImageUrl(entry)" alt="@entry.MediaTitle" loading="lazy" draggable="false" onerror="this.onerror=null;this.src='/images/placeholder.png';" />
                             <div class="episode-info">
                                 <div class="episode-title">@entry.MediaTitle</div>
                                 @if (!string.IsNullOrWhiteSpace(entry.ParentMediaTitle))
@@ -212,7 +218,6 @@
     private long newEntryMediaId;
     private string? entriesStatusMessage;
     private bool entriesStatusIsError;
-    private DtoPlaylistEntry? draggedEntry;
     private MediaSearchSelector? searchSelectorRef;
     private bool showContinueWatchingConfirmation;
     private DtoPlaylistEntry? pendingRemovalEntry;
@@ -222,10 +227,17 @@
     private bool hasMorePages = true;
     private readonly SemaphoreSlim loadPageSemaphore = new(1, 1);
     private ElementReference bottomSentinelRef;
+    private ElementReference entriesListRef;
     private DotNetObjectReference<PlaylistEntriesList>? dotNetRef;
     private bool sentinelObserverConnected;
     private bool jsObserverCreated;
     private bool isLoadingNextPage;
+
+    /// <summary>
+    /// Whether the pointer-based reorder handlers of <c>wwwroot/js/playlistDragDrop.js</c> are currently
+    /// attached to the entry list (see <see cref="UpdateReorderHandlersAsync"/>).
+    /// </summary>
+    private bool reorderHandlersAttached;
 
     /// <summary>
     /// Set when loading a page (initial or next) failed. While set, <see cref="OnBottomVisible"/> ignores
@@ -310,6 +322,8 @@
     /// </summary>
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        await UpdateReorderHandlersAsync();
+
         if (hasMorePages && !sentinelObserverConnected)
         {
             // Set before the await so concurrent renders cannot double-connect while the interop call is
@@ -333,6 +347,39 @@
             // element until another page calls observeBottom.
             sentinelObserverConnected = false;
             await DisconnectObserverAsync();
+        }
+    }
+
+    /// <summary>
+    /// Attaches or detaches the pointer-based reorder handlers of <c>wwwroot/js/playlistDragDrop.js</c> to
+    /// the rendered entry list, so dragging is offered exactly where it is allowed: the owner, in manual
+    /// sort mode, while the title list (not the "Titel hinzufügen" area) is shown. The server independently
+    /// refuses every reorder request of a non-owner or of a playlist in date mode, so this is purely the
+    /// presentation side of <see cref="IsReorderable"/>.
+    /// </summary>
+    private async Task UpdateReorderHandlersAsync()
+    {
+        var shouldAttach = IsReorderable && !ShowAddMode && !IsEmpty && allEntries.Any(IsRenderableEntry);
+        if (shouldAttach == reorderHandlersAttached)
+            return;
+
+        try
+        {
+            if (shouldAttach)
+            {
+                dotNetRef ??= DotNetObjectReference.Create(this);
+                await JS.InvokeVoidAsync("playlistEntryReorder.attach", entriesListRef, dotNetRef);
+            }
+            else
+            {
+                await JS.InvokeVoidAsync("playlistEntryReorder.detach");
+            }
+
+            reorderHandlersAttached = shouldAttach;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException || ex is JSDisconnectedException || ex is JSException)
+        {
+            // JS runtime unavailable (prerendering, tests) - retry on the next render.
         }
     }
 
@@ -433,6 +480,19 @@
 
     public async ValueTask DisposeAsync()
     {
+        if (reorderHandlersAttached)
+        {
+            reorderHandlersAttached = false;
+            try
+            {
+                await JS.InvokeVoidAsync("playlistEntryReorder.detach");
+            }
+            catch (Exception ex) when (ex is InvalidOperationException || ex is JSDisconnectedException || ex is JSException)
+            {
+                // JS runtime is no longer available.
+            }
+        }
+
         dotNetRef?.Dispose();
         dotNetRef = null;
 
@@ -705,32 +765,47 @@
         }, "Fehler beim Umordnen");
 
     /// <summary>
-    /// Records the entry being dragged. Deliberately does not itself call
-    /// <c>dataTransfer.setData(...)</c> (which Firefox requires at least once per drag to accept the
-    /// operation at all) via JS interop: that call is only valid while the native <c>dragstart</c> event
-    /// is still synchronously dispatching, but a Blazor Server <c>@ondragstart</c> handler like this one
-    /// only runs after an async SignalR round-trip - by then the event has already finished dispatching
-    /// and the call would be silently ignored by the browser. Firefox compatibility is instead handled by
-    /// <c>wwwroot/js/playlistDragDrop.js</c>, a plain document-level <c>dragstart</c> listener (loaded
-    /// globally in App.razor, independently of this component) that calls
-    /// <c>event.dataTransfer.setData(...)</c> synchronously for every <c>.playlist-entry-row</c> drag,
-    /// before this handler's SignalR round-trip even starts.
+    /// Called by <c>wwwroot/js/playlistDragDrop.js</c> once the user has dropped an entry tile onto
+    /// another one: moves the dragged entry to the position of the target entry
+    /// (<c>MoveEntryBetweenAsync</c> with the target's SortOrder).
     /// </summary>
-    private void OnEntryDragStart(DtoPlaylistEntry entry)
+    /// <remarks>
+    /// The whole gesture (which tile was picked up, which one it is currently over, where it was
+    /// released) runs in the browser and reaches the server in this single call with both ids. The
+    /// previous implementation used native HTML5 drag &amp; drop and split this over two independent
+    /// SignalR round-trips - <c>@ondragstart</c> remembered the dragged entry in a server-side field,
+    /// <c>@ondrop</c> read it back. Whenever the dragstart message was not processed before the drop
+    /// (slow, unordered or briefly interrupted connection), that field was still <see langword="null"/>
+    /// and the drop was silently discarded: exactly the reported "dragging does nothing, only the
+    /// buttons work" behavior. See the file header of <c>playlistDragDrop.js</c>.
+    /// </remarks>
+    /// <param name="draggedEntryId">The id of the dragged playlist entry.</param>
+    /// <param name="targetEntryId">The id of the entry whose position the dragged entry takes.</param>
+    [JSInvokable]
+    public async Task ReorderEntryByDropAsync(long draggedEntryId, long targetEntryId)
     {
-        if (!IsReorderable)
-            return;
+        await MoveEntryToTargetPositionAsync(draggedEntryId, targetEntryId);
 
-        draggedEntry = entry;
+        // Called from JS, i.e. not from an event handler of this component: render explicitly so the
+        // reordered list or an error message shows up.
+        await InvokeAsync(StateHasChanged);
     }
 
-    private async Task OnEntryDropAsync(DtoPlaylistEntry targetEntry)
+    /// <summary>
+    /// Moves the entry with the given id to the position of the entry with the given target id, after
+    /// re-checking both against the entries actually loaded here (the ids come from the browser).
+    /// </summary>
+    /// <param name="draggedEntryId">The id of the entry to move.</param>
+    /// <param name="targetEntryId">The id of the entry whose position the moved entry takes.</param>
+    private async Task MoveEntryToTargetPositionAsync(long draggedEntryId, long targetEntryId)
     {
-        if (!IsReorderable || draggedEntry is null || draggedEntry.Id == targetEntry.Id)
+        if (!IsReorderable || draggedEntryId == targetEntryId)
             return;
 
-        var entryToMove = draggedEntry;
-        draggedEntry = null;
+        var entryToMove = allEntries.FirstOrDefault(e => e.Id == draggedEntryId);
+        var targetEntry = allEntries.FirstOrDefault(e => e.Id == targetEntryId);
+        if (entryToMove is null || targetEntry is null)
+            return;
 
         if (targetEntry.SortOrder is not { } targetSortOrder)
         {
@@ -749,10 +824,5 @@
             await PlaylistClient.MoveEntryBetweenAsync(PlaylistId, entryToMove.Id, new DtoReorderPlaylistEntryRequest { NewSortOrder = targetSortOrder });
             await LoadInitialPageAsync();
         }, "Fehler beim Umordnen");
-    }
-
-    private void OnEntryDragEnd()
-    {
-        draggedEntry = null;
     }
 }

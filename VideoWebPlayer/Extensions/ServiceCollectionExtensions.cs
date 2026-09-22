@@ -230,6 +230,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IUnlockedMediaService, UnlockedMediaService>();
         services.AddScoped<IGenreService, GenreService>();
         services.AddScoped<SftpMediaSourceReader>();
+        services.AddScoped<LocalMediaSourceReader>();
+        services.AddScoped<IMediaSourceReader, MediaSourceReaderDispatcher>();
         services.AddScoped<DataUpgradeManager>();
         services.AddScoped<ProgramSettingsService>();
         services.AddSingleton(TimeProvider.System);

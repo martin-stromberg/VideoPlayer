@@ -23,7 +23,7 @@ namespace VideoWebPlayer.Services
     public class MediaSourceClassifier
     {
         private readonly ApplicationDbContext _db;
-        private readonly SftpMediaSourceReader _sftpReader;
+        private readonly IMediaSourceReader _reader;
         private readonly RecentEntryService _recentEntryService;
         private readonly EventManager _eventManager;
         private readonly MediaUpdateNotificationService? _notificationService;
@@ -48,7 +48,7 @@ namespace VideoWebPlayer.Services
         /// Initializes a new instance of the <see cref="MediaSourceClassifier"/> class.
         /// </summary>
         /// <param name="db">Application database context.</param>
-        /// <param name="sftpReader">SFTP reader for remote sources.</param>
+        /// <param name="reader">Media source reader.</param>
         /// <param name="recentEntryService">Recent entry service.</param>
         /// <param name="eventManager">Event manager used to publish scan/classification events.</param>
         /// <param name="episodeBackgroundImageService">Service for episode background images.</param>
@@ -58,7 +58,7 @@ namespace VideoWebPlayer.Services
         /// <param name="writeCoordinator">Optional coordinator serializing metadata writes.</param>
         public MediaSourceClassifier(
             ApplicationDbContext db,
-            SftpMediaSourceReader sftpReader,
+            IMediaSourceReader reader,
             RecentEntryService recentEntryService,
             EventManager eventManager,
             EpisodeBackgroundImageService episodeBackgroundImageService,
@@ -68,7 +68,7 @@ namespace VideoWebPlayer.Services
             IMediaMetadataWriteCoordinator? writeCoordinator = null)
         {
             _db = db;
-            _sftpReader = sftpReader;
+            _reader = reader;
             _recentEntryService = recentEntryService;
             _eventManager = eventManager;
             _episodeBackgroundImageService = episodeBackgroundImageService;
@@ -441,14 +441,14 @@ namespace VideoWebPlayer.Services
         /// </summary>
         private async Task ProcessCollectionAsTVShowAsync(MediaCollection collection, CancellationToken cancellationToken)
         {
-            bool hasTvShowNfo = await _sftpReader.FileExistsAsync(collection, "tvshow.nfo");
+            bool hasTvShowNfo = await _reader.FileExistsAsync(collection, "tvshow.nfo");
             if (!hasTvShowNfo)
             {
                 _logger.LogDebug("Collection '{CollectionName}' hat keine tvshow.nfo.", collection.Name);
                 return;
             }
 
-            var nfoContent = await _sftpReader.ReadFileAsync(collection, "tvshow.nfo");
+            var nfoContent = await _reader.ReadFileAsync(collection, "tvshow.nfo");
             if (string.IsNullOrWhiteSpace(nfoContent))
             {
                 _logger.LogWarning("tvshow.nfo in Collection '{CollectionName}' ist leer.", collection.Name);
@@ -575,12 +575,12 @@ namespace VideoWebPlayer.Services
                 var collection = item.MediaCollection;
 
                 // Pr�fen, ob NFO existiert
-                bool nfoExists = await _sftpReader.FileExistsAsync(collection, nfoFileName);
+                bool nfoExists = await _reader.FileExistsAsync(collection, nfoFileName);
                 if (!nfoExists)
                     continue;
 
                 // NFO laden
-                var nfoContent = await _sftpReader.ReadFileAsync(collection, nfoFileName);
+                var nfoContent = await _reader.ReadFileAsync(collection, nfoFileName);
                 if (string.IsNullOrWhiteSpace(nfoContent))
                     continue;
 
@@ -772,12 +772,12 @@ namespace VideoWebPlayer.Services
                 var nfoFileName = System.IO.Path.ChangeExtension(System.IO.Path.GetFileName(item.Path), ".nfo");
 
                 // Pr�fen, ob NFO existiert
-                bool nfoExists = await _sftpReader.FileExistsAsync(collection, nfoFileName);
+                bool nfoExists = await _reader.FileExistsAsync(collection, nfoFileName);
                 if (!nfoExists)
                     continue;
 
                 // NFO laden
-                var nfoContent = await _sftpReader.ReadFileAsync(collection, nfoFileName);
+                var nfoContent = await _reader.ReadFileAsync(collection, nfoFileName);
                 if (string.IsNullOrWhiteSpace(nfoContent))
                     continue;
 
@@ -991,7 +991,7 @@ namespace VideoWebPlayer.Services
             }
             if ((picture.Data is null || picture.Data.Length == 0) && img.MediaCollection is not null)
             {
-                var imageBytes = await _sftpReader.ReadFileStreamAsync(img.MediaCollection, Path.GetFileName(img.Path));
+                var imageBytes = await _reader.ReadFileStreamAsync(img.MediaCollection, Path.GetFileName(img.Path));
                 if (imageBytes is not null)
                 {
                     picture.Data = ConvertStreamToByteArray(imageBytes);
@@ -1014,7 +1014,7 @@ namespace VideoWebPlayer.Services
                 foreach (var ext in ImageExtensions)
                 {
                     var fileName = $"{baseName}{ext}";
-                    bool exists = await _sftpReader.FileExistsAsync(collection, fileName);
+                    bool exists = await _reader.FileExistsAsync(collection, fileName);
                     if (exists)
                     {
                         // Pr�fe, ob das Bild bereits als MediaItem existiert
@@ -1096,7 +1096,7 @@ namespace VideoWebPlayer.Services
                         foreach (var ext in TVShowImageExtensions)
                         {
                             var fileName = $"{type}{ext}";
-                            bool exists = await _sftpReader.FileExistsAsync(collection, fileName);
+                            bool exists = await _reader.FileExistsAsync(collection, fileName);
                             if (exists)
                             {
                                 var mediaItem = await _db.MediaItems
@@ -1171,7 +1171,7 @@ namespace VideoWebPlayer.Services
                         foreach (var ext in TVShowImageExtensions)
                         {
                             var fileName = $"season{seasonNumber}-{type}{ext}";
-                            bool exists = await _sftpReader.FileExistsAsync(collection, fileName);
+                            bool exists = await _reader.FileExistsAsync(collection, fileName);
                             if (exists)
                             {
                                 var mediaItem = await _db.MediaItems
@@ -1240,7 +1240,7 @@ namespace VideoWebPlayer.Services
                 {
                     var baseName = System.IO.Path.GetFileNameWithoutExtension(videoFileName);
                     var fileName = $"{baseName}{postfix}{ext}";
-                    bool exists = await _sftpReader.FileExistsAsync(collection, fileName);
+                    bool exists = await _reader.FileExistsAsync(collection, fileName);
                     if (exists)
                     {
                         var mediaItem = await _db.MediaItems
@@ -1497,7 +1497,7 @@ namespace VideoWebPlayer.Services
                 }
                 else
                 {
-                    var stream = await _sftpReader.ReadFileStreamAsync(collection, thumb);
+                    var stream = await _reader.ReadFileStreamAsync(collection, thumb);
                     if (stream != null)
                     {
                         using var ms = new MemoryStream();
@@ -1701,9 +1701,9 @@ namespace VideoWebPlayer.Services
             {
                 foreach (var candidate in candidateNames)
                 {
-                    if (await _sftpReader.FileExistsAsync(currentCollection, candidate))
+                    if (await _reader.FileExistsAsync(currentCollection, candidate))
                     {
-                        var content = await _sftpReader.ReadFileAsync(currentCollection, candidate);
+                        var content = await _reader.ReadFileAsync(currentCollection, candidate);
                         if (!string.IsNullOrWhiteSpace(content))
                             return content;
                     }

@@ -51,7 +51,8 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         $"{nameof(ApplicationDbContext.MovieActors)}.{nameof(MovieActor.Role)}",
         $"{nameof(ApplicationDbContext.MovieActors)}.{nameof(MovieActor.Order)}",
         $"{nameof(ApplicationDbContext.TVShowEpisodeActors)}.{nameof(TVShowEpisodeActor.Role)}",
-        $"{nameof(ApplicationDbContext.TVShowEpisodeActors)}.{nameof(TVShowEpisodeActor.Order)}"
+        $"{nameof(ApplicationDbContext.TVShowEpisodeActors)}.{nameof(TVShowEpisodeActor.Order)}",
+        $"{nameof(ApplicationDbContext.MediaSources)}.{nameof(MediaSource.SourceType)}"
     };
 
     private static readonly HashSet<string> IgnoredRestoreColumns = new(StringComparer.OrdinalIgnoreCase)
@@ -81,7 +82,8 @@ public sealed class VideoWebPlayerBackupData : IBackupData
     private static readonly (string Table, string Column, int DefaultValue)[] OptionalRestoreIntDefaults =
     {
         (nameof(ApplicationDbContext.Setups), nameof(Setup.ContinueWatchingEndThresholdSeconds), 30),
-        (nameof(ApplicationDbContext.Setups), nameof(Setup.ActorCollectionThresholdPercent), 50)
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.ActorCollectionThresholdPercent), 50),
+        (nameof(ApplicationDbContext.MediaSources), nameof(MediaSource.SourceType), (int)MediaSourceType.Sftp)
     };
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };

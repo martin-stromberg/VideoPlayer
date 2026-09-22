@@ -21,6 +21,7 @@ namespace VideoWebPlayer.Data
             target.Port = source.Port;
             target.Username = source.Username;
             target.Password = source.Password;
+            target.SourceType = source.SourceType;
             target.IconPictureId = source.IconPictureId;
             target.LastScannedAt = source.LastScannedAt;
             // CreatedAt wird in der Regel nicht überschrieben

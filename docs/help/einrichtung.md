@@ -6,7 +6,7 @@ Diese Hilfe richtet sich an Administratoren. Der Einrichtungsbereich bündelt di
 
 Die Startseite der Einrichtung zeigt Kacheln für die wichtigsten Verwaltungsaufgaben:
 
-- `Quellen` für lokale, FTP- und SFTP-Medienquellen
+- `Quellen` für SFTP- und lokale Medienquellen
 - `Backups` für Backup, Upload, Restore und Aufbewahrung
 - `Updates` für Programmupdates und Update-Einstellungen
 - `Sicherheit` für blockierte IP-Adressen
@@ -19,6 +19,10 @@ Nur Administratoren können den Einrichtungsbereich öffnen.
 ## Allgemein
 
 Unter `Allgemein` werden globale Anzeige- und Scan-Einstellungen gepflegt. Der Anwendungstitel steuert die Bezeichnung in der Navigation und auf der Startseite. Die Scan-Intervalle bestimmen, wie oft die Anwendung nach Prozess- und Medienänderungen sucht.
+
+## Quellen
+
+Unter `Quellen` werden die Medienquellen der Anwendung verwaltet. Beim Anlegen über `Neu` wählt der Administrator im Feld `Quelltyp` zwischen `SFTP-Server` (entfernte Quelle mit Host, Port, Pfad und Zugangsdaten) und `Lokales Verzeichnis` (Verzeichnis auf dem Server, auch UNC-Pfad). Die Übersicht zeigt in der Spalte `Typ` die Kennzeichnung `SFTP` oder `Lokal`. Details stehen in der Hilfe zu den [Medienquellen](medienquellen/index.md).
 
 ## Quellen löschen
 

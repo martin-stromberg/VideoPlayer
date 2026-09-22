@@ -15,7 +15,7 @@ using VideoWebPlayer.Services.Authentication;
 public class ItemsController : ApiBaseController
 {
     private readonly ApplicationDbContext _db;
-    private readonly SftpMediaSourceReader _sftpReader;
+    private readonly IMediaSourceReader _reader;
     private readonly MediaMetadataEditorService _metadataEditor;
     private readonly RecentEntryService recentEntryService;
     private readonly IUnlockedMediaService _unlockedMediaService;
@@ -25,7 +25,7 @@ public class ItemsController : ApiBaseController
     /// Initializes a new instance of the <see cref="ItemsController"/> class.
     /// </summary>
     /// <param name="db">Database context.</param>
-    /// <param name="sftpReader">SFTP reader.</param>
+    /// <param name="reader">Media source reader.</param>
     /// <param name="metadataEditor">Media metadata editor service.</param>
     /// <param name="recentEntryService">Recent entry service.</param>
     /// <param name="unlockedMediaService">Unlocked-media authorization service.</param>
@@ -34,7 +34,7 @@ public class ItemsController : ApiBaseController
     /// <param name="watchedStatusService">Watched-status service.</param>
     public ItemsController(
         ApplicationDbContext db,
-        SftpMediaSourceReader sftpReader,
+        IMediaSourceReader reader,
         MediaMetadataEditorService metadataEditor,
         RecentEntryService recentEntryService,
         IUnlockedMediaService unlockedMediaService,
@@ -44,7 +44,7 @@ public class ItemsController : ApiBaseController
         WatchedStatusService? watchedStatusService = null) : base(authService, logger)
     {
         _db = db;
-        _sftpReader = sftpReader;
+        _reader = reader;
         _metadataEditor = metadataEditor;
         this.recentEntryService = recentEntryService;
         _unlockedMediaService = unlockedMediaService;
@@ -439,7 +439,7 @@ public class ItemsController : ApiBaseController
                 .FirstOrDefaultAsync(mc => mc.Id == mediaItem.MediaCollectionId);
 
             var fileName = Path.GetFileName(mediaItem.Path);
-            var stream = _sftpReader.GetSftpFileStream(mediaCollection, fileName);
+            var stream = _reader.OpenFileStream(mediaCollection, fileName);
             if (stream == null)
                 return NotFound();
 

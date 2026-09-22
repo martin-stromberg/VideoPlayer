@@ -16,6 +16,7 @@ VideoWebPlayer ist eine selbst gehostete ASP.NET-Core-/Blazor-Anwendung für die
 - Browserbasierte Oberfläche für Bibliothek, Wiedergabe und Administration.
 - Automatische Erfassung und Übersicht von Schauspielern inklusive Such- und Filtermöglichkeiten.
 - Backups, strukturierte Programmupdates, Benutzer, Genres und Sicherheitseinstellungen verwalten.
+- Backup-Dateien chunked hochladen — auch sehr große Archive über 6 GB — mit Fortschrittsanzeige und Wiederaufnahme nach Unterbrechungen.
 
 ## Schnellstart
 
@@ -45,12 +46,15 @@ Produktive Secrets dürfen nicht im Repository abgelegt werden. Konfiguriere JWT
 
 Details stehen in [docs/SECRETS_MANAGEMENT.md](./docs/SECRETS_MANAGEMENT.md).
 
+Für den Backup-Upload sind produktiv zwei Werte relevant: `Backups:MaxUploadSizeBytes` (Standard 5 GiB, auch in der Admin-Oberfläche änderbar) begrenzt die akzeptierte Dateigröße, und `Kestrel:Limits:MaxRequestBodySize` (in `appsettings.Production.json` auf `0` = unbegrenzt gesetzt) deaktiviert das serverseitige Request-Limit, damit große Uploads nicht blockiert werden. Unter IIS ist dafür das OutOfProcess-Hosting-Modell erforderlich (in der Projektdatei über `AspNetCoreHostingModel` festgelegt); Details stehen in [docs/help/backups.md](./docs/help/backups.md).
+
 ## Dokumentation
 
 - [Installationsanleitung](./docs/GUIDE_Installation.md)
 - [API-Vertrag](./docs/API.md)
 - [Secrets Management](./docs/SECRETS_MANAGEMENT.md)
 - [Dokumentationsindex](./docs/INDEX.md)
+- [Hilfe zu Backups](./docs/help/backups.md)
 - [Hilfe zu Programmupdates](./docs/help/updates.md)
 - [Hilfe zum Gesehen-Kennzeichen](./docs/help/gesehen-status.md)
 

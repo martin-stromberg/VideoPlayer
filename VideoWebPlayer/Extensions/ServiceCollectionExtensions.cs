@@ -248,6 +248,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<VideoWebPlayerBackupFacade>();
         services.AddSingleton<ManualBackupJobService>();
         services.AddSingleton<RestoreBackupJobService>();
+        services.AddSingleton<BackupUploadSessionService>();
         services.AddSingleton<VideoWebPlayerUpdateSourceFactory>();
         services.AddScoped<UpdateSettingsService>();
         services.AddScoped<IUpdateSettingsService>(sp => sp.GetRequiredService<UpdateSettingsService>());

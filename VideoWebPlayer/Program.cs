@@ -29,6 +29,17 @@ builder.Host.UseSerilog((ctx, services, cfg) =>
 builder.AddVideoWebPlayerServices();
 builder.AddVideoWebPlayerAutoUpdate();
 
+// Kestrel does not bind "Limits" from configuration; apply MaxRequestBodySize explicitly.
+// Convention: 0 or negative means unlimited (null), a positive value is the limit in bytes.
+builder.WebHost.ConfigureKestrel((context, options) =>
+{
+    var configured = context.Configuration["Kestrel:Limits:MaxRequestBodySize"];
+    if (string.IsNullOrWhiteSpace(configured))
+        return;
+
+    options.Limits.MaxRequestBodySize = KestrelLimits.ParseMaxRequestBodySize(configured);
+});
+
 var app = builder.Build();
 
 app.MigrateDatabase();

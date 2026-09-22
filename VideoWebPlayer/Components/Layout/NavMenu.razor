@@ -107,6 +107,8 @@
     {
         currentUrl = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
         NavigationManager.LocationChanged += OnLocationChanged;
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        await Client.EnsureAuthorizationTokenAsync(state.User);
         mediaSources = (await Client.RequestSourcesAsync()).ToList();
     }
 

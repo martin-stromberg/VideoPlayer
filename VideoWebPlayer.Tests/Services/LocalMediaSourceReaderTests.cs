@@ -13,6 +13,7 @@ public class LocalMediaSourceReaderTests : IDisposable
     private readonly string _baseDir;
     private readonly string _rootDir;
     private readonly string _collectionDir;
+    private readonly string _outsideDir;
     private readonly LocalMediaSourceReader _reader = new(NullLogger<LocalMediaSourceReader>.Instance);
 
     public LocalMediaSourceReaderTests()
@@ -23,13 +24,15 @@ public class LocalMediaSourceReaderTests : IDisposable
         Directory.CreateDirectory(_collectionDir);
 
         File.WriteAllText(Path.Combine(_baseDir, "outside.txt"), "outside");
-        Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "vwp-localreader-outside"));
-        File.WriteAllText(Path.Combine(Path.GetTempPath(), "vwp-localreader-outside", "outside.txt"), "outside");
+        _outsideDir = Path.Combine(Path.GetTempPath(), "vwp-localreader-outside");
+        Directory.CreateDirectory(_outsideDir);
+        File.WriteAllText(Path.Combine(_outsideDir, "outside.txt"), "outside");
     }
 
     public void Dispose()
     {
         try { Directory.Delete(_baseDir, recursive: true); } catch { }
+        try { Directory.Delete(_outsideDir, recursive: true); } catch { }
     }
 
     [Fact]
@@ -44,6 +47,50 @@ public class LocalMediaSourceReaderTests : IDisposable
         Assert.Equal(Directory.GetLastWriteTimeUtc(_rootDir), root.CreatedAt);
         Assert.Null(root.ParentMediaCollectionId);
     }
+
+    [Theory]
+    [MemberData(nameof(InvalidSourcePaths))]
+    public void ReadRootDirectory_InvalidSourcePath_ReturnsEmpty(string sourcePath)
+    {
+        // Regressionstest: ein leerer oder ungültiger Quellpfad darf keine
+        // Exception werfen, damit der Root-Scan anderer Quellen nicht abbricht.
+        var source = new MediaSource
+        {
+            Name = "Broken",
+            Path = sourcePath,
+            SourceType = MediaSourceType.LocalDirectory
+        };
+
+        var entries = _reader.ReadRootDirectory(source).ToList();
+
+        Assert.Empty(entries);
+    }
+
+    [Fact]
+    public void ReadRootDirectory_InvalidSourcePath_LogsWarning()
+    {
+        var messages = new ConcurrentQueue<string>();
+        var reader = new LocalMediaSourceReader(new ListLogger<LocalMediaSourceReader>(messages));
+        var source = new MediaSource
+        {
+            Name = "Broken",
+            Path = string.Empty,
+            SourceType = MediaSourceType.LocalDirectory
+        };
+
+        var entries = reader.ReadRootDirectory(source).ToList();
+
+        Assert.Empty(entries);
+        Assert.NotEmpty(messages);
+    }
+
+    public static TheoryData<string> InvalidSourcePaths()
+        => new()
+        {
+            string.Empty,
+            "   ",
+            "bad\0path"
+        };
 
     [Fact]
     public void ReadDirectoryEntries_ListsFoldersAndFiles_IgnoresDotEntries()

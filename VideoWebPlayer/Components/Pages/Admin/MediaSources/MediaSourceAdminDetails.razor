@@ -78,6 +78,10 @@
                             <option value="@MediaSourceType.Sftp">SFTP-Server</option>
                             <option value="@MediaSourceType.LocalDirectory">Lokales Verzeichnis</option>
                         </InputSelect>
+                        @if (!IsNew)
+                        {
+                            <small class="form-text text-muted">Der Quelltyp kann nach dem Anlegen nicht geändert werden.</small>
+                        }
                     </div>
                 </div>
 
@@ -96,6 +100,10 @@
                     <div class="col">
                         <label class="form-label" for="source-path">@(editSource.SourceType == MediaSourceType.LocalDirectory ? "Lokales Verzeichnis" : "Pfad")</label>
                         <InputText id="source-path" class="form-control" @bind-Value="editSource.Path" placeholder="Pfad" />
+                        @if (editSource.SourceType == MediaSourceType.LocalDirectory)
+                        {
+                            <small class="form-text text-muted">Absoluter Pfad zu einem Verzeichnis auf dem Server, auf dem der VideoWebPlayer läuft (z. B. D:\Medien oder /mnt/medien).</small>
+                        }
                     </div>
                 </div>
 
@@ -384,7 +392,7 @@
 
         if (!Directory.Exists(fullPath))
         {
-            validationError = "Verzeichnis existiert nicht.";
+            validationError = "Das Verzeichnis existiert nicht auf dem Server.";
             return false;
         }
 
@@ -394,7 +402,7 @@
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            validationError = "Auf das Verzeichnis kann nicht zugegriffen werden.";
+            validationError = "Auf das Verzeichnis kann nicht zugegriffen werden: Der Serverprozess hat keine Leseberechtigung.";
             return false;
         }
 

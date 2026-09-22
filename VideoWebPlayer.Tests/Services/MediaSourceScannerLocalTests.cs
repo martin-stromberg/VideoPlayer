@@ -30,7 +30,7 @@ public class MediaSourceScannerLocalTests : IDisposable
     public async Task ScanAllSourcesAsync_CreatesRootCollection_ForLocalSource()
     {
         var ct = TestContext.Current.CancellationToken;
-        var serviceProvider = await CreateServiceProviderAsync("scanner-local-root", ct);
+        await using var serviceProvider = await CreateServiceProviderAsync("scanner-local-root", ct);
         using var scope = serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
@@ -62,7 +62,7 @@ public class MediaSourceScannerLocalTests : IDisposable
         var filePath = Path.Combine(_rootDir, "clip.mp4");
         File.WriteAllText(filePath, "video");
 
-        var serviceProvider = await CreateServiceProviderAsync("scanner-local-entries", ct);
+        await using var serviceProvider = await CreateServiceProviderAsync("scanner-local-entries", ct);
         using var scope = serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
@@ -105,7 +105,7 @@ public class MediaSourceScannerLocalTests : IDisposable
     public async Task ScanNextMediaCollection_SkipsCollection_WhenLocalDirectoryMissing()
     {
         var ct = TestContext.Current.CancellationToken;
-        var serviceProvider = await CreateServiceProviderAsync("scanner-local-missing", ct);
+        await using var serviceProvider = await CreateServiceProviderAsync("scanner-local-missing", ct);
         using var scope = serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
@@ -151,6 +151,9 @@ public class MediaSourceScannerLocalTests : IDisposable
         keeperConnection.Open();
 
         var services = new ServiceCollection();
+        // Keeper-Connection im Provider registrieren, damit sie zusammen mit ihm disposed wird
+        // und die Shared-In-Memory-Datenbank beim Testende geschlossen wird.
+        services.AddSingleton(keeperConnection);
         services.AddSingleton<TimeProvider>(TimeProvider.System);
         services.AddSingleton<EventManager>();
         services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(connectionString));

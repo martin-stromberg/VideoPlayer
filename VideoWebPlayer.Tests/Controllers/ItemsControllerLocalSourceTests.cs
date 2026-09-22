@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Data;
@@ -15,6 +14,7 @@ namespace VideoWebPlayer.Tests.Controllers;
 public class ItemsControllerLocalSourceTests : IDisposable
 {
     private readonly string _rootDir;
+    private ServiceProvider? _serviceProvider;
 
     public ItemsControllerLocalSourceTests()
     {
@@ -24,6 +24,7 @@ public class ItemsControllerLocalSourceTests : IDisposable
 
     public void Dispose()
     {
+        _serviceProvider?.Dispose();
         try { Directory.Delete(_rootDir, recursive: true); } catch { }
     }
 
@@ -92,12 +93,16 @@ public class ItemsControllerLocalSourceTests : IDisposable
         var fakeAuth = new FakeAuthService { CurrentUser = user };
 
         var services = new ServiceCollection();
+        // Keeper-Connection im Provider registrieren, damit sie zusammen mit ihm disposed wird
+        // und die Shared-In-Memory-Datenbank beim Testende geschlossen wird.
+        services.AddSingleton(keeperConnection);
         services.AddSingleton<EventManager>();
         services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(connectionString));
         services.AddSingleton<IAuthService>(fakeAuth);
         services.AddScoped<IUnlockedMediaService, UnlockedMediaService>();
 
         var serviceProvider = services.BuildServiceProvider();
+        _serviceProvider = serviceProvider;
         var db = serviceProvider.GetRequiredService<ApplicationDbContext>();
         await db.Database.EnsureCreatedAsync(ct);
 

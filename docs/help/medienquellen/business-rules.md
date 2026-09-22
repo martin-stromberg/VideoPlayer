@@ -25,8 +25,8 @@
 **Verhalten:**
 - Pfad leer oder nicht absolut (`Path.IsPathRooted` false): Meldung „Ungültiger Pfad: Bitte einen absoluten Verzeichnispfad angeben."
 - `Path.GetFullPath` wirft (`ArgumentException`/`NotSupportedException`/`PathTooLongException`): Meldung „Ungültiger Pfad: Der angegebene Verzeichnispfad ist ungültig."
-- `Directory.Exists` false: Meldung „Verzeichnis existiert nicht."
-- Testzugriff (`Directory.EnumerateFileSystemEntries`) wirft `IOException`/`UnauthorizedAccessException`: Meldung „Auf das Verzeichnis kann nicht zugegriffen werden."
+- `Directory.Exists` false: Meldung „Das Verzeichnis existiert nicht auf dem Server."
+- Testzugriff (`Directory.EnumerateFileSystemEntries`) wirft `IOException`/`UnauthorizedAccessException`: Meldung „Auf das Verzeichnis kann nicht zugegriffen werden: Der Serverprozess hat keine Leseberechtigung."
 - Bei Fehler: `errorMessage` wird gesetzt, `Save()` bricht ab — es wird nichts gespeichert.
 - Bei Erfolg: SFTP-Felder werden neutralisiert (`Host = string.Empty`, `Port = 0`, `Username`/`Password = null`), da `Host` in der Datenbank non-nullable ist.
 
@@ -53,7 +53,8 @@
 
 **Bedingungen:**
 - `MediaSource.SourceType == LocalDirectory` → `LocalMediaSourceReader`.
-- `SourceType == Sftp` oder `MediaSource`-Navigation `null` → `SftpMediaSourceReader` (Fallback für unvollständig geladene Collections und Bestandsdaten).
+- `SourceType == Sftp` → `SftpMediaSourceReader`.
+- `MediaSource`-Navigation `null` (nicht eager geladen) → `InvalidOperationException` — die `MediaSource` muss per `Include` mitgeladen werden.
 
 **Umsetzung:** `MediaSourceReaderDispatcher.GetReader` — der Dispatcher implementiert selbst `IMediaSourceReader`, sodass die ~18 Aufrufstellen in Scanner, Classifier und `ItemsController` unverändert `MediaSource`/`MediaCollection` übergeben können.
 

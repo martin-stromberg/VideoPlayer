@@ -57,7 +57,25 @@ public class MediaSourceReaderDispatcherTests : IDisposable
     }
 
     [Fact]
-    public void ReadDirectoryEntries_WithNullMediaSource_UsesSftpReader()
+    public void ReadDirectoryEntries_WithNullMediaSource_ThrowsInvalidOperationException()
+    {
+        // Regressionstest: Ein nicht geladenes MediaSource-Navigation-Property darf nicht
+        // still auf den SFTP-Reader abgebildet werden, sondern muss eine klare
+        // InvalidOperationException mit Hinweis auf das erforderliche Eager-Loading werfen.
+        var dispatcher = CreateDispatcher();
+        var collection = new MediaCollection
+        {
+            Name = "Collection",
+            Path = "/remote/collection",
+            MediaSource = null!
+        };
+
+        var ex = Assert.Throws<InvalidOperationException>(() => dispatcher.ReadDirectoryEntries(collection).ToList());
+        Assert.Contains("MediaSource", ex.Message);
+    }
+
+    [Fact]
+    public async Task CollectionMethods_WithNullMediaSource_ThrowInvalidOperationException()
     {
         var dispatcher = CreateDispatcher();
         var collection = new MediaCollection
@@ -67,10 +85,10 @@ public class MediaSourceReaderDispatcherTests : IDisposable
             MediaSource = null!
         };
 
-        var entries = dispatcher.ReadDirectoryEntries(collection).ToList();
-
-        var item = Assert.Single(entries.OfType<MediaItem>());
-        Assert.Equal("marker.mp4", item.Name);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => dispatcher.FileExistsAsync(collection, "movie.nfo"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => dispatcher.ReadFileAsync(collection, "movie.nfo"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => dispatcher.ReadFileStreamAsync(collection, "movie.nfo"));
+        Assert.Throws<InvalidOperationException>(() => dispatcher.OpenFileStream(collection, "movie.nfo"));
     }
 
     private MediaSourceReaderDispatcher CreateDispatcher()

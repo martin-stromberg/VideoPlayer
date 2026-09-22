@@ -47,7 +47,8 @@ flowchart TD
     A[Konsument: Scanner / Classifier / ItemsController] --> B[IMediaSourceReader = MediaSourceReaderDispatcher]
     B --> C{MediaSource.SourceType}
     C -- LocalDirectory --> D[LocalMediaSourceReader]
-    C -- Sftp oder null --> E[SftpMediaSourceReader]
+    C -- Sftp --> E[SftpMediaSourceReader]
+    C -- "MediaSource nicht geladen" --> K[InvalidOperationException]
     D --> F[Path.GetFullPath + Root-Präfixprüfung]
     F --> G{Innerhalb Quell-Root?}
     G -- Ja --> H[System.IO: Enumerate / ReadAllText / FileStream]

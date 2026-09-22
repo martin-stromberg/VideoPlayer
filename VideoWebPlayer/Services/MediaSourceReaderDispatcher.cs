@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
@@ -30,23 +31,34 @@ namespace VideoWebPlayer.Services
 
         /// <inheritdoc />
         public IEnumerable<MediaEntry> ReadDirectoryEntries(MediaCollection collection)
-            => GetReader(collection?.MediaSource).ReadDirectoryEntries(collection);
+            => GetReader(collection).ReadDirectoryEntries(collection);
 
         /// <inheritdoc />
         public Task<bool> FileExistsAsync(MediaCollection collection, string fileName)
-            => GetReader(collection?.MediaSource).FileExistsAsync(collection, fileName);
+            => GetReader(collection).FileExistsAsync(collection, fileName);
 
         /// <inheritdoc />
         public Task<string?> ReadFileAsync(MediaCollection collection, string fileName)
-            => GetReader(collection?.MediaSource).ReadFileAsync(collection, fileName);
+            => GetReader(collection).ReadFileAsync(collection, fileName);
 
         /// <inheritdoc />
         public Task<Stream?> ReadFileStreamAsync(MediaCollection collection, string fileName)
-            => GetReader(collection?.MediaSource).ReadFileStreamAsync(collection, fileName);
+            => GetReader(collection).ReadFileStreamAsync(collection, fileName);
 
         /// <inheritdoc />
         public Stream? OpenFileStream(MediaCollection collection, string fileName)
-            => GetReader(collection?.MediaSource).OpenFileStream(collection, fileName);
+            => GetReader(collection).OpenFileStream(collection, fileName);
+
+        private IMediaSourceReader GetReader(MediaCollection collection)
+        {
+            if (collection?.MediaSource is null)
+            {
+                throw new InvalidOperationException(
+                    "MediaCollection.MediaSource ist nicht geladen. Die MediaCollection muss eager geladen werden (z. B. per Include(mc => mc.MediaSource)).");
+            }
+
+            return GetReader(collection.MediaSource);
+        }
 
         private IMediaSourceReader GetReader(MediaSource? source)
             => source?.SourceType == MediaSourceType.LocalDirectory ? _localReader : _sftpReader;

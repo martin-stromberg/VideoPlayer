@@ -12,7 +12,7 @@
 1. Einen vollständigen Pfad eintragen, z. B. `D:\Videos` oder `\\server\share`.
 2. Relative Angaben wie `videos` oder `.\videos` sind nicht zulässig.
 
-## „Verzeichnis existiert nicht."
+## „Das Verzeichnis existiert nicht auf dem Server."
 
 **Symptom:** Beim Speichern einer lokalen Quelle erscheint diese Meldung.
 
@@ -22,7 +22,7 @@
 1. Schreibweise und Laufwerksbuchstaben prüfen.
 2. Sicherstellen, dass das Verzeichnis auf dem Server bzw. die Freigabe tatsächlich vorhanden ist.
 
-## „Auf das Verzeichnis kann nicht zugegriffen werden."
+## „Auf das Verzeichnis kann nicht zugegriffen werden: Der Serverprozess hat keine Leseberechtigung."
 
 **Symptom:** Beim Speichern einer lokalen Quelle erscheint diese Meldung.
 

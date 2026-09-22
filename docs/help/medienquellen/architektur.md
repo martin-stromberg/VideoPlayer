@@ -49,5 +49,5 @@ graph TD
 ## Skalierung und Zuverlässigkeit
 
 - Nicht erreichbare lokale Quellen (z. B. nicht gemountetes Laufwerk oder nicht auflösbare Freigabe) führen nicht zum Abbruch des Scans: Der Scanner fängt die Dateisystem-Exceptions pro Collection ab und terminiert den nächsten Versuch über `ScanDueAt` neu.
-- Der Dispatcher fällt auf den SFTP-Reader zurück, wenn die `MediaSource`-Navigation `null` ist — Bestandsdaten und unvollständig geladene Collections bleiben damit kompatibel.
+- Bei nicht geladener `MediaSource`-Navigation (`collection.MediaSource is null`) wirft der Dispatcher eine `InvalidOperationException` mit Hinweis auf das erforderliche Eager-Loading (`Include(mc => mc.MediaSource)`).
 - Tests können einen Fake direkt als `IMediaSourceReader` registrieren und den Dispatcher umgehen.

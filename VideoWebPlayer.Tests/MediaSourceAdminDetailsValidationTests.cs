@@ -36,7 +36,7 @@ public class MediaSourceAdminDetailsValidationTests : IDisposable
         var valid = MediaSourceAdminDetails.TryValidateLocalDirectory(missingDir, out var error);
 
         Assert.False(valid);
-        Assert.Equal("Verzeichnis existiert nicht.", error);
+        Assert.Equal("Das Verzeichnis existiert nicht auf dem Server.", error);
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public class MediaSourceAdminDetailsValidationTests : IDisposable
             var valid = MediaSourceAdminDetails.TryValidateLocalDirectory(deniedDir, out var error);
 
             Assert.False(valid);
-            Assert.Equal("Auf das Verzeichnis kann nicht zugegriffen werden.", error);
+            Assert.Equal("Auf das Verzeichnis kann nicht zugegriffen werden: Der Serverprozess hat keine Leseberechtigung.", error);
         }
         finally
         {

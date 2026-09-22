@@ -29,16 +29,43 @@ namespace VideoWebPlayer.Services
         /// </summary>
         public IEnumerable<MediaEntry> ReadRootDirectory(MediaSource source)
         {
-            var name = new DirectoryInfo(source.Path).Name;
-            var rootCollection = new MediaCollection
+            var rootCollection = CreateRootCollection(source);
+            if (rootCollection is not null)
+                yield return rootCollection;
+        }
+
+        /// <summary>
+        /// Erstellt die Root-Collection der MediaSource oder null, wenn der Quellpfad ungültig ist.
+        /// </summary>
+        private MediaCollection? CreateRootCollection(MediaSource source)
+        {
+            if (string.IsNullOrWhiteSpace(source.Path))
+            {
+                _logger.LogWarning("MediaSource '{Name}' hat keinen gültigen Pfad und wird beim Root-Scan übersprungen.", source.Name);
+                return null;
+            }
+
+            string name;
+            DateTime createdAt;
+            try
+            {
+                name = new DirectoryInfo(source.Path).Name;
+                createdAt = Directory.GetLastWriteTimeUtc(source.Path);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+            {
+                _logger.LogWarning(ex, "Pfad '{Path}' der MediaSource '{Name}' ist ungültig; die Quelle wird beim Root-Scan übersprungen.", source.Path, source.Name);
+                return null;
+            }
+
+            return new MediaCollection
             {
                 Name = string.IsNullOrEmpty(name) ? source.Path : name,
                 Path = source.Path,
-                CreatedAt = Directory.GetLastWriteTimeUtc(source.Path),
+                CreatedAt = createdAt,
                 MediaSourceId = (int)source.Id,
                 ParentMediaCollectionId = null
             };
-            yield return rootCollection;
         }
 
         /// <summary>
@@ -180,13 +207,21 @@ namespace VideoWebPlayer.Services
                 return null;
             }
 
-            // Pfad segmentweise case-insensitiv auflösen; ReparsePoints werden abgelehnt.
             var relative = resolvedPath.Equals(normalizedRoot, StringComparison.OrdinalIgnoreCase)
                 ? string.Empty
                 : resolvedPath.Substring(rootWithSeparator.Length);
 
+            return ResolveSegmentsCaseInsensitive(normalizedRoot, relative, fileName);
+        }
+
+        /// <summary>
+        /// Löst einen relativen Pfad segmentweise case-insensitiv unterhalb von <paramref name="normalizedRoot"/> auf.
+        /// ReparsePoints und Nicht-Datei-Endpunkte liefern null.
+        /// </summary>
+        private string? ResolveSegmentsCaseInsensitive(string normalizedRoot, string relativePath, string fileName)
+        {
             var current = normalizedRoot;
-            var segments = relative.Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries);
+            var segments = relativePath.Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries);
             for (var i = 0; i < segments.Length; i++)
             {
                 string? match = null;

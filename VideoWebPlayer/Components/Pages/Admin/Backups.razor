@@ -337,8 +337,14 @@ else
                         </div>
 
                         <div class="mb-4">
-                            <label class="form-label">Upload-Limit in Bytes</label>
-                            <InputNumber class="form-control" @bind-Value="settingsModel.MaxUploadSizeBytes" />
+                            <label class="form-label">Upload-Limit</label>
+                            <div class="input-group">
+                                <InputNumber class="form-control" step="any" @bind-Value="settingsModel.MaxUploadSize" />
+                                <InputSelect class="form-select" style="max-width: 6rem" @bind-Value="settingsModel.MaxUploadSizeUnit">
+                                    <option value="MB">MB</option>
+                                    <option value="GB">GB</option>
+                                </InputSelect>
+                            </div>
                             <small>Aktuell: @FormatBytes(settingsModel.MaxUploadSizeBytes)</small>
                         </div>
 
@@ -477,6 +483,7 @@ else
     private async Task LoadSettingsAsync()
     {
         var settings = await BackupFacade.GetSettingsAsync();
+        var (limitValue, limitUnit) = SplitBytes(settings.MaxUploadSizeBytes);
         settingsModel = new SettingsModel
         {
             StoragePath = settings.StoragePath,
@@ -484,7 +491,8 @@ else
             SonRetentionCount = settings.SonRetentionCount,
             FatherRetentionCount = settings.FatherRetentionCount,
             GrandfatherRetentionCount = settings.GrandfatherRetentionCount,
-            MaxUploadSizeBytes = settings.MaxUploadSizeBytes
+            MaxUploadSize = limitValue,
+            MaxUploadSizeUnit = limitUnit
         };
     }
 
@@ -740,8 +748,13 @@ else
         [Range(0, 365)]
         public int GrandfatherRetentionCount { get; set; } = 12;
 
+        [Range(1, 1048576)]
+        public decimal MaxUploadSize { get; set; } = 512m;
+
+        public string MaxUploadSizeUnit { get; set; } = UnitMegabytes;
+
         [Range(1048576, long.MaxValue)]
-        public long MaxUploadSizeBytes { get; set; } = 512L * 1024L * 1024L;
+        public long MaxUploadSizeBytes => ToBytes(MaxUploadSize, MaxUploadSizeUnit);
     }
 
     public void Dispose()

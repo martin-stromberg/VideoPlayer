@@ -13,11 +13,7 @@ namespace VideoWebPlayer.Tests.Helpers;
 internal static class PairingWebApplicationFactory
 {
     public static string CreateTempDbPath(string filePrefix)
-    {
-        var dbPath = Path.Combine(Path.GetTempPath(), $"{filePrefix}-{Guid.NewGuid()}.db");
-        try { File.Delete(dbPath); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* clean state is best-effort */ }
-        return dbPath;
-    }
+        => Path.Combine(Path.GetTempPath(), $"{filePrefix}-{Guid.NewGuid()}.db");
 
     public static WebApplicationFactory<global::Program> Create(string dbPath, Action<IWebHostBuilder>? configure = null)
     {

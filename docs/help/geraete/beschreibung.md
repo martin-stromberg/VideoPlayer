@@ -12,8 +12,8 @@ Die Verwaltung liegt im Einrichtungsbereich unter `Einrichtung` > `Geräte` und 
 
 - Über `Pairing-Code erzeugen` wird ein kurzlebiger Einmal-Code erstellt. Er wird genau einmal im Klartext angezeigt — zusammen mit der Angabe, bis wann er gültig ist (standardmäßig 5 Minuten). Danach ist der Code nicht mehr einsehbar.
 - Der Code wird in der App eingegeben. Die App tauscht ihn selbstständig gegen ein Geräte-Token; die Übertragung ist dabei auf Anwendungsebene verschlüsselt.
-- Die Tabelle `Pairing-Codes` zeigt aktive Codes nur mit ihren Metadaten (`Erstellt`, `Gueltig bis`, `Ersteller`).
-- Die Tabelle `Gekoppelte Geräte` listet jedes Gerät mit `Name`, `Ausgestellt`, `Zuletzt verwendet` und `Status` (`Aktiv` oder `Widerrufen`). Über `Umbenennen` lässt sich der Anzeigename anpassen, über `Widerrufen` wird der Zugriff des Geräts gesperrt.
+- Die Tabelle `Pairing-Codes` zeigt aktive Codes nur mit ihren Metadaten (`Erstellt`, `Gueltig bis`, `Ersteller`); lässt sich das Ersteller-Konto nicht mehr auflösen (z. B. gelöschter Benutzer), steht dort `Unbekannt`.
+- Die Tabelle `Gekoppelte Geräte` listet jedes Gerät mit `Name`, `Ausgestellt`, `Zuletzt verwendet` und `Status` (`Aktiv` oder `Zugriff entzogen`). Über `Umbenennen` lässt sich der Anzeigename anpassen, über `Widerrufen` wird der Zugriff des Geräts gesperrt.
 - Der Widerruf muss über eine Bestätigungs-Checkbox (`Widerruf von <Name> serverseitig bestaetigen`) und die Schaltfläche `Widerruf bestaetigen` explizit bestätigt werden.
 - Zwei Statistik-Karten oben auf der Seite zeigen die Anzahl gekoppelter Geräte (mit der Zahl der aktiven) und die Anzahl aktiver Codes.
 

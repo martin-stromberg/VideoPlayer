@@ -39,7 +39,7 @@ Klicken Sie auf `Widerrufen`. Es öffnet sich der Bereich `Widerruf bestaetigen`
 
 ## Ergebnis
 
-Das Gerät ist gekoppelt und meldet sich mit seinem eigenen Geräte-Token an. In der Übersicht sehen Sie jederzeit, welche Geräte aktiv sind und wann sie zuletzt verwendet wurden; widerrufene Geräte bleiben mit dem Status `Widerrufen` in der Liste sichtbar.
+Das Gerät ist gekoppelt und meldet sich mit seinem eigenen Geräte-Token an. In der Übersicht sehen Sie jederzeit, welche Geräte aktiv sind und wann sie zuletzt verwendet wurden; widerrufene Geräte bleiben mit dem Status `Zugriff entzogen` in der Liste sichtbar.
 
 ## Barrierefreiheit
 

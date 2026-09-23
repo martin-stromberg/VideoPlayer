@@ -31,7 +31,7 @@
 **Ursache:** Das Geräte-Token wurde widerrufen, oder das Gerät wurde entfernt.
 
 **Lösung:**
-1. In `Einrichtung` > `Geräte` den `Status` des Geräts prüfen — `Widerrufen` bedeutet, der Zugriff wurde gesperrt.
+1. In `Einrichtung` > `Geräte` den `Status` des Geräts prüfen — `Zugriff entzogen` bedeutet, der Zugriff wurde gesperrt.
 2. Bei Widerruf bleibt die Sperre dauerhaft bestehen; für erneuten Zugriff das Gerät mit einem neuen Pairing-Code koppeln.
 3. Beachten: Eine bereits laufende Anmeldesitzung bleibt nach dem Widerruf noch bis zum Ablauf ihres Anmeldetokens gültig.
 

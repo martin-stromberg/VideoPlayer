@@ -43,7 +43,7 @@
 **Ursache:** Token wurde widerrufen (`RevokedAtUtc` gesetzt), falsch übertragen oder das Gerät existiert nicht mehr. Nur `MauiOnly`-Endpunkte prüfen Geräte-Tokens; bei `AnyClient` zählen sie nicht.
 
 **Lösung:**
-1. In `/admin/devices` den Status des Geräts prüfen (`Aktiv` vs. `Widerrufen`).
+1. In `/admin/devices` den Status des Geräts prüfen (`Aktiv` vs. `Zugriff entzogen`).
 2. Bei Widerruf: Gerät neu koppeln.
 3. Sicherstellen, dass der Token vollständig und ohne `Bearer `-Verwechslung übertragen wird (ein führendes `Bearer ` wird serverseitig entfernt).
 

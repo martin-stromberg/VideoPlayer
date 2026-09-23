@@ -134,6 +134,8 @@ namespace VideoWebPlayer.Services
         private const string CodeAlphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
         private const int DefaultCodeLength = 8;
         private const int DefaultCodeTtlMinutes = 5;
+        private const int MinCodeLength = 4;
+        private const int MinCodeTtlMinutes = 1;
         private const int MaxDeviceNameLength = 200;
         private const int GcmNonceSize = 12;
         private const int GcmTagSize = 16;
@@ -151,8 +153,12 @@ namespace VideoWebPlayer.Services
 
         public async Task<CreatedPairingCode> CreatePairingCodeAsync(string? createdByUserId, CancellationToken cancellationToken = default)
         {
-            var codeLength = _configuration.GetValue("Pairing:CodeLength", DefaultCodeLength);
-            var ttlMinutes = _configuration.GetValue("Pairing:CodeTtlMinutes", DefaultCodeTtlMinutes);
+            // Konfigurationswerte auf den sinnvollen Bereich klemmen — ein
+            // codeLength <= 0 wuerde einen leeren Code bzw. eine
+            // ArgumentOutOfRangeException erzeugen, ein ttl <= 0 einen sofort
+            // abgelaufenen Code.
+            var codeLength = Math.Max(MinCodeLength, _configuration.GetValue("Pairing:CodeLength", DefaultCodeLength));
+            var ttlMinutes = Math.Max(MinCodeTtlMinutes, _configuration.GetValue("Pairing:CodeTtlMinutes", DefaultCodeTtlMinutes));
             var code = RandomNumberGenerator.GetString(CodeAlphabet, codeLength);
             var now = DateTime.UtcNow;
             var pairingCode = new PairingCode

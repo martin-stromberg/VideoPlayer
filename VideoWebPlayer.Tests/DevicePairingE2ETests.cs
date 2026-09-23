@@ -186,7 +186,7 @@ public sealed class DevicePairingE2ETests : IAsyncLifetime
         await confirmPanel.GetByRole(AriaRole.Button, new() { Name = "Widerruf bestaetigen" }).ClickAsync();
 
         await Expect(confirmPanel).ToHaveCountAsync(0);
-        await Expect(deviceRow.GetByRole(AriaRole.Cell, new() { Name = "Widerrufen" })).ToBeVisibleAsync();
+        await Expect(deviceRow.GetByRole(AriaRole.Cell, new() { Name = "Zugriff entzogen" })).ToBeVisibleAsync();
         await Expect(deviceRow.GetByRole(AriaRole.Button, new() { Name = "Widerrufen" })).ToHaveCountAsync(0);
 
         using var http = new HttpClient();

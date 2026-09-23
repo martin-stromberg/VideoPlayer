@@ -133,7 +133,7 @@ else
                                     </td>
                                     <td class="admin-mono">@device.IssuedAtUtc.ToLocalTime().ToString("g")</td>
                                     <td class="admin-mono">@(device.LastUsedAtUtc?.ToLocalTime().ToString("g") ?? "-")</td>
-                                    <td>@(device.RevokedAtUtc == null ? "Aktiv" : "Widerrufen")</td>
+                                    <td>@(device.RevokedAtUtc == null ? "Aktiv" : "Zugriff entzogen")</td>
                                     <td>
                                         @if (renamingDeviceId == device.Id)
                                         {
@@ -224,7 +224,9 @@ else
     {
         if (string.IsNullOrEmpty(userId))
             return "-";
-        return creatorNames.TryGetValue(userId, out var name) ? name : userId;
+        // Klartext-Fallback statt der rohen Benutzer-GUID, wenn das Konto
+        // nicht mehr aufloesbar ist (z. B. geloeschter Admin-Benutzer).
+        return creatorNames.TryGetValue(userId, out var name) ? name : "Unbekannt";
     }
 
     private async Task ReloadAsync()

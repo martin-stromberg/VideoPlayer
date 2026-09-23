@@ -19,6 +19,13 @@
 
 ## What's New
 
+- Device pairing for client apps: instead of the static client API token `Jwt:ApiToken:Maui`, apps now log in with individual, revocable device tokens obtained via a one-time pairing code.
+- New admin page `Devices` (`/admin/devices`): generate a short-lived one-time pairing code (8 characters, 5 minutes valid, shown in clear text only once), list paired devices, rename and revoke them.
+- New public endpoint `POST /api/pairing/exchange`: redeems the pairing code for a device token; the exchange is protected on the application layer via ECDH (P-256) + AES-256-GCM, so it is secure even over HTTP without TLS.
+- Device tokens are stored only as a SHA-256 hash; a revoked device token is rejected immediately, while already issued user sessions remain valid until expiry (12 hours).
+- Repeated failed pairing attempts block the client IP (threshold shared with the web login); blocked IPs are listed under `Security` (`/admin/security`) and can be unblocked there.
+- `Jwt:ApiToken:Maui` remains accepted as a fallback for older app versions; optional configuration `Pairing:CodeLength` / `Pairing:CodeTtlMinutes` with defaults in code.
+- New help pages for devices under `docs/help/geraete/`.
 - Media sources now support local directories: in addition to `SFTP server`, `Local directory` — a directory on the server, including UNC paths — can be selected as the source type.
 - The source type is chosen when creating a source and cannot be changed afterwards; the form only shows the fields relevant to the selected type.
 - Local directory paths are validated when saving — the path must be absolute, the directory must exist and be readable; otherwise a descriptive error message is shown and the source is not saved.
@@ -43,6 +50,13 @@
 
 ## Neuerungen
 
+- Geräte-Pairing für Client-Apps: Statt des statischen Client-API-Tokens `Jwt:ApiToken:Maui` melden sich Apps jetzt mit individuellen, widerrufbaren Geräte-Tokens an, die über einen Einmal-Pairing-Code bezogen werden.
+- Neue Admin-Seite `Geräte` (`/admin/devices`): kurzlebigen Einmal-Pairing-Code erzeugen (8 Zeichen, 5 Minuten gültig, nur einmalig im Klartext angezeigt), gekoppelte Geräte auflisten, umbenennen und widerrufen.
+- Neuer öffentlicher Endpunkt `POST /api/pairing/exchange`: löst den Pairing-Code gegen ein Geräte-Token ein; der Austausch ist auf Anwendungsebene per ECDH (P-256) + AES-256-GCM geschützt und daher auch über HTTP ohne TLS sicher.
+- Geräte-Tokens werden nur als SHA-256-Hash gespeichert; ein widerrufenes Geräte-Token wird sofort abgelehnt, bereits ausgestellte Benutzer-Sitzungen bleiben bis zum Ablauf (12 Stunden) gültig.
+- Wiederholte Fehlversuche beim Einlösen sperren die Client-IP (Schwelle geteilt mit dem Web-Login); gesperrte IPs werden unter `Sicherheit` (`/admin/security`) angezeigt und können dort entsperrt werden.
+- `Jwt:ApiToken:Maui` bleibt als Fallback für ältere App-Versionen akzeptiert; optionale Konfiguration `Pairing:CodeLength` / `Pairing:CodeTtlMinutes` mit Defaults im Code.
+- Neue Hilfeseiten zu Geräten unter `docs/help/geraete/`.
 - Medienquellen unterstützen jetzt lokale Verzeichnisse: Neben `SFTP-Server` kann `Lokales Verzeichnis` — ein Verzeichnis auf dem Server, auch UNC-Pfad — als Quelltyp gewählt werden.
 - Der Quelltyp wird beim Anlegen einer Quelle gewählt und ist nachträglich nicht mehr änderbar; das Formular zeigt nur die zum Typ passenden Felder.
 - Lokale Verzeichnispfade werden beim Speichern geprüft — der Pfad muss absolut sein, das Verzeichnis muss existieren und lesbar sein; andernfalls erscheint eine verständliche Fehlermeldung und die Quelle wird nicht gespeichert.

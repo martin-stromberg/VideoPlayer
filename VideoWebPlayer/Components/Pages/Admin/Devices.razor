@@ -1,0 +1,303 @@
+@page "/admin/devices"
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Identity
+@using VideoWebPlayer.Services
+@using VideoWebPlayer.Data
+@inject IPairingService PairingService
+@inject IDeviceTokenService DeviceTokenService
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthStateProvider
+@rendermode InteractiveServer
+
+<PageTitle>Geraete</PageTitle>
+
+@if (!isAdmin)
+{
+    <div class="alert alert-danger">Nicht autorisiert.</div>
+}
+else
+{
+    <section class="admin-console admin-devices-page">
+        <header class="admin-page-header">
+            <div>
+                <span class="admin-kicker">Einrichtung</span>
+                <h1>Geraete</h1>
+                <p>Pairing-Codes erzeugen und gekoppelte Geraete verwalten.</p>
+            </div>
+            <div class="admin-header-actions">
+                <button class="btn btn-outline-light" @onclick="ReloadAsync">Aktualisieren</button>
+                <a class="btn btn-ghost" href="/admin">Zurueck</a>
+            </div>
+        </header>
+
+        <div class="admin-stats-grid">
+            <div class="admin-stat-card">
+                <span class="admin-stat-label">Gekoppelte Geraete</span>
+                <strong>@devices.Count</strong>
+                <small>@devices.Count(d => d.RevokedAtUtc == null) aktiv</small>
+            </div>
+            <div class="admin-stat-card">
+                <span class="admin-stat-label">Aktive Codes</span>
+                <strong>@activeCodes.Count</strong>
+                <small>nicht verbraucht und nicht abgelaufen</small>
+            </div>
+        </div>
+
+        <div class="admin-card admin-card-wide">
+            <div class="admin-card-header">
+                <h2>Pairing-Codes</h2>
+                <button class="btn btn-sm btn-outline-light" @onclick="CreateCodeAsync" disabled="@isCreating">Pairing-Code erzeugen</button>
+            </div>
+
+            @if (!string.IsNullOrEmpty(generatedCode))
+            {
+                <div class="alert alert-info">
+                    Neuer Pairing-Code (wird nur einmal angezeigt):
+                    <strong class="admin-mono" data-testid="generated-pairing-code">@generatedCode</strong>
+                    <span data-testid="generated-pairing-code-expiry">Gueltig bis @generatedCodeExpiresAtUtc.ToLocalTime().ToString("HH:mm:ss") (@generatedCodeTtlMinutes Minuten).</span>
+                </div>
+            }
+
+            @if (activeCodes.Count == 0)
+            {
+                <div class="admin-empty-state">
+                    <strong>Keine aktiven Codes</strong>
+                    <span>Erzeuge einen Pairing-Code, um ein Geraet zu koppeln.</span>
+                </div>
+            }
+            else
+            {
+                <div class="admin-table-wrap">
+                    <table class="table table-dark table-striped align-middle">
+                        <thead>
+                            <tr>
+                                <th>Erstellt</th>
+                                <th>Gueltig bis</th>
+                                <th>Ersteller</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var codeInfo in activeCodes)
+                            {
+                                <tr>
+                                    <td class="admin-mono">@codeInfo.CreatedAtUtc.ToLocalTime().ToString("g")</td>
+                                    <td class="admin-mono">@codeInfo.ExpiresAtUtc.ToLocalTime().ToString("g")</td>
+                                    <td>@ResolveCreator(codeInfo.CreatedByUserId)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+
+        <div class="admin-card admin-card-wide">
+            <div class="admin-card-header">
+                <h2>Gekoppelte Geraete</h2>
+            </div>
+
+            @if (devices.Count == 0)
+            {
+                <div class="admin-empty-state">
+                    <strong>Keine Geraete gekoppelt</strong>
+                    <span>Gekoppelte Geraete erscheinen hier nach dem Pairing.</span>
+                </div>
+            }
+            else
+            {
+                <div class="admin-table-wrap">
+                    <table class="table table-dark table-striped align-middle">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Ausgestellt</th>
+                                <th>Zuletzt verwendet</th>
+                                <th>Status</th>
+                                <th>Aktionen</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var device in devices)
+                            {
+                                <tr>
+                                    <td>
+                                        @if (renamingDeviceId == device.Id)
+                                        {
+                                            <input class="form-control form-control-sm" data-testid="rename-device-input"
+                                                   @bind="renameName" @bind:event="oninput" maxlength="200" />
+                                        }
+                                        else
+                                        {
+                                            @device.Name
+                                        }
+                                    </td>
+                                    <td class="admin-mono">@device.IssuedAtUtc.ToLocalTime().ToString("g")</td>
+                                    <td class="admin-mono">@(device.LastUsedAtUtc?.ToLocalTime().ToString("g") ?? "-")</td>
+                                    <td>@(device.RevokedAtUtc == null ? "Aktiv" : "Zugriff entzogen")</td>
+                                    <td>
+                                        @if (renamingDeviceId == device.Id)
+                                        {
+                                            <button class="btn btn-sm btn-outline-light" @onclick="() => SaveRenameAsync(device.Id)" disabled="@string.IsNullOrWhiteSpace(renameName)">Speichern</button>
+                                            <button class="btn btn-sm btn-ghost" @onclick="CancelRename">Abbrechen</button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-sm btn-outline-light" @onclick="() => StartRename(device)">Umbenennen</button>
+                                            @if (device.RevokedAtUtc == null)
+                                            {
+                                                <button class="btn btn-sm btn-outline-danger" @onclick="() => StartRevoke(device)">Widerrufen</button>
+                                            }
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+
+        @if (revokingDevice is not null)
+        {
+            <div class="admin-card admin-card-wide" data-testid="revoke-confirmation">
+                <div class="admin-card-header">
+                    <h2>Widerruf bestaetigen</h2>
+                </div>
+                <p>Das Geraet <strong>@revokingDevice.Name</strong> verliert sofort den Zugriff. Bereits ausgestellte Anmeldesitzungen bleiben bis zum Ablauf ihres Tokens gueltig.</p>
+                <div class="form-check mb-2">
+                    <InputCheckbox id="revoke-confirm" class="form-check-input" @bind-Value="confirmRevoke" />
+                    <label class="form-check-label" for="revoke-confirm">Widerruf von <strong>@revokingDevice.Name</strong> serverseitig bestaetigen</label>
+                </div>
+                <button class="btn btn-danger" disabled="@(!confirmRevoke)" @onclick="ConfirmRevokeAsync">Widerruf bestaetigen</button>
+                <button class="btn btn-secondary ms-2" @onclick="CancelRevoke">Abbrechen</button>
+            </div>
+        }
+    </section>
+}
+
+@code {
+    private bool isAdmin;
+    private bool isCreating;
+    private string? generatedCode;
+    private DateTime generatedCodeExpiresAtUtc;
+    private int generatedCodeTtlMinutes;
+    private string? currentUserId;
+    private int? renamingDeviceId;
+    private string? renameName;
+    private PairedDevice? revokingDevice;
+    private bool confirmRevoke;
+    private List<PairingCodeInfo> activeCodes = new();
+    private List<PairedDevice> devices = new();
+    private Dictionary<string, string> creatorNames = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = auth.User;
+        isAdmin = user.HasClaim("IsAdmin", "True");
+        if (isAdmin)
+        {
+            currentUserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            await LoadAsync();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        activeCodes = (await PairingService.GetActiveCodesAsync()).ToList();
+        devices = (await DeviceTokenService.GetDevicesAsync()).ToList();
+        await LoadCreatorNamesAsync();
+    }
+
+    private async Task LoadCreatorNamesAsync()
+    {
+        creatorNames.Clear();
+        foreach (var userId in activeCodes.Select(c => c.CreatedByUserId).Where(id => !string.IsNullOrEmpty(id)).Distinct())
+        {
+            var user = await UserManager.FindByIdAsync(userId!);
+            if (user != null)
+                creatorNames[userId!] = user.Email ?? user.UserName ?? userId!;
+        }
+    }
+
+    private string ResolveCreator(string? userId)
+    {
+        if (string.IsNullOrEmpty(userId))
+            return "-";
+        // Klartext-Fallback statt der rohen Benutzer-GUID, wenn das Konto
+        // nicht mehr aufloesbar ist (z. B. geloeschter Admin-Benutzer).
+        return creatorNames.TryGetValue(userId, out var name) ? name : "Unbekannt";
+    }
+
+    private async Task ReloadAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task CreateCodeAsync()
+    {
+        isCreating = true;
+        try
+        {
+            var created = await PairingService.CreatePairingCodeAsync(currentUserId);
+            generatedCode = created.Code;
+            generatedCodeExpiresAtUtc = created.ExpiresAtUtc;
+            generatedCodeTtlMinutes = (int)Math.Round((created.ExpiresAtUtc - created.CreatedAtUtc).TotalMinutes);
+            await LoadAsync();
+        }
+        finally
+        {
+            isCreating = false;
+        }
+    }
+
+    private void StartRename(PairedDevice device)
+    {
+        renamingDeviceId = device.Id;
+        renameName = device.Name;
+    }
+
+    private void CancelRename()
+    {
+        renamingDeviceId = null;
+        renameName = null;
+    }
+
+    private async Task SaveRenameAsync(int deviceId)
+    {
+        if (string.IsNullOrWhiteSpace(renameName))
+            return;
+
+        if (await DeviceTokenService.RenameAsync(deviceId, renameName))
+        {
+            renamingDeviceId = null;
+            renameName = null;
+        }
+        await LoadAsync();
+    }
+
+    private void StartRevoke(PairedDevice device)
+    {
+        revokingDevice = device;
+        confirmRevoke = false;
+    }
+
+    private void CancelRevoke()
+    {
+        revokingDevice = null;
+        confirmRevoke = false;
+    }
+
+    private async Task ConfirmRevokeAsync()
+    {
+        if (revokingDevice is null || !confirmRevoke)
+            return;
+
+        if (await DeviceTokenService.RevokeAsync(revokingDevice.Id))
+        {
+            revokingDevice = null;
+            confirmRevoke = false;
+        }
+        await LoadAsync();
+    }
+}

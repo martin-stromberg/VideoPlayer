@@ -10,6 +10,7 @@ Die Startseite der Einrichtung zeigt Kacheln für die wichtigsten Verwaltungsauf
 - `Backups` für Backup, Upload, Restore und Aufbewahrung
 - `Updates` für Programmupdates und Update-Einstellungen
 - `Sicherheit` für blockierte IP-Adressen
+- `Geräte` für Pairing-Codes und gekoppelte Geräte
 - `Genres` für Genre-Metadaten, Synonyme und Icons
 - `Allgemein` für Anwendungstitel und Scan-Intervalle
 - `Anwender` für die Registrierung neuer Benutzer
@@ -32,6 +33,18 @@ Unter `Quellen` werden die Medienquellen der Anwendung verwaltet. Beim Anlegen �
 - Im Hintergrund werden alle zugehörigen Medien-Items, Collections, Verknüpfungen, Filme, Serien, Staffeln, Episoden und Genres sowie die Berechtigungen gelöscht.
 - Nach erfolgreichem Löschen verschwindet die Zeile aus der Übersicht bzw. man wird auf die Übersicht zurückgeleitet.
 - Bei einem Fehler wird dieser auf der Seite angezeigt und die Löschung wird nicht ausgeführt.
+
+## Geräte
+
+Unter `Geräte` wird die Kopplung von Client-Apps (z. B. der TV-App) verwaltet.
+
+- Über `Pairing-Code erzeugen` wird ein kurzlebiger Einmal-Code erstellt, der einmalig im Klartext angezeigt wird und standardmäßig 5 Minuten gültig ist. Der Code wird in der App eingegeben; die App tauscht ihn gegen ein individuelles Geräte-Token.
+- Die Tabelle der aktiven Codes zeigt nur Metadaten (Erstellt, Gültig bis, Ersteller); der Klartext-Code ist danach nicht mehr einsehbar.
+- Die Liste `Gekoppelte Geräte` zeigt Name, Ausstellungszeitpunkt, letzte Verwendung und Status jedes Geräts.
+- `Umbenennen` ändert den Anzeigenamen eines Geräts; `Widerrufen` sperrt das Geräte-Token sofort: Folgeanfragen mit diesem Token werden abgelehnt. Bereits angemeldete App-Sitzungen bleiben bis zum Ablauf ihres Anmeldetokens (12 Stunden) gültig.
+- Zu viele Fehlversuche beim Einlösen sperren die Client-IP; die Sperre ist unter `Sicherheit` sichtbar und kann dort aufgehoben werden.
+
+Details stehen in der Hilfe zu den [Geräten](geraete/index.md).
 
 ## Migration und Backups
 

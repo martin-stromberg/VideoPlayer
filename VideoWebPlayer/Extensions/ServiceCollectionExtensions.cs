@@ -74,6 +74,8 @@ public static class ServiceCollectionExtensions
         services.AddMemoryCache();
         services.AddSingleton<InternalConnectionService>();
         services.AddSingleton<ILoginIpBlockService, LoginIpBlockService>(); // wieder Singleton
+        services.AddScoped<IDeviceTokenService, DeviceTokenService>();
+        services.AddScoped<IPairingService, PairingService>();
 
 
         var authenticationBuilder = services.AddAuthentication(options =>

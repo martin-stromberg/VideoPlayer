@@ -51,6 +51,7 @@ public sealed class ApiDocumentationContractTests : IDisposable
         {
             "GET /api/health",
             "POST /api/auth/login",
+            "POST /api/pairing/exchange",
             "GET /api/Sources",
             "GET /api/SourceGenres/{sourceId}",
             "GET /api/items",

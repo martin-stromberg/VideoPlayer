@@ -176,13 +176,15 @@ namespace VideoWebPlayer.Services
         public bool Unblock(string ip)
         {
             if (string.IsNullOrWhiteSpace(ip)) return false;
+            // Cache-Eintrag immer entfernen — auch ohne persistierte Sperre kann die
+            // IP einen Fehlerzaehler unterhalb der Schwelle haben.
+            _cache.TryRemove(ip, out _);
             using var scope = _scopeFactory.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var entry = db.BlockedLoginIps.Find(ip);
             if (entry == null) return false;
             db.BlockedLoginIps.Remove(entry);
             db.SaveChanges();
-            _cache.TryRemove(ip, out _);
             return true;
         }
 

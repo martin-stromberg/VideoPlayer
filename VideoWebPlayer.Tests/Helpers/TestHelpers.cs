@@ -259,10 +259,31 @@ public static class TestHelpers
     }
 
     public static void DenyReadAccess(string directory)
-        => Assert.Equal(0, RunIcacls(directory, "/deny", $"{Environment.UserName}:(OI)(CI)(RD)"));
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Equal(0, RunIcacls(directory, "/deny", $"{Environment.UserName}:(OI)(CI)(RD)"));
+        }
+        else
+        {
+            File.SetUnixFileMode(directory, UnixFileMode.None);
+        }
+    }
 
     public static void ResetAccessControl(string directory)
-        => RunIcacls(directory, "/reset", "/t", "/c", "/q");
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            RunIcacls(directory, "/reset", "/t", "/c", "/q");
+        }
+        else
+        {
+            File.SetUnixFileMode(directory,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute |
+                UnixFileMode.GroupRead | UnixFileMode.GroupExecute |
+                UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
+        }
+    }
 
     private static int RunIcacls(string directory, params string[] args)
     {

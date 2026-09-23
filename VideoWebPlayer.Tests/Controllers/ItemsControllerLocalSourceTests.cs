@@ -33,7 +33,7 @@ public class ItemsControllerLocalSourceTests : IDisposable
     {
         var fileBytes = new byte[] { 10, 20, 30, 40, 50 };
         var filePath = Path.Combine(_rootDir, "movie.mp4");
-        await File.WriteAllBytesAsync(filePath, fileBytes);
+        await File.WriteAllBytesAsync(filePath, fileBytes, TestContext.Current.CancellationToken);
 
         var (controller, movie) = await CreateControllerWithLocalMovieAsync(filePath, grantSourceAccess: true);
 
@@ -47,7 +47,7 @@ public class ItemsControllerLocalSourceTests : IDisposable
         using (fileResult.FileStream)
         using (var ms = new MemoryStream())
         {
-            await fileResult.FileStream.CopyToAsync(ms);
+            await fileResult.FileStream.CopyToAsync(ms, TestContext.Current.CancellationToken);
             Assert.Equal(fileBytes, ms.ToArray());
         }
     }
@@ -56,7 +56,7 @@ public class ItemsControllerLocalSourceTests : IDisposable
     public async Task Download_LocalMovie_ReturnsFileWithDownloadName()
     {
         var filePath = Path.Combine(_rootDir, "movie.mp4");
-        await File.WriteAllBytesAsync(filePath, new byte[] { 1, 2, 3 });
+        await File.WriteAllBytesAsync(filePath, new byte[] { 1, 2, 3 }, TestContext.Current.CancellationToken);
 
         var (controller, movie) = await CreateControllerWithLocalMovieAsync(filePath, grantSourceAccess: true);
 
@@ -72,7 +72,7 @@ public class ItemsControllerLocalSourceTests : IDisposable
     public async Task StreamMediaItem_LocalMovie_WithoutSourceAccess_ReturnsUnauthorized()
     {
         var filePath = Path.Combine(_rootDir, "movie.mp4");
-        await File.WriteAllBytesAsync(filePath, new byte[] { 1 });
+        await File.WriteAllBytesAsync(filePath, new byte[] { 1 }, TestContext.Current.CancellationToken);
 
         var (controller, movie) = await CreateControllerWithLocalMovieAsync(filePath, grantSourceAccess: false);
 

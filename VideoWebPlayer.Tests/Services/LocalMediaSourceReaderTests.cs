@@ -297,6 +297,19 @@ public class LocalMediaSourceReaderTests : IDisposable
 
     private static bool TryCreateJunction(string junctionPath, string targetDir)
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            try
+            {
+                Directory.CreateSymbolicLink(junctionPath, targetDir);
+                return Directory.Exists(junctionPath);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         var process = Process.Start(new ProcessStartInfo
         {
             FileName = "cmd.exe",

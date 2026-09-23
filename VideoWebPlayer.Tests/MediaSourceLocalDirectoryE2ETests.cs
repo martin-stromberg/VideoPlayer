@@ -173,7 +173,7 @@ public sealed class MediaSourceLocalDirectoryE2ETests : IAsyncLifetime
 
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        Assert.False(await db.MediaSources.AnyAsync(s => s.Name == "Ungueltige Quelle"));
+        Assert.False(await db.MediaSources.AnyAsync(s => s.Name == "Ungueltige Quelle", TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -208,7 +208,7 @@ public sealed class MediaSourceLocalDirectoryE2ETests : IAsyncLifetime
 
             using var scope = _factory.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            Assert.False(await db.MediaSources.AnyAsync(s => s.Name == "Gesperrte Quelle"));
+            Assert.False(await db.MediaSources.AnyAsync(s => s.Name == "Gesperrte Quelle", TestContext.Current.CancellationToken));
         }
         finally
         {
@@ -241,7 +241,7 @@ public sealed class MediaSourceLocalDirectoryE2ETests : IAsyncLifetime
                     CreatedAt = DateTime.UtcNow
                 };
                 db.MediaSources.Add(source);
-                await db.SaveChangesAsync();
+                await db.SaveChangesAsync(TestContext.Current.CancellationToken);
                 sourceId = source.Id;
             }
 

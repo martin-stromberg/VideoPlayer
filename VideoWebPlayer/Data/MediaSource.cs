@@ -24,6 +24,10 @@ namespace VideoWebPlayer.Data
         /// Gets or sets the password for authentication.
         /// </summary>
         public string? Password { get; set; }
+        /// <summary>
+        /// Gets or sets the source type (SFTP server or local directory).
+        /// </summary>
+        public MediaSourceType SourceType { get; set; } = MediaSourceType.Sftp;
 
         /// <summary>
         /// Optional uploaded icon image (stored in `MediaSourceIcons` table).

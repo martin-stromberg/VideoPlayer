@@ -19,6 +19,15 @@
 
 ## What's New
 
+- Media sources now support local directories: in addition to `SFTP server`, `Local directory` — a directory on the server, including UNC paths — can be selected as the source type.
+- The source type is chosen when creating a source and cannot be changed afterwards; the form only shows the fields relevant to the selected type.
+- Local directory paths are validated when saving — the path must be absolute, the directory must exist and be readable; otherwise a descriptive error message is shown and the source is not saved.
+- The sources overview shows the type of each source (`SFTP`/`Local`) in a new `Type` column.
+- Scanning, classification (NFO metadata, covers, actor images) and streaming/downloads work for local sources just like for SFTP sources; hidden entries (names starting with `.`) are skipped.
+- Backups from older versions remain restorable: a missing `SourceType` column in `MediaSources` is filled with the default `SFTP`.
+- Fixed: the navigation menu only requests the media source list for authenticated users with a valid authorization token.
+- New help pages for media sources under `docs/help/medienquellen/`.
+- The backup upload limit in the settings can now be entered as a value with a unit (MB/GB) instead of raw bytes.
 - Backup upload now transfers files in chunks as `application/octet-stream` and supports backups larger than 6 GB.
 - Interrupted uploads can be resumed at the already transferred position — even after a page reload or a lost connection; unfinished uploads are shown with their file name and can be discarded.
 - Upload progress indicator with transferred/total size and percentage, automatic retry on network interruptions, and clear error messages on failure.
@@ -34,6 +43,15 @@
 
 ## Neuerungen
 
+- Medienquellen unterstützen jetzt lokale Verzeichnisse: Neben `SFTP-Server` kann `Lokales Verzeichnis` — ein Verzeichnis auf dem Server, auch UNC-Pfad — als Quelltyp gewählt werden.
+- Der Quelltyp wird beim Anlegen einer Quelle gewählt und ist nachträglich nicht mehr änderbar; das Formular zeigt nur die zum Typ passenden Felder.
+- Lokale Verzeichnispfade werden beim Speichern geprüft — der Pfad muss absolut sein, das Verzeichnis muss existieren und lesbar sein; andernfalls erscheint eine verständliche Fehlermeldung und die Quelle wird nicht gespeichert.
+- Die Quellenübersicht zeigt den Typ jeder Quelle (`SFTP`/`Lokal`) in einer neuen Spalte `Typ`.
+- Einlesen, Klassifizierung (NFO-Metadaten, Cover- und Schauspielerbilder) und Streaming/Downloads funktionieren für lokale Quellen genauso wie für SFTP-Quellen; versteckte Einträge (Namen mit führendem `.`) werden übersprungen.
+- Backups aus älteren Versionen können weiterhin wiederhergestellt werden: Eine fehlende `SourceType`-Spalte in `MediaSources` wird mit dem Standard `SFTP` ergänzt.
+- Behoben: Das Navigationsmenü ruft die Medienquellenliste nur noch für angemeldete Benutzer mit gültigem Autorisierungstoken ab.
+- Neue Hilfeseiten zu Medienquellen unter `docs/help/medienquellen/`.
+- Das Backup-Upload-Limit lässt sich in den Einstellungen jetzt als Wert mit Einheit (MB/GB) statt in Bytes eintragen.
 - Der Backup-Upload überträgt Dateien jetzt in Abschnitten (Chunks) als `application/octet-stream` und unterstützt Backups über 6 GB.
 - Unterbrochene Uploads können an der bereits übertragenen Position fortgesetzt werden — auch nach einem Seitenreload oder einer unterbrochenen Verbindung; nicht abgeschlossene Uploads werden mit Dateinamen angezeigt und können verworfen werden.
 - Fortschrittsanzeige mit übertragener/Gesamtgröße und Prozentangabe, automatische Wiederholung bei Netzwerkunterbrechungen und verständliche Fehlermeldungen bei endgültigem Fehlschlag.

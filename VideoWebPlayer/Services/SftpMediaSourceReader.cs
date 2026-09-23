@@ -13,7 +13,7 @@ namespace VideoWebPlayer.Services
     /// <summary>
     /// Liest Verzeichnisse und Dateien einer MediaSource per SFTP aus und gibt sie als MediaCollection/MediaItem aus.
     /// </summary>
-    public class SftpMediaSourceReader
+    public class SftpMediaSourceReader : IMediaSourceReader
     {
         /// <summary>
         /// Liest das Rootverzeichnis der angegebenen MediaSource aus und liefert nur die Root-Collection.
@@ -50,7 +50,7 @@ namespace VideoWebPlayer.Services
             var entries = client.ListDirectory(collection.Path);
             foreach (var entry in entries)
             {
-                if (IsIgnoredEntry(entry.Name))
+                if (MediaEntryFilter.IsIgnoredEntry(entry.Name))
                     continue;
 
                 if (entry.IsDirectory)
@@ -108,7 +108,7 @@ namespace VideoWebPlayer.Services
 
             foreach (var entry in entries)
             {
-                if (IsIgnoredEntry(entry.Name))
+                if (MediaEntryFilter.IsIgnoredEntry(entry.Name))
                     continue;
 
                 if (entry.IsDirectory)
@@ -258,7 +258,7 @@ namespace VideoWebPlayer.Services
         /// <param name="collection">Die MediaCollection, die die Datei enthält.</param>
         /// <param name="fileName">Der Name der Datei.</param>
         /// <returns>Ein Stream-Objekt, das die Datei repräsentiert, oder null, wenn die Datei nicht existiert.</returns>
-        public SftpStreamWrapper? GetSftpFileStream(MediaCollection collection, string fileName)
+        public Stream? OpenFileStream(MediaCollection collection, string fileName)
         {
             var client = new SftpClient(
                 collection.MediaSource.Host,
@@ -285,14 +285,6 @@ namespace VideoWebPlayer.Services
 
             var stream = client.OpenRead(fullPath);
             return new SftpStreamWrapper(stream, client);
-        }
-
-        /// <summary>
-        /// Prüft, ob ein Verzeichniseintrag beim Einlesen übergangen wird (Navigationseinträge und versteckte Einträge wie '.actors').
-        /// </summary>
-        private static bool IsIgnoredEntry(string name)
-        {
-            return name.StartsWith('.');
         }
 
         private static string CombineSftpPath(string part1, string part2)

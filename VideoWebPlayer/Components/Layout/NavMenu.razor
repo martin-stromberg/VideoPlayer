@@ -107,7 +107,12 @@
     {
         currentUrl = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
         NavigationManager.LocationChanged += OnLocationChanged;
-        mediaSources = (await Client.RequestSourcesAsync()).ToList();
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        if (state.User.Identity?.IsAuthenticated == true)
+        {
+            await Client.EnsureAuthorizationTokenAsync(state.User);
+            mediaSources = (await Client.RequestSourcesAsync()).ToList();
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)

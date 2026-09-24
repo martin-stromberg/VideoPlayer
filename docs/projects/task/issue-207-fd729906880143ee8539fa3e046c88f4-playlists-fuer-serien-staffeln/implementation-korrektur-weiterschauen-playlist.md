@@ -312,8 +312,15 @@ optional einen Rückruf entgegen, mit dem `ContinueWatchingPlaylistTestBase` die
 ### Läufe der Nachbesserung
 
 - `dotnet build VideoPlayer.sln -c Debug` → 0 Fehler; `-c Release` → 0 Fehler (245 Warnungen, unverändert).
-- `dotnet test VideoWebPlayer.Tests` (vollständig, inkl. Playwright-E2E): **1288 erfolgreich, 0 Fehler**,
-  4 min 14 s — in einem Lauf, ohne flackernde Ausfälle, kein Test musste wiederholt werden.
+- `dotnet test VideoWebPlayer.Tests` (vollständig, inkl. Playwright-E2E), zwei Läufe:
+  - Lauf 1 (vor dem Commit): **1288 erfolgreich, 0 Fehler**, 4 min 14 s.
+  - Lauf 2 (Stand der Commits): **1287 erfolgreich, 1 Fehler**, 4 min 1 s. Fehlgeschlagen ist
+    `Components/MediaSearchSelectorTests.EventCallback_OnMediaSelected_InvokedWithCorrectParameters` —
+    wieder dieselbe bUnit-Klasse mit `WaitForAssertion`, die schon im ersten Durchgang dieser Aufgabe
+    geflackert hat (dort mit einer anderen Methode derselben Klasse). Sie berührt die Playlist- und
+    Weiterschauen-Logik nicht und wurde von dieser Änderung nicht angefasst. Einzeln dreimal
+    wiederholt: dreimal grün (je 6/6 der Klasse). Bewertung: Flackern unter Last. Der Test wurde nicht
+    angefasst, nicht abgeschwächt und nicht deaktiviert.
 - `razor-usage-check.py`, `enum-coverage-check.py`, `no-notimplemented-check.py`, jeweils `--all --strict`
   → OK.
 

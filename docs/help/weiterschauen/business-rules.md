@@ -443,6 +443,14 @@ beim nächsten Schreiben verschwinden) und aus `SkipAsync()` über `RemoveSupers
 **Begründung:** Zwei Einträge derselben Playlist beantworten die Frage „wo war ich in dieser Playlist?"
 widersprüchlich. Wer aus einer Playlist einen anderen Titel aufruft, hat den bisherigen verlassen.
 
+**Erneutes Anspielen:** Wird ein bereits beendeter Titel derselben Playlist wieder angespielt
+(Zurückspulen und Pausieren, Schließen des Players), wird er wieder zum einen Eintrag der Playlist und
+der zuvor eingefügte Nachfolger entfällt. Gewollt: Der letzte Schreiber gewinnt, und ohne Playlist-Bezug
+gilt dasselbe (ein Eintrag je Serie). Die Gesehen-Markierung bleibt dabei bestehen.
+
+**Anzeige:** `GetListAsync` gibt je Playlist nur den zuletzt aktualisierten Eintrag aus, damit Altbestand
+mit mehreren Zeilen je Playlist nicht als mehrere Kacheln erscheint. Beim Lesen wird nichts gelöscht.
+
 ---
 
 ## Regel: Nachfolger eines Playlist-Eintrags ist der nächste Titel der Playlist
@@ -465,8 +473,13 @@ bestimmt, nicht aus der Serien- oder Sammlungsreihenfolge.
 - Der neue Eintrag ist wieder an dieselbe Playlist gebunden, Position `0`
 - Gibt es keinen Nachfolger, wird der Eintrag ersatzlos entfernt — auch dann, wenn die Serie selbst
   weiterginge
-- Gehört der gemeldete Titel gar nicht (mehr) zur Playlist oder ist die Playlist nicht mehr lesbar,
-  wird kein Nachfolger ermittelt (kein Fehler)
+- Ist die Playlist nicht mehr lesbar oder gelöscht, wird kein Nachfolger ermittelt (kein Fehler)
+- Gehört der gemeldete Titel gar nicht (mehr) zur Playlist, verliert die Meldung ihren Playlist-Bezug:
+  Der Titel bekommt einen eigenen Eintrag mit `PlaylistId = NULL` und fällt unter die Regeln ohne
+  Playlist; der eine Eintrag der Playlist bleibt unverändert
+  (`ContinueWatchingService.NormalizePlaylistBindingAsync`)
+- Der Nachfolger wird innerhalb der Endsequenz nur einmal ermittelt, nicht bei jeder der rund zehn
+  Fortschrittsmeldungen (`ShouldResolveSuccessorAsync`)
 
 **Umsetzung:** `ContinueWatchingService.ResolveNextMediaAsync()` /
 `ResolvePlaylistSuccessorAsync()`, genutzt von `ProcessBufferedEntryAsync()` und `SkipAsync()`.

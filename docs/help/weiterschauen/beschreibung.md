@@ -92,6 +92,15 @@ mehr her, verschwindet der Eintrag ersatzlos aus der Weiterschauen-Liste.
 Ohne Playlist-Bezug bleibt es beim gewohnten Verhalten (nächste Episode der Serie bzw. nächster Film der
 Sammlung).
 
+Spielen Sie einen bereits beendeten Titel derselben Playlist noch einmal an (zurückspulen und pausieren,
+oder den Player schließen), wird wieder dieser Titel der eine Eintrag der Playlist — der zuvor eingefügte
+nächste Titel verschwindet dann. Das ist beabsichtigt und gilt ohne Playlist genauso.
+
+Wird ein Titel aus der Playlist entfernt, während er noch läuft, rückt der Eintrag der Playlist sofort auf
+den nächsten Titel vor. Der entfernte Titel gehört ab da nicht mehr zur Playlist; sein weiterer
+Fortschritt erscheint als gewöhnlicher Eintrag ohne Playlist-Bezug und verändert den Eintrag der Playlist
+nicht.
+
 ### Video als gesehen markieren
 
 Im Gegensatz zu den obigen Aktionen ist die Gesehen-Markierung **playlist-übergreifend**:

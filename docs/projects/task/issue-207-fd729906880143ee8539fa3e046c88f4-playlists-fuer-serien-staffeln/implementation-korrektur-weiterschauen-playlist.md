@@ -173,19 +173,163 @@ erweitert: `PlaylistServiceTestBase.BuildContinueWatchingService` nimmt optional
 - `docs/RELEASE_NOTES.md` — je ein Eintrag in „What's New" und „Neuerungen" (Umlaute korrekt, CRLF erhalten,
   nur ergänzt).
 
-## 5. Restrisiken
+## 5. Nachbesserung nach der Abnahme (`acceptance-korrektur-weiterschauen-playlist.md`)
 
-- **Verspätete Fortschrittsmeldung nach dem Wechsel.** Trifft nach dem Wechsel auf den nächsten Titel noch
-  eine Meldung des alten Titels derselben Playlist ein, entsteht kein zweiter Eintrag (das war die
-  Kundenmeldung), aber die Playlist zeigt dann kurzzeitig wieder den alten Titel — der letzte Schreiber
-  gewinnt. Das entspricht der Semantik, die `UpdatedAt`/`ListOrder` ohnehin haben, und ist im technischen
-  Ablauf dokumentiert. Eine Unterdrückung müsste den Zeitpunkt der Meldung mitführen
-  (`ContinueWatchingBuffer.ProgressEntry.UpdatedAt` erreicht `ProcessBufferedEntryAsync` heute nicht) und
-  war für die gemeldeten Szenarien nicht nötig. Kein Test deckt diesen Ablauf ab.
-- **Mehrbelastung beim Ermitteln des Nachfolgers.** `GetNextPlaylistEntryAsync` lädt und sortiert die Einträge
-  der Playlist und löst deren Zugänglichkeit auf. Das geschieht nur beim Erreichen der Endsequenz und beim
-  Überspringen, also selten; bei sehr großen Playlists ist es trotzdem teurer als die bisherige
-  Punktabfrage. Nicht gemessen.
+Der Prüfer hat die drei Kundenszenarien im laufenden Programm bestätigt und vier Abweichungen gemeldet.
+Alle vier sind aufgearbeitet; die Belege des Prüfers liegen im Scratchpad unter `abnahme/`.
+
+### A2 (Fehler, behoben): Der entfernte Titel riss den Playlist-Eintrag wieder an sich
+
+*Ursache:* `ResolvePlaylistSuccessorAsync` behandelte den Fall „Titel gehört nicht mehr zur Playlist" nur
+bei der **Nachfolgerermittlung**. Der Schreibweg `UpsertAsync` legte den Eintrag trotzdem mit `PlaylistId`
+an und löschte über die Ein-Eintrag-Regel den beim Entfernen gesetzten Ersatz (Beleg
+`mangel2-2-nach-weitermeldung.txt`: `Episode=1 Playlist=1 Pos=00:11:00`). BR-36 und Ablauf 9 behaupteten
+das Gegenteil — die Dokumentation war an dieser Stelle falsch.
+
+*Behebung:* Neue Methode `ContinueWatchingService.NormalizePlaylistBindingAsync`. Eine
+Fortschrittsmeldung mit `playlistId` für einen Titel, der kein `PlaylistEntry` dieser Playlist (mehr) ist,
+verliert ihren Playlist-Bezug (`PlaylistId = null`) und fällt ab da unter die Regeln ohne Playlist (eigener
+Eintrag, Nachfolger ist die nächste Episode der Serie). Geprüft wird in `ReportProgressAsync` (damit schon
+der Pufferschlüssel stimmt) **und** in `ProcessBufferedEntryAsync` (der Titel kann die Playlist zwischen
+Puffern und Verarbeiten verlassen; außerdem wird die Methode direkt vom Worker und von Tests aufgerufen).
+Die Prüfung ist eine Punktabfrage auf den Unique-Index (`PlaylistId`, `MediaType`, `MediaId`).
+
+*Kaskaden-Kinder und Betrachter:* Ein Kaskaden-Kindeintrag ist eine eigene `PlaylistEntry`-Zeile und behält
+seinen Bezug (Test `ProgressForCascadeChildEntry_KeepsPlaylistBinding`). Die Abfrage hängt nicht am
+Anwender, gilt also für Besitzer und Betrachter gleich; dass der Eintrag des Besitzers unberührt bleibt,
+belegt `ViewerOfPublicPlaylist_ProgressForForeignTitle_DoesNotTouchOwnersPlaylistEntry`.
+
+`ResolvePlaylistSuccessorAsync` behält seine eigene Prüfung als Absicherung für `SkipAsync`, das auf einem
+bestehenden Eintrag arbeitet und nicht auf einer Meldung.
+
+### A1 (bewusst so belassen, dokumentiert und abgesichert)
+
+Spielt der Anwender einen bereits beendeten Titel derselben Playlist wieder an (zurückspulen und
+pausieren, Player schließen), wird dieser Titel wieder der eine Eintrag der Playlist und der Nachfolger
+entfällt. Kein Codeeingriff: Der Anwender ist aktiv wieder bei diesem Titel, es gilt „der letzte Schreiber
+gewinnt", und ohne Playlist verhält sich die Liste genauso. Festgeschrieben als Geschäftsregel (BR-35,
+Abschnitt „Erneutes Anspielen") und durch zwei Kontrolltests
+(`ReplayingFinishedTitleOfSamePlaylist_BecomesThePlaylistEntryAgain`,
+`ReplayingFinishedTitleWithoutPlaylist_BehavesTheSameWay`). Diese beiden Tests sind **keine**
+Fehlerbehebung und deshalb auch ohne Codeeingriff grün — sie halten das gewollte Verhalten fest.
+
+*Ehrliche Prüfung des Nachzügler-Verdachts (kann eine gepufferte Meldung dasselbe auslösen, ohne dass der
+Anwender zurückgespult hat?):* Nein, nach Lesen von `continueWatching.js` und `ContinueWatchingBuffer`:
+
+- `continueWatching.js` sendet bei `timeupdate` nur, wenn `pos - lastSent >= 3`, und bei `pause`, `ended`
+  und `detach` erzwungen mit der **dann aktuellen** Position. Eine kleinere Position als zuletzt gesendet
+  entsteht nur, wenn `videoEl.currentTime` zurückspringt — also durch ein echtes Zurückspulen.
+- Beim Weiterschalten auf den nächsten Playlist-Titel lädt `VideoPlayer.razor` das Element zuerst neu
+  (`currentTime` = 0); der erzwungene Abschlussversand meldet dann Position 0 und wird serverseitig von
+  der 5-Sekunden-Grenze in `ReportProgressAsync` verworfen.
+- `ContinueWatchingBuffer` hält je (Anwender, Film, Episode, Playlist) genau einen Schnappschuss und
+  überschreibt ihn mit dem neueren; der Worker ist Einzelleser und findet denselben Schlüssel beim zweiten
+  Lesen leer. Eine ältere Meldung kann eine neuere also nicht überholen. Belegt durch den Test
+  `BufferedOutdatedReport_IsSupersededByLaterEndSequenceReport`.
+
+Nicht ausschließen kann ich eine Umordnung **zweier HTTP-Anfragen auf dem Netzweg** (die ältere trifft
+später ein als die neuere). Das ist kein Pufferproblem und habe ich nicht nachgestellt; es bleibt als
+Restrisiko genannt.
+
+### A3 (Aufwand, behoben)
+
+Neue Methode `ShouldResolveSuccessorAsync`: Im Endsequenz-Zweig wird der Nachfolger nur ermittelt, wenn
+tatsächlich ein Eintrag des beendeten Titels entfernt wurde **oder** die Playlist für diesen Anwender noch
+gar keinen Eintrag hat (jemand springt direkt in die Endsequenz — die Lücke, die der Prüfer an der
+einfachen Bedingung zu Recht benannt hat). Zeigt der eine Eintrag der Playlist schon auf einen anderen
+Titel, ist nichts zu tun. Ohne Playlist bleibt es bei der bisherigen Punktabfrage, dort wurde nichts
+geändert.
+
+Beleg statt Messung: Die Testbasis zählt über einen Test-Double die Aufrufe von
+`IPlaylistService.GetNextPlaylistEntryAsync`. `RepeatedEndSequenceReports_ResolveSuccessorOnlyOnce` schickt
+zehn Meldungen durch die Endzone: **1 Aufruf** statt bisher 10 (Gegenprobe ohne die Abkürzung:
+`Expected: 1 / Actual: 10`).
+
+*Bekannte Grenze, ehrlich benannt:* Beim **letzten** Titel einer Playlist bleibt danach kein Eintrag übrig,
+deshalb greift die Bedingung „Playlist hat noch keinen Eintrag" und jede weitere Meldung derselben Endzone
+ermittelt erneut — ohne Wirkung auf das Ergebnis. Der Test
+`EndSequenceOfLastPlaylistTitle_RemovesEntryEvenWithShortCircuit` hält das mit einer Zähler-Zusicherung
+fest. Eine weitergehende Abkürzung hätte den Gesehen-Status als Kriterium gebraucht und damit das
+Wiederanschauen eines Playlist-Finales verschlechtert; das war mir den Gewinn nicht wert.
+
+### A4 (Anzeige des Altbestands, behoben)
+
+`GetListAsync` gibt über `CollapseToOneEntryPerPlaylist` je Playlist nur den zuletzt aktualisierten Eintrag
+aus (`UpdatedAt`, dann `Id`), in der bisherigen Listenreihenfolge. Einträge ohne Playlist-Bezug werden nie
+zusammengefasst. **Rein lesend** — gelöscht wird nichts, denn ein Lesevorgang darf keinen Fortschritt
+verwerfen (dieselbe Linie wie BR-30); die überzähligen Zeilen verschwinden weiterhin beim nächsten
+Schreibvorgang. Der Test prüft beides: eine Kachel in der Liste, zwei Zeilen in der Datenbank.
+
+### Neue Tests und Gegenproben der Nachbesserung
+
+| Datei | Inhalt | Gegenprobe (Fix ausgebaut) |
+|-------|--------|----------------------------|
+| `Services/ContinueWatchingPlaylistBindingTests.cs` (5) | A2: entfernter Titel direkt und über den Puffer, Endsequenz des entfernten Titels, Kaskaden-Kind, Betrachter einer öffentlichen Playlist | **4 rot** (`ProgressForCascadeChildEntry_KeepsPlaylistBinding` ist Kontrolltest und bleibt grün) |
+| `Services/ContinueWatchingPlaylistEndSequenceTests.cs` (6) | A1-Kontrolltests (mit und ohne Playlist), Puffer kann nicht überholen, A3-Zähler, Direktsprung in die Endzone, Playlist-Ende | **2 rot** (A3-Zähler: `Actual: 10` bzw. `Actual: 2`); die drei A1-/Puffer-Kontrolltests bleiben bewusst grün |
+| `Services/ContinueWatchingPlaylistListViewTests.cs` (3) | A4: Altbestand zusammengefasst, verschiedene Playlists und Einträge ohne Playlist unberührt | **1 rot** (`Assert.Single() Failure: The collection contained 2 items`) |
+
+Vorgehen der Gegenproben: `ContinueWatchingService.cs` gesichert, je Punkt genau die neue Stelle ausgebaut
+(die beiden `NormalizePlaylistBindingAsync`-Aufrufe / der `ShouldResolveSuccessorAsync`-Wachposten / der
+`CollapseToOneEntryPerPlaylist`-Aufruf), neu gebaut, Tests gelaufen, danach aus der Sicherung
+wiederhergestellt.
+
+### Geänderte bestehende Tests der Nachbesserung (mit Begründung)
+
+Die A2-Regel hat 13 bestehende Tests rot gemacht. Alle 13 hatten dieselbe, in der Anwendung nicht
+erreichbare Anordnung: Sie meldeten Fortschritt mit einer `playlistId` für ein Video, das gar nicht in
+dieser Playlist stand. `PlaylistPlaybackContext` meldet eine `playlistId` aber nur für Titel dieser
+Playlist. Geändert wurde deshalb **nur die Anordnung** — das Video wird der Playlist als `PlaylistEntry`
+hinzugefügt —, keine einzige Zusicherung wurde abgeschwächt oder entfernt:
+
+- `Services/ContinueWatchingServicePlaylistTests.cs` (3 Tests)
+- `Services/ContinueWatchingServiceMultipleEntriesTests.cs` (3 Tests)
+- `Services/ContinueWatchingServiceRemovalTests.cs` (2 Tests)
+- `ContinueWatchingE2ETests.cs` (4 Tests: `E2E_Playlist_CreateAndReportProgress_EntryCreated`,
+  `E2E_MultipleEntriesPlaylist_AllThreeVariantsVisible`, `E2E_MarkWatchedPlaylist_RemovesAllVariants`,
+  `E2E_HideWithPlaylistId_OnlyRemovesMatching`)
+
+Zusätzlich `E2E_PlaylistDeleted_EntryBecomesFree`: Der Test war nach der A2-Regel zwar grün, aber nur noch
+trivial — sein Eintrag hätte gar keinen Playlist-Bezug mehr gehabt, den das Löschen der Playlist hätte
+aufheben können. Auch dort ist das Video jetzt Teil der Playlist, damit der Test wieder prüft, was sein
+Name sagt. Ehrliche Einordnung: Diese 14 Tests schlagen mit der korrigierten Anordnung auch **ohne** den
+A2-Fix nicht fehl; den Nachweis führen die neuen Tests oben.
+
+Erweitert wurden außerdem die Testhilfen: `PlaylistServiceTestBase.BuildContinueWatchingService` nimmt
+optional einen Rückruf entgegen, mit dem `ContinueWatchingPlaylistTestBase` die Aufrufe von
+`GetNextPlaylistEntryAsync` zählt (A3-Beleg).
+
+### Dokumentation der Nachbesserung
+
+- `docs/help/playlists-business-rules.md` — BR-36 „Sonderfall" sachlich korrigiert (Meldung ohne
+  Playlist-Bezug statt „kein Nachfolger"), Abschnitt zum Aufwand ergänzt; BR-35 um „Erneutes Anspielen"
+  und „Anzeige des Altbestands" erweitert.
+- `docs/help/playlists-ablauf-technisch.md` — Ablauf 9: Normalisierung als eigener Schritt, Randfälle
+  richtiggestellt (entfernter Titel, erneutes Anspielen, Altbestand beim Lesen), Aufwandshinweis.
+- `docs/help/weiterschauen/business-rules.md`, `docs/help/weiterschauen/beschreibung.md`,
+  `docs/help/playlists.md` — dieselben Aussagen in Anwendersprache.
+- `docs/RELEASE_NOTES.md` — je ein ergänzender Eintrag in „What's New" und „Neuerungen".
+
+### Läufe der Nachbesserung
+
+- `dotnet build VideoPlayer.sln -c Debug` → 0 Fehler; `-c Release` → 0 Fehler (245 Warnungen, unverändert).
+- `dotnet test VideoWebPlayer.Tests` (vollständig, inkl. Playwright-E2E): **1288 erfolgreich, 0 Fehler**,
+  4 min 14 s — in einem Lauf, ohne flackernde Ausfälle, kein Test musste wiederholt werden.
+- `razor-usage-check.py`, `enum-coverage-check.py`, `no-notimplemented-check.py`, jeweils `--all --strict`
+  → OK.
+
+---
+
+## 6. Restrisiken
+
+- **Erneutes Anspielen eines beendeten Titels** verdrängt den Nachfolger (A1). Bewusst so; als
+  Geschäftsregel dokumentiert und durch Kontrolltests festgehalten.
+- **Umordnung zweier HTTP-Fortschrittsmeldungen auf dem Netzweg.** Trifft die ältere später ein als die
+  neuere, gewinnt sie (letzter Schreiber). Über den Puffer ist das ausgeschlossen (Test), über das Netz
+  nicht; nachgestellt habe ich es nicht. Eine Unterdrückung bräuchte den Meldezeitpunkt in
+  `ProcessBufferedEntryAsync` (`ContinueWatchingBuffer.ProgressEntry.UpdatedAt` wird heute nicht
+  durchgereicht).
+- **Aufwand der Nachfolgerermittlung.** Je Titel nur noch ein Playlist-Ladevorgang statt rund zehn (Test).
+  Ausnahme: der letzte Titel einer Playlist, siehe A3. Absolute Laufzeiten sind nicht gemessen.
 - **Reentranz.** `GetNextPlaylistEntryAsync` kann über `LoadValidPlaylistEntriesAsync` die stille
   Waisen-Bereinigung (BR-7) und damit `ResolvePlaylistEntryRemovalAsync` auslösen — auf demselben
   `DbContext`. Im Endsequenz-Zweig sind die eigenen Löschungen vorher gespeichert, im Skip-Zweig wird der

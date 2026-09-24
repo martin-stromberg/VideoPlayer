@@ -667,6 +667,9 @@ Dies hat mehrere Vorteile:
   einzeln angesehen haben) und mehrfach mit verschiedenen Playlists (je nachdem, aus welcher Playlist
   Sie es gestartet haben). Jede Variante hat ihren eigenen Fortschritt — je Playlist aber immer nur
   einen einzigen Eintrag (siehe unten).
+- Stammt eine Datenbank noch aus einer älteren Fassung und enthält mehrere Einträge für dieselbe
+  Playlist, zeigt die Liste davon nur den zuletzt fortgesetzten; die übrigen verschwinden beim nächsten
+  Abspielen aus dieser Playlist von selbst.
 - Die Funktionen „Ausblenden" und „Überspringen" wirken nur auf die jeweilige Playlist-Variante. Sie können
   z. B. ein Video in einer Playlist ausblenden, es aber weiterhin in einer anderen Playlist fortsetzen.
 - Die globale Markierung „als gesehen" ist weiterhin playlist-übergreifend: Wenn Sie ein Video zu Ende
@@ -689,6 +692,17 @@ Serie selbst noch weitergehen würde.
 
 Ohne Playlist-Bezug bleibt es beim gewohnten Verhalten: Nachfolger ist die nächste Episode der Serie
 bzw. der nächste Film der Sammlung.
+
+Zwei Feinheiten dazu:
+
+- **Spielen Sie einen schon beendeten Titel noch einmal an** — etwa, weil Sie nach dem Abspann
+  zurückspulen und dann pausieren oder den Player schließen —, wird dieser Titel wieder der eine Eintrag
+  der Playlist; der zuvor eingefügte nächste Titel verschwindet dann wieder. Das ist so gewollt: Sie sind
+  ja wieder bei diesem Titel. Ohne Playlist verhält sich die Liste genauso.
+- **Wird ein Titel entfernt, während er läuft,** rückt der Eintrag der Playlist sofort auf den nächsten
+  Titel vor (siehe Sicherheitsabfrage oben). Der noch laufende, entfernte Titel gehört ab da nicht mehr
+  zur Playlist: Sein Fortschritt wird von da an als gewöhnlicher Eintrag **ohne** Playlist-Bezug geführt
+  und überschreibt den Eintrag der Playlist nicht.
 
 Wird eine Playlist gelöscht, bleiben die Weiterschauen-Einträge bestehen und verlieren ihren Playlist-Bezug —
 sie werden zu normalen Einträgen ohne Playlist-Zuordnung. Falls bereits ein Eintrag ohne Playlist-Bezug für 

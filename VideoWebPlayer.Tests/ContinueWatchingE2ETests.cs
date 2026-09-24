@@ -114,6 +114,7 @@ public sealed class ContinueWatchingE2ETests : IDisposable
     {
         var (userId, token, movieId) = await CreateAuthenticatedUserAndMovieAsync();
         var playlistId = await CreatePlaylistAsync(userId, "Meine Playlist");
+        await CreatePlaylistEntryAsync(playlistId, movieId, MediaTypeValues.Movie);
 
         await PostProgressAsync(token, "movie", movieId, 300, 2700, playlistId);
         var entry = await WaitForContinueWatchingEntryAsync(userId, movieId, playlistId, TimeSpan.FromSeconds(5));
@@ -131,6 +132,8 @@ public sealed class ContinueWatchingE2ETests : IDisposable
         var (userId, token, movieId) = await CreateAuthenticatedUserAndMovieAsync();
         var playlist1 = await CreatePlaylistAsync(userId, "Playlist 1");
         var playlist2 = await CreatePlaylistAsync(userId, "Playlist 2");
+        await CreatePlaylistEntryAsync(playlist1, movieId, MediaTypeValues.Movie);
+        await CreatePlaylistEntryAsync(playlist2, movieId, MediaTypeValues.Movie);
 
         await PostProgressAsync(token, "movie", movieId, 100, 2700, null);
         await WaitForContinueWatchingEntryAsync(userId, movieId, null, TimeSpan.FromSeconds(5));
@@ -151,6 +154,8 @@ public sealed class ContinueWatchingE2ETests : IDisposable
         var (userId, token, movieId) = await CreateAuthenticatedUserAndMovieAsync();
         var playlist1 = await CreatePlaylistAsync(userId, "Playlist 1");
         var playlist2 = await CreatePlaylistAsync(userId, "Playlist 2");
+        await CreatePlaylistEntryAsync(playlist1, movieId, MediaTypeValues.Movie);
+        await CreatePlaylistEntryAsync(playlist2, movieId, MediaTypeValues.Movie);
 
         await PostProgressAsync(token, "movie", movieId, 100, 2700, null);
         await WaitForContinueWatchingEntryAsync(userId, movieId, null, TimeSpan.FromSeconds(5));
@@ -213,6 +218,8 @@ public sealed class ContinueWatchingE2ETests : IDisposable
         var (userId, token, movieId) = await CreateAuthenticatedUserAndMovieAsync();
         var playlist1 = await CreatePlaylistAsync(userId, "Playlist 1");
         var playlist2 = await CreatePlaylistAsync(userId, "Playlist 2");
+        await CreatePlaylistEntryAsync(playlist1, movieId, MediaTypeValues.Movie);
+        await CreatePlaylistEntryAsync(playlist2, movieId, MediaTypeValues.Movie);
 
         await PostProgressAsync(token, "movie", movieId, 100, 2700, null);
         await WaitForContinueWatchingEntryAsync(userId, movieId, null, TimeSpan.FromSeconds(5));
@@ -320,6 +327,7 @@ public sealed class ContinueWatchingE2ETests : IDisposable
     {
         var (userId, token, movieId) = await CreateAuthenticatedUserAndMovieAsync();
         var playlistId = await CreatePlaylistAsync(userId, "Meine Playlist");
+        await CreatePlaylistEntryAsync(playlistId, movieId, MediaTypeValues.Movie);
 
         await PostProgressAsync(token, "movie", movieId, 300, 2700, playlistId);
         await WaitForContinueWatchingEntryAsync(userId, movieId, playlistId, TimeSpan.FromSeconds(5));

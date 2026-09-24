@@ -102,14 +102,16 @@ namespace VideoWebPlayer.Services
             var userId = await GetUserIdAsync(user, ct);
             if (userId == null) return new();
 
-            var list = (await _db.ContinueWatchingEntries
+            var rows = await _db.ContinueWatchingEntries
                 .AsNoTracking()
                 .Where(x => x.UserId == userId)
                 .OrderByDescending(x => x.ListOrder)
                 .ThenByDescending(x => x.UpdatedAt)
                 .ThenByDescending(x => x.Id)
                 .Take(50)
-                .ToListAsync(ct))
+                .ToListAsync(ct);
+
+            var list = CollapseToOneEntryPerPlaylist(rows)
                 .Select(x => new ContinueWatchingDto
                 {
                     Id = x.Id,
@@ -151,6 +153,42 @@ namespace VideoWebPlayer.Services
             await EnrichPlaylistInfoAsync(list, userId, ct);
 
             return list;
+        }
+
+        /// <summary>
+        /// Hides leftover duplicates while reading: of several entries bound to the same playlist, only the most
+        /// recently updated one is shown, keeping the list's own order for the entries that survive. Entries
+        /// without a playlist binding are never collapsed - the same video may legitimately appear once per
+        /// playlist and once without one.
+        /// </summary>
+        /// <remarks>
+        /// Purely read-only: nothing is deleted here. Since BR-35 ("one continue-watching entry per user and
+        /// playlist") is enforced on every write and old databases are cleaned up lazily on the next write, a
+        /// database written by an older version can still hold several entries per playlist until then. Without
+        /// this, the user would see two tiles for the same playlist in the meantime - a state the rule says must
+        /// not exist. Deleting on a read was deliberately not chosen: a read must not silently discard playback
+        /// progress (the same reason BR-30 keeps a viewer's read from changing the owner's playlist).
+        /// </remarks>
+        /// <param name="rows">The entries as read from the database, already in display order.</param>
+        /// <returns>The entries to display, in the same order.</returns>
+        private static List<ContinueWatchingEntry> CollapseToOneEntryPerPlaylist(List<ContinueWatchingEntry> rows)
+        {
+            var winnerIdByPlaylist = rows
+                .Where(x => x.PlaylistId.HasValue)
+                .GroupBy(x => x.PlaylistId!.Value)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group
+                        .OrderByDescending(x => x.UpdatedAt)
+                        .ThenByDescending(x => x.Id)
+                        .First().Id);
+
+            if (winnerIdByPlaylist.Count == rows.Count(x => x.PlaylistId.HasValue))
+                return rows;
+
+            return rows
+                .Where(x => !x.PlaylistId.HasValue || winnerIdByPlaylist[x.PlaylistId.Value] == x.Id)
+                .ToList();
         }
 
         /// <summary>
@@ -223,6 +261,11 @@ namespace VideoWebPlayer.Services
         /// <param name="duration">The media duration.</param>
         /// <param name="playlistId">The playlist identifier, when reported from within a playlist playback context.</param>
         /// <param name="ct">A cancellation token.</param>
+        /// <remarks>
+        /// The playlist binding is normalized here already (<see cref="NormalizePlaylistBindingAsync"/>), so the
+        /// buffer key - and with it the deduplication of repeated reports - matches the binding the entry will
+        /// actually get.
+        /// </remarks>
         public async Task ReportProgressAsync(ApplicationUser user,
                                         long? movieId,
                                         long? episodeId,
@@ -237,6 +280,8 @@ namespace VideoWebPlayer.Services
 
             await ValidatePlaylistAccessAsync(user!.Id!, playlistId, ct);
 
+            playlistId = await NormalizePlaylistBindingAsync(playlistId, movieId, episodeId, ct);
+
             _buffer.EnqueueOrUpdate(user.Id!, movieId, episodeId, position, duration, playlistId);
         }
 
@@ -250,6 +295,11 @@ namespace VideoWebPlayer.Services
         /// <param name="duration">The media duration.</param>
         /// <param name="playlistId">The playlist identifier, when reported from within a playlist playback context.</param>
         /// <param name="ct">A cancellation token.</param>
+        /// <remarks>
+        /// The playlist binding is normalized again here (<see cref="NormalizePlaylistBindingAsync"/>), not only in
+        /// <see cref="ReportProgressAsync"/>: the title may have left the playlist between buffering and
+        /// processing, and this method is also called directly (worker, tests).
+        /// </remarks>
         public async Task ProcessBufferedEntryAsync(string userId,
                                                    long? movieId,
                                                    long? episodeId,
@@ -259,6 +309,8 @@ namespace VideoWebPlayer.Services
                                                    CancellationToken ct = default)
         {
             await ValidatePlaylistAccessAsync(userId, playlistId, ct);
+
+            playlistId = await NormalizePlaylistBindingAsync(playlistId, movieId, episodeId, ct);
 
             var endThreshold = await _programSettings.GetContinueWatchingEndThresholdAsync(ct);
 
@@ -284,6 +336,9 @@ namespace VideoWebPlayer.Services
                     await _db.SaveChangesAsync(ct);
                 }
 
+                if (!await ShouldResolveSuccessorAsync(userId, playlistId, removedSomething: existingEntries.Count > 0, ct))
+                    return;
+
                 // Nachfolger: bei Playlist-Bezug der naechste Titel DER PLAYLIST, sonst wie bisher die
                 // naechste Episode der Serie bzw. der naechste Film der Sammlung.
                 var (nextMovieId, nextEpisodeId) = await ResolveNextMediaAsync(userId, playlistId, movieId, episodeId, ct);
@@ -294,8 +349,7 @@ namespace VideoWebPlayer.Services
                 }
                 else if (existingEntries.Count > 0)
                 {
-                    // Wenn wir wirklich etwas entfernt haben, aber kein nächstes Medium gefunden wurde,
-                    // muss trotzdem ein Update raus.
+                    // Etwas entfernt, aber kein nächstes Medium gefunden: trotzdem ein Update senden.
                     await _notificationService.NotifyContinueWatchingUpdatedAsync(userId, ct);
                 }
 
@@ -472,6 +526,89 @@ namespace VideoWebPlayer.Services
 
             // Sende SignalR-Update an User nur wenn sich wirklich etwas geändert hat
             await _notificationService.NotifyContinueWatchingUpdatedAsync(userId, ct);
+        }
+
+        /// <summary>
+        /// Normalizes the playlist binding of a progress report: a report carrying a
+        /// <paramref name="playlistId"/> for a title that is not (or no longer) an entry of that playlist is
+        /// treated as a report <b>without</b> playlist binding (<c>null</c> is returned). The reported title is
+        /// then handled by the plain, playlist-less rules - it gets its own entry, and its successor is the next
+        /// episode of the TV show respectively the next movie of the collection.
+        /// </summary>
+        /// <remarks>
+        /// This is what keeps the "one entry per (user, playlist)" rule from being turned back onto a title the
+        /// playlist no longer contains: when a title is removed from a playlist while it is playing, the
+        /// playlist's single entry has already been moved on to its replacement
+        /// (<see cref="ResolvePlaylistEntryRemovalAsync"/>, BR-17), and the still-running player keeps reporting
+        /// progress for the removed title with the old <c>playlistId</c>. Without this normalization that report
+        /// would recreate the removed title as the playlist's entry and delete the replacement - leaving an entry
+        /// whose media is not part of the playlist, for which <see cref="EnrichPlaylistInfoAsync"/> cannot resolve
+        /// a <c>PlaylistEntryId</c>, so resuming it would only open the playlist without starting anything.
+        ///
+        /// A cascade child (a title added through a TVShow/TVShowSeason/MovieCollection entry) <b>is</b> a
+        /// <see cref="PlaylistEntry"/> row of its own and therefore keeps its binding. The lookup is a single
+        /// point query on the unique index (PlaylistId, MediaType, MediaId) and does not depend on the user, so
+        /// it behaves identically for the owner and for a viewer of a public playlist (whether that user may read
+        /// the playlist at all is checked separately by <see cref="ValidatePlaylistAccessAsync"/>).
+        /// </remarks>
+        /// <param name="playlistId">The playlist identifier reported by the client, or <c>null</c>.</param>
+        /// <param name="movieId">The reported movie identifier, or <c>null</c>.</param>
+        /// <param name="episodeId">The reported episode identifier, or <c>null</c>.</param>
+        /// <param name="ct">A cancellation token.</param>
+        /// <returns><paramref name="playlistId"/> if the title is an entry of that playlist; otherwise <c>null</c>.</returns>
+        private async Task<long?> NormalizePlaylistBindingAsync(long? playlistId, long? movieId, long? episodeId, CancellationToken ct)
+        {
+            if (!playlistId.HasValue)
+                return null;
+
+            var mediaId = movieId ?? episodeId;
+            if (mediaId is null)
+                return null;
+
+            var mediaType = movieId.HasValue ? MediaTypeValues.Movie : MediaTypeValues.TVShowEpisode;
+
+            var isPlaylistEntry = await _db.PlaylistEntries.AsNoTracking()
+                .AnyAsync(e => e.PlaylistId == playlistId.Value && e.MediaType == mediaType && e.MediaId == mediaId.Value, ct);
+
+            if (isPlaylistEntry)
+                return playlistId;
+
+            _logger.LogDebug(
+                "[ContinueWatching] Titel {MediaType}/{MediaId} gehoert nicht (mehr) zu Playlist {PlaylistId}; Fortschritt wird ohne Playlist-Bezug gefuehrt.",
+                mediaType, mediaId.Value, playlistId.Value);
+            return null;
+        }
+
+        /// <summary>
+        /// Decides whether the end-sequence branch has to resolve a successor at all. The player reports progress
+        /// every few seconds, so the end sequence (the last 30 seconds by default) is processed roughly ten times
+        /// per title; resolving the successor loads, sorts and access-resolves the whole playlist each time
+        /// (<see cref="ResolvePlaylistSuccessorAsync"/>), which is wasted work once the playlist already points at
+        /// the successor.
+        /// </summary>
+        /// <remarks>
+        /// A successor is needed when an entry of the finished title was actually just removed
+        /// (<paramref name="removedSomething"/>) - the regular case, the first report reaching the end sequence -
+        /// or when the playlist has no entry at all for this user, which happens when somebody jumps straight
+        /// into the end sequence without ever having had one. If the playlist's single entry already exists and
+        /// belongs to another title (the successor from a previous report), there is nothing left to do.
+        /// Only the playlist-bound case is short-circuited: without a playlist the successor lookup is a point
+        /// query on the TV show / movie collection, and the pre-existing behavior is deliberately left untouched.
+        /// </remarks>
+        /// <param name="userId">The owning user identifier.</param>
+        /// <param name="playlistId">The (already normalized) playlist binding of the report, or <c>null</c>.</param>
+        /// <param name="removedSomething">Whether an entry of the finished title was just removed.</param>
+        /// <param name="ct">A cancellation token.</param>
+        /// <returns><c>true</c> when the successor has to be resolved.</returns>
+        private async Task<bool> ShouldResolveSuccessorAsync(string userId, long? playlistId, bool removedSomething, CancellationToken ct)
+        {
+            if (removedSomething || !playlistId.HasValue)
+                return true;
+
+            var playlistHasEntry = await _db.ContinueWatchingEntries.AsNoTracking()
+                .AnyAsync(x => x.UserId == userId && x.PlaylistId == playlistId.Value, ct);
+
+            return !playlistHasEntry;
         }
 
         /// <summary>

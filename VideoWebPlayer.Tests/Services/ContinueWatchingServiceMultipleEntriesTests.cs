@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Tests.Helpers;
 using Xunit;
@@ -19,6 +20,9 @@ public sealed class ContinueWatchingServiceMultipleEntriesTests : ContinueWatchi
         var playlist1 = await CreateTestPlaylistAsync(_testUserId, "Playlist 1");
         var playlist2 = await CreateTestPlaylistAsync(_testUserId, "Playlist 2");
         var playlist3 = await CreateTestPlaylistAsync(_testUserId, "Playlist 3");
+        await CreateTestPlaylistEntryAsync(playlist1.Id, movie.Id, MediaTypeValues.Movie);
+        await CreateTestPlaylistEntryAsync(playlist2.Id, movie.Id, MediaTypeValues.Movie);
+        await CreateTestPlaylistEntryAsync(playlist3.Id, movie.Id, MediaTypeValues.Movie);
 
         await _service.ProcessBufferedEntryAsync(_testUserId, movie.Id, null, TimeSpan.FromMinutes(5), Duration, playlist1.Id, ct: ct);
         await _service.ProcessBufferedEntryAsync(_testUserId, movie.Id, null, TimeSpan.FromMinutes(6), Duration, playlist2.Id, ct: ct);
@@ -38,6 +42,8 @@ public sealed class ContinueWatchingServiceMultipleEntriesTests : ContinueWatchi
         var movie = await CreateMovieAsync("Movie");
         var playlist1 = await CreateTestPlaylistAsync(_testUserId, "Playlist 1");
         var playlist2 = await CreateTestPlaylistAsync(_testUserId, "Playlist 2");
+        await CreateTestPlaylistEntryAsync(playlist1.Id, movie.Id, MediaTypeValues.Movie);
+        await CreateTestPlaylistEntryAsync(playlist2.Id, movie.Id, MediaTypeValues.Movie);
 
         await _service.ProcessBufferedEntryAsync(_testUserId, movie.Id, null, TimeSpan.FromMinutes(5), Duration, ct: ct);
         await _service.ProcessBufferedEntryAsync(_testUserId, movie.Id, null, TimeSpan.FromMinutes(6), Duration, playlist1.Id, ct: ct);
@@ -57,6 +63,8 @@ public sealed class ContinueWatchingServiceMultipleEntriesTests : ContinueWatchi
         var movie = await CreateMovieAsync("Movie");
         var playlist1 = await CreateTestPlaylistAsync(_testUserId, "Playlist 1");
         var playlist2 = await CreateTestPlaylistAsync(_testUserId, "Playlist 2");
+        await CreateTestPlaylistEntryAsync(playlist1.Id, movie.Id, MediaTypeValues.Movie);
+        await CreateTestPlaylistEntryAsync(playlist2.Id, movie.Id, MediaTypeValues.Movie);
 
         await _service.ProcessBufferedEntryAsync(_testUserId, movie.Id, null, TimeSpan.FromMinutes(5), Duration, ct: ct);
         await _service.ProcessBufferedEntryAsync(_testUserId, movie.Id, null, TimeSpan.FromMinutes(6), Duration, playlist1.Id, ct: ct);

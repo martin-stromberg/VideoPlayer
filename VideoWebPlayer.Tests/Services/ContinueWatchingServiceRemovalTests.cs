@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Tests.Helpers;
 using Xunit;
@@ -23,6 +24,9 @@ public sealed class ContinueWatchingServiceRemovalTests : ContinueWatchingServic
 
         var playlist1 = await CreateTestPlaylistAsync(_testUserId, "Playlist 1");
         var playlist2 = await CreateTestPlaylistAsync(_testUserId, "Playlist 2");
+        await CreateTestPlaylistEntryAsync(playlist1.Id, episode1.Id, MediaTypeValues.TVShowEpisode);
+        await CreateTestPlaylistEntryAsync(playlist1.Id, episode2.Id, MediaTypeValues.TVShowEpisode);
+        await CreateTestPlaylistEntryAsync(playlist2.Id, episode1.Id, MediaTypeValues.TVShowEpisode);
 
         _db.ContinueWatchingEntries.Add(new ContinueWatchingEntry
         {
@@ -68,6 +72,9 @@ public sealed class ContinueWatchingServiceRemovalTests : ContinueWatchingServic
 
         var playlist1 = await CreateTestPlaylistAsync(_testUserId, "Playlist 1");
         var playlist2 = await CreateTestPlaylistAsync(_testUserId, "Playlist 2");
+        await CreateTestPlaylistEntryAsync(playlist1.Id, movie1.Id, MediaTypeValues.Movie);
+        await CreateTestPlaylistEntryAsync(playlist1.Id, movie2.Id, MediaTypeValues.Movie);
+        await CreateTestPlaylistEntryAsync(playlist2.Id, movie1.Id, MediaTypeValues.Movie);
 
         _db.ContinueWatchingEntries.Add(new ContinueWatchingEntry
         {

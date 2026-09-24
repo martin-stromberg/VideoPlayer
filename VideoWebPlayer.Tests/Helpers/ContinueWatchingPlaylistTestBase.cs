@@ -29,10 +29,21 @@ public abstract class ContinueWatchingPlaylistTestBase : PlaylistServiceTestBase
     protected readonly ContinueWatchingService _continueWatching;
     protected readonly ContinueWatchingBuffer _buffer = new();
 
+    private int _nextPlaylistEntryCallCount;
+
+    /// <summary>
+    /// How often the wired <see cref="ContinueWatchingService"/> has asked the playlist service for the next
+    /// playlist entry so far - the expensive operation (loading, sorting and access-resolving the whole
+    /// playlist) whose repetition inside the end sequence is what A3 is about.
+    /// </summary>
+    /// <returns>The number of calls since this test started.</returns>
+    protected int NextPlaylistEntryCallCount => _nextPlaylistEntryCallCount;
+
     protected ContinueWatchingPlaylistTestBase()
     {
         PlaylistService? playlistService = null;
-        _continueWatching = BuildContinueWatchingService(() => playlistService!, _buffer);
+        _continueWatching = BuildContinueWatchingService(
+            () => playlistService!, _buffer, onGetNextPlaylistEntry: () => Interlocked.Increment(ref _nextPlaylistEntryCallCount));
 
         var services = new ServiceCollection();
         services.AddSingleton(_continueWatching);

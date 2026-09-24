@@ -1193,7 +1193,12 @@ denen `ContinueWatchingService` einen Eintrag mit `PlaylistId` schreibt.
    `MarkWatchedAsync`, danach werden **alle** Einträge dieses Videos entfernt (playlist-übergreifend,
    unverändert). Der Nachfolger wird nur dann ermittelt, wenn dabei wirklich ein Eintrag entfernt wurde
    oder die Playlist für diesen Anwender noch gar keinen Eintrag hat (`ShouldResolveSuccessorAsync`) —
-   sonst zeigt der eine Eintrag der Playlist schon auf den Nachfolger und es ist nichts zu tun. Dann
+   sonst hat der Anwender in dieser Playlist bereits seinen einen Eintrag und es ist nichts zu tun. Das ist
+   meist der Nachfolger selbst; springt der Anwender dagegen in einem *anderen* Titel der Playlist direkt in die
+   Endzone, während der Eintrag noch auf einem früheren Titel steht, wird der Titel als gesehen markiert, aber
+   kein Nachfolger gesetzt — der Eintrag und damit dessen Fortschritt bleiben unverändert erhalten.
+   Nach der Endsequenz eines aus der Playlist entfernten Titels kann dieselbe Episode außerdem zweimal in der
+   Weiterschauen-Liste stehen (einmal mit, einmal ohne Playlist-Bezug); das entspricht BR-31. Dann
    liefert `ResolveNextMediaAsync` den Nachfolger:
    - mit `playlistId`: `ResolvePlaylistSuccessorAsync` → aktuellen Titel über (`PlaylistId`, `MediaType`,
      `MediaId`) auf seinen `PlaylistEntry` abbilden (je Playlist eindeutig, Unique-Index) und

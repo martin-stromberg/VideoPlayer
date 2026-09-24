@@ -1089,6 +1089,108 @@ Fortschritt melden (`ContinueWatchingService.ValidatePlaylistAccessAsync`) darf,
 
 ---
 
+## BR-35: Genau ein Weiterschauen-Eintrag je Anwender und Playlist
+
+**Regel:** Ein `ContinueWatchingEntry` mit gesetzter `PlaylistId` ist je (`UserId`, `PlaylistId`) höchstens
+einmal vorhanden. Wird für eine Playlist ein Fortschritt geschrieben (Fortschrittsmeldung über
+`ReportProgressAsync`/Puffer/`ProcessBufferedEntryAsync`, Ersetzen durch den Nachfolger nach der Endsequenz,
+`SkipAsync`), werden alle übrigen Einträge desselben Anwenders mit derselben `PlaylistId` entfernt —
+unabhängig davon, ob sie zu einer anderen Serie, zu einem Film oder zu einer Mischung gehören
+(`ContinueWatchingService.RemoveOtherEntriesOfPlaylistAsync`). Die bisherige, engere Regel „nur eine Episode
+je Serie / nur ein Film je Sammlung" (siehe `docs/help/weiterschauen/business-rules.md`) gilt unverändert
+für Einträge **ohne** Playlist-Bezug.
+
+**Nicht betroffen:** Einträge mit `PlaylistId = NULL` und Einträge anderer Playlists. Dasselbe Video darf
+weiterhin je Playlist und zusätzlich ohne Playlist einmal vorkommen (BR-31, Datenmodell: Unique-Index auf
+(`UserId`, `MovieId`/`TVShowEpisodeId`, `PlaylistId`)). Ebenso wenig betroffen sind die Einträge anderer
+Anwender: Die Regel gilt je Anwender, so dass Besitzer und Betrachter einer öffentlichen Playlist jeweils
+ihren eigenen einen Eintrag haben.
+
+**Begründung:** Eine Playlist wird als eine Einheit weitergeschaut. Zwei Einträge derselben Playlist
+beantworten die Frage „wo war ich in dieser Playlist?" widersprüchlich; beim Wechsel auf einen anderen
+Titel derselben Playlist ist der bisherige Eintrag überholt.
+
+**Erneutes Anspielen eines bereits beendeten Titels:** Wer einen Titel, der die Endsequenz schon erreicht
+hatte, derselben Playlist erneut anspielt — zurückspulen und pausieren, oder den Player schließen —, macht
+ihn damit wieder zum einen Eintrag dieser Playlist; der zuvor eingefügte Nachfolger entfällt. Das ist
+gewollt: Der Anwender ist aktiv wieder bei diesem Titel, es gilt „der letzte Schreiber gewinnt", und ohne
+Playlist-Bezug verhält sich die Weiterschauen-Liste genauso (ein Eintrag je Serie). Die
+Gesehen-Markierung des Titels bleibt davon unberührt — er bleibt als gesehen gekennzeichnet und erscheint
+trotzdem wieder in der Weiterschauen-Liste, weil dort der zuletzt gemeldete Stand zählt.
+
+**Anzeige des Altbestands:** Solange die Bereinigung noch nicht gelaufen ist, würde die
+Weiterschauen-Liste mehrere Kacheln derselben Playlist zeigen. Das verhindert `GetListAsync`: Beim Lesen
+wird je Playlist nur der zuletzt aktualisierte Eintrag ausgegeben. Gelöscht wird dabei nichts — ein
+Lesevorgang verwirft keinen Fortschritt (dieselbe Linie wie BR-30); die überzähligen Zeilen verschwinden
+erst beim nächsten Schreibvorgang dieser Playlist. Einträge ohne Playlist-Bezug werden nie zusammengefasst.
+
+**Altbestand:** Datenbanken aus der Zeit vor dieser Regel können mehrere Einträge je (Anwender, Playlist)
+enthalten. Sie werden beim nächsten Schreibvorgang dieser Playlist bereinigt (die Bereinigung läuft auch
+dann, wenn der geschriebene Eintrag nur aktualisiert wird). Eine Migration oder ein Startlauf ist dafür
+bewusst nicht vorgesehen: Es ändert sich kein Schema, das Aufräumen ist ohne Nutzeraktion nicht dringend,
+und ein einmaliger Massenlöschlauf würde Fortschritte entfernen, die der Anwender vielleicht noch sieht,
+ohne dass er den Zusammenhang erkennen könnte.
+
+---
+
+## BR-36: Nachfolger eines Playlist-Eintrags ist der nächste Titel der Playlist
+
+**Regel:** Ist ein Weiterschauen-Eintrag an eine Playlist gebunden, wird sein Nachfolger aus **dieser
+Playlist** bestimmt und nicht aus der Serien- bzw. Sammlungsreihenfolge. Nachfolger ist der nächste
+abspielbare und für **diesen** Anwender zugängliche Titel in der aktuellen Sortierung der Playlist —
+ermittelt über `IPlaylistService.GetNextPlaylistEntryAsync` (dieselbe Logik wie das Weiterschalten während
+der Wiedergabe, BR-29). Das gilt in beiden Fällen, in denen ein Titel verlassen wird:
+
+- Endsequenz erreicht (`ProcessBufferedEntryAsync`, Grenze `ProgramSettings.GetContinueWatchingEndThresholdAsync`)
+- „Überspringen" in der Weiterschauen-Liste (`SkipAsync`)
+
+**Folgen:**
+
+- Am Ende einer Serie geht es mit der nächsten Serie bzw. dem nächsten Film derselben Playlist weiter.
+- Aus der Playlist entfernte Titel (BR-19) werden übersprungen, ebenso gesperrte Titel (BR-29) und nicht
+  abspielbare Sammel-Einträge (TVShow/TVShowSeason/MovieCollection).
+- Gibt die Playlist keinen Nachfolger her, wird der Eintrag ersatzlos entfernt — auch dann, wenn die Serie
+  selbst weiterginge.
+- Der neue Eintrag ist wieder an dieselbe Playlist gebunden; die Weiterschauen-Liste löst daraus den
+  Deep-Link `/playlists/{PlaylistId}?entryId={PlaylistEntryId}` auf (BR-31).
+
+**Sonderfall — der gemeldete Titel gehört nicht (mehr) zur Playlist:** Eine Fortschrittsmeldung mit
+`playlistId` für einen Titel, der kein `PlaylistEntry` dieser Playlist (mehr) ist, wird wie eine Meldung
+**ohne** Playlist-Bezug behandelt (`ContinueWatchingService.NormalizePlaylistBindingAsync`, geprüft in
+`ReportProgressAsync` **und** `ProcessBufferedEntryAsync`, damit auch der Pufferweg abgedeckt ist):
+
+- Der Titel bekommt einen eigenen Eintrag mit `PlaylistId = NULL` und fällt ab da unter die Regeln ohne
+  Playlist (ein Eintrag je Serie bzw. Sammlung; Nachfolger ist die nächste Episode der Serie).
+- Der eine Eintrag der Playlist bleibt unverändert — er wird weder überschrieben noch entfernt.
+
+Das ist der Fall „Titel wurde während der Wiedergabe aus der Playlist entfernt": Der Ersatz ist beim
+Entfernen bereits gesetzt worden (BR-17), und der weiterlaufende Player meldet noch sekundenlang
+Fortschritt mit der alten `playlistId`. Ohne diese Regel würde diese Meldung den entfernten Titel zum
+Eintrag der Playlist machen und den Ersatz löschen — mit einem Eintrag, für den die Weiterschauen-Liste
+keine `PlaylistEntryId` auflösen kann (BR-31), so dass das Fortsetzen nur die Playlist öffnet, ohne etwas
+zu starten.
+
+Ein **Kaskaden-Kindeintrag** (ein Titel, der über eine ganze Serie, Staffel oder Filmsammlung in die
+Playlist kam) ist ein eigener `PlaylistEntry` und behält seinen Playlist-Bezug. Die Prüfung ist eine
+Punktabfrage auf den Unique-Index (`PlaylistId`, `MediaType`, `MediaId`) und hängt nicht am Anwender, gilt
+also für Besitzer und Betrachter einer öffentlichen Playlist gleichermaßen.
+
+Ist die Playlist selbst nicht mehr lesbar oder gelöscht, wird ebenfalls kein Nachfolger ermittelt (kein
+Fehler).
+
+**Ohne Playlist-Bezug** bleibt das bisherige Verhalten unverändert: nächste Episode der Serie bzw.
+nächster Film der Sammlung.
+
+**Aufwand:** Der Player meldet während der Endsequenz mehrfach Fortschritt (Drosselung des Skripts: alle
+drei Sekunden, also rund zehnmal je Titel). Der Nachfolger wird trotzdem nur einmal ermittelt: Die
+Ermittlung läuft nur, wenn tatsächlich ein Eintrag des beendeten Titels entfernt wurde oder wenn die
+Playlist für diesen Anwender noch gar keinen Eintrag hat (jemand springt direkt in die Endsequenz).
+Zeigt der eine Eintrag der Playlist bereits auf einen anderen Titel, ist nichts mehr zu tun
+(`ContinueWatchingService.ShouldResolveSuccessorAsync`). Ausnahme: Beim **letzten** Titel einer Playlist
+bleibt danach kein Eintrag übrig, dort wird je Meldung erneut geprüft — ohne Wirkung auf das Ergebnis.
+
+---
+
 ## Zusammenfassung der Validierungsregeln
 
 | Regel | Prüfpunkt | Fehler | HTTP-Status |
@@ -1118,6 +1220,8 @@ Fortschritt melden (`ContinueWatchingService.ValidatePlaylistAccessAsync`) darf,
 | BR-25: Neuerzeugung nur manuell | Nie automatisch | Keine | Keine |
 | BR-32: Cover-Vorschau speichert nichts, nur Besitzer | Bei `POST .../cover/preview` | `PlaylistAccessDeniedException` bei Fremdzugriff | 403 Forbidden / 404 Not Found — sonst 200 OK (ggf. `success: false`) |
 | BR-26: Cover-Bild-Aufräumung | Bei Ersetzen/Entfernen/Playlist-Löschung | Keine (tolerantes Verhalten) | Keine |
+| BR-35: Ein Weiterschauen-Eintrag je Anwender und Playlist | Bei jedem Schreiben eines Playlist-Eintrags | Keine (überzählige Einträge still entfernt) | Keine |
+| BR-36: Nachfolger ist der nächste Playlist-Titel | Bei Endsequenz und Überspringen | Keine (kein Nachfolger → Eintrag entfällt) | Keine |
 
 ---
 

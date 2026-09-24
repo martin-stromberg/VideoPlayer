@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Tests.Helpers;
@@ -17,6 +18,7 @@ public sealed class ContinueWatchingServicePlaylistTests : ContinueWatchingServi
         var ct = TestContext.Current.CancellationToken;
         var movie = await CreateMovieAsync("Movie");
         var playlist = await CreateTestPlaylistAsync(_testUserId, "Playlist 1");
+        await CreateTestPlaylistEntryAsync(playlist.Id, movie.Id, MediaTypeValues.Movie);
 
         await _service.ProcessBufferedEntryAsync(_testUserId, movie.Id, null, TimeSpan.FromMinutes(5), Duration, playlist.Id, ct: ct);
         await _service.ProcessBufferedEntryAsync(_testUserId, movie.Id, null, TimeSpan.FromMinutes(10), Duration, playlist.Id, ct: ct);
@@ -36,6 +38,8 @@ public sealed class ContinueWatchingServicePlaylistTests : ContinueWatchingServi
         var movie = await CreateMovieAsync("Movie");
         var playlist1 = await CreateTestPlaylistAsync(_testUserId, "Playlist 1");
         var playlist2 = await CreateTestPlaylistAsync(_testUserId, "Playlist 2");
+        await CreateTestPlaylistEntryAsync(playlist1.Id, movie.Id, MediaTypeValues.Movie);
+        await CreateTestPlaylistEntryAsync(playlist2.Id, movie.Id, MediaTypeValues.Movie);
 
         await _service.ProcessBufferedEntryAsync(_testUserId, movie.Id, null, TimeSpan.FromMinutes(5), Duration, playlist1.Id, ct: ct);
         await _service.ProcessBufferedEntryAsync(_testUserId, movie.Id, null, TimeSpan.FromMinutes(7), Duration, playlist2.Id, ct: ct);
@@ -55,6 +59,7 @@ public sealed class ContinueWatchingServicePlaylistTests : ContinueWatchingServi
         var ct = TestContext.Current.CancellationToken;
         var movie = await CreateMovieAsync("Movie");
         var playlist = await CreateTestPlaylistAsync(_testUserId, "Playlist 1");
+        await CreateTestPlaylistEntryAsync(playlist.Id, movie.Id, MediaTypeValues.Movie);
 
         await _service.ProcessBufferedEntryAsync(_testUserId, movie.Id, null, TimeSpan.FromMinutes(5), Duration, ct: ct);
         await _service.ProcessBufferedEntryAsync(_testUserId, movie.Id, null, TimeSpan.FromMinutes(7), Duration, playlist.Id, ct: ct);

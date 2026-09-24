@@ -582,8 +582,18 @@ public abstract class PlaylistServiceTestBase : IDisposable
     /// on the shared real-SQLite <see cref="_db"/>, resolving its <see cref="IPlaylistService"/> lazily.
     /// </summary>
     /// <param name="resolvePlaylistService">Resolves the playlist service on demand.</param>
+    /// <param name="buffer">
+    /// The progress buffer to wire the service to, so a test can drive the full
+    /// <c>ReportProgressAsync</c> -&gt; buffer -&gt; <c>ProcessBufferedEntryAsync</c> path the
+    /// <see cref="ContinueWatchingWorker"/> runs in production; a fresh, private buffer when omitted.
+    /// </param>
+    /// <param name="onGetNextPlaylistEntry">
+    /// Invoked whenever the wired service asks the playlist service for the next playlist entry, so a test can
+    /// count how often the (expensive) playlist load and accessibility resolution really happens.
+    /// </param>
     /// <returns>The continue-watching service.</returns>
-    protected ContinueWatchingService BuildContinueWatchingService(Func<IPlaylistService> resolvePlaylistService)
+    protected ContinueWatchingService BuildContinueWatchingService(
+        Func<IPlaylistService> resolvePlaylistService, ContinueWatchingBuffer? buffer = null, Action? onGetNextPlaylistEntry = null)
     {
         var store = new Mock<IUserStore<ApplicationUser>>();
         var userManagerMock = new Mock<UserManager<ApplicationUser>>(store.Object, null!, null!, null!, null!, null!, null!, null!, null!);
@@ -605,10 +615,10 @@ public abstract class PlaylistServiceTestBase : IDisposable
             _db,
             userManagerMock.Object,
             Mock.Of<ILogger<ContinueWatchingService>>(),
-            new ContinueWatchingBuffer(),
+            buffer ?? new ContinueWatchingBuffer(),
             notificationService,
             programSettings,
-            new LazyPlaylistService(resolvePlaylistService));
+            new LazyPlaylistService(resolvePlaylistService, onGetNextPlaylistEntry));
     }
 
     /// <summary>
@@ -621,8 +631,13 @@ public abstract class PlaylistServiceTestBase : IDisposable
     private sealed class LazyPlaylistService : IPlaylistService
     {
         private readonly Func<IPlaylistService> _resolve;
+        private readonly Action? _onGetNextPlaylistEntry;
 
-        public LazyPlaylistService(Func<IPlaylistService> resolve) => _resolve = resolve;
+        public LazyPlaylistService(Func<IPlaylistService> resolve, Action? onGetNextPlaylistEntry = null)
+        {
+            _resolve = resolve;
+            _onGetNextPlaylistEntry = onGetNextPlaylistEntry;
+        }
 
         public Task<DtoPlaylist[]> GetPlaylistsAsync(string userId, long? genreId = null, CancellationToken cancellationToken = default)
             => _resolve().GetPlaylistsAsync(userId, genreId, cancellationToken);
@@ -682,7 +697,10 @@ public abstract class PlaylistServiceTestBase : IDisposable
             => _resolve().ResetPlaylistGenresAsync(playlistId, userId, cancellationToken);
 
         public Task<DtoPlaylistNavigationResult?> GetNextPlaylistEntryAsync(long playlistId, string userId, long currentEntryId, CancellationToken cancellationToken = default)
-            => _resolve().GetNextPlaylistEntryAsync(playlistId, userId, currentEntryId, cancellationToken);
+        {
+            _onGetNextPlaylistEntry?.Invoke();
+            return _resolve().GetNextPlaylistEntryAsync(playlistId, userId, currentEntryId, cancellationToken);
+        }
 
         public Task<DtoPlaylistNavigationResult?> GetPreviousPlaylistEntryAsync(long playlistId, string userId, long currentEntryId, CancellationToken cancellationToken = default)
             => _resolve().GetPreviousPlaylistEntryAsync(playlistId, userId, currentEntryId, cancellationToken);

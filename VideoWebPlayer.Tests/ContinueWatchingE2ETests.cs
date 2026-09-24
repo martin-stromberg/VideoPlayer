@@ -114,6 +114,7 @@ public sealed class ContinueWatchingE2ETests : IDisposable
     {
         var (userId, token, movieId) = await CreateAuthenticatedUserAndMovieAsync();
         var playlistId = await CreatePlaylistAsync(userId, "Meine Playlist");
+        await CreatePlaylistEntryAsync(playlistId, movieId, MediaTypeValues.Movie);
 
         await PostProgressAsync(token, "movie", movieId, 300, 2700, playlistId);
         var entry = await WaitForContinueWatchingEntryAsync(userId, movieId, playlistId, TimeSpan.FromSeconds(5));
@@ -131,6 +132,8 @@ public sealed class ContinueWatchingE2ETests : IDisposable
         var (userId, token, movieId) = await CreateAuthenticatedUserAndMovieAsync();
         var playlist1 = await CreatePlaylistAsync(userId, "Playlist 1");
         var playlist2 = await CreatePlaylistAsync(userId, "Playlist 2");
+        await CreatePlaylistEntryAsync(playlist1, movieId, MediaTypeValues.Movie);
+        await CreatePlaylistEntryAsync(playlist2, movieId, MediaTypeValues.Movie);
 
         await PostProgressAsync(token, "movie", movieId, 100, 2700, null);
         await WaitForContinueWatchingEntryAsync(userId, movieId, null, TimeSpan.FromSeconds(5));
@@ -151,6 +154,8 @@ public sealed class ContinueWatchingE2ETests : IDisposable
         var (userId, token, movieId) = await CreateAuthenticatedUserAndMovieAsync();
         var playlist1 = await CreatePlaylistAsync(userId, "Playlist 1");
         var playlist2 = await CreatePlaylistAsync(userId, "Playlist 2");
+        await CreatePlaylistEntryAsync(playlist1, movieId, MediaTypeValues.Movie);
+        await CreatePlaylistEntryAsync(playlist2, movieId, MediaTypeValues.Movie);
 
         await PostProgressAsync(token, "movie", movieId, 100, 2700, null);
         await WaitForContinueWatchingEntryAsync(userId, movieId, null, TimeSpan.FromSeconds(5));
@@ -213,6 +218,8 @@ public sealed class ContinueWatchingE2ETests : IDisposable
         var (userId, token, movieId) = await CreateAuthenticatedUserAndMovieAsync();
         var playlist1 = await CreatePlaylistAsync(userId, "Playlist 1");
         var playlist2 = await CreatePlaylistAsync(userId, "Playlist 2");
+        await CreatePlaylistEntryAsync(playlist1, movieId, MediaTypeValues.Movie);
+        await CreatePlaylistEntryAsync(playlist2, movieId, MediaTypeValues.Movie);
 
         await PostProgressAsync(token, "movie", movieId, 100, 2700, null);
         await WaitForContinueWatchingEntryAsync(userId, movieId, null, TimeSpan.FromSeconds(5));
@@ -237,6 +244,14 @@ public sealed class ContinueWatchingE2ETests : IDisposable
         Assert.Contains(list, e => e.GetProperty("playlistId").ValueKind == JsonValueKind.Null);
     }
 
+    /// <summary>
+    /// Der Nachfolger eines Weiterschauen-Eintrags mit Playlist-Bezug ist der nächste Titel DER PLAYLIST.
+    /// Die Playlist enthält deshalb - anders als in der ursprünglichen Fassung dieses Tests, die den
+    /// Eintrag an eine leere Playlist band und damit die inzwischen korrigierte Serienreihenfolge-Semantik
+    /// festschrieb - tatsächlich beide Episoden, so wie es beim Abspielen aus einer Playlist auch der Fall
+    /// ist (<c>PlaylistPlaybackContext</c> meldet die <c>playlistId</c> nur für Titel dieser Playlist).
+    /// Erwartetes Ergebnis bleibt unverändert: Episode 2 ersetzt Episode 1.
+    /// </summary>
     [Fact]
     public async Task E2E_SkipWithPlaylistId_NextWithSamePlaylistId()
     {
@@ -245,6 +260,9 @@ public sealed class ContinueWatchingE2ETests : IDisposable
         var episode1Id = await GetEpisodeIdAsync(showId, "Staffel 01", 1);
         var episode2Id = await GetEpisodeIdAsync(showId, "Staffel 01", 2);
         var playlistId = await CreatePlaylistAsync(userId, "Meine Playlist");
+        await CreatePlaylistEntryAsync(playlistId, episode1Id, MediaTypeValues.TVShowEpisode);
+        await CreatePlaylistEntryAsync(playlistId, episode2Id, MediaTypeValues.TVShowEpisode);
+        await GrantMediaSourceAccessAsync(userId);
 
         await PostProgressAsync(token, "episode", episode1Id, 300, 2700, playlistId);
         await WaitForContinueWatchingEpisodeEntryAsync(userId, episode1Id, playlistId, TimeSpan.FromSeconds(5));
@@ -265,11 +283,51 @@ public sealed class ContinueWatchingE2ETests : IDisposable
         Assert.Equal(playlistId, item.GetProperty("playlistId").GetInt64());
     }
 
+    /// <summary>
+    /// Kundenszenario 1 über die gesamte Kette (HTTP-Fortschrittsmeldung, Puffer/Worker,
+    /// Weiterschauen-Liste): Zwei Serien - ein Original und seine Fortsetzung - liegen in einer
+    /// Playlist. Erreicht die letzte Episode der ersten Serie die Endsequenz, steht anschließend genau
+    /// EIN Eintrag in der Weiterschauen-Liste, nämlich die erste Episode der zweiten Serie, mit
+    /// Playlist-Bezug und aufgelöstem Fortsetzen-Link (<c>playlistEntryId</c>).
+    /// </summary>
+    [Fact]
+    public async Task E2E_PlaylistWithTwoShows_EndOfFirstShow_ContinuesWithSecondShow()
+    {
+        var (userId, token, showAId) = await CreateAuthenticatedUserAndShowAsync(
+            ("Staffel 01", new (int, DateTime?)[] { (1, null), (2, null) }));
+        var showBId = await CreateAdditionalShowAsync(("Staffel 01", new (int, DateTime?)[] { (1, null), (2, null) }));
+
+        var episodeA2 = await GetEpisodeIdAsync(showAId, "Staffel 01", 2);
+        var episodeB1 = await GetEpisodeIdAsync(showBId, "Staffel 01", 1);
+
+        var playlistId = await CreatePlaylistAsync(userId, "Original und Fortsetzung");
+        await CreatePlaylistEntryAsync(playlistId, await GetEpisodeIdAsync(showAId, "Staffel 01", 1), MediaTypeValues.TVShowEpisode);
+        await CreatePlaylistEntryAsync(playlistId, episodeA2, MediaTypeValues.TVShowEpisode);
+        var entryIdB1 = await CreatePlaylistEntryAsync(playlistId, episodeB1, MediaTypeValues.TVShowEpisode);
+        await CreatePlaylistEntryAsync(playlistId, await GetEpisodeIdAsync(showBId, "Staffel 01", 2), MediaTypeValues.TVShowEpisode);
+        await GrantMediaSourceAccessAsync(userId);
+
+        await PostProgressAsync(token, "episode", episodeA2, 300, 2700, playlistId);
+        await WaitForContinueWatchingEpisodeEntryAsync(userId, episodeA2, playlistId, TimeSpan.FromSeconds(5));
+
+        // Endsequenz der letzten Episode der ersten Serie (Standardgrenze: letzte 30 Sekunden).
+        await PostProgressAsync(token, "episode", episodeA2, 2690, 2700, playlistId);
+        var replacement = await WaitForContinueWatchingEpisodeEntryAsync(userId, episodeB1, playlistId, TimeSpan.FromSeconds(5));
+        Assert.NotNull(replacement);
+
+        var list = await GetContinueWatchingListAsync(token);
+        var item = Assert.Single(list);
+        Assert.Equal(episodeB1, item.GetProperty("entry").GetProperty("id").GetInt64());
+        Assert.Equal(playlistId, item.GetProperty("playlistId").GetInt64());
+        Assert.Equal(entryIdB1, item.GetProperty("playlistEntryId").GetInt64());
+    }
+
     [Fact]
     public async Task E2E_PlaylistDeleted_EntryBecomesFree()
     {
         var (userId, token, movieId) = await CreateAuthenticatedUserAndMovieAsync();
         var playlistId = await CreatePlaylistAsync(userId, "Meine Playlist");
+        await CreatePlaylistEntryAsync(playlistId, movieId, MediaTypeValues.Movie);
 
         await PostProgressAsync(token, "movie", movieId, 300, 2700, playlistId);
         await WaitForContinueWatchingEntryAsync(userId, movieId, playlistId, TimeSpan.FromSeconds(5));
@@ -349,6 +407,22 @@ public sealed class ContinueWatchingE2ETests : IDisposable
         db.Playlists.Add(playlist);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         return playlist.Id;
+    }
+
+    /// <summary>
+    /// Creates a further TV show (beyond the one <see cref="CreateAuthenticatedUserAndShowAsync"/>
+    /// already creates) with the given seasons, for scenarios spanning two shows within one playlist.
+    /// </summary>
+    /// <param name="Name">The name of a season to create.</param>
+    /// <param name="Number">The number of an episode to create.</param>
+    /// <param name="seasons">The seasons and their episodes to create.</param>
+    /// <returns>The created show's id.</returns>
+    private async Task<long> CreateAdditionalShowAsync(params (string Name, (int Number, DateTime? ReleaseDate)[] Episodes)[] seasons)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var show = await TestHelpers.CreateTvShowWithSeasonsAsync(db, seasons);
+        return show.Id;
     }
 
     private async Task<long> CreatePlaylistEntryAsync(long playlistId, long mediaId, string mediaType)

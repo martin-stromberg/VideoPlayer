@@ -1165,3 +1165,85 @@ erlebt hat, ist nicht belegt** — ebenso plausibel ist, dass neben eine Kachel 
 alten Fassung ebenfalls wortlos nichts bewirkte. Beides ist jetzt ausgeschlossen. Zusätzlich kennt natives
 Drag & Drop keine Touch-Eingabe, und jede optische Rückmeldung während des Ziehens hätte einen weiteren
 Roundtrip gekostet.
+
+---
+
+## Ablauf 9: Weiterschauen-Eintrag einer Playlist — ein Eintrag je Playlist, Nachfolger aus der Playlist
+
+Betrifft BR-35 und BR-36 (`docs/help/playlists-business-rules.md`). Auslöser sind die drei Stellen, an
+denen `ContinueWatchingService` einen Eintrag mit `PlaylistId` schreibt.
+
+### Schritt-für-Schritt
+
+1. Der Player meldet Fortschritt mit `playlistId` (`PlaylistPlaybackContext` → `POST /api/continue-watching/progress`).
+   `ReportProgressAsync` prüft den Lesezugriff auf die Playlist (`ValidatePlaylistAccessAsync`) und legt die
+   Meldung in den `ContinueWatchingBuffer` (Schlüssel inkl. `playlistId`).
+2. Noch vor dem Puffern wird die Playlist-Bindung normalisiert (`NormalizePlaylistBindingAsync`): Ist der
+   gemeldete Titel kein `PlaylistEntry` dieser Playlist (mehr), wird die Meldung ohne Playlist-Bezug
+   geführt (`PlaylistId = null`). Das gilt auch beim Pufferschlüssel, damit die Entdopplung wiederholter
+   Meldungen zur späteren Bindung passt.
+3. `ContinueWatchingWorker` ruft `ProcessBufferedEntryAsync` — dort wird die Bindung erneut normalisiert,
+   weil der Titel zwischen Puffern und Verarbeiten die Playlist verlassen haben kann.
+4. **Vor der Endsequenz:** `UpsertAsync` legt den Eintrag an oder aktualisiert ihn. Bei gesetzter
+   `PlaylistId` entfernt `RemoveOtherEntriesOfPlaylistAsync` zuvor alle übrigen Einträge desselben
+   Anwenders mit derselben `PlaylistId` (BR-35). Die Bereinigung läuft auch beim reinen Aktualisieren,
+   damit Altbestände von selbst verschwinden. Ohne `PlaylistId` gilt unverändert die engere Regel
+   `RemoveExistingTVShowEntry`/`RemoveExtsingMovieCollectionEntry` (nur beim Anlegen).
+5. **Endsequenz erreicht** (`duration - position <= GetContinueWatchingEndThresholdAsync()`):
+   `MarkWatchedAsync`, danach werden **alle** Einträge dieses Videos entfernt (playlist-übergreifend,
+   unverändert). Der Nachfolger wird nur dann ermittelt, wenn dabei wirklich ein Eintrag entfernt wurde
+   oder die Playlist für diesen Anwender noch gar keinen Eintrag hat (`ShouldResolveSuccessorAsync`) —
+   sonst hat der Anwender in dieser Playlist bereits seinen einen Eintrag und es ist nichts zu tun. Das ist
+   meist der Nachfolger selbst; springt der Anwender dagegen in einem *anderen* Titel der Playlist direkt in die
+   Endzone, während der Eintrag noch auf einem früheren Titel steht, wird der Titel als gesehen markiert, aber
+   kein Nachfolger gesetzt — der Eintrag und damit dessen Fortschritt bleiben unverändert erhalten.
+   Nach der Endsequenz eines aus der Playlist entfernten Titels kann dieselbe Episode außerdem zweimal in der
+   Weiterschauen-Liste stehen (einmal mit, einmal ohne Playlist-Bezug); das entspricht BR-31. Dann
+   liefert `ResolveNextMediaAsync` den Nachfolger:
+   - mit `playlistId`: `ResolvePlaylistSuccessorAsync` → aktuellen Titel über (`PlaylistId`, `MediaType`,
+     `MediaId`) auf seinen `PlaylistEntry` abbilden (je Playlist eindeutig, Unique-Index) und
+     `IPlaylistService.GetNextPlaylistEntryAsync` aufrufen — dieselbe Navigation wie beim Weiterschalten
+     (`FindAdjacentPlayableEntryAsync`: Sortiermodus der Playlist, überspringt nicht abspielbare und für
+     den Anwender nicht zugängliche Einträge).
+   - ohne `playlistId`: `GetNextMovieAsync`/`GetNextEpisodeAsync` wie bisher.
+6. Gibt es einen Nachfolger, schreibt `UpsertAsync` ihn mit derselben `PlaylistId` und Position `0`
+   (und räumt dabei nach Schritt 3 auf). Gibt es keinen, bleibt die Playlist ohne Eintrag; wurde etwas
+   entfernt, geht trotzdem eine SignalR-Benachrichtigung raus.
+7. `SkipAsync` nutzt denselben `ResolveNextMediaAsync` und dieselbe Aufräumregel
+   (`RemoveSupersededEntriesAsync`), behält aber die `ListOrder` des ersetzten Eintrags.
+8. `GetListAsync`/`EnrichPlaylistInfoAsync` löst für den neuen Eintrag wieder `PlaylistName` und
+   `PlaylistEntryId` auf (Deep-Link `/playlists/{PlaylistId}?entryId={PlaylistEntryId}`), weil der
+   Nachfolger selbst ein Eintrag dieser Playlist ist.
+
+### Randfälle
+
+- **Aktueller Titel nicht (mehr) in der Playlist:** Die Meldung verliert ihren Playlist-Bezug
+  (`NormalizePlaylistBindingAsync`, Schritt 2/3). Der Titel bekommt einen eigenen Eintrag mit
+  `PlaylistId = null` und fällt ab da unter die Regeln ohne Playlist; der eine Eintrag der Playlist —
+  beim Entfernen bereits auf den Ersatz gesetzt (`ResolvePlaylistEntryRemovalAsync`, BR-17) — bleibt
+  unangetastet. `ResolvePlaylistSuccessorAsync` behält die Prüfung zusätzlich als Absicherung für
+  `SkipAsync`, das auf einem bestehenden Eintrag arbeitet und nicht auf einer Meldung.
+- **Playlist nicht mehr lesbar / gelöscht:** `GetNextPlaylistEntryAsync` wirft `KeyNotFoundException`
+  bzw. `PlaylistAccessDeniedException`; beides wird abgefangen und als „kein Nachfolger" behandelt.
+- **Öffentliche Playlist:** Der Nachfolger wird für den **meldenden** Anwender aufgelöst (BR-29), die
+  Ein-Eintrag-Regel gilt je Anwender.
+- **Erneutes Anspielen nach der Endsequenz:** Meldet der Player für den beendeten Titel später wieder
+  eine Position vor der Endsequenz — der Anwender hat zurückgespult und pausiert oder den Player
+  geschlossen —, wird dieser Titel wieder der eine Eintrag der Playlist und der Nachfolger entfällt
+  (BR-35, Abschnitt „Erneutes Anspielen"; letzter Schreiber gewinnt, ohne Playlist gilt dasselbe).
+  Über den Puffer allein ist das nicht auslösbar: `ContinueWatchingBuffer` hält je
+  (Anwender, Film, Episode, Playlist) genau einen Schnappschuss und überschreibt ihn mit dem neueren,
+  und `continueWatching.js` sendet nur bei wachsender Position bzw. erzwungen mit der dann aktuellen
+  Position — eine kleinere Position entsteht nur durch ein echtes Zurückspulen.
+- **Altbestand beim Lesen:** Enthält die Datenbank noch mehrere Einträge je Playlist, zeigt
+  `GetListAsync` nur den zuletzt aktualisierten (`CollapseToOneEntryPerPlaylist`, rein lesend, ohne zu
+  löschen).
+
+### Beteiligte Klassen/Komponenten
+
+`ContinueWatchingService` (`ProcessBufferedEntryAsync`, `SkipAsync`, `UpsertAsync`,
+`ResolveNextMediaAsync`, `ResolvePlaylistSuccessorAsync`, `NormalizePlaylistBindingAsync`,
+`ShouldResolveSuccessorAsync`, `CollapseToOneEntryPerPlaylist`, `RemoveSupersededEntriesAsync`,
+`RemoveOtherEntriesOfPlaylistAsync`), `ContinueWatchingBuffer`/`ContinueWatchingWorker`,
+`PlaylistService.GetNextPlaylistEntryAsync`/`FindAdjacentPlayableEntryAsync`, `ProgramSettingsService`,
+`ContinueWatchingList.razor`.

@@ -13,9 +13,9 @@ public sealed class DeviceTokenServiceTests
     {
         var ct = TestContext.Current.CancellationToken;
         using var fixture = await PairingTestDb.CreateAsync("device-token-issue", ct);
-        var service = new DeviceTokenService(fixture.Db);
+        var service = fixture.CreateDeviceTokenService();
 
-        var token = await service.IssueAsync("Test-TV", "admin-user-id", ct);
+        var token = (await service.IssueAsync("Test-TV", "admin-user-id", ct)).Token;
 
         Assert.False(string.IsNullOrWhiteSpace(token));
         var device = Assert.Single(await fixture.Db.PairedDevices.ToListAsync(ct));
@@ -34,7 +34,7 @@ public sealed class DeviceTokenServiceTests
     {
         var ct = TestContext.Current.CancellationToken;
         using var fixture = await PairingTestDb.CreateAsync("device-token-default-name", ct);
-        var service = new DeviceTokenService(fixture.Db);
+        var service = fixture.CreateDeviceTokenService();
 
         await service.IssueAsync(null, null, ct);
 
@@ -49,7 +49,7 @@ public sealed class DeviceTokenServiceTests
     {
         var ct = TestContext.Current.CancellationToken;
         using var fixture = await PairingTestDb.CreateAsync("device-token-whitespace-name", ct);
-        var service = new DeviceTokenService(fixture.Db);
+        var service = fixture.CreateDeviceTokenService();
 
         await service.IssueAsync("   ", null, ct);
 
@@ -62,8 +62,8 @@ public sealed class DeviceTokenServiceTests
     {
         var ct = TestContext.Current.CancellationToken;
         using var fixture = await PairingTestDb.CreateAsync("device-token-valid", ct);
-        var service = new DeviceTokenService(fixture.Db);
-        var token = await service.IssueAsync("Test-TV", null, ct);
+        var service = fixture.CreateDeviceTokenService();
+        var token = (await service.IssueAsync("Test-TV", null, ct)).Token;
 
         var valid = await service.IsValidDeviceTokenAsync(token, ct);
 
@@ -77,8 +77,8 @@ public sealed class DeviceTokenServiceTests
     {
         var ct = TestContext.Current.CancellationToken;
         using var fixture = await PairingTestDb.CreateAsync("device-token-revoked", ct);
-        var service = new DeviceTokenService(fixture.Db);
-        var token = await service.IssueAsync("Test-TV", null, ct);
+        var service = fixture.CreateDeviceTokenService();
+        var token = (await service.IssueAsync("Test-TV", null, ct)).Token;
         var deviceId = (await fixture.Db.PairedDevices.SingleAsync(ct)).Id;
         await service.RevokeAsync(deviceId, ct);
 
@@ -92,7 +92,7 @@ public sealed class DeviceTokenServiceTests
     {
         var ct = TestContext.Current.CancellationToken;
         using var fixture = await PairingTestDb.CreateAsync("device-token-revoke", ct);
-        var service = new DeviceTokenService(fixture.Db);
+        var service = fixture.CreateDeviceTokenService();
         await service.IssueAsync("Test-TV", null, ct);
         var deviceId = (await fixture.Db.PairedDevices.SingleAsync(ct)).Id;
 
@@ -104,11 +104,32 @@ public sealed class DeviceTokenServiceTests
     }
 
     [Fact]
+    public async Task RevokeAsync_RevokesDeviceRefreshTokens()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await PairingTestDb.CreateAsync("device-token-revoke-refresh", ct);
+        var service = fixture.CreateDeviceTokenService();
+        var refreshTokens = fixture.CreateRefreshTokenService();
+        var issued = await service.IssueAsync("Test-TV", null, ct);
+        var refresh = await refreshTokens.IssueAsync("user-id", issued.DeviceId, ct);
+        var otherDevice = await service.IssueAsync("Anderes-Geraet", null, ct);
+        var otherRefresh = await refreshTokens.IssueAsync("user-id", otherDevice.DeviceId, ct);
+
+        var revoked = await service.RevokeAsync(issued.DeviceId, ct);
+
+        Assert.True(revoked);
+        // Aktive Refresh-Tokens des widerrufenen Geraets sind gesperrt,
+        // Tokens anderer Geraete bleiben nutzbar.
+        Assert.False((await refreshTokens.RotateAsync(refresh.Token, ct)).Success);
+        Assert.True((await refreshTokens.RotateAsync(otherRefresh.Token, ct)).Success);
+    }
+
+    [Fact]
     public async Task RenameAsync_UpdatesName()
     {
         var ct = TestContext.Current.CancellationToken;
         using var fixture = await PairingTestDb.CreateAsync("device-token-rename", ct);
-        var service = new DeviceTokenService(fixture.Db);
+        var service = fixture.CreateDeviceTokenService();
         await service.IssueAsync("Geraet", null, ct);
         var deviceId = (await fixture.Db.PairedDevices.SingleAsync(ct)).Id;
 
@@ -124,7 +145,7 @@ public sealed class DeviceTokenServiceTests
     {
         var ct = TestContext.Current.CancellationToken;
         using var fixture = await PairingTestDb.CreateAsync("device-token-rename-unknown", ct);
-        var service = new DeviceTokenService(fixture.Db);
+        var service = fixture.CreateDeviceTokenService();
 
         var renamed = await service.RenameAsync(42, "TV Wohnzimmer", ct);
 
@@ -138,7 +159,7 @@ public sealed class DeviceTokenServiceTests
     {
         var ct = TestContext.Current.CancellationToken;
         using var fixture = await PairingTestDb.CreateAsync($"device-token-rename-empty-{newName.Length}", ct);
-        var service = new DeviceTokenService(fixture.Db);
+        var service = fixture.CreateDeviceTokenService();
         await service.IssueAsync("Geraet", null, ct);
         var deviceId = (await fixture.Db.PairedDevices.SingleAsync(ct)).Id;
 
@@ -153,7 +174,7 @@ public sealed class DeviceTokenServiceTests
     {
         var ct = TestContext.Current.CancellationToken;
         using var fixture = await PairingTestDb.CreateAsync("device-token-rename-long", ct);
-        var service = new DeviceTokenService(fixture.Db);
+        var service = fixture.CreateDeviceTokenService();
         await service.IssueAsync("Geraet", null, ct);
         var deviceId = (await fixture.Db.PairedDevices.SingleAsync(ct)).Id;
 
@@ -168,7 +189,7 @@ public sealed class DeviceTokenServiceTests
     {
         var ct = TestContext.Current.CancellationToken;
         using var fixture = await PairingTestDb.CreateAsync("device-token-list", ct);
-        var service = new DeviceTokenService(fixture.Db);
+        var service = fixture.CreateDeviceTokenService();
         await service.IssueAsync("TV Eins", null, ct);
         await service.IssueAsync("TV Zwei", null, ct);
 

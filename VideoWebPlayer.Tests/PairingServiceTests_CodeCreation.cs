@@ -95,6 +95,6 @@ public sealed class PairingServiceTests_CodeCreation
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(settings)
             .Build();
-        return new PairingService(db, new DeviceTokenService(db), configuration);
+        return new PairingService(db, new DeviceTokenService(db, new RefreshTokenService(db, configuration)), configuration);
     }
 }

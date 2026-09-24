@@ -17,8 +17,19 @@
 - IIS deployments: the hosting model is now `OutOfProcess` (`AspNetCoreHostingModel` in the project file); the IIS `requestFiltering` limit `maxAllowedContentLength` (~30 MB default) must be raised so large uploads are not blocked.
 - The configurable upload limit `Backups:MaxUploadSizeBytes` (default 5 GiB) is now enforced server-side — files above the limit are rejected; raise it in the admin UI if larger backups must be accepted.
 
+## Important Notes Before Update
+
+- The database schema changed (`PairingCodes` gained `Kind`/`TicketHash`, new `RefreshTokens` table). After updating, run `dotnet ef database update` (or apply the new migration `AddPairingBootstrapAndRefreshTokens` via your usual migration step) before starting the app.
+- New optional configuration keys: `Pairing:BootstrapTicketTtlMinutes` (default 5), `Pairing:BootstrapMaxTicketsPerHour` (default 10), `Pairing:BootstrapAdminOnly` (default `false`), `Auth:RefreshTokenTtlDays` (default 30).
+
 ## What's New
 
+- QR bootstrap from the profile page: a signed-in user creates a one-time ticket under `Profile` > `Devices`; the app scans the QR code (or the user enters the shown 8-character short code) and receives a device token, a user session JWT and a refresh token — no password needed on the device.
+- New public endpoint `POST /api/pairing/bootstrap`: same anonymous profile and ECDH (P-256) + AES-256-GCM contract as `api/pairing/exchange`; the encrypted payload contains the full credential trio. The existing exchange endpoint is unchanged.
+- New session endpoints `POST /api/auth/refresh` (rotating refresh tokens, single-use with reuse detection that locks the token family) and `POST /api/auth/logout` (revokes a refresh token); both require `X-API-Key` like `/api/auth/login`.
+- Revoking a paired device now also revokes all its refresh tokens immediately.
+- Bootstrap tickets: long high-entropy secret in the QR payload (`https://<server>/pairing?t=<ticket>`), the 8-character code is only an alias; ~5 minutes TTL, single-use, atomic consumption, per-user rate limit, optional admin-only mode.
+- New NuGet dependency `QRCoder` (MIT) for QR rendering on the server-side profile page.
 - Device pairing for client apps: instead of the static client API token `Jwt:ApiToken:Maui`, apps now log in with individual, revocable device tokens obtained via a one-time pairing code.
 - New admin page `Devices` (`/admin/devices`): generate a short-lived one-time pairing code (8 characters, 5 minutes valid, shown in clear text only once), list paired devices, rename and revoke them.
 - New public endpoint `POST /api/pairing/exchange`: redeems the pairing code for a device token; the exchange is protected on the application layer via ECDH (P-256) + AES-256-GCM, so it is secure even over HTTP without TLS.

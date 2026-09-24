@@ -11,8 +11,8 @@ Diese Datei beschreibt den versionierten API-Vertrag des Web-Repositorys. Die DT
 
 - Basis-URL lokal: `http://localhost:5000`, sofern `Host:Address` und `Host:Port` nicht anders konfiguriert sind.
 - `GET /api/health` ist ohne Authentifizierung erreichbar.
-- `POST /api/pairing/exchange` ist ohne Authentifizierung erreichbar und dient dem Geräte-Pairing (siehe Abschnitt [Pairing](#pairing)).
-- `POST /api/auth/login` benötigt den Header `X-API-Key: <GERÄTE_TOKEN>`. Als Geräte-Tokens gelten die in der Datenbank gespeicherten, nicht widerrufenen Tokens aus dem Pairing-Verfahren. Zusätzlich bleibt der statische Konfigurationstoken `Jwt:ApiToken:Maui` als Fallback für ältere App-Versionen akzeptiert.
+- `POST /api/pairing/exchange` und `POST /api/pairing/bootstrap` sind ohne Authentifizierung erreichbar und dienen dem Geräte-Pairing (siehe Abschnitt [Pairing](#pairing)).
+- `POST /api/auth/login`, `POST /api/auth/refresh` und `POST /api/auth/logout` benötigen den Header `X-API-Key: <GERÄTE_TOKEN>`. Als Geräte-Tokens gelten die in der Datenbank gespeicherten, nicht widerrufenen Tokens aus dem Pairing-Verfahren. Zusätzlich bleibt der statische Konfigurationstoken `Jwt:ApiToken:Maui` als Fallback für ältere App-Versionen akzeptiert.
 - Alle übrigen API-Endpunkte benötigen `Authorization: Bearer <JWT_ACCESS_TOKEN>`, sofern sie nicht ausdrücklich als öffentlich dokumentiert sind.
 - Der API-Key ist ein Client-Gate und kein Ersatz für ein Benutzer-Secret oder die JWT-Autorisierung. Backendwerte sind als sensible Konfigurationswerte zu behandeln und dürfen nur aus kontrollierten Konfigurationsquellen kommen.
 - JWT-Signaturschlüssel und produktive API-Tokens werden ausschließlich über User Secrets, Umgebungsvariablen oder ein Secret-Management-System gesetzt.
@@ -125,6 +125,129 @@ Hinweise:
 - Der Server speichert das Geräte-Token ausschließlich als SHA-256-Hash; der Klartext verlässt den Server nur verschlüsselt in dieser Response.
 - `code` und `clientPublicKey` werden unverschlüsselt über HTTP übertragen; das ist unbedenklich, weil der Code nur einmalig und kurzlebig ist und keine wiederverwendbaren Secrets enthält.
 - Gesperrte IPs werden unter `/admin/security` angezeigt und können dort entsperrt werden.
+
+### POST /api/pairing/bootstrap
+
+Öffentlicher Endpunkt ohne `X-API-Key`- und ohne `Bearer`-Anforderung — analog zum Exchange. Löst ein Bootstrap-Ticket gegen ein verschlüsseltes Paket aus **Geräte-Token, Benutzer-JWT und Refresh-Token** ein. Der QR-Bootstrap ist der Self-Service-Onboarding-Weg: Ein angemeldeter Benutzer erzeugt das Ticket auf der Profilseite unter `Profil` > `Geräte` (Route `/Account/Manage/Devices`), die App scannt den QR-Code oder der Anwender gibt den angezeigten Kurzcode ein.
+
+Ticket-Eigenschaften:
+
+- Das Ticket ist ein langes Geheimnis (192 Bit, Base64url ohne Padding) und wird im QR-Code als URL der Form `https://<server>/pairing?t=<ticket>` kodiert. Der 8-stellige Kurzcode ist nur ein Alias und löst denselben Datensatz auf.
+- Standard: 5 Minuten gültig (`Pairing:BootstrapTicketTtlMinutes`), Einmal-Ticket, atomarer Verbrauch wie beim Exchange.
+- Ticket-Erzeugung: alle angemeldeten Benutzer, Ratenlimit pro Benutzer (`Pairing:BootstrapMaxTicketsPerHour`, Standard 10/Stunde), optional auf Administratoren beschränkbar (`Pairing:BootstrapAdminOnly`, Standard `false`).
+
+Die Verschlüsselung ist identisch zum Exchange (ECDH `nistP256`, `DeriveKeyFromHmac` SHA-256, AES-256-GCM, `encryptedPayload` = Base64(`nonce` ‖ `ciphertext` ‖ `tag`), 12-Byte-Nonce, 16-Byte-Tag) — derselbe Entschlüsselungs-Codepfad funktioniert für beide Endpunkte. Der Klartext ist ein JSON-Objekt.
+
+Request:
+
+```json
+{
+  "ticket": "<TICKET_ODER_KURZCODE>",
+  "clientPublicKey": "<BASE64_SPKI_P256>",
+  "deviceName": "<OPTIONALER_GERAETENAME>"
+}
+```
+
+| Feld | Pflicht | Regel |
+|------|---------|-------|
+| `ticket` | Ja | Nicht leer; langes Ticket aus dem QR-Code oder 8-stelliger Kurzcode. |
+| `clientPublicKey` | Ja | Als SubjectPublicKeyInfo importierbarer ECDH-Schlüssel, Kurve `nistP256`. |
+| `deviceName` | Nein | Maximal 200 Zeichen; leer → Server-Default. |
+
+Antwort:
+
+```json
+{
+  "serverPublicKey": "<BASE64_SPKI_P256>",
+  "encryptedPayload": "<BASE64_NONCE_CIPHERTEXT_TAG>"
+}
+```
+
+Entschlüsselter Inhalt von `encryptedPayload` (camelCase-JSON):
+
+```json
+{
+  "deviceToken": "<GERAETE_TOKEN>",
+  "token": "<JWT_ACCESS_TOKEN>",
+  "expires": "2026-09-24T15:00:00Z",
+  "refreshToken": "<REFRESH_TOKEN>"
+}
+```
+
+| Feld | Bedeutung |
+|------|-----------|
+| `deviceToken` | Gate-Key für `X-API-Key` (z. B. für `/api/auth/refresh`, `/api/auth/logout` und alle Maui-Endpunkte). |
+| `token` / `expires` | JWT-Benutzersitzung (12 h) inkl. Ablaufzeitpunkt (UTC). |
+| `refreshToken` | Refresh-Token für `POST /api/auth/refresh` (Rotation, Einmalverwendung). |
+
+Fehlercodes:
+
+| Status | Bedeutung |
+|--------|-----------|
+| `400 Bad Request` | Formatfehler im Request (fehlender/leerer `ticket`, nicht importierbarer oder falscher Kurven-Typ bei `clientPublicKey`, `deviceName` länger als 200 Zeichen). Fehlertext: `Ungültiger Bootstrap-Request.` Formatfehler verbrauchen das Ticket nicht und zählen nicht als Fehlversuch. |
+| `401 Unauthorized` | Ticket unbekannt, abgelaufen oder bereits verbraucht. Fehlertext: `Ungültiges oder abgelaufenes Pairing-Ticket.` Jeder Fehlversuch zählt für die Client-IP. |
+| `429 Too Many Requests` | Die Client-IP ist gesperrt (Schwelle: 5 Fehlversuche, geteilt mit dem Web-Login und dem Exchange). |
+
+Hinweise:
+
+- Ticket, Kurzcode, Geräte-Token und Refresh-Token werden ausschließlich als SHA-256-Hash gespeichert; die Klartexte verlassen den Server nur verschlüsselt (Ticket/Kurzcode) bzw. im verschlüsselten Payload.
+- Ein bereits verbrauchtes oder abgelaufenes Ticket kann nicht erneut eingelöst werden; der Anwender erzeugt dann auf der Profilseite ein neues Ticket.
+
+### POST /api/auth/refresh
+
+Erneuert die Benutzersitzung ohne Passwort. Erfordert den Header `X-API-Key` mit einem gültigen Geräte-Token (oder dem statischen `Jwt:ApiToken:Maui`-Fallback).
+
+Header:
+
+```http
+X-API-Key: <GERAETE_TOKEN>
+Content-Type: application/json
+```
+
+Request:
+
+```json
+{
+  "refreshToken": "<REFRESH_TOKEN>"
+}
+```
+
+Antwort:
+
+```json
+{
+  "token": "<JWT_ACCESS_TOKEN>",
+  "expires": "2026-09-24T15:00:00Z",
+  "refreshToken": "<NEUER_REFRESH_TOKEN>"
+}
+```
+
+Fehlercodes:
+
+| Status | Bedeutung |
+|--------|-----------|
+| `400 Bad Request` | `refreshToken` fehlt oder ist leer. Fehlertext: `Ungültiger Refresh-Request.` |
+| `401 Unauthorized` | Kein/ungültiger `X-API-Key`, oder Refresh-Token unbekannt, abgelaufen, widerrufen bzw. das gekoppelte Gerät wurde widerrufen. Fehlertext: `Ungültiger oder abgelaufener Refresh-Token.` |
+
+Hinweise:
+
+- Rotation: Der vorgelegte Refresh-Token wird atomar widerrufen und durch einen neuen ersetzt. Ein bereits rotierter Token darf nicht erneut vorgelegt werden — dann wird die komplette Token-Familie des Geräts gesperrt (Reuse-Detection).
+- Standard-Lebensdauer: 30 Tage (`Auth:RefreshTokenTtlDays`). Es wird nur der SHA-256-Hash gespeichert.
+- Widerruf eines Geräts (`/admin/devices`) sperrt sofort alle Refresh-Tokens des Geräts; die Refresh-Route verweigert außerdem Tokens, deren Gerät nicht mehr aktiv ist.
+
+### POST /api/auth/logout
+
+Widerruft einen Refresh-Token (Logout auf dem Gerät). Idempotent — liefert immer `200 OK`, auch bei unbekanntem Token. Erfordert `X-API-Key` wie `/api/auth/refresh`.
+
+Request:
+
+```json
+{
+  "refreshToken": "<REFRESH_TOKEN>"
+}
+```
+
+Antwort: `200 OK` ohne Body.
 
 ## Quellen und Genres
 

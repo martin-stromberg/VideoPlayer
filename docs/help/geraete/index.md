@@ -7,6 +7,7 @@ Verwaltung gekoppelter Client-Geräte: Administratoren erzeugen kurzlebige Einma
 - [Beschreibung](beschreibung.md)
 - [Technischer Ablauf](ablauf-technisch.md)
 - [Ablauf für Anwender](ablauf-anwender.md)
+- [Gerät per QR-Code koppeln (Self-Service)](qr-bootstrap-anwender.md)
 - [API](api.md)
 - [Installation & Konfiguration](installation.md)
 - [Einrichtung für Anwender](einrichtung-anwender.md)

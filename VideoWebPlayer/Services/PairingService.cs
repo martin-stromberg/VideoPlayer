@@ -137,8 +137,6 @@ namespace VideoWebPlayer.Services
         private const int MinCodeLength = 4;
         private const int MinCodeTtlMinutes = 1;
         private const int MaxDeviceNameLength = 200;
-        private const int GcmNonceSize = 12;
-        private const int GcmTagSize = 16;
 
         private readonly ApplicationDbContext _db;
         private readonly IDeviceTokenService _deviceTokenService;
@@ -196,7 +194,7 @@ namespace VideoWebPlayer.Services
                 return PairingExchangeResult.Failure(PairingExchangeErrorKind.InvalidRequest);
             }
 
-            using var clientKey = TryImportClientPublicKey(request.ClientPublicKey);
+            using var clientKey = PairingCrypto.TryImportClientPublicKey(request.ClientPublicKey);
             if (clientKey == null)
             {
                 return PairingExchangeResult.Failure(PairingExchangeErrorKind.InvalidRequest);
@@ -204,8 +202,10 @@ namespace VideoWebPlayer.Services
 
             var now = DateTime.UtcNow;
             var codeHash = HashHelper.Sha256Hex(request.Code);
+            // Nur Admin-Codes loesen den Exchange aus — der Kurzcode-Alias eines
+            // Bootstrap-Tickets ist hier bewusst nicht einloesbar.
             var pairingCode = await _db.PairingCodes
-                .FirstOrDefaultAsync(c => c.CodeHash == codeHash, cancellationToken);
+                .FirstOrDefaultAsync(c => c.CodeHash == codeHash && c.Kind == PairingCodeKind.AdminCode, cancellationToken);
             if (pairingCode == null)
             {
                 return PairingExchangeResult.Failure(PairingExchangeErrorKind.InvalidCode);
@@ -224,55 +224,12 @@ namespace VideoWebPlayer.Services
 
             using var serverKey = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP256);
             var aesKey = serverKey.DeriveKeyFromHmac(clientKey.PublicKey, HashAlgorithmName.SHA256, null, null, null);
-            var token = await _deviceTokenService.IssueAsync(deviceName, pairingCode.CreatedByUserId, cancellationToken);
-            var encryptedToken = EncryptToken(aesKey, token);
+            var issued = await _deviceTokenService.IssueAsync(deviceName, pairingCode.CreatedByUserId, cancellationToken);
+            var encryptedToken = PairingCrypto.EncryptPayload(aesKey, Encoding.UTF8.GetBytes(issued.Token));
 
             return PairingExchangeResult.Completed(
                 Convert.ToBase64String(serverKey.ExportSubjectPublicKeyInfo()),
                 encryptedToken);
-        }
-
-        private static ECDiffieHellman? TryImportClientPublicKey(string clientPublicKeyBase64)
-        {
-            var key = ECDiffieHellman.Create();
-            try
-            {
-                key.ImportSubjectPublicKeyInfo(Convert.FromBase64String(clientPublicKeyBase64), out _);
-                // Der Parameterexport kann fuer importierbare, aber exotische Blobs
-                // (z. B. explizit parametrisierte Kurven) ebenfalls fehlschlagen —
-                // deshalb innerhalb des try/catch, damit jeder nicht verwendbare
-                // Schluessel kontrolliert als InvalidRequest (400) endet.
-                if (key.ExportParameters(false).Curve.Oid?.Value != ECCurve.NamedCurves.nistP256.Oid.Value)
-                {
-                    key.Dispose();
-                    return null;
-                }
-            }
-            catch (Exception ex) when (ex is FormatException or CryptographicException or ArgumentException or PlatformNotSupportedException)
-            {
-                key.Dispose();
-                return null;
-            }
-
-            return key;
-        }
-
-        private static string EncryptToken(byte[] aesKey, string token)
-        {
-            var plaintext = Encoding.UTF8.GetBytes(token);
-            var nonce = RandomNumberGenerator.GetBytes(GcmNonceSize);
-            var ciphertext = new byte[plaintext.Length];
-            var tag = new byte[GcmTagSize];
-            using (var aes = new AesGcm(aesKey, GcmTagSize))
-            {
-                aes.Encrypt(nonce, plaintext, ciphertext, tag);
-            }
-
-            var payload = new byte[nonce.Length + ciphertext.Length + tag.Length];
-            nonce.CopyTo(payload, 0);
-            ciphertext.CopyTo(payload, nonce.Length);
-            tag.CopyTo(payload, nonce.Length + ciphertext.Length);
-            return Convert.ToBase64String(payload);
         }
 
         public async Task<IReadOnlyList<PairingCodeInfo>> GetActiveCodesAsync(CancellationToken cancellationToken = default)
@@ -280,7 +237,7 @@ namespace VideoWebPlayer.Services
             var now = DateTime.UtcNow;
             return await _db.PairingCodes
                 .AsNoTracking()
-                .Where(c => c.ConsumedAtUtc == null && c.ExpiresAtUtc > now)
+                .Where(c => c.Kind == PairingCodeKind.AdminCode && c.ConsumedAtUtc == null && c.ExpiresAtUtc > now)
                 .OrderByDescending(c => c.CreatedAtUtc)
                 .Select(c => new PairingCodeInfo
                 {

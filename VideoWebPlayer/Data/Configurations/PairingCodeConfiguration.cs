@@ -13,8 +13,11 @@ namespace VideoWebPlayer.Data.Configurations
         {
             builder.HasKey(x => x.Id);
             builder.Property(x => x.CodeHash).HasMaxLength(128);
+            builder.Property(x => x.TicketHash).HasMaxLength(128);
             builder.Property(x => x.CreatedByUserId).HasMaxLength(64);
             builder.HasIndex(x => x.CodeHash);
+            builder.HasIndex(x => x.TicketHash);
+            builder.HasIndex(x => x.Kind);
             builder.HasIndex(x => x.ExpiresAtUtc);
         }
     }

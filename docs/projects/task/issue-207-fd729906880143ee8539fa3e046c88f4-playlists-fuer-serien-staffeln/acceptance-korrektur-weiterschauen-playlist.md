@@ -356,3 +356,156 @@ Entscheidung gegen eine Migration ist offen dargelegt (siehe aber A4).
   (eine Fortschrittsmeldung darf den „einen Eintrag je Playlist" nicht rückwirkend auf einen bereits
   verlassenen oder nicht mehr zur Playlist gehörenden Titel setzen) und weil A2 einer dokumentierten
   Geschäftsregel widerspricht. A3 und A4 können auch später kommen.
+
+---
+
+# Nachprüfung der Nachbesserung
+
+Geprüfter Stand: `8d08cde` (Commits `e53ec68`, `4e636ea`, `8d08cde`), Vergleichsstand `64e50f8` (der oben
+abgenommene Stand). Prüfer: derselbe, weiterhin nicht der Implementierer. Der Nachbesserungsbericht
+(`implementation-korrektur-weiterschauen-playlist.md`, Abschnitt 5) wurde wieder nur als Behauptung
+behandelt.
+
+Belege im Scratchpad unter
+`C:\Users\Martin\AppData\Local\Temp\claude\D--Repositories-softwareschmiede-fd729906-8801-43ee-8539-fa3e046c88f4\e838bc0e-97f1-46db-9b8f-7f49b0cca26b\scratchpad\nachpruefung\`:
+`a2-1-nach-entfernen.txt`, `a2-2-nach-weiterlauf.txt`, `a2-ergebnis.txt`, `a2-weiterschauen.png`,
+`a4-ergebnis.txt`, `a4-weiterschauen.png`, `a1-ergebnis.txt`, `r1-…`/`r2-…`/`r3-…` (Regression der drei
+Kundenszenarien, je Datenstand und Bild), `n-A2-entfernt.txt`, `n-A2-endsequenz.txt`, `n-A2-puffer.txt`,
+`n-A2-oeffentlich.txt`, `n-A3-zaehler.txt`, `n-A3-letzter-titel.txt`, `n-A3-direktsprung.txt`,
+`n-A4-altbestand.txt`. Eigene Prüfklassen (`ZzNachpruefungE2ETests.cs`,
+`ZzNachpruefungRandfaelleTests.cs`, 16 Tests) wurden nach den Läufen gelöscht und **nicht** committet;
+am Produktivcode wurde nichts geändert.
+
+## Ergebnis der Nachprüfung
+
+**Status: Erfüllt — Freigabe empfohlen.**
+
+A2, A3 und A4 sind behoben, im laufenden Programm bzw. mit eigener Messung belegt. A1 ist als gewollte
+Semantik dokumentiert; die Begründung trägt und deckt sich mit dem, was ich selbst aus
+`continueWatching.js` und dem Puffer ableite. Die drei Kundenszenarien sind unverändert erfüllt. Es
+bleiben drei Hinweise ohne Blocker-Charakter (H1–H3).
+
+## A2 — behoben, im Betrieb bestätigt
+
+*Eigener Ablauf im laufenden Programm* (echtes Chromium, echter Player, echte Fortschrittsmeldungen):
+Playlist mit E1, E2, E3; E1 aus der Playlist abspielen, Fortschritt melden; E1 über die Schritt-7-Abfrage
+aus der Playlist entfernen → Eintrag wandert korrekt auf E2 (`a2-1-nach-entfernen.txt`). Danach läuft der
+Player über **14 Sekunden** weiter mit vier Fortschrittsmeldungen, wird **pausiert** (erzwungener Versand)
+und **geschlossen** (`detach`, ebenfalls erzwungen).
+
+Ergebnis (`a2-2-nach-weiterlauf.txt`, `a2-ergebnis.txt`):
+
+```
+Id=1 Episode=2 Playlist=1 Pos=00:00:00      <- Ersatz, unverändert
+Id=2 Episode=1 Playlist=-  Pos=00:11:40     <- entfernter Titel, OHNE Playlist-Bezug
+```
+
+Genau das erwartete Bild. Die Weiterschauen-Liste (`a2-weiterschauen.png`) zeigt zwei Kacheln: „A2Serie
+E1" ohne Playlist-Untertitel und „A2Serie E2 / In Playlist: A2". Die Links stimmen: der Ersatz verlinkt
+auf `/playlists/1?entryId=2` (also mit `entryId` auf den richtigen Playlist-Eintrag), der entfernte Titel
+auf seine Serienseite `/tvshow/1?season=1&episode=1&position=700`. Der unter A2 beschriebene Zustand
+(Eintrag mit Playlist-Bezug ohne auflösbare `PlaylistEntryId`) kann so nicht mehr entstehen.
+
+Weitere selbst geprüfte Varianten (Dienstebene, echtes SQLite):
+
+| Fall | Beleg | Ergebnis |
+| --- | --- | --- |
+| Mehrfache Meldungen des entfernten Titels | `n-A2-entfernt.txt` | Ersatz bleibt, entfernter Titel nur ohne Playlist-Bezug |
+| **Endsequenz** des entfernten Titels | `n-A2-endsequenz.txt` | Playlist-Eintrag unangetastet (siehe H2) |
+| **Kaskaden-Kind** (Serie als Ganzes hinzugefügt) | Test grün mit und ohne Fix | behält seinen Playlist-Bezug — die Normalisierung greift hier korrekt **nicht** |
+| **Öffentliche Playlist, fremder Betrachter** meldet einen Titel, der nicht in der Playlist steht | `n-A2-oeffentlich.txt` | Eintrag des Besitzers unverändert (Titel und Position), Betrachter bekommt einen Eintrag ohne Playlist-Bezug |
+| **Puffer-Weg** `ReportProgressAsync` → Puffer → `ProcessBufferedEntryAsync` | `n-A2-puffer.txt` | identisch; der Pufferschlüssel trägt bereits den normalisierten Bezug |
+
+*Gegenprobe:* `ContinueWatchingService.cs` auf `64e50f8` zurückgesetzt, neu gebaut → von meinen 16
+Nachprüf-Tests werden **7 rot**, darunter beide Browser-Tests (`A2_LaufenderTitelWirdEntfernt_ErsatzBleibt`,
+`A4_AltbestandZeigtNurEineKachelJePlaylist`) und der A3-Zähler. Danach wiederhergestellt, wieder 16 grün.
+
+## A3 — behoben, mit eigener Messung
+
+Ich habe die Zählung **nicht** über den Test-Double des Implementierers geprüft, sondern über einen
+eigenen Moq-Dekorator um `IPlaylistService`, der an den echten `PlaylistService` weiterleitet und die
+Aufrufe von `GetNextPlaylistEntryAsync` selbst zählt:
+
+* Zehn Fortschrittsmeldungen innerhalb der Endzone (`n-A3-zaehler.txt`): **1 Aufruf** (vorher 10), und das
+  Ergebnis stimmt weiterhin — genau ein Eintrag, die erste Episode der zweiten Serie.
+* Letzter Titel der Playlist, fünf Meldungen (`n-A3-letzter-titel.txt`): **5 Aufrufe**, Eintrag am Ende
+  leer. Die im Bericht genannte Grenze ist damit unabhängig bestätigt und die Aussage („ohne Wirkung auf
+  das Ergebnis") stimmt.
+
+## A4 — behoben, in der Oberfläche geprüft
+
+Zwei Altbestands-Zeilen derselben Playlist direkt in die Datenbank geschrieben, dann die Startseite im
+Browser geöffnet (`a4-ergebnis.txt`, `a4-weiterschauen.png`): **1 Kachel** („A4Fortsetzung E1 / In
+Playlist: A4") bei **2 Datenbankzeilen** — zusammengefasst wird nur beim Lesen, gelöscht wird nichts.
+Auf Dienstebene zusätzlich geprüft (`n-A4-altbestand.txt`): drei Zeilen (zwei derselben Playlist, eine
+ohne Playlist) ergeben zwei Listeneinträge, und der gezeigte Playlist-Eintrag ist der zuletzt
+aktualisierte. Zwei verschiedene Playlists bleiben beide sichtbar.
+
+## A1 — als Semantik akzeptiert
+
+Nachgestellt (`a1-ergebnis.txt`): nach der Endsequenz zurückspulen und pausieren → der alte Titel wird
+wieder der eine Eintrag der Playlist. Das Verhalten ist also unverändert, jetzt aber ausdrücklich als
+Regel festgeschrieben (BR-35, „Erneutes Anspielen") samt Hinweis, dass die Gesehen-Markierung bestehen
+bleibt. Als Prüfer akzeptiere ich das: Der Anwender ist aktiv wieder bei diesem Titel, und ohne
+Playlist-Bezug verhält sich die Liste genauso.
+
+*Restverdacht gegen meine eigene Kenntnis von `continueWatching.js` gehalten:* Die Analyse des
+Implementierers deckt sich mit meiner. Bei `timeupdate` wird nur gesendet, wenn `pos - lastSent >= 3` —
+eine kleinere Position als zuletzt kann nur nach einem echten Zurückspulen entstehen (genau daran ist mein
+erster Nachstellversuch in der ersten Runde gescheitert, siehe `risiko-*.txt`). `pause`, `ended` und
+`detach` senden erzwungen, aber mit der **dann aktuellen** Position. Beim Weiterschalten lädt
+`VideoPlayer.razor` das Element vorher neu, die erzwungene Abschlussmeldung trägt Position 0 und fällt
+serverseitig unter die 5-Sekunden-Grenze. Der `ContinueWatchingBuffer` hält je Schlüssel genau einen
+Schnappschuss, der Worker ist Einzelleser — eine ältere Meldung kann eine neuere **desselben Schlüssels**
+nicht überholen. Die verbleibende Umordnung zweier HTTP-Anfragen auf dem Netzweg ist im Bericht offen als
+Restrisiko benannt; ich halte sie ebenfalls für unwahrscheinlich und habe sie nicht nachgestellt.
+
+## Regressionen
+
+* Die drei Kundenszenarien im echten Browser erneut gefahren (`r1-`, `r2-`, `r3-…`): alle drei weiterhin
+  **erfüllt**, jeweils genau ein Eintrag mit Playlist-Bezug und richtigem Titel, Szenario 1 zusätzlich mit
+  geprüftem Deep-Link `/playlists/{id}?entryId={…}`.
+* `git diff 61f22ca..HEAD -- VideoWebPlayer.Tests` stichprobenartig durchgesehen: Bei den 14 angepassten
+  Bestandstests sind ausschließlich Anordnungszeilen hinzugekommen
+  (`CreatePlaylistEntryAsync`/`CreateTestPlaylistEntryAsync` und der `MediaTypeValues`-Import). Keine
+  Zusicherung wurde geändert, abgeschwächt oder entfernt. Die Anpassung ist tragfähig: Die alte Anordnung
+  (Fortschritt mit `playlistId` für ein Video, das nicht in dieser Playlist steht) ist in der Anwendung
+  nicht erreichbar, weil `PlaylistPlaybackContext` eine `playlistId` nur für Titel dieser Playlist meldet.
+  Die Einordnung des Implementierers, dass diese 14 Tests auch ohne den A2-Fix grün sind, deckt sich mit
+  meinem eigenen Gegenprobelauf.
+* Die Testhilfen wurden nur additiv erweitert (optionaler Rückruf in `BuildContinueWatchingService`,
+  Zähler in `ContinueWatchingPlaylistTestBase`); das bisherige Verhalten bleibt unverändert.
+
+## Hinweise (kein Blocker)
+
+- [ ] **H1 — Die Abkürzung aus A3 ändert das Verhalten in einem Randfall, der nicht abgedeckt ist.**
+  (Beleg: `n-A3-direktsprung.txt`.) Steht der eine Eintrag der Playlist auf Titel E1 (echter, unfertiger
+  Fortschritt) und springt der Anwender danach in einem **anderen** Titel derselben Playlist (E3) sofort
+  in die Endzone — also bevor eine normale Meldung Eintrag E3 erzeugt hat —, dann greift die Abkürzung
+  („Playlist hat schon einen Eintrag"), E3 wird als gesehen markiert, aber **kein Nachfolger (E4) gesetzt**;
+  der Eintrag bleibt auf E1 (0 Aufrufe von `GetNextPlaylistEntryAsync`). Vor der Nachbesserung wäre der
+  Eintrag auf E4 gewandert und der Fortschritt von E1 dabei verloren gegangen. Das neue Verhalten ist
+  also eher besser, aber es ist eine stille Verhaltensänderung: Die Begründung in BR-36 („dann zeigt der
+  eine Eintrag der Playlist schon auf den Nachfolger") trifft in diesem Fall nicht zu, und kein Test hält
+  den Fall fest. *Empfehlung:* Satz in BR-36/Ablauf 9 präzisieren („… zeigt bereits auf einen anderen
+  Titel dieser Playlist") und einen Test ergänzen. Erreichbar nur, wenn innerhalb der ersten ~6 Sekunden
+  nach dem Öffnen in die Endzone gesprungen wird.
+- [ ] **H2 — Nach der Endsequenz eines entfernten Titels kann dieselbe Episode zweimal in der Liste
+  stehen.** (Beleg: `n-A2-endsequenz.txt`.) Erreicht der entfernte Titel E1 die Endsequenz, wird er ohne
+  Playlist-Bezug verarbeitet; sein Nachfolger nach Serienreihenfolge ist E2 — und E2 ist zugleich der
+  Ersatz-Eintrag der Playlist. Ergebnis: eine Zeile `E2/Playlist` und eine Zeile `E2/ohne Playlist`, also
+  zwei Kacheln für dieselbe Episode. Das ist mit BR-31 vereinbar (dasselbe Video darf je Playlist und
+  zusätzlich ohne Playlist vorkommen) und war vorher nicht anders; es fällt nur jetzt häufiger an.
+  *Empfehlung:* In der Doku erwähnen, sonst nichts.
+- [ ] **H3 — `Take(50)` wirkt vor dem Zusammenfassen.** `GetListAsync` liest 50 Zeilen und fasst danach
+  zusammen, so dass bei Altbestand weniger als 50 Kacheln erscheinen können. Rein kosmetisch, betrifft nur
+  Datenbanken mit Altbestand und sehr langen Listen.
+
+## Läufe der Nachprüfung
+
+* `dotnet build VideoPlayer.sln -c Release` → **0 Fehler**, 245 Warnungen (unverändert).
+* `dotnet test VideoWebPlayer.Tests` (vollständig, inkl. Playwright-E2E): **1288 erfolgreich, 0 Fehler**,
+  4 min 8 s — im **ersten** Lauf grün, kein Flackern, nichts zu wiederholen. (Vorher 1274 Tests, jetzt
+  1288: die 14 neuen Tests der Nachbesserung.)
+* Eigene Nachprüf-Tests (16, davon 5 im echten Browser): mit der Nachbesserung **16 grün**, ohne sie
+  **7 rot**. Danach gelöscht; Arbeitsbaum wieder wie `8d08cde`.

@@ -266,6 +266,26 @@ public sealed class PlaylistsOverviewLayoutE2ETests : PlaylistsE2ETestBase
     }
 
     /// <summary>
+    /// The "Playlists" menu entry shows a real symbol: its icon element must be cut out by a mask image. Without a mask
+    /// (the former "bi-list-ul" class had none in the menu's stylesheet) the element is only a filled square in the
+    /// text colour.
+    /// </summary>
+    [Fact]
+    public async Task PlaylistsMenuEntry_ShowsAMaskedSymbol_NotAFilledSquare()
+    {
+        if (SkipBrowser)
+            return;
+
+        await LoginAsync(UserAEmail);
+        await OpenOverviewAsync();
+
+        var icon = Page.Locator(".nav-link[href='/playlists'] .bi");
+        await Expect(icon).ToHaveCountAsync(1);
+        var maskImage = await icon.EvaluateAsync<string>("e => { const s = getComputedStyle(e); return s.maskImage && s.maskImage !== 'none' ? s.maskImage : s.webkitMaskImage; }");
+        Assert.False(string.IsNullOrWhiteSpace(maskImage) || maskImage == "none", "Das Menüsymbol der Playlists hat keine Maske und wird als gefülltes Quadrat gezeichnet");
+    }
+
+    /// <summary>
     /// The stylesheet and script links carry a content fingerprint, so a browser that still holds an older copy of
     /// app.css (heuristic caching of the former unfingerprinted URL) is forced to fetch the current one.
     /// </summary>

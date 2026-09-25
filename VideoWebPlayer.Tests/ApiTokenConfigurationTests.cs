@@ -84,7 +84,7 @@ public sealed class ApiTokenConfigurationTests
     {
         var ct = TestContext.Current.CancellationToken;
         using var fixture = await CreateAttributeFixtureAsync("attr-maui-device-token", ct);
-        var deviceToken = await fixture.DeviceTokens.IssueAsync("Test-TV", null, ct);
+        var deviceToken = (await fixture.DeviceTokens.IssueAsync("Test-TV", null, ct)).Token;
         var context = CreateContext(fixture.Scope.ServiceProvider, deviceToken, out var actionContext);
         var nextCalled = false;
         Task<ActionExecutedContext> Next()
@@ -104,7 +104,7 @@ public sealed class ApiTokenConfigurationTests
     {
         var ct = TestContext.Current.CancellationToken;
         using var fixture = await CreateAttributeFixtureAsync("attr-maui-revoked", ct);
-        var deviceToken = await fixture.DeviceTokens.IssueAsync("Test-TV", null, ct);
+        var deviceToken = (await fixture.DeviceTokens.IssueAsync("Test-TV", null, ct)).Token;
         var deviceId = (await fixture.Db.PairedDevices.SingleAsync(ct)).Id;
         await fixture.DeviceTokens.RevokeAsync(deviceId, ct);
         var context = CreateContext(fixture.Scope.ServiceProvider, deviceToken, out var actionContext);
@@ -194,6 +194,7 @@ public sealed class ApiTokenConfigurationTests
             .AddLogging()
             .AddSingleton<EventManager>()
             .AddDbContext<ApplicationDbContext>(options => options.UseSqlite(connectionString))
+            .AddScoped<IRefreshTokenService, RefreshTokenService>()
             .AddScoped<IDeviceTokenService, DeviceTokenService>()
             .BuildServiceProvider();
 
@@ -234,8 +235,8 @@ public sealed class ApiTokenConfigurationTests
     {
         public int IsValidDeviceTokenCallCount { get; private set; }
 
-        public Task<string> IssueAsync(string? deviceName, string? createdByUserId, CancellationToken cancellationToken = default)
-            => Task.FromResult("unused");
+        public Task<IssuedDeviceToken> IssueAsync(string? deviceName, string? createdByUserId, CancellationToken cancellationToken = default)
+            => Task.FromResult(new IssuedDeviceToken { Token = "unused", DeviceId = 0 });
 
         public Task<bool> IsValidDeviceTokenAsync(string token, CancellationToken cancellationToken = default)
         {

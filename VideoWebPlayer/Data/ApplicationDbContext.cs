@@ -187,6 +187,10 @@ namespace VideoWebPlayer.Data
         /// Tabelle fuer Einmal-Pairing-Codes.
         /// </summary>
         public DbSet<PairingCode> PairingCodes { get; set; }
+        /// <summary>
+        /// Tabelle fuer Refresh-Tokens (gekoppelt an Benutzer und Geraet).
+        /// </summary>
+        public DbSet<RefreshToken> RefreshTokens { get; set; }
         #endregion
         #region MediaSource Manipulation Methods
         /// <summary>

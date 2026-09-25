@@ -66,6 +66,20 @@ public class EnumContractTests
             Enum.GetValues<RestoreBackupJobStatus>().Select(s => (int)s));
     }
 
+    /// <summary>
+    /// <see cref="PairingCodeKind"/> is stored as a number in the <c>PairingCodes.Kind</c> column, so the members and their
+    /// numeric values must not change silently. <see cref="PairingCodeKind.DeviceInitiated"/> is reserved for a
+    /// direction that is not implemented yet.
+    /// </summary>
+    [Fact]
+    public void PairingCodeKind_HasTheStoredNumericValues()
+    {
+        Assert.Equal(new[] { "AdminCode", "BootstrapTicket", "DeviceInitiated" }, Enum.GetNames<PairingCodeKind>());
+        Assert.Equal(0, (int)PairingCodeKind.AdminCode);
+        Assert.Equal(1, (int)PairingCodeKind.BootstrapTicket);
+        Assert.Equal(2, (int)PairingCodeKind.DeviceInitiated);
+    }
+
     private static (string Name, object Value)[] Members(Type enumType)
         => enumType.GetFields(BindingFlags.Public | BindingFlags.Static)
             .Select(f => (f.Name, Convert.ChangeType(f.GetRawConstantValue()!, typeof(long)) ?? 0L))

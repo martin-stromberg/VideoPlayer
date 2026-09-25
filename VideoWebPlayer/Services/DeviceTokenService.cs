@@ -8,6 +8,21 @@ using VideoWebPlayer.Services.Security;
 namespace VideoWebPlayer.Services
 {
     /// <summary>
+    /// Result of issuing a device token: the plaintext token plus the persisted device id.
+    /// </summary>
+    public sealed class IssuedDeviceToken
+    {
+        /// <summary>
+        /// Gets or sets the plaintext device token. It is only returned once and never stored.
+        /// </summary>
+        public string Token { get; set; } = "";
+        /// <summary>
+        /// Gets or sets the id of the persisted <see cref="PairedDevice"/>.
+        /// </summary>
+        public int DeviceId { get; set; }
+    }
+
+    /// <summary>
     /// Issues, validates and revokes per-device API tokens.
     /// </summary>
     public interface IDeviceTokenService
@@ -18,8 +33,8 @@ namespace VideoWebPlayer.Services
         /// <param name="deviceName">Optional device name; falls back to a default when empty.</param>
         /// <param name="createdByUserId">Id of the administrator who created the pairing code.</param>
         /// <param name="cancellationToken">Cancellation token.</param>
-        /// <returns>The plaintext device token. It is only returned once and never stored.</returns>
-        Task<string> IssueAsync(string? deviceName, string? createdByUserId, CancellationToken cancellationToken = default);
+        /// <returns>The plaintext device token (only returned once and never stored) and the device id.</returns>
+        Task<IssuedDeviceToken> IssueAsync(string? deviceName, string? createdByUserId, CancellationToken cancellationToken = default);
         /// <summary>
         /// Validates a device token and updates <see cref="PairedDevice.LastUsedAtUtc"/> on success.
         /// </summary>
@@ -54,13 +69,15 @@ namespace VideoWebPlayer.Services
     {
         private const int MaxDeviceNameLength = 200;
         private readonly ApplicationDbContext _db;
+        private readonly IRefreshTokenService _refreshTokenService;
 
-        public DeviceTokenService(ApplicationDbContext db)
+        public DeviceTokenService(ApplicationDbContext db, IRefreshTokenService refreshTokenService)
         {
             _db = db;
+            _refreshTokenService = refreshTokenService;
         }
 
-        public async Task<string> IssueAsync(string? deviceName, string? createdByUserId, CancellationToken cancellationToken = default)
+        public async Task<IssuedDeviceToken> IssueAsync(string? deviceName, string? createdByUserId, CancellationToken cancellationToken = default)
         {
             var token = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(32));
             var issuedAtUtc = DateTime.UtcNow;
@@ -79,7 +96,7 @@ namespace VideoWebPlayer.Services
             };
             _db.PairedDevices.Add(device);
             await _db.SaveChangesAsync(cancellationToken);
-            return token;
+            return new IssuedDeviceToken { Token = token, DeviceId = device.Id };
         }
 
         public async Task<bool> IsValidDeviceTokenAsync(string token, CancellationToken cancellationToken = default)
@@ -106,6 +123,9 @@ namespace VideoWebPlayer.Services
 
             device.RevokedAtUtc = DateTime.UtcNow;
             await _db.SaveChangesAsync(cancellationToken);
+            // Aktive Refresh-Tokens des Geraets verlieren mit dem Widerruf sofort
+            // ihre Gueltigkeit (ausgestellte JWTs laufen dagegen bis zu ihrem Ablauf).
+            await _refreshTokenService.RevokeAllForDeviceAsync(deviceId, cancellationToken);
             return true;
         }
 

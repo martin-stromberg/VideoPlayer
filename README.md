@@ -43,6 +43,7 @@ VideoWebPlayer ist eine selbst gehostete ASP.NET-Core-/Blazor-Anwendung für die
 - Backups, strukturierte Programmupdates, Benutzer, Genres und Sicherheitseinstellungen verwalten.
 - Backup-Dateien chunked hochladen — auch sehr große Archive über 6 GB — mit Fortschrittsanzeige und Wiederaufnahme nach Unterbrechungen.
 - Client-Apps per Einmal-Pairing-Code koppeln — jedes Gerät erhält ein individuelles, widerrufbares Geräte-Token statt eines geteilten statischen API-Keys.
+- QR-Bootstrap aus der Profilseite: Angemeldete Benutzer erzeugen unter `Profil` > `Geräte` ein Einmal-Ticket mit QR-Code und Kurzcode; die App scannt den Code und erhält Geräte-Token, Benutzersitzung und Refresh-Token — ohne Passworteingabe auf dem Gerät.
 
 ## Schnellstart
 

@@ -10,9 +10,17 @@ namespace VideoWebPlayer.Data
         /// </summary>
         public int Id { get; set; }
         /// <summary>
-        /// Gets or sets the SHA-256 hash of the pairing code.
+        /// Gets or sets the pairing direction this code belongs to.
+        /// </summary>
+        public PairingCodeKind Kind { get; set; } = PairingCodeKind.AdminCode;
+        /// <summary>
+        /// Gets or sets the SHA-256 hash of the pairing code (for bootstrap tickets: hash of the short code alias).
         /// </summary>
         public string CodeHash { get; set; } = "";
+        /// <summary>
+        /// Gets or sets the SHA-256 hash of the long bootstrap ticket secret; <c>null</c> for admin codes.
+        /// </summary>
+        public string? TicketHash { get; set; }
         /// <summary>
         /// Gets or sets the timestamp when the pairing code was created.
         /// </summary>

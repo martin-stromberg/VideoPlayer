@@ -258,6 +258,8 @@ _UpgradeReport_Files/
 Backup*/
 !VideoWebPlayer/Services/Backups/
 !VideoWebPlayer/Services/Backups/**
+!VideoWebPlayer.Tests/Services/Backups/
+!VideoWebPlayer.Tests/Services/Backups/**
 UpgradeLog*.XML
 UpgradeLog*.htm
 ServiceFabricBackup/

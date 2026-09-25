@@ -11,10 +11,12 @@ Diese Datei beschreibt den versionierten API-Vertrag des Web-Repositorys. Die DT
 
 - Basis-URL lokal: `http://localhost:5000`, sofern `Host:Address` und `Host:Port` nicht anders konfiguriert sind.
 - `GET /api/health` ist ohne Authentifizierung erreichbar.
-- `POST /api/auth/login` benötigt den Header `X-API-Key: <CLIENT_API_TOKEN>`.
+- `POST /api/pairing/exchange` ist ohne Authentifizierung erreichbar und dient dem Geräte-Pairing (siehe Abschnitt [Pairing](#pairing)).
+- `POST /api/auth/login` benötigt den Header `X-API-Key: <GERÄTE_TOKEN>`. Als Geräte-Tokens gelten die in der Datenbank gespeicherten, nicht widerrufenen Tokens aus dem Pairing-Verfahren. Zusätzlich bleibt der statische Konfigurationstoken `Jwt:ApiToken:Maui` als Fallback für ältere App-Versionen akzeptiert.
 - Alle übrigen API-Endpunkte benötigen `Authorization: Bearer <JWT_ACCESS_TOKEN>`, sofern sie nicht ausdrücklich als öffentlich dokumentiert sind.
 - Der API-Key ist ein Client-Gate und kein Ersatz für ein Benutzer-Secret oder die JWT-Autorisierung. Backendwerte sind als sensible Konfigurationswerte zu behandeln und dürfen nur aus kontrollierten Konfigurationsquellen kommen.
 - JWT-Signaturschlüssel und produktive API-Tokens werden ausschließlich über User Secrets, Umgebungsvariablen oder ein Secret-Management-System gesetzt.
+- Widerruf: Ein in der Admin-Oberfläche (`/admin/devices`) widerrufenes Geräte-Token wird beim Gate sofort mit `401` abgelehnt. Bereits ausgestellte Benutzer-JWTs bleiben bis zu ihrem Ablauf (12 Stunden) gültig.
 
 ## Standardstatuscodes
 
@@ -26,6 +28,7 @@ Diese Datei beschreibt den versionierten API-Vertrag des Web-Repositorys. Die DT
 | `401 Unauthorized` | API-Key fehlt/ist falsch oder Bearer-Token fehlt/ist ungültig. |
 | `403 Forbidden` | Benutzer ist angemeldet, besitzt aber keinen Zugriff auf die Quelle oder das Bild. |
 | `404 Not Found` | Ressource existiert nicht oder ist für den Benutzer nicht erreichbar. |
+| `429 Too Many Requests` | Die Client-IP ist wegen wiederholter Fehlversuche gesperrt. |
 | `500 Internal Server Error` | Unerwarteter Serverfehler. |
 
 ## Health und Login
@@ -68,6 +71,60 @@ Antwort:
   "expires": "2026-08-25T15:00:00Z"
 }
 ```
+
+## Pairing
+
+### POST /api/pairing/exchange
+
+Öffentlicher Endpunkt ohne `X-API-Key`- und ohne `Bearer`-Anforderung. Löst einen kurzlebigen Einmal-Pairing-Code gegen ein Geräte-Token ein. Der Pairing-Code wird vom Administrator unter `/admin/devices` erzeugt (Standard: 8 Zeichen, 5 Minuten gültig, konfigurierbar über `Pairing:CodeLength` und `Pairing:CodeTtlMinutes`).
+
+Die Übertragung des Geräte-Tokens wird auf Anwendungsebene geschützt, da der Server ohne TLS betrieben werden kann:
+
+- Client und Server verwenden jeweils ein flüchtiges ECDH-Schlüsselpaar über der Kurve `nistP256` (P-256). Public Keys werden als SubjectPublicKeyInfo (DER, Base64-kodiert) übertragen.
+- Der AES-256-Schlüssel wird aus dem ECDH Shared Secret via `ECDiffieHellman.DeriveKeyFromHmac` mit `HashAlgorithmName.SHA256` abgeleitet (Parameter `hmacKey`, `secretPrepend`, `secretAppend` jeweils `null`).
+- Das Geräte-Token wird mit AES-256-GCM verschlüsselt. `encryptedToken` enthält Base64(`nonce` ‖ `ciphertext` ‖ `tag`) mit einer 12-Byte-Nonce und einem 16-Byte-Tag.
+
+Die verbindlichen JSON-Feldnamen sind camelCase.
+
+Request:
+
+```json
+{
+  "code": "<PAIRING_CODE>",
+  "clientPublicKey": "<BASE64_SPKI_P256>",
+  "deviceName": "<OPTIONALER_GERAETENAME>"
+}
+```
+
+| Feld | Pflicht | Regel |
+|------|---------|-------|
+| `code` | Ja | Nicht leer. |
+| `clientPublicKey` | Ja | Als SubjectPublicKeyInfo importierbarer ECDH-Schlüssel, Kurve `nistP256`. |
+| `deviceName` | Nein | Maximal 200 Zeichen; leer → Server-Default. |
+
+Antwort:
+
+```json
+{
+  "serverPublicKey": "<BASE64_SPKI_P256>",
+  "encryptedToken": "<BASE64_NONCE_CIPHERTEXT_TAG>"
+}
+```
+
+Fehlercodes:
+
+| Status | Bedeutung |
+|--------|-----------|
+| `400 Bad Request` | Formatfehler im Request (fehlender/leerer `code`, nicht importierbarer oder falscher Kurven-Typ bei `clientPublicKey`, `deviceName` länger als 200 Zeichen). Formatfehler werden nicht als Fehlversuch gezählt. |
+| `401 Unauthorized` | Pairing-Code unbekannt, abgelaufen oder bereits verbraucht. Jeder Fehlversuch zählt für die Client-IP. |
+| `429 Too Many Requests` | Die Client-IP ist gesperrt (Schwelle: 5 Fehlversuche, geteilt mit dem Web-Login). |
+
+Hinweise:
+
+- Der Pairing-Code ist ein Einmal-Code und wird atomar verbraucht; eine zweite Verwendung schlägt fehl.
+- Der Server speichert das Geräte-Token ausschließlich als SHA-256-Hash; der Klartext verlässt den Server nur verschlüsselt in dieser Response.
+- `code` und `clientPublicKey` werden unverschlüsselt über HTTP übertragen; das ist unbedenklich, weil der Code nur einmalig und kurzlebig ist und keine wiederverwendbaren Secrets enthält.
+- Gesperrte IPs werden unter `/admin/security` angezeigt und können dort entsperrt werden.
 
 ## Quellen und Genres
 

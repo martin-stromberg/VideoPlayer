@@ -158,11 +158,24 @@ public sealed class MediaSourceSwitchE2ETests : IAsyncLifetime
             await Expect(sidebar).ToHaveClassAsync(new Regex("sidebar-open"));
         }
 
-        var sourceLink = _page.Locator("nav .nav-link", new() { HasText = sourceName });
-        await sourceLink.WaitForAsync(new() { State = WaitForSelectorState.Visible });
+        var urlPattern = new Regex($"/mediasource/{sourceId}$");
+        for (var attempt = 0; ; attempt++)
+        {
+            var sourceLink = _page.Locator("nav .nav-link", new() { HasText = sourceName });
+            await sourceLink.WaitForAsync(new() { State = WaitForSelectorState.Visible });
 
-        await sourceLink.ClickAsync();
-        await Expect(_page).ToHaveURLAsync(new Regex($"/mediasource/{sourceId}$"));
+            await sourceLink.ClickAsync();
+
+            try
+            {
+                // Der Klick kann verloren gehen, solange die Blazor-Circuit-Verbindung noch nicht steht – dann erneut klicken.
+                await Expect(_page).ToHaveURLAsync(urlPattern, new() { Timeout = 15_000 });
+                return;
+            }
+            catch (PlaywrightException) when (attempt < 2)
+            {
+            }
+        }
     }
 
     private async Task SeedDatabaseAsync()

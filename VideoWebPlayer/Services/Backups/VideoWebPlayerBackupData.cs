@@ -64,7 +64,8 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         $"{nameof(ApplicationDbContext.Playlists)}.{nameof(Playlist.CoverPictureIsUserUploaded)}",
         $"{nameof(ApplicationDbContext.Playlists)}.{nameof(Playlist.IsPublic)}",
         $"{nameof(ApplicationDbContext.Pictures)}.{nameof(Picture.PlaylistId)}",
-        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.PlaylistBackfillLastSweepAt)}"
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.PlaylistBackfillLastSweepAt)}",
+        $"{nameof(ApplicationDbContext.MediaSources)}.{nameof(MediaSource.SourceType)}"
     };
 
     private static readonly HashSet<string> IgnoredRestoreColumns = new(StringComparer.OrdinalIgnoreCase)
@@ -97,7 +98,8 @@ public sealed class VideoWebPlayerBackupData : IBackupData
     private static readonly (string Table, string Column, int DefaultValue)[] OptionalRestoreIntDefaults =
     {
         (nameof(ApplicationDbContext.Setups), nameof(Setup.ContinueWatchingEndThresholdSeconds), 30),
-        (nameof(ApplicationDbContext.Setups), nameof(Setup.ActorCollectionThresholdPercent), 50)
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.ActorCollectionThresholdPercent), 50),
+        (nameof(ApplicationDbContext.MediaSources), nameof(MediaSource.SourceType), (int)MediaSourceType.Sftp)
     };
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };

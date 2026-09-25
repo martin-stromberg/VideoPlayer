@@ -75,6 +75,8 @@ public static class ServiceCollectionExtensions
         services.AddMemoryCache();
         services.AddSingleton<InternalConnectionService>();
         services.AddSingleton<ILoginIpBlockService, LoginIpBlockService>(); // wieder Singleton
+        services.AddScoped<IDeviceTokenService, DeviceTokenService>();
+        services.AddScoped<IPairingService, PairingService>();
 
 
         var authenticationBuilder = services.AddAuthentication(options =>
@@ -241,6 +243,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IUnlockedMediaService, UnlockedMediaService>();
         services.AddScoped<IGenreService, GenreService>();
         services.AddScoped<SftpMediaSourceReader>();
+        services.AddScoped<LocalMediaSourceReader>();
+        services.AddScoped<IMediaSourceReader, MediaSourceReaderDispatcher>();
         services.AddScoped<DataUpgradeManager>();
         services.AddScoped<ProgramSettingsService>();
         services.AddSingleton(TimeProvider.System);
@@ -259,6 +263,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<VideoWebPlayerBackupFacade>();
         services.AddSingleton<ManualBackupJobService>();
         services.AddSingleton<RestoreBackupJobService>();
+        services.AddSingleton<BackupUploadSessionService>();
         services.AddSingleton<VideoWebPlayerUpdateSourceFactory>();
         services.AddScoped<UpdateSettingsService>();
         services.AddScoped<IUpdateSettingsService>(sp => sp.GetRequiredService<UpdateSettingsService>());

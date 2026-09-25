@@ -179,6 +179,14 @@ namespace VideoWebPlayer.Data
         /// Tabelle fuer Update-Einstellungen.
         /// </summary>
         public DbSet<UpdateSettings> UpdateSettings { get; set; }
+        /// <summary>
+        /// Tabelle fuer gekoppelte Geraete.
+        /// </summary>
+        public DbSet<PairedDevice> PairedDevices { get; set; }
+        /// <summary>
+        /// Tabelle fuer Einmal-Pairing-Codes.
+        /// </summary>
+        public DbSet<PairingCode> PairingCodes { get; set; }
         #endregion
         #region MediaSource Manipulation Methods
         /// <summary>

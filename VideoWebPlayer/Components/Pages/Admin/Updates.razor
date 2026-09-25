@@ -505,20 +505,6 @@ else
             ? "-"
             : $"{result.Version}, gestartet {result.StartedAt.ToLocalTime():g}";
 
-    private static string FormatBytes(long bytes)
-    {
-        string[] units = ["B", "KB", "MB", "GB"];
-        var value = (double)bytes;
-        var unit = 0;
-        while (value >= 1024 && unit < units.Length - 1)
-        {
-            value /= 1024;
-            unit++;
-        }
-
-        return $"{value:0.##} {units[unit]}";
-    }
-
     private static string FormatBool(bool value)
         => value ? "Ja" : "Nein";
 

@@ -4,6 +4,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>aspnet-VideoWebPlayer-d7482f8a-36bd-4416-9261-680904a1c426</UserSecretsId>
+    <AspNetCoreHostingModel>OutOfProcess</AspNetCoreHostingModel>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <WarningsAsErrors>1591</WarningsAsErrors>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>

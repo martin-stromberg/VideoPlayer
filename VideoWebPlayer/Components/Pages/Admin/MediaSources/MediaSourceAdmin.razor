@@ -66,6 +66,7 @@
                         <tr>
                             <th>Icon</th>
                             <th>Name</th>
+                            <th>Typ</th>
                             <th>Host</th>
                             <th>Port</th>
                             <th>Pfad</th>
@@ -91,10 +92,21 @@
                                     }
                                 </td>
                                 <td>@source.Name</td>
-                                <td>@source.Host</td>
-                                <td>@source.Port</td>
-                                <td>@source.Path</td>
-                                <td>@source.Username</td>
+                                <td>@(source.SourceType == MediaSourceType.LocalDirectory ? "Lokal" : "SFTP")</td>
+                                @if (source.SourceType == MediaSourceType.LocalDirectory)
+                                {
+                                    <td>—</td>
+                                    <td>—</td>
+                                    <td>@source.Path</td>
+                                    <td>—</td>
+                                }
+                                else
+                                {
+                                    <td>@source.Host</td>
+                                    <td>@source.Port</td>
+                                    <td>@source.Path</td>
+                                    <td>@source.Username</td>
+                                }
                                 <td>
                                     <button class="btn btn-sm btn-danger me-1" disabled="@IsDeleting(source.Id)" @onclick:stopPropagation="true" @onclick="() => DeleteSource(source)">Löschen</button>
                                     <button class="btn btn-sm btn-warning" disabled="@IsDeleting(source.Id)" @onclick:stopPropagation="true" @onclick="() => ResetScan(source)">Scan zurücksetzen</button>

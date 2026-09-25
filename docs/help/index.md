@@ -14,8 +14,10 @@
 
 ## Systemverwaltung (Administratoren)
 
-- [Einrichtung](einrichtung.md) — Administrativer Bereich mit Verwaltungsfunktionen für die Anwendung
 - [Backups](backups.md) — Erstellen, herunterladen und wiederherstellen von Anwendungs-Backups
+- [Einrichtung](einrichtung.md) — Administrativer Bereich mit Verwaltungsfunktionen für die Anwendung
+- [Geräte](geraete/index.md) — Pairing-Codes erzeugen und gekoppelte Client-Geräte verwalten
+- [Medienquellen](medienquellen/index.md) — Medienquellen vom Typ SFTP-Server oder lokales Verzeichnis verwalten
 - [Updates](updates.md) — Prüfen, installieren und konfigurieren von Programmupdates
 
 ## Projekt und Entwicklung

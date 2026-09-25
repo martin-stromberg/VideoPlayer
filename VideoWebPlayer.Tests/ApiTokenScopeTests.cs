@@ -28,17 +28,17 @@ public class ApiTokenScopeTests
     [InlineData(LegacyToken)]
     [InlineData(WebToken)]
     [InlineData(MauiToken)]
-    public void AnyClient_AcceptsTheLegacyWebAndMauiTokens(string token)
+    public async Task AnyClient_AcceptsTheLegacyWebAndMauiTokens(string token)
     {
-        var context = Execute(global::ApiTokenScope.AnyClient, token);
+        var context = await ExecuteAsync(global::ApiTokenScope.AnyClient, token);
 
         Assert.Null(context.Result);
     }
 
     [Fact]
-    public void AnyClient_RejectsAnUnknownToken()
+    public async Task AnyClient_RejectsAnUnknownToken()
     {
-        var context = Execute(global::ApiTokenScope.AnyClient, "unknown-token");
+        var context = await ExecuteAsync(global::ApiTokenScope.AnyClient, "unknown-token");
 
         Assert.IsType<UnauthorizedResult>(context.Result);
     }
@@ -52,22 +52,22 @@ public class ApiTokenScopeTests
     [InlineData(LegacyToken, false)]
     [InlineData(WebToken, false)]
     [InlineData(MauiToken, true)]
-    public void MauiOnly_AcceptsOnlyTheMauiToken(string token, bool accepted)
+    public async Task MauiOnly_AcceptsOnlyTheMauiToken(string token, bool accepted)
     {
-        var context = Execute(global::ApiTokenScope.MauiOnly, token);
+        var context = await ExecuteAsync(global::ApiTokenScope.MauiOnly, token);
 
         Assert.Equal(accepted, context.Result is null);
     }
 
     [Fact]
-    public void DefaultScope_IsAnyClient()
+    public async Task DefaultScope_IsAnyClient()
     {
-        var context = Execute(scope: null, LegacyToken);
+        var context = await ExecuteAsync(scope: null, LegacyToken);
 
         Assert.Null(context.Result);
     }
 
-    private static ActionExecutingContext Execute(global::ApiTokenScope? scope, string token)
+    private static async Task<ActionExecutingContext> ExecuteAsync(global::ApiTokenScope? scope, string token)
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -84,7 +84,7 @@ public class ApiTokenScopeTests
         var context = new ActionExecutingContext(actionContext, new List<IFilterMetadata>(), new Dictionary<string, object?>(), new object());
 
         var attribute = scope is { } s ? new global::ApiTokenCheckAttribute(s) : new global::ApiTokenCheckAttribute();
-        attribute.OnActionExecuting(context);
+        await attribute.OnActionExecutionAsync(context, () => Task.FromResult(new ActionExecutedContext(actionContext, new List<IFilterMetadata>(), new object())));
         return context;
     }
 }

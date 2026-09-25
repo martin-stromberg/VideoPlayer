@@ -3,12 +3,12 @@
 VideoWebPlayer ist eine selbst gehostete ASP.NET-Core-/Blazor-Anwendung für die private Verwaltung und Wiedergabe einer eigenen Videobibliothek im Browser.
 
 [![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-blue)](./LICENSE)
-![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)
-![Blazor](https://img.shields.io/badge/Blazor-Server-512BD4?logo=blazor)
+[![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com)
+[![Blazor](https://img.shields.io/badge/Blazor-Server-512BD4?logo=blazor)](https://dotnet.microsoft.com/apps/aspnet/web-apps/blazor)
 
 ## Funktionen
 
-- Medienquellen per lokaler Ablage, FTP oder SFTP verwalten.
+- Medienquellen vom Typ `SFTP-Server` oder `Lokales Verzeichnis` (Verzeichnis auf dem Server, auch UNC-Pfad) verwalten.
 - Filme, Serien, Staffeln und Episoden indizieren und kategorisieren.
 - Poster, Banner, Fanart und Hintergrundbilder anzeigen.
 - Favoriten, Weiterschauen-Positionen (mit optionalem Playlist-Bezug) und Gesehen-Kennzeichen pro Benutzer speichern.
@@ -41,6 +41,8 @@ VideoWebPlayer ist eine selbst gehostete ASP.NET-Core-/Blazor-Anwendung für die
 - Browserbasierte Oberfläche für Bibliothek, Wiedergabe und Administration.
 - Automatische Erfassung und Übersicht von Schauspielern inklusive Such- und Filtermöglichkeiten.
 - Backups, strukturierte Programmupdates, Benutzer, Genres und Sicherheitseinstellungen verwalten.
+- Backup-Dateien chunked hochladen — auch sehr große Archive über 6 GB — mit Fortschrittsanzeige und Wiederaufnahme nach Unterbrechungen.
+- Client-Apps per Einmal-Pairing-Code koppeln — jedes Gerät erhält ein individuelles, widerrufbares Geräte-Token statt eines geteilten statischen API-Keys.
 
 ## Schnellstart
 
@@ -59,10 +61,12 @@ Die vollständige Einrichtung für Linux und Windows steht in [docs/GUIDE_Instal
 ## Erste Schritte in der Anwendung
 
 1. Anwendung starten und den ersten Benutzer anlegen.
-2. In `Einrichtung` eine Medienquelle für lokale Dateien, FTP oder SFTP hinzufügen.
+2. In `Einrichtung` unter `Quellen` eine Medienquelle hinzufügen und als `Quelltyp` `SFTP-Server` oder `Lokales Verzeichnis` wählen.
 3. Quelle speichern und Scan/Klassifizierung starten oder den automatischen Scan abwarten.
 4. Die Quelle in der Navigation öffnen.
 5. Film, Serie, Staffel oder Episode auswählen und abspielen.
+
+Client-Apps (z. B. die TV-App) werden in `Einrichtung` unter `Geräte` mit einem Einmal-Pairing-Code gekoppelt.
 
 ## Konfiguration
 
@@ -70,15 +74,23 @@ Produktive Secrets dürfen nicht im Repository abgelegt werden. Konfiguriere JWT
 
 Details stehen in [docs/SECRETS_MANAGEMENT.md](./docs/SECRETS_MANAGEMENT.md).
 
+Für den Backup-Upload sind produktiv zwei Werte relevant: `Backups:MaxUploadSizeBytes` (Standard 5 GiB, auch in der Admin-Oberfläche änderbar) begrenzt die akzeptierte Dateigröße, und `Kestrel:Limits:MaxRequestBodySize` (in `appsettings.Production.json` auf `0` = unbegrenzt gesetzt) deaktiviert das serverseitige Request-Limit, damit große Uploads nicht blockiert werden. Unter IIS ist dafür das OutOfProcess-Hosting-Modell erforderlich (in der Projektdatei über `AspNetCoreHostingModel` festgelegt); Details stehen in [docs/help/backups.md](./docs/help/backups.md).
+
+Für das Geräte-Pairing sind optional `Pairing:CodeLength` (Standard 8 Zeichen) und `Pairing:CodeTtlMinutes` (Standard 5 Minuten) konfigurierbar; `Jwt:ApiToken:Maui` bleibt in Produktion als Fallback-Gate-Token Pflicht. Details stehen in [docs/GUIDE_Installation.md](./docs/GUIDE_Installation.md).
+
 ## Dokumentation
 
 - [Installationsanleitung](./docs/GUIDE_Installation.md)
 - [API-Vertrag](./docs/API.md)
 - [Secrets Management](./docs/SECRETS_MANAGEMENT.md)
 - [Dokumentationsindex](./docs/INDEX.md)
+- [Hilfe zu Backups](./docs/help/backups.md)
+- [Hilfe zur Einrichtung](./docs/help/einrichtung.md)
+- [Hilfe zu Medienquellen](./docs/help/medienquellen/index.md)
 - [Hilfe zu Programmupdates](./docs/help/updates.md)
 - [Hilfe zum Gesehen-Kennzeichen](./docs/help/gesehen-status.md)
 - [Hilfe zu Playlists](./docs/help/playlists.md) (inkl. öffentliche Playlists)
+- [Hilfe zu Geräten und Pairing](./docs/help/geraete/index.md)
 
 ## Entwicklung
 
@@ -89,7 +101,7 @@ dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj
 dotnet test tools/MarkdownLinkCheck.Tests/MarkdownLinkCheck.Tests.csproj
 ```
 
-Der versionierte Pre-Commit-Hook unter `.githooks/pre-commit` führt einen lokalen Secret-Scan und Markdown-Linkcheck aus. Details zur Aktivierung stehen in [docs/GUIDE_Installation.md](./docs/GUIDE_Installation.md).
+Der versionierte Pre-Commit-Hook unter `.githooks/pre-commit` blockiert direkte Commits auf `main`/`staging` und führt Übersetzungsprüfung, Secret-Scan und Markdown-Linkcheck aus. Details zur Aktivierung stehen in [docs/GUIDE_Installation.md](./docs/GUIDE_Installation.md).
 
 ## Lizenz
 

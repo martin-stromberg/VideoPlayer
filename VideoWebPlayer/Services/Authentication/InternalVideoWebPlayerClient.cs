@@ -76,6 +76,9 @@ namespace VideoWebPlayer.Services.Authentication
         /// <summary>
         /// Issues an authenticated POST request to the specified endpoint (non-generic).
         /// </summary>
+        /// <param name="endPoint">The endpoint to call.</param>
+        /// <param name="args">The HTTP content payload.</param>
+        /// <param name="skipReauthorize">Whether to skip the automatic re-authorization retry.</param>
         protected override async Task HttpPostAsync(string endPoint, HttpContent args, bool skipReauthorize = false)
         {
             if (string.IsNullOrWhiteSpace(AuthorizationToken))
@@ -124,7 +127,14 @@ namespace VideoWebPlayer.Services.Authentication
                                 currentUser = await userManager.FindByNameAsync(name);
                         }
                         if (currentUser is null)
+                        {
+                            if (user.Identity?.IsAuthenticated != true)
+                            {
+                                Logger.LogWarning("Could not impersonate anonymous request: no authenticated identity present.");
+                                throw new UnauthorizedAccessException("Not authenticated.");
+                            }
                             throw new InvalidOperationException($"Could not resolve user from principal. Claims: {string.Join(", ", user.Claims.Select(c => $"{c.Type}={c.Value}"))}");
+                        }
 
                         var token = authtorizationTokenService.CreateToken(currentUser);
                         base.SetAuthorizationToken(token);
@@ -132,7 +142,8 @@ namespace VideoWebPlayer.Services.Authentication
                 }
                 catch (Exception ex)
                 {
-                    Logger.LogError(ex, "Could not impersonate current user.");
+                    if (ex is not UnauthorizedAccessException)
+                        Logger.LogError(ex, "Could not impersonate current user.");
                     throw;
                 }
                 finally

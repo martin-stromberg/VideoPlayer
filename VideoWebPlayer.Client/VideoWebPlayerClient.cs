@@ -52,19 +52,23 @@ namespace VideoWebPlayer.Client
 
         /// <summary>
         /// Attempts to obtain a fresh authorization token after the server responded with 401
-        /// Unauthorized. The default implementation does nothing and reports failure; derived classes
-        /// may impersonate or otherwise renew the token.
+        /// Unauthorized. A paired device renews its session via <see cref="RefreshAsync"/>; without a
+        /// device session nothing happens and failure is reported. Derived classes may impersonate or
+        /// otherwise renew the token instead. Only 401 reaches this method — 403 (signed in, but not
+        /// authorized) and 404 are final answers and are never retried.
         /// </summary>
         /// <returns><c>true</c> if a new token was obtained and the failed request should be retried; otherwise <c>false</c>.</returns>
         protected virtual Task<bool> HandleUnauthorized()
         {
-            return Task.FromResult(false);
+            return TryRenewDeviceSessionAsync();
         }
 
         // Executes an HTTP request, retrying once via HandleUnauthorized if the server responds with
-        // 401 Unauthorized. Shared by all Http*Async helper methods.
+        // 401 Unauthorized. Shared by all Http*Async helper methods. Applies the device token as the
+        // X-API-Key gate key beforehand, so every HTTP verb carries it.
         private async Task<HttpResponseMessage> SendWithReauthorizationAsync(string endPoint, Func<Task<HttpResponseMessage>> doRequestAsync, bool skipReauthorize = false)
         {
+            ApplyDeviceTokenHeader();
             var response = await doRequestAsync();
             if (response.StatusCode != System.Net.HttpStatusCode.Unauthorized)
                 return response;
@@ -82,6 +86,7 @@ namespace VideoWebPlayer.Client
                 // Kein neuer Token innerhalb der Wartezeit
                 throw new HttpRequestException($"Unauthorized: {endPoint}", null, System.Net.HttpStatusCode.Unauthorized);
 
+            ApplyDeviceTokenHeader();
             response = await doRequestAsync();
             if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
             {
@@ -287,6 +292,16 @@ namespace VideoWebPlayer.Client
                 httpClient.DefaultRequestHeaders.Authorization =
                     new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token.token);
             }
+        }
+
+        /// <summary>
+        /// Removes the bearer token from the underlying <see cref="HttpClient"/>, so subsequent requests
+        /// are unauthenticated again. Used when a device session ends (see <see cref="LogoutAsync"/>);
+        /// <see cref="SetAuthorizationToken(AuthorizationToken)"/> deliberately keeps ignoring <c>null</c>.
+        /// </summary>
+        public virtual void ClearAuthorizationToken()
+        {
+            httpClient.DefaultRequestHeaders.Authorization = null;
         }
 
         /// <summary>

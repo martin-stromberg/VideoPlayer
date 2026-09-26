@@ -154,7 +154,7 @@ namespace VideoWebPlayer.Client
         /// </summary>
         /// <param name="endPoint">The relative endpoint to POST to.</param>
         /// <returns>The deserialized navigation result, or <c>null</c> if the server responded with 204 No Content.</returns>
-        private Task<DtoPlaylistNavigationResult?> PostForOptionalPlaylistNavigationResultAsync(string endPoint)
+        protected virtual Task<DtoPlaylistNavigationResult?> PostForOptionalPlaylistNavigationResultAsync(string endPoint)
             => SendAndDeserializeAsync<DtoPlaylistNavigationResult?>(
                 endPoint,
                 "POST",

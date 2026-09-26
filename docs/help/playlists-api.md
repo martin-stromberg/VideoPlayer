@@ -498,6 +498,7 @@ Eintrag per Einzel-Endpunkt auf `max + 1` zu setzen, da neue, größere Werte ni
 
 | HTTP-Status | Grund |
 |-------------|-------|
+| 400 Bad Request | Der Eintrag hat keine Sortierposition gesetzt (der Endpunkt führt intern denselben Ablauf aus wie `move-between` mit Zielposition 0) |
 | 404 Not Found | Playlist oder Eintrag nicht gefunden |
 | 409 Conflict | Playlist ist nicht im Sortiermodus `Manual` |
 | 403 Forbidden | Benutzer ist nicht der Besitzer der Playlist |
@@ -530,9 +531,9 @@ sichtbare Reihenfolge damit nicht dem `AddedAt`-Gleichstand.
 
 | HTTP-Status | Grund |
 |-------------|-------|
-| 400 Bad Request | `newSortOrder < 0`, oder der Anfrage-Body fehlt |
+| 400 Bad Request | `newSortOrder < 0`, der Anfrage-Body fehlt, oder der Eintrag hat keine Sortierposition gesetzt |
 | 404 Not Found | Playlist oder Eintrag nicht gefunden |
-| 409 Conflict | Playlist ist nicht im Sortiermodus `Manual`, oder der Eintrag hat keine Sortierposition gesetzt |
+| 409 Conflict | Playlist ist nicht im Sortiermodus `Manual` |
 | 403 Forbidden | Benutzer ist nicht der Besitzer der Playlist |
 | 401 Unauthorized | Fehlende oder ungültige Authentifizierung |
 

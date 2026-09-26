@@ -29,6 +29,7 @@ Diese Datei beschreibt den versionierten API-Vertrag des Web-Repositorys. Die DT
 | `401 Unauthorized` | API-Key fehlt/ist falsch oder Bearer-Token fehlt/ist ungültig. |
 | `403 Forbidden` | Benutzer ist angemeldet, besitzt aber keinen Zugriff auf die Quelle oder das Bild. |
 | `404 Not Found` | Ressource existiert nicht oder ist für den Benutzer nicht erreichbar. |
+| `409 Conflict` | Der Aufruf würde Daten verlieren oder widerspricht dem aktuellen Zustand; die Antwort nennt die erforderliche Bestätigung. |
 | `429 Too Many Requests` | Die Client-IP ist wegen wiederholter Fehlversuche gesperrt. |
 | `500 Internal Server Error` | Unerwarteter Serverfehler. |
 
@@ -193,7 +194,9 @@ Fehlercodes:
 
 Hinweise:
 
-- Ticket, Kurzcode, Geräte-Token und Refresh-Token werden ausschließlich als SHA-256-Hash gespeichert; die Klartexte verlassen den Server nur verschlüsselt (Ticket/Kurzcode) bzw. im verschlüsselten Payload.
+- Geschützt ist ausschließlich die **Antwort**: `encryptedPayload` (Geräte-Token, JWT, Refresh-Token) ist mit AES-256-GCM über dem ECDH-Schlüssel verschlüsselt. `ticket` (bzw. der Kurzcode), `clientPublicKey` und `deviceName` werden dagegen **unverschlüsselt** übertragen — das Ticket steht im Klartext in der QR-Nutzlast (`?t=<ticket>`), der Kurzcode wird auf der Profilseite im Klartext angezeigt, und beides geht unverschlüsselt im Request-Body an den Server zurück (siehe Request-Block oben).
+- Folge in einem Netz ohne TLS: Ein mitgelesenes Ticket lässt sich innerhalb seiner Gültigkeit einlösen und ergibt dann nicht nur ein Geräte-Token, sondern eine vollständige Benutzersitzung (JWT und Refresh-Token). Das Zeitfenster ist mit Einmalverwendung und Standard-Gültigkeit von 5 Minuten (`Pairing:BootstrapTicketTtlMinutes`) knapp gehalten; für den Bootstrap wird TLS dennoch ausdrücklich empfohlen, anders als beim Exchange, wo nur ein Geräte-Token auf dem Spiel steht.
+- Gespeichert werden Ticket, Kurzcode, Geräte-Token und Refresh-Token ausschließlich als SHA-256-Hash; die Klartexte liegen nie in der Datenbank.
 - Ein bereits verbrauchtes oder abgelaufenes Ticket kann nicht erneut eingelöst werden; der Anwender erzeugt dann auf der Profilseite ein neues Ticket.
 
 ### POST /api/auth/refresh
@@ -593,9 +596,21 @@ Entfernt einen Medieninhalt aus der Playlist. `mediaType` wird case-insensitiv v
 vor dem Abgleich auf die kanonische Schreibweise normalisiert (z. B. `"movie"` findet denselben
 Eintrag wie `"Movie"`).
 
+Query:
+
+| Name | Typ | Beschreibung |
+|------|-----|--------------|
+| `confirmContinueWatchingRemoval` | `bool` | Standard `false`. Bestätigt das Entfernen, obwohl ein Weiterschauen-Eintrag **dieser** Playlist noch auf den Titel verweist. Ohne Bezug wirkungslos. |
+
 Antwort: `204 No Content`.
 
 - `400 Bad Request`, wenn `mediaType` keinem unterstützten Medientyp entspricht.
+- `409 Conflict` mit `DtoRemovePlaylistEntryConflictResponse`
+  (`{ "isContinueWatchingConfirmationRequired": true }`), wenn ein Weiterschauen-Eintrag dieser
+  Playlist auf den Titel verweist und `confirmContinueWatchingRemoval` nicht `true` ist. Es wird
+  dabei nichts entfernt; der Client fragt den Anwender und wiederholt den Aufruf mit
+  `confirmContinueWatchingRemoval=true`. Nach der Bestätigung wird der Weiterschauen-Eintrag durch
+  den nächsten verfügbaren Titel derselben Playlist ersetzt oder entfernt.
 - `404 Not Found`, wenn kein passender Eintrag in der Playlist vorhanden ist.
 - `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
 
@@ -606,7 +621,7 @@ referenzierter Medieninhalt nicht mehr existiert, werden dabei still aus der Dat
 und nicht in der Antwort aufgeführt.
 
 - `404 Not Found`, wenn keine Playlist mit dieser ID existiert.
-- `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
+- `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört und nicht öffentlich ist.
 
 ### GET /api/playlists/{id}/entries/paged
 
@@ -642,7 +657,7 @@ Antwort (`DtoPlaylistEntriesPagedResult`):
 
 - `400 Bad Request`, wenn `pageNumber < 1` oder `pageSize` außerhalb von `1..MaxPageSize` liegt.
 - `404 Not Found`, wenn keine Playlist mit dieser ID existiert.
-- `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
+- `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört und nicht öffentlich ist.
 
 ### PUT /api/playlists/{id}/entries/{entryId}/order
 
@@ -695,7 +710,7 @@ Antwort: `DtoPlaylistEntry[]` der aktualisierten Einträge.
 ### GET /api/playlists/{id}/entries/max-sort-order
 
 Liefert die höchste vergebene Sortierposition über die **gesamte** Playlist (nicht nur die geladene Seite)
-für die Schnellaktion „An Ende". Hilfsabfrage der Umsortierung und daher wie ein schreibender Zugriff
+für die Schnellaktion „An Ende“. Hilfsabfrage der Umsortierung und daher wie ein schreibender Zugriff
 behandelt: nur der Besitzer.
 
 Antwort (`DtoMaxSortOrderResult`):
@@ -719,6 +734,8 @@ Einträge atomar um eins nach hinten. Nur im Sortiermodus `Manual`; nur der Besi
 
 Antwort: das aktualisierte `DtoPlaylistEntry` (`sortOrder = 0`).
 
+- `400 Bad Request`, wenn der Eintrag keine Sortierposition gesetzt hat (der Endpunkt führt
+  intern denselben Ablauf aus wie `move-between` mit Zielposition 0).
 - `409 Conflict`, wenn die Playlist nicht im Sortiermodus `Manual` ist.
 - `404 Not Found`, wenn die Playlist oder der Eintrag nicht existiert.
 - `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
@@ -735,9 +752,9 @@ Zielposition.
 
 Antwort: `200 OK` ohne Nutzlast.
 
-- `400 Bad Request`, wenn `newSortOrder` negativ oder der Anfrage-Body leer ist.
-- `409 Conflict`, wenn die Playlist nicht im Sortiermodus `Manual` ist oder der Eintrag keine
-  Sortierposition gesetzt hat.
+- `400 Bad Request`, wenn `newSortOrder` negativ ist, der Anfrage-Body leer ist oder der Eintrag
+  keine Sortierposition gesetzt hat.
+- `409 Conflict`, wenn die Playlist nicht im Sortiermodus `Manual` ist.
 - `404 Not Found`, wenn die Playlist oder der Eintrag nicht existiert.
 - `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
 
@@ -867,7 +884,7 @@ hier, dass der Anfang der Playlist erreicht ist.
 
 Automatisches Weiterschalten, wenn ein Titel zu Ende läuft. Ermittelt denselben Eintrag wie
 `.../play/next` und ist nur deshalb ein eigener Endpunkt, damit automatisches Weiterschalten und ein
-manueller „Nächster"-Klick im Server-Protokoll unterscheidbar sind. Parameter, Antwortformat und
+manueller „Nächster“-Klick im Server-Protokoll unterscheidbar sind. Parameter, Antwortformat und
 Fehlerantworten wie bei `.../play/next`.
 
 ### POST /api/playlists/{id}/cover/upload

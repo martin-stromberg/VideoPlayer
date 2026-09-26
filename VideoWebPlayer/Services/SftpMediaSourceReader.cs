@@ -13,11 +13,13 @@ namespace VideoWebPlayer.Services
     /// <summary>
     /// Liest Verzeichnisse und Dateien einer MediaSource per SFTP aus und gibt sie als MediaCollection/MediaItem aus.
     /// </summary>
-    public class SftpMediaSourceReader
+    public class SftpMediaSourceReader : IMediaSourceReader
     {
         /// <summary>
         /// Liest das Rootverzeichnis der angegebenen MediaSource aus und liefert nur die Root-Collection.
         /// </summary>
+        /// <param name="source">Die SFTP-MediaSource.</param>
+        /// <returns>Die Root-Collection der Medienquelle.</returns>
         public virtual IEnumerable<MediaEntry> ReadRootDirectory(MediaSource source)
         {
             // Root-Collection erzeugen
@@ -50,7 +52,7 @@ namespace VideoWebPlayer.Services
             var entries = client.ListDirectory(collection.Path);
             foreach (var entry in entries)
             {
-                if (IsIgnoredEntry(entry.Name))
+                if (MediaEntryFilter.IsIgnoredEntry(entry.Name))
                     continue;
 
                 if (entry.IsDirectory)
@@ -83,6 +85,8 @@ namespace VideoWebPlayer.Services
         /// <summary>
         /// Liest rekursiv alle Unterverzeichnisse und Dateien ab einer MediaCollection (Teilbaum).
         /// </summary>
+        /// <param name="collection">Die MediaCollection, ab der gelesen wird.</param>
+        /// <returns>Alle Unterverzeichnisse und Dateien des Teilbaums.</returns>
         public IEnumerable<MediaEntry> ReadSubtree(MediaCollection collection)
         {
             using var client = new SftpClient(
@@ -102,13 +106,17 @@ namespace VideoWebPlayer.Services
         /// <summary>
         /// Interne rekursive Methode zum Auslesen eines Verzeichnisses.
         /// </summary>
+        /// <param name="client">Der verbundene SFTP-Client.</param>
+        /// <param name="path">Der Pfad des zu lesenden Verzeichnisses.</param>
+        /// <param name="parentCollection">Die MediaCollection, die dem Verzeichnis entspricht.</param>
+        /// <returns>Die Einträge des Verzeichnisses und seiner Unterverzeichnisse (ohne übersprungene Collections).</returns>
         private IEnumerable<MediaEntry> ReadDirectoryInternal(SftpClient client, string path, MediaCollection parentCollection)
         {
             var entries = client.ListDirectory(path);
 
             foreach (var entry in entries)
             {
-                if (IsIgnoredEntry(entry.Name))
+                if (MediaEntryFilter.IsIgnoredEntry(entry.Name))
                     continue;
 
                 if (entry.IsDirectory)
@@ -258,7 +266,7 @@ namespace VideoWebPlayer.Services
         /// <param name="collection">Die MediaCollection, die die Datei enthält.</param>
         /// <param name="fileName">Der Name der Datei.</param>
         /// <returns>Ein Stream-Objekt, das die Datei repräsentiert, oder null, wenn die Datei nicht existiert.</returns>
-        public SftpStreamWrapper? GetSftpFileStream(MediaCollection collection, string fileName)
+        public Stream? OpenFileStream(MediaCollection collection, string fileName)
         {
             var client = new SftpClient(
                 collection.MediaSource.Host,
@@ -285,14 +293,6 @@ namespace VideoWebPlayer.Services
 
             var stream = client.OpenRead(fullPath);
             return new SftpStreamWrapper(stream, client);
-        }
-
-        /// <summary>
-        /// Prüft, ob ein Verzeichniseintrag beim Einlesen übergangen wird (Navigationseinträge und versteckte Einträge wie '.actors').
-        /// </summary>
-        private static bool IsIgnoredEntry(string name)
-        {
-            return name.StartsWith('.');
         }
 
         private static string CombineSftpPath(string part1, string part2)

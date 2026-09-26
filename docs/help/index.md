@@ -6,6 +6,7 @@
 
 - [Episoden](episoden/index.md) — Funktionen und Einstellungen für Episode-Detailansichten, einschließlich dynamisch generierter Hintergrundbilder
 - [Medienbibliothek](medienbibliothek.md) — Überarbeitete Oberfläche und Navigation durch Ihre Mediencollection
+- [Playlists](playlists.md) — Eigene Playlists anlegen, öffnen, bearbeiten und löschen; als Administrator eigene Playlists für alle Anwender öffentlich (lesend) machen; Medieninhalte hinzufügen und entfernen; automatisch sortierte, fortlaufend nachladende Anzeige der Inhalte; Abbildung hochladen oder aus den Inhalten neu erzeugen
 - [Gesehen-Kennzeichen](gesehen-status.md) — Benutzerbezogene Markierung bereits gesehener Filme und Episoden
 - [Medienmetadaten bearbeiten](medien-editiermodus.md) — Administrativer Editiermodus für Serien, Staffeln, Episoden, Filme und Filmsammlungen
 - [Startseite – Hero-Hintergrund](startseite-hero-hintergrund.md) — Zusammengesetztes Hintergrundbild aus der „Weiterschauen"-Liste
@@ -13,8 +14,10 @@
 
 ## Systemverwaltung (Administratoren)
 
-- [Einrichtung](einrichtung.md) — Administrativer Bereich mit Verwaltungsfunktionen für die Anwendung
 - [Backups](backups.md) — Erstellen, herunterladen und wiederherstellen von Anwendungs-Backups
+- [Einrichtung](einrichtung.md) — Administrativer Bereich mit Verwaltungsfunktionen für die Anwendung
+- [Geräte](geraete/index.md) — Pairing-Codes erzeugen und gekoppelte Client-Geräte verwalten
+- [Medienquellen](medienquellen/index.md) — Medienquellen vom Typ SFTP-Server oder lokales Verzeichnis verwalten
 - [Updates](updates.md) — Prüfen, installieren und konfigurieren von Programmupdates
 
 ## Projekt und Entwicklung

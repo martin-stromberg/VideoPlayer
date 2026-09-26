@@ -727,6 +727,26 @@ input[type="text"]:focus {
     height: 5rem;
 }
 
+/* Die --admin-*-Farben sind sonst nur innerhalb von ".admin-console" definiert. Dialoge ausserhalb davon (die
+   Playlist-Dialoge: Bearbeiten, Loeschen, Bild, Genres, Sortiermodus, Titel entfernen) bekamen dadurch weder
+   Hintergrund noch Rahmen (ungueltiges var() -> transparent/kein Rahmen) und waren vom Seiteninhalt kaum zu
+   unterscheiden. Innerhalb von ".admin-console" sind die Werte identisch, dort aendert sich nichts. */
+.admin-dialog-overlay {
+    --admin-bg: #0b1326;
+    --admin-surface: #171f33;
+    --admin-surface-low: #131b2e;
+    --admin-surface-high: #222a3d;
+    --admin-border: #424754;
+    --admin-text: #dae2fd;
+    --admin-muted: #c2c6d6;
+    --admin-primary: #adc6ff;
+    --admin-primary-strong: #4d8eff;
+    --admin-success: #4edea3;
+    --admin-warning: #ffcf66;
+    --admin-danger: #ffb4ab;
+    color: var(--admin-text);
+}
+
 .admin-dialog-overlay {
     position: fixed;
     inset: 0;
@@ -747,6 +767,12 @@ input[type="text"]:focus {
     border: 1px solid var(--admin-border);
     border-radius: var(--vp-radius);
     background: var(--admin-surface);
+    box-shadow: 0 0 0 1px rgba(173, 198, 255, 0.22), 0 24px 64px rgba(0, 0, 0, 0.65);
+}
+
+.admin-dialog h2 {
+    margin: 0;
+    font-size: 1.25rem;
 }
 
 .admin-dialog-preview {
@@ -2452,3 +2478,631 @@ input[type="text"]:focus {
     }
 }
 
+/* ---------------------------------------------------------------------------------------------
+   Playlists: Kachel-UI (Redesign gemaess Kundenfeedback zur Playlistuebersicht/-detailansicht)
+   --------------------------------------------------------------------------------------------- */
+
+/* Kacheln wie in der Film-/Serienuebersicht, nur im Breitformat: das erzeugte Cover ist ein Banner
+   (PlaylistSettings.GeneratedCoverWidthPixels/HeightPixels = 1600x520), ein Hochkant-Poster-Kachelformat
+   (2/3 wie bei Filmen) wuerde davon nur einen schmalen Streifen zeigen UND den Titel noch staerker in der
+   Breite einengen - genau das, was der Kunde bemaengelt hat. Deshalb breite Kacheln (16/9) mit derselben
+   Technik wie ".media-box": Bild ueber die volle Flaeche, Titel im Verlaufs-Overlay am unteren Rand. */
+.playlist-grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+}
+
+.playlist-card {
+    aspect-ratio: 16 / 9;
+}
+
+/* Der Titel ist die einzige Beschriftung der Kachel und darf deshalb die volle Kachelbreite nutzen. Er wird
+   nicht gekuerzt (Kunde: ein langer Titel muss komplett lesbar sein), sondern bricht an Silbengrenzen
+   (hyphens: auto, dazu lang="de" am Element) und notfalls auch innerhalb eines Wortes
+   (overflow-wrap: anywhere). */
+.playlist-card-title {
+    font-size: 1rem;
+    display: block;
+    -webkit-line-clamp: unset;
+    overflow: visible;
+    overflow-wrap: anywhere;
+    hyphens: auto;
+}
+
+/* Der Titel wird nie gekuerzt; nur im Extremfall (Name laenger als die Kachelhoehe) scrollt das Overlay. */
+.playlist-card .media-card-overlay {
+    max-height: 100%;
+    overflow-y: auto;
+}
+
+.playlist-card-cover {
+    width: 100%;
+    height: 100%;
+}
+
+/* Echtes Cover-Bild (hochgeladen oder generiert, Entwicklungsschritt 10): liegt ueber dem
+   PlaylistCoverPlaceholder (siehe .playlist-card-cover), deckt ihn bei erfolgreichem Laden vollstaendig ab;
+   das "onerror"-Attribut in PlaylistsList.razor blendet das Bild bei einem 404 wieder aus, sodass der
+   Platzhalter darunter sichtbar wird - ohne dedizierte JS-Interop fuer den Fallback. */
+.playlist-card-cover-image {
+    position: absolute;
+    inset: 0;
+    object-fit: cover;
+}
+
+/* Generischer Cover-Platzhalter (siehe PlaylistCoverPlaceholder.razor): Fallback-Platzhalter,
+   sichtbar wenn kein Cover gesetzt ist oder das Bild nicht ladbar ist. Farbverlauf aus einem
+   deterministisch aus der Playlist-Id abgeleiteten Farbton plus zentriertem Playlist-Symbol. */
+.playlist-cover-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, hsl(var(--playlist-hue, 210) 45% 26%), hsl(calc(var(--playlist-hue, 210) + 40) 55% 14%));
+    color: rgba(255, 255, 255, 0.55);
+}
+
+.playlist-sortmode-icon {
+    display: inline-flex;
+    flex: 0 0 auto;
+    color: var(--vp-primary-soft);
+}
+
+/* Dezentes "Oeffentlich"-Kennzeichen mit Beschriftung im Kopfbereich der Detailansicht
+   (Entwicklungsschritt 11). Auf der Uebersichtskachel wird dieselbe Klasse zusammen mit
+   ".playlist-tile-badge" verwendet und dort rein grafisch dargestellt. */
+.playlist-public-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 0.72rem;
+    font-weight: 500;
+}
+
+/* Aktionszeile der Uebersicht (Filterleiste + "Neue Playlist"): eine einzige horizontale Ebene, alle
+   Schaltflaechen gleich hoch und gleich ausgerichtet. */
+.playlist-overview-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+/* Filterleiste der zusammengefassten Playlist-Uebersicht (Alle / Eigene / Oeffentliche), Kundenrueckmeldung:
+   EIN Panel mit drei Schaltbereichen statt drei einzelner Buttons. Der Rahmen und die Rundung gehoeren
+   deshalb der Gruppe, die Schaltbereiche selbst sind rahmenlos und werden nur durch je eine vertikale
+   Trennlinie (::before des jeweils folgenden Bereichs) getrennt. Der aktive Bereich ist flaechig in der
+   Akzentfarbe hinterlegt; die Trennlinien an seinen Kanten entfallen, damit die Flaeche sauber abschliesst. */
+.playlist-filter-group {
+    display: inline-flex;
+    align-items: stretch;
+    overflow: hidden;
+    border: 1px solid var(--vp-border-strong);
+    border-radius: var(--vp-radius);
+    background: var(--vp-surface);
+}
+
+.playlist-filter-button {
+    position: relative;
+    width: 52px;
+    height: 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    color: var(--vp-primary-soft);
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.playlist-filter-button + .playlist-filter-button::before {
+    content: "";
+    position: absolute;
+    top: 8px;
+    bottom: 8px;
+    left: 0;
+    width: 1px;
+    background: var(--vp-border-strong);
+}
+
+/* Neben der gefuellten Flaeche des aktiven Bereichs bleibt die Trennlinie erhalten (Kunde: zwischen den
+   Bereichen immer je eine Linie), wird dort aber hell gezeichnet, damit sie auf dem Akzent sichtbar ist. */
+.playlist-filter-button.active::before,
+.playlist-filter-button.active + .playlist-filter-button::before {
+    background: rgba(255, 255, 255, 0.45);
+}
+
+.playlist-filter-button:hover {
+    color: #fff;
+    background: rgba(229, 9, 20, 0.26);
+}
+
+.playlist-filter-button.active,
+.playlist-filter-button.active:hover {
+    color: #fff;
+    background: var(--vp-primary);
+}
+
+.playlist-filter-button:focus-visible {
+    z-index: 2;
+    outline: none;
+    box-shadow: inset 0 0 0 2px var(--vp-secondary);
+}
+
+/* "Neue Playlist" als reiner Symbolbutton (Kundenfeedback: Text durch Symbol ersetzen), im selben Stil und
+   in derselben Groesse wie die Schaltbereiche der Filterleiste - deshalb werden die Bootstrap-Vorgaben von
+   ".btn" hier vollstaendig ueberschrieben. */
+.playlist-create-icon-button,
+.playlist-create-icon-button:disabled {
+    width: 52px;
+    height: 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    color: var(--vp-primary-soft);
+    background: var(--vp-surface);
+    border: 1px solid var(--vp-border-strong);
+    border-radius: var(--vp-radius);
+}
+
+.playlist-create-icon-button:hover,
+.playlist-create-icon-button:active,
+.playlist-create-icon-button:focus {
+    color: #fff;
+    background: rgba(229, 9, 20, 0.26);
+    border-color: var(--vp-border-strong);
+}
+
+.playlist-create-icon-button:focus-visible {
+    outline: none;
+    box-shadow: var(--vp-focus);
+}
+
+/* Kennzeichen in der rechten oberen Ecke der Kachel: Fremd-Symbol (von einem anderen Benutzer freigegeben)
+   bzw. Globus (eigene oeffentliche Playlist). Liegt ueber dem Cover, bleibt aber auf hellen Bildern durch
+   den dunklen Grund lesbar. */
+.playlist-tile-badge {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    z-index: 2;
+    width: 30px;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    color: #fff;
+    background: rgba(18, 18, 18, 0.78);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 999px;
+    backdrop-filter: blur(8px);
+    pointer-events: none;
+}
+
+/* Kopfbereich der Detailansicht: erbt Layout/Gradient-Overlay von .tvshow-header, der Cover-Platzhalter liegt
+   als Hintergrund absolut dahinter.
+   Die Hoehe ist fest vorgegeben (Kundenrueckmeldung: "Wir brauchen hier wie bei den Serien und Filmen eine
+   vorgegebene Hoehe") - derselbe Wert wie die min-height von .tvshow-header, aber als "height", damit weder
+   das Bild NOCH ein sehr langer Name/eine sehr lange Beschreibung den Kopfbereich in die Hoehe zieht. Damit
+   dabei nichts halb abgeschnitten stehen bleibt, werden Name und Beschreibung auf wenige Zeilen begrenzt
+   (siehe unten). */
+.playlist-header {
+    position: relative;
+    height: clamp(440px, 52vw, 620px);
+}
+
+.playlist-header .playlist-header-entry-background {
+    /* Bild des ausgewaehlten Titels: liegt auf derselben Ebene wie das Playlist-Cover, aber spaeter im DOM und
+       deckt es deshalb ab; das Verlaufs-Overlay (z-index 1) und der Inhalt (z-index 2) liegen darueber. */
+    z-index: 0;
+}
+
+.playlist-header .tvshow-header-overlay {
+    height: 100%;
+    overflow: hidden;
+}
+
+/* Sicherheitsnetz: der Inhalt kann nie hoeher werden als der Kopfbereich. Ohne das wuerde ihn die
+   Ausrichtung am unteren Rand (align-items: flex-end) oben abschneiden - also ausgerechnet den Namen. */
+.playlist-header .tvshow-header-content {
+    max-height: 100%;
+    overflow: hidden;
+}
+
+/* Name und Beschreibung/Handlung zeilenweise begrenzt, damit der Kopfbereich seine vorgegebene Hoehe behaelt.
+   Der vollstaendige Text bleibt im Markup (Vorlesehilfen, Suche) und im Bearbeiten-Panel sichtbar. */
+.playlist-header h1,
+.playlist-header .tvshow-plot {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.playlist-header h1 {
+    -webkit-line-clamp: 2;
+}
+
+.playlist-header .tvshow-plot {
+    -webkit-line-clamp: 3;
+}
+
+.playlist-header .playlist-header-cover {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+}
+
+/* Echtes Cover-Bild (hochgeladen oder generiert, Entwicklungsschritt 10): liegt ueber dem
+   PlaylistCoverPlaceholder, siehe .playlist-card-cover-image fuer dasselbe Muster auf der Kachel.
+   "object-fit: cover" fuellt den Kopfbereich unabhaengig vom Seitenverhaeltnis des Bildes formatfuellend
+   aus und beschneidet den Ueberstand; die Hoehe des Kopfbereichs kommt allein aus .tvshow-header (das Bild
+   liegt absolut und kann sie deshalb nicht beeinflussen).
+   Der Filter daempft das Bild genauso wie ".media-poster" die Poster der Film-/Serienkacheln
+   (Kundenrueckmeldung: "etwas dezenter dargestellt"); das Verlaufs-Overlay von .tvshow-header-overlay liegt
+   zusaetzlich darueber, sodass die Playlist-Informationen in jedem Fall ueber dem Bild stehen. */
+.playlist-header .playlist-header-cover-image,
+.playlist-card .playlist-card-cover-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: saturate(1.04) contrast(1.04) brightness(0.88);
+}
+
+.playlist-header .tvshow-header-overlay {
+    position: relative;
+    z-index: 1;
+}
+
+/* Lange Namen ohne Leerzeichen duerfen bei schmaler Breite nicht am Rand abgeschnitten werden. */
+.playlist-header h1,
+.playlist-header .tvshow-plot {
+    overflow-wrap: anywhere;
+}
+
+/* Aktionsbuttons AUF dem Bild, rechtsbuendig wie auf der Serienseite (dort belegen Favorit-/Freischalt-Button
+   die rechte Ecke und die Leiste rueckt um deren Breite ein; die Playlist hat diese beiden nicht). */
+.playlist-header .playlist-action-bar {
+    right: var(--vp-gutter);
+}
+
+/* Angaben zum ausgewaehlten Titel im Kopfbereich: kleines Poster links neben Titel/Meta/Handlung. */
+.playlist-header-entry {
+    display: flex;
+    align-items: flex-end;
+    gap: 1.25rem;
+}
+
+.playlist-header-poster {
+    flex: 0 0 auto;
+    width: clamp(72px, 9vw, 130px);
+    aspect-ratio: 2 / 3;
+    object-fit: cover;
+    border: 1px solid var(--vp-border-strong);
+    border-radius: var(--vp-radius);
+    background: var(--vp-surface-low);
+}
+
+.playlist-header-entry-text {
+    min-width: 0;
+}
+
+.playlist-detail-entry-locked {
+    margin-top: 0.75rem;
+    color: #ffcf66;
+    font-size: 0.9rem;
+}
+
+/* Veroeffentlichen-Button: Zustand am Symbol erkennbar. Oeffentlich = Globus auf Akzentgrund, privat = Schloss
+   auf dem neutralen Grund der uebrigen Symbolbuttons. */
+.playlist-detail-toggle-public-button.playlist-public-active {
+    color: #fff;
+    background: var(--vp-primary);
+    border-color: var(--vp-primary);
+}
+
+.playlist-detail-toggle-public-button.playlist-public-active:hover {
+    background: var(--vp-primary-hover);
+}
+
+.playlist-detail-meta {
+    align-items: center;
+}
+
+.playlist-sortmode-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.playlist-sortmode-toggle-button {
+    margin-left: 0.25rem;
+}
+
+.playlist-detail-dates-muted {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 1.75rem;
+    margin-top: 0.75rem;
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 0.85rem;
+}
+
+/* Beschriftung ("Erstellt:") von Wert getrennt (Leerzeichen im Markup + Abstand), nicht mehr zusammengezogen. */
+.playlist-detail-date-label {
+    margin-right: 0.25rem;
+    font-weight: 600;
+    opacity: 0.85;
+}
+
+/* Genres einer Playlist (Entwicklungsschritt 9): dezente, kommagetrennte Zeile, analog zu
+   ".tvshow-genres" bei Serien - sowohl auf der Kachel (Uebersicht) als auch im Kopfbereich der
+   Detailansicht verwendet. */
+.playlist-genres-line {
+    display: block;
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 0.78rem;
+    margin-top: 0.2rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.playlist-detail-genres-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    margin-top: 0.4rem;
+}
+
+.playlist-genre-override-badge {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--vp-primary-soft);
+    opacity: 0.9;
+}
+
+.playlist-genre-actions {
+    display: inline-flex;
+    gap: 0.35rem;
+}
+
+/* Genre-Filter in der Playlist-Uebersicht (Entwicklungsschritt 9). */
+.admin-filter-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+.admin-filter-row label {
+    font-size: 0.85rem;
+    opacity: 0.8;
+}
+
+.admin-filter-row .form-select {
+    width: auto;
+    min-width: 200px;
+}
+
+/* Playlist-Eintraege: Kacheln im Stil der Episoden-Kacheln (episode-box) statt der bisherigen
+   Tabellenzeilen. */
+.playlist-entries-list {
+    overflow: visible;
+}
+
+/* Umordnen per Ziehen (wwwroot/js/playlistDragDrop.js). Die Kacheln sind bewusst nicht nativ ziehbar;
+   die Geste laeuft ueber Pointer-Ereignisse, damit sie auch mit Finger/Stift funktioniert und beim
+   Loslassen nur EIN Server-Aufruf noetig ist. */
+.playlist-entries-list .playlist-entry-row {
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* Greif-Affordanz: nur Kacheln, die tatsaechlich gezogen werden duerfen. */
+.playlist-entry-row.playlist-entry-reorderable {
+    cursor: grab;
+}
+
+.playlist-entries-list.playlist-entries-reordering {
+    cursor: grabbing;
+}
+
+.playlist-entries-list.playlist-entries-reordering .playlist-entry-row {
+    /* Waehrend des Ziehens darf die Seite nicht unter dem Finger wegscrollen. */
+    touch-action: none;
+    cursor: grabbing;
+}
+
+/* Die gezogene Kachel bleibt an ihrem Platz, wird aber gedaempft dargestellt. */
+.playlist-entry-row.playlist-entry-dragging {
+    opacity: 0.45;
+}
+
+/* Zielkachel: bewusst in der Zweitfarbe (Blau) statt im Rot der Auswahl - sonst waere beim Ziehen auf
+   die gerade ausgewaehlte Kachel nicht zu unterscheiden, was Auswahl und was Ziel ist. Dazu die
+   Einfuegelinie an der Kante, an der der gezogene Titel landet (vorne, wenn er nach vorn wandert). */
+.playlist-entry-row.playlist-entry-drop-target {
+    border-color: var(--vp-secondary);
+    background: rgba(0, 168, 232, 0.14);
+}
+
+.playlist-entry-row.playlist-entry-drop-target::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: var(--vp-secondary);
+    pointer-events: none;
+}
+
+.playlist-entry-row.playlist-entry-drop-before::after {
+    left: 0;
+}
+
+.playlist-entry-row.playlist-entry-drop-after::after {
+    right: 0;
+}
+
+/* Kurze Rueckmeldung des Zieh-Moduls (wwwroot/js/playlistDragDrop.js), z. B. wenn neben der Liste
+   losgelassen wurde oder die neue Reihenfolge nicht gesendet werden konnte. Liegt direkt am <body>,
+   damit sie den von Blazor verwalteten Baum nicht stoert, und braucht keine Serververbindung. */
+.playlist-reorder-hint {
+    position: fixed;
+    bottom: 1.5rem;
+    left: 50%;
+    z-index: 2000;
+    max-width: min(520px, calc(100vw - 2rem));
+    padding: 0.7rem 1.1rem;
+    border: 1px solid var(--vp-border-strong);
+    border-radius: var(--vp-radius);
+    background: var(--vp-surface-high);
+    color: var(--vp-text);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+    font-size: 0.9rem;
+    opacity: 0;
+    transform: translate(-50%, 1rem);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    pointer-events: none;
+}
+
+.playlist-reorder-hint-visible {
+    opacity: 1;
+    transform: translate(-50%, 0);
+}
+
+.playlist-reorder-hint-error {
+    border-color: var(--vp-primary);
+    color: var(--vp-danger);
+}
+
+.playlist-entry-parent {
+    margin-top: 0.35rem;
+    overflow: hidden;
+    color: var(--vp-text-muted);
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.playlist-entry-meta-muted {
+    margin-top: 0.5rem;
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 0.75rem;
+}
+
+.playlist-entry-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.65rem;
+}
+
+.playlist-entry-actions .metadata-icon-btn {
+    width: 34px;
+    height: 34px;
+    font-size: 1rem;
+}
+
+.playlist-entry-placeholder .episode-info {
+    display: flex;
+    align-items: center;
+    color: var(--vp-text-muted);
+}
+
+.playlist-add-hint {
+    max-width: 760px;
+}
+
+/* Overlay-Panel fuer das Playlist-Bild. Rahmen und Hintergrund kommen von .admin-dialog. */
+.playlist-cover-panel {
+    width: min(640px, 100%);
+}
+
+.playlist-cover-panel-preview {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 140px;
+    max-height: 260px;
+    overflow: hidden;
+    border: 1px solid var(--admin-border);
+    border-radius: var(--vp-radius-sm);
+    background: var(--admin-bg);
+}
+
+.playlist-cover-panel-image {
+    display: block;
+    max-width: 100%;
+    max-height: 260px;
+    object-fit: contain;
+}
+
+.playlist-cover-panel-empty {
+    color: var(--admin-muted);
+}
+
+.playlist-cover-panel-sources {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+}
+
+/* Der Bestaetigungsbutton ist ohne Auswahl deaktiviert: gedaempft in der Akzentfarbe statt im blauen Standard-
+   Deaktiviert-Ton von Bootstrap. */
+.playlist-cover-panel .btn-primary:disabled {
+    color: #fff;
+    background: var(--vp-primary);
+    border-color: var(--vp-primary);
+    opacity: 0.4;
+}
+
+#playlist-cover-replace-warning {
+    border-left-color: #ffcf66;
+}
+
+@media (max-width: 768px) {
+    /* Platz fuer den Abspielen-Button (58px) rechts unten, damit er den Text des Titels nicht ueberdeckt. */
+    .playlist-header-entry {
+        padding-right: 4.5rem;
+    }
+}
+
+@media (max-width: 640px) {
+    .playlist-header .playlist-action-bar {
+        right: var(--vp-mobile-gutter);
+    }
+
+    .playlist-header-poster {
+        width: 64px;
+    }
+
+    /* Auf dem Telefon steht deutlich weniger Hoehe zur Verfuegung: Beschreibung/Handlung kuerzer begrenzen,
+       damit Name und Datumsangaben im Kopfbereich vollstaendig sichtbar bleiben. */
+    .playlist-header .tvshow-plot {
+        -webkit-line-clamp: 2;
+    }
+}
+
+@media (max-width: 480px) {
+    /* Fuenf Symbolbuttons (Moduswechsel, Veroeffentlichen, Bild, Bearbeiten, Loeschen) muessen auch auf
+       ~390px breiten Bildschirmen nebeneinander in die Leiste auf dem Bild passen. */
+    .playlist-header .playlist-action-bar {
+        gap: 0.35rem;
+    }
+
+    .playlist-header .playlist-action-bar .metadata-icon-btn {
+        width: 40px;
+        height: 40px;
+    }
+}

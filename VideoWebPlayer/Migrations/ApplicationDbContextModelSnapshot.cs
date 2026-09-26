@@ -15,7 +15,7 @@ namespace VideoWebPlayer.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "10.0.10");
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.12");
 
             modelBuilder.Entity("GenreName", b =>
                 {
@@ -273,6 +273,9 @@ namespace VideoWebPlayer.Migrations
                     b.Property<int>("MediaCollectionScanIntervalDays")
                         .HasColumnType("INTEGER");
 
+                    b.Property<DateTime?>("PlaylistBackfillLastSweepAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("ScanProcessIntervalMinutes")
                         .HasColumnType("INTEGER");
 
@@ -521,6 +524,9 @@ namespace VideoWebPlayer.Migrations
                     b.Property<long?>("MovieId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<long?>("PlaylistId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<TimeSpan>("Position")
                         .HasColumnType("TEXT");
 
@@ -539,13 +545,29 @@ namespace VideoWebPlayer.Migrations
 
                     b.HasIndex("MovieId");
 
+                    b.HasIndex("PlaylistId");
+
                     b.HasIndex("TVShowEpisodeId");
 
-                    b.HasIndex("UserId", "MovieId");
+                    b.HasIndex("UserId", "MovieId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ContinueWatchingEntries_UserId_MovieId_NoPlaylist")
+                        .HasFilter("[MovieId] IS NOT NULL AND [PlaylistId] IS NULL");
 
-                    b.HasIndex("UserId", "TVShowEpisodeId");
+                    b.HasIndex("UserId", "TVShowEpisodeId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ContinueWatchingEntries_UserId_TVShowEpisodeId_NoPlaylist")
+                        .HasFilter("[TVShowEpisodeId] IS NOT NULL AND [PlaylistId] IS NULL");
 
                     b.HasIndex("UserId", "ListOrder", "UpdatedAt");
+
+                    b.HasIndex("UserId", "MovieId", "PlaylistId")
+                        .IsUnique()
+                        .HasFilter("[MovieId] IS NOT NULL");
+
+                    b.HasIndex("UserId", "TVShowEpisodeId", "PlaylistId")
+                        .IsUnique()
+                        .HasFilter("[TVShowEpisodeId] IS NOT NULL");
 
                     b.ToTable("ContinueWatchingEntries");
                 });
@@ -732,6 +754,9 @@ namespace VideoWebPlayer.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<int>("Port")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SourceType")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Username")
@@ -936,6 +961,89 @@ namespace VideoWebPlayer.Migrations
                     b.ToTable("MovieCollections");
                 });
 
+            modelBuilder.Entity("VideoWebPlayer.Data.PairedDevice", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CreatedByUserId")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("IssuedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastUsedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("RevokedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RevokedAtUtc");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.ToTable("PairedDevices");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.PairingCode", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CodeHash")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ConsumedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedByUserId")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("TicketHash")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CodeHash");
+
+                    b.HasIndex("ExpiresAtUtc");
+
+                    b.HasIndex("Kind");
+
+                    b.HasIndex("TicketHash");
+
+                    b.ToTable("PairingCodes");
+                });
+
             modelBuilder.Entity("VideoWebPlayer.Data.Picture", b =>
                 {
                     b.Property<long>("Id")
@@ -965,6 +1073,9 @@ namespace VideoWebPlayer.Migrations
                     b.Property<long?>("MediaItemId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<long?>("PlaylistId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -978,7 +1089,227 @@ namespace VideoWebPlayer.Migrations
 
                     b.HasIndex("EpisodeId", "IsGeneratedBackground");
 
+                    b.HasIndex("PlaylistId", "IsGeneratedBackground");
+
                     b.ToTable("Pictures");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.Playlist", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("CoverPictureId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("CoverPictureIsUserUploaded")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("GenresManuallyOverridden")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsPublic")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT")
+                        .UseCollation("NOCASE");
+
+                    b.Property<int>("SortMode")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CoverPictureId");
+
+                    b.HasIndex("UserId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("Playlists");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.PlaylistBackfillMarker", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("MarkedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("MediaId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("MediaType")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MediaType", "MediaId")
+                        .IsUnique();
+
+                    b.ToTable("PlaylistBackfillMarkers");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.PlaylistEntry", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("AddedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("MediaId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("MediaType")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("ParentMediaId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ParentMediaType")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("PlaylistId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("SortOrder")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MediaType", "MediaId")
+                        .HasDatabaseName("IX_PlaylistEntries_MediaType_MediaId");
+
+                    b.HasIndex("PlaylistId", "SortOrder")
+                        .HasDatabaseName("IX_PlaylistEntries_PlaylistId_SortOrder");
+
+                    b.HasIndex("PlaylistId", "MediaType", "MediaId")
+                        .IsUnique();
+
+                    b.ToTable("PlaylistEntries");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.PlaylistEntryExclusion", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("ExcludedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("MediaId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("MediaType")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("PlaylistId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PlaylistId", "MediaType", "MediaId")
+                        .IsUnique();
+
+                    b.ToTable("PlaylistEntryExclusions");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.PlaylistGenre", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Count")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("GenreId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("PlaylistId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GenreId");
+
+                    b.HasIndex("PlaylistId", "GenreId")
+                        .IsUnique();
+
+                    b.ToTable("PlaylistGenres");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.RefreshToken", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("DeviceId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReplacedByHash")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("RevokedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DeviceId");
+
+                    b.HasIndex("RevokedAtUtc");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.ToTable("RefreshTokens");
                 });
 
             modelBuilder.Entity("VideoWebPlayer.Data.TVShow", b =>
@@ -1513,12 +1844,19 @@ namespace VideoWebPlayer.Migrations
                         .HasForeignKey("MovieId")
                         .OnDelete(DeleteBehavior.Cascade);
 
+                    b.HasOne("VideoWebPlayer.Data.Playlist", "Playlist")
+                        .WithMany()
+                        .HasForeignKey("PlaylistId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("VideoWebPlayer.Data.TVShowEpisode", "TVShowEpisode")
                         .WithMany()
                         .HasForeignKey("TVShowEpisodeId")
                         .OnDelete(DeleteBehavior.Cascade);
 
                     b.Navigation("Movie");
+
+                    b.Navigation("Playlist");
 
                     b.Navigation("TVShowEpisode");
                 });
@@ -1646,6 +1984,62 @@ namespace VideoWebPlayer.Migrations
                         .HasForeignKey("MediaItemId");
 
                     b.Navigation("MediaItem");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.Playlist", b =>
+                {
+                    b.HasOne("VideoWebPlayer.Data.Picture", "CoverPicture")
+                        .WithMany()
+                        .HasForeignKey("CoverPictureId");
+
+                    b.HasOne("VideoWebPlayer.Data.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CoverPicture");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.PlaylistEntry", b =>
+                {
+                    b.HasOne("VideoWebPlayer.Data.Playlist", "Playlist")
+                        .WithMany("PlaylistEntries")
+                        .HasForeignKey("PlaylistId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Playlist");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.PlaylistEntryExclusion", b =>
+                {
+                    b.HasOne("VideoWebPlayer.Data.Playlist", "Playlist")
+                        .WithMany()
+                        .HasForeignKey("PlaylistId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Playlist");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.PlaylistGenre", b =>
+                {
+                    b.HasOne("VideoWebPlayer.Data.Genre", "Genre")
+                        .WithMany()
+                        .HasForeignKey("GenreId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("VideoWebPlayer.Data.Playlist", "Playlist")
+                        .WithMany()
+                        .HasForeignKey("PlaylistId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Genre");
+
+                    b.Navigation("Playlist");
                 });
 
             modelBuilder.Entity("VideoWebPlayer.Data.TVShow", b =>
@@ -1830,6 +2224,11 @@ namespace VideoWebPlayer.Migrations
             modelBuilder.Entity("VideoWebPlayer.Data.MovieCollection", b =>
                 {
                     b.Navigation("Movies");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.Playlist", b =>
+                {
+                    b.Navigation("PlaylistEntries");
                 });
 
             modelBuilder.Entity("VideoWebPlayer.Data.TVShow", b =>

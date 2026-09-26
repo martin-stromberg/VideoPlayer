@@ -30,7 +30,7 @@ public class ContinueWatchingServiceGetNextEpisodeTests : ContinueWatchingServic
         var episode1 = await _db.TVShowEpisodes.FirstAsync(e => e.Number == 1, TestContext.Current.CancellationToken);
         var episode2 = await _db.TVShowEpisodes.FirstAsync(e => e.Number == 2, TestContext.Current.CancellationToken);
 
-        await _service.ProcessBufferedEntryAsync(_testUserId, null, episode1.Id, CompletedPosition, Duration, TestContext.Current.CancellationToken);
+        await _service.ProcessBufferedEntryAsync(_testUserId, null, episode1.Id, CompletedPosition, Duration, ct: TestContext.Current.CancellationToken);
 
         var entry = await _db.ContinueWatchingEntries.FirstOrDefaultAsync(x => x.UserId == _testUserId, TestContext.Current.CancellationToken);
         Assert.NotNull(entry);
@@ -47,7 +47,7 @@ public class ContinueWatchingServiceGetNextEpisodeTests : ContinueWatchingServic
         var episode1 = await _db.TVShowEpisodes.FirstAsync(e => e.Number == 1, TestContext.Current.CancellationToken);
         var episode2 = await _db.TVShowEpisodes.FirstAsync(e => e.Number == 2, TestContext.Current.CancellationToken);
 
-        await _service.ProcessBufferedEntryAsync(_testUserId, null, episode1.Id, CompletedPosition, Duration, TestContext.Current.CancellationToken);
+        await _service.ProcessBufferedEntryAsync(_testUserId, null, episode1.Id, CompletedPosition, Duration, ct: TestContext.Current.CancellationToken);
 
         var entry = await _db.ContinueWatchingEntries.FirstOrDefaultAsync(x => x.UserId == _testUserId, TestContext.Current.CancellationToken);
         Assert.NotNull(entry);
@@ -69,7 +69,7 @@ public class ContinueWatchingServiceGetNextEpisodeTests : ContinueWatchingServic
         var episode1 = await _db.TVShowEpisodes.FirstAsync(e => e.Number == 1, TestContext.Current.CancellationToken);
         var episode2 = await _db.TVShowEpisodes.FirstAsync(e => e.Number == 2, TestContext.Current.CancellationToken);
 
-        await _service.ProcessBufferedEntryAsync(_testUserId, null, episode1.Id, CompletedPosition, Duration, TestContext.Current.CancellationToken);
+        await _service.ProcessBufferedEntryAsync(_testUserId, null, episode1.Id, CompletedPosition, Duration, ct: TestContext.Current.CancellationToken);
 
         var entry = await _db.ContinueWatchingEntries.FirstOrDefaultAsync(x => x.UserId == _testUserId, TestContext.Current.CancellationToken);
         Assert.NotNull(entry);
@@ -91,7 +91,7 @@ public class ContinueWatchingServiceGetNextEpisodeTests : ContinueWatchingServic
         var episode2 = await _db.TVShowEpisodes.FirstAsync(e => e.Number == 2, TestContext.Current.CancellationToken);
         var episode3 = await _db.TVShowEpisodes.FirstAsync(e => e.Number == 3, TestContext.Current.CancellationToken);
 
-        await _service.ProcessBufferedEntryAsync(_testUserId, null, episode2.Id, CompletedPosition, Duration, TestContext.Current.CancellationToken);
+        await _service.ProcessBufferedEntryAsync(_testUserId, null, episode2.Id, CompletedPosition, Duration, ct: TestContext.Current.CancellationToken);
 
         var entry = await _db.ContinueWatchingEntries.FirstOrDefaultAsync(x => x.UserId == _testUserId, TestContext.Current.CancellationToken);
         Assert.NotNull(entry);
@@ -108,7 +108,7 @@ public class ContinueWatchingServiceGetNextEpisodeTests : ContinueWatchingServic
         var episode2 = await _db.TVShowEpisodes.FirstAsync(e => e.Number == 2, TestContext.Current.CancellationToken);
         var episode4 = await _db.TVShowEpisodes.FirstAsync(e => e.Number == 4, TestContext.Current.CancellationToken);
 
-        await _service.ProcessBufferedEntryAsync(_testUserId, null, episode2.Id, CompletedPosition, Duration, TestContext.Current.CancellationToken);
+        await _service.ProcessBufferedEntryAsync(_testUserId, null, episode2.Id, CompletedPosition, Duration, ct: TestContext.Current.CancellationToken);
 
         var entry = await _db.ContinueWatchingEntries.FirstOrDefaultAsync(x => x.UserId == _testUserId, TestContext.Current.CancellationToken);
         Assert.NotNull(entry);
@@ -125,7 +125,7 @@ public class ContinueWatchingServiceGetNextEpisodeTests : ContinueWatchingServic
         var episode2 = await _db.TVShowEpisodes.FirstAsync(e => e.Number == 2, TestContext.Current.CancellationToken);
         var episode3 = await _db.TVShowEpisodes.FirstAsync(e => e.Number == 3, TestContext.Current.CancellationToken);
 
-        await _service.ProcessBufferedEntryAsync(_testUserId, null, episode2.Id, CompletedPosition, Duration, TestContext.Current.CancellationToken);
+        await _service.ProcessBufferedEntryAsync(_testUserId, null, episode2.Id, CompletedPosition, Duration, ct: TestContext.Current.CancellationToken);
 
         var entry = await _db.ContinueWatchingEntries.FirstOrDefaultAsync(x => x.UserId == _testUserId, TestContext.Current.CancellationToken);
         Assert.NotNull(entry);
@@ -141,7 +141,7 @@ public class ContinueWatchingServiceGetNextEpisodeTests : ContinueWatchingServic
 
         var episode2 = await _db.TVShowEpisodes.FirstAsync(e => e.Number == 2, TestContext.Current.CancellationToken);
 
-        await _service.ProcessBufferedEntryAsync(_testUserId, null, episode2.Id, CompletedPosition, Duration, TestContext.Current.CancellationToken);
+        await _service.ProcessBufferedEntryAsync(_testUserId, null, episode2.Id, CompletedPosition, Duration, ct: TestContext.Current.CancellationToken);
 
         var entry = await _db.ContinueWatchingEntries.FirstOrDefaultAsync(x => x.UserId == _testUserId, TestContext.Current.CancellationToken);
         Assert.Null(entry);
@@ -161,7 +161,7 @@ public class ContinueWatchingServiceGetNextEpisodeTests : ContinueWatchingServic
             .Include(e => e.TVShowSeason)
             .FirstAsync(e => e.Number == 1 && e.TVShowSeason.Name == "Staffel 02", TestContext.Current.CancellationToken);
 
-        await _service.ProcessBufferedEntryAsync(_testUserId, null, season1Episode2.Id, CompletedPosition, Duration, TestContext.Current.CancellationToken);
+        await _service.ProcessBufferedEntryAsync(_testUserId, null, season1Episode2.Id, CompletedPosition, Duration, ct: TestContext.Current.CancellationToken);
 
         var entry = await _db.ContinueWatchingEntries.FirstOrDefaultAsync(x => x.UserId == _testUserId, TestContext.Current.CancellationToken);
         Assert.NotNull(entry);
@@ -177,7 +177,7 @@ public class ContinueWatchingServiceGetNextEpisodeTests : ContinueWatchingServic
 
         var episode3 = await _db.TVShowEpisodes.FirstAsync(e => e.Number == 3, TestContext.Current.CancellationToken);
 
-        await _service.ProcessBufferedEntryAsync(_testUserId, null, episode3.Id, CompletedPosition, Duration, TestContext.Current.CancellationToken);
+        await _service.ProcessBufferedEntryAsync(_testUserId, null, episode3.Id, CompletedPosition, Duration, ct: TestContext.Current.CancellationToken);
 
         var entry = await _db.ContinueWatchingEntries.FirstOrDefaultAsync(x => x.UserId == _testUserId, TestContext.Current.CancellationToken);
         Assert.Null(entry);
@@ -194,7 +194,7 @@ public class ContinueWatchingServiceGetNextEpisodeTests : ContinueWatchingServic
             .Include(e => e.TVShowSeason)
             .FirstAsync(e => e.Number == 2 && e.TVShowSeason.Name == "Staffel 01", TestContext.Current.CancellationToken);
 
-        await _service.ProcessBufferedEntryAsync(_testUserId, null, season1Episode2.Id, CompletedPosition, Duration, TestContext.Current.CancellationToken);
+        await _service.ProcessBufferedEntryAsync(_testUserId, null, season1Episode2.Id, CompletedPosition, Duration, ct: TestContext.Current.CancellationToken);
 
         var entry = await _db.ContinueWatchingEntries.FirstOrDefaultAsync(x => x.UserId == _testUserId, TestContext.Current.CancellationToken);
         Assert.Null(entry);
@@ -208,7 +208,7 @@ public class ContinueWatchingServiceGetNextEpisodeTests : ContinueWatchingServic
 
         var episode1 = await _db.TVShowEpisodes.FirstAsync(e => e.Number == 1, TestContext.Current.CancellationToken);
 
-        await _service.ProcessBufferedEntryAsync(_testUserId, null, episode1.Id, CompletedPosition, Duration, TestContext.Current.CancellationToken);
+        await _service.ProcessBufferedEntryAsync(_testUserId, null, episode1.Id, CompletedPosition, Duration, ct: TestContext.Current.CancellationToken);
 
         var entry = await _db.ContinueWatchingEntries.FirstOrDefaultAsync(x => x.UserId == _testUserId, TestContext.Current.CancellationToken);
         Assert.Null(entry);
@@ -224,7 +224,7 @@ public class ContinueWatchingServiceGetNextEpisodeTests : ContinueWatchingServic
         var episode1 = await _db.TVShowEpisodes.FirstAsync(e => e.Number == 1, TestContext.Current.CancellationToken);
         var episode2 = await _db.TVShowEpisodes.FirstAsync(e => e.Number == 2, TestContext.Current.CancellationToken);
 
-        await _service.ProcessBufferedEntryAsync(_testUserId, null, episode1.Id, CompletedPosition, Duration, TestContext.Current.CancellationToken);
+        await _service.ProcessBufferedEntryAsync(_testUserId, null, episode1.Id, CompletedPosition, Duration, ct: TestContext.Current.CancellationToken);
 
         var entry = await _db.ContinueWatchingEntries.FirstOrDefaultAsync(x => x.UserId == _testUserId, TestContext.Current.CancellationToken);
         Assert.NotNull(entry);
@@ -242,17 +242,17 @@ public class ContinueWatchingServiceGetNextEpisodeTests : ContinueWatchingServic
         var episodeB = await _db.TVShowEpisodes.FirstAsync(e => e.Number == 2, TestContext.Current.CancellationToken);
         var episodeC = await _db.TVShowEpisodes.FirstAsync(e => e.Number == 3, TestContext.Current.CancellationToken);
 
-        await _service.ProcessBufferedEntryAsync(_testUserId, null, episodeA.Id, CompletedPosition, Duration, TestContext.Current.CancellationToken);
+        await _service.ProcessBufferedEntryAsync(_testUserId, null, episodeA.Id, CompletedPosition, Duration, ct: TestContext.Current.CancellationToken);
         var entryAfterA = await _db.ContinueWatchingEntries.FirstOrDefaultAsync(x => x.UserId == _testUserId, TestContext.Current.CancellationToken);
         Assert.NotNull(entryAfterA);
         Assert.Equal(episodeB.Id, entryAfterA!.TVShowEpisodeId);
 
-        await _service.ProcessBufferedEntryAsync(_testUserId, null, episodeB.Id, CompletedPosition, Duration, TestContext.Current.CancellationToken);
+        await _service.ProcessBufferedEntryAsync(_testUserId, null, episodeB.Id, CompletedPosition, Duration, ct: TestContext.Current.CancellationToken);
         var entryAfterB = await _db.ContinueWatchingEntries.FirstOrDefaultAsync(x => x.UserId == _testUserId, TestContext.Current.CancellationToken);
         Assert.NotNull(entryAfterB);
         Assert.Equal(episodeC.Id, entryAfterB!.TVShowEpisodeId);
 
-        await _service.ProcessBufferedEntryAsync(_testUserId, null, episodeC.Id, CompletedPosition, Duration, TestContext.Current.CancellationToken);
+        await _service.ProcessBufferedEntryAsync(_testUserId, null, episodeC.Id, CompletedPosition, Duration, ct: TestContext.Current.CancellationToken);
         var entryAfterC = await _db.ContinueWatchingEntries.FirstOrDefaultAsync(x => x.UserId == _testUserId, TestContext.Current.CancellationToken);
         Assert.Null(entryAfterC);
     }
@@ -266,7 +266,7 @@ public class ContinueWatchingServiceGetNextEpisodeTests : ContinueWatchingServic
         var episode5 = await _db.TVShowEpisodes.FirstAsync(e => e.Number == 5, TestContext.Current.CancellationToken);
         var episode10 = await _db.TVShowEpisodes.FirstAsync(e => e.Number == 10, TestContext.Current.CancellationToken);
 
-        await _service.ProcessBufferedEntryAsync(_testUserId, null, episode5.Id, CompletedPosition, Duration, TestContext.Current.CancellationToken);
+        await _service.ProcessBufferedEntryAsync(_testUserId, null, episode5.Id, CompletedPosition, Duration, ct: TestContext.Current.CancellationToken);
 
         var entry = await _db.ContinueWatchingEntries.FirstOrDefaultAsync(x => x.UserId == _testUserId, TestContext.Current.CancellationToken);
         Assert.NotNull(entry);

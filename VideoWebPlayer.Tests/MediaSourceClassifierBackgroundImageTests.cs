@@ -248,7 +248,7 @@ public class MediaSourceClassifierBackgroundImageTests
         services.AddSingleton<TimeProvider>(new IncrementingTimeProvider(DateTimeOffset.UtcNow, TimeSpan.FromMinutes(1)));
         services.AddSingleton<EventManager>();
         services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(connectionString));
-        services.AddSingleton<SftpMediaSourceReader>(reader);
+        services.AddSingleton<IMediaSourceReader>(reader);
         services.AddScoped<ProgramSettingsService>();
         services.AddScoped<MediaSourceScanner>();
         services.AddScoped<RecentEntryService>();

@@ -49,5 +49,10 @@ namespace VideoWebPlayer.Data
         /// Gets or sets the back-reference to the episode this generated picture belongs to.
         /// </summary>
         public long? EpisodeId { get; set; }
+        /// <summary>
+        /// Gets or sets the back-reference to the playlist this picture is the cover of (either
+        /// uploaded by the owner or generated as a collage), analogous to <see cref="EpisodeId"/>.
+        /// </summary>
+        public long? PlaylistId { get; set; }
     }
 }

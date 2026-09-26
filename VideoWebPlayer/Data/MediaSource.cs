@@ -24,6 +24,10 @@ namespace VideoWebPlayer.Data
         /// Gets or sets the password for authentication.
         /// </summary>
         public string? Password { get; set; }
+        /// <summary>
+        /// Gets or sets the source type (SFTP server or local directory).
+        /// </summary>
+        public MediaSourceType SourceType { get; set; } = MediaSourceType.Sftp;
 
         /// <summary>
         /// Optional uploaded icon image (stored in `MediaSourceIcons` table).
@@ -41,10 +45,14 @@ namespace VideoWebPlayer.Data
         /// <summary>
         /// Gets the media collections for this source.
         /// </summary>
+        /// <!-- <typeparam name="MediaCollection"> is the element type of the collection initializer, not a type parameter of this member. -->
+        /// <value>The media collections that belong to this source.</value>
         public ICollection<MediaCollection> MediaCollections { get; set; } = new List<MediaCollection>();
         /// <summary>
         /// Gets the users that have access to this source.
         /// </summary>
+        /// <!-- <typeparam name="MediaSourceUser"> is the element type of the collection initializer, not a type parameter of this member. -->
+        /// <value>The users that have access to this source.</value>
         public ICollection<MediaSourceUser> MediaSourceUsers { get; set; } = new List<MediaSourceUser>();
     }
 }

@@ -44,4 +44,12 @@ public class Setup
     /// Default: 50 percent.
     /// </summary>
     public int ActorCollectionThresholdPercent { get; set; } = 50;
+
+    /// <summary>
+    /// Gets or sets the time (UTC) the last daily playlist-backfill safety sweep completed
+    /// (<see cref="VideoWebPlayer.Services.PlaylistBackfillCoordinator"/>). Persisted so the sweep runs at most once
+    /// per interval even across frequent restarts, and is caught up after a start if overdue.
+    /// <c>null</c> means it has never run.
+    /// </summary>
+    public DateTime? PlaylistBackfillLastSweepAt { get; set; }
 }

@@ -1,0 +1,833 @@
+@page "/playlists/{id:long}"
+@using Microsoft.AspNetCore.Components.Authorization
+@using VideoWebPlayer.Client.Models
+@using VideoWebPlayer.ViewModels
+@inject VideoWebPlayer.Client.VideoWebPlayerClient Client
+@inject VideoWebPlayer.Client.IPlaylistApiClient PlaylistClient
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager NavigationManager
+@inject ILogger<PlaylistDetail> Logger
+@rendermode InteractiveServer
+
+<PageTitle>Playlist</PageTitle>
+
+@if (isLoading)
+{
+    <section class="media-section">
+        <p>Lade Daten...</p>
+    </section>
+}
+else if (!string.IsNullOrWhiteSpace(loadError))
+{
+    <section class="media-section">
+        <div class="alert alert-danger" id="playlist-detail-error">@loadError</div>
+    </section>
+}
+else if (playlist is not null)
+{
+    @* Kopfbereich nach dem Muster der Detailansichten von Filmen/Serien (TVShowDetails, MovieCollectionDetails):
+       dieselben CSS-Klassen (.tvshow-header, .tvshow-header-overlay, .tvshow-header-content, .tvshow-meta,
+       .tvshow-plot, .back-arrow, .play-button, .metadata-action-bar), also dieselbe vorgegebene Höhe, dasselbe
+       abgedunkelte Hintergrundbild (Verlauf im Overlay) und dieselbe Position der Aktionsbuttons AUF dem Bild.
+       Die Höhe hängt nicht vom Bild ab: das Bild liegt absolut positioniert im Header und wird per
+       object-fit: cover eingepasst.
+       Ohne Auswahl zeigt der Kopfbereich die Playlist-Informationen; wählt der Anwender in der Titelliste einen
+       Titel aus, zeigt er dessen Informationen (wie die Episodeninformationen auf der Serienseite), mit
+       Abspielen-Button und - nur für den Besitzer - einem Löschen-Symbol-Button zum Entfernen des Titels.
+       Playlists zeigen ihr Cover (hochgeladen oder automatisch als Collage erzeugt, Entwicklungsschritt 10) als
+       Hintergrundbild; ist keines gesetzt, der aus der Playlist-Id abgeleitete Platzhalter
+       (PlaylistCoverPlaceholder). *@
+    <div class="tvshow-header playlist-header" id="playlist-detail-header">
+        @* Platzhalter liegt immer darunter (billig: Farbverlauf + Symbol) und wird nur sichtbar, wenn kein
+           Cover gesetzt ist oder das Bild nicht ladbar ist (onerror blendet das <img> aus) - siehe gleiches
+           Muster in PlaylistsList.razor. *@
+        <PlaylistCoverPlaceholder PlaylistId="Id" CssClass="playlist-header-cover" />
+        @if (playlist.CoverPictureId.HasValue)
+        {
+            <img class="playlist-header-cover playlist-header-cover-image" id="playlist-detail-cover-image" src="@CoverImageUrl" alt="@playlist.Name"
+                 onerror="this.style.display='none'" />
+        }
+        @if (SelectedEntryBackgroundUrl is { } entryBackgroundUrl)
+        {
+            @* Wie auf der Serienseite: Bei ausgewählter Episode wird deren Bild zum Hintergrund des Kopfbereichs. Es
+               liegt über dem Playlist-Cover; schlägt das Laden fehl, blendet onerror es aus und das Cover bleibt. *@
+            <img class="playlist-header-cover playlist-header-cover-image playlist-header-entry-background" id="playlist-detail-entry-background" src="@entryBackgroundUrl" alt=""
+                 onerror="this.style.display='none'" />
+        }
+
+        <button class="back-arrow playlist-detail-back-button" id="playlist-detail-back-button" @onclick="HandleBack" title="@BackButtonTitle" aria-label="@BackButtonTitle">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+                <path d="M15 6l-6 6 6 6" stroke="#ffe066" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+        </button>
+
+        @* Bearbeitungsleiste ausschließlich für den Besitzer (Entwicklungsschritt 11): für alle anderen
+           (öffentliche Playlist eines anderen Anwenders - auch für Administratoren, die nicht Besitzer
+           sind) wird sie gar nicht erst gerendert. Der Server lehnt jede Änderung durch Nicht-Besitzer
+           unabhängig davon mit 403 ab. Bei ausgewähltem Titel bietet sie nur dessen Entfernen an. *@
+        @if (IsOwner)
+        {
+            <div class="metadata-action-bar playlist-action-bar">
+                @* Umschalter der Inhaltsbereiche (Kundenrückmeldung): steht bei den übrigen Aktionsbuttons auf dem
+                   Bild statt im Inhaltsbereich und zeigt - wie der Veröffentlichen-Button, der immer nur das
+                   aktuelle Symbol trägt - immer nur EINEN Button, nämlich den für den Wechsel in den jeweils
+                   anderen Bereich. Nur für den Besitzer (die umgebende Leiste wird für andere gar nicht gerendert).
+                   Die Ids bleiben die bisherigen, damit Bedeutung und Tests eindeutig bleiben:
+                   "playlist-mode-add-button" wechselt zum Hinzufügen, "playlist-mode-entries-button" zur Titelliste. *@
+                <button class="metadata-icon-btn playlist-mode-toggle-button"
+                        id="@(isAddMode ? "playlist-mode-entries-button" : "playlist-mode-add-button")"
+                        data-mode="@(isAddMode ? "entries" : "add")"
+                        title="@ModeToggleTitle" aria-label="@ModeToggleTitle"
+                        @onclick="ToggleContentModeAsync">
+                    @if (isAddMode)
+                    {
+                        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13" /><path d="M8 12h13" /><path d="M8 18h13" /><path d="M3 6h.01" /><path d="M3 12h.01" /><path d="M3 18h.01" /></svg>
+                    }
+                    else
+                    {
+                        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14" /><path d="M5 12h14" /></svg>
+                    }
+                </button>
+                @if (selectedEntry is not null)
+                {
+                    <button class="metadata-icon-btn playlist-detail-remove-entry-button" id="playlist-detail-remove-entry-button" @onclick="RemoveSelectedEntryAsync" title="Titel aus der Playlist entfernen" aria-label="Titel aus der Playlist entfernen">
+                        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /></svg>
+                    </button>
+                }
+                else
+                {
+                    @if (isAdmin)
+                    {
+                        @* Nur Administratoren, die Besitzer sind: Kennzeichnung "öffentlich" setzen/entfernen. Regulären
+                           Anwendern wird der Button nicht angeboten (nicht ausgegraut, sondern gar nicht gerendert). Das
+                           Symbol zeigt den Zustand: Globus = öffentlich, geschlossenes Schloss = privat. *@
+                        <button class="metadata-icon-btn playlist-detail-toggle-public-button @(playlist.IsPublic ? "playlist-public-active" : "playlist-private-active")" id="playlist-detail-toggle-public-button" data-public="@(playlist.IsPublic ? "true" : "false")" @onclick="TogglePublicAsync" disabled="@isTogglingPublic" title="@PublicToggleTitle" aria-label="@PublicToggleTitle" aria-pressed="@(playlist.IsPublic ? "true" : "false")">
+                            @if (playlist.IsPublic)
+                            {
+                                <svg aria-hidden="true" class="playlist-public-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M3 12h18" /><path d="M12 3a14 14 0 0 1 0 18" /><path d="M12 3a14 14 0 0 0 0 18" /></svg>
+                            }
+                            else
+                            {
+                                <svg aria-hidden="true" class="playlist-private-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>
+                            }
+                        </button>
+                    }
+                    <button class="metadata-icon-btn playlist-detail-cover-button" id="playlist-detail-cover-button" @onclick="OpenCoverPanel" title="Playlist-Bild ändern" aria-label="Playlist-Bild ändern">
+                        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="9" cy="10" r="2" /><path d="M21 16l-5-5-9 9" /></svg>
+                    </button>
+                    <button class="metadata-icon-btn playlist-detail-edit-button" @onclick="OpenEditForm" title="Bearbeiten" aria-label="Bearbeiten">✎</button>
+                    <button class="metadata-icon-btn playlist-detail-delete-button" @onclick="RequestDelete" title="Löschen" aria-label="Löschen">
+                        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /></svg>
+                    </button>
+                }
+            </div>
+        }
+
+        <div class="tvshow-header-overlay">
+            @if (selectedEntry is not null && IsPlayableEntry(selectedEntry))
+            {
+                <button class="play-button playlist-detail-play-entry-button" id="playlist-detail-play-entry-button" @onclick="PlaySelectedEntryAsync" title="Abspielen" aria-label="Abspielen">
+                    <span>&#9654;</span>
+                </button>
+            }
+            <div class="tvshow-header-content">
+                @if (selectedEntry is not null)
+                {
+                    <div class="playlist-header-entry" id="playlist-detail-selected-entry">
+                        @if (SelectedEntryBackgroundUrl is null)
+                        {
+                            <img class="playlist-header-poster" id="playlist-detail-entry-poster" src="@SelectedEntryImageUrl" alt="" onerror="this.onerror=null;this.src='/images/placeholder.png';" />
+                        }
+                        <div class="playlist-header-entry-text">
+                            <h1 id="playlist-detail-entry-title">@selectedEntry.MediaTitle</h1>
+                            <div class="tvshow-meta playlist-detail-meta">
+                                @if (selectedEntry.ReleaseDate.HasValue)
+                                {
+                                    <span class="tvshow-year" id="playlist-detail-entry-year">@selectedEntry.ReleaseDate.Value.Year</span>
+                                }
+                                <span class="playlist-detail-entry-type" id="playlist-detail-entry-type">@SelectedEntryTypeLabel</span>
+                                @if (!string.IsNullOrWhiteSpace(selectedEntry.ParentMediaTitle))
+                                {
+                                    <span class="playlist-detail-entry-parent" id="playlist-detail-entry-parent">@SelectedEntryParentLabel</span>
+                                }
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(selectedEntry.Plot))
+                            {
+                                <div class="tvshow-plot" id="playlist-detail-entry-plot">@selectedEntry.Plot</div>
+                            }
+                            @if (!selectedEntry.IsAccessible)
+                            {
+                                <div class="playlist-detail-entry-locked" id="playlist-detail-entry-locked">Dieser Titel ist für Sie nicht freigeschaltet und kann nicht abgespielt werden.</div>
+                            }
+                            <div class="playlist-detail-dates-muted">
+                                <span id="playlist-detail-entry-added"><span class="playlist-detail-date-label">Hinzugefügt:</span> @FormatDateTime(selectedEntry.AddedAt)</span>
+                            </div>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <h1 id="playlist-detail-name">@playlist.Name</h1>
+                    <div class="tvshow-meta playlist-detail-meta">
+                        <span class="playlist-sortmode-badge">
+                            <PlaylistSortModeIcon SortMode="playlist.SortMode" />
+                            <span id="playlist-detail-sortmode">@PlaylistSortModeValues.GetDisplayLabel(playlist.SortMode)</span>
+                        </span>
+                        @if (IsOwner)
+                        {
+                            <button class="metadata-icon-btn playlist-sortmode-toggle-button" @onclick="ToggleSortModeAsync" title="@SortModeToggleTitle" aria-label="@SortModeToggleTitle">
+                                <PlaylistSortModeIcon SortMode="selectedSortMode" Size="18" />
+                            </button>
+                        }
+                        @if (playlist.IsPublic)
+                        {
+                            <span class="playlist-public-badge" id="playlist-detail-public-badge" title="Öffentlich - für alle Anwender sichtbar und abspielbar (nur lesend)">Öffentlich</span>
+                        }
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(playlist.Description))
+                    {
+                        <div class="tvshow-plot" id="playlist-detail-description">@playlist.Description</div>
+                    }
+                    else
+                    {
+                        <div class="tvshow-plot" id="playlist-detail-description"></div>
+                    }
+                    <div class="playlist-detail-genres-row">
+                        @if (playlist.Genres.Length > 0)
+                        {
+                            <span class="playlist-genres-line" id="playlist-detail-genres">@string.Join(", ", playlist.Genres.Select(g => g.Name))</span>
+                        }
+                        @if (playlist.GenresManuallyOverridden)
+                        {
+                            <span class="playlist-genre-override-badge" id="playlist-detail-genres-override-badge">Manuell festgelegt</span>
+                        }
+                        @if (IsOwner)
+                        {
+                            <span class="playlist-genre-actions">
+                                <button class="metadata-icon-btn playlist-genre-edit-button" id="playlist-detail-edit-genres-button" @onclick="OpenGenreEditor" title="Genres bearbeiten" aria-label="Genres bearbeiten">✎</button>
+                                @if (playlist.GenresManuallyOverridden)
+                                {
+                                    <button class="metadata-icon-btn playlist-genre-reset-button" id="playlist-detail-reset-genres-button" @onclick="ResetGenresAsync" title="Auf automatische Genres zurücksetzen" aria-label="Auf automatische Genres zurücksetzen">↺</button>
+                                }
+                            </span>
+                        }
+                    </div>
+                    @* Datumsangaben: "Erstellt: 07.09.2026, 06:23 Uhr" und "Aktualisiert: ..." als zwei klar getrennte
+                       Angaben (Beschriftung mit Doppelpunkt, Leerzeichen zum Wert, Abstand zwischen den Angaben);
+                       weiterhin dezent dargestellt. *@
+                    <div class="playlist-detail-dates-muted">
+                        <span id="playlist-detail-created"><span class="playlist-detail-date-label">Erstellt:</span> <time datetime="@playlist.CreatedAt.ToString("O")">@FormatDateTime(playlist.CreatedAt)</time></span>
+                        <span id="playlist-detail-updated"><span class="playlist-detail-date-label">Aktualisiert:</span> <time datetime="@playlist.UpdatedAt.ToString("O")">@FormatDateTime(playlist.UpdatedAt)</time></span>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <section class="media-section">
+        @if (!string.IsNullOrWhiteSpace(sortModeStatusMessage))
+        {
+            <div class="alert alert-danger" id="playlist-sortmode-status">@sortModeStatusMessage</div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(genreStatusMessage))
+        {
+            <div class="alert alert-danger" id="playlist-genre-status">@genreStatusMessage</div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(publicStatusMessage))
+        {
+            <div class="alert alert-danger" id="playlist-public-status">@publicStatusMessage</div>
+        }
+
+        <PlaylistEntriesList @ref="entriesList" PlaylistId="Id" IsManualMode="IsManualMode" IsReadOnly="!IsOwner"
+                             SelectedEntryId="selectedEntry?.Id" OnEntrySelected="SelectEntry" OnEntryRemoved="HandleEntryRemoved"
+                             OnPlayEntry="PlayEntryAsync" OnModeChanged="HandleContentModeChanged" />
+
+        @if (!string.IsNullOrWhiteSpace(playbackError))
+        {
+            <div class="alert alert-danger" id="playlist-playback-error">@playbackError</div>
+        }
+    </section>
+}
+
+@if (playbackStart is not null)
+{
+    <VideoPlayer Show="true"
+                 StreamUrl="@playbackStart.StreamUrl"
+                 OnClose="ClosePlayerAsync"
+                 MediaType="@playbackStart.MediaType"
+                 MediaId="@playbackStart.MediaId"
+                 AuthToken="@Client.AuthorizationToken"
+                 AutoPlay="true"
+                 StartPositionSeconds="@playbackStart.StartPositionSeconds"
+                 PlaylistContext="new PlaylistPlaybackContext(playbackStart.PlaylistId, playbackStart.CurrentEntryId, playbackStart.TotalCount, playbackStart.PlaylistName)"
+                 CurrentPlaylistPosition="playbackStart.CurrentPosition"
+                 CurrentPlaylistEntryIdChanged="OnPlaylistEntryIdChanged" />
+}
+
+@if (formState.IsOpen)
+{
+    <PlaylistForm PlaylistId="formState.EditingId" OnSave="HandleSavedAsync" OnCancel="HandleCancel" />
+}
+
+@if (deleteState.Pending is not null)
+{
+    <PlaylistDeleteConfirmationDialog PlaylistName="@deleteState.Pending.Name" OnConfirm="ConfirmDeleteAsync" OnCancel="CancelDelete" />
+}
+
+@if (showSortModeConfirmation)
+{
+    <PlaylistSortModeConfirmationDialog OnConfirm="ConfirmSortModeChangeAsync" OnCancel="CancelSortModeChange" />
+}
+
+@if (showGenreEditor && playlist is not null)
+{
+    <PlaylistGenreEditor PlaylistId="Id" InitialGenreIds="playlist.AllGenreIds" OnSaved="HandleGenresSavedAsync" OnCancel="CloseGenreEditor" />
+}
+
+@if (showCoverPanel && playlist is not null && IsOwner)
+{
+    <PlaylistCoverPanel PlaylistId="Id"
+                        CoverImageUrl="@(playlist.CoverPictureId.HasValue ? CoverImageUrl : null)"
+                        CoverIsUserUploaded="playlist.CoverPictureIsUserUploaded"
+                        OnChanged="HandleCoverChangedAsync"
+                        OnCancel="CloseCoverPanel" />
+}
+
+@code {
+    [Parameter]
+    public long Id { get; set; }
+
+    /// <summary>
+    /// Optional playlist entry to resume playback at, supplied via the <c>?entryId=</c> URL query
+    /// parameter. Populated on initial navigation from <see cref="PlaylistEntriesList.OnPlayEntry"/> and
+    /// kept in sync with the currently playing entry (see <see cref="OnPlaylistEntryIdChanged"/>) so
+    /// a browser reload during playlist playback resumes at the same entry (Af-010).
+    /// </summary>
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "entryId")]
+    public long? EntryId { get; set; }
+
+    private DtoPlaylist? playlist;
+    private bool isLoading = true;
+    private string? loadError;
+    private readonly PlaylistFormState formState = new();
+    private readonly PlaylistDeletePendingState deleteState = new();
+    private string selectedSortMode = PlaylistSortModeValues.ByReleaseDate;
+    private bool showSortModeConfirmation;
+    private string? sortModeStatusMessage;
+    private bool showGenreEditor;
+    private string? genreStatusMessage;
+    private PlaylistEntriesList? entriesList;
+    private DtoPlaylistPlaybackStart? playbackStart;
+    private bool showCoverPanel;
+    private DtoPlaylistEntry? selectedEntry;
+    private bool isAdmin;
+    private bool isTogglingPublic;
+    private string? publicStatusMessage;
+
+    /// <summary>
+    /// Whether the content section currently shows the "Titel hinzufügen" area rather than the title list, as
+    /// reported by <see cref="PlaylistEntriesList.OnModeChanged"/>. Only decides which of the two mode symbols
+    /// the header's single toggle shows (the one for the respective other area).
+    /// </summary>
+    private bool isAddMode;
+
+    /// <summary>
+    /// Whether the current user owns the playlist (as reported by the server, see
+    /// <see cref="DtoPlaylist.IsOwner"/>). Only the owner is offered any editing; everybody else gets the
+    /// read-only view of a public playlist. Not a security boundary - the server refuses non-owner
+    /// mutations with 403 regardless.
+    /// </summary>
+    private bool IsOwner => playlist?.IsOwner == true;
+
+    /// <summary>
+    /// Title/accessible name of the publish button: names the CURRENT state (public vs. private) and what a
+    /// click does, so the button is not ambiguous (the icon differs as well: globe = public, lock = private).
+    /// </summary>
+    private string PublicToggleTitle
+        => playlist?.IsPublic == true
+            ? "Öffentlich - für alle Anwender sichtbar. Klicken, um die Veröffentlichung zurückzunehmen"
+            : "Privat - nur für Sie sichtbar. Klicken, um für alle Anwender zu veröffentlichen";
+
+    /// <summary>
+    /// URL of the playlist's cover image, cache-busted via <see cref="DtoPlaylist.CoverPictureId"/> (which
+    /// changes on every upload/regeneration) so the browser fetches the new image instead of reusing a
+    /// stale cached response for the same <c>/cover</c> endpoint.
+    /// </summary>
+    private string CoverImageUrl
+        => $"/api/playlists/{Id}/cover?access_token={Client.AuthorizationToken}&v={playlist?.CoverPictureId}";
+
+    /// <summary>
+    /// Error from a failed <see cref="StartPlaybackAsync"/> call (e.g. the requested entry is locked or
+    /// a non-playable collection entry), kept separate from <see cref="loadError"/> - which means the
+    /// playlist's own metadata failed to load and, per the page's exclusive if/else-if rendering chain,
+    /// replaces the entire detail page. A playback-start failure should instead leave the already-loaded
+    /// playlist and its entries visible, with just an inline error shown below them, so the user can pick
+    /// a different entry without a page reload.
+    /// </summary>
+    private string? playbackError;
+
+    private bool IsManualMode => playlist?.SortMode == PlaylistSortModeValues.Manual;
+
+    /// <summary>
+    /// The sort mode a click on <see cref="ToggleSortModeAsync"/>'s icon button would switch to - the
+    /// mode the toggle currently does NOT show, of the two supported <see cref="PlaylistSortModeValues"/>.
+    /// </summary>
+    private string OtherSortMode
+        => selectedSortMode == PlaylistSortModeValues.Manual ? PlaylistSortModeValues.ByReleaseDate : PlaylistSortModeValues.Manual;
+
+    private string SortModeToggleTitle
+        => $"Sortierung wechseln zu \"{PlaylistSortModeValues.GetDisplayLabel(OtherSortMode)}\"";
+
+    /// <summary>
+    /// Title/accessible name of the content-area toggle: names the area a click switches TO, since the button
+    /// always shows only that one symbol (same principle as the publish button).
+    /// </summary>
+    private string ModeToggleTitle
+        => isAddMode ? "Titel der Playlist auflisten" : "Titel hinzufügen";
+
+    /// <summary>
+    /// Switches the content section between the title list and the "Titel hinzufügen" area (owner only - the
+    /// surrounding action bar is not rendered for anybody else).
+    /// </summary>
+    private Task ToggleContentModeAsync()
+        => entriesList is not null && IsOwner ? entriesList.ToggleModeAsync() : Task.CompletedTask;
+
+    /// <summary>
+    /// Callback of <see cref="PlaylistEntriesList.OnModeChanged"/>: keeps <see cref="isAddMode"/> in sync so the
+    /// header's toggle shows the symbol of the respective other area.
+    /// </summary>
+    /// <param name="addMode">Whether the "Titel hinzufügen" area is shown now.</param>
+    private void HandleContentModeChanged(bool addMode)
+    {
+        isAddMode = addMode;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        // Only decides whether the "oeffentlich" toggle is offered (same claim check as the other admin
+        // UI); the server independently verifies administrator status against the user record.
+        isAdmin = authState.User.HasClaim("IsAdmin", "True");
+        await Client.EnsureAuthorizationTokenSilentlyAsync(authState.User);
+        await LoadPlaylistAsync();
+
+        if (EntryId.HasValue)
+            await StartPlaybackAsync(EntryId);
+    }
+
+    private async Task PlayEntryAsync(DtoPlaylistEntry entry)
+        => await StartPlaybackAsync(entry.Id);
+
+    private async Task StartPlaybackAsync(long? entryId)
+    {
+        try
+        {
+            playbackStart = await PlaylistClient.StartPlaylistAsync(Id, entryId);
+            // Append the access token once here, so playbackStart.StreamUrl is always ready-to-use both
+            // for this initial render and for later Next/Previous/Advance updates in OnPlaylistEntryIdChanged.
+            playbackStart.StreamUrl = $"{playbackStart.StreamUrl}?access_token={Client.AuthorizationToken}";
+            playbackError = null;
+            NavigationManager.NavigateTo($"/playlists/{Id}?entryId={playbackStart.CurrentEntryId}", replace: true);
+        }
+        catch (Exception ex)
+        {
+            // Sets playbackError (not loadError) and does not navigate: the playlist itself loaded fine,
+            // only starting playback at this entry failed (e.g. it is locked or a non-playable collection
+            // entry), so the detail page including its entries list must stay visible - see playbackError.
+            Logger.LogWarning(ex, "Fehler beim Starten der Wiedergabe von Playlist {PlaylistId}", Id);
+            playbackError = $"Fehler beim Starten der Wiedergabe: {ex.Message}";
+        }
+    }
+
+    private Task ClosePlayerAsync()
+    {
+        playbackStart = null;
+        playbackError = null;
+        NavigationManager.NavigateTo($"/playlists/{Id}", replace: true);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Updates the locally held <see cref="playbackStart"/> from the stream information <see cref="VideoPlayer"/>
+    /// already resolved for its new current entry (Next/Previous/Advance/Restart), rather than re-deriving
+    /// the stream URL here - which would be stale relative to what VideoPlayer is actually displaying and
+    /// would overwrite it on the next render this NavigateTo call triggers (see
+    /// <see cref="VideoPlayer.CurrentPlaylistEntryIdChanged"/>). <paramref name="info"/> now also carries the
+    /// new entry's playlist-specific <c>StartPositionSeconds</c> directly (resolved server-side together with
+    /// the entry itself), so this handler is purely synchronous - deliberately so: an earlier version fetched
+    /// <c>StartPositionSeconds</c> here via a separate <see cref="VideoWebPlayer.Client.IPlaylistApiClient.StartPlaylistAsync"/>
+    /// roundtrip, and Blazor Server renders as soon as an async event handler reaches its first <c>await</c>,
+    /// so <see cref="VideoPlayer"/> observed the new <c>StreamUrl</c> together with the still-stale previous
+    /// <c>StartPositionSeconds</c> in that intermediate render and applied it before the roundtrip resolved.
+    /// With no <c>await</c> in this method, all of <see cref="playbackStart"/>'s fields update atomically
+    /// within the single render triggered by the originating event, closing that window entirely.
+    /// </summary>
+    private void OnPlaylistEntryIdChanged(VideoPlayer.PlaylistEntryPlaybackInfo info)
+    {
+        if (playbackStart is not null)
+        {
+            playbackStart.CurrentEntryId = info.EntryId;
+            playbackStart.MediaType = info.PlayerMediaType;
+            playbackStart.MediaId = info.MediaId;
+            playbackStart.StreamUrl = info.StreamUrl;
+            playbackStart.StartPositionSeconds = info.StartPositionSeconds;
+        }
+
+        NavigationManager.NavigateTo($"/playlists/{Id}?entryId={info.EntryId}", replace: true);
+    }
+
+    private async Task LoadPlaylistAsync()
+    {
+        isLoading = true;
+        loadError = null;
+        try
+        {
+            playlist = await PlaylistClient.RequestPlaylistAsync(Id);
+            if (playlist is null)
+                loadError = "Playlist nicht gefunden.";
+            else
+                selectedSortMode = playlist.SortMode;
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            Logger.LogWarning(ex, "Zugriff auf Playlist {PlaylistId} verweigert", Id);
+            loadError = "Zugriff auf diese Playlist verweigert.";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Fehler beim Laden der Playlist {PlaylistId}", Id);
+            loadError = $"Fehler beim Laden der Playlist: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void OpenEditForm()
+    {
+        formState.OpenForEdit(Id);
+    }
+
+    private void RequestDelete()
+    {
+        if (playlist is not null)
+            deleteState.Request(playlist);
+    }
+
+    private async Task HandleSavedAsync()
+    {
+        formState.Close();
+        await LoadPlaylistAsync();
+    }
+
+    private void HandleCancel()
+    {
+        formState.Close();
+    }
+
+    private void CancelDelete()
+    {
+        deleteState.Cancel();
+    }
+
+    private async Task ConfirmDeleteAsync()
+    {
+        if (deleteState.Pending is null)
+            return;
+
+        try
+        {
+            await PlaylistClient.DeletePlaylistAsync(deleteState.Pending.Id);
+            deleteState.Cancel();
+            NavigationManager.NavigateTo("/playlists");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Fehler beim Loeschen der Playlist {PlaylistId}", Id);
+            loadError = $"Fehler beim Löschen der Playlist: {ex.Message}";
+            deleteState.Cancel();
+        }
+    }
+
+    private void NavigateToOverview()
+    {
+        // A viewer of somebody else's public playlist came from the public overview.
+        NavigationManager.NavigateTo(playlist is not null && !playlist.IsOwner ? "/playlists/public" : "/playlists");
+    }
+
+    /// <summary>
+    /// Sets or clears the "oeffentlich" flag (administrator who owns the playlist only - the button is not
+    /// rendered for anybody else). Removing the flag revokes other users' access at once.
+    /// </summary>
+    private async Task TogglePublicAsync()
+    {
+        if (playlist is null || !playlist.IsOwner)
+            return;
+
+        publicStatusMessage = null;
+        isTogglingPublic = true;
+        try
+        {
+            playlist = await PlaylistClient.SetPlaylistPublicAsync(Id, new DtoSetPlaylistPublicRequest { IsPublic = !playlist.IsPublic });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Fehler beim Aendern der Oeffentlich-Kennzeichnung von Playlist {PlaylistId}", Id);
+            publicStatusMessage = ex is HttpRequestException { StatusCode: System.Net.HttpStatusCode.Forbidden }
+                ? "Nur Administratoren dürfen die Kennzeichnung \"öffentlich\" ändern."
+                : $"Fehler beim Ändern der Kennzeichnung: {ex.Message}";
+        }
+        finally
+        {
+            isTogglingPublic = false;
+        }
+    }
+
+    /// <summary>
+    /// Resets <see cref="sortModeStatusMessage"/>, runs <paramref name="action"/>, and on failure sets it
+    /// from the exception - unless <paramref name="handleSpecialError"/> is given and fully handles the
+    /// exception itself (returning <see langword="true"/>), e.g. to show the confirmation dialog instead
+    /// of an error. Mirrors <c>PlaylistEntriesList.RunEntryActionAsync</c> for the sort-mode-change
+    /// workflow, which stays on this component since it owns <see cref="playlist"/>.
+    /// </summary>
+    private async Task RunSortModeActionAsync(Func<Task> action, string errorPrefix, Func<Exception, bool>? handleSpecialError = null)
+    {
+        sortModeStatusMessage = null;
+        try
+        {
+            await action();
+        }
+        catch (Exception ex)
+        {
+            if (handleSpecialError?.Invoke(ex) == true)
+                return;
+
+            Logger.LogWarning(ex, "{ErrorPrefix} (Playlist {PlaylistId})", errorPrefix, Id);
+            sortModeStatusMessage = $"{errorPrefix}: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// Handles the sort-mode-toggle icon button (replacing the former dropdown + "Anwenden" button, per
+    /// Kundenfeedback: "Der Wechsel zwischen den beiden Sortiermethoden soll ... ueber ein Symbolbutton
+    /// mit Sicherheitsabfrage erfolgen"): switches directly to <see cref="OtherSortMode"/> - the only other
+    /// value, since exactly two sort modes exist - and applies it via the existing
+    /// <see cref="ApplySortModeAsync"/> flow, which already shows <see cref="PlaylistSortModeConfirmationDialog"/>
+    /// (the pre-existing "Sicherheitsabfrage") when switching away from Manual would lose the manual order.
+    /// </summary>
+    private Task ToggleSortModeAsync()
+    {
+        selectedSortMode = OtherSortMode;
+        return ApplySortModeAsync();
+    }
+
+    private Task ApplySortModeAsync()
+        => RunSortModeActionAsync(async () =>
+        {
+            playlist = await PlaylistClient.ChangeSortModeAsync(Id, new DtoChangeSortModeRequest
+            {
+                NewSortMode = selectedSortMode,
+                ConfirmLossOfManualOrder = false
+            });
+            await ReloadEntriesAsync();
+        }, "Fehler beim Ändern des Sortiermodus", ex =>
+        {
+            if (ex is HttpRequestException { StatusCode: System.Net.HttpStatusCode.Conflict })
+            {
+                showSortModeConfirmation = true;
+                return true;
+            }
+            return false;
+        });
+
+    private Task ConfirmSortModeChangeAsync()
+    {
+        showSortModeConfirmation = false;
+        return RunSortModeActionAsync(async () =>
+        {
+            playlist = await PlaylistClient.ChangeSortModeAsync(Id, new DtoChangeSortModeRequest
+            {
+                NewSortMode = selectedSortMode,
+                ConfirmLossOfManualOrder = true
+            });
+            await ReloadEntriesAsync();
+        }, "Fehler beim Ändern des Sortiermodus");
+    }
+
+    private void CancelSortModeChange()
+    {
+        showSortModeConfirmation = false;
+        selectedSortMode = playlist?.SortMode ?? PlaylistSortModeValues.ByReleaseDate;
+    }
+
+    private Task ReloadEntriesAsync()
+        => entriesList is not null ? entriesList.ReloadAsync() : Task.CompletedTask;
+
+    private void OpenGenreEditor()
+    {
+        genreStatusMessage = null;
+        showGenreEditor = true;
+    }
+
+    private void CloseGenreEditor()
+    {
+        showGenreEditor = false;
+    }
+
+    private Task HandleGenresSavedAsync(DtoPlaylist updated)
+    {
+        playlist = updated;
+        showGenreEditor = false;
+        return Task.CompletedTask;
+    }
+
+    private async Task ResetGenresAsync()
+    {
+        genreStatusMessage = null;
+        try
+        {
+            playlist = await PlaylistClient.ResetPlaylistGenresAsync(Id);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Fehler beim Zuruecksetzen der Genres von Playlist {PlaylistId}", Id);
+            genreStatusMessage = $"Fehler beim Zurücksetzen der Genres: {ex.Message}";
+        }
+    }
+
+    private void OpenCoverPanel()
+    {
+        showCoverPanel = true;
+    }
+
+    private void CloseCoverPanel()
+    {
+        showCoverPanel = false;
+    }
+
+    /// <summary>
+    /// After the cover panel changed the image (upload, applied generated image, removal): closes the panel and
+    /// refreshes the playlist quietly (without the full-page loading state, which would tear down the entry list
+    /// and the current selection) so <see cref="CoverImageUrl"/> picks up the new - or removed - cover.
+    /// </summary>
+    private async Task HandleCoverChangedAsync()
+    {
+        showCoverPanel = false;
+        try
+        {
+            var refreshed = await PlaylistClient.RequestPlaylistAsync(Id);
+            if (refreshed is not null)
+                playlist = refreshed;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Fehler beim Aktualisieren der Playlist {PlaylistId} nach der Bildänderung", Id);
+        }
+    }
+
+    /// <summary>
+    /// Formats a stored (UTC) timestamp for display in German format, e.g. "07.09.2026, 06:23 Uhr".
+    /// </summary>
+    /// <param name="value">The timestamp to format.</param>
+    /// <returns>The formatted local date and time.</returns>
+    private static string FormatDateTime(DateTime value)
+        => value.ToLocalTime().ToString("dd.MM.yyyy, HH:mm 'Uhr'", System.Globalization.CultureInfo.GetCultureInfo("de-DE"));
+
+    private static bool IsPlayableEntry(DtoPlaylistEntry entry)
+        => PlaylistEntriesList.IsPlayableEntry(entry);
+
+    private string BackButtonTitle
+        => selectedEntry is not null ? "Auswahl aufheben - zurück zur Playlist" : "Zurück zur Übersicht";
+
+    /// <summary>
+    /// The image the header shows behind the information of the selected title, as on the series page: the
+    /// episode's background image. <see langword="null"/> for movies (no background image is known for them, the
+    /// header shows their poster next to the text instead), for titles the viewer has not unlocked and without a
+    /// selection.
+    /// </summary>
+    private string? SelectedEntryBackgroundUrl
+        => selectedEntry is { IsAccessible: true } entry
+           && string.Equals(entry.MediaType, MediaTypeValues.TVShowEpisode, StringComparison.OrdinalIgnoreCase)
+            ? VideoWebPlayer.Components.Pages.TV.TVShowDetails.BuildEpisodeBackgroundImageUrl(entry.MediaId, Client.AuthorizationToken)
+            : null;
+
+    private string SelectedEntryImageUrl
+        => MediaPictureUrlResolver.Resolve(selectedEntry?.ResolvedPictureId, Client.AuthorizationToken);
+
+    private string SelectedEntryTypeLabel
+        => selectedEntry is null
+            ? string.Empty
+            : string.Equals(selectedEntry.MediaType, MediaTypeValues.TVShowEpisode, StringComparison.OrdinalIgnoreCase)
+                ? (selectedEntry.EpisodeNumber.HasValue ? $"Episode {selectedEntry.EpisodeNumber}" : "Episode")
+                : "Film";
+
+    /// <summary>
+    /// The affiliation of the selected entry: the series, season or movie collection it belongs to.
+    /// </summary>
+    private string SelectedEntryParentLabel
+    {
+        get
+        {
+            if (selectedEntry is null)
+                return string.Empty;
+
+            var title = selectedEntry.ParentMediaTitle;
+            if (string.Equals(selectedEntry.ParentMediaType, MediaTypeValues.TVShow, StringComparison.OrdinalIgnoreCase))
+                return $"Serie: {title}";
+            if (string.Equals(selectedEntry.ParentMediaType, MediaTypeValues.MovieCollection, StringComparison.OrdinalIgnoreCase))
+                return $"Filmsammlung: {title}";
+
+            // Season titles ("Staffel 1") already say what they are.
+            return title ?? string.Empty;
+        }
+    }
+
+    /// <summary>
+    /// Handles the header's back button: with a selected title it clears the selection (the header shows the
+    /// playlist again, like the back arrow on a series page returns from an episode), otherwise it leaves for
+    /// the overview.
+    /// </summary>
+    private void HandleBack()
+    {
+        if (selectedEntry is not null)
+            selectedEntry = null;
+        else
+            NavigateToOverview();
+    }
+
+    /// <summary>
+    /// Selection callback of <see cref="PlaylistEntriesList"/>: shows the entry's information in the header, or
+    /// (with <see langword="null"/>) the playlist's again. Independent of the <c>?entryId=</c> query parameter,
+    /// which controls playback only.
+    /// </summary>
+    /// <param name="entry">The selected entry, or <see langword="null"/> to clear the selection.</param>
+    private void SelectEntry(DtoPlaylistEntry? entry)
+    {
+        selectedEntry = entry;
+    }
+
+    private void HandleEntryRemoved(DtoPlaylistEntry removed)
+    {
+        if (selectedEntry?.Id == removed.Id)
+            selectedEntry = null;
+    }
+
+    private Task PlaySelectedEntryAsync()
+        => selectedEntry is not null && IsPlayableEntry(selectedEntry)
+            ? StartPlaybackAsync(selectedEntry.Id)
+            : Task.CompletedTask;
+
+    /// <summary>
+    /// Removes the selected title from the playlist (owner only - the button exists only for the owner, the
+    /// server refuses everybody else). The entry list performs the removal including the continue-watching
+    /// confirmation (Schritt 7) and reports back through <see cref="HandleEntryRemoved"/>.
+    /// </summary>
+    private Task RemoveSelectedEntryAsync()
+        => selectedEntry is not null && entriesList is not null && IsOwner
+            ? entriesList.RemoveEntryAsync(selectedEntry)
+            : Task.CompletedTask;
+}

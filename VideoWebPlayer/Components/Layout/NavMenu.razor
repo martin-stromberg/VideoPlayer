@@ -31,6 +31,12 @@
                     </NavLink>
                 </div>
 
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="/playlists">
+                        <span class="bi bi-playlist-nav-menu" aria-hidden="true"></span> Playlists
+                    </NavLink>
+                </div>
+
                 @if (mediaSources.Any())
                 {
                     <div class="nav-item px-3">
@@ -107,7 +113,12 @@
     {
         currentUrl = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
         NavigationManager.LocationChanged += OnLocationChanged;
-        mediaSources = (await Client.RequestSourcesAsync()).ToList();
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        if (state.User.Identity?.IsAuthenticated == true)
+        {
+            await Client.EnsureAuthorizationTokenAsync(state.User);
+            mediaSources = (await Client.RequestSourcesAsync()).ToList();
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)

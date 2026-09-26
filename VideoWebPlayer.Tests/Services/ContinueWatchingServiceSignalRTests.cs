@@ -20,7 +20,7 @@ public class ContinueWatchingServiceSignalRTests : ContinueWatchingServiceTestBa
         var duration = TimeSpan.FromMinutes(90);
 
         // Act
-        await _service.ProcessBufferedEntryAsync(_testUserId, movieId, null, position, duration, TestContext.Current.CancellationToken);
+        await _service.ProcessBufferedEntryAsync(_testUserId, movieId, null, position, duration, ct: TestContext.Current.CancellationToken);
 
         // Assert
         _mockClientProxy.Verify(
@@ -49,11 +49,11 @@ public class ContinueWatchingServiceSignalRTests : ContinueWatchingServiceTestBa
         var duration = TimeSpan.FromMinutes(90);
 
         // Act - Erste Position
-        await _service.ProcessBufferedEntryAsync(_testUserId, movieId, null, position1, duration, TestContext.Current.CancellationToken);
+        await _service.ProcessBufferedEntryAsync(_testUserId, movieId, null, position1, duration, ct: TestContext.Current.CancellationToken);
 
         // Act - Update Position
         _signalRCallLog.Clear(); // Reset für zweiten Test
-        await _service.ProcessBufferedEntryAsync(_testUserId, movieId, null, position2, duration, TestContext.Current.CancellationToken);
+        await _service.ProcessBufferedEntryAsync(_testUserId, movieId, null, position2, duration, ct: TestContext.Current.CancellationToken);
 
         // Assert
         _mockClientProxy.Verify(
@@ -96,7 +96,7 @@ public class ContinueWatchingServiceSignalRTests : ContinueWatchingServiceTestBa
         await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         // Act
-        await _service.ProcessBufferedEntryAsync(_testUserId, null, episodeId, position, duration, TestContext.Current.CancellationToken);
+        await _service.ProcessBufferedEntryAsync(_testUserId, null, episodeId, position, duration, ct: TestContext.Current.CancellationToken);
 
         // Assert
         _mockClientProxy.Verify(
@@ -121,9 +121,9 @@ public class ContinueWatchingServiceSignalRTests : ContinueWatchingServiceTestBa
         var duration = TimeSpan.FromMinutes(90);
 
         // Act
-        await _service.ProcessBufferedEntryAsync(_testUserId, movieId1, null, position, duration, TestContext.Current.CancellationToken);
-        await _service.ProcessBufferedEntryAsync(_testUserId, movieId2, null, position, duration, TestContext.Current.CancellationToken);
-        await _service.ProcessBufferedEntryAsync(_testUserId, movieId1, null, position + TimeSpan.FromMinutes(5), duration, TestContext.Current.CancellationToken);
+        await _service.ProcessBufferedEntryAsync(_testUserId, movieId1, null, position, duration, ct: TestContext.Current.CancellationToken);
+        await _service.ProcessBufferedEntryAsync(_testUserId, movieId2, null, position, duration, ct: TestContext.Current.CancellationToken);
+        await _service.ProcessBufferedEntryAsync(_testUserId, movieId1, null, position + TimeSpan.FromMinutes(5), duration, ct: TestContext.Current.CancellationToken);
 
         // Assert
         _mockClientProxy.Verify(
@@ -157,7 +157,7 @@ public class ContinueWatchingServiceSignalRTests : ContinueWatchingServiceTestBa
 
         // Act - Schritt 3: Service verarbeitet Entry
         _signalRCallLog.Clear();
-        await _service.ProcessBufferedEntryAsync(entry.UserId, entry.MovieId, entry.EpisodeId, entry.Position, entry.Duration, TestContext.Current.CancellationToken);
+        await _service.ProcessBufferedEntryAsync(entry.UserId, entry.MovieId, entry.EpisodeId, entry.Position, entry.Duration, ct: TestContext.Current.CancellationToken);
 
         // Assert - SignalR-Event wurde gesendet
         Assert.Contains(_signalRCallLog, s => s.Contains("ContinueWatchingUpdated"));

@@ -1,0 +1,885 @@
+@using Microsoft.JSInterop
+@using VideoWebPlayer.Client.Models
+@implements IAsyncDisposable
+@inject VideoWebPlayer.Client.VideoWebPlayerClient Client
+@inject VideoWebPlayer.Client.IPlaylistApiClient PlaylistClient
+@inject IJSRuntime JS
+@inject ILogger<PlaylistEntriesList> Logger
+
+@* Owns the "Inhalte" section of the playlist detail page: the two separated content areas (the playlist's titles
+   and the search to add titles, switched by a mode toggle), the page-loaded entry list, drag & drop reordering and
+   the "An Anfang"/"An Ende" quick actions. Extracted out of PlaylistDetail.razor (which otherwise combined this
+   with playlist metadata display, the sort-mode change workflow and the delete workflow into a single
+   ~500-line component) so each component stays focused on one concern. PlaylistDetail.razor still owns the
+   sort-mode change workflow itself (it needs to update the playlist's SortMode and show the confirmation
+   dialog), but tells this component to reload afterwards via ReloadAsync(), since a sort-mode change affects
+   every entry's SortOrder.
+
+   Kundenrückmeldung zur Detailansicht: Auflistung und Hinzufügen sind getrennte Bereiche (Moduswechsel). Ist
+   die Playlist leer, wird sofort das Hinzufügen angeboten, andernfalls die Titelliste. Die Kacheln tragen keine
+   Abspielen-/Entfernen-Buttons mehr: ein Klick wählt den Titel aus (Informationen erscheinen im Kopfbereich der
+   Detailseite, dort auch Abspielen und - nur für den Besitzer - Entfernen), wie bei den Episoden der Serien.
+   Der Umschalter zwischen den beiden Bereichen steht ebenfalls nicht mehr hier im Inhaltsbereich, sondern als
+   einzelner Symbolbutton im Kopfbereich bei den übrigen Aktionsbuttons (PlaylistDetail.razor); diese Komponente
+   meldet den aktuellen Bereich über <see cref="OnModeChanged"/> und wird über <see cref="ToggleModeAsync"/>
+   umgeschaltet. *@
+
+@if (!string.IsNullOrWhiteSpace(entriesStatusMessage))
+{
+    <div class="alert @(entriesStatusIsError ? "alert-danger" : "alert-success")" id="playlist-entries-status">@entriesStatusMessage</div>
+}
+
+<div class="admin-table-wrap">
+    @if (ShowAddMode)
+    {
+        <div class="playlist-add-area" id="playlist-add-area">
+            <p class="text-muted playlist-add-hint">Suchen Sie einen Film, eine Serie, Staffel, Episode oder Filmsammlung und wählen Sie ein Ergebnis aus, um es der Playlist hinzuzufügen. Sie können nacheinander mehrere Titel hinzufügen.</p>
+            <div class="admin-actions">
+                <MediaSearchSelector @ref="searchSelectorRef" OnMediaSelected="OnMediaSelectedAsync" />
+            </div>
+        </div>
+    }
+    else if (IsEmpty)
+    {
+        <div class="admin-empty-state">
+            <strong>Keine Einträge vorhanden</strong>
+            @if (!IsReadOnly)
+            {
+                <span>Wechseln Sie oben im Kopfbereich zu "Titel hinzufügen", um einen Medieninhalt hinzuzufügen.</span>
+            }
+        </div>
+    }
+    else
+    {
+        @if (IsReorderable)
+        {
+            <p class="text-muted playlist-entries-draganddrop-hint">Tipp: Ziehen Sie einen Eintrag auf die Kachel der gewünschten Position (mit dem Finger: kurz gedrückt halten, dann ziehen), oder nutzen Sie die Schaltflächen "An Anfang"/"An Ende".</p>
+        }
+        @* Kacheln im Stil der Episoden-Kacheln der Serien-Detailansicht (TVShowDetails.episode-box) statt der
+           bisherigen Tabelle (Kundenfeedback: "Die aktuelle Scrollbox wirkt laienhaft"). Nur Filme und Episoden
+           erhalten eine eigene Kachel - Serien/Staffeln/Filmsammlungen, die beim Hinzufügen einer ganzen Serie
+           als rein organisatorische Einträge mitgespeichert werden (siehe IsRenderableEntry), werden hier
+           bewusst übersprungen, bleiben aber Teil der zugrunde liegenden, weiterhin unverändert seitenweise
+           geladenen Eintragsliste.
+           Wie auf der Serienseite rendert die Liste einfach in den normalen Seitenfluss und scrollt mit dem
+           Dokument - kein Virtualize und keine eigene Scrollbox (Virtualize würde hier ohnehin den falschen
+           Scroll-Parent wählen, weil .layout-flex/main über overflow-x: hidden berechnet overflow-y: auto
+           bekommen). Das seitenweise Nachladen läuft über das Sentinel-Div am Listenende: sobald es in den
+           Viewport scrollt, meldet observeBottom (wwwroot/js/scroll.js, gleiches Muster wie
+           Actors.razor/MediaSourceDetails.razor) OnBottomVisible().
+           Auswahl: role="option" + aria-selected + tabindex, Enter/Leertaste wählen aus (wie bei den Episoden
+           der Serienseite), Escape hebt die Auswahl auf. Doppelklick spielt ab (bestehendes Verhalten).
+           Umordnen: Die Kacheln tragen KEINE nativen Drag-&-Drop-Attribute (draggable/@@ondragstart/@@ondrop)
+           mehr. Das Ziehen läuft vollständig im Browser über Pointer-Ereignisse
+           (wwwroot/js/playlistDragDrop.js, angebunden über UpdateReorderHandlersAsync) und meldet erst beim
+           Loslassen einmalig ReorderEntryByDropAsync(gezogen, Ziel) an den Server - siehe die Begründung im
+           Kopf jener Datei und an ReorderEntryByDropAsync. *@
+        <div class="playlist-entries-list-wrap">
+            <div @ref="entriesListRef" class="episode-list playlist-entries-list" role="listbox" aria-label="Titel der Playlist">
+                @foreach (var entry in allEntries)
+                {
+                    @if (IsRenderableEntry(entry))
+                    {
+                        var isSelected = SelectedEntryId == entry.Id;
+                        @* playlist-entry-reorderable: markiert die Kacheln, die gezogen werden dürfen (Besitzer,
+                           manueller Modus). Die Klasse ist die Greif-Affordanz (Cursor) und zugleich das
+                           Kennzeichen, an dem playlistDragDrop.js eine ziehbare Kachel erkennt. *@
+                        <div class="episode-box playlist-entry-row @(IsReorderable ? "playlist-entry-reorderable" : string.Empty) @(isSelected ? "selected" : string.Empty) @(entry.IsAccessible ? string.Empty : "opacity-50 text-muted")" data-media-type="@entry.MediaType" data-media-id="@entry.MediaId" data-entry-id="@entry.Id"
+                             role="option" tabindex="0" aria-selected="@(isSelected ? "true" : "false")"
+                             @onclick="() => SelectEntryAsync(entry)"
+                             @onkeydown="args => OnEntryKeyDownAsync(args, entry)"
+                             @ondblclick="GetPlayEntryDoubleClickCallback(entry)">
+                            @* draggable="false": Bilder sind von Haus aus nativ ziehbar - ein solcher
+                               Browser-Drag wuerde die Zieh-Geste aus playlistDragDrop.js abbrechen
+                               (pointercancel), sobald jemand die Kachel am Poster anfasst. *@
+                            <img class="episode-poster episode-poster-left playlist-entry-image" src="@GetImageUrl(entry)" alt="@entry.MediaTitle" loading="lazy" draggable="false" onerror="this.onerror=null;this.src='/images/placeholder.png';" />
+                            <div class="episode-info">
+                                <div class="episode-title">@entry.MediaTitle</div>
+                                @if (!string.IsNullOrWhiteSpace(entry.ParentMediaTitle))
+                                {
+                                    <div class="playlist-entry-parent">@entry.ParentMediaTitle</div>
+                                }
+                                <div class="playlist-entry-meta-muted">Hinzugefügt: @entry.AddedAt.ToLocalTime()</div>
+                                @if (IsReorderable)
+                                {
+                                    <div class="playlist-entry-actions">
+                                        <button class="metadata-icon-btn playlist-entry-move-start-button" @onclick="() => MoveEntryToBeginningAsync(entry)" @onclick:stopPropagation title="An Anfang" aria-label="An Anfang">⇤</button>
+                                        <button class="metadata-icon-btn playlist-entry-move-end-button" @onclick="() => MoveEntryToEndAsync(entry)" @onclick:stopPropagation title="An Ende" aria-label="An Ende">⇥</button>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+            @if (hasMorePages)
+            {
+                <div @ref="bottomSentinelRef" class="playlist-entries-sentinel" aria-hidden="true"></div>
+            }
+            @if (loadMoreFailed)
+            {
+                @* Nach einem Ladefehler lädt die Liste NICHT von selbst nach (sonst hielte ein anhaltender
+                   Server-/Netzfehler bei sichtbarem Sentinel eine Endlosschleife an Wiederholungen am Laufen),
+                   sondern erst auf ausdrücklichen Wunsch des Nutzers. *@
+                <div class="playlist-entries-retry">
+                    <button type="button" class="btn btn-outline-primary" id="playlist-entries-retry-button" @onclick="RetryLoadNextPageAsync">Erneut versuchen</button>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@if (showContinueWatchingConfirmation)
+{
+    <PlaylistEntryContinueWatchingConfirmationDialog OnConfirm="ConfirmRemoveEntryAsync" OnCancel="CancelRemoveEntry" />
+}
+
+@code {
+    private const int PageSize = 20;
+
+    [Parameter, EditorRequired]
+    public long PlaylistId { get; set; }
+
+    [Parameter, EditorRequired]
+    public bool IsManualMode { get; set; }
+
+    /// <summary>
+    /// Read-only presentation (Entwicklungsschritt 11): set by <c>PlaylistDetail</c> whenever the current
+    /// user is not the playlist's owner (public playlist of somebody else). No editing affordance is rendered
+    /// at all - no search field to add titles, no remove button, no move-to-start/-end buttons, no drag &amp; drop -
+    /// while playing entries stays possible. Purely presentational: the server independently refuses every
+    /// mutation by a non-owner with 403.
+    /// </summary>
+    [Parameter]
+    public bool IsReadOnly { get; set; }
+
+    /// <summary>
+    /// The id of the currently selected entry (owned by <c>PlaylistDetail</c>, which shows the entry's
+    /// information in its header), or <see langword="null"/> if none is selected.
+    /// </summary>
+    [Parameter]
+    public long? SelectedEntryId { get; set; }
+
+    /// <summary>
+    /// Raised when the user selects an entry (click, Enter, Space) - with the entry - or clears the selection
+    /// (Escape, or switching to the "Titel hinzufügen" area) - with <see langword="null"/>.
+    /// </summary>
+    [Parameter]
+    public EventCallback<DtoPlaylistEntry?> OnEntrySelected { get; set; }
+
+    /// <summary>
+    /// Raised after an entry was actually removed from the playlist (directly, or after the continue-watching
+    /// confirmation), so <c>PlaylistDetail</c> can drop its selection.
+    /// </summary>
+    [Parameter]
+    public EventCallback<DtoPlaylistEntry> OnEntryRemoved { get; set; }
+
+    /// <summary>
+    /// Raised whenever the shown content area changes - with <see langword="true"/> for "Titel hinzufügen" and
+    /// <see langword="false"/> for the title list. The mode toggle itself lives in the header of
+    /// <c>PlaylistDetail</c> (Kundenrückmeldung), which needs to know the current area to offer the button for
+    /// the respective OTHER one. Also raised once after the first successful load, which decides the initial
+    /// area (an empty playlist starts in "Titel hinzufügen").
+    /// </summary>
+    [Parameter]
+    public EventCallback<bool> OnModeChanged { get; set; }
+
+    private enum ContentMode
+    {
+        Entries,
+        Add
+    }
+
+    private ContentMode mode = ContentMode.Entries;
+    private bool modeInitialized;
+
+    private bool ShowAddMode => !IsReadOnly && mode == ContentMode.Add;
+
+    /// <summary>
+    /// Whether the playlist has nothing to show: no entry that gets its own tile and nothing left to load.
+    /// While a load failed the list is not "empty" (its content is merely unknown).
+    /// </summary>
+    private bool IsEmpty => !hasMorePages && !loadMoreFailed && !allEntries.Any(IsRenderableEntry);
+
+    /// <summary>
+    /// Whether entries can be reordered (manual sort mode AND the user may edit the playlist).
+    /// </summary>
+    private bool IsReorderable => IsManualMode && !IsReadOnly;
+
+    /// <summary>
+    /// Raised when the user double-clicks an entry row, to start playlist playback from that entry (the
+    /// "Abspielen" button of a selected entry lives in the header of <c>PlaylistDetail</c>). Handled by <c>PlaylistDetail</c>, which owns navigation to
+    /// <c>VideoPlayer</c>.
+    /// </summary>
+    [Parameter]
+    public EventCallback<DtoPlaylistEntry> OnPlayEntry { get; set; }
+
+    private string newEntryMediaType = MediaTypeValues.Movie;
+    private long newEntryMediaId;
+    private string? entriesStatusMessage;
+    private bool entriesStatusIsError;
+    private MediaSearchSelector? searchSelectorRef;
+    private bool showContinueWatchingConfirmation;
+    private DtoPlaylistEntry? pendingRemovalEntry;
+
+    private int currentPageNumber = 1;
+    private List<DtoPlaylistEntry> allEntries = new();
+    private bool hasMorePages = true;
+    private readonly SemaphoreSlim loadPageSemaphore = new(1, 1);
+    private ElementReference bottomSentinelRef;
+    private ElementReference entriesListRef;
+    private DotNetObjectReference<PlaylistEntriesList>? dotNetRef;
+    private bool sentinelObserverConnected;
+    private bool jsObserverCreated;
+    private bool isLoadingNextPage;
+
+    /// <summary>
+    /// Whether the pointer-based reorder handlers of <c>wwwroot/js/playlistDragDrop.js</c> are currently
+    /// attached to the entry list (see <see cref="UpdateReorderHandlersAsync"/>).
+    /// </summary>
+    private bool reorderHandlersAttached;
+
+    /// <summary>
+    /// Whether a drop is currently being carried out (see <see cref="ReorderEntryByDropAsync"/>). A second
+    /// drop arriving meanwhile is rejected instead of computing its target position from the list of the
+    /// first one, which has not been reloaded yet.
+    /// </summary>
+    private bool isReordering;
+
+    /// <summary>
+    /// Set when loading a page (initial or next) failed. While set, <see cref="OnBottomVisible"/> ignores
+    /// the observer and the observer is not re-armed, so a persistent error cannot turn into an endless
+    /// loop of immediate retries (a freshly connected IntersectionObserver reports a still-visible sentinel
+    /// at once); loading continues only after the user clicks "Erneut versuchen"
+    /// (<see cref="RetryLoadNextPageAsync"/>) or the list is reloaded (<see cref="LoadInitialPageAsync"/>).
+    /// </summary>
+    private bool loadMoreFailed;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadInitialPageAsync();
+    }
+
+    /// <summary>
+    /// Reloads the first page from scratch, for use by <c>PlaylistDetail</c> after a sort-mode change
+    /// (which affects every entry's SortOrder and thus the manual-mode controls' availability).
+    /// </summary>
+    public Task ReloadAsync() => LoadInitialPageAsync();
+
+    /// <summary>
+    /// Resets paging state and (re)loads the first page. Guarded by <see cref="loadPageSemaphore"/> - the
+    /// same semaphore <see cref="LoadNextPageAsync"/> uses - so a scroll-triggered load-more triggered
+    /// while this is still running cannot interleave with it and corrupt the paging fields (e.g. read
+    /// <see cref="currentPageNumber"/> after it was reset to 1 here but before the first page's results
+    /// were applied, causing the same page to be fetched twice or entries to be lost).
+    /// </summary>
+    private async Task LoadInitialPageAsync()
+    {
+        loadMoreFailed = false;
+        try
+        {
+            await loadPageSemaphore.WaitAsync();
+            try
+            {
+                currentPageNumber = 1;
+                allEntries = new List<DtoPlaylistEntry>();
+                hasMorePages = true;
+
+                var page = await PlaylistClient.RequestPlaylistEntriesPagedAsync(PlaylistId, currentPageNumber, PageSize);
+                allEntries.AddRange(page.Entries);
+                hasMorePages = page.HasNextPage;
+                currentPageNumber++;
+            }
+            finally
+            {
+                loadPageSemaphore.Release();
+            }
+
+            if (!modeInitialized)
+            {
+                // Einmalig nach dem ersten erfolgreichen Laden: eine leere Playlist bietet sofort das Hinzufügen
+                // an (nur dem Besitzer), sonst hat die Titelliste Vorrang. Später ändert sich der Modus nur durch
+                // den Umschalter oder das Entfernen des letzten Titels.
+                modeInitialized = true;
+                await SetModeAsync(!IsReadOnly && IsEmpty ? ContentMode.Add : ContentMode.Entries, force: true);
+            }
+
+            // The sentinel element is re-created whenever hasMorePages toggles, and the JS observer still
+            // points at the previous element - mark it as needing (re-)connection on the next render.
+            sentinelObserverConnected = false;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Fehler beim Laden der Eintraege von Playlist {PlaylistId}", PlaylistId);
+            entriesStatusIsError = true;
+            entriesStatusMessage = $"Fehler beim Laden der Einträge: {ex.Message}";
+
+            // hasMorePages stays true (unknown) with an empty list: the sentinel would otherwise fire
+            // straight away and re-request the failed page - see loadMoreFailed.
+            loadMoreFailed = true;
+        }
+    }
+
+    /// <summary>
+    /// Connects the IntersectionObserver (window.observeBottom, wwwroot/js/scroll.js) to the sentinel div
+    /// whenever it is rendered (<see cref="hasMorePages"/>) but not yet observed, and disconnects it again
+    /// once the last page is loaded (no sentinel left to observe). The observer reports intersection with
+    /// the top-level viewport, so scrolling the document - the only scrollbar on this page, same as the
+    /// series detail page - is what drives page-wise loading.
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await UpdateReorderHandlersAsync();
+
+        if (hasMorePages && !sentinelObserverConnected)
+        {
+            // Set before the await so concurrent renders cannot double-connect while the interop call is
+            // still in flight; reset on failure so the next render retries.
+            sentinelObserverConnected = true;
+            try
+            {
+                dotNetRef ??= DotNetObjectReference.Create(this);
+                await JS.InvokeVoidAsync("observeBottom", bottomSentinelRef, dotNetRef);
+                jsObserverCreated = true;
+            }
+            catch (Exception ex) when (ex is InvalidOperationException || ex is JSDisconnectedException || ex is JSException)
+            {
+                // JS runtime unavailable (prerendering, tests) - retry on the next render.
+                sentinelObserverConnected = false;
+            }
+        }
+        else if (!hasMorePages && jsObserverCreated)
+        {
+            // Last page loaded: the sentinel is gone, so the observer would only keep watching a detached
+            // element until another page calls observeBottom.
+            sentinelObserverConnected = false;
+            await DisconnectObserverAsync();
+        }
+    }
+
+    /// <summary>
+    /// Attaches or detaches the pointer-based reorder handlers of <c>wwwroot/js/playlistDragDrop.js</c> to
+    /// the rendered entry list, so dragging is offered exactly where it is allowed: the owner, in manual
+    /// sort mode, while the title list (not the "Titel hinzufügen" area) is shown. The server independently
+    /// refuses every reorder request of a non-owner or of a playlist in date mode, so this is purely the
+    /// presentation side of <see cref="IsReorderable"/>.
+    /// </summary>
+    private async Task UpdateReorderHandlersAsync()
+    {
+        var shouldAttach = IsReorderable && !ShowAddMode && !IsEmpty && allEntries.Any(IsRenderableEntry);
+        if (shouldAttach == reorderHandlersAttached)
+            return;
+
+        try
+        {
+            if (shouldAttach)
+            {
+                dotNetRef ??= DotNetObjectReference.Create(this);
+                await JS.InvokeVoidAsync("playlistEntryReorder.attach", entriesListRef, dotNetRef);
+            }
+            else
+            {
+                await JS.InvokeVoidAsync("playlistEntryReorder.detach");
+            }
+
+            reorderHandlersAttached = shouldAttach;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException || ex is JSDisconnectedException || ex is JSException)
+        {
+            // JS runtime unavailable (prerendering, tests) - retry on the next render.
+        }
+    }
+
+    /// <summary>
+    /// Disconnects the shared JS IntersectionObserver, tolerating an already gone JS runtime.
+    /// </summary>
+    private async Task DisconnectObserverAsync()
+    {
+        jsObserverCreated = false;
+        try
+        {
+            await JS.InvokeVoidAsync("disconnectMediaSourceBottomObserver");
+        }
+        catch (Exception ex) when (ex is InvalidOperationException || ex is JSDisconnectedException || ex is JSException)
+        {
+            // JS runtime is no longer available.
+        }
+    }
+
+    /// <summary>
+    /// Called by the IntersectionObserver in wwwroot/js/scroll.js once the sentinel at the end of the
+    /// list becomes fully visible. Loads the next page unless one is already in flight, the last page
+    /// was reached, or the previous load failed (<see cref="loadMoreFailed"/> - then only the explicit
+    /// "Erneut versuchen" button retries).
+    /// </summary>
+    [JSInvokable]
+    public async Task OnBottomVisible()
+    {
+        if (isLoadingNextPage || !hasMorePages || loadMoreFailed)
+            return;
+
+        await LoadNextPageAsync();
+    }
+
+    /// <summary>
+    /// The "Erneut versuchen" button shown after a failed page load: clears the error and loads the
+    /// failed page again. On success the observer is re-armed as after any successful append.
+    /// </summary>
+    private async Task RetryLoadNextPageAsync()
+    {
+        if (isLoadingNextPage)
+            return;
+
+        loadMoreFailed = false;
+        entriesStatusMessage = null;
+        entriesStatusIsError = false;
+        await LoadNextPageAsync();
+    }
+
+    /// <summary>
+    /// Appends the next page of entries. After a successful append the sentinel observer is deliberately
+    /// re-armed (see <see cref="OnAfterRenderAsync"/>): IntersectionObserver only reports threshold
+    /// crossings, so a sentinel that is still fully visible after the append would otherwise never fire
+    /// again and the list would stall mid-viewport until the user wiggles the scrollbar. After a FAILED
+    /// load it is deliberately NOT re-armed - a fresh observer reports a still-visible sentinel
+    /// immediately, which would retry the failing request in an endless loop; <see cref="loadMoreFailed"/>
+    /// makes the user retry explicitly instead.
+    /// </summary>
+    private async Task LoadNextPageAsync()
+    {
+        isLoadingNextPage = true;
+        try
+        {
+            await loadPageSemaphore.WaitAsync();
+            try
+            {
+                if (!hasMorePages)
+                    return;
+
+                var page = await PlaylistClient.RequestPlaylistEntriesPagedAsync(PlaylistId, currentPageNumber, PageSize);
+                allEntries.AddRange(page.Entries);
+                hasMorePages = page.HasNextPage;
+                currentPageNumber++;
+            }
+            finally
+            {
+                loadPageSemaphore.Release();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Fehler beim Nachladen der Eintraege von Playlist {PlaylistId}", PlaylistId);
+            entriesStatusIsError = true;
+            entriesStatusMessage = $"Fehler beim Nachladen der Einträge: {ex.Message}";
+            loadMoreFailed = true;
+            isLoadingNextPage = false;
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+        finally
+        {
+            isLoadingNextPage = false;
+        }
+
+        sentinelObserverConnected = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (reorderHandlersAttached)
+        {
+            reorderHandlersAttached = false;
+            try
+            {
+                await JS.InvokeVoidAsync("playlistEntryReorder.detach");
+            }
+            catch (Exception ex) when (ex is InvalidOperationException || ex is JSDisconnectedException || ex is JSException)
+            {
+                // JS runtime is no longer available.
+            }
+        }
+
+        dotNetRef?.Dispose();
+        dotNetRef = null;
+
+        if (jsObserverCreated)
+        {
+            sentinelObserverConnected = false;
+            await DisconnectObserverAsync();
+        }
+    }
+
+    /// <summary>
+    /// Resets the entries status message, runs <paramref name="action"/>, and on failure sets
+    /// <see cref="entriesStatusIsError"/>/<see cref="entriesStatusMessage"/> from the exception - unless
+    /// <paramref name="handleSpecialError"/> is given and fully handles the exception itself (returning
+    /// <see langword="true"/>). Shared by every entry-list action (add, remove, reorder) to avoid
+    /// repeating the same reset/try/catch skeleton in each of them.
+    /// </summary>
+    private async Task RunEntryActionAsync(Func<Task> action, string errorPrefix, Func<Exception, bool>? handleSpecialError = null)
+    {
+        entriesStatusMessage = null;
+        entriesStatusIsError = false;
+        try
+        {
+            await action();
+        }
+        catch (Exception ex)
+        {
+            if (handleSpecialError?.Invoke(ex) == true)
+                return;
+
+            Logger.LogWarning(ex, "{ErrorPrefix} (Playlist {PlaylistId})", errorPrefix, PlaylistId);
+            entriesStatusIsError = true;
+            entriesStatusMessage = $"{errorPrefix}: {ex.Message}";
+        }
+    }
+
+    private Task AddEntryAsync()
+        => RunEntryActionAsync(async () =>
+        {
+            var result = await PlaylistClient.AddMediaToPlaylistAsync(PlaylistId, new DtoAddMediaToPlaylistRequest
+            {
+                MediaType = newEntryMediaType,
+                MediaId = newEntryMediaId
+            });
+            entriesStatusMessage = result.Message;
+            await LoadInitialPageAsync();
+            newEntryMediaId = 0;
+        }, "Fehler beim Hinzufügen", ex =>
+        {
+            if (ex is HttpRequestException { StatusCode: System.Net.HttpStatusCode.NotFound })
+            {
+                entriesStatusIsError = true;
+                entriesStatusMessage = "Medieninhalt wurde nicht gefunden.";
+                return true;
+            }
+            if (ex is HttpRequestException { StatusCode: System.Net.HttpStatusCode.Forbidden })
+            {
+                entriesStatusIsError = true;
+                entriesStatusMessage = "Sie sind nicht Besitzer dieser Playlist.";
+                return true;
+            }
+            return false;
+        });
+
+    /// <summary>
+    /// Removes an entry from the playlist. If the server responds with 409 Conflict - a continue-watching
+    /// (Weiterschauen) entry bound to this playlist still references it, see
+    /// <c>PlaylistService.RemoveMediaFromPlaylistAsync</c> - shows <see cref="PlaylistEntryContinueWatchingConfirmationDialog"/>
+    /// (the required Sicherheitsabfrage) instead of removing anything, mirroring how
+    /// <c>PlaylistDetail.ApplySortModeAsync</c> handles the analogous sort-mode-change confirmation.
+    /// </summary>
+    public async Task RemoveEntryAsync(DtoPlaylistEntry entry)
+    {
+        await RunEntryActionAsync(async () =>
+        {
+            await PlaylistClient.RemoveMediaFromPlaylistAsync(PlaylistId, entry.MediaType, entry.MediaId);
+            await AfterEntryRemovedAsync(entry);
+        }, "Fehler beim Entfernen", ex =>
+        {
+            if (ex is HttpRequestException { StatusCode: System.Net.HttpStatusCode.Conflict })
+            {
+                pendingRemovalEntry = entry;
+                showContinueWatchingConfirmation = true;
+                return true;
+            }
+            return false;
+        });
+
+        // Called from the header of PlaylistDetail, i.e. not from an event handler of this component: render
+        // explicitly so the reloaded list, the confirmation dialog or an error message show up.
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>
+    /// Confirms removal of <see cref="pendingRemovalEntry"/> despite its continue-watching reference,
+    /// retrying <c>RemoveMediaFromPlaylistAsync</c> with <c>confirmContinueWatchingRemoval: true</c>.
+    /// </summary>
+    private Task ConfirmRemoveEntryAsync()
+    {
+        showContinueWatchingConfirmation = false;
+        var entry = pendingRemovalEntry;
+        pendingRemovalEntry = null;
+        if (entry is null)
+            return Task.CompletedTask;
+
+        return RunEntryActionAsync(async () =>
+        {
+            await PlaylistClient.RemoveMediaFromPlaylistAsync(PlaylistId, entry.MediaType, entry.MediaId, confirmContinueWatchingRemoval: true);
+            await AfterEntryRemovedAsync(entry);
+        }, "Fehler beim Entfernen");
+    }
+
+    /// <summary>
+    /// Reloads the list after an entry was removed, tells the host (which drops its selection) and - when the
+    /// removed entry was the last title - switches to the "Titel hinzufügen" area, since an empty list has
+    /// nothing to offer but adding.
+    /// </summary>
+    private async Task AfterEntryRemovedAsync(DtoPlaylistEntry entry)
+    {
+        await LoadInitialPageAsync();
+        if (!IsReadOnly && IsEmpty)
+            await SetModeAsync(ContentMode.Add);
+
+        await OnEntryRemoved.InvokeAsync(entry);
+    }
+
+    private void CancelRemoveEntry()
+    {
+        showContinueWatchingConfirmation = false;
+        pendingRemovalEntry = null;
+    }
+
+    /// <summary>
+    /// Callback from <see cref="MediaSearchSelector"/>: sets <see cref="newEntryMediaType"/> and
+    /// <see cref="newEntryMediaId"/> from the selected search result and adds it via
+    /// <see cref="AddEntryAsync"/>, then clears the search selector so the previous search does not
+    /// linger on screen.
+    /// </summary>
+    private async Task OnMediaSelectedAsync((string MediaType, long MediaId) selection)
+    {
+        newEntryMediaType = selection.MediaType;
+        newEntryMediaId = selection.MediaId;
+        await AddEntryAsync();
+        searchSelectorRef?.Reset();
+    }
+
+    /// <summary>
+    /// Switches to the respectively other content area. Called by the mode toggle in the header of
+    /// <c>PlaylistDetail</c> (Kundenrückmeldung: the toggle sits with the other action buttons on the image,
+    /// not in the content area) and renders afterwards, since the call does not originate from an event
+    /// handler of this component.
+    /// </summary>
+    public async Task ToggleModeAsync()
+    {
+        await SetModeAsync(mode == ContentMode.Add ? ContentMode.Entries : ContentMode.Add);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>
+    /// Switches between the two content areas and reports the new one through <see cref="OnModeChanged"/> (the
+    /// header offers the button for the other area). Entering the "Titel hinzufügen" area clears the selection
+    /// (the header then shows the playlist again instead of a title that is no longer visible in the list).
+    /// </summary>
+    /// <param name="newMode">The content area to switch to.</param>
+    /// <param name="force">
+    /// Whether to report the mode even if it did not change - used for the one-time initialization after the
+    /// first load, so the header learns the initial area (an empty playlist starts in "Titel hinzufügen").
+    /// </param>
+    private async Task SetModeAsync(ContentMode newMode, bool force = false)
+    {
+        if (IsReadOnly || (mode == newMode && !force))
+            return;
+
+        mode = newMode;
+        await OnModeChanged.InvokeAsync(mode == ContentMode.Add);
+        if (newMode == ContentMode.Add)
+            await OnEntrySelected.InvokeAsync(null);
+    }
+
+    private Task SelectEntryAsync(DtoPlaylistEntry entry)
+        => OnEntrySelected.InvokeAsync(entry);
+
+    private Task OnEntryKeyDownAsync(KeyboardEventArgs args, DtoPlaylistEntry entry)
+    {
+        if (args.Key is "Enter" or " " or "Spacebar")
+            return SelectEntryAsync(entry);
+
+        if (args.Key == "Escape" && SelectedEntryId.HasValue)
+            return OnEntrySelected.InvokeAsync(null);
+
+        return Task.CompletedTask;
+    }
+
+    private string GetImageUrl(DtoPlaylistEntry entry)
+        => MediaPictureUrlResolver.Resolve(entry.ResolvedPictureId, Client.AuthorizationToken);
+
+    /// <summary>
+    /// Whether the given entry can be directly played back: its media type must be directly playable
+    /// (Movie or TVShowEpisode; collection entries like TVShow, TVShowSeason, MovieCollection are not,
+    /// mirroring <c>PlaylistService.GetNextPlaylistEntryAsync</c>'s playback-navigation filtering) and it
+    /// must be accessible to the current user (<see cref="DtoPlaylistEntry.IsAccessible"/>) - locked
+    /// entries cannot be started via double-click (nor via the header's "Abspielen" button) either, instead of
+    /// letting the click reach the server and fail with a 403 that used to replace the whole detail page
+    /// (see <see cref="PlaylistDetail.playbackError"/>).
+    /// </summary>
+    internal static bool IsPlayableEntry(DtoPlaylistEntry entry)
+        => PlaylistEntryMediaTypeResolver.IsPlayable(entry.MediaType) && entry.IsAccessible;
+
+    /// <summary>
+    /// Whether the given entry gets its own tile in the Kachel-UI: only movies and episodes (mirrors
+    /// <see cref="PlaylistEntryMediaTypeResolver.IsPlayable"/>, which already draws exactly this
+    /// distinction for the "Abspielen" button). TVShow/TVShowSeason/MovieCollection entries are added
+    /// alongside a whole show/season/collection purely as organizational bookkeeping (see
+    /// <c>PlaylistService.BuildTopLevelEntry</c>/<c>BuildCascadeEntries</c> and
+    /// <c>docs/help/playlists-business-rules.md</c>) and are already skipped during playback navigation
+    /// server-side; per customer feedback ("Wurde eine ganze Serie hinzugefuegt, so darf es keine Kachel
+    /// fuer die Serie selbst oder die Staffeln geben") they must not render as their own tile either. They
+    /// stay part of the underlying, unchanged paginated entry list (see the remarks above the entry list
+    /// markup) so paging/scroll-loading math is unaffected - only their tile is suppressed here.
+    /// </summary>
+    private static bool IsRenderableEntry(DtoPlaylistEntry entry)
+        => PlaylistEntryMediaTypeResolver.IsPlayable(entry.MediaType);
+
+    /// <summary>
+    /// Builds the double-click callback for an entry row: the real "start playback" callback when
+    /// <see cref="IsPlayableEntry"/> is true, or an empty (no-op) callback otherwise, so double-clicking a
+    /// locked or non-playable (collection) row has no effect instead of reaching
+    /// <c>PlaylistClient.StartPlaylistAsync</c> with an id that cannot be started.
+    /// </summary>
+    private EventCallback GetPlayEntryDoubleClickCallback(DtoPlaylistEntry entry)
+        => IsPlayableEntry(entry)
+            ? EventCallback.Factory.Create(this, () => OnPlayEntry.InvokeAsync(entry))
+            : EventCallback.Empty;
+
+    /// <summary>
+    /// Moves the given entry to the true beginning of the playlist via the dedicated
+    /// <c>IPlaylistApiClient.MoveEntryToBeginningAsync</c> endpoint, which shifts every other entry's
+    /// SortOrder up by one server-side first. A plain <c>ReorderPlaylistEntryAsync</c> call with
+    /// <c>newSortOrder = 0</c> would only collide with (and always lose the AddedAt tie-break against)
+    /// whichever entry already occupies position 0, so - unlike <see cref="MoveEntryToEndAsync"/> - this
+    /// does not go through the shared <see cref="ReorderEntryAsync"/> helper.
+    /// </summary>
+    private Task MoveEntryToBeginningAsync(DtoPlaylistEntry entry)
+        => RunEntryActionAsync(async () =>
+        {
+            await PlaylistClient.MoveEntryToBeginningAsync(PlaylistId, entry.Id);
+            await LoadInitialPageAsync();
+        }, "Fehler beim Umordnen");
+
+    /// <summary>
+    /// Moves the given entry to the end of the playlist. Resolves the target position from
+    /// <c>IPlaylistApiClient.RequestMaxSortOrderAsync</c> - the true maximum SortOrder across the
+    /// entire playlist - rather than <c>allEntries.Max(...)</c>, which would only reflect whatever subset
+    /// of entries has been loaded/virtualized into the client so far and could place the entry in the
+    /// middle of the list instead of at its actual end.
+    /// </summary>
+    private Task MoveEntryToEndAsync(DtoPlaylistEntry entry)
+        => ReorderEntryAsync(entry, async () =>
+        {
+            var maxSortOrder = await PlaylistClient.RequestMaxSortOrderAsync(PlaylistId);
+            return (maxSortOrder ?? -1) + 1;
+        });
+
+    private Task ReorderEntryAsync(DtoPlaylistEntry entry, Func<Task<long>> resolveNewSortOrder)
+        => RunEntryActionAsync(async () =>
+        {
+            var newSortOrder = await resolveNewSortOrder();
+            await PlaylistClient.ReorderPlaylistEntryAsync(PlaylistId, entry.Id, new DtoReorderPlaylistEntryRequest { NewSortOrder = newSortOrder });
+            await LoadInitialPageAsync();
+        }, "Fehler beim Umordnen");
+
+    /// <summary>
+    /// Called by <c>wwwroot/js/playlistDragDrop.js</c> once the user has dropped an entry tile onto
+    /// another one: moves the dragged entry to the position of the target entry
+    /// (<c>MoveEntryBetweenAsync</c> with the target's SortOrder).
+    /// </summary>
+    /// <remarks>
+    /// The whole gesture (which tile was picked up, which one it is currently over, where it was
+    /// released) runs in the browser and reaches the server in this single call with both ids. The
+    /// previous implementation used native HTML5 drag &amp; drop and split this over two independent
+    /// SignalR round-trips - <c>@ondragstart</c> remembered the dragged entry in a server-side field,
+    /// <c>@ondrop</c> read it back - so a dragstart message that was not processed before the drop (slow,
+    /// unordered or briefly interrupted connection) left that field <see langword="null"/> and the drop
+    /// was discarded without any message. See the file header of <c>playlistDragDrop.js</c>.
+    /// Reordering twice at the same time is prevented on both sides: the browser starts no new gesture
+    /// while a call is in flight, and <see cref="isReordering"/> rejects a second call that arrives
+    /// nonetheless (it would read its target position from the not yet reloaded list).
+    /// </remarks>
+    /// <param name="draggedEntryId">The id of the dragged playlist entry.</param>
+    /// <param name="targetEntryId">The id of the entry whose position the dragged entry takes.</param>
+    [JSInvokable]
+    public async Task ReorderEntryByDropAsync(long draggedEntryId, long targetEntryId)
+    {
+        if (isReordering)
+        {
+            Logger.LogWarning("Umordnen wurde uebersprungen, weil bereits eines laeuft (Playlist {PlaylistId})", PlaylistId);
+            return;
+        }
+
+        isReordering = true;
+        try
+        {
+            await MoveEntryToTargetPositionAsync(draggedEntryId, targetEntryId);
+        }
+        finally
+        {
+            isReordering = false;
+        }
+
+        // Called from JS, i.e. not from an event handler of this component: render explicitly so the
+        // reordered list or an error message shows up.
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>
+    /// Moves the entry with the given id to the position of the entry with the given target id, after
+    /// re-checking both against the entries actually loaded here (the ids come from the browser).
+    /// </summary>
+    /// <remarks>
+    /// Every path that cannot carry out the move reports it - in the status message, in the log, or both -
+    /// and reloads the list where its content may no longer match the browser's (an entry that vanished
+    /// between picking it up and dropping it must not keep its tile). Returning silently is what made the
+    /// previous implementation look broken and is deliberately not done here.
+    /// </remarks>
+    /// <param name="draggedEntryId">The id of the entry to move.</param>
+    /// <param name="targetEntryId">The id of the entry whose position the moved entry takes.</param>
+    private async Task MoveEntryToTargetPositionAsync(long draggedEntryId, long targetEntryId)
+    {
+        if (draggedEntryId == targetEntryId)
+            return;
+
+        if (!IsReorderable)
+        {
+            // The sort mode or the ownership changed while the tile was being dragged (e.g. the sort mode
+            // was switched in another tab). The server would refuse the request anyway.
+            Logger.LogWarning("Umordnen abgelehnt: Playlist {PlaylistId} ist nicht (mehr) manuell sortierbar", PlaylistId);
+            entriesStatusIsError = true;
+            entriesStatusMessage = "Umordnen ist hier nicht möglich: Die Playlist steht nicht (mehr) im manuellen Sortiermodus.";
+            await LoadInitialPageAsync();
+            return;
+        }
+
+        var entryToMove = allEntries.FirstOrDefault(e => e.Id == draggedEntryId);
+        var targetEntry = allEntries.FirstOrDefault(e => e.Id == targetEntryId);
+        if (entryToMove is null || targetEntry is null)
+        {
+            Logger.LogWarning(
+                "Umordnen abgelehnt: Eintrag {DraggedEntryId} oder Ziel {TargetEntryId} ist in Playlist {PlaylistId} nicht (mehr) geladen",
+                draggedEntryId, targetEntryId, PlaylistId);
+            entriesStatusIsError = true;
+            entriesStatusMessage = "Umordnen nicht möglich: Die Liste hat sich zwischenzeitlich geändert. Bitte versuchen Sie es erneut.";
+            await LoadInitialPageAsync();
+            return;
+        }
+
+        if (targetEntry.SortOrder is not { } targetSortOrder)
+        {
+            // A manual-mode entry should always carry a SortOrder (ChangeSortModeAsync populates it for
+            // every entry when switching to Manual, and AddMediaToPlaylistAsync assigns one to new
+            // entries added while already in Manual mode); a null here means the server-side invariant
+            // was violated, so this is surfaced as an error instead of silently defaulting to 0 and
+            // moving the entry to a position that was never actually requested.
+            entriesStatusIsError = true;
+            entriesStatusMessage = "Fehler beim Umordnen: Zielposition hat keine gültige Sortierreihenfolge.";
+            return;
+        }
+
+        await RunEntryActionAsync(async () =>
+        {
+            await PlaylistClient.MoveEntryBetweenAsync(PlaylistId, entryToMove.Id, new DtoReorderPlaylistEntryRequest { NewSortOrder = targetSortOrder });
+            await LoadInitialPageAsync();
+        }, "Fehler beim Umordnen");
+
+        if (!entriesStatusIsError)
+            return;
+
+        // Nach einem gescheiterten Umordnen bildet die Liste den Serverstand nicht mehr sicher ab (der
+        // Eintrag kann zwischenzeitlich entfernt, die Playlist umgestellt worden sein). Neu laden, ohne
+        // die Fehlermeldung zu verlieren - LoadInitialPageAsync setzt entriesStatusMessage nur, wenn das
+        // Laden selbst scheitert.
+        await LoadInitialPageAsync();
+    }
+}

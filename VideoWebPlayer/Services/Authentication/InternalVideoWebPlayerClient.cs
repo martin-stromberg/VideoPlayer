@@ -76,6 +76,9 @@ namespace VideoWebPlayer.Services.Authentication
         /// <summary>
         /// Issues an authenticated POST request to the specified endpoint (non-generic).
         /// </summary>
+        /// <param name="endPoint">The endpoint to call.</param>
+        /// <param name="args">The HTTP content payload.</param>
+        /// <param name="skipReauthorize">Whether to skip the automatic re-authorization retry.</param>
         protected override async Task HttpPostAsync(string endPoint, HttpContent args, bool skipReauthorize = false)
         {
             if (string.IsNullOrWhiteSpace(AuthorizationToken))

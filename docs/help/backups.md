@@ -46,9 +46,20 @@ Mit dem Löschen-Symbol kann ein vorhandenes Backup dauerhaft entfernt werden. V
 
 ## Upload
 
-Im Bereich `Backup hochladen` kann eine Backup-Datei (`.bak`) importiert werden. Es werden nur gültige `.bak`-Backups übernommen. Dazu gehören ein lesbares Archiv, ein gültiges `manifest.json`, ein passender Provider und die erwarteten Dateninhalte.
+Im Bereich `Backup hochladen` kann eine Backup-Datei (`.bak`) importiert werden. Die Datei wird im Browser in Abschnitten (Chunks) übertragen; die Seite zeigt dabei eine Fortschrittsanzeige mit übertragener und Gesamtgröße sowie Prozentangabe. Ein laufender Upload kann über `Abbrechen` angehalten und später fortgesetzt werden — auch nach einem Seitenreload oder einer unterbrochenen Verbindung setzt der Upload an der bereits übertragenen Position wieder auf. Bei Netzwerkunterbrechungen versucht die Übertragung automatisch erneut; schlägt der Upload endgültig fehl, wird eine verständliche Fehlermeldung auf der Seite angezeigt. Liegt ein nicht abgeschlossener Upload vor, zeigt die Seite einen Hinweis mit dem Dateinamen; zum Fortsetzen dieselbe Datei erneut auswählen und `Backup hochladen` klicken. Soll der Upload nicht fortgesetzt werden, lässt sich der Hinweis über `Verwerfen` entfernen — dabei wird die serverseitige Upload-Session aufgegeben und die bereits übertragenen Zwischendaten werden gelöscht.
 
-Das Upload-Limit ist in den Einstellungen sichtbar und änderbar. Standard ist `512 MB`.
+Nicht abgeschlossene Uploads, auf die länger als 24 Stunden nicht zugegriffen wird, räumt der Server automatisch auf: Die Upload-Session und die zugehörige temporäre Datei werden entfernt. Ein danach erneut gestarteter Upload derselben Datei beginnt von vorn.
+
+Es werden nur gültige `.bak`-Backups übernommen. Dazu gehören ein lesbares Archiv, ein gültiges `manifest.json`, ein passender Provider und die erwarteten Dateninhalte. Eine bereits vorhandene gleichnamige `.bak`-Datei im Speicherpfad wird durch den Import ersetzt.
+
+Das Upload-Limit ist in den Einstellungen sichtbar und änderbar und wird serverseitig durchgesetzt — Dateien oberhalb des Limits werden abgelehnt. Der konfigurierte Standard ist `5 GiB`.
+
+### Bereitstellung (Hosting)
+
+Damit große Uploads nicht durch Server-Limits blockiert werden, gilt produktiv `Kestrel:Limits:MaxRequestBodySize = 0` (unbegrenzt; siehe `appsettings.Production.json`). Der Wert wird beim Anwendungsstart über eine explizite `ConfigureKestrel`-Bindung in `Program.cs` auf `KestrelServerOptions.Limits.MaxRequestBodySize` angewendet, da Kestrel die `Limits`-Sektion nicht selbst aus der Konfiguration lädt. Konvention: `0` oder ein negativer Wert bedeutet unbegrenzt (`null`), ein positiver Wert das Limit in Bytes; ist der Schlüssel nicht gesetzt, bleibt der Kestrel-Standard unverändert.
+
+- **IIS:** Die Anwendung muss im `OutOfProcess`-Hosting-Modell betrieben werden (in der Projektdatei über `<AspNetCoreHostingModel>OutOfProcess</AspNetCoreHostingModel>` festgelegt; die beim Publish erzeugte `web.config` nutzt dann ANCM im OutOfProcess-Modus). Das IIS-`requestFiltering`-Limit `maxAllowedContentLength` greift auch im OutOfProcess-Modus, weil das Request-Filtering-Modul den Request vor ANCM/Kestrel ablehnt — der IIS-Standard (~30 MB) ist kleiner als die Chunk-Größe (128 MiB) und führt zu einem 413 ohne JSON-Antwort. Die im Projekt enthaltene `web.config` setzt das Limit daher auf das Maximum (`4294967295` Bytes, ~4 GiB — ausreichend, da jeder Request höchstens einen Chunk trägt) und erhöht das ANCM-`requestTimeout` auf 2 Stunden für langsame Verbindungen. Wird die `web.config` beim Deployment überschrieben, muss das Limit manuell gesetzt werden (IIS-Manager → Request Filtering → „Edit Feature Settings" oder `appcmd set config "<Site>" -section:system.webServer/security/requestFiltering /requestLimits.maxAllowedContentLength:4294967295 /commit:apphost`).
+- **Linux/systemd:** Es gibt keine zusätzlichen Upload-Limits; `Kestrel:Limits:MaxRequestBodySize` kann alternativ per Umgebungsvariable `Kestrel__Limits__MaxRequestBodySize` gesetzt werden.
 
 ## Restore
 
@@ -58,6 +69,12 @@ Ein Restore ersetzt die aktuellen Anwendungsdaten durch die Daten aus dem ausgew
 2. Die Sicherheitsabfrage aktiv bestätigen und `Restore starten` ausführen.
 
 Der Restore läuft im Hintergrund. Die Backup-Seite zeigt währenddessen den Fortschritt zweistufig an: aktueller Datenbestand `w von x` und aktueller Datensatz `y von z`.
+
+### Wiederherstellung älterer Sicherungen
+
+Sicherungen älterer Versionen bleiben wiederherstellbar: Tabellen und Spalten, die es zum Zeitpunkt der Sicherung noch nicht gab, gelten beim Restore als optional und werden mit Standardwerten ergänzt. Das gilt auch für die Gerätekopplung, die erst später hinzugekommen ist (Tabellen `PairedDevices`, `PairingCodes`, `RefreshTokens` sowie die Spalten `Kind` und `TicketHash` in `PairingCodes`).
+
+Wichtig dabei: Eine Sicherung aus der Zeit vor der Gerätekopplung enthält keine gekoppelten Geräte und keine Sitzungen. Nach dem Restore einer solchen Sicherung sind diese Tabellen deshalb leer — die Geräteliste ist leer, bereits gekoppelte Geräte und Client-Apps sind abgemeldet und müssen neu gekoppelt werden. Offene Pairing-Codes und Bootstrap-Tickets aus der alten Sicherung kommen ebenfalls nicht zurück. Das ist das gewünschte und sichere Verhalten: Geräte-Zugänge werden nicht aus einer alten Sicherung heraus wiederbelebt. Eine Sicherung der heutigen Version enthält die drei Tabellen dagegen vollständig und stellt gekoppelte Geräte und Sitzungen unverändert wieder her.
 
 Während des Restores werden schreibende Hintergrundprozesse in der Anwendung pausiert oder am Start neuer Schreiboperationen gehindert. Laufende Operationen werden abgewartet, bevor Daten gelöscht und aus dem Backup wiederhergestellt werden. Inhaltsseiten werden während der Wiederherstellung nicht regulär geladen. API-Anfragen auf Inhaltsdaten erhalten stattdessen eine Statusantwort mit Hinweis auf den laufenden Restore.
 
@@ -79,6 +96,8 @@ Die Seite zeigt eine Historie der letzten Backup-, Restore- und Löschaktionen. 
 - Gesichert werden Datenbankdaten und optionale Genre-Icons. Echte Mediendateien aus Medienquellen, Logs, Demo-/Seed-Dateien und externe Speicherorte werden nicht gesichert.
 - Das Backup-Format ist eine `.bak`-Datei, die ein objektbasiertes Archiv enthält. Sie besteht aus einem `manifest.json` und einem oder mehreren Backup-Objekten. Das VideoWebPlayer-Datenbank-Objekt trägt den Namen `videowebplayer/database` und den Content-Type `VideoWebPlayer:Database`; es enthält wiederum ein `index.json` sowie die Tabellen-Payloads der Anwendungsdatenbank.
 - Backups aus älteren Versionen ohne `UpdateSettings`-Tabelle oder ohne Anwendungstitel in `Setups` können wiederhergestellt werden. Fehlende Werte werden beim Restore mit aktuellen Standardwerten ergänzt.
+- Backups aus älteren Versionen ohne die Tabellen `PairedDevices`, `PairingCodes` und `RefreshTokens` können ebenfalls wiederhergestellt werden; die Tabellen bleiben danach leer (siehe „Wiederherstellung älterer Sicherungen“). Fehlt in einer Sicherung nur die Spalte `PairingCodes.Kind`, wird sie mit `AdminCode` ergänzt; `PairingCodes.TicketHash` bleibt leer.
 - Hochgeladene `.bak`-Dateien werden gegen ungültige Manifestdaten und unsichere Pfade validiert.
+- Der Upload läuft über ein chunkbasiertes `application/octet-stream`-Protokoll: `POST admin/backups/api/upload/chunk` nimmt Abschnitte mit den Headern `Upload-Id`, `Upload-Name`, `Upload-Length` und `Upload-Offset` entgegen; `GET admin/backups/api/upload/{id}` liefert den aktuellen Stand für die Wiederaufnahme (Offset-Mismatch wird mit Status `308` und dem erwarteten Offset beantwortet); `DELETE admin/backups/api/upload/{id}` verwirft eine Session samt Temp-Datei. Temporäre Dateien liegen als `vwp-backup-upload-*.tmp` im System-Temp-Verzeichnis und werden nach Abschluss in den Speicherpfad verschoben bzw. nach 24 Stunden Inaktivität aufgeräumt.
 - Die Restore-Sperre wirkt innerhalb der laufenden Anwendung. Sie ist keine Cluster- oder Mehrprozess-Sperre für mehrere App-Instanzen.
 - Backups sind nicht verschlüsselt und nicht passwortgeschützt. Der Speicherpfad sollte entsprechend geschützt werden.

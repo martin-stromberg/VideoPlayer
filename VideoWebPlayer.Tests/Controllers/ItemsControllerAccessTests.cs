@@ -1,14 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Data.Sqlite;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Controllers.Models;
 using VideoWebPlayer.Data;
-using VideoWebPlayer.Services;
-using VideoWebPlayer.Services.Authentication;
+using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.Controllers;
@@ -192,66 +186,14 @@ public class ItemsControllerAccessTests
         return (db, controller, source, movie, user, logger);
     }
 
-    private async Task<(ApplicationDbContext db, ItemsController controller, ApplicationUser user, CapturingLogger<ItemsController> logger)> CreateBaseControllerAsync()
+    private static async Task<(ApplicationDbContext db, ItemsController controller, ApplicationUser user, CapturingLogger<ItemsController> logger)> CreateBaseControllerAsync()
     {
         var ct = TestContext.Current.CancellationToken;
         var connectionString = "Data Source=file:items-access-tests?mode=memory&cache=shared";
-        var keeperConnection = new SqliteConnection(connectionString);
-        keeperConnection.Open();
-
-        var userId = Guid.NewGuid().ToString();
-        var user = new ApplicationUser { Id = userId, UserName = "regular@test.com" };
-        var fakeAuth = new FakeAuthService { CurrentUser = user };
         var logger = new CapturingLogger<ItemsController>();
 
-        var services = new ServiceCollection();
-        services.AddSingleton<EventManager>();
-        services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(connectionString));
-        services.AddSingleton<IAuthService>(fakeAuth);
-        services.AddScoped<IUnlockedMediaService, UnlockedMediaService>();
-
-        var serviceProvider = services.BuildServiceProvider();
-        var db = serviceProvider.GetRequiredService<ApplicationDbContext>();
-        await db.Database.EnsureCreatedAsync(ct);
-
-        db.Users.Add(user);
-        await db.SaveChangesAsync(ct);
-
-        var unlockedMediaService = serviceProvider.GetRequiredService<IUnlockedMediaService>();
-        var recentEntryService = new RecentEntryService(db, fakeAuth, unlockedMediaService);
-        var controller = new ItemsController(
-            db,
-            new SftpMediaSourceReader(),
-            new MediaMetadataEditorService(db, null),
-            recentEntryService,
-            unlockedMediaService,
-            fakeAuth,
-            logger);
+        var (db, controller, user) = await ItemsControllerTestFactory.CreateAsync(connectionString, "regular@test.com", logger, ct);
 
         return (db, controller, user, logger);
-    }
-
-    private sealed class CapturingLogger<T> : ILogger<T>
-    {
-        public string? LastError { get; private set; }
-
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-        public bool IsEnabled(LogLevel logLevel) => true;
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
-        {
-            if (logLevel == LogLevel.Error && exception != null)
-                LastError = exception.ToString();
-        }
-    }
-
-    private sealed class FakeAuthService : IAuthService
-    {
-        public ApplicationUser? CurrentUser { get; set; }
-
-        public Task<AuthorizationToken> ImpersonateAsync(ImpersonateRequest request)
-            => throw new NotImplementedException();
-
-        public Task<AuthorizationToken> LoginAsync(AuthenticationRequest request)
-            => throw new NotImplementedException();
     }
 }

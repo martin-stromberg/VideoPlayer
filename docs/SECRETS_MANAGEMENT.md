@@ -12,12 +12,17 @@ Diese Dokumentation verwendet ausschließlich synthetische Platzhalter. Werte wi
 | Name | Geheim? | Verwendung | Empfohlene Quelle |
 |------|---------|------------|-------------------|
 | `Jwt:Key` | Ja | Signaturschlüssel für JWTs | User Secrets, Umgebungsvariable, Secret Store |
+| `Jwt:ApiToken` | Ja | Legacy-Gate für API-Aufrufe (`AnyClient`) | User Secrets, Umgebungsvariable, Secret Store |
 | `Jwt:ApiToken:Web` | Ja | Gate für Web-/Browser-API-Aufrufe | User Secrets, Umgebungsvariable, Secret Store |
+| `Jwt:ApiToken:Maui` | Ja | Fallback-Gate für App-Logins (`MauiOnly`); Pflicht in Produktion | User Secrets, Umgebungsvariable, Secret Store |
 | `Jwt:Issuer` | Nein | Aussteller-Name im JWT | Konfiguration |
+| Geräte-Tokens | Ja | Individuelles Gate pro gekoppeltem Gerät (`MauiOnly`) | Datenbank, nur als SHA-256-Hash |
 | Benutzerpasswörter | Ja | Anmeldung | Datenbank/Identity-System |
 | JWT Access Token | Ja | Benutzerautorisierung nach Login | Laufzeitspeicher des Clients |
 
 Ein API-Gate-Wert ersetzt keine Benutzeranmeldung. Die eigentliche Autorisierung erfolgt über das JWT nach erfolgreichem Login.
+
+`Jwt:ApiToken:Maui` bleibt als Fallback für ältere App-Versionen konfiguriert und ist in Produktion Pflicht. Neuere Apps erhalten über das Geräte-Pairing (`POST /api/pairing/exchange`, siehe [API-Vertrag](./API.md)) ein individuelles, widerrufbares Geräte-Token, das nur gehasht gespeichert wird und in `/admin/devices` verwaltet werden kann.
 
 ## Entwicklung
 

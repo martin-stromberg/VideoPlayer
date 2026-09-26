@@ -27,7 +27,7 @@ public sealed class VideoWebPlayerBackupDataTests
         using var connection = new SqliteConnection("Data Source=file:backuptest-no-unlockedmedia?mode=memory&cache=shared");
         await connection.OpenAsync(ct);
         var (db, backup, userId) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
-        await using var _ = db;
+        await using var dbLifetime = db;
 
         using var legacyStream = await LegacyBackupArchiveBuilder.RemoveTablesAsync(backup, new[] { "UnlockedMediaEntries" }, ct);
 
@@ -46,7 +46,7 @@ public sealed class VideoWebPlayerBackupDataTests
         using var connection = new SqliteConnection("Data Source=file:backuptest-no-watched?mode=memory&cache=shared");
         await connection.OpenAsync(ct);
         var (db, backup, userId) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
-        await using var _ = db;
+        await using var dbLifetime = db;
 
         using var legacyStream = await LegacyBackupArchiveBuilder.RemoveTablesAsync(backup, new[] { "WatchedEntries" }, ct);
 
@@ -65,7 +65,7 @@ public sealed class VideoWebPlayerBackupDataTests
         using var connection = new SqliteConnection("Data Source=file:backuptest-no-threshold?mode=memory&cache=shared");
         await connection.OpenAsync(ct);
         var (db, backup, userId) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
-        await using var _ = db;
+        await using var dbLifetime = db;
 
         using var legacyStream = await BuildLegacyBackupStreamWithoutContinueWatchingThresholdColumnAsync(backup, ct);
 
@@ -95,7 +95,7 @@ public sealed class VideoWebPlayerBackupDataTests
         using var connection = new SqliteConnection("Data Source=file:backuptest-playlists?mode=memory&cache=shared");
         await connection.OpenAsync(ct);
         var (db, backup, userId) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
-        await using var _ = db;
+        await using var dbLifetime = db;
 
         using var legacyStream = await LegacyBackupArchiveBuilder.RemoveTablesAsync(backup, new[] { "Playlists", "PlaylistEntries" }, ct);
 
@@ -121,7 +121,7 @@ public sealed class VideoWebPlayerBackupDataTests
         using var connection = new SqliteConnection("Data Source=file:backuptest-playlist-exclusions?mode=memory&cache=shared");
         await connection.OpenAsync(ct);
         var (db, backup, userId) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
-        await using var _ = db;
+        await using var dbLifetime = db;
 
         var playlist = new Playlist
         {
@@ -164,7 +164,7 @@ public sealed class VideoWebPlayerBackupDataTests
         using var connection = new SqliteConnection("Data Source=file:backuptest-playlist-genres?mode=memory&cache=shared");
         await connection.OpenAsync(ct);
         var (db, backup, userId) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
-        await using var _ = db;
+        await using var dbLifetime = db;
 
         var mediaSource = new MediaSource { Name = "Quelle", Path = "/test", Host = "localhost", Port = 22 };
         db.MediaSources.Add(mediaSource);
@@ -211,7 +211,7 @@ public sealed class VideoWebPlayerBackupDataTests
         using var connection = new SqliteConnection("Data Source=file:backuptest-no-genres-overridden-column?mode=memory&cache=shared");
         await connection.OpenAsync(ct);
         var (db, backup, userId) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
-        await using var _ = db;
+        await using var dbLifetime = db;
 
         var playlist = new Playlist
         {
@@ -252,7 +252,7 @@ public sealed class VideoWebPlayerBackupDataTests
         using var connection = new SqliteConnection("Data Source=file:backuptest-no-ispublic-column?mode=memory&cache=shared");
         await connection.OpenAsync(ct);
         var (db, backup, userId) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
-        await using var _ = db;
+        await using var dbLifetime = db;
 
         db.Playlists.Add(new Playlist
         {
@@ -287,7 +287,7 @@ public sealed class VideoWebPlayerBackupDataTests
         using var connection = new SqliteConnection("Data Source=file:backuptest-ispublic-roundtrip?mode=memory&cache=shared");
         await connection.OpenAsync(ct);
         var (db, backup, userId) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
-        await using var _ = db;
+        await using var dbLifetime = db;
 
         db.Playlists.Add(new Playlist
         {
@@ -321,7 +321,7 @@ public sealed class VideoWebPlayerBackupDataTests
         using var connection = new SqliteConnection("Data Source=file:backuptest-no-cover-columns?mode=memory&cache=shared");
         await connection.OpenAsync(ct);
         var (db, backup, userId) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
-        await using var _ = db;
+        await using var dbLifetime = db;
 
         var playlist = new Playlist
         {
@@ -360,7 +360,7 @@ public sealed class VideoWebPlayerBackupDataTests
         using var connection = new SqliteConnection("Data Source=file:backuptest-no-picture-playlistid?mode=memory&cache=shared");
         await connection.OpenAsync(ct);
         var (db, backup, userId) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
-        await using var _ = db;
+        await using var dbLifetime = db;
 
         var playlist = new Playlist
         {
@@ -405,7 +405,7 @@ public sealed class VideoWebPlayerBackupDataTests
         using var connection = new SqliteConnection("Data Source=file:backuptest-cover-generated?mode=memory&cache=shared");
         await connection.OpenAsync(ct);
         var (db, backup, userId) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
-        await using var _ = db;
+        await using var dbLifetime = db;
 
         var picture = new Picture
         {
@@ -460,7 +460,7 @@ public sealed class VideoWebPlayerBackupDataTests
         using var connection = new SqliteConnection("Data Source=file:backuptest-cover-uploaded?mode=memory&cache=shared");
         await connection.OpenAsync(ct);
         var (db, backup, userId) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
-        await using var _ = db;
+        await using var dbLifetime = db;
 
         var picture = new Picture
         {
@@ -513,7 +513,7 @@ public sealed class VideoWebPlayerBackupDataTests
         using var connection = new SqliteConnection("Data Source=file:backuptest-no-backfill-markers?mode=memory&cache=shared");
         await connection.OpenAsync(ct);
         var (db, backup, _) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
-        await using var __ = db;
+        await using var dbLifetime = db;
 
         db.PlaylistBackfillMarkers.Add(new PlaylistBackfillMarker { MediaType = "TVShow", MediaId = 7 });
         await db.SaveChangesAsync(ct);
@@ -537,7 +537,7 @@ public sealed class VideoWebPlayerBackupDataTests
         using var connection = new SqliteConnection("Data Source=file:backuptest-backfill-markers-roundtrip?mode=memory&cache=shared");
         await connection.OpenAsync(ct);
         var (db, backup, _) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
-        await using var __ = db;
+        await using var dbLifetime = db;
 
         db.PlaylistBackfillMarkers.Add(new PlaylistBackfillMarker { MediaType = "MovieCollection", MediaId = 3, Version = 4 });
         await db.SaveChangesAsync(ct);
@@ -565,7 +565,7 @@ public sealed class VideoWebPlayerBackupDataTests
         using var connection = new SqliteConnection("Data Source=file:backuptest-no-lastsweep-column?mode=memory&cache=shared");
         await connection.OpenAsync(ct);
         var (db, backup, _) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
-        await using var __ = db;
+        await using var dbLifetime = db;
 
         var setup = await db.Setups.FirstOrDefaultAsync(ct);
         if (setup is null)
@@ -597,7 +597,7 @@ public sealed class VideoWebPlayerBackupDataTests
         using var connection = new SqliteConnection("Data Source=file:backuptest-no-sortorder-column?mode=memory&cache=shared");
         await connection.OpenAsync(ct);
         var (db, backup, userId) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
-        await using var _ = db;
+        await using var dbLifetime = db;
 
         var playlist = new Playlist
         {
@@ -644,7 +644,7 @@ public sealed class VideoWebPlayerBackupDataTests
         using var connection = new SqliteConnection("Data Source=file:backuptest-no-playlistid-column?mode=memory&cache=shared");
         await connection.OpenAsync(ct);
         var (db, backup, userId) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
-        await using var _ = db;
+        await using var dbLifetime = db;
 
         db.ContinueWatchingEntries.Add(new ContinueWatchingEntry
         {
@@ -785,7 +785,7 @@ public sealed class VideoWebPlayerBackupDataTests
         using var connection = new SqliteConnection("Data Source=file:backuptest-sourcetype?mode=memory&cache=shared");
         await connection.OpenAsync(ct);
         var (db, backup, _) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
-        await using var _ = db;
+        await using var dbLifetime = db;
 
         db.MediaSources.Add(new MediaSource
         {

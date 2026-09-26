@@ -197,13 +197,14 @@ flowchart TD
 **Auslöser:** Client ruft `GET /api/playlists/{id}/entries` auf
 
 1. **Berechtigungsprüfung:**
-   - `PlaylistService.GetPlaylistEntriesAsync()` ruft `GetOwnedPlaylistAsync()` auf
-   - Falls nicht Besitzer → HTTP 403
+   - `PlaylistService.GetPlaylistEntriesAsync()` ruft `GetReadablePlaylistAsync()` auf (Besitzer oder
+     öffentliche Playlist)
+   - Falls die Playlist privat ist und einem anderen Benutzer gehört → HTTP 403
 
 2. **Alle Einträge laden:**
    - Lade alle `PlaylistEntry` mit `PlaylistId = id` aus DB
-   - Keine Filterung, keine Sortierung (unsortiert in Einfüge-Reihenfolge; sortierte Anzeige nur
-     über den paginierten Endpunkt, siehe Ablauf 4)
+   - Keine Filterung; die Einträge werden gemäß `Playlist.SortMode` sortiert (dieselbe Reihenfolge wie
+     beim paginierten Endpunkt, siehe Ablauf 4)
 
 3. **Medien-IDs sammeln:**
    - Erstelle Dictionary `mediaIdsByType` mit den Schlüsseln (Medientypen)
@@ -243,7 +244,7 @@ flowchart TD
 |--------|---------|-------|
 | `PlaylistsController` | `GetPlaylistEntries()` | HTTP-Endpoint-Handler |
 | `PlaylistService` | `GetPlaylistEntriesAsync()` | Geschäftslogik + Bereinigung |
-| `PlaylistService` | `GetOwnedPlaylistAsync()` | Berechtigung + Existenz |
+| `PlaylistService` | `GetReadablePlaylistAsync()` | Berechtigung (lesbar) + Existenz |
 | `PlaylistService` | `GetMediaTitlesAsync()` | Batch-Titel-Lookup |
 | `PlaylistService` | `BuildEntryDtosAsync()` | Entity → DTO Konvertierung (Titel, `ResolvedPictureId`, `IsAccessible`), gemeinsam mit Ablauf 1/4 |
 | `IUnlockedMediaService` | `GetUnlockedMovieCollectionIdsForUserAsync()` / `GetUnlockedTVShowIdsForUserAsync()` | Bulk-Freischaltungsprüfung für `IsAccessible` |
@@ -444,8 +445,10 @@ scrollt.
    - `pageSize < 1` oder `pageSize > PlaylistSettings.MaxPageSize` → HTTP 400
 
 2. **Berechtigungsprüfung:**
-   - `PlaylistService.GetPlaylistEntriesPagedAsync()` ruft `GetOwnedPlaylistAsync()` auf
-   - Falls nicht Besitzer → HTTP 403; falls Playlist nicht gefunden → HTTP 404
+   - `PlaylistService.GetPlaylistEntriesPagedAsync()` ruft `GetReadablePlaylistAsync()` auf (Besitzer oder
+     öffentliche Playlist)
+   - Falls die Playlist privat ist und einem anderen Benutzer gehört → HTTP 403; falls Playlist nicht
+     gefunden → HTTP 404
 
 3. **Gültige Einträge laden (ohne Titel-Auflösung):**
    - `LoadValidPlaylistEntriesAsync()` lädt alle `PlaylistEntry` der Playlist

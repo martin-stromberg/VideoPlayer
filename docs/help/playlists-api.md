@@ -225,7 +225,7 @@ Keine Antwort-Body. Der Eintrag wurde entfernt.
 
 Ruft alle Medieninhalte einer Playlist ab. Verwaiste Einträge (deren Medieninhalt gelöscht wurde) werden automatisch entfernt.
 Die Einträge kommen gemäß `Playlist.SortMode` sortiert zurück — in derselben Reihenfolge wie bei
-`GET /api/playlists/{id}/entries/paged` (siehe dort „Sortierlogik“).
+`GET /api/playlists/{id}/entries/paged` (siehe dort „Sortierlogik").
 
 **Parameter:**
 

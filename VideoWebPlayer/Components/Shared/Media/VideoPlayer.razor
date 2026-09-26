@@ -286,8 +286,11 @@
         }
         catch (Exception ex)
         {
+            // 403 (title not unlocked for this user) and 404 (title gone or without a video file) are final
+            // answers of the server, not session problems: they get their own plain message and neither a
+            // retry nor a sign-in prompt follows.
             Logger.LogWarning(ex, "{ErrorPrefix} (Playlist {PlaylistId})", errorPrefix, currentPlaylistId);
-            playlistNavigationErrorMessage = $"{errorPrefix}: {ex.Message}";
+            playlistNavigationErrorMessage = MediaAccessErrorMessages.Describe(ex) ?? $"{errorPrefix}: {ex.Message}";
             StateHasChanged();
         }
     }

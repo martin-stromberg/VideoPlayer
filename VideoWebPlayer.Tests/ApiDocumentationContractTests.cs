@@ -42,39 +42,110 @@ public sealed class ApiDocumentationContractTests : IDisposable
             });
     }
 
+    /// <summary>
+    /// Every route <c>docs/API.md</c> must describe. Besides the long-standing Maui-relevant routes this
+    /// covers the complete playlist area (management, entries, manual order, sort mode, genres, playback,
+    /// cover) and the session endpoints of the QR bootstrap, so a route added to
+    /// <c>PlaylistsController</c>/<c>AuthController</c> without documentation, or a documented route
+    /// silently dropped from the document, fails the build.
+    /// </summary>
+    internal static readonly string[] RequiredRoutes =
+    {
+        "GET /api/health",
+        "POST /api/auth/login",
+        "POST /api/pairing/exchange",
+        "POST /api/pairing/bootstrap",
+        "POST /api/auth/refresh",
+        "POST /api/auth/logout",
+        "GET /api/Sources",
+        "GET /api/SourceGenres/{sourceId}",
+        "GET /api/items",
+        "GET /api/items/recent",
+        "GET /api/items/{type}/{id}",
+        "GET /api/items/{type}/{id}/stream",
+        "GET /api/pictures/{id}",
+        "GET /api/sourceicons/{id}",
+        "GET /api/favorites",
+        "POST /api/favorites/toggle",
+        "GET /api/continue-watching",
+        "POST /api/continue-watching/progress",
+        "POST /api/continue-watching/hide",
+        "POST /api/continue-watching/skip",
+        "GET /api/episodes/{episodeId}/background-image",
+        "GET /api/playlists",
+        "GET /api/playlists/public",
+        "PUT /api/playlists/{id}/public",
+        "GET /api/playlists/{id}",
+        "POST /api/playlists",
+        "PUT /api/playlists/{id}",
+        "DELETE /api/playlists/{id}",
+        "POST /api/playlists/{id}/entries",
+        "DELETE /api/playlists/{id}/entries/{mediaType}/{mediaId}",
+        "GET /api/playlists/{id}/entries",
+        "GET /api/playlists/{id}/entries/paged",
+        "PUT /api/playlists/{id}/entries/{entryId}/order",
+        "POST /api/playlists/{id}/entries/batch-reorder",
+        "GET /api/playlists/{id}/entries/max-sort-order",
+        "POST /api/playlists/{id}/entries/{entryId}/move-to-beginning",
+        "POST /api/playlists/{id}/entries/{entryId}/move-between",
+        "PATCH /api/playlists/{id}/sort-mode",
+        "PUT /api/playlists/{id}/genres",
+        "POST /api/playlists/{id}/genres/reset",
+        "POST /api/playlists/{id}/play",
+        "POST /api/playlists/{id}/play/next",
+        "POST /api/playlists/{id}/play/previous",
+        "POST /api/playlists/{id}/play/advance",
+        "POST /api/playlists/{id}/cover/upload",
+        "POST /api/playlists/{id}/cover/regenerate",
+        "POST /api/playlists/{id}/cover/preview",
+        "GET /api/playlists/{id}/cover",
+        "DELETE /api/playlists/{id}/cover",
+        "GET /hubs/mediaupdate"
+    };
+
     [Fact]
     public void ApiDocumentationContainsMauiRelevantRoutes()
     {
-        var repositoryRoot = FindRepositoryRoot();
-        var apiDocument = File.ReadAllText(Path.Combine(repositoryRoot, "docs", "API.md"));
-        var requiredRoutes = new[]
-        {
-            "GET /api/health",
-            "POST /api/auth/login",
-            "POST /api/pairing/exchange",
-            "GET /api/Sources",
-            "GET /api/SourceGenres/{sourceId}",
-            "GET /api/items",
-            "GET /api/items/recent",
-            "GET /api/items/{type}/{id}",
-            "GET /api/items/{type}/{id}/stream",
-            "GET /api/pictures/{id}",
-            "GET /api/sourceicons/{id}",
-            "GET /api/favorites",
-            "POST /api/favorites/toggle",
-            "GET /api/continue-watching",
-            "POST /api/continue-watching/progress",
-            "POST /api/continue-watching/hide",
-            "POST /api/continue-watching/skip",
-            "GET /api/episodes/{episodeId}/background-image",
-            "GET /hubs/mediaupdate"
-        };
+        AssertRequiredRoutesDocumented(ReadApiDocument());
+    }
 
-        foreach (var route in requiredRoutes)
+    /// <summary>
+    /// Counter-proof for <see cref="ApiDocumentationContainsMauiRelevantRoutes"/>: for every required route,
+    /// removing exactly that route from the document must make the check fail. Without this the check could
+    /// silently degrade into one that passes no matter what the document contains.
+    /// </summary>
+    [Fact]
+    public void ApiDocumentation_WithARequiredRouteRemoved_FailsTheContract()
+    {
+        var apiDocument = ReadApiDocument();
+
+        foreach (var route in RequiredRoutes)
+        {
+            var mutilatedDocument = apiDocument.Replace(route, string.Empty, StringComparison.Ordinal);
+            Assert.NotEqual(apiDocument, mutilatedDocument);
+            Assert.ThrowsAny<Exception>(() => AssertRequiredRoutesDocumented(mutilatedDocument));
+        }
+    }
+
+    /// <summary>
+    /// Asserts that the given <c>docs/API.md</c> content mentions every route of
+    /// <see cref="RequiredRoutes"/>.
+    /// </summary>
+    /// <param name="apiDocument">The content of <c>docs/API.md</c> to check.</param>
+    internal static void AssertRequiredRoutesDocumented(string apiDocument)
+    {
+        foreach (var route in RequiredRoutes)
         {
             Assert.Contains(route, apiDocument, StringComparison.Ordinal);
         }
     }
+
+    /// <summary>
+    /// Reads <c>docs/API.md</c> from the repository the test assembly was built in.
+    /// </summary>
+    /// <returns>The document's content.</returns>
+    internal static string ReadApiDocument()
+        => File.ReadAllText(Path.Combine(FindRepositoryRoot(), "docs", "API.md"));
 
     [Theory]
     [InlineData("test-legacy-api-token")]

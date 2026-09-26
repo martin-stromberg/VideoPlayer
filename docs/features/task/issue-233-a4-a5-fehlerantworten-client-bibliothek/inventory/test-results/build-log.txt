@@ -1,0 +1,30 @@
+dotnet build VideoPlayer.sln -c Release
+=====================================
+
+Arbeitsverzeichnis: D:\Repositories\softwareschmiede\fd729906-8801-43ee-8539-fa3e046c88f4
+Zeitpunkt: 2026-09-26T10:30:00 UTC+2 (MESZ)
+Exit-Code: 0
+
+AUSGABE (Auszug):
+-----------------
+
+Wiederherzustellende Projekte werden ermittelt...
+Alle Projekte sind für die Wiederherstellung auf dem neuesten Stand.
+
+SecretScan -> bin/Release/net10.0/SecretScan.dll
+MarkdownLinkCheck -> bin/Release/net10.0/MarkdownLinkCheck.dll
+VideoWebPlayer.Client -> bin/Release/net10.0/VideoWebPlayer.Client.dll
+MarkdownLinkCheck.Tests -> bin/Release/net10.0/MarkdownLinkCheck.Tests.dll
+
+WARNUNGEN (nicht kritisch):
+---------------------------
+
+CS0436: Der Typ "RecentEntryType" in VideoWebPlayer\Data\RecentEntry.cs verursacht einen Konflikt
+        mit dem importierten Typ "RecentEntryType" in "VideoWebPlayer.Client".
+        Der in VideoWebPlayer definierte Typ wird verwendet.
+
+CS8618: Non-Nullable-Eigenschaft "Movie" muss beim Beenden des Konstruktors einen Wert ungleich NULL enthalten.
+        Mehrere Vorkommen in Datenmodell-Klassen.
+
+FEHLER: 0
+WARNUNGEN: ~5-10 (harmlos, nicht kritisch für Funktionalität)

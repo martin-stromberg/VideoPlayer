@@ -3,10 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 using VideoWebPlayer.Data;
-using VideoWebPlayer.Services;
 using VideoWebPlayer.Services.Backups;
 using VideoWebPlayer.Tests.Helpers;
 using Xunit;
@@ -776,41 +773,19 @@ public sealed class VideoWebPlayerBackupDataTests
         return setupsTable["entryName"]!.GetValue<string>();
     }
 
+    /// <summary>
+    /// Verifies that a backup taken before <c>MediaSources.SourceType</c> existed (local directories as a
+    /// media source type) can still be restored, with the missing column defaulting to
+    /// <see cref="MediaSourceType.Sftp"/> — the only type that existed back then.
+    /// </summary>
     [Fact]
     public async Task ReadFromAsync_LegacyBackupWithoutMediaSourceSourceType_RestoresWithSftpDefault()
     {
-        var connectionString = "Data Source=file:backuptest-sourcetype?mode=memory&cache=shared";
-        using var connection = new SqliteConnection(connectionString);
-        await connection.OpenAsync(TestContext.Current.CancellationToken);
-
-        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseSqlite(connection)
-            .Options;
-
-        await using var db = new ApplicationDbContext(options, new EventManager());
-        await db.Database.EnsureCreatedAsync(TestContext.Current.CancellationToken);
-
-        var userId = Guid.NewGuid().ToString();
-        db.Users.Add(new ApplicationUser
-        {
-            Id = userId,
-            UserName = "admin",
-            NormalizedUserName = "ADMIN",
-            Email = "admin@test.de",
-            NormalizedEmail = "ADMIN@TEST.DE",
-            PasswordHash = "hash",
-            SecurityStamp = "stamp",
-            ConcurrencyStamp = Guid.NewGuid().ToString(),
-            Sources = string.Empty,
-            IsAdmin = true
-        });
-
-        db.Setups.Add(new Setup
-        {
-            DataVersion = 1,
-            GenresChanged = false,
-            ContinueWatchingEndThresholdSeconds = 42
-        });
+        var ct = TestContext.Current.CancellationToken;
+        using var connection = new SqliteConnection("Data Source=file:backuptest-sourcetype?mode=memory&cache=shared");
+        await connection.OpenAsync(ct);
+        var (db, backup, _) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
+        await using var _ = db;
 
         db.MediaSources.Add(new MediaSource
         {
@@ -821,113 +796,22 @@ public sealed class VideoWebPlayerBackupDataTests
             SourceType = MediaSourceType.LocalDirectory,
             CreatedAt = DateTime.UtcNow
         });
+        await db.SaveChangesAsync(ct);
 
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        using var legacyStream = await LegacyBackupArchiveBuilder.RemoveColumnsAsync(
+            backup, "MediaSources", new[] { "SourceType" }, ct);
 
-        var environment = new TestWebHostEnvironment();
-        var logger = NullLogger<VideoWebPlayerBackupData>.Instance;
-        var factory = new VideoWebPlayerBackupDataFactory(new ServiceCollection().BuildServiceProvider(), environment, logger)
-        {
-            UserId = userId
-        };
+        // Verify the simulated legacy backup really lacks the new optional column.
+        var mediaSourceColumns = await LegacyBackupArchiveBuilder.ReadTableColumnsAsync(legacyStream, "MediaSources", ct);
+        Assert.NotNull(mediaSourceColumns);
+        Assert.DoesNotContain("SourceType", mediaSourceColumns!);
+        Assert.Contains("Name", mediaSourceColumns!);
 
-        var backup = new VideoWebPlayerBackupData(
-            "test",
-            "VideoWebPlayer:Database",
-            db,
-            environment,
-            logger,
-            factory);
-
-        using var currentStream = new MemoryStream();
-        await backup.WriteToAsync(currentStream, TestContext.Current.CancellationToken);
-        currentStream.Position = 0;
-
-        // Simulate an old backup that does not yet contain the MediaSources.SourceType column.
-        using var originalArchive = new ZipArchive(currentStream, ZipArchiveMode.Read, true);
-        using var legacyStream = new MemoryStream();
-        var mediaSourcesEntryName = string.Empty;
-
-        using (var legacyArchive = new ZipArchive(legacyStream, ZipArchiveMode.Create, true))
-        {
-            var indexEntry = originalArchive.GetEntry("index.json")!;
-            JsonNode? indexNode;
-            using (var indexStream = indexEntry.Open())
-            {
-                indexNode = await JsonNode.ParseAsync(indexStream, cancellationToken: TestContext.Current.CancellationToken);
-            }
-
-            var tables = indexNode!["tables"]!.AsArray();
-            var mediaSourcesTable = tables.First(t =>
-                string.Equals(t!["name"]!.GetValue<string>(), "MediaSources", StringComparison.OrdinalIgnoreCase));
-            mediaSourcesEntryName = mediaSourcesTable!["entryName"]!.GetValue<string>();
-
-            var columns = mediaSourcesTable["columns"]!.AsArray();
-            var sourceTypeColumn = columns.FirstOrDefault(c =>
-                string.Equals(c!.GetValue<string>(), "SourceType", StringComparison.OrdinalIgnoreCase));
-            Assert.NotNull(sourceTypeColumn);
-            columns.RemoveAt(columns.IndexOf(sourceTypeColumn));
-
-            var newIndexEntry = legacyArchive.CreateEntry("index.json");
-            using (var newIndexStream = newIndexEntry.Open())
-            {
-                await using var writer = new Utf8JsonWriter(newIndexStream, new JsonWriterOptions { Indented = true });
-                indexNode!.WriteTo(writer, JsonOptions);
-                await writer.FlushAsync(TestContext.Current.CancellationToken);
-            }
-
-            foreach (var entry in originalArchive.Entries)
-            {
-                if (entry.FullName == "index.json")
-                    continue;
-
-                var newEntry = legacyArchive.CreateEntry(entry.FullName);
-                if (string.Equals(entry.FullName, mediaSourcesEntryName, StringComparison.OrdinalIgnoreCase))
-                {
-                    JsonNode? tableData;
-                    using (var sourceStream = entry.Open())
-                    {
-                        tableData = await JsonNode.ParseAsync(sourceStream, cancellationToken: TestContext.Current.CancellationToken);
-                    }
-
-                    foreach (var row in tableData!["rows"]!.AsArray())
-                    {
-                        row!.AsObject().Remove("SourceType");
-                    }
-
-                    using var newEntryStream = newEntry.Open();
-                    await using var writer = new Utf8JsonWriter(newEntryStream, new JsonWriterOptions { Indented = true });
-                    tableData.WriteTo(writer, JsonOptions);
-                    await writer.FlushAsync(TestContext.Current.CancellationToken);
-                }
-                else
-                {
-                    using var sourceStream = entry.Open();
-                    using var destinationStream = newEntry.Open();
-                    await sourceStream.CopyToAsync(destinationStream, TestContext.Current.CancellationToken);
-                }
-            }
-        }
-
-        legacyStream.Position = 0;
-
-        using (var checkArchive = new ZipArchive(legacyStream, ZipArchiveMode.Read, true))
-        {
-            var checkEntry = checkArchive.GetEntry(mediaSourcesEntryName)!;
-            using var checkStream = checkEntry.Open();
-            var checkText = await new StreamReader(checkStream).ReadToEndAsync(TestContext.Current.CancellationToken);
-            Assert.DoesNotContain("SourceType", checkText);
-        }
-
-        legacyStream.Position = 0;
-
-        var exception = await Record.ExceptionAsync(async () =>
-            await backup.ReadFromAsync(legacyStream, TestContext.Current.CancellationToken));
+        // This must not throw even though the backup lacks the new column.
+        var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
 
         Assert.Null(exception);
-
-        await using var verifyDb = new ApplicationDbContext(options, new EventManager());
-        var restored = await verifyDb.MediaSources.SingleAsync(ms => ms.Name == "SFTP Source", TestContext.Current.CancellationToken);
+        var restored = await db.MediaSources.AsNoTracking().SingleAsync(ms => ms.Name == "SFTP Source", ct);
         Assert.Equal(MediaSourceType.Sftp, restored.SourceType);
     }
 

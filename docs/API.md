@@ -616,9 +616,10 @@ Antwort: `204 No Content`.
 
 ### GET /api/playlists/{id}/entries
 
-Liefert alle Einträge einer Playlist als `DtoPlaylistEntry[]` (unsortiert). Einträge, deren
-referenzierter Medieninhalt nicht mehr existiert, werden dabei still aus der Datenbank entfernt
-und nicht in der Antwort aufgeführt.
+Liefert alle Einträge einer Playlist als `DtoPlaylistEntry[]`, sortiert gemäß `Playlist.SortMode`
+und damit in derselben Reihenfolge wie `GET /api/playlists/{id}/entries/paged` (siehe dort,
+Abschnitt „Sortierung“). Einträge, deren referenzierter Medieninhalt nicht mehr existiert, werden
+dabei still aus der Datenbank entfernt und nicht in der Antwort aufgeführt.
 
 - `404 Not Found`, wenn keine Playlist mit dieser ID existiert.
 - `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört und nicht öffentlich ist.
@@ -640,8 +641,10 @@ beim Scrollen (Virtual Scrolling) verwendet. Verwaiste Einträge werden wie bei
 **Sortierung:** Ist `Playlist.SortMode` auf `ByReleaseDate` gesetzt, werden die Einträge nach
 Erscheinungsdatum des referenzierten Medieninhalts sortiert; fehlt dieses, wird auf
 Hierarchie-Reihenfolge (übergeordnete Serie/Staffel, dann Episoden-/Staffelnummer) und zuletzt auf
-den Zeitpunkt des Hinzufügens (`AddedAt`) zurückgefallen. Bei `Manual` wird nach `AddedAt`
-sortiert.
+den Zeitpunkt des Hinzufügens (`AddedAt`) zurückgefallen. Bei `Manual` wird nach `SortOrder`
+(aufsteigend) sortiert; Einträge ohne gesetzte `SortOrder` stehen vorn, Gleichstände werden nach
+`AddedAt` (aufsteigend) aufgelöst — die manuelle Reihenfolge kommt also bereits sortiert vom
+Server und darf vom Client nicht nachsortiert werden.
 
 Antwort (`DtoPlaylistEntriesPagedResult`):
 

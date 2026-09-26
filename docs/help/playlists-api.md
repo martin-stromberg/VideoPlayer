@@ -224,6 +224,8 @@ Keine Antwort-Body. Der Eintrag wurde entfernt.
 ### `GET /api/playlists/{id}/entries` — Alle Einträge abrufen
 
 Ruft alle Medieninhalte einer Playlist ab. Verwaiste Einträge (deren Medieninhalt gelöscht wurde) werden automatisch entfernt.
+Die Einträge kommen gemäß `Playlist.SortMode` sortiert zurück — in derselben Reihenfolge wie bei
+`GET /api/playlists/{id}/entries/paged` (siehe dort „Sortierlogik“).
 
 **Parameter:**
 
@@ -275,7 +277,7 @@ Ruft alle Medieninhalte einer Playlist ab. Verwaiste Einträge (deren Medieninha
 | HTTP-Status | Grund |
 |-------------|-------|
 | 404 Not Found | Playlist nicht gefunden |
-| 403 Forbidden | Benutzer ist nicht der Besitzer der Playlist |
+| 403 Forbidden | Playlist ist privat und gehört einem anderen Benutzer |
 | 401 Unauthorized | Fehlende oder ungültige Authentifizierung |
 
 ---
@@ -341,7 +343,7 @@ aktuellen Seite. `hasNextPage` gibt an, ob nach der aktuellen Seite noch weitere
 |-------------|-------|
 | 400 Bad Request | `pageNumber < 1` oder `pageSize` außerhalb von `1..MaxPageSize` |
 | 404 Not Found | Playlist nicht gefunden |
-| 403 Forbidden | Benutzer ist nicht der Besitzer der Playlist |
+| 403 Forbidden | Playlist ist privat und gehört einem anderen Benutzer |
 | 401 Unauthorized | Fehlende oder ungültige Authentifizierung |
 
 ---
@@ -625,7 +627,7 @@ eigenen, bereits bekannten Bearer-Token selbst an, bevor er die URL an den Video
 | HTTP-Status | Grund |
 |-------------|-------|
 | 400 Bad Request | Playlist enthält keinen einzigen abspielbaren und zugänglichen Eintrag (nur wenn kein `entryId` angegeben wurde), oder der explizit angegebene `entryId` verweist auf einen nicht abspielbaren Sammel-Eintrag (`TVShow`, `TVShowSeason`, `MovieCollection`) |
-| 403 Forbidden | Benutzer ist nicht der Besitzer der Playlist, oder der explizit angegebene `entryId` ist nicht zugänglich |
+| 403 Forbidden | Playlist ist privat und gehört einem anderen Benutzer, oder der explizit angegebene `entryId` ist für den Anfragenden nicht freigeschaltet |
 | 404 Not Found | Playlist nicht gefunden, oder der explizit angegebene `entryId` gehört nicht zu dieser Playlist |
 | 401 Unauthorized | Fehlende oder ungültige Authentifizierung |
 
@@ -655,7 +657,7 @@ vorhanden (Ende der Playlist erreicht).
 | HTTP-Status | Grund |
 |-------------|-------|
 | 400 Bad Request | `currentEntryId` gehört nicht zu dieser Playlist |
-| 403 Forbidden | Benutzer ist nicht der Besitzer der Playlist |
+| 403 Forbidden | Playlist ist privat und gehört einem anderen Benutzer |
 | 404 Not Found | Playlist nicht gefunden |
 | 401 Unauthorized | Fehlende oder ungültige Authentifizierung |
 

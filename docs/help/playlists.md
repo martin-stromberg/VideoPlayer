@@ -519,6 +519,13 @@ Filme und Episoden lassen sich starten. Nicht zugängliche (gesperrte) Einträge
 „Zugriffsstatus in der Liste") erhalten zwar eine Kachel und lassen sich auswählen, zeigen aber im Kopfbereich
 keine Abspielen-Schaltfläche, und ein Doppelklick auf ihre Kachel bleibt wirkungslos.
 
+Wird ein gesperrter Titel dennoch unmittelbar angesteuert — etwa über eine gespeicherte Adresse mit
+`?entryId=` in einer öffentlichen Playlist eines anderen Anwenders —, erscheint unterhalb der Titelliste
+die Meldung „Sie haben keinen Zugriff auf diesen Titel.". Existiert der angesteuerte Titel nicht mehr oder
+ist für ihn keine Videodatei hinterlegt, lautet die Meldung „Dieser Titel existiert nicht oder hat keine
+Videodatei.". Beide Meldungen sind endgültig: Die Playlist bleibt sichtbar, es wird nichts erneut
+versucht und es wird keine Neuanmeldung verlangt.
+
 ### Navigation innerhalb der Playlist
 
 Solange aus einer Playlist heraus abgespielt wird, zeigt der Video-Player zusätzlich zu den

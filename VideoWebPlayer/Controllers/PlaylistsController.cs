@@ -425,7 +425,7 @@ public class PlaylistsController : ApiBaseController
 
     /// <summary>
     /// Moves a single entry of a playlist to an arbitrary target position (shifting every other entry
-    /// between the entry's current and target position by one), for drag & drop reordering.
+    /// between the entry's current and target position by one), for drag &amp; drop reordering.
     /// </summary>
     /// <param name="id">The playlist identifier.</param>
     /// <param name="entryId">The playlist entry identifier.</param>
@@ -585,7 +585,7 @@ public class PlaylistsController : ApiBaseController
     /// oversized upload is rejected without ever being buffered into memory - only once that check passes
     /// is the (now known-bounded) content copied into a byte array for
     /// <see cref="IPlaylistService.SetPlaylistCoverAsync"/>, which re-validates via
-    /// <see cref="PlaylistCover.PlaylistCoverValidator"/> regardless.
+    /// <see cref="VideoWebPlayer.Services.PlaylistCover.PlaylistCoverValidator"/> regardless.
     /// </remarks>
     [HttpPost("{id}/cover/upload")]
     public Task<IActionResult> UploadPlaylistCover(long id, IFormFile file)

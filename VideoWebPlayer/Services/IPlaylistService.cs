@@ -227,7 +227,7 @@ public interface IPlaylistService
     /// <summary>
     /// Moves a single entry of a playlist in <see cref="Data.PlaylistSortMode.Manual"/> mode to an
     /// arbitrary target position, shifting every other entry's <see cref="Data.PlaylistEntry.SortOrder"/>
-    /// between the entry's current and target position by one first. Used by drag & drop reordering.
+    /// between the entry's current and target position by one first. Used by drag &amp; drop reordering.
     /// </summary>
     /// <param name="playlistId">The playlist identifier.</param>
     /// <param name="userId">The id of the requesting (owning) user.</param>

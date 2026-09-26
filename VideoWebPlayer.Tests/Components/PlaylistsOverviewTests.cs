@@ -33,7 +33,7 @@ public class PlaylistsOverviewTests
 
         var cut = ctx.Render<PlaylistsList>();
 
-        var names = cut.FindAll("a.playlist-row").Select(t => t.GetAttribute("data-playlist-name")).ToArray();
+        var names = cut.FindAll("a.playlist-row").Select(t => t.GetAttribute("data-playlist-name")!).ToArray();
         Assert.Equal(["Privat", "Eigene öffentliche", "Für alle", "Noch eine"], names);
     }
 
@@ -157,9 +157,9 @@ public class PlaylistsOverviewTests
 
         var buttons = group.QuerySelectorAll("button.playlist-filter-button").ToArray();
         Assert.Equal(3, buttons.Length);
-        Assert.Equal(["all", "own", "public"], buttons.Select(b => b.GetAttribute("data-filter")).ToArray());
-        Assert.Equal(["Alle Playlists", "Eigene Playlists", "Öffentliche Playlists"], buttons.Select(b => b.GetAttribute("title")).ToArray());
-        Assert.Equal(["Alle Playlists", "Eigene Playlists", "Öffentliche Playlists"], buttons.Select(b => b.GetAttribute("aria-label")).ToArray());
+        Assert.Equal(["all", "own", "public"], buttons.Select(b => b.GetAttribute("data-filter")!).ToArray());
+        Assert.Equal(["Alle Playlists", "Eigene Playlists", "Öffentliche Playlists"], buttons.Select(b => b.GetAttribute("title")!).ToArray());
+        Assert.Equal(["Alle Playlists", "Eigene Playlists", "Öffentliche Playlists"], buttons.Select(b => b.GetAttribute("aria-label")!).ToArray());
         // Reine Symbolbuttons: kein Textinhalt, dafür ein Symbol.
         Assert.All(buttons, b =>
         {
@@ -167,7 +167,7 @@ public class PlaylistsOverviewTests
             Assert.Single(b.QuerySelectorAll("svg"));
         });
 
-        Assert.Equal(["true", "false", "false"], buttons.Select(b => b.GetAttribute("aria-pressed")).ToArray());
+        Assert.Equal(["true", "false", "false"], buttons.Select(b => b.GetAttribute("aria-pressed")!).ToArray());
         Assert.Single(cut.FindAll(".playlist-filter-button.active"));
         Assert.Contains("active", cut.Find("#playlist-filter-all").ClassList);
     }

@@ -32,8 +32,8 @@ public class PlaylistCoverGeneratorTests : PlaylistServiceTestBase
         var generator = CreateGenerator();
         var orderedPictureIds = await generator.CollectOrderedPictureIdsAsync(playlistId, TestContext.Current.CancellationToken);
 
-        var showPictureId = (await _db.TVShows.FindAsync(showId))!.PosterPictureId!.Value;
-        var moviePictureId = (await _db.Movies.FindAsync(movieId))!.PosterPictureId!.Value;
+        var showPictureId = (await _db.TVShows.FindAsync(new object[] { showId }, TestContext.Current.CancellationToken))!.PosterPictureId!.Value;
+        var moviePictureId = (await _db.Movies.FindAsync(new object[] { movieId }, TestContext.Current.CancellationToken))!.PosterPictureId!.Value;
         Assert.Equal(new[] { showPictureId, moviePictureId }, orderedPictureIds);
     }
 
@@ -93,11 +93,11 @@ public class PlaylistCoverGeneratorTests : PlaylistServiceTestBase
         var generator = CreateGenerator();
         var orderedPictureIds = await generator.CollectOrderedPictureIdsAsync(playlistId, TestContext.Current.CancellationToken);
 
-        var showPictureId = (await _db.TVShows.FindAsync(showId))!.PosterPictureId!.Value;
-        var episodePictureId = (await _db.TVShowEpisodes.FindAsync(episodeId))!.PosterPictureId!.Value;
-        var collectionPictureId = (await _db.MovieCollections.FindAsync(collectionId))!.PosterPictureId!.Value;
-        var movie1PictureId = (await _db.Movies.FindAsync(movie1))!.PosterPictureId!.Value;
-        var movie2PictureId = (await _db.Movies.FindAsync(movie2))!.PosterPictureId!.Value;
+        var showPictureId = (await _db.TVShows.FindAsync(new object[] { showId }, TestContext.Current.CancellationToken))!.PosterPictureId!.Value;
+        var episodePictureId = (await _db.TVShowEpisodes.FindAsync(new object[] { episodeId }, TestContext.Current.CancellationToken))!.PosterPictureId!.Value;
+        var collectionPictureId = (await _db.MovieCollections.FindAsync(new object[] { collectionId }, TestContext.Current.CancellationToken))!.PosterPictureId!.Value;
+        var movie1PictureId = (await _db.Movies.FindAsync(new object[] { movie1 }, TestContext.Current.CancellationToken))!.PosterPictureId!.Value;
+        var movie2PictureId = (await _db.Movies.FindAsync(new object[] { movie2 }, TestContext.Current.CancellationToken))!.PosterPictureId!.Value;
 
         Assert.Equal(5, orderedPictureIds.Count);
         Assert.Equal(new[] { showPictureId, episodePictureId, collectionPictureId, movie1PictureId, movie2PictureId }, orderedPictureIds);
@@ -108,14 +108,14 @@ public class PlaylistCoverGeneratorTests : PlaylistServiceTestBase
     {
         var show = new TVShow { Name = "Serie mit Staffel", MediaSourceId = 1, CreatedAt = DateTime.UtcNow };
         _db.TVShows.Add(show);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
         var showPictureId = await CreatePictureAsync(CreateJpegBytes(SixLabors.ImageSharp.Color.Red));
         show.PosterPictureId = showPictureId;
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var season = new TVShowSeason { Name = "Staffel 1", TVShowId = show.Id, MediaSourceId = 1, CreatedAt = DateTime.UtcNow };
         _db.TVShowSeasons.Add(season);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId, (MediaTypeValues.TVShowSeason, season.Id));
 

@@ -202,8 +202,12 @@ public class PlaylistBackfillCoordinatorTests : PlaylistServiceTestBase, IDispos
         await ClearMarkersAsync();
         var failingPlaylistId = await _db.PlaylistEntries.AsNoTracking()
             .Where(e => e.MediaType == MediaTypeValues.TVShow && e.MediaId == showIds[0]).Select(e => e.PlaylistId).SingleAsync(ct);
+        // EF1002 is suppressed deliberately: SQLite cannot take parameters in DDL (CREATE/DROP TRIGGER), so the
+        // statement has to be built as text. The only interpolated values are numeric ids created by this test itself.
+#pragma warning disable EF1002
         await _db.Database.ExecuteSqlRawAsync(
-            $"CREATE TRIGGER fail_playlist BEFORE INSERT ON \"PlaylistEntries\" WHEN NEW.\"PlaylistId\" = {failingPlaylistId} BEGIN SELECT RAISE(ABORT, 'boom'); END;");
+            $"CREATE TRIGGER fail_playlist BEFORE INSERT ON \"PlaylistEntries\" WHEN NEW.\"PlaylistId\" = {failingPlaylistId} BEGIN SELECT RAISE(ABORT, 'boom'); END;", TestContext.Current.CancellationToken);
+#pragma warning restore EF1002
         var coordinator = CreateCoordinator(Settings(batchSize: 10));
 
         var summary = await coordinator.RunSafetySweepAsync(ct);

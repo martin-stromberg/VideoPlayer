@@ -130,15 +130,15 @@ namespace VideoWebPlayer.Services.PlaylistCover
                         break;
 
                     case 0xDA: // SOS
-                    {
-                        var scanResult = frame is null
-                            ? SkipScan(data, ref pos)
-                            : DecodeScan(data, segmentStart, segmentEnd, frame, huffmanDc, huffmanAc, restartInterval, ref pos);
-                        if (scanResult != JpegIntegrity.Intact)
-                            return scanResult;
-                        scansDecoded++;
-                        break;
-                    }
+                        {
+                            var scanResult = frame is null
+                                ? SkipScan(data, ref pos)
+                                : DecodeScan(data, segmentStart, segmentEnd, frame, huffmanDc, huffmanAc, restartInterval, ref pos);
+                            if (scanResult != JpegIntegrity.Intact)
+                                return scanResult;
+                            scansDecoded++;
+                            break;
+                        }
                 }
             }
         }

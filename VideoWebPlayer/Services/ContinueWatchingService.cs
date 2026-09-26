@@ -918,7 +918,7 @@ namespace VideoWebPlayer.Services
         /// collide with it once both have <see cref="ContinueWatchingEntry.PlaylistId"/> <c>null</c>);
         /// otherwise leaves it in place, to be set to <c>null</c> by the database once the playlist itself is
         /// deleted. Marks the affected rows for removal on the tracked <see cref="ApplicationDbContext"/>
-        /// without calling <see cref="ApplicationDbContext.SaveChangesAsync(CancellationToken)"/> itself; the
+        /// without calling <c>SaveChangesAsync</c> itself; the
         /// caller is expected to do so together with the playlist's own deletion.
         /// </summary>
         /// <param name="playlistId">The id of the playlist about to be deleted.</param>
@@ -1160,8 +1160,8 @@ namespace VideoWebPlayer.Services
         /// </summary>
         /// <param name="mediaType">The media type to resolve.</param>
         /// <param name="mediaId">The media id to resolve.</param>
-        /// <param name="MovieId">(Return tuple field.) The movie id, if <paramref name="mediaType"/> is <see cref="MediaTypeValues.Movie"/>; otherwise <see langword="null"/>.</param>
-        /// <param name="EpisodeId">(Return tuple field.) The episode id, if <paramref name="mediaType"/> is <see cref="MediaTypeValues.TVShowEpisode"/>; otherwise <see langword="null"/>.</param>
+        /// <!-- <param name="MovieId">(Return tuple field.) The movie id, if <paramref name="mediaType"/> is <see cref="MediaTypeValues.Movie"/>; otherwise <see langword="null"/>.</param> -->
+        /// <!-- <param name="EpisodeId">(Return tuple field.) The episode id, if <paramref name="mediaType"/> is <see cref="MediaTypeValues.TVShowEpisode"/>; otherwise <see langword="null"/>.</param> -->
         /// <returns>Both <see langword="null"/> for any other (non-playable, collection) media type.</returns>
         private static (long? MovieId, long? EpisodeId) ResolveMovieAndEpisodeIds(string mediaType, long mediaId)
         {

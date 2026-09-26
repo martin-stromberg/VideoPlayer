@@ -19,7 +19,7 @@ public class PlaylistCoverValidatorTests
         var validator = CreateValidator();
         var jpegBytes = CreateJpegBytes(10, 10);
 
-        var result = await validator.ValidateUploadAsync(jpegBytes, "image/jpeg", jpegBytes.Length);
+        var result = await validator.ValidateUploadAsync(jpegBytes, "image/jpeg", jpegBytes.Length, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsValid);
         Assert.Equal(10, result.Width);
@@ -32,7 +32,7 @@ public class PlaylistCoverValidatorTests
         var validator = CreateValidator();
         var fakeBytes = new byte[] { 1, 2, 3 };
 
-        var result = await validator.ValidateUploadAsync(fakeBytes, "image/bmp", fakeBytes.Length);
+        var result = await validator.ValidateUploadAsync(fakeBytes, "image/bmp", fakeBytes.Length, TestContext.Current.CancellationToken);
 
         Assert.False(result.IsValid);
         Assert.Contains("BMP wird nicht unterstützt", result.ErrorMessage);
@@ -44,7 +44,7 @@ public class PlaylistCoverValidatorTests
         var validator = CreateValidator(maxSizeBytes: 5 * 1024 * 1024);
         var jpegBytes = CreateJpegBytes(10, 10);
 
-        var result = await validator.ValidateUploadAsync(jpegBytes, "image/jpeg", 10 * 1024 * 1024);
+        var result = await validator.ValidateUploadAsync(jpegBytes, "image/jpeg", 10 * 1024 * 1024, TestContext.Current.CancellationToken);
 
         Assert.False(result.IsValid);
         Assert.Contains("max. 5 MB", result.ErrorMessage);
@@ -56,7 +56,7 @@ public class PlaylistCoverValidatorTests
         var validator = CreateValidator();
         var corruptBytes = new byte[] { 0xFF, 0xD8, 0xFF, 0x00, 0x01, 0x02 };
 
-        var result = await validator.ValidateUploadAsync(corruptBytes, "image/jpeg", corruptBytes.Length);
+        var result = await validator.ValidateUploadAsync(corruptBytes, "image/jpeg", corruptBytes.Length, TestContext.Current.CancellationToken);
 
         Assert.False(result.IsValid);
         Assert.Equal("Datei ist kein gültiges Bild.", result.ErrorMessage);
@@ -71,7 +71,7 @@ public class PlaylistCoverValidatorTests
         image.SaveAsPng(stream);
         var pngBytes = stream.ToArray();
 
-        var result = await validator.ValidateUploadAsync(pngBytes, "image/png", pngBytes.Length);
+        var result = await validator.ValidateUploadAsync(pngBytes, "image/png", pngBytes.Length, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsValid);
     }

@@ -87,7 +87,7 @@ public class PlaylistsControllerTests_PublicAccess : PlaylistsControllerTestBase
 
         var result = await endpoint(_controller, playlistId, entryId, mediaId);
 
-        Assert.IsType<ForbidResult>(result);
+        Assert.True(result is ForbidResult, $"{name} returned {result.GetType().Name} instead of ForbidResult.");
     }
 
     [Theory]
@@ -116,7 +116,7 @@ public class PlaylistsControllerTests_PublicAccess : PlaylistsControllerTestBase
 
         var result = await endpoint(_controller, playlistId, entryId, mediaId);
 
-        Assert.IsType<ForbidResult>(result);
+        Assert.True(result is ForbidResult, $"{name} returned {result.GetType().Name} instead of ForbidResult.");
         Assert.Equal(before, await SnapshotAsync(playlistId));
     }
 
@@ -131,7 +131,7 @@ public class PlaylistsControllerTests_PublicAccess : PlaylistsControllerTestBase
 
         var result = await endpoint(_controller, playlistId, entryId, mediaId);
 
-        Assert.IsType<ForbidResult>(result);
+        Assert.True(result is ForbidResult, $"{name} returned {result.GetType().Name} instead of ForbidResult.");
         Assert.Equal(before, await SnapshotAsync(playlistId));
     }
 
@@ -144,7 +144,7 @@ public class PlaylistsControllerTests_PublicAccess : PlaylistsControllerTestBase
 
         var result = await endpoint(_controller, playlistId, entryId, mediaId);
 
-        Assert.IsType<ForbidResult>(result);
+        Assert.True(result is ForbidResult, $"{name} returned {result.GetType().Name} instead of ForbidResult.");
     }
 
     [Theory]
@@ -156,7 +156,7 @@ public class PlaylistsControllerTests_PublicAccess : PlaylistsControllerTestBase
 
         var result = await endpoint(_controller, playlistId, entryId, mediaId);
 
-        Assert.IsType<UnauthorizedObjectResult>(result);
+        Assert.True(result is UnauthorizedObjectResult, $"{name} returned {result.GetType().Name} instead of UnauthorizedObjectResult.");
     }
 
     [Fact]
@@ -168,7 +168,7 @@ public class PlaylistsControllerTests_PublicAccess : PlaylistsControllerTestBase
         var result = await _controller.SetPlaylistPublic(playlistId, new DtoSetPlaylistPublicRequest { IsPublic = true });
 
         Assert.IsType<ForbidResult>(result);
-        Assert.False((await _db.Playlists.AsNoTracking().SingleAsync(p => p.Id == playlistId)).IsPublic);
+        Assert.False((await _db.Playlists.AsNoTracking().SingleAsync(p => p.Id == playlistId, TestContext.Current.CancellationToken)).IsPublic);
     }
 
     [Fact]

@@ -624,9 +624,9 @@ public sealed class PlaylistService : IPlaylistService
     /// <param name="normalizedMediaType">The string form of <paramref name="parsedMediaType"/>.</param>
     /// <param name="mediaId">The media identifier being added.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <param name="EntriesToAdd">(Return tuple field.) The entries to add.</param>
-    /// <param name="SkippedDuplicateCount">(Return tuple field.) How many requested entries were skipped as duplicates.</param>
-    /// <param name="TopLevelEntry">(Return tuple field.) The top-level entry, if it was not itself a duplicate.</param>
+    /// <!-- <param name="EntriesToAdd">(Return tuple field.) The entries to add.</param> -->
+    /// <!-- <param name="SkippedDuplicateCount">(Return tuple field.) How many requested entries were skipped as duplicates.</param> -->
+    /// <!-- <param name="TopLevelEntry">(Return tuple field.) The top-level entry, if it was not itself a duplicate.</param> -->
     /// <returns>
     /// The entries to add, how many requested entries were skipped as duplicates, the top-level entry
     /// (if it was not itself a duplicate), and the playlist's existing entry count.
@@ -670,7 +670,7 @@ public sealed class PlaylistService : IPlaylistService
     /// <param name="mediaId">The media identifier being added.</param>
     /// <param name="existingKeys">The (media type, media id) references already in the playlist.</param>
     /// <param name="now">The timestamp to stamp the new entry's <see cref="PlaylistEntry.AddedAt"/> with.</param>
-    /// <param name="Entry">(Return tuple field.) The built entry, or <c>null</c> if it was a duplicate.</param>
+    /// <!-- <param name="Entry">(Return tuple field.) The built entry, or <c>null</c> if it was a duplicate.</param> -->
     /// <returns>The built entry (or <c>null</c> if it was a duplicate) and how many were skipped.</returns>
     private static (PlaylistEntry? Entry, int SkippedCount) BuildTopLevelEntry(
         long playlistId, string normalizedMediaType, long mediaId, HashSet<MediaRef> existingKeys, DateTime now)
@@ -700,7 +700,7 @@ public sealed class PlaylistService : IPlaylistService
     /// <param name="cascadeMediaRefs">The cascade-child (media type, media id) references to build entries for.</param>
     /// <param name="existingKeys">The (media type, media id) references already in the playlist.</param>
     /// <param name="now">The timestamp to stamp the new entries' <see cref="PlaylistEntry.AddedAt"/> with.</param>
-    /// <param name="Entries">(Return tuple field.) The built cascade-child entries.</param>
+    /// <!-- <param name="Entries">(Return tuple field.) The built cascade-child entries.</param> -->
     /// <returns>The built cascade-child entries and how many were skipped as duplicates.</returns>
     private static (List<PlaylistEntry> Entries, int SkippedCount) BuildCascadeEntries(
         long playlistId, string normalizedMediaType, long mediaId, IEnumerable<MediaRef> cascadeMediaRefs, HashSet<MediaRef> existingKeys, DateTime now)

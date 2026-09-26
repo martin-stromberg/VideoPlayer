@@ -26,7 +26,7 @@ public class PlaylistCoverValidatorContentTests
         var validator = CreateValidator();
         var gifBytes = Encode(CreateNoiseImage(16, 16), new GifEncoder());
 
-        var result = await validator.ValidateUploadAsync(gifBytes, "image/png", gifBytes.Length);
+        var result = await validator.ValidateUploadAsync(gifBytes, "image/png", gifBytes.Length, TestContext.Current.CancellationToken);
 
         Assert.False(result.IsValid);
         Assert.Contains("GIF wird nicht unterstützt", result.ErrorMessage);
@@ -38,7 +38,7 @@ public class PlaylistCoverValidatorContentTests
         var validator = CreateValidator();
         var pngBytes = Encode(CreateNoiseImage(16, 16), new PngEncoder());
 
-        var result = await validator.ValidateUploadAsync(pngBytes, "image/jpeg", pngBytes.Length);
+        var result = await validator.ValidateUploadAsync(pngBytes, "image/jpeg", pngBytes.Length, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsValid);
         Assert.Equal("image/png", result.ContentType);
@@ -50,7 +50,7 @@ public class PlaylistCoverValidatorContentTests
         var validator = CreateValidator();
         var webpBytes = Encode(CreateNoiseImage(16, 16), new WebpEncoder());
 
-        var result = await validator.ValidateUploadAsync(webpBytes, "image/webp", webpBytes.Length);
+        var result = await validator.ValidateUploadAsync(webpBytes, "image/webp", webpBytes.Length, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsValid);
         Assert.Equal("image/webp", result.ContentType);
@@ -62,7 +62,7 @@ public class PlaylistCoverValidatorContentTests
         var validator = CreateValidator();
         var webpBytes = Encode(CreateNoiseImage(64, 64), new WebpEncoder { FileFormat = WebpFileFormatType.Lossless });
 
-        var result = await validator.ValidateUploadAsync(webpBytes, "image/webp", webpBytes.Length);
+        var result = await validator.ValidateUploadAsync(webpBytes, "image/webp", webpBytes.Length, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsValid);
         Assert.Equal("image/webp", result.ContentType);
@@ -82,7 +82,7 @@ public class PlaylistCoverValidatorContentTests
         var webpBytes = Encode(CreateNoiseImage(64, 64), new WebpEncoder());
         var truncated = webpBytes[..(webpBytes.Length - bytesCutOff)];
 
-        var result = await validator.ValidateUploadAsync(truncated, "image/webp", truncated.Length);
+        var result = await validator.ValidateUploadAsync(truncated, "image/webp", truncated.Length, TestContext.Current.CancellationToken);
 
         Assert.False(result.IsValid);
         Assert.Contains("beschädigt oder unvollständig", result.ErrorMessage);
@@ -98,7 +98,7 @@ public class PlaylistCoverValidatorContentTests
         var validator = CreateValidator();
         var bomb = CreatePngHeaderOnly(4_000_000_000u, 100);
 
-        var result = await validator.ValidateUploadAsync(bomb, "image/png", bomb.Length);
+        var result = await validator.ValidateUploadAsync(bomb, "image/png", bomb.Length, TestContext.Current.CancellationToken);
 
         Assert.False(result.IsValid);
         Assert.False(string.IsNullOrWhiteSpace(result.ErrorMessage));
@@ -111,7 +111,7 @@ public class PlaylistCoverValidatorContentTests
         var jpegBytes = Encode(CreateNoiseImage(64, 64), new JpegEncoder());
         var truncated = jpegBytes[..(jpegBytes.Length / 3)];
 
-        var result = await validator.ValidateUploadAsync(truncated, "image/jpeg", truncated.Length);
+        var result = await validator.ValidateUploadAsync(truncated, "image/jpeg", truncated.Length, TestContext.Current.CancellationToken);
 
         Assert.False(result.IsValid);
         Assert.Contains("beschädigt oder unvollständig", result.ErrorMessage);
@@ -130,7 +130,7 @@ public class PlaylistCoverValidatorContentTests
         for (var i = bodyStart; i < damaged.Length - 2; i++)
             damaged[i] = (byte)random.Next(0, 255);
 
-        var result = await validator.ValidateUploadAsync(damaged, "image/jpeg", damaged.Length);
+        var result = await validator.ValidateUploadAsync(damaged, "image/jpeg", damaged.Length, TestContext.Current.CancellationToken);
 
         Assert.False(result.IsValid);
     }
@@ -142,7 +142,7 @@ public class PlaylistCoverValidatorContentTests
         var pngBytes = Encode(CreateNoiseImage(64, 64), new PngEncoder());
         var truncated = pngBytes[..(pngBytes.Length / 2)];
 
-        var result = await validator.ValidateUploadAsync(truncated, "image/png", truncated.Length);
+        var result = await validator.ValidateUploadAsync(truncated, "image/png", truncated.Length, TestContext.Current.CancellationToken);
 
         Assert.False(result.IsValid);
     }
@@ -157,7 +157,7 @@ public class PlaylistCoverValidatorContentTests
         for (var i = 60; i < Math.Min(damaged.Length - 20, 120); i++)
             damaged[i] ^= 0xA5;
 
-        var result = await validator.ValidateUploadAsync(damaged, "image/png", damaged.Length);
+        var result = await validator.ValidateUploadAsync(damaged, "image/png", damaged.Length, TestContext.Current.CancellationToken);
 
         Assert.False(result.IsValid);
     }
@@ -173,7 +173,7 @@ public class PlaylistCoverValidatorContentTests
         var validator = CreateValidator();
         var bomb = CreatePngHeaderOnly(30000, 30000);
 
-        var result = await validator.ValidateUploadAsync(bomb, "image/png", bomb.Length);
+        var result = await validator.ValidateUploadAsync(bomb, "image/png", bomb.Length, TestContext.Current.CancellationToken);
 
         Assert.False(result.IsValid);
         Assert.Contains("Bild zu groß", result.ErrorMessage);
@@ -186,7 +186,7 @@ public class PlaylistCoverValidatorContentTests
         var validator = CreateValidator();
         var bomb = CreatePngHeaderOnly(4_000_000_000u, 4_000_000_000u);
 
-        var result = await validator.ValidateUploadAsync(bomb, "image/png", bomb.Length);
+        var result = await validator.ValidateUploadAsync(bomb, "image/png", bomb.Length, TestContext.Current.CancellationToken);
 
         Assert.False(result.IsValid);
         Assert.False(string.IsNullOrWhiteSpace(result.ErrorMessage));
@@ -198,7 +198,7 @@ public class PlaylistCoverValidatorContentTests
         var validator = CreateValidator(maxWidth: 32, maxHeight: 4096, maxTotal: 0);
         var pngBytes = Encode(CreateNoiseImage(33, 8), new PngEncoder());
 
-        var result = await validator.ValidateUploadAsync(pngBytes, "image/png", pngBytes.Length);
+        var result = await validator.ValidateUploadAsync(pngBytes, "image/png", pngBytes.Length, TestContext.Current.CancellationToken);
 
         Assert.False(result.IsValid);
         Assert.Contains("Bild zu groß (33 x 8 Pixel)", result.ErrorMessage);
@@ -210,7 +210,7 @@ public class PlaylistCoverValidatorContentTests
         var validator = CreateValidator(maxWidth: 4096, maxHeight: 32, maxTotal: 0);
         var pngBytes = Encode(CreateNoiseImage(8, 33), new PngEncoder());
 
-        var result = await validator.ValidateUploadAsync(pngBytes, "image/png", pngBytes.Length);
+        var result = await validator.ValidateUploadAsync(pngBytes, "image/png", pngBytes.Length, TestContext.Current.CancellationToken);
 
         Assert.False(result.IsValid);
         Assert.Contains("Bild zu groß (8 x 33 Pixel)", result.ErrorMessage);
@@ -222,7 +222,7 @@ public class PlaylistCoverValidatorContentTests
         var validator = CreateValidator(maxWidth: 4096, maxHeight: 4096, maxTotal: 100);
         var pngBytes = Encode(CreateNoiseImage(11, 10), new PngEncoder());
 
-        var result = await validator.ValidateUploadAsync(pngBytes, "image/png", pngBytes.Length);
+        var result = await validator.ValidateUploadAsync(pngBytes, "image/png", pngBytes.Length, TestContext.Current.CancellationToken);
 
         Assert.False(result.IsValid);
         Assert.Contains("Megapixel", result.ErrorMessage);
@@ -234,7 +234,7 @@ public class PlaylistCoverValidatorContentTests
         var validator = CreateValidator(maxWidth: 32, maxHeight: 16, maxTotal: 512);
         var pngBytes = Encode(CreateNoiseImage(32, 16), new PngEncoder());
 
-        var result = await validator.ValidateUploadAsync(pngBytes, "image/png", pngBytes.Length);
+        var result = await validator.ValidateUploadAsync(pngBytes, "image/png", pngBytes.Length, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsValid);
         Assert.Equal(32, result.Width);
@@ -247,7 +247,7 @@ public class PlaylistCoverValidatorContentTests
         var validator = CreateValidator(maxWidth: 0, maxHeight: 0, maxTotal: 0);
         var pngBytes = Encode(CreateNoiseImage(64, 64), new PngEncoder());
 
-        var result = await validator.ValidateUploadAsync(pngBytes, "image/png", pngBytes.Length);
+        var result = await validator.ValidateUploadAsync(pngBytes, "image/png", pngBytes.Length, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsValid);
     }

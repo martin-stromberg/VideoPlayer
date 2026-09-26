@@ -75,7 +75,7 @@ public class PicturesControllerPlaylistCoverTests : IDisposable
     {
         var picture = new Picture { Type = "poster", Data = new byte[] { 1, 2, 3 }, ContentType = "image/png" };
         _db.Pictures.Add(picture);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
         _auth.CurrentUser = new ApplicationUser { Id = ViewerId };
 
         var result = await _controller.GetPicture(picture.Id);

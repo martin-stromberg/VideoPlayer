@@ -36,7 +36,7 @@ public class PlaylistBackfillMarkerHookTests : PlaylistServiceTestBase
 
         // The season is still tracked by _db from the arrangement, so the show is known without a query.
         _db.TVShowEpisodes.Add(new TVShowEpisode { Name = "Neu", TVShowSeasonId = seasonId, MediaSourceId = 1, CreatedAt = DateTime.UtcNow, Number = 9 });
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(
             new List<(string, long)> { (MediaTypeValues.TVShow, showId), (MediaTypeValues.TVShowSeason, seasonId) },
@@ -52,7 +52,7 @@ public class PlaylistBackfillMarkerHookTests : PlaylistServiceTestBase
         var recorder = new SqlCommandRecorder();
         await using var scanDb = NewContext(null, recorder);
         scanDb.TVShowEpisodes.Add(new TVShowEpisode { Name = "Neu", TVShowSeasonId = seasonId, MediaSourceId = 1, CreatedAt = DateTime.UtcNow, Number = 9 });
-        await scanDb.SaveChangesAsync();
+        await scanDb.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(
             new List<(string, long)> { (MediaTypeValues.TVShow, showId), (MediaTypeValues.TVShowSeason, seasonId) },
@@ -91,9 +91,9 @@ public class PlaylistBackfillMarkerHookTests : PlaylistServiceTestBase
         await ClearMarkersAsync();
 
         await using var editDb = NewContext();
-        var movie = await editDb.Movies.SingleAsync(m => m.Id == movieId);
+        var movie = await editDb.Movies.SingleAsync(m => m.Id == movieId, TestContext.Current.CancellationToken);
         movie.MovieCollectionId = newCollectionId;
-        await editDb.SaveChangesAsync();
+        await editDb.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(new List<(string, long)> { (MediaTypeValues.MovieCollection, newCollectionId) }, Refs(await GetMarkersAsync()));
     }
@@ -107,11 +107,11 @@ public class PlaylistBackfillMarkerHookTests : PlaylistServiceTestBase
         await ClearMarkersAsync();
 
         await using var editDb = NewContext();
-        (await editDb.Movies.SingleAsync(m => m.Id == movieId)).Name = "Umbenannt";
-        (await editDb.TVShowEpisodes.SingleAsync(e => e.Id == episodeIds[0])).Name = "Umbenannt";
+        (await editDb.Movies.SingleAsync(m => m.Id == movieId, TestContext.Current.CancellationToken)).Name = "Umbenannt";
+        (await editDb.TVShowEpisodes.SingleAsync(e => e.Id == episodeIds[0], TestContext.Current.CancellationToken)).Name = "Umbenannt";
         editDb.Movies.Add(new Movie { Name = "Einzelfilm ohne Sammlung", MediaSourceId = 1, CreatedAt = DateTime.UtcNow });
         editDb.TVShows.Add(new TVShow { Name = "Andere Serie", MediaSourceId = 1, CreatedAt = DateTime.UtcNow });
-        await editDb.SaveChangesAsync();
+        await editDb.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         Assert.Empty(await GetMarkersAsync());
     }
@@ -127,7 +127,7 @@ public class PlaylistBackfillMarkerHookTests : PlaylistServiceTestBase
         var collection = new MovieCollection { Name = "Neue Sammlung", MediaSourceId = 1, CreatedAt = DateTime.UtcNow };
         var movie = new Movie { Name = "Film", MovieCollection = collection, MediaSourceId = 1, CreatedAt = DateTime.UtcNow };
         _db.AddRange(show, season, episode, collection, movie);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         Assert.Empty(await GetMarkersAsync());
     }
@@ -141,7 +141,7 @@ public class PlaylistBackfillMarkerHookTests : PlaylistServiceTestBase
         for (var i = 1; i <= 3; i++)
         {
             _db.TVShowEpisodes.Add(new TVShowEpisode { Name = $"Folge {i}", TVShowSeasonId = seasonId, MediaSourceId = 1, CreatedAt = DateTime.UtcNow, Number = i });
-            await _db.SaveChangesAsync();
+            await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var markers = await GetMarkersAsync();
@@ -166,10 +166,10 @@ public class PlaylistBackfillMarkerHookTests : PlaylistServiceTestBase
                 scanDb.TVShowEpisodes.Add(new TVShowEpisode { Name = $"Folge {seasonId}-{i}", TVShowSeasonId = seasonId, MediaSourceId = 1, CreatedAt = DateTime.UtcNow, Number = i });
         }
 
-        await scanDb.SaveChangesAsync();
+        await scanDb.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         // 600 episodes, but only 3 seasons + 2 shows are marked, with one lookup and one bundled upsert.
-        Assert.Equal(600, await _db.TVShowEpisodes.AsNoTracking().CountAsync());
+        Assert.Equal(600, await _db.TVShowEpisodes.AsNoTracking().CountAsync(TestContext.Current.CancellationToken));
         var markers = await GetMarkersAsync();
         Assert.Equal(5, markers.Count);
         Assert.All(markers, m => Assert.Equal(1, m.Version));
@@ -186,7 +186,7 @@ public class PlaylistBackfillMarkerHookTests : PlaylistServiceTestBase
         await using var scanDb = NewContext(null, recorder);
         scanDb.Genres.Add(new Genre { MediaSourceId = 1, Name = "Drama" });
         scanDb.TVShows.Add(new TVShow { Name = "Serie", MediaSourceId = 1, CreatedAt = DateTime.UtcNow });
-        await scanDb.SaveChangesAsync();
+        await scanDb.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         Assert.DoesNotContain(recorder.Commands, c => c.Contains("PlaylistBackfillMarkers") || c.Contains("\"TVShowSeasons\""));
     }
@@ -196,34 +196,34 @@ public class PlaylistBackfillMarkerHookTests : PlaylistServiceTestBase
     {
         var (_, seasonId, _) = await CreateShowWithSeasonAsync("Serie", "Staffel 1", 1);
         await ClearMarkersAsync();
-        var episodeCountBefore = await _db.TVShowEpisodes.AsNoTracking().CountAsync();
+        var episodeCountBefore = await _db.TVShowEpisodes.AsNoTracking().CountAsync(TestContext.Current.CancellationToken);
 
         await using var scanDb = NewContext();
-        await using (var transaction = await scanDb.Database.BeginTransactionAsync())
+        await using (var transaction = await scanDb.Database.BeginTransactionAsync(TestContext.Current.CancellationToken))
         {
             scanDb.TVShowEpisodes.Add(new TVShowEpisode { Name = "Neu", TVShowSeasonId = seasonId, MediaSourceId = 1, CreatedAt = DateTime.UtcNow, Number = 9 });
-            await scanDb.SaveChangesAsync();
-            await transaction.RollbackAsync();
+            await scanDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+            await transaction.RollbackAsync(TestContext.Current.CancellationToken);
         }
 
         Assert.Empty(await GetMarkersAsync());
-        Assert.Equal(episodeCountBefore, await _db.TVShowEpisodes.AsNoTracking().CountAsync());
+        Assert.Equal(episodeCountBefore, await _db.TVShowEpisodes.AsNoTracking().CountAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task FailingMarkerWrite_RollsBackTheNewMediumToo()
     {
         var (_, seasonId, _) = await CreateShowWithSeasonAsync("Serie", "Staffel 1", 1);
-        await _db.Database.ExecuteSqlRawAsync("DROP TABLE \"PlaylistBackfillMarkers\";");
-        var episodeCountBefore = await _db.TVShowEpisodes.AsNoTracking().CountAsync();
+        await _db.Database.ExecuteSqlRawAsync("DROP TABLE \"PlaylistBackfillMarkers\";", TestContext.Current.CancellationToken);
+        var episodeCountBefore = await _db.TVShowEpisodes.AsNoTracking().CountAsync(TestContext.Current.CancellationToken);
 
         await using var scanDb = NewContext();
         scanDb.TVShowEpisodes.Add(new TVShowEpisode { Name = "Neu", TVShowSeasonId = seasonId, MediaSourceId = 1, CreatedAt = DateTime.UtcNow, Number = 9 });
 
-        await Assert.ThrowsAnyAsync<Exception>(() => scanDb.SaveChangesAsync());
+        await Assert.ThrowsAnyAsync<Exception>(() => scanDb.SaveChangesAsync(TestContext.Current.CancellationToken));
 
         // Media row and marker are one unit: the failed marker write took the episode down with it.
-        Assert.Equal(episodeCountBefore, await _db.TVShowEpisodes.AsNoTracking().CountAsync());
+        Assert.Equal(episodeCountBefore, await _db.TVShowEpisodes.AsNoTracking().CountAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -235,7 +235,7 @@ public class PlaylistBackfillMarkerHookTests : PlaylistServiceTestBase
         // Season 99999 does not exist: the foreign key fails and the save throws.
         scanDb.TVShowEpisodes.Add(new TVShowEpisode { Name = "Waise", TVShowSeasonId = 99999, MediaSourceId = 1, CreatedAt = DateTime.UtcNow, Number = 1 });
 
-        await Assert.ThrowsAnyAsync<Exception>(() => scanDb.SaveChangesAsync());
+        await Assert.ThrowsAnyAsync<Exception>(() => scanDb.SaveChangesAsync(TestContext.Current.CancellationToken));
 
         Assert.Empty(await GetMarkersAsync());
     }
@@ -248,7 +248,7 @@ public class PlaylistBackfillMarkerHookTests : PlaylistServiceTestBase
         await AddMovieToCollectionAsync(collectionId, "Film");
 
         await using var afterRestart = NewContext();
-        var marker = await afterRestart.PlaylistBackfillMarkers.AsNoTracking().SingleAsync();
+        var marker = await afterRestart.PlaylistBackfillMarkers.AsNoTracking().SingleAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(MediaTypeValues.MovieCollection, marker.MediaType);
         Assert.Equal(collectionId, marker.MediaId);
@@ -263,11 +263,11 @@ public class PlaylistBackfillMarkerHookTests : PlaylistServiceTestBase
             .Options;
         await using var memoryDb = new ApplicationDbContext(options, new EventManager());
         memoryDb.Movies.Add(new Movie { Name = "Film", MovieCollectionId = 5, MediaSourceId = 1, CreatedAt = DateTime.UtcNow });
-        await memoryDb.SaveChangesAsync();
+        await memoryDb.SaveChangesAsync(TestContext.Current.CancellationToken);
         memoryDb.Movies.Add(new Movie { Name = "Film 2", MovieCollectionId = 5, MediaSourceId = 1, CreatedAt = DateTime.UtcNow });
-        await memoryDb.SaveChangesAsync();
+        await memoryDb.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var marker = await memoryDb.PlaylistBackfillMarkers.AsNoTracking().SingleAsync();
+        var marker = await memoryDb.PlaylistBackfillMarkers.AsNoTracking().SingleAsync(TestContext.Current.CancellationToken);
         Assert.Equal(MediaTypeValues.MovieCollection, marker.MediaType);
         Assert.Equal(2, marker.Version);
     }
@@ -281,11 +281,11 @@ public class PlaylistBackfillMarkerHookTests : PlaylistServiceTestBase
 
         await using var scanDb = NewContext(signal);
         scanDb.Genres.Add(new Genre { MediaSourceId = 1, Name = "Drama" });
-        await scanDb.SaveChangesAsync();
+        await scanDb.SaveChangesAsync(TestContext.Current.CancellationToken);
         Assert.Equal(0, signal.Notifications);
 
         scanDb.Movies.Add(new Movie { Name = "Film", MovieCollectionId = collectionId, MediaSourceId = 1, CreatedAt = DateTime.UtcNow });
-        await scanDb.SaveChangesAsync();
+        await scanDb.SaveChangesAsync(TestContext.Current.CancellationToken);
         Assert.Equal(1, signal.Notifications);
     }
 

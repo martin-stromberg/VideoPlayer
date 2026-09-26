@@ -32,12 +32,16 @@ public class PlaylistBackfillMarkerProcessingTests : PlaylistServiceTestBase
                 .ToListAsync())
             .ToHashSet();
 
+    // EF1002 is suppressed deliberately: SQLite cannot take parameters in DDL (CREATE/DROP TRIGGER), so the
+    // statement has to be built as text. The only interpolated values are numeric ids created by this test itself.
+#pragma warning disable EF1002
     private async Task FailInsertsForPlaylistAsync(long playlistId)
         => await _db.Database.ExecuteSqlRawAsync(
             $"CREATE TRIGGER fail_playlist_{playlistId} BEFORE INSERT ON \"PlaylistEntries\" WHEN NEW.\"PlaylistId\" = {playlistId} BEGIN SELECT RAISE(ABORT, 'boom'); END;");
 
     private async Task DropFailTriggerAsync(long playlistId)
         => await _db.Database.ExecuteSqlRawAsync($"DROP TRIGGER fail_playlist_{playlistId};");
+#pragma warning restore EF1002
 
     [Fact]
     public async Task OnlyPlaylistsWithTheMarkedCollectionAreProcessed()

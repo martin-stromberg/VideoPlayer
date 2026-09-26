@@ -184,7 +184,7 @@ internal sealed class PlaylistEntryReorderService
     /// Moves a single entry of the given (already ownership-checked) playlist to an arbitrary target
     /// position, shifting every other entry's <see cref="PlaylistEntry.SortOrder"/> between the entry's
     /// current and target position by one first - the general case <see cref="MoveEntryToBeginningAsync"/>
-    /// delegates to for a target position of 0. Used by drag & drop reordering, which - unlike
+    /// delegates to for a target position of 0. Used by drag &amp; drop reordering, which - unlike
     /// <see cref="ReorderEntryAsync"/> - must not simply collide with the target entry's SortOrder (that
     /// would leave the resulting order to the unpredictable <c>ThenBy(AddedAt)</c> tie-break).
     /// </summary>

@@ -71,6 +71,18 @@ public class PlaylistServiceTests_PublicAccessMatrix : PlaylistServiceTestBase
 
     private static object[] Op(string name, Operation operation) => new object[] { name, operation };
 
+    /// <summary>Asserts that the operation fails with exactly <see cref="PlaylistAccessDeniedException"/>; the failure message names the operation.</summary>
+    /// <param name="name">The name of the operation under test.</param>
+    /// <param name="action">The operation to run.</param>
+    /// <returns>A task that completes when the assertion has been made.</returns>
+    private static async Task AssertDeniedAsync(string name, Func<Task> action)
+    {
+        var exception = await Record.ExceptionAsync(action);
+        Assert.True(
+            exception?.GetType() == typeof(PlaylistAccessDeniedException),
+            $"{name}: expected {nameof(PlaylistAccessDeniedException)} but got {exception?.GetType().Name ?? "no exception"}.");
+    }
+
     [Theory]
     [MemberData(nameof(ReadOperations))]
     public async Task Read_ForeignUser_PrivatePlaylist_IsDenied(string name, Operation operation)
@@ -79,7 +91,7 @@ public class PlaylistServiceTests_PublicAccessMatrix : PlaylistServiceTestBase
         var (playlistId, entryId, movieId) = await CreateOwnedPlaylistAsync(_otherUserId, isPublic: false);
         await GrantMediaSourceAccessForUserAsync(_testUserId);
 
-        await Assert.ThrowsAsync<PlaylistAccessDeniedException>(
+        await AssertDeniedAsync(name,
             () => operation(_service, playlistId, _testUserId, entryId, movieId, ct));
     }
 
@@ -92,7 +104,7 @@ public class PlaylistServiceTests_PublicAccessMatrix : PlaylistServiceTestBase
         var ct = TestContext.Current.CancellationToken;
         var (playlistId, entryId, movieId) = await CreateOwnedPlaylistAsync(_otherUserId, isPublic: false);
 
-        await Assert.ThrowsAsync<PlaylistAccessDeniedException>(
+        await AssertDeniedAsync(name,
             () => operation(_service, playlistId, _testUserId, entryId, movieId, ct));
     }
 
@@ -106,7 +118,7 @@ public class PlaylistServiceTests_PublicAccessMatrix : PlaylistServiceTestBase
 
         var exception = await Record.ExceptionAsync(() => operation(_service, playlistId, _testUserId, entryId, movieId, ct));
 
-        Assert.Null(exception);
+        Assert.True(exception is null, $"{name} threw {exception}.");
     }
 
     [Theory]
@@ -119,7 +131,7 @@ public class PlaylistServiceTests_PublicAccessMatrix : PlaylistServiceTestBase
 
         var exception = await Record.ExceptionAsync(() => operation(_service, playlistId, _testUserId, entryId, movieId, ct));
 
-        Assert.Null(exception);
+        Assert.True(exception is null, $"{name} threw {exception}.");
     }
 
     [Theory]
@@ -130,7 +142,7 @@ public class PlaylistServiceTests_PublicAccessMatrix : PlaylistServiceTestBase
         var (playlistId, entryId, movieId) = await CreateOwnedPlaylistAsync(_otherUserId, isPublic: false);
         var before = await SnapshotAsync(playlistId, ct);
 
-        await Assert.ThrowsAsync<PlaylistAccessDeniedException>(
+        await AssertDeniedAsync(name,
             () => operation(_service, playlistId, _testUserId, entryId, movieId, ct));
 
         Assert.Equal(before, await SnapshotAsync(playlistId, ct));
@@ -147,7 +159,7 @@ public class PlaylistServiceTests_PublicAccessMatrix : PlaylistServiceTestBase
         var (playlistId, entryId, movieId) = await CreateOwnedPlaylistAsync(_otherUserId, isPublic: true, entryCount: 2);
         var before = await SnapshotAsync(playlistId, ct);
 
-        await Assert.ThrowsAsync<PlaylistAccessDeniedException>(
+        await AssertDeniedAsync(name,
             () => operation(_service, playlistId, _testUserId, entryId, movieId, ct));
 
         Assert.Equal(before, await SnapshotAsync(playlistId, ct));

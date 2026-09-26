@@ -34,7 +34,7 @@ public class PlaylistsControllerTests_CoverPreview : PlaylistsControllerTestBase
     public async Task PreviewPlaylistCover_WithSourceImages_ReturnsJpegCollageWithoutSavingAnything()
     {
         var playlistId = await CreatePlaylistWithMovieAsync();
-        var picturesBefore = await _db.Pictures.AsNoTracking().CountAsync();
+        var picturesBefore = await _db.Pictures.AsNoTracking().CountAsync(TestContext.Current.CancellationToken);
 
         var result = await _controller.PreviewPlaylistCover(playlistId);
 
@@ -47,8 +47,8 @@ public class PlaylistsControllerTests_CoverPreview : PlaylistsControllerTestBase
             Assert.True(image.Width > 0);
 
         // Nothing was persisted: no new picture, no cover set on the playlist.
-        Assert.Equal(picturesBefore, await _db.Pictures.AsNoTracking().CountAsync());
-        var stored = await _db.Playlists.AsNoTracking().SingleAsync(p => p.Id == playlistId);
+        Assert.Equal(picturesBefore, await _db.Pictures.AsNoTracking().CountAsync(TestContext.Current.CancellationToken));
+        var stored = await _db.Playlists.AsNoTracking().SingleAsync(p => p.Id == playlistId, TestContext.Current.CancellationToken);
         Assert.Null(stored.CoverPictureId);
         Assert.False(stored.CoverPictureIsUserUploaded);
     }
@@ -58,12 +58,12 @@ public class PlaylistsControllerTests_CoverPreview : PlaylistsControllerTestBase
     {
         var playlistId = await CreatePlaylistWithMovieAsync();
         await _controller.UploadPlaylistCover(playlistId, CreateFormFile(CreateJpegBytes(), "cover.jpg", "image/jpeg"));
-        var before = await _db.Playlists.AsNoTracking().SingleAsync(p => p.Id == playlistId);
+        var before = await _db.Playlists.AsNoTracking().SingleAsync(p => p.Id == playlistId, TestContext.Current.CancellationToken);
 
         var result = await _controller.PreviewPlaylistCover(playlistId);
 
         Assert.True(Assert.IsType<DtoPlaylistCoverPreview>(Assert.IsType<OkObjectResult>(result).Value).Success);
-        var after = await _db.Playlists.AsNoTracking().SingleAsync(p => p.Id == playlistId);
+        var after = await _db.Playlists.AsNoTracking().SingleAsync(p => p.Id == playlistId, TestContext.Current.CancellationToken);
         Assert.Equal(before.CoverPictureId, after.CoverPictureId);
         Assert.True(after.CoverPictureIsUserUploaded);
     }
@@ -81,7 +81,7 @@ public class PlaylistsControllerTests_CoverPreview : PlaylistsControllerTestBase
         var apply = Assert.IsType<DtoPlaylistCoverResult>(Assert.IsType<OkObjectResult>(await _controller.RegeneratePlaylistCover(playlistId)).Value);
 
         Assert.True(apply.Success);
-        var stored = await _db.Pictures.AsNoTracking().SingleAsync(p => p.Id == apply.PictureId);
+        var stored = await _db.Pictures.AsNoTracking().SingleAsync(p => p.Id == apply.PictureId, TestContext.Current.CancellationToken);
         Assert.Equal(preview.ImageData, stored.Data);
     }
 
@@ -90,12 +90,12 @@ public class PlaylistsControllerTests_CoverPreview : PlaylistsControllerTestBase
     {
         var playlistId = await CreatePlaylistWithMovieAsync();
         _fakeAuth.CurrentUser = _otherUser;
-        var picturesBefore = await _db.Pictures.AsNoTracking().CountAsync();
+        var picturesBefore = await _db.Pictures.AsNoTracking().CountAsync(TestContext.Current.CancellationToken);
 
         var result = await _controller.PreviewPlaylistCover(playlistId);
 
         Assert.IsType<ForbidResult>(result);
-        Assert.Equal(picturesBefore, await _db.Pictures.AsNoTracking().CountAsync());
+        Assert.Equal(picturesBefore, await _db.Pictures.AsNoTracking().CountAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]

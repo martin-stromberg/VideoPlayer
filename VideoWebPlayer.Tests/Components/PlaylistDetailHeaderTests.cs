@@ -58,7 +58,7 @@ public class PlaylistDetailHeaderTests
         // The action buttons sit INSIDE the header (on the image), like on the series page - not above it.
         Assert.Single(header.QuerySelectorAll(".metadata-action-bar"));
         Assert.All(header.QuerySelectorAll(".metadata-action-bar > button"), b => Assert.Contains("metadata-icon-btn", b.ClassList));
-        Assert.Empty(cut.FindAll(".metadata-action-bar").Where(bar => !header.Contains(bar)));
+        Assert.All(cut.FindAll(".metadata-action-bar"), bar => Assert.True(header.Contains(bar), "An action bar sits outside of the header."));
         // The list is below the header, outside of it.
         Assert.Empty(header.QuerySelectorAll(".playlist-entries-list"));
     }

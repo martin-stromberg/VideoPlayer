@@ -32,7 +32,7 @@ public class PlaylistDetailTests
         var playlistClientMock = CreatePlaylistClientMock();
         playlistClientMock
             .Setup(c => c.StartPlaylistAsync(1, It.IsAny<long?>()))
-            .ThrowsAsync(new HttpRequestException("Zugriff verweigert", null, System.Net.HttpStatusCode.Forbidden));
+            .ThrowsAsync(new HttpRequestException("Serverfehler", null, System.Net.HttpStatusCode.InternalServerError));
 
         using var ctx = CreateTestContext(playlistClientMock);
 
@@ -50,6 +50,51 @@ public class PlaylistDetailTests
         // The playback-start failure is shown as a dedicated, inline error instead.
         var playbackErrorBox = Assert.Single(cut.FindAll("#playlist-playback-error"));
         Assert.Contains("Fehler beim Starten der Wiedergabe", playbackErrorBox.TextContent);
+    }
+
+    /// <summary>
+    /// A4: a title the viewer has no unlock for (403) reads as a plain sentence instead of the technical
+    /// answer of the server, and the playlist stays visible.
+    /// </summary>
+    [Fact]
+    public void StartPlaybackAsync_OnForbidden_ShowsNoAccessMessage()
+    {
+        var playbackErrorBox = RenderWithFailingPlaybackStart(System.Net.HttpStatusCode.Forbidden);
+
+        Assert.Equal("Sie haben keinen Zugriff auf diesen Titel.", playbackErrorBox.TextContent);
+    }
+
+    /// <summary>
+    /// A4: a title that does not exist any more or has no video file (404) says exactly that.
+    /// </summary>
+    [Fact]
+    public void StartPlaybackAsync_OnNotFound_ShowsNotFoundMessage()
+    {
+        var playbackErrorBox = RenderWithFailingPlaybackStart(System.Net.HttpStatusCode.NotFound);
+
+        Assert.Equal("Dieser Titel existiert nicht oder hat keine Videodatei.", playbackErrorBox.TextContent);
+    }
+
+    /// <summary>
+    /// Renders the detail page with an addressed entry whose playback start the server refuses with the
+    /// given status code, and returns the inline playback-error box.
+    /// </summary>
+    /// <param name="statusCode">The status code the playback start fails with.</param>
+    /// <returns>The rendered playback-error element.</returns>
+    private static AngleSharp.Dom.IElement RenderWithFailingPlaybackStart(System.Net.HttpStatusCode statusCode)
+    {
+        var playlistClientMock = CreatePlaylistClientMock();
+        playlistClientMock
+            .Setup(c => c.StartPlaylistAsync(1, It.IsAny<long?>()))
+            .ThrowsAsync(new HttpRequestException("Antwort des Servers", null, statusCode));
+
+        using var ctx = CreateTestContext(playlistClientMock);
+        ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("/playlists/1?entryId=999");
+        var cut = ctx.Render<PlaylistDetail>(parameters => parameters.Add(p => p.Id, 1));
+
+        Assert.Empty(cut.FindAll("#playlist-detail-error"));
+        Assert.NotEmpty(cut.FindAll("#playlist-detail-name"));
+        return Assert.Single(cut.FindAll("#playlist-playback-error"));
     }
 
     [Fact]

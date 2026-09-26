@@ -69,7 +69,7 @@ public class ItemsControllerLocalSourceTests : IDisposable
     }
 
     [Fact]
-    public async Task StreamMediaItem_LocalMovie_WithoutSourceAccess_ReturnsUnauthorized()
+    public async Task StreamMediaItem_LocalMovie_WithoutSourceAccess_ReturnsForbidden()
     {
         var filePath = Path.Combine(_rootDir, "movie.mp4");
         await File.WriteAllBytesAsync(filePath, new byte[] { 1 }, TestContext.Current.CancellationToken);
@@ -78,7 +78,7 @@ public class ItemsControllerLocalSourceTests : IDisposable
 
         var result = await controller.StreamMediaItem("movie", movie.Id);
 
-        Assert.IsType<UnauthorizedObjectResult>(result);
+        Assert.IsType<ForbidResult>(result);
     }
 
     private async Task<(ItemsController Controller, Movie Movie)> CreateControllerWithLocalMovieAsync(string filePath, bool grantSourceAccess)

@@ -83,7 +83,7 @@ public sealed class LocalMediaSourceStreamingE2ETests : IDisposable
     }
 
     [Fact]
-    public async Task Stream_LocalMovie_WithoutSourceAccess_ReturnsUnauthorized()
+    public async Task Stream_LocalMovie_WithoutSourceAccess_ReturnsForbidden()
     {
         var ct = TestContext.Current.CancellationToken;
         var (movieId, token) = await SeedMovieAsync(grantAccess: false);
@@ -91,7 +91,7 @@ public sealed class LocalMediaSourceStreamingE2ETests : IDisposable
 
         var response = await client.GetAsync($"/api/items/movie/{movieId}/stream?access_token={token}", ct);
 
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     private async Task<(long MovieId, string Token)> SeedMovieAsync(bool grantAccess)

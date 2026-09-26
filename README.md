@@ -11,8 +11,33 @@ VideoWebPlayer ist eine selbst gehostete ASP.NET-Core-/Blazor-Anwendung für die
 - Medienquellen vom Typ `SFTP-Server` oder `Lokales Verzeichnis` (Verzeichnis auf dem Server, auch UNC-Pfad) verwalten.
 - Filme, Serien, Staffeln und Episoden indizieren und kategorisieren.
 - Poster, Banner, Fanart und Hintergrundbilder anzeigen.
-- Favoriten, Weiterschauen-Positionen und Gesehen-Kennzeichen pro Benutzer speichern.
-- Einzelne Serien und Filmsammlungen fuer andere Anwender freischalten, ohne die gesamte Quelle freizugeben.
+- Favoriten, Weiterschauen-Positionen (mit optionalem Playlist-Bezug) und Gesehen-Kennzeichen pro Benutzer speichern.
+- Eigene Playlists anlegen, öffnen (mit Detailseite), bearbeiten und löschen; Filme, Serien, Staffeln,
+  Episoden und Filmsammlungen per Namenssuche mit Live-Ergebnisliste (inkl. Titelbild) auswählen und
+  per Kaskaden-Logik hinzufügen oder entfernen. Die Suche funktioniert case-insensitiv (z. B. findet
+  die Suche nach „breaking bad" den Titel „Breaking Bad"). Duplikat-Handling mit benutzerfreundlicher
+  Rückmeldung (z. B. „3 Titel hinzugefügt, 2 bereits vorhanden"); MediaType-Normalisierung für
+  konsistente API-Aufrufe. Wahlweise automatische Sortierung nach Erscheinungsdatum (mit Fallback auf
+  Serien-/Staffelreihenfolge und Hinzufügedatum) oder manuelle Sortierung per Drag & Drop bzw.
+  Schnellaktionen („An Anfang"/„An Ende"); ein Wechsel von manueller zu automatischer Sortierung
+  erfordert wegen des damit verbundenen Datenverlusts eine ausdrückliche Bestätigung. Dazu fortlaufend
+  nachladende, virtualisierte Anzeige der Einträge für flüssiges Scrollen auch bei sehr großen
+  Playlists. Jeder Eintrag zeigt ein Titelbild; Einträge, auf die der Anwender weder über regulären
+  Quellenzugriff noch über eine individuelle Freischaltung zugreifen kann, werden abgeblendet
+  dargestellt, lassen sich aber weiterhin aus der Playlist entfernen. Titel lassen sich direkt aus
+  der Playlist heraus abspielen, mit manuellem und automatischem Weiterschalten zum nächsten
+  abspielbaren und zugänglichen Titel (nicht-abspielbare Sammel-Einträge und nicht freigeschaltete
+  Einträge werden dabei übersprungen), Playlist-Badge mit Name und aktueller Position sowie
+  reload-resistenter Fortsetzung der Wiedergabeposition. Jede Playlist besitzt außerdem ein
+  Coverbild, das in Übersicht und Detailansicht angezeigt wird: entweder manuell hochgeladen
+  (JPEG, PNG oder WebP, max. 5 MB) oder auf Knopfdruck („Neu erzeugen") automatisch als Collage
+  aus bis zu fünf Titelbildern der Einträge erzeugt — mit Priorität Serien- vor Episoden-,
+  Filmsammlungs- und Filmbildern; ein hochgeladenes Bild hat stets Vorrang, ohne Coverbild greift
+  ein Platzhalter. Administratoren können eigene Playlists als „öffentlich" kennzeichnen: Sie sind
+  dann für alle Anwender in einer eigenen Übersicht sichtbar und abspielbar, aber ausschließlich
+  lesend (nur der Besitzer darf sie ändern); nicht freigeschaltete Titel erscheinen abgeblendet, und
+  der Fortschritt eines Betrachters landet in dessen eigener Weiterschauen-Liste.
+- Einzelne Serien und Filmsammlungen für andere Anwender freischalten, ohne die gesamte Quelle freizugeben.
 - Browserbasierte Oberfläche für Bibliothek, Wiedergabe und Administration.
 - Automatische Erfassung und Übersicht von Schauspielern inklusive Such- und Filtermöglichkeiten.
 - Backups, strukturierte Programmupdates, Benutzer, Genres und Sicherheitseinstellungen verwalten.
@@ -65,6 +90,7 @@ Für das Geräte-Pairing sind optional `Pairing:CodeLength` (Standard 8 Zeichen)
 - [Hilfe zu Medienquellen](./docs/help/medienquellen/index.md)
 - [Hilfe zu Programmupdates](./docs/help/updates.md)
 - [Hilfe zum Gesehen-Kennzeichen](./docs/help/gesehen-status.md)
+- [Hilfe zu Playlists](./docs/help/playlists.md) (inkl. öffentliche Playlists)
 - [Hilfe zu Geräten und Pairing](./docs/help/geraete/index.md)
 
 ## Entwicklung

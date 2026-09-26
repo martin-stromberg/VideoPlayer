@@ -21,6 +21,10 @@ public class UnlockedMediaController : ApiBaseController
     /// <summary>
     /// Initializes a new instance of the <see cref="UnlockedMediaController"/> class.
     /// </summary>
+    /// <param name="unlockedMediaService">The service managing unlocked media entries.</param>
+    /// <param name="db">The database context.</param>
+    /// <param name="authService">The authentication service.</param>
+    /// <param name="logger">The logger.</param>
     public UnlockedMediaController(IUnlockedMediaService unlockedMediaService, ApplicationDbContext db, IAuthService authService, ILogger<UnlockedMediaController> logger)
         : base(authService, logger)
     {
@@ -40,7 +44,7 @@ public class UnlockedMediaController : ApiBaseController
         {
             CheckLogedIn();
             if (!User.HasClaim("IsAdmin", "True"))
-                return Unauthorized("Nur Administratoren duerfen Freischaltungen verwalten.");
+                return Unauthorized("Nur Administratoren dürfen Freischaltungen verwalten.");
 
             var userIds = await _unlockedMediaService.GetUnlockedUserIdsAsync(entry, HttpContext.RequestAborted);
             return Ok(userIds);
@@ -64,7 +68,7 @@ public class UnlockedMediaController : ApiBaseController
         {
             CheckLogedIn();
             if (!User.HasClaim("IsAdmin", "True"))
-                return Unauthorized("Nur Administratoren duerfen Freischaltungen verwalten.");
+                return Unauthorized("Nur Administratoren dürfen Freischaltungen verwalten.");
 
             await _unlockedMediaService.SetUnlockedUsersAsync(request.Entry, request.UserIds, HttpContext.RequestAborted);
             return Ok(request.UserIds);
@@ -92,7 +96,7 @@ public class UnlockedMediaController : ApiBaseController
         {
             CheckLogedIn();
             if (!User.HasClaim("IsAdmin", "True"))
-                return Unauthorized("Nur Administratoren duerfen Benutzer abrufen.");
+                return Unauthorized("Nur Administratoren dürfen Benutzer abrufen.");
 
             var users = await _db.Users
                 .AsNoTracking()

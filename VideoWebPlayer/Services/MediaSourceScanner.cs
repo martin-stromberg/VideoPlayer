@@ -101,6 +101,7 @@ namespace VideoWebPlayer.Services
         /// Scans the next media collection incrementally and updates its scan state.
         /// </summary>
         /// <param name="cancellationToken">A cancellation token.</param>
+        /// <returns><c>true</c> if a due media collection was scanned; <c>false</c> if none was due.</returns>
         public async Task<bool> ScanNextMediaCollection(CancellationToken cancellationToken)
         {
             var now = _timeProvider.GetUtcNow().UtcDateTime;
@@ -125,6 +126,7 @@ namespace VideoWebPlayer.Services
         /// </summary>
         /// <param name="mediaCollectionId">The media collection identifier.</param>
         /// <param name="cancellationToken">A cancellation token.</param>
+        /// <returns><c>true</c> if the media collection exists and was scanned; otherwise <c>false</c>.</returns>
         public async Task<bool> ScanMediaCollectionAsync(long mediaCollectionId, CancellationToken cancellationToken)
         {
             var now = _timeProvider.GetUtcNow().UtcDateTime;

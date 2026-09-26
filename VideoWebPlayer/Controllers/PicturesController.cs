@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.AspNetCore.Mvc;
 using VideoWebPlayer.Controllers;
@@ -34,7 +35,8 @@ public class PicturesController : ApiBaseController
     }
 
     /// <summary>
-    /// Gets a picture by identifier.
+    /// Gets a picture by identifier. A playlist cover picture is only delivered to users who may read the
+    /// playlist (owner, or anybody while it is public); everybody else receives 403.
     /// </summary>
     /// <param name="id">The picture identifier.</param>
     /// <returns>The picture content.</returns>
@@ -45,6 +47,20 @@ public class PicturesController : ApiBaseController
         {
             CheckLogedIn();
             var picture = await _db.Pictures.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id);
+
+            // Entwicklungsschritt 11: the cover of a playlist is only served to users who may read that
+            // playlist (owner, or anybody while it is public) - otherwise a private playlist's cover (a
+            // collage of its contents) could be fetched here by guessing its picture id, bypassing
+            // GET /api/playlists/{id}/cover.
+            if (picture?.PlaylistId is long coverPlaylistId)
+            {
+                var userId = CurrentUser!.Id;
+                var mayRead = await _db.Playlists.AsNoTracking()
+                    .AnyAsync(p => p.Id == coverPlaylistId && (p.UserId == userId || p.IsPublic));
+                if (!mayRead)
+                    return Forbid(JwtBearerDefaults.AuthenticationScheme);
+            }
+
             if (picture != null && picture.Data.Length > 0)
                 return File(picture.Data, picture.ContentType ?? "image/jpg");
 
@@ -69,6 +85,8 @@ public class PicturesController : ApiBaseController
     /// <summary>
     /// Gets a generated hero background image composed from the continue-watching list.
     /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The generated JPEG image, or the placeholder image when none could be generated.</returns>
     [HttpGet("hero-background")]
     public async Task<IActionResult> GetHeroBackground(CancellationToken cancellationToken)
     {

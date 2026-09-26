@@ -2,7 +2,9 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
+using VideoWebPlayer.Configuration;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Hubs;
 using VideoWebPlayer.Services;
@@ -23,6 +25,7 @@ public abstract class ContinueWatchingServiceTestBase
     protected readonly Mock<IHubClients> _mockClients;
     protected readonly Mock<IClientProxy> _mockClientProxy;
     protected readonly MediaUpdateNotificationService _notificationService;
+    protected readonly IPlaylistService _playlistService;
     protected readonly ContinueWatchingService _service;
     protected readonly string _testUserId = "test-user-123";
     protected readonly List<string> _signalRCallLog = new();
@@ -63,6 +66,7 @@ public abstract class ContinueWatchingServiceTestBase
         var logger = Mock.Of<ILogger<ContinueWatchingService>>();
         var buffer = new ContinueWatchingBuffer();
         var programSettings = new ProgramSettingsService(_db, Mock.Of<ILogger<ProgramSettingsService>>());
+        _playlistService = new PlaylistService(_db, Mock.Of<IUnlockedMediaService>(), Options.Create(new PlaylistSettings()));
 
         _service = new ContinueWatchingService(
             _db,
@@ -70,14 +74,75 @@ public abstract class ContinueWatchingServiceTestBase
             logger,
             buffer,
             _notificationService,
-            programSettings);
+            programSettings,
+            _playlistService);
     }
 
-    private static UserManager<ApplicationUser> CreateMockUserManager()
+    private UserManager<ApplicationUser> CreateMockUserManager()
     {
         var store = new Mock<IUserStore<ApplicationUser>>();
         var mockUserManager = new Mock<UserManager<ApplicationUser>>(
             store.Object, null!, null!, null!, null!, null!, null!, null!, null!);
+        mockUserManager
+            .Setup(m => m.GetUserAsync(It.IsAny<System.Security.Claims.ClaimsPrincipal>()))
+            .ReturnsAsync(new ApplicationUser { Id = _testUserId, UserName = _testUserId });
         return mockUserManager.Object;
+    }
+
+    /// <summary>
+    /// Creates and persists a test playlist owned by <paramref name="userId"/>.
+    /// </summary>
+    /// <param name="userId">The owning user identifier.</param>
+    /// <param name="name">The playlist name.</param>
+    /// <returns>The created playlist.</returns>
+    protected async Task<Playlist> CreateTestPlaylistAsync(string userId, string name)
+    {
+        var playlist = new Playlist { UserId = userId, Name = name };
+        _db.Playlists.Add(playlist);
+        await _db.SaveChangesAsync();
+        return playlist;
+    }
+
+    /// <summary>
+    /// Creates and persists a test playlist entry.
+    /// </summary>
+    /// <param name="playlistId">The owning playlist identifier.</param>
+    /// <param name="mediaId">The identifier of the referenced media content.</param>
+    /// <param name="mediaType">The media type (one of the <c>MediaTypeValues</c> constants, e.g. <c>"Movie"</c> or <c>"TVShowEpisode"</c>).</param>
+    /// <returns>The created playlist entry.</returns>
+    protected async Task<PlaylistEntry> CreateTestPlaylistEntryAsync(long playlistId, long mediaId, string mediaType)
+    {
+        var entry = new PlaylistEntry { PlaylistId = playlistId, MediaId = mediaId, MediaType = mediaType };
+        _db.PlaylistEntries.Add(entry);
+        await _db.SaveChangesAsync();
+        return entry;
+    }
+
+    /// <summary>
+    /// Creates and persists a test movie together with its own movie collection.
+    /// </summary>
+    /// <param name="name">The movie (and derived collection) name.</param>
+    /// <returns>The created movie.</returns>
+    protected async Task<Movie> CreateMovieAsync(string name)
+    {
+        var collection = new MovieCollection
+        {
+            Name = $"{name} Collection",
+            MediaSourceId = 1,
+            CreatedAt = DateTime.UtcNow
+        };
+        _db.MovieCollections.Add(collection);
+        await _db.SaveChangesAsync();
+
+        var movie = new Movie
+        {
+            Name = name,
+            MovieCollectionId = collection.Id,
+            MediaSourceId = 1,
+            CreatedAt = DateTime.UtcNow
+        };
+        _db.Movies.Add(movie);
+        await _db.SaveChangesAsync();
+        return movie;
     }
 }

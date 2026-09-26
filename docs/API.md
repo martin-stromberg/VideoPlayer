@@ -457,12 +457,188 @@ Antwort:
 
 ### POST /api/continue-watching/skip
 
-Überspringt einen Eintrag und ersetzt ihn gegebenenfalls durch die nächste Episode.
+Überspringt einen Eintrag und ersetzt ihn gegebenenfalls durch den nächsten Titel.
+
+Der Nachfolger hängt davon ab, ob der Eintrag an eine Playlist gebunden ist (`playlistId` im Rumpf):
+
+- **mit `playlistId`:** der nächste abspielbare und für den anfragenden Anwender zugängliche Titel
+  dieser Playlist in deren aktueller Sortierung (nicht abspielbare Sammel-Einträge und gesperrte Titel
+  werden übersprungen; aus der Playlist entfernte Titel kommen nicht vor). Gibt es keinen, wird der
+  Eintrag entfernt (`removed`).
+- **ohne `playlistId`:** wie bisher die nächste Episode der Serie bzw. der nächste Film der Sammlung.
 
 Antwortstatuswerte:
 
 - `replaced`
 - `removed`
+
+## Playlists
+
+Alle Playlist-Endpunkte sind benutzerbezogen: Sie wirken ausschließlich auf die Playlists des
+aktuell authentifizierten Anwenders. Ausnahme sind öffentliche Playlists (von einem Administrator als
+öffentlich gekennzeichnet): Sie dürfen alle Anwender **lesen** (Abruf, Einträge, Wiedergabe, Cover), ändern
+darf sie weiterhin nur der Besitzer (`403 Forbidden` für jeden anderen, auch für Administratoren). Die
+vollständige Zuordnung lesend/schreibend je Endpunkt steht in
+[Playlists – API-Dokumentation](help/playlists-api.md).
+
+### GET /api/playlists
+
+Liefert alle Playlists des aktuellen Benutzers als `DtoPlaylist[]` (nur die eigenen, keine öffentlichen
+Playlists anderer).
+
+### GET /api/playlists/public
+
+Liefert alle öffentlich gekennzeichneten Playlists als `DtoPlaylist[]`; optional `?genreId=` als Filter.
+
+### PUT /api/playlists/{id}/public
+
+Setzt oder entfernt die Kennzeichnung „öffentlich" (Request `{ "isPublic": true }`). Nur für Administratoren, die
+Besitzer der Playlist sind; sonst `403 Forbidden`. Das Entfernen entzieht anderen Anwendern sofort den Zugriff.
+
+### GET /api/playlists/{id}
+
+Liefert eine einzelne Playlist als `DtoPlaylist`.
+
+- `404 Not Found`, wenn keine Playlist mit dieser ID existiert.
+- `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört und nicht öffentlich ist.
+
+### POST /api/playlists
+
+Erstellt eine neue Playlist.
+
+Request (`DtoCreatePlaylistRequest`):
+
+```json
+{
+  "name": "Serien-Marathon",
+  "description": "Meine Lieblingsserien",
+  "sortMode": "ByReleaseDate"
+}
+```
+
+`sortMode` akzeptiert `ByReleaseDate` (Standard) oder `Manual`. `name` ist erforderlich
+(max. 255 Zeichen, pro Benutzer eindeutig), `description` ist optional (max. 2000 Zeichen).
+
+Antwort: `DtoPlaylist` der neu erstellten Playlist.
+
+- `400 Bad Request` bei ungültigen Eingaben (z. B. leerer Name, zu lang).
+- `409 Conflict`, wenn bereits eine Playlist mit demselben Namen existiert.
+
+### PUT /api/playlists/{id}
+
+Aktualisiert Name, Beschreibung und Sortiermodus einer bestehenden Playlist.
+
+Request (`DtoUpdatePlaylistRequest`): identische Struktur wie beim Erstellen.
+
+Antwort: aktualisiertes `DtoPlaylist`.
+
+- `404 Not Found`, wenn keine Playlist mit dieser ID existiert.
+- `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
+- `400 Bad Request` / `409 Conflict` analog zum Erstellen.
+
+### DELETE /api/playlists/{id}
+
+Löscht eine Playlist endgültig.
+
+Antwort: `204 No Content`.
+
+- `404 Not Found`, wenn keine Playlist mit dieser ID existiert.
+- `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
+
+### POST /api/playlists/{id}/entries
+
+Fügt einen Medieninhalt zur Playlist hinzu. Unterstützte `mediaType`-Werte: `Movie`,
+`TVShowEpisode`, `TVShowSeason`, `TVShow`, `MovieCollection` (case-insensitiv, wird beim Speichern
+auf die kanonische Schreibweise normalisiert). Beim Hinzufügen von `TVShow`, `TVShowSeason` oder
+`MovieCollection` werden alle zugehörigen Staffeln/Episoden bzw. Filme automatisch mit hinzugefügt
+(Cascade-Logik). Bereits vorhandene Einträge — Top-Level oder Cascade-Kind — werden dabei
+übersprungen statt einen Fehler auszulösen.
+
+Request (`DtoAddMediaToPlaylistRequest`):
+
+```json
+{
+  "mediaType": "Movie",
+  "mediaId": 42
+}
+```
+
+Antwort: `DtoPlaylistAddResult`:
+
+```json
+{
+  "topLevelEntry": { "id": 456, "playlistId": 1, "mediaType": "Movie", "mediaId": 42, "..." : "..." },
+  "addedEntries": [ { "id": 456, "playlistId": 1, "mediaType": "Movie", "mediaId": 42, "..." : "..." } ],
+  "skippedDuplicateCount": 0,
+  "message": "1 Titel hinzugefügt."
+}
+```
+
+`topLevelEntry` ist `null`, wenn der angeforderte Eintrag bereits vorhanden war. `addedEntries`
+enthält alle neu angelegten Einträge (Top-Level plus Cascade-Kinder). Duplikate — egal ob
+Top-Level oder Cascade — führen **nicht** zu einem Fehler, sondern werden in
+`skippedDuplicateCount` gezählt; die Antwort bleibt `200 OK`.
+
+- `400 Bad Request`, wenn `mediaType` ungültig oder `mediaId` nicht größer als 0 ist.
+- `404 Not Found`, wenn der Medieninhalt oder die Playlist nicht existiert.
+- `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
+
+### DELETE /api/playlists/{id}/entries/{mediaType}/{mediaId}
+
+Entfernt einen Medieninhalt aus der Playlist. `mediaType` wird case-insensitiv verarbeitet und
+vor dem Abgleich auf die kanonische Schreibweise normalisiert (z. B. `"movie"` findet denselben
+Eintrag wie `"Movie"`).
+
+Antwort: `204 No Content`.
+
+- `400 Bad Request`, wenn `mediaType` keinem unterstützten Medientyp entspricht.
+- `404 Not Found`, wenn kein passender Eintrag in der Playlist vorhanden ist.
+- `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
+
+### GET /api/playlists/{id}/entries
+
+Liefert alle Einträge einer Playlist als `DtoPlaylistEntry[]` (unsortiert). Einträge, deren
+referenzierter Medieninhalt nicht mehr existiert, werden dabei still aus der Datenbank entfernt
+und nicht in der Antwort aufgeführt.
+
+- `404 Not Found`, wenn keine Playlist mit dieser ID existiert.
+- `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
+
+### GET /api/playlists/{id}/entries/paged
+
+Liefert eine sortierte, paginierte Seite der Einträge einer Playlist als
+`DtoPlaylistEntriesPagedResult`. Wird von der Playlist-Detailseite für das schrittweise Nachladen
+beim Scrollen (Virtual Scrolling) verwendet. Verwaiste Einträge werden wie bei
+`GET /api/playlists/{id}/entries` still bereinigt.
+
+**Query-Parameter:**
+
+| Name | Typ | Pflicht | Standard | Beschreibung |
+|------|-----|---------|----------|--------------|
+| `pageNumber` | int | Nein | `1` | 1-basierte Seitennummer, muss ≥ 1 sein |
+| `pageSize` | int | Nein | `Playlists:DefaultPageSize` (20) | Anzahl Einträge pro Seite, muss zwischen 1 und `Playlists:MaxPageSize` (100) liegen |
+
+**Sortierung:** Ist `Playlist.SortMode` auf `ByReleaseDate` gesetzt, werden die Einträge nach
+Erscheinungsdatum des referenzierten Medieninhalts sortiert; fehlt dieses, wird auf
+Hierarchie-Reihenfolge (übergeordnete Serie/Staffel, dann Episoden-/Staffelnummer) und zuletzt auf
+den Zeitpunkt des Hinzufügens (`AddedAt`) zurückgefallen. Bei `Manual` wird nach `AddedAt`
+sortiert.
+
+Antwort (`DtoPlaylistEntriesPagedResult`):
+
+```json
+{
+  "entries": [ { "id": 456, "playlistId": 1, "mediaType": "Movie", "mediaId": 42, "..." : "..." } ],
+  "totalCount": 57,
+  "hasNextPage": true,
+  "pageNumber": 1,
+  "pageSize": 20
+}
+```
+
+- `400 Bad Request`, wenn `pageNumber < 1` oder `pageSize` außerhalb von `1..MaxPageSize` liegt.
+- `404 Not Found`, wenn keine Playlist mit dieser ID existiert.
+- `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
 
 ## SignalR
 

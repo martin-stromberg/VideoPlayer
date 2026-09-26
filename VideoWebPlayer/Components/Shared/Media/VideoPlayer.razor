@@ -1,20 +1,50 @@
 @using Microsoft.JSInterop
+@using VideoWebPlayer.Client.Models
+@using VideoWebPlayer.ViewModels
 
 @inject IJSRuntime JS
+@inject VideoWebPlayer.Client.IPlaylistApiClient PlaylistClient
+@inject ILogger<VideoPlayer> Logger
 
 @* Wiederverwendbarer Video-Player mit Overlay *@
 @if (Show)
 {
     <div class="player-overlay">
         <div class="player-content">
+            @if (currentPlaylistId.HasValue && !string.IsNullOrEmpty(currentPlaylistName))
+            {
+                <div class="playlist-playback-badge" id="playlist-playback-badge">
+                    [@currentPlaylistName: @currentPlaylistPosition/@playlistTotalCount]
+                </div>
+            }
             <video @ref="_videoRef"
+                   id="video-player-element"
                    src="@StreamUrl"
                    controls
                    autoplay="@AutoPlay"
+                   @onended="OnMediaEndAsync"
                    style="max-width:1200px;"></video>
             <div class="player-progress-rail" aria-hidden="true">
                 <div class="player-progress-fill" style="width:@ProgressPercent%"></div>
             </div>
+            @if (currentPlaylistId.HasValue)
+            {
+                @if (!string.IsNullOrWhiteSpace(playlistNavigationErrorMessage))
+                {
+                    <div class="alert alert-danger playlist-navigation-error" id="playlist-navigation-error">@playlistNavigationErrorMessage</div>
+                }
+                <div class="playlist-playback-controls">
+                    <button class="btn btn-sm btn-secondary playlist-previous-button" @onclick="OnPreviousPlaylistEntryAsync" title="Vorheriger (Playlist)">&#9664; Vorheriger (Playlist)</button>
+                    <button class="btn btn-sm btn-secondary playlist-next-button" @onclick="OnNextPlaylistEntryAsync" title="Nächster (Playlist)">Nächster (Playlist) &#9654;</button>
+                </div>
+                @if (playlistEndReached)
+                {
+                    <div class="alert alert-info playlist-end-reached" id="playlist-end-reached">
+                        Ende der Playlist erreicht.
+                        <button class="btn btn-sm btn-primary playlist-restart-button" @onclick="OnRestartPlaylistAsync">Neu starten</button>
+                    </div>
+                }
+            }
             <button class="close-player" @onclick="OnClose" title="Player schließen" aria-label="Player schließen">&#10006;</button>
         </div>
     </div>
@@ -35,6 +65,21 @@
     // Neues Event (optional für Parent)
     [Parameter] public EventCallback<double> PositionChanged { get; set; }
 
+    // Playlist-Wiedergabe-Kontext (Schritt 5): optional, nur gesetzt wenn aus einer Playlist gestartet.
+    [Parameter] public PlaylistPlaybackContext? PlaylistContext { get; set; }
+    [Parameter] public int? CurrentPlaylistPosition { get; set; }
+
+    /// <summary>
+    /// Raised whenever the current playlist entry changes locally (Next/Previous/Advance/Restart),
+    /// carrying the new entry id and the stream information already resolved for it (player-facing
+    /// media type, media id and stream URL, including the access token), so the hosting page (e.g.
+    /// <c>PlaylistDetail</c>) can update its own copy of the playback state (for browser-reload
+    /// resilience via URL query parameters) without having to re-derive the stream URL itself - which
+    /// would otherwise overwrite this component's freshly-applied <see cref="StreamUrl"/> with a stale
+    /// value on the next render pass triggered by that same URL update.
+    /// </summary>
+    [Parameter] public EventCallback<PlaylistEntryPlaybackInfo> CurrentPlaylistEntryIdChanged { get; set; }
+
     // Öffentliche auslesbare Eigenschaft (gecachte aktuelle Position)
     public double CurrentPositionSeconds { get; private set; }
 
@@ -43,16 +88,72 @@
     private bool _startApplied;
     private DotNetObjectReference<VideoPlayer>? _dotNetRef;
     private bool _timeUpdateRegistered;
+    private string? _loadedStreamUrl;
     private double DurationSeconds { get; set; }
     private double ProgressPercent => DurationSeconds > 0
         ? Math.Clamp(CurrentPositionSeconds / DurationSeconds * 100d, 0d, 100d)
         : 0d;
 
+    // Lokaler Playlist-Kontext-Zustand (Schritt 5).
+    private long? currentPlaylistId;
+    private long? currentPlaylistEntryId;
+    private int? playlistTotalCount;
+    private string currentPlaylistName = string.Empty;
+    private int currentPlaylistPosition;
+    private PlaylistPlaybackContext? appliedPlaylistContext;
+    private bool playlistEndReached;
+    private string? playlistNavigationErrorMessage;
+
+    protected override void OnParametersSet()
+    {
+        if (PlaylistContext is not null)
+        {
+            if (appliedPlaylistContext != PlaylistContext)
+            {
+                ApplyPlaylistContext(PlaylistContext, CurrentPlaylistPosition ?? currentPlaylistPosition);
+                playlistEndReached = false;
+            }
+        }
+        else if (appliedPlaylistContext is not null)
+        {
+            ClearPlaylistContext();
+        }
+    }
+
+    private void ApplyPlaylistContext(PlaylistPlaybackContext context, int position)
+    {
+        appliedPlaylistContext = context;
+        currentPlaylistId = context.PlaylistId;
+        currentPlaylistEntryId = context.CurrentEntryId;
+        playlistTotalCount = context.TotalCount;
+        currentPlaylistName = context.PlaylistName;
+        currentPlaylistPosition = position;
+    }
+
+    private void ClearPlaylistContext()
+    {
+        appliedPlaylistContext = null;
+        currentPlaylistId = null;
+        currentPlaylistEntryId = null;
+        playlistTotalCount = null;
+        currentPlaylistName = string.Empty;
+        currentPlaylistPosition = 0;
+        playlistEndReached = false;
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (Show && _loadedStreamUrl != StreamUrl && !string.IsNullOrWhiteSpace(StreamUrl) && _videoRef.Context != null)
+        {
+            await JS.InvokeVoidAsync("videoPlayer.reload", _videoRef, AutoPlay);
+            _loadedStreamUrl = StreamUrl;
+            _attached = false;
+            _startApplied = false;
+        }
+
         if (Show && !_attached && _videoRef.Context != null && !string.IsNullOrWhiteSpace(MediaType) && MediaId > 0)
         {
-            await JS.InvokeVoidAsync("continueWatching.attach", _videoRef, MediaType, MediaId, "", AuthToken ?? "");
+            await JS.InvokeVoidAsync("continueWatching.attach", _videoRef, MediaType, MediaId, "", AuthToken ?? "", currentPlaylistId);
             _attached = true;
         }
 
@@ -121,6 +222,154 @@
         await CleanupAsync();
         _dotNetRef?.Dispose();
     }
+
+    private Task OnNextPlaylistEntryAsync()
+        => RunPlaylistNavigationActionAsync(async () =>
+        {
+            if (currentPlaylistId is null || currentPlaylistEntryId is null)
+                return;
+
+            var next = await PlaylistClient.GetNextPlaylistEntryAsync(currentPlaylistId.Value, currentPlaylistEntryId.Value);
+            await ApplyPlaylistNavigationResultAsync(next, isForward: true);
+        }, "Fehler beim Wechsel zum nächsten Titel");
+
+    private Task OnPreviousPlaylistEntryAsync()
+        => RunPlaylistNavigationActionAsync(async () =>
+        {
+            if (currentPlaylistId is null || currentPlaylistEntryId is null)
+                return;
+
+            var previous = await PlaylistClient.GetPreviousPlaylistEntryAsync(currentPlaylistId.Value, currentPlaylistEntryId.Value);
+            await ApplyPlaylistNavigationResultAsync(previous, isForward: false);
+        }, "Fehler beim Wechsel zum vorherigen Titel");
+
+    private Task OnMediaEndAsync()
+        => RunPlaylistNavigationActionAsync(async () =>
+        {
+            if (currentPlaylistId is null || currentPlaylistEntryId is null)
+                return;
+
+            var next = await PlaylistClient.AdvancePlaylistAsync(currentPlaylistId.Value, currentPlaylistEntryId.Value);
+            await ApplyPlaylistNavigationResultAsync(next, isForward: true);
+        }, "Fehler beim automatischen Weiterschalten");
+
+    private Task OnRestartPlaylistAsync()
+        => RunPlaylistNavigationActionAsync(async () =>
+        {
+            if (currentPlaylistId is null)
+                return;
+
+            var start = await PlaylistClient.StartPlaylistAsync(currentPlaylistId.Value, entryId: null);
+            playlistEndReached = false;
+            ApplyPlaylistContext(
+                new PlaylistPlaybackContext(start.PlaylistId, start.CurrentEntryId, start.TotalCount, start.PlaylistName),
+                start.CurrentPosition);
+            ApplyEntryStreamInfo(start.MediaType, start.MediaId, start.CurrentEntry.MediaType, start.StartPositionSeconds);
+            await NotifyPlaylistEntryChangedAsync(start.CurrentEntryId, start.StartPositionSeconds);
+            StateHasChanged();
+        }, "Fehler beim Neustart der Playlist");
+
+    /// <summary>
+    /// Resets <see cref="playlistNavigationErrorMessage"/>, runs <paramref name="action"/>, and on failure
+    /// logs the exception and sets <see cref="playlistNavigationErrorMessage"/> from it instead of letting
+    /// the exception propagate out of the Blazor Server event handler (which would tear down the whole
+    /// circuit). Mirrors <c>PlaylistEntriesList.RunEntryActionAsync</c> / <c>PlaylistDetail.RunSortModeActionAsync</c>
+    /// for the playlist Next/Previous/Advance/Restart actions, which stay on <see cref="VideoPlayer"/> since
+    /// it owns the local playlist navigation state.
+    /// </summary>
+    private async Task RunPlaylistNavigationActionAsync(Func<Task> action, string errorPrefix)
+    {
+        playlistNavigationErrorMessage = null;
+        try
+        {
+            await action();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "{ErrorPrefix} (Playlist {PlaylistId})", errorPrefix, currentPlaylistId);
+            playlistNavigationErrorMessage = $"{errorPrefix}: {ex.Message}";
+            StateHasChanged();
+        }
+    }
+
+    private Task NotifyPlaylistEntryChangedAsync(long entryId, long startPositionSeconds)
+        => CurrentPlaylistEntryIdChanged.HasDelegate
+            ? CurrentPlaylistEntryIdChanged.InvokeAsync(new PlaylistEntryPlaybackInfo(entryId, MediaType, MediaId, StreamUrl, startPositionSeconds))
+            : Task.CompletedTask;
+
+    /// <summary>
+    /// Applies the result of a Next/Previous/Advance navigation call: either the newly resolved entry
+    /// together with its actual position in the playlist and its playlist-specific start position
+    /// (updating local context and starting playback of it) or <c>null</c> (end/beginning of playlist
+    /// reached), matching the "Automatisches/Manuelles Weiterschalten" and "Endeverhalten" flows described
+    /// in the plan. Uses the server-reported <see cref="DtoPlaylistNavigationResult.Position"/> rather than
+    /// incrementing/decrementing the previous position by one, since the server may have skipped one or
+    /// more non-playable or inaccessible entries to reach this result. Deliberately synchronous (no longer
+    /// fetches the start position via a separate roundtrip): <see cref="DtoPlaylistNavigationResult"/>
+    /// already carries <see cref="DtoPlaylistNavigationResult.StartPositionSeconds"/>, so the stream URL and
+    /// start position are applied together in one render pass - an earlier version awaited a follow-up
+    /// <c>StartPlaylistAsync</c> call here, which let <see cref="Components.Playlists.PlaylistDetail"/>
+    /// re-render with the new <c>StreamUrl</c> but the still-stale start position in between.
+    /// </summary>
+    /// <param name="result">The resolved next/previous entry, or <c>null</c> if there is none.</param>
+    /// <param name="isForward">
+    /// Whether this call came from forward navigation (Next/Advance) as opposed to backward navigation
+    /// (Previous). Only a <see langword="null"/> <paramref name="result"/> reached via forward navigation
+    /// means the playlist's actual end was reached and warrants the "Ende der Playlist erreicht." message;
+    /// a <see langword="null"/> result reached via backward navigation just means the playlist's beginning
+    /// was reached, which is a normal, silent no-op (there is no earlier entry to jump to) rather than an
+    /// error - previously this method set <see cref="playlistEndReached"/> regardless of direction, so
+    /// clicking "Vorheriger" on the very first entry incorrectly showed the "end reached" message.
+    /// </param>
+    private async Task ApplyPlaylistNavigationResultAsync(DtoPlaylistNavigationResult? result, bool isForward)
+    {
+        if (result is null)
+        {
+            playlistEndReached = isForward;
+            StateHasChanged();
+            return;
+        }
+
+        var entry = result.Entry;
+        playlistEndReached = false;
+        currentPlaylistEntryId = entry.Id;
+        currentPlaylistPosition = result.Position;
+        if (appliedPlaylistContext is not null)
+            appliedPlaylistContext = appliedPlaylistContext with { CurrentEntryId = entry.Id };
+
+        ApplyEntryStreamInfo(PlaylistEntryMediaTypeResolver.ToPlayerMediaType(entry.MediaType), entry.MediaId, entry.MediaType, result.StartPositionSeconds);
+        await NotifyPlaylistEntryChangedAsync(entry.Id, result.StartPositionSeconds);
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Updates the media-related parameters (<see cref="MediaType"/>, <see cref="MediaId"/>,
+    /// <see cref="StreamUrl"/>, <see cref="StartPositionSeconds"/>) so the next render loads the newly
+    /// resolved title at its own playlist-specific start position. <see cref="OnAfterRenderAsync"/> detects
+    /// the changed <see cref="StreamUrl"/> and reloads the <c>&lt;video&gt;</c> element accordingly.
+    /// </summary>
+    private void ApplyEntryStreamInfo(string playerMediaType, long mediaId, string entryMediaType, long startPositionSeconds)
+    {
+        MediaType = playerMediaType;
+        MediaId = mediaId;
+        StreamUrl = $"/api/items/{PlaylistEntryMediaTypeResolver.ResolveItemStreamType(entryMediaType)}/{mediaId}/stream?access_token={AuthToken}";
+        StartPositionSeconds = startPositionSeconds > 0 ? startPositionSeconds : null;
+    }
+
+    /// <summary>
+    /// Playback information for the playlist entry <see cref="VideoPlayer"/> just switched to locally
+    /// (Next/Previous/Advance/Restart), raised via <see cref="CurrentPlaylistEntryIdChanged"/>.
+    /// </summary>
+    /// <param name="EntryId">The id of the new current playlist entry.</param>
+    /// <param name="PlayerMediaType">The player-facing media type ("movie" or "episode").</param>
+    /// <param name="MediaId">The media id of the new current entry.</param>
+    /// <param name="StreamUrl">The resolved stream URL, including the access token.</param>
+    /// <param name="StartPositionSeconds">
+    /// The playlist-specific playback position, in seconds, to resume the new entry's media at (<c>0</c> if
+    /// none). Carried directly rather than requiring the receiver to fetch it separately, so it can be
+    /// applied synchronously together with <see cref="StreamUrl"/>.
+    /// </param>
+    public sealed record PlaylistEntryPlaybackInfo(long EntryId, string PlayerMediaType, long MediaId, string StreamUrl, long StartPositionSeconds);
 }
 <script>
 window.videoPlayer = window.videoPlayer || {
@@ -167,6 +416,16 @@ window.videoPlayer = window.videoPlayer || {
     getCurrentPosition: function(videoEl) {
         if (!videoEl) return 0;
         return videoEl.currentTime || 0;
+    },
+    reload: function (videoEl, autoPlay) {
+        if (!videoEl) return;
+        try {
+            videoEl.load();
+            if (autoPlay) {
+                const p = videoEl.play();
+                if (p && p.catch) p.catch(() => {});
+            }
+        } catch {}
     }
 };
 </script>

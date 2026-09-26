@@ -57,7 +57,7 @@ Ohne diese Bestätigung wird die Einstellung nicht aktiviert.
 
 ### Dienstname für Neustart
 
-`Dienstname fuer Neustart` enthält den Namen des Dienstes, der im Installations- oder Neustartablauf verwendet wird. Der Wert muss zur tatsächlichen Serverinstallation passen.
+`Dienstname für Neustart` enthält den Namen des Dienstes, der im Installations- oder Neustartablauf verwendet wird. Der Wert muss zur tatsächlichen Serverinstallation passen.
 
 ### Backup vor Installation
 

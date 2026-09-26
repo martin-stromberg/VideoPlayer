@@ -15,6 +15,7 @@ public class ApiTokenCheckAttribute : ActionFilterAttribute
     /// <summary>
     /// Initializes a new instance of the <see cref="ApiTokenCheckAttribute"/> class.
     /// </summary>
+    /// <param name="scope">The token scope required by the decorated action; defaults to <see cref="ApiTokenScope.AnyClient"/>.</param>
     public ApiTokenCheckAttribute(ApiTokenScope scope = ApiTokenScope.AnyClient)
     {
         _scope = scope;

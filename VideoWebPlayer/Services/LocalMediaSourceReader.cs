@@ -27,6 +27,8 @@ namespace VideoWebPlayer.Services
         /// <summary>
         /// Liefert die Root-Collection der angegebenen lokalen MediaSource.
         /// </summary>
+        /// <param name="source">Die lokale MediaSource.</param>
+        /// <returns>Die Root-Collection oder eine leere Folge, wenn der Quellpfad ungültig ist.</returns>
         public IEnumerable<MediaEntry> ReadRootDirectory(MediaSource source)
         {
             var rootCollection = CreateRootCollection(source);
@@ -37,6 +39,8 @@ namespace VideoWebPlayer.Services
         /// <summary>
         /// Erstellt die Root-Collection der MediaSource oder null, wenn der Quellpfad ungültig ist.
         /// </summary>
+        /// <param name="source">Die lokale MediaSource.</param>
+        /// <returns>Die Root-Collection oder <c>null</c>, wenn der Quellpfad ungültig ist.</returns>
         private MediaCollection? CreateRootCollection(MediaSource source)
         {
             if (string.IsNullOrWhiteSpace(source.Path))
@@ -178,6 +182,9 @@ namespace VideoWebPlayer.Services
         /// Löst eine Dateiangabe relativ zum Collection-Pfad auf und liefert den tatsächlichen Dateipfad.
         /// Liefert null bei Pfaden außerhalb des Quell-Roots oder bei ReparsePoint-/Nicht-Datei-Einträgen.
         /// </summary>
+        /// <param name="collection">Die MediaCollection, relativ zu deren Pfad die Dateiangabe aufgelöst wird.</param>
+        /// <param name="fileName">Die aufzulösende Dateiangabe.</param>
+        /// <returns>Der tatsächliche Dateipfad oder <c>null</c>, wenn die Datei nicht aufgelöst werden kann.</returns>
         private string? ResolveFilePath(MediaCollection collection, string fileName)
         {
             var root = collection.MediaSource?.Path;
@@ -218,6 +225,10 @@ namespace VideoWebPlayer.Services
         /// Löst einen relativen Pfad segmentweise case-insensitiv unterhalb von <paramref name="normalizedRoot"/> auf.
         /// ReparsePoints und Nicht-Datei-Endpunkte liefern null.
         /// </summary>
+        /// <param name="normalizedRoot">Der normalisierte Quell-Root.</param>
+        /// <param name="relativePath">Der relative Pfad unterhalb des Roots.</param>
+        /// <param name="fileName">Die ursprüngliche Dateiangabe (für Logmeldungen).</param>
+        /// <returns>Der tatsächliche Dateipfad oder <c>null</c>, wenn der Pfad nicht zu einer regulären Datei führt.</returns>
         private string? ResolveSegmentsCaseInsensitive(string normalizedRoot, string relativePath, string fileName)
         {
             var current = normalizedRoot;

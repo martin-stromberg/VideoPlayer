@@ -28,6 +28,7 @@
 | [Updates](./help/updates.md) | Manuelle und automatische Update-Verwaltung |
 | [Medienbibliothek](./help/medienbibliothek.md) | Bedienung der Weboberfläche |
 | [Gesehen-Kennzeichen](./help/gesehen-status.md) | Benutzerbezogene Markierung bereits gesehener Filme und Episoden |
+| [Playlists](./help/playlists.md) | Eigene Playlists anlegen, umbenennen und löschen; öffentliche Playlists (lesend) |
 | [Medienmetadaten bearbeiten](./help/medien-editiermodus.md) | Administrativer Editiermodus |
 | [Projektstruktur](./help/projektstruktur.md) | Solution-Projekte und Repository-Grenzen |
 

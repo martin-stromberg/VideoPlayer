@@ -12,16 +12,19 @@ public sealed class BackupUploadSessionService
     /// <summary>
     /// Time after which an untouched upload session is considered abandoned.
     /// </summary>
+    /// <value>The session timeout of 24 hours.</value>
     internal static readonly TimeSpan SessionTimeout = TimeSpan.FromHours(24);
 
     /// <summary>
     /// Minimum time between two cleanup runs so that per-chunk requests do not rescan the temp directory.
     /// </summary>
+    /// <value>The minimum cleanup interval of 5 minutes.</value>
     internal static readonly TimeSpan CleanupInterval = TimeSpan.FromMinutes(5);
 
     /// <summary>
     /// Maximum time the cleanup waits for a session's write lock before treating the session as in use.
     /// </summary>
+    /// <value>The lock wait timeout of 250 milliseconds.</value>
     internal static readonly TimeSpan CleanupLockTimeout = TimeSpan.FromMilliseconds(250);
 
     private const string TempFilePrefix = "vwp-backup-upload-";
@@ -59,6 +62,10 @@ public sealed class BackupUploadSessionService
     /// <summary>
     /// Validates the upload metadata and starts a new upload session with a temp file.
     /// </summary>
+    /// <param name="fileName">The client-provided file name; it must not contain path segments.</param>
+    /// <param name="totalLength">The declared total upload size in bytes; it must be positive and within the upload limit.</param>
+    /// <param name="cancellationToken">Token that cancels the operation.</param>
+    /// <returns>A successful result with the created session, or a failure result (flagged when the upload limit is exceeded) describing why no session was created.</returns>
     public async Task<BeginSessionResult> BeginSessionAsync(string? fileName, long totalLength, CancellationToken cancellationToken = default)
     {
         CleanupExpiredSessions();
@@ -110,6 +117,8 @@ public sealed class BackupUploadSessionService
     /// <summary>
     /// Returns the session for the given upload id or <c>null</c> when it is unknown or expired.
     /// </summary>
+    /// <param name="uploadId">The server-assigned upload id.</param>
+    /// <returns>The session, or <c>null</c> when it is unknown or expired.</returns>
     public BackupUploadSession? GetSession(Guid uploadId)
     {
         CleanupExpiredSessions();
@@ -127,6 +136,7 @@ public sealed class BackupUploadSessionService
     /// Marks the session as completed, closes its stream and removes it from the registry.
     /// The temp file is left on disk for the caller to consume.
     /// </summary>
+    /// <param name="session">The session to complete.</param>
     public async Task CompleteSessionAsync(BackupUploadSession session)
     {
         _sessions.TryRemove(session.Id, out _);
@@ -145,6 +155,7 @@ public sealed class BackupUploadSessionService
     /// <summary>
     /// Removes the session from the registry, closes its stream and deletes the temp file.
     /// </summary>
+    /// <param name="session">The session to abort.</param>
     public async Task AbortSessionAsync(BackupUploadSession session)
     {
         _sessions.TryRemove(session.Id, out _);
@@ -329,6 +340,7 @@ public sealed class BackupUploadSession : IAsyncDisposable, IDisposable
     /// <summary>
     /// Gets the timestamp of the last session access.
     /// </summary>
+    /// <value>The UTC timestamp of the last access to the session.</value>
     public DateTimeOffset LastAccessUtc => new(Interlocked.Read(ref _lastAccessTicks), TimeSpan.Zero);
 
     /// <summary>
@@ -352,6 +364,11 @@ public sealed class BackupUploadSession : IAsyncDisposable, IDisposable
     /// <summary>
     /// Appends a request body chunk at the given offset to the session temp file.
     /// </summary>
+    /// <param name="offset">The offset in the temp file at which the chunk starts; it must equal the number of bytes received so far.</param>
+    /// <param name="source">The stream providing the chunk bytes.</param>
+    /// <param name="contentLength">The number of bytes announced for the chunk.</param>
+    /// <param name="cancellationToken">Token that cancels the operation.</param>
+    /// <returns>A result reporting that the chunk was written, that the client has to resume at another offset, or that the chunk was rejected.</returns>
     public async Task<AppendChunkResult> AppendChunkAsync(long offset, Stream source, long contentLength, CancellationToken cancellationToken = default)
     {
         await WriteLock.WaitAsync(cancellationToken);
@@ -458,23 +475,31 @@ public enum BackupUploadAppendStatus
 /// <param name="Status">The append outcome.</param>
 /// <param name="Offset">The offset the client should continue from.</param>
 /// <param name="Error">The validation error when the chunk was rejected.</param>
+/// <returns>The result record carrying the append outcome, the offset and an optional error.</returns>
 public sealed record AppendChunkResult(BackupUploadAppendStatus Status, long Offset, string? Error)
 {
     /// <summary>
     /// Creates a result for a fully written chunk.
     /// </summary>
+    /// <param name="offset">The total number of bytes received so far.</param>
+    /// <returns>The created result.</returns>
     public static AppendChunkResult Written(long offset)
         => new(BackupUploadAppendStatus.Written, offset, null);
 
     /// <summary>
     /// Creates a result telling the client to resume at the given offset.
     /// </summary>
+    /// <param name="offset">The offset the client has to continue from.</param>
+    /// <returns>The created result.</returns>
     public static AppendChunkResult ResumeRequired(long offset)
         => new(BackupUploadAppendStatus.ResumeRequired, offset, null);
 
     /// <summary>
     /// Creates a result for a rejected chunk.
     /// </summary>
+    /// <param name="offset">The offset the client should continue from.</param>
+    /// <param name="error">The validation error message.</param>
+    /// <returns>The created result.</returns>
     public static AppendChunkResult Rejected(long offset, string error)
         => new(BackupUploadAppendStatus.Rejected, offset, error);
 }
@@ -485,6 +510,7 @@ public sealed record AppendChunkResult(BackupUploadAppendStatus Status, long Off
 /// <param name="Session">The created session when the attempt succeeded.</param>
 /// <param name="Error">The validation error when the attempt failed.</param>
 /// <param name="ExceedsUploadLimit">True when the upload exceeds the configured upload limit.</param>
+/// <returns>The result record carrying the session or the error of the creation attempt.</returns>
 public sealed record BeginSessionResult(BackupUploadSession? Session, string? Error, bool ExceedsUploadLimit)
 {
     /// <summary>
@@ -495,18 +521,24 @@ public sealed record BeginSessionResult(BackupUploadSession? Session, string? Er
     /// <summary>
     /// Creates a successful result.
     /// </summary>
+    /// <param name="session">The created session.</param>
+    /// <returns>The created result.</returns>
     public static BeginSessionResult Success(BackupUploadSession session)
         => new(session, null, false);
 
     /// <summary>
     /// Creates a failure result.
     /// </summary>
+    /// <param name="error">The error message.</param>
+    /// <returns>The created result.</returns>
     public static BeginSessionResult Failure(string error)
         => new(null, error, false);
 
     /// <summary>
     /// Creates a failure result for uploads above the configured limit.
     /// </summary>
+    /// <param name="error">The error message.</param>
+    /// <returns>The created result.</returns>
     public static BeginSessionResult TooLarge(string error)
         => new(null, error, true);
 }
@@ -518,4 +550,5 @@ public sealed record BeginSessionResult(BackupUploadSession? Session, string? Er
 /// <param name="FileName">The client-provided file name.</param>
 /// <param name="UploadLength">The declared total upload size in bytes.</param>
 /// <param name="UploadOffset">The offset the client should continue from.</param>
+/// <returns>The response record describing the state of the upload.</returns>
 public sealed record BackupUploadStatusResponse(Guid UploadId, string FileName, long UploadLength, long UploadOffset);

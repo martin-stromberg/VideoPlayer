@@ -12,6 +12,7 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using VideoWebPlayer.Client;
 using VideoWebPlayer.Components.Account;
+using VideoWebPlayer.Configuration;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Services.Authentication;
@@ -223,6 +224,7 @@ public static class ServiceCollectionExtensions
                 sp.GetRequiredService<ILogger<VideoWebPlayerClient>>());
             return client;
         });
+        services.AddScoped<IPlaylistApiClient>(sp => sp.GetRequiredService<VideoWebPlayerClient>());
 
         services.AddScoped<IUserClaimsPrincipalFactory<ApplicationUser>, ApplicationUserClaimsPrincipalFactory>();
         services.AddSingleton<EventManager>();
@@ -231,6 +233,15 @@ public static class ServiceCollectionExtensions
         services.AddScoped<MediaMetadataEditorService>();
         services.AddSingleton<IMediaMetadataWriteCoordinator, MediaMetadataWriteCoordinator>();
         services.AddScoped<IFavoritesService, FavoritesService>();
+        services.AddScoped<IPlaylistService, PlaylistService>();
+        services.Configure<PlaylistSettings>(configuration.GetSection("Playlists"));
+        services.AddScoped<PlaylistBackfillService>();
+        services.AddSingleton<StaticAssetVersioner>();
+        services.AddSingleton<PlaylistBackfillSignal>();
+        services.AddSingleton<IPlaylistBackfillSignal>(sp => sp.GetRequiredService<PlaylistBackfillSignal>());
+        services.AddSingleton<PlaylistBackfillCoordinator>();
+        services.AddScoped<VideoWebPlayer.Services.PlaylistCover.PlaylistCoverValidator>();
+        services.AddScoped<VideoWebPlayer.Services.PlaylistCover.PlaylistCoverImageGenerator>();
         services.AddScoped<IUnlockedMediaService, UnlockedMediaService>();
         services.AddScoped<IGenreService, GenreService>();
         services.AddScoped<SftpMediaSourceReader>();
@@ -277,6 +288,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<MediaUpdateNotificationService>();
         services.AddHostedService<ContinueWatchingWorker>();
         services.AddHostedService<ActorBackfillWorker>();
+        services.AddHostedService<PlaylistBackfillWorker>();
         services.AddScoped<IDemoDataSetService, FileSystemDemoDataSetService>();
 
         services.AddScoped<MediaSourceDetailsViewModel>();

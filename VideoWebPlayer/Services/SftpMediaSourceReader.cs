@@ -18,6 +18,8 @@ namespace VideoWebPlayer.Services
         /// <summary>
         /// Liest das Rootverzeichnis der angegebenen MediaSource aus und liefert nur die Root-Collection.
         /// </summary>
+        /// <param name="source">Die SFTP-MediaSource.</param>
+        /// <returns>Die Root-Collection der Medienquelle.</returns>
         public virtual IEnumerable<MediaEntry> ReadRootDirectory(MediaSource source)
         {
             // Root-Collection erzeugen
@@ -83,6 +85,8 @@ namespace VideoWebPlayer.Services
         /// <summary>
         /// Liest rekursiv alle Unterverzeichnisse und Dateien ab einer MediaCollection (Teilbaum).
         /// </summary>
+        /// <param name="collection">Die MediaCollection, ab der gelesen wird.</param>
+        /// <returns>Alle Unterverzeichnisse und Dateien des Teilbaums.</returns>
         public IEnumerable<MediaEntry> ReadSubtree(MediaCollection collection)
         {
             using var client = new SftpClient(
@@ -102,6 +106,10 @@ namespace VideoWebPlayer.Services
         /// <summary>
         /// Interne rekursive Methode zum Auslesen eines Verzeichnisses.
         /// </summary>
+        /// <param name="client">Der verbundene SFTP-Client.</param>
+        /// <param name="path">Der Pfad des zu lesenden Verzeichnisses.</param>
+        /// <param name="parentCollection">Die MediaCollection, die dem Verzeichnis entspricht.</param>
+        /// <returns>Die Einträge des Verzeichnisses und seiner Unterverzeichnisse (ohne übersprungene Collections).</returns>
         private IEnumerable<MediaEntry> ReadDirectoryInternal(SftpClient client, string path, MediaCollection parentCollection)
         {
             var entries = client.ListDirectory(path);

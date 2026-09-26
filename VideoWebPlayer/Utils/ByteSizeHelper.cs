@@ -38,6 +38,9 @@ namespace VideoWebPlayer.Utils
         /// Splits a byte count into a value and a unit (MB or GB) suitable for
         /// editing — GB once the count reaches one gibibyte, otherwise MB.
         /// </summary>
+        /// <param name="bytes">The byte count to split.</param>
+        /// <!-- <param name="Value"> is the tuple element of the return value, not a parameter. -->
+        /// <returns>A tuple of the value and its unit (<see cref="UnitMegabytes"/> or <see cref="UnitGigabytes"/>).</returns>
         public static (decimal Value, string Unit) SplitBytes(long bytes)
         {
             return bytes >= (long)BytesPerGigabyte
@@ -50,6 +53,9 @@ namespace VideoWebPlayer.Utils
         /// <see cref="UnitGigabytes"/>, defaulting to MB) back into bytes,
         /// clamped to the <see cref="long"/> range.
         /// </summary>
+        /// <param name="value">The value expressed in <paramref name="unit"/>.</param>
+        /// <param name="unit">The unit label, <see cref="UnitMegabytes"/> or <see cref="UnitGigabytes"/>; any other value is treated as MB.</param>
+        /// <returns>The byte count; 0 for non-positive values and <see cref="long.MaxValue"/> when the value exceeds the range.</returns>
         public static long ToBytes(decimal value, string? unit)
         {
             var factor = unit == UnitGigabytes ? BytesPerGigabyte : BytesPerMegabyte;

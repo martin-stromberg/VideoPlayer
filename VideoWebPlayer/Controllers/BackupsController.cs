@@ -26,6 +26,12 @@ public sealed class BackupsController : ControllerBase
     /// <summary>
     /// Creates a new controller.
     /// </summary>
+    /// <param name="backupService">Service that lists, opens and stores backup files.</param>
+    /// <param name="manualBackupJobs">Service that starts manual backup jobs in the background.</param>
+    /// <param name="backupFacade">Facade coordinating backup import, restore and history.</param>
+    /// <param name="uploadSessions">Registry of the resumable upload sessions.</param>
+    /// <param name="antiforgery">Antiforgery service used to validate the requests.</param>
+    /// <param name="logger">The logger.</param>
     public BackupsController(
         IBackupService backupService,
         ManualBackupJobService manualBackupJobs,
@@ -45,6 +51,8 @@ public sealed class BackupsController : ControllerBase
     /// <summary>
     /// Creates a manual backup from a regular server-side form post.
     /// </summary>
+    /// <param name="cancellationToken">Token that cancels the request.</param>
+    /// <returns>A redirect to the backup admin page carrying a status message.</returns>
     [HttpPost("create")]
     public async Task<IActionResult> Create(CancellationToken cancellationToken)
     {
@@ -64,6 +72,8 @@ public sealed class BackupsController : ControllerBase
     /// <summary>
     /// Receives a single chunk of a resumable backup upload as application/octet-stream.
     /// </summary>
+    /// <param name="cancellationToken">Token that cancels the request.</param>
+    /// <returns>No content (204) with the current upload offset while chunks are still pending; 200 with the imported file name once the upload is complete; otherwise an error result (for example 400, 404, 409, 413, 415, or 308 when the client has to resume at a different offset).</returns>
     [HttpPost("upload/chunk")]
     [DisableRequestSizeLimit]
     public async Task<IActionResult> UploadChunk(CancellationToken cancellationToken)
@@ -125,6 +135,8 @@ public sealed class BackupsController : ControllerBase
     /// <summary>
     /// Returns the current state of a resumable backup upload.
     /// </summary>
+    /// <param name="uploadId">The id of the upload session.</param>
+    /// <returns>The upload status, or 404 when the session is unknown or expired.</returns>
     [HttpGet("upload/{uploadId:guid}")]
     public IActionResult GetUploadStatus(Guid uploadId)
     {
@@ -139,6 +151,8 @@ public sealed class BackupsController : ControllerBase
     /// <summary>
     /// Aborts a resumable backup upload and deletes its temp file.
     /// </summary>
+    /// <param name="uploadId">The id of the upload session.</param>
+    /// <returns>No content (204) once the session is aborted; 400 for an invalid antiforgery token; 404 when the session is unknown or expired.</returns>
     [HttpDelete("upload/{uploadId:guid}")]
     public async Task<IActionResult> AbortUpload(Guid uploadId)
     {
@@ -162,6 +176,9 @@ public sealed class BackupsController : ControllerBase
     /// <summary>
     /// Downloads a stored backup file.
     /// </summary>
+    /// <param name="fileName">The name of the stored backup file.</param>
+    /// <param name="cancellationToken">Token that cancels the request.</param>
+    /// <returns>The backup file as an <c>application/zip</c> download.</returns>
     [HttpGet("download/{fileName}")]
     public async Task<IActionResult> Download(string fileName, CancellationToken cancellationToken)
     {

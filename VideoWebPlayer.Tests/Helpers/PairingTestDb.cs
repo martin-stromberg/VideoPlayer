@@ -60,6 +60,9 @@ internal sealed class PairingTestDb : IDisposable
     /// Erzeugt den Bootstrap-Service mit einem echten <see cref="UserManager{TUser}"/>
     /// und <see cref="AuthorizationTokenService"/> aus dem Fixture-Provider.
     /// </summary>
+    /// <param name="db">Optional database context; the fixture's own context is used when omitted.</param>
+    /// <param name="settings">Optional configuration values for the service.</param>
+    /// <returns>The bootstrap service.</returns>
     public PairingBootstrapService CreatePairingBootstrapService(ApplicationDbContext? db = null, Dictionary<string, string?>? settings = null)
     {
         var context = db ?? Db;
@@ -76,6 +79,9 @@ internal sealed class PairingTestDb : IDisposable
     /// <summary>
     /// Legt einen Testbenutzer ueber den echten <see cref="UserManager{TUser}"/> an.
     /// </summary>
+    /// <param name="email">The e-mail address, also used as the user name.</param>
+    /// <param name="isAdmin">Whether the user is an administrator.</param>
+    /// <returns>The created user.</returns>
     public async Task<ApplicationUser> CreateUserAsync(string email, bool isAdmin = false)
     {
         var scope = _provider.CreateScope();

@@ -67,7 +67,21 @@ public static class WebApplicationExtensions
         // Fr�h einschr�nken
         app.UseWhitelistIp();
 
-        app.UseStaticFiles();
+        // CSS und JavaScript werden ohne Fingerprint im Dateinamen eingebunden; ohne Cache-Control wuerden Browser
+        // sie heuristisch cachen und nach einem Update veraltete Styles zeigen. "no-cache" erzwingt eine
+        // Revalidierung (ETag, 304), spart also weiterhin die Uebertragung.
+        app.UseStaticFiles(new StaticFileOptions
+        {
+            OnPrepareResponse = ctx =>
+            {
+                var extension = Path.GetExtension(ctx.File.Name);
+                if (string.Equals(extension, ".css", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(extension, ".js", StringComparison.OrdinalIgnoreCase))
+                {
+                    ctx.Context.Response.Headers.CacheControl = "no-cache";
+                }
+            }
+        });
 
         app.UseAuthentication();
         app.UseAuthorization();

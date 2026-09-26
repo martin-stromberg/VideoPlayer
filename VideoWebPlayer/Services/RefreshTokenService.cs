@@ -60,6 +60,11 @@ namespace VideoWebPlayer.Services
         /// <summary>
         /// Creates a successful rotation result.
         /// </summary>
+        /// <param name="userId">The id of the user the refresh token belongs to.</param>
+        /// <param name="deviceId">The id of the device the refresh token is bound to.</param>
+        /// <param name="newToken">The newly issued refresh token.</param>
+        /// <param name="newExpiresAtUtc">The expiry timestamp of the new token.</param>
+        /// <returns>The successful result.</returns>
         public static RefreshRotationResult Rotated(string userId, int deviceId, string newToken, DateTime newExpiresAtUtc)
             => new()
             {

@@ -22,6 +22,14 @@ public sealed class VideoWebPlayerBackupFacade
     /// <summary>
     /// Creates a new backup facade.
     /// </summary>
+    /// <param name="backupService">Service that stores, lists, restores and deletes backup files.</param>
+    /// <param name="dataSource">Source of the data written into a backup.</param>
+    /// <param name="factory">Factory that provides the data handling for restores.</param>
+    /// <param name="optionsProvider">Provider of the backup options, such as the storage path.</param>
+    /// <param name="environment">Host environment used to resolve relative storage paths.</param>
+    /// <param name="settingsService">Service that persists the backup settings.</param>
+    /// <param name="historyService">Service that records the backup operation history.</param>
+    /// <param name="logger">The logger.</param>
     public VideoWebPlayerBackupFacade(
         IBackupService backupService,
         IBackupDataSource dataSource,
@@ -45,12 +53,17 @@ public sealed class VideoWebPlayerBackupFacade
     /// <summary>
     /// Lists available backups.
     /// </summary>
+    /// <param name="cancellationToken">Token that cancels the operation.</param>
+    /// <returns>The descriptors of the available backups.</returns>
     public Task<IReadOnlyList<BackupDescriptor>> ListBackupsAsync(CancellationToken cancellationToken = default)
         => _backupService.ListBackupsAsync(cancellationToken);
 
     /// <summary>
     /// Creates a manual backup and records history.
     /// </summary>
+    /// <param name="userId">The id of the requesting user recorded in the history; may be <c>null</c>.</param>
+    /// <param name="cancellationToken">Token that cancels the operation.</param>
+    /// <returns>The operation result, including the descriptor of the created backup when it succeeded.</returns>
     public async Task<BackupOperationResult> CreateManualBackupAsync(string? userId, CancellationToken cancellationToken = default)
     {
         var started = DateTime.UtcNow;
@@ -83,6 +96,11 @@ public sealed class VideoWebPlayerBackupFacade
     /// <summary>
     /// Imports an uploaded backup temp file and records history.
     /// </summary>
+    /// <param name="tempFilePath">The path of the uploaded temporary file.</param>
+    /// <param name="fileName">The client-provided backup file name; it must not contain path segments.</param>
+    /// <param name="userId">The id of the requesting user recorded in the history; may be <c>null</c>.</param>
+    /// <param name="cancellationToken">Token that cancels the operation.</param>
+    /// <returns>The operation result; a failure when the file name is invalid, the file is empty or not a valid backup, or the import fails.</returns>
     public async Task<BackupOperationResult> ImportUploadFileAsync(string tempFilePath, string fileName, string? userId, CancellationToken cancellationToken = default)
     {
         var started = DateTime.UtcNow;
@@ -231,6 +249,12 @@ public sealed class VideoWebPlayerBackupFacade
     /// <summary>
     /// Restores a backup and records history.
     /// </summary>
+    /// <param name="fileName">The name of the backup file to restore.</param>
+    /// <param name="userId">The id of the requesting user recorded in the history; may be <c>null</c>.</param>
+    /// <param name="confirmRestore">Whether the restore was confirmed; when <c>false</c> the restore is refused.</param>
+    /// <param name="progress">Optional receiver of the restore progress.</param>
+    /// <param name="cancellationToken">Token that cancels the operation.</param>
+    /// <returns>The operation result of the restore.</returns>
     public async Task<BackupOperationResult> RestoreAsync(
         string fileName,
         string? userId,
@@ -264,6 +288,10 @@ public sealed class VideoWebPlayerBackupFacade
     /// <summary>
     /// Deletes a stored backup and records history.
     /// </summary>
+    /// <param name="fileName">The name of the backup file to delete.</param>
+    /// <param name="userId">The id of the requesting user recorded in the history; may be <c>null</c>.</param>
+    /// <param name="cancellationToken">Token that cancels the operation.</param>
+    /// <returns>The operation result of the deletion.</returns>
     public async Task<BackupOperationResult> DeleteAsync(string fileName, string? userId, CancellationToken cancellationToken = default)
     {
         var started = DateTime.UtcNow;
@@ -275,18 +303,24 @@ public sealed class VideoWebPlayerBackupFacade
     /// <summary>
     /// Gets persisted backup settings.
     /// </summary>
+    /// <param name="cancellationToken">Token that cancels the operation.</param>
+    /// <returns>The persisted backup settings.</returns>
     public Task<BackupSettings> GetSettingsAsync(CancellationToken cancellationToken = default)
         => _settingsService.GetOrCreateAsync(cancellationToken);
 
     /// <summary>
     /// Updates persisted backup settings.
     /// </summary>
+    /// <param name="settings">The settings to persist.</param>
+    /// <param name="cancellationToken">Token that cancels the operation.</param>
     public Task UpdateSettingsAsync(BackupSettings settings, CancellationToken cancellationToken = default)
         => _settingsService.UpdateAsync(settings, cancellationToken);
 
     /// <summary>
     /// Gets latest operation history rows.
     /// </summary>
+    /// <param name="cancellationToken">Token that cancels the operation.</param>
+    /// <returns>The latest 25 history entries.</returns>
     public Task<List<BackupOperationHistory>> GetHistoryAsync(CancellationToken cancellationToken = default)
         => _historyService.GetLatestAsync(25, cancellationToken);
 }

@@ -9,6 +9,8 @@ internal static class KestrelLimits
     /// Parses the configured <c>Kestrel:Limits:MaxRequestBodySize</c> value.
     /// Returns <c>null</c> for 0 or negative values (unlimited) and throws for non-numeric values.
     /// </summary>
+    /// <param name="configured">The raw configuration value.</param>
+    /// <returns>The limit in bytes, or <c>null</c> when the limit is disabled (0 or negative).</returns>
     public static long? ParseMaxRequestBodySize(string configured)
     {
         if (!long.TryParse(configured, out var limit))

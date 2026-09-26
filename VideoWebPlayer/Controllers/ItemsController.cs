@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using VideoWebPlayer.Controllers;
 using VideoWebPlayer.Controllers.Models;
@@ -49,6 +50,45 @@ public class ItemsController : ApiBaseController
         this.recentEntryService = recentEntryService;
         _unlockedMediaService = unlockedMediaService;
         _watchedStatusService = watchedStatusService ?? new WatchedStatusService(db);
+    }
+
+    /// <summary>
+    /// Runs <paramref name="action"/> (which is expected to call <see cref="ApiBaseController.CheckLogedIn"/>
+    /// itself before touching the media data) and maps the exceptions common to every media endpoint to the
+    /// corresponding HTTP response, centralizing the try/catch block that was previously duplicated across
+    /// the media actions. Follows the same pattern as <c>PlaylistsController.ExecuteAsync</c>, so a missing
+    /// authorization answers 403 Forbidden instead of 401 Unauthorized and an unknown entry answers 404 Not
+    /// Found instead of 500 Internal Server Error; 401 stays reserved for a missing or invalid credential.
+    /// </summary>
+    /// <param name="action">The endpoint logic to run.</param>
+    /// <param name="logContext">A German gerund phrase describing the action, used in log messages (e.g. "Abrufen des Medienitems").</param>
+    /// <returns>The result produced by <paramref name="action"/>, or the mapped error response.</returns>
+    private async Task<IActionResult> ExecuteAsync(Func<Task<IActionResult>> action, string logContext)
+    {
+        try
+        {
+            return await action();
+        }
+        catch (RecordNotFoundException ex)
+        {
+            Logger.LogWarning(ex, "Eintrag nicht gefunden beim {LogContext}", logContext);
+            return NotFound(ex.Message);
+        }
+        catch (ForbiddenAccessException ex)
+        {
+            Logger.LogWarning(ex, "Zugriff verweigert beim {LogContext}", logContext);
+            return Forbid(JwtBearerDefaults.AuthenticationScheme);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Logger.LogWarning(ex, "Zugriff ohne Anmeldung beim {LogContext}", logContext);
+            return Unauthorized(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Fehler beim {LogContext}", logContext);
+            return StatusCode(500, "Internal server error");
+        }
     }
 
     /// <summary>
@@ -529,7 +569,7 @@ public class ItemsController : ApiBaseController
         var hasSourceAccess = await _db.MediaSourceUsers.AnyAsync(u => u.UserId == CurrentUser.Id && u.MediaSourceId == source.Id);
         var isUnlocked = await IsUnlockedAsync(entry);
         if (!_unlockedMediaService.IsAccessible(hasSourceAccess, isUnlocked))
-            throw new UnauthorizedAccessException("Fehlende Berechtigung für Medienquelle");
+            throw new ForbiddenAccessException("Fehlende Berechtigung für Medienquelle");
     }
 
     private async Task<bool> IsUnlockedAsync(MediaBaseEntry entry)
@@ -582,9 +622,9 @@ public class ItemsController : ApiBaseController
     /// <param name="id">The media item identifier.</param>
     /// <returns>The media file as a range-processed stream.</returns>
     [HttpGet("{type}/{id}/stream")]
-    public async Task<IActionResult> StreamMediaItem(string type, long id)
+    public Task<IActionResult> StreamMediaItem(string type, long id)
     {
-        try
+        return ExecuteAsync(async () =>
         {
             CheckLogedIn();
             if (type == nameof(TVShow).ToLower())
@@ -596,8 +636,6 @@ public class ItemsController : ApiBaseController
                 return BadRequest("Ungültige ID");
 
             var mediaItem = await FindMediaItemAsync(type, id);
-            if (mediaItem == null)
-                return NotFound();
 
             var mediaCollection = await _db.MediaCollections
                 .Include(mc => mc.MediaSource)
@@ -606,7 +644,7 @@ public class ItemsController : ApiBaseController
             var fileName = Path.GetFileName(mediaItem.Path);
             var stream = _reader.OpenFileStream(mediaCollection, fileName);
             if (stream == null)
-                return NotFound();
+                return NotFound("Für diesen Titel ist keine Videodatei hinterlegt");
 
             var ext = Path.GetExtension(fileName).ToLowerInvariant();
             var contentType = ext switch
@@ -620,17 +658,7 @@ public class ItemsController : ApiBaseController
 
             // enableRangeProcessing: true for video streaming
             return File(stream, contentType, enableRangeProcessing: true);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            Logger.LogWarning(ex, "Zugriff verweigert beim Streamen des Medienitems");
-            return Unauthorized(ex.Message);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Fehler beim Streamen des Medienitems");
-            return StatusCode(500, "Internal server error");
-        }
+        }, "Streamen des Medienitems");
     }
 
     /// <summary>
@@ -640,34 +668,24 @@ public class ItemsController : ApiBaseController
     /// <param name="id">The media item identifier.</param>
     /// <returns>The media file as a downloadable attachment.</returns>
     [HttpGet("{type}/{id}/download")]
-    public async Task<IActionResult> Download(string type, long id)
+    public Task<IActionResult> Download(string type, long id)
     {
-        try
+        return ExecuteAsync(async () =>
         {
             CheckLogedIn();
 
             var mediaItem = await FindMediaItemAsync(type, id);
-            if (mediaItem == null)
-                return NotFound();
 
-            var fileStreamResult = await StreamMediaItem(type, id) as FileStreamResult;
-            if (fileStreamResult == null)
-                return NotFound();
+            // StreamMediaItem maps its own errors (403/404/400) through ExecuteAsync, so anything other
+            // than the file result is already the correct error response and is passed on unchanged.
+            var streamResult = await StreamMediaItem(type, id);
+            if (streamResult is not FileStreamResult fileStreamResult)
+                return streamResult;
 
             // Optional: read file name
             var fileName = !string.IsNullOrWhiteSpace(fileStreamResult.FileDownloadName) ? fileStreamResult.FileDownloadName : Path.GetFileName(mediaItem.Path) ?? $"video_{mediaItem.Id}.mp4";
             return File(fileStreamResult.FileStream, "application/octet-stream", fileName);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            Logger.LogWarning(ex, "Zugriff verweigert beim Streamen des Medienitems");
-            return Unauthorized(ex.Message);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Fehler beim Streamen des Medienitems");
-            return StatusCode(500, "Internal server error");
-        }
+        }, "Herunterladen des Medienitems");
     }
 
     /// <summary>
@@ -677,9 +695,9 @@ public class ItemsController : ApiBaseController
     /// <param name="id">The media item identifier.</param>
     /// <returns>The media details.</returns>
     [HttpGet("{type}/{id}")]
-    public async Task<IActionResult> Get(string type, long id)
+    public Task<IActionResult> Get(string type, long id)
     {
-        try
+        return ExecuteAsync(async () =>
         {
             CheckLogedIn();
             var entry = await FindEntry(type, id);
@@ -750,18 +768,8 @@ public class ItemsController : ApiBaseController
                 }).FirstOrDefault();
                 return Ok(movie);
             }
-            return NotFound();
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            Logger.LogWarning(ex, "Zugriff verweigert beim Abrufen des Medienitems");
-            return Unauthorized(ex.Message);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Fehler beim Abrufen des Medienitems");
-            return StatusCode(500, "Internal server error");
-        }
+            return NotFound("Medieneintrag nicht gefunden");
+        }, "Abrufen des Medienitems");
     }
 
 }

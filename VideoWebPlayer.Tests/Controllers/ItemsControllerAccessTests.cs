@@ -10,13 +10,13 @@ namespace VideoWebPlayer.Tests.Controllers;
 public class ItemsControllerAccessTests
 {
     [Fact]
-    public async Task Get_MovieCollection_Without_Access_Returns_Unauthorized()
+    public async Task Get_MovieCollection_Without_Access_Returns_Forbidden()
     {
         var (db, controller, source, collection, _, _) = await CreateControllerWithUnlockedCollectionAsync(false);
 
         var result = await controller.Get("moviecollection", collection.Id);
 
-        Assert.IsType<UnauthorizedObjectResult>(result);
+        Assert.IsType<ForbidResult>(result);
     }
 
     [Fact]
@@ -32,13 +32,13 @@ public class ItemsControllerAccessTests
     }
 
     [Fact]
-    public async Task Get_TVShow_Without_Access_Returns_Unauthorized()
+    public async Task Get_TVShow_Without_Access_Returns_Forbidden()
     {
         var (db, controller, source, show, _, _) = await CreateControllerWithUnlockedShowAsync(false);
 
         var result = await controller.Get("tvshow", show.Id);
 
-        Assert.IsType<UnauthorizedObjectResult>(result);
+        Assert.IsType<ForbidResult>(result);
     }
 
     [Fact]
@@ -54,13 +54,13 @@ public class ItemsControllerAccessTests
     }
 
     [Fact]
-    public async Task Get_TVShowEpisode_Without_Access_Returns_Unauthorized()
+    public async Task Get_TVShowEpisode_Without_Access_Returns_Forbidden()
     {
         var (db, controller, source, show, season, episode, _, logger) = await CreateControllerWithUnlockedEpisodeAsync(false);
 
         var result = await controller.Get("tvshowepisode", episode.Id);
 
-        Assert.True(result is UnauthorizedObjectResult, logger.LastError ?? string.Empty);
+        Assert.True(result is ForbidResult, logger.LastError ?? string.Empty);
     }
 
     [Fact]
@@ -77,13 +77,13 @@ public class ItemsControllerAccessTests
     }
 
     [Fact]
-    public async Task Get_Movie_Without_Access_Returns_Unauthorized()
+    public async Task Get_Movie_Without_Access_Returns_Forbidden()
     {
         var (db, controller, source, movie, _, _) = await CreateControllerWithUnlockedMovieAsync(false);
 
         var result = await controller.Get("movie", movie.Id);
 
-        Assert.IsType<UnauthorizedObjectResult>(result);
+        Assert.IsType<ForbidResult>(result);
     }
 
     [Fact]

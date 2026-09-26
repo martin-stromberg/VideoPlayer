@@ -70,6 +70,12 @@ Ein Restore ersetzt die aktuellen Anwendungsdaten durch die Daten aus dem ausgew
 
 Der Restore läuft im Hintergrund. Die Backup-Seite zeigt währenddessen den Fortschritt zweistufig an: aktueller Datenbestand `w von x` und aktueller Datensatz `y von z`.
 
+### Wiederherstellung älterer Sicherungen
+
+Sicherungen älterer Versionen bleiben wiederherstellbar: Tabellen und Spalten, die es zum Zeitpunkt der Sicherung noch nicht gab, gelten beim Restore als optional und werden mit Standardwerten ergänzt. Das gilt auch für die Gerätekopplung, die erst später hinzugekommen ist (Tabellen `PairedDevices`, `PairingCodes`, `RefreshTokens` sowie die Spalten `Kind` und `TicketHash` in `PairingCodes`).
+
+Wichtig dabei: Eine Sicherung aus der Zeit vor der Gerätekopplung enthält keine gekoppelten Geräte und keine Sitzungen. Nach dem Restore einer solchen Sicherung sind diese Tabellen deshalb leer — die Geräteliste ist leer, bereits gekoppelte Geräte und Client-Apps sind abgemeldet und müssen neu gekoppelt werden. Offene Pairing-Codes und Bootstrap-Tickets aus der alten Sicherung kommen ebenfalls nicht zurück. Das ist das gewünschte und sichere Verhalten: Geräte-Zugänge werden nicht aus einer alten Sicherung heraus wiederbelebt. Eine Sicherung der heutigen Version enthält die drei Tabellen dagegen vollständig und stellt gekoppelte Geräte und Sitzungen unverändert wieder her.
+
 Während des Restores werden schreibende Hintergrundprozesse in der Anwendung pausiert oder am Start neuer Schreiboperationen gehindert. Laufende Operationen werden abgewartet, bevor Daten gelöscht und aus dem Backup wiederhergestellt werden. Inhaltsseiten werden während der Wiederherstellung nicht regulär geladen. API-Anfragen auf Inhaltsdaten erhalten stattdessen eine Statusantwort mit Hinweis auf den laufenden Restore.
 
 ## Admin-Konto-Erhalt
@@ -90,6 +96,7 @@ Die Seite zeigt eine Historie der letzten Backup-, Restore- und Löschaktionen. 
 - Gesichert werden Datenbankdaten und optionale Genre-Icons. Echte Mediendateien aus Medienquellen, Logs, Demo-/Seed-Dateien und externe Speicherorte werden nicht gesichert.
 - Das Backup-Format ist eine `.bak`-Datei, die ein objektbasiertes Archiv enthält. Sie besteht aus einem `manifest.json` und einem oder mehreren Backup-Objekten. Das VideoWebPlayer-Datenbank-Objekt trägt den Namen `videowebplayer/database` und den Content-Type `VideoWebPlayer:Database`; es enthält wiederum ein `index.json` sowie die Tabellen-Payloads der Anwendungsdatenbank.
 - Backups aus älteren Versionen ohne `UpdateSettings`-Tabelle oder ohne Anwendungstitel in `Setups` können wiederhergestellt werden. Fehlende Werte werden beim Restore mit aktuellen Standardwerten ergänzt.
+- Backups aus älteren Versionen ohne die Tabellen `PairedDevices`, `PairingCodes` und `RefreshTokens` können ebenfalls wiederhergestellt werden; die Tabellen bleiben danach leer (siehe „Wiederherstellung älterer Sicherungen“). Fehlt in einer Sicherung nur die Spalte `PairingCodes.Kind`, wird sie mit `AdminCode` ergänzt; `PairingCodes.TicketHash` bleibt leer.
 - Hochgeladene `.bak`-Dateien werden gegen ungültige Manifestdaten und unsichere Pfade validiert.
 - Der Upload läuft über ein chunkbasiertes `application/octet-stream`-Protokoll: `POST admin/backups/api/upload/chunk` nimmt Abschnitte mit den Headern `Upload-Id`, `Upload-Name`, `Upload-Length` und `Upload-Offset` entgegen; `GET admin/backups/api/upload/{id}` liefert den aktuellen Stand für die Wiederaufnahme (Offset-Mismatch wird mit Status `308` und dem erwarteten Offset beantwortet); `DELETE admin/backups/api/upload/{id}` verwirft eine Session samt Temp-Datei. Temporäre Dateien liegen als `vwp-backup-upload-*.tmp` im System-Temp-Verzeichnis und werden nach Abschluss in den Speicherpfad verschoben bzw. nach 24 Stunden Inaktivität aufgeräumt.
 - Die Restore-Sperre wirkt innerhalb der laufenden Anwendung. Sie ist keine Cluster- oder Mehrprozess-Sperre für mehrere App-Instanzen.

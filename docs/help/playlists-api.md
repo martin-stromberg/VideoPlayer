@@ -12,6 +12,18 @@ Alle Endpunkte erfordern einen gültigen Bearer Token im `Authorization`-Header:
 Authorization: Bearer {token}
 ```
 
+Alternativ lässt sich derselbe Token bei jedem dieser Endpunkte als Abfrageparameter mitgeben:
+
+```
+?access_token={token}
+```
+
+Der Server prüft zuerst den `Authorization`-Header und greift nur bei dessen Fehlen auf den
+Abfrageparameter zurück. Gebraucht wird das für Abrufe, die ein Browser ohne eigene Header auslöst
+(z. B. das Coverbild in einem `<img>`-Element); es funktioniert aber bei allen Playlist-Endpunkten,
+auch bei `POST`, `PUT`, `PATCH` und `DELETE`. Siehe `../API.md`, Abschnitt „Basis und
+Authentifizierung“.
+
 Fehlerhafte oder fehlende Authentifizierung führt zu HTTP 401 (Unauthorized).
 
 ## Berechtigungen je Endpunkt
@@ -212,6 +224,8 @@ Keine Antwort-Body. Der Eintrag wurde entfernt.
 ### `GET /api/playlists/{id}/entries` — Alle Einträge abrufen
 
 Ruft alle Medieninhalte einer Playlist ab. Verwaiste Einträge (deren Medieninhalt gelöscht wurde) werden automatisch entfernt.
+Die Einträge kommen gemäß `Playlist.SortMode` sortiert zurück — in derselben Reihenfolge wie bei
+`GET /api/playlists/{id}/entries/paged` (siehe dort „Sortierlogik").
 
 **Parameter:**
 
@@ -263,7 +277,7 @@ Ruft alle Medieninhalte einer Playlist ab. Verwaiste Einträge (deren Medieninha
 | HTTP-Status | Grund |
 |-------------|-------|
 | 404 Not Found | Playlist nicht gefunden |
-| 403 Forbidden | Benutzer ist nicht der Besitzer der Playlist |
+| 403 Forbidden | Playlist ist privat und gehört einem anderen Benutzer |
 | 401 Unauthorized | Fehlende oder ungültige Authentifizierung |
 
 ---
@@ -329,7 +343,7 @@ aktuellen Seite. `hasNextPage` gibt an, ob nach der aktuellen Seite noch weitere
 |-------------|-------|
 | 400 Bad Request | `pageNumber < 1` oder `pageSize` außerhalb von `1..MaxPageSize` |
 | 404 Not Found | Playlist nicht gefunden |
-| 403 Forbidden | Benutzer ist nicht der Besitzer der Playlist |
+| 403 Forbidden | Playlist ist privat und gehört einem anderen Benutzer |
 | 401 Unauthorized | Fehlende oder ungültige Authentifizierung |
 
 ---
@@ -486,6 +500,40 @@ Eintrag per Einzel-Endpunkt auf `max + 1` zu setzen, da neue, größere Werte ni
 
 | HTTP-Status | Grund |
 |-------------|-------|
+| 400 Bad Request | Der Eintrag hat keine Sortierposition gesetzt (der Endpunkt führt intern denselben Ablauf aus wie `move-between` mit Zielposition 0) |
+| 404 Not Found | Playlist oder Eintrag nicht gefunden |
+| 409 Conflict | Playlist ist nicht im Sortiermodus `Manual` |
+| 403 Forbidden | Benutzer ist nicht der Besitzer der Playlist |
+| 401 Unauthorized | Fehlende oder ungültige Authentifizierung |
+
+---
+
+### `POST /api/playlists/{id}/entries/{entryId}/move-between` — Eintrag auf eine beliebige Position verschieben
+
+Verschiebt einen einzelnen Eintrag auf eine beliebige Zielposition und verschiebt dazu serverseitig
+zunächst alle Einträge zwischen bisheriger und Zielposition atomar um eins in die Gegenrichtung. Nur im
+Sortiermodus `Manual` verwendbar. Das ist der allgemeine Fall, den `move-to-beginning` (siehe oben) mit
+Zielposition 0 nutzt, und der Endpunkt, den das Umsortieren per Ziehen verwendet: Anders als der
+Einzel-Endpunkt `.../order` kollidiert er nie mit der Sortierposition des Zieleintrags und überlässt die
+sichtbare Reihenfolge damit nicht dem `AddedAt`-Gleichstand.
+
+**Parameter:**
+
+| Name | Position | Typ | Erforderlich | Beschreibung |
+|------|----------|-----|-------------|--------------|
+| `id` | Route | long | Ja | Playlist-ID |
+| `entryId` | Route | long | Ja | ID des zu verschiebenden Eintrags |
+| `newSortOrder` | Body | long | Ja | Zielposition; muss ≥ 0 sein |
+
+**Request-Body:** `DtoReorderPlaylistEntryRequest`, dieselbe Struktur wie bei `.../order`.
+
+**Erfolgreiche Antwort (HTTP 200):** Keine inhaltliche Antwort-Body-Auswertung nötig (Erfolg).
+
+**Fehlerantworten:**
+
+| HTTP-Status | Grund |
+|-------------|-------|
+| 400 Bad Request | `newSortOrder < 0`, der Anfrage-Body fehlt, oder der Eintrag hat keine Sortierposition gesetzt |
 | 404 Not Found | Playlist oder Eintrag nicht gefunden |
 | 409 Conflict | Playlist ist nicht im Sortiermodus `Manual` |
 | 403 Forbidden | Benutzer ist nicht der Besitzer der Playlist |
@@ -579,7 +627,7 @@ eigenen, bereits bekannten Bearer-Token selbst an, bevor er die URL an den Video
 | HTTP-Status | Grund |
 |-------------|-------|
 | 400 Bad Request | Playlist enthält keinen einzigen abspielbaren und zugänglichen Eintrag (nur wenn kein `entryId` angegeben wurde), oder der explizit angegebene `entryId` verweist auf einen nicht abspielbaren Sammel-Eintrag (`TVShow`, `TVShowSeason`, `MovieCollection`) |
-| 403 Forbidden | Benutzer ist nicht der Besitzer der Playlist, oder der explizit angegebene `entryId` ist nicht zugänglich |
+| 403 Forbidden | Playlist ist privat und gehört einem anderen Benutzer, oder der explizit angegebene `entryId` ist für den Anfragenden nicht freigeschaltet |
 | 404 Not Found | Playlist nicht gefunden, oder der explizit angegebene `entryId` gehört nicht zu dieser Playlist |
 | 401 Unauthorized | Fehlende oder ungültige Authentifizierung |
 
@@ -609,7 +657,7 @@ vorhanden (Ende der Playlist erreicht).
 | HTTP-Status | Grund |
 |-------------|-------|
 | 400 Bad Request | `currentEntryId` gehört nicht zu dieser Playlist |
-| 403 Forbidden | Benutzer ist nicht der Besitzer der Playlist |
+| 403 Forbidden | Playlist ist privat und gehört einem anderen Benutzer |
 | 404 Not Found | Playlist nicht gefunden |
 | 401 Unauthorized | Fehlende oder ungültige Authentifizierung |
 
@@ -744,9 +792,11 @@ aktuell ein Cover besitzt, ist am `coverPictureId`-Feld des `DtoPlaylist`-Objekt
 
 Die ändernden Endpunkte (`upload`, `preview`, `regenerate`, `DELETE`) prüfen wie alle übrigen
 Playlist-Operationen die Besitzer-Berechtigung (`Playlist.UserId == CurrentUser.Id`). Der
-Lese-Endpunkt `GET /api/playlists/{id}/cover` steht dagegen — analog zu
-`GET /api/pictures/{id}` — jedem angemeldeten Benutzer offen, da das Bild selbst keine
-schützenswerten Daten enthält.
+Lese-Endpunkt `GET /api/playlists/{id}/cover` folgt dagegen der Lese-Regel aus
+Entwicklungsschritt 11: der Besitzer, oder jeder angemeldete Benutzer, solange die Playlist
+öffentlich ist — für eine private Playlist eines anderen Anwenders antwortet er mit `403`
+(Einzelheiten unten beim Endpunkt selbst). Dieselbe Prüfung gilt, wenn dasselbe Bild über
+`GET /api/pictures/{id}` abgerufen wird.
 
 ### `POST /api/playlists/{id}/cover/upload` — Eigenes Coverbild hochladen
 

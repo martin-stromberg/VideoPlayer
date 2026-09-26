@@ -32,7 +32,10 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         nameof(ApplicationDbContext.PlaylistEntries),
         nameof(ApplicationDbContext.PlaylistEntryExclusions),
         nameof(ApplicationDbContext.PlaylistGenres),
-        nameof(ApplicationDbContext.PlaylistBackfillMarkers)
+        nameof(ApplicationDbContext.PlaylistBackfillMarkers),
+        nameof(ApplicationDbContext.PairedDevices),
+        nameof(ApplicationDbContext.PairingCodes),
+        nameof(ApplicationDbContext.RefreshTokens)
     };
 
     private static readonly HashSet<string> OptionalRestoreColumns = new(StringComparer.OrdinalIgnoreCase)
@@ -65,7 +68,9 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         $"{nameof(ApplicationDbContext.Playlists)}.{nameof(Playlist.IsPublic)}",
         $"{nameof(ApplicationDbContext.Pictures)}.{nameof(Picture.PlaylistId)}",
         $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.PlaylistBackfillLastSweepAt)}",
-        $"{nameof(ApplicationDbContext.MediaSources)}.{nameof(MediaSource.SourceType)}"
+        $"{nameof(ApplicationDbContext.MediaSources)}.{nameof(MediaSource.SourceType)}",
+        $"{nameof(ApplicationDbContext.PairingCodes)}.{nameof(PairingCode.Kind)}",
+        $"{nameof(ApplicationDbContext.PairingCodes)}.{nameof(PairingCode.TicketHash)}"
     };
 
     private static readonly HashSet<string> IgnoredRestoreColumns = new(StringComparer.OrdinalIgnoreCase)
@@ -99,7 +104,8 @@ public sealed class VideoWebPlayerBackupData : IBackupData
     {
         (nameof(ApplicationDbContext.Setups), nameof(Setup.ContinueWatchingEndThresholdSeconds), 30),
         (nameof(ApplicationDbContext.Setups), nameof(Setup.ActorCollectionThresholdPercent), 50),
-        (nameof(ApplicationDbContext.MediaSources), nameof(MediaSource.SourceType), (int)MediaSourceType.Sftp)
+        (nameof(ApplicationDbContext.MediaSources), nameof(MediaSource.SourceType), (int)MediaSourceType.Sftp),
+        (nameof(ApplicationDbContext.PairingCodes), nameof(PairingCode.Kind), (int)PairingCodeKind.AdminCode)
     };
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };

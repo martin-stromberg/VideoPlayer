@@ -1,15 +1,11 @@
 using System.IO.Compression;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.FileProviders;
-using Microsoft.Extensions.Logging.Abstractions;
 using VideoWebPlayer.Data;
-using VideoWebPlayer.Services;
 using VideoWebPlayer.Services.Backups;
+using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.Services.Backups;
@@ -30,10 +26,10 @@ public sealed class VideoWebPlayerBackupDataTests
         var ct = TestContext.Current.CancellationToken;
         using var connection = new SqliteConnection("Data Source=file:backuptest-no-unlockedmedia?mode=memory&cache=shared");
         await connection.OpenAsync(ct);
-        var (db, backup, userId) = await CreateBackupWithSeededDatabaseAsync(connection, ct);
-        await using var _ = db;
+        var (db, backup, userId) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
+        await using var dbLifetime = db;
 
-        using var legacyStream = await BuildLegacyBackupStreamRemovingTablesAsync(backup, new[] { "UnlockedMediaEntries" }, ct);
+        using var legacyStream = await LegacyBackupArchiveBuilder.RemoveTablesAsync(backup, new[] { "UnlockedMediaEntries" }, ct);
 
         // This must not throw even though the backup lacks the new table.
         var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
@@ -49,10 +45,10 @@ public sealed class VideoWebPlayerBackupDataTests
         var ct = TestContext.Current.CancellationToken;
         using var connection = new SqliteConnection("Data Source=file:backuptest-no-watched?mode=memory&cache=shared");
         await connection.OpenAsync(ct);
-        var (db, backup, userId) = await CreateBackupWithSeededDatabaseAsync(connection, ct);
-        await using var _ = db;
+        var (db, backup, userId) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
+        await using var dbLifetime = db;
 
-        using var legacyStream = await BuildLegacyBackupStreamRemovingTablesAsync(backup, new[] { "WatchedEntries" }, ct);
+        using var legacyStream = await LegacyBackupArchiveBuilder.RemoveTablesAsync(backup, new[] { "WatchedEntries" }, ct);
 
         // This must not throw even though the backup lacks the new table.
         var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
@@ -68,8 +64,8 @@ public sealed class VideoWebPlayerBackupDataTests
         var ct = TestContext.Current.CancellationToken;
         using var connection = new SqliteConnection("Data Source=file:backuptest-no-threshold?mode=memory&cache=shared");
         await connection.OpenAsync(ct);
-        var (db, backup, userId) = await CreateBackupWithSeededDatabaseAsync(connection, ct);
-        await using var _ = db;
+        var (db, backup, userId) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
+        await using var dbLifetime = db;
 
         using var legacyStream = await BuildLegacyBackupStreamWithoutContinueWatchingThresholdColumnAsync(backup, ct);
 
@@ -98,10 +94,10 @@ public sealed class VideoWebPlayerBackupDataTests
         var ct = TestContext.Current.CancellationToken;
         using var connection = new SqliteConnection("Data Source=file:backuptest-playlists?mode=memory&cache=shared");
         await connection.OpenAsync(ct);
-        var (db, backup, userId) = await CreateBackupWithSeededDatabaseAsync(connection, ct);
-        await using var _ = db;
+        var (db, backup, userId) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
+        await using var dbLifetime = db;
 
-        using var legacyStream = await BuildLegacyBackupStreamRemovingTablesAsync(backup, new[] { "Playlists", "PlaylistEntries" }, ct);
+        using var legacyStream = await LegacyBackupArchiveBuilder.RemoveTablesAsync(backup, new[] { "Playlists", "PlaylistEntries" }, ct);
 
         // This must not throw even though the backup lacks the new tables.
         var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
@@ -124,8 +120,8 @@ public sealed class VideoWebPlayerBackupDataTests
         var ct = TestContext.Current.CancellationToken;
         using var connection = new SqliteConnection("Data Source=file:backuptest-playlist-exclusions?mode=memory&cache=shared");
         await connection.OpenAsync(ct);
-        var (db, backup, userId) = await CreateBackupWithSeededDatabaseAsync(connection, ct);
-        await using var _ = db;
+        var (db, backup, userId) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
+        await using var dbLifetime = db;
 
         var playlist = new Playlist
         {
@@ -146,7 +142,7 @@ public sealed class VideoWebPlayerBackupDataTests
         });
         await db.SaveChangesAsync(ct);
 
-        using var legacyStream = await BuildLegacyBackupStreamRemovingTablesAsync(backup, new[] { "PlaylistEntryExclusions" }, ct);
+        using var legacyStream = await LegacyBackupArchiveBuilder.RemoveTablesAsync(backup, new[] { "PlaylistEntryExclusions" }, ct);
 
         // This must not throw even though the backup lacks the new table.
         var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
@@ -167,8 +163,8 @@ public sealed class VideoWebPlayerBackupDataTests
         var ct = TestContext.Current.CancellationToken;
         using var connection = new SqliteConnection("Data Source=file:backuptest-playlist-genres?mode=memory&cache=shared");
         await connection.OpenAsync(ct);
-        var (db, backup, userId) = await CreateBackupWithSeededDatabaseAsync(connection, ct);
-        await using var _ = db;
+        var (db, backup, userId) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
+        await using var dbLifetime = db;
 
         var mediaSource = new MediaSource { Name = "Quelle", Path = "/test", Host = "localhost", Port = 22 };
         db.MediaSources.Add(mediaSource);
@@ -190,7 +186,7 @@ public sealed class VideoWebPlayerBackupDataTests
         db.PlaylistGenres.Add(new PlaylistGenre { PlaylistId = playlist.Id, GenreId = genre.Id, Count = 1 });
         await db.SaveChangesAsync(ct);
 
-        using var legacyStream = await BuildLegacyBackupStreamRemovingTablesAsync(backup, new[] { "PlaylistGenres" }, ct);
+        using var legacyStream = await LegacyBackupArchiveBuilder.RemoveTablesAsync(backup, new[] { "PlaylistGenres" }, ct);
 
         // This must not throw even though the backup lacks the new table.
         var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
@@ -214,8 +210,8 @@ public sealed class VideoWebPlayerBackupDataTests
         var ct = TestContext.Current.CancellationToken;
         using var connection = new SqliteConnection("Data Source=file:backuptest-no-genres-overridden-column?mode=memory&cache=shared");
         await connection.OpenAsync(ct);
-        var (db, backup, userId) = await CreateBackupWithSeededDatabaseAsync(connection, ct);
-        await using var _ = db;
+        var (db, backup, userId) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
+        await using var dbLifetime = db;
 
         var playlist = new Playlist
         {
@@ -229,7 +225,7 @@ public sealed class VideoWebPlayerBackupDataTests
         db.Playlists.Add(playlist);
         await db.SaveChangesAsync(ct);
 
-        using var legacyStream = await BuildLegacyBackupStreamWithoutColumnAsync(backup, "Playlists", "GenresManuallyOverridden", ct);
+        using var legacyStream = await LegacyBackupArchiveBuilder.RemoveColumnsAsync(backup, "Playlists", new[] { "GenresManuallyOverridden" }, ct);
 
         // This must not throw even though the backup lacks the new column.
         var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
@@ -255,8 +251,8 @@ public sealed class VideoWebPlayerBackupDataTests
         var ct = TestContext.Current.CancellationToken;
         using var connection = new SqliteConnection("Data Source=file:backuptest-no-ispublic-column?mode=memory&cache=shared");
         await connection.OpenAsync(ct);
-        var (db, backup, userId) = await CreateBackupWithSeededDatabaseAsync(connection, ct);
-        await using var _ = db;
+        var (db, backup, userId) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
+        await using var dbLifetime = db;
 
         db.Playlists.Add(new Playlist
         {
@@ -269,7 +265,7 @@ public sealed class VideoWebPlayerBackupDataTests
         });
         await db.SaveChangesAsync(ct);
 
-        using var legacyStream = await BuildLegacyBackupStreamWithoutColumnAsync(backup, "Playlists", "IsPublic", ct);
+        using var legacyStream = await LegacyBackupArchiveBuilder.RemoveColumnsAsync(backup, "Playlists", new[] { "IsPublic" }, ct);
 
         var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
 
@@ -290,8 +286,8 @@ public sealed class VideoWebPlayerBackupDataTests
         var ct = TestContext.Current.CancellationToken;
         using var connection = new SqliteConnection("Data Source=file:backuptest-ispublic-roundtrip?mode=memory&cache=shared");
         await connection.OpenAsync(ct);
-        var (db, backup, userId) = await CreateBackupWithSeededDatabaseAsync(connection, ct);
-        await using var _ = db;
+        var (db, backup, userId) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
+        await using var dbLifetime = db;
 
         db.Playlists.Add(new Playlist
         {
@@ -324,8 +320,8 @@ public sealed class VideoWebPlayerBackupDataTests
         var ct = TestContext.Current.CancellationToken;
         using var connection = new SqliteConnection("Data Source=file:backuptest-no-cover-columns?mode=memory&cache=shared");
         await connection.OpenAsync(ct);
-        var (db, backup, userId) = await CreateBackupWithSeededDatabaseAsync(connection, ct);
-        await using var _ = db;
+        var (db, backup, userId) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
+        await using var dbLifetime = db;
 
         var playlist = new Playlist
         {
@@ -338,7 +334,7 @@ public sealed class VideoWebPlayerBackupDataTests
         db.Playlists.Add(playlist);
         await db.SaveChangesAsync(ct);
 
-        using var legacyStream = await BuildLegacyBackupStreamWithoutColumnsAsync(
+        using var legacyStream = await LegacyBackupArchiveBuilder.RemoveColumnsAsync(
             backup, "Playlists", new[] { "CoverPictureId", "CoverPictureIsUserUploaded" }, ct);
 
         // This must not throw even though the backup lacks the new columns.
@@ -363,8 +359,8 @@ public sealed class VideoWebPlayerBackupDataTests
         var ct = TestContext.Current.CancellationToken;
         using var connection = new SqliteConnection("Data Source=file:backuptest-no-picture-playlistid?mode=memory&cache=shared");
         await connection.OpenAsync(ct);
-        var (db, backup, userId) = await CreateBackupWithSeededDatabaseAsync(connection, ct);
-        await using var _ = db;
+        var (db, backup, userId) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
+        await using var dbLifetime = db;
 
         var playlist = new Playlist
         {
@@ -379,7 +375,7 @@ public sealed class VideoWebPlayerBackupDataTests
         db.Pictures.Add(new Picture { Type = "cover", Data = new byte[] { 1 }, ContentType = "image/jpeg", PlaylistId = playlist.Id });
         await db.SaveChangesAsync(ct);
 
-        using var legacyStream = await BuildLegacyBackupStreamWithoutColumnAsync(backup, "Pictures", "PlaylistId", ct);
+        using var legacyStream = await LegacyBackupArchiveBuilder.RemoveColumnsAsync(backup, "Pictures", new[] { "PlaylistId" }, ct);
 
         // This must not throw even though the backup lacks the new column.
         var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
@@ -408,8 +404,8 @@ public sealed class VideoWebPlayerBackupDataTests
         var ct = TestContext.Current.CancellationToken;
         using var connection = new SqliteConnection("Data Source=file:backuptest-cover-generated?mode=memory&cache=shared");
         await connection.OpenAsync(ct);
-        var (db, backup, userId) = await CreateBackupWithSeededDatabaseAsync(connection, ct);
-        await using var _ = db;
+        var (db, backup, userId) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
+        await using var dbLifetime = db;
 
         var picture = new Picture
         {
@@ -463,8 +459,8 @@ public sealed class VideoWebPlayerBackupDataTests
         var ct = TestContext.Current.CancellationToken;
         using var connection = new SqliteConnection("Data Source=file:backuptest-cover-uploaded?mode=memory&cache=shared");
         await connection.OpenAsync(ct);
-        var (db, backup, userId) = await CreateBackupWithSeededDatabaseAsync(connection, ct);
-        await using var _ = db;
+        var (db, backup, userId) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
+        await using var dbLifetime = db;
 
         var picture = new Picture
         {
@@ -516,13 +512,13 @@ public sealed class VideoWebPlayerBackupDataTests
         var ct = TestContext.Current.CancellationToken;
         using var connection = new SqliteConnection("Data Source=file:backuptest-no-backfill-markers?mode=memory&cache=shared");
         await connection.OpenAsync(ct);
-        var (db, backup, _) = await CreateBackupWithSeededDatabaseAsync(connection, ct);
-        await using var __ = db;
+        var (db, backup, _) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
+        await using var dbLifetime = db;
 
         db.PlaylistBackfillMarkers.Add(new PlaylistBackfillMarker { MediaType = "TVShow", MediaId = 7 });
         await db.SaveChangesAsync(ct);
 
-        using var legacyStream = await BuildLegacyBackupStreamRemovingTablesAsync(backup, new[] { "PlaylistBackfillMarkers" }, ct);
+        using var legacyStream = await LegacyBackupArchiveBuilder.RemoveTablesAsync(backup, new[] { "PlaylistBackfillMarkers" }, ct);
 
         var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
 
@@ -540,8 +536,8 @@ public sealed class VideoWebPlayerBackupDataTests
         var ct = TestContext.Current.CancellationToken;
         using var connection = new SqliteConnection("Data Source=file:backuptest-backfill-markers-roundtrip?mode=memory&cache=shared");
         await connection.OpenAsync(ct);
-        var (db, backup, _) = await CreateBackupWithSeededDatabaseAsync(connection, ct);
-        await using var __ = db;
+        var (db, backup, _) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
+        await using var dbLifetime = db;
 
         db.PlaylistBackfillMarkers.Add(new PlaylistBackfillMarker { MediaType = "MovieCollection", MediaId = 3, Version = 4 });
         await db.SaveChangesAsync(ct);
@@ -568,8 +564,8 @@ public sealed class VideoWebPlayerBackupDataTests
         var ct = TestContext.Current.CancellationToken;
         using var connection = new SqliteConnection("Data Source=file:backuptest-no-lastsweep-column?mode=memory&cache=shared");
         await connection.OpenAsync(ct);
-        var (db, backup, _) = await CreateBackupWithSeededDatabaseAsync(connection, ct);
-        await using var __ = db;
+        var (db, backup, _) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
+        await using var dbLifetime = db;
 
         var setup = await db.Setups.FirstOrDefaultAsync(ct);
         if (setup is null)
@@ -580,178 +576,12 @@ public sealed class VideoWebPlayerBackupDataTests
         setup.PlaylistBackfillLastSweepAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
 
-        using var legacyStream = await BuildLegacyBackupStreamWithoutColumnAsync(backup, "Setups", "PlaylistBackfillLastSweepAt", ct);
+        using var legacyStream = await LegacyBackupArchiveBuilder.RemoveColumnsAsync(backup, "Setups", new[] { "PlaylistBackfillLastSweepAt" }, ct);
 
         var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
 
         Assert.Null(exception);
         Assert.Null((await db.Setups.AsNoTracking().FirstAsync(ct)).PlaylistBackfillLastSweepAt);
-    }
-
-    /// <summary>
-    /// Same as <see cref="BuildLegacyBackupStreamWithoutColumnAsync"/>, removing several columns from the
-    /// same table at once (used where a single legacy backup plausibly predates more than one column added
-    /// together, e.g. <c>CoverPictureId</c> and <c>CoverPictureIsUserUploaded</c> - both introduced by the
-    /// same Entwicklungsschritt-10 migration).
-    /// </summary>
-    /// <param name="backup">The current-schema backup to derive the legacy archive from.</param>
-    /// <param name="tableName">The name of the table to remove the columns from.</param>
-    /// <param name="columnNames">The names of the columns to remove.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The rebuilt legacy backup archive, positioned at the start.</returns>
-    private static async Task<MemoryStream> BuildLegacyBackupStreamWithoutColumnsAsync(
-        VideoWebPlayerBackupData backup, string tableName, string[] columnNames, CancellationToken cancellationToken)
-    {
-        using var currentStream = new MemoryStream();
-        await backup.WriteToAsync(currentStream, cancellationToken);
-        currentStream.Position = 0;
-
-        using var currentArchive = new ZipArchive(currentStream, ZipArchiveMode.Read, true);
-        var indexEntry = currentArchive.GetEntry("index.json")!;
-        JsonNode indexNode;
-        await using (var indexStream = indexEntry.Open())
-        {
-            indexNode = (await JsonNode.ParseAsync(indexStream, cancellationToken: cancellationToken))!;
-        }
-
-        var tableEntry = indexNode["tables"]!.AsArray()
-            .Single(t => string.Equals(t!["name"]!.GetValue<string>(), tableName, StringComparison.OrdinalIgnoreCase));
-        var columnsArray = tableEntry!["columns"]!.AsArray();
-        foreach (var columnName in columnNames)
-        {
-            var columnNode = columnsArray.FirstOrDefault(c => string.Equals(c!.GetValue<string>(), columnName, StringComparison.OrdinalIgnoreCase));
-            if (columnNode is not null)
-                columnsArray.Remove(columnNode);
-        }
-
-        var entryName = tableEntry["entryName"]!.GetValue<string>();
-        var dataEntry = currentArchive.GetEntry(entryName)!;
-        JsonNode dataNode;
-        await using (var dataStream = dataEntry.Open())
-        {
-            dataNode = (await JsonNode.ParseAsync(dataStream, cancellationToken: cancellationToken))!;
-        }
-        foreach (var row in dataNode["rows"]!.AsArray())
-        {
-            foreach (var columnName in columnNames)
-                row!.AsObject().Remove(columnName);
-        }
-
-        var result = new MemoryStream();
-        using (var resultArchive = new ZipArchive(result, ZipArchiveMode.Create, true))
-        {
-            foreach (var entry in currentArchive.Entries)
-            {
-                var newEntry = resultArchive.CreateEntry(entry.FullName);
-                if (string.Equals(entry.FullName, "index.json", StringComparison.Ordinal))
-                {
-                    await using var writeStream = newEntry.Open();
-                    await JsonSerializer.SerializeAsync(writeStream, indexNode, JsonOptions, cancellationToken);
-                }
-                else if (string.Equals(entry.FullName, entryName, StringComparison.Ordinal))
-                {
-                    await using var writeStream = newEntry.Open();
-                    await JsonSerializer.SerializeAsync(writeStream, dataNode, JsonOptions, cancellationToken);
-                }
-                else
-                {
-                    await using var sourceStream = entry.Open();
-                    await using var writeStream = newEntry.Open();
-                    await sourceStream.CopyToAsync(writeStream, cancellationToken);
-                }
-            }
-        }
-
-        result.Position = 0;
-        return result;
-    }
-
-    /// <summary>
-    /// Backs up <paramref name="backup"/>'s current schema and rebuilds the archive with the given
-    /// table's given column removed from both the index metadata's column list and every already-backed-up
-    /// row's data, simulating a backup taken before that column existed. Generic counterpart of
-    /// <see cref="BuildLegacyBackupStreamWithoutPlaylistEntriesSortOrderColumnAsync"/> and
-    /// <see cref="BuildLegacyBackupStreamWithoutContinueWatchingEntriesPlaylistIdColumnAsync"/> above, used
-    /// where a single additional case does not warrant its own dedicated near-duplicate method.
-    /// </summary>
-    /// <param name="backup">The current-schema backup to derive the legacy archive from.</param>
-    /// <param name="tableName">The name of the table to remove the column from.</param>
-    /// <param name="columnName">The name of the column to remove.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The rebuilt legacy backup archive, positioned at the start.</returns>
-    private static async Task<MemoryStream> BuildLegacyBackupStreamWithoutColumnAsync(
-        VideoWebPlayerBackupData backup, string tableName, string columnName, CancellationToken cancellationToken)
-    {
-        using var currentStream = new MemoryStream();
-        await backup.WriteToAsync(currentStream, cancellationToken);
-        currentStream.Position = 0;
-
-        using var originalArchive = new ZipArchive(currentStream, ZipArchiveMode.Read, true);
-        var legacyStream = new MemoryStream();
-
-        using (var legacyArchive = new ZipArchive(legacyStream, ZipArchiveMode.Create, true))
-        {
-            var indexEntry = originalArchive.GetEntry("index.json")!;
-            JsonNode? indexNode;
-            using (var indexStream = indexEntry.Open())
-            {
-                indexNode = await JsonNode.ParseAsync(indexStream, cancellationToken: cancellationToken);
-            }
-
-            var tables = indexNode!["tables"]!.AsArray();
-            var table = tables.First(t =>
-                string.Equals(t!["name"]!.GetValue<string>(), tableName, StringComparison.OrdinalIgnoreCase))!;
-            var entryName = table["entryName"]!.GetValue<string>();
-
-            var columns = table["columns"]!.AsArray();
-            var column = columns.FirstOrDefault(c => string.Equals(c!.GetValue<string>(), columnName, StringComparison.OrdinalIgnoreCase));
-            if (column is not null)
-                columns.Remove(column);
-
-            var newIndexEntry = legacyArchive.CreateEntry("index.json");
-            using (var newIndexStream = newIndexEntry.Open())
-            {
-                await using var writer = new Utf8JsonWriter(newIndexStream, new JsonWriterOptions { Indented = true });
-                indexNode!.WriteTo(writer, JsonOptions);
-                await writer.FlushAsync(cancellationToken);
-            }
-
-            foreach (var entry in originalArchive.Entries)
-            {
-                if (entry.FullName == "index.json")
-                    continue;
-
-                if (string.Equals(entry.FullName, entryName, StringComparison.OrdinalIgnoreCase))
-                {
-                    JsonNode? dataNode;
-                    using (var dataStream = entry.Open())
-                    {
-                        dataNode = await JsonNode.ParseAsync(dataStream, cancellationToken: cancellationToken);
-                    }
-
-                    foreach (var row in dataNode!["rows"]!.AsArray())
-                        row!.AsObject().Remove(columnName);
-
-                    var newDataEntry = legacyArchive.CreateEntry(entry.FullName);
-                    using (var newDataStream = newDataEntry.Open())
-                    {
-                        await using var writer = new Utf8JsonWriter(newDataStream, new JsonWriterOptions { Indented = true });
-                        dataNode!.WriteTo(writer, JsonOptions);
-                        await writer.FlushAsync(cancellationToken);
-                    }
-                }
-                else
-                {
-                    var newEntry = legacyArchive.CreateEntry(entry.FullName);
-                    using var sourceStream = entry.Open();
-                    using var destinationStream = newEntry.Open();
-                    await sourceStream.CopyToAsync(destinationStream, cancellationToken);
-                }
-            }
-        }
-
-        legacyStream.Position = 0;
-        return legacyStream;
     }
 
     /// <summary>
@@ -766,8 +596,8 @@ public sealed class VideoWebPlayerBackupDataTests
         var ct = TestContext.Current.CancellationToken;
         using var connection = new SqliteConnection("Data Source=file:backuptest-no-sortorder-column?mode=memory&cache=shared");
         await connection.OpenAsync(ct);
-        var (db, backup, userId) = await CreateBackupWithSeededDatabaseAsync(connection, ct);
-        await using var _ = db;
+        var (db, backup, userId) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
+        await using var dbLifetime = db;
 
         var playlist = new Playlist
         {
@@ -788,7 +618,7 @@ public sealed class VideoWebPlayerBackupDataTests
         });
         await db.SaveChangesAsync(ct);
 
-        using var legacyStream = await BuildLegacyBackupStreamWithoutPlaylistEntriesSortOrderColumnAsync(backup, ct);
+        using var legacyStream = await LegacyBackupArchiveBuilder.RemoveColumnsAsync(backup, "PlaylistEntries", new[] { "SortOrder" }, ct);
 
         // This must not throw even though the backup lacks the new column.
         var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
@@ -813,8 +643,8 @@ public sealed class VideoWebPlayerBackupDataTests
         var ct = TestContext.Current.CancellationToken;
         using var connection = new SqliteConnection("Data Source=file:backuptest-no-playlistid-column?mode=memory&cache=shared");
         await connection.OpenAsync(ct);
-        var (db, backup, userId) = await CreateBackupWithSeededDatabaseAsync(connection, ct);
-        await using var _ = db;
+        var (db, backup, userId) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
+        await using var dbLifetime = db;
 
         db.ContinueWatchingEntries.Add(new ContinueWatchingEntry
         {
@@ -825,7 +655,7 @@ public sealed class VideoWebPlayerBackupDataTests
         });
         await db.SaveChangesAsync(ct);
 
-        using var legacyStream = await BuildLegacyBackupStreamWithoutContinueWatchingEntriesPlaylistIdColumnAsync(backup, ct);
+        using var legacyStream = await LegacyBackupArchiveBuilder.RemoveColumnsAsync(backup, "ContinueWatchingEntries", new[] { "PlaylistId" }, ct);
 
         // This must not throw even though the backup lacks the new column.
         var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
@@ -834,131 +664,6 @@ public sealed class VideoWebPlayerBackupDataTests
         var restoredEntry = await db.ContinueWatchingEntries.SingleAsync(ct);
         Assert.Null(restoredEntry.PlaylistId);
         Assert.Equal(userId, (await db.Users.FirstAsync(ct)).Id);
-    }
-
-    /// <summary>
-    /// Prepares a current-schema database (over the given, already-open SQLite in-memory shared-cache
-    /// connection) with a valid admin user and setup, and the <see cref="VideoWebPlayerBackupData"/>
-    /// instance to back it up/restore into. Shared arrange logic for every legacy-backup-compatibility
-    /// test above; the connection stays owned (and disposed via <c>using</c>) by the calling test method,
-    /// since the in-memory shared-cache database only exists while it is open.
-    /// </summary>
-    /// <param name="connection">The already-open SQLite in-memory connection to use.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The seeded <see cref="ApplicationDbContext"/> (caller-owned, must be disposed), the <see cref="VideoWebPlayerBackupData"/> instance, and the seeded admin user's id.</returns>
-    private static async Task<(ApplicationDbContext Db, VideoWebPlayerBackupData Backup, string UserId)> CreateBackupWithSeededDatabaseAsync(
-        SqliteConnection connection, CancellationToken cancellationToken)
-    {
-        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseSqlite(connection)
-            .Options;
-
-        var db = new ApplicationDbContext(options, new EventManager());
-        await db.Database.EnsureCreatedAsync(cancellationToken);
-
-        var userId = Guid.NewGuid().ToString();
-        db.Users.Add(new ApplicationUser
-        {
-            Id = userId,
-            UserName = "admin",
-            NormalizedUserName = "ADMIN",
-            Email = "admin@test.de",
-            NormalizedEmail = "ADMIN@TEST.DE",
-            PasswordHash = "hash",
-            SecurityStamp = "stamp",
-            ConcurrencyStamp = Guid.NewGuid().ToString(),
-            Sources = string.Empty,
-            IsAdmin = true
-        });
-
-        db.Setups.Add(new Setup
-        {
-            DataVersion = 1,
-            GenresChanged = false,
-            ContinueWatchingEndThresholdSeconds = 42
-        });
-
-        await db.SaveChangesAsync(cancellationToken);
-
-        var environment = new FakeWebHostEnvironment();
-        var logger = NullLogger<VideoWebPlayerBackupData>.Instance;
-        var factory = new VideoWebPlayerBackupDataFactory(new ServiceCollection().BuildServiceProvider(), environment, logger)
-        {
-            UserId = userId
-        };
-
-        var backup = new VideoWebPlayerBackupData("test", "VideoWebPlayer:Database", db, environment, logger, factory);
-
-        return (db, backup, userId);
-    }
-
-    /// <summary>
-    /// Backs up <paramref name="backup"/>'s current schema and rebuilds the archive without the given
-    /// table(s) (removed from <c>index.json</c>'s <c>tables</c> array and their data entries dropped),
-    /// simulating a backup taken before those tables existed.
-    /// </summary>
-    /// <param name="backup">The current-schema backup to derive the legacy archive from.</param>
-    /// <param name="tableNamesToRemove">The table names to remove from the archive.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The rebuilt legacy backup archive, positioned at the start.</returns>
-    private static async Task<MemoryStream> BuildLegacyBackupStreamRemovingTablesAsync(
-        VideoWebPlayerBackupData backup, IReadOnlyCollection<string> tableNamesToRemove, CancellationToken cancellationToken)
-    {
-        using var currentStream = new MemoryStream();
-        await backup.WriteToAsync(currentStream, cancellationToken);
-        currentStream.Position = 0;
-
-        using var originalArchive = new ZipArchive(currentStream, ZipArchiveMode.Read, true);
-        var legacyStream = new MemoryStream();
-
-        using (var legacyArchive = new ZipArchive(legacyStream, ZipArchiveMode.Create, true))
-        {
-            var indexEntry = originalArchive.GetEntry("index.json")!;
-            JsonNode? indexNode;
-            using (var indexStream = indexEntry.Open())
-            {
-                indexNode = await JsonNode.ParseAsync(indexStream, cancellationToken: cancellationToken);
-            }
-
-            var tables = indexNode!["tables"]!.AsArray();
-            var removedEntryNames = new List<string>();
-
-            foreach (var tableName in tableNamesToRemove)
-            {
-                var table = tables.FirstOrDefault(t =>
-                    string.Equals(t!["name"]!.GetValue<string>(), tableName, StringComparison.OrdinalIgnoreCase));
-                if (table is null)
-                    continue;
-
-                removedEntryNames.Add(table["entryName"]!.GetValue<string>());
-                tables.RemoveAt(tables.IndexOf(table));
-            }
-
-            var newIndexEntry = legacyArchive.CreateEntry("index.json");
-            using (var newIndexStream = newIndexEntry.Open())
-            {
-                await using var writer = new Utf8JsonWriter(newIndexStream, new JsonWriterOptions { Indented = true });
-                indexNode!.WriteTo(writer, JsonOptions);
-                await writer.FlushAsync(cancellationToken);
-            }
-
-            foreach (var entry in originalArchive.Entries)
-            {
-                if (entry.FullName == "index.json")
-                    continue;
-
-                if (removedEntryNames.Any(name => string.Equals(entry.FullName, name, StringComparison.OrdinalIgnoreCase)))
-                    continue;
-
-                var newEntry = legacyArchive.CreateEntry(entry.FullName);
-                using var sourceStream = entry.Open();
-                using var destinationStream = newEntry.Open();
-                await sourceStream.CopyToAsync(destinationStream, cancellationToken);
-            }
-        }
-
-        legacyStream.Position = 0;
-        return legacyStream;
     }
 
     /// <summary>
@@ -1057,181 +762,6 @@ public sealed class VideoWebPlayerBackupDataTests
         return legacyStream;
     }
 
-    /// <summary>
-    /// Backs up <paramref name="backup"/>'s current schema and rebuilds the archive with the
-    /// <c>PlaylistEntries</c> table's <c>SortOrder</c> column removed from both the index metadata's
-    /// column list and every already-backed-up row's data, simulating a backup taken before that column
-    /// existed (as opposed to <see cref="BuildLegacyBackupStreamRemovingTablesAsync"/>, which removes an
-    /// entire table).
-    /// </summary>
-    /// <param name="backup">The current-schema backup to derive the legacy archive from.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The rebuilt legacy backup archive, positioned at the start.</returns>
-    private static async Task<MemoryStream> BuildLegacyBackupStreamWithoutPlaylistEntriesSortOrderColumnAsync(
-        VideoWebPlayerBackupData backup, CancellationToken cancellationToken)
-    {
-        using var currentStream = new MemoryStream();
-        await backup.WriteToAsync(currentStream, cancellationToken);
-        currentStream.Position = 0;
-
-        using var originalArchive = new ZipArchive(currentStream, ZipArchiveMode.Read, true);
-        var legacyStream = new MemoryStream();
-
-        using (var legacyArchive = new ZipArchive(legacyStream, ZipArchiveMode.Create, true))
-        {
-            var indexEntry = originalArchive.GetEntry("index.json")!;
-            JsonNode? indexNode;
-            using (var indexStream = indexEntry.Open())
-            {
-                indexNode = await JsonNode.ParseAsync(indexStream, cancellationToken: cancellationToken);
-            }
-
-            var tables = indexNode!["tables"]!.AsArray();
-            var playlistEntriesTable = tables.First(t =>
-                string.Equals(t!["name"]!.GetValue<string>(), "PlaylistEntries", StringComparison.OrdinalIgnoreCase))!;
-            var playlistEntriesEntryName = playlistEntriesTable["entryName"]!.GetValue<string>();
-
-            var columns = playlistEntriesTable["columns"]!.AsArray();
-            var sortOrderColumn = columns.FirstOrDefault(c => string.Equals(c!.GetValue<string>(), "SortOrder", StringComparison.OrdinalIgnoreCase));
-            if (sortOrderColumn is not null)
-                columns.Remove(sortOrderColumn);
-
-            var newIndexEntry = legacyArchive.CreateEntry("index.json");
-            using (var newIndexStream = newIndexEntry.Open())
-            {
-                await using var writer = new Utf8JsonWriter(newIndexStream, new JsonWriterOptions { Indented = true });
-                indexNode!.WriteTo(writer, JsonOptions);
-                await writer.FlushAsync(cancellationToken);
-            }
-
-            foreach (var entry in originalArchive.Entries)
-            {
-                if (entry.FullName == "index.json")
-                    continue;
-
-                if (string.Equals(entry.FullName, playlistEntriesEntryName, StringComparison.OrdinalIgnoreCase))
-                {
-                    JsonNode? dataNode;
-                    using (var dataStream = entry.Open())
-                    {
-                        dataNode = await JsonNode.ParseAsync(dataStream, cancellationToken: cancellationToken);
-                    }
-
-                    foreach (var row in dataNode!["rows"]!.AsArray())
-                    {
-                        row!.AsObject().Remove("SortOrder");
-                    }
-
-                    var newDataEntry = legacyArchive.CreateEntry(entry.FullName);
-                    using (var newDataStream = newDataEntry.Open())
-                    {
-                        await using var writer = new Utf8JsonWriter(newDataStream, new JsonWriterOptions { Indented = true });
-                        dataNode!.WriteTo(writer, JsonOptions);
-                        await writer.FlushAsync(cancellationToken);
-                    }
-                }
-                else
-                {
-                    var newEntry = legacyArchive.CreateEntry(entry.FullName);
-                    using var sourceStream = entry.Open();
-                    using var destinationStream = newEntry.Open();
-                    await sourceStream.CopyToAsync(destinationStream, cancellationToken);
-                }
-            }
-        }
-
-        legacyStream.Position = 0;
-        return legacyStream;
-    }
-
-    /// <summary>
-    /// Backs up <paramref name="backup"/>'s current schema and rebuilds the archive with the
-    /// <c>ContinueWatchingEntries</c> table's <c>PlaylistId</c> column removed from both the index
-    /// metadata's column list and every already-backed-up row's data, simulating a backup taken before
-    /// that column existed (analogous to
-    /// <see cref="BuildLegacyBackupStreamWithoutPlaylistEntriesSortOrderColumnAsync"/> above for
-    /// <c>PlaylistEntries.SortOrder</c>).
-    /// </summary>
-    /// <param name="backup">The current-schema backup to derive the legacy archive from.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The rebuilt legacy backup archive, positioned at the start.</returns>
-    private static async Task<MemoryStream> BuildLegacyBackupStreamWithoutContinueWatchingEntriesPlaylistIdColumnAsync(
-        VideoWebPlayerBackupData backup, CancellationToken cancellationToken)
-    {
-        using var currentStream = new MemoryStream();
-        await backup.WriteToAsync(currentStream, cancellationToken);
-        currentStream.Position = 0;
-
-        using var originalArchive = new ZipArchive(currentStream, ZipArchiveMode.Read, true);
-        var legacyStream = new MemoryStream();
-
-        using (var legacyArchive = new ZipArchive(legacyStream, ZipArchiveMode.Create, true))
-        {
-            var indexEntry = originalArchive.GetEntry("index.json")!;
-            JsonNode? indexNode;
-            using (var indexStream = indexEntry.Open())
-            {
-                indexNode = await JsonNode.ParseAsync(indexStream, cancellationToken: cancellationToken);
-            }
-
-            var tables = indexNode!["tables"]!.AsArray();
-            var continueWatchingEntriesTable = tables.First(t =>
-                string.Equals(t!["name"]!.GetValue<string>(), "ContinueWatchingEntries", StringComparison.OrdinalIgnoreCase))!;
-            var continueWatchingEntriesEntryName = continueWatchingEntriesTable["entryName"]!.GetValue<string>();
-
-            var columns = continueWatchingEntriesTable["columns"]!.AsArray();
-            var playlistIdColumn = columns.FirstOrDefault(c => string.Equals(c!.GetValue<string>(), "PlaylistId", StringComparison.OrdinalIgnoreCase));
-            if (playlistIdColumn is not null)
-                columns.Remove(playlistIdColumn);
-
-            var newIndexEntry = legacyArchive.CreateEntry("index.json");
-            using (var newIndexStream = newIndexEntry.Open())
-            {
-                await using var writer = new Utf8JsonWriter(newIndexStream, new JsonWriterOptions { Indented = true });
-                indexNode!.WriteTo(writer, JsonOptions);
-                await writer.FlushAsync(cancellationToken);
-            }
-
-            foreach (var entry in originalArchive.Entries)
-            {
-                if (entry.FullName == "index.json")
-                    continue;
-
-                if (string.Equals(entry.FullName, continueWatchingEntriesEntryName, StringComparison.OrdinalIgnoreCase))
-                {
-                    JsonNode? dataNode;
-                    using (var dataStream = entry.Open())
-                    {
-                        dataNode = await JsonNode.ParseAsync(dataStream, cancellationToken: cancellationToken);
-                    }
-
-                    foreach (var row in dataNode!["rows"]!.AsArray())
-                    {
-                        row!.AsObject().Remove("PlaylistId");
-                    }
-
-                    var newDataEntry = legacyArchive.CreateEntry(entry.FullName);
-                    using (var newDataStream = newDataEntry.Open())
-                    {
-                        await using var writer = new Utf8JsonWriter(newDataStream, new JsonWriterOptions { Indented = true });
-                        dataNode!.WriteTo(writer, JsonOptions);
-                        await writer.FlushAsync(cancellationToken);
-                    }
-                }
-                else
-                {
-                    var newEntry = legacyArchive.CreateEntry(entry.FullName);
-                    using var sourceStream = entry.Open();
-                    using var destinationStream = newEntry.Open();
-                    await sourceStream.CopyToAsync(destinationStream, cancellationToken);
-                }
-            }
-        }
-
-        legacyStream.Position = 0;
-        return legacyStream;
-    }
-
     private static string GetSetupsEntryName(ZipArchive archive)
     {
         var indexEntry = archive.GetEntry("index.json")!;
@@ -1243,41 +773,19 @@ public sealed class VideoWebPlayerBackupDataTests
         return setupsTable["entryName"]!.GetValue<string>();
     }
 
+    /// <summary>
+    /// Verifies that a backup taken before <c>MediaSources.SourceType</c> existed (local directories as a
+    /// media source type) can still be restored, with the missing column defaulting to
+    /// <see cref="MediaSourceType.Sftp"/> — the only type that existed back then.
+    /// </summary>
     [Fact]
     public async Task ReadFromAsync_LegacyBackupWithoutMediaSourceSourceType_RestoresWithSftpDefault()
     {
-        var connectionString = "Data Source=file:backuptest-sourcetype?mode=memory&cache=shared";
-        using var connection = new SqliteConnection(connectionString);
-        await connection.OpenAsync(TestContext.Current.CancellationToken);
-
-        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseSqlite(connection)
-            .Options;
-
-        await using var db = new ApplicationDbContext(options, new EventManager());
-        await db.Database.EnsureCreatedAsync(TestContext.Current.CancellationToken);
-
-        var userId = Guid.NewGuid().ToString();
-        db.Users.Add(new ApplicationUser
-        {
-            Id = userId,
-            UserName = "admin",
-            NormalizedUserName = "ADMIN",
-            Email = "admin@test.de",
-            NormalizedEmail = "ADMIN@TEST.DE",
-            PasswordHash = "hash",
-            SecurityStamp = "stamp",
-            ConcurrencyStamp = Guid.NewGuid().ToString(),
-            Sources = string.Empty,
-            IsAdmin = true
-        });
-
-        db.Setups.Add(new Setup
-        {
-            DataVersion = 1,
-            GenresChanged = false,
-            ContinueWatchingEndThresholdSeconds = 42
-        });
+        var ct = TestContext.Current.CancellationToken;
+        using var connection = new SqliteConnection("Data Source=file:backuptest-sourcetype?mode=memory&cache=shared");
+        await connection.OpenAsync(ct);
+        var (db, backup, _) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
+        await using var dbLifetime = db;
 
         db.MediaSources.Add(new MediaSource
         {
@@ -1288,123 +796,23 @@ public sealed class VideoWebPlayerBackupDataTests
             SourceType = MediaSourceType.LocalDirectory,
             CreatedAt = DateTime.UtcNow
         });
+        await db.SaveChangesAsync(ct);
 
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        using var legacyStream = await LegacyBackupArchiveBuilder.RemoveColumnsAsync(
+            backup, "MediaSources", new[] { "SourceType" }, ct);
 
-        var environment = new FakeWebHostEnvironment();
-        var logger = NullLogger<VideoWebPlayerBackupData>.Instance;
-        var factory = new VideoWebPlayerBackupDataFactory(new ServiceCollection().BuildServiceProvider(), environment, logger)
-        {
-            UserId = userId
-        };
+        // Verify the simulated legacy backup really lacks the new optional column.
+        var mediaSourceColumns = await LegacyBackupArchiveBuilder.ReadTableColumnsAsync(legacyStream, "MediaSources", ct);
+        Assert.NotNull(mediaSourceColumns);
+        Assert.DoesNotContain("SourceType", mediaSourceColumns!);
+        Assert.Contains("Name", mediaSourceColumns!);
 
-        var backup = new VideoWebPlayerBackupData(
-            "test",
-            "VideoWebPlayer:Database",
-            db,
-            environment,
-            logger,
-            factory);
-
-        using var currentStream = new MemoryStream();
-        await backup.WriteToAsync(currentStream, TestContext.Current.CancellationToken);
-        currentStream.Position = 0;
-
-        // Simulate an old backup that does not yet contain the MediaSources.SourceType column.
-        using var originalArchive = new ZipArchive(currentStream, ZipArchiveMode.Read, true);
-        using var legacyStream = new MemoryStream();
-        var mediaSourcesEntryName = string.Empty;
-
-        using (var legacyArchive = new ZipArchive(legacyStream, ZipArchiveMode.Create, true))
-        {
-            var indexEntry = originalArchive.GetEntry("index.json")!;
-            JsonNode? indexNode;
-            using (var indexStream = indexEntry.Open())
-            {
-                indexNode = await JsonNode.ParseAsync(indexStream, cancellationToken: TestContext.Current.CancellationToken);
-            }
-
-            var tables = indexNode!["tables"]!.AsArray();
-            var mediaSourcesTable = tables.First(t =>
-                string.Equals(t!["name"]!.GetValue<string>(), "MediaSources", StringComparison.OrdinalIgnoreCase));
-            mediaSourcesEntryName = mediaSourcesTable!["entryName"]!.GetValue<string>();
-
-            var columns = mediaSourcesTable["columns"]!.AsArray();
-            var sourceTypeColumn = columns.FirstOrDefault(c =>
-                string.Equals(c!.GetValue<string>(), "SourceType", StringComparison.OrdinalIgnoreCase));
-            Assert.NotNull(sourceTypeColumn);
-            columns.RemoveAt(columns.IndexOf(sourceTypeColumn));
-
-            var newIndexEntry = legacyArchive.CreateEntry("index.json");
-            using (var newIndexStream = newIndexEntry.Open())
-            {
-                await using var writer = new Utf8JsonWriter(newIndexStream, new JsonWriterOptions { Indented = true });
-                indexNode!.WriteTo(writer, JsonOptions);
-                await writer.FlushAsync(TestContext.Current.CancellationToken);
-            }
-
-            foreach (var entry in originalArchive.Entries)
-            {
-                if (entry.FullName == "index.json")
-                    continue;
-
-                var newEntry = legacyArchive.CreateEntry(entry.FullName);
-                if (string.Equals(entry.FullName, mediaSourcesEntryName, StringComparison.OrdinalIgnoreCase))
-                {
-                    JsonNode? tableData;
-                    using (var sourceStream = entry.Open())
-                    {
-                        tableData = await JsonNode.ParseAsync(sourceStream, cancellationToken: TestContext.Current.CancellationToken);
-                    }
-
-                    foreach (var row in tableData!["rows"]!.AsArray())
-                    {
-                        row!.AsObject().Remove("SourceType");
-                    }
-
-                    using var newEntryStream = newEntry.Open();
-                    await using var writer = new Utf8JsonWriter(newEntryStream, new JsonWriterOptions { Indented = true });
-                    tableData.WriteTo(writer, JsonOptions);
-                    await writer.FlushAsync(TestContext.Current.CancellationToken);
-                }
-                else
-                {
-                    using var sourceStream = entry.Open();
-                    using var destinationStream = newEntry.Open();
-                    await sourceStream.CopyToAsync(destinationStream, TestContext.Current.CancellationToken);
-                }
-            }
-        }
-
-        legacyStream.Position = 0;
-
-        using (var checkArchive = new ZipArchive(legacyStream, ZipArchiveMode.Read, true))
-        {
-            var checkEntry = checkArchive.GetEntry(mediaSourcesEntryName)!;
-            using var checkStream = checkEntry.Open();
-            var checkText = await new StreamReader(checkStream).ReadToEndAsync(TestContext.Current.CancellationToken);
-            Assert.DoesNotContain("SourceType", checkText);
-        }
-
-        legacyStream.Position = 0;
-
-        var exception = await Record.ExceptionAsync(async () =>
-            await backup.ReadFromAsync(legacyStream, TestContext.Current.CancellationToken));
+        // This must not throw even though the backup lacks the new column.
+        var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
 
         Assert.Null(exception);
-
-        await using var verifyDb = new ApplicationDbContext(options, new EventManager());
-        var restored = await verifyDb.MediaSources.SingleAsync(ms => ms.Name == "SFTP Source", TestContext.Current.CancellationToken);
+        var restored = await db.MediaSources.AsNoTracking().SingleAsync(ms => ms.Name == "SFTP Source", ct);
         Assert.Equal(MediaSourceType.Sftp, restored.SourceType);
     }
 
-    private sealed class FakeWebHostEnvironment : IWebHostEnvironment
-    {
-        public string ApplicationName { get; set; } = "VideoWebPlayer";
-        public string EnvironmentName { get; set; } = "Test";
-        public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
-        public string WebRootPath { get; set; } = AppContext.BaseDirectory;
-        public IFileProvider ContentRootFileProvider { get; set; } = null!;
-        public IFileProvider WebRootFileProvider { get; set; } = null!;
-    }
 }

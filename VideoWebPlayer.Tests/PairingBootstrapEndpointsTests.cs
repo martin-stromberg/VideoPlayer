@@ -19,7 +19,7 @@ namespace VideoWebPlayer.Tests;
 /// </summary>
 public sealed class PairingBootstrapEndpointsTests : IAsyncLifetime
 {
-    private const string MauiGateKey = "test-maui-api-token";
+    private const string MauiGateKey = PairingWebApplicationFactory.MauiApiToken;
     private readonly string _dbPath;
     private readonly WebApplicationFactory<global::Program> _factory;
     private HttpClient _client = null!;

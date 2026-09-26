@@ -234,4 +234,52 @@ public class PlaylistsControllerTests_Reorder : PlaylistsControllerTestBase
 
         Assert.IsType<BadRequestObjectResult>(result);
     }
+
+    /// <summary>
+    /// Pins the status code documented in <c>docs/API.md</c> for an entry without a manual sort position:
+    /// <c>PlaylistEntryReorderService.MoveEntryBetweenAsync</c> throws a plain
+    /// <see cref="InvalidOperationException"/> for this case, and <c>MoveEntryBetween</c> passes no
+    /// <c>mapInvalidOperation</c>, so the generic branch answers with 400 Bad Request — not with the
+    /// 409 Conflict that only the "not in manual sort mode" case produces.
+    /// </summary>
+    [Fact]
+    public async Task MoveEntryBetween_EntryWithoutSortOrder_Returns400BadRequest()
+    {
+        var playlistId = await CreateManualPlaylistAsync();
+        var entryId = await AddEntryAsync(playlistId, "Film 1");
+        await ClearSortOrderAsync(entryId);
+
+        var result = await _controller.MoveEntryBetween(playlistId, entryId, new DtoReorderPlaylistEntryRequest { NewSortOrder = 0 });
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    /// <summary>
+    /// Counterpart of <see cref="MoveEntryBetween_EntryWithoutSortOrder_Returns400BadRequest"/> for
+    /// <c>MoveEntryToBeginning</c>, which delegates to the same service method with target position 0 and
+    /// therefore answers with the same 400 Bad Request.
+    /// </summary>
+    [Fact]
+    public async Task MoveEntryToBeginning_EntryWithoutSortOrder_Returns400BadRequest()
+    {
+        var playlistId = await CreateManualPlaylistAsync();
+        var entryId = await AddEntryAsync(playlistId, "Film 1");
+        await ClearSortOrderAsync(entryId);
+
+        var result = await _controller.MoveEntryToBeginning(playlistId, entryId);
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    /// <summary>
+    /// Removes the manual sort position of a playlist entry directly in the database, the state the
+    /// reorder service rejects.
+    /// </summary>
+    /// <param name="entryId">The playlist entry identifier.</param>
+    private async Task ClearSortOrderAsync(long entryId)
+    {
+        var entry = await _db.PlaylistEntries.SingleAsync(e => e.Id == entryId, TestContext.Current.CancellationToken);
+        entry.SortOrder = null;
+        await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
+    }
 }

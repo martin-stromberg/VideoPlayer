@@ -3,7 +3,7 @@
 > **Dokumenttyp**: Technische Dokumentation  
 > **Zielgruppe**: Backend-Entwickler, API-Integratoren  
 > **Version**: 1.0  
-> **Letzte Aktualisierung**: 2026-08-25
+> **Letzte Aktualisierung**: 2026-09-26
 
 Diese Datei beschreibt den versionierten API-Vertrag des Web-Repositorys. Die DTOs liegen unter `VideoWebPlayer.Client/`.
 
@@ -14,6 +14,7 @@ Diese Datei beschreibt den versionierten API-Vertrag des Web-Repositorys. Die DT
 - `POST /api/pairing/exchange` und `POST /api/pairing/bootstrap` sind ohne Authentifizierung erreichbar und dienen dem Geräte-Pairing (siehe Abschnitt [Pairing](#pairing)).
 - `POST /api/auth/login`, `POST /api/auth/refresh` und `POST /api/auth/logout` benötigen den Header `X-API-Key: <GERÄTE_TOKEN>`. Als Geräte-Tokens gelten die in der Datenbank gespeicherten, nicht widerrufenen Tokens aus dem Pairing-Verfahren. Zusätzlich bleibt der statische Konfigurationstoken `Jwt:ApiToken:Maui` als Fallback für ältere App-Versionen akzeptiert.
 - Alle übrigen API-Endpunkte benötigen `Authorization: Bearer <JWT_ACCESS_TOKEN>`, sofern sie nicht ausdrücklich als öffentlich dokumentiert sind.
+- Bei **jedem** dieser Endpunkte kann der Anmeldenachweis alternativ als Abfrageparameter `?access_token=<JWT_ACCESS_TOKEN>` mitgegeben werden — der Server prüft zuerst den `Authorization`-Header und greift nur bei dessen Fehlen auf den Abfrageparameter zurück. Nötig ist das für Abrufe, die ein Browser ohne eigene Header auslöst (Bilder in `<img>`, Videoströme in `<video>`, SignalR über WebSockets); es funktioniert aber bei allen Endpunkten gleichermaßen, auch bei `POST`, `PUT`, `PATCH` und `DELETE`. Ein mitgegebener `Authorization`-Header hat immer Vorrang. Weil der Wert dabei in der URL steht und damit in Server- und Proxy-Protokollen landen kann, wird er nur verwendet, wo ein Header nicht möglich ist.
 - Der API-Key ist ein Client-Gate und kein Ersatz für ein Benutzer-Secret oder die JWT-Autorisierung. Backendwerte sind als sensible Konfigurationswerte zu behandeln und dürfen nur aus kontrollierten Konfigurationsquellen kommen.
 - JWT-Signaturschlüssel und produktive API-Tokens werden ausschließlich über User Secrets, Umgebungsvariablen oder ein Secret-Management-System gesetzt.
 - Widerruf: Ein in der Admin-Oberfläche (`/admin/devices`) widerrufenes Geräte-Token wird beim Gate sofort mit `401` abgelehnt. Bereits ausgestellte Benutzer-JWTs bleiben bis zu ihrem Ablauf (12 Stunden) gültig.
@@ -28,8 +29,11 @@ Diese Datei beschreibt den versionierten API-Vertrag des Web-Repositorys. Die DT
 | `401 Unauthorized` | API-Key fehlt/ist falsch oder Bearer-Token fehlt/ist ungültig. |
 | `403 Forbidden` | Benutzer ist angemeldet, besitzt aber keinen Zugriff auf die Quelle oder das Bild. |
 | `404 Not Found` | Ressource existiert nicht oder ist für den Benutzer nicht erreichbar. |
+| `409 Conflict` | Der Aufruf würde Daten verlieren oder widerspricht dem aktuellen Zustand; die Antwort nennt die erforderliche Bestätigung. |
 | `429 Too Many Requests` | Die Client-IP ist wegen wiederholter Fehlversuche gesperrt. |
 | `500 Internal Server Error` | Unerwarteter Serverfehler. |
+
+Die Playlist-Endpunkte halten sich an diese Tabelle. Bei den Medien-Endpunkten (`GET /api/items/{type}/{id}`, `.../stream`, `.../download`) weicht das heutige Verhalten davon ab: Fehlt einem **angemeldeten** Anwender die Freischaltung, antworten sie mit `401 Unauthorized` statt mit `403 Forbidden`; eine unbekannte Kennung oder ein Titel ohne hinterlegte Videodatei ergibt in einem Teil der Fälle `500 Internal Server Error` statt `404 Not Found`. Ein Client sollte ein `401` von diesen Endpunkten daher nicht als „Sitzung abgelaufen“ deuten und keine Sitzungserneuerung auslösen. Die Korrektur auf `403` bzw. `404` ist als eigene Anforderung erfasst; bis dahin gilt das hier beschriebene Verhalten.
 
 ## Health und Login
 
@@ -190,7 +194,9 @@ Fehlercodes:
 
 Hinweise:
 
-- Ticket, Kurzcode, Geräte-Token und Refresh-Token werden ausschließlich als SHA-256-Hash gespeichert; die Klartexte verlassen den Server nur verschlüsselt (Ticket/Kurzcode) bzw. im verschlüsselten Payload.
+- Geschützt ist ausschließlich die **Antwort**: `encryptedPayload` (Geräte-Token, JWT, Refresh-Token) ist mit AES-256-GCM über dem ECDH-Schlüssel verschlüsselt. `ticket` (bzw. der Kurzcode), `clientPublicKey` und `deviceName` werden dagegen **unverschlüsselt** übertragen — das Ticket steht im Klartext in der QR-Nutzlast (`?t=<ticket>`), der Kurzcode wird auf der Profilseite im Klartext angezeigt, und beides geht unverschlüsselt im Request-Body an den Server zurück (siehe Request-Block oben).
+- Folge in einem Netz ohne TLS: Ein mitgelesenes Ticket lässt sich innerhalb seiner Gültigkeit einlösen und ergibt dann nicht nur ein Geräte-Token, sondern eine vollständige Benutzersitzung (JWT und Refresh-Token). Das Zeitfenster ist mit Einmalverwendung und Standard-Gültigkeit von 5 Minuten (`Pairing:BootstrapTicketTtlMinutes`) knapp gehalten; für den Bootstrap wird TLS dennoch ausdrücklich empfohlen, anders als beim Exchange, wo nur ein Geräte-Token auf dem Spiel steht.
+- Gespeichert werden Ticket, Kurzcode, Geräte-Token und Refresh-Token ausschließlich als SHA-256-Hash; die Klartexte liegen nie in der Datenbank.
 - Ein bereits verbrauchtes oder abgelaufenes Ticket kann nicht erneut eingelöst werden; der Anwender erzeugt dann auf der Profilseite ein neues Ticket.
 
 ### POST /api/auth/refresh
@@ -484,7 +490,8 @@ vollständige Zuordnung lesend/schreibend je Endpunkt steht in
 ### GET /api/playlists
 
 Liefert alle Playlists des aktuellen Benutzers als `DtoPlaylist[]` (nur die eigenen, keine öffentlichen
-Playlists anderer).
+Playlists anderer). Optional `?genreId=<id>` als Filter: Es werden nur Playlists geliefert, die dieses
+Genre führen.
 
 ### GET /api/playlists/public
 
@@ -589,20 +596,33 @@ Entfernt einen Medieninhalt aus der Playlist. `mediaType` wird case-insensitiv v
 vor dem Abgleich auf die kanonische Schreibweise normalisiert (z. B. `"movie"` findet denselben
 Eintrag wie `"Movie"`).
 
+Query:
+
+| Name | Typ | Beschreibung |
+|------|-----|--------------|
+| `confirmContinueWatchingRemoval` | `bool` | Standard `false`. Bestätigt das Entfernen, obwohl ein Weiterschauen-Eintrag **dieser** Playlist noch auf den Titel verweist. Ohne Bezug wirkungslos. |
+
 Antwort: `204 No Content`.
 
 - `400 Bad Request`, wenn `mediaType` keinem unterstützten Medientyp entspricht.
+- `409 Conflict` mit `DtoRemovePlaylistEntryConflictResponse`
+  (`{ "isContinueWatchingConfirmationRequired": true }`), wenn ein Weiterschauen-Eintrag dieser
+  Playlist auf den Titel verweist und `confirmContinueWatchingRemoval` nicht `true` ist. Es wird
+  dabei nichts entfernt; der Client fragt den Anwender und wiederholt den Aufruf mit
+  `confirmContinueWatchingRemoval=true`. Nach der Bestätigung wird der Weiterschauen-Eintrag durch
+  den nächsten verfügbaren Titel derselben Playlist ersetzt oder entfernt.
 - `404 Not Found`, wenn kein passender Eintrag in der Playlist vorhanden ist.
 - `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
 
 ### GET /api/playlists/{id}/entries
 
-Liefert alle Einträge einer Playlist als `DtoPlaylistEntry[]` (unsortiert). Einträge, deren
-referenzierter Medieninhalt nicht mehr existiert, werden dabei still aus der Datenbank entfernt
-und nicht in der Antwort aufgeführt.
+Liefert alle Einträge einer Playlist als `DtoPlaylistEntry[]`, sortiert gemäß `Playlist.SortMode`
+und damit in derselben Reihenfolge wie `GET /api/playlists/{id}/entries/paged` (siehe dort,
+Abschnitt „Sortierung“). Einträge, deren referenzierter Medieninhalt nicht mehr existiert, werden
+dabei still aus der Datenbank entfernt und nicht in der Antwort aufgeführt.
 
 - `404 Not Found`, wenn keine Playlist mit dieser ID existiert.
-- `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
+- `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört und nicht öffentlich ist.
 
 ### GET /api/playlists/{id}/entries/paged
 
@@ -621,8 +641,10 @@ beim Scrollen (Virtual Scrolling) verwendet. Verwaiste Einträge werden wie bei
 **Sortierung:** Ist `Playlist.SortMode` auf `ByReleaseDate` gesetzt, werden die Einträge nach
 Erscheinungsdatum des referenzierten Medieninhalts sortiert; fehlt dieses, wird auf
 Hierarchie-Reihenfolge (übergeordnete Serie/Staffel, dann Episoden-/Staffelnummer) und zuletzt auf
-den Zeitpunkt des Hinzufügens (`AddedAt`) zurückgefallen. Bei `Manual` wird nach `AddedAt`
-sortiert.
+den Zeitpunkt des Hinzufügens (`AddedAt`) zurückgefallen. Bei `Manual` wird nach `SortOrder`
+(aufsteigend) sortiert; Einträge ohne gesetzte `SortOrder` stehen vorn, Gleichstände werden nach
+`AddedAt` (aufsteigend) aufgelöst — die manuelle Reihenfolge kommt also bereits sortiert vom
+Server und darf vom Client nicht nachsortiert werden.
 
 Antwort (`DtoPlaylistEntriesPagedResult`):
 
@@ -637,6 +659,340 @@ Antwort (`DtoPlaylistEntriesPagedResult`):
 ```
 
 - `400 Bad Request`, wenn `pageNumber < 1` oder `pageSize` außerhalb von `1..MaxPageSize` liegt.
+- `404 Not Found`, wenn keine Playlist mit dieser ID existiert.
+- `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört und nicht öffentlich ist.
+
+### PUT /api/playlists/{id}/entries/{entryId}/order
+
+Setzt die manuelle Sortierposition (`SortOrder`) eines einzelnen Eintrags. Nur im Sortiermodus `Manual`
+verwendbar; benachbarte Einträge werden **nicht** automatisch angepasst (dafür gibt es
+`move-to-beginning` und `move-between`). Nur der Besitzer.
+
+Request (`DtoReorderPlaylistEntryRequest`):
+
+```json
+{
+  "newSortOrder": 3
+}
+```
+
+Antwort: `200 OK` ohne Nutzlast.
+
+- `400 Bad Request`, wenn `newSortOrder` negativ oder der Anfrage-Body leer ist.
+- `409 Conflict`, wenn die Playlist nicht im Sortiermodus `Manual` ist.
+- `404 Not Found`, wenn die Playlist oder der Eintrag nicht existiert.
+- `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
+
+### POST /api/playlists/{id}/entries/batch-reorder
+
+Setzt die Sortierpositionen mehrerer Einträge in einer atomaren Operation (alle oder keine). Nur im
+Sortiermodus `Manual`; nur der Besitzer.
+
+Request (`DtoBatchReorderPlaylistEntriesRequest`):
+
+```json
+{
+  "reorderOperations": [
+    { "entryId": 456, "newSortOrder": 0 },
+    { "entryId": 457, "newSortOrder": 1 }
+  ]
+}
+```
+
+Innerhalb der Anfrage müssen sowohl die `entryId`- als auch die `newSortOrder`-Werte eindeutig sein; eine
+Kollision mit einem nicht in der Anfrage enthaltenen Eintrag ist dagegen erlaubt.
+
+Antwort: `DtoPlaylistEntry[]` der aktualisierten Einträge.
+
+- `400 Bad Request` bei leerer Liste, doppelter `entryId` oder negativem `newSortOrder`.
+- `409 Conflict` bei doppeltem `newSortOrder` innerhalb der Anfrage oder wenn die Playlist nicht im
+  Sortiermodus `Manual` ist.
+- `404 Not Found`, wenn die Playlist oder mindestens ein Eintrag nicht existiert.
+- `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
+
+### GET /api/playlists/{id}/entries/max-sort-order
+
+Liefert die höchste vergebene Sortierposition über die **gesamte** Playlist (nicht nur die geladene Seite)
+für die Schnellaktion „An Ende“. Hilfsabfrage der Umsortierung und daher wie ein schreibender Zugriff
+behandelt: nur der Besitzer.
+
+Antwort (`DtoMaxSortOrderResult`):
+
+```json
+{
+  "maxSortOrder": 12
+}
+```
+
+`maxSortOrder` ist `null`, wenn kein Eintrag eine Sortierposition gesetzt hat (leere Playlist oder noch
+nie im Sortiermodus `Manual`).
+
+- `404 Not Found`, wenn keine Playlist mit dieser ID existiert.
+- `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
+
+### POST /api/playlists/{id}/entries/{entryId}/move-to-beginning
+
+Verschiebt einen Eintrag an die erste Position der manuellen Reihenfolge und schiebt dabei alle übrigen
+Einträge atomar um eins nach hinten. Nur im Sortiermodus `Manual`; nur der Besitzer. Kein Request-Body.
+
+Antwort: das aktualisierte `DtoPlaylistEntry` (`sortOrder = 0`).
+
+- `400 Bad Request`, wenn der Eintrag keine Sortierposition gesetzt hat (der Endpunkt führt
+  intern denselben Ablauf aus wie `move-between` mit Zielposition 0).
+- `409 Conflict`, wenn die Playlist nicht im Sortiermodus `Manual` ist.
+- `404 Not Found`, wenn die Playlist oder der Eintrag nicht existiert.
+- `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
+
+### POST /api/playlists/{id}/entries/{entryId}/move-between
+
+Verschiebt einen Eintrag auf eine beliebige Zielposition und schiebt dabei alle Einträge zwischen
+bisheriger und Zielposition atomar um eins in die Gegenrichtung. Das ist der Endpunkt, den das Umsortieren
+per Ziehen (Drag & Drop) verwendet — im Unterschied zu `.../order` kollidiert er nie mit der
+Sortierposition des Zieleintrags. Nur im Sortiermodus `Manual`; nur der Besitzer.
+
+Request (`DtoReorderPlaylistEntryRequest`): dieselbe Struktur wie bei `.../order`; `newSortOrder` ist die
+Zielposition.
+
+Antwort: `200 OK` ohne Nutzlast.
+
+- `400 Bad Request`, wenn `newSortOrder` negativ ist, der Anfrage-Body leer ist oder der Eintrag
+  keine Sortierposition gesetzt hat.
+- `409 Conflict`, wenn die Playlist nicht im Sortiermodus `Manual` ist.
+- `404 Not Found`, wenn die Playlist oder der Eintrag nicht existiert.
+- `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
+
+### PATCH /api/playlists/{id}/sort-mode
+
+Ändert den Sortiermodus einer Playlist. Nur der Besitzer.
+
+Request (`DtoChangeSortModeRequest`):
+
+```json
+{
+  "newSortMode": "Manual",
+  "confirmLossOfManualOrder": false
+}
+```
+
+- `ByReleaseDate` → `Manual`: Jedem Eintrag wird einmalig eine fortlaufende Sortierposition zugewiesen,
+  die der zuletzt angezeigten Reihenfolge entspricht. Keine Bestätigung nötig.
+- `Manual` → `ByReleaseDate`: Die manuelle Reihenfolge geht verloren, daher ist
+  `confirmLossOfManualOrder: true` erforderlich.
+- Ist der Zielmodus schon der aktuelle, ändert sich nichts.
+
+Antwort: aktualisiertes `DtoPlaylist`.
+
+- `400 Bad Request`, wenn `newSortMode` kein gültiger Modus ist oder der Anfrage-Body leer ist.
+- `409 Conflict` mit `DtoChangeSortModeConflictResponse`
+  (`{ "isLossOfDataConfirmationRequired": true }`), wenn von `Manual` nach `ByReleaseDate` ohne
+  Bestätigung gewechselt wird. Es wird dabei nichts verändert.
+- `404 Not Found`, wenn keine Playlist mit dieser ID existiert.
+- `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
+
+### PUT /api/playlists/{id}/genres
+
+Überschreibt die Genres einer Playlist mit genau den angegebenen Genre-IDs und setzt
+`genresManuallyOverridden` auf `true`; die automatische Ableitung aus den Inhalten ruht danach. Nur der
+Besitzer. Einen eigenen Lese-Endpunkt gibt es nicht — die Genres sind Teil von `DtoPlaylist`.
+
+Request (`DtoSetPlaylistGenresRequest`):
+
+```json
+{
+  "genreIds": [12, 47]
+}
+```
+
+Unbekannte IDs werden stillschweigend ignoriert. Antwort: aktualisiertes `DtoPlaylist` mit
+`genresManuallyOverridden: true`.
+
+- `400 Bad Request`, wenn der Anfrage-Body leer ist.
+- `404 Not Found`, wenn keine Playlist mit dieser ID existiert.
+- `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
+
+### POST /api/playlists/{id}/genres/reset
+
+Hebt eine manuelle Genre-Auswahl auf (`genresManuallyOverridden` wird `false`) und berechnet die Genres
+sofort aus den aktuellen Inhalten neu. Nur der Besitzer. Kein Request-Body.
+
+Antwort: aktualisiertes `DtoPlaylist`.
+
+- `404 Not Found`, wenn keine Playlist mit dieser ID existiert.
+- `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
+
+### POST /api/playlists/{id}/play
+
+Startet die Wiedergabe einer Playlist. Lesender Zugriff: der Besitzer, oder jeder angemeldete Anwender,
+solange die Playlist öffentlich ist. Die Endpunkte der Wiedergabe sind zustandslos — der Server merkt
+sich keinen Wiedergabe-Kontext, der Client übergibt ihn bei jedem Aufruf. Nicht abspielbare
+Sammel-Einträge (`TVShow`, `TVShowSeason`, `MovieCollection`) und Einträge ohne Freischaltung des
+Anfragenden werden bei der Auswahl übersprungen.
+
+Query:
+
+| Name | Typ | Beschreibung |
+|------|-----|--------------|
+| `entryId` | `long?` | Eintrag, an dem die Wiedergabe beginnen soll; ohne Angabe der erste abspielbare, zugängliche Eintrag. |
+
+Antwort (`DtoPlaylistPlaybackStart`):
+
+```json
+{
+  "playlistId": 1,
+  "playlistName": "Meine Favoriten",
+  "totalCount": 12,
+  "currentPosition": 3,
+  "currentEntryId": 458,
+  "currentEntry": { "id": 458, "mediaType": "TVShowEpisode", "mediaId": 1001, "..." : "..." },
+  "streamUrl": "/api/items/tvshowepisode/1001/stream",
+  "mediaType": "episode",
+  "mediaId": 1001
+}
+```
+
+`streamUrl` enthält bewusst keinen `access_token`-Parameter; der Client hängt seinen eigenen
+Anmeldenachweis selbst an.
+
+- `400 Bad Request`, wenn die Playlist keinen abspielbaren, zugänglichen Eintrag enthält (ohne `entryId`)
+  oder der angegebene `entryId` ein nicht abspielbarer Sammel-Eintrag ist.
+- `403 Forbidden`, wenn die Playlist privat und fremd ist oder der angegebene `entryId` für den
+  Anfragenden nicht freigeschaltet ist.
+- `404 Not Found`, wenn die Playlist nicht existiert oder der `entryId` nicht zu ihr gehört.
+
+### POST /api/playlists/{id}/play/next
+
+Liefert den nächsten abspielbaren und zugänglichen Eintrag nach `currentEntryId` in der aktuell gültigen
+Sortierung. Lesender Zugriff wie bei `.../play`.
+
+Query:
+
+| Name | Typ | Beschreibung |
+|------|-----|--------------|
+| `currentEntryId` | `long` | Pflicht. Der gerade abgespielte Eintrag. |
+
+Antwort: `DtoPlaylistNavigationResult` mit dem nächsten Eintrag und dessen Position.
+
+- `204 No Content`, wenn es keinen weiteren abspielbaren, zugänglichen Eintrag gibt (Ende der Playlist).
+- `400 Bad Request`, wenn `currentEntryId` nicht zu dieser Playlist gehört.
+- `403 Forbidden`, wenn die Playlist privat und fremd ist.
+- `404 Not Found`, wenn keine Playlist mit dieser ID existiert.
+
+### POST /api/playlists/{id}/play/previous
+
+Wie `.../play/next`, jedoch rückwärts: der vorherige abspielbare und zugängliche Eintrag vor
+`currentEntryId`. Parameter, Antwortformat und Fehlerantworten sind identisch; `204 No Content` bedeutet
+hier, dass der Anfang der Playlist erreicht ist.
+
+### POST /api/playlists/{id}/play/advance
+
+Automatisches Weiterschalten, wenn ein Titel zu Ende läuft. Ermittelt denselben Eintrag wie
+`.../play/next` und ist nur deshalb ein eigener Endpunkt, damit automatisches Weiterschalten und ein
+manueller „Nächster“-Klick im Server-Protokoll unterscheidbar sind. Parameter, Antwortformat und
+Fehlerantworten wie bei `.../play/next`.
+
+### POST /api/playlists/{id}/cover/upload
+
+Speichert eine hochgeladene Bilddatei als Cover der Playlist und ersetzt ein vorhandenes Cover
+(hochgeladen oder erzeugt); das bisherige Bild wird gelöscht. Nur der Besitzer.
+
+Request: `multipart/form-data` mit dem Feld `file` (die Bilddatei). Weitere Felder gibt es nicht — ein
+Beschnitt findet serverseitig nicht statt.
+
+Antwort (`DtoPlaylistCoverResult`):
+
+```json
+{
+  "success": true,
+  "message": "Bild erfolgreich hochgeladen.",
+  "pictureId": 123
+}
+```
+
+Geprüft werden in dieser Reihenfolge: Datei vorhanden und nicht leer, gemeldete Länge nicht größer als
+`Playlists:MaxCoverImageSizeBytes` (noch vor dem Einlesen des Inhalts), dann der Inhalt selbst
+(gemeldeter und tatsächlich erkannter MIME-Type in `Playlists:AllowedCoverImageFormats`, Pixelmaße gemäß
+`Playlists:MaxCoverImageWidthPixels`/`MaxCoverImageHeightPixels`/`MaxCoverImageTotalPixels`, Bild
+vollständig dekodierbar). Gespeichert wird das Originalformat mit dem **erkannten** MIME-Type.
+
+- `400 Bad Request` bei jedem Verstoß gegen diese Prüfungen, mit deutschem Klartext als Antwortkörper
+  (bewusst nicht im `DtoPlaylistCoverResult`-Format).
+- `404 Not Found`, wenn keine Playlist mit dieser ID existiert.
+- `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
+
+### POST /api/playlists/{id}/cover/regenerate
+
+Erzeugt das Cover neu als Collage aus den Bildern der aktuellen Inhalte und ersetzt das bisherige Cover.
+Nur der Besitzer. Kein Request-Body.
+
+Query:
+
+| Name | Typ | Beschreibung |
+|------|-----|--------------|
+| `confirmReplaceUploadedCover` | `bool` | Standard `false`. Bestätigt das Ersetzen eines **hochgeladenen** Covers. |
+
+Antwort (`DtoPlaylistCoverResult`): `success: true` mit `pictureId` des neuen Bildes. Enthält die Playlist
+keine Inhalte mit Bildern, bleibt die Antwort `200 OK`, jedoch mit `success: false`,
+`message: "Keine Bilder verfügbar."` und ohne `pictureId`; ein hochgeladenes Cover bleibt dann unverändert
+und es wird auch nicht nachgefragt.
+
+- `409 Conflict` mit `DtoRegeneratePlaylistCoverConflictResponse`
+  (`{ "isUploadedCoverReplacementConfirmationRequired": true }`), wenn das aktuelle Cover hochgeladen wurde
+  und `confirmReplaceUploadedCover` nicht `true` ist. Es wird dabei nichts verändert.
+- `404 Not Found`, wenn keine Playlist mit dieser ID existiert.
+- `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
+
+### POST /api/playlists/{id}/cover/preview
+
+Erzeugt dieselbe Collage wie `cover/regenerate`, **speichert aber nichts** und liefert sie nur als
+Bilddaten zurück (Vorschau im Bild-Panel der Detailseite). Deshalb ist auch für ein hochgeladenes Cover
+keine Bestätigung nötig. Nur der Besitzer — auch bei einer öffentlichen Playlist antwortet der Endpunkt
+für alle anderen mit `403`, weil die Vorschau Teil des Änderungsablaufs ist. Kein Request-Body.
+
+Antwort (`DtoPlaylistCoverPreview`):
+
+```json
+{
+  "success": true,
+  "message": null,
+  "contentType": "image/jpeg",
+  "imageData": "/9j/4AAQSkZJRgABAQ..."
+}
+```
+
+`imageData` ist der Base64-kodierte JPEG-Inhalt. Ohne verwendbare Bilder bleibt die Antwort `200 OK` mit
+`success: false` und `message: "Keine Bilder verfügbar."`.
+
+- `404 Not Found`, wenn keine Playlist mit dieser ID existiert.
+- `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
+
+### GET /api/playlists/{id}/cover
+
+Liefert das Coverbild der Playlist (hochgeladen oder erzeugt) als Binärantwort mit dem gespeicherten
+Content-Type. Lesender Zugriff: der Besitzer, oder jeder angemeldete Anwender, solange die Playlist
+öffentlich ist. Da der Abruf typischerweise aus einem `<img>`-Element erfolgt, wird der Anmeldenachweis
+hier üblicherweise als Abfrageparameter `access_token` mitgegeben (siehe
+[Basis und Authentifizierung](#basis-und-authentifizierung)). Dieselbe Prüfung gilt beim Abruf desselben
+Bildes über `GET /api/pictures/{id}`.
+
+- `404 Not Found`, wenn die Playlist nicht existiert oder kein Cover gesetzt ist (der Client zeigt dann
+  den Platzhalter).
+- `403 Forbidden`, wenn die Playlist privat ist und einem anderen Benutzer gehört.
+
+### DELETE /api/playlists/{id}/cover
+
+Entfernt das Cover der Playlist und löscht das zugehörige Bild. Ist kein Cover gesetzt, ist der Aufruf
+wirkungslos erfolgreich. Nur der Besitzer.
+
+Antwort (`DtoPlaylistCoverResult`):
+
+```json
+{
+  "success": true,
+  "message": null,
+  "pictureId": null
+}
+```
+
 - `404 Not Found`, wenn keine Playlist mit dieser ID existiert.
 - `403 Forbidden`, wenn die Playlist einem anderen Benutzer gehört.
 
@@ -666,7 +1022,7 @@ Diese Endpunkte können zusätzliche Rollen, Browser-Kontext oder Admin-Rechte v
 
 ## Vertragscheck
 
-Der Test `VideoWebPlayer.Tests.ApiDocumentationContractTests` stellt sicher, dass diese Dokumentation die Kernrouten enthält und dass der Laufzeitvertrag für `GET /api/health`, `POST /api/auth/login` und einen authentifizierten `GET /api/items` funktioniert. Für lokale Prüfung:
+Der Test `VideoWebPlayer.Tests.ApiDocumentationContractTests` stellt sicher, dass diese Dokumentation die Kernrouten enthält — einschließlich aller Playlist-Routen und der Sitzungs-Endpunkte `POST /api/pairing/bootstrap`, `POST /api/auth/refresh` und `POST /api/auth/logout` — und dass der Laufzeitvertrag funktioniert: `GET /api/health`, `POST /api/auth/login`, ein authentifizierter `GET /api/items` sowie ein vollständiger Playlist-Durchlauf (anmelden, Playlist anlegen, Titel hinzufügen, Wiedergabe starten, nächsten Titel holen). Wird eine dieser Routen aus der Dokumentation entfernt, schlägt der Test fehl. Für lokale Prüfung:
 
 ```bash
 dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --filter ApiDocumentationContractTests

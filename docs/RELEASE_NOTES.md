@@ -11,6 +11,7 @@
 - The configurable upload limit `Backups:MaxUploadSizeBytes` (default 5 GiB) is now enforced server-side — files above the limit are rejected; raise it in the admin UI if larger backups must be accepted.
 - The database schema changed (`PairingCodes` gained `Kind`/`TicketHash`, new `RefreshTokens` table). After updating, run `dotnet ef database update` (or apply the new migration `AddPairingBootstrapAndRefreshTokens` via your usual migration step) before starting the app.
 - New optional configuration keys: `Pairing:BootstrapTicketTtlMinutes` (default 5), `Pairing:BootstrapMaxTicketsPerHour` (default 10), `Pairing:BootstrapAdminOnly` (default `false`), `Auth:RefreshTokenTtlDays` (default 30).
+- Backups from older versions remain restorable across the device pairing change as well: the tables `PairedDevices`, `PairingCodes` and `RefreshTokens` and the columns `Kind`/`TicketHash` on `PairingCodes` are optional during restore. Such a backup contains no paired devices and no sessions, so after restoring it these tables are empty — the device list is empty, previously paired devices and client apps are signed out and must be paired again, and pending pairing codes and bootstrap tickets do not come back. A backup of the current version still contains all three tables and restores their content completely.
 
 ## What's New
 
@@ -72,6 +73,9 @@
 - Neue Konfiguration `Kestrel:Limits:MaxRequestBodySize` in `appsettings.Production.json` ist auf `0` (unbegrenzt) gesetzt und wird über eine explizite `ConfigureKestrel`-Bindung angewendet, da Kestrel die `Limits`-Sektion nicht selbst aus der Konfiguration lädt.
 - IIS-Bereitstellungen: Das Hosting-Modell ist jetzt `OutOfProcess` (`AspNetCoreHostingModel` in der Projektdatei); das IIS-`requestFiltering`-Limit `maxAllowedContentLength` (~30 MB Standard) muss angehoben werden, damit große Uploads nicht blockiert werden.
 - Das konfigurierbare Upload-Limit `Backups:MaxUploadSizeBytes` (Standard 5 GiB) wird jetzt serverseitig durchgesetzt — Dateien oberhalb des Limits werden abgelehnt; bei Bedarf in der Admin-Oberfläche erhöhen.
+- Das Datenbankschema hat sich geändert (`PairingCodes` um `Kind`/`TicketHash` erweitert, neue Tabelle `RefreshTokens`). Nach dem Update `dotnet ef database update` ausführen (oder die neue Migration `AddPairingBootstrapAndRefreshTokens` über den üblichen Migrationsschritt anwenden), bevor die Anwendung gestartet wird.
+- Neue optionale Konfigurationsschlüssel: `Pairing:BootstrapTicketTtlMinutes` (Standard 5), `Pairing:BootstrapMaxTicketsPerHour` (Standard 10), `Pairing:BootstrapAdminOnly` (Standard `false`), `Auth:RefreshTokenTtlDays` (Standard 30).
+- Datensicherungen älterer Versionen bleiben auch über die Gerätekopplung hinweg wiederherstellbar: Die Tabellen `PairedDevices`, `PairingCodes` und `RefreshTokens` sowie die Spalten `Kind`/`TicketHash` an `PairingCodes` sind beim Restore optional. Eine solche Sicherung enthält keine gekoppelten Geräte und keine Sitzungen; nach ihrer Wiederherstellung sind diese Tabellen deshalb leer — die Geräteliste ist leer, bereits gekoppelte Geräte und Client-Apps sind abgemeldet und müssen neu gekoppelt werden, und offene Pairing-Codes und Bootstrap-Tickets kommen nicht zurück. Eine Sicherung der heutigen Version enthält die drei Tabellen weiterhin und stellt deren Inhalt vollständig wieder her.
 
 ## Neuerungen
 
@@ -96,6 +100,12 @@
 - Groß-/Kleinschreibung-unabhängige, umlaut-korrekte Namenssuche (Ä/Ö/Ü/ß) in der Mediensuche; `%` und `_` im Suchbegriff werden literal gesucht.
 - Neuer Menüeintrag „Playlists": angemeldete Anwender verwalten ihre eigenen privaten Playlists — anlegen (Name, optionale Beschreibung, Sortiermodus), umbenennen, nach Bestätigung löschen, Kachel-Übersicht mit Detailseite; optional konfigurierbare Begrenzungen für Playlists pro Anwender und Einträge pro Playlist.
 - Neue Hilfe-Dokumentation zu Playlists (Anwenderhilfe, API-Referenz, Geschäftsregeln, Datenmodell, technischer Ablauf).
+- QR-Kopplung von der Profilseite aus: Ein angemeldeter Anwender erzeugt unter `Profil` > `Geräte` ein Einmal-Ticket; die App scannt den QR-Code (oder der Anwender gibt den angezeigten 8-stelligen Kurzcode ein) und erhält damit ein Geräte-Token, eine Benutzer-Sitzung (JWT) und ein Erneuerungs-Token — auf dem Gerät muss kein Kennwort eingegeben werden.
+- Neuer öffentlicher Endpunkt `POST /api/pairing/bootstrap`: dasselbe anonyme Profil und derselbe Vertrag mit ECDH (P-256) + AES-256-GCM wie bei `api/pairing/exchange`; die verschlüsselte Nutzlast enthält alle drei Zugangsdaten. Der bestehende Exchange-Endpunkt bleibt unverändert.
+- Neue Sitzungs-Endpunkte `POST /api/auth/refresh` (rotierende Erneuerungs-Tokens, jeweils nur einmal verwendbar, mit Erkennung einer Wiederverwendung, die die gesamte Token-Familie sperrt) und `POST /api/auth/logout` (widerruft ein Erneuerungs-Token); beide verlangen `X-API-Key` wie `/api/auth/login`.
+- Der Widerruf eines gekoppelten Geräts widerruft jetzt sofort auch alle Erneuerungs-Tokens dieses Geräts.
+- Bootstrap-Tickets: langes, zufälliges Geheimnis in der QR-Nutzlast (`https://<server>/pairing?t=<ticket>`), der 8-stellige Code ist nur ein Alias dafür; etwa 5 Minuten gültig, nur einmal verwendbar, atomares Einlösen, Mengenbegrenzung je Anwender, optional auf Administratoren beschränkbar.
+- Neue NuGet-Abhängigkeit `QRCoder` (MIT) für die Darstellung des QR-Codes auf der serverseitigen Profilseite.
 - Geräte-Pairing für Client-Apps: Statt des statischen Client-API-Tokens `Jwt:ApiToken:Maui` melden sich Apps jetzt mit individuellen, widerrufbaren Geräte-Tokens an, die über einen Einmal-Pairing-Code bezogen werden.
 - Neue Admin-Seite `Geräte` (`/admin/devices`): kurzlebigen Einmal-Pairing-Code erzeugen (8 Zeichen, 5 Minuten gültig, nur einmalig im Klartext angezeigt), gekoppelte Geräte auflisten, umbenennen und widerrufen.
 - Neuer öffentlicher Endpunkt `POST /api/pairing/exchange`: löst den Pairing-Code gegen ein Geräte-Token ein; der Austausch ist auf Anwendungsebene per ECDH (P-256) + AES-256-GCM geschützt und daher auch über HTTP ohne TLS sicher.

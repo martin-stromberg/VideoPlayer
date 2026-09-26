@@ -11,6 +11,7 @@
 - The configurable upload limit `Backups:MaxUploadSizeBytes` (default 5 GiB) is now enforced server-side — files above the limit are rejected; raise it in the admin UI if larger backups must be accepted.
 - The database schema changed (`PairingCodes` gained `Kind`/`TicketHash`, new `RefreshTokens` table). After updating, run `dotnet ef database update` (or apply the new migration `AddPairingBootstrapAndRefreshTokens` via your usual migration step) before starting the app.
 - New optional configuration keys: `Pairing:BootstrapTicketTtlMinutes` (default 5), `Pairing:BootstrapMaxTicketsPerHour` (default 10), `Pairing:BootstrapAdminOnly` (default `false`), `Auth:RefreshTokenTtlDays` (default 30).
+- Backups from older versions remain restorable across the device pairing change as well: the tables `PairedDevices`, `PairingCodes` and `RefreshTokens` and the columns `Kind`/`TicketHash` on `PairingCodes` are optional during restore. Such a backup contains no paired devices and no sessions, so after restoring it these tables are empty — the device list is empty, previously paired devices and client apps are signed out and must be paired again, and pending pairing codes and bootstrap tickets do not come back. A backup of the current version still contains all three tables and restores their content completely.
 
 ## What's New
 
@@ -72,6 +73,7 @@
 - Neue Konfiguration `Kestrel:Limits:MaxRequestBodySize` in `appsettings.Production.json` ist auf `0` (unbegrenzt) gesetzt und wird über eine explizite `ConfigureKestrel`-Bindung angewendet, da Kestrel die `Limits`-Sektion nicht selbst aus der Konfiguration lädt.
 - IIS-Bereitstellungen: Das Hosting-Modell ist jetzt `OutOfProcess` (`AspNetCoreHostingModel` in der Projektdatei); das IIS-`requestFiltering`-Limit `maxAllowedContentLength` (~30 MB Standard) muss angehoben werden, damit große Uploads nicht blockiert werden.
 - Das konfigurierbare Upload-Limit `Backups:MaxUploadSizeBytes` (Standard 5 GiB) wird jetzt serverseitig durchgesetzt — Dateien oberhalb des Limits werden abgelehnt; bei Bedarf in der Admin-Oberfläche erhöhen.
+- Datensicherungen älterer Versionen bleiben auch über die Gerätekopplung hinweg wiederherstellbar: Die Tabellen `PairedDevices`, `PairingCodes` und `RefreshTokens` sowie die Spalten `Kind`/`TicketHash` an `PairingCodes` sind beim Restore optional. Eine solche Sicherung enthält keine gekoppelten Geräte und keine Sitzungen; nach ihrer Wiederherstellung sind diese Tabellen deshalb leer — die Geräteliste ist leer, bereits gekoppelte Geräte und Client-Apps sind abgemeldet und müssen neu gekoppelt werden, und offene Pairing-Codes und Bootstrap-Tickets kommen nicht zurück. Eine Sicherung der heutigen Version enthält die drei Tabellen weiterhin und stellt deren Inhalt vollständig wieder her.
 
 ## Neuerungen
 

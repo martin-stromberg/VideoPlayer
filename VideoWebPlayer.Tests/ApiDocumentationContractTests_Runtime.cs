@@ -15,15 +15,14 @@ using Xunit;
 namespace VideoWebPlayer.Tests;
 
 /// <summary>
-/// Runtime half of the <c>docs/API.md</c> contract for the areas added by the playlist feature and the QR
-/// bootstrap: the documented playlist walkthrough (sign in, create a playlist, add titles, start playback,
-/// fetch the next title) and the documented session endpoints are executed against the running application,
-/// so the document is not just complete on paper. The pure document check lives in
-/// <see cref="ApiDocumentationContractTests"/>.
+/// Runtime half of the <c>docs/API.md</c> contract: the documented calls are executed against the running
+/// application, so the document is not just complete on paper. Covers the API gate of
+/// <c>POST /api/auth/login</c>, the documented read path, the playlist walkthrough (sign in, create a
+/// playlist, add titles, start playback, fetch the next title) and the session endpoints of the QR
+/// bootstrap. The pure document check lives in <see cref="ApiDocumentationContractTests"/>.
 /// </summary>
 public sealed class ApiDocumentationContractTests_Runtime : IDisposable
 {
-    private const string MauiGateKey = "test-maui-api-token";
     private const string Password = "ApiContract123!";
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -43,6 +42,56 @@ public sealed class ApiDocumentationContractTests_Runtime : IDisposable
     }
 
     /// <summary>
+    /// <c>POST /api/auth/login</c> accepts only the Maui gate key, as documented: the legacy and the web
+    /// gate key are rejected with 401.
+    /// </summary>
+    /// <param name="apiToken">The gate key under test.</param>
+    [Theory]
+    [InlineData(PairingWebApplicationFactory.LegacyApiToken)]
+    [InlineData(PairingWebApplicationFactory.WebApiToken)]
+    public async Task MauiLogin_RejectsNonMauiApiTokens(string apiToken)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (email, _) = await CreateUserWithReadableMediaSourceAsync(ct);
+        using var client = CreateClient();
+
+        client.DefaultRequestHeaders.Add("X-API-Key", apiToken);
+        var loginResponse = await client.PostAsJsonAsync(
+            "/api/auth/login",
+            new AuthenticationRequest { Email = email, Password = Password },
+            ct);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, loginResponse.StatusCode);
+    }
+
+    /// <summary>
+    /// The basic documented contract: <c>GET /api/health</c> without authentication,
+    /// <c>POST /api/auth/login</c> with the Maui gate key, and an authenticated <c>GET /api/items</c>.
+    /// </summary>
+    [Fact]
+    public async Task MauiContract_RuntimeLoginHealthAndAuthenticatedRead_Succeeds()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (email, sourceId) = await CreateUserWithReadableMediaSourceAsync(ct);
+        using var client = CreateClient();
+
+        var healthResponse = await client.GetAsync("/api/health", ct);
+        Assert.Equal(HttpStatusCode.OK, healthResponse.StatusCode);
+        Assert.Equal("OK", await healthResponse.Content.ReadAsStringAsync(ct));
+
+        var token = await LoginAsync(client, email, ct);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var itemsResponse = await client.GetAsync($"/api/items?mediaSourceId={sourceId}", ct);
+        Assert.Equal(HttpStatusCode.OK, itemsResponse.StatusCode);
+
+        var json = await itemsResponse.Content.ReadAsStringAsync(ct);
+        using var document = JsonDocument.Parse(json);
+        var item = Assert.Single(document.RootElement.EnumerateArray());
+        Assert.Equal("Contract Movie", item.GetProperty("title").GetString());
+    }
+
+    /// <summary>
     /// The walkthrough <c>docs/API.md</c> promises for a client app: sign in, create a playlist, add titles,
     /// start playback and fetch the next title — each step with the documented status code and response
     /// shape.
@@ -51,7 +100,7 @@ public sealed class ApiDocumentationContractTests_Runtime : IDisposable
     public async Task PlaylistWalkthrough_SignInCreateAddPlayNext_MatchesDocumentedContract()
     {
         var ct = TestContext.Current.CancellationToken;
-        var (email, firstMovieId, secondMovieId) = await SeedUserWithTwoAccessibleMoviesAsync();
+        var (email, firstMovieId, secondMovieId) = await SeedUserWithTwoAccessibleMoviesAsync(ct);
         using var client = CreateClient();
 
         var token = await LoginAsync(client, email, ct);
@@ -105,7 +154,7 @@ public sealed class ApiDocumentationContractTests_Runtime : IDisposable
     public async Task SessionEndpoints_BootstrapRefreshLogout_MatchDocumentedContract()
     {
         var ct = TestContext.Current.CancellationToken;
-        var user = await CreateUserAsync($"api-contract-{Guid.NewGuid():N}@example.com");
+        var user = await CreateUserAsync($"api-contract-{Guid.NewGuid():N}@example.com", ct);
         string ticket;
         using (var scope = _factory.Services.CreateScope())
         {
@@ -133,16 +182,15 @@ public sealed class ApiDocumentationContractTests_Runtime : IDisposable
         Assert.False(string.IsNullOrWhiteSpace(payload.Token));
         Assert.False(string.IsNullOrWhiteSpace(payload.RefreshToken));
 
-        var refreshed = await PostWithGateKeyAsync<RefreshTokenResponse>(
+        var refreshed = await PostRefreshTokenAsync<RefreshTokenResponse>(
             client, "/api/auth/refresh", payload.DeviceToken, payload.RefreshToken, HttpStatusCode.OK, ct);
-        Assert.NotNull(refreshed);
-        Assert.False(string.IsNullOrWhiteSpace(refreshed!.Token));
+        Assert.False(string.IsNullOrWhiteSpace(refreshed.Token));
         Assert.NotEqual(payload.RefreshToken, refreshed.RefreshToken);
 
-        await PostWithGateKeyAsync<object>(
+        await PostRefreshTokenAsync(
             client, "/api/auth/logout", payload.DeviceToken, refreshed.RefreshToken, HttpStatusCode.OK, ct);
 
-        await PostWithGateKeyAsync<object>(
+        await PostRefreshTokenAsync(
             client, "/api/auth/refresh", payload.DeviceToken, refreshed.RefreshToken, HttpStatusCode.Unauthorized, ct);
     }
 
@@ -151,7 +199,8 @@ public sealed class ApiDocumentationContractTests_Runtime : IDisposable
 
     private static async Task<string> LoginAsync(HttpClient client, string email, CancellationToken cancellationToken)
     {
-        client.DefaultRequestHeaders.Add("X-API-Key", MauiGateKey);
+        client.DefaultRequestHeaders.Remove("X-API-Key");
+        client.DefaultRequestHeaders.Add("X-API-Key", PairingWebApplicationFactory.MauiApiToken);
         var loginResponse = await client.PostAsJsonAsync(
             "/api/auth/login",
             new AuthenticationRequest { Email = email, Password = Password },
@@ -179,7 +228,42 @@ public sealed class ApiDocumentationContractTests_Runtime : IDisposable
         return result.TopLevelEntry!.Id;
     }
 
-    private static async Task<TResponse?> PostWithGateKeyAsync<TResponse>(
+    /// <summary>
+    /// Posts a refresh-token request to one of the session endpoints behind the <c>X-API-Key</c> gate and
+    /// asserts the expected status code, without reading the response body.
+    /// </summary>
+    /// <param name="client">The HTTP client to use.</param>
+    /// <param name="route">The session endpoint to call.</param>
+    /// <param name="gateKey">The device token used as <c>X-API-Key</c>.</param>
+    /// <param name="refreshToken">The refresh token to send.</param>
+    /// <param name="expectedStatusCode">The status code the endpoint must answer with.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    private static async Task PostRefreshTokenAsync(
+        HttpClient client,
+        string route,
+        string gateKey,
+        string refreshToken,
+        HttpStatusCode expectedStatusCode,
+        CancellationToken cancellationToken)
+    {
+        using var response = await SendRefreshTokenAsync(client, route, gateKey, refreshToken, cancellationToken);
+
+        Assert.Equal(expectedStatusCode, response.StatusCode);
+    }
+
+    /// <summary>
+    /// Same as <see cref="PostRefreshTokenAsync(HttpClient, string, string, string, HttpStatusCode, CancellationToken)"/>,
+    /// additionally deserializing the response body.
+    /// </summary>
+    /// <typeparam name="TResponse">The response body type.</typeparam>
+    /// <param name="client">The HTTP client to use.</param>
+    /// <param name="route">The session endpoint to call.</param>
+    /// <param name="gateKey">The device token used as <c>X-API-Key</c>.</param>
+    /// <param name="refreshToken">The refresh token to send.</param>
+    /// <param name="expectedStatusCode">The status code the endpoint must answer with.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The deserialized response body.</returns>
+    private static async Task<TResponse> PostRefreshTokenAsync<TResponse>(
         HttpClient client,
         string route,
         string gateKey,
@@ -188,20 +272,40 @@ public sealed class ApiDocumentationContractTests_Runtime : IDisposable
         CancellationToken cancellationToken)
         where TResponse : class
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, route);
-        request.Headers.Add("X-API-Key", gateKey);
-        request.Content = JsonContent.Create(new RefreshTokenRequest { RefreshToken = refreshToken });
-        using var response = await client.SendAsync(request, cancellationToken);
+        using var response = await SendRefreshTokenAsync(client, route, gateKey, refreshToken, cancellationToken);
 
         Assert.Equal(expectedStatusCode, response.StatusCode);
-        if (expectedStatusCode != HttpStatusCode.OK || typeof(TResponse) == typeof(object))
-            return null;
-
-        return await response.Content.ReadFromJsonAsync<TResponse>(JsonOptions, cancellationToken);
+        var body = await response.Content.ReadFromJsonAsync<TResponse>(JsonOptions, cancellationToken);
+        Assert.NotNull(body);
+        return body!;
     }
 
-    private async Task<ApplicationUser> CreateUserAsync(string email)
+    private static Task<HttpResponseMessage> SendRefreshTokenAsync(
+        HttpClient client,
+        string route,
+        string gateKey,
+        string refreshToken,
+        CancellationToken cancellationToken)
     {
+        var request = new HttpRequestMessage(HttpMethod.Post, route);
+        request.Headers.Add("X-API-Key", gateKey);
+        request.Content = JsonContent.Create(new RefreshTokenRequest { RefreshToken = refreshToken });
+        return client.SendAsync(request, cancellationToken);
+    }
+
+    /// <summary>
+    /// Creates a confirmed user with <see cref="Password"/>. <see cref="UserManager{TUser}.CreateAsync(TUser, string)"/>
+    /// offers no overload taking a <see cref="CancellationToken"/>, so the token is only honoured as a
+    /// cancellation point before the call — it is still taken as a parameter so every helper of this class
+    /// is driven by the caller's token instead of reaching into <c>TestContext.Current</c> itself.
+    /// </summary>
+    /// <param name="email">The user's email address, also used as user name.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The created user.</returns>
+    private async Task<ApplicationUser> CreateUserAsync(string email, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
         using var scope = _factory.Services.CreateScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
@@ -217,30 +321,47 @@ public sealed class ApiDocumentationContractTests_Runtime : IDisposable
     }
 
     /// <summary>
-    /// Creates a user, a media source the user may read and two movies in it — the minimum the documented
-    /// playlist walkthrough needs, since playback only ever selects entries the requesting user has access to.
+    /// Creates a user together with a media source the user may read, and a movie collection in it — the
+    /// arrangement the documented read path (<c>GET /api/items</c>) needs.
     /// </summary>
-    /// <returns>The user's email address and the ids of the two movies.</returns>
-    /// <!-- Tupel-Elemente: Email, FirstMovieId, SecondMovieId -->
-    private async Task<(string Email, long FirstMovieId, long SecondMovieId)> SeedUserWithTwoAccessibleMoviesAsync()
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The user's email address and the id of the readable media source.</returns>
+    /// <!-- Tupel-Elemente: Email, SourceId -->
+    private async Task<(string Email, long SourceId)> CreateUserWithReadableMediaSourceAsync(CancellationToken cancellationToken)
     {
-        var user = await CreateUserAsync($"api-contract-{Guid.NewGuid():N}@example.com");
+        var user = await CreateUserAsync($"api-contract-{Guid.NewGuid():N}@example.com", cancellationToken);
 
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var source = await AddReadableMediaSourceAsync(db, user.Id, cancellationToken);
 
-        var source = new MediaSource
+        db.MovieCollections.Add(new MovieCollection
         {
-            Name = "Contract Source",
-            Path = "/contract",
-            Host = "localhost",
-            Port = 22,
+            Name = "Contract Movie",
+            MediaSourceId = source.Id,
             CreatedAt = DateTime.UtcNow
-        };
-        db.MediaSources.Add(source);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        });
+        await db.SaveChangesAsync(cancellationToken);
 
-        db.MediaSourceUsers.Add(new MediaSourceUser { MediaSourceId = source.Id, UserId = user.Id });
+        return (user.Email!, source.Id);
+    }
+
+    /// <summary>
+    /// Creates a user, a media source the user may read and two movies in it — the minimum the documented
+    /// playlist walkthrough needs, since playback only ever selects entries the requesting user has access to.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The user's email address and the ids of the two movies.</returns>
+    /// <!-- Tupel-Elemente: Email, FirstMovieId, SecondMovieId -->
+    private async Task<(string Email, long FirstMovieId, long SecondMovieId)> SeedUserWithTwoAccessibleMoviesAsync(
+        CancellationToken cancellationToken)
+    {
+        var user = await CreateUserAsync($"api-contract-{Guid.NewGuid():N}@example.com", cancellationToken);
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var source = await AddReadableMediaSourceAsync(db, user.Id, cancellationToken);
+
         var firstMovie = new Movie
         {
             Name = "Vertragstest-Film 1",
@@ -256,9 +377,35 @@ public sealed class ApiDocumentationContractTests_Runtime : IDisposable
             ReleaseDate = new DateTime(2002, 1, 1, 0, 0, 0, DateTimeKind.Utc)
         };
         db.Movies.AddRange(firstMovie, secondMovie);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        await db.SaveChangesAsync(cancellationToken);
 
         return (user.Email!, firstMovie.Id, secondMovie.Id);
+    }
+
+    /// <summary>
+    /// Adds a media source and grants the given user read access to it.
+    /// </summary>
+    /// <param name="db">The database context to add to.</param>
+    /// <param name="userId">The id of the user to grant access to.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The created media source.</returns>
+    private static async Task<MediaSource> AddReadableMediaSourceAsync(
+        ApplicationDbContext db, string userId, CancellationToken cancellationToken)
+    {
+        var source = new MediaSource
+        {
+            Name = "Contract Source",
+            Path = "/contract",
+            Host = "localhost",
+            Port = 22,
+            CreatedAt = DateTime.UtcNow
+        };
+        db.MediaSources.Add(source);
+        await db.SaveChangesAsync(cancellationToken);
+
+        db.MediaSourceUsers.Add(new MediaSourceUser { MediaSourceId = source.Id, UserId = userId });
+        await db.SaveChangesAsync(cancellationToken);
+        return source;
     }
 
     /// <inheritdoc />

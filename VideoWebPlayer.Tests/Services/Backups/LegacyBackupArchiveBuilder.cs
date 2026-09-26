@@ -1,15 +1,13 @@
 using System.IO.Compression;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging.Abstractions;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Services.Backups;
+using VideoWebPlayer.Tests.Helpers;
 
 namespace VideoWebPlayer.Tests.Services.Backups;
 
@@ -71,7 +69,7 @@ internal static class LegacyBackupArchiveBuilder
 
         var environment = new TestWebHostEnvironment();
         var logger = NullLogger<VideoWebPlayerBackupData>.Instance;
-        var factory = new VideoWebPlayerBackupDataFactory(new ServiceCollection().BuildServiceProvider(), environment, logger)
+        var factory = new VideoWebPlayerBackupDataFactory(EmptyServiceProvider.Instance, environment, logger)
         {
             UserId = userId
         };
@@ -205,14 +203,17 @@ internal static class LegacyBackupArchiveBuilder
     }
 
     /// <summary>
-    /// Reads the raw text of a backup archive's entry, used to verify that a simulated legacy archive
-    /// really lacks the table or column under test.
+    /// Reads a table's column list out of a backup archive's <c>index.json</c> — exactly the list the
+    /// restore validates the current schema against. Used to verify that a simulated legacy archive really
+    /// lacks the table or the columns under test, as an exact comparison of column names rather than a
+    /// substring search over the payload text (where a name like <c>Kind</c> would also match
+    /// <c>SomeOtherKindColumn</c> or any value containing that text).
     /// </summary>
     /// <param name="archiveStream">The backup archive to read; its position is restored afterwards.</param>
-    /// <param name="tableName">The name of the table whose data entry is read.</param>
+    /// <param name="tableName">The name of the table whose column list is read.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The entry's text, or <c>null</c> when the archive does not contain that table.</returns>
-    public static async Task<string?> ReadTableEntryTextAsync(
+    /// <returns>The table's column names, or <c>null</c> when the archive does not contain that table at all.</returns>
+    public static async Task<IReadOnlyList<string>?> ReadTableColumnsAsync(
         MemoryStream archiveStream, string tableName, CancellationToken cancellationToken)
     {
         var position = archiveStream.Position;
@@ -226,13 +227,7 @@ internal static class LegacyBackupArchiveBuilder
             if (table is null)
                 return null;
 
-            var entry = archive.GetEntry(table["entryName"]!.GetValue<string>());
-            if (entry is null)
-                return null;
-
-            await using var entryStream = entry.Open();
-            using var reader = new StreamReader(entryStream);
-            return await reader.ReadToEndAsync(cancellationToken);
+            return table["columns"]!.AsArray().Select(c => c!.GetValue<string>()).ToList();
         }
         finally
         {
@@ -266,15 +261,14 @@ internal static class LegacyBackupArchiveBuilder
     }
 
     /// <summary>
-    /// Minimal <see cref="IWebHostEnvironment"/> stand-in for the backup instance under test.
+    /// Empty, non-disposable <see cref="IServiceProvider"/> for <see cref="VideoWebPlayerBackupDataFactory"/>,
+    /// which in these tests is only used for its <c>UserId</c> and progress reporting and never resolves a
+    /// service. A real container built here would be an <see cref="IDisposable"/> that nothing could release.
     /// </summary>
-    private sealed class TestWebHostEnvironment : IWebHostEnvironment
+    private sealed class EmptyServiceProvider : IServiceProvider
     {
-        public string ApplicationName { get; set; } = "VideoWebPlayer";
-        public string EnvironmentName { get; set; } = "Test";
-        public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
-        public string WebRootPath { get; set; } = AppContext.BaseDirectory;
-        public IFileProvider ContentRootFileProvider { get; set; } = null!;
-        public IFileProvider WebRootFileProvider { get; set; } = null!;
+        public static readonly EmptyServiceProvider Instance = new();
+
+        public object? GetService(Type serviceType) => null;
     }
 }

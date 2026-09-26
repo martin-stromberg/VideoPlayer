@@ -1,55 +1,22 @@
-using System.Net;
-using System.Net.Http.Headers;
-using System.Net.Http.Json;
-using System.Text.Json;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.HttpsPolicy;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.DependencyInjection;
-using VideoWebPlayer.Client.Models;
-using VideoWebPlayer.Data;
 using Xunit;
 
 namespace VideoWebPlayer.Tests;
 
-public sealed class ApiDocumentationContractTests : IDisposable
+/// <summary>
+/// Checks that <c>docs/API.md</c> describes every route external clients rely on. A pure file check —
+/// it starts no host and touches no database; the runtime half of the contract lives in
+/// <see cref="ApiDocumentationContractTests_Runtime"/>.
+/// </summary>
+public sealed class ApiDocumentationContractTests
 {
-    private readonly string _dbPath;
-    private readonly WebApplicationFactory<global::Program> _factory;
-
-    public ApiDocumentationContractTests()
-    {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"vwp-api-contract-{Guid.NewGuid()}.db");
-        try { File.Delete(_dbPath); } catch { }
-
-        var jwtKey = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
-
-        _factory = new WebApplicationFactory<global::Program>()
-            .WithWebHostBuilder(builder =>
-            {
-                builder.UseSetting(WebHostDefaults.EnvironmentKey, "Testing");
-                builder.UseSetting("ConnectionStrings:DefaultConnection", $"Data Source={_dbPath}");
-                builder.UseSetting("Jwt:Key", jwtKey);
-                builder.UseSetting("Jwt:Issuer", "VideoWebPlayer.Tests");
-                builder.UseSetting("Jwt:ApiToken", "test-legacy-api-token");
-                builder.UseSetting("Jwt:ApiToken:Web", "test-web-api-token");
-                builder.UseSetting("Jwt:ApiToken:Maui", "test-maui-api-token");
-                builder.ConfigureServices(services =>
-                {
-                    services.Configure<HttpsRedirectionOptions>(options => options.HttpsPort = null);
-                });
-            });
-    }
-
     /// <summary>
-    /// Every route <c>docs/API.md</c> must describe. Besides the long-standing Maui-relevant routes this
-    /// covers the complete playlist area (management, entries, manual order, sort mode, genres, playback,
-    /// cover) and the session endpoints of the QR bootstrap, so a route added to
-    /// <c>PlaylistsController</c>/<c>AuthController</c> without documentation, or a documented route
-    /// silently dropped from the document, fails the build.
+    /// Every route <c>docs/API.md</c> must describe with its own section heading. Besides the
+    /// long-standing Maui-relevant routes this covers the complete playlist area (management, entries,
+    /// manual order, sort mode, genres, playback, cover) and the session endpoints of the QR bootstrap, so
+    /// a route added to <c>PlaylistsController</c>/<c>AuthController</c> without documentation, or a
+    /// documented route silently dropped from the document, fails the build.
     /// </summary>
-    internal static readonly string[] RequiredRoutes =
+    private static readonly IReadOnlyList<string> RequiredRoutes = new[]
     {
         "GET /api/health",
         "POST /api/auth/login",
@@ -106,97 +73,79 @@ public sealed class ApiDocumentationContractTests : IDisposable
     [Fact]
     public void ApiDocumentationContainsMauiRelevantRoutes()
     {
-        AssertRequiredRoutesDocumented(ReadApiDocument());
+        var undocumented = FindUndocumentedRoutes(ReadApiDocument());
+
+        Assert.True(
+            undocumented.Count == 0,
+            $"docs/API.md beschreibt {undocumented.Count} Route(n) nicht (erwartet je eine Überschrift "
+            + $"\"### <Verb> <Pfad>\"): {string.Join(", ", undocumented)}.");
     }
 
     /// <summary>
-    /// Counter-proof for <see cref="ApiDocumentationContainsMauiRelevantRoutes"/>: for every required route,
-    /// removing exactly that route from the document must make the check fail. Without this the check could
-    /// silently degrade into one that passes no matter what the document contains.
+    /// Counter-proof for <see cref="ApiDocumentationContainsMauiRelevantRoutes"/>: removing exactly one
+    /// route's section heading must make the check report exactly that route. A mere substring check would
+    /// stay green here for every route that is a prefix of another one (e.g. <c>GET /api/playlists</c>,
+    /// which <c>GET /api/playlists/public</c> also contains), so this pins the heading-anchored comparison.
     /// </summary>
     [Fact]
-    public void ApiDocumentation_WithARequiredRouteRemoved_FailsTheContract()
+    public void ApiDocumentation_WithARequiredRouteHeadingRemoved_ReportsExactlyThatRoute()
     {
         var apiDocument = ReadApiDocument();
 
         foreach (var route in RequiredRoutes)
         {
-            var mutilatedDocument = apiDocument.Replace(route, string.Empty, StringComparison.Ordinal);
+            var mutilatedDocument = RemoveHeadingOf(apiDocument, route);
             Assert.NotEqual(apiDocument, mutilatedDocument);
-            Assert.ThrowsAny<Exception>(() => AssertRequiredRoutesDocumented(mutilatedDocument));
+
+            var undocumented = FindUndocumentedRoutes(mutilatedDocument);
+
+            Assert.Equal(new[] { route }, undocumented);
         }
     }
 
     /// <summary>
-    /// Asserts that the given <c>docs/API.md</c> content mentions every route of
-    /// <see cref="RequiredRoutes"/>.
+    /// Returns the routes of <see cref="RequiredRoutes"/> that the given document does not describe with a
+    /// section heading of the form <c>### &lt;Verb&gt; &lt;Pfad&gt;</c>. The comparison is anchored to the
+    /// whole (trimmed) line rather than done as a substring search, so a route that is a prefix of another
+    /// one is not considered documented just because the longer route is.
     /// </summary>
     /// <param name="apiDocument">The content of <c>docs/API.md</c> to check.</param>
-    internal static void AssertRequiredRoutesDocumented(string apiDocument)
+    /// <returns>The undocumented routes, in the order of <see cref="RequiredRoutes"/>.</returns>
+    private static IReadOnlyList<string> FindUndocumentedRoutes(string apiDocument)
     {
-        foreach (var route in RequiredRoutes)
-        {
-            Assert.Contains(route, apiDocument, StringComparison.Ordinal);
-        }
+        var headings = apiDocument
+            .Split('\n')
+            .Select(line => line.Trim())
+            .Where(line => line.StartsWith("### ", StringComparison.Ordinal))
+            .Select(line => line["### ".Length..].Trim())
+            .ToHashSet(StringComparer.Ordinal);
+
+        return RequiredRoutes.Where(route => !headings.Contains(route)).ToList();
+    }
+
+    /// <summary>
+    /// Removes the single section heading line that documents the given route, leaving the rest of the
+    /// document (including every other route's heading and any in-text mention of this route) untouched.
+    /// </summary>
+    /// <param name="apiDocument">The content of <c>docs/API.md</c>.</param>
+    /// <param name="route">The route whose heading line is removed.</param>
+    /// <returns>The document without that heading line.</returns>
+    private static string RemoveHeadingOf(string apiDocument, string route)
+    {
+        var remainingLines = apiDocument
+            .Split('\n')
+            .Where(line => !string.Equals(line.Trim(), $"### {route}", StringComparison.Ordinal))
+            .ToList();
+
+        return string.Join('\n', remainingLines);
     }
 
     /// <summary>
     /// Reads <c>docs/API.md</c> from the repository the test assembly was built in.
     /// </summary>
     /// <returns>The document's content.</returns>
-    internal static string ReadApiDocument()
+    private static string ReadApiDocument()
         => File.ReadAllText(Path.Combine(FindRepositoryRoot(), "docs", "API.md"));
-
-    [Theory]
-    [InlineData("test-legacy-api-token")]
-    [InlineData("test-web-api-token")]
-    public async Task MauiLogin_RejectsNonMauiApiTokens(string apiToken)
-    {
-        const string password = "ApiContract123!";
-        var (email, _) = await CreateUserWithReadableMediaSourceAsync(password);
-        var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
-
-        client.DefaultRequestHeaders.Add("X-API-Key", apiToken);
-        var loginResponse = await client.PostAsJsonAsync(
-            "/api/auth/login",
-            new AuthenticationRequest { Email = email, Password = password },
-            TestContext.Current.CancellationToken);
-
-        Assert.Equal(HttpStatusCode.Unauthorized, loginResponse.StatusCode);
-    }
-
-    [Fact]
-    public async Task MauiContract_RuntimeLoginHealthAndAuthenticatedRead_Succeeds()
-    {
-        const string password = "ApiContract123!";
-        var (email, sourceId) = await CreateUserWithReadableMediaSourceAsync(password);
-
-        var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
-
-        var healthResponse = await client.GetAsync("/api/health", TestContext.Current.CancellationToken);
-        Assert.Equal(HttpStatusCode.OK, healthResponse.StatusCode);
-        Assert.Equal("OK", await healthResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-
-        client.DefaultRequestHeaders.Add("X-API-Key", "test-maui-api-token");
-        var loginResponse = await client.PostAsJsonAsync(
-            "/api/auth/login",
-            new AuthenticationRequest { Email = email, Password = password },
-            TestContext.Current.CancellationToken);
-
-        Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
-        var token = await loginResponse.Content.ReadFromJsonAsync<AuthorizationToken>(
-            cancellationToken: TestContext.Current.CancellationToken);
-        Assert.False(string.IsNullOrWhiteSpace(token?.token));
-
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token.token);
-        var itemsResponse = await client.GetAsync($"/api/items?mediaSourceId={sourceId}", TestContext.Current.CancellationToken);
-        Assert.Equal(HttpStatusCode.OK, itemsResponse.StatusCode);
-
-        var json = await itemsResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-        using var document = JsonDocument.Parse(json);
-        var item = Assert.Single(document.RootElement.EnumerateArray());
-        Assert.Equal("Contract Movie", item.GetProperty("title").GetString());
-    }
 
     private static string FindRepositoryRoot()
     {
@@ -212,49 +161,5 @@ public sealed class ApiDocumentationContractTests : IDisposable
         }
 
         throw new DirectoryNotFoundException("Could not find repository root.");
-    }
-
-    private async Task<(string Email, long SourceId)> CreateUserWithReadableMediaSourceAsync(string password)
-    {
-        using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-
-        var user = new ApplicationUser
-        {
-            UserName = $"api-contract-{Guid.NewGuid():N}",
-            Email = $"api-contract-{Guid.NewGuid():N}@example.com",
-            EmailConfirmed = true
-        };
-        var result = await userManager.CreateAsync(user, password);
-        Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Errors.Select(error => error.Description)));
-
-        var source = new MediaSource
-        {
-            Name = "Contract Source",
-            Path = "/contract",
-            Host = "localhost",
-            Port = 22,
-            CreatedAt = DateTime.UtcNow
-        };
-        db.MediaSources.Add(source);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-
-        db.MediaSourceUsers.Add(new MediaSourceUser { MediaSourceId = source.Id, UserId = user.Id });
-        db.MovieCollections.Add(new MovieCollection
-        {
-            Name = "Contract Movie",
-            MediaSourceId = source.Id,
-            CreatedAt = DateTime.UtcNow
-        });
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-
-        return (user.Email!, source.Id);
-    }
-
-    public void Dispose()
-    {
-        _factory.Dispose();
-        try { File.Delete(_dbPath); } catch { }
     }
 }

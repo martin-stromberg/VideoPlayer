@@ -26,14 +26,14 @@ public sealed class VideoWebPlayerBackupDataTests_DevicePairing
         await db.SaveChangesAsync(ct);
 
         using var legacyStream = await LegacyBackupArchiveBuilder.RemoveTablesAsync(backup, new[] { "PairedDevices" }, ct);
-        Assert.Null(await LegacyBackupArchiveBuilder.ReadTableEntryTextAsync(legacyStream, "PairedDevices", ct));
+        Assert.Null(await LegacyBackupArchiveBuilder.ReadTableColumnsAsync(legacyStream, "PairedDevices", ct));
 
         // This must not throw even though the backup lacks the table added by the device pairing feature.
         var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
 
         Assert.Null(exception);
         Assert.False(await db.PairedDevices.AsNoTracking().AnyAsync(ct));
-        Assert.Equal(userId, (await db.Users.AsNoTracking().FirstAsync(ct)).Id);
+        await AssertPayloadWasRestoredAsync(db, userId, ct);
     }
 
     [Fact]
@@ -49,14 +49,14 @@ public sealed class VideoWebPlayerBackupDataTests_DevicePairing
         await db.SaveChangesAsync(ct);
 
         using var legacyStream = await LegacyBackupArchiveBuilder.RemoveTablesAsync(backup, new[] { "PairingCodes" }, ct);
-        Assert.Null(await LegacyBackupArchiveBuilder.ReadTableEntryTextAsync(legacyStream, "PairingCodes", ct));
+        Assert.Null(await LegacyBackupArchiveBuilder.ReadTableColumnsAsync(legacyStream, "PairingCodes", ct));
 
         // This must not throw even though the backup lacks the table added by the device pairing feature.
         var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
 
         Assert.Null(exception);
         Assert.False(await db.PairingCodes.AsNoTracking().AnyAsync(ct));
-        Assert.Equal(userId, (await db.Users.AsNoTracking().FirstAsync(ct)).Id);
+        await AssertPayloadWasRestoredAsync(db, userId, ct);
     }
 
     [Fact]
@@ -75,14 +75,14 @@ public sealed class VideoWebPlayerBackupDataTests_DevicePairing
         await db.SaveChangesAsync(ct);
 
         using var legacyStream = await LegacyBackupArchiveBuilder.RemoveTablesAsync(backup, new[] { "RefreshTokens" }, ct);
-        Assert.Null(await LegacyBackupArchiveBuilder.ReadTableEntryTextAsync(legacyStream, "RefreshTokens", ct));
+        Assert.Null(await LegacyBackupArchiveBuilder.ReadTableColumnsAsync(legacyStream, "RefreshTokens", ct));
 
         // This must not throw even though the backup lacks the table added by the QR bootstrap feature.
         var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
 
         Assert.Null(exception);
         Assert.False(await db.RefreshTokens.AsNoTracking().AnyAsync(ct));
-        Assert.Equal(userId, (await db.Users.AsNoTracking().FirstAsync(ct)).Id);
+        await AssertPayloadWasRestoredAsync(db, userId, ct);
     }
 
     /// <summary>
@@ -108,9 +108,9 @@ public sealed class VideoWebPlayerBackupDataTests_DevicePairing
 
         using var legacyStream = await LegacyBackupArchiveBuilder.RemoveTablesAsync(
             backup, new[] { "PairedDevices", "PairingCodes", "RefreshTokens" }, ct);
-        Assert.Null(await LegacyBackupArchiveBuilder.ReadTableEntryTextAsync(legacyStream, "PairedDevices", ct));
-        Assert.Null(await LegacyBackupArchiveBuilder.ReadTableEntryTextAsync(legacyStream, "PairingCodes", ct));
-        Assert.Null(await LegacyBackupArchiveBuilder.ReadTableEntryTextAsync(legacyStream, "RefreshTokens", ct));
+        Assert.Null(await LegacyBackupArchiveBuilder.ReadTableColumnsAsync(legacyStream, "PairedDevices", ct));
+        Assert.Null(await LegacyBackupArchiveBuilder.ReadTableColumnsAsync(legacyStream, "PairingCodes", ct));
+        Assert.Null(await LegacyBackupArchiveBuilder.ReadTableColumnsAsync(legacyStream, "RefreshTokens", ct));
 
         // This must not throw even though the backup lacks all three tables.
         var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
@@ -119,7 +119,7 @@ public sealed class VideoWebPlayerBackupDataTests_DevicePairing
         Assert.False(await db.PairedDevices.AsNoTracking().AnyAsync(ct));
         Assert.False(await db.PairingCodes.AsNoTracking().AnyAsync(ct));
         Assert.False(await db.RefreshTokens.AsNoTracking().AnyAsync(ct));
-        Assert.Equal(userId, (await db.Users.AsNoTracking().FirstAsync(ct)).Id);
+        await AssertPayloadWasRestoredAsync(db, userId, ct);
     }
 
     /// <summary>
@@ -143,10 +143,11 @@ public sealed class VideoWebPlayerBackupDataTests_DevicePairing
 
         using var legacyStream = await LegacyBackupArchiveBuilder.RemoveColumnsAsync(
             backup, "PairingCodes", new[] { "Kind", "TicketHash" }, ct);
-        var pairingCodesText = await LegacyBackupArchiveBuilder.ReadTableEntryTextAsync(legacyStream, "PairingCodes", ct);
-        Assert.NotNull(pairingCodesText);
-        Assert.DoesNotContain("Kind", pairingCodesText, StringComparison.Ordinal);
-        Assert.DoesNotContain("TicketHash", pairingCodesText, StringComparison.Ordinal);
+        var pairingCodeColumns = await LegacyBackupArchiveBuilder.ReadTableColumnsAsync(legacyStream, "PairingCodes", ct);
+        Assert.NotNull(pairingCodeColumns);
+        Assert.DoesNotContain("Kind", pairingCodeColumns!);
+        Assert.DoesNotContain("TicketHash", pairingCodeColumns!);
+        Assert.Contains("CodeHash", pairingCodeColumns!);
 
         // This must not throw even though the backup lacks the two columns added by the QR bootstrap feature.
         var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
@@ -198,6 +199,26 @@ public sealed class VideoWebPlayerBackupDataTests_DevicePairing
         Assert.Equal("refresh-hash-5", restoredToken.TokenHash);
         Assert.Equal(userId, restoredToken.UserId);
         Assert.Equal(device.Id, restoredToken.DeviceId);
+    }
+
+    /// <summary>
+    /// Asserts that the restore really wrote the backup's payload back, not just that it ran without an
+    /// error: <c>Setups.ContinueWatchingEndThresholdSeconds</c> is 42 only because
+    /// <see cref="LegacyBackupArchiveBuilder.CreateSeededBackupAsync"/> seeded it that way and the value
+    /// came back out of the archive — <c>Setups</c> is not in <c>OptionalRestoreTables</c>, so nothing else
+    /// can produce it. Checking the admin user alone would not prove this, because
+    /// <c>VideoWebPlayerBackupData.EnsureAdminAccountAsync</c> restores or recreates that record
+    /// independently of the table payloads.
+    /// </summary>
+    /// <param name="db">The restored database context.</param>
+    /// <param name="userId">The id of the seeded administrator.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    private static async Task AssertPayloadWasRestoredAsync(
+        ApplicationDbContext db, string userId, CancellationToken cancellationToken)
+    {
+        var setup = await db.Setups.AsNoTracking().SingleAsync(cancellationToken);
+        Assert.Equal(42, setup.ContinueWatchingEndThresholdSeconds);
+        Assert.Equal(userId, (await db.Users.AsNoTracking().SingleAsync(cancellationToken)).Id);
     }
 
     private static PairedDevice CreatePairedDevice(string name, string tokenHash, string userId)

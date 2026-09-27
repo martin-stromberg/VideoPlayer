@@ -32,7 +32,7 @@ Solange `DeviceToken` gesetzt ist, sendet die Bibliothek es bei jedem Aufruf als
 
 ### Selbsttätige Erneuerung
 
-Antwortet der Server auf einen beliebigen Aufruf mit `401`, erneuert die Bibliothek die Sitzung einmal selbst und wiederholt den Aufruf anschließend genau einmal (mit kurzer Wartezeit). Das gilt für alle Aufrufe, also auch für die Wiedergabesteuerung (`nächster Titel`, `vorheriger Titel`, `automatisch weiterschalten`), für Abrufe mit Abbruchmarke sowie für das Umbenennen, Umsortieren, Löschen und die Bild-Aufrufe.
+Antwortet der Server auf einen beliebigen Aufruf mit `401`, erneuert die Bibliothek die Sitzung einmal selbst und wiederholt den Aufruf anschließend genau einmal (mit kurzer Wartezeit). Das gilt für alle Aufrufe, die eine Anmeldung brauchen — also auch für die Wiedergabesteuerung (`nächster Titel`, `vorheriger Titel`, `automatisch weiterschalten`), für Abrufe mit Abbruchmarke, für das Umbenennen, Umsortieren und Löschen, für die Bild-Aufrufe, das Löschen einer Medienquelle und die Fortschrittsmeldung. Einzige Ausnahme ist die Erreichbarkeitsprüfung (`HealthCheckAsync`), die ohne Anmeldung auskommt.
 
 Laufen mehrere Aufrufe gleichzeitig in ein `401`, wird die Sitzung trotzdem nur einmal erneuert; die übrigen Aufrufe werden danach mit der neuen Sitzung wiederholt. Maßgeblich ist dabei der Stand der Sitzung zu dem Zeitpunkt, zu dem der jeweilige Aufruf abgeschickt wurde: Ein `401`, das erst bearbeitet wird, nachdem eine andere Erneuerung bereits fertig ist, betrifft eine längst ersetzte Sitzung und führt deshalb nur zur Wiederholung, nicht zu einer zweiten Erneuerung. Das gilt unabhängig davon, in welcher Reihenfolge und mit welchem zeitlichen Abstand die Antworten eintreffen.
 

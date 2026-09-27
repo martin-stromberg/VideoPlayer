@@ -18,6 +18,16 @@ internal static class MediaAccessErrorMessages
     public const string NotFound = "Dieser Titel existiert nicht oder hat keine Videodatei.";
 
     /// <summary>
+    /// Message for a video the browser could not play. Used where only the fact of the failure is known
+    /// and not its cause: the <c>error</c> event of the <c>&lt;video&gt;</c> element fires for every
+    /// loading problem — a refused or missing stream just as much as a format the browser cannot decode
+    /// (the stream endpoint also serves Matroska, AVI and MPEG) or a broken connection. The wording
+    /// therefore names all of these instead of asserting one of them.
+    /// </summary>
+    public const string PlaybackFailed =
+        "Der Titel konnte nicht abgespielt werden: Er existiert nicht, hat keine Videodatei, oder der Browser kann das Format nicht wiedergeben.";
+
+    /// <summary>
     /// Returns the user-facing message for <paramref name="exception"/> if it is a final 403 or 404
     /// answer, otherwise <see langword="null"/> so the caller keeps its own generic error text.
     /// </summary>

@@ -527,8 +527,11 @@ Videodatei.". Beide Meldungen sind endgültig: Die Playlist bleibt sichtbar, es 
 versucht und es wird keine Neuanmeldung verlangt.
 
 Scheitert erst das Laden des Videostroms selbst — etwa weil zu dem Titel keine Videodatei mehr
-vorhanden ist —, meldet der Player das mit derselben Meldung unter dem Videobereich, statt einfach
-leer zu bleiben. Sie verschwindet, sobald ein anderer Titel geladen wird.
+vorhanden ist oder der Browser das Dateiformat nicht wiedergeben kann —, meldet der Player das als
+Einblendung mittig über dem Videobereich, statt einfach leer zu bleiben: „Der Titel konnte nicht
+abgespielt werden: Er existiert nicht, hat keine Videodatei, oder der Browser kann das Format nicht
+wiedergeben." Die Bedienelemente der Playlist bleiben dabei an ihrem Platz. Die Meldung verschwindet,
+sobald ein anderer Titel geladen wird oder derselbe Titel doch noch abspielt.
 
 ### Navigation innerhalb der Playlist
 

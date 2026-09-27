@@ -17,8 +17,9 @@
                     [@currentPlaylistName: @currentPlaylistPosition/@playlistTotalCount]
                 </div>
             }
-            @* @onerror: Ein 403 oder 404 auf den Videostrom erreicht nur den Browser, nicht die
-               Bibliothek - ohne diesen Handler blieb der Player in diesem Fall leer und stumm. *@
+            @* @onerror: Ein Ladefehler des Videostroms erreicht nur den Browser, nicht die Bibliothek -
+               ohne diesen Handler blieb der Player in diesem Fall leer und stumm. @onloadeddata nimmt
+               die Meldung wieder zurueck, sobald derselbe Titel doch noch laedt. *@
             <video @ref="_videoRef"
                    id="video-player-element"
                    src="@StreamUrl"
@@ -26,10 +27,11 @@
                    autoplay="@AutoPlay"
                    @onended="OnMediaEndAsync"
                    @onerror="OnStreamError"
+                   @onloadeddata="OnStreamLoaded"
                    style="max-width:1200px;"></video>
             @if (HasStreamError)
             {
-                <div class="alert alert-danger player-stream-error" id="player-stream-error">@MediaAccessErrorMessages.NotFound</div>
+                <div class="alert alert-danger player-stream-error" id="player-stream-error">@MediaAccessErrorMessages.PlaybackFailed</div>
             }
             <div class="player-progress-rail" aria-hidden="true">
                 <div class="player-progress-fill" style="width:@ProgressPercent%"></div>
@@ -126,13 +128,23 @@
     private bool HasStreamError => failedStreamUrl is not null && failedStreamUrl == StreamUrl;
 
     /// <summary>
-    /// Handler of the <c>&lt;video&gt;</c> element's error event: names the most likely cause, the one
-    /// <see cref="MediaAccessErrorMessages.NotFound"/> is worded for. The status code itself is not
-    /// available to the element, so the message stays with the cause the user can act on.
+    /// Handler of the <c>&lt;video&gt;</c> element's error event. The element reports only that the
+    /// loading failed, not why, so the message names every cause it can have (see
+    /// <see cref="MediaAccessErrorMessages.PlaybackFailed"/>) instead of asserting one.
     /// </summary>
     private void OnStreamError()
     {
         failedStreamUrl = StreamUrl;
+    }
+
+    /// <summary>
+    /// Handler of the <c>&lt;video&gt;</c> element's <c>loadeddata</c> event: the title is playing after
+    /// all, so an earlier message about it must go — otherwise reopening a title that failed once would
+    /// show the old message even though it now works.
+    /// </summary>
+    private void OnStreamLoaded()
+    {
+        failedStreamUrl = null;
     }
 
     protected override void OnParametersSet()

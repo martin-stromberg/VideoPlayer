@@ -71,11 +71,39 @@ public sealed class ItemsControllerMediaFileTypeTests : IDisposable
     }
 
     /// <summary>
+    /// A file the server itself cannot read (missing permission of the service account) is a server-side
+    /// problem. It must not leave the controller as 401, because a client reads that as an expired
+    /// session, renews it and repeats the call - the very confusion A4 removes.
+    /// </summary>
+    [Fact]
+    public async Task Stream_WhenTheFileCannotBeRead_ReturnsServerError()
+    {
+        var (controller, episode) = await CreateControllerWithLocalEpisodeAsync(new UnreadableFileReader());
+
+        var result = await controller.StreamMediaItem("tvshowepisode", episode.Id);
+
+        var objectResult = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(500, objectResult.StatusCode);
+    }
+
+    [Fact]
+    public async Task Download_WhenTheFileCannotBeRead_ReturnsServerError()
+    {
+        var (controller, episode) = await CreateControllerWithLocalEpisodeAsync(new UnreadableFileReader());
+
+        var result = await controller.Download("tvshowepisode", episode.Id);
+
+        var objectResult = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(500, objectResult.StatusCode);
+    }
+
+    /// <summary>
     /// Builds a controller with a local media source the user may read, holding one TV show episode
     /// whose media item points at a real file.
     /// </summary>
+    /// <param name="reader">The media source reader to use; the real local reader when omitted.</param>
     /// <returns>The controller and the created episode.</returns>
-    private async Task<(ItemsController Controller, TVShowEpisode Episode)> CreateControllerWithLocalEpisodeAsync()
+    private async Task<(ItemsController Controller, TVShowEpisode Episode)> CreateControllerWithLocalEpisodeAsync(IMediaSourceReader? reader = null)
     {
         var ct = TestContext.Current.CancellationToken;
         var filePath = Path.Combine(_rootDir, "episode.mp4");
@@ -149,7 +177,7 @@ public sealed class ItemsControllerMediaFileTypeTests : IDisposable
         var unlockedMediaService = serviceProvider.GetRequiredService<IUnlockedMediaService>();
         var controller = new ItemsController(
             db,
-            new LocalMediaSourceReader(NullLogger<LocalMediaSourceReader>.Instance),
+            reader ?? new LocalMediaSourceReader(NullLogger<LocalMediaSourceReader>.Instance),
             new MediaMetadataEditorService(db, null),
             new RecentEntryService(db, fakeAuth, unlockedMediaService),
             unlockedMediaService,
@@ -158,4 +186,31 @@ public sealed class ItemsControllerMediaFileTypeTests : IDisposable
 
         return (controller, episode);
     }
+}
+
+/// <summary>
+/// Media source reader whose file cannot be opened: <see cref="OpenFileStream"/> fails the way the file
+/// system does when the service account may not read the file. The other members are not used by the
+/// tests of this class.
+/// </summary>
+internal sealed class UnreadableFileReader : IMediaSourceReader
+{
+    /// <inheritdoc />
+    public Stream? OpenFileStream(MediaCollection collection, string fileName)
+        => throw new UnauthorizedAccessException($"Kein Lesezugriff auf '{fileName}'.");
+
+    /// <inheritdoc />
+    public IEnumerable<MediaEntry> ReadRootDirectory(MediaSource source) => [];
+
+    /// <inheritdoc />
+    public IEnumerable<MediaEntry> ReadDirectoryEntries(MediaCollection collection) => [];
+
+    /// <inheritdoc />
+    public Task<bool> FileExistsAsync(MediaCollection collection, string fileName) => Task.FromResult(false);
+
+    /// <inheritdoc />
+    public Task<string?> ReadFileAsync(MediaCollection collection, string fileName) => Task.FromResult<string?>(null);
+
+    /// <inheritdoc />
+    public Task<Stream?> ReadFileStreamAsync(MediaCollection collection, string fileName) => Task.FromResult<Stream?>(null);
 }

@@ -622,9 +622,28 @@ public class ItemsController : ApiBaseController
             .Include(mc => mc.MediaSource)
             .FirstOrDefaultAsync(mc => mc.Id == mediaItem.MediaCollectionId);
 
+        // Substitute name before it is used, so an entry whose path carries no file name still gets a
+        // usable download name and a content type derived from that same name.
         var fileName = Path.GetFileName(mediaItem.Path);
-        var stream = _reader.OpenFileStream(mediaCollection, fileName)
-            ?? throw new RecordNotFoundException("Für diesen Titel ist keine Videodatei hinterlegt");
+        if (string.IsNullOrWhiteSpace(fileName))
+            fileName = $"video_{mediaItem.Id}.mp4";
+
+        Stream? stream;
+        try
+        {
+            stream = _reader.OpenFileStream(mediaCollection, fileName);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // A file the server itself cannot read (missing permission of the service account, locked or
+            // defective file) is a server-side problem, not a missing credential. Without this it would
+            // leave ExecuteAsync as 401 and the client would take it for an expired session and renew -
+            // exactly the confusion A4 removes elsewhere.
+            throw new InvalidOperationException("Die hinterlegte Videodatei konnte nicht geöffnet werden.", ex);
+        }
+
+        if (stream is null)
+            throw new RecordNotFoundException("Für diesen Titel ist keine Videodatei hinterlegt");
 
         var ext = Path.GetExtension(fileName).ToLowerInvariant();
         var contentType = ext switch
@@ -635,9 +654,6 @@ public class ItemsController : ApiBaseController
             ".mpeg" => "video/mpeg",
             _ => "application/octet-stream"
         };
-
-        if (string.IsNullOrWhiteSpace(fileName))
-            fileName = $"video_{mediaItem.Id}.mp4";
 
         return new MediaFile(stream, fileName, contentType);
     }

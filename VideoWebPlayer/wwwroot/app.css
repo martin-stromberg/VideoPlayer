@@ -1726,9 +1726,12 @@ input[type="text"]:focus {
     transition: width 0.2s linear;
 }
 
-/* Meldung, wenn der Browser den Videostrom nicht laden konnte (403/404 auf den Strom selbst).
-   Liegt als Einblendung ueber dem Videobereich, damit sie keine Hoehe beansprucht und die
-   Playlist-Bedienelemente darunter nicht aus dem sichtbaren Bereich schiebt. */
+/* Meldung, wenn der Browser den Videostrom nicht laden konnte.
+   TRAGENDE REGEL, nicht nur Gestaltung: Die Meldung liegt als Einblendung ueber dem Videobereich,
+   damit sie keine Hoehe beansprucht und die Playlist-Bedienelemente darunter nicht aus dem
+   sichtbaren Bereich schiebt. In den E2E-Tests erscheint die Meldung immer (dort ist kein Strom
+   abspielbar); ohne position: absolute waren die Bedienelemente nicht mehr anklickbar.
+   Abgesichert durch PlaylistPlaybackViewportE2ETests. */
 .player-stream-error {
     position: absolute;
     left: 1rem;

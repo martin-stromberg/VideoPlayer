@@ -29,7 +29,12 @@ public class VideoPlayerStreamErrorTests
         await cut.InvokeAsync(() => video.TriggerEventAsync("onerror", new EventArgs()));
 
         var errorBox = Assert.Single(cut.FindAll("#player-stream-error"));
-        Assert.Equal("Dieser Titel existiert nicht oder hat keine Videodatei.", errorBox.TextContent);
+        Assert.Equal(
+            "Der Titel konnte nicht abgespielt werden: Er existiert nicht, hat keine Videodatei, oder der Browser kann das Format nicht wiedergeben.",
+            errorBox.TextContent);
+        // Die Einblendung darf keine Hoehe beanspruchen (siehe .player-stream-error in app.css), sonst
+        // schiebt sie die Wiedergabe-Bedienelemente aus dem sichtbaren Bereich.
+        Assert.Contains("player-stream-error", errorBox.ClassName);
     }
 
     [Fact]
@@ -47,6 +52,24 @@ public class VideoPlayerStreamErrorTests
             .Add(p => p.StreamUrl, "/api/items/movie/8/stream")
             .Add(p => p.MediaType, "movie")
             .Add(p => p.MediaId, 8L));
+
+        Assert.Empty(cut.FindAll("#player-stream-error"));
+    }
+
+    /// <summary>
+    /// A title that failed once and then loads after all must not keep showing the old message.
+    /// </summary>
+    [Fact]
+    public async Task StreamError_IsClearedWhenTheSameTitleLoadsAfterAll()
+    {
+        using var ctx = CreateTestContext();
+        var cut = RenderPlayer(ctx, "/api/items/movie/7/stream");
+
+        var video = cut.Find("#video-player-element");
+        await cut.InvokeAsync(() => video.TriggerEventAsync("onerror", new EventArgs()));
+        Assert.Single(cut.FindAll("#player-stream-error"));
+
+        await cut.InvokeAsync(() => cut.Find("#video-player-element").TriggerEventAsync("onloadeddata", new EventArgs()));
 
         Assert.Empty(cut.FindAll("#player-stream-error"));
     }

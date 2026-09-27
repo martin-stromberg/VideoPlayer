@@ -96,6 +96,36 @@ public sealed class VideoWebPlayerClientTests_Reauthorization : DeviceClientTest
     }
 
     /// <summary>
+    /// After a revocation the device can be paired again through the bootstrap, without ever calling
+    /// <c>RefreshAsync</c>. The cause of the old, revoked session must not stay attached to a later,
+    /// unrelated 401 of the new session.
+    /// </summary>
+    [Fact]
+    public async Task AfterRepairing_UnauthorizedCarriesNoStaleCause()
+    {
+        var (user, payload) = await CreateUserAndPairDeviceAsync($"reauth-repair-{Guid.NewGuid():N}@test.com");
+        await SeedTwoAccessibleMoviesAsync(user.Id);
+
+        // Provoke the revocation cause on the automatic path.
+        await RevokeDeviceAsync(payload.DeviceToken);
+        ExpireSession();
+        var revoked = await Assert.ThrowsAsync<HttpRequestException>(() => Client.RequestPlaylistsAsync());
+        Assert.IsType<InvalidOperationException>(revoked.InnerException);
+
+        // Pair again as the app does: new ticket, assign the credentials, no RefreshAsync in between.
+        var ticket = await CreateBootstrapTicketAsync(user.Id);
+        await PairDeviceAsync(ticket, "Neu gekoppeltes Gerät");
+
+        // A later 401 that cannot be renewed for a different reason must come without the old cause.
+        Client.DeviceRefreshToken = null;
+        ExpireSession();
+        var later = await Assert.ThrowsAsync<HttpRequestException>(() => Client.RequestPlaylistsAsync());
+
+        Assert.Equal(HttpStatusCode.Unauthorized, later.StatusCode);
+        Assert.Null(later.InnerException);
+    }
+
+    /// <summary>
     /// An ordinary expired session — no device session at all — must keep answering a plain 401 without
     /// a cause, so the web interface and existing callers see exactly what they saw before.
     /// </summary>

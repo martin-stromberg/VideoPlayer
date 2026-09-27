@@ -122,12 +122,13 @@ public abstract class DeviceClientTestBase : IAsyncLifetime
     /// Creates a confirmed user.
     /// </summary>
     /// <param name="email">The user's email address, also used as user name.</param>
+    /// <param name="isAdmin">Whether the user is an administrator (the bootstrap JWT carries the claim).</param>
     /// <returns>The created user.</returns>
-    protected async Task<ApplicationUser> CreateUserAsync(string email)
+    protected async Task<ApplicationUser> CreateUserAsync(string email, bool isAdmin = false)
     {
         using var scope = Services.CreateScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-        var user = new ApplicationUser { UserName = email, Email = email, EmailConfirmed = true };
+        var user = new ApplicationUser { UserName = email, Email = email, EmailConfirmed = true, IsAdmin = isAdmin };
         var result = await userManager.CreateAsync(user);
         Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Errors.Select(e => e.Description)));
         return user;
@@ -179,11 +180,12 @@ public abstract class DeviceClientTestBase : IAsyncLifetime
     /// Creates a user, pairs a device for them via the QR bootstrap and returns both.
     /// </summary>
     /// <param name="email">The user's email address.</param>
+    /// <param name="isAdmin">Whether the user is an administrator.</param>
     /// <returns>The created user and the decrypted bootstrap payload.</returns>
     /// <!-- Tupel-Elemente: User, Payload -->
-    protected async Task<(ApplicationUser User, PairingBootstrapPayload Payload)> CreateUserAndPairDeviceAsync(string email)
+    protected async Task<(ApplicationUser User, PairingBootstrapPayload Payload)> CreateUserAndPairDeviceAsync(string email, bool isAdmin = false)
     {
-        var user = await CreateUserAsync(email);
+        var user = await CreateUserAsync(email, isAdmin);
         var ticket = await CreateBootstrapTicketAsync(user.Id);
         var payload = await PairDeviceAsync(ticket);
         return (user, payload);

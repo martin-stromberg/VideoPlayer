@@ -51,14 +51,14 @@ namespace VideoWebPlayer.Client
         }
 
         /// <summary>
-        /// Attempts to obtain a fresh authorization token after the server responded with 401
-        /// Unauthorized. Compatibility entry point without a renewal generation: it renews whenever the
-        /// session has not been renewed since this call started. Derived classes that only override this
-        /// overload keep working, but should prefer
-        /// <see cref="HandleUnauthorized(long)"/>, which <see cref="SendWithReauthorizationAsync"/> calls
-        /// and which can tell a stale 401 from a session that really expired.
+        /// Former entry point for the renewal after a 401, superseded by
+        /// <see cref="HandleUnauthorized(long)"/>. <b>It is no longer called.</b> Deliberately kept and
+        /// marked obsolete instead of removed, so a derived class out there that overrides this signature
+        /// gets a compiler warning naming the replacement, rather than silently losing its session
+        /// renewal.
         /// </summary>
         /// <returns><c>true</c> if a new token was obtained and the failed request should be retried; otherwise <c>false</c>.</returns>
+        [Obsolete("Wird nicht mehr aufgerufen; bitte HandleUnauthorized(long) überschreiben.")]
         protected virtual Task<bool> HandleUnauthorized()
         {
             return TryRenewDeviceSessionAsync(CurrentRefreshGeneration);
@@ -66,10 +66,10 @@ namespace VideoWebPlayer.Client
 
         /// <summary>
         /// Attempts to obtain a fresh authorization token after the server responded with 401
-        /// Unauthorized. A paired device renews its session via <see cref="RefreshAsync"/>; without a
-        /// device session nothing happens and failure is reported. Derived classes may impersonate or
-        /// otherwise renew the token instead. Only 401 reaches this method — 403 (signed in, but not
-        /// authorized) and 404 are final answers and are never retried.
+        /// Unauthorized. The one extension point for the renewal: a paired device renews its session via
+        /// <see cref="RefreshAsync"/>; without a device session nothing happens and failure is reported.
+        /// Derived classes may impersonate or otherwise renew the token instead. Only 401 reaches this
+        /// method — 403 (signed in, but not authorized) and 404 are final answers and are never retried.
         /// </summary>
         /// <param name="refreshGenerationBeforeRequest">
         /// The renewal generation of this client at the moment the failed request was sent. If the
@@ -911,29 +911,8 @@ namespace VideoWebPlayer.Client
             var json = System.Text.Json.JsonSerializer.Serialize(body);
             var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
             var endPoint = "api/continue-watching/progress";
-            Task<HttpResponseMessage> DoRequestAsync() => SendRequestAsync(HttpMethod.Post, endPoint, content);
-            var generationBeforeRequest = CurrentRefreshGeneration;
-            var response = await DoRequestAsync();
-
-            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-            {
-                Logger?.LogWarning("Received 401 Unauthorized from continue-watching/progress. Token might be expired.");
-                if (await HandleUnauthorized(generationBeforeRequest))
-                {
-                    response = await DoRequestAsync();
-                    if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-                    {
-                        // Wenn nach Erneuerung weiterhin Unauthorized kommt, gib das weiter.
-                        Logger?.LogWarning("Retry after token refresh still returned 401 for {EndPoint}.", endPoint);
-                        throw new HttpRequestException($"Unauthorized: {endPoint}");
-                    }
-                }
-                else
-                {
-                    // Kein neuer Token innerhalb der Wartezeit
-                    throw new HttpRequestException($"Unauthorized: {endPoint}");
-                }
-            }
+            var response = await SendWithReauthorizationAsync(
+                endPoint, () => SendRequestAsync(HttpMethod.Post, endPoint, content));
 
             if (!response.IsSuccessStatusCode)
             {
@@ -949,7 +928,8 @@ namespace VideoWebPlayer.Client
         {
             try
             {
-                var response = await SendRequestAsync(HttpMethod.Get, $"api/pictures/{pictureId}", null);
+                var endPoint = $"api/pictures/{pictureId}";
+                var response = await SendWithReauthorizationAsync(endPoint, () => SendRequestAsync(HttpMethod.Get, endPoint, null));
                 if (response.IsSuccessStatusCode)
                 {
                     return await response.Content.ReadAsByteArrayAsync();
@@ -971,7 +951,7 @@ namespace VideoWebPlayer.Client
             try
             {
                 var iconUrl = $"api/sourceicons/{pictureId}";
-                var response = await SendRequestAsync(HttpMethod.Get, iconUrl, null);
+                var response = await SendWithReauthorizationAsync(iconUrl, () => SendRequestAsync(HttpMethod.Get, iconUrl, null));
                 if (response.IsSuccessStatusCode)
                 {
                     return await response.Content.ReadAsByteArrayAsync();
@@ -990,12 +970,12 @@ namespace VideoWebPlayer.Client
         public async Task DeleteSourceAsync(long sourceId)
         {
             var endPoint = $"api/admin/sources/{sourceId}";
-            var response = await SendRequestAsync(HttpMethod.Delete, endPoint, null);
+            var response = await SendWithReauthorizationAsync(endPoint, () => SendRequestAsync(HttpMethod.Delete, endPoint, null));
 
             if (!response.IsSuccessStatusCode)
             {
                 var content = await response.Content.ReadAsStringAsync();
-                throw new HttpRequestException($"Failed to delete source {sourceId}: {content}");
+                throw new HttpRequestException($"Failed to delete source {sourceId}: {content}", null, response.StatusCode);
             }
         }
 

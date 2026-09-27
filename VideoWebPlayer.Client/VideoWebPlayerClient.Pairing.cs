@@ -30,30 +30,42 @@ namespace VideoWebPlayer.Client
 
         // The InvalidOperationException of the most recent failed renewal of this instance (revoked
         // device, expired or already used renewal proof), so the cause survives the automatic path and can
-        // be handed to the caller as the InnerException of the 401 it gets. Cleared on every successful
-        // renewal. Several requests of one client instance always fail for the same reason - they share
-        // device token and renewal proof - so the most recent failure describes all of them.
+        // be handed to the caller as the InnerException of the 401 it gets. It describes exactly one
+        // device session and is therefore cleared whenever that session changes: on a successful renewal,
+        // on logout, and as soon as either credential of a new pairing is assigned. Several requests of
+        // one client instance always fail for the same reason - they share device token and renewal
+        // proof - so the most recent failure describes all of them.
         private Exception? lastRenewalFailure;
 
         /// <summary>
         /// The device token of this client instance (never static, so every circuit/app instance keeps
         /// its own). While it is set, every request carries it as the <c>X-API-Key</c> gate key.
+        /// Assigning it starts a new device session, so the cause of an earlier failed renewal is dropped.
         /// </summary>
         public string? DeviceToken
         {
             get => _deviceToken;
-            set => _deviceToken = value;
+            set
+            {
+                _deviceToken = value;
+                lastRenewalFailure = null;
+            }
         }
 
         /// <summary>
         /// The refresh token of the current device session, stored per client instance. It is set from the
         /// decrypted bootstrap payload and replaced by every successful <see cref="RefreshAsync"/> (the
-        /// server rotates it). Without it no automatic renewal happens.
+        /// server rotates it). Without it no automatic renewal happens. As with
+        /// <see cref="DeviceToken"/>, assigning it drops the cause of an earlier failed renewal.
         /// </summary>
         public string? DeviceRefreshToken
         {
             get => _deviceRefreshToken;
-            set => _deviceRefreshToken = value;
+            set
+            {
+                _deviceRefreshToken = value;
+                lastRenewalFailure = null;
+            }
         }
 
         // Waiting time before a request is repeated after a successful renewal, so a server that just

@@ -63,13 +63,18 @@ public class ItemsController : ApiBaseController
     /// <param name="action">The endpoint logic to run.</param>
     /// <param name="logContext">A German gerund phrase describing the action, used in log messages (e.g. "Abrufen des Medienitems").</param>
     /// <returns>The result produced by <paramref name="action"/>, or the mapped error response.</returns>
-    private async Task<IActionResult> ExecuteAsync(Func<Task<IActionResult>> action, string logContext)
+    private async Task<ActionResult> ExecuteAsync(Func<Task<ActionResult>> action, string logContext)
     {
         try
         {
             return await action();
         }
         catch (RecordNotFoundException ex)
+        {
+            Logger.LogWarning(ex, "Eintrag nicht gefunden beim {LogContext}", logContext);
+            return NotFound(ex.Message);
+        }
+        catch (KeyNotFoundException ex)
         {
             Logger.LogWarning(ex, "Eintrag nicht gefunden beim {LogContext}", logContext);
             return NotFound(ex.Message);
@@ -83,6 +88,11 @@ public class ItemsController : ApiBaseController
         {
             Logger.LogWarning(ex, "Zugriff ohne Anmeldung beim {LogContext}", logContext);
             return Unauthorized(ex.Message);
+        }
+        catch (ArgumentException ex)
+        {
+            Logger.LogWarning(ex, "Ungueltige Eingabe beim {LogContext}", logContext);
+            return BadRequest(ex.Message);
         }
         catch (Exception ex)
         {
@@ -98,60 +108,32 @@ public class ItemsController : ApiBaseController
     [HttpGet("genres")]
     public async Task<ActionResult<List<DtoGenreOption>>> GetGenres()
     {
-        try
+        return await ExecuteAsync(async () =>
         {
             CheckLogedIn();
             return Ok(await _metadataEditor.GetGenreOptionsAsync(HttpContext.RequestAborted));
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            Logger.LogWarning(ex, "Zugriff verweigert beim Abrufen der Genre-Auswahlliste");
-            return Unauthorized(ex.Message);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Fehler beim Abrufen der Genre-Auswahlliste");
-            return StatusCode(500, "Internal server error");
-        }
+        }, "Abrufen der Genre-Auswahlliste");
     }
 
     /// <summary>
-    /// Updates user-editable metadata for a media detail context.
+    /// Updates user-editable metadata for a media detail context. Only administrators may save; for
+    /// everybody else the call is refused with 403 Forbidden, not with 401 Unauthorized — 401 stays
+    /// reserved for a missing or invalid credential, as everywhere else in this controller.
     /// </summary>
     /// <param name="request">The metadata values to persist.</param>
     /// <returns>An action result indicating success.</returns>
     [HttpPost("metadata")]
     public async Task<IActionResult> UpdateMetadata([FromBody] MediaMetadataUpdateRequest request)
     {
-        try
+        return await ExecuteAsync(async () =>
         {
             CheckLogedIn();
             if (!User.HasClaim("IsAdmin", "True"))
-                return Unauthorized("Nur Administratoren dürfen Metadaten speichern.");
+                throw new ForbiddenAccessException("Nur Administratoren dürfen Metadaten speichern.");
 
             await _metadataEditor.UpdateAsync(request, HttpContext.RequestAborted);
             return Ok(true);
-        }
-        catch (ArgumentException ex)
-        {
-            Logger.LogWarning(ex, "Ungueltige Metadaten-Aktualisierung");
-            return BadRequest(ex.Message);
-        }
-        catch (KeyNotFoundException ex)
-        {
-            Logger.LogWarning(ex, "Metadaten-Ziel nicht gefunden");
-            return NotFound(ex.Message);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            Logger.LogWarning(ex, "Zugriff verweigert beim Speichern von Metadaten");
-            return Unauthorized(ex.Message);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Fehler beim Speichern von Metadaten");
-            return StatusCode(500, "Internal server error");
-        }
+        }, "Speichern von Metadaten");
     }
     /// <summary>
     /// Gets media entries for a source with optional filtering.
@@ -177,7 +159,7 @@ public class ItemsController : ApiBaseController
             [FromQuery] long? genreId = null,
             [FromQuery] bool includeIndividualMediaTypes = false)
     {
-        try
+        return await ExecuteAsync(async () =>
         {
             CheckLogedIn();
 
@@ -212,17 +194,7 @@ public class ItemsController : ApiBaseController
                 .ToList();
 
             return Ok(pagedEntries);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            Logger.LogWarning(ex, "Zugriff verweigert beim Abrufen der Genres fuer Quelle");
-            return Unauthorized(ex.Message);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Fehler beim Abrufen der Genres fuer Quelle");
-            return StatusCode(500, "Internal server error");
-        }
+        }, "Abrufen der Medieneintraege");
     }
 
     /// <summary>
@@ -433,7 +405,7 @@ public class ItemsController : ApiBaseController
     [HttpGet("recent")]
     public async Task<ActionResult<List<DtoRecentEntry>>> GetRecent()
     {
-        try
+        return await ExecuteAsync(async () =>
         {
             CheckLogedIn();
             var recent = await recentEntryService.GetRecentEntriesAsync();
@@ -527,17 +499,7 @@ public class ItemsController : ApiBaseController
             }
             await _watchedStatusService.EnrichAsync(CurrentUser.Id, dtoList.Select(x => x.Entry), RequestCancellationToken);
             return Ok(dtoList);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            Logger.LogWarning(ex, "Zugriff verweigert beim Abrufen der letzten Eintraege");
-            return Unauthorized(ex.Message);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Fehler beim Abrufen der letzten Eintraege");
-            return StatusCode(500, "Internal server error");
-        }
+        }, "Abrufen der letzten Eintraege");
     }
 
     private async Task<MediaBaseEntry> FindEntry(string type, long id)
@@ -616,75 +578,105 @@ public class ItemsController : ApiBaseController
     }
 
     /// <summary>
+    /// The opened video file of a media item, as <see cref="OpenMediaFileAsync"/> resolves it once for
+    /// both <see cref="StreamMediaItem"/> and <see cref="Download"/>.
+    /// </summary>
+    /// <param name="Stream">The opened file stream.</param>
+    /// <param name="FileName">The file name, used as the download name.</param>
+    /// <param name="ContentType">The content type derived from the file extension.</param>
+    /// <returns>The resolved media file.</returns>
+    private sealed record MediaFile(Stream Stream, string FileName, string ContentType);
+
+    /// <summary>
+    /// Normalizes the media type of the stream and download endpoints: <c>tvshow</c> means the episode,
+    /// so both endpoints accept the same values (previously only the stream endpoint did, which made
+    /// <c>/download</c> answer 404 for a type the documentation promises).
+    /// </summary>
+    /// <param name="type">The media type from the route.</param>
+    /// <returns>The normalized media type.</returns>
+    private static string NormalizeMediaFileType(string type)
+        => type == nameof(TVShow).ToLower() ? nameof(TVShowEpisode).ToLower() : type;
+
+    /// <summary>
+    /// Resolves type, entry, authorization, media item and the video file of a title exactly once — the
+    /// single place <see cref="StreamMediaItem"/> and <see cref="Download"/> share, so a download no
+    /// longer resolves everything twice. The failures travel as exceptions and are mapped by
+    /// <see cref="ExecuteAsync"/>: invalid type or id to 400, unknown entry and missing video file to
+    /// 404, missing authorization to 403.
+    /// </summary>
+    /// <param name="type">The media type (<c>movie</c>, <c>tvshowepisode</c> or <c>tvshow</c>).</param>
+    /// <param name="id">The media item identifier.</param>
+    /// <returns>The opened file together with its name and content type.</returns>
+    private async Task<MediaFile> OpenMediaFileAsync(string type, long id)
+    {
+        type = NormalizeMediaFileType(type);
+
+        if (type != nameof(Movie).ToLower() && type != nameof(TVShowEpisode).ToLower())
+            throw new ArgumentException("Ungültiger Medientyp");
+        if (id <= 0)
+            throw new ArgumentException("Ungültige ID");
+
+        var mediaItem = await FindMediaItemAsync(type, id);
+
+        var mediaCollection = await _db.MediaCollections
+            .Include(mc => mc.MediaSource)
+            .FirstOrDefaultAsync(mc => mc.Id == mediaItem.MediaCollectionId);
+
+        var fileName = Path.GetFileName(mediaItem.Path);
+        var stream = _reader.OpenFileStream(mediaCollection, fileName)
+            ?? throw new RecordNotFoundException("Für diesen Titel ist keine Videodatei hinterlegt");
+
+        var ext = Path.GetExtension(fileName).ToLowerInvariant();
+        var contentType = ext switch
+        {
+            ".mp4" => "video/mp4",
+            ".mkv" => "video/x-matroska",
+            ".avi" => "video/x-msvideo",
+            ".mpeg" => "video/mpeg",
+            _ => "application/octet-stream"
+        };
+
+        if (string.IsNullOrWhiteSpace(fileName))
+            fileName = $"video_{mediaItem.Id}.mp4";
+
+        return new MediaFile(stream, fileName, contentType);
+    }
+
+    /// <summary>
     /// Streams a media item by type and identifier.
     /// </summary>
     /// <param name="type">The media type (<c>movie</c> or the TV show/episode type).</param>
     /// <param name="id">The media item identifier.</param>
     /// <returns>The media file as a range-processed stream.</returns>
     [HttpGet("{type}/{id}/stream")]
-    public Task<IActionResult> StreamMediaItem(string type, long id)
+    public async Task<IActionResult> StreamMediaItem(string type, long id)
     {
-        return ExecuteAsync(async () =>
+        return await ExecuteAsync(async () =>
         {
             CheckLogedIn();
-            if (type == nameof(TVShow).ToLower())
-                type = nameof(TVShowEpisode).ToLower();
-
-            if (type != nameof(Movie).ToLower() && type != nameof(TVShowEpisode).ToLower())
-                return BadRequest("Ungültiger Medientyp");
-            if (id <= 0)
-                return BadRequest("Ungültige ID");
-
-            var mediaItem = await FindMediaItemAsync(type, id);
-
-            var mediaCollection = await _db.MediaCollections
-                .Include(mc => mc.MediaSource)
-                .FirstOrDefaultAsync(mc => mc.Id == mediaItem.MediaCollectionId);
-
-            var fileName = Path.GetFileName(mediaItem.Path);
-            var stream = _reader.OpenFileStream(mediaCollection, fileName);
-            if (stream == null)
-                return NotFound("Für diesen Titel ist keine Videodatei hinterlegt");
-
-            var ext = Path.GetExtension(fileName).ToLowerInvariant();
-            var contentType = ext switch
-            {
-                ".mp4" => "video/mp4",
-                ".mkv" => "video/x-matroska",
-                ".avi" => "video/x-msvideo",
-                ".mpeg" => "video/mpeg",
-                _ => "application/octet-stream"
-            };
+            var file = await OpenMediaFileAsync(type, id);
 
             // enableRangeProcessing: true for video streaming
-            return File(stream, contentType, enableRangeProcessing: true);
+            return File(file.Stream, file.ContentType, enableRangeProcessing: true);
         }, "Streamen des Medienitems");
     }
 
     /// <summary>
-    /// Downloads a media item by type and identifier.
+    /// Downloads a media item by type and identifier. Accepts the same types and answers the same status
+    /// codes as <see cref="StreamMediaItem"/>, since both resolve the file through the same helper.
     /// </summary>
     /// <param name="type">The media type (<c>movie</c> or the TV show/episode type).</param>
     /// <param name="id">The media item identifier.</param>
     /// <returns>The media file as a downloadable attachment.</returns>
     [HttpGet("{type}/{id}/download")]
-    public Task<IActionResult> Download(string type, long id)
+    public async Task<IActionResult> Download(string type, long id)
     {
-        return ExecuteAsync(async () =>
+        return await ExecuteAsync(async () =>
         {
             CheckLogedIn();
+            var file = await OpenMediaFileAsync(type, id);
 
-            var mediaItem = await FindMediaItemAsync(type, id);
-
-            // StreamMediaItem maps its own errors (403/404/400) through ExecuteAsync, so anything other
-            // than the file result is already the correct error response and is passed on unchanged.
-            var streamResult = await StreamMediaItem(type, id);
-            if (streamResult is not FileStreamResult fileStreamResult)
-                return streamResult;
-
-            // Optional: read file name
-            var fileName = !string.IsNullOrWhiteSpace(fileStreamResult.FileDownloadName) ? fileStreamResult.FileDownloadName : Path.GetFileName(mediaItem.Path) ?? $"video_{mediaItem.Id}.mp4";
-            return File(fileStreamResult.FileStream, "application/octet-stream", fileName);
+            return File(file.Stream, "application/octet-stream", file.FileName);
         }, "Herunterladen des Medienitems");
     }
 
@@ -695,9 +687,9 @@ public class ItemsController : ApiBaseController
     /// <param name="id">The media item identifier.</param>
     /// <returns>The media details.</returns>
     [HttpGet("{type}/{id}")]
-    public Task<IActionResult> Get(string type, long id)
+    public async Task<IActionResult> Get(string type, long id)
     {
-        return ExecuteAsync(async () =>
+        return await ExecuteAsync(async () =>
         {
             CheckLogedIn();
             var entry = await FindEntry(type, id);

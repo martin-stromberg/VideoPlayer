@@ -345,6 +345,17 @@ Liefert zuletzt veröffentlichte oder zuletzt relevante Einträge als `DtoRecent
 
 Liefert editierbare Genre-Optionen als `DtoGenreOption[]`.
 
+### POST /api/items/metadata
+
+Speichert die vom Anwender änderbaren Metadaten eines Medieneintrags (`MediaMetadataUpdateRequest`).
+
+Statuscodes:
+
+- `400`, wenn die Angaben ungültig sind (z. B. Datumsfeld passt nicht zum Typ, Name zu lang)
+- `401`, wenn kein oder ein ungültiger Anmeldenachweis mitgegeben wurde
+- `403`, wenn der angemeldete Anwender kein Administrator ist
+- `404`, wenn der angegebene Eintrag nicht existiert
+
 ### GET /api/items/{type}/{id}
 
 Liefert Details zu einem Medieneintrag. Unterstützte `type`-Werte sind:
@@ -365,7 +376,7 @@ Statuscodes:
 
 ### GET /api/items/{type}/{id}/stream
 
-Streamt eine Film- oder Episodendatei mit Range-Unterstützung. Unterstützte Stream-Typen sind `movie` und `tvshowepisode`; `tvshow` wird serverseitig auf `tvshowepisode` normalisiert.
+Streamt eine Film- oder Episodendatei mit Range-Unterstützung. Unterstützte Typen sind `movie` und `tvshowepisode`; `tvshow` wird serverseitig auf `tvshowepisode` normalisiert. Für `.../download` gilt dieselbe Liste — beide Endpunkte lösen die Datei über denselben Weg auf.
 
 Antworten:
 
@@ -377,7 +388,7 @@ Antworten:
 
 ### GET /api/items/{type}/{id}/download
 
-Liefert dieselbe Datei als Download (`application/octet-stream`). Es gelten dieselben Statuscodes wie bei `.../stream`.
+Liefert dieselbe Datei als Download (`application/octet-stream`). Es gelten dieselben Typen und dieselben Statuscodes wie bei `.../stream`.
 
 ### GET /api/pictures/{id}
 

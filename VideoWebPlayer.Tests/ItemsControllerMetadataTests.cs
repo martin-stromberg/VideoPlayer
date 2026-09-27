@@ -14,8 +14,12 @@ namespace VideoWebPlayer.Tests;
 
 public sealed class ItemsControllerMetadataTests
 {
+    /// <summary>
+    /// A signed-in user who is not an administrator is refused with 403 Forbidden, not with 401
+    /// Unauthorized: 401 stays reserved for a missing or invalid credential (A4).
+    /// </summary>
     [Fact]
-    public async Task UpdateMetadata_WhenUserIsNotAdmin_ReturnsUnauthorized()
+    public async Task UpdateMetadata_WhenUserIsNotAdmin_ReturnsForbidden()
     {
         await using var db = CreateDb();
         var controller = CreateController(db, isAdminClaim: false);
@@ -27,7 +31,7 @@ public sealed class ItemsControllerMetadataTests
             Name = "Title",
         });
 
-        Assert.IsType<UnauthorizedObjectResult>(result);
+        Assert.IsType<ForbidResult>(result);
     }
 
     [Fact]

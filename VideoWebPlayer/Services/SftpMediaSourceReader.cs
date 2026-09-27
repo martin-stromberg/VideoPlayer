@@ -261,13 +261,19 @@ namespace VideoWebPlayer.Services
 
         /// <summary>
         /// Gibt einen Stream für eine Datei auf dem SFTP-Server zurück.
-        /// Der Stream liest direkt von der SFTP-Verbindung.
+        /// Der Stream liest direkt von der SFTP-Verbindung. Liefert <c>null</c> statt einer Ausnahme, wenn
+        /// <paramref name="fileName"/> leer ist oder der aufgelöste Pfad auf ein Verzeichnis statt auf eine
+        /// reguläre Datei zeigt (sonst würde <c>client.OpenRead</c> auf ein Verzeichnis eine unbehandelte
+        /// <see cref="Renci.SshNet.Common.SftpException"/> auslösen).
         /// </summary>
         /// <param name="collection">Die MediaCollection, die die Datei enthält.</param>
         /// <param name="fileName">Der Name der Datei.</param>
         /// <returns>Ein Stream-Objekt, das die Datei repräsentiert, oder null, wenn die Datei nicht existiert.</returns>
         public Stream? OpenFileStream(MediaCollection collection, string fileName)
         {
+            if (string.IsNullOrWhiteSpace(fileName))
+                return null;
+
             var client = new SftpClient(
                 collection.MediaSource.Host,
                 collection.MediaSource.Port,
@@ -279,7 +285,7 @@ namespace VideoWebPlayer.Services
             var fullPath = CombineSftpPath(collection.Path, fileName);
             try
             {
-                if (!client.Exists(fullPath))
+                if (!client.Exists(fullPath) || client.GetAttributes(fullPath).IsDirectory)
                 {
                     client.Dispose();
                     return null;

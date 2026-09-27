@@ -622,11 +622,7 @@ public class ItemsController : ApiBaseController
             .Include(mc => mc.MediaSource)
             .FirstOrDefaultAsync(mc => mc.Id == mediaItem.MediaCollectionId);
 
-        // Substitute name before it is used, so an entry whose path carries no file name still gets a
-        // usable download name and a content type derived from that same name.
         var fileName = Path.GetFileName(mediaItem.Path);
-        if (string.IsNullOrWhiteSpace(fileName))
-            fileName = $"video_{mediaItem.Id}.mp4";
 
         Stream? stream;
         try

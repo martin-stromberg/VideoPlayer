@@ -22,7 +22,9 @@ internal static class MediaAccessErrorMessages
     /// and not its cause: the <c>error</c> event of the <c>&lt;video&gt;</c> element fires for every
     /// loading problem — a refused or missing stream just as much as a format the browser cannot decode
     /// (the stream endpoint also serves Matroska, AVI and MPEG) or a broken connection. The wording
-    /// therefore names all of these instead of asserting one of them.
+    /// names the causes shown elsewhere by their own messages (<see cref="Forbidden"/>,
+    /// <see cref="NotFound"/>) rather than asserting one of them; a 403 answered directly on the stream
+    /// URL still falls back to this generic text, since the video element does not expose the status code.
     /// </summary>
     public const string PlaybackFailed =
         "Der Titel konnte nicht abgespielt werden: Er existiert nicht, hat keine Videodatei, oder der Browser kann das Format nicht wiedergeben.";

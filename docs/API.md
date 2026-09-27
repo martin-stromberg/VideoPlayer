@@ -33,7 +33,9 @@ Diese Datei beschreibt den versionierten API-Vertrag des Web-Repositorys. Die DT
 | `429 Too Many Requests` | Die Client-IP ist wegen wiederholter Fehlversuche gesperrt. |
 | `500 Internal Server Error` | Unerwarteter Serverfehler. |
 
-Die Playlist-Endpunkte und die Medien-Endpunkte (`GET /api/items/{type}/{id}`, `.../stream`, `.../download`) halten sich an diese Tabelle. Insbesondere gilt bei den Medien-Endpunkten: `401 Unauthorized` nur, wenn der Anmeldenachweis fehlt oder ungültig ist; fehlt einem **angemeldeten** Anwender die Freischaltung, antworten sie mit `403 Forbidden`; eine unbekannte Kennung, ein unbekannter Typ oder ein Titel ohne hinterlegte Videodatei ergibt `404 Not Found`. Ein Client darf ein `401` dieser Endpunkte daher als „Sitzung abgelaufen“ deuten und eine Sitzungserneuerung auslösen, ein `403` oder `404` dagegen nicht — beide sind endgültig.
+Die Playlist-Endpunkte und die Medien-Endpunkte (`GET /api/items/{type}/{id}`, `.../stream`, `.../download`) halten sich an diese Tabelle. Insbesondere gilt bei den Medien-Endpunkten: `401 Unauthorized` nur, wenn der Anmeldenachweis fehlt oder ungültig ist; fehlt einem **angemeldeten** Anwender die Freischaltung, antworten sie mit `403 Forbidden`; eine unbekannte Kennung oder ein Titel ohne hinterlegte Videodatei ergibt `404 Not Found`; ein unbekannter
+Typ ergibt beim Detail-Endpunkt (`GET /api/items/{type}/{id}`) ebenfalls `404`, bei `.../stream` und
+`.../download` dagegen `400 Bad Request` (siehe deren eigene Beschreibung unten). Ein Client darf ein `401` dieser Endpunkte daher als „Sitzung abgelaufen“ deuten und eine Sitzungserneuerung auslösen, ein `403` oder `404` dagegen nicht — beide sind endgültig.
 
 ## Health und Login
 

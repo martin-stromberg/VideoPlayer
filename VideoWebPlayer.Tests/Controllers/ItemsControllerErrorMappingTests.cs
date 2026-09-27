@@ -73,6 +73,16 @@ public class ItemsControllerErrorMappingTests
     }
 
     [Fact]
+    public async Task Download_WithoutCredential_Returns_Unauthorized()
+    {
+        var (_, controller, _) = await CreateControllerAsync(authenticated: false);
+
+        var result = await controller.Download("movie", 1);
+
+        Assert.IsType<UnauthorizedObjectResult>(result);
+    }
+
+    [Fact]
     public async Task Download_UnknownId_Returns_NotFound()
     {
         var (_, controller, _) = await CreateControllerAsync();

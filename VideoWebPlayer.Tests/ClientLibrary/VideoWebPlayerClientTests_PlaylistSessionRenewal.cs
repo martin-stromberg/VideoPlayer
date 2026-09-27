@@ -77,6 +77,29 @@ public sealed class VideoWebPlayerClientTests_PlaylistSessionRenewal : DeviceCli
         Assert.Equal(1, Requests.CountTo(RefreshRoute));
     }
 
+    /// <summary>
+    /// Reordering uses the PUT overload without a response body, a third path next to the two covered
+    /// above; it must renew the session as well.
+    /// </summary>
+    [Fact]
+    public async Task ReorderWithPut_SurvivesExpiredSession()
+    {
+        var (playlistId, _, secondEntryId) = await ArrangePlaylistAsync("Umsortieren-Erneuerung");
+        await Client.ChangeSortModeAsync(playlistId, new DtoChangeSortModeRequest
+        {
+            NewSortMode = PlaylistSortModeValues.Manual,
+            ConfirmLossOfManualOrder = true
+        });
+        var refreshesBefore = Requests.CountTo(RefreshRoute);
+
+        ExpireSession();
+        await Client.ReorderPlaylistEntryAsync(playlistId, secondEntryId, new DtoReorderPlaylistEntryRequest { NewSortOrder = 1 });
+
+        var page = await Client.RequestPlaylistEntriesPagedAsync(playlistId, 1, 10, TestContext.Current.CancellationToken);
+        Assert.Equal(2, page.TotalCount);
+        Assert.Equal(refreshesBefore + 1, Requests.CountTo(RefreshRoute));
+    }
+
     [Fact]
     public async Task CoverDeletionWithDelete_SurvivesExpiredSession()
     {

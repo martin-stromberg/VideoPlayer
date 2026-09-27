@@ -89,7 +89,7 @@ public class ItemsControllerAccessTests
     [Fact]
     public async Task Stream_Movie_Without_Access_Returns_Forbidden()
     {
-        var (db, controller, source, movie, _, _) = await CreateControllerWithUnlockedMovieAsync(false);
+        var (_, controller, _, movie, _, _) = await CreateControllerWithUnlockedMovieAsync(false);
 
         var result = await controller.StreamMediaItem("movie", movie.Id);
 
@@ -99,7 +99,7 @@ public class ItemsControllerAccessTests
     [Fact]
     public async Task Download_Movie_Without_Access_Returns_Forbidden()
     {
-        var (db, controller, source, movie, _, _) = await CreateControllerWithUnlockedMovieAsync(false);
+        var (_, controller, _, movie, _, _) = await CreateControllerWithUnlockedMovieAsync(false);
 
         var result = await controller.Download("movie", movie.Id);
 

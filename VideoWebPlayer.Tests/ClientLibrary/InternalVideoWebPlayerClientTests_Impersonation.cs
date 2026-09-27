@@ -120,7 +120,9 @@ public sealed class InternalVideoWebPlayerClientTests_Impersonation : DeviceClie
     /// <returns>The new client instance.</returns>
     private InternalVideoWebPlayerClient CreateInternalClient(ApplicationUser user)
     {
-        var scope = Services.CreateScope();
+        // The scope has to outlive this method (the client keeps using its UserManager), so the base
+        // class holds it and releases it when the test ends.
+        var scope = CreateScope();
         var principal = new ClaimsPrincipal(new ClaimsIdentity(
             [new Claim(ClaimTypes.NameIdentifier, user.Id)], "TestAuthentication"));
         var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext { User = principal } };

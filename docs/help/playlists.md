@@ -526,6 +526,10 @@ ist für ihn keine Videodatei hinterlegt, lautet die Meldung „Dieser Titel exi
 Videodatei.". Beide Meldungen sind endgültig: Die Playlist bleibt sichtbar, es wird nichts erneut
 versucht und es wird keine Neuanmeldung verlangt.
 
+Scheitert erst das Laden des Videostroms selbst — etwa weil zu dem Titel keine Videodatei mehr
+vorhanden ist —, meldet der Player das mit derselben Meldung unter dem Videobereich, statt einfach
+leer zu bleiben. Sie verschwindet, sobald ein anderer Titel geladen wird.
+
 ### Navigation innerhalb der Playlist
 
 Solange aus einer Playlist heraus abgespielt wird, zeigt der Video-Player zusätzlich zu den

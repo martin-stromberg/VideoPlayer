@@ -17,13 +17,20 @@
                     [@currentPlaylistName: @currentPlaylistPosition/@playlistTotalCount]
                 </div>
             }
+            @* @onerror: Ein 403 oder 404 auf den Videostrom erreicht nur den Browser, nicht die
+               Bibliothek - ohne diesen Handler blieb der Player in diesem Fall leer und stumm. *@
             <video @ref="_videoRef"
                    id="video-player-element"
                    src="@StreamUrl"
                    controls
                    autoplay="@AutoPlay"
                    @onended="OnMediaEndAsync"
+                   @onerror="OnStreamError"
                    style="max-width:1200px;"></video>
+            @if (HasStreamError)
+            {
+                <div class="alert alert-danger player-stream-error" id="player-stream-error">@MediaAccessErrorMessages.NotFound</div>
+            }
             <div class="player-progress-rail" aria-hidden="true">
                 <div class="player-progress-fill" style="width:@ProgressPercent%"></div>
             </div>
@@ -103,6 +110,30 @@
     private PlaylistPlaybackContext? appliedPlaylistContext;
     private bool playlistEndReached;
     private string? playlistNavigationErrorMessage;
+
+    /// <summary>
+    /// The stream URL the browser could not load, or <see langword="null"/> if no stream failed. The
+    /// stream endpoint answers 403 for a title that is not unlocked and 404 for one without a video file
+    /// (A4), but the browser only raises an error event for that — without this the player just stayed
+    /// empty. Kept as the URL rather than a flag, so the message belongs to exactly one title and
+    /// disappears by itself as soon as another one is shown.
+    /// </summary>
+    private string? failedStreamUrl;
+
+    /// <summary>
+    /// Whether the title currently shown is the one whose stream failed to load.
+    /// </summary>
+    private bool HasStreamError => failedStreamUrl is not null && failedStreamUrl == StreamUrl;
+
+    /// <summary>
+    /// Handler of the <c>&lt;video&gt;</c> element's error event: names the most likely cause, the one
+    /// <see cref="MediaAccessErrorMessages.NotFound"/> is worded for. The status code itself is not
+    /// available to the element, so the message stays with the cause the user can act on.
+    /// </summary>
+    private void OnStreamError()
+    {
+        failedStreamUrl = StreamUrl;
+    }
 
     protected override void OnParametersSet()
     {

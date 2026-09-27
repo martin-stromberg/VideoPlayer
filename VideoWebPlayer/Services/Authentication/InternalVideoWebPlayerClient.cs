@@ -44,18 +44,19 @@ namespace VideoWebPlayer.Services.Authentication
         public override async Task EnsureAuthorizationTokenAsync(ClaimsPrincipal? user, CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(AuthorizationToken))
-                await ImpersonateAsync(user ?? httpContextAccessor.HttpContext?.User ?? new ClaimsPrincipal());
+                await ImpersonateAsync(user ?? httpContextAccessor.HttpContext?.User ?? new ClaimsPrincipal(), cancellationToken);
         }
 
         /// <summary>
         /// Obtains a bearer token for the current HTTP user before a request leaves this client, so every
-        /// HTTP verb — not only GET and POST — runs under the signed-in user. Centralizes the check the
-        /// individual overrides below previously repeated.
+        /// HTTP verb — not only GET and POST — runs under the signed-in user. Uses
+        /// <see cref="EnsureAuthorizationTokenAsync(ClaimsPrincipal?, CancellationToken)"/> instead of
+        /// repeating its check, so both paths stay in step.
         /// </summary>
-        private Task EnsureImpersonatedAsync()
-            => string.IsNullOrWhiteSpace(AuthorizationToken)
-                ? ImpersonateAsync(httpContextAccessor.HttpContext?.User ?? new ClaimsPrincipal())
-                : Task.CompletedTask;
+        /// <param name="cancellationToken">A token to cancel the identity lookups of the impersonation.</param>
+        /// <returns>A task that completes once a bearer token is available.</returns>
+        private Task EnsureImpersonatedAsync(CancellationToken cancellationToken = default)
+            => EnsureAuthorizationTokenAsync(null, cancellationToken);
 
         /// <summary>
         /// Issues an authenticated GET request to the specified endpoint.
@@ -78,7 +79,7 @@ namespace VideoWebPlayer.Services.Authentication
         /// <returns>The deserialized response.</returns>
         protected override async Task<T> HttpGetAsync<T>(string endPoint, CancellationToken cancellationToken)
         {
-            await EnsureImpersonatedAsync();
+            await EnsureImpersonatedAsync(cancellationToken);
             return await base.HttpGetAsync<T>(endPoint, cancellationToken);
         }
 
@@ -180,10 +181,18 @@ namespace VideoWebPlayer.Services.Authentication
             return await base.PostForOptionalPlaylistNavigationResultAsync(endPoint);
         }
 
-        private async Task ImpersonateAsync(ClaimsPrincipal user)
+        /// <summary>
+        /// Resolves the user behind <paramref name="user"/> and puts a bearer token for them on this
+        /// client. The cancellation token ends the waiting for a parallel impersonation, so a request
+        /// the browser has already abandoned does not keep waiting here.
+        /// </summary>
+        /// <param name="user">The principal to resolve the user from.</param>
+        /// <param name="cancellationToken">A token to cancel the impersonation.</param>
+        /// <returns>A task that completes once a bearer token is available.</returns>
+        private async Task ImpersonateAsync(ClaimsPrincipal user, CancellationToken cancellationToken = default)
         {
             while (_impersonating)
-                await Task.Delay(10);
+                await Task.Delay(10, cancellationToken);
             var repeat = false;
             try
             {
@@ -249,7 +258,7 @@ namespace VideoWebPlayer.Services.Authentication
             finally
             {
                 if (repeat)
-                    await ImpersonateAsync(user);
+                    await ImpersonateAsync(user, cancellationToken);
             }
         }
     }

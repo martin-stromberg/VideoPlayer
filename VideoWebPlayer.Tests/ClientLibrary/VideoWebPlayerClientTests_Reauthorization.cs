@@ -87,6 +87,31 @@ public sealed class VideoWebPlayerClientTests_Reauthorization : DeviceClientTest
 
         Assert.Equal(HttpStatusCode.Unauthorized, exception.StatusCode);
         Assert.Equal(1, Requests.CountTo(RefreshRoute));
+
+        // The cause must survive the automatic path, otherwise a revoked device cannot be told apart
+        // from an ordinary expired session (A5 criterion 3).
+        var cause = Assert.IsType<InvalidOperationException>(exception.InnerException);
+        Assert.Contains("widerrufen", cause.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("neu koppeln", cause.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// An ordinary expired session — no device session at all — must keep answering a plain 401 without
+    /// a cause, so the web interface and existing callers see exactly what they saw before.
+    /// </summary>
+    [Fact]
+    public async Task WithoutDeviceSession_UnauthorizedStaysPlain()
+    {
+        var (user, _) = await CreateUserAndPairDeviceAsync($"reauth-plain-{Guid.NewGuid():N}@test.com");
+        await SeedTwoAccessibleMoviesAsync(user.Id);
+
+        Client.DeviceRefreshToken = null;
+        ExpireSession();
+        var exception = await Assert.ThrowsAsync<HttpRequestException>(() => Client.RequestPlaylistsAsync());
+
+        Assert.Equal(HttpStatusCode.Unauthorized, exception.StatusCode);
+        Assert.Null(exception.InnerException);
+        Assert.Equal(0, Requests.CountTo(RefreshRoute));
     }
 
     /// <summary>

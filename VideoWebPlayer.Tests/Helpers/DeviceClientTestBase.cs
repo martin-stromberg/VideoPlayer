@@ -45,11 +45,26 @@ public abstract class DeviceClientTestBase : IAsyncLifetime
     /// <summary>The application's service provider, for seeding and for checking server state.</summary>
     protected IServiceProvider Services => _factory.Services;
 
+    /// <summary>
+    /// Extra message handlers a derived class wants between <see cref="Requests"/> and the server, e.g.
+    /// to control the order in which responses reach the client. Called once while
+    /// <see cref="InitializeAsync"/> builds <see cref="Client"/>.
+    /// </summary>
+    /// <returns>The additional handlers, outermost first; empty by default.</returns>
+    protected virtual DelegatingHandler[] CreateExtraHandlers() => [];
+
+    /// <summary>
+    /// Scopes the test class opened through <see cref="CreateScope"/>, released in
+    /// <see cref="DisposeAsync"/> so no <c>ApplicationDbContext</c> or <c>UserManager</c> is left behind.
+    /// </summary>
+    private readonly List<IServiceScope> _scopes = [];
+
     /// <inheritdoc />
     public ValueTask InitializeAsync()
     {
         Requests = new RecordingHttpHandler();
-        var httpClient = _factory.CreateDefaultClient(Requests);
+        DelegatingHandler[] handlers = [Requests, .. CreateExtraHandlers()];
+        var httpClient = _factory.CreateDefaultClient(handlers);
         Client = new VideoWebPlayerClient(httpClient, NullLogger<VideoWebPlayerClient>.Instance);
         return ValueTask.CompletedTask;
     }
@@ -57,9 +72,24 @@ public abstract class DeviceClientTestBase : IAsyncLifetime
     /// <inheritdoc />
     public ValueTask DisposeAsync()
     {
+        foreach (var scope in _scopes)
+            scope.Dispose();
+        _scopes.Clear();
         _factory.Dispose();
         try { File.Delete(_dbPath); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* temp file may still be locked */ }
         return ValueTask.CompletedTask;
+    }
+
+    /// <summary>
+    /// Opens a DI scope that lives as long as the test and is released in <see cref="DisposeAsync"/>,
+    /// for services a test must keep beyond a single call (e.g. a client built from them).
+    /// </summary>
+    /// <returns>The opened scope.</returns>
+    protected IServiceScope CreateScope()
+    {
+        var scope = Services.CreateScope();
+        _scopes.Add(scope);
+        return scope;
     }
 
     /// <summary>
@@ -68,6 +98,25 @@ public abstract class DeviceClientTestBase : IAsyncLifetime
     /// </summary>
     /// <returns>The new HTTP client.</returns>
     protected HttpClient CreateHttpClient() => _factory.CreateClient();
+
+    /// <summary>
+    /// Creates a second, independent client whose requests are recorded as well, optionally with
+    /// preconfigured default headers — e.g. a gate key another component put on the same
+    /// <see cref="HttpClient"/>, as the web interface does.
+    /// </summary>
+    /// <param name="configure">Callback to prepare the underlying <see cref="HttpClient"/>, or <see langword="null"/>.</param>
+    /// <returns>The new client and the handler recording its requests.</returns>
+    protected RecordedClient CreateRecordedClient(Action<HttpClient>? configure = null)
+    {
+        var requests = new RecordingHttpHandler();
+        var httpClient = _factory.CreateDefaultClient(requests);
+        configure?.Invoke(httpClient);
+        return new RecordedClient
+        {
+            Client = new VideoWebPlayerClient(httpClient, NullLogger<VideoWebPlayerClient>.Instance),
+            Requests = requests
+        };
+    }
 
     /// <summary>
     /// Creates a confirmed user.
@@ -210,15 +259,42 @@ public abstract class DeviceClientTestBase : IAsyncLifetime
 }
 
 /// <summary>
+/// A client under test together with the handler that records its requests.
+/// </summary>
+public sealed class RecordedClient
+{
+    /// <summary>The client under test.</summary>
+    public required VideoWebPlayerClient Client { get; init; }
+
+    /// <summary>The handler recording everything that client sends.</summary>
+    public required RecordingHttpHandler Requests { get; init; }
+}
+
+/// <summary>
+/// One request the client sent, as recorded by <see cref="RecordingHttpHandler"/>.
+/// </summary>
+public sealed class RecordedRequest
+{
+    /// <summary>The HTTP method, e.g. <c>GET</c>.</summary>
+    public required string Method { get; init; }
+
+    /// <summary>The absolute request path, e.g. <c>/api/playlists</c>.</summary>
+    public required string Path { get; init; }
+
+    /// <summary>The <c>X-API-Key</c> header the request carried, or <see langword="null"/> if it had none.</summary>
+    public required string? ApiKey { get; init; }
+}
+
+/// <summary>
 /// Records method, path and the <c>X-API-Key</c> header of every request the client sends, so tests can
 /// show which calls really left the library (e.g. how often the session was renewed).
 /// </summary>
 public sealed class RecordingHttpHandler : DelegatingHandler
 {
-    private readonly ConcurrentQueue<(string Method, string Path, string? ApiKey)> _entries = new();
+    private readonly ConcurrentQueue<RecordedRequest> _entries = new();
 
-    // All recorded requests, oldest first (Tupel-Elemente: Method, Path, ApiKey).
-    public IReadOnlyList<(string Method, string Path, string? ApiKey)> Entries => _entries.ToArray();
+    /// <summary>All recorded requests, oldest first.</summary>
+    public IReadOnlyList<RecordedRequest> Entries => [.. _entries];
 
     /// <summary>
     /// Counts the recorded requests to a path.
@@ -231,8 +307,15 @@ public sealed class RecordingHttpHandler : DelegatingHandler
     /// <inheritdoc />
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
+        // Reads the header off the request the client really built, including the default headers of its
+        // HttpClient - that is what the server sees.
         var apiKey = request.Headers.TryGetValues("X-API-Key", out var values) ? string.Join(",", values) : null;
-        _entries.Enqueue((request.Method.Method, request.RequestUri?.AbsolutePath ?? string.Empty, apiKey));
+        _entries.Enqueue(new RecordedRequest
+        {
+            Method = request.Method.Method,
+            Path = request.RequestUri?.AbsolutePath ?? string.Empty,
+            ApiKey = apiKey
+        });
         return base.SendAsync(request, cancellationToken);
     }
 }

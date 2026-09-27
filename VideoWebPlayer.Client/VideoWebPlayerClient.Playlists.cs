@@ -158,7 +158,7 @@ namespace VideoWebPlayer.Client
             => SendAndDeserializeAsync<DtoPlaylistNavigationResult?>(
                 endPoint,
                 "POST",
-                () => httpClient.PostAsync(endPoint, new StringContent(string.Empty)),
+                () => SendRequestAsync(HttpMethod.Post, endPoint, new StringContent(string.Empty)),
                 treatNoContentAsNull: true);
 
         /// <inheritdoc />

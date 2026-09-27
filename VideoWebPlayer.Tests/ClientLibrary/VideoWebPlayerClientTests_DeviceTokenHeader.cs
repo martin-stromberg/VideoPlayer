@@ -1,4 +1,6 @@
+using System.Security.Cryptography;
 using Microsoft.Extensions.Logging.Abstractions;
+using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
@@ -41,6 +43,35 @@ public sealed class VideoWebPlayerClientTests_DeviceTokenHeader : DeviceClientTe
         Assert.Equal("/api/playlists", lastRequest.Path);
         Assert.Null(lastRequest.ApiKey);
         Assert.False(string.IsNullOrWhiteSpace(payload.DeviceToken));
+    }
+
+    /// <summary>
+    /// The gate key another component configured on the same <see cref="HttpClient"/> (the web interface
+    /// does exactly that) must survive: while a device token is set it is replaced for that one request,
+    /// and once the device token is gone the foreign key is in use again.
+    /// </summary>
+    [Fact]
+    public async Task ForeignApiKeyOnTheHttpClient_SurvivesTheDeviceToken()
+    {
+        var recorded = CreateRecordedClient(http => http.DefaultRequestHeaders.Add("X-API-Key", PairingWebApplicationFactory.MauiApiToken));
+        var user = await CreateUserAsync($"header-foreign-{Guid.NewGuid():N}@test.com");
+        var ticket = await CreateBootstrapTicketAsync(user.Id);
+
+        // Without a device token the foreign gate key is what leaves the client.
+        await recorded.Client.PairingBootstrapAsync(new PairingBootstrapRequest
+        {
+            Ticket = ticket,
+            ClientPublicKey = Convert.ToBase64String(ECDiffieHellman.Create(ECCurve.NamedCurves.nistP256).ExportSubjectPublicKeyInfo())
+        });
+        Assert.Equal(PairingWebApplicationFactory.MauiApiToken, recorded.Requests.Entries[^1].ApiKey);
+
+        recorded.Client.DeviceToken = "geraete-token";
+        await recorded.Client.HealthCheckAsync();
+        Assert.Equal("geraete-token", recorded.Requests.Entries[^1].ApiKey);
+
+        recorded.Client.DeviceToken = null;
+        await recorded.Client.HealthCheckAsync();
+        Assert.Equal(PairingWebApplicationFactory.MauiApiToken, recorded.Requests.Entries[^1].ApiKey);
     }
 
     [Fact]

@@ -70,4 +70,34 @@ public sealed class VideoWebPlayerClientTests_Session : DeviceClientTestBase
         Client.DeviceRefreshToken = payload.RefreshToken;
         await Assert.ThrowsAsync<InvalidOperationException>(() => Client.RefreshAsync());
     }
+
+    /// <summary>
+    /// Even when the server refuses the logout, nothing of the ended session may stay behind on the
+    /// device; the server error is reported afterwards.
+    /// </summary>
+    [Fact]
+    public async Task LogoutAsync_WhenServerRefuses_StillClearsTokensLocally()
+    {
+        await CreateUserAndPairDeviceAsync($"logout-error-{Guid.NewGuid():N}@test.com");
+
+        // An unknown gate key makes the session endpoint answer 401.
+        Client.DeviceToken = "unbekanntes-geraete-token";
+        var exception = await Assert.ThrowsAsync<HttpRequestException>(() => Client.LogoutAsync());
+
+        Assert.Equal(System.Net.HttpStatusCode.Unauthorized, exception.StatusCode);
+        Assert.Null(Client.DeviceToken);
+        Assert.Null(Client.DeviceRefreshToken);
+        Assert.Null(Client.AuthorizationToken);
+    }
+
+    [Fact]
+    public async Task LogoutAsync_WithoutSession_ClearsTokensWithoutCallingTheServer()
+    {
+        Client.DeviceToken = "geraete-token-ohne-sitzung";
+
+        await Client.LogoutAsync();
+
+        Assert.Null(Client.DeviceToken);
+        Assert.Equal(0, Requests.CountTo("/api/auth/logout"));
+    }
 }

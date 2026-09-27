@@ -1726,6 +1726,20 @@ input[type="text"]:focus {
     transition: width 0.2s linear;
 }
 
+/* Meldung, wenn der Browser den Videostrom nicht laden konnte (403/404 auf den Strom selbst).
+   Liegt als Einblendung ueber dem Videobereich, damit sie keine Hoehe beansprucht und die
+   Playlist-Bedienelemente darunter nicht aus dem sichtbaren Bereich schiebt. */
+.player-stream-error {
+    position: absolute;
+    left: 1rem;
+    right: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    margin: 0;
+    text-align: center;
+    z-index: 3;
+}
+
 .alert-warning,
 .alert-danger,
 .alert-info {

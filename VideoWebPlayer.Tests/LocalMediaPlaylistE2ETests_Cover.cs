@@ -1,6 +1,5 @@
 using System.Net;
 using Microsoft.EntityFrameworkCore;
-using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
@@ -79,17 +78,6 @@ public sealed class LocalMediaPlaylistE2ETests_Cover : LocalMediaPlaylistE2ETest
             .ToArrayAsync(ct));
         Assert.Equal(2, movieIds.Length);
 
-        var playlist = await Client.CreatePlaylistAsync(new DtoCreatePlaylistRequest
-        {
-            Name = name,
-            SortMode = PlaylistSortModeValues.ByReleaseDate
-        });
-        foreach (var movieId in movieIds)
-        {
-            await Client.AddMediaToPlaylistAsync(playlist.Id,
-                new DtoAddMediaToPlaylistRequest { MediaType = MediaTypeValues.Movie, MediaId = movieId });
-        }
-
-        return playlist.Id;
+        return await CreatePlaylistAsync(name, movieIds);
     }
 }

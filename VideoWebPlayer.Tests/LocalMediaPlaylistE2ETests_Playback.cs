@@ -1,6 +1,5 @@
 using System.Net;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Data;
@@ -66,13 +65,7 @@ public sealed class LocalMediaPlaylistE2ETests_Playback : LocalMediaPlaylistE2ET
         await ScanEverythingAsync();
 
         var movieId = await GetMovieIdAsync("Gesperrter lokaler Film");
-        var playlist = await Client.CreatePlaylistAsync(new DtoCreatePlaylistRequest
-        {
-            Name = "Lokale-Playlist-ohne-Zugriff",
-            SortMode = PlaylistSortModeValues.ByReleaseDate
-        });
-        await Client.AddMediaToPlaylistAsync(playlist.Id,
-            new DtoAddMediaToPlaylistRequest { MediaType = MediaTypeValues.Movie, MediaId = movieId });
+        await CreatePlaylistAsync("Lokale-Playlist-ohne-Zugriff", movieId);
 
         var strangerToken = await CreateUserWithoutSourceAccessAsync();
         using var http = CreateHttpClient();
@@ -80,15 +73,6 @@ public sealed class LocalMediaPlaylistE2ETests_Playback : LocalMediaPlaylistE2ET
 
         Assert.Equal(HttpStatusCode.Forbidden, stream.StatusCode);
     }
-
-    /// <summary>
-    /// Resolves the id of a classified movie by the title its NFO carries.
-    /// </summary>
-    /// <param name="name">The movie title.</param>
-    /// <returns>The movie's id.</returns>
-    private Task<long> GetMovieIdAsync(string name)
-        => ReadDatabaseAsync(db => db.Movies.AsNoTracking().Where(m => m.Name == name).Select(m => m.Id)
-            .SingleAsync(TestContext.Current.CancellationToken));
 
     /// <summary>
     /// Creates a second user who has no access to the local media source, for the refusal case.

@@ -1,6 +1,4 @@
 using System.Net;
-using System.Net.Http.Headers;
-using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using VideoWebPlayer.Client.Models;
@@ -23,6 +21,7 @@ public sealed class DevicePlaylistE2ETests_Playback : DeviceClientTestBase
     [Fact]
     public async Task PairedDevice_ReportsProgressFromPlaylist_ContinueWatchingCarriesPlaylistName()
     {
+        var ct = TestContext.Current.CancellationToken;
         var (user, payload) = await CreateUserAndPairDeviceAsync($"geraet-wiedergabe-{Guid.NewGuid():N}@test.com");
         var (firstMovieId, secondMovieId) = await SeedTwoAccessibleMoviesAsync(user.Id);
         // Wie bei eingelesenen Beständen: jeder Film gehört zu einer Filmsammlung (siehe
@@ -36,10 +35,11 @@ public sealed class DevicePlaylistE2ETests_Playback : DeviceClientTestBase
         Assert.Equal(firstMovieId, start.MediaId);
         Assert.Equal($"/api/items/movie/{firstMovieId}/stream", start.StreamUrl);
 
-        var reported = await ReportProgressAsync(payload.Token, firstMovieId, playlistId);
+        using var progressHttp = CreateHttpClient();
+        var reported = await ContinueWatchingTestHelper.ReportProgressAsync(progressHttp, payload.Token, firstMovieId, playlistId, ct);
         Assert.Equal(HttpStatusCode.NoContent, reported.StatusCode);
 
-        var continueWatching = await WaitForContinueWatchingEntryAsync(e => e.PlaylistId == playlistId);
+        var continueWatching = await ContinueWatchingTestHelper.WaitForEntryAsync(Client, e => e.PlaylistId == playlistId, ct);
         Assert.Equal("Wiedergabe-Playlist", continueWatching.PlaylistName);
         Assert.Equal(firstMovieId, continueWatching.Entry.Id);
         Assert.Equal(firstEntryId, continueWatching.PlaylistEntryId);
@@ -54,10 +54,12 @@ public sealed class DevicePlaylistE2ETests_Playback : DeviceClientTestBase
     [Fact]
     public async Task PairedDevice_ReportsProgressForUnknownPlaylist_IsRefusedAsNotFound()
     {
+        var ct = TestContext.Current.CancellationToken;
         var (user, payload) = await CreateUserAndPairDeviceAsync($"geraet-wiedergabe-unbekannt-{Guid.NewGuid():N}@test.com");
         var (firstMovieId, _) = await SeedTwoAccessibleMoviesAsync(user.Id);
 
-        var reported = await ReportProgressAsync(payload.Token, firstMovieId, playlistId: 999_999);
+        using var http = CreateHttpClient();
+        var reported = await ContinueWatchingTestHelper.ReportProgressAsync(http, payload.Token, firstMovieId, playlistId: 999_999, ct);
 
         Assert.Equal(HttpStatusCode.NotFound, reported.StatusCode);
     }
@@ -74,14 +76,16 @@ public sealed class DevicePlaylistE2ETests_Playback : DeviceClientTestBase
     [Fact(Skip = "Befund: api/continue-watching antwortet mit 500, wenn ein Film zu keiner Filmsammlung gehoert (ContinueWatchingService.Create ohne Null-Pruefung). Wird laut Auftrag in diesem Lauf nicht behoben.")]
     public async Task PairedDevice_ReportsProgressForMovieWithoutCollection_ContinueWatchingListStillLoads()
     {
+        var ct = TestContext.Current.CancellationToken;
         var (user, payload) = await CreateUserAndPairDeviceAsync($"geraet-ohne-sammlung-{Guid.NewGuid():N}@test.com");
         var (firstMovieId, secondMovieId) = await SeedTwoAccessibleMoviesAsync(user.Id);
         var (playlistId, firstEntryId, _) =
             await CreatePlaylistWithTwoMoviesAsync("Playlist-ohne-Filmsammlung", firstMovieId, secondMovieId);
 
-        Assert.Equal(HttpStatusCode.NoContent, (await ReportProgressAsync(payload.Token, firstMovieId, playlistId)).StatusCode);
+        using var http = CreateHttpClient();
+        Assert.Equal(HttpStatusCode.NoContent, (await ContinueWatchingTestHelper.ReportProgressAsync(http, payload.Token, firstMovieId, playlistId, ct)).StatusCode);
 
-        var continueWatching = await WaitForContinueWatchingEntryAsync(e => e.PlaylistId == playlistId);
+        var continueWatching = await ContinueWatchingTestHelper.WaitForEntryAsync(Client, e => e.PlaylistId == playlistId, ct);
 
         Assert.Equal("Playlist-ohne-Filmsammlung", continueWatching.PlaylistName);
         Assert.Equal(firstEntryId, continueWatching.PlaylistEntryId);
@@ -110,55 +114,5 @@ public sealed class DevicePlaylistE2ETests_Playback : DeviceClientTestBase
         foreach (var movie in movies)
             movie.MovieCollectionId = collection.Id;
         await db.SaveChangesAsync(ct);
-    }
-
-    /// <summary>
-    /// Reports playback progress the way a paired device does: bearer token of the device session, media
-    /// type and id of the running title, and the id of the playlist it is being played from.
-    /// </summary>
-    /// <param name="bearerToken">The device session's JWT.</param>
-    /// <param name="movieId">The id of the movie the progress belongs to.</param>
-    /// <param name="playlistId">The id of the playlist the title is played from.</param>
-    /// <returns>The server's answer.</returns>
-    private async Task<HttpResponseMessage> ReportProgressAsync(string bearerToken, long movieId, long playlistId)
-    {
-        var ct = TestContext.Current.CancellationToken;
-        using var http = CreateHttpClient();
-        http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
-        return await http.PostAsJsonAsync(
-            "/api/continue-watching/progress",
-            new
-            {
-                mediaType = "movie",
-                mediaId = movieId,
-                positionSeconds = 120,
-                durationSeconds = 3600,
-                playlistId
-            },
-            ct);
-    }
-
-    /// <summary>
-    /// Polls the continue-watching list of the device's user until the expected entry appears: the server
-    /// buffers reported progress and persists it in <c>ContinueWatchingWorker</c>, so the entry shows up a
-    /// moment after the request was answered.
-    /// </summary>
-    /// <param name="predicate">Identifies the awaited entry.</param>
-    /// <returns>The matching entry.</returns>
-    private async Task<ContinueWatchingDto> WaitForContinueWatchingEntryAsync(Func<ContinueWatchingDto, bool> predicate)
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var deadline = DateTime.UtcNow.AddSeconds(30);
-        while (true)
-        {
-            var match = (await Client.RequestContinueWatchingAsync()).FirstOrDefault(predicate);
-            if (match is not null)
-                return match;
-
-            if (DateTime.UtcNow > deadline)
-                throw new TimeoutException("Der erwartete Weiterschauen-Eintrag ist nicht erschienen.");
-
-            await Task.Delay(100, ct);
-        }
     }
 }

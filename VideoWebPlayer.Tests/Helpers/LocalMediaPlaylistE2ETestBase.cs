@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using VideoWebPlayer.Client;
@@ -228,6 +229,37 @@ public abstract class LocalMediaPlaylistE2ETestBase : IAsyncLifetime
     {
         using var scope = _factory.Services.CreateScope();
         return await action(scope.ServiceProvider.GetRequiredService<ApplicationDbContext>());
+    }
+
+    /// <summary>
+    /// Resolves the id of a classified movie by the title its NFO carries.
+    /// </summary>
+    /// <param name="name">The movie title.</param>
+    /// <returns>The movie's id.</returns>
+    protected Task<long> GetMovieIdAsync(string name)
+        => ReadDatabaseAsync(db => db.Movies.AsNoTracking().Where(m => m.Name == name).Select(m => m.Id)
+            .SingleAsync(TestContext.Current.CancellationToken));
+
+    /// <summary>
+    /// Creates a playlist holding the given movies in the given order (sorted by release date).
+    /// </summary>
+    /// <param name="name">The name of the playlist to create.</param>
+    /// <param name="movieIds">The ids of the movies to add.</param>
+    /// <returns>The id of the created playlist.</returns>
+    protected async Task<long> CreatePlaylistAsync(string name, params long[] movieIds)
+    {
+        var playlist = await Client.CreatePlaylistAsync(new DtoCreatePlaylistRequest
+        {
+            Name = name,
+            SortMode = PlaylistSortModeValues.ByReleaseDate
+        });
+        foreach (var movieId in movieIds)
+        {
+            await Client.AddMediaToPlaylistAsync(playlist.Id,
+                new DtoAddMediaToPlaylistRequest { MediaType = MediaTypeValues.Movie, MediaId = movieId });
+        }
+
+        return playlist.Id;
     }
 
     private async Task<long> AddLocalMediaSourceAsync(ApplicationDbContext db, string name, string path, CancellationToken ct)

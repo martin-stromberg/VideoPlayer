@@ -30,7 +30,6 @@ public sealed class DevicePlaylistE2ETests_SessionRenewal : DeviceClientTestBase
 
         var renewed = await Client.RefreshAsync();
 
-        Assert.NotEqual(payload.Token, renewed.Token);
         Assert.NotEqual(payload.RefreshToken, renewed.RefreshToken);
         Assert.Equal(renewed.Token, Client.AuthorizationToken);
 

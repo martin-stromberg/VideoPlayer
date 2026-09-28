@@ -48,12 +48,10 @@ git push origin staging
 ✅ **Require status checks to pass before merging**
 - Require branches to be up to date before merging: ✅ (critical)
 - **Required status checks**:
-  - `Build` (from pr-staging-ci.yml)
-  - `Unit Tests` (from pr-staging-ci.yml)
-  - `Integration Tests` (from pr-staging-ci.yml)
-  - `Security Scan` (from pr-staging-ci.yml)
-  - `Code Quality` (from pr-staging-ci.yml)
-  - `Lint Check` (from pr-staging-ci.yml)
+  - `static checks` (from pr-staging-ci.yml)
+  - `build & test` (from pr-staging-ci.yml)
+  - `no pending backmerge` (from pr-staging-ci.yml) — schlaegt fehl, solange ein
+    Backmerge-PR `main` → `staging` offen ist; der Backmerge geht immer zuerst
 
 #### Additional Settings
 
@@ -117,12 +115,9 @@ After setting up branch protection, verify that the workflow status checks are a
 1. Create a test PR to staging
 2. Check the PR checks section
 3. Ensure all required status checks appear:
-   - Build
-   - Unit Tests
-   - Integration Tests
-   - Security Scan
-   - Code Quality
-   - Lint Check
+   - static checks
+   - build & test
+   - no pending backmerge
 
 If any checks are missing:
 1. Check that the workflow files are properly configured

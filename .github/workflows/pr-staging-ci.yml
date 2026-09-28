@@ -202,8 +202,10 @@ jobs:
       - name: Check for an open back-merge PR from main to staging
         env:
           GH_TOKEN: ${{ github.token }}
+        # No checkout needed - gh gets an explicit -R so it does not depend on a
+        # local git repository to resolve the target repo.
         run: |
-          open_backmerges="$(gh pr list --base staging --head main --state open --json number --jq 'length')"
+          open_backmerges="$(gh pr list -R ${{ github.repository }} --base staging --head main --state open --json number --jq 'length')"
           if [ "$open_backmerges" != "0" ]; then
             echo "::error::An open back-merge PR from main to staging exists. Merge it first (with 'Create a merge commit') before merging this PR."
             exit 1

@@ -17,13 +17,22 @@
                     [@currentPlaylistName: @currentPlaylistPosition/@playlistTotalCount]
                 </div>
             }
+            @* @onerror: Ein Ladefehler des Videostroms erreicht nur den Browser, nicht die Bibliothek -
+               ohne diesen Handler blieb der Player in diesem Fall leer und stumm. @onloadeddata nimmt
+               die Meldung wieder zurueck, sobald derselbe Titel doch noch laedt. *@
             <video @ref="_videoRef"
                    id="video-player-element"
                    src="@StreamUrl"
                    controls
                    autoplay="@AutoPlay"
                    @onended="OnMediaEndAsync"
+                   @onerror="OnStreamError"
+                   @onloadeddata="OnStreamLoaded"
                    style="max-width:1200px;"></video>
+            @if (HasStreamError)
+            {
+                <div class="alert alert-danger player-stream-error" id="player-stream-error">@MediaAccessErrorMessages.PlaybackFailed</div>
+            }
             <div class="player-progress-rail" aria-hidden="true">
                 <div class="player-progress-fill" style="width:@ProgressPercent%"></div>
             </div>
@@ -103,6 +112,40 @@
     private PlaylistPlaybackContext? appliedPlaylistContext;
     private bool playlistEndReached;
     private string? playlistNavigationErrorMessage;
+
+    /// <summary>
+    /// The stream URL the browser could not load, or <see langword="null"/> if no stream failed. The
+    /// stream endpoint answers 403 for a title that is not unlocked and 404 for one without a video file
+    /// (A4), but the browser only raises an error event for that — without this the player just stayed
+    /// empty. Kept as the URL rather than a flag, so the message belongs to exactly one title and
+    /// disappears by itself as soon as another one is shown.
+    /// </summary>
+    private string? failedStreamUrl;
+
+    /// <summary>
+    /// Whether the title currently shown is the one whose stream failed to load.
+    /// </summary>
+    private bool HasStreamError => failedStreamUrl is not null && failedStreamUrl == StreamUrl;
+
+    /// <summary>
+    /// Handler of the <c>&lt;video&gt;</c> element's error event. The element reports only that the
+    /// loading failed, not why, so the message names every cause it can have (see
+    /// <see cref="MediaAccessErrorMessages.PlaybackFailed"/>) instead of asserting one.
+    /// </summary>
+    private void OnStreamError()
+    {
+        failedStreamUrl = StreamUrl;
+    }
+
+    /// <summary>
+    /// Handler of the <c>&lt;video&gt;</c> element's <c>loadeddata</c> event: the title is playing after
+    /// all, so an earlier message about it must go — otherwise reopening a title that failed once would
+    /// show the old message even though it now works.
+    /// </summary>
+    private void OnStreamLoaded()
+    {
+        failedStreamUrl = null;
+    }
 
     protected override void OnParametersSet()
     {
@@ -286,8 +329,11 @@
         }
         catch (Exception ex)
         {
+            // 403 (title not unlocked for this user) and 404 (title gone or without a video file) are final
+            // answers of the server, not session problems: they get their own plain message and neither a
+            // retry nor a sign-in prompt follows.
             Logger.LogWarning(ex, "{ErrorPrefix} (Playlist {PlaylistId})", errorPrefix, currentPlaylistId);
-            playlistNavigationErrorMessage = $"{errorPrefix}: {ex.Message}";
+            playlistNavigationErrorMessage = MediaAccessErrorMessages.Describe(ex) ?? $"{errorPrefix}: {ex.Message}";
             StateHasChanged();
         }
     }

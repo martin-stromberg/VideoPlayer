@@ -51,20 +51,48 @@ namespace VideoWebPlayer.Client
         }
 
         /// <summary>
-        /// Attempts to obtain a fresh authorization token after the server responded with 401
-        /// Unauthorized. The default implementation does nothing and reports failure; derived classes
-        /// may impersonate or otherwise renew the token.
+        /// Former entry point for the renewal after a 401, superseded by
+        /// <see cref="HandleUnauthorized(long)"/>. <b>It is no longer called.</b> Deliberately kept and
+        /// marked obsolete instead of removed, so a derived class out there that overrides this signature
+        /// gets a compiler warning naming the replacement, rather than silently losing its session
+        /// renewal.
         /// </summary>
         /// <returns><c>true</c> if a new token was obtained and the failed request should be retried; otherwise <c>false</c>.</returns>
+        [Obsolete("Wird nicht mehr aufgerufen; bitte HandleUnauthorized(long) überschreiben.")]
         protected virtual Task<bool> HandleUnauthorized()
         {
-            return Task.FromResult(false);
+            return TryRenewDeviceSessionAsync(CurrentRefreshGeneration);
         }
 
+        /// <summary>
+        /// Attempts to obtain a fresh authorization token after the server responded with 401
+        /// Unauthorized. The one extension point for the renewal: a paired device renews its session via
+        /// <see cref="RefreshAsync"/>; without a device session nothing happens and failure is reported.
+        /// Derived classes may impersonate or otherwise renew the token instead. Only 401 reaches this
+        /// method — 403 (signed in, but not authorized) and 404 are final answers and are never retried.
+        /// </summary>
+        /// <param name="refreshGenerationBeforeRequest">
+        /// The renewal generation of this client at the moment the failed request was sent. If the
+        /// generation has changed since, another request already renewed the session and this one only
+        /// needs to be repeated — that is what keeps parallel 401 answers down to a single renewal.
+        /// </param>
+        /// <returns><c>true</c> if a new token was obtained and the failed request should be retried; otherwise <c>false</c>.</returns>
+        protected virtual Task<bool> HandleUnauthorized(long refreshGenerationBeforeRequest)
+        {
+            return TryRenewDeviceSessionAsync(refreshGenerationBeforeRequest);
+        }
+
+        // The number of session renewals this client has completed. Remembered before a request is sent
+        // so its 401 can be recognised as an answer to an already replaced session.
+        private long CurrentRefreshGeneration => Interlocked.Read(ref refreshGeneration);
+
         // Executes an HTTP request, retrying once via HandleUnauthorized if the server responds with
-        // 401 Unauthorized. Shared by all Http*Async helper methods.
+        // 401 Unauthorized. Shared by all Http*Async helper methods. The renewal generation is taken
+        // BEFORE the request is sent, so a 401 that only gets handled after another renewal has finished
+        // repeats the request instead of renewing a second time.
         private async Task<HttpResponseMessage> SendWithReauthorizationAsync(string endPoint, Func<Task<HttpResponseMessage>> doRequestAsync, bool skipReauthorize = false)
         {
+            var generationBeforeRequest = CurrentRefreshGeneration;
             var response = await doRequestAsync();
             if (response.StatusCode != System.Net.HttpStatusCode.Unauthorized)
                 return response;
@@ -78,9 +106,11 @@ namespace VideoWebPlayer.Client
                 throw new HttpRequestException($"Unauthorized: {endPoint}", null, System.Net.HttpStatusCode.Unauthorized);
             }
 
-            if (!await HandleUnauthorized())
-                // Kein neuer Token innerhalb der Wartezeit
-                throw new HttpRequestException($"Unauthorized: {endPoint}", null, System.Net.HttpStatusCode.Unauthorized);
+            if (!await HandleUnauthorized(generationBeforeRequest))
+                // Kein neuer Token innerhalb der Wartezeit. Schlug die Erneuerung mit einer
+                // aussagekraeftigen Ursache fehl (Geraet widerrufen, Nachweis abgelaufen), reicht sie der
+                // Aufrufer als InnerException weiter - der Statuscode bleibt fuer bestehende Aufrufer 401.
+                throw new HttpRequestException($"Unauthorized: {endPoint}", lastRenewalFailure, System.Net.HttpStatusCode.Unauthorized);
 
             response = await doRequestAsync();
             if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
@@ -127,7 +157,7 @@ namespace VideoWebPlayer.Client
         /// <returns>The deserialized response body.</returns>
         protected virtual Task<T> HttpGetAsync<T>(string endPoint)
         {
-            return SendAndDeserializeAsync<T>(endPoint, "GET", () => httpClient.GetAsync(endPoint));
+            return SendAndDeserializeAsync<T>(endPoint, "GET", () => SendRequestAsync(HttpMethod.Get, endPoint, null));
         }
 
         /// <summary>
@@ -139,7 +169,7 @@ namespace VideoWebPlayer.Client
         /// <returns>The deserialized response body.</returns>
         protected virtual Task<T> HttpGetAsync<T>(string endPoint, CancellationToken cancellationToken)
         {
-            return SendAndDeserializeAsync<T>(endPoint, "GET", () => httpClient.GetAsync(endPoint, cancellationToken));
+            return SendAndDeserializeAsync<T>(endPoint, "GET", () => SendRequestAsync(HttpMethod.Get, endPoint, null, cancellationToken));
         }
 
         /// <summary>
@@ -153,7 +183,7 @@ namespace VideoWebPlayer.Client
         /// <returns>The deserialized response body.</returns>
         protected virtual Task<T> HttpPostAsync<T>(string endPoint, HttpContent args, bool skipReauthorize = false)
         {
-            return SendAndDeserializeAsync<T>(endPoint, "POST", () => httpClient.PostAsync(endPoint, args), skipReauthorize);
+            return SendAndDeserializeAsync<T>(endPoint, "POST", () => SendRequestAsync(HttpMethod.Post, endPoint, args), skipReauthorize);
         }
 
         /// <summary>
@@ -166,7 +196,7 @@ namespace VideoWebPlayer.Client
         /// <returns>The deserialized response body.</returns>
         protected virtual Task<T> HttpPutAsync<T>(string endPoint, HttpContent args)
         {
-            return SendAndDeserializeAsync<T>(endPoint, "PUT", () => httpClient.PutAsync(endPoint, args));
+            return SendAndDeserializeAsync<T>(endPoint, "PUT", () => SendRequestAsync(HttpMethod.Put, endPoint, args));
         }
 
         /// <summary>
@@ -177,7 +207,7 @@ namespace VideoWebPlayer.Client
         /// <param name="args">The request body content.</param>
         protected virtual async Task HttpPutAsync(string endPoint, HttpContent args)
         {
-            var response = await SendWithReauthorizationAsync(endPoint, () => httpClient.PutAsync(endPoint, args));
+            var response = await SendWithReauthorizationAsync(endPoint, () => SendRequestAsync(HttpMethod.Put, endPoint, args));
 
             if (!response.IsSuccessStatusCode)
             {
@@ -201,7 +231,7 @@ namespace VideoWebPlayer.Client
         /// <returns>The deserialized response body.</returns>
         protected virtual Task<T> HttpPatchAsync<T>(string endPoint, HttpContent args)
         {
-            return SendAndDeserializeAsync<T>(endPoint, "PATCH", () => httpClient.PatchAsync(endPoint, args));
+            return SendAndDeserializeAsync<T>(endPoint, "PATCH", () => SendRequestAsync(HttpMethod.Patch, endPoint, args));
         }
 
         /// <summary>
@@ -213,7 +243,7 @@ namespace VideoWebPlayer.Client
         /// <param name="skipReauthorize">If <c>true</c>, does not attempt to reauthorize on a 401 response (used for the login call itself).</param>
         protected virtual async Task HttpPostAsync(string endPoint, HttpContent args, bool skipReauthorize = false)
         {
-            var response = await SendWithReauthorizationAsync(endPoint, () => httpClient.PostAsync(endPoint, args), skipReauthorize);
+            var response = await SendWithReauthorizationAsync(endPoint, () => SendRequestAsync(HttpMethod.Post, endPoint, args), skipReauthorize);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -235,7 +265,7 @@ namespace VideoWebPlayer.Client
         /// <returns>The deserialized response body.</returns>
         protected virtual Task<T> HttpDeleteAsync<T>(string endPoint)
         {
-            return SendAndDeserializeAsync<T>(endPoint, "DELETE", () => httpClient.DeleteAsync(endPoint));
+            return SendAndDeserializeAsync<T>(endPoint, "DELETE", () => SendRequestAsync(HttpMethod.Delete, endPoint, null));
         }
 
         /// <summary>
@@ -244,7 +274,7 @@ namespace VideoWebPlayer.Client
         /// <param name="endPoint">The relative API endpoint to call.</param>
         protected virtual async Task HttpDeleteAsync(string endPoint)
         {
-            var response = await SendWithReauthorizationAsync(endPoint, () => httpClient.DeleteAsync(endPoint));
+            var response = await SendWithReauthorizationAsync(endPoint, () => SendRequestAsync(HttpMethod.Delete, endPoint, null));
 
             if (!response.IsSuccessStatusCode)
             {
@@ -287,6 +317,16 @@ namespace VideoWebPlayer.Client
                 httpClient.DefaultRequestHeaders.Authorization =
                     new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token.token);
             }
+        }
+
+        /// <summary>
+        /// Removes the bearer token from the underlying <see cref="HttpClient"/>, so subsequent requests
+        /// are unauthenticated again. Used when a device session ends (see <see cref="LogoutAsync"/>);
+        /// <see cref="SetAuthorizationToken(AuthorizationToken)"/> deliberately keeps ignoring <c>null</c>.
+        /// </summary>
+        public virtual void ClearAuthorizationToken()
+        {
+            httpClient.DefaultRequestHeaders.Authorization = null;
         }
 
         /// <summary>
@@ -355,7 +395,7 @@ namespace VideoWebPlayer.Client
         {
             try
             {
-                var response = await httpClient.GetAsync("api/health");
+                var response = await SendRequestAsync(HttpMethod.Get, "api/health", null);
                 return response.IsSuccessStatusCode;
             }
             catch
@@ -871,28 +911,8 @@ namespace VideoWebPlayer.Client
             var json = System.Text.Json.JsonSerializer.Serialize(body);
             var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
             var endPoint = "api/continue-watching/progress";
-            async Task<HttpResponseMessage> DoRequestAsync() => await httpClient.PostAsync(endPoint, content);
-            var response = await DoRequestAsync();
-
-            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-            {
-                Logger?.LogWarning("Received 401 Unauthorized from continue-watching/progress. Token might be expired.");
-                if (await HandleUnauthorized())
-                {
-                    response = await DoRequestAsync();
-                    if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-                    {
-                        // Wenn nach Erneuerung weiterhin Unauthorized kommt, gib das weiter.
-                        Logger?.LogWarning("Retry after token refresh still returned 401 for {EndPoint}.", endPoint);
-                        throw new HttpRequestException($"Unauthorized: {endPoint}");
-                    }
-                }
-                else
-                {
-                    // Kein neuer Token innerhalb der Wartezeit
-                    throw new HttpRequestException($"Unauthorized: {endPoint}");
-                }
-            }
+            var response = await SendWithReauthorizationAsync(
+                endPoint, () => SendRequestAsync(HttpMethod.Post, endPoint, content));
 
             if (!response.IsSuccessStatusCode)
             {
@@ -908,7 +928,8 @@ namespace VideoWebPlayer.Client
         {
             try
             {
-                var response = await httpClient.GetAsync($"api/pictures/{pictureId}");
+                var endPoint = $"api/pictures/{pictureId}";
+                var response = await SendWithReauthorizationAsync(endPoint, () => SendRequestAsync(HttpMethod.Get, endPoint, null));
                 if (response.IsSuccessStatusCode)
                 {
                     return await response.Content.ReadAsByteArrayAsync();
@@ -930,7 +951,7 @@ namespace VideoWebPlayer.Client
             try
             {
                 var iconUrl = $"api/sourceicons/{pictureId}";
-                var response = await httpClient.GetAsync(iconUrl);
+                var response = await SendWithReauthorizationAsync(iconUrl, () => SendRequestAsync(HttpMethod.Get, iconUrl, null));
                 if (response.IsSuccessStatusCode)
                 {
                     return await response.Content.ReadAsByteArrayAsync();
@@ -949,12 +970,12 @@ namespace VideoWebPlayer.Client
         public async Task DeleteSourceAsync(long sourceId)
         {
             var endPoint = $"api/admin/sources/{sourceId}";
-            var response = await httpClient.DeleteAsync(endPoint);
+            var response = await SendWithReauthorizationAsync(endPoint, () => SendRequestAsync(HttpMethod.Delete, endPoint, null));
 
             if (!response.IsSuccessStatusCode)
             {
                 var content = await response.Content.ReadAsStringAsync();
-                throw new HttpRequestException($"Failed to delete source {sourceId}: {content}");
+                throw new HttpRequestException($"Failed to delete source {sourceId}: {content}", null, response.StatusCode);
             }
         }
 

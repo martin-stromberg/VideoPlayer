@@ -437,8 +437,11 @@ else if (playlist is not null)
             // Sets playbackError (not loadError) and does not navigate: the playlist itself loaded fine,
             // only starting playback at this entry failed (e.g. it is locked or a non-playable collection
             // entry), so the detail page including its entries list must stay visible - see playbackError.
+            // A 403 (title not unlocked for this viewer of a public playlist) and a 404 (title gone or
+            // without a video file) are final answers and get their own plain message; neither is a session
+            // problem, so nothing is retried and no sign-in is offered.
             Logger.LogWarning(ex, "Fehler beim Starten der Wiedergabe von Playlist {PlaylistId}", Id);
-            playbackError = $"Fehler beim Starten der Wiedergabe: {ex.Message}";
+            playbackError = MediaAccessErrorMessages.Describe(ex) ?? $"Fehler beim Starten der Wiedergabe: {ex.Message}";
         }
     }
 

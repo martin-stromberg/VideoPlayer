@@ -31,12 +31,17 @@ public static class ItemsControllerTestFactory
     /// <param name="userName">User name assigned to the seeded <see cref="ApplicationUser"/>.</param>
     /// <param name="logger">Logger passed to the controller; defaults to a no-op logger.</param>
     /// <param name="cancellationToken">Cancellation token for the database setup.</param>
+    /// <param name="authenticated">
+    /// When <c>false</c>, the controller runs without a signed-in user (<see cref="FakeAuthService.CurrentUser"/>
+    /// stays <c>null</c>), so <c>CheckLogedIn</c> rejects the call the way a request without a credential does.
+    /// </param>
     /// <returns>The db context, controller, and authenticated user.</returns>
     public static async Task<(ApplicationDbContext Db, ItemsController Controller, ApplicationUser User)> CreateAsync(
         string connectionString,
         string userName = "test-user@test.com",
         ILogger<ItemsController>? logger = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool authenticated = true)
     {
         // Keeps the shared-cache in-memory SQLite database alive for the lifetime of the returned
         // ApplicationDbContext instances; the connection is intentionally never disposed here, mirroring
@@ -45,7 +50,7 @@ public static class ItemsControllerTestFactory
         keeperConnection.Open();
 
         var user = new ApplicationUser { Id = Guid.NewGuid().ToString(), UserName = userName };
-        var fakeAuth = new FakeAuthService { CurrentUser = user };
+        var fakeAuth = new FakeAuthService { CurrentUser = authenticated ? user : null };
 
         var services = new ServiceCollection();
         services.AddSingleton<EventManager>();

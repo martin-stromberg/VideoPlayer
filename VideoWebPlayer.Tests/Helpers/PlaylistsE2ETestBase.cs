@@ -665,6 +665,22 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
         });
 
     /// <summary>
+    /// Resolves the database ids of a playlist and one of its entries, so a test can address the entry
+    /// directly via the page's <c>?entryId=</c> URL parameter instead of going through the entry list.
+    /// </summary>
+    /// <param name="playlistName">The name of the existing playlist.</param>
+    /// <param name="mediaType">The media type of the wanted entry (see <see cref="MediaTypeValues"/>).</param>
+    /// <param name="mediaId">The media id of the wanted entry.</param>
+    /// <returns>The playlist id and the id of the matching playlist entry.</returns>
+    protected Task<(long PlaylistId, long EntryId)> GetPlaylistAndEntryIdAsync(string playlistName, string mediaType, long mediaId)
+        => RunScopedWithPlaylistAsync(playlistName, async (db, _, playlist) =>
+        {
+            var entry = await db.PlaylistEntries
+                .FirstAsync(e => e.PlaylistId == playlist.Id && e.MediaType == mediaType && e.MediaId == mediaId);
+            return (playlist.Id, entry.Id);
+        });
+
+    /// <summary>
     /// Marks the playlist with the given name as public directly in the database (the UI only offers this to
     /// administrators), so E2E tests can show it to other users as a foreign public playlist.
     /// </summary>

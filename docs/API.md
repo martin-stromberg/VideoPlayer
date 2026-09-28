@@ -3,7 +3,7 @@
 > **Dokumenttyp**: Technische Dokumentation  
 > **Zielgruppe**: Backend-Entwickler, API-Integratoren  
 > **Version**: 1.0  
-> **Letzte Aktualisierung**: 2026-09-26
+> **Letzte Aktualisierung**: 2026-09-27
 
 Diese Datei beschreibt den versionierten API-Vertrag des Web-Repositorys. Die DTOs liegen unter `VideoWebPlayer.Client/`.
 
@@ -33,7 +33,9 @@ Diese Datei beschreibt den versionierten API-Vertrag des Web-Repositorys. Die DT
 | `429 Too Many Requests` | Die Client-IP ist wegen wiederholter Fehlversuche gesperrt. |
 | `500 Internal Server Error` | Unerwarteter Serverfehler. |
 
-Die Playlist-Endpunkte halten sich an diese Tabelle. Bei den Medien-Endpunkten (`GET /api/items/{type}/{id}`, `.../stream`, `.../download`) weicht das heutige Verhalten davon ab: Fehlt einem **angemeldeten** Anwender die Freischaltung, antworten sie mit `401 Unauthorized` statt mit `403 Forbidden`; eine unbekannte Kennung oder ein Titel ohne hinterlegte Videodatei ergibt in einem Teil der Fälle `500 Internal Server Error` statt `404 Not Found`. Ein Client sollte ein `401` von diesen Endpunkten daher nicht als „Sitzung abgelaufen“ deuten und keine Sitzungserneuerung auslösen. Die Korrektur auf `403` bzw. `404` ist als eigene Anforderung erfasst; bis dahin gilt das hier beschriebene Verhalten.
+Die Playlist-Endpunkte und die Medien-Endpunkte (`GET /api/items/{type}/{id}`, `.../stream`, `.../download`) halten sich an diese Tabelle. Insbesondere gilt bei den Medien-Endpunkten: `401 Unauthorized` nur, wenn der Anmeldenachweis fehlt oder ungültig ist; fehlt einem **angemeldeten** Anwender die Freischaltung, antworten sie mit `403 Forbidden`; eine unbekannte Kennung oder ein Titel ohne hinterlegte Videodatei ergibt `404 Not Found`; ein unbekannter
+Typ ergibt beim Detail-Endpunkt (`GET /api/items/{type}/{id}`) ebenfalls `404`, bei `.../stream` und
+`.../download` dagegen `400 Bad Request` (siehe deren eigene Beschreibung unten). Ein Client darf ein `401` dieser Endpunkte daher als „Sitzung abgelaufen“ deuten und eine Sitzungserneuerung auslösen, ein `403` oder `404` dagegen nicht — beide sind endgültig.
 
 ## Health und Login
 
@@ -345,6 +347,17 @@ Liefert zuletzt veröffentlichte oder zuletzt relevante Einträge als `DtoRecent
 
 Liefert editierbare Genre-Optionen als `DtoGenreOption[]`.
 
+### POST /api/items/metadata
+
+Speichert die vom Anwender änderbaren Metadaten eines Medieneintrags (`MediaMetadataUpdateRequest`).
+
+Statuscodes:
+
+- `400`, wenn die Angaben ungültig sind (z. B. Datumsfeld passt nicht zum Typ, Name zu lang)
+- `401`, wenn kein oder ein ungültiger Anmeldenachweis mitgegeben wurde
+- `403`, wenn der angemeldete Anwender kein Administrator ist
+- `404`, wenn der angegebene Eintrag nicht existiert
+
 ### GET /api/items/{type}/{id}
 
 Liefert Details zu einem Medieneintrag. Unterstützte `type`-Werte sind:
@@ -357,19 +370,27 @@ Liefert Details zu einem Medieneintrag. Unterstützte `type`-Werte sind:
 
 Antworten sind je nach Typ `DtoMovieCollection`, `DtoMovie`, `DtoTVShow`, `DtoTVShowSeason` oder `DtoTVShowEpisode`.
 
+Statuscodes:
+
+- `401`, wenn kein oder ein ungültiger Anmeldenachweis mitgegeben wurde
+- `403`, wenn der angemeldete Anwender den Eintrag nicht freigeschaltet hat
+- `404`, wenn der Typ unbekannt ist oder kein Eintrag mit dieser Kennung existiert
+
 ### GET /api/items/{type}/{id}/stream
 
-Streamt eine Film- oder Episodendatei mit Range-Unterstützung. Unterstützte Stream-Typen sind `movie` und `tvshowepisode`; `tvshow` wird serverseitig auf `tvshowepisode` normalisiert.
+Streamt eine Film- oder Episodendatei mit Range-Unterstützung. Unterstützte Typen sind `movie` und `tvshowepisode`; `tvshow` wird serverseitig auf `tvshowepisode` normalisiert. Für `.../download` gilt dieselbe Liste — beide Endpunkte lösen die Datei über denselben Weg auf.
 
 Antworten:
 
 - `video/mp4`, `video/x-matroska`, `video/x-msvideo`, `video/mpeg` oder `application/octet-stream`
 - `400`, wenn Typ oder ID ungültig sind
-- `404`, wenn kein Medienitem oder keine Datei gefunden wurde
+- `401`, wenn kein oder ein ungültiger Anmeldenachweis mitgegeben wurde
+- `403`, wenn der angemeldete Anwender den Titel nicht freigeschaltet hat
+- `404`, wenn kein Eintrag mit dieser Kennung existiert oder für ihn keine Videodatei hinterlegt ist
 
 ### GET /api/items/{type}/{id}/download
 
-Liefert dieselbe Datei als Download (`application/octet-stream`).
+Liefert dieselbe Datei als Download (`application/octet-stream`). Es gelten dieselben Typen und dieselben Statuscodes wie bei `.../stream`.
 
 ### GET /api/pictures/{id}
 

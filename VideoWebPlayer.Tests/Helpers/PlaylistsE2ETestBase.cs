@@ -132,15 +132,90 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
     /// <param name="mediaId">The media id of the expected result tile.</param>
     protected async Task SelectSearchResultAsync(string searchTerm, string mediaType, long mediaId)
     {
-        await ShowAddModeAsync();
-        await Page.FillAsync(".media-search-input", searchTerm);
         var resultLocator = Page.Locator($".media-search-result[data-media-type='{mediaType}'][data-media-id='{mediaId}']");
-        await resultLocator.WaitForAsync(new LocatorWaitForOptions { Timeout = 5000 });
+        await DriveUntilStateAsync(
+            async () =>
+            {
+                // Re-established every round: the hand-over may have replaced the whole content area again.
+                await EnterAddModeAsync();
+                await Page.FillAsync(".media-search-input", searchTerm, new PageFillOptions { Timeout = InteractionAttemptTimeout });
+            },
+            () => resultLocator.WaitForAsync(new LocatorWaitForOptions { Timeout = InteractionAttemptTimeout }));
+
+        // From here on the circuit is proven to be live (the result tiles only exist because the server
+        // answered the search), so clicking and waiting for the result needs no further repetition.
         await resultLocator.ClickAsync();
-        // The add is only finished once the server reported its result (status message) - waiting a fixed
-        // second alone let a slow roundtrip slip through and left the entry list empty.
+        await WaitForMediaAddedAsync();
+    }
+
+    /// <summary>
+    /// How long a single round of <see cref="DriveUntilStateAsync"/> waits, both for the interaction's own
+    /// target element and for the state it must produce.
+    /// </summary>
+    private const float InteractionAttemptTimeout = 10_000;
+
+    /// <summary>
+    /// How long <see cref="DriveUntilStateAsync"/> keeps driving a step before letting the last round's
+    /// Playwright error through.
+    /// </summary>
+    private const int InteractionDeadlineMilliseconds = 60_000;
+
+    /// <summary>
+    /// Drives a UI step until the DOM state it must produce is there, repeating the step while it has no
+    /// visible effect.
+    /// </summary>
+    /// <remarks>
+    /// The two known flaky playlist tests both failed during the hand-over from Blazor Server's pre-rendered
+    /// page to its connected circuit. In that window the page looks finished but reaches no server: an input
+    /// or click is silently lost, and the whole content area is replaced once the circuit takes over - so the
+    /// element the step was working on can even vanish mid-step. No length of waiting brings a lost
+    /// interaction back, which is why raising the timeouts alone does not fix it; driving the same step again
+    /// does. Everything here still waits for an observable state - the round timeout only decides when to try
+    /// again, never whether the expected state has to appear, and after the deadline the real Playwright error
+    /// (including its call log) is what the test reports.
+    /// </remarks>
+    /// <param name="interaction">The step to (re-)issue, e.g. typing into the live-search field.</param>
+    /// <param name="waitForState">Waits for the state the step must produce.</param>
+    private static async Task DriveUntilStateAsync(Func<Task> interaction, Func<Task> waitForState)
+    {
+        var deadline = DateTime.UtcNow.AddMilliseconds(InteractionDeadlineMilliseconds);
+        while (true)
+        {
+            var lastRound = DateTime.UtcNow >= deadline;
+            try
+            {
+                await interaction();
+                await waitForState();
+                return;
+            }
+            catch (TimeoutException) when (!lastRound)
+            {
+                // Page not interactive yet (or re-rendered underneath us) - drive the same step again.
+            }
+        }
+    }
+
+    /// <summary>
+    /// Waits until the add triggered by clicking a search result is really finished - server answer applied
+    /// AND the entry list reloaded - instead of waiting a fixed second for it.
+    /// </summary>
+    /// <remarks>
+    /// The observable end state is the reset search selector: <c>PlaylistEntriesList.OnMediaSelectedAsync</c>
+    /// calls <c>MediaSearchSelector.Reset()</c> - which drops the results and renders - only after
+    /// <c>AddEntryAsync</c> (server call, status message, and <c>LoadInitialPageAsync</c> reloading the
+    /// entries) has completed, so a vanished <c>.media-search-results</c> grid proves the whole add finished.
+    /// This is deliberately not a wait for the new entry tile: while the "Titel hinzufügen" area is shown, the
+    /// tile list is not rendered at all (see the <c>@if (ShowAddMode)</c> branch in
+    /// <c>PlaylistEntriesList.razor</c>), and a TVShow/TVShowSeason/MovieCollection never gets a tile of its
+    /// own anyway (<c>IsRenderableEntry</c>). Waiting for the status element afterwards covers both outcomes -
+    /// the success message and the error message of a refused add (duplicate, no access) are the same element
+    /// (<c>#playlist-entries-status</c>), and after the reset it carries this add's message, not a stale one
+    /// from a previous call.
+    /// </remarks>
+    private async Task WaitForMediaAddedAsync()
+    {
+        await Page.Locator(".media-search-results").WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Detached });
         await Page.WaitForSelectorAsync("#playlist-entries-status");
-        await Page.WaitForTimeoutAsync(1000);
     }
 
     /// <summary>
@@ -153,15 +228,24 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
     /// OR add button" first is therefore required: the detail page decides its area only after the first page
     /// of entries has loaded, and before that neither of the two exists.
     /// </remarks>
-    protected async Task ShowAddModeAsync()
+    protected Task ShowAddModeAsync()
+        => DriveUntilStateAsync(
+            EnterAddModeAsync,
+            () => Page.Locator(".media-search-input").WaitForAsync(new LocatorWaitForOptions { Timeout = InteractionAttemptTimeout }));
+
+    /// <summary>
+    /// One round of <see cref="ShowAddModeAsync"/>: clicks the mode toggle when it is there, and does nothing
+    /// while the search area is already shown or neither of the two exists (the content area is being
+    /// re-rendered) - <see cref="DriveUntilStateAsync"/> then simply comes back.
+    /// </summary>
+    private async Task EnterAddModeAsync()
     {
-        var searchInput = Page.Locator(".media-search-input");
-        await Page.WaitForSelectorAsync(".media-search-input, #playlist-mode-add-button");
-        if (await searchInput.CountAsync() > 0)
+        if (await Page.Locator(".media-search-input").CountAsync() > 0)
             return;
 
-        await Page.ClickAsync("#playlist-mode-add-button");
-        await searchInput.WaitForAsync(new LocatorWaitForOptions { Timeout = 5000 });
+        var toggle = Page.Locator("#playlist-mode-add-button");
+        if (await toggle.CountAsync() > 0)
+            await toggle.ClickAsync(new LocatorClickOptions { Timeout = InteractionAttemptTimeout });
     }
 
     /// <summary>
@@ -172,19 +256,21 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
     /// <see cref="ShowAddModeAsync"/>), so its mere presence means "not in the list area yet". In the read-only
     /// view no toggle exists at all and the list is the only area.
     /// </remarks>
-    protected async Task ShowEntriesAsync()
+    protected Task ShowEntriesAsync()
+        => DriveUntilStateAsync(
+            EnterEntriesModeAsync,
+            // The tile list (or the empty state) is the observable result of the switch, and the tiles inside
+            // it render in the very same batch - no fixed settling delay is needed on top of it.
+            () => Page.Locator(".playlist-entries-list, .admin-empty-state").First.WaitForAsync(new LocatorWaitForOptions { Timeout = InteractionAttemptTimeout }));
+
+    /// <summary>
+    /// One round of <see cref="ShowEntriesAsync"/>, see <see cref="EnterAddModeAsync"/>.
+    /// </summary>
+    private async Task EnterEntriesModeAsync()
     {
-        await Page.WaitForSelectorAsync(".playlist-entries-list, .admin-empty-state, #playlist-mode-entries-button");
         var toggle = Page.Locator("#playlist-mode-entries-button");
         if (await toggle.CountAsync() > 0)
-        {
-            await toggle.ClickAsync();
-            // Wait for the switch to have happened instead of relying on the fixed delay alone.
-            await Page.WaitForSelectorAsync(".playlist-entries-list, .admin-empty-state");
-        }
-
-        // The tiles (or the empty state) render right after the switch.
-        await Page.WaitForTimeoutAsync(300);
+            await toggle.ClickAsync(new LocatorClickOptions { Timeout = InteractionAttemptTimeout });
     }
 
     /// <summary>
@@ -261,17 +347,33 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
     {
         await Page.GotoAsync($"{ServerUrl}/playlists");
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-        await Page.WaitForTimeoutAsync(1500);
 
-        await Page.ClickAsync("#create-playlist-button");
-        await Page.WaitForSelectorAsync("#playlist-name-input");
+        // Opening the dialog is the first interactive action on the page and is therefore the one that gets
+        // lost while the Blazor circuit is not connected yet - it is driven until the dialog is really there
+        // instead of being preceded by a fixed wait (see DriveUntilStateAsync). Everything after it can rely
+        // on a live circuit: the dialog only exists because the server processed that click.
+        var nameInput = Page.Locator("#playlist-name-input");
+        await DriveUntilStateAsync(
+            async () =>
+            {
+                if (await nameInput.CountAsync() > 0)
+                    return;
+
+                var createButton = Page.Locator("#create-playlist-button");
+                if (await createButton.CountAsync() > 0)
+                    await createButton.ClickAsync(new LocatorClickOptions { Timeout = InteractionAttemptTimeout });
+            },
+            () => nameInput.WaitForAsync(new LocatorWaitForOptions { Timeout = InteractionAttemptTimeout }));
+
         await Page.FillAsync("#playlist-name-input", name);
         if (description is not null)
             await Page.FillAsync("#playlist-description-input", description);
         await Page.ClickAsync("#playlist-save-button");
-        await Page.WaitForTimeoutAsync(1000);
 
+        // The created row is the observable result of saving; the save click is deliberately not repeated,
+        // since a second one would create a second playlist of the same name.
         var row = Page.Locator($".playlist-row[data-playlist-name='{name}']");
+        await row.WaitForAsync();
         await Expect(row).ToBeVisibleAsync();
         return row;
     }

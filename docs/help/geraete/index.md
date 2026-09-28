@@ -1,6 +1,6 @@
 # Geräte
 
-Verwaltung gekoppelter Client-Geräte: Administratoren erzeugen kurzlebige Einmal-Pairing-Codes, mit denen sich Client-Apps (z. B. die TV-App) ein individuelles, widerrufbares Geräte-Token abholen.
+Verwaltung gekoppelter Client-Geräte: Client-Apps (z. B. die TV-App) holen sich ein individuelles, widerrufbares Geräte-Token — entweder über einen kurzlebigen Einmal-Pairing-Code des Administrators oder über einen QR-Code, den sich jeder angemeldete Anwender selbst auf seiner Profilseite erzeugt. Beim QR-Weg bekommt das Gerät zugleich eine fertige Benutzersitzung und einen Erneuerungsnachweis, mit dem es die Sitzung später selbst verlängert.
 
 ## Inhalt
 

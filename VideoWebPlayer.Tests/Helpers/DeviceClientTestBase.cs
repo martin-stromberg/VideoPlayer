@@ -156,10 +156,21 @@ public abstract class DeviceClientTestBase : IAsyncLifetime
     /// <param name="ticket">The bootstrap ticket to redeem.</param>
     /// <param name="deviceName">The display name to register the device under.</param>
     /// <returns>The decrypted bootstrap payload.</returns>
-    protected async Task<PairingBootstrapPayload> PairDeviceAsync(string ticket, string deviceName = "Testgerät")
+    protected Task<PairingBootstrapPayload> PairDeviceAsync(string ticket, string deviceName = "Testgerät")
+        => PairDeviceAsync(Client, ticket, deviceName);
+
+    /// <summary>
+    /// Same as <see cref="PairDeviceAsync(string, string)"/> for a second, independently paired device
+    /// (see <see cref="CreateRecordedClient"/>), for tests that need two devices of two users side by side.
+    /// </summary>
+    /// <param name="client">The client to pair, e.g. one from <see cref="CreateRecordedClient"/>.</param>
+    /// <param name="ticket">The bootstrap ticket to redeem.</param>
+    /// <param name="deviceName">The display name to register the device under.</param>
+    /// <returns>The decrypted bootstrap payload.</returns>
+    protected static async Task<PairingBootstrapPayload> PairDeviceAsync(VideoWebPlayerClient client, string ticket, string deviceName)
     {
         using var clientKey = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP256);
-        var response = await Client.PairingBootstrapAsync(new PairingBootstrapRequest
+        var response = await client.PairingBootstrapAsync(new PairingBootstrapRequest
         {
             Ticket = ticket,
             ClientPublicKey = Convert.ToBase64String(clientKey.ExportSubjectPublicKeyInfo()),
@@ -170,9 +181,9 @@ public abstract class DeviceClientTestBase : IAsyncLifetime
         var payload = JsonSerializer.Deserialize<PairingBootstrapPayload>(json, JsonOptions);
         Assert.NotNull(payload);
 
-        Client.DeviceToken = payload!.DeviceToken;
-        Client.DeviceRefreshToken = payload.RefreshToken;
-        Client.SetAuthorizationToken(new AuthorizationToken { token = payload.Token, expires = payload.Expires });
+        client.DeviceToken = payload!.DeviceToken;
+        client.DeviceRefreshToken = payload.RefreshToken;
+        client.SetAuthorizationToken(new AuthorizationToken { token = payload.Token, expires = payload.Expires });
         return payload;
     }
 

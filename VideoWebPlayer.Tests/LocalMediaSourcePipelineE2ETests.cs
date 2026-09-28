@@ -18,6 +18,10 @@ namespace VideoWebPlayer.Tests;
 /// und klassifiziert; die klassifizierte TVShow ist anschließend über die API abrufbar.
 /// </summary>
 [Trait("Category", "E2E")]
+// Wie die uebrigen Klassifizierungs-Tests: MediaSourceClassifier serialisiert Klassifizierungslaeufe ueber
+// ein prozessweites, statisches Flag (_classificationRunning), sodass ein parallel laufender Test einer
+// ANDEREN Hostinstanz seine Klassifizierung stillschweigend ueberspringt.
+[Collection(MediaSourceClassifierCollection.Name)]
 public sealed class LocalMediaSourcePipelineE2ETests : IDisposable
 {
     private readonly string _dbPath;

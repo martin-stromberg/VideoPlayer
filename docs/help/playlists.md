@@ -667,6 +667,25 @@ Wird ein Benutzerkonto gelöscht, werden auch alle Playlists dieses Anwenders au
 Weiterschauen-Einträge anderer Anwender mit Bezug zu dessen öffentlichen Playlists verlieren dabei ihren
 Playlist-Bezug (wie beim Löschen einer Playlist).
 
+### Playlists auf gekoppelten Geräten
+
+Für ein gekoppeltes Gerät (TV-App, Tablet — siehe [Geräte](geraete/index.md)) gilt dasselbe Rollenmodell,
+maßgeblich ist der **angemeldete Anwender**, nicht das Gerät:
+
+- Das Gerät sieht die Playlists des Anwenders, mit dessen Anmeldung es arbeitet. Bei der Kopplung per
+  QR-Code sind das zunächst die Playlists desjenigen, der den QR-Code erzeugt hat.
+- Öffentliche Playlists anderer Anwender erscheinen auf dem Gerät ebenfalls und lassen sich dort ansehen
+  und abspielen; ändern lassen sie sich auch dort nicht.
+- Fremde private Playlists sind auf dem Gerät weder sichtbar noch einzeln abrufbar — auch ihr Titelbild
+  nicht.
+- Meldet sich auf dem Gerät ein anderer Anwender an, wechseln damit auch die sichtbaren Playlists.
+- Wird ein Gerät widerrufen, läuft eine gerade laufende Playlist-Wiedergabe bis zum Ablauf der Sitzung
+  (höchstens zwölf Stunden) weiter; erneuern lässt sich die Sitzung ab dem Widerruf nicht mehr.
+
+Titelbilder und Videoströme lädt ein Gerät mit dem Anmeldenachweis als Abfrageparameter
+(`?access_token=…`) statt als Kopfzeile, weil Bild- und Videoelemente keine eigenen Kopfzeilen mitschicken
+können; Einzelheiten dazu in [Playlists — API](playlists-api.md) und [Geräte — API](geraete/api.md).
+
 ## Weiterschauen mit Playlist-Bezug
 
 Jedes Mal, wenn Sie ein Video direkt aus einer Playlist heraus starten und später pausieren, wird

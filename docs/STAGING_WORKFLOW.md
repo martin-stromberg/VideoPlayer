@@ -38,6 +38,7 @@ This project implements a two-stage CI/CD process with a dedicated `staging` bra
 - ✅ Security scans (dependency vulnerabilities, CodeQL analysis)
 - ✅ Code quality checks (formatting, static analysis)
 - ✅ Lint checks (compiler warnings as errors)
+- ✅ Kein offener Back-Merge-PR `main` → `staging` (`no pending backmerge`; entfaellt bei Back-Merge-PRs selbst)
 
 **Blocking**: All checks must pass before PR can be merged
 
@@ -202,6 +203,10 @@ laufende `release.yml`-Lauf erfolgreich war. Diese Kopplung an einen erfolgreich
 aufgegeben, damit `staging` auch nach einem fehlschlagenden Release-Build den aktuellen `main`-Stand kennt.
 Der PR muss mit "Create a merge commit" gemergt werden, nicht "Rebase and merge", damit Merge-Commit und Tag
 von `staging` aus erreichbar bleiben.
+
+Solange ein solcher Back-Merge-PR offen ist, blockiert der Job `no pending backmerge` in `pr-staging-ci.yml`
+alle anderen PRs gegen `staging` — der Back-Merge geht immer zuerst, damit er nicht durch einen
+dazwischengemergten Feature-PR veraltet oder konfliktbehaftet wird.
 
 ### Manual Version Override
 If manual version control is needed:

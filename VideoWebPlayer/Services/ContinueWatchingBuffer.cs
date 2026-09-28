@@ -26,6 +26,11 @@ namespace VideoWebPlayer.Services
             /// </summary>
             public long? EpisodeId { get; init; }
             /// <summary>
+            /// Gets the playlist identifier, when the entry was reported from within a playlist
+            /// playback context.
+            /// </summary>
+            public long? PlaylistId { get; init; }
+            /// <summary>
             /// Gets the current playback position.
             /// </summary>
             public TimeSpan Position { get; init; }
@@ -46,8 +51,8 @@ namespace VideoWebPlayer.Services
             SingleWriter = false
         });
 
-        private static string MakeKey(string userId, long? movieId, long? episodeId)
-            => $"{userId}|m:{movieId?.ToString() ?? "-"}|e:{episodeId?.ToString() ?? "-"}";
+        private static string MakeKey(string userId, long? movieId, long? episodeId, long? playlistId)
+            => $"{userId}|m:{movieId?.ToString() ?? "-"}|e:{episodeId?.ToString() ?? "-"}|p:{playlistId?.ToString() ?? "-"}";
 
         /// <summary>
         /// Enqueues or updates a progress entry and schedules it for processing.
@@ -57,14 +62,16 @@ namespace VideoWebPlayer.Services
         /// <param name="episodeId">The episode identifier.</param>
         /// <param name="position">The playback position.</param>
         /// <param name="duration">The total duration.</param>
-        public void EnqueueOrUpdate(string userId, long? movieId, long? episodeId, TimeSpan position, TimeSpan duration)
+        /// <param name="playlistId">The playlist identifier, when reported from within a playlist playback context.</param>
+        public void EnqueueOrUpdate(string userId, long? movieId, long? episodeId, TimeSpan position, TimeSpan duration, long? playlistId = null)
         {
-            var key = MakeKey(userId, movieId, episodeId);
+            var key = MakeKey(userId, movieId, episodeId, playlistId);
             var entry = new ProgressEntry
             {
                 UserId = userId,
                 MovieId = movieId,
                 EpisodeId = episodeId,
+                PlaylistId = playlistId,
                 Position = position,
                 Duration = duration,
                 UpdatedAt = DateTime.UtcNow

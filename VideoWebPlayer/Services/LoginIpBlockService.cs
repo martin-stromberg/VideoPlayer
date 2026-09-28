@@ -176,13 +176,19 @@ namespace VideoWebPlayer.Services
         public bool Unblock(string ip)
         {
             if (string.IsNullOrWhiteSpace(ip)) return false;
+            // Auf denselben normalisierten Schluessel abbilden wie die uebrigen
+            // Methoden — sonst verfehlen TryRemove/Find z. B. IPv4-mapped-IPv6-
+            // Eingaben ("::ffff:1.2.3.4" statt "1.2.3.4").
+            var key = IPAddress.TryParse(ip, out var parsed) ? Normalize(parsed) : ip;
+            // Cache-Eintrag immer entfernen — auch ohne persistierte Sperre kann die
+            // IP einen Fehlerzaehler unterhalb der Schwelle haben.
+            _cache.TryRemove(key, out _);
             using var scope = _scopeFactory.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var entry = db.BlockedLoginIps.Find(ip);
+            var entry = db.BlockedLoginIps.Find(key);
             if (entry == null) return false;
             db.BlockedLoginIps.Remove(entry);
             db.SaveChanges();
-            _cache.TryRemove(ip, out _);
             return true;
         }
 

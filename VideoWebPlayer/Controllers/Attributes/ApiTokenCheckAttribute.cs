@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
+using VideoWebPlayer.Services;
 
 /// <summary>
 /// Checks whether a configured API key is present on the request.
@@ -14,6 +15,7 @@ public class ApiTokenCheckAttribute : ActionFilterAttribute
     /// <summary>
     /// Initializes a new instance of the <see cref="ApiTokenCheckAttribute"/> class.
     /// </summary>
+    /// <param name="scope">The token scope required by the decorated action; defaults to <see cref="ApiTokenScope.AnyClient"/>.</param>
     public ApiTokenCheckAttribute(ApiTokenScope scope = ApiTokenScope.AnyClient)
     {
         _scope = scope;
@@ -23,7 +25,8 @@ public class ApiTokenCheckAttribute : ActionFilterAttribute
     /// Validates the API token header before the action executes.
     /// </summary>
     /// <param name="context">The action executing context.</param>
-    public override void OnActionExecuting(ActionExecutingContext context)
+    /// <param name="next">The action execution delegate.</param>
+    public override async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
         var logger = context.HttpContext.RequestServices.GetService(typeof(ILogger<ApiTokenCheckAttribute>)) as ILogger<ApiTokenCheckAttribute>;
         var config = context.HttpContext.RequestServices.GetService<IConfiguration>();
@@ -76,7 +79,15 @@ public class ApiTokenCheckAttribute : ActionFilterAttribute
 
         if (validTokens.Contains(requestToken))
         {
-            base.OnActionExecuting(context);
+            await next();
+            return;
+        }
+
+        if (_scope == ApiTokenScope.MauiOnly
+            && context.HttpContext.RequestServices.GetService(typeof(IDeviceTokenService)) is IDeviceTokenService deviceTokenService
+            && await deviceTokenService.IsValidDeviceTokenAsync(requestToken))
+        {
+            await next();
             return;
         }
 
@@ -96,7 +107,7 @@ public enum ApiTokenScope
     AnyClient,
 
     /// <summary>
-    /// Accepts only tokens configured via <c>Jwt:ApiToken:Maui</c>.
+    /// Accepts tokens configured via <c>Jwt:ApiToken:Maui</c> and paired device tokens.
     /// </summary>
     MauiOnly
 }

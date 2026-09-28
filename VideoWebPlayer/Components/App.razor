@@ -1,4 +1,6 @@
-﻿<!DOCTYPE html>
+﻿@inject VideoWebPlayer.Services.StaticAssetVersioner AssetVersions
+
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -6,14 +8,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/" />
     <link rel="stylesheet" href="bootstrap/bootstrap.min.css" />
-    <link rel="stylesheet" href="app.css" />
-    <link rel="stylesheet" href="VideoWebPlayer.styles.css" />
+    <link rel="stylesheet" href="@AssetVersions.Url("app.css")" />
+    <link rel="stylesheet" href="@AssetVersions.Url("VideoWebPlayer.styles.css")" />
     <link rel="icon" type="image/png" href="favicon.png" />
-    <script src="js/scroll.js"></script>
-    <script src="js/continueWatching.js"></script>
-    <script src="js/layoutNavigation.js"></script>
-    <script src="js/statusTicker.js"></script>
-    <script src="js/mediaContextMenu.js"></script>
+    <script src="@AssetVersions.Url("js/scroll.js")"></script>
+    <script src="@AssetVersions.Url("js/continueWatching.js")"></script>
+    <script src="@AssetVersions.Url("js/layoutNavigation.js")"></script>
+    <script src="@AssetVersions.Url("js/statusTicker.js")"></script>
+    <script src="@AssetVersions.Url("js/mediaContextMenu.js")"></script>
+    <script src="@AssetVersions.Url("js/playlistDragDrop.js")"></script>
+    <script src="@AssetVersions.Url("js/backupUpload.js")"></script>
     <HeadOutlet />
 </head>
 

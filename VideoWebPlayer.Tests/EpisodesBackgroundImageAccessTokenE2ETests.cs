@@ -65,7 +65,23 @@ public sealed class EpisodesBackgroundImageAccessTokenE2ETests : IDisposable
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
-    private async Task<(long EpisodeId, string Token)> CreateAuthenticatedEpisodeWithGeneratedBackgroundAsync()
+    /// <summary>
+    /// A logged-in user who may not access the episode's media source and has not unlocked its series (a viewer of
+    /// another user's public playlist) must not receive the episode's image data.
+    /// </summary>
+    [Fact]
+    public async Task GetBackgroundImage_WithValidTokenButNoAccessToTheSource_ReturnsForbidden()
+    {
+        var (episodeId, token) = await CreateAuthenticatedEpisodeWithGeneratedBackgroundAsync(shareSource: false);
+        var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+
+        var response = await client.GetAsync($"/api/episodes/{episodeId}/background-image?access_token={token}", TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.DoesNotContain("image", response.Content.Headers.ContentType?.MediaType ?? string.Empty);
+    }
+
+    private async Task<(long EpisodeId, string Token)> CreateAuthenticatedEpisodeWithGeneratedBackgroundAsync(bool shareSource = true)
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -110,6 +126,9 @@ public sealed class EpisodesBackgroundImageAccessTokenE2ETests : IDisposable
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         episode.GeneratedBackgroundPictureId = picture.Id;
+        episode.MediaSourceId = source.Id;
+        if (shareSource)
+            db.MediaSourceUsers.Add(new MediaSourceUser { MediaSourceId = source.Id, UserId = user.Id });
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var token = tokenService.CreateToken(user);

@@ -594,6 +594,35 @@ public class ApplicationDbContextTests
         Assert.Empty(await ctx.Db.MediaItems.ToListAsync(ct));
     }
 
+    [Fact]
+    public async Task Update_CopiesSourceType()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var ctx = await SeedSourceOnlyAsync("source-updatesourcetype", ct);
+
+        var update = new MediaSource
+        {
+            Name = "Local",
+            Path = "C:\\Media",
+            SourceType = MediaSourceType.LocalDirectory
+        };
+        ctx.Source.Update(update);
+        await ctx.Db.SaveChangesAsync(ct);
+
+        var reloaded = await ctx.Db.MediaSources.FirstAsync(ms => ms.Id == ctx.Source.Id, ct);
+        Assert.Equal(MediaSourceType.LocalDirectory, reloaded.SourceType);
+    }
+
+    [Fact]
+    public async Task MediaSource_DefaultsToSftpSourceType()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var ctx = await SeedSourceOnlyAsync("source-defaultsourcetype", ct);
+
+        var reloaded = await ctx.Db.MediaSources.FirstAsync(ms => ms.Id == ctx.Source.Id, ct);
+        Assert.Equal(MediaSourceType.Sftp, reloaded.SourceType);
+    }
+
     private sealed class ImmediateProgress : IProgress<double>
     {
         private readonly Action<double> _handler;

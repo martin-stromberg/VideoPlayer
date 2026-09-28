@@ -35,6 +35,46 @@ public sealed class EpisodesControllerBackgroundImageTests
         }
     }
 
+    /// <summary>
+    /// An episode of a media source the user cannot access and whose series is not unlocked (for example a title of
+    /// another user's public playlist) must not hand out its image - the UI hiding it is not enough.
+    /// </summary>
+    [Fact]
+    public async Task GetBackgroundImage_WithoutSourceAccessAndNotUnlocked_ReturnsForbidden_AndNoImageData()
+    {
+        var (db, keeper) = CreateDb();
+        using (keeper)
+        await using (db)
+        {
+            var episode = await CreateEpisodeAsync(db, EpisodeAccess.None);
+            var generated = await CreatePictureAsync(db, isGeneratedBackground: true, data: new byte[] { 9, 9, 9 }, contentType: "image/jpeg");
+            episode.GeneratedBackgroundPictureId = generated.Id;
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var controller = CreateController(db, loggedIn: true);
+
+            var result = await controller.GetBackgroundImage(episode.Id, TestContext.Current.CancellationToken);
+
+            var status = Assert.IsType<StatusCodeResult>(result);
+            Assert.Equal(403, status.StatusCode);
+        }
+    }
+
+    [Fact]
+    public async Task GetBackgroundImage_WhenTheSeriesIsUnlockedForTheUser_ReturnsTheImage()
+    {
+        var (db, keeper) = CreateDb();
+        using (keeper)
+        await using (db)
+        {
+            var episode = await CreateEpisodeAsync(db, EpisodeAccess.ShowUnlocked);
+            var controller = CreateController(db, loggedIn: true);
+
+            var result = await controller.GetBackgroundImage(episode.Id, TestContext.Current.CancellationToken);
+
+            Assert.IsType<FileContentResult>(result);
+        }
+    }
+
     [Fact]
     public async Task GetBackgroundImage_WhenEpisodeUnknown_ReturnsNotFound()
     {
@@ -188,13 +228,15 @@ public sealed class EpisodesControllerBackgroundImageTests
         }
     }
 
+    private const string TesterId = "tester-id";
+
     private static EpisodesController CreateController(ApplicationDbContext db, bool loggedIn)
     {
         var authService = new Mock<IAuthService>();
-        authService.Setup(x => x.CurrentUser).Returns(loggedIn ? new ApplicationUser { UserName = "tester" } : null);
+        authService.Setup(x => x.CurrentUser).Returns(loggedIn ? new ApplicationUser { Id = TesterId, UserName = "tester" } : null);
         var cache = new MemoryCache(new MemoryCacheOptions());
         var backgroundImageService = CreateBackgroundImageService(db, cache);
-        var controller = new EpisodesController(db, cache, backgroundImageService, authService.Object, NullLogger<EpisodesController>.Instance);
+        var controller = new EpisodesController(db, cache, backgroundImageService, new UnlockedMediaService(db, authService.Object), authService.Object, NullLogger<EpisodesController>.Instance);
         controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() };
         return controller;
     }
@@ -217,20 +259,47 @@ public sealed class EpisodesControllerBackgroundImageTests
         return (db, keeper);
     }
 
-    private static async Task<TVShowEpisode> CreateEpisodeAsync(ApplicationDbContext db)
+    /// <summary>
+    /// Creates a series with one season and one episode in their own media source. The tester may access that source
+    /// unless <paramref name="access"/> says otherwise.
+    /// </summary>
+    /// <param name="db">The database to seed.</param>
+    /// <param name="access">How the tester gets access to the episode's series, if at all.</param>
+    /// <returns>The created episode.</returns>
+    private static async Task<TVShowEpisode> CreateEpisodeAsync(ApplicationDbContext db, EpisodeAccess access = EpisodeAccess.SourceShared)
     {
-        var show = new TVShow { Name = "Testshow", CreatedAt = DateTime.UtcNow };
+        var ct = TestContext.Current.CancellationToken;
+        var tester = new ApplicationUser { Id = TesterId, UserName = "tester", NormalizedUserName = "TESTER" };
+        db.Users.Add(tester);
+        var source = new MediaSource { Name = "Episoden-Quelle", Path = "/episodes", Host = "localhost", Port = 22, CreatedAt = DateTime.UtcNow };
+        db.MediaSources.Add(source);
+        await db.SaveChangesAsync(ct);
+
+        if (access == EpisodeAccess.SourceShared)
+            db.MediaSourceUsers.Add(new MediaSourceUser { MediaSourceId = source.Id, UserId = TesterId });
+
+        var show = new TVShow { Name = "Testshow", MediaSourceId = source.Id, CreatedAt = DateTime.UtcNow };
         db.TVShows.Add(show);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        await db.SaveChangesAsync(ct);
 
-        var season = new TVShowSeason { Name = "Staffel 01", TVShowId = show.Id, CreatedAt = DateTime.UtcNow };
+        if (access == EpisodeAccess.ShowUnlocked)
+            db.UnlockedMediaEntries.Add(new UnlockedMediaEntry { UserId = TesterId, TVShowId = show.Id });
+
+        var season = new TVShowSeason { Name = "Staffel 01", TVShowId = show.Id, MediaSourceId = source.Id, CreatedAt = DateTime.UtcNow };
         db.TVShowSeasons.Add(season);
-        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        await db.SaveChangesAsync(ct);
 
-        var episode = new TVShowEpisode { Name = "Testepisode", Number = 1, TVShowSeasonId = season.Id, CreatedAt = DateTime.UtcNow };
+        var episode = new TVShowEpisode { Name = "Testepisode", Number = 1, TVShowSeasonId = season.Id, MediaSourceId = source.Id, CreatedAt = DateTime.UtcNow };
         db.TVShowEpisodes.Add(episode);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         return episode;
+    }
+
+    private enum EpisodeAccess
+    {
+        SourceShared,
+        ShowUnlocked,
+        None
     }
 
     private static async Task<Picture> CreatePictureAsync(ApplicationDbContext db, bool isGeneratedBackground, byte[] data, string contentType)

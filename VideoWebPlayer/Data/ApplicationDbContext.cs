@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using System.Threading;
 using VideoWebPlayer.Events;
@@ -21,10 +22,18 @@ namespace VideoWebPlayer.Data
         /// </summary>
         /// <param name="options">Konfigurationsoptionen f�r den DbContext.</param>
         /// <param name="eventManager">EventManager f�r das Publizieren von Events.</param>
-        public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options, EventManager eventManager)
+        /// <param name="backfillSignal">Optional wake-up line for the playlist backfill worker (null in tests / when unused).</param>
+        public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options, EventManager eventManager, IPlaylistBackfillSignal? backfillSignal = null)
             : base(options)
         {
             _eventManager = eventManager;
+            _backfillSignal = backfillSignal;
+
+            // Die per [DbFunction]/HasDbFunction() angebundene Funktion lower_invariant() existiert nicht
+            // von sich aus in SQLite; sie muss zusaetzlich auf der zugrunde liegenden Verbindung als
+            // benutzerdefinierte Funktion registriert werden, damit EF Core sie tatsaechlich ausfuehren kann.
+            if (Database.IsRelational() && Database.GetDbConnection() is SqliteConnection sqliteConnection)
+                sqliteConnection.CreateFunction<string?, string?>("lower_invariant", AppDbFunctions.LowerInvariant);
         }
         #region DbSet Properties
         /// <summary>
@@ -96,7 +105,26 @@ namespace VideoWebPlayer.Data
         /// </summary>
         public DbSet<FavoriteEntry> FavoriteEntries { get; set; }
         /// <summary>
-        /// Tabelle fuer einzeln freigeschaltete Medieneintraege.
+        /// Tabelle für Playlists.
+        /// </summary>
+        public DbSet<Playlist> Playlists { get; set; }
+        /// <summary>
+        /// Tabelle für Playlist-Einträge.
+        /// </summary>
+        public DbSet<PlaylistEntry> PlaylistEntries { get; set; }
+        /// <summary>
+        /// Tabelle für Playlist-Eintraege, die der Anwender bewusst einzeln aus einer Playlist entfernt hat
+        /// und die deshalb von der automatischen Nachlieferung (<see cref="Services.PlaylistBackfillService"/>)
+        /// nicht erneut hinzugefuegt werden sollen.
+        /// </summary>
+        public DbSet<PlaylistEntryExclusion> PlaylistEntryExclusions { get; set; }
+        /// <summary>
+        /// Tabelle für die (automatisch abgeleiteten oder manuell überschriebenen) Genres einer Playlist
+        /// (<see cref="Services.PlaylistGenreService"/>).
+        /// </summary>
+        public DbSet<PlaylistGenre> PlaylistGenres { get; set; }
+        /// <summary>
+        /// Tabelle für einzeln freigeschaltete Medieneinträge.
         /// </summary>
         public DbSet<UnlockedMediaEntry> UnlockedMediaEntries { get; set; }
         /// <summary>
@@ -151,6 +179,18 @@ namespace VideoWebPlayer.Data
         /// Tabelle fuer Update-Einstellungen.
         /// </summary>
         public DbSet<UpdateSettings> UpdateSettings { get; set; }
+        /// <summary>
+        /// Tabelle fuer gekoppelte Geraete.
+        /// </summary>
+        public DbSet<PairedDevice> PairedDevices { get; set; }
+        /// <summary>
+        /// Tabelle fuer Einmal-Pairing-Codes.
+        /// </summary>
+        public DbSet<PairingCode> PairingCodes { get; set; }
+        /// <summary>
+        /// Tabelle fuer Refresh-Tokens (gekoppelt an Benutzer und Geraet).
+        /// </summary>
+        public DbSet<RefreshToken> RefreshTokens { get; set; }
         #endregion
         #region MediaSource Manipulation Methods
         /// <summary>
@@ -187,7 +227,23 @@ namespace VideoWebPlayer.Data
         /// <param name="source">Die zu l�schende MediaSource.</param>
         /// <param name="progress">Optional progress reporter.</param>
         /// <param name="cancellationToken">Cancellation token.</param>
-        public async Task DeleteMediaSourceAsync(MediaSource source, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
+        /// <param name="beforeContinueWatchingCleanupAsync">
+        /// Optional hook invoked, within this method's own transaction, immediately before the affected
+        /// <see cref="ContinueWatchingEntry"/> rows are unconditionally deleted. Exists so a higher service
+        /// layer (see <c>IPlaylistService.ResolvePlaylistBoundContinueWatchingReplacementsForSourceDeletionAsync</c>)
+        /// can first try to re-point playlist-bound continue-watching entries at another, still-existing
+        /// title of the same playlist, instead of this method's unconditional deletion always winning; this
+        /// data-access layer intentionally has no knowledge of that playlist/sort/accessibility logic
+        /// itself, only of when it must run for the result to stay transactionally consistent with the rest
+        /// of the source deletion. <see langword="null"/> (e.g. from tests, or callers that do not care
+        /// about this replacement behavior) simply skips the hook, preserving this method's previous,
+        /// unconditional-delete-only behavior.
+        /// </param>
+        public async Task DeleteMediaSourceAsync(
+            MediaSource source,
+            IProgress<double>? progress = null,
+            CancellationToken cancellationToken = default,
+            Func<CancellationToken, Task>? beforeContinueWatchingCleanupAsync = null)
         {
             ArgumentNullException.ThrowIfNull(source);
 
@@ -215,6 +271,9 @@ namespace VideoWebPlayer.Data
                                  (we.TVShowEpisode != null && we.TVShowEpisode.TVShowSeason.TVShow.MediaSourceId == source.Id))
                     .ExecuteDeleteAsync(cancellationToken);
                 Report();
+
+                if (beforeContinueWatchingCleanupAsync is not null)
+                    await beforeContinueWatchingCleanupAsync(cancellationToken);
 
                 await ContinueWatchingEntries
                     .Where(cwe => (cwe.Movie != null && cwe.Movie.MediaSourceId == source.Id) ||
@@ -415,6 +474,9 @@ namespace VideoWebPlayer.Data
         /// Stellt sicher, dass eine MediaCollection mit gegebener MediaSourceId und Path existiert.
         /// Gibt die bestehende Collection zur�ck oder legt sie neu an.
         /// </summary>
+        /// <param name="collection">Die zu suchende bzw. anzulegende Collection.</param>
+        /// <param name="cancellationToken">Token zum Abbrechen der Operation.</param>
+        /// <returns>Die bestehende oder neu angelegte Collection.</returns>
         public async Task<MediaCollection> EnsureMediaCollectionExistsAsync(MediaCollection collection, CancellationToken cancellationToken = default)
         {
             var existing = await MediaCollections
@@ -436,6 +498,9 @@ namespace VideoWebPlayer.Data
         /// Gibt das bestehende Item zur�ck oder legt es neu an.
         /// Wird ein bestehendes Item gefunden und das CreatedAt-Datum ist unterschiedlich, wird es aktualisiert und Changed auf true gesetzt.
         /// </summary>
+        /// <param name="item">Das zu suchende bzw. anzulegende MediaItem.</param>
+        /// <param name="cancellationToken">Token zum Abbrechen der Operation.</param>
+        /// <returns>Das bestehende oder neu angelegte MediaItem.</returns>
         public async Task<MediaItem> EnsureMediaItemExistsAsync(MediaItem item, CancellationToken cancellationToken = default)
         {
             var existing = await MediaItems
@@ -596,6 +661,9 @@ namespace VideoWebPlayer.Data
         /// L�dt die zu einer MediaItem-Id geh�renden �bergeordneten Entit�ten (MediaCollection, Movie (+MovieCollection) oder TVShow/Season/Episode).
         /// Gibt ein <see cref="MediaItemRelationResult"/> mit gef�llten Properties zur�ck (nicht gefundene bleiben null).
         /// </summary>
+        /// <param name="mediaItemId">Die Id des MediaItems, dessen Beziehungen geladen werden sollen.</param>
+        /// <param name="cancellationToken">Token zum Abbrechen der Operation.</param>
+        /// <returns>Das <see cref="MediaItemRelationResult"/> mit den geladenen Beziehungen.</returns>
         public async Task<MediaItemRelationResult> GetRelationsForMediaItemAsync(long mediaItemId, CancellationToken cancellationToken = default)
         {
             var result = new MediaItemRelationResult();
@@ -648,6 +716,8 @@ namespace VideoWebPlayer.Data
             base.OnModelCreating(modelBuilder);
 
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
+
+            modelBuilder.HasDbFunction(typeof(AppDbFunctions).GetMethod(nameof(AppDbFunctions.LowerInvariant))!);
         }
     }
 }

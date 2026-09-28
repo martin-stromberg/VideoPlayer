@@ -8,6 +8,7 @@
 @inject VideoWebPlayer.Services.MediaSourceClassifier MediaSourceClassifier
 @inject ILogger<MediaSourceExplorer> Logger
 @inject VideoWebPlayer.Services.Backups.IBackgroundProcessingGate BackgroundGate
+@inject VideoWebPlayer.Services.IPlaylistBackfillSignal PlaylistBackfillSignal
 @rendermode InteractiveServer
 
 <PageTitle>Dateiexplorer</PageTitle>
@@ -245,7 +246,7 @@
 
         if (BackgroundGate.IsPausedForRestore)
         {
-            rescanStatus = "Restore laeuft. Neu erfassen ist derzeit gesperrt.";
+            rescanStatus = "Restore läuft. Neu erfassen ist derzeit gesperrt.";
             return;
         }
 
@@ -257,6 +258,8 @@
         try
         {
             await using var processingLease = await BackgroundGate.EnterOperationAsync("Manueller Collection-Scan", CancellationToken.None);
+            // Marker commits during the scan do not wake the playlist backfill; the end of the scan does (once).
+            using var playlistBackfillScanScope = PlaylistBackfillSignal.BeginScan();
             rescanScannedCollections = await MediaSourceScanner.ScanCollectionTreeAsync(currentCollection.Id, CancellationToken.None);
 
             rescanStatus = "Neu erfassen: Klassifizierung (nur diese Collection + Unterordner)...";

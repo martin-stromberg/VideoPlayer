@@ -12,6 +12,7 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using VideoWebPlayer.Client;
 using VideoWebPlayer.Components.Account;
+using VideoWebPlayer.Configuration;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Services.Authentication;
@@ -74,6 +75,10 @@ public static class ServiceCollectionExtensions
         services.AddMemoryCache();
         services.AddSingleton<InternalConnectionService>();
         services.AddSingleton<ILoginIpBlockService, LoginIpBlockService>(); // wieder Singleton
+        services.AddScoped<IRefreshTokenService, RefreshTokenService>();
+        services.AddScoped<IDeviceTokenService, DeviceTokenService>();
+        services.AddScoped<IPairingService, PairingService>();
+        services.AddScoped<IPairingBootstrapService, PairingBootstrapService>();
 
 
         var authenticationBuilder = services.AddAuthentication(options =>
@@ -219,6 +224,7 @@ public static class ServiceCollectionExtensions
                 sp.GetRequiredService<ILogger<VideoWebPlayerClient>>());
             return client;
         });
+        services.AddScoped<IPlaylistApiClient>(sp => sp.GetRequiredService<VideoWebPlayerClient>());
 
         services.AddScoped<IUserClaimsPrincipalFactory<ApplicationUser>, ApplicationUserClaimsPrincipalFactory>();
         services.AddSingleton<EventManager>();
@@ -227,9 +233,20 @@ public static class ServiceCollectionExtensions
         services.AddScoped<MediaMetadataEditorService>();
         services.AddSingleton<IMediaMetadataWriteCoordinator, MediaMetadataWriteCoordinator>();
         services.AddScoped<IFavoritesService, FavoritesService>();
+        services.AddScoped<IPlaylistService, PlaylistService>();
+        services.Configure<PlaylistSettings>(configuration.GetSection("Playlists"));
+        services.AddScoped<PlaylistBackfillService>();
+        services.AddSingleton<StaticAssetVersioner>();
+        services.AddSingleton<PlaylistBackfillSignal>();
+        services.AddSingleton<IPlaylistBackfillSignal>(sp => sp.GetRequiredService<PlaylistBackfillSignal>());
+        services.AddSingleton<PlaylistBackfillCoordinator>();
+        services.AddScoped<VideoWebPlayer.Services.PlaylistCover.PlaylistCoverValidator>();
+        services.AddScoped<VideoWebPlayer.Services.PlaylistCover.PlaylistCoverImageGenerator>();
         services.AddScoped<IUnlockedMediaService, UnlockedMediaService>();
         services.AddScoped<IGenreService, GenreService>();
         services.AddScoped<SftpMediaSourceReader>();
+        services.AddScoped<LocalMediaSourceReader>();
+        services.AddScoped<IMediaSourceReader, MediaSourceReaderDispatcher>();
         services.AddScoped<DataUpgradeManager>();
         services.AddScoped<ProgramSettingsService>();
         services.AddSingleton(TimeProvider.System);
@@ -248,6 +265,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<VideoWebPlayerBackupFacade>();
         services.AddSingleton<ManualBackupJobService>();
         services.AddSingleton<RestoreBackupJobService>();
+        services.AddSingleton<BackupUploadSessionService>();
         services.AddSingleton<VideoWebPlayerUpdateSourceFactory>();
         services.AddScoped<UpdateSettingsService>();
         services.AddScoped<IUpdateSettingsService>(sp => sp.GetRequiredService<UpdateSettingsService>());
@@ -270,6 +288,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<MediaUpdateNotificationService>();
         services.AddHostedService<ContinueWatchingWorker>();
         services.AddHostedService<ActorBackfillWorker>();
+        services.AddHostedService<PlaylistBackfillWorker>();
         services.AddScoped<IDemoDataSetService, FileSystemDemoDataSetService>();
 
         services.AddScoped<MediaSourceDetailsViewModel>();

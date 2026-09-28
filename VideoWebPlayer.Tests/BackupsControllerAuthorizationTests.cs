@@ -44,20 +44,29 @@ public sealed class BackupsControllerAuthorizationTests
     }
 
     [Fact]
-    public void UploadEndpoint_IsExposedAsUnlimitedServerSidePost()
+    public void UploadChunkEndpoint_IsExposedAsUnlimitedStreamPost()
     {
-        var method = typeof(BackupsController).GetMethod(nameof(BackupsController.Upload));
+        var method = typeof(BackupsController).GetMethod(nameof(BackupsController.UploadChunk));
 
         Assert.NotNull(method);
         var httpPost = method.GetCustomAttributes(typeof(HttpPostAttribute), inherit: true)
             .OfType<HttpPostAttribute>()
             .Single();
-        Assert.Equal("upload", httpPost.Template);
+        Assert.Equal("upload/chunk", httpPost.Template);
 
         Assert.NotEmpty(method.GetCustomAttributes(typeof(DisableRequestSizeLimitAttribute), inherit: true));
-        var formLimits = method.GetCustomAttributes(typeof(RequestFormLimitsAttribute), inherit: true)
-            .OfType<RequestFormLimitsAttribute>()
+        Assert.Empty(method.GetCustomAttributes(typeof(RequestFormLimitsAttribute), inherit: true));
+    }
+
+    [Fact]
+    public void GetUploadStatusEndpoint_IsExposedAsGet()
+    {
+        var method = typeof(BackupsController).GetMethod(nameof(BackupsController.GetUploadStatus));
+
+        Assert.NotNull(method);
+        var httpGet = method.GetCustomAttributes(typeof(HttpGetAttribute), inherit: true)
+            .OfType<HttpGetAttribute>()
             .Single();
-        Assert.Equal(long.MaxValue, formLimits.MultipartBodyLengthLimit);
+        Assert.Equal("upload/{uploadId:guid}", httpGet.Template);
     }
 }

@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using VideoWebPlayer.Controllers;
 using VideoWebPlayer.Controllers.Models;
@@ -15,7 +16,7 @@ using VideoWebPlayer.Services.Authentication;
 public class ItemsController : ApiBaseController
 {
     private readonly ApplicationDbContext _db;
-    private readonly SftpMediaSourceReader _sftpReader;
+    private readonly IMediaSourceReader _reader;
     private readonly MediaMetadataEditorService _metadataEditor;
     private readonly RecentEntryService recentEntryService;
     private readonly IUnlockedMediaService _unlockedMediaService;
@@ -25,7 +26,7 @@ public class ItemsController : ApiBaseController
     /// Initializes a new instance of the <see cref="ItemsController"/> class.
     /// </summary>
     /// <param name="db">Database context.</param>
-    /// <param name="sftpReader">SFTP reader.</param>
+    /// <param name="reader">Media source reader.</param>
     /// <param name="metadataEditor">Media metadata editor service.</param>
     /// <param name="recentEntryService">Recent entry service.</param>
     /// <param name="unlockedMediaService">Unlocked-media authorization service.</param>
@@ -34,7 +35,7 @@ public class ItemsController : ApiBaseController
     /// <param name="watchedStatusService">Watched-status service.</param>
     public ItemsController(
         ApplicationDbContext db,
-        SftpMediaSourceReader sftpReader,
+        IMediaSourceReader reader,
         MediaMetadataEditorService metadataEditor,
         RecentEntryService recentEntryService,
         IUnlockedMediaService unlockedMediaService,
@@ -44,7 +45,7 @@ public class ItemsController : ApiBaseController
         WatchedStatusService? watchedStatusService = null) : base(authService, logger)
     {
         _db = db;
-        _sftpReader = sftpReader;
+        _reader = reader;
         _metadataEditor = metadataEditor;
         this.recentEntryService = recentEntryService;
         _unlockedMediaService = unlockedMediaService;
@@ -52,98 +53,115 @@ public class ItemsController : ApiBaseController
     }
 
     /// <summary>
-    /// Gets genre options as displayed by the genre admin page.
+    /// Runs <paramref name="action"/> (which is expected to call <see cref="ApiBaseController.CheckLogedIn"/>
+    /// itself before touching the media data) and maps the exceptions common to every media endpoint to the
+    /// corresponding HTTP response, centralizing the try/catch block that was previously duplicated across
+    /// the media actions. Follows the same pattern as <c>PlaylistsController.ExecuteAsync</c>, so a missing
+    /// authorization answers 403 Forbidden instead of 401 Unauthorized and an unknown entry answers 404 Not
+    /// Found instead of 500 Internal Server Error; 401 stays reserved for a missing or invalid credential.
     /// </summary>
-    [HttpGet("genres")]
-    public async Task<ActionResult<List<DtoGenreOption>>> GetGenres()
+    /// <param name="action">The endpoint logic to run.</param>
+    /// <param name="logContext">A German gerund phrase describing the action, used in log messages (e.g. "Abrufen des Medienitems").</param>
+    /// <returns>The result produced by <paramref name="action"/>, or the mapped error response.</returns>
+    private async Task<ActionResult> ExecuteAsync(Func<Task<ActionResult>> action, string logContext)
     {
         try
         {
-            CheckLogedIn();
-            return Ok(await _metadataEditor.GetGenreOptionsAsync(HttpContext.RequestAborted));
+            return await action();
+        }
+        catch (RecordNotFoundException ex)
+        {
+            Logger.LogWarning(ex, "Eintrag nicht gefunden beim {LogContext}", logContext);
+            return NotFound(ex.Message);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            Logger.LogWarning(ex, "Eintrag nicht gefunden beim {LogContext}", logContext);
+            return NotFound(ex.Message);
+        }
+        catch (ForbiddenAccessException ex)
+        {
+            Logger.LogWarning(ex, "Zugriff verweigert beim {LogContext}", logContext);
+            return Forbid(JwtBearerDefaults.AuthenticationScheme);
         }
         catch (UnauthorizedAccessException ex)
         {
-            Logger.LogWarning(ex, "Zugriff verweigert beim Abrufen der Genre-Auswahlliste");
+            Logger.LogWarning(ex, "Zugriff ohne Anmeldung beim {LogContext}", logContext);
             return Unauthorized(ex.Message);
+        }
+        catch (ArgumentException ex)
+        {
+            Logger.LogWarning(ex, "Ungueltige Eingabe beim {LogContext}", logContext);
+            return BadRequest(ex.Message);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Fehler beim Abrufen der Genre-Auswahlliste");
+            Logger.LogError(ex, "Fehler beim {LogContext}", logContext);
             return StatusCode(500, "Internal server error");
         }
     }
 
     /// <summary>
-    /// Updates user-editable metadata for a media detail context.
+    /// Gets genre options as displayed by the genre admin page.
     /// </summary>
+    /// <returns>The available genre options.</returns>
+    [HttpGet("genres")]
+    public async Task<ActionResult<List<DtoGenreOption>>> GetGenres()
+    {
+        return await ExecuteAsync(async () =>
+        {
+            CheckLogedIn();
+            return Ok(await _metadataEditor.GetGenreOptionsAsync(HttpContext.RequestAborted));
+        }, "Abrufen der Genre-Auswahlliste");
+    }
+
+    /// <summary>
+    /// Updates user-editable metadata for a media detail context. Only administrators may save; for
+    /// everybody else the call is refused with 403 Forbidden, not with 401 Unauthorized — 401 stays
+    /// reserved for a missing or invalid credential, as everywhere else in this controller.
+    /// </summary>
+    /// <param name="request">The metadata values to persist.</param>
+    /// <returns>An action result indicating success.</returns>
     [HttpPost("metadata")]
     public async Task<IActionResult> UpdateMetadata([FromBody] MediaMetadataUpdateRequest request)
     {
-        try
+        return await ExecuteAsync(async () =>
         {
             CheckLogedIn();
             if (!User.HasClaim("IsAdmin", "True"))
-                return Unauthorized("Nur Administratoren duerfen Metadaten speichern.");
+                throw new ForbiddenAccessException("Nur Administratoren dürfen Metadaten speichern.");
 
             await _metadataEditor.UpdateAsync(request, HttpContext.RequestAborted);
             return Ok(true);
-        }
-        catch (ArgumentException ex)
-        {
-            Logger.LogWarning(ex, "Ungueltige Metadaten-Aktualisierung");
-            return BadRequest(ex.Message);
-        }
-        catch (KeyNotFoundException ex)
-        {
-            Logger.LogWarning(ex, "Metadaten-Ziel nicht gefunden");
-            return NotFound(ex.Message);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            Logger.LogWarning(ex, "Zugriff verweigert beim Speichern von Metadaten");
-            return Unauthorized(ex.Message);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Fehler beim Speichern von Metadaten");
-            return StatusCode(500, "Internal server error");
-        }
+        }, "Speichern von Metadaten");
     }
     /// <summary>
     /// Gets media entries for a source with optional filtering.
     /// </summary>
+    /// <param name="mediaSourceId">Optional media source id to restrict results to (media-source browsing use case).</param>
+    /// <param name="page">Zero-based page index.</param>
+    /// <param name="size">Page size.</param>
+    /// <param name="search">Optional case-insensitive substring to match against the entry name.</param>
+    /// <param name="genreId">Optional genre id to restrict results to.</param>
+    /// <param name="includeIndividualMediaTypes">
+    /// When <c>true</c>, individual <c>Movie</c>, <c>TVShowSeason</c> and <c>TVShowEpisode</c> entries are
+    /// included in addition to <c>MovieCollection</c> and <c>TVShow</c> entries. Used by the playlist media
+    /// search (<see cref="VideoWebPlayer.Components.Playlists.MediaSearchSelector"/>); media-source browsing
+    /// leaves this at its default (<c>false</c>) to keep returning only the original two media types.
+    /// </param>
+    /// <returns>The matching, paged media entries.</returns>
     [HttpGet]
     public async Task<ActionResult<List<MediaEntryDto>>> Get(
             [FromQuery] long? mediaSourceId,
             [FromQuery] int page = 0,
             [FromQuery] int size = 30,
             [FromQuery] string? search = null,
-            [FromQuery] long? genreId = null)
+            [FromQuery] long? genreId = null,
+            [FromQuery] bool includeIndividualMediaTypes = false)
     {
-        try
+        return await ExecuteAsync(async () =>
         {
             CheckLogedIn();
-            // MovieCollections
-            var queryMovie = _db.MovieCollections
-                .AsNoTracking()
-                .Where(mc => !mediaSourceId.HasValue || mc.MediaSourceId == mediaSourceId);
-            var foundMovies = queryMovie.ToList();
-
-            if (!string.IsNullOrWhiteSpace(search))
-                queryMovie = queryMovie.Where(e => e.Name.Contains(search));
-            foundMovies = queryMovie.ToList();
-
-            if (genreId.HasValue)
-            {
-                // Nur Collections, deren Movies das Genre haben
-                queryMovie = queryMovie.Where(mc =>
-                    _db.Movies.Any(m =>
-                        m.MovieCollectionId == mc.Id &&
-                        m.MovieGenres.Any(mg => mg.GenreId == genreId.Value)
-                    )
-                );
-            }
 
             var mediaSourceIds = await _db.MediaSourceUsers
                 .AsNoTracking()
@@ -154,84 +172,240 @@ public class ItemsController : ApiBaseController
             var unlockedMovieCollectionIds = await _unlockedMediaService.GetUnlockedMovieCollectionIdsForUserAsync(CurrentUser.Id);
             var unlockedTVShowIds = await _unlockedMediaService.GetUnlockedTVShowIdsForUserAsync(CurrentUser.Id);
 
-            var movieCollections = (await queryMovie
-                .Where(m => mediaSourceIds.Contains(m.MediaSourceId) || unlockedMovieCollectionIds.Contains(m.Id))
-                .OrderBy(e => e.Name)
-                .Skip(0)
-                .Take((page + 1) * size)
-                .Select(mc => new MediaEntryDto
-                {
-                    Type = nameof(Movie),
-                    Id = mc.Id,
-                    Title = mc.Name,
-                    Description = "",
-                    Url = $"/moviecollection/{mc.Id}",
-                    CreatedAt = mc.CreatedAt,
-                    PictureId = mc.PosterPictureId,
-                    ItemCount = _db.Movies.Count(m => m.MovieCollectionId == mc.Id)
-                })
-                .ToListAsync());
+            var filter = new MediaEntryFilter(mediaSourceId, search, genreId, page, size, includeIndividualMediaTypes);
 
-            // TVShows
-            var queryShow = _db.TVShows
-                .AsNoTracking()
-                .Where(ts => !mediaSourceId.HasValue || ts.MediaSourceId == mediaSourceId);
+            var movieCollections = await GetMovieCollectionEntriesAsync(filter, mediaSourceIds, unlockedMovieCollectionIds);
+            var tvShows = await GetTVShowEntriesAsync(filter, mediaSourceIds, unlockedTVShowIds);
 
-            if (!string.IsNullOrWhiteSpace(search))
-                queryShow = queryShow.Where(e => e.Name.Contains(search));
+            var entries = movieCollections.Concat(tvShows);
 
-            if (genreId.HasValue)
+            if (filter.IncludeIndividualMediaTypes)
             {
-                queryShow = queryShow.Where(ts =>
-                    ts.TVShowGenres.Any(tg => tg.GenreId == genreId.Value)
-                );
+                var movies = await GetMovieEntriesAsync(filter, mediaSourceIds, unlockedMovieCollectionIds);
+                var seasons = await GetSeasonEntriesAsync(filter, mediaSourceIds, unlockedTVShowIds);
+                var episodes = await GetEpisodeEntriesAsync(filter, mediaSourceIds, unlockedTVShowIds);
+                entries = entries.Concat(movies).Concat(seasons).Concat(episodes);
             }
 
-            var tvShows = await queryShow
-                .Where(m => mediaSourceIds.Contains(m.MediaSourceId) || unlockedTVShowIds.Contains(m.Id))
-                .OrderBy(e => e.Name)
-                .Skip(0)
-                .Take((page + 1) * size)
-                .Select(ts => new MediaEntryDto
-                {
-                    Type = nameof(TVShow),
-                    Id = ts.Id,
-                    Title = ts.Name,
-                    Description = ts.Plot,
-                    Url = $"/tvshow/{ts.Id}",
-                    CreatedAt = ts.CreatedAt,
-                    PictureId = ts.PosterPictureId
-                })
-                .ToListAsync();
-
-            var entries = movieCollections
-                .Concat(tvShows)
+            var pagedEntries = entries
                 .OrderBy(e => e.Title)
                 .Skip(page * size)
                 .Take(size)
                 .ToList();
 
-            return Ok(entries);
-        }
-        catch (UnauthorizedAccessException ex)
+            return Ok(pagedEntries);
+        }, "Abrufen der Medieneintraege");
+    }
+
+    /// <summary>
+    /// Bundles the media-source/search/genre/paging filter parameters shared by all five
+    /// <c>Get*EntriesAsync</c> helpers below, which otherwise pass the same five values unchanged on
+    /// every call alongside a type-specific id list.
+    /// </summary>
+    /// <param name="MediaSourceId">Optional media source id to restrict results to.</param>
+    /// <param name="Search">Optional case-insensitive substring to match against the entry name.</param>
+    /// <param name="GenreId">Optional genre id to restrict results to.</param>
+    /// <param name="Page">Zero-based page index used for the final result trimming in <see cref="Get(long?, int, int, string?, long?, bool)"/>.</param>
+    /// <param name="Size">Page size used for the final result trimming in <see cref="Get(long?, int, int, string?, long?, bool)"/>.</param>
+    /// <param name="IncludeIndividualMediaTypes">
+    /// When <c>true</c>, the <c>Movie</c>, <c>TVShowSeason</c> and <c>TVShowEpisode</c> helpers are included
+    /// alongside <c>MovieCollection</c> and <c>TVShow</c>. Defaults to <c>false</c> so media-source browsing
+    /// keeps returning only the original two media types.
+    /// </param>
+    /// <returns>The constructed <see cref="MediaEntryFilter"/> value.</returns>
+    private readonly record struct MediaEntryFilter(long? MediaSourceId, string? Search, long? GenreId, int Page, int Size, bool IncludeIndividualMediaTypes = false);
+
+    /// <summary>
+    /// Applies the case-insensitive substring search shared by all five <c>Get*EntriesAsync</c> helpers
+    /// below to the entry's <see cref="MediaBaseEntry.Name"/>.
+    /// </summary>
+    /// <typeparam name="T">The entity type, which must derive from <see cref="MediaBaseEntry"/>.</typeparam>
+    /// <param name="query">The query to filter.</param>
+    /// <param name="search">Optional case-insensitive substring to match against the entry name.</param>
+    /// <returns>The filtered query, or the unmodified <paramref name="query"/> when <paramref name="search"/> is empty.</returns>
+    private static IQueryable<T> ApplySearchFilter<T>(IQueryable<T> query, string? search) where T : MediaBaseEntry
+    {
+        if (string.IsNullOrWhiteSpace(search))
+            return query;
+
+        var lowered = search.ToLowerInvariant();
+        var escaped = lowered.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
+        return query.Where(e => EF.Functions.Like(AppDbFunctions.LowerInvariant(e.Name), $"%{escaped}%", "\\"));
+    }
+
+    private async Task<List<MediaEntryDto>> GetMovieCollectionEntriesAsync(MediaEntryFilter filter, long[] mediaSourceIds, long[] unlockedMovieCollectionIds)
+    {
+        var query = _db.MovieCollections
+            .AsNoTracking()
+            .Where(mc => !filter.MediaSourceId.HasValue || mc.MediaSourceId == filter.MediaSourceId);
+
+        query = ApplySearchFilter(query, filter.Search);
+
+        if (filter.GenreId.HasValue)
         {
-            Logger.LogWarning(ex, "Zugriff verweigert beim Abrufen der Genres fuer Quelle");
-            return Unauthorized(ex.Message);
+            // Nur Collections, deren Movies das Genre haben
+            query = query.Where(mc =>
+                _db.Movies.Any(m =>
+                    m.MovieCollectionId == mc.Id &&
+                    m.MovieGenres.Any(mg => mg.GenreId == filter.GenreId.Value)
+                )
+            );
         }
-        catch (Exception ex)
+
+        return await query
+            .Where(m => mediaSourceIds.Contains(m.MediaSourceId) || unlockedMovieCollectionIds.Contains(m.Id))
+            .OrderBy(e => e.Name)
+            .Take((filter.Page + 1) * filter.Size)
+            .Select(mc => new MediaEntryDto
+            {
+                Type = nameof(MovieCollection),
+                Id = mc.Id,
+                Title = mc.Name,
+                Description = "",
+                Url = $"/moviecollection/{mc.Id}",
+                CreatedAt = mc.CreatedAt,
+                PictureId = mc.PosterPictureId,
+                ItemCount = _db.Movies.Count(m => m.MovieCollectionId == mc.Id)
+            })
+            .ToListAsync();
+    }
+
+    private async Task<List<MediaEntryDto>> GetTVShowEntriesAsync(MediaEntryFilter filter, long[] mediaSourceIds, long[] unlockedTVShowIds)
+    {
+        var query = _db.TVShows
+            .AsNoTracking()
+            .Where(ts => !filter.MediaSourceId.HasValue || ts.MediaSourceId == filter.MediaSourceId);
+
+        query = ApplySearchFilter(query, filter.Search);
+
+        if (filter.GenreId.HasValue)
         {
-            Logger.LogError(ex, "Fehler beim Abrufen der Genres fuer Quelle");
-            return StatusCode(500, "Internal server error");
+            query = query.Where(ts =>
+                ts.TVShowGenres.Any(tg => tg.GenreId == filter.GenreId.Value)
+            );
         }
+
+        return await query
+            .Where(m => mediaSourceIds.Contains(m.MediaSourceId) || unlockedTVShowIds.Contains(m.Id))
+            .OrderBy(e => e.Name)
+            .Take((filter.Page + 1) * filter.Size)
+            .Select(ts => new MediaEntryDto
+            {
+                Type = nameof(TVShow),
+                Id = ts.Id,
+                Title = ts.Name,
+                Description = ts.Plot,
+                Url = $"/tvshow/{ts.Id}",
+                CreatedAt = ts.CreatedAt,
+                PictureId = ts.PosterPictureId
+            })
+            .ToListAsync();
+    }
+
+    private async Task<List<MediaEntryDto>> GetMovieEntriesAsync(MediaEntryFilter filter, long[] mediaSourceIds, long[] unlockedMovieCollectionIds)
+    {
+        var query = _db.Movies
+            .AsNoTracking()
+            .Where(m => !filter.MediaSourceId.HasValue || m.MediaSourceId == filter.MediaSourceId);
+
+        query = ApplySearchFilter(query, filter.Search);
+
+        if (filter.GenreId.HasValue)
+        {
+            query = query.Where(m =>
+                m.MovieGenres.Any(mg => mg.GenreId == filter.GenreId.Value)
+            );
+        }
+
+        return await query
+            .Where(m => mediaSourceIds.Contains(m.MediaSourceId) || unlockedMovieCollectionIds.Contains(m.MovieCollectionId ?? -1))
+            .OrderBy(e => e.Name)
+            .Take((filter.Page + 1) * filter.Size)
+            .Select(m => new MediaEntryDto
+            {
+                Type = nameof(Movie),
+                Id = m.Id,
+                Title = m.Name,
+                Description = m.Plot,
+                Url = $"/movie/{m.Id}",
+                CreatedAt = m.CreatedAt,
+                PictureId = m.PosterPictureId
+            })
+            .ToListAsync();
+    }
+
+    private async Task<List<MediaEntryDto>> GetSeasonEntriesAsync(MediaEntryFilter filter, long[] mediaSourceIds, long[] unlockedTVShowIds)
+    {
+        var query = _db.TVShowSeasons
+            .AsNoTracking()
+            .Where(s => !filter.MediaSourceId.HasValue || s.MediaSourceId == filter.MediaSourceId);
+
+        query = ApplySearchFilter(query, filter.Search);
+
+        if (filter.GenreId.HasValue)
+        {
+            query = query.Where(s =>
+                s.TVShow.TVShowGenres.Any(tg => tg.GenreId == filter.GenreId.Value)
+            );
+        }
+
+        return await query
+            .Where(s => mediaSourceIds.Contains(s.MediaSourceId) || unlockedTVShowIds.Contains(s.TVShowId))
+            .OrderBy(e => e.Name)
+            .Take((filter.Page + 1) * filter.Size)
+            .Select(s => new MediaEntryDto
+            {
+                Type = nameof(TVShowSeason),
+                Id = s.Id,
+                Title = s.Name,
+                Description = "",
+                Url = $"/tvshow/season/{s.Id}",
+                CreatedAt = s.CreatedAt,
+                PictureId = s.PosterPictureId
+            })
+            .ToListAsync();
+    }
+
+    private async Task<List<MediaEntryDto>> GetEpisodeEntriesAsync(MediaEntryFilter filter, long[] mediaSourceIds, long[] unlockedTVShowIds)
+    {
+        var query = _db.TVShowEpisodes
+            .AsNoTracking()
+            .Where(e => !filter.MediaSourceId.HasValue || e.MediaSourceId == filter.MediaSourceId);
+
+        query = ApplySearchFilter(query, filter.Search);
+
+        if (filter.GenreId.HasValue)
+        {
+            query = query.Where(e =>
+                e.TVShowSeason.TVShow.TVShowGenres.Any(tg => tg.GenreId == filter.GenreId.Value)
+            );
+        }
+
+        return await query
+            .Where(e => mediaSourceIds.Contains(e.MediaSourceId) || unlockedTVShowIds.Contains(e.TVShowSeason.TVShowId))
+            .OrderBy(e => e.Name)
+            .Take((filter.Page + 1) * filter.Size)
+            .Select(e => new MediaEntryDto
+            {
+                Type = nameof(TVShowEpisode),
+                Id = e.Id,
+                Title = e.Name,
+                Description = e.Plot,
+                Url = $"/tvshow/episode/{e.Id}",
+                CreatedAt = e.CreatedAt,
+                PictureId = e.PosterPictureId
+            })
+            .ToListAsync();
     }
 
     /// <summary>
     /// Gets recently watched media entries.
     /// </summary>
+    /// <returns>The recently watched media entries.</returns>
     [HttpGet("recent")]
     public async Task<ActionResult<List<DtoRecentEntry>>> GetRecent()
     {
-        try
+        return await ExecuteAsync(async () =>
         {
             CheckLogedIn();
             var recent = await recentEntryService.GetRecentEntriesAsync();
@@ -325,17 +499,7 @@ public class ItemsController : ApiBaseController
             }
             await _watchedStatusService.EnrichAsync(CurrentUser.Id, dtoList.Select(x => x.Entry), RequestCancellationToken);
             return Ok(dtoList);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            Logger.LogWarning(ex, "Zugriff verweigert beim Abrufen der letzten Eintraege");
-            return Unauthorized(ex.Message);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Fehler beim Abrufen der letzten Eintraege");
-            return StatusCode(500, "Internal server error");
-        }
+        }, "Abrufen der letzten Eintraege");
     }
 
     private async Task<MediaBaseEntry> FindEntry(string type, long id)
@@ -366,8 +530,8 @@ public class ItemsController : ApiBaseController
 
         var hasSourceAccess = await _db.MediaSourceUsers.AnyAsync(u => u.UserId == CurrentUser.Id && u.MediaSourceId == source.Id);
         var isUnlocked = await IsUnlockedAsync(entry);
-        if (!hasSourceAccess && !isUnlocked)
-            throw new UnauthorizedAccessException("Fehlende Berechtigung fuer Medienquelle");
+        if (!_unlockedMediaService.IsAccessible(hasSourceAccess, isUnlocked))
+            throw new ForbiddenAccessException("Fehlende Berechtigung für Medienquelle");
     }
 
     private async Task<bool> IsUnlockedAsync(MediaBaseEntry entry)
@@ -409,106 +573,135 @@ public class ItemsController : ApiBaseController
             _ => null
         };
         if (mediaItem is null)
-            throw new RecordNotFoundException("Keine Medienitems fuer diesen Eintrag gefunden");
+            throw new RecordNotFoundException("Keine Medienitems für diesen Eintrag gefunden");
         return mediaItem;
+    }
+
+    /// <summary>
+    /// The opened video file of a media item, as <see cref="OpenMediaFileAsync"/> resolves it once for
+    /// both <see cref="StreamMediaItem"/> and <see cref="Download"/>.
+    /// </summary>
+    /// <param name="Stream">The opened file stream.</param>
+    /// <param name="FileName">The file name, used as the download name.</param>
+    /// <param name="ContentType">The content type derived from the file extension.</param>
+    /// <returns>The resolved media file.</returns>
+    private sealed record MediaFile(Stream Stream, string FileName, string ContentType);
+
+    /// <summary>
+    /// Normalizes the media type of the stream and download endpoints: <c>tvshow</c> means the episode,
+    /// so both endpoints accept the same values (previously only the stream endpoint did, which made
+    /// <c>/download</c> answer 404 for a type the documentation promises).
+    /// </summary>
+    /// <param name="type">The media type from the route.</param>
+    /// <returns>The normalized media type.</returns>
+    private static string NormalizeMediaFileType(string type)
+        => type == nameof(TVShow).ToLower() ? nameof(TVShowEpisode).ToLower() : type;
+
+    /// <summary>
+    /// Resolves type, entry, authorization, media item and the video file of a title exactly once — the
+    /// single place <see cref="StreamMediaItem"/> and <see cref="Download"/> share, so a download no
+    /// longer resolves everything twice. The failures travel as exceptions and are mapped by
+    /// <see cref="ExecuteAsync"/>: invalid type or id to 400, unknown entry and missing video file to
+    /// 404, missing authorization to 403.
+    /// </summary>
+    /// <param name="type">The media type (<c>movie</c>, <c>tvshowepisode</c> or <c>tvshow</c>).</param>
+    /// <param name="id">The media item identifier.</param>
+    /// <returns>The opened file together with its name and content type.</returns>
+    private async Task<MediaFile> OpenMediaFileAsync(string type, long id)
+    {
+        type = NormalizeMediaFileType(type);
+
+        if (type != nameof(Movie).ToLower() && type != nameof(TVShowEpisode).ToLower())
+            throw new ArgumentException("Ungültiger Medientyp");
+        if (id <= 0)
+            throw new ArgumentException("Ungültige ID");
+
+        var mediaItem = await FindMediaItemAsync(type, id);
+
+        var mediaCollection = await _db.MediaCollections
+            .Include(mc => mc.MediaSource)
+            .FirstOrDefaultAsync(mc => mc.Id == mediaItem.MediaCollectionId);
+
+        var fileName = Path.GetFileName(mediaItem.Path);
+
+        Stream? stream;
+        try
+        {
+            stream = _reader.OpenFileStream(mediaCollection, fileName);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // A file the server itself cannot read (missing permission of the service account, locked or
+            // defective file) is a server-side problem, not a missing credential. Without this it would
+            // leave ExecuteAsync as 401 and the client would take it for an expired session and renew -
+            // exactly the confusion A4 removes elsewhere.
+            throw new InvalidOperationException("Die hinterlegte Videodatei konnte nicht geöffnet werden.", ex);
+        }
+
+        if (stream is null)
+            throw new RecordNotFoundException("Für diesen Titel ist keine Videodatei hinterlegt");
+
+        var ext = Path.GetExtension(fileName).ToLowerInvariant();
+        var contentType = ext switch
+        {
+            ".mp4" => "video/mp4",
+            ".mkv" => "video/x-matroska",
+            ".avi" => "video/x-msvideo",
+            ".mpeg" => "video/mpeg",
+            _ => "application/octet-stream"
+        };
+
+        return new MediaFile(stream, fileName, contentType);
     }
 
     /// <summary>
     /// Streams a media item by type and identifier.
     /// </summary>
+    /// <param name="type">The media type (<c>movie</c> or the TV show/episode type).</param>
+    /// <param name="id">The media item identifier.</param>
+    /// <returns>The media file as a range-processed stream.</returns>
     [HttpGet("{type}/{id}/stream")]
     public async Task<IActionResult> StreamMediaItem(string type, long id)
     {
-        try
+        return await ExecuteAsync(async () =>
         {
             CheckLogedIn();
-            if (type == nameof(TVShow).ToLower())
-                type = nameof(TVShowEpisode).ToLower();
-
-            if (type != nameof(Movie).ToLower() && type != nameof(TVShowEpisode).ToLower())
-                return BadRequest("Ungueltiger Medientyp");
-            if (id <= 0)
-                return BadRequest("Ungueltige ID");
-
-            var mediaItem = await FindMediaItemAsync(type, id);
-            if (mediaItem == null)
-                return NotFound();
-
-            var mediaCollection = await _db.MediaCollections
-                .Include(mc => mc.MediaSource)
-                .FirstOrDefaultAsync(mc => mc.Id == mediaItem.MediaCollectionId);
-
-            var fileName = Path.GetFileName(mediaItem.Path);
-            var stream = _sftpReader.GetSftpFileStream(mediaCollection, fileName);
-            if (stream == null)
-                return NotFound();
-
-            var ext = Path.GetExtension(fileName).ToLowerInvariant();
-            var contentType = ext switch
-            {
-                ".mp4" => "video/mp4",
-                ".mkv" => "video/x-matroska",
-                ".avi" => "video/x-msvideo",
-                ".mpeg" => "video/mpeg",
-                _ => "application/octet-stream"
-            };
+            var file = await OpenMediaFileAsync(type, id);
 
             // enableRangeProcessing: true for video streaming
-            return File(stream, contentType, enableRangeProcessing: true);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            Logger.LogWarning(ex, "Zugriff verweigert beim Streamen des Medienitems");
-            return Unauthorized(ex.Message);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Fehler beim Streamen des Medienitems");
-            return StatusCode(500, "Internal server error");
-        }
+            return File(file.Stream, file.ContentType, enableRangeProcessing: true);
+        }, "Streamen des Medienitems");
     }
 
     /// <summary>
-    /// Downloads a media item by type and identifier.
+    /// Downloads a media item by type and identifier. Accepts the same types and answers the same status
+    /// codes as <see cref="StreamMediaItem"/>, since both resolve the file through the same helper.
     /// </summary>
+    /// <param name="type">The media type (<c>movie</c> or the TV show/episode type).</param>
+    /// <param name="id">The media item identifier.</param>
+    /// <returns>The media file as a downloadable attachment.</returns>
     [HttpGet("{type}/{id}/download")]
     public async Task<IActionResult> Download(string type, long id)
     {
-        try
+        return await ExecuteAsync(async () =>
         {
             CheckLogedIn();
+            var file = await OpenMediaFileAsync(type, id);
 
-            var mediaItem = await FindMediaItemAsync(type, id);
-            if (mediaItem == null)
-                return NotFound();
-
-            var fileStreamResult = await StreamMediaItem(type, id) as FileStreamResult;
-            if (fileStreamResult == null)
-                return NotFound();
-
-            // Optional: read file name
-            var fileName = !string.IsNullOrWhiteSpace(fileStreamResult.FileDownloadName) ? fileStreamResult.FileDownloadName : Path.GetFileName(mediaItem.Path) ?? $"video_{mediaItem.Id}.mp4";
-            return File(fileStreamResult.FileStream, "application/octet-stream", fileName);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            Logger.LogWarning(ex, "Zugriff verweigert beim Streamen des Medienitems");
-            return Unauthorized(ex.Message);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Fehler beim Streamen des Medienitems");
-            return StatusCode(500, "Internal server error");
-        }
+            return File(file.Stream, "application/octet-stream", file.FileName);
+        }, "Herunterladen des Medienitems");
     }
 
     /// <summary>
     /// Gets media details for a movie collection or TV show.
     /// </summary>
+    /// <param name="type">The media type (movie collection or TV show).</param>
+    /// <param name="id">The media item identifier.</param>
+    /// <returns>The media details.</returns>
     [HttpGet("{type}/{id}")]
     public async Task<IActionResult> Get(string type, long id)
     {
-        try
+        return await ExecuteAsync(async () =>
         {
             CheckLogedIn();
             var entry = await FindEntry(type, id);
@@ -579,18 +772,8 @@ public class ItemsController : ApiBaseController
                 }).FirstOrDefault();
                 return Ok(movie);
             }
-            return NotFound();
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            Logger.LogWarning(ex, "Zugriff verweigert beim Abrufen des Medienitems");
-            return Unauthorized(ex.Message);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Fehler beim Abrufen des Medienitems");
-            return StatusCode(500, "Internal server error");
-        }
+            return NotFound("Medieneintrag nicht gefunden");
+        }, "Abrufen des Medienitems");
     }
 
 }

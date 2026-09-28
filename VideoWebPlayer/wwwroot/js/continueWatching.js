@@ -1,5 +1,5 @@
 window.continueWatching = {
-  attach: (videoEl, mediaType, mediaId, baseUrl = '', bearerToken = '') => {
+  attach: (videoEl, mediaType, mediaId, baseUrl = '', bearerToken = '', playlistId = null) => {
     if (!videoEl) return;
     window.continueWatching.detach(videoEl);
 
@@ -15,7 +15,8 @@ window.continueWatching = {
           mediaType,
           mediaId,
           positionSeconds,
-          durationSeconds
+          durationSeconds,
+          playlistId: playlistId ?? null
         })
       }).catch(() => {});
     };

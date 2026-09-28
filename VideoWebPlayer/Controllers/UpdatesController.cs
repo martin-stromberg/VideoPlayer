@@ -20,6 +20,9 @@ public sealed class UpdatesController : ControllerBase
     /// <summary>
     /// Creates a new update controller.
     /// </summary>
+    /// <param name="updates">The update administration service.</param>
+    /// <param name="antiforgery">The antiforgery service used to validate requests.</param>
+    /// <param name="logger">The logger.</param>
     public UpdatesController(
         UpdateAdminService updates,
         IAntiforgery antiforgery,
@@ -33,6 +36,8 @@ public sealed class UpdatesController : ControllerBase
     /// <summary>
     /// Triggers a manual update check.
     /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A redirect to the update page carrying the result of the check.</returns>
     [HttpPost("check")]
     public async Task<IActionResult> Check(CancellationToken cancellationToken)
     {
@@ -40,7 +45,7 @@ public sealed class UpdatesController : ControllerBase
         if (!antiforgery)
         {
             _logger.LogWarning("Missing or invalid antiforgery token for manual update check.");
-            return RedirectWithCheckResult(UpdateAdminActionResult.Failed("Das Antiforgery-Token fehlt oder ist ungueltig."));
+            return RedirectWithCheckResult(UpdateAdminActionResult.Failed("Das Antiforgery-Token fehlt oder ist ungültig."));
         }
 
         _logger.LogInformation("Manual update check requested.");
@@ -52,6 +57,8 @@ public sealed class UpdatesController : ControllerBase
     /// <summary>
     /// Triggers installation of a known update.
     /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A redirect to the update page carrying the result of the installation.</returns>
     [HttpPost("install")]
     public async Task<IActionResult> Install(CancellationToken cancellationToken)
     {
@@ -59,7 +66,7 @@ public sealed class UpdatesController : ControllerBase
         if (!antiforgery)
         {
             _logger.LogWarning("Missing or invalid antiforgery token for manual update installation.");
-            return RedirectWithResult(UpdateAdminActionResult.Failed("Das Antiforgery-Token fehlt oder ist ungueltig."));
+            return RedirectWithResult(UpdateAdminActionResult.Failed("Das Antiforgery-Token fehlt oder ist ungültig."));
         }
 
         _logger.LogInformation("Manual update installation requested.");

@@ -27,7 +27,15 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         nameof(ApplicationDbContext.WatchedEntries),
         nameof(ApplicationDbContext.Actors),
         nameof(ApplicationDbContext.MovieActors),
-        nameof(ApplicationDbContext.TVShowEpisodeActors)
+        nameof(ApplicationDbContext.TVShowEpisodeActors),
+        nameof(ApplicationDbContext.Playlists),
+        nameof(ApplicationDbContext.PlaylistEntries),
+        nameof(ApplicationDbContext.PlaylistEntryExclusions),
+        nameof(ApplicationDbContext.PlaylistGenres),
+        nameof(ApplicationDbContext.PlaylistBackfillMarkers),
+        nameof(ApplicationDbContext.PairedDevices),
+        nameof(ApplicationDbContext.PairingCodes),
+        nameof(ApplicationDbContext.RefreshTokens)
     };
 
     private static readonly HashSet<string> OptionalRestoreColumns = new(StringComparer.OrdinalIgnoreCase)
@@ -45,13 +53,24 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         $"{nameof(ApplicationDbContext.Pictures)}.{nameof(Picture.IsGeneratedBackground)}",
         $"{nameof(ApplicationDbContext.Pictures)}.{nameof(Picture.EpisodeId)}",
         $"{nameof(ApplicationDbContext.ContinueWatchingEntries)}.{nameof(ContinueWatchingEntry.ListOrder)}",
+        $"{nameof(ApplicationDbContext.ContinueWatchingEntries)}.{nameof(ContinueWatchingEntry.PlaylistId)}",
         $"{nameof(ApplicationDbContext.Movies)}.{nameof(Movie.ActorsClassifiedAt)}",
         $"{nameof(ApplicationDbContext.TVShowEpisodes)}.{nameof(TVShowEpisode.ActorsClassifiedAt)}",
         $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ActorCollectionThresholdPercent)}",
         $"{nameof(ApplicationDbContext.MovieActors)}.{nameof(MovieActor.Role)}",
         $"{nameof(ApplicationDbContext.MovieActors)}.{nameof(MovieActor.Order)}",
         $"{nameof(ApplicationDbContext.TVShowEpisodeActors)}.{nameof(TVShowEpisodeActor.Role)}",
-        $"{nameof(ApplicationDbContext.TVShowEpisodeActors)}.{nameof(TVShowEpisodeActor.Order)}"
+        $"{nameof(ApplicationDbContext.TVShowEpisodeActors)}.{nameof(TVShowEpisodeActor.Order)}",
+        $"{nameof(ApplicationDbContext.PlaylistEntries)}.{nameof(PlaylistEntry.SortOrder)}",
+        $"{nameof(ApplicationDbContext.Playlists)}.{nameof(Playlist.GenresManuallyOverridden)}",
+        $"{nameof(ApplicationDbContext.Playlists)}.{nameof(Playlist.CoverPictureId)}",
+        $"{nameof(ApplicationDbContext.Playlists)}.{nameof(Playlist.CoverPictureIsUserUploaded)}",
+        $"{nameof(ApplicationDbContext.Playlists)}.{nameof(Playlist.IsPublic)}",
+        $"{nameof(ApplicationDbContext.Pictures)}.{nameof(Picture.PlaylistId)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.PlaylistBackfillLastSweepAt)}",
+        $"{nameof(ApplicationDbContext.MediaSources)}.{nameof(MediaSource.SourceType)}",
+        $"{nameof(ApplicationDbContext.PairingCodes)}.{nameof(PairingCode.Kind)}",
+        $"{nameof(ApplicationDbContext.PairingCodes)}.{nameof(PairingCode.TicketHash)}"
     };
 
     private static readonly HashSet<string> IgnoredRestoreColumns = new(StringComparer.OrdinalIgnoreCase)
@@ -70,7 +89,10 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         (nameof(ApplicationDbContext.TVShowSeasons), nameof(TVShowSeason.IsManuallyEdited), false),
         (nameof(ApplicationDbContext.Movies), nameof(Movie.IsManuallyEdited), false),
         (nameof(ApplicationDbContext.MovieCollections), nameof(MovieCollection.IsManuallyEdited), false),
-        (nameof(ApplicationDbContext.Pictures), nameof(Picture.IsGeneratedBackground), false)
+        (nameof(ApplicationDbContext.Pictures), nameof(Picture.IsGeneratedBackground), false),
+        (nameof(ApplicationDbContext.Playlists), nameof(Playlist.GenresManuallyOverridden), false),
+        (nameof(ApplicationDbContext.Playlists), nameof(Playlist.CoverPictureIsUserUploaded), false),
+        (nameof(ApplicationDbContext.Playlists), nameof(Playlist.IsPublic), false)
     };
 
     private static readonly (string Table, string Column, long DefaultValue)[] OptionalRestoreLongDefaults =
@@ -81,7 +103,9 @@ public sealed class VideoWebPlayerBackupData : IBackupData
     private static readonly (string Table, string Column, int DefaultValue)[] OptionalRestoreIntDefaults =
     {
         (nameof(ApplicationDbContext.Setups), nameof(Setup.ContinueWatchingEndThresholdSeconds), 30),
-        (nameof(ApplicationDbContext.Setups), nameof(Setup.ActorCollectionThresholdPercent), 50)
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.ActorCollectionThresholdPercent), 50),
+        (nameof(ApplicationDbContext.MediaSources), nameof(MediaSource.SourceType), (int)MediaSourceType.Sftp),
+        (nameof(ApplicationDbContext.PairingCodes), nameof(PairingCode.Kind), (int)PairingCodeKind.AdminCode)
     };
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };
@@ -105,6 +129,14 @@ public sealed class VideoWebPlayerBackupData : IBackupData
     /// <summary>
     /// Creates a new backup data object.
     /// </summary>
+    /// <param name="name">The unique storage location of this backup object.</param>
+    /// <param name="contentType">The unique type identifier of this backup object.</param>
+    /// <param name="db">The application database context to back up or restore.</param>
+    /// <param name="environment">The current web host environment.</param>
+    /// <param name="logger">Logger instance.</param>
+    /// <param name="factory">The factory that created this instance, providing the restoring user id and progress reporting, if any.</param>
+    /// <param name="generation">The backup generation metadata to embed, if any.</param>
+    /// <param name="createdAtUtc">The creation timestamp to embed, or <c>null</c> to use the current time.</param>
     public VideoWebPlayerBackupData(
         string name,
         string contentType,
@@ -349,6 +381,21 @@ public sealed class VideoWebPlayerBackupData : IBackupData
                 return $"NULL AS {QuoteIdentifier(column.Name)}";
             if (string.Equals(column.Name, nameof(TVShowEpisode.BackgroundImageRequiresUpdate), StringComparison.OrdinalIgnoreCase))
                 return $"1 AS {QuoteIdentifier(column.Name)}";
+        }
+
+        if (string.Equals(table.Name, nameof(ApplicationDbContext.Playlists), StringComparison.OrdinalIgnoreCase)
+            && string.Equals(column.Name, nameof(Playlist.CoverPictureId), StringComparison.OrdinalIgnoreCase))
+        {
+            // Pictures werden nur exportiert, wenn IsGeneratedBackground = 0 ist (siehe BuildTableFilter) -
+            // ein automatisch erzeugtes Collagen-Cover (CoverPictureIsUserUploaded = 0) haette im Backup
+            // also keine zugehoerige Pictures-Zeile mehr und wuerde beim Restore eine verwaiste
+            // Fremdschluessel-Referenz hinterlassen (analog zu TVShowEpisode.GeneratedBackgroundPictureId
+            // oben). Ein hochgeladenes Cover (CoverPictureIsUserUploaded = 1) bleibt dagegen erhalten, da
+            // seine Picture-Zeile mit exportiert wird. Nach dem Restore eines Backups mit generiertem Cover
+            // zeigt die Playlist bis zum naechsten manuellen "Neu erzeugen" den Platzhalter - konsistent mit
+            // der Designentscheidung, dass Neuerzeugung ausschliesslich manuell erfolgt.
+            return $"(CASE WHEN {QuoteIdentifier(nameof(Playlist.CoverPictureIsUserUploaded))} = 1 " +
+                   $"THEN {QuoteIdentifier(column.Name)} ELSE NULL END) AS {QuoteIdentifier(column.Name)}";
         }
 
         return QuoteIdentifier(column.Name);

@@ -92,14 +92,41 @@ Produktive Werte dürfen nicht aus dieser Dokumentation übernommen werden. Erze
 ```bash
 export Jwt__Key="<PRODUKTIVER_JWT_KEY>"
 export Jwt__ApiToken__Web="<PRODUKTIVER_WEB_API_TOKEN>"
+export Jwt__ApiToken__Maui="<PRODUKTIVER_MAUI_API_TOKEN>"
 export Jwt__Issuer="VideoWebPlayer"
 ```
 
 ```powershell
 $env:Jwt__Key = "<PRODUKTIVER_JWT_KEY>"
 $env:Jwt__ApiToken__Web = "<PRODUKTIVER_WEB_API_TOKEN>"
+$env:Jwt__ApiToken__Maui = "<PRODUKTIVER_MAUI_API_TOKEN>"
 $env:Jwt__Issuer = "VideoWebPlayer"
 ```
+
+`Jwt:ApiToken:Maui` ist in Produktion Pflicht und dient als Fallback-Gate-Token für ältere App-Versionen. Neuere Apps koppeln sich über das Geräte-Pairing (siehe nächster Abschnitt) und erhalten ein individuelles, widerrufbares Geräte-Token.
+
+## Geräte-Pairing
+
+Client-Apps melden sich mit einem individuellen Geräte-Token als `X-API-Key` an. Das Token wird nicht manuell verteilt, sondern über einen Einmal-Pairing-Code eingelöst:
+
+1. Als Administrator die Web-UI öffnen und unter `Einrichtung` die Kachel `Geräte` (`/admin/devices`) aufrufen.
+2. `Pairing-Code erzeugen` klicken. Der Code wird einmalig im Klartext angezeigt und ist standardmäßig 5 Minuten gültig.
+3. In der App den Code eingeben. Die App ruft `POST /api/pairing/exchange` auf und erhält daraus ein verschlüsseltes Geräte-Token (ECDH P-256 + AES-256-GCM, Details siehe [API-Vertrag](./API.md)).
+4. Das Gerät erscheint in der Liste `Gekoppelte Geräte`. Über `Widerrufen` wird das Geräte-Token sofort ungültig; bereits ausgestellte Benutzer-JWTs bleiben bis zum Ablauf (12 Stunden) gültig.
+
+Optionale Konfiguration (Defaults im Code, keine Pflichtwerte):
+
+```bash
+export Pairing__CodeLength="8"
+export Pairing__CodeTtlMinutes="5"
+```
+
+| Schlüssel | Standard | Zweck |
+|-----------|----------|-------|
+| `Pairing:CodeLength` | `8` | Länge des Pairing-Codes (Alphabet ohne verwechselbare Zeichen `0/O/1/I/L`). |
+| `Pairing:CodeTtlMinutes` | `5` | Gültigkeitsdauer eines Pairing-Codes in Minuten. |
+
+Wiederholte Einlöse-Fehlversuche sperren die Client-IP (Schwelle: 5, geteilt mit dem Web-Login); gesperrte IPs werden unter `Einrichtung` → `Sicherheit` angezeigt und können dort entsperrt werden.
 
 ## Lokale Git-Hooks aktivieren
 

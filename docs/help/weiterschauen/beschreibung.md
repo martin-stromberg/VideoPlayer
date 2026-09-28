@@ -55,9 +55,96 @@ Das Feature "Weiterschauen" ermöglicht es Benutzern, an der exakten Stelle fort
 - Das System ermittelt den nächsten Film in der Sammlung (nach Veröffentlichungsdatum)
 - Der nächste Film wird auf die "Weiterschauen"-Liste gesetzt
 
+## Weiterschauen mit Playlist-Bezug
+
+Wenn ein Benutzer ein Video **aus einer Playlist heraus** startet, wird diese Information im Weiterschauen-Eintrag gespeichert. Die Wiedergabe wird dann später wieder **im gleichen Playlist-Kontext** fortgesetzt, einschließlich der gespeicherten Wiedergabeposition.
+
+### Anzeige in der Weiterschauen-Liste
+
+Einträge mit Playlist-Bezug werden mit einem Hinweis „In Playlist: [Name]" gekennzeichnet, z. B. „In Playlist: Meine Favoriten". Diese Einträge unterscheiden sich von normalen Einträgen (ohne Playlist-Bezug) — dasselbe Video kann **mehrfach** in der Liste erscheinen:
+
+- Einmal ohne Playlist-Bezug (von normaler Wiedergabe)
+- Mehrfach mit unterschiedlichen Playlist-Bezügen (von verschiedenen Playlists)
+
+Je Playlist gibt es dabei aber immer nur **einen einzigen** Eintrag: Wird aus derselben Playlist ein
+anderer Titel aufgerufen, ersetzt dessen Eintrag den bisherigen — auch über Serien- und Filmgrenzen
+hinweg. Einträge anderer Playlists und Einträge ohne Playlist-Bezug bleiben unberührt.
+
+Alle diese Varianten sind **unabhängige Einträge** mit eigenem Fortschritt. Jeder Eintrag wird eindeutig identifiziert und korrekt mit seinen Anzeigedaten (Titel, Bild, Wiedergabeposition, Playlist-Name) verknüpft, auch wenn mehrere Varianten desselben Videos nebeneinander in der Liste angezeigt werden.
+
+### Verfügbare Aktionen
+
+Die Kontextmenü-Aktionen „Ausblenden" und „Überspringen" wirken nur auf die jeweilige Playlist-Variante:
+- **Ausblenden:** Entfernt nur den Eintrag mit dieser Playlist-ID aus der Weiterschauen-Liste; andere Varianten (mit anderen Playlists oder ohne) bleiben erhalten.
+- **Überspringen:** Ersetzt nur diese Variante durch den nächsten Titel — bei einem Eintrag mit
+  Playlist-Bezug ist das der nächste Titel dieser Playlist, sonst die nächste Episode der Serie bzw. der
+  nächste Film der Sammlung.
+
+### Der nächste Titel kommt aus der Playlist
+
+Erreicht ein aus einer Playlist gestarteter Titel seine Endsequenz (standardmäßig die letzten 30 Sekunden),
+rückt der nächste Titel **der Playlist** in deren aktueller Sortierung nach — nicht die nächste Episode der
+Serie. Am Ende einer Serie geht es also mit der nächsten Serie oder dem nächsten Film derselben Playlist
+weiter. Aus der Playlist entfernte Titel, für den Anwender gesperrte Titel und nicht direkt abspielbare
+Sammel-Einträge (Serie, Staffel, Filmsammlung) werden übersprungen. Gibt die Playlist keinen Nachfolger
+mehr her, verschwindet der Eintrag ersatzlos aus der Weiterschauen-Liste.
+
+Ohne Playlist-Bezug bleibt es beim gewohnten Verhalten (nächste Episode der Serie bzw. nächster Film der
+Sammlung).
+
+Spielen Sie einen bereits beendeten Titel derselben Playlist noch einmal an (zurückspulen und pausieren,
+oder den Player schließen), wird wieder dieser Titel der eine Eintrag der Playlist — der zuvor eingefügte
+nächste Titel verschwindet dann. Das ist beabsichtigt und gilt ohne Playlist genauso.
+
+Wird ein Titel aus der Playlist entfernt, während er noch läuft, rückt der Eintrag der Playlist sofort auf
+den nächsten Titel vor. Der entfernte Titel gehört ab da nicht mehr zur Playlist; sein weiterer
+Fortschritt erscheint als gewöhnlicher Eintrag ohne Playlist-Bezug und verändert den Eintrag der Playlist
+nicht.
+
+### Video als gesehen markieren
+
+Im Gegensatz zu den obigen Aktionen ist die Gesehen-Markierung **playlist-übergreifend**:
+- Wenn ein Benutzer ein Video zu Ende schaut (Fortschritt nahe am Ende), werden **ALLE Varianten** dieses Videos aus der Weiterschauen-Liste entfernt — unabhängig davon, mit welcher Playlist oder ohne Playlist sie verknüpft sind.
+- Dies entspricht dem Verhalten ohne Playlist-Bezug und vermeidet, dass der gleiche Titel danach mehrfach in der Liste vorkommt.
+
+### Playlist gelöscht
+
+Wird eine Playlist gelöscht, bleiben die zugehörigen Weiterschauen-Einträge in der Liste erhalten, verlieren aber ihren Playlist-Bezug:
+- Der Eintrag wird zu einem normalen, playlistlosen Eintrag umgewandelt.
+- Der Hinweis „In Playlist: …" verschwindet.
+- Die zuletzt gespeicherte Wiedergabeposition bleibt erhalten.
+- Falls bereits ein playlist-loser Eintrag für das gleiche Video existiert, wird der playlist-gebundene Eintrag entfernt, um Duplikate zu vermeiden.
+
+### Einzelner Titel aus Playlist entfernt
+
+Entfernt der Anwender nur einen einzelnen Titel aus einer Playlist (nicht die ganze Playlist), und existiert
+dafür noch ein Weiterschauen-Eintrag mit Bezug zu genau dieser Playlist, erscheint vor dem Entfernen eine
+Sicherheitsabfrage: „Dieser Eintrag befindet sich in deiner Weiterschauen-Liste. Entfernen?"
+- Nach Bestätigung wird der Weiterschauen-Eintrag durch den nächsten in dieser Playlist verfügbaren Titel
+  ersetzt (Wiedergabeposition beginnt bei null); gibt es keinen weiteren verfügbaren Titel, wird der
+  Weiterschauen-Eintrag entfernt.
+- Weiterschauen-Einträge desselben Videos ohne Playlist-Bezug oder mit Bezug zu einer anderen Playlist
+  bleiben unangetastet.
+- Verschwindet der Titel stattdessen still aus dem Medienbestand (z. B. Datei gelöscht), entfällt die
+  Sicherheitsabfrage, aber dasselbe Ersetzen-/Entfernen-Verhalten gilt sinngemäß.
+
+Details siehe `docs/help/weiterschauen/business-rules.md`.
+
+### Öffentliche Playlists anderer Anwender
+
+Spielen Sie eine **öffentliche Playlist** (von einem Administrator für alle freigegeben) ab, wird Ihr Fortschritt in
+**Ihrer eigenen** Weiterschauen-Liste geführt, mit Bezug zu dieser Playlist — der Fortschritt des Besitzers und
+anderer Anwender sowie die Playlist selbst bleiben unverändert. Ändert der Besitzer die Playlist:
+
+- **Titel entfernt:** Ihr Eintrag wird ohne Nachfrage durch den nächsten Titel der Playlist ersetzt, den *Sie* abspielen
+  dürfen (Position zurückgesetzt), oder entfernt, wenn es keinen gibt.
+- **Playlist gelöscht:** Ihr Eintrag bleibt mit seiner Position erhalten und verliert den Playlist-Bezug.
+- **Kennzeichnung „öffentlich" entfernt:** Sie verlieren den Zugriff auf die Playlist sofort; Ihr Eintrag verliert den
+  Playlist-Bezug und ist ein normaler Eintrag (Position bleibt), ohne Link und ohne Anzeige des Playlist-Namens.
+
 ## Einschränkungen
 
-- **Nur eine Episode/Film pro Serie/Sammlung:** Wenn der Benutzer mehrere Episoden oder Filme aus der gleichen Serie oder Sammlung in der "Weiterschauen"-Liste hatte, werden alle bis auf die neue Episode entfernt (um Verwirrung zu vermeiden).
+- **Nur eine Episode/Film pro Serie/Sammlung pro Playlist:** Ein Benutzer kann pro Serie/Sammlung/Playlist-Kombination nur einen Eintrag in der Weiterschauen-Liste haben. Alle anderen Einträge dieser Serie/Sammlung werden automatisch entfernt, wenn eine neue Episode/Film hinzugefügt wird.
 
 - **Staffel-Sortierung:** Die Reihenfolge der Staffeln wird nach deren Name bestimmt. Unkonventionelle Staffel-Namen (z. B. "Spezials" ohne Nummer) können zu unerwarteten Übergängen führen.
 

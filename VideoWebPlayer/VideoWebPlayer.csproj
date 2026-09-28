@@ -4,6 +4,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>aspnet-VideoWebPlayer-d7482f8a-36bd-4416-9261-680904a1c426</UserSecretsId>
+    <AspNetCoreHostingModel>OutOfProcess</AspNetCoreHostingModel>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <WarningsAsErrors>1591</WarningsAsErrors>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
@@ -14,19 +15,20 @@
     <InternalsVisibleTo Include="VideoWebPlayer.Tests" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.10" />
-    <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="10.0.10" />
-    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.10" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10">
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.12" />
+    <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="10.0.12" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.12" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.10" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.10">
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.12" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.12">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Nito.AsyncEx" Version="5.1.2" />
+    <PackageReference Include="QRCoder" Version="1.8.0" />
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.11" />
     <PackageReference Include="SSH.NET" Version="2026.0.0" />
     <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.53.3" />
@@ -103,9 +105,6 @@
       <_ReleaseMetadataDir Condition="'$(PublishDir)' != ''">$([MSBuild]::EnsureTrailingSlash('$(PublishDir)'))</_ReleaseMetadataDir>
       <_ReleaseMetadataDir Condition="'$(_ReleaseMetadataDir)' == ''">$([MSBuild]::EnsureTrailingSlash('$(OutDir)'))</_ReleaseMetadataDir>
     </PropertyGroup>
-    <WriteLinesToFile
-      File="$(_ReleaseMetadataDir)release-metadata.json"
-      Overwrite="true"
-      Lines="{ &quot;version&quot;: &quot;$(_ReleaseVersion)&quot;, &quot;publishedAt&quot;: &quot;$(_ReleaseTimestamp)&quot;, &quot;commitSha&quot;: &quot;&quot;, &quot;repository&quot;: &quot;&quot;, &quot;runtimeIdentifier&quot;: &quot;$(RuntimeIdentifier)&quot; }" />
+    <WriteLinesToFile File="$(_ReleaseMetadataDir)release-metadata.json" Overwrite="true" Lines="{ &quot;version&quot;: &quot;$(_ReleaseVersion)&quot;, &quot;publishedAt&quot;: &quot;$(_ReleaseTimestamp)&quot;, &quot;commitSha&quot;: &quot;&quot;, &quot;repository&quot;: &quot;&quot;, &quot;runtimeIdentifier&quot;: &quot;$(RuntimeIdentifier)&quot; }" />
   </Target>
 </Project>

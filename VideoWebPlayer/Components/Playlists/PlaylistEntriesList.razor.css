@@ -1,0 +1,17 @@
+/* Sentinel am Listenende fuer das seitenweise Nachladen: sobald es in den Viewport scrollt, meldet der
+   IntersectionObserver aus wwwroot/js/scroll.js (observeBottom) OnBottomVisible(). Die Liste selbst hat
+   bewusst keine eigene Scrollbox - wie auf der Serien-Detailseite scrollt die ganze Seite. */
+.playlist-entries-sentinel {
+    height: 1px;
+    width: 100%;
+}
+
+/* Usability: without this, a draggable row looks identical to a non-draggable one - nothing in the
+   markup otherwise hints that it can be picked up and dropped elsewhere. */
+.playlist-entry-row[draggable="true"] {
+    cursor: grab;
+}
+
+.playlist-entry-row[draggable="true"]:active {
+    cursor: grabbing;
+}

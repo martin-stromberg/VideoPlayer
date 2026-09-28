@@ -122,7 +122,7 @@ public sealed class UpdatesPageE2ETests : IAsyncLifetime
         await LoginAsync();
 
         await _page.GotoAsync($"{_serverUrl}/admin");
-        await _page.GetByRole(AriaRole.Link, new() { Name = "Updates Versionen pruefen, installieren und absichern" }).ClickAsync();
+        await _page.GetByRole(AriaRole.Link, new() { Name = "Updates Versionen prüfen, installieren und absichern" }).ClickAsync();
 
         await Expect(_page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex("/admin/updates$"));
         await Expect(_page.GetByRole(AriaRole.Heading, new() { Name = "Systemupdates" })).ToBeVisibleAsync();
@@ -131,8 +131,8 @@ public sealed class UpdatesPageE2ETests : IAsyncLifetime
         await Expect(_page.GetByRole(AriaRole.Heading, new() { Name = "Konfiguration" })).ToBeVisibleAsync();
         await Expect(_page.Locator("[data-testid='update-state']")).ToHaveTextAsync("Wartet");
         await Expect(MetricValue("Installiert")).ToHaveTextAsync("1.0.0");
-        await Expect(MetricValue("Verfuegbar")).ToHaveTextAsync("-");
-        await Expect(MetricValue("Letzte Pruefung")).Not.ToHaveTextAsync("-");
+        await Expect(MetricValue("Verfügbar")).ToHaveTextAsync("-");
+        await Expect(MetricValue("Letzte Prüfung")).Not.ToHaveTextAsync("-");
         await Expect(_page.Locator("[data-testid='version-details-section']")).ToContainTextAsync("Noch kein Download vorhanden.");
         await Expect(_page.Locator("[data-testid='version-details-section']")).ToContainTextAsync("Prerelease-Kanal");
         await Expect(_page.Locator("[data-testid='version-details-section']")).ToContainTextAsync("Release-Datum");
@@ -156,18 +156,18 @@ public sealed class UpdatesPageE2ETests : IAsyncLifetime
         await _page.GotoAsync($"{_serverUrl}/admin/updates");
         await WaitForInteractivePageAsync();
 
-        var initialCheckedAt = await MetricValue("Letzte Pruefung").TextContentAsync();
+        var initialCheckedAt = await MetricValue("Letzte Prüfung").TextContentAsync();
         await _page.GetByRole(AriaRole.Button, new() { Name = "Nach Updates suchen" }).ClickAsync();
         await Expect(_page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex("/admin/updates\\?checkStatus="));
-        await Expect(_page.Locator("[data-testid='update-status-section']")).ToContainTextAsync("Test-Pruefung abgeschlossen.");
-        await Expect(_page.Locator(".admin-update-page > .alert").Filter(new() { HasText = "Test-Pruefung abgeschlossen." })).ToHaveCountAsync(0);
+        await Expect(_page.Locator("[data-testid='update-status-section']")).ToContainTextAsync("Test-Prüfung abgeschlossen.");
+        await Expect(_page.Locator(".admin-update-page > .alert").Filter(new() { HasText = "Test-Prüfung abgeschlossen." })).ToHaveCountAsync(0);
         await Expect(_page.Locator("[data-testid='version-details-section']")).ToContainTextAsync("1.1.0");
         Assert.Equal(1, _updates.CheckCount);
-        var refreshedCheckedAt = await MetricValue("Letzte Pruefung").TextContentAsync();
+        var refreshedCheckedAt = await MetricValue("Letzte Prüfung").TextContentAsync();
         Assert.NotEqual(initialCheckedAt, refreshedCheckedAt);
 
         _updates.Status = FakeUpdateBackend.CreateStatus(AutoUpdateState.UpdateAvailable, availableVersion: "2.4.0");
-        await _page.GetByLabel("Dienstname fuer Neustart").FillAsync("ungespeicherter-dienst");
+        await _page.GetByLabel("Dienstname für Neustart").FillAsync("ungespeicherter-dienst");
         await _page.GetByRole(AriaRole.Button, new() { Name = "Daten aktualisieren" }).ClickAsync();
 
         await Expect(_page.Locator("[data-testid='version-details-section']")).ToContainTextAsync("2.4.0");
@@ -192,50 +192,50 @@ public sealed class UpdatesPageE2ETests : IAsyncLifetime
         await _page.GotoAsync($"{_serverUrl}/admin/updates");
         await WaitForInteractivePageAsync();
 
-        await _page.GetByLabel("Pruefintervall in Minuten").FillAsync("0");
+        await _page.GetByLabel("Prüfintervall in Minuten").FillAsync("0");
         await _page.GetByLabel("Aufzubewahrende Update-Backups").FillAsync("11");
         await _page.GetByRole(AriaRole.Button, new() { Name = "Konfiguration speichern" }).ClickAsync();
-        await Expect(_page.GetByText("Das Pruefintervall muss zwischen 1 und 1440 Minuten liegen.").First).ToBeVisibleAsync();
-        await Expect(_page.GetByText("Es koennen 1 bis 10 Update-Backups aufbewahrt werden.").First).ToBeVisibleAsync();
+        await Expect(_page.GetByText("Das Prüfintervall muss zwischen 1 und 1440 Minuten liegen.").First).ToBeVisibleAsync();
+        await Expect(_page.GetByText("Es können 1 bis 10 Update-Backups aufbewahrt werden.").First).ToBeVisibleAsync();
         Assert.Equal(0, _updates.SaveCount);
 
-        await _page.GetByLabel("Automatische Pruefung").UncheckAsync();
+        await _page.GetByLabel("Automatische Prüfung").UncheckAsync();
         await _page.GetByLabel("Vorabversionen akzeptieren").CheckAsync();
         await _page.GetByLabel("Automatische Installation").CheckAsync();
         await _page.GetByLabel("Backup vor Installation").UncheckAsync();
         await _page.GetByLabel("Bei Backupfehler abbrechen").UncheckAsync();
-        await _page.GetByLabel("Pruefintervall in Minuten").FillAsync("45");
-        await _page.GetByLabel("Dienstname fuer Neustart").FillAsync("abweichender-dienst");
+        await _page.GetByLabel("Prüfintervall in Minuten").FillAsync("45");
+        await _page.GetByLabel("Dienstname für Neustart").FillAsync("abweichender-dienst");
         await _page.GetByLabel("Update-Backup-Pfad").FillAsync("AbweichendeBackups");
         await _page.GetByLabel("Aufzubewahrende Update-Backups").FillAsync("7");
-        await _page.GetByRole(AriaRole.Button, new() { Name = "Standards zuruecksetzen" }).ClickAsync();
+        await _page.GetByRole(AriaRole.Button, new() { Name = "Standards zurücksetzen" }).ClickAsync();
 
-        await Expect(_page.GetByLabel("Automatische Pruefung")).ToBeCheckedAsync();
+        await Expect(_page.GetByLabel("Automatische Prüfung")).ToBeCheckedAsync();
         await Expect(_page.GetByLabel("Vorabversionen akzeptieren")).Not.ToBeCheckedAsync();
         await Expect(_page.GetByLabel("Automatische Installation")).Not.ToBeCheckedAsync();
         await Expect(_page.GetByLabel("Backup vor Installation")).ToBeCheckedAsync();
         await Expect(_page.GetByLabel("Bei Backupfehler abbrechen")).ToBeCheckedAsync();
-        await Expect(_page.GetByLabel("Pruefintervall in Minuten")).ToHaveValueAsync("360");
-        await Expect(_page.GetByLabel("Dienstname fuer Neustart")).ToHaveValueAsync("standard-dienst");
+        await Expect(_page.GetByLabel("Prüfintervall in Minuten")).ToHaveValueAsync("360");
+        await Expect(_page.GetByLabel("Dienstname für Neustart")).ToHaveValueAsync("standard-dienst");
         await Expect(_page.GetByLabel("Update-Backup-Pfad")).ToHaveValueAsync("StandardBackups");
         await Expect(_page.GetByLabel("Aufzubewahrende Update-Backups")).ToHaveValueAsync("5");
         Assert.Equal(0, _updates.SaveCount);
 
         await _page.GetByLabel("Vorabversionen akzeptieren").CheckAsync();
-        await Expect(_page.GetByText("Vorabversionen koennen experimentell sein.")).ToBeVisibleAsync();
+        await Expect(_page.GetByText("Vorabversionen können experimentell sein.")).ToBeVisibleAsync();
         await _page.GetByRole(AriaRole.Button, new() { Name = "Konfiguration speichern" }).ClickAsync();
-        await Expect(_page.GetByText("Prerelease-Versionen wurden nicht aktiviert, weil die Sicherheitsabfrage nicht bestaetigt wurde.")).ToBeVisibleAsync();
+        await Expect(_page.GetByText("Prerelease-Versionen wurden nicht aktiviert, weil die Sicherheitsabfrage nicht bestätigt wurde.")).ToBeVisibleAsync();
         await Expect(_page.GetByLabel("Vorabversionen akzeptieren")).Not.ToBeCheckedAsync();
         Assert.Equal(0, _updates.SaveCount);
 
-        await _page.GetByLabel("Automatische Pruefung").UncheckAsync();
+        await _page.GetByLabel("Automatische Prüfung").UncheckAsync();
         await _page.GetByLabel("Vorabversionen akzeptieren").CheckAsync();
-        await _page.GetByLabel("Prerelease-Aktivierung bestaetigen").CheckAsync();
+        await _page.GetByLabel("Prerelease-Aktivierung bestätigen").CheckAsync();
         await _page.GetByLabel("Automatische Installation").CheckAsync();
         await _page.GetByLabel("Backup vor Installation").UncheckAsync();
         await _page.GetByLabel("Bei Backupfehler abbrechen").UncheckAsync();
-        await _page.GetByLabel("Pruefintervall in Minuten").FillAsync("30");
-        await _page.GetByLabel("Dienstname fuer Neustart").FillAsync("gespeicherter-dienst");
+        await _page.GetByLabel("Prüfintervall in Minuten").FillAsync("30");
+        await _page.GetByLabel("Dienstname für Neustart").FillAsync("gespeicherter-dienst");
         await _page.GetByLabel("Update-Backup-Pfad").FillAsync("GespeicherteBackups");
         await _page.GetByLabel("Aufzubewahrende Update-Backups").FillAsync("4");
         await _page.GetByRole(AriaRole.Button, new() { Name = "Konfiguration speichern" }).ClickAsync();
@@ -338,7 +338,7 @@ public sealed class UpdatesPageE2ETests : IAsyncLifetime
     private void EnsureBrowserAvailable()
     {
         if (_skipBrowser)
-            Assert.Fail($"Playwright-/Browser-Infrastruktur ist nicht verfuegbar: {_browserInfrastructureError}");
+            Assert.Fail($"Playwright-/Browser-Infrastruktur ist nicht verfügbar: {_browserInfrastructureError}");
     }
 
     private async Task LoginAsync()
@@ -360,11 +360,11 @@ public sealed class UpdatesPageE2ETests : IAsyncLifetime
     {
         foreach (var label in new[]
         {
-            "Automatische Pruefung",
-            "Pruefintervall in Minuten",
+            "Automatische Prüfung",
+            "Prüfintervall in Minuten",
             "Vorabversionen akzeptieren",
             "Automatische Installation",
-            "Dienstname fuer Neustart",
+            "Dienstname für Neustart",
             "Backup vor Installation",
             "Bei Backupfehler abbrechen",
             "Update-Backup-Pfad",
@@ -432,10 +432,10 @@ public sealed class UpdatesPageE2ETests : IAsyncLifetime
 
         Assert.Contains("Nach Updates suchen", focusableNames);
         Assert.Contains("Daten aktualisieren", focusableNames);
-        Assert.True(focusableNames.IndexOf("Automatische Pruefung Regelmaessig nach neuen Versionen suchen.") < focusableNames.IndexOf("Pruefintervall in Minuten"));
-        Assert.True(focusableNames.IndexOf("Vorabversionen akzeptieren Prerelease-Versionen in die Pruefung einbeziehen.") < focusableNames.IndexOf("Automatische Installation Gefundene Updates automatisch installieren."));
+        Assert.True(focusableNames.IndexOf("Automatische Prüfung Regelmäßig nach neuen Versionen suchen.") < focusableNames.IndexOf("Prüfintervall in Minuten"));
+        Assert.True(focusableNames.IndexOf("Vorabversionen akzeptieren Prerelease-Versionen in die Prüfung einbeziehen.") < focusableNames.IndexOf("Automatische Installation Gefundene Updates automatisch installieren."));
         Assert.True(focusableNames.IndexOf("Update-Backup-Pfad") < focusableNames.IndexOf("Aufzubewahrende Update-Backups"));
-        Assert.True(focusableNames.IndexOf("Standards zuruecksetzen") < focusableNames.IndexOf("Konfiguration speichern"));
+        Assert.True(focusableNames.IndexOf("Standards zurücksetzen") < focusableNames.IndexOf("Konfiguration speichern"));
     }
 
     private async Task SeedAdminAsync()
@@ -557,7 +557,7 @@ public sealed class UpdatesPageE2ETests : IAsyncLifetime
                 AutoUpdateState.Success,
                 availableVersion: "1.1.0",
                 lastCheckedAt: new DateTimeOffset(2026, 8, 29, 11, 45, 0, TimeSpan.Zero));
-            return Task.FromResult(new AutoUpdateResult(AutoUpdateOutcome.Success, AutoUpdateState.Success, "Test-Pruefung abgeschlossen.", null!));
+            return Task.FromResult(new AutoUpdateResult(AutoUpdateOutcome.Success, AutoUpdateState.Success, "Test-Prüfung abgeschlossen.", null!));
         }
 
         public Task<AutoUpdateResult> DownloadAsync(CancellationToken cancellationToken = default)

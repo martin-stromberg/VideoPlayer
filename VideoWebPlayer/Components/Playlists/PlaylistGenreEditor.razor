@@ -1,0 +1,113 @@
+@using VideoWebPlayer.Client.Models
+@inject VideoWebPlayer.Client.VideoWebPlayerClient Client
+@inject VideoWebPlayer.Client.IPlaylistApiClient PlaylistClient
+@* Manuelles Ueberschreiben der Playlist-Genres (Entwicklungsschritt 9): Mehrfachauswahl-Dialog nach dem
+   gleichen genre-btn/genre-scrollbar-Muster wie die Genre-Auswahl bei Serien/Filmen (siehe
+   TVShowDetails.razor), gehostet im bestehenden ConfirmationDialog-Baustein. *@
+
+<ConfirmationDialog Title="Genres bearbeiten" OnConfirm="SaveAsync" OnCancel="Cancel"
+                    ConfirmButtonText="Speichern" ConfirmButtonClass="btn-primary"
+                    ConfirmButtonId="playlist-genre-editor-save-button"
+                    CancelButtonId="playlist-genre-editor-cancel-button">
+    @if (isLoading)
+    {
+        <p>Lade Genres...</p>
+    }
+    else
+    {
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="alert alert-danger" id="playlist-genre-editor-error">@errorMessage</div>
+        }
+        <div class="genre-scrollbar" id="playlist-genre-editor-options">
+            @foreach (var genre in OrderedGenreOptions())
+            {
+                <button type="button"
+                        class="genre-btn @(selectedGenreIds.Contains(genre.Id) ? "selected" : "")"
+                        data-genre-id="@genre.Id"
+                        @onclick="() => Toggle(genre.Id)">
+                    @genre.Name
+                </button>
+            }
+        </div>
+    }
+</ConfirmationDialog>
+
+@code {
+    /// <summary>
+    /// Gets or sets the id of the playlist whose genres are being overridden.
+    /// </summary>
+    [Parameter, EditorRequired]
+    public long PlaylistId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the genre ids currently assigned to the playlist, used to pre-select the editor.
+    /// </summary>
+    [Parameter]
+    public IReadOnlyCollection<long> InitialGenreIds { get; set; } = Array.Empty<long>();
+
+    /// <summary>
+    /// Gets or sets the callback invoked with the updated playlist once the override was saved.
+    /// </summary>
+    [Parameter, EditorRequired]
+    public EventCallback<DtoPlaylist> OnSaved { get; set; }
+
+    /// <summary>
+    /// Gets or sets the callback invoked when the editor is cancelled without saving.
+    /// </summary>
+    [Parameter, EditorRequired]
+    public EventCallback OnCancel { get; set; }
+
+    private List<DtoGenreOption> genreOptions = new();
+    private readonly HashSet<long> selectedGenreIds = new();
+    private bool isLoading = true;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        foreach (var genreId in InitialGenreIds)
+            selectedGenreIds.Add(genreId);
+
+        try
+        {
+            genreOptions = await Client.RequestGenreOptionsAsync();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private IEnumerable<DtoGenreOption> OrderedGenreOptions()
+        => genreOptions
+            .OrderByDescending(g => selectedGenreIds.Contains(g.Id))
+            .ThenBy(g => g.Name, StringComparer.OrdinalIgnoreCase);
+
+    private void Toggle(long genreId)
+    {
+        if (!selectedGenreIds.Add(genreId))
+            selectedGenreIds.Remove(genreId);
+    }
+
+    private async Task SaveAsync()
+    {
+        errorMessage = null;
+        try
+        {
+            var updated = await PlaylistClient.SetPlaylistGenresAsync(PlaylistId, new DtoSetPlaylistGenresRequest
+            {
+                GenreIds = selectedGenreIds.ToArray()
+            });
+            await OnSaved.InvokeAsync(updated);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Fehler beim Speichern der Genres: {ex.Message}";
+        }
+    }
+
+    private async Task Cancel()
+    {
+        await OnCancel.InvokeAsync();
+    }
+}

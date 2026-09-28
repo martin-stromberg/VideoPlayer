@@ -1,0 +1,12 @@
+<ConfirmationDialog Title="Hochgeladenes Bild entfernen" OnConfirm="OnConfirm" OnCancel="OnCancel"
+                    ConfirmButtonText="Ja, entfernen" ConfirmButtonId="confirm-remove-cover-button" CancelButtonId="cancel-remove-cover-button">
+    <p>Das von Ihnen hochgeladene Bild wird gelöscht und kann nicht wiederhergestellt werden. Möchten Sie fortfahren?</p>
+</ConfirmationDialog>
+
+@code {
+    [Parameter]
+    public EventCallback OnConfirm { get; set; }
+
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
+}

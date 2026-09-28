@@ -1,20 +1,20 @@
-# Kontextmenue fuer Videolisten
+# Kontextmenü für Videolisten
 
-Mit einem dreisekuendigen Gedrueckthalten eines Eintrags in den horizontalen Listen "Weiterschauen" und "Favoriten" laesst sich ein Kontextmenue oeffnen, ohne das Video oeffnen zu muessen.
+Mit einem dreisekündigen Gedrückthalten eines Eintrags in den horizontalen Listen "Weiterschauen" und "Favoriten" lässt sich ein Kontextmenü öffnen, ohne das Video öffnen zu müssen.
 
 ## Aktionen
 
 - **Weiterschauen**
   - *Ausblenden* entfernt den Eintrag.
-  - *Ueberspringen* ersetzt den Eintrag durch die naechste Episode bzw. den naechsten Film und behaelt dabei die Listenposition bei. Gibt es kein Folgemedium, wird der Eintrag entfernt.
+  - *Überspringen* ersetzt den Eintrag durch die nächste Episode bzw. den nächsten Film und behält dabei die Listenposition bei. Gibt es kein Folgemedium, wird der Eintrag entfernt.
 - **Favoriten**
-  - *Entfernen* loescht den Favoriten aus der Liste.
-- **Neu im Programm** erhaelt kein Kontextmenue.
+  - *Entfernen* löscht den Favoriten aus der Liste.
+- **Neu im Programm** erhält kein Kontextmenü.
 
 ## Bedienung
 
-- Halte einen Listeneintrag drei Sekunden, um das Menue zu oeffnen.
-- Kurzes Antippen, Bewegungen ueber ca. 10 px, `PointerCancel` oder Scrollen brechen das Menue nicht aus und fuehren zur normalen Navigation.
-- `Escape`, Klick ausserhalb, Auswahl einer Aktion oder erneutes Pointer-Abbrechen schliessen das Menue.
-- Das Menue wird per JavaScript an den Viewport-Raendern ausgerichtet, um auf kleinen Bildschirmen nicht abgeschnitten zu werden.
+- Halte einen Listeneintrag drei Sekunden, um das Menü zu öffnen.
+- Kurzes Antippen, Bewegungen über ca. 10 px, `PointerCancel` oder Scrollen brechen das Menü nicht aus und führen zur normalen Navigation.
+- `Escape`, Klick außerhalb, Auswahl einer Aktion oder erneutes Pointer-Abbrechen schließen das Menü.
+- Das Menü wird per JavaScript an den Viewport-Rändern ausgerichtet, um auf kleinen Bildschirmen nicht abgeschnitten zu werden.
 

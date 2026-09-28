@@ -34,7 +34,7 @@ public class MediaSourceScanServiceTests
         services.AddSingleton<TimeProvider>(timeProvider);
         services.AddSingleton<EventManager>();
         services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(connectionString));
-        services.AddSingleton<SftpMediaSourceReader>();
+        services.AddSingleton<IMediaSourceReader>(new SftpMediaSourceReader());
         services.AddScoped<ProgramSettingsService>();
         services.AddScoped<MediaSourceScanner>();
         services.AddScoped<RecentEntryService>();
@@ -103,7 +103,7 @@ public class MediaSourceScanServiceTests
         services.AddSingleton<TimeProvider>(timeProvider);
         services.AddSingleton<EventManager>();
         services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(connectionString));
-        services.AddSingleton<SftpMediaSourceReader>(new FakeSftpMediaSourceReader(rootPath, fileName));
+        services.AddSingleton<IMediaSourceReader>(new FakeSftpMediaSourceReader(rootPath, fileName));
         services.AddScoped<ProgramSettingsService>();
         services.AddScoped<MediaSourceScanner>();
         services.AddScoped<RecentEntryService>();
@@ -184,7 +184,7 @@ public class MediaSourceScanServiceTests
         services.AddSingleton<TimeProvider>(timeProvider);
         services.AddSingleton<EventManager>();
         services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(connectionString));
-        services.AddSingleton<SftpMediaSourceReader>(
+        services.AddSingleton<IMediaSourceReader>(
             new SeriesSftpMediaSourceReader(rootPath, showName, seasons, episodesPerSeason));
         services.AddScoped<ProgramSettingsService>();
         services.AddScoped<MediaSourceScanner>();
@@ -281,7 +281,7 @@ public class MediaSourceScanServiceTests
         services.AddSingleton<TimeProvider>(timeProvider);
         services.AddSingleton<EventManager>();
         services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(connectionString));
-        services.AddSingleton<SftpMediaSourceReader>(reader);
+        services.AddSingleton<IMediaSourceReader>(reader);
         services.AddScoped<ProgramSettingsService>();
         services.AddScoped<MediaSourceScanner>();
         services.AddScoped<RecentEntryService>();
@@ -384,7 +384,7 @@ public class MediaSourceScanServiceTests
         services.AddSingleton<TimeProvider>(timeProvider);
         services.AddSingleton<EventManager>();
         services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(connectionString));
-        services.AddSingleton<SftpMediaSourceReader>(reader);
+        services.AddSingleton<IMediaSourceReader>(reader);
         services.AddScoped<ProgramSettingsService>();
         services.AddScoped<MediaSourceScanner>();
         services.AddScoped<RecentEntryService>();

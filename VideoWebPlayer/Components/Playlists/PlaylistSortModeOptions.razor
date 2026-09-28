@@ -1,0 +1,7 @@
+@* Shared <option> list for the playlist sort mode dropdowns in PlaylistForm and PlaylistDetail, so the
+   two supported PlaylistSortMode values are declared in exactly one place instead of being duplicated
+   in every select. *@
+@using VideoWebPlayer.Client.Models
+
+<option value="@PlaylistSortModeValues.ByReleaseDate">Nach Erscheinungsdatum</option>
+<option value="@PlaylistSortModeValues.Manual">Manuell</option>

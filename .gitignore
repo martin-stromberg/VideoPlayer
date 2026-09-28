@@ -258,6 +258,8 @@ _UpgradeReport_Files/
 Backup*/
 !VideoWebPlayer/Services/Backups/
 !VideoWebPlayer/Services/Backups/**
+!VideoWebPlayer.Tests/Services/Backups/
+!VideoWebPlayer.Tests/Services/Backups/**
 UpgradeLog*.XML
 UpgradeLog*.htm
 ServiceFabricBackup/
@@ -380,7 +382,6 @@ FodyWeavers.xsd
 /VideoWebPlayer/wwwroot/images/genres/
 issue.md
 /.agents
-/AGENTS.md
 
 # Eigenstaendiger MAUI-Repository-Klon; wird separat versioniert.
 /Sub-Repository/

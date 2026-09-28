@@ -1,0 +1,12 @@
+<ConfirmationDialog Title="Sortiermodus ändern" OnConfirm="OnConfirm" OnCancel="OnCancel"
+                    ConfirmButtonText="Ja, ändern" ConfirmButtonId="confirm-sortmode-change-button" CancelButtonId="cancel-sortmode-change-button">
+    <p>Die manuelle Reihenfolge wird gelöscht und kann nicht wiederhergestellt werden. Möchten Sie fortfahren?</p>
+</ConfirmationDialog>
+
+@code {
+    [Parameter]
+    public EventCallback OnConfirm { get; set; }
+
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
+}

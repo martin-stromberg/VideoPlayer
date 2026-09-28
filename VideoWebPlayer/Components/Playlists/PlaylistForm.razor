@@ -1,0 +1,181 @@
+@using Microsoft.AspNetCore.Components.Forms
+@using System.Net
+@using VideoWebPlayer.Client.Models
+@using VideoWebPlayer.Data
+@inject VideoWebPlayer.Client.IPlaylistApiClient PlaylistClient
+
+<div class="admin-dialog-overlay" @onclick="Cancel">
+    <div class="admin-dialog" @onclick:stopPropagation>
+        <header class="admin-card-header">
+            <h2>@(PlaylistId.HasValue ? "Playlist bearbeiten" : "Neue Playlist")</h2>
+            <button class="btn btn-sm btn-outline-light" @onclick="Cancel">Schließen</button>
+        </header>
+
+        @if (isLoading)
+        {
+            <p>Lade Daten...</p>
+        }
+        else
+        {
+            <EditForm Model="playlist" OnValidSubmit="SaveAsync">
+                <div class="mb-3">
+                    <label class="form-label" for="playlist-name-input">Playlist-Name</label>
+                    <InputText id="playlist-name-input" class="form-control" @bind-Value="playlist.Name" />
+                    @if (!string.IsNullOrWhiteSpace(nameError))
+                    {
+                        <div class="form-text text-warning">@nameError</div>
+                    }
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="playlist-description-input">Beschreibung</label>
+                    <InputTextArea id="playlist-description-input" class="form-control" @bind-Value="playlist.Description" />
+                    @if (!string.IsNullOrWhiteSpace(descriptionError))
+                    {
+                        <div class="form-text text-warning">@descriptionError</div>
+                    }
+                </div>
+
+                @if (!PlaylistId.HasValue)
+                {
+                    <div class="mb-3">
+                        <label class="form-label" for="playlist-sortmode-select">Sortierung</label>
+                        <InputSelect id="playlist-sortmode-select" class="form-control" @bind-Value="playlist.SortMode">
+                            <PlaylistSortModeOptions />
+                        </InputSelect>
+                    </div>
+                }
+                else
+                {
+                    <div class="mb-3">
+                        <span class="form-label">Sortierung</span>
+                        <p id="playlist-form-sortmode-readonly">
+                            @PlaylistSortModeValues.GetDisplayLabel(playlist.SortMode) (Änderung über "Sortiermodus ändern" auf der Playlist-Detailseite)
+                        </p>
+                    </div>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(errorMessage))
+                {
+                    <div class="alert alert-danger" id="playlist-form-error">@errorMessage</div>
+                }
+
+                <div class="admin-actions">
+                    <button type="submit" class="btn btn-primary" id="playlist-save-button" disabled="@isSaving">Speichern</button>
+                    <button type="button" class="btn btn-ghost" @onclick="Cancel">Abbrechen</button>
+                </div>
+            </EditForm>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public long? PlaylistId { get; set; }
+
+    [Parameter]
+    public EventCallback OnSave { get; set; }
+
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
+
+    private DtoPlaylist playlist = new() { SortMode = PlaylistSortModeValues.ByReleaseDate };
+    private bool isLoading;
+    private bool isSaving;
+    private string? nameError;
+    private string? descriptionError;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (PlaylistId.HasValue)
+        {
+            isLoading = true;
+            try
+            {
+                var loaded = await PlaylistClient.RequestPlaylistAsync(PlaylistId.Value);
+                if (loaded is not null)
+                    playlist = loaded;
+                else
+                    errorMessage = "Playlist konnte nicht geladen werden.";
+            }
+            catch (Exception ex)
+            {
+                errorMessage = $"Playlist konnte nicht geladen werden: {ex.Message}";
+            }
+            finally
+            {
+                isLoading = false;
+            }
+        }
+    }
+
+    private bool Validate()
+    {
+        nameError = null;
+        descriptionError = null;
+
+        if (string.IsNullOrWhiteSpace(playlist.Name))
+            nameError = "Playlist-Name ist erforderlich.";
+        else if (playlist.Name.Length > Playlist.NameMaxLength)
+            nameError = $"Name darf maximal {Playlist.NameMaxLength} Zeichen lang sein.";
+
+        if (playlist.Description?.Length > Playlist.DescriptionMaxLength)
+            descriptionError = $"Beschreibung darf maximal {Playlist.DescriptionMaxLength} Zeichen lang sein.";
+
+        return nameError is null && descriptionError is null;
+    }
+
+    private async Task SaveAsync()
+    {
+        errorMessage = null;
+        if (!Validate())
+            return;
+
+        isSaving = true;
+        try
+        {
+            if (PlaylistId.HasValue)
+            {
+                // SortMode is intentionally not sent here: the sort mode select is hidden while editing
+                // (see markup above) and the server ignores it for updates anyway - changing the sort
+                // mode is only possible via the dedicated "Sortiermodus aendern" workflow on the playlist
+                // detail page, which goes through ChangeSortModeAsync instead of a plain name/description edit.
+                await PlaylistClient.UpdatePlaylistAsync(PlaylistId.Value, new DtoUpdatePlaylistRequest
+                {
+                    Name = playlist.Name,
+                    Description = playlist.Description,
+                    SortMode = null
+                });
+            }
+            else
+            {
+                await PlaylistClient.CreatePlaylistAsync(new DtoCreatePlaylistRequest
+                {
+                    Name = playlist.Name,
+                    Description = playlist.Description,
+                    SortMode = playlist.SortMode
+                });
+            }
+
+            await OnSave.InvokeAsync();
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Conflict)
+        {
+            errorMessage = "Ein Playlist mit diesem Namen existiert bereits.";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Beim Speichern ist ein Fehler aufgetreten: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task Cancel()
+    {
+        await OnCancel.InvokeAsync();
+    }
+}

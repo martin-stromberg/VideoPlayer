@@ -9,6 +9,7 @@
 @inject IdentityUserAccessor UserAccessor
 @inject IdentityRedirectManager RedirectManager
 @inject ILogger<DeletePersonalData> Logger
+@inject VideoWebPlayer.Services.ContinueWatchingService ContinueWatchingService
 
 <PageTitle>Delete Personal Data</PageTitle>
 
@@ -70,6 +71,14 @@
             return;
         }
 
+        var userId = await UserManager.GetUserIdAsync(user);
+
+        // Entwicklungsschritt 11: deleting the account cascades to the user's playlists. Other users may hold
+        // continue-watching entries bound to one of their public playlists; without resolving them first,
+        // the database would detach them and could hit the unique index for playlist-less entries (same as
+        // in the admin user management page, which does this before deleting a user).
+        await ContinueWatchingService.ResolveDeletionConflictsForOwnedPlaylistsAsync(userId);
+
         var result = await UserManager.DeleteAsync(user);
         if (!result.Succeeded)
         {
@@ -78,7 +87,6 @@
 
         await SignInManager.SignOutAsync();
 
-        var userId = await UserManager.GetUserIdAsync(user);
         Logger.LogInformation("User with ID '{UserId}' deleted themselves.", userId);
 
         RedirectManager.RedirectToCurrentPage();

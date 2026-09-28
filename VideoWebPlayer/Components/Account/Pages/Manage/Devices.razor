@@ -1,0 +1,129 @@
+@page "/Account/Manage/Devices"
+
+@using System.Net
+@using QRCoder
+@using VideoWebPlayer.Data
+@using VideoWebPlayer.Services
+
+@inject IPairingBootstrapService BootstrapService
+@inject IdentityUserAccessor UserAccessor
+
+<PageTitle>Geräte</PageTitle>
+
+<h3>Geräte</h3>
+<StatusMessage />
+
+<div class="row">
+    <div class="col-md-8">
+        <h4>Gerät koppeln</h4>
+        <p>
+            Kopple die App auf einem neuen Gerät, ohne dort E-Mail und Passwort einzugeben.
+            Der Code ist nur einmal verwendbar und läuft nach wenigen Minuten ab.
+        </p>
+
+        <form @formname="pair-device" @onsubmit="CreateTicketAsync" method="post">
+            <AntiforgeryToken />
+            <button type="submit" class="btn btn-primary" data-testid="create-bootstrap-ticket">Gerät koppeln</button>
+        </form>
+
+        @if (ticketError == BootstrapTicketErrorKind.Forbidden)
+        {
+            <div class="alert alert-warning mt-3" role="alert" data-testid="bootstrap-ticket-error">
+                Das Koppeln von Geräten ist auf diesem Server nur Administratoren erlaubt.
+            </div>
+        }
+        else if (ticketError == BootstrapTicketErrorKind.RateLimited)
+        {
+            <div class="alert alert-warning mt-3" role="alert" data-testid="bootstrap-ticket-error">
+                Es wurden zu viele Kopplungs-Tickets erzeugt. Bitte warte, bevor du ein neues Gerät koppelst.
+            </div>
+        }
+
+        @if (createdTicket is not null)
+        {
+            <div class="card mt-3" data-testid="bootstrap-ticket-panel">
+                <div class="card-body">
+                    @if (isLoopbackHost)
+                    {
+                        <div class="alert alert-warning" role="alert" data-testid="bootstrap-localhost-warning">
+                            Hinweis: Der Server läuft unter einer lokalen Adresse (localhost). Der QR-Code funktioniert nur,
+                            wenn das Gerät denselben Rechner erreichen kann — üblicherweise brauchst du die Netzwerk-Adresse des Servers.
+                        </div>
+                    }
+                    <div class="text-center mb-3">
+                        <img src="data:image/png;base64,@qrCodeBase64" alt="QR-Code zum Koppeln des Geräts"
+                             style="image-rendering: pixelated; width: 220px; height: 220px;"
+                             data-testid="bootstrap-qr-image" />
+                    </div>
+                    <p class="text-center">
+                        Alternativ diesen Code in der App eingeben:
+                        <strong class="fs-4 font-monospace" data-testid="bootstrap-short-code">@createdTicket.ShortCode</strong>
+                    </p>
+                    <p class="text-center text-muted" data-testid="bootstrap-ticket-expiry">
+                        Gültig bis @createdTicket.ExpiresAtUtc.ToLocalTime().ToString("HH:mm:ss") Uhr
+                        (noch ca. @Math.Max(1, (int)Math.Ceiling((createdTicket.ExpiresAtUtc - DateTime.UtcNow).TotalMinutes)) Minuten).
+                    </p>
+                    <ol>
+                        <li>Öffne die VideoPlayer-App auf dem Gerät.</li>
+                        <li>Wähle „Per QR-Code koppeln" und scanne den Code — oder gib den Kurzcode ein.</li>
+                        <li>Das Gerät ist danach sofort einsatzbereit; kein Passwort nötig.</li>
+                    </ol>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private ApplicationUser user = default!;
+    private CreatedBootstrapTicket? createdTicket;
+    private BootstrapTicketErrorKind? ticketError;
+    private string? qrCodeBase64;
+    private bool isLoopbackHost;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var requiredUser = await UserAccessor.GetUserOrRedirectAsync(HttpContext);
+        if (requiredUser is null)
+        {
+            return;
+        }
+
+        user = requiredUser;
+    }
+
+    private async Task CreateTicketAsync()
+    {
+        createdTicket = null;
+        ticketError = null;
+        qrCodeBase64 = null;
+
+        var created = await BootstrapService.CreateBootstrapTicketAsync(user.Id, user.IsAdmin);
+        if (!created.Success)
+        {
+            ticketError = created.Error;
+            return;
+        }
+
+        createdTicket = created;
+        isLoopbackHost = IsLoopback(HttpContext.Request.Host.Host);
+
+        var pairingUrl = $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}/pairing?t={created.Ticket}";
+        qrCodeBase64 = RenderQrCodePng(pairingUrl);
+    }
+
+    private static bool IsLoopback(string host)
+        => string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase)
+           || (IPAddress.TryParse(host, out var ip) && IPAddress.IsLoopback(ip));
+
+    private static string RenderQrCodePng(string payload)
+    {
+        using var generator = new QRCodeGenerator();
+        using var data = generator.CreateQrCode(payload, QRCodeGenerator.ECCLevel.Q);
+        using var png = new PngByteQRCode(data);
+        return Convert.ToBase64String(png.GetGraphic(10));
+    }
+}

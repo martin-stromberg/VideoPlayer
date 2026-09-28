@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -17,7 +18,7 @@ namespace VideoWebPlayer.Services
     public class MediaSourceScanner
     {
         private readonly ApplicationDbContext _db;
-        private readonly SftpMediaSourceReader _sftpReader;
+        private readonly IMediaSourceReader _reader;
         private readonly ILogger<MediaSourceScanner> _logger;
         private readonly TimeProvider _timeProvider;
         private readonly ProgramSettingsService _settings;
@@ -26,19 +27,19 @@ namespace VideoWebPlayer.Services
         /// Initializes a new instance of the <see cref="MediaSourceScanner"/> class.
         /// </summary>
         /// <param name="db">Application database context.</param>
-        /// <param name="sftpReader">SFTP reader for remote sources.</param>
+        /// <param name="reader">Media source reader.</param>
         /// <param name="settings">Program settings service.</param>
         /// <param name="logger">Logger instance.</param>
         /// <param name="timeProvider">Optional time provider, primarily for testing.</param>
         public MediaSourceScanner(
             ApplicationDbContext db,
-            SftpMediaSourceReader sftpReader,
+            IMediaSourceReader reader,
             ProgramSettingsService settings,
             ILogger<MediaSourceScanner> logger,
             TimeProvider? timeProvider = null)
         {
             _db = db;
-            _sftpReader = sftpReader;
+            _reader = reader;
             _settings = settings;
             _logger = logger;
             _timeProvider = timeProvider ?? TimeProvider.System;
@@ -65,7 +66,7 @@ namespace VideoWebPlayer.Services
                 source.LastScannedAt = nowUtc;
                 await _db.SaveChangesAsync(cancellationToken);
 
-                var rootEntry = _sftpReader.ReadRootDirectory(source).OfType<MediaCollection>().FirstOrDefault();
+                var rootEntry = _reader.ReadRootDirectory(source).OfType<MediaCollection>().FirstOrDefault();
                 if (rootEntry is null)
                     continue;
 
@@ -100,6 +101,7 @@ namespace VideoWebPlayer.Services
         /// Scans the next media collection incrementally and updates its scan state.
         /// </summary>
         /// <param name="cancellationToken">A cancellation token.</param>
+        /// <returns><c>true</c> if a due media collection was scanned; <c>false</c> if none was due.</returns>
         public async Task<bool> ScanNextMediaCollection(CancellationToken cancellationToken)
         {
             var now = _timeProvider.GetUtcNow().UtcDateTime;
@@ -124,6 +126,7 @@ namespace VideoWebPlayer.Services
         /// </summary>
         /// <param name="mediaCollectionId">The media collection identifier.</param>
         /// <param name="cancellationToken">A cancellation token.</param>
+        /// <returns><c>true</c> if the media collection exists and was scanned; otherwise <c>false</c>.</returns>
         public async Task<bool> ScanMediaCollectionAsync(long mediaCollectionId, CancellationToken cancellationToken)
         {
             var now = _timeProvider.GetUtcNow().UtcDateTime;
@@ -208,9 +211,9 @@ namespace VideoWebPlayer.Services
             List<MediaEntry> entries;
             try
             {
-                entries = _sftpReader.ReadDirectoryEntries(next).ToList();
+                entries = _reader.ReadDirectoryEntries(next).ToList();
             }
-            catch (Exception ex) when (ex is SftpPathNotFoundException or SftpPermissionDeniedException)
+            catch (Exception ex) when (ex is SftpPathNotFoundException or SftpPermissionDeniedException or DirectoryNotFoundException or UnauthorizedAccessException or IOException)
             {
                 _logger.LogWarning(ex, "Collection '{Path}' konnte nicht gelesen werden und wird �bersprungen.", next.Path);
 

@@ -9,6 +9,7 @@
 @inject VideoWebPlayer.Services.MediaSourceClassifier MediaSourceClassifier
 @inject ILogger<MediaSourceAdmin> Logger
 @inject VideoWebPlayer.Services.Backups.IBackgroundProcessingGate BackgroundGate
+@inject VideoWebPlayer.Services.IPlaylistBackfillSignal PlaylistBackfillSignal
 @rendermode InteractiveServer
 
 <PageTitle>Quellen verwalten</PageTitle>
@@ -28,7 +29,7 @@
                     <h1>Quellen</h1>
                     <p>Speicherorte, Zugangsdaten und Scanstatus verwalten.</p>
                 </div>
-                <a class="btn btn-outline-light" href="/admin">Zurueck</a>
+                <a class="btn btn-outline-light" href="/admin">Zurück</a>
             </header>
 
             <div class="mb-3">
@@ -65,6 +66,7 @@
                         <tr>
                             <th>Icon</th>
                             <th>Name</th>
+                            <th>Typ</th>
                             <th>Host</th>
                             <th>Port</th>
                             <th>Pfad</th>
@@ -90,10 +92,21 @@
                                     }
                                 </td>
                                 <td>@source.Name</td>
-                                <td>@source.Host</td>
-                                <td>@source.Port</td>
-                                <td>@source.Path</td>
-                                <td>@source.Username</td>
+                                <td>@(source.SourceType == MediaSourceType.LocalDirectory ? "Lokal" : "SFTP")</td>
+                                @if (source.SourceType == MediaSourceType.LocalDirectory)
+                                {
+                                    <td>—</td>
+                                    <td>—</td>
+                                    <td>@source.Path</td>
+                                    <td>—</td>
+                                }
+                                else
+                                {
+                                    <td>@source.Host</td>
+                                    <td>@source.Port</td>
+                                    <td>@source.Path</td>
+                                    <td>@source.Username</td>
+                                }
                                 <td>
                                     <button class="btn btn-sm btn-danger me-1" disabled="@IsDeleting(source.Id)" @onclick:stopPropagation="true" @onclick="() => DeleteSource(source)">Löschen</button>
                                     <button class="btn btn-sm btn-warning" disabled="@IsDeleting(source.Id)" @onclick:stopPropagation="true" @onclick="() => ResetScan(source)">Scan zurücksetzen</button>
@@ -202,7 +215,7 @@
 
         if (BackgroundGate.IsPausedForRestore)
         {
-            fullScanStatus = "Restore laeuft. Der Komplettscan ist derzeit gesperrt.";
+            fullScanStatus = "Restore läuft. Der Komplettscan ist derzeit gesperrt.";
             return;
         }
 
@@ -214,6 +227,8 @@
         try
         {
             await using var processingLease = await BackgroundGate.EnterOperationAsync("Manueller Komplettscan", CancellationToken.None);
+            // Marker commits during the scan do not wake the playlist backfill; the end of the scan does.
+            using var playlistBackfillScanScope = PlaylistBackfillSignal.BeginScan();
             await MediaSourceScanner.ScanAllSourcesAsync(CancellationToken.None);
 
             fullScanStatus = "Komplettscan: ScanNextMediaCollection...";

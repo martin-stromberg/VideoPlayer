@@ -258,6 +258,50 @@ public static class TestHelpers
         return show;
     }
 
+    public static void DenyReadAccess(string directory)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Equal(0, RunIcacls(directory, "/deny", $"{Environment.UserName}:(OI)(CI)(RD)"));
+        }
+        else
+        {
+            File.SetUnixFileMode(directory, UnixFileMode.None);
+        }
+    }
+
+    public static void ResetAccessControl(string directory)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            RunIcacls(directory, "/reset", "/t", "/c", "/q");
+        }
+        else
+        {
+            File.SetUnixFileMode(directory,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute |
+                UnixFileMode.GroupRead | UnixFileMode.GroupExecute |
+                UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
+        }
+    }
+
+    private static int RunIcacls(string directory, params string[] args)
+    {
+        var process = Process.Start(new ProcessStartInfo
+        {
+            FileName = "icacls",
+            Arguments = $"\"{directory}\" {string.Join(" ", args)}",
+            CreateNoWindow = true,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        });
+        if (process is null)
+            return -1;
+        process.WaitForExit(10_000);
+        return process.ExitCode;
+    }
+
     public static async Task WaitForMessageCountAsync(
         ConcurrentQueue<string> messages,
         string expected,

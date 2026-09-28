@@ -30,7 +30,7 @@ public class MediaSourceScannerTests
         services.AddSingleton<TimeProvider>(timeProvider);
         services.AddSingleton<EventManager>();
         services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(connectionString));
-        services.AddSingleton<SftpMediaSourceReader>(new ThrowingSftpMediaSourceReader(missingPath));
+        services.AddSingleton<IMediaSourceReader>(new ThrowingSftpMediaSourceReader(missingPath));
         services.AddScoped<ProgramSettingsService>();
         services.AddScoped<MediaSourceScanner>();
         services.AddSingleton<IAuthService, TestAuthService>();

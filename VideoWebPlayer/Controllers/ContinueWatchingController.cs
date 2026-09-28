@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using VideoWebPlayer.Client.Models;
@@ -32,6 +33,8 @@ namespace VideoWebPlayer.Controllers
         /// <summary>
         /// Gets the current user's continue-watching list.
         /// </summary>
+        /// <param name="ct">Cancellation token.</param>
+        /// <returns>The current user's continue-watching entries.</returns>
         [HttpGet]
         public async Task<ActionResult<List<ContinueWatchingDto>>> GetAsync(CancellationToken ct)
         {
@@ -46,26 +49,33 @@ namespace VideoWebPlayer.Controllers
         /// <param name="MediaId">Media identifier.</param>
         /// <param name="PositionSeconds">Playback position in seconds.</param>
         /// <param name="DurationSeconds">Total duration in seconds.</param>
+        /// <param name="PlaylistId">Playlist identifier, when reported from within a playlist playback context.</param>
+        /// <returns>A new <see cref="ProgressRequest"/> instance.</returns>
         public record ProgressRequest(
             string MediaType,
             long MediaId,
             long PositionSeconds,
-            long DurationSeconds);
+            long DurationSeconds,
+            long? PlaylistId = null);
 
         /// <summary>
         /// Request payload for manual continue-watching actions.
         /// </summary>
         /// <param name="MediaType">Media type (movie or episode).</param>
         /// <param name="MediaId">Media identifier.</param>
+        /// <param name="PlaylistId">Playlist identifier of the entry, when it originates from a playlist playback context.</param>
+        /// <returns>A new <see cref="ContinueWatchingActionRequest"/> instance.</returns>
         public record ContinueWatchingActionRequest(
             string MediaType,
-            long MediaId);
+            long MediaId,
+            long? PlaylistId = null);
 
         /// <summary>
         /// Reports playback progress for the current user.
         /// </summary>
         /// <param name="req">The progress request.</param>
         /// <param name="ct">Cancellation token.</param>
+        /// <returns>No content on success, or an error response.</returns>
         [HttpPost("progress")]
         public async Task<IActionResult> ReportProgress([FromBody] ProgressRequest req, CancellationToken ct)
         {
@@ -78,7 +88,20 @@ namespace VideoWebPlayer.Controllers
             var episodeId = mediaType == "episode" || mediaType == nameof(TVShowEpisode).ToLower() ? req.MediaId : (long?)null;
             if (movieId is null && episodeId is null)
                 return BadRequest("Unbekannter MediaType. Erwartet: 'movie' oder 'episode'.");
-            await _service.ReportProgressAsync(CurrentUser, movieId, episodeId, TimeSpan.FromSeconds(req.PositionSeconds), TimeSpan.FromSeconds(req.DurationSeconds), ct);
+
+            try
+            {
+                await _service.ReportProgressAsync(CurrentUser, movieId, episodeId, TimeSpan.FromSeconds(req.PositionSeconds), TimeSpan.FromSeconds(req.DurationSeconds), req.PlaylistId, ct);
+            }
+            catch (PlaylistAccessDeniedException)
+            {
+                return Forbid(JwtBearerDefaults.AuthenticationScheme);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(ex.Message);
+            }
+
             return NoContent();
         }
 
@@ -87,6 +110,7 @@ namespace VideoWebPlayer.Controllers
         /// </summary>
         /// <param name="req">The action request.</param>
         /// <param name="ct">Cancellation token.</param>
+        /// <returns>The mutation result, or an error response.</returns>
         [HttpPost("hide")]
         public async Task<IActionResult> HideAsync([FromBody] ContinueWatchingActionRequest req, CancellationToken ct)
         {
@@ -95,7 +119,7 @@ namespace VideoWebPlayer.Controllers
             if (ids is null)
                 return BadRequest("Unbekannter MediaType. Erwartet: 'movie' oder 'episode'.");
 
-            var removed = await _service.HideAsync(CurrentUser!.Id, ids.Value.MovieId, ids.Value.EpisodeId, ct);
+            var removed = await _service.HideAsync(CurrentUser!.Id, ids.Value.MovieId, ids.Value.EpisodeId, req.PlaylistId, ct);
             if (!removed)
                 return NotFound("Der Eintrag wurde nicht gefunden.");
 
@@ -107,6 +131,7 @@ namespace VideoWebPlayer.Controllers
         /// </summary>
         /// <param name="req">The action request.</param>
         /// <param name="ct">Cancellation token.</param>
+        /// <returns>The mutation result, or an error response.</returns>
         [HttpPost("skip")]
         public async Task<IActionResult> SkipAsync([FromBody] ContinueWatchingActionRequest req, CancellationToken ct)
         {
@@ -115,10 +140,10 @@ namespace VideoWebPlayer.Controllers
             if (ids is null)
                 return BadRequest("Unbekannter MediaType. Erwartet: 'movie' oder 'episode'.");
 
-            var result = await _service.SkipAsync(CurrentUser!.Id, ids.Value.MovieId, ids.Value.EpisodeId, ct);
+            var result = await _service.SkipAsync(CurrentUser!.Id, ids.Value.MovieId, ids.Value.EpisodeId, req.PlaylistId, ct);
             return result switch
             {
-                ContinueWatchingService.SkipResult.Replaced => Ok(new ContinueWatchingMutationResult("replaced", "Eintrag wurde uebersprungen.")),
+                ContinueWatchingService.SkipResult.Replaced => Ok(new ContinueWatchingMutationResult("replaced", "Eintrag wurde übersprungen.")),
                 ContinueWatchingService.SkipResult.RemovedWithoutNext => Ok(new ContinueWatchingMutationResult("removed", "Eintrag wurde entfernt; es gibt kein Folgemedium.")),
                 _ => NotFound("Der Eintrag wurde nicht gefunden.")
             };

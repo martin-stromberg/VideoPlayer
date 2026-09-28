@@ -32,6 +32,12 @@ namespace VideoWebPlayer.Data
         public long? TVShowEpisodeId { get; set; }
 
         /// <summary>
+        /// Gets or sets the playlist identifier this entry is associated with, or <c>null</c> if the
+        /// entry was created outside of a playlist playback context.
+        /// </summary>
+        public long? PlaylistId { get; set; }
+
+        /// <summary>
         /// Gets or sets the playback position.
         /// </summary>
         [Required]
@@ -63,5 +69,11 @@ namespace VideoWebPlayer.Data
         /// </summary>
         [ForeignKey(nameof(TVShowEpisodeId))]
         public TVShowEpisode? TVShowEpisode { get; set; }
+
+        /// <summary>
+        /// Gets or sets the playlist navigation property.
+        /// </summary>
+        [ForeignKey(nameof(PlaylistId))]
+        public Playlist? Playlist { get; set; }
     }
 }

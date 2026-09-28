@@ -227,7 +227,7 @@ public sealed class MediaMetadataEditorService
     private static void ValidateCommon(MediaMetadataUpdateRequest request)
     {
         if (request.Id <= 0)
-            throw new ArgumentException("Ungueltige ID.");
+            throw new ArgumentException("Ungültige ID.");
 
         if (string.IsNullOrWhiteSpace(request.Name))
             throw new ArgumentException("Der Titel darf nicht leer sein.");
@@ -248,13 +248,13 @@ public sealed class MediaMetadataEditorService
     private static void ValidateReleaseDateOnly(MediaMetadataUpdateRequest request, string objectTypeLabel)
     {
         if (request.PremieredAt.HasValue)
-            throw new ArgumentException($"{objectTypeLabel} duerfen kein PremieredAt-Datum speichern.");
+            throw new ArgumentException($"{objectTypeLabel} dürfen kein PremieredAt-Datum speichern.");
     }
 
     private static void ValidatePremieredAtOnly(MediaMetadataUpdateRequest request, string objectTypeLabel)
     {
         if (request.ReleaseDate.HasValue)
-            throw new ArgumentException($"{objectTypeLabel} duerfen kein ReleaseDate-Datum speichern.");
+            throw new ArgumentException($"{objectTypeLabel} dürfen kein ReleaseDate-Datum speichern.");
     }
 
     private static string NormalizeType(string type)

@@ -1,0 +1,44 @@
+@* Symbol fuer den Sortiermodus einer Playlist: eine Uhr fuer "Nach Erscheinungsdatum" (chronologisch),
+   ein Griff-/Drag-Symbol (sechs Punkte) fuer "Manuell" (frei sortierbar per Drag & Drop). Ersetzt gemaess
+   Kundenfeedback ("Fuer die Zusatzinformation 'Sortierung' soll es anstelle des Textes ein passendes
+   Symbol geben") den bisherigen Text in der Playlistuebersicht; wird zusaetzlich in der Detailansicht
+   (Kopfbereich, Sortiermodus-Wechsel-Button) wiederverwendet. *@
+@using VideoWebPlayer.Client.Models
+
+<span class="playlist-sortmode-icon" title="@Title" aria-label="@Title">
+    @if (SortMode == PlaylistSortModeValues.Manual)
+    {
+        <svg aria-hidden="true" width="@Size" height="@Size" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="8" cy="6" r="1.4" fill="currentColor" stroke="none" />
+            <circle cx="8" cy="12" r="1.4" fill="currentColor" stroke="none" />
+            <circle cx="8" cy="18" r="1.4" fill="currentColor" stroke="none" />
+            <circle cx="16" cy="6" r="1.4" fill="currentColor" stroke="none" />
+            <circle cx="16" cy="12" r="1.4" fill="currentColor" stroke="none" />
+            <circle cx="16" cy="18" r="1.4" fill="currentColor" stroke="none" />
+        </svg>
+    }
+    else
+    {
+        <svg aria-hidden="true" width="@Size" height="@Size" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="13" r="8" />
+            <path d="M12 9v4l3 2" />
+            <path d="M9 2h6" />
+        </svg>
+    }
+</span>
+
+@code {
+    /// <summary>
+    /// The playlist sort mode to show a symbol for (see <see cref="PlaylistSortModeValues"/>).
+    /// </summary>
+    [Parameter, EditorRequired]
+    public string SortMode { get; set; } = PlaylistSortModeValues.ByReleaseDate;
+
+    /// <summary>
+    /// The icon's width/height in pixels.
+    /// </summary>
+    [Parameter]
+    public int Size { get; set; } = 20;
+
+    private string Title => PlaylistSortModeValues.GetDisplayLabel(SortMode);
+}

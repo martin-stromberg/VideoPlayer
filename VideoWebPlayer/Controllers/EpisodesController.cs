@@ -3,6 +3,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.AspNetCore.Mvc;
 using VideoWebPlayer.Controllers;
 using VideoWebPlayer.Data;
+using VideoWebPlayer.Services;
 using VideoWebPlayer.Services.Authentication;
 using VideoWebPlayer.Services.EpisodeBackgroundImage;
 
@@ -17,6 +18,7 @@ public class EpisodesController : ApiBaseController
     private readonly ApplicationDbContext _db;
     private readonly IMemoryCache _cache;
     private readonly EpisodeBackgroundImageService _backgroundImageService;
+    private readonly IUnlockedMediaService _unlockedMediaService;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="EpisodesController"/> class.
@@ -24,13 +26,15 @@ public class EpisodesController : ApiBaseController
     /// <param name="db">Database context.</param>
     /// <param name="cache">Memory cache instance.</param>
     /// <param name="backgroundImageService">Service used to lazily ensure an episode's generated background image.</param>
+    /// <param name="unlockedMediaService">Unlocked-media authorization service.</param>
     /// <param name="authService">Authentication service.</param>
     /// <param name="logger">Logger instance.</param>
-    public EpisodesController(ApplicationDbContext db, IMemoryCache cache, EpisodeBackgroundImageService backgroundImageService, IAuthService authService, ILogger<EpisodesController> logger) : base(authService, logger)
+    public EpisodesController(ApplicationDbContext db, IMemoryCache cache, EpisodeBackgroundImageService backgroundImageService, IUnlockedMediaService unlockedMediaService, IAuthService authService, ILogger<EpisodesController> logger) : base(authService, logger)
     {
         _db = db;
         _cache = cache;
         _backgroundImageService = backgroundImageService;
+        _unlockedMediaService = unlockedMediaService;
     }
 
     /// <summary>
@@ -39,7 +43,10 @@ public class EpisodesController : ApiBaseController
     /// </summary>
     /// <param name="episodeId">The episode identifier.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
-    /// <returns>The background image content.</returns>
+    /// <returns>
+    /// The background image content; 403 if the current user may neither access the episode's media source nor has its
+    /// series unlocked (a title of another user's public playlist must not leak its image to a viewer who cannot see it).
+    /// </returns>
     [HttpGet("{episodeId}/background-image")]
     public async Task<IActionResult> GetBackgroundImage(long episodeId, CancellationToken cancellationToken)
     {
@@ -50,6 +57,9 @@ public class EpisodesController : ApiBaseController
             var episode = await _db.TVShowEpisodes.AsNoTracking().FirstOrDefaultAsync(e => e.Id == episodeId, cancellationToken);
             if (episode is null)
                 return NotFound();
+
+            if (!await IsAccessibleAsync(episode, cancellationToken))
+                return StatusCode(StatusCodes.Status403Forbidden);
 
             var picture = await _backgroundImageService.EnsureBackgroundImageAsync(episode, cancellationToken);
             picture ??= await GetFallbackPictureAsync(episode);
@@ -87,6 +97,30 @@ public class EpisodesController : ApiBaseController
             Logger.LogError(ex, "Fehler beim Abrufen des Hintergrundbilds");
             return StatusCode(500, "Internal server error");
         }
+    }
+
+    /// <summary>
+    /// Checks the canonical rule <c>hasSourceAccess OR isUnlocked</c> for the current user, mirroring
+    /// <c>ItemsController.EnsureAccessAsync</c>: access to the episode's media source, or its series unlocked.
+    /// </summary>
+    /// <param name="episode">The episode whose image is requested.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns><see langword="true"/> if the current user may see the episode; otherwise <see langword="false"/>.</returns>
+    private async Task<bool> IsAccessibleAsync(TVShowEpisode episode, CancellationToken cancellationToken)
+    {
+        var userId = CurrentUser!.Id;
+        var sourceIds = await _unlockedMediaService.GetMediaSourceIdsForUserAsync(userId, cancellationToken);
+        var hasSourceAccess = sourceIds.Contains(episode.MediaSourceId);
+        if (hasSourceAccess)
+            return true;
+
+        var showId = await _db.TVShowSeasons.AsNoTracking()
+            .Where(s => s.Id == episode.TVShowSeasonId)
+            .Select(s => (long?)s.TVShowId)
+            .FirstOrDefaultAsync(cancellationToken);
+        var unlockedShowIds = await _unlockedMediaService.GetUnlockedTVShowIdsForUserAsync(userId, cancellationToken);
+        var isUnlocked = showId.HasValue && unlockedShowIds.Contains(showId.Value);
+        return _unlockedMediaService.IsAccessible(hasSourceAccess, isUnlocked);
     }
 
     private async Task<Picture?> GetFallbackPictureAsync(TVShowEpisode episode)

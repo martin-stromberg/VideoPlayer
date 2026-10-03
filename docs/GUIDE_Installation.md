@@ -105,6 +105,8 @@ $env:Jwt__Issuer = "VideoWebPlayer"
 
 `Jwt:ApiToken:Maui` ist in Produktion Pflicht und dient als Fallback-Gate-Token für ältere App-Versionen. Neuere Apps koppeln sich über das Geräte-Pairing (siehe nächster Abschnitt) und erhalten ein individuelles, widerrufbares Geräte-Token.
 
+**Hinweis für IIS-Bereitstellungen:** Alternativ lassen sich die Werte als `<environmentVariables>` im `aspNetCore`-Element der `web.config` der Site pflegen. Diese Ablage geht derzeit **bei jedem Programmupdate verloren** — das vom Updater erzeugte Installationsskript ersetzt alle im Paket enthaltenen Dateien durch die Paketversion, darunter die `web.config`. Dasselbe gilt für andere deployment-seitige `web.config`-Anpassungen (z. B. `security/ipSecurity`, `httpProtocol/customHeaders` oder geänderte `aspNetCore`-Attribute) sowie für Anpassungen in den im Paket enthaltenen `appsettings*.json`-Dateien. Deployment-seitig zusätzlich angelegte Dateien, die nicht im Paket enthalten sind, bleiben dagegen erhalten. Bis `msTools.Updater` den Erhalt geschützter Dateien unterstützt (siehe [Anforderung an msTools.Updater: Dateierhalt bei Programmupdates](./Anforderung_msTools_Updater_Dateierhalt.md)), sind daher **maschinenweite Umgebungsvariablen** (`Jwt__*`, z. B. per `setx /M` oder über die Systemumgebung des Servers) die update-sichere Ablage für Secrets.
+
 ## Geräte-Pairing
 
 Client-Apps melden sich mit einem individuellen Geräte-Token als `X-API-Key` an. Das Token wird nicht manuell verteilt, sondern über einen Einmal-Pairing-Code eingelöst:

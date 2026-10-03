@@ -62,6 +62,8 @@ $env:Jwt__Issuer = "VideoWebPlayer"
 
 Für dauerhaft betriebene Systeme sollen die Werte aus einem Secret-Management-System oder geschützten Service-Konfigurationen kommen. Produktive JWT-Schlüssel müssen zufällig erzeugt, ausreichend lang und rotationsfähig sein.
 
+**Update-Sicherheit der Ablage:** In IIS-Bereitstellungen werden Secrets teilweise als `<environmentVariables>` in der `web.config` der Site gepflegt. Diese Ablage ist **nicht update-sicher**: Jede Update-Installation ersetzt die `web.config` vollständig durch die Paketversion — die Einträge gehen verloren, die Anwendung startet danach nicht mehr und muss neu konfiguriert werden (ein neu erzeugter `Jwt:Key` invalidiert zusätzlich alle bestehenden Sitzungen). Die update-sichere Produktionsvariante sind **maschinenweite Umgebungsvariablen** (`Jwt__*`) bzw. ein Secret-Management-System, weil beide außerhalb des Anwendungsverzeichnisses liegen und Updates überstehen. Ein konfigurierbarer Dateierhalt-/Merge-Mechanismus für das Update-Skript ist bei `msTools.Updater` angefordert (siehe [Anforderung: Dateierhalt bei Programmupdates](./Anforderung_msTools_Updater_Dateierhalt.md)); danach werden geschützte `web.config`-Inhalte wieder eine gleichwertige Ablage.
+
 ## Was nicht ins Repository gehört
 
 - Echte JWT-Schlüssel.

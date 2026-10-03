@@ -35,6 +35,8 @@ Ist das Update gefunden, aber noch nicht heruntergeladen, startet die Anwendung 
 
 Je nach Serverkonfiguration kann die Installation einen Neustart der Anwendung oder des Dienstes auslösen. Der konfigurierte Dienstname wird für diesen Neustart verwendet.
 
+**Wichtig — deployment-seitige Dateien:** Eine Update-Installation ersetzt derzeit alle im Paket enthaltenen Dateien durch die Paketversion, einschließlich `web.config` und `appsettings*.json`. Deployment-seitige Anpassungen dieser Dateien — etwa `<environmentVariables>` mit Secrets oder IIS-Elemente wie `security/ipSecurity` — gehen dabei verloren. Zusätzlich angelegte Dateien, die nicht im Paket enthalten sind, bleiben dagegen erhalten. Secrets sollten deshalb update-sicher als maschinenweite Umgebungsvariablen (`Jwt__*`) abgelegt werden; ein konfigurierbarer Dateierhalt ist bei `msTools.Updater` angefordert (siehe [Anforderung an msTools.Updater: Dateierhalt bei Programmupdates](../Anforderung_msTools_Updater_Dateierhalt.md)).
+
 ## Konfiguration
 
 Im Bereich `Konfiguration` werden die Update-Einstellungen gespeichert. Änderungen gelten für neue Update-Aktionen ohne manuelle Änderung an der Konfigurationsdatei. `Standards zurücksetzen` lädt die zentralen Standardwerte nur in das Formular; dauerhaft übernommen werden sie erst mit `Konfiguration speichern`.
@@ -59,9 +61,20 @@ Ohne diese Bestätigung wird die Einstellung nicht aktiviert.
 
 `Dienstname für Neustart` enthält den Namen des Dienstes, der im Installations- oder Neustartablauf verwendet wird. Der Wert muss zur tatsächlichen Serverinstallation passen.
 
+### IIS-App-Pool (nur Konfigurationsdatei)
+
+Läuft die Anwendung als IIS-Site, benötigt die Update-Installation die Skriptvariante für App-Pools. Die automatische Erkennung findet nur Windows-Dienste, keine IIS-App-Pools — der App-Pool muss deshalb über die Konfigurationsdatei benannt werden:
+
+- `AutoUpdate:AppPoolName` — Name des IIS-Anwendungspools,
+- `AutoUpdate:SiteName` — Name der IIS-Site (optional, ergänzt `AppPoolName`).
+
+Beide Schlüssel werden in einer `appsettings*.json`-Datei oder als Umgebungsvariablen (`AutoUpdate__AppPoolName`, `AutoUpdate__SiteName`) gesetzt — die Bibliothek bietet zusätzlich die Fluent-API `WithIisApplicationPool`, die der VideoWebPlayer nicht nutzt; in der Update-Oberfläche gibt es dafür kein Feld. Da `appsettings*.json`-Dateien bei einer Update-Installation ersetzt werden (siehe Hinweis zu deployment-seitigen Dateien oben), sind die Umgebungsvariablen die update-sichere Variante.
+
 ### Backup vor Installation
 
 `Backup vor Installation` erzeugt vor der Installation ein Backup über dieselbe Backup-Infrastruktur wie die manuelle Backup-Seite.
+
+Das Update-Backup sichert nur die Anwendungsdaten — Konfigurationsdateien wie `web.config` oder `appsettings*.json` sind nicht enthalten. Es schützt daher nicht vor dem im Hinweis zu deployment-seitigen Dateien beschriebenen Ersetzen dieser Dateien.
 
 Die Generation dieser Sicherungen ist `ProgramUpdate`. Dadurch sind Update-Backups in der Backup-Historie von manuell erstellten und automatischen GVS-Backups unterscheidbar.
 

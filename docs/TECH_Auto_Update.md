@@ -85,9 +85,20 @@ wendet sie beim Start über `app.MigrateDatabase()` an.
 | `Backup.Path` | Ablageort der Sicherungen (relativ zum Content-Root oder absoluter Pfad). |
 | `Backup.RetainedBackupCount` | Anzahl der aufbewahrten Sicherungen der Generation `ProgramUpdate` in der bestehenden Backup-Infrastruktur. |
 | `Backup.CancelInstallationOnFailure` | Bricht die Installation ab, wenn die Sicherung fehlschlägt oder kein Backup-Dienst registriert ist. |
+| `AppPoolName` | Name des IIS-Anwendungspools für die Update-Installation. Für IIS-Deployments zwingend — die automatische Erkennung findet nur Windows-Dienste, keine App-Pools. Alternativ per Fluent-API `WithIisApplicationPool(appPool, site)`. |
+| `SiteName` | Name der IIS-Site (optional, ergänzt `AppPoolName`). |
 
 Zusätzlich unterstützt die Bibliothek u. a. `ServiceName`, `ExecutablePath`, `ScheduledInstallTime`,
 `StopHostAfterScriptStart` und `MaxAssetBytes` – siehe Updater-README.
+
+**Dateierhalt bei Updates:** Das generierte Installationsskript kopiert den Paketinhalt über das
+Anwendungsverzeichnis — alle im Paket enthaltenen Dateien werden dabei durch die Paketversion ersetzt;
+deployment-seitige Anpassungen an `web.config` und `appsettings*.json` gehen dabei verloren.
+Zusätzlich angelegte Dateien, die nicht im Paket enthalten sind, bleiben dagegen erhalten. Ein
+konfigurierbarer Dateierhalt-/Merge-Mechanismus ist bei
+`msTools.Updater` angefordert (siehe
+[Anforderung: Dateierhalt bei Programmupdates](./Anforderung_msTools_Updater_Dateierhalt.md)). Bis dahin
+sollten deployment-seitige Secrets als maschinenweite Umgebungsvariablen (`Jwt__*`) abgelegt werden.
 
 ## Sicherung vor der Installation
 
@@ -110,6 +121,10 @@ die bestehende Backup-Retention bereinigt. `RetainedUpdateBackupCount` aus den U
 auf `BackupRetentionOptions.ProgramUpdateCount` gemappt; `Manual`- und Upload-Backups bleiben davon unberührt.
 Schlägt das Backup fehl, bricht die Installation bei aktivierter
 Option `CancelInstallationOnFailure` ab und der Fehler wird im Updater-Status sichtbar.
+
+Das `BeforeInstall`-Backup sichert ausschließlich die Anwendungsdatenbank — **keine**
+Konfigurationsdateien wie `web.config` oder `appsettings*.json`. Es ersetzt daher keinen Dateierhalt beim
+Update (siehe oben).
 
 ## Release-Artefakte
 

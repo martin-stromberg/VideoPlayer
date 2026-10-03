@@ -17,6 +17,8 @@ using VideoWebPlayer.Services.Authentication;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.AddLocalJsonConfiguration();
+
 // Ensure log directory exists in the program/content root.
 Directory.CreateDirectory(Path.Combine(builder.Environment.ContentRootPath, "Logs"));
 

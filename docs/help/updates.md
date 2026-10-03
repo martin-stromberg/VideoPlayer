@@ -35,7 +35,9 @@ Ist das Update gefunden, aber noch nicht heruntergeladen, startet die Anwendung 
 
 Je nach Serverkonfiguration kann die Installation einen Neustart der Anwendung oder des Dienstes auslösen. Der konfigurierte Dienstname wird für diesen Neustart verwendet.
 
-**Wichtig — deployment-seitige Dateien:** Eine Update-Installation ersetzt derzeit alle im Paket enthaltenen Dateien durch die Paketversion, einschließlich `web.config` und `appsettings*.json`. Deployment-seitige Anpassungen dieser Dateien — etwa `<environmentVariables>` mit Secrets oder IIS-Elemente wie `security/ipSecurity` — gehen dabei verloren. Zusätzlich angelegte Dateien, die nicht im Paket enthalten sind, bleiben dagegen erhalten. Secrets sollten deshalb update-sicher als maschinenweite Umgebungsvariablen (`Jwt__*`) abgelegt werden; ein konfigurierbarer Dateierhalt ist bei `msTools.Updater` angefordert (siehe [Anforderung an msTools.Updater: Dateierhalt bei Programmupdates](../Anforderung_msTools_Updater_Dateierhalt.md)).
+**Wichtig — deployment-seitige Dateien:** Eine Update-Installation schützt deployment-seitige Anpassungen an `web.config` und `appsettings*.json` über die ausgelieferte `AutoUpdate:ProtectedFiles`-Schutzliste: Das Installationsskript sichert die Dateien vor dem Paketkopiervorgang unter `Updates/backup/` (manuelle Restore-Ablage, wird nicht automatisch aufgeräumt) und übernimmt danach die konfigurierten Bereiche — XML-Elemente/-Attribute wie `<environmentVariables>` und `security/ipSecurity` sowie aufgezählte JSON-Schlüssel — aus der Bestandsdatei in die Paketversion. Der Schutz greift erst ab dem ersten Update **nach** dieser Version; das Update auf diese Version selbst ersetzt die Dateien noch vollständig. Zusätzlich angelegte Dateien, die nicht im Paket enthalten sind, bleiben weiterhin erhalten — darunter die optionale `appsettings.Local.json` im Anwendungsverzeichnis, die für beliebige deployment-seitige Konfigurationswerte außerhalb der `JsonKeys`-Liste verwendet werden kann. Secrets sollten weiterhin bevorzugt als maschinenweite Umgebungsvariablen (`Jwt__*`) abgelegt werden.
+
+Randbedingungen des Schutzes: Unter Linux benötigt der Merge `python3` auf dem Zielsystem — fehlt es, wird der Merge mit einem Eintrag in `update.log` übersprungen und das Update läuft weiter (die Sicherungen bleiben unter `Updates/backup/`). Sicherungs- oder Merge-Fehler brechen die Installation grundsätzlich nicht ab. Deployment-seitig angepasste `appsettings*.json`-Dateien sollten kommentarfrei bleiben — JSON-Kommentare führen zu einem Lesefehler, und der Merge wird für die betroffene Datei übersprungen. Die `appsettings.Local.json` wird bei Änderungen ohne Neustart neu eingelesen, sollte ebenfalls kommentarfrei bleiben (der `appsettings*.json`-Wildcard-Eintrag erfasst auch sie) und wird bei jedem Update zusätzlich unter `Updates/backup/` gesichert. Wer die Schutzliste deployment-seitig erweitern will, nutzt Umgebungsvariablen (`AutoUpdate__ProtectedFiles__{n}__Path` usw.) — Änderungen an der Liste in `appsettings.json` selbst überstehen kein Update.
 
 ## Konfiguration
 
@@ -68,13 +70,13 @@ Läuft die Anwendung als IIS-Site, benötigt die Update-Installation die Skriptv
 - `AutoUpdate:AppPoolName` — Name des IIS-Anwendungspools,
 - `AutoUpdate:SiteName` — Name der IIS-Site (optional, ergänzt `AppPoolName`).
 
-Beide Schlüssel werden in einer `appsettings*.json`-Datei oder als Umgebungsvariablen (`AutoUpdate__AppPoolName`, `AutoUpdate__SiteName`) gesetzt — die Bibliothek bietet zusätzlich die Fluent-API `WithIisApplicationPool`, die der VideoWebPlayer nicht nutzt; in der Update-Oberfläche gibt es dafür kein Feld. Da `appsettings*.json`-Dateien bei einer Update-Installation ersetzt werden (siehe Hinweis zu deployment-seitigen Dateien oben), sind die Umgebungsvariablen die update-sichere Variante.
+Beide Schlüssel werden in einer `appsettings*.json`-Datei oder als Umgebungsvariablen (`AutoUpdate__AppPoolName`, `AutoUpdate__SiteName`) gesetzt — die Bibliothek bietet zusätzlich die Fluent-API `WithIisApplicationPool`, die der VideoWebPlayer nicht nutzt; in der Update-Oberfläche gibt es dafür kein Feld. Beide Schlüssel stehen in der `JsonKeys`-Schutzliste: In `appsettings*.json` gepflegte Werte überstehen Update-Installationen daher per `Merge` (ab dem Folge-Update, siehe Hinweis zu deployment-seitigen Dateien oben); Umgebungsvariablen bleiben die robusteste Variante.
 
 ### Backup vor Installation
 
 `Backup vor Installation` erzeugt vor der Installation ein Backup über dieselbe Backup-Infrastruktur wie die manuelle Backup-Seite.
 
-Das Update-Backup sichert nur die Anwendungsdaten — Konfigurationsdateien wie `web.config` oder `appsettings*.json` sind nicht enthalten. Es schützt daher nicht vor dem im Hinweis zu deployment-seitigen Dateien beschriebenen Ersetzen dieser Dateien.
+Das Update-Backup sichert nur die Anwendungsdaten — Konfigurationsdateien wie `web.config` oder `appsettings*.json` sind nicht enthalten. Der Schutz dieser Dateien läuft getrennt davon über die `AutoUpdate:ProtectedFiles`-Schutzliste im Installationsskript (siehe Hinweis zu deployment-seitigen Dateien oben; Dateisicherungen unter `Updates/backup/`).
 
 Die Generation dieser Sicherungen ist `ProgramUpdate`. Dadurch sind Update-Backups in der Backup-Historie von manuell erstellten und automatischen GVS-Backups unterscheidbar.
 

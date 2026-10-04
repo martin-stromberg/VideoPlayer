@@ -61,7 +61,7 @@ Ohne diese Bestätigung wird die Einstellung nicht aktiviert.
 
 ### Dienstname für Neustart
 
-`Dienstname für Neustart` enthält den Namen des Dienstes, der im Installations- oder Neustartablauf verwendet wird. Der Wert muss zur tatsächlichen Serverinstallation passen.
+`Dienstname für Neustart` enthält den Namen des Dienstes, der im Installations- oder Neustartablauf verwendet wird. Der Wert muss zur tatsächlichen Serverinstallation passen. Läuft die Anwendung unter IIS, ist das Feld gesperrt und ein eingetragener Wert wirkungslos — ein Dienstname gilt nur für Windows-Dienste oder systemd (siehe nächster Abschnitt).
 
 ### IIS-App-Pool (nur Konfigurationsdatei)
 

@@ -299,7 +299,8 @@ public sealed class UpdateSettingsServiceTests
     private static UpdateSettingsService CreateService(
         ApplicationDbContext db,
         AutoUpdateOptions options,
-        Dictionary<string, string?>? values = null)
+        Dictionary<string, string?>? values = null,
+        bool isIisHosted = false)
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(values ?? new Dictionary<string, string?>())
@@ -309,6 +310,7 @@ public sealed class UpdateSettingsServiceTests
             db,
             configuration,
             options,
-            new VideoWebPlayerUpdateSourceFactory(configuration));
+            new VideoWebPlayerUpdateSourceFactory(configuration),
+            Mock.Of<IUpdateHostEnvironment>(x => x.RunsUnderIis == isIisHosted));
     }
 }

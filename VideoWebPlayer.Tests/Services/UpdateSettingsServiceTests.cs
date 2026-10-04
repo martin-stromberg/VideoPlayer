@@ -263,6 +263,31 @@ public sealed class UpdateSettingsServiceTests
         Assert.Equal(8, backupOptions.RetainedBackupCount);
     }
 
+    [Fact]
+    public async Task ApplyToRuntimeOptions_LeavesProtectedFilesUnchanged()
+    {
+        await using var db = CreateDb();
+        var protectedFile = new AutoUpdateProtectedFile
+        {
+            Path = "web.config",
+            Strategy = AutoUpdateProtectedFileStrategy.Merge,
+            XmlElements = { "//aspNetCore/environmentVariables" },
+            XmlAttributes = { "//aspNetCore@requestTimeout" }
+        };
+        var options = new AutoUpdateOptions();
+        options.ProtectedFiles.Add(protectedFile);
+        var service = CreateService(db, options);
+
+        await service.ApplyToRuntimeOptionsAsync(TestContext.Current.CancellationToken);
+
+        var entry = Assert.Single(options.ProtectedFiles);
+        Assert.Same(protectedFile, entry);
+        Assert.Equal("web.config", entry.Path);
+        Assert.Equal(AutoUpdateProtectedFileStrategy.Merge, entry.Strategy);
+        Assert.Equal(new[] { "//aspNetCore/environmentVariables" }, entry.XmlElements);
+        Assert.Equal(new[] { "//aspNetCore@requestTimeout" }, entry.XmlAttributes);
+    }
+
     private static ApplicationDbContext CreateDb()
     {
         var dbOptions = new DbContextOptionsBuilder<ApplicationDbContext>()

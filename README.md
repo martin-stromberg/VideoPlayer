@@ -75,6 +75,8 @@ Produktive Secrets dürfen nicht im Repository abgelegt werden. Konfiguriere JWT
 
 Details stehen in [docs/SECRETS_MANAGEMENT.md](./docs/SECRETS_MANAGEMENT.md).
 
+Deployment-seitige Overrides — inklusive Secrets — können zusätzlich in der optionalen `appsettings.Local.json` im Anwendungsverzeichnis abgelegt werden: Die Datei wird nie ins Update-Paket aufgenommen, übersteht Programmupdates vollständig und überlagert die Werte der mitgelieferten `appsettings*.json` (nicht aber User Secrets, Umgebungsvariablen oder Kommandozeilenargumente). Zudem übernimmt das Update-Installationsskript konfigurierte Bereiche der `web.config` und aufgezählte deployment-eigene Schlüssel der `appsettings*.json` aus der Bestandsinstallation (`AutoUpdate:ProtectedFiles`). Details stehen in [docs/GUIDE_Installation.md](./docs/GUIDE_Installation.md).
+
 Für den Backup-Upload sind produktiv zwei Werte relevant: `Backups:MaxUploadSizeBytes` (Standard 5 GiB, auch in der Admin-Oberfläche änderbar) begrenzt die akzeptierte Dateigröße, und `Kestrel:Limits:MaxRequestBodySize` (in `appsettings.Production.json` auf `0` = unbegrenzt gesetzt) deaktiviert das serverseitige Request-Limit, damit große Uploads nicht blockiert werden. Unter IIS ist dafür das OutOfProcess-Hosting-Modell erforderlich (in der Projektdatei über `AspNetCoreHostingModel` festgelegt); Details stehen in [docs/help/backups.md](./docs/help/backups.md).
 
 Für das Geräte-Pairing sind optional `Pairing:CodeLength` (Standard 8 Zeichen) und `Pairing:CodeTtlMinutes` (Standard 5 Minuten) konfigurierbar; `Jwt:ApiToken:Maui` bleibt in Produktion als Fallback-Gate-Token Pflicht. Details stehen in [docs/GUIDE_Installation.md](./docs/GUIDE_Installation.md).

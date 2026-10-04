@@ -50,11 +50,15 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="msTools.Backup" Version="1.1.0-RC.4" />
-    <PackageReference Include="msTools.Updater" Version="0.10.4-rc.1" />
+    <PackageReference Include="msTools.Updater" Version="0.11.0-rc.1" />
     <ProjectReference Include="..\VideoWebPlayer.Client\VideoWebPlayer.Client.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <Content Update="appsettings.Local.json">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Never</CopyToPublishDirectory>
+    </Content>
     <Content Update="wwwroot\app.css">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>

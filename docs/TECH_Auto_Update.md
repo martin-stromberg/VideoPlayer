@@ -85,12 +85,30 @@ wendet sie beim Start über `app.MigrateDatabase()` an.
 | `Backup.Path` | Ablageort der Sicherungen (relativ zum Content-Root oder absoluter Pfad). |
 | `Backup.RetainedBackupCount` | Anzahl der aufbewahrten Sicherungen der Generation `ProgramUpdate` in der bestehenden Backup-Infrastruktur. |
 | `Backup.CancelInstallationOnFailure` | Bricht die Installation ab, wenn die Sicherung fehlschlägt oder kein Backup-Dienst registriert ist. |
-| `AppPoolName` | Name des IIS-Anwendungspools für die Update-Installation. Für IIS-Deployments zwingend — die automatische Erkennung findet nur Windows-Dienste, keine App-Pools. Alternativ per Fluent-API `WithIisApplicationPool(appPool, site)`. |
+| `AppPoolName` | Name des IIS-Anwendungspools — wählt die **privilegierte** IIS-Variante der Update-Installation (`WebAdministration`, erfordert erhöhte Rechte für die Pool-Identität). Nur setzen, wenn das bewusst gewollt ist; ohne `AppPoolName` läuft unter IIS automatisch der nicht privilegierte Pfad (siehe unten). Alternativ per Fluent-API `WithIisApplicationPool(appPool, site)`. |
 | `SiteName` | Name der IIS-Site (optional, ergänzt `AppPoolName`). |
 | `ProtectedFiles` | Schutzliste für deployment-seitig angepasste Dateien. Array von Einträgen mit `Path` (relativ zum Anwendungsverzeichnis, Wildcards `*`/`?` erlaubt), `Strategy` (`Preserve` = Bestandsdatei komplett zurückschreiben, `Merge` = nur konfigurierte Bereiche übernehmen) sowie den `Merge`-Regeln `XmlElements` (XPath-Pfade), `XmlAttributes` (`{element-xpath}@{attribut}`) und `JsonKeys` (`:`-getrennte Schlüsselpfade). Wird mit `Merge`-Einträgen für `web.config` und `appsettings*.json` ausgeliefert. Vorrang: Explizite Fluent-Einträge (`PreserveFile`/`MergeFile`/`ProtectFile`) ersetzen die gesamte gebundene Liste (all-or-nothing) — der VideoWebPlayer nutzt sie bewusst nicht. Deployment-seitige Ergänzungen der Liste sind über Umgebungsvariablen möglich (`AutoUpdate__ProtectedFiles__{n}__Path` usw.), da `appsettings.json`-Änderungen an der Liste selbst kein Update überstehen. |
 
 Zusätzlich unterstützt die Bibliothek u. a. `ServiceName`, `ExecutablePath`, `ScheduledInstallTime`,
-`StopHostAfterScriptStart` und `MaxAssetBytes` – siehe Updater-README.
+`StopHostAfterScriptStart` und `MaxAssetBytes` – siehe Updater-README. `ServiceName` und
+`ExecutablePath` werden unter IIS ignoriert (mit Warnung im Anwendungslog), weil sie dort
+wirkungslos bzw. schädlich sind; im VideoWebPlayer ist das Dienstname-Feld unter IIS ohnehin
+gesperrt und ein persistierter Wert wird bereinigt.
+
+**Update-Installation unter IIS:** Erkennt der Updater IIS-Hosting anhand der
+ANCM-Umgebungsvariablen (`ASPNETCORE_PORT`/`ASPNETCORE_TOKEN` für Out-of-Process,
+`ASPNETCORE_IIS_*` für In-Process), generiert er ein Skript, das ohne erhöhte Rechte auskommt:
+`app_offline.htm` legt die Site kontrolliert still (Requests erhalten den Offline-Content statt
+Verbindungsfehler), das Skript wartet auf das Ende des Backend-Prozesses bzw. terminiert bei
+In-Process den `w3wp` des eigenen Pools, tauscht die Dateien (inkl. `ProtectedFiles`-Ablauf) und
+entfernt `app_offline.htm` — ANCM/WAS startet die neue Version beim nächsten Request. Voraussetzung
+bei In-Process: ein dedizierter App-Pool je Anwendung, weil der `w3wp`-Abbruch alle Sites des Pools
+mitnimmt. `app_offline.htm` wird auch auf Fehlerpfaden entfernt. Das Installationsskript läuft
+unter Windows grundsätzlich als entkoppelter Prozess (WMI `Win32_Process.Create`), der den Stopp
+des Hosts überlebt; schlägt der entkoppelte Start fehl, meldet die Installation
+`InstallationFailed` statt still zu scheitern. Diagnose: Alle Windows-Skripte schreiben jeden
+Schritt nach `Updates/update.log`; nach einem Fehlschlag liegt zusätzlich eine Archivkopie des
+ausgeführten Skripts als `update-failed.ps1` vor.
 
 **Dateierhalt bei Updates:** Die Schutzliste `AutoUpdate:ProtectedFiles` steuert, welche deployment-seitig
 angepassten Dateien eine Update-Installation überstehen. Das generierte Installationsskript arbeitet strikt
@@ -178,5 +196,5 @@ Artefakte:
 - `update.json` – Release-Manifest-Asset, erzeugt von `.github/scripts/create-update-manifest.sh`, mit
   Plattform, Runtime-Identifier, Asset-URL, SHA256 und Größe der beiden Release-Archive.
 
-Der Updater unterstützt Windows (Dienst oder ausführbare Datei) und Linux (systemd); macOS ist nicht
-unterstützt.
+Der Updater unterstützt Windows (IIS in beiden Hosting-Modellen, Dienst oder ausführbare Datei) und
+Linux (systemd); macOS ist nicht unterstützt.

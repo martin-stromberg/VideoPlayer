@@ -61,11 +61,13 @@ Ohne diese Bestätigung wird die Einstellung nicht aktiviert.
 
 ### Dienstname für Neustart
 
-`Dienstname für Neustart` enthält den Namen des Dienstes, der im Installations- oder Neustartablauf verwendet wird. Der Wert muss zur tatsächlichen Serverinstallation passen.
+`Dienstname für Neustart` enthält den Namen des Dienstes, der im Installations- oder Neustartablauf verwendet wird. Der Wert muss zur tatsächlichen Serverinstallation passen. Läuft die Anwendung unter IIS, ist das Feld gesperrt und ein eingetragener Wert wirkungslos — ein Dienstname gilt nur für Windows-Dienste oder systemd (siehe nächster Abschnitt).
 
-### IIS-App-Pool (nur Konfigurationsdatei)
+### Update-Installation unter IIS
 
-Läuft die Anwendung als IIS-Site, benötigt die Update-Installation die Skriptvariante für App-Pools. Die automatische Erkennung findet nur Windows-Dienste, keine IIS-App-Pools — der App-Pool muss deshalb über die Konfigurationsdatei benannt werden:
+Läuft die Anwendung als IIS-Site, erkennt der Updater das Hosting-Modell selbstständig (Out-of-Process oder In-Process) und benötigt **keine** Konfiguration: Die Installation legt die Site per `app_offline.htm` kontrolliert still, tauscht die Dateien und überlässt den Neustart IIS — ein Dienstname ist dafür nicht nötig und das entsprechende Feld ist unter IIS gesperrt. Voraussetzung beim In-Process-Hosting: ein dedizierter Anwendungspool je Anwendung, weil das Update den Pool-Prozess (`w3wp`) beendet und damit alle Sites desselben Pools betroffen wären. Der Ablauf wird in `Updates/update.log` protokolliert; nach einem Fehlschlag liegt dort zusätzlich eine Kopie des ausgeführten Skripts (`update-failed.ps1`).
+
+Nur wenn der Anwendungspool bewusst mit IIS-Verwaltungsrechten läuft und die privilegierte Variante (`Stop-WebAppPool`/`Start-WebAppPool`) genutzt werden soll, werden zwei Schlüssel in der Konfigurationsdatei gesetzt:
 
 - `AutoUpdate:AppPoolName` — Name des IIS-Anwendungspools,
 - `AutoUpdate:SiteName` — Name der IIS-Site (optional, ergänzt `AppPoolName`).
@@ -103,13 +105,13 @@ Die Generation dieser Sicherungen ist `ProgramUpdate`. Dadurch sind Update-Backu
 1. `Automatische Prüfung` aktivieren.
 2. Ein sinnvolles Prüfintervall setzen.
 3. Optional `Automatische Installation` aktivieren.
-4. Dienstname für den Neustart prüfen.
+4. Dienstname für den Neustart prüfen (nicht möglich unter IIS — siehe Abschnitt „Update-Installation unter IIS").
 5. Backup vor Installation aktiviert lassen.
 6. `Konfiguration speichern`.
 
 ## Fehler und Sperren
 
-Wenn eine Update-Aktion fehlschlägt, zeigt die Seite die Fehlermeldung im Statusbereich an. Häufige Ursachen sind fehlende Netzwerkverbindung zum Release-Repository, ein ungültiges Update-Paket, fehlende Schreibrechte im Update- oder Backup-Verzeichnis oder ein fehlgeschlagenes Backup.
+Wenn eine Update-Aktion fehlschlägt, zeigt die Seite die Fehlermeldung im Statusbereich an. Häufige Ursachen sind fehlende Netzwerkverbindung zum Release-Repository, ein ungültiges Update-Paket, fehlende Schreibrechte im Update- oder Backup-Verzeichnis oder ein fehlgeschlagenes Backup. Details der Installation protokolliert das Installationsskript in `Updates/update.log` im Anwendungsverzeichnis; liegt ein `update-failed.ps1` daneben, ist das die Kopie des zuletzt fehlgeschlagenen Skripts.
 
 Eine aktive Update-Sperre verhindert parallele Prüf-, Download- oder Installationsaktionen. In diesem Zustand sollten Administratoren warten, bis die laufende Aktion beendet ist, und den Status anschließend erneut laden.
 

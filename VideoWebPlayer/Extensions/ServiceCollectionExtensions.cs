@@ -267,6 +267,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<RestoreBackupJobService>();
         services.AddSingleton<BackupUploadSessionService>();
         services.AddSingleton<VideoWebPlayerUpdateSourceFactory>();
+        services.AddSingleton<IUpdateHostEnvironment, UpdateHostEnvironment>();
         services.AddScoped<UpdateSettingsService>();
         services.AddScoped<IUpdateSettingsService>(sp => sp.GetRequiredService<UpdateSettingsService>());
         services.AddScoped<UpdateAdminService>();

@@ -12,7 +12,7 @@ Die Startseite der Einrichtung zeigt Kacheln für die wichtigsten Verwaltungsauf
 - `Sicherheit` für blockierte IP-Adressen
 - `Geräte` für Pairing-Codes und gekoppelte Geräte
 - `Genres` für Genre-Metadaten, Synonyme und Icons
-- `Allgemein` für Anwendungstitel und Scan-Intervalle
+- `Allgemein` für Anwendungstitel, Scan-Intervalle und Netzwerk-Erkennung
 - `Anwender` für die Registrierung neuer Benutzer
 
 Nur Administratoren können den Einrichtungsbereich öffnen.
@@ -20,6 +20,14 @@ Nur Administratoren können den Einrichtungsbereich öffnen.
 ## Allgemein
 
 Unter `Allgemein` werden globale Anzeige- und Scan-Einstellungen gepflegt. Der Anwendungstitel steuert die Bezeichnung in der Navigation und auf der Startseite. Die Scan-Intervalle bestimmen, wie oft die Anwendung nach Prozess- und Medienänderungen sucht.
+
+## Netzwerk-Erkennung (mDNS)
+
+Damit Apps den Server im lokalen Netzwerk automatisch finden, kündigt er sich per mDNS an — sichtbar unter dem Diensttyp `_videowebplayer._tcp.local.`. Der Schalter `Server per mDNS im Netzwerk ankündigen` auf der Seite `Allgemein` steuert diese Ankündigung; Änderungen werden spätestens nach ca. 60 Sekunden wirksam, ein Neustart ist nicht nötig.
+
+Der Schalter wirkt nur zusammen mit der Serverkonfiguration `Mdns:Enabled`: Hat der Betreiber die Ankündigung dort deaktiviert, bleibt sie aus, auch wenn der Schalter eingeschaltet ist — umgekehrt kann ein Administrator eine abgeschaltete Serverkonfiguration nicht überstimmen.
+
+Bleibt die Erkennung in einem Netzwerk aus (z. B. weil Multicast nicht erlaubt ist), finden Apps den Server weiterhin über die Broadcast-Erkennung auf Port 5001.
 
 ## Quellen
 

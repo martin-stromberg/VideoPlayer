@@ -277,6 +277,10 @@ public static class ServiceCollectionExtensions
         services.AddOptions<EpisodeBackgroundImageOptions>()
             .Bind(configuration.GetSection("EpisodeBackgroundImage"))
             .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<MdnsOptions>, MdnsOptionsValidator>();
+        services.AddOptions<MdnsOptions>()
+            .Bind(configuration.GetSection("Mdns"))
+            .ValidateOnStart();
         services.AddScoped<EpisodeBackgroundImageGenerator>();
         services.AddScoped<EpisodeBackgroundImageService>();
         services.AddScoped<HomeBackgroundImageGenerator>();
@@ -290,6 +294,11 @@ public static class ServiceCollectionExtensions
         services.AddHostedService<ContinueWatchingWorker>();
         services.AddHostedService<ActorBackfillWorker>();
         services.AddHostedService<PlaylistBackfillWorker>();
+        if (!env.IsEnvironment("Testing"))
+        {
+            // Kein fester UDP-Port 5353 in Tests (WebApplicationFactory/E2E belegen dynamische Ports).
+            services.AddHostedService<MdnsAdvertiserWorker>();
+        }
         services.AddScoped<IDemoDataSetService, FileSystemDemoDataSetService>();
 
         services.AddScoped<MediaSourceDetailsViewModel>();

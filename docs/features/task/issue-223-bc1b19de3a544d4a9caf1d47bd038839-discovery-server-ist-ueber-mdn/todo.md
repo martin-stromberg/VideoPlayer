@@ -23,6 +23,6 @@ Branch: `task/issue-223-bc1b19de3a544d4a9caf1d47bd038839-discovery-server-ist-ue
 | [x] | 12 | Dokumentation erstellen (Unteragent) | `docs/help/` |
 | [x] | 12b | README aktualisieren (Unteragent) | `README.md` |
 | [x] | 12c | Release Notes aktualisieren (Unteragent) | `docs/RELEASE_NOTES.md` |
-| [ ] | 13 | Nacharbeiten abschließen (offene Punkte aus `continue.md`) | `continue-done.md` |
-| [ ] | – | Feature-Verzeichnis löschen | – |
-| [ ] | – | Commit durchführen | – |
+| [x] | 13 | Nacharbeiten abschließen (offene Punkte aus `continue.md`) | `continue-done.md` |
+| [x] | – | Feature-Verzeichnis löschen | – |
+| [x] | – | Commit durchführen | – |

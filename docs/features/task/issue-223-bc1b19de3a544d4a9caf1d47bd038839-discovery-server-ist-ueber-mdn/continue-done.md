@@ -14,7 +14,11 @@ Laufs) und eine manuelle Verifikation, die nicht automatisierbar ist.
 
 - [x] Task 23: `docs/INSTALL_AVAHI.md` aktualisieren (In-App-Advertisement als Standardweg, Avahi als Alternative, Doppel-Advertisement-Hinweis) — erledigt in Lifecycle-Schritt 12
 - [x] Task 24: `docs/GUIDE_Installation.md`, `docs/help/einrichtung.md`, `docs/API.md`, `README.md`, `docs/INDEX.md`, `docs/RELEASE_NOTES.md` aktualisieren inkl. Hinweis auf MAUI-App-Umstellung — erledigt in Lifecycle-Schritten 12/12b/12c
-- [ ] Task 26: Manuelle mDNS-Verifikation per `avahi-browse`/`dns-sd` (Instanzname, Port, TXT-Records; Verschwinden nach Admin-Ausschalten ≤ ~60 s; Shutdown-Goodbye) — manuelle Abnahme, nicht automatisierbar
+- [x] Task 26: mDNS-Verifikation — am 2026-10-04 automatisiert nachgeholt (statt `avahi-browse`/`dns-sd`: eigener Browse-Client auf Basis `Makaretu.Dns.Multicast.New` 0.38.0, Server als Debug-Build unter `ASPNETCORE_ENVIRONMENT=Development`, `ASPNETCORE_URLS=http://127.0.0.1:5099`):
+  - Instanz `VideoWebPlayer._videowebplayer._tcp.local` wurde per PTR/SRV/TXT/A/AAAA announced; SRV-Port 5099 entspricht der gebundenen Kestrel-Adresse; TXT: `txtvers=1; path=/; app=VideoWebPlayer`. Server-Log: `Server per mDNS angekündigt: Instanz 'VideoWebPlayer', Diensttyp '_videowebplayer._tcp.local.', Port 5099`.
+  - Admin-Schalter aus (`Setups.MdnsAdvertisementEnabled=0` per SQLite-Update): nächster 60-s-Tick sandte Goodbye (alle Records TTL=0, `INSTANCE SHUTDOWN`), Dienst beantwortete danach keine Queries mehr — wirksam ≤60 s. Server-Log: `mDNS-Advertisement beendet (Goodbye-Pakete gesendet)`.
+  - Admin-Schalter wieder an: Re-Announcement nach ~44 s.
+  - Shutdown (CTRL_BREAK): `Application is shutting down` + `mDNS-Advertisement beendet (Goodbye-Pakete gesendet)`; Browse-Client empfing TTL=0-Goodbye.
 
 ## Code-Review-Befunde
 

@@ -29,6 +29,16 @@ Der Schalter wirkt nur zusammen mit der Serverkonfiguration `Mdns:Enabled`: Hat 
 
 Bleibt die Erkennung in einem Netzwerk aus (z. B. weil Multicast nicht erlaubt ist), finden Apps den Server weiterhin über die Broadcast-Erkennung auf Port 5001.
 
+## Öffentliche Basis-URL
+
+Das Feld `Öffentliche Basis-URL` auf der Seite `Allgemein` legt fest, welche Adresse der Server bei der Broadcast-Erkennung (UDP-Port 5001) an Apps meldet — vollständig mit Schema, Host, Port und Pfad, z. B. `https://videos.example.com/videoplayer/`. Es muss eine absolute `http`-/`https`-Adresse sein; die Eingabe wird beim Speichern geprüft.
+
+Der Admin-Wert hat Vorrang vor der Serverkonfiguration `Discovery:PublicBaseUrl`. Bleiben beide leer, leitet der Server die Adresse automatisch aus seiner LAN-Adresse und dem konfigurierten Port ab — unter IIS, hinter einem Reverse-Proxy oder bei TLS-Abschluss außerhalb des Servers ist eine explizite Adresse erforderlich, weil die Ableitung nur das interne Backend sieht. Änderungen wirken bei der nächsten Discovery-Anfrage sofort, ein Neustart ist nicht nötig.
+
+Der Wert gehört zu den Programmeinstellungen und wird wie diese in Backups mitgesichert: Bei einer Wiederherstellung auf einem anderen Host kann eine an den alten Server gebundene Adresse mit übernommen werden — dann hier anpassen oder leeren, damit die automatische Ableitung greift.
+
+Details stehen in der Hilfe zur [Netzwerk-Erkennung](netzwerk-erkennung/index.md).
+
 ## Quellen
 
 Unter `Quellen` werden die Medienquellen der Anwendung verwaltet. Beim Anlegen über `Neu` wählt der Administrator im Feld `Quelltyp` zwischen `SFTP-Server` (entfernte Quelle mit Host, Port, Pfad und Zugangsdaten) und `Lokales Verzeichnis` (Verzeichnis auf dem Server, auch UNC-Pfad). Die Übersicht zeigt in der Spalte `Typ` die Kennzeichnung `SFTP` oder `Lokal`. Details stehen in der Hilfe zu den [Medienquellen](medienquellen/index.md).

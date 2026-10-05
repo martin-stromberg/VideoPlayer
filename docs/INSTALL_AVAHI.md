@@ -88,8 +88,10 @@ Du solltest den Dienst sehen, z. B.:
 - Der Service ist jetzt per mDNS im lokalen Netzwerk sichtbar und kann von Clients gefunden werden.
 - Firewall: UDP-Port 5353 muss für mDNS offen sein (eingehend und ausgehend, Multicast 224.0.0.251; meist Standard).
 - Als Fallback-Erkennung bleibt zusätzlich der UDP-Broadcast-Listener des Servers auf Port 5001
-  aktiv (`VIDEOWEBPLAYER_DISCOVERY` → `VIDEOWEBPLAYER_SERVER:<adresse>`) — unabhängig davon, welcher
-  mDNS-Weg gewählt wird.
+  aktiv (`VIDEOWEBPLAYER_DISCOVERY` → `VIDEOWEBPLAYER_SERVER:<basis-url>`) — unabhängig davon, welcher
+  mDNS-Weg gewählt wird. Die gemeldete Basis-URL stammt aus dem Admin-Feld „Öffentliche Basis-URL",
+  der Konfiguration `Discovery:PublicBaseUrl` oder wird automatisch abgeleitet (Details siehe
+  `docs/API.md` und `docs/GUIDE_Installation.md`).
 - Für eigene Service-Typen einfach `<type>` anpassen und Client entsprechend konfigurieren.
 
 ---

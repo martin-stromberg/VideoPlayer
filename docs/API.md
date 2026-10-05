@@ -1044,7 +1044,15 @@ Clients finden den Server im lokalen Netzwerk über zwei unabhängige Mechanisme
 
 Das Advertisement ist nur aktiv, wenn sowohl `Mdns:Enabled` (Betreiberkonfiguration, Standard `true`) als auch der Admin-Schalter „Server per mDNS im Netzwerk ankündigen" (`/admin/program-settings`, Standard `true`) gesetzt sind. Der Admin-Schalter wird zur Laufzeit in einem 60-Sekunden-Intervall neu ausgewertet: Beim Deaktivieren verschwindet der Dienst per Goodbye-Paketen zeitnah aus der Dienstsuche, beim Aktivieren wird er neu angekündigt. Beim Shutdown des Servers wird ebenfalls deregistriert. Unter IIS `OutOfProcess` muss `Mdns:Port` auf den Site-Port gesetzt werden, weil die gebundene Adresse dort den internen Backend-Port trägt.
 
-**UDP-Broadcast (Port 5001, Fallback):** Ein Client sendet die Textnachricht `VIDEOWEBPLAYER_DISCOVERY` als Broadcast an Port 5001; der Server antwortet dem Absender mit `VIDEOWEBPLAYER_SERVER:<adresse>`. Dieser Kanal ist unverändert aktiv und unabhängig von den mDNS-Schaltern.
+**UDP-Broadcast (Port 5001, Fallback):** Ein Client sendet die Textnachricht `VIDEOWEBPLAYER_DISCOVERY` als Broadcast an Port 5001; der Server antwortet dem Absender mit `VIDEOWEBPLAYER_SERVER:<basis-url>`. Dieser Kanal ist unverändert aktiv und unabhängig von den mDNS-Schaltern.
+
+Die gemeldete `<basis-url>` ist die aus Clientsicht erreichbare öffentliche Basis-URL **vollständig inklusive Schema, Host, Port und Pfadanteil** (z. B. `https://videos.example.com/videoplayer/`). Sie wird pro Anfrage in dieser Vorrangreihenfolge aufgelöst:
+
+1. der Admin-Wert „Öffentliche Basis-URL" unter `Einrichtung` → `Allgemein` (`/admin/program-settings`, persistiert als `Setups.DiscoveryPublicBaseUrl`, wirkt sofort ohne Neustart);
+2. die Betreiberkonfiguration `Discovery:PublicBaseUrl` (absolute `http`-/`https`-URL, bei ungültigem Wert schlägt der Start fehl);
+3. die automatische Ableitung: Schema und Port aus den tatsächlich gebundenen Serveradressen → `Kestrel:Endpoints:Http:Url` → `Kestrel:Endpoints:Https:Url` → `Host:Port` → `5000`; der Host aus `Host:Address` (sofern kein Loopback/Wildcard) → einer literalen gebundenen Adresse bzw. Kestrel-URL → der primären LAN-IPv4 des Hosts → `Dns.GetHostName()`. Loopback- (`localhost`, `127.*`, `::1`), Any- (`0.0.0.0`, `[::]`) und Wildcard-Adressen (`*`, `+`) werden nie gemeldet, und die Ableitung wählt keine IPv6-Adresse.
+
+Unter IIS `OutOfProcess`, hinter einem Reverse-Proxy oder bei TLS-Terminierung sieht die Ableitung nur das interne Backend — für diese Deployments ist eine explizite URL (Admin-Wert oder `Discovery:PublicBaseUrl`) Pflichtkonfiguration, analog zum `Mdns:Port`-Hinweis oben.
 
 **Client-Hinweis:** Die MAUI-App `VideoPlayer.Maui` wird auf den dedizierten Diensttyp `_videowebplayer._tcp.local.` umgestellt; die Umsetzung erfolgt im App-Repository. Der Server announced parallel dazu **nicht** unter `_http._tcp.local.`.
 

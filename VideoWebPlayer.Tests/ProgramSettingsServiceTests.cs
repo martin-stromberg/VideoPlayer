@@ -28,15 +28,91 @@ public sealed class ProgramSettingsServiceTests
         using var fixture = await PairingTestDb.CreateAsync("program-settings-mdns-general", ct);
         var service = new ProgramSettingsService(fixture.Db, NullLogger<ProgramSettingsService>.Instance);
 
-        await service.UpdateGeneralSettingsAsync("Titel", 60, 7, 30, mdnsAdvertisementEnabled: false, ct);
+        await service.UpdateGeneralSettingsAsync(
+            new GeneralSettingsUpdate("Titel", 60, 7, 30, MdnsAdvertisementEnabled: false, DiscoveryPublicBaseUrl: null), ct);
 
         var setup = await fixture.Db.Setups.AsNoTracking().SingleAsync(ct);
         Assert.False(setup.MdnsAdvertisementEnabled);
         Assert.Equal("Titel", setup.ApplicationTitle);
         Assert.False(await service.GetMdnsAdvertisementEnabledAsync(ct));
 
-        await service.UpdateGeneralSettingsAsync("Titel", 60, 7, 30, mdnsAdvertisementEnabled: true, ct);
+        await service.UpdateGeneralSettingsAsync(
+            new GeneralSettingsUpdate("Titel", 60, 7, 30, MdnsAdvertisementEnabled: true, DiscoveryPublicBaseUrl: null), ct);
         Assert.True((await fixture.Db.Setups.AsNoTracking().SingleAsync(ct)).MdnsAdvertisementEnabled);
+    }
+
+    [Fact]
+    public async Task GetDiscoveryPublicBaseUrlAsync_DefaultsToNull()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await PairingTestDb.CreateAsync("program-settings-discovery-default", ct);
+        var service = new ProgramSettingsService(fixture.Db, NullLogger<ProgramSettingsService>.Instance);
+
+        Assert.Null(await service.GetDiscoveryPublicBaseUrlAsync(ct));
+    }
+
+    [Fact]
+    public async Task UpdateGeneralSettingsAsync_PersistsNormalizedDiscoveryPublicBaseUrl()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await PairingTestDb.CreateAsync("program-settings-discovery-general", ct);
+        var service = new ProgramSettingsService(fixture.Db, NullLogger<ProgramSettingsService>.Instance);
+
+        await service.UpdateGeneralSettingsAsync(
+            new GeneralSettingsUpdate(
+                "Titel", 60, 7, 30, MdnsAdvertisementEnabled: true,
+                DiscoveryPublicBaseUrl: "  https://videos.example.com/videoplayer/  "), ct);
+
+        var setup = await fixture.Db.Setups.AsNoTracking().SingleAsync(ct);
+        Assert.Equal("https://videos.example.com/videoplayer/", setup.DiscoveryPublicBaseUrl);
+        Assert.Equal("Titel", setup.ApplicationTitle);
+        Assert.True(setup.MdnsAdvertisementEnabled);
+        Assert.Equal("https://videos.example.com/videoplayer/", await service.GetDiscoveryPublicBaseUrlAsync(ct));
+    }
+
+    [Fact]
+    public async Task UpdateGeneralSettingsAsync_ClearsDiscoveryPublicBaseUrlOnEmptyInput()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await PairingTestDb.CreateAsync("program-settings-discovery-clear", ct);
+        var service = new ProgramSettingsService(fixture.Db, NullLogger<ProgramSettingsService>.Instance);
+
+        await service.UpdateGeneralSettingsAsync(
+            new GeneralSettingsUpdate(
+                "Titel", 60, 7, 30, MdnsAdvertisementEnabled: true,
+                DiscoveryPublicBaseUrl: "https://videos.example.com/videoplayer/"), ct);
+
+        // Leeren Wert speichern löscht den Admin-Override.
+        await service.UpdateGeneralSettingsAsync(
+            new GeneralSettingsUpdate("Titel", 60, 7, 30, MdnsAdvertisementEnabled: true, DiscoveryPublicBaseUrl: " "), ct);
+
+        Assert.Null((await fixture.Db.Setups.AsNoTracking().SingleAsync(ct)).DiscoveryPublicBaseUrl);
+        Assert.Null(await service.GetDiscoveryPublicBaseUrlAsync(ct));
+    }
+
+    [Theory]
+    [InlineData("notaurl")]
+    [InlineData("/relativ")]
+    [InlineData("ftp://x")]
+    public async Task UpdateGeneralSettingsAsync_RejectsInvalidDiscoveryPublicBaseUrl(string invalidUrl)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await PairingTestDb.CreateAsync("program-settings-discovery-invalid", ct);
+        var service = new ProgramSettingsService(fixture.Db, NullLogger<ProgramSettingsService>.Instance);
+
+        await service.UpdateGeneralSettingsAsync(
+            new GeneralSettingsUpdate(
+                "Titel", 60, 7, 30, MdnsAdvertisementEnabled: true,
+                DiscoveryPublicBaseUrl: "https://videos.example.com/"), ct);
+
+        await Assert.ThrowsAsync<DiscoveryUrlValidationException>(() => service.UpdateGeneralSettingsAsync(
+            new GeneralSettingsUpdate(
+                "Titel", 60, 7, 30, MdnsAdvertisementEnabled: true,
+                DiscoveryPublicBaseUrl: invalidUrl), ct));
+
+        // Atomar: die ungültige Eingabe schreibt nichts, der bisherige Wert bleibt bestehen.
+        var setup = await fixture.Db.Setups.AsNoTracking().SingleAsync(ct);
+        Assert.Equal("https://videos.example.com/", setup.DiscoveryPublicBaseUrl);
     }
 
     [Fact]

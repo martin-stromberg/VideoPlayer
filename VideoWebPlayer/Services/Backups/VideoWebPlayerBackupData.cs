@@ -71,7 +71,8 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         $"{nameof(ApplicationDbContext.MediaSources)}.{nameof(MediaSource.SourceType)}",
         $"{nameof(ApplicationDbContext.PairingCodes)}.{nameof(PairingCode.Kind)}",
         $"{nameof(ApplicationDbContext.PairingCodes)}.{nameof(PairingCode.TicketHash)}",
-        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.MdnsAdvertisementEnabled)}"
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.MdnsAdvertisementEnabled)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.DiscoveryPublicBaseUrl)}"
     };
 
     private static readonly HashSet<string> IgnoredRestoreColumns = new(StringComparer.OrdinalIgnoreCase)

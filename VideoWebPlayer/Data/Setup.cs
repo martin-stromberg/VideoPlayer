@@ -53,6 +53,15 @@ public class Setup
     public bool MdnsAdvertisementEnabled { get; set; } = true;
 
     /// <summary>
+    /// Gets or sets the admin-maintained public base URL the server reports in
+    /// <c>VIDEOWEBPLAYER_SERVER</c> discovery answers (complete with scheme, host, port and
+    /// path). <c>null</c> means no admin override: the answer then falls back to the
+    /// operator configuration <c>Discovery:PublicBaseUrl</c> or the runtime derivation.
+    /// The value is read per discovery request, so changes apply without a restart.
+    /// </summary>
+    public string? DiscoveryPublicBaseUrl { get; set; }
+
+    /// <summary>
     /// Gets or sets the time (UTC) the last daily playlist-backfill safety sweep completed
     /// (<see cref="VideoWebPlayer.Services.PlaylistBackfillCoordinator"/>). Persisted so the sweep runs at most once
     /// per interval even across frequent restarts, and is caught up after a start if overdue.

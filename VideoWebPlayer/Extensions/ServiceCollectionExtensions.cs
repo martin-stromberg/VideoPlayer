@@ -281,6 +281,11 @@ public static class ServiceCollectionExtensions
         services.AddOptions<MdnsOptions>()
             .Bind(configuration.GetSection("Mdns"))
             .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<DiscoveryOptions>, DiscoveryOptionsValidator>();
+        services.AddOptions<DiscoveryOptions>()
+            .Bind(configuration.GetSection("Discovery"))
+            .ValidateOnStart();
+        services.AddSingleton<DiscoveryBaseUrlResolver>();
         services.AddScoped<EpisodeBackgroundImageGenerator>();
         services.AddScoped<EpisodeBackgroundImageService>();
         services.AddScoped<HomeBackgroundImageGenerator>();

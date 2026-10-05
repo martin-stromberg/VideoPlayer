@@ -46,6 +46,13 @@ public class Setup
     public int ActorCollectionThresholdPercent { get; set; } = 50;
 
     /// <summary>
+    /// Gets or sets a value indicating whether the server announces itself via mDNS/DNS-SD
+    /// in the local network (admin switch). Effective only together with the operator
+    /// configuration <c>Mdns:Enabled</c> (conjunction). Default: <see langword="true"/>.
+    /// </summary>
+    public bool MdnsAdvertisementEnabled { get; set; } = true;
+
+    /// <summary>
     /// Gets or sets the time (UTC) the last daily playlist-backfill safety sweep completed
     /// (<see cref="VideoWebPlayer.Services.PlaylistBackfillCoordinator"/>). Persisted so the sweep runs at most once
     /// per interval even across frequent restarts, and is caught up after a start if overdue.

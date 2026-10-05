@@ -43,6 +43,7 @@ VideoWebPlayer ist eine selbst gehostete ASP.NET-Core-/Blazor-Anwendung für die
 - Backups, strukturierte Programmupdates, Benutzer, Genres und Sicherheitseinstellungen verwalten.
 - Backup-Dateien chunked hochladen — auch sehr große Archive über 6 GB — mit Fortschrittsanzeige und Wiederaufnahme nach Unterbrechungen.
 - Client-Apps per Einmal-Pairing-Code koppeln — jedes Gerät erhält ein individuelles, widerrufbares Geräte-Token statt eines geteilten statischen API-Keys.
+- Automatische Server-Erkennung im lokalen Netzwerk per mDNS (Diensttyp `_videowebplayer._tcp.local.`) — Apps finden den Server ohne Adresseingabe; schaltbar über den Admin-Schalter „Netzwerk-Erkennung (mDNS)" und die Konfiguration `Mdns:*`, mit UDP-Broadcast (Port 5001) als Fallback.
 - QR-Bootstrap aus der Profilseite: Angemeldete Benutzer erzeugen unter `Profil` > `Geräte` ein Einmal-Ticket mit QR-Code und Kurzcode; die App scannt den Code und erhält Geräte-Token, Benutzersitzung und Refresh-Token — ohne Passworteingabe auf dem Gerät.
 
 ## Schnellstart
@@ -80,6 +81,8 @@ Deployment-seitige Overrides — inklusive Secrets — können zusätzlich in de
 Für den Backup-Upload sind produktiv zwei Werte relevant: `Backups:MaxUploadSizeBytes` (Standard 5 GiB, auch in der Admin-Oberfläche änderbar) begrenzt die akzeptierte Dateigröße, und `Kestrel:Limits:MaxRequestBodySize` (in `appsettings.Production.json` auf `0` = unbegrenzt gesetzt) deaktiviert das serverseitige Request-Limit, damit große Uploads nicht blockiert werden. Unter IIS ist dafür das OutOfProcess-Hosting-Modell erforderlich (in der Projektdatei über `AspNetCoreHostingModel` festgelegt); Details stehen in [docs/help/backups.md](./docs/help/backups.md).
 
 Für das Geräte-Pairing sind optional `Pairing:CodeLength` (Standard 8 Zeichen) und `Pairing:CodeTtlMinutes` (Standard 5 Minuten) konfigurierbar; `Jwt:ApiToken:Maui` bleibt in Produktion als Fallback-Gate-Token Pflicht. Details stehen in [docs/GUIDE_Installation.md](./docs/GUIDE_Installation.md).
+
+Die mDNS-Netzwerk-Erkennung ist standardmäßig aktiv und optional über `Mdns:Enabled`, `Mdns:InstanceName`, `Mdns:ServiceType` und `Mdns:Port` konfigurierbar (unter IIS `OutOfProcess` ist `Mdns:Port` auf den Site-Port zu setzen); Voraussetzung ist eine offene Firewall für UDP 5353. Details stehen in [docs/GUIDE_Installation.md](./docs/GUIDE_Installation.md).
 
 ## Dokumentation
 

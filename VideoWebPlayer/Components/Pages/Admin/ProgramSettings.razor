@@ -82,6 +82,15 @@ else
                 </div>
             </div>
 
+            <div class="admin-card admin-card-wide">
+                <h2>Netzwerk-Erkennung (mDNS)</h2>
+                <div class="form-check">
+                    <InputCheckbox class="form-check-input" id="mdnsAdvertisementEnabled" @bind-Value="model.MdnsAdvertisementEnabled" />
+                    <label class="form-check-label" for="mdnsAdvertisementEnabled">Server per mDNS im Netzwerk ankündigen</label>
+                </div>
+                <div class="form-text">Der Server kündigt sich als Diensttyp <code>_videowebplayer._tcp.local.</code> per mDNS (UDP-Port 5353) an, damit Apps ihn automatisch finden. Wirkt nur zusammen mit der Serverkonfiguration <code>Mdns:Enabled</code> — ist diese deaktiviert, bleibt das Advertisement aus. Änderungen werden spätestens nach ca. 60 Sekunden wirksam, ein Neustart ist nicht nötig.</div>
+            </div>
+
             <div class="admin-actions">
                 <button type="submit" class="btn btn-primary" disabled="@isSaving">Speichern</button>
             </div>
@@ -111,6 +120,7 @@ else
             ScanProcessIntervalMinutes = setup.ScanProcessIntervalMinutes,
             MediaCollectionScanIntervalDays = setup.MediaCollectionScanIntervalDays,
             ContinueWatchingEndThresholdSeconds = setup.ContinueWatchingEndThresholdSeconds,
+            MdnsAdvertisementEnabled = setup.MdnsAdvertisementEnabled,
         };
     }
 
@@ -127,7 +137,8 @@ else
                 model.ApplicationTitle,
                 model.ScanProcessIntervalMinutes,
                 model.MediaCollectionScanIntervalDays,
-                model.ContinueWatchingEndThresholdSeconds);
+                model.ContinueWatchingEndThresholdSeconds,
+                model.MdnsAdvertisementEnabled);
             statusMessage = "Gespeichert.";
         }
         finally
@@ -150,5 +161,7 @@ else
 
         [Range(0, 3600)]
         public int ContinueWatchingEndThresholdSeconds { get; set; } = 30;
+
+        public bool MdnsAdvertisementEnabled { get; set; } = true;
     }
 }

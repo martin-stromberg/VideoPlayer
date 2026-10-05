@@ -3,7 +3,7 @@
 > **Dokumenttyp**: Technische Dokumentation  
 > **Zielgruppe**: Backend-Entwickler, API-Integratoren  
 > **Version**: 1.0  
-> **Letzte Aktualisierung**: 2026-09-27
+> **Letzte Aktualisierung**: 2026-10-04
 
 Diese Datei beschreibt den versionierten API-Vertrag des Web-Repositorys. Die DTOs liegen unter `VideoWebPlayer.Client/`.
 
@@ -1028,6 +1028,25 @@ SignalR-Hub für Medien-Updates. Clients verbinden sich mit:
 ```
 
 Der Hub ist kein REST-Endpunkt.
+
+## Server-Erkennung (Discovery)
+
+Clients finden den Server im lokalen Netzwerk über zwei unabhängige Mechanismen, beide ohne Authentifizierung — sie sind reine Netzwerk-Präsenz, keine API-Endpunkte.
+
+**mDNS/DNS-SD (UDP-Port 5353):** Der Server kündigt sich selbst als Dienst an.
+
+| Merkmal | Wert |
+|---------|------|
+| Diensttyp | `_videowebplayer._tcp.local.` (konfigurierbar über `Mdns:ServiceType`) |
+| Instanzname | `VideoWebPlayer` (konfigurierbar über `Mdns:InstanceName`) |
+| TXT-Records | `path=/`, `app=VideoWebPlayer` (fest im Code) |
+| Port | Ableitungskette: `Mdns:Port` → gebundene Serveradresse → `Kestrel:Endpoints:Http:Url` → `Host:Port` → `5000` |
+
+Das Advertisement ist nur aktiv, wenn sowohl `Mdns:Enabled` (Betreiberkonfiguration, Standard `true`) als auch der Admin-Schalter „Server per mDNS im Netzwerk ankündigen" (`/admin/program-settings`, Standard `true`) gesetzt sind. Der Admin-Schalter wird zur Laufzeit in einem 60-Sekunden-Intervall neu ausgewertet: Beim Deaktivieren verschwindet der Dienst per Goodbye-Paketen zeitnah aus der Dienstsuche, beim Aktivieren wird er neu angekündigt. Beim Shutdown des Servers wird ebenfalls deregistriert. Unter IIS `OutOfProcess` muss `Mdns:Port` auf den Site-Port gesetzt werden, weil die gebundene Adresse dort den internen Backend-Port trägt.
+
+**UDP-Broadcast (Port 5001, Fallback):** Ein Client sendet die Textnachricht `VIDEOWEBPLAYER_DISCOVERY` als Broadcast an Port 5001; der Server antwortet dem Absender mit `VIDEOWEBPLAYER_SERVER:<adresse>`. Dieser Kanal ist unverändert aktiv und unabhängig von den mDNS-Schaltern.
+
+**Client-Hinweis:** Die MAUI-App `VideoPlayer.Maui` wird auf den dedizierten Diensttyp `_videowebplayer._tcp.local.` umgestellt; die Umsetzung erfolgt im App-Repository. Der Server announced parallel dazu **nicht** unter `_http._tcp.local.`.
 
 ## Admininterne Endpunkte
 

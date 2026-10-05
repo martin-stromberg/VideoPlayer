@@ -70,7 +70,8 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.PlaylistBackfillLastSweepAt)}",
         $"{nameof(ApplicationDbContext.MediaSources)}.{nameof(MediaSource.SourceType)}",
         $"{nameof(ApplicationDbContext.PairingCodes)}.{nameof(PairingCode.Kind)}",
-        $"{nameof(ApplicationDbContext.PairingCodes)}.{nameof(PairingCode.TicketHash)}"
+        $"{nameof(ApplicationDbContext.PairingCodes)}.{nameof(PairingCode.TicketHash)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.MdnsAdvertisementEnabled)}"
     };
 
     private static readonly HashSet<string> IgnoredRestoreColumns = new(StringComparer.OrdinalIgnoreCase)
@@ -92,7 +93,8 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         (nameof(ApplicationDbContext.Pictures), nameof(Picture.IsGeneratedBackground), false),
         (nameof(ApplicationDbContext.Playlists), nameof(Playlist.GenresManuallyOverridden), false),
         (nameof(ApplicationDbContext.Playlists), nameof(Playlist.CoverPictureIsUserUploaded), false),
-        (nameof(ApplicationDbContext.Playlists), nameof(Playlist.IsPublic), false)
+        (nameof(ApplicationDbContext.Playlists), nameof(Playlist.IsPublic), false),
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.MdnsAdvertisementEnabled), true)
     };
 
     private static readonly (string Table, string Column, long DefaultValue)[] OptionalRestoreLongDefaults =

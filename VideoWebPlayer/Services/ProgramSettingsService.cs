@@ -26,6 +26,7 @@ public sealed class ProgramSettingsService
     /// Gets the single <see cref="Setup"/> row (creating it if missing).
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The persisted setup row.</returns>
     public async Task<Setup> GetOrCreateSetupAsync(CancellationToken cancellationToken = default)
     {
         var setup = await _db.Setups.FirstOrDefaultAsync(cancellationToken);
@@ -74,6 +75,7 @@ public sealed class ProgramSettingsService
     /// Returns scan intervals derived from persisted settings.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The scan process interval and the media collection scan interval.</returns>
     public async Task<(TimeSpan ScanProcessInterval, TimeSpan MediaCollectionScanInterval)> GetScanIntervalsAsync(CancellationToken cancellationToken = default)
     {
         var setup = await GetOrCreateSetupAsync(cancellationToken);
@@ -104,6 +106,7 @@ public sealed class ProgramSettingsService
     /// Gets the configured application title.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The configured application title or the default title.</returns>
     public async Task<string> GetApplicationTitleAsync(CancellationToken cancellationToken = default)
     {
         var setup = await GetOrCreateSetupAsync(cancellationToken);
@@ -116,6 +119,7 @@ public sealed class ProgramSettingsService
     /// Gets the configured end-of-video threshold for continue-watching in seconds.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The configured end-of-video threshold.</returns>
     public async Task<TimeSpan> GetContinueWatchingEndThresholdAsync(CancellationToken cancellationToken = default)
     {
         var setup = await GetOrCreateSetupAsync(cancellationToken);
@@ -132,12 +136,14 @@ public sealed class ProgramSettingsService
     /// <param name="scanProcessIntervalMinutes">Interval for the scan process in minutes.</param>
     /// <param name="mediaCollectionScanIntervalDays">Interval for re-scanning media collections in days.</param>
     /// <param name="continueWatchingEndThresholdSeconds">Seconds before the end of a video after which the position is no longer saved.</param>
+    /// <param name="mdnsAdvertisementEnabled">Whether the server announces itself via mDNS.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     public async Task UpdateGeneralSettingsAsync(
         string applicationTitle,
         int scanProcessIntervalMinutes,
         int mediaCollectionScanIntervalDays,
         int continueWatchingEndThresholdSeconds,
+        bool mdnsAdvertisementEnabled,
         CancellationToken cancellationToken = default)
     {
         var setup = await GetOrCreateSetupAsync(cancellationToken);
@@ -148,6 +154,32 @@ public sealed class ProgramSettingsService
         setup.ScanProcessIntervalMinutes = Math.Max(1, scanProcessIntervalMinutes);
         setup.MediaCollectionScanIntervalDays = Math.Max(1, mediaCollectionScanIntervalDays);
         setup.ContinueWatchingEndThresholdSeconds = Math.Max(0, continueWatchingEndThresholdSeconds);
+        setup.MdnsAdvertisementEnabled = mdnsAdvertisementEnabled;
+
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Gets the admin switch for the mDNS advertisement of the server.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Whether the admin switch for mDNS advertisement is enabled.</returns>
+    public async Task<bool> GetMdnsAdvertisementEnabledAsync(CancellationToken cancellationToken = default)
+    {
+        var setup = await GetOrCreateSetupAsync(cancellationToken);
+        return setup.MdnsAdvertisementEnabled;
+    }
+
+    /// <summary>
+    /// Persists the admin switch for the mDNS advertisement of the server.
+    /// </summary>
+    /// <param name="enabled">Whether the server announces itself via mDNS.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task UpdateMdnsAdvertisementEnabledAsync(bool enabled, CancellationToken cancellationToken = default)
+    {
+        var setup = await GetOrCreateSetupAsync(cancellationToken);
+
+        setup.MdnsAdvertisementEnabled = enabled;
 
         await _db.SaveChangesAsync(cancellationToken);
     }

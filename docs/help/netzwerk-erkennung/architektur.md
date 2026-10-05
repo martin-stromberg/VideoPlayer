@@ -16,7 +16,7 @@
 | `DiscoveryUrlValidationException` | `internal` Exception | Spezifischer Fehlertyp für die serverseitige Ablehnung ungültiger Admin-Werte beim Speichern |
 | `GeneralSettingsUpdate` | `public sealed record` | Bündelt die Werte des Programmeinstellungen-Formulars inkl. `DiscoveryPublicBaseUrl` für `UpdateGeneralSettingsAsync` |
 | `ProgramSettingsService` | Scoped Service | `GetDiscoveryPublicBaseUrlAsync` (Lesezugriff pro Anfrage), `UpdateGeneralSettingsAsync` (atomare Schreibung mit Validierung) |
-| `ProgramSettings.razor` (`/admin/program-settings`) | Blazor-Seite (`InteractiveServer`) | Admin-UI: Karte `Öffentliche Basis-URL` mit `InputText`-Feld `discoveryPublicBaseUrl` |
+| `ProgramSettings.razor` (`/admin/program-settings`) | Blazor-Seite (`InteractiveServer`) | Admin-UI: Karte `Öffentliche Basis-URL (Broadcast-Erkennung)` mit `InputText`-Feld `discoveryPublicBaseUrl` |
 | `Setup` | EF-Entität | Nullable Spalte `DiscoveryPublicBaseUrl` (Tabelle `Setups`) |
 | `IServer` / `IServerAddressesFeature` | ASP.NET-Core-Infrastruktur | Liefern die tatsächlich gebundenen Serveradressen — erst nach `ApplicationStarted` verfügbar, daher Auflösung pro Anfrage |
 | `System.Net.Dns` | .NET-Bibliothek | `GetHostName`/`GetHostEntryAsync` für die Host-Adressliste |

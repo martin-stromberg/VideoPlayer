@@ -7,7 +7,6 @@ namespace VideoWebPlayer.Services;
 /// specific type to surface the validation message, instead of treating every
 /// <see cref="ArgumentException"/> from the persistence path as a known field error.
 /// </summary>
-[Serializable]
 internal class DiscoveryUrlValidationException : Exception
 {
     /// <summary>

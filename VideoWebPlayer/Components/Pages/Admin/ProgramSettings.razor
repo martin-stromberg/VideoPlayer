@@ -22,7 +22,7 @@ else
             <div>
                 <span class="admin-kicker">Einrichtung</span>
                 <h1>Allgemein</h1>
-                <p>Anwendungstitel, Scan-Verhalten und Weiterschauen konfigurieren.</p>
+                <p>Anwendungstitel, Scan-Verhalten, Weiterschauen und Netzwerk-Erkennung konfigurieren.</p>
             </div>
             <a class="btn btn-outline-light" href="/admin">Zurück</a>
         </header>
@@ -96,7 +96,7 @@ else
             </div>
 
             <div class="admin-card admin-card-wide">
-                <h2>Öffentliche Basis-URL</h2>
+                <h2>Öffentliche Basis-URL (Broadcast-Erkennung)</h2>
                 <div class="mb-3">
                     <label class="form-label" for="discoveryPublicBaseUrl">Öffentliche Basis-URL</label>
                     <InputText class="form-control" id="discoveryPublicBaseUrl" @bind-Value="model.DiscoveryPublicBaseUrl" />
@@ -187,6 +187,7 @@ else
 
         public bool MdnsAdvertisementEnabled { get; set; } = true;
 
+        [Display(Name = "Die öffentliche Basis-URL")]
         [AbsoluteHttpUrl]
         public string? DiscoveryPublicBaseUrl { get; set; }
     }

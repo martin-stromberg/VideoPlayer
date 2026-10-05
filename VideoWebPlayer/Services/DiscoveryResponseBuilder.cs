@@ -169,7 +169,9 @@ internal static class DiscoveryResponseBuilder
             return false;
 
         var trimmed = host.Trim();
-        if (trimmed is "*" or "+" or "0.0.0.0" or "[::]")
+        // Kestrel-Wildcard-Hosts: "*" und "+" sind keine IP-Adressen und werden hier
+        // abgelehnt; Wildcard-IPs wie 0.0.0.0 oder [::] erfasst die IPAddress-Prüfung unten.
+        if (trimmed is "*" or "+")
             return false;
         if (string.Equals(trimmed, "localhost", StringComparison.OrdinalIgnoreCase))
             return false;

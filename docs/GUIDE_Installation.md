@@ -50,7 +50,7 @@ Erreichbarkeit prüfen:
 curl http://localhost:5039/api/health
 ```
 
-Wenn ein anderes Launch-Profil oder `Host:Port` verwendet wird, die URL entsprechend anpassen. Die Projekt-Launch-Profile enthalten `http://localhost:57331` und `http://localhost:5039`; die Discovery-Adresse fällt ohne Konfiguration auf `http://localhost:5000` zurück.
+Wenn ein anderes Launch-Profil oder `Host:Port` verwendet wird, die URL entsprechend anpassen. Die Projekt-Launch-Profile enthalten `http://localhost:57331` und `http://localhost:5039`; die Discovery-Antwort leitet die Adresse ohne Konfiguration aus der LAN-Adresse des Hosts und dem konfigurierten Port ab (Details im Abschnitt „Netzwerk-Erkennung").
 
 ## Windows: Web installieren
 
@@ -130,7 +130,29 @@ export Pairing__CodeTtlMinutes="5"
 
 Wiederholte Einlöse-Fehlversuche sperren die Client-IP (Schwelle: 5, geteilt mit dem Web-Login); gesperrte IPs werden unter `Einrichtung` → `Sicherheit` angezeigt und können dort entsperrt werden.
 
-## Netzwerk-Erkennung (mDNS)
+## Netzwerk-Erkennung (Discovery)
+
+Die Server-Erkennung läuft über zwei unabhängige Kanäle: das mDNS-Advertisement (UDP 5353) und die UDP-Broadcast-Erkennung (Port 5001). Beide melden Clients, unter welcher Adresse der Server erreichbar ist.
+
+### UDP-Broadcast-Erkennung (Port 5001)
+
+Client-Apps senden die Textnachricht `VIDEOWEBPLAYER_DISCOVERY` als Broadcast an Port 5001; der Server antwortet mit `VIDEOWEBPLAYER_SERVER:<basis-url>` und der öffentlichen Basis-URL **vollständig inklusive Schema, Host, Port und Pfad** (z. B. `https://videos.example.com/videoplayer/`). Die gemeldete URL wird pro Anfrage in dieser Vorrangreihenfolge aufgelöst:
+
+1. der Admin-Wert „Öffentliche Basis-URL" unter `Einrichtung` → `Allgemein` (wirkt sofort, kein Neustart nötig);
+2. die Betreiberkonfiguration `Discovery:PublicBaseUrl`;
+3. die automatische Ableitung aus den gebundenen Serveradressen, der Kestrel-Konfiguration, `Host:Address`/`Host:Port` und der primären LAN-IPv4 des Hosts — Loopback- (`localhost`, `127.*`, `::1`) und Wildcard-Adressen werden nie gemeldet.
+
+Optionale Konfiguration (Default in `appsettings.json`, übersteuerbar wie üblich):
+
+| Schlüssel | Standard | Zweck |
+|-----------|----------|-------|
+| `Discovery:PublicBaseUrl` | `null` | Explizite öffentliche Basis-URL für die Discovery-Antwort (absolute `http`-/`https`-URL inkl. Pfad); `null` = Admin-Wert bzw. automatische Ableitung. |
+| `Host:Address` | – | Expliziter Host für die Ableitung (LAN-IP oder Hostname; Loopback-/Wildcard-Werte werden ignoriert). |
+| `Host:Port` | – | Port-Fallback der Ableitung, wenn weder gebundene Adressen noch `Kestrel:Endpoints` einen Port liefern. |
+
+**IIS `OutOfProcess` / Reverse-Proxy / TLS-Terminierung:** Die Ableitung sieht nur das interne Backend (`http`, interner Port, kein Pfad) — dort ist eine explizite URL Pflichtkonfiguration, entweder als Admin-Wert oder über `Discovery:PublicBaseUrl` (z. B. `https://<site>/videoplayer/` per `appsettings.Local.json` oder Umgebungsvariable `Discovery__PublicBaseUrl`).
+
+### Netzwerk-Erkennung (mDNS)
 
 Der Server kündigt sich per mDNS/DNS-SD (UDP-Port 5353) im lokalen Netzwerk selbst an, damit Client-Apps ihn ohne manuelle Adresseingabe finden. Angekündigt wird der dedizierte Diensttyp `_videowebplayer._tcp.local.` mit dem Instanznamen `VideoWebPlayer` und den TXT-Records `path=/` und `app=VideoWebPlayer`. Der angekündigte Port wird in dieser Reihenfolge ermittelt: `Mdns:Port` → tatsächlich gebundene Serveradresse → `Kestrel:Endpoints:Http:Url` → `Host:Port` → `5000`.
 

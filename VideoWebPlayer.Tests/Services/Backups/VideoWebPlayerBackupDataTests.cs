@@ -614,6 +614,33 @@ public sealed class VideoWebPlayerBackupDataTests
     }
 
     /// <summary>
+    /// Verifies that a backup taken before <c>Setups.DiscoveryPublicBaseUrl</c> existed can still be
+    /// restored, with the missing column staying <see langword="null"/> (no admin override — the
+    /// discovery answer then falls back to <c>Discovery:PublicBaseUrl</c> or the runtime derivation).
+    /// </summary>
+    [Fact]
+    public async Task ReadFromAsync_LegacyBackupWithoutDiscoveryPublicBaseUrlColumn_RestoresWithNull()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var connection = new SqliteConnection("Data Source=file:backuptest-no-discoverybaseurl-column?mode=memory&cache=shared");
+        await connection.OpenAsync(ct);
+        var (db, backup, _) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
+        await using var dbLifetime = db;
+
+        var setup = await db.Setups.FirstAsync(ct);
+        setup.DiscoveryPublicBaseUrl = "https://videos.example.com/videoplayer/";
+        await db.SaveChangesAsync(ct);
+
+        using var legacyStream = await LegacyBackupArchiveBuilder.RemoveColumnsAsync(backup, "Setups", new[] { "DiscoveryPublicBaseUrl" }, ct);
+
+        // This must not throw even though the backup lacks the new column.
+        var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
+
+        Assert.Null(exception);
+        Assert.Null((await db.Setups.AsNoTracking().FirstAsync(ct)).DiscoveryPublicBaseUrl);
+    }
+
+    /// <summary>
     /// Verifies that a backup taken before <c>PlaylistEntries.SortOrder</c> existed (a legacy column-level
     /// gap, distinct from the whole-table-missing case covered by
     /// <see cref="ReadFromAsync_LegacyBackupWithoutPlaylistsAndPlaylistEntries_RestoresSuccessfully"/>

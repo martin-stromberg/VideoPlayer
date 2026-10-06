@@ -141,6 +141,54 @@ public sealed class ProgramSettingsE2ETests : IAsyncLifetime
 
     [Fact]
     [Trait("Category", "E2E")]
+    public async Task Admin_SavesDiscoveryPublicBaseUrl_AndSettingPersists()
+    {
+        EnsureBrowserAvailable();
+        await LoginAsync(AdminEmail);
+        await _page.GotoAsync($"{_serverUrl}/admin/program-settings");
+        await WaitForInteractivePageAsync();
+
+        var field = _page.Locator("#discoveryPublicBaseUrl");
+        await field.FillAsync("https://videos.example.com/videoplayer/");
+        await _page.GetByRole(AriaRole.Button, new() { Name = "Speichern" }).ClickAsync();
+        await Expect(_page.GetByText("Gespeichert.")).ToBeVisibleAsync();
+        Assert.Equal("https://videos.example.com/videoplayer/", await GetDiscoveryPublicBaseUrlAsync());
+
+        await _page.GotoAsync($"{_serverUrl}/admin/program-settings");
+        await WaitForInteractivePageAsync();
+        await Expect(_page.Locator("#discoveryPublicBaseUrl")).ToHaveValueAsync("https://videos.example.com/videoplayer/");
+
+        // Löschpfad: Feld leeren und speichern setzt den Admin-Override zurück.
+        await _page.Locator("#discoveryPublicBaseUrl").FillAsync("");
+        await _page.GetByRole(AriaRole.Button, new() { Name = "Speichern" }).ClickAsync();
+        await Expect(_page.GetByText("Gespeichert.")).ToBeVisibleAsync();
+        Assert.Null(await GetDiscoveryPublicBaseUrlAsync());
+
+        Assert.Empty(SevereErrors());
+    }
+
+    [Fact]
+    [Trait("Category", "E2E")]
+    public async Task Admin_EntersInvalidDiscoveryPublicBaseUrl_ValidationBlocksSave()
+    {
+        EnsureBrowserAvailable();
+        await LoginAsync(AdminEmail);
+        await _page.GotoAsync($"{_serverUrl}/admin/program-settings");
+        await WaitForInteractivePageAsync();
+
+        await _page.Locator("#discoveryPublicBaseUrl").FillAsync("keine-url");
+        await _page.GetByRole(AriaRole.Button, new() { Name = "Speichern" }).ClickAsync();
+
+        await Expect(_page.Locator(".validation-message").First).ToBeVisibleAsync();
+        await Expect(_page.Locator(".validation-message").First).ToContainTextAsync("absolute http- oder https-URL");
+        await Expect(_page.GetByText("Gespeichert.")).ToHaveCountAsync(0);
+        Assert.Null(await GetDiscoveryPublicBaseUrlAsync());
+
+        Assert.Empty(SevereErrors());
+    }
+
+    [Fact]
+    [Trait("Category", "E2E")]
     public async Task NonAdmin_GetsNotAuthorized_OnProgramSettings()
     {
         EnsureBrowserAvailable();
@@ -149,8 +197,16 @@ public sealed class ProgramSettingsE2ETests : IAsyncLifetime
 
         await Expect(_page.GetByText("Nicht autorisiert.")).ToBeVisibleAsync();
         await Expect(_page.Locator("#mdnsAdvertisementEnabled")).ToHaveCountAsync(0);
+        await Expect(_page.Locator("#discoveryPublicBaseUrl")).ToHaveCountAsync(0);
 
         Assert.Empty(SevereErrors());
+    }
+
+    private async Task<string?> GetDiscoveryPublicBaseUrlAsync()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var settings = scope.ServiceProvider.GetRequiredService<ProgramSettingsService>();
+        return await settings.GetDiscoveryPublicBaseUrlAsync();
     }
 
     private async Task<bool> GetMdnsAdvertisementEnabledAsync()

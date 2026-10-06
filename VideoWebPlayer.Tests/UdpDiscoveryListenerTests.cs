@@ -302,28 +302,40 @@ public sealed class UdpDiscoveryListenerTests
         var request = Encoding.UTF8.GetBytes("VIDEOWEBPLAYER_DISCOVERY");
         var deadline = DateTime.UtcNow + timeout;
 
+        // Der Empfang bleibt über die Sende-Wiederholungen hinweg ausstehend und wird
+        // nur nach einem SocketException neu angemeldet. Grund: Datagramme, die vor dem
+        // Binden des Listener-Sockets gesendet werden, gehen verloren. Unter Windows
+        // beendet ein ICMP "Port unreachable" den ausstehenden Empfang mit einer
+        // SocketException (ConnectionReset), sodass ein neuer Empfang nötig ist. Unter
+        // Linux kommt keine solche ICMP-Fehlermeldung am unverbundenen Socket an — dort
+        // blieben pro Iteration verwaiste Receives zurück, die jede spätere Antwort
+        // schlucken, bevor der aktuelle Receive sie sieht (CI-Timeout).
+        Task<UdpReceiveResult>? receiveTask = null;
+
         while (DateTime.UtcNow < deadline)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            // SendAsync bindet den Client-Socket implizit — der Empfang kann erst
+            // danach angemeldet werden, sonst wirft ReceiveAsync eine
+            // InvalidOperationException.
             await client.SendAsync(request, request.Length, new IPEndPoint(IPAddress.Loopback, port));
+            receiveTask ??= client.ReceiveAsync(cancellationToken).AsTask();
 
-            // Der Listener bindet seinen Socket im Hintergrund — Datagramme, die vor dem
-            // Binden eintreffen, gehen verloren; deshalb wird mit kurzen Empfangsfenstern
-            // wiederholt gesendet, statt die Bindung anderweitig abzuwarten. Unter Windows
-            // meldet der Empfang eines solchen verlorenen Datagramms die ICMP-Antwort
-            // "Port unreachable" als SocketException (ConnectionReset) — ebenfalls ignorieren.
             var remaining = deadline - DateTime.UtcNow;
             var wait = remaining < TimeSpan.FromMilliseconds(500) ? remaining : TimeSpan.FromMilliseconds(500);
             try
             {
-                var result = await client.ReceiveAsync().WaitAsync(wait, cancellationToken);
+                var result = await receiveTask.WaitAsync(wait, cancellationToken);
                 return Encoding.UTF8.GetString(result.Buffer);
             }
             catch (TimeoutException)
             {
+                // Empfang bleibt ausstehend — die nächste Iteration wartet weiter auf ihn.
             }
             catch (SocketException)
             {
+                // Der ausstehende Empfang wurde vom Socket abgebrochen — neu anmelden.
+                receiveTask = client.ReceiveAsync(cancellationToken).AsTask();
             }
         }
 

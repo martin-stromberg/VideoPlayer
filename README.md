@@ -43,6 +43,7 @@ VideoWebPlayer ist eine selbst gehostete ASP.NET-Core-/Blazor-Anwendung für die
 - Backups, strukturierte Programmupdates, Benutzer, Genres und Sicherheitseinstellungen verwalten.
 - Backup-Dateien chunked hochladen — auch sehr große Archive über 6 GB — mit Fortschrittsanzeige und Wiederaufnahme nach Unterbrechungen.
 - Client-Apps per Einmal-Pairing-Code koppeln — jedes Gerät erhält ein individuelles, widerrufbares Geräte-Token statt eines geteilten statischen API-Keys.
+- Automatische Server-Erkennung im lokalen Netzwerk per mDNS (Diensttyp `_videowebplayer._tcp.local.`) — Apps finden den Server ohne Adresseingabe; schaltbar über den Admin-Schalter „Netzwerk-Erkennung (mDNS)" und die Konfiguration `Mdns:*`, mit UDP-Broadcast (Port 5001) als Fallback, der die erreichbare Basis-URL meldet (konfigurierbar über das Admin-Feld „Öffentliche Basis-URL" oder `Discovery:PublicBaseUrl`).
 - QR-Bootstrap aus der Profilseite: Angemeldete Benutzer erzeugen unter `Profil` > `Geräte` ein Einmal-Ticket mit QR-Code und Kurzcode; die App scannt den Code und erhält Geräte-Token, Benutzersitzung und Refresh-Token — ohne Passworteingabe auf dem Gerät.
 
 ## Schnellstart
@@ -81,6 +82,8 @@ Für den Backup-Upload sind produktiv zwei Werte relevant: `Backups:MaxUploadSiz
 
 Für das Geräte-Pairing sind optional `Pairing:CodeLength` (Standard 8 Zeichen) und `Pairing:CodeTtlMinutes` (Standard 5 Minuten) konfigurierbar; `Jwt:ApiToken:Maui` bleibt in Produktion als Fallback-Gate-Token Pflicht. Details stehen in [docs/GUIDE_Installation.md](./docs/GUIDE_Installation.md).
 
+Die mDNS-Netzwerk-Erkennung ist standardmäßig aktiv und optional über `Mdns:Enabled`, `Mdns:InstanceName`, `Mdns:ServiceType` und `Mdns:Port` konfigurierbar (unter IIS `OutOfProcess` ist `Mdns:Port` auf den Site-Port zu setzen); Voraussetzung ist eine offene Firewall für UDP 5353. Die UDP-Broadcast-Erkennung (Port 5001) meldet die öffentliche Basis-URL des Servers — sie wird in dieser Reihenfolge aufgelöst: Admin-Feld „Öffentliche Basis-URL" (`Einrichtung` → `Allgemein`) → `Discovery:PublicBaseUrl` → automatische Ableitung aus LAN-Adresse und Port; unter IIS/Reverse-Proxy/TLS-Terminierung ist eine explizite URL Pflicht. Details stehen in [docs/GUIDE_Installation.md](./docs/GUIDE_Installation.md).
+
 ## Dokumentation
 
 - [Installationsanleitung](./docs/GUIDE_Installation.md)
@@ -94,6 +97,7 @@ Für das Geräte-Pairing sind optional `Pairing:CodeLength` (Standard 8 Zeichen)
 - [Hilfe zum Gesehen-Kennzeichen](./docs/help/gesehen-status.md)
 - [Hilfe zu Playlists](./docs/help/playlists.md) (inkl. öffentliche Playlists)
 - [Hilfe zu Geräten und Pairing](./docs/help/geraete/index.md)
+- [Hilfe zur Netzwerk-Erkennung](./docs/help/netzwerk-erkennung/index.md)
 
 ## Entwicklung
 

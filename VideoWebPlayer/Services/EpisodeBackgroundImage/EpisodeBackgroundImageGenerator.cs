@@ -145,7 +145,7 @@ namespace VideoWebPlayer.Services.EpisodeBackgroundImage
             using var canvas = new SKCanvas(canvasBitmap);
             var x = (canvasWidth - source.Width) / 2;
             var y = (canvasHeight - source.Height) / 2;
-            canvas.DrawBitmap(source, x, y);
+            canvas.DrawBitmap(source, x, y, new SKSamplingOptions(SKCubicResampler.Mitchell));
 
             return EncodeAsPng(canvasBitmap);
         }

@@ -5,7 +5,6 @@ using Microsoft.EntityFrameworkCore;
 using SkiaSharp;
 using VideoWebPlayer.Tests.Helpers;
 using VideoWebPlayer.Client.Models;
-using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.Controllers;

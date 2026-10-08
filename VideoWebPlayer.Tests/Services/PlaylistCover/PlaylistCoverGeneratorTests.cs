@@ -6,7 +6,6 @@ using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Configuration;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services.PlaylistCover;
-using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.Services.PlaylistCover;

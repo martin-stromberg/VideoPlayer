@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
+using VideoWebPlayer.Tests.Helpers;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
@@ -317,9 +317,6 @@ public class PlaylistServiceTests_Cover : PlaylistServiceTestBase
 
     private static byte[] CreateJpegBytes()
     {
-        using var image = new Image<Rgba32>(8, 8, Color.Teal.ToPixel<Rgba32>());
-        using var stream = new MemoryStream();
-        image.SaveAsJpeg(stream);
-        return stream.ToArray();
+        return TestImages.SolidJpeg(8, 8, SKColors.Teal);
     }
 }

@@ -2,12 +2,8 @@ using System.Buffers.Binary;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats;
-using SixLabors.ImageSharp.Formats.Gif;
-using SixLabors.ImageSharp.Formats.Jpeg;
-using SixLabors.ImageSharp.Formats.Png;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
+using VideoWebPlayer.Tests.Helpers;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Tests.Helpers;
 using Xunit;
@@ -26,7 +22,7 @@ public class PlaylistsControllerTests_CoverUploadValidation : PlaylistsControlle
     public async Task UploadPlaylistCover_GifClaimedAsPng_Returns400AndStoresNothing()
     {
         var playlistId = await CreatePlaylistAsync();
-        var gif = Encode(new GifEncoder());
+        var gif = TestImages.Gif;
         var file = CreateFormFile(gif, "cover.png", "image/png");
 
         var result = await _controller.UploadPlaylistCover(playlistId, file);
@@ -40,7 +36,7 @@ public class PlaylistsControllerTests_CoverUploadValidation : PlaylistsControlle
     public async Task UploadPlaylistCover_PngClaimedAsJpeg_IsStoredWithActualContentType()
     {
         var playlistId = await CreatePlaylistAsync();
-        var png = Encode(new PngEncoder());
+        var png = Encode(SKEncodedImageFormat.Png);
         var file = CreateFormFile(png, "cover.jpg", "image/jpeg");
 
         var result = await _controller.UploadPlaylistCover(playlistId, file);
@@ -54,7 +50,7 @@ public class PlaylistsControllerTests_CoverUploadValidation : PlaylistsControlle
     public async Task UploadPlaylistCover_TruncatedJpeg_Returns400AndStoresNothing()
     {
         var playlistId = await CreatePlaylistAsync();
-        var jpeg = Encode(new JpegEncoder());
+        var jpeg = Encode(SKEncodedImageFormat.Jpeg);
         var truncated = jpeg[..(jpeg.Length / 3)];
 
         var result = await _controller.UploadPlaylistCover(playlistId, CreateFormFile(truncated, "cover.jpg", "image/jpeg"));
@@ -68,7 +64,7 @@ public class PlaylistsControllerTests_CoverUploadValidation : PlaylistsControlle
     public async Task UploadPlaylistCover_JpegWithDestroyedBody_Returns400AndStoresNothing()
     {
         var playlistId = await CreatePlaylistAsync();
-        var jpeg = Encode(new JpegEncoder());
+        var jpeg = Encode(SKEncodedImageFormat.Jpeg);
         var random = new Random(5);
         for (var i = jpeg.Length / 3; i < jpeg.Length - 2; i++)
             jpeg[i] = (byte)random.Next(0, 255);
@@ -122,19 +118,10 @@ public class PlaylistsControllerTests_CoverUploadValidation : PlaylistsControlle
         };
     }
 
-    private static byte[] Encode(IImageEncoder encoder)
+    private static byte[] Encode(SKEncodedImageFormat format)
     {
-        var random = new Random(42);
-        using var image = new Image<Rgba32>(64, 64);
-        for (var y = 0; y < 64; y++)
-        {
-            for (var x = 0; x < 64; x++)
-                image[x, y] = new Rgba32((byte)random.Next(256), (byte)random.Next(256), (byte)random.Next(256), 255);
-        }
-
-        using var stream = new MemoryStream();
-        image.Save(stream, encoder);
-        return stream.ToArray();
+        using var image = TestImages.Noise(64, 64);
+        return TestImages.Encode(image, format);
     }
 
     /// <summary>

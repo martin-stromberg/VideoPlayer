@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
+using VideoWebPlayer.Tests.Helpers;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Tests.Helpers;
@@ -43,8 +43,8 @@ public class PlaylistsControllerTests_CoverPreview : PlaylistsControllerTestBase
         Assert.Equal("image/jpeg", dto.ContentType);
         Assert.NotNull(dto.ImageData);
         Assert.True(dto.ImageData!.Length > 0);
-        using (var image = Image.Load(dto.ImageData))
-            Assert.True(image.Width > 0);
+        using (var image = SKBitmap.Decode(dto.ImageData!))
+            Assert.True(image!.Width > 0);
 
         // Nothing was persisted: no new picture, no cover set on the playlist.
         Assert.Equal(picturesBefore, await _db.Pictures.AsNoTracking().CountAsync(TestContext.Current.CancellationToken));
@@ -139,9 +139,6 @@ public class PlaylistsControllerTests_CoverPreview : PlaylistsControllerTestBase
 
     private static byte[] CreateJpegBytes()
     {
-        using var image = new Image<Rgba32>(8, 8, Color.Teal.ToPixel<Rgba32>());
-        using var stream = new MemoryStream();
-        image.SaveAsJpeg(stream);
-        return stream.ToArray();
+        return TestImages.SolidJpeg(8, 8, SKColors.Teal);
     }
 }

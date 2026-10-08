@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
+using VideoWebPlayer.Tests.Helpers;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Configuration;
 using VideoWebPlayer.Data;
@@ -22,8 +22,8 @@ public class PlaylistCoverGeneratorTests : PlaylistServiceTestBase
     [Fact]
     public async Task GeneratePlaylistCover_TVShowAndMovie_TVShowFirst()
     {
-        var movieId = await CreateMovieWithPosterAsync("Film", CreateJpegBytes(SixLabors.ImageSharp.Color.Blue));
-        var showId = await CreateTVShowWithPosterAsync("Serie", CreateJpegBytes(SixLabors.ImageSharp.Color.Red));
+        var movieId = await CreateMovieWithPosterAsync("Film", CreateJpegBytes(SKColors.Blue));
+        var showId = await CreateTVShowWithPosterAsync("Serie", CreateJpegBytes(SKColors.Red));
 
         var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId,
             (MediaTypeValues.Movie, movieId),
@@ -52,9 +52,9 @@ public class PlaylistCoverGeneratorTests : PlaylistServiceTestBase
     [Fact]
     public async Task GeneratePlaylistCover_LessThanFiveImages_UsesAllAvailable()
     {
-        var movie1 = await CreateMovieWithPosterAsync("Film 1", CreateJpegBytes(SixLabors.ImageSharp.Color.Blue));
-        var movie2 = await CreateMovieWithPosterAsync("Film 2", CreateJpegBytes(SixLabors.ImageSharp.Color.Green));
-        var movie3 = await CreateMovieWithPosterAsync("Film 3", CreateJpegBytes(SixLabors.ImageSharp.Color.Yellow));
+        var movie1 = await CreateMovieWithPosterAsync("Film 1", CreateJpegBytes(SKColors.Blue));
+        var movie2 = await CreateMovieWithPosterAsync("Film 2", CreateJpegBytes(SKColors.Green));
+        var movie3 = await CreateMovieWithPosterAsync("Film 3", CreateJpegBytes(SKColors.Yellow));
 
         var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId,
             (MediaTypeValues.Movie, movie1),
@@ -75,12 +75,12 @@ public class PlaylistCoverGeneratorTests : PlaylistServiceTestBase
     [Fact]
     public async Task GeneratePlaylistCover_CompletePriorityOrder_MaxFiveImages()
     {
-        var movie1 = await CreateMovieWithPosterAsync("Film 1", CreateJpegBytes(SixLabors.ImageSharp.Color.Blue));
-        var showId = await CreateTVShowWithPosterAsync("Serie", CreateJpegBytes(SixLabors.ImageSharp.Color.Red));
-        var episodeId = await CreateEpisodeWithPosterAsync("Episode", CreateJpegBytes(SixLabors.ImageSharp.Color.Purple));
-        var collectionId = await CreateMovieCollectionWithPosterAsync("Sammlung", CreateJpegBytes(SixLabors.ImageSharp.Color.Orange));
-        var movie2 = await CreateMovieWithPosterAsync("Film 2", CreateJpegBytes(SixLabors.ImageSharp.Color.Green));
-        var movie3 = await CreateMovieWithPosterAsync("Film 3", CreateJpegBytes(SixLabors.ImageSharp.Color.Yellow));
+        var movie1 = await CreateMovieWithPosterAsync("Film 1", CreateJpegBytes(SKColors.Blue));
+        var showId = await CreateTVShowWithPosterAsync("Serie", CreateJpegBytes(SKColors.Red));
+        var episodeId = await CreateEpisodeWithPosterAsync("Episode", CreateJpegBytes(SKColors.Purple));
+        var collectionId = await CreateMovieCollectionWithPosterAsync("Sammlung", CreateJpegBytes(SKColors.Orange));
+        var movie2 = await CreateMovieWithPosterAsync("Film 2", CreateJpegBytes(SKColors.Green));
+        var movie3 = await CreateMovieWithPosterAsync("Film 3", CreateJpegBytes(SKColors.Yellow));
 
         var playlistId = await CreateTestPlaylistWithEntriesAsync(_testUserId,
             (MediaTypeValues.Movie, movie1),
@@ -109,7 +109,7 @@ public class PlaylistCoverGeneratorTests : PlaylistServiceTestBase
         var show = new TVShow { Name = "Serie mit Staffel", MediaSourceId = 1, CreatedAt = DateTime.UtcNow };
         _db.TVShows.Add(show);
         await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
-        var showPictureId = await CreatePictureAsync(CreateJpegBytes(SixLabors.ImageSharp.Color.Red));
+        var showPictureId = await CreatePictureAsync(CreateJpegBytes(SKColors.Red));
         show.PosterPictureId = showPictureId;
         await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
@@ -186,11 +186,6 @@ public class PlaylistCoverGeneratorTests : PlaylistServiceTestBase
         return episode.Id;
     }
 
-    private static byte[] CreateJpegBytes(SixLabors.ImageSharp.Color color)
-    {
-        using var image = new Image<Rgba32>(8, 8, color.ToPixel<Rgba32>());
-        using var stream = new MemoryStream();
-        image.SaveAsJpeg(stream);
-        return stream.ToArray();
-    }
+    private static byte[] CreateJpegBytes(SKColor color)
+        => TestImages.SolidJpeg(8, 8, color);
 }

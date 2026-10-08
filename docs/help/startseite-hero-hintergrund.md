@@ -14,7 +14,7 @@ Der Kopfbereich der Startseite (Hero) zeigt ein automatisch erzeugtes Hintergrun
 ## Technische Umsetzung
 
 - Der Endpunkt `GET /api/pictures/hero-background` erzeugt das Bild serverseitig.
-- Die Verarbeitung nutzt `SixLabors.ImageSharp` (bereits im Projekt enthalten).
+- Die Verarbeitung nutzt `SkiaSharp` (bereits im Projekt enthalten).
 - Das Bild wird nur für angemeldete Benutzer erzeugt.
 - `Home.razor` lädt das Bild über `?access_token={token}` und setzt es als CSS-Variable `--home-hero-image`.
 - Bestehende Verlaufs-Overlays bleiben erhalten und sorgen weiterhin für gute Lesbarkeit des Textes.

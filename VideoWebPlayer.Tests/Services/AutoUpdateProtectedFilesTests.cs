@@ -152,7 +152,7 @@ public sealed class AutoUpdateProtectedFilesTests : IDisposable
         Assert.Contains(Path.Combine(packageStore.RootDirectory, "backup"), script);
 
         var backupIndex = script.IndexOf("Backup-AutoUpdateProtectedFiles -Files", StringComparison.Ordinal);
-        var copyIndex = script.IndexOf("Copy-Item -Destination $app", StringComparison.Ordinal);
+        var copyIndex = script.IndexOf("Copy-AutoUpdateStagedFiles -Source $staging -Destination $app", StringComparison.Ordinal);
         var mergeIndex = script.IndexOf("Invoke-AutoUpdateProtectedFiles -Files", StringComparison.Ordinal);
 
         Assert.True(backupIndex >= 0, "Skript enthält keinen Backup-Aufruf für geschützte Dateien.");

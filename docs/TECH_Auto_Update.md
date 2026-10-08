@@ -101,7 +101,11 @@ ANCM-Umgebungsvariablen (`ASPNETCORE_PORT`/`ASPNETCORE_TOKEN` für Out-of-Proces
 `app_offline.htm` legt die Site kontrolliert still (Requests erhalten den Offline-Content statt
 Verbindungsfehler), das Skript wartet auf das Ende des Backend-Prozesses bzw. terminiert bei
 In-Process den `w3wp` des eigenen Pools, tauscht die Dateien (inkl. `ProtectedFiles`-Ablauf) und
-entfernt `app_offline.htm` — ANCM/WAS startet die neue Version beim nächsten Request. Voraussetzung
+entfernt `app_offline.htm` — ANCM/WAS startet die neue Version beim nächsten Request. Das Skript
+wartet dabei auf das Ende **aller** Backend-Prozesse des Anwendungspfads (nicht nur der Ausgangs-
+PID — ANCM kann in der Offline-Umschaltzeit einen Ersatzprozess spawnen) und wiederholt den
+Kopiervorgang je Datei bei transienten Sperren; bricht die Installation ab, werden die gesicherten
+Schutzdateien aus `Updates/backup/` zurückgespielt. Voraussetzung
 bei In-Process: ein dedizierter App-Pool je Anwendung, weil der `w3wp`-Abbruch alle Sites des Pools
 mitnimmt. `app_offline.htm` wird auch auf Fehlerpfaden entfernt. Das Installationsskript läuft
 unter Windows grundsätzlich als entkoppelter Prozess (WMI `Win32_Process.Create`), der den Stopp

@@ -1,16 +1,13 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Jpeg;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
+using SkiaSharp;
 using VideoWebPlayer.Data;
 
 namespace VideoWebPlayer.Services.HomeBackgroundImage
@@ -137,24 +134,22 @@ namespace VideoWebPlayer.Services.HomeBackgroundImage
 
             // Load and crop a center strip for each source. Loaded strips are tracked in this list as they
             // are created so the finally block below can dispose everything already loaded so far even if
-            // Image.Load/Resize throws partway through (e.g. for a corrupted Picture.Data) - without this,
-            // the Image<Rgba32> instances loaded before the failing one would never be disposed.
-            var strips = new List<Image<Rgba32>>(count);
+            // SKBitmap.Decode/crop-resize throws partway through (e.g. for a corrupted Picture.Data) -
+            // without this, the SKBitmap instances loaded before the failing one would never be disposed.
+            var strips = new List<SKBitmap>(count);
             try
             {
                 for (var i = 0; i < count; i++)
                 {
-                    var strip = Image.Load<Rgba32>(imageData[i]);
-                    strips.Add(strip);
-                    strip.Mutate(ctx => ctx.Resize(new ResizeOptions
-                    {
-                        Mode = ResizeMode.Crop,
-                        Position = AnchorPositionMode.Center,
-                        Size = new Size(drawW[i], targetHeight)
-                    }));
+                    var decoded = SKBitmap.Decode(imageData[i])
+                        ?? throw new InvalidDataException("Die Bilddaten konnten nicht dekodiert werden.");
+                    strips.Add(decoded);
+                    strips[i] = CropResizeCenter(decoded, drawW[i], targetHeight);
+                    decoded.Dispose();
                 }
 
-                using var canvas = new Image<Rgba32>(targetWidth, targetHeight);
+                using var canvas = new SKBitmap(targetWidth, targetHeight);
+                var pixels = new byte[targetWidth * targetHeight * 4];
 
                 for (var y = 0; y < targetHeight; y++)
                 {
@@ -175,38 +170,67 @@ namespace VideoWebPlayer.Services.HomeBackgroundImage
                             if (w <= 0)
                                 continue;
 
-                            var source = strips[i][lx, y];
-                            r += source.R * w;
-                            g += source.G * w;
-                            b += source.B * w;
+                            var source = strips[i].GetPixel(lx, y);
+                            r += source.Red * w;
+                            g += source.Green * w;
+                            b += source.Blue * w;
                             weight += w;
                         }
 
+                        var offset = (y * targetWidth + x) * 4;
                         if (weight > 0)
                         {
                             var inv = 1f / weight;
-                            canvas[x, y] = new Rgba32(
-                                (byte)Math.Clamp(r * inv, 0, 255),
-                                (byte)Math.Clamp(g * inv, 0, 255),
-                                (byte)Math.Clamp(b * inv, 0, 255),
-                                255);
+                            // SKBitmap's platform pixel layout is Bgra8888.
+                            pixels[offset] = (byte)Math.Clamp(b * inv, 0, 255);
+                            pixels[offset + 1] = (byte)Math.Clamp(g * inv, 0, 255);
+                            pixels[offset + 2] = (byte)Math.Clamp(r * inv, 0, 255);
+                            pixels[offset + 3] = 255;
                         }
                         else
                         {
-                            canvas[x, y] = new Rgba32(0, 0, 0, 255);
+                            pixels[offset + 3] = 255;
                         }
                     }
                 }
 
-                using var stream = new MemoryStream();
-                canvas.SaveAsJpeg(stream, new JpegEncoder { Quality = Math.Clamp(quality, 1, 100) });
-                return stream.ToArray();
+                Marshal.Copy(pixels, 0, canvas.GetPixels(), pixels.Length);
+
+                using var image = SKImage.FromBitmap(canvas);
+                using var data = image.Encode(SKEncodedImageFormat.Jpeg, Math.Clamp(quality, 1, 100));
+                return data.ToArray();
             }
             finally
             {
                 foreach (var strip in strips)
                     strip.Dispose();
             }
+        }
+
+        /// <summary>
+        /// Scales the source so it completely covers the target rectangle and crops the overflow on both
+        /// sides evenly - equivalent to ImageSharp's ResizeMode.Crop with AnchorPositionMode.Center.
+        /// </summary>
+        /// <param name="source">The decoded source bitmap.</param>
+        /// <param name="targetWidth">The width of the result bitmap, in pixels.</param>
+        /// <param name="targetHeight">The height of the result bitmap, in pixels.</param>
+        /// <returns>The resized and center-cropped bitmap.</returns>
+        private static SKBitmap CropResizeCenter(SKBitmap source, int targetWidth, int targetHeight)
+        {
+            var result = new SKBitmap(targetWidth, targetHeight);
+            using var canvas = new SKCanvas(result);
+
+            var scale = Math.Max(targetWidth / (float)source.Width, targetHeight / (float)source.Height);
+            var scaledWidth = source.Width * scale;
+            var scaledHeight = source.Height * scale;
+            var destination = new SKRect(
+                (targetWidth - scaledWidth) / 2,
+                (targetHeight - scaledHeight) / 2,
+                (targetWidth + scaledWidth) / 2,
+                (targetHeight + scaledHeight) / 2);
+
+            canvas.DrawBitmap(source, destination, new SKSamplingOptions(SKCubicResampler.Mitchell));
+            return result;
         }
 
         private static float GetWeight(int index, int count, int lx, int drawW, int transition)

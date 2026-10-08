@@ -6,10 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Jpeg;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
+using SkiaSharp;
 using VideoWebPlayer.Data;
 
 namespace VideoWebPlayer.Services.EpisodeBackgroundImage
@@ -53,7 +50,7 @@ namespace VideoWebPlayer.Services.EpisodeBackgroundImage
                 var resized = ResizeImage(sourceImageData, _options.MaxWidth, _options.MaxHeight);
                 var dominantColor = GetDominantColor(sourceImageData);
                 var canvas = CreateCanvasWithScaledImage(resized, _options.MaxWidth, _options.MaxHeight, dominantColor);
-                var tintColor = Color.ParseHex(_options.TintColor);
+                var tintColor = SKColor.Parse(_options.TintColor);
                 var tinted = ApplyTintOverlay(canvas, tintColor, _options.TintOpacity);
                 var jpegBytes = EncodeAsJpeg(tinted, _options.JpegQuality);
 
@@ -87,13 +84,16 @@ namespace VideoWebPlayer.Services.EpisodeBackgroundImage
         /// <returns>The resized image, encoded as PNG.</returns>
         public byte[] ResizeImage(byte[] imageData, int maxWidth, int maxHeight)
         {
-            using var image = Image.Load(imageData);
-            image.Mutate(x => x.Resize(new ResizeOptions
-            {
-                Mode = ResizeMode.Max,
-                Size = new Size(maxWidth, maxHeight)
-            }));
-            return EncodeAsPng(image);
+            using var image = Decode(imageData);
+
+            var scale = Math.Min(maxWidth / (double)image.Width, maxHeight / (double)image.Height);
+            var targetWidth = Math.Max(1, (int)Math.Round(image.Width * scale));
+            var targetHeight = Math.Max(1, (int)Math.Round(image.Height * scale));
+
+            using var resized = image.Resize(
+                new SKImageInfo(targetWidth, targetHeight),
+                new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear));
+            return EncodeAsPng(resized);
         }
 
         /// <summary>
@@ -101,9 +101,9 @@ namespace VideoWebPlayer.Services.EpisodeBackgroundImage
         /// </summary>
         /// <param name="imageData">The source image bytes.</param>
         /// <returns>The dominant color.</returns>
-        public Color GetDominantColor(byte[] imageData)
+        public SKColor GetDominantColor(byte[] imageData)
         {
-            using var image = Image.Load<Rgba32>(imageData);
+            using var image = Decode(imageData);
 
             var buckets = new Dictionary<int, (long R, long G, long B, int Count)>();
 
@@ -113,16 +113,16 @@ namespace VideoWebPlayer.Services.EpisodeBackgroundImage
                 {
                     var x = Math.Clamp((int)((gx + 0.5) * image.Width / DominantColorGridSize), 0, image.Width - 1);
                     var y = Math.Clamp((int)((gy + 0.5) * image.Height / DominantColorGridSize), 0, image.Height - 1);
-                    var pixel = image[x, y];
+                    var pixel = image.GetPixel(x, y);
 
-                    var bucketKey = ((pixel.R >> 4) << 8) | ((pixel.G >> 4) << 4) | (pixel.B >> 4);
+                    var bucketKey = ((pixel.Red >> 4) << 8) | ((pixel.Green >> 4) << 4) | (pixel.Blue >> 4);
                     buckets.TryGetValue(bucketKey, out var aggregate);
-                    buckets[bucketKey] = (aggregate.R + pixel.R, aggregate.G + pixel.G, aggregate.B + pixel.B, aggregate.Count + 1);
+                    buckets[bucketKey] = (aggregate.R + pixel.Red, aggregate.G + pixel.Green, aggregate.B + pixel.Blue, aggregate.Count + 1);
                 }
             }
 
             var dominant = buckets.Values.OrderByDescending(v => v.Count).First();
-            return Color.FromRgb(
+            return new SKColor(
                 (byte)(dominant.R / dominant.Count),
                 (byte)(dominant.G / dominant.Count),
                 (byte)(dominant.B / dominant.Count));
@@ -136,15 +136,18 @@ namespace VideoWebPlayer.Services.EpisodeBackgroundImage
         /// <param name="canvasHeight">The canvas height.</param>
         /// <param name="backgroundColor">The background fill color.</param>
         /// <returns>The composed canvas, encoded as PNG.</returns>
-        public byte[] CreateCanvasWithScaledImage(byte[] sourceImage, int canvasWidth, int canvasHeight, Color backgroundColor)
+        public byte[] CreateCanvasWithScaledImage(byte[] sourceImage, int canvasWidth, int canvasHeight, SKColor backgroundColor)
         {
-            using var source = Image.Load(sourceImage);
-            using var canvas = new Image<Rgba32>(canvasWidth, canvasHeight, backgroundColor.ToPixel<Rgba32>());
+            using var source = Decode(sourceImage);
+            using var canvasBitmap = new SKBitmap(canvasWidth, canvasHeight);
+            canvasBitmap.Erase(backgroundColor);
 
-            var location = new Point((canvasWidth - source.Width) / 2, (canvasHeight - source.Height) / 2);
-            canvas.Mutate(ctx => ctx.DrawImage(source, location, 1f));
+            using var canvas = new SKCanvas(canvasBitmap);
+            var x = (canvasWidth - source.Width) / 2;
+            var y = (canvasHeight - source.Height) / 2;
+            canvas.DrawBitmap(source, x, y, new SKSamplingOptions(SKCubicResampler.Mitchell));
 
-            return EncodeAsPng(canvas);
+            return EncodeAsPng(canvasBitmap);
         }
 
         /// <summary>
@@ -154,27 +157,42 @@ namespace VideoWebPlayer.Services.EpisodeBackgroundImage
         /// <param name="tintColor">The tint color.</param>
         /// <param name="opacity">The tint opacity (0.0-1.0).</param>
         /// <returns>The tinted image, encoded as PNG.</returns>
-        public byte[] ApplyTintOverlay(byte[] imageData, Color tintColor, float opacity)
+        public byte[] ApplyTintOverlay(byte[] imageData, SKColor tintColor, float opacity)
         {
-            using var image = Image.Load<Rgba32>(imageData);
-            using var overlay = new Image<Rgba32>(image.Width, image.Height, tintColor.ToPixel<Rgba32>());
-            image.Mutate(ctx => ctx.DrawImage(overlay, Math.Clamp(opacity, 0f, 1f)));
+            using var image = Decode(imageData);
+            using var canvas = new SKCanvas(image);
+
+            var alpha = (byte)Math.Clamp(Math.Round(opacity * 255f), 0, 255);
+            using var paint = new SKPaint { Color = tintColor.WithAlpha(alpha) };
+            canvas.DrawRect(0, 0, image.Width, image.Height, paint);
+
             return EncodeAsPng(image);
         }
 
-        private static byte[] EncodeAsPng(Image image)
-        {
-            using var stream = new MemoryStream();
-            image.SaveAsPng(stream);
-            return stream.ToArray();
-        }
+        /// <summary>
+        /// Decodes the given image bytes, throwing when the data is not a decodable image.
+        /// </summary>
+        /// <param name="imageData">The encoded image bytes.</param>
+        /// <returns>The decoded bitmap.</returns>
+        /// <exception cref="InvalidDataException">The bytes are not a decodable image.</exception>
+        private static SKBitmap Decode(byte[] imageData)
+            => SKBitmap.Decode(imageData)
+               ?? throw new InvalidDataException("Die Bilddaten konnten nicht dekodiert werden.");
+
+        private static byte[] EncodeAsPng(SKBitmap bitmap)
+            => Encode(bitmap, SKEncodedImageFormat.Png, 100);
 
         private static byte[] EncodeAsJpeg(byte[] imageData, int quality)
         {
-            using var image = Image.Load(imageData);
-            using var stream = new MemoryStream();
-            image.SaveAsJpeg(stream, new JpegEncoder { Quality = Math.Clamp(quality, 1, 100) });
-            return stream.ToArray();
+            using var image = Decode(imageData);
+            return Encode(image, SKEncodedImageFormat.Jpeg, quality);
+        }
+
+        private static byte[] Encode(SKBitmap bitmap, SKEncodedImageFormat format, int quality)
+        {
+            using var image = SKImage.FromBitmap(bitmap);
+            using var data = image.Encode(format, Math.Clamp(quality, 1, 100));
+            return data.ToArray();
         }
     }
 }

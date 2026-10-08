@@ -22,7 +22,7 @@ namespace VideoWebPlayer.Services.PlaylistCover
 
     /// <summary>
     /// A small, strict JPEG integrity check for untrusted uploads. Background: the JPEG decoder of the
-    /// image library used for uploads (ImageSharp 3.1) is deliberately lenient - it silently renders a
+    /// image library used for uploads (SkiaSharp, libjpeg-turbo) is deliberately lenient - it silently renders a
     /// truncated file, or a file whose entropy-coded body was destroyed, as a partly grey image instead of
     /// failing - so "the file decodes without an exception" does not prove the file is complete. This class
     /// closes that gap: it walks the marker structure (a file without its closing EOI marker is truncated)

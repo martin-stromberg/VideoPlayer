@@ -592,8 +592,8 @@ mit dem Klartext des Servers) erscheinen als `#playlist-cover-error` im Panel, d
         leerer/unbekannter Typ → Fehler mit „Friendly Name", z. B. `"Format BMP wird nicht
         unterstützt. Erlaubte Formate: JPEG, PNG, WebP."`)
      2. `fileSize > MaxCoverImageSizeBytes` → `"Datei zu groß, max. X MB erlaubt."`
-     3. Erkennung via ImageSharp `Image.Identify()` (nur Bildkopf; jede dabei geworfene Ausnahme →
-        `"Datei ist kein gültiges Bild."`)
+     3. Erkennung via SkiaSharp `SKCodec.Create()` (nur Bildkopf; schlägt die Erkennung fehl oder wirft
+        sie eine Ausnahme → `"Datei ist kein gültiges Bild."`)
      4. Das **tatsächlich erkannte** Format (`DecodedImageFormat.DefaultMimeType`) muss ebenfalls in
         der Allowlist stehen (sonst dieselbe „Format … wird nicht unterstützt"-Meldung); der
         erkannte MIME-Type wird im Ergebnis mitgegeben und später als `Picture.ContentType`

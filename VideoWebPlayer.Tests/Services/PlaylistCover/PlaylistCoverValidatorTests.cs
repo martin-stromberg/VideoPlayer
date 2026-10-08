@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Options;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
+using VideoWebPlayer.Tests.Helpers;
 using VideoWebPlayer.Configuration;
 using VideoWebPlayer.Services.PlaylistCover;
 using Xunit;
@@ -66,10 +66,7 @@ public class PlaylistCoverValidatorTests
     public async Task ValidateUpload_ValidPng_Success()
     {
         var validator = CreateValidator();
-        using var image = new Image<Rgba32>(4, 4);
-        using var stream = new MemoryStream();
-        image.SaveAsPng(stream);
-        var pngBytes = stream.ToArray();
+        var pngBytes = TestImages.SolidPng(4, 4, SKColors.Black);
 
         var result = await validator.ValidateUploadAsync(pngBytes, "image/png", pngBytes.Length, TestContext.Current.CancellationToken);
 
@@ -77,12 +74,7 @@ public class PlaylistCoverValidatorTests
     }
 
     private static byte[] CreateJpegBytes(int width, int height)
-    {
-        using var image = new Image<Rgba32>(width, height);
-        using var stream = new MemoryStream();
-        image.SaveAsJpeg(stream);
-        return stream.ToArray();
-    }
+        => TestImages.SolidJpeg(width, height, SKColors.Black);
 
     private static PlaylistCoverValidator CreateValidator(long maxSizeBytes = 5 * 1024 * 1024)
         => new(Options.Create(new PlaylistSettings

@@ -14,6 +14,7 @@ public class UdpDiscoveryListener
     private readonly int _port;
     private readonly Func<CancellationToken, Task<string>> _responseFactory;
     private readonly ILogger<UdpDiscoveryListener> _logger;
+    private readonly IPAddress? _listenAddress;
     private Session? _session;
 
     /// <summary>
@@ -36,14 +37,20 @@ public class UdpDiscoveryListener
     /// <param name="port">UDP-Port für Discovery-Anfragen.</param>
     /// <param name="responseFactory">Liefert pro Anfrage die zu meldende Basis-URL.</param>
     /// <param name="logger">Logger instance.</param>
+    /// <param name="listenAddress">
+    /// Address the socket binds to; <see langword="null"/> binds all interfaces (required for LAN
+    /// broadcast discovery). Tests bind <see cref="IPAddress.Loopback"/> so no firewall prompt is raised.
+    /// </param>
     public UdpDiscoveryListener(
         int port,
         Func<CancellationToken, Task<string>> responseFactory,
-        ILogger<UdpDiscoveryListener> logger)
+        ILogger<UdpDiscoveryListener> logger,
+        IPAddress? listenAddress = null)
     {
         _port = port;
         _responseFactory = responseFactory;
         _logger = logger;
+        _listenAddress = listenAddress;
     }
 
     /// <summary>
@@ -120,7 +127,9 @@ public class UdpDiscoveryListener
         UdpClient udp;
         try
         {
-            udp = new UdpClient(_port);
+            udp = _listenAddress is null
+                ? new UdpClient(_port)
+                : new UdpClient(new IPEndPoint(_listenAddress, _port));
         }
         catch (Exception ex)
         {

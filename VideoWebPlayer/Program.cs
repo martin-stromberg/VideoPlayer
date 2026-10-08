@@ -51,8 +51,13 @@ app.UseVideoWebPlayer();
 if (!app.Environment.IsEnvironment("Testing"))
 {
     var udpPort = 5001; // Discovery port
-    var serverAddress = $"http://{app.Configuration["Host:Address"] ?? "localhost"}:{app.Configuration["Host:Port"] ?? "5000"}";
-    var udpListener = new UdpDiscoveryListener(udpPort, serverAddress);
+    // Die gemeldete Basis-URL wird pro Anfrage aufgelöst: gebundene Adressen stehen erst
+    // nach dem Serverstart bereit und Admin-Änderungen sollen ohne Neustart wirken.
+    var resolver = app.Services.GetRequiredService<DiscoveryBaseUrlResolver>();
+    var udpListener = new UdpDiscoveryListener(
+        udpPort,
+        resolver.ResolveAsync,
+        app.Services.GetRequiredService<ILogger<UdpDiscoveryListener>>());
     udpListener.Start();
 }
 

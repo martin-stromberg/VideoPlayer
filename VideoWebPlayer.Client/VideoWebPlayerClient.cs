@@ -416,8 +416,9 @@ namespace VideoWebPlayer.Client
             {
                 return await HttpGetAsync<DtoMediaSource[]>("api/Sources");
             }
-            catch
+            catch (Exception ex)
             {
+                Logger?.LogWarning(ex, "Quellen konnten nicht geladen werden (api/Sources).");
                 return new DtoMediaSource[0];
             }
         }

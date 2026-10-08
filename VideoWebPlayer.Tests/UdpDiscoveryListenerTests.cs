@@ -20,7 +20,7 @@ public sealed class UdpDiscoveryListenerTests
         var listener = new UdpDiscoveryListener(
             port,
             _ => Task.FromResult("http://192.168.1.5:5000/"),
-            NullLogger<UdpDiscoveryListener>.Instance);
+            NullLogger<UdpDiscoveryListener>.Instance, IPAddress.Loopback);
         listener.Start();
         try
         {
@@ -44,7 +44,7 @@ public sealed class UdpDiscoveryListenerTests
         {
             call++;
             return Task.FromResult($"http://192.168.1.5:50{call}0");
-        }, NullLogger<UdpDiscoveryListener>.Instance);
+        }, NullLogger<UdpDiscoveryListener>.Instance, IPAddress.Loopback);
         listener.Start();
         try
         {
@@ -73,14 +73,14 @@ public sealed class UdpDiscoveryListenerTests
             fail
                 ? Task.FromException<string>(new InvalidOperationException("Auflösung fehlgeschlagen"))
                 : Task.FromResult("http://192.168.1.5:5000"),
-            logger);
+            logger, IPAddress.Loopback);
         listener.Start();
         try
         {
             // Factory wirft → keine Antwort, aber Warnung im Log. Wie in
             // SendDiscoveryUntilResponseAsync wird wiederholt gesendet, weil Datagramme
             // vor dem Binden des Listener-Sockets verloren gehen können.
-            using (var client = new UdpClient())
+            using (var client = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0)))
             {
                 var request = Encoding.UTF8.GetBytes("VIDEOWEBPLAYER_DISCOVERY");
                 var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
@@ -117,7 +117,7 @@ public sealed class UdpDiscoveryListenerTests
         var listener = new UdpDiscoveryListener(
             port,
             _ => Task.FromResult("http://192.168.1.5:5000/"),
-            NullLogger<UdpDiscoveryListener>.Instance);
+            NullLogger<UdpDiscoveryListener>.Instance, IPAddress.Loopback);
         listener.Start();
         try
         {
@@ -139,7 +139,7 @@ public sealed class UdpDiscoveryListenerTests
             ct.ThrowIfCancellationRequested();
             try
             {
-                using var probe = new UdpClient(port);
+                using var probe = new UdpClient(new IPEndPoint(IPAddress.Loopback, port));
                 released = true;
                 break;
             }
@@ -161,11 +161,11 @@ public sealed class UdpDiscoveryListenerTests
         var port = GetFreeUdpPort();
         var logger = new ListLogger<UdpDiscoveryListener>(new ConcurrentQueue<string>());
 
-        using var blocker = new UdpClient(port);
+        using var blocker = new UdpClient(new IPEndPoint(IPAddress.Loopback, port));
         var listener = new UdpDiscoveryListener(
             port,
             _ => Task.FromResult("http://192.168.1.5:5000/"),
-            logger);
+            logger, IPAddress.Loopback);
         listener.Start();
         try
         {
@@ -191,7 +191,7 @@ public sealed class UdpDiscoveryListenerTests
         var listener = new UdpDiscoveryListener(
             port,
             _ => Task.FromResult("http://192.168.1.5:5000/"),
-            NullLogger<UdpDiscoveryListener>.Instance);
+            NullLogger<UdpDiscoveryListener>.Instance, IPAddress.Loopback);
         listener.Start();
         try
         {
@@ -202,7 +202,7 @@ public sealed class UdpDiscoveryListenerTests
 
             // Nach Stop() muss der Port unmittelbar frei sein — bliebe der alte
             // Socket noch gebunden, würfe das Probe-Bind eine SocketException.
-            using (var probe = new UdpClient(port))
+            using (var probe = new UdpClient(new IPEndPoint(IPAddress.Loopback, port)))
             {
             }
 
@@ -228,7 +228,7 @@ public sealed class UdpDiscoveryListenerTests
         var listener = new UdpDiscoveryListener(
             port,
             _ => Task.FromResult("http://192.168.1.5:5000/"),
-            NullLogger<UdpDiscoveryListener>.Instance);
+            NullLogger<UdpDiscoveryListener>.Instance, IPAddress.Loopback);
         listener.Start();
         try
         {
@@ -259,7 +259,7 @@ public sealed class UdpDiscoveryListenerTests
             ct.ThrowIfCancellationRequested();
             try
             {
-                using var probe = new UdpClient(port);
+                using var probe = new UdpClient(new IPEndPoint(IPAddress.Loopback, port));
                 released = true;
                 break;
             }
@@ -298,7 +298,7 @@ public sealed class UdpDiscoveryListenerTests
     private static async Task<string> SendDiscoveryUntilResponseAsync(
         int port, TimeSpan timeout, CancellationToken cancellationToken)
     {
-        using var client = new UdpClient();
+        using var client = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0));
         var request = Encoding.UTF8.GetBytes("VIDEOWEBPLAYER_DISCOVERY");
         var deadline = DateTime.UtcNow + timeout;
 

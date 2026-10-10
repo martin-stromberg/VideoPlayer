@@ -197,6 +197,7 @@ public class UpdateBackupCoordinatorTests : IDisposable
         services.AddSingleton<IConfiguration>(configuration);
         services.AddSingleton(new AutoUpdateOptions());
         services.AddSingleton<VideoWebPlayerUpdateSourceFactory>();
+        services.AddSingleton(Mock.Of<IUpdateHostEnvironment>());
         services.AddScoped<UpdateSettingsService>();
         services.AddScoped<IUpdateSettingsService>(sp => sp.GetRequiredService<UpdateSettingsService>());
         services.AddScoped(_ =>

@@ -3,8 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
+using VideoWebPlayer.Tests.Helpers;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services.EpisodeBackgroundImage;
 using Xunit;
@@ -143,7 +143,7 @@ public class EpisodeBackgroundImageServiceTests
             await service.MarkBackgroundImageForUpdateAsync(episode.Id, TestContext.Current.CancellationToken);
 
             var fanart = await db.Pictures.FirstAsync(p => p.Id == episode.FanartPictureId!.Value, TestContext.Current.CancellationToken);
-            fanart.Data = CreateTestImageBytes(SixLabors.ImageSharp.Color.Purple);
+            fanart.Data = CreateTestImageBytes(SKColors.Purple);
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             var reloadedEpisode = await db.TVShowEpisodes.AsNoTracking().FirstAsync(e => e.Id == episode.Id, TestContext.Current.CancellationToken);
@@ -230,9 +230,9 @@ public class EpisodeBackgroundImageServiceTests
             var episode = await CreateTestEpisodeAsync(
                 db,
                 withFanart: true,
-                fanartData: CreateTestImageBytes(SixLabors.ImageSharp.Color.Teal),
+                fanartData: CreateTestImageBytes(SKColors.Teal),
                 withPoster: true,
-                posterData: CreateTestImageBytes(SixLabors.ImageSharp.Color.Red));
+                posterData: CreateTestImageBytes(SKColors.Red));
             var cache = new MemoryCache(new MemoryCacheOptions());
             var service = CreateService(db, cache);
 
@@ -323,11 +323,8 @@ public class EpisodeBackgroundImageServiceTests
         return picture;
     }
 
-    private static byte[] CreateTestImageBytes(Color? color = null)
+    private static byte[] CreateTestImageBytes(SKColor? color = null)
     {
-        using var image = new Image<Rgba32>(64, 64, (color ?? Color.Teal).ToPixel<Rgba32>());
-        using var stream = new MemoryStream();
-        image.SaveAsPng(stream);
-        return stream.ToArray();
+        return TestImages.SolidPng(64, 64, color ?? SKColors.Teal);
     }
 }

@@ -43,6 +43,7 @@ VideoWebPlayer ist eine selbst gehostete ASP.NET-Core-/Blazor-Anwendung für die
 - Backups, strukturierte Programmupdates, Benutzer, Genres und Sicherheitseinstellungen verwalten.
 - Backup-Dateien chunked hochladen — auch sehr große Archive über 6 GB — mit Fortschrittsanzeige und Wiederaufnahme nach Unterbrechungen.
 - Client-Apps per Einmal-Pairing-Code koppeln — jedes Gerät erhält ein individuelles, widerrufbares Geräte-Token statt eines geteilten statischen API-Keys.
+- Automatische Server-Erkennung im lokalen Netzwerk per mDNS (Diensttyp `_videowebplayer._tcp.local.`) — Apps finden den Server ohne Adresseingabe; schaltbar über den Admin-Schalter „Netzwerk-Erkennung (mDNS)" und die Konfiguration `Mdns:*`, mit UDP-Broadcast (Port 5001) als Fallback, der die erreichbare Basis-URL meldet (konfigurierbar über das Admin-Feld „Öffentliche Basis-URL" oder `Discovery:PublicBaseUrl`).
 - QR-Bootstrap aus der Profilseite: Angemeldete Benutzer erzeugen unter `Profil` > `Geräte` ein Einmal-Ticket mit QR-Code und Kurzcode; die App scannt den Code und erhält Geräte-Token, Benutzersitzung und Refresh-Token — ohne Passworteingabe auf dem Gerät.
 
 ## Schnellstart
@@ -75,9 +76,13 @@ Produktive Secrets dürfen nicht im Repository abgelegt werden. Konfiguriere JWT
 
 Details stehen in [docs/SECRETS_MANAGEMENT.md](./docs/SECRETS_MANAGEMENT.md).
 
+Deployment-seitige Overrides — inklusive Secrets — können zusätzlich in der optionalen `appsettings.Local.json` im Anwendungsverzeichnis abgelegt werden: Die Datei wird nie ins Update-Paket aufgenommen, übersteht Programmupdates vollständig und überlagert die Werte der mitgelieferten `appsettings*.json` (nicht aber User Secrets, Umgebungsvariablen oder Kommandozeilenargumente). Zudem übernimmt das Update-Installationsskript konfigurierte Bereiche der `web.config` und aufgezählte deployment-eigene Schlüssel der `appsettings*.json` aus der Bestandsinstallation (`AutoUpdate:ProtectedFiles`). Details stehen in [docs/GUIDE_Installation.md](./docs/GUIDE_Installation.md).
+
 Für den Backup-Upload sind produktiv zwei Werte relevant: `Backups:MaxUploadSizeBytes` (Standard 5 GiB, auch in der Admin-Oberfläche änderbar) begrenzt die akzeptierte Dateigröße, und `Kestrel:Limits:MaxRequestBodySize` (in `appsettings.Production.json` auf `0` = unbegrenzt gesetzt) deaktiviert das serverseitige Request-Limit, damit große Uploads nicht blockiert werden. Unter IIS ist dafür das OutOfProcess-Hosting-Modell erforderlich (in der Projektdatei über `AspNetCoreHostingModel` festgelegt); Details stehen in [docs/help/backups.md](./docs/help/backups.md).
 
 Für das Geräte-Pairing sind optional `Pairing:CodeLength` (Standard 8 Zeichen) und `Pairing:CodeTtlMinutes` (Standard 5 Minuten) konfigurierbar; `Jwt:ApiToken:Maui` bleibt in Produktion als Fallback-Gate-Token Pflicht. Details stehen in [docs/GUIDE_Installation.md](./docs/GUIDE_Installation.md).
+
+Die mDNS-Netzwerk-Erkennung ist standardmäßig aktiv und optional über `Mdns:Enabled`, `Mdns:InstanceName`, `Mdns:ServiceType` und `Mdns:Port` konfigurierbar (unter IIS `OutOfProcess` ist `Mdns:Port` auf den Site-Port zu setzen); Voraussetzung ist eine offene Firewall für UDP 5353. Die UDP-Broadcast-Erkennung (Port 5001) meldet die öffentliche Basis-URL des Servers — sie wird in dieser Reihenfolge aufgelöst: Admin-Feld „Öffentliche Basis-URL" (`Einrichtung` → `Allgemein`) → `Discovery:PublicBaseUrl` → automatische Ableitung aus LAN-Adresse und Port; unter IIS/Reverse-Proxy/TLS-Terminierung ist eine explizite URL Pflicht. Details stehen in [docs/GUIDE_Installation.md](./docs/GUIDE_Installation.md).
 
 ## Dokumentation
 
@@ -92,6 +97,7 @@ Für das Geräte-Pairing sind optional `Pairing:CodeLength` (Standard 8 Zeichen)
 - [Hilfe zum Gesehen-Kennzeichen](./docs/help/gesehen-status.md)
 - [Hilfe zu Playlists](./docs/help/playlists.md) (inkl. öffentliche Playlists)
 - [Hilfe zu Geräten und Pairing](./docs/help/geraete/index.md)
+- [Hilfe zur Netzwerk-Erkennung](./docs/help/netzwerk-erkennung/index.md)
 
 ## Entwicklung
 

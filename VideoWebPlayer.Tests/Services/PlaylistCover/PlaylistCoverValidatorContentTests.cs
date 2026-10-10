@@ -1,11 +1,7 @@
 using System.Buffers.Binary;
 using Microsoft.Extensions.Options;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Gif;
-using SixLabors.ImageSharp.Formats.Jpeg;
-using SixLabors.ImageSharp.Formats.Png;
-using SixLabors.ImageSharp.Formats.Webp;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
+using VideoWebPlayer.Tests.Helpers;
 using VideoWebPlayer.Configuration;
 using VideoWebPlayer.Services.PlaylistCover;
 using Xunit;
@@ -24,7 +20,7 @@ public class PlaylistCoverValidatorContentTests
     public async Task ValidateUpload_GifClaimedAsPng_IsRejectedAsUnsupportedFormat()
     {
         var validator = CreateValidator();
-        var gifBytes = Encode(CreateNoiseImage(16, 16), new GifEncoder());
+        var gifBytes = TestImages.Gif;
 
         var result = await validator.ValidateUploadAsync(gifBytes, "image/png", gifBytes.Length, TestContext.Current.CancellationToken);
 
@@ -36,7 +32,7 @@ public class PlaylistCoverValidatorContentTests
     public async Task ValidateUpload_PngClaimedAsJpeg_IsAcceptedWithActualContentType()
     {
         var validator = CreateValidator();
-        var pngBytes = Encode(CreateNoiseImage(16, 16), new PngEncoder());
+        var pngBytes = Encode(TestImages.Noise(16, 16), SKEncodedImageFormat.Png);
 
         var result = await validator.ValidateUploadAsync(pngBytes, "image/jpeg", pngBytes.Length, TestContext.Current.CancellationToken);
 
@@ -48,7 +44,7 @@ public class PlaylistCoverValidatorContentTests
     public async Task ValidateUpload_ValidWebp_Success()
     {
         var validator = CreateValidator();
-        var webpBytes = Encode(CreateNoiseImage(16, 16), new WebpEncoder());
+        var webpBytes = Encode(TestImages.Noise(16, 16), SKEncodedImageFormat.Webp);
 
         var result = await validator.ValidateUploadAsync(webpBytes, "image/webp", webpBytes.Length, TestContext.Current.CancellationToken);
 
@@ -60,7 +56,7 @@ public class PlaylistCoverValidatorContentTests
     public async Task ValidateUpload_ValidLosslessWebp_Success()
     {
         var validator = CreateValidator();
-        var webpBytes = Encode(CreateNoiseImage(64, 64), new WebpEncoder { FileFormat = WebpFileFormatType.Lossless });
+        var webpBytes = TestImages.EncodeLosslessWebp(TestImages.Noise(64, 64));
 
         var result = await validator.ValidateUploadAsync(webpBytes, "image/webp", webpBytes.Length, TestContext.Current.CancellationToken);
 
@@ -69,7 +65,7 @@ public class PlaylistCoverValidatorContentTests
     }
 
     /// <summary>
-    /// ImageSharp's WebP decoder accepts a file that was cut off (even by a single byte), so a truncated
+    /// SkiaSharp's WebP decoder accepts a file that was cut off (even by a single byte), so a truncated
     /// WebP must be rejected via the length its RIFF header declares - the documentation promises that.
     /// </summary>
     /// <param name="bytesCutOff">How many bytes are removed from the end of a valid WebP file.</param>
@@ -79,7 +75,7 @@ public class PlaylistCoverValidatorContentTests
     public async Task ValidateUpload_TruncatedWebp_IsRejectedAsCorrupt(int bytesCutOff)
     {
         var validator = CreateValidator();
-        var webpBytes = Encode(CreateNoiseImage(64, 64), new WebpEncoder());
+        var webpBytes = Encode(TestImages.Noise(64, 64), SKEncodedImageFormat.Webp);
         var truncated = webpBytes[..(webpBytes.Length - bytesCutOff)];
 
         var result = await validator.ValidateUploadAsync(truncated, "image/webp", truncated.Length, TestContext.Current.CancellationToken);
@@ -108,7 +104,7 @@ public class PlaylistCoverValidatorContentTests
     public async Task ValidateUpload_TruncatedJpeg_IsRejectedAsCorrupt()
     {
         var validator = CreateValidator();
-        var jpegBytes = Encode(CreateNoiseImage(64, 64), new JpegEncoder());
+        var jpegBytes = Encode(TestImages.Noise(64, 64), SKEncodedImageFormat.Jpeg);
         var truncated = jpegBytes[..(jpegBytes.Length / 3)];
 
         var result = await validator.ValidateUploadAsync(truncated, "image/jpeg", truncated.Length, TestContext.Current.CancellationToken);
@@ -121,7 +117,7 @@ public class PlaylistCoverValidatorContentTests
     public async Task ValidateUpload_JpegWithDestroyedBody_IsRejectedAsCorrupt()
     {
         var validator = CreateValidator();
-        var jpegBytes = Encode(CreateNoiseImage(64, 64), new JpegEncoder());
+        var jpegBytes = Encode(TestImages.Noise(64, 64), SKEncodedImageFormat.Jpeg);
         var damaged = (byte[])jpegBytes.Clone();
         // Header (up to and including the start-of-scan segment) stays intact; the entropy-coded body is
         // overwritten with pseudo-random bytes (no 0xFF, so no accidental markers), the trailing EOI marker stays.
@@ -139,7 +135,7 @@ public class PlaylistCoverValidatorContentTests
     public async Task ValidateUpload_TruncatedPng_IsRejectedAsCorrupt()
     {
         var validator = CreateValidator();
-        var pngBytes = Encode(CreateNoiseImage(64, 64), new PngEncoder());
+        var pngBytes = Encode(TestImages.Noise(64, 64), SKEncodedImageFormat.Png);
         var truncated = pngBytes[..(pngBytes.Length / 2)];
 
         var result = await validator.ValidateUploadAsync(truncated, "image/png", truncated.Length, TestContext.Current.CancellationToken);
@@ -151,7 +147,7 @@ public class PlaylistCoverValidatorContentTests
     public async Task ValidateUpload_PngWithDamagedImageData_IsRejectedAsCorrupt()
     {
         var validator = CreateValidator();
-        var pngBytes = Encode(CreateNoiseImage(64, 64), new PngEncoder());
+        var pngBytes = Encode(TestImages.Noise(64, 64), SKEncodedImageFormat.Png);
         var damaged = (byte[])pngBytes.Clone();
         // Flip bytes inside the compressed pixel data (well after IHDR, before IEND).
         for (var i = 60; i < Math.Min(damaged.Length - 20, 120); i++)
@@ -196,7 +192,7 @@ public class PlaylistCoverValidatorContentTests
     public async Task ValidateUpload_ImageWiderThanConfiguredLimit_IsRejected()
     {
         var validator = CreateValidator(maxWidth: 32, maxHeight: 4096, maxTotal: 0);
-        var pngBytes = Encode(CreateNoiseImage(33, 8), new PngEncoder());
+        var pngBytes = Encode(TestImages.Noise(33, 8), SKEncodedImageFormat.Png);
 
         var result = await validator.ValidateUploadAsync(pngBytes, "image/png", pngBytes.Length, TestContext.Current.CancellationToken);
 
@@ -208,7 +204,7 @@ public class PlaylistCoverValidatorContentTests
     public async Task ValidateUpload_ImageTallerThanConfiguredLimit_IsRejected()
     {
         var validator = CreateValidator(maxWidth: 4096, maxHeight: 32, maxTotal: 0);
-        var pngBytes = Encode(CreateNoiseImage(8, 33), new PngEncoder());
+        var pngBytes = Encode(TestImages.Noise(8, 33), SKEncodedImageFormat.Png);
 
         var result = await validator.ValidateUploadAsync(pngBytes, "image/png", pngBytes.Length, TestContext.Current.CancellationToken);
 
@@ -220,7 +216,7 @@ public class PlaylistCoverValidatorContentTests
     public async Task ValidateUpload_ImageExceedingTotalPixelLimit_IsRejected()
     {
         var validator = CreateValidator(maxWidth: 4096, maxHeight: 4096, maxTotal: 100);
-        var pngBytes = Encode(CreateNoiseImage(11, 10), new PngEncoder());
+        var pngBytes = Encode(TestImages.Noise(11, 10), SKEncodedImageFormat.Png);
 
         var result = await validator.ValidateUploadAsync(pngBytes, "image/png", pngBytes.Length, TestContext.Current.CancellationToken);
 
@@ -232,7 +228,7 @@ public class PlaylistCoverValidatorContentTests
     public async Task ValidateUpload_ImageAtExactlyTheLimits_Success()
     {
         var validator = CreateValidator(maxWidth: 32, maxHeight: 16, maxTotal: 512);
-        var pngBytes = Encode(CreateNoiseImage(32, 16), new PngEncoder());
+        var pngBytes = Encode(TestImages.Noise(32, 16), SKEncodedImageFormat.Png);
 
         var result = await validator.ValidateUploadAsync(pngBytes, "image/png", pngBytes.Length, TestContext.Current.CancellationToken);
 
@@ -245,7 +241,7 @@ public class PlaylistCoverValidatorContentTests
     public async Task ValidateUpload_LimitsDisabledWithZero_AllowsLargerImage()
     {
         var validator = CreateValidator(maxWidth: 0, maxHeight: 0, maxTotal: 0);
-        var pngBytes = Encode(CreateNoiseImage(64, 64), new PngEncoder());
+        var pngBytes = Encode(TestImages.Noise(64, 64), SKEncodedImageFormat.Png);
 
         var result = await validator.ValidateUploadAsync(pngBytes, "image/png", pngBytes.Length, TestContext.Current.CancellationToken);
 
@@ -263,33 +259,15 @@ public class PlaylistCoverValidatorContentTests
         }));
 
     /// <summary>
-    /// Creates an image of pseudo-random pixels (fixed seed), so encoded files are large enough that
-    /// truncating or damaging them actually removes/destroys pixel data.
+    /// Encodes a noise bitmap into the given format (larger payloads make truncation/damage detectable).
     /// </summary>
-    /// <param name="width">The image width, in pixels.</param>
-    /// <param name="height">The image height, in pixels.</param>
-    /// <returns>The noise image.</returns>
-    private static Image<Rgba32> CreateNoiseImage(int width, int height)
-    {
-        var random = new Random(42);
-        var image = new Image<Rgba32>(width, height);
-        for (var y = 0; y < height; y++)
-        {
-            for (var x = 0; x < width; x++)
-                image[x, y] = new Rgba32((byte)random.Next(256), (byte)random.Next(256), (byte)random.Next(256), 255);
-        }
-
-        return image;
-    }
-
-    private static byte[] Encode(Image<Rgba32> image, SixLabors.ImageSharp.Formats.IImageEncoder encoder)
+    /// <param name="image">The bitmap to encode.</param>
+    /// <param name="format">The target image format.</param>
+    /// <returns>The encoded image bytes.</returns>
+    private static byte[] Encode(SKBitmap image, SKEncodedImageFormat format)
     {
         using (image)
-        using (var stream = new MemoryStream())
-        {
-            image.Save(stream, encoder);
-            return stream.ToArray();
-        }
+            return TestImages.Encode(image, format);
     }
 
     /// <summary>

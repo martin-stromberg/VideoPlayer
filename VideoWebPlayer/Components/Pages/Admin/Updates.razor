@@ -12,6 +12,7 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager NavigationManager
 @inject UpdateAdminService UpdateAdmin
+@inject IUpdateHostEnvironment UpdateHostEnvironment
 @implements IDisposable
 @rendermode InteractiveServer
 
@@ -226,8 +227,12 @@ else
 
                         <div class="update-field">
                             <label class="form-label" for="service-name">Dienstname für Neustart</label>
-                            <InputText id="service-name" class="form-control" @bind-Value="model.ServiceName" />
+                            <InputText id="service-name" class="form-control" @bind-Value="model.ServiceName" disabled="@UpdateHostEnvironment.RunsUnderIis" />
                             <ValidationMessage For="@(() => model.ServiceName)" />
+                            @if (UpdateHostEnvironment.RunsUnderIis)
+                            {
+                                <small class="form-text text-muted">Ohne Wirkung unter IIS — ein Dienstname gilt nur für Windows-Dienste oder systemd.</small>
+                            }
                         </div>
                     </fieldset>
 

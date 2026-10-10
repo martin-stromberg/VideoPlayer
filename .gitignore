@@ -380,6 +380,9 @@ FodyWeavers.xsd
 /VideoWebPlayer/Updates/
 /VideoWebPlayer/Backups/
 /VideoWebPlayer/wwwroot/images/genres/
+
+# Deployment-seitige lokale Konfiguration; wird nie ins Repository oder Paket uebernommen.
+/VideoWebPlayer/appsettings.Local.json
 issue.md
 /.agents
 

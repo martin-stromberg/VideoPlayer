@@ -6,8 +6,8 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
+using VideoWebPlayer.Tests.Helpers;
 using VideoWebPlayer.Controllers;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
@@ -324,9 +324,6 @@ public sealed class EpisodesControllerBackgroundImageTests
 
     private static byte[] CreateTestImageBytes()
     {
-        using var image = new Image<Rgba32>(64, 64, Color.Teal.ToPixel<Rgba32>());
-        using var stream = new MemoryStream();
-        image.SaveAsPng(stream);
-        return stream.ToArray();
+        return TestImages.SolidPng(64, 64, SKColors.Teal);
     }
 }

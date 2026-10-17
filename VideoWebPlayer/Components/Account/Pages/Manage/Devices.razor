@@ -7,6 +7,7 @@
 
 @inject IPairingBootstrapService BootstrapService
 @inject IdentityUserAccessor UserAccessor
+@inject ProgramSettingsService SettingsService
 
 <PageTitle>Geräte</PageTitle>
 
@@ -41,7 +42,7 @@
 
         @if (createdTicket is not null)
         {
-            <div class="card mt-3" data-testid="bootstrap-ticket-panel">
+            <div class="card mt-3 pairing-qr-card" data-testid="bootstrap-ticket-panel">
                 <div class="card-body">
                     @if (isLoopbackHost)
                     {
@@ -109,9 +110,17 @@
         }
 
         createdTicket = created;
-        isLoopbackHost = IsLoopback(HttpContext.Request.Host.Host);
 
-        var pairingUrl = $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}/pairing?t={created.Ticket}";
+        // Die gepflegte öffentliche Basis-URL (Admin-Einstellung, wie bei den
+        // Discovery-Antworten) gewinnt: Sie beschreibt die Adresse, unter der
+        // Geräte den Server erreichen — der Host der Profil-Seite kann dagegen
+        // eine lokale oder interne Adresse sein (z. B. localhost), die ein
+        // Gerät im Netz nicht auflösen kann.
+        var publicBaseUrl = await SettingsService.GetDiscoveryPublicBaseUrlAsync();
+        var baseUrl = publicBaseUrl ?? $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}";
+        isLoopbackHost = publicBaseUrl is null && IsLoopback(HttpContext.Request.Host.Host);
+
+        var pairingUrl = PairingUrlBuilder.BuildPairingUrl(baseUrl, created.Ticket);
         qrCodeBase64 = RenderQrCodePng(pairingUrl);
     }
 

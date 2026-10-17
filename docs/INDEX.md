@@ -18,6 +18,7 @@
 |----------|--------------|
 | [Episode Selection](./TECH_Episode_Selection.md) | Episodenauswahl und Wiedergabe |
 | [Automatisierte Programmupdates](./TECH_Auto_Update.md) | Update-Admin-UI, Sicherung und Installation |
+| [Avahi-Integration](./INSTALL_AVAHI.md) | Alternativer mDNS-Weg über den Avahi-Daemon (Standard: eingebautes mDNS-Advertisement des Servers) |
 
 ## Benutzer- und Admin-Hilfen
 

@@ -5,8 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Options;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats;
+using SkiaSharp;
 using VideoWebPlayer.Configuration;
 
 namespace VideoWebPlayer.Services.PlaylistCover
@@ -49,7 +48,7 @@ namespace VideoWebPlayer.Services.PlaylistCover
         /// <summary>
         /// Validates an uploaded playlist cover image. The checks run from cheap to expensive, so a hostile
         /// upload is rejected as early as possible: (1) the MIME type reported by the client against the
-        /// allowlist, (2) the file size, (3) the image header via <see cref="Image.Identify(ReadOnlySpan{byte})"/> -
+        /// allowlist, (2) the file size, (3) the image header via <see cref="SKCodec.Create(SKStream)"/> -
         /// which yields the format that is actually contained in the bytes (checked against the same
         /// allowlist, instead of trusting the client-supplied MIME type) and the pixel dimensions, (4) the
         /// pixel limits - still purely on the header, so a decompression bomb is never decoded - and only
@@ -87,7 +86,7 @@ namespace VideoWebPlayer.Services.PlaylistCover
 
             // The client-supplied MIME type is only a claim: what counts is the format the bytes really
             // contain (a GIF sent as "image/png" must not pass just because "image/png" is allowed).
-            var actualMimeType = info.Metadata.DecodedImageFormat?.DefaultMimeType;
+            var actualMimeType = info.MimeType;
             if (string.IsNullOrWhiteSpace(actualMimeType) || !allowedFormats.Contains(actualMimeType))
                 return Task.FromResult(UnsupportedFormat(actualMimeType, allowedFormats));
 
@@ -95,16 +94,18 @@ namespace VideoWebPlayer.Services.PlaylistCover
             if (dimensionError is not null)
                 return Task.FromResult(PlaylistCoverValidationResult.Failure(dimensionError));
 
-            // ImageSharp's JPEG decoder silently renders truncated/destroyed JPEGs as partly grey images
-            // instead of failing, so JPEGs additionally get a strict integrity check (memory-free, it does
-            // not reconstruct pixels). The PNG decoder already fails on incomplete/damaged data; the WebP
-            // decoder does NOT fail on a truncated file, so WebP is checked against the length its RIFF
-            // header declares.
+            // SkiaSharp's JPEG decoder (libjpeg-turbo) silently renders truncated/destroyed JPEGs as partly
+            // grey images instead of failing, and its PNG decoder still returns a partially rendered bitmap
+            // for a file cut off mid-stream - so both formats get a structural integrity check (memory-free,
+            // it does not reconstruct pixels). The WebP decoder does NOT fail on a truncated file either, so
+            // WebP is checked against the length its RIFF header declares.
             var jpegCorrupt = string.Equals(actualMimeType, "image/jpeg", StringComparison.OrdinalIgnoreCase)
                               && JpegIntegrityChecker.Check(fileContent) == JpegIntegrity.Corrupt;
+            var pngCorrupt = string.Equals(actualMimeType, "image/png", StringComparison.OrdinalIgnoreCase)
+                             && PngIntegrityChecker.Check(fileContent) == PngIntegrity.Corrupt;
             var webpTruncated = string.Equals(actualMimeType, "image/webp", StringComparison.OrdinalIgnoreCase)
                                 && IsRiffTruncated(fileContent);
-            if (jpegCorrupt || webpTruncated || !CanBeDecoded(fileContent))
+            if (jpegCorrupt || pngCorrupt || webpTruncated || !CanBeDecoded(fileContent))
             {
                 return Task.FromResult(PlaylistCoverValidationResult.Failure(
                     "Datei ist beschädigt oder unvollständig und kann nicht als Bild gelesen werden."));
@@ -186,7 +187,7 @@ namespace VideoWebPlayer.Services.PlaylistCover
 
         /// <summary>
         /// Whether <paramref name="ex"/>, thrown while reading untrusted upload bytes, means "these bytes are
-        /// not a decodable image". Deliberately broad: ImageSharp signals damaged input via several unrelated
+        /// not a decodable image". Deliberately broad: damaged input surfaces via several unrelated
         /// exception types (unknown format, invalid content, index/overflow errors of a lenient decoder, ...),
         /// and every one of them must lead to a clean rejection instead of a 500. Only cancellation is
         /// let through.
@@ -201,18 +202,65 @@ namespace VideoWebPlayer.Services.PlaylistCover
         /// </summary>
         /// <param name="fileContent">The raw uploaded file bytes.</param>
         /// <returns>The image info, or <see langword="null"/> when the bytes are not a recognisable image.</returns>
-        private static ImageInfo? TryIdentify(byte[] fileContent)
+        private static IdentifiedImage? TryIdentify(byte[] fileContent)
         {
             try
             {
-                return Image.Identify(fileContent);
+                using var data = SKData.CreateCopy(fileContent);
+                using var codec = SKCodec.Create(data);
+                if (codec is not null)
+                    return new IdentifiedImage(codec.Info.Width, codec.Info.Height, MimeTypeOf(codec.EncodedFormat));
             }
             catch (Exception ex) when (IsImageDecodingFailure(ex))
             {
-                // A header ImageSharp cannot parse (unknown format, invalid dimensions, ...): not an image.
+                // A header SkiaSharp cannot parse (unknown format, invalid dimensions, ...): not an image.
                 return null;
             }
+
+            // SKCodec refuses to create a decoder for PNGs that carry only the signature and IHDR (no pixel
+            // data). That header is still enough to read the declared dimensions - reading them here keeps
+            // the pixel-limit check on the header, so a decompression bomb is rejected before any decoding.
+            return SniffPngHeader(fileContent);
         }
+
+        /// <summary>
+        /// Reads the declared dimensions directly from the PNG signature and IHDR chunk when no decoder can
+        /// be created for the bytes. Dimensions beyond the int range yield <see langword="null"/> (the file
+        /// is rejected as "not an image" - a width overflowing to a non-positive value must not slip past
+        /// the pixel limits).
+        /// </summary>
+        /// <param name="data">The raw uploaded file bytes.</param>
+        /// <returns>The declared dimensions as PNG, or <see langword="null"/> when the header is unusable.</returns>
+        private static IdentifiedImage? SniffPngHeader(byte[] data)
+        {
+            // PNG signature (8) + IHDR length (4) + "IHDR" (4) + IHDR data (13).
+            if (data.Length < 29
+                || data[0] != 0x89 || data[1] != 0x50 || data[2] != 0x4E || data[3] != 0x47
+                || data[12] != (byte)'I' || data[13] != (byte)'H' || data[14] != (byte)'D' || data[15] != (byte)'R')
+                return null;
+
+            var width = BinaryPrimitives.ReadUInt32BigEndian(data.AsSpan(16, 4));
+            var height = BinaryPrimitives.ReadUInt32BigEndian(data.AsSpan(20, 4));
+            if (width == 0 || height == 0 || width > int.MaxValue || height > int.MaxValue)
+                return null;
+
+            return new IdentifiedImage((int)width, (int)height, "image/png");
+        }
+
+        private static string? MimeTypeOf(SKEncodedImageFormat format) => format switch
+        {
+            SKEncodedImageFormat.Jpeg => "image/jpeg",
+            SKEncodedImageFormat.Png => "image/png",
+            SKEncodedImageFormat.Webp => "image/webp",
+            SKEncodedImageFormat.Gif => "image/gif",
+            SKEncodedImageFormat.Bmp => "image/bmp",
+            SKEncodedImageFormat.Ico => "image/x-icon",
+            SKEncodedImageFormat.Wbmp => "image/vnd.wap.wbmp",
+            SKEncodedImageFormat.Heif => "image/heif",
+            SKEncodedImageFormat.Avif => "image/avif",
+            SKEncodedImageFormat.Jpegxl => "image/jxl",
+            _ => null
+        };
 
         /// <summary>
         /// Fully decodes the (first frame of the) image, strictly - corrupted segments/checksums are not
@@ -225,18 +273,22 @@ namespace VideoWebPlayer.Services.PlaylistCover
         {
             try
             {
-                var options = new DecoderOptions
-                {
-                    MaxFrames = 1,
-                    SkipMetadata = true
-                };
-                using var image = Image.Load(options, fileContent);
-                return true;
+                using var bitmap = SKBitmap.Decode(fileContent);
+                return bitmap is not null;
             }
             catch (Exception ex) when (IsImageDecodingFailure(ex))
             {
                 return false;
             }
         }
+
+        /// <summary>
+        /// The image properties read from the header of an upload: dimensions and the real format as MIME type.
+        /// </summary>
+        /// <param name="Width">The image width, in pixels.</param>
+        /// <param name="Height">The image height, in pixels.</param>
+        /// <param name="MimeType">The MIME type of the format actually contained in the bytes.</param>
+        /// <returns>The identified image properties.</returns>
+        private sealed record IdentifiedImage(int Width, int Height, string? MimeType);
     }
 }

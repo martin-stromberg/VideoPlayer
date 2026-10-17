@@ -267,7 +267,13 @@ namespace VideoWebPlayer.Migrations
                     b.Property<int>("DataVersion")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("DiscoveryPublicBaseUrl")
+                        .HasColumnType("TEXT");
+
                     b.Property<bool>("GenresChanged")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("MdnsAdvertisementEnabled")
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("MediaCollectionScanIntervalDays")

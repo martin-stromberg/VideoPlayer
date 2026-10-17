@@ -58,6 +58,7 @@ public sealed class UpdateSettingsService : IUpdateSettingsService
     private readonly IConfiguration _configuration;
     private readonly AutoUpdateOptions _autoUpdateOptions;
     private readonly VideoWebPlayerUpdateSourceFactory _sourceFactory;
+    private readonly IUpdateHostEnvironment _hostEnvironment;
 
     /// <summary>
     /// Creates a new update settings service.
@@ -66,16 +67,19 @@ public sealed class UpdateSettingsService : IUpdateSettingsService
     /// <param name="configuration">The application configuration providing default values.</param>
     /// <param name="autoUpdateOptions">The runtime-mutable updater options.</param>
     /// <param name="sourceFactory">The factory creating the update source.</param>
+    /// <param name="hostEnvironment">The hosting environment detection.</param>
     public UpdateSettingsService(
         ApplicationDbContext db,
         IConfiguration configuration,
         AutoUpdateOptions autoUpdateOptions,
-        VideoWebPlayerUpdateSourceFactory sourceFactory)
+        VideoWebPlayerUpdateSourceFactory sourceFactory,
+        IUpdateHostEnvironment hostEnvironment)
     {
         _db = db;
         _configuration = configuration;
         _autoUpdateOptions = autoUpdateOptions;
         _sourceFactory = sourceFactory;
+        _hostEnvironment = hostEnvironment;
     }
 
     /// <summary>
@@ -123,7 +127,7 @@ public sealed class UpdateSettingsService : IUpdateSettingsService
         settings.AllowPrereleaseUpdates = update.AllowPrereleaseUpdates;
         settings.AutomaticInstallationEnabled = update.AutomaticInstallationEnabled;
         settings.AutomaticDownloadEnabled = update.AutomaticInstallationEnabled || update.AutomaticDownloadEnabled;
-        settings.ServiceName = NormalizeOptional(update.ServiceName, 200);
+        settings.ServiceName = _hostEnvironment.RunsUnderIis ? null : NormalizeOptional(update.ServiceName, 200);
         settings.CreateBackupBeforeInstallation = update.CreateBackupBeforeInstallation;
         settings.CancelInstallationOnBackupFailure = update.CancelInstallationOnBackupFailure;
         settings.UpdateBackupPath = string.IsNullOrWhiteSpace(update.UpdateBackupPath)
@@ -175,7 +179,7 @@ public sealed class UpdateSettingsService : IUpdateSettingsService
         _autoUpdateOptions.AllowPrereleaseUpdates = settings.AllowPrereleaseUpdates;
         _autoUpdateOptions.EnableAutomaticInstallation = settings.AutomaticInstallationEnabled;
         _autoUpdateOptions.EnableAutomaticDownload = settings.AutomaticInstallationEnabled || settings.AutomaticDownloadEnabled;
-        _autoUpdateOptions.ServiceName = settings.ServiceName;
+        _autoUpdateOptions.ServiceName = _hostEnvironment.RunsUnderIis ? null : settings.ServiceName;
 
         _autoUpdateOptions.Source = _sourceFactory.Create(settings.AllowPrereleaseUpdates);
     }
@@ -189,7 +193,7 @@ public sealed class UpdateSettingsService : IUpdateSettingsService
             AllowPrereleaseUpdates = _configuration.GetValue("AutoUpdate:AllowPrereleaseUpdates", false),
             AutomaticInstallationEnabled = _configuration.GetValue("AutoUpdate:EnableAutomaticInstallation", false),
             AutomaticDownloadEnabled = _configuration.GetValue("AutoUpdate:EnableAutomaticDownload", true),
-            ServiceName = NormalizeOptional(_configuration["AutoUpdate:ServiceName"], 200),
+            ServiceName = _hostEnvironment.RunsUnderIis ? null : NormalizeOptional(_configuration["AutoUpdate:ServiceName"], 200),
             CreateBackupBeforeInstallation = _configuration.GetValue("AutoUpdate:Backup:Enabled", true),
             CancelInstallationOnBackupFailure = _configuration.GetValue("AutoUpdate:Backup:CancelInstallationOnFailure", true),
             UpdateBackupPath = _configuration["AutoUpdate:Backup:Path"] ?? DefaultBackupPath,
@@ -216,13 +220,17 @@ public sealed class UpdateSettingsService : IUpdateSettingsService
                 "Es können 1 bis 10 Update-Backups aufbewahrt werden.");
     }
 
-    private static bool NormalizePersistedSettings(UpdateSettings settings)
+    private bool NormalizePersistedSettings(UpdateSettings settings)
     {
         var checkInterval = ClampCheckInterval(settings.CheckIntervalMinutes);
         var retainedBackups = ClampRetainedBackups(settings.RetainedUpdateBackupCount);
         if (settings.CheckIntervalMinutes == checkInterval &&
-            settings.RetainedUpdateBackupCount == retainedBackups)
+            settings.RetainedUpdateBackupCount == retainedBackups &&
+            (!_hostEnvironment.RunsUnderIis || settings.ServiceName is null))
             return false;
+
+        if (_hostEnvironment.RunsUnderIis)
+            settings.ServiceName = null;
 
         settings.CheckIntervalMinutes = checkInterval;
         settings.RetainedUpdateBackupCount = retainedBackups;

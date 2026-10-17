@@ -766,9 +766,9 @@ beschädigte Datei).
     unterstützt. Erlaubte Formate: {Liste}."` (`{X}` ist ein Kurzname wie „BMP" bzw. bei
     unbekannten MIME-Types der Teil nach dem `/` in Großbuchstaben)
   - Dateigröße ≤ `Playlists:MaxCoverImageSizeBytes` → sonst `"Datei zu groß, max. {N} MB erlaubt."`
-  - `Image.Identify` (SixLabors.ImageSharp, liest nur den Bildkopf) muss die Datei erkennen →
+  - `SKCodec.Create` (SkiaSharp, liest nur den Bildkopf) muss die Datei erkennen →
     sonst `"Datei ist kein gültiges Bild."`
-  - Das dabei **tatsächlich erkannte** Format (`DecodedImageFormat.DefaultMimeType`, nicht der vom
+  - Das dabei **tatsächlich erkannte** Format (aus dem Codec-Header, nicht der vom
     Client gemeldete Content-Type) muss ebenfalls in `Playlists:AllowedCoverImageFormats` stehen →
     sonst dieselbe `"Format {X} wird nicht unterstützt. …"`-Meldung (z. B. für ein GIF, das als
     `image/png` hochgeladen wird). Weicht der gemeldete Typ vom erkannten ab, aber beide sind
@@ -781,15 +781,16 @@ beschädigte Datei).
     `"Bild zu groß (B x H Pixel). Erlaubt sind höchstens … Bitte verkleinern Sie das Bild."`
   - Vollständige, strikte Dekodierung des Bildes (erster Frame, ohne Metadaten) → sonst
     `"Datei ist beschädigt oder unvollständig und kann nicht als Bild gelesen werden."`. Da
-    ImageSharps JPEG-Decoder abgeschnittene oder in den Bilddaten zerstörte JPEGs stillschweigend
+    SkiaSharps JPEG-Decoder abgeschnittene oder in den Bilddaten zerstörte JPEGs stillschweigend
     als teilweise graues Bild „dekodiert", prüft zusätzlich `JpegIntegrityChecker` (vor der
     Dekodierung, ohne Pixel zu rekonstruieren) die JPEG-Struktur: fehlender Abschluss-Marker
     (EOI) = abgeschnitten; bei Baseline-/Extended-Sequential-Huffman-JPEGs (praktisch alle
     Kamera- und Web-JPEGs) werden die Huffman-kodierten Bilddaten Symbol für Symbol auf gültige
     Codes, gültige Koeffizientenpositionen, korrekte Anzahl der MCUs und Restart-Marker geprüft.
     Progressive/arithmetisch kodierte JPEGs werden nur auf Vollständigkeit der Marker-Struktur
-    geprüft; im Zweifel gilt die Datei als gültig, ein legales Bild wird nicht abgelehnt. Der
-    PNG-Decoder schlägt bei unvollständigen/beschädigten Daten selbst fehl. Der WebP-Decoder tut
+    geprüft; im Zweifel gilt die Datei als gültig, ein legales Bild wird nicht abgelehnt. Da auch der
+    PNG-Decoder abgeschnittene Dateien partiell dekodiert statt zu scheitern, prüft zusätzlich
+    `PngIntegrityChecker` die Chunk-Struktur (Längen, CRC32 je Chunk, abschließender IEND-Chunk). Der WebP-Decoder tut
     das bei einer abgeschnittenen Datei NICHT (schon ein fehlendes Byte wird stillschweigend
     akzeptiert); deshalb wird bei WebP die tatsächliche Dateilänge gegen die im RIFF-Kopf
     angegebene Länge geprüft - ist die Datei kürzer, gilt sie als unvollständig. Zerstörte
@@ -800,7 +801,7 @@ beschädigte Datei).
     gespeichert
   - Speicherbedarf: erst die (billige) Header-/Pixelprüfung, dann die Volldekodierung mit rund
     4 Byte je Bildpunkt (bei der Standardgrenze 4096 × 4096 ≈ 64 MB kurzzeitig); jede von
-    ImageSharp beim Lesen geworfene Ausnahme wird zu einer sauberen Ablehnung (HTTP 400), nie zu
+    SkiaSharp beim Lesen geworfene Ausnahme wird zu einer sauberen Ablehnung (HTTP 400), nie zu
     einem 500
 
 **Fehlerbehandlung:** Validierungsverletzungen im Service werden als `InvalidOperationException`

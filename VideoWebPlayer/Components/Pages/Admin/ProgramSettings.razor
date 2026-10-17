@@ -22,7 +22,7 @@ else
             <div>
                 <span class="admin-kicker">Einrichtung</span>
                 <h1>Allgemein</h1>
-                <p>Anwendungstitel, Scan-Verhalten und Weiterschauen konfigurieren.</p>
+                <p>Anwendungstitel, Scan-Verhalten, Weiterschauen und Netzwerk-Erkennung konfigurieren.</p>
             </div>
             <a class="btn btn-outline-light" href="/admin">Zurück</a>
         </header>
@@ -30,6 +30,10 @@ else
     @if (!string.IsNullOrWhiteSpace(statusMessage))
     {
         <div class="alert alert-success">@statusMessage</div>
+    }
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
     }
 
         <EditForm Model="model" OnValidSubmit="SaveAsync">
@@ -82,6 +86,25 @@ else
                 </div>
             </div>
 
+            <div class="admin-card admin-card-wide">
+                <h2>Netzwerk-Erkennung (mDNS)</h2>
+                <div class="form-check">
+                    <InputCheckbox class="form-check-input" id="mdnsAdvertisementEnabled" @bind-Value="model.MdnsAdvertisementEnabled" />
+                    <label class="form-check-label" for="mdnsAdvertisementEnabled">Server per mDNS im Netzwerk ankündigen</label>
+                </div>
+                <div class="form-text">Der Server kündigt sich als Diensttyp <code>_videowebplayer._tcp.local.</code> per mDNS (UDP-Port 5353) an, damit Apps ihn automatisch finden. Wirkt nur zusammen mit der Serverkonfiguration <code>Mdns:Enabled</code> — ist diese deaktiviert, bleibt das Advertisement aus. Änderungen werden spätestens nach ca. 60 Sekunden wirksam, ein Neustart ist nicht nötig.</div>
+            </div>
+
+            <div class="admin-card admin-card-wide">
+                <h2>Öffentliche Basis-URL (Broadcast-Erkennung)</h2>
+                <div class="mb-3">
+                    <label class="form-label" for="discoveryPublicBaseUrl">Öffentliche Basis-URL</label>
+                    <InputText class="form-control" id="discoveryPublicBaseUrl" @bind-Value="model.DiscoveryPublicBaseUrl" />
+                    <ValidationMessage For="() => model.DiscoveryPublicBaseUrl" />
+                    <div class="form-text">Adresse, die der Server bei der Broadcast-Erkennung (UDP-Port 5001) an Apps meldet — vollständig mit Schema, Host, Port und Pfad, z. B. <code>https://videos.example.com/videoplayer/</code>. Hat Vorrang vor der Serverkonfiguration <code>Discovery:PublicBaseUrl</code>. Leer lassen, damit die Adresse automatisch abgeleitet wird. Änderungen wirken sofort, ein Neustart ist nicht nötig.</div>
+                </div>
+            </div>
+
             <div class="admin-actions">
                 <button type="submit" class="btn btn-primary" disabled="@isSaving">Speichern</button>
             </div>
@@ -93,6 +116,7 @@ else
     private bool isAdmin;
     private bool isSaving;
     private string? statusMessage;
+    private string? errorMessage;
     private SettingsModel? model;
 
     protected override async Task OnInitializedAsync()
@@ -111,6 +135,8 @@ else
             ScanProcessIntervalMinutes = setup.ScanProcessIntervalMinutes,
             MediaCollectionScanIntervalDays = setup.MediaCollectionScanIntervalDays,
             ContinueWatchingEndThresholdSeconds = setup.ContinueWatchingEndThresholdSeconds,
+            MdnsAdvertisementEnabled = setup.MdnsAdvertisementEnabled,
+            DiscoveryPublicBaseUrl = setup.DiscoveryPublicBaseUrl,
         };
     }
 
@@ -121,14 +147,22 @@ else
 
         isSaving = true;
         statusMessage = null;
+        errorMessage = null;
         try
         {
             await SettingsService.UpdateGeneralSettingsAsync(
-                model.ApplicationTitle,
-                model.ScanProcessIntervalMinutes,
-                model.MediaCollectionScanIntervalDays,
-                model.ContinueWatchingEndThresholdSeconds);
+                new GeneralSettingsUpdate(
+                    model.ApplicationTitle,
+                    model.ScanProcessIntervalMinutes,
+                    model.MediaCollectionScanIntervalDays,
+                    model.ContinueWatchingEndThresholdSeconds,
+                    model.MdnsAdvertisementEnabled,
+                    model.DiscoveryPublicBaseUrl));
             statusMessage = "Gespeichert.";
+        }
+        catch (DiscoveryUrlValidationException ex)
+        {
+            errorMessage = ex.Message;
         }
         finally
         {
@@ -150,5 +184,11 @@ else
 
         [Range(0, 3600)]
         public int ContinueWatchingEndThresholdSeconds { get; set; } = 30;
+
+        public bool MdnsAdvertisementEnabled { get; set; } = true;
+
+        [Display(Name = "Die öffentliche Basis-URL")]
+        [AbsoluteHttpUrl]
+        public string? DiscoveryPublicBaseUrl { get; set; }
     }
 }

@@ -35,6 +35,10 @@ Ist das Update gefunden, aber noch nicht heruntergeladen, startet die Anwendung 
 
 Je nach Serverkonfiguration kann die Installation einen Neustart der Anwendung oder des Dienstes auslösen. Der konfigurierte Dienstname wird für diesen Neustart verwendet.
 
+**Wichtig — deployment-seitige Dateien:** Eine Update-Installation schützt deployment-seitige Anpassungen an `web.config` und `appsettings*.json` über die ausgelieferte `AutoUpdate:ProtectedFiles`-Schutzliste: Das Installationsskript sichert die Dateien vor dem Paketkopiervorgang unter `Updates/backup/` (manuelle Restore-Ablage, wird nicht automatisch aufgeräumt) und übernimmt danach die konfigurierten Bereiche — XML-Elemente/-Attribute wie `<environmentVariables>` und `security/ipSecurity` sowie aufgezählte JSON-Schlüssel — aus der Bestandsdatei in die Paketversion. Der Schutz greift erst ab dem ersten Update **nach** dieser Version; das Update auf diese Version selbst ersetzt die Dateien noch vollständig. Zusätzlich angelegte Dateien, die nicht im Paket enthalten sind, bleiben weiterhin erhalten — darunter die optionale `appsettings.Local.json` im Anwendungsverzeichnis, die für beliebige deployment-seitige Konfigurationswerte außerhalb der `JsonKeys`-Liste verwendet werden kann. Secrets sollten weiterhin bevorzugt als maschinenweite Umgebungsvariablen (`Jwt__*`) abgelegt werden.
+
+Randbedingungen des Schutzes: Unter Linux benötigt der Merge `python3` auf dem Zielsystem — fehlt es, wird der Merge mit einem Eintrag in `update.log` übersprungen und das Update läuft weiter (die Sicherungen bleiben unter `Updates/backup/`). Sicherungs- oder Merge-Fehler brechen die Installation grundsätzlich nicht ab. Deployment-seitig angepasste `appsettings*.json`-Dateien sollten kommentarfrei bleiben — JSON-Kommentare führen zu einem Lesefehler, und der Merge wird für die betroffene Datei übersprungen. Die `appsettings.Local.json` wird bei Änderungen ohne Neustart neu eingelesen, sollte ebenfalls kommentarfrei bleiben (der `appsettings*.json`-Wildcard-Eintrag erfasst auch sie) und wird bei jedem Update zusätzlich unter `Updates/backup/` gesichert. Wer die Schutzliste deployment-seitig erweitern will, nutzt Umgebungsvariablen (`AutoUpdate__ProtectedFiles__{n}__Path` usw.) — Änderungen an der Liste in `appsettings.json` selbst überstehen kein Update.
+
 ## Konfiguration
 
 Im Bereich `Konfiguration` werden die Update-Einstellungen gespeichert. Änderungen gelten für neue Update-Aktionen ohne manuelle Änderung an der Konfigurationsdatei. `Standards zurücksetzen` lädt die zentralen Standardwerte nur in das Formular; dauerhaft übernommen werden sie erst mit `Konfiguration speichern`.
@@ -57,11 +61,24 @@ Ohne diese Bestätigung wird die Einstellung nicht aktiviert.
 
 ### Dienstname für Neustart
 
-`Dienstname für Neustart` enthält den Namen des Dienstes, der im Installations- oder Neustartablauf verwendet wird. Der Wert muss zur tatsächlichen Serverinstallation passen.
+`Dienstname für Neustart` enthält den Namen des Dienstes, der im Installations- oder Neustartablauf verwendet wird. Der Wert muss zur tatsächlichen Serverinstallation passen. Läuft die Anwendung unter IIS, ist das Feld gesperrt und ein eingetragener Wert wirkungslos — ein Dienstname gilt nur für Windows-Dienste oder systemd (siehe nächster Abschnitt).
+
+### Update-Installation unter IIS
+
+Läuft die Anwendung als IIS-Site, erkennt der Updater das Hosting-Modell selbstständig (Out-of-Process oder In-Process) und benötigt **keine** Konfiguration: Die Installation legt die Site per `app_offline.htm` kontrolliert still, tauscht die Dateien und überlässt den Neustart IIS — ein Dienstname ist dafür nicht nötig und das entsprechende Feld ist unter IIS gesperrt. Voraussetzung beim In-Process-Hosting: ein dedizierter Anwendungspool je Anwendung, weil das Update den Pool-Prozess (`w3wp`) beendet und damit alle Sites desselben Pools betroffen wären. Der Ablauf wird in `Updates/update.log` protokolliert; nach einem Fehlschlag liegt dort zusätzlich eine Kopie des ausgeführten Skripts (`update-failed.ps1`).
+
+Nur wenn der Anwendungspool bewusst mit IIS-Verwaltungsrechten läuft und die privilegierte Variante (`Stop-WebAppPool`/`Start-WebAppPool`) genutzt werden soll, werden zwei Schlüssel in der Konfigurationsdatei gesetzt:
+
+- `AutoUpdate:AppPoolName` — Name des IIS-Anwendungspools,
+- `AutoUpdate:SiteName` — Name der IIS-Site (optional, ergänzt `AppPoolName`).
+
+Beide Schlüssel werden in einer `appsettings*.json`-Datei oder als Umgebungsvariablen (`AutoUpdate__AppPoolName`, `AutoUpdate__SiteName`) gesetzt — die Bibliothek bietet zusätzlich die Fluent-API `WithIisApplicationPool`, die der VideoWebPlayer nicht nutzt; in der Update-Oberfläche gibt es dafür kein Feld. Beide Schlüssel stehen in der `JsonKeys`-Schutzliste: In `appsettings*.json` gepflegte Werte überstehen Update-Installationen daher per `Merge` (ab dem Folge-Update, siehe Hinweis zu deployment-seitigen Dateien oben); Umgebungsvariablen bleiben die robusteste Variante.
 
 ### Backup vor Installation
 
 `Backup vor Installation` erzeugt vor der Installation ein Backup über dieselbe Backup-Infrastruktur wie die manuelle Backup-Seite.
+
+Das Update-Backup sichert nur die Anwendungsdaten — Konfigurationsdateien wie `web.config` oder `appsettings*.json` sind nicht enthalten. Der Schutz dieser Dateien läuft getrennt davon über die `AutoUpdate:ProtectedFiles`-Schutzliste im Installationsskript (siehe Hinweis zu deployment-seitigen Dateien oben; Dateisicherungen unter `Updates/backup/`).
 
 Die Generation dieser Sicherungen ist `ProgramUpdate`. Dadurch sind Update-Backups in der Backup-Historie von manuell erstellten und automatischen GVS-Backups unterscheidbar.
 
@@ -88,13 +105,13 @@ Die Generation dieser Sicherungen ist `ProgramUpdate`. Dadurch sind Update-Backu
 1. `Automatische Prüfung` aktivieren.
 2. Ein sinnvolles Prüfintervall setzen.
 3. Optional `Automatische Installation` aktivieren.
-4. Dienstname für den Neustart prüfen.
+4. Dienstname für den Neustart prüfen (nicht möglich unter IIS — siehe Abschnitt „Update-Installation unter IIS").
 5. Backup vor Installation aktiviert lassen.
 6. `Konfiguration speichern`.
 
 ## Fehler und Sperren
 
-Wenn eine Update-Aktion fehlschlägt, zeigt die Seite die Fehlermeldung im Statusbereich an. Häufige Ursachen sind fehlende Netzwerkverbindung zum Release-Repository, ein ungültiges Update-Paket, fehlende Schreibrechte im Update- oder Backup-Verzeichnis oder ein fehlgeschlagenes Backup.
+Wenn eine Update-Aktion fehlschlägt, zeigt die Seite die Fehlermeldung im Statusbereich an. Häufige Ursachen sind fehlende Netzwerkverbindung zum Release-Repository, ein ungültiges Update-Paket, fehlende Schreibrechte im Update- oder Backup-Verzeichnis oder ein fehlgeschlagenes Backup. Details der Installation protokolliert das Installationsskript in `Updates/update.log` im Anwendungsverzeichnis; liegt ein `update-failed.ps1` daneben, ist das die Kopie des zuletzt fehlgeschlagenen Skripts.
 
 Eine aktive Update-Sperre verhindert parallele Prüf-, Download- oder Installationsaktionen. In diesem Zustand sollten Administratoren warten, bis die laufende Aktion beendet ist, und den Status anschließend erneut laden.
 

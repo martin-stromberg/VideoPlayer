@@ -523,7 +523,7 @@ Wenn ein Medieninhalt gelöscht wird:
 | MediaType normalisiert | Service | Normalisierung | MediaType-Input wird auf kanonischen Enum-Wert normalisiert vor Speicherung |
 | ParentMediaType in {TVShow, TVShowSeason, MovieCollection, null} | Service | Enumeration | Nur gültige Parent-Typen |
 | Foreign Key (CoverPictureId) | DB | Referenzielle Integrität | `Playlist.CoverPictureId` muss auf existierende `Pictures.Id` zeigen (oder NULL sein) |
-| Cover-Upload validiert | Service | Business Logic | Größe, erlaubter MIME-Type und Dekodierbarkeit via ImageSharp — siehe `PlaylistCoverValidator` bzw. BR-22 in `playlists-business-rules.md` |
+| Cover-Upload validiert | Service | Business Logic | Größe, erlaubter MIME-Type und Dekodierbarkeit via SkiaSharp — siehe `PlaylistCoverValidator` bzw. BR-22 in `playlists-business-rules.md` |
 
 ---
 

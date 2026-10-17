@@ -92,7 +92,7 @@ Exception: System.ArgumentException: Ungültiges Bildformat
    - Lösung: Fanart neu importieren (Scanner erneut ausführen)
 
 2. **Bildformat nicht unterstützt**
-   - ImageSharp unterstützt JPEG, PNG, WebP; TIFF, BMP nur teilweise
+   - SkiaSharp unterstützt JPEG, PNG, WebP, GIF und BMP
    - Lösung: Fanart in JPEG oder PNG konvertieren
 
 3. **Speicher-Mangel**

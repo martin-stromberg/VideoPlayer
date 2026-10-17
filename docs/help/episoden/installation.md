@@ -5,7 +5,7 @@
 ## Voraussetzungen
 
 - VideoWebPlayer v1.0+ mit Entity Framework Core
-- NuGet-Pakete: `SixLabors.ImageSharp` (≥3.0.0), `Nito.AsyncEx` (≥5.1.2)
+- NuGet-Pakete: `SkiaSharp` (≥4.153), `Nito.AsyncEx` (≥5.1.2)
 - Datenbank gemäß Migrationen aktualisiert
 - Mindestens 500 MB freier Datenbankplatz für generierte Bilder (bei 10.000 Episoden)
 

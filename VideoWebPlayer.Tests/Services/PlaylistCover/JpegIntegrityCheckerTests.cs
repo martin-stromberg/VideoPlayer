@@ -1,6 +1,3 @@
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Jpeg;
-using SixLabors.ImageSharp.PixelFormats;
 using VideoWebPlayer.Services.PlaylistCover;
 using Xunit;
 
@@ -9,23 +6,28 @@ namespace VideoWebPlayer.Tests.Services.PlaylistCover;
 /// <summary>
 /// Tests for <see cref="JpegIntegrityChecker"/>: complete JPEGs of various sizes and chroma subsamplings
 /// are never reported as corrupt, truncated or damaged ones are (Nachbesserungsrunde 1, Schritt 10,
-/// Abnahme-Abweichung 2 - ImageSharp's JPEG decoder itself silently accepts both).
+/// Abnahme-Abweichung 2 - SkiaSharp's JPEG decoder silently accepts both).
 /// </summary>
+/// <remarks>
+/// The JPEG variants were generated once with ImageSharp (which can control chroma subsampling and
+/// interleaving - SkiaSharp's encoder cannot) and are stored as fixtures under
+/// <c>TestData/Jpeg</c>: same image content (fixed-seed noise), same parameters as before.
+/// </remarks>
 public class JpegIntegrityCheckerTests
 {
     [Theory]
-    [InlineData(1, 1, JpegEncodingColor.YCbCrRatio420)]
-    [InlineData(8, 8, JpegEncodingColor.YCbCrRatio444)]
-    [InlineData(17, 9, JpegEncodingColor.YCbCrRatio420)]
-    [InlineData(64, 64, JpegEncodingColor.YCbCrRatio422)]
-    [InlineData(65, 33, JpegEncodingColor.YCbCrRatio411)]
-    [InlineData(100, 37, JpegEncodingColor.YCbCrRatio410)]
-    [InlineData(31, 47, JpegEncodingColor.Luminance)]
-    [InlineData(250, 130, JpegEncodingColor.Rgb)]
-    [InlineData(48, 48, JpegEncodingColor.Cmyk)]
-    public void Check_CompleteJpeg_IsIntact(int width, int height, JpegEncodingColor color)
+    [InlineData("jpeg_1x1_ycbcr420.jpg")]
+    [InlineData("jpeg_8x8_ycbcr444.jpg")]
+    [InlineData("jpeg_17x9_ycbcr420.jpg")]
+    [InlineData("jpeg_64x64_ycbcr422.jpg")]
+    [InlineData("jpeg_65x33_ycbcr411.jpg")]
+    [InlineData("jpeg_100x37_ycbcr410.jpg")]
+    [InlineData("jpeg_31x47_luminance.jpg")]
+    [InlineData("jpeg_250x130_rgb.jpg")]
+    [InlineData("jpeg_48x48_cmyk.jpg")]
+    public void Check_CompleteJpeg_IsIntact(string fixtureName)
     {
-        var jpeg = CreateJpeg(width, height, color, interleaved: true);
+        var jpeg = LoadFixture(fixtureName);
 
         Assert.Equal(JpegIntegrity.Intact, JpegIntegrityChecker.Check(jpeg));
     }
@@ -33,7 +35,7 @@ public class JpegIntegrityCheckerTests
     [Fact]
     public void Check_CompleteNonInterleavedJpeg_IsIntact()
     {
-        var jpeg = CreateJpeg(70, 45, JpegEncodingColor.YCbCrRatio420, interleaved: false);
+        var jpeg = LoadFixture("jpeg_70x45_ycbcr420_noninterleaved.jpg");
 
         Assert.Equal(JpegIntegrity.Intact, JpegIntegrityChecker.Check(jpeg));
     }
@@ -44,7 +46,7 @@ public class JpegIntegrityCheckerTests
     [InlineData(10)]
     public void Check_TruncatedJpeg_IsCorrupt(int divisor)
     {
-        var jpeg = CreateJpeg(64, 64, JpegEncodingColor.YCbCrRatio420, interleaved: true);
+        var jpeg = LoadFixture("jpeg_64x64_ycbcr420.jpg");
 
         Assert.Equal(JpegIntegrity.Corrupt, JpegIntegrityChecker.Check(jpeg[..(jpeg.Length / divisor)]));
     }
@@ -52,7 +54,7 @@ public class JpegIntegrityCheckerTests
     [Fact]
     public void Check_JpegWithoutEndMarker_IsCorrupt()
     {
-        var jpeg = CreateJpeg(64, 64, JpegEncodingColor.YCbCrRatio420, interleaved: true);
+        var jpeg = LoadFixture("jpeg_64x64_ycbcr420.jpg");
 
         Assert.Equal(JpegIntegrity.Corrupt, JpegIntegrityChecker.Check(jpeg[..^2]));
     }
@@ -60,7 +62,7 @@ public class JpegIntegrityCheckerTests
     [Fact]
     public void Check_JpegWithRandomizedImageData_IsCorrupt()
     {
-        var jpeg = CreateJpeg(64, 64, JpegEncodingColor.YCbCrRatio420, interleaved: true);
+        var jpeg = LoadFixture("jpeg_64x64_ycbcr420.jpg");
         var random = new Random(3);
         for (var i = jpeg.Length / 3; i < jpeg.Length - 2; i++)
             jpeg[i] = (byte)random.Next(0, 255);
@@ -71,7 +73,7 @@ public class JpegIntegrityCheckerTests
     [Fact]
     public void Check_JpegWithRemovedMiddleSection_IsCorrupt()
     {
-        var jpeg = CreateJpeg(64, 64, JpegEncodingColor.YCbCrRatio420, interleaved: true);
+        var jpeg = LoadFixture("jpeg_64x64_ycbcr420.jpg");
         var damaged = jpeg[..(jpeg.Length / 3)].Concat(jpeg[(2 * jpeg.Length / 3)..]).ToArray();
 
         Assert.Equal(JpegIntegrity.Corrupt, JpegIntegrityChecker.Check(damaged));
@@ -81,7 +83,7 @@ public class JpegIntegrityCheckerTests
     public void Check_JpegWithTrailingDataAfterEndMarker_IsIntact()
     {
         // Phone "motion photos" append extra data (a video) after the JPEG's EOI marker.
-        var jpeg = CreateJpeg(32, 32, JpegEncodingColor.YCbCrRatio420, interleaved: true);
+        var jpeg = LoadFixture("jpeg_64x64_ycbcr420.jpg");
         var withTrailer = jpeg.Concat(new byte[] { 1, 2, 3, 0xFF, 0xD8, 9, 9, 9 }).ToArray();
 
         Assert.Equal(JpegIntegrity.Intact, JpegIntegrityChecker.Check(withTrailer));
@@ -94,18 +96,25 @@ public class JpegIntegrityCheckerTests
         Assert.Equal(JpegIntegrity.Unknown, JpegIntegrityChecker.Check(Array.Empty<byte>()));
     }
 
-    private static byte[] CreateJpeg(int width, int height, JpegEncodingColor color, bool interleaved)
+    private static byte[] LoadFixture(string fileName)
+        => File.ReadAllBytes(Path.Combine(FindTestDataDirectory(), "Jpeg", fileName));
+
+    private static string FindTestDataDirectory()
     {
-        var random = new Random(42);
-        using var image = new Image<Rgba32>(width, height);
-        for (var y = 0; y < height; y++)
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
         {
-            for (var x = 0; x < width; x++)
-                image[x, y] = new Rgba32((byte)random.Next(256), (byte)random.Next(256), (byte)random.Next(256), 255);
+            var candidate = Path.Combine(directory.FullName, "VideoWebPlayer.Tests", "TestData");
+            if (Directory.Exists(candidate))
+                return candidate;
+
+            candidate = Path.Combine(directory.FullName, "TestData");
+            if (Directory.Exists(candidate))
+                return candidate;
+
+            directory = directory.Parent;
         }
 
-        using var stream = new MemoryStream();
-        image.SaveAsJpeg(stream, new JpegEncoder { ColorType = color, Interleaved = interleaved });
-        return stream.ToArray();
+        throw new DirectoryNotFoundException($"TestData-Verzeichnis oberhalb von '{AppContext.BaseDirectory}' nicht gefunden.");
     }
 }

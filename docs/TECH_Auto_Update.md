@@ -85,9 +85,82 @@ wendet sie beim Start über `app.MigrateDatabase()` an.
 | `Backup.Path` | Ablageort der Sicherungen (relativ zum Content-Root oder absoluter Pfad). |
 | `Backup.RetainedBackupCount` | Anzahl der aufbewahrten Sicherungen der Generation `ProgramUpdate` in der bestehenden Backup-Infrastruktur. |
 | `Backup.CancelInstallationOnFailure` | Bricht die Installation ab, wenn die Sicherung fehlschlägt oder kein Backup-Dienst registriert ist. |
+| `AppPoolName` | Name des IIS-Anwendungspools — wählt die **privilegierte** IIS-Variante der Update-Installation (`WebAdministration`, erfordert erhöhte Rechte für die Pool-Identität). Nur setzen, wenn das bewusst gewollt ist; ohne `AppPoolName` läuft unter IIS automatisch der nicht privilegierte Pfad (siehe unten). Alternativ per Fluent-API `WithIisApplicationPool(appPool, site)`. |
+| `SiteName` | Name der IIS-Site (optional, ergänzt `AppPoolName`). |
+| `ProtectedFiles` | Schutzliste für deployment-seitig angepasste Dateien. Array von Einträgen mit `Path` (relativ zum Anwendungsverzeichnis, Wildcards `*`/`?` erlaubt), `Strategy` (`Preserve` = Bestandsdatei komplett zurückschreiben, `Merge` = nur konfigurierte Bereiche übernehmen) sowie den `Merge`-Regeln `XmlElements` (XPath-Pfade), `XmlAttributes` (`{element-xpath}@{attribut}`) und `JsonKeys` (`:`-getrennte Schlüsselpfade). Wird mit `Merge`-Einträgen für `web.config` und `appsettings*.json` ausgeliefert. Vorrang: Explizite Fluent-Einträge (`PreserveFile`/`MergeFile`/`ProtectFile`) ersetzen die gesamte gebundene Liste (all-or-nothing) — der VideoWebPlayer nutzt sie bewusst nicht. Deployment-seitige Ergänzungen der Liste sind über Umgebungsvariablen möglich (`AutoUpdate__ProtectedFiles__{n}__Path` usw.), da `appsettings.json`-Änderungen an der Liste selbst kein Update überstehen. |
 
 Zusätzlich unterstützt die Bibliothek u. a. `ServiceName`, `ExecutablePath`, `ScheduledInstallTime`,
-`StopHostAfterScriptStart` und `MaxAssetBytes` – siehe Updater-README.
+`StopHostAfterScriptStart` und `MaxAssetBytes` – siehe Updater-README. `ServiceName` und
+`ExecutablePath` werden unter IIS ignoriert (mit Warnung im Anwendungslog), weil sie dort
+wirkungslos bzw. schädlich sind; im VideoWebPlayer ist das Dienstname-Feld unter IIS ohnehin
+gesperrt und ein persistierter Wert wird bereinigt.
+
+**Update-Installation unter IIS:** Erkennt der Updater IIS-Hosting anhand der
+ANCM-Umgebungsvariablen (`ASPNETCORE_PORT`/`ASPNETCORE_TOKEN` für Out-of-Process,
+`ASPNETCORE_IIS_*` für In-Process), generiert er ein Skript, das ohne erhöhte Rechte auskommt:
+`app_offline.htm` legt die Site kontrolliert still (Requests erhalten den Offline-Content statt
+Verbindungsfehler), das Skript wartet auf das Ende des Backend-Prozesses bzw. terminiert bei
+In-Process den `w3wp` des eigenen Pools, tauscht die Dateien (inkl. `ProtectedFiles`-Ablauf) und
+entfernt `app_offline.htm` — ANCM/WAS startet die neue Version beim nächsten Request. Das Skript
+wartet dabei auf das Ende **aller** Backend-Prozesse des Anwendungspfads (nicht nur der Ausgangs-
+PID — ANCM kann in der Offline-Umschaltzeit einen Ersatzprozess spawnen) und wiederholt den
+Kopiervorgang je Datei bei transienten Sperren; bricht die Installation ab, werden die gesicherten
+Schutzdateien aus `Updates/backup/` zurückgespielt. Voraussetzung
+bei In-Process: ein dedizierter App-Pool je Anwendung, weil der `w3wp`-Abbruch alle Sites des Pools
+mitnimmt. `app_offline.htm` wird auch auf Fehlerpfaden entfernt. Das Installationsskript läuft
+unter Windows grundsätzlich als entkoppelter Prozess (WMI `Win32_Process.Create`), der den Stopp
+des Hosts überlebt; schlägt der entkoppelte Start fehl, meldet die Installation
+`InstallationFailed` statt still zu scheitern. Diagnose: Alle Windows-Skripte schreiben jeden
+Schritt nach `Updates/update.log`; nach einem Fehlschlag liegt zusätzlich eine Archivkopie des
+ausgeführten Skripts als `update-failed.ps1` vor.
+
+**Dateierhalt bei Updates:** Die Schutzliste `AutoUpdate:ProtectedFiles` steuert, welche deployment-seitig
+angepassten Dateien eine Update-Installation überstehen. Das generierte Installationsskript arbeitet strikt
+in der Reihenfolge *Sicherung → Paketkopiervorgang → Merge/Restore*: Jede Trefferdatei wird vor dem
+Kopiervorgang nach `Updates/backup/<relativer Pfad>` gesichert; danach wird entweder die gesamte Bestandsdatei
+über die Paketdatei zurückkopiert (`Preserve`) oder es werden nur die konfigurierten Bereiche aus der
+Bestandsdatei in die Paketdatei übernommen (`Merge` per `XmlElements`/`XmlAttributes`/`JsonKeys`). Fehler im
+Backup- oder Merge-Schritt brechen die Installation nicht ab (`Write-Warning` unter Windows, `update.log`-
+Eintrag unter Linux); die Sicherungen bleiben zur manuellen Wiederherstellung unter `Updates/backup/` liegen
+und werden nicht automatisch aufgeräumt (keine Retention). Deployment-seitig zusätzlich angelegte Dateien,
+die nicht im Paket enthalten sind, bleiben unverändert erhalten. Randbedingungen:
+
+- **Migrationslücke:** Das Installationsskript erzeugt die laufende (alte) Version — der Schutz greift erst
+  ab dem ersten Update **nach** der Version, die diese Liste ausliefert. Bestandsinstallationen müssen
+  deployment-seitige `web.config`-/`appsettings`-Anpassungen einmalig nach dem Update auf diese Version
+  nachtragen.
+- **Elternknoten-Abhängigkeit:** Fehlt ein `XmlElements`-Ziel in der Paketdatei, wird es an den Elternknoten
+  angehängt — existiert auch der Elternpfad nicht, wird der Eintrag still übersprungen. Deshalb schützt die
+  ausgelieferte Liste `//system.webServer/httpProtocol` (Eltern `//system.webServer` existiert immer) und
+  `//security/ipSecurity` (Eltern `//security` via `requestFiltering`). Unter Linux unterstützt der XML-Merge
+  nur die ElementTree-XPath-Teilmenge (keine Attributprädikate wie `//add[@name='x']`).
+- **`JsonKeys` friert aufgezählte Werte ein:** Jeder `JsonKeys`-Eintrag übernimmt den Bestandswert bei jedem
+  Update — Paket-Verbesserungen am selben Schlüssel werden dauerhaft blockiert. Die ausgelieferte Liste ist
+  deshalb auf deployment-eigene Schlüssel beschränkt; `AutoUpdate:ProtectedFiles` selbst ist bewusst nicht
+  enthalten, damit künftige Releases Schutz nachliefern können.
+- **JSON-Merge schreibt Dateien neu:** Formatierung kann sich ändern; JSON-Kommentare führen zu einem
+  Parse-Fehler → pro-Datei-Warnung, Merge für diese Datei übersprungen (Update läuft weiter, die Bestandsdatei
+  bleibt erhalten). Deployment-seitig angepasste `appsettings*.json` sollten kommentarfrei bleiben.
+- **Linux benötigt `python3`:** Der `Merge` läuft unter Linux über ein eingebettetes Python-Skript; fehlt
+  `python3`, wird der Merge mit `update.log`-Eintrag übersprungen (Update läuft weiter, Backups bleiben in
+  `Updates/backup/`). `Preserve` und die Sicherungen laufen mit Bordmitteln.
+- **Fail-fast bei ungültiger Liste:** Eine fehlerhafte `AutoUpdate:ProtectedFiles`-Konfiguration (leerer,
+  rooted oder `..`-haltiger Pfad, `Merge` ohne Regel, fehlerhaftes `{xpath}@{attr}`-Format) verhindert den
+  Anwendungsstart (`OptionsValidationException`) — bewusst Fail-fast statt still ignoriertem Schutzverlust.
+
+### Lokale Konfigurationsdatei `appsettings.Local.json`
+
+Zusätzlich zur Schutzliste registriert der VideoWebPlayer beim Start die optionale Konfigurationsquelle
+`appsettings.Local.json` im Anwendungsverzeichnis (`optional`, `reloadOnChange`). Sie wird **nie paketiert**
+(`CopyToPublishDirectory="Never"` in `VideoWebPlayer.csproj`, `.gitignore`-Eintrag) und übersteht Updates
+daher vollständig — auch unabhängig von `ProtectedFiles`. Sie überlagert die Paket-`appsettings*.json`-Werte,
+verliert aber gegen User Secrets, Umgebungsvariablen und die Kommandozeile. Sie ist der Auffang für
+beliebige deployment-seitige Overrides außerhalb der geschlossenen `JsonKeys`-Liste und für deployment-seitige
+Erweiterungen, die `appsettings.json` nicht dauerhaft tragen kann. Seiteneffekt: Der
+`appsettings*.json`-Wildcard-Eintrag der Schutzliste erfasst eine deployment-seitig vorhandene
+`appsettings.Local.json` ebenfalls — sie wird bei jedem Update nach `Updates/backup/` gesichert (evtl. darin
+liegende Secrets landen damit auch im Backup-Verzeichnis) und vom JSON-Merge neu formatiert; Kommentare in der
+Datei sind daher zu vermeiden.
 
 ## Sicherung vor der Installation
 
@@ -111,6 +184,11 @@ auf `BackupRetentionOptions.ProgramUpdateCount` gemappt; `Manual`- und Upload-Ba
 Schlägt das Backup fehl, bricht die Installation bei aktivierter
 Option `CancelInstallationOnFailure` ab und der Fehler wird im Updater-Status sichtbar.
 
+Das `BeforeInstall`-Backup sichert ausschließlich die Anwendungsdatenbank — **keine**
+Konfigurationsdateien wie `web.config` oder `appsettings*.json`. Der Schutz deployment-seitiger
+Dateianpassungen läuft getrennt davon über die `AutoUpdate:ProtectedFiles`-Schutzliste im generierten
+Installationsskript (siehe oben; Sicherungen unter `Updates/backup/`).
+
 ## Release-Artefakte
 
 Damit der GitHub-Quelle ein Update erkennbar ist, erzeugt `.github/workflows/main-release.yml` zwei zusätzliche
@@ -122,5 +200,5 @@ Artefakte:
 - `update.json` – Release-Manifest-Asset, erzeugt von `.github/scripts/create-update-manifest.sh`, mit
   Plattform, Runtime-Identifier, Asset-URL, SHA256 und Größe der beiden Release-Archive.
 
-Der Updater unterstützt Windows (Dienst oder ausführbare Datei) und Linux (systemd); macOS ist nicht
-unterstützt.
+Der Updater unterstützt Windows (IIS in beiden Hosting-Modellen, Dienst oder ausführbare Datei) und
+Linux (systemd); macOS ist nicht unterstützt.

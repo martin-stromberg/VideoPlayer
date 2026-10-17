@@ -18,7 +18,8 @@
 - [Einrichtung](einrichtung.md) — Administrativer Bereich mit Verwaltungsfunktionen für die Anwendung
 - [Geräte](geraete/index.md) — Pairing-Codes erzeugen und gekoppelte Client-Geräte verwalten
 - [Medienquellen](medienquellen/index.md) — Medienquellen vom Typ SFTP-Server oder lokales Verzeichnis verwalten
-- [Updates](updates.md) — Prüfen, installieren und konfigurieren von Programmupdates
+- [Netzwerk-Erkennung](netzwerk-erkennung/index.md) — Server-Erkennung im lokalen Netzwerk per mDNS-Ankündigung und UDP-Broadcast mit auflösbarer öffentlicher Basis-URL
+- [Updates](updates.md) — Prüfen, installieren und konfigurieren von Programmupdates inklusive Schutz deployment-seitiger Dateianpassungen
 
 ## Projekt und Entwicklung
 

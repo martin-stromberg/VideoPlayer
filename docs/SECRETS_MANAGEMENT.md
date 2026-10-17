@@ -62,6 +62,8 @@ $env:Jwt__Issuer = "VideoWebPlayer"
 
 Für dauerhaft betriebene Systeme sollen die Werte aus einem Secret-Management-System oder geschützten Service-Konfigurationen kommen. Produktive JWT-Schlüssel müssen zufällig erzeugt, ausreichend lang und rotationsfähig sein.
 
+**Update-Sicherheit der Ablage:** In IIS-Bereitstellungen werden Secrets teilweise als `<environmentVariables>` in der `web.config` der Site gepflegt. Die mitgelieferte `AutoUpdate:ProtectedFiles`-Schutzliste übernimmt dieses Element seit der aktuellen Version per `Merge` bei Update-Installationen (`XmlElements`-Eintrag `//aspNetCore/environmentVariables`) — geschützte `web.config`-`environmentVariables` sind damit wieder eine gleichwertige Ablage. **Migrationslücke:** Der Schutz greift erst ab dem Update **nach** dieser Version — das Update auf diese Version läuft noch mit dem Skript der alten Version; Bestandsinstallationen tragen ihre `web.config`-Anpassungen einmalig nach. Als Primärablage für Secrets bleiben **maschinenweite Umgebungsvariablen** (`Jwt__*`) bzw. ein Secret-Management-System empfohlen, weil beide außerhalb des Anwendungsverzeichnisses liegen und unabhängig von Merge-Korrektheit und Dateirechten Updates überstehen. Als weitere update-sichere Datei-Ablage für deployment-spezifische Secrets und beliebige Konfigurations-Overrides steht die optionale, nie paketierte `appsettings.Local.json` im Anwendungsverzeichnis zur Verfügung; dort sind JSON-Kommentare zu vermeiden (der JSON-Merge des Update-Skripts könnte die Datei sonst nicht lesen), und darin liegende Secrets werden vom `appsettings*.json`-Schutzeintrag bei jedem Update zusätzlich nach `Updates/backup/` gesichert.
+
 ## Was nicht ins Repository gehört
 
 - Echte JWT-Schlüssel.

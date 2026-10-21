@@ -84,6 +84,8 @@ Für das Geräte-Pairing sind optional `Pairing:CodeLength` (Standard 8 Zeichen)
 
 Die mDNS-Netzwerk-Erkennung ist standardmäßig aktiv und optional über `Mdns:Enabled`, `Mdns:InstanceName`, `Mdns:ServiceType` und `Mdns:Port` konfigurierbar (unter IIS `OutOfProcess` ist `Mdns:Port` auf den Site-Port zu setzen); Voraussetzung ist eine offene Firewall für UDP 5353. Die UDP-Broadcast-Erkennung (Port 5001) meldet die öffentliche Basis-URL des Servers — sie wird in dieser Reihenfolge aufgelöst: Admin-Feld „Öffentliche Basis-URL" (`Einrichtung` → `Allgemein`) → `Discovery:PublicBaseUrl` → automatische Ableitung aus LAN-Adresse und Port; unter IIS/Reverse-Proxy/TLS-Terminierung ist eine explizite URL Pflicht. Details stehen in [docs/GUIDE_Installation.md](./docs/GUIDE_Installation.md).
 
+Für die automatische Ermittlung der Videolaufzeiten wird `ffprobe` (Bestandteil von FFmpeg) benötigt; es wird nicht mitgeliefert, sondern separat installiert und über `MediaProbe:FfprobePath`, das Verzeichnis `tools/ffmpeg/` im Anwendungsverzeichnis oder den `PATH` gefunden. Details stehen in [docs/help/videolaufzeit.md](./docs/help/videolaufzeit.md).
+
 ## Dokumentation
 
 - [Installationsanleitung](./docs/GUIDE_Installation.md)

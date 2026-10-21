@@ -230,6 +230,11 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<EventManager>();
         services.AddScoped<MediaSourceScanner>();
         services.AddScoped<MediaSourceClassifier>();
+        services.Configure<MediaProbeOptions>(configuration.GetSection("MediaProbe"));
+        services.AddSingleton<IFfprobeLocator, FfprobeLocator>();
+        services.AddSingleton<IMediaDurationProbe, FfprobeMediaDurationProbe>();
+        services.AddScoped<MediaDurationProbeService>();
+        services.AddHostedService<MediaDurationProbeWorker>();
         services.AddScoped<MediaMetadataEditorService>();
         services.AddSingleton<IMediaMetadataWriteCoordinator, MediaMetadataWriteCoordinator>();
         services.AddScoped<IFavoritesService, FavoritesService>();

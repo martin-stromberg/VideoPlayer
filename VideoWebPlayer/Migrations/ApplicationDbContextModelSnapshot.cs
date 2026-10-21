@@ -705,6 +705,12 @@ namespace VideoWebPlayer.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<TimeSpan?>("Duration")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("DurationProbedAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<long>("MediaCollectionId")
                         .HasColumnType("INTEGER");
 
@@ -717,6 +723,8 @@ namespace VideoWebPlayer.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("DurationProbedAt");
 
                     b.HasIndex("MediaCollectionId");
 

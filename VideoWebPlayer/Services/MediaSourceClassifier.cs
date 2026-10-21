@@ -37,7 +37,7 @@ namespace VideoWebPlayer.Services
         private static readonly Queue<long> _queuedCollectionTreeClassificationIds = new();
         private static readonly HashSet<long> _queuedCollectionTreeClassificationIdSet = new();
 
-        private readonly string[] fileExtensions_Video = new string[] { ".mp4", ".avi", ".mkv", ".mpeg" };
+        private readonly IReadOnlyCollection<string> fileExtensions_Video = VideoWebPlayer.Utils.VideoFileExtensions.All;
         private static readonly string[] PictureTypes = new[] { "poster", "banner", "fanart", "thumb" };
         private static readonly string[] MovieCollectionPictureNames = new[] { "folder", "banner", "poster", "fanart" };
         private static readonly string[] ImageExtensions = new[] { ".jpg", ".jpeg", ".png", ".webp" };

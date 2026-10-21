@@ -14,14 +14,19 @@ public sealed class ProgramRuleService : IProgramRuleService
         Enum.GetValues<ProgramRuleMaterialType>();
 
     private readonly ApplicationDbContext _db;
+    private readonly IProgramScheduleSignal? _scheduleSignal;
 
     /// <summary>
     /// Creates a new instance.
     /// </summary>
     /// <param name="db">Database context.</param>
-    public ProgramRuleService(ApplicationDbContext db)
+    /// <param name="scheduleSignal">Optional wake-up line for the schedule worker; fired after
+    /// every rule change so the plan is re-evaluated immediately (<see langword="null"/> in tests /
+    /// when unused).</param>
+    public ProgramRuleService(ApplicationDbContext db, IProgramScheduleSignal? scheduleSignal = null)
     {
         _db = db;
+        _scheduleSignal = scheduleSignal;
     }
 
     /// <inheritdoc />
@@ -106,6 +111,7 @@ public sealed class ProgramRuleService : IProgramRuleService
 
         _db.ProgramRules.Add(rule);
         await _db.SaveChangesAsync(cancellationToken);
+        _scheduleSignal?.NotifyScheduleChanged();
         return rule;
     }
 
@@ -133,6 +139,7 @@ public sealed class ProgramRuleService : IProgramRuleService
         rule.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
+        _scheduleSignal?.NotifyScheduleChanged();
         return rule;
     }
 
@@ -147,6 +154,7 @@ public sealed class ProgramRuleService : IProgramRuleService
         rule.IsActive = isActive;
         rule.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
+        _scheduleSignal?.NotifyScheduleChanged();
         return rule;
     }
 
@@ -160,6 +168,7 @@ public sealed class ProgramRuleService : IProgramRuleService
 
         _db.ProgramRules.Remove(rule);
         await _db.SaveChangesAsync(cancellationToken);
+        _scheduleSignal?.NotifyScheduleChanged();
     }
 
     private async Task RequireAdminAsync(string userId, CancellationToken cancellationToken)

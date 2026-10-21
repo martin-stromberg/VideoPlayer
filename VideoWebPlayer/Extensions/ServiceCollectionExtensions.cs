@@ -244,6 +244,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<StaticAssetVersioner>();
         services.AddSingleton<PlaylistBackfillSignal>();
         services.AddSingleton<IPlaylistBackfillSignal>(sp => sp.GetRequiredService<PlaylistBackfillSignal>());
+        services.AddSingleton<ProgramScheduleSignal>();
+        services.AddSingleton<IProgramScheduleSignal>(sp => sp.GetRequiredService<ProgramScheduleSignal>());
         services.AddSingleton<PlaylistBackfillCoordinator>();
         services.AddScoped<VideoWebPlayer.Services.PlaylistCover.PlaylistCoverValidator>();
         services.AddScoped<VideoWebPlayer.Services.PlaylistCover.PlaylistCoverImageGenerator>();

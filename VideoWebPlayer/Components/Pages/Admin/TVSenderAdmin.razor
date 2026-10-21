@@ -8,6 +8,7 @@
 @using VideoWebPlayer.Services
 @inject ApplicationDbContext DbContext
 @inject IProgramRuleService ProgramRuleService
+@inject IProgramScheduleService ProgramScheduleService
 @inject ProgramSettingsService ProgramSettings
 @inject AuthenticationStateProvider AuthStateProvider
 @inject VideoWebPlayer.Client.VideoWebPlayerClient Client
@@ -127,6 +128,51 @@ else
             @if (!string.IsNullOrWhiteSpace(rulesStatus))
             {
                 <div class="form-text" id="tvsender-rules-status">@rulesStatus</div>
+            }
+        </div>
+
+        <div class="admin-card admin-card-wide">
+            <div class="admin-card-header">
+                <h2>Sendeplan</h2>
+                <span class="admin-chip">@schedule.Count Einträge</span>
+            </div>
+
+            @if (schedule.Count == 0)
+            {
+                <div class="admin-empty-state">
+                    <strong>Keine Sendeplätze vorhanden</strong>
+                    <span>Der Sendeplan wird im Hintergrund aus den aktiven Regeln erzeugt.</span>
+                </div>
+            }
+            else
+            {
+                <div class="admin-table-wrap">
+                    <table class="table table-dark table-striped align-middle" id="tvsender-schedule-table">
+                        <thead>
+                            <tr>
+                                <th>Start</th>
+                                <th>Ende</th>
+                                <th>Inhalt</th>
+                                <th>Regel</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var slot in schedule)
+                            {
+                                <tr class="tvsender-slot-row @(slot.Status == ProgramSlotStatus.Displaced ? "tvsender-slot-displaced" : "")">
+                                    <td>@slot.Start.ToLocalTime().ToString("dd.MM. HH:mm")</td>
+                                    <td>@slot.End.ToLocalTime().ToString("HH:mm")</td>
+                                    <td>@SlotTitle(slot)</td>
+                                    <td>@RuleName(slot)</td>
+                                    <td>
+                                        <span class="admin-chip @(slot.Status == ProgramSlotStatus.Displaced ? "admin-chip-warning" : "admin-chip-success")">@(slot.Status == ProgramSlotStatus.Displaced ? "Verdrängt" : "Geplant")</span>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
             }
         </div>
 
@@ -290,6 +336,7 @@ else
     private string? channelStatus;
     private string? rulesStatus;
     private List<ProgramRule> rules = new();
+    private List<ProgramSlot> schedule = new();
     private RuleEditModel? editRule;
     private ProgramRule? deleteCandidate;
     private string? editError;
@@ -327,6 +374,7 @@ else
             .OrderBy(p => p.Name)
             .ToList();
         await ReloadRulesAsync();
+        await ReloadScheduleAsync();
     }
 
     private async Task ReloadRulesAsync()
@@ -334,6 +382,43 @@ else
         if (channel is not null)
             rules = await ProgramRuleService.GetRulesAsync(userId, channel.Id);
     }
+
+    private async Task ReloadScheduleAsync()
+    {
+        if (channel is null)
+            return;
+
+        schedule = await ProgramScheduleService.GetScheduleAsync(channel.Id, DateTimeOffset.UtcNow.AddHours(-2), 200);
+        var ruleIds = schedule.Where(s => s.ProgramRuleId is not null).Select(s => s.ProgramRuleId!.Value).Distinct().ToList();
+        slotRuleNames = await DbContext.ProgramRules
+            .Where(r => ruleIds.Contains(r.Id))
+            .ToDictionaryAsync(r => r.Id, r => r.Name);
+        var movieIds = schedule.Where(s => s.MovieId is not null).Select(s => s.MovieId!.Value).Distinct().ToList();
+        slotMovieNames = await DbContext.Movies
+            .Where(m => movieIds.Contains(m.Id))
+            .ToDictionaryAsync(m => m.Id, m => m.Name);
+        var episodeIds = schedule.Where(s => s.TVShowEpisodeId is not null).Select(s => s.TVShowEpisodeId!.Value).Distinct().ToList();
+        slotEpisodeTitles = await DbContext.TVShowEpisodes
+            .Where(e => episodeIds.Contains(e.Id))
+            .Select(e => new { e.Id, EpisodeName = e.Name, e.Number, SeasonName = e.TVShowSeason.Name, ShowName = e.TVShowSeason.TVShow.Name })
+            .ToDictionaryAsync(e => e.Id, e => $"{e.ShowName} — {e.SeasonName}, E{e.Number}: {e.EpisodeName}");
+    }
+
+    private Dictionary<long, string> slotRuleNames = new();
+    private Dictionary<long, string> slotMovieNames = new();
+    private Dictionary<long, string> slotEpisodeTitles = new();
+
+    private string SlotTitle(ProgramSlot slot)
+    {
+        if (slot.TVShowEpisodeId is { } ep && slotEpisodeTitles.TryGetValue(ep, out var et))
+            return et;
+        if (slot.MovieId is { } mv && slotMovieNames.TryGetValue(mv, out var mt))
+            return mt;
+        return "(Inhalt nicht gefunden)";
+    }
+
+    private string RuleName(ProgramSlot slot)
+        => slot.ProgramRuleId is { } id && slotRuleNames.TryGetValue(id, out var name) ? name : "(Regel gelöscht)";
 
     private async Task SaveChannelSettingsAsync()
     {

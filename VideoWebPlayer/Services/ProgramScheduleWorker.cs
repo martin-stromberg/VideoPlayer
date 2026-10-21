@@ -14,6 +14,7 @@ public sealed class ProgramScheduleWorker : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<ProgramScheduleWorker> _logger;
+    private readonly IProgramScheduleSignal? _signal;
     private readonly TimeSpan _initialDelay;
     private readonly TimeProvider _timeProvider;
 
@@ -22,16 +23,20 @@ public sealed class ProgramScheduleWorker : BackgroundService
     /// </summary>
     /// <param name="scopeFactory">Scope factory used to resolve the scoped schedule service.</param>
     /// <param name="logger">Logger instance.</param>
+    /// <param name="signal">Optional wake-up line fired by rule CRUD and media changes; when
+    /// <see langword="null"/> the worker only runs on the interval.</param>
     /// <param name="initialDelay">Optional delay before the first run (default 15 seconds).</param>
     /// <param name="timeProvider">Optional time provider, primarily for testing.</param>
     public ProgramScheduleWorker(
         IServiceScopeFactory scopeFactory,
         ILogger<ProgramScheduleWorker> logger,
+        IProgramScheduleSignal? signal = null,
         TimeSpan? initialDelay = null,
         TimeProvider? timeProvider = null)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _signal = signal;
         _initialDelay = initialDelay ?? TimeSpan.FromSeconds(15);
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
@@ -61,6 +66,7 @@ public sealed class ProgramScheduleWorker : BackgroundService
                         : await gate.EnterOperationAsync("Sendeplan", stoppingToken);
 
                     var service = scope.ServiceProvider.GetRequiredService<IProgramScheduleService>();
+                    await service.ReconcileAsync(_timeProvider.GetUtcNow(), stoppingToken);
                     await service.EnsureCoverageAsync(_timeProvider.GetUtcNow(), stoppingToken);
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -69,10 +75,23 @@ public sealed class ProgramScheduleWorker : BackgroundService
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "[ProgramScheduleWorker] Fehler bei der Sendeplan-Fortschreibung.");
+                    _logger.LogError(ex, "[ProgramScheduleWorker] Fehler bei der Sendeplan-Nachfuehrung.");
                 }
 
-                await Task.Delay(interval, _timeProvider, stoppingToken);
+                // Wake on the configured interval or when a schedule-relevant change was signaled —
+                // whichever comes first.
+                var delayTask = Task.Delay(interval, _timeProvider, stoppingToken);
+                if (_signal is null)
+                {
+                    await delayTask;
+                }
+                else
+                {
+                    var signalTask = _signal.WaitAsync(stoppingToken).AsTask();
+                    await Task.WhenAny(delayTask, signalTask);
+                    if (signalTask.IsCompleted)
+                        await signalTask;
+                }
             }
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

@@ -71,7 +71,7 @@ public class Setup
 
     /// <summary>
     /// Gets or sets the German federal state (ISO-3166-2 code like <c>DE-NW</c>) whose public
-    /// holidays the automated TV channel's holiday rules (<see cref="ProgramRuleRecurrence.Holiday"/>)
+    /// holidays the automated TV channel's holiday rules (<c>ProgramRuleRecurrence.Holiday</c>)
     /// follow. <c>null</c> means only holidays valid in all of Germany apply.
     /// </summary>
     public string? HolidayFederalState { get; set; }

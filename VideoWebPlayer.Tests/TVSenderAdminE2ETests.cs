@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Tests.Helpers;
@@ -88,6 +90,39 @@ public sealed class TVSenderAdminE2ETests : PlaylistsE2ETestBase
         await Page.ClickAsync("#rule-delete-confirm");
         await Expect(Page.Locator(".tvsender-rule-row")).ToHaveCountAsync(0);
         await Expect(Page.Locator("#tvsender-rules-status")).ToContainTextAsync("gelöscht");
+
+        // Sendeplan-Karte: geplanter und verdrängter Sendeplatz werden mit Status-Chip angezeigt.
+        {
+            using var scope = Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<VideoWebPlayer.Data.ApplicationDbContext>();
+            var channel = await db.TVChannels.FirstAsync(TestContext.Current.CancellationToken);
+            db.ProgramSlots.Add(new VideoWebPlayer.Data.ProgramSlot
+            {
+                TVChannelId = channel.Id,
+                Start = DateTime.UtcNow.AddHours(2),
+                End = DateTime.UtcNow.AddHours(3),
+                MediaItemId = 1,
+                MovieId = 1,
+                RuleType = VideoWebPlayer.Data.ProgramRuleType.Filler
+            });
+            db.ProgramSlots.Add(new VideoWebPlayer.Data.ProgramSlot
+            {
+                TVChannelId = channel.Id,
+                Start = DateTime.UtcNow.AddHours(3),
+                End = DateTime.UtcNow.AddHours(4),
+                MediaItemId = 2,
+                MovieId = 2,
+                RuleType = VideoWebPlayer.Data.ProgramRuleType.SeriesFixedTime,
+                Status = VideoWebPlayer.Data.ProgramSlotStatus.Displaced
+            });
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        await Page.GotoAsync($"{ServerUrl}/admin/tv-sender");
+        var displacedRow = Page.Locator(".tvsender-slot-row.tvsender-slot-displaced");
+        await displacedRow.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+        await Expect(displacedRow).ToContainTextAsync("Verdrängt");
+        await Expect(Page.Locator(".tvsender-slot-row").First).ToContainTextAsync("Geplant");
     }
 
     [Fact]

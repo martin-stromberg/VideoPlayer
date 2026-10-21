@@ -57,7 +57,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
         var horizonEnd = utcNow + await _settings.GetProgramScheduleHorizonAsync(cancellationToken);
         var lastEnd = await _db.ProgramSlots
-            .Where(s => s.TVChannelId == channel.Id)
+            .Where(s => s.TVChannelId == channel.Id && s.Status == ProgramSlotStatus.Scheduled)
             .MaxAsync(s => (DateTime?)s.End, cancellationToken);
 
         var coverageStart = lastEnd is { } end && end > utcNow.UtcDateTime ? end : utcNow.UtcDateTime;
@@ -81,7 +81,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         }
 
         var blocked = (await _db.ProgramSlots
-                .Where(s => s.TVChannelId == channel.Id && s.End > coverageStart && s.Start < horizonEnd.UtcDateTime)
+                .Where(s => s.TVChannelId == channel.Id && s.Status == ProgramSlotStatus.Scheduled && s.End > coverageStart && s.Start < horizonEnd.UtcDateTime)
                 .Select(s => new { s.Start, s.End })
                 .ToListAsync(cancellationToken))
             .Select(s => new Interval(s.Start, s.End))
@@ -103,6 +103,414 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             "[ProgramSchedule] {Created} Sendeplaetze erzeugt ({Filler} Fueller), {Conflicts} Ausstrahlungen konfliktverworfen, {GapSeconds}s Restluecke.",
             result.SlotsCreated, result.FillerSlotsCreated, result.DroppedConflicts, result.RemainingGapSeconds);
         return result;
+    }
+
+    /// <inheritdoc />
+    public async Task<ProgramScheduleReconcileSummary> ReconcileAsync(DateTimeOffset utcNow, CancellationToken cancellationToken = default)
+    {
+        var channel = await _ruleService.GetOrCreateChannelAsync(cancellationToken);
+        var rules = await _db.ProgramRules
+            .Where(r => r.TVChannelId == channel.Id)
+            .ToListAsync(cancellationToken);
+        var rulesById = rules.ToDictionary(r => r.Id);
+        var activeRules = rules.Where(r => r.IsActive).ToList();
+
+        var horizonEnd = utcNow + await _settings.GetProgramScheduleHorizonAsync(cancellationToken);
+        var coverageStart = utcNow.UtcDateTime;
+
+        var summary = new SummaryCounters();
+        var access = await LoadAccessContextAsync(cancellationToken);
+        var federalState = await _settings.GetHolidayFederalStateAsync(cancellationToken);
+
+        // States (expansion + cursor) are built for every rule — including inactive ones — because
+        // displaced slots of inactive rules still need a cursor rewind so reactivation continues
+        // in air order instead of jumping ahead.
+        var ruleIds = rules.Select(r => r.Id).ToList();
+        var cursors = await _db.ProgramRuleCursors
+            .Where(c => ruleIds.Contains(c.ProgramRuleId))
+            .ToDictionaryAsync(c => c.ProgramRuleId, cancellationToken);
+
+        var states = new Dictionary<long, RuleState>();
+        foreach (var rule in rules)
+        {
+            var items = await ExpandMaterialAsync(rule, access, summary, cancellationToken);
+            cursors.TryGetValue(rule.Id, out var cursor);
+            states[rule.Id] = new RuleState(rule, items, NextIndexFor(items, cursor));
+        }
+
+        // Scheduled slots reaching into the lookback window — wide enough to capture the head slot
+        // of airings that are still running.
+        var loadFrom = coverageStart - OccurrenceLookback;
+        var scheduled = await _db.ProgramSlots
+            .Where(s => s.TVChannelId == channel.Id && s.Status == ProgramSlotStatus.Scheduled
+                && s.End > loadFrom && s.Start < horizonEnd.UtcDateTime)
+            .OrderBy(s => s.Start)
+            .ToListAsync(cancellationToken);
+
+        var occurrences = BuildOccurrences(activeRules.Where(r => r.RuleType != ProgramRuleType.Filler), coverageStart, horizonEnd, federalState);
+        var occurrenceStarts = occurrences
+            .GroupBy(o => o.Rule.Id)
+            .ToDictionary(g => g.Key, g => g.Select(o => o.StartUtc).ToHashSet());
+
+        // Non-filler slots group into airings (maximal contiguous runs of the same producing
+        // rule); filler slots are validated individually.
+        var airings = GroupAirings(scheduled.Where(s => s.RuleType != ProgramRuleType.Filler).ToList());
+        var fillerSlots = scheduled.Where(s => s.RuleType == ProgramRuleType.Filler).ToList();
+
+        var displaced = new List<ProgramSlot>();
+        var displacedRuleIds = new HashSet<long>();
+
+        void Displace(ProgramSlot slot)
+        {
+            if (slot.End <= coverageStart)
+                return; // fully aired — stays part of history
+            slot.Status = ProgramSlotStatus.Displaced;
+            displaced.Add(slot);
+        }
+
+        // Validate each airing; on the first invalid airing of a rule the whole remaining future of
+        // that rule is displaced (sequence context is cursor-based — later airings depend on it).
+        foreach (var group in airings.GroupBy(a => a[0].ProgramRuleId))
+        {
+            var ordered = group.OrderBy(a => a[0].Start).ToList();
+            var firstInvalid = -1;
+            for (var i = 0; i < ordered.Count && firstInvalid < 0; i++)
+            {
+                var airing = ordered[i];
+                if (!airing.Any(s => s.End > coverageStart))
+                    continue; // fully aired — history
+
+                var rule = airing[0].ProgramRuleId is { } rid ? rulesById.GetValueOrDefault(rid) : null;
+                var invalid = rule is null || !rule.IsActive
+                    || !occurrenceStarts.TryGetValue(rule.Id, out var starts) || !starts.Contains(airing[0].Start)
+                    || !AiringReproducible(airing, states[rule.Id]);
+                if (invalid)
+                    firstInvalid = i;
+            }
+
+            if (firstInvalid >= 0)
+            {
+                foreach (var airing in ordered.Skip(firstInvalid))
+                {
+                    foreach (var slot in airing)
+                        Displace(slot);
+                    if (airing[0].ProgramRuleId is { } displacedRuleId)
+                        displacedRuleIds.Add(displacedRuleId);
+                }
+            }
+        }
+
+        foreach (var slot in fillerSlots.Where(s => s.End > coverageStart))
+        {
+            var rule = slot.ProgramRuleId is { } fillerRuleId ? rulesById.GetValueOrDefault(fillerRuleId) : null;
+            var invalid = rule is null || !rule.IsActive
+                || !states.TryGetValue(rule.Id, out var state)
+                || !state.Items.Any(i => i.MediaItemId == slot.MediaItemId);
+            if (invalid)
+            {
+                Displace(slot);
+                if (slot.ProgramRuleId is { } fillerRule)
+                    displacedRuleIds.Add(fillerRule);
+            }
+        }
+
+        // Cursor rewind: the earliest still-expandable displaced content per rule gets re-aired at
+        // the next free occurrence of the same rule context — air order continues without a jump.
+        foreach (var ruleId in displacedRuleIds)
+        {
+            if (states.TryGetValue(ruleId, out var state))
+                RewindCursor(state, displaced.Where(s => s.ProgramRuleId == ruleId).ToList(), cursors);
+        }
+
+        // Re-materialization over the freed windows. Kept scheduled slots block — except they lose
+        // to a higher-priority occurrence (filler always loses; otherwise priority, then lower rule id).
+        var keptSlots = scheduled.Where(s => s.Status == ProgramSlotStatus.Scheduled && s.End > coverageStart).ToList();
+        var newSlots = new List<ProgramSlot>();
+        var blocked = keptSlots.Select(s => new Interval(s.Start, s.End)).ToList();
+
+        void DisplaceRuleFuture(long ruleId, DateTime fromStartUtc)
+        {
+            foreach (var airing in airings.Where(a => a[0].ProgramRuleId == ruleId && a[0].Start >= fromStartUtc))
+            {
+                foreach (var slot in airing)
+                {
+                    if (slot.End <= coverageStart || slot.Status != ProgramSlotStatus.Scheduled)
+                        continue;
+                    slot.Status = ProgramSlotStatus.Displaced;
+                    displaced.Add(slot);
+                    keptSlots.Remove(slot);
+                    blocked.RemoveAll(b => b.Start == slot.Start && b.End == slot.End);
+                }
+            }
+
+            foreach (var slot in fillerSlots.Where(s => s.ProgramRuleId == ruleId && s.Start >= fromStartUtc && s.Status == ProgramSlotStatus.Scheduled))
+            {
+                slot.Status = ProgramSlotStatus.Displaced;
+                displaced.Add(slot);
+                keptSlots.Remove(slot);
+                blocked.RemoveAll(b => b.Start == slot.Start && b.End == slot.End);
+            }
+
+            if (states.TryGetValue(ruleId, out var state))
+                RewindCursor(state, displaced.Where(s => s.ProgramRuleId == ruleId).ToList(), cursors);
+        }
+
+        bool Evicts(ProgramRule winner, ProgramSlot kept)
+        {
+            if (kept.RuleType == ProgramRuleType.Filler)
+                return true;
+            var loser = kept.ProgramRuleId is { } rid ? rulesById.GetValueOrDefault(rid) : null;
+            if (loser is null)
+                return true;
+            return winner.Priority > loser.Priority
+                || (winner.Priority == loser.Priority && winner.Id < loser.Id);
+        }
+
+        foreach (var occurrence in occurrences.OrderByDescending(o => o.Rule.Priority).ThenBy(o => o.Rule.Id).ThenBy(o => o.StartUtc))
+        {
+            var losers = MaterializeOccurrenceEvicting(occurrence, states, keptSlots, blocked, newSlots, coverageStart, summary, Evicts);
+            if (losers is not null && losers.Count > 0)
+            {
+                foreach (var loser in losers)
+                {
+                    if (loser.ProgramRuleId is not { } loserRuleId)
+                        continue;
+                    var airing = airings.FirstOrDefault(a => a.Contains(loser));
+                    if (airing is not null)
+                    {
+                        DisplaceRuleFuture(loserRuleId, airing[0].Start);
+                    }
+                    else if (loser.Status == ProgramSlotStatus.Scheduled && loser.End > coverageStart)
+                    {
+                        // Ungrouped loser (filler slot): displaced individually — filler has no
+                        // sequence context that would justify suffix displacement.
+                        loser.Status = ProgramSlotStatus.Displaced;
+                        displaced.Add(loser);
+                        keptSlots.Remove(loser);
+                        blocked.RemoveAll(b => b.Start == loser.Start && b.End == loser.End);
+                        if (states.TryGetValue(loserRuleId, out var loserState))
+                            RewindCursor(loserState, [loser], cursors);
+                    }
+                }
+            }
+        }
+
+        FillGaps(states, activeRules, blocked, newSlots, coverageStart, horizonEnd.UtcDateTime, summary);
+
+        PersistCursors(states, cursors);
+        _db.ProgramSlots.AddRange(newSlots);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        var result = new ProgramScheduleReconcileSummary(
+            displaced.Count, summary.SlotsCreated, summary.FillerSlotsCreated,
+            summary.SkippedNoDuration, summary.SkippedNoAccess, summary.OrphanedRules,
+            summary.DroppedConflicts, summary.RemainingGapSeconds);
+        _logger.LogInformation(
+            "[ProgramSchedule] Re-Bewertung: {Displaced} Sendeplaetze verdrängt, {Created} erzeugt ({Filler} Fueller).",
+            result.SlotsDisplaced, result.SlotsCreated, result.FillerSlotsCreated);
+        return result;
+    }
+
+    /// <inheritdoc />
+    public async Task<List<ProgramSlot>> GetScheduleAsync(long channelId, DateTimeOffset fromUtc, int maxCount, CancellationToken cancellationToken = default)
+        => await _db.ProgramSlots
+            .AsNoTracking()
+            .Where(s => s.TVChannelId == channelId && s.Start >= fromUtc.UtcDateTime)
+            .OrderBy(s => s.Start)
+            .Take(maxCount)
+            .ToListAsync(cancellationToken);
+
+    // ---- reconcile internals ----
+
+    // Groups ordered slots into airings: maximal runs of the same producing rule where each slot
+    // starts exactly at the previous slot's end.
+    private static List<List<ProgramSlot>> GroupAirings(List<ProgramSlot> orderedSlots)
+    {
+        var airings = new List<List<ProgramSlot>>();
+        foreach (var slot in orderedSlots)
+        {
+            var last = airings.Count > 0 ? airings[^1] : null;
+            if (last is not null && last[^1].ProgramRuleId == slot.ProgramRuleId && last[^1].End == slot.Start)
+            {
+                last.Add(slot);
+            }
+            else
+            {
+                airings.Add([slot]);
+            }
+        }
+        return airings;
+    }
+
+    // An airing is still valid iff its producing rule would schedule exactly this slot sequence at
+    // the airing's start occurrence: the first slot's content is located in the current expansion
+    // and the same item-selection logic (EpisodeCount / SlotDuration) reproduces count, media items
+    // and slot boundaries.
+    private static bool AiringReproducible(List<ProgramSlot> airing, RuleState state)
+    {
+        var items = state.Items;
+        if (items.Count == 0)
+            return false;
+
+        var idx = FindItemIndex(items, airing[0]);
+        if (idx < 0)
+            return false;
+
+        var rule = state.Rule;
+        var wanted = rule.EpisodeCount is > 0 ? rule.EpisodeCount.Value
+            : rule.SlotDuration is not null ? int.MaxValue : 1;
+        var target = rule.EpisodeCount is > 0 ? (TimeSpan?)null : rule.SlotDuration;
+
+        var expected = new List<SchedulableItem>();
+        var accumulated = TimeSpan.Zero;
+        for (var i = 0; i < wanted; i++)
+        {
+            var item = items[(idx + i) % items.Count];
+            expected.Add(item);
+            accumulated += item.Duration;
+            if (target is not null && accumulated >= target)
+                break;
+        }
+
+        if (expected.Count != airing.Count)
+            return false;
+
+        var start = airing[0].Start;
+        for (var i = 0; i < expected.Count; i++)
+        {
+            var slot = airing[i];
+            if (slot.MediaItemId != expected[i].MediaItemId || slot.Start != start || slot.End != start + expected[i].Duration)
+                return false;
+            start = slot.End;
+        }
+        return true;
+    }
+
+    // Locates a slot's content inside the expanded list: by media item first (unique), then by the
+    // content reference (movie / episode) for material whose media item changed.
+    private static int FindItemIndex(List<SchedulableItem> items, ProgramSlot slot)
+    {
+        var idx = items.FindIndex(i => i.MediaItemId == slot.MediaItemId);
+        if (idx >= 0)
+            return idx;
+        if (slot.MovieId is { } movieId)
+            return items.FindIndex(i => i.ContentType == ProgramCursorContentType.Movie && i.ContentId == movieId);
+        if (slot.TVShowEpisodeId is { } episodeId)
+            return items.FindIndex(i => i.ContentType == ProgramCursorContentType.TVShowEpisode && i.ContentId == episodeId);
+        return -1;
+    }
+
+    // Rewinds the rule's cursor to the predecessor of the earliest displaced content that is still
+    // expandable, so the next occurrence re-airs it (air order without a jump). Only rewinds when
+    // the cursor has already passed that position.
+    private static void RewindCursor(RuleState state, List<ProgramSlot> displacedSlots, Dictionary<long, ProgramRuleCursor> cursors)
+    {
+        var items = state.Items;
+        if (items.Count == 0)
+            return;
+
+        foreach (var slot in displacedSlots.OrderBy(s => s.Start))
+        {
+            var idx = FindItemIndex(items, slot);
+            if (idx < 0)
+                continue;
+
+            if (state.NextIndex > idx)
+            {
+                var predecessor = items[(idx - 1 + items.Count) % items.Count];
+                if (cursors.TryGetValue(state.Rule.Id, out var cursor))
+                {
+                    cursor.LastContentType = predecessor.ContentType;
+                    cursor.LastContentId = predecessor.ContentId;
+                    cursor.UpdatedAt = DateTime.UtcNow;
+                }
+                state.RewindTo(idx);
+            }
+            return; // earliest resolvable displaced content decides — done either way
+        }
+    }
+
+    // Like <see cref="MaterializeOccurrence"/>, but instead of dropping the airing on a conflict
+    // with kept scheduled slots it returns the conflicting kept slots that lose against this
+    // occurrence — the caller displaces them (whole rule suffix) and the materialization proceeds.
+    private List<ProgramSlot>? MaterializeOccurrenceEvicting(
+        Occurrence occurrence,
+        Dictionary<long, RuleState> states,
+        List<ProgramSlot> keptSlots,
+        List<Interval> blocked,
+        List<ProgramSlot> newSlots,
+        DateTime coverageStart,
+        SummaryCounters summary,
+        Func<ProgramRule, ProgramSlot, bool> evicts)
+    {
+        var state = states[occurrence.Rule.Id];
+        if (state.Items.Count == 0)
+            return null;
+
+        var wanted = occurrence.Rule.EpisodeCount is > 0 ? occurrence.Rule.EpisodeCount.Value
+            : occurrence.Rule.SlotDuration is not null ? int.MaxValue : 1;
+        var target = occurrence.Rule.EpisodeCount is > 0 ? (TimeSpan?)null : occurrence.Rule.SlotDuration;
+
+        var taken = new List<SchedulableItem>();
+        var accumulated = TimeSpan.Zero;
+        for (var i = 0; i < wanted; i++)
+        {
+            var item = state.PeekAt(i);
+            if (item is null)
+                break;
+            taken.Add(item);
+            accumulated += item.Duration;
+            if (target is not null && accumulated >= target)
+                break;
+        }
+
+        if (taken.Count == 0)
+            return null;
+
+        var start = occurrence.StartUtc;
+        var ranges = new List<Interval>();
+        foreach (var item in taken)
+        {
+            var end = start + item.Duration;
+            if (end > coverageStart)
+                ranges.Add(new Interval(start, end));
+            start = end;
+        }
+
+        // Fully-past occurrences produce nothing and must not consume the cursor — the original
+        // materialization already did that.
+        if (ranges.Count == 0)
+            return null;
+
+        var conflicts = keptSlots
+            .Where(k => ranges.Any(r => r.Overlaps(new Interval(k.Start, k.End))))
+            .ToList();
+        if (conflicts.Any(k => !evicts(occurrence.Rule, k)) || ranges.Any(r => newSlots.Select(s => new Interval(s.Start, s.End)).Any(r.Overlaps)))
+        {
+            summary.DroppedConflicts++;
+            return null;
+        }
+
+        foreach (var (item, range) in taken.Skip(taken.Count - ranges.Count).Zip(ranges))
+        {
+            newSlots.Add(new ProgramSlot
+            {
+                TVChannelId = occurrence.Rule.TVChannelId,
+                Start = range.Start,
+                End = range.End,
+                MediaItemId = item.MediaItemId,
+                MovieId = item.MovieId,
+                TVShowEpisodeId = item.TVShowEpisodeId,
+                ProgramRuleId = occurrence.Rule.Id,
+                RuleType = occurrence.Rule.RuleType,
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+
+        blocked.AddRange(ranges);
+        state.Commit(taken.Count);
+        summary.SlotsCreated += ranges.Count;
+        return conflicts.Count > 0 ? conflicts : null;
     }
 
     // ---- internal types ----
@@ -131,6 +539,8 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                 LastPlaced = Items[(NextIndex + i) % Items.Count];
             NextIndex += count;
         }
+
+        public void RewindTo(int index) => NextIndex = index;
     }
 
     private sealed record Occurrence(ProgramRule Rule, DateTime StartUtc);

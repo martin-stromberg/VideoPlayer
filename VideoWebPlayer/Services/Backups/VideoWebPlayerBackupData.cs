@@ -81,7 +81,8 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         $"{nameof(ApplicationDbContext.MediaItems)}.{nameof(MediaItem.DurationProbedAt)}",
         $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.HolidayFederalState)}",
         $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ProgramScheduleHorizonHours)}",
-        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ProgramScheduleIntervalMinutes)}"
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ProgramScheduleIntervalMinutes)}",
+        $"{nameof(ApplicationDbContext.ProgramSlots)}.{nameof(ProgramSlot.Status)}"
     };
 
     private static readonly HashSet<string> IgnoredRestoreColumns = new(StringComparer.OrdinalIgnoreCase)
@@ -119,7 +120,8 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         (nameof(ApplicationDbContext.MediaSources), nameof(MediaSource.SourceType), (int)MediaSourceType.Sftp),
         (nameof(ApplicationDbContext.PairingCodes), nameof(PairingCode.Kind), (int)PairingCodeKind.AdminCode),
         (nameof(ApplicationDbContext.Setups), nameof(Setup.ProgramScheduleHorizonHours), 48),
-        (nameof(ApplicationDbContext.Setups), nameof(Setup.ProgramScheduleIntervalMinutes), 15)
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.ProgramScheduleIntervalMinutes), 15),
+        (nameof(ApplicationDbContext.ProgramSlots), nameof(ProgramSlot.Status), (int)ProgramSlotStatus.Scheduled)
     };
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };

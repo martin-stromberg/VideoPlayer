@@ -74,6 +74,13 @@ namespace VideoWebPlayer.Data
         public ProgramRuleType RuleType { get; set; }
 
         /// <summary>
+        /// Gets or sets the lifecycle status of the slot: <see cref="ProgramSlotStatus.Scheduled"/>
+        /// slots occupy air time; <see cref="ProgramSlotStatus.Displaced"/> slots were invalidated
+        /// by a schedule re-evaluation and are kept only for traceability.
+        /// </summary>
+        public ProgramSlotStatus Status { get; set; } = ProgramSlotStatus.Scheduled;
+
+        /// <summary>
         /// Gets or sets the creation timestamp.
         /// </summary>
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

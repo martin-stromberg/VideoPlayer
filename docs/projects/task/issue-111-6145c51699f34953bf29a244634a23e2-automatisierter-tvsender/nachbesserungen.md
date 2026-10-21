@@ -181,3 +181,26 @@ filtert `g.Name == editGenre.Name` exakt — „family" vs. „Family" würde di
 auswählbar) — N3 filtert korrekt pro Zeile, aber die fehlende Vererbung macht die
 Ausblendung faktisch unwirksam für neue Quellen. Wirkt sich auch auf `GenreCanonicalResolver`
 und die bestehenden Genre-Listen/Filter aus (nicht nur TV-Sender).
+
+## N8 — Remote-Probes hängen: pipe:0 liest ganze Dateien (Priorität: kritisch, BUG)
+
+**Beobachtet (Live-Befund, 2026-10-21):** Fortschrittsanzeige bleibt bei „54 von 15386
+ermittelt" stehen. Log zeigt: Probes über `pipe:0` (SFTP-Stream) laufen fast alle in das
+600-s-`StreamTimeoutSeconds`, vereinzelt `Exit 1: moov atom not found`. Ursache: ffprobe
+muss bei MP4s mit `moov`-Atom am Dateiende die **komplette Datei** durch die Pipe lesen —
+über SFTP zu langsam. Retry hilft nicht: jeder Versuch kostet wieder 600 s und scheitert
+erneut → Fortschritt stagniert sichtbar, Versuche verbrennen Attempts.
+
+**Gewünscht:** Remote-Probes **seekbar** statt Streaming-Pipe. ffmpeg kann `sftp://`-URLs
+nativ (libssh, unterstützt Seek) — mit `MediaSource.Username`/`Password` direkt als
+`sftp://user:pass@host:port/path` proben → ffprobe liest nur moov/Header, Sekunden statt
+Minuten. Alternativ eigener HTTP-Endpoint mit Range-Support + `access_token`
+(quellunabhängig). Sicherheit: Passwort im Prozess-Aufruf ist für denselben
+Benutzer sichtbar — Entscheidung dokumentieren, Passwort auf keinen Fall in Logs.
+Nebenbei: `moov atom not found` nach vollständigem Lesen ist eher permanent (kaputte/
+unkonventionelle Datei) — Klassifikation prüfen, damit solche Dateien nicht 10×600 s
+verschwenden.
+
+**Bezug:** verschärft N4 (Timeout/Retry allein reichte nicht — die Zugriffsart selbst ist
+das Problem). Betrifft auch den Live-Stream (Schritt 6, gleiche Pipe-Einschränkung —
+dort dokumentiert).

@@ -204,3 +204,32 @@ verschwenden.
 **Bezug:** verschärft N4 (Timeout/Retry allein reichte nicht — die Zugriffsart selbst ist
 das Problem). Betrifft auch den Live-Stream (Schritt 6, gleiche Pipe-Einschränkung —
 dort dokumentiert).
+
+## Nachtrag zu N8 — sftp://-Ansatz scheitert in der Praxis (live verifiziert)
+
+Der Schritt-12-Ansatz `sftp://` wurde live getestet: **jede** libssh-Verbindung wird beim
+Handshake zurückgesetzt (`Connection failed: Socket error: connection reset by peer`),
+obwohl SSH.NET denselben Server (`mstromberg.ddns.net:10022`) problemlos erreicht. Die im
+ffmpeg-Build gebündelte libssh ist zu alt/inkompatibel (keine korrigierbaren Client-Optionen,
+`known_hosts`-Handling nicht exponiert). sftp:// bleibt als Pfad bestehen (auf kompatiblen
+Servern funktioniert er), ist aber kein verlässlicher Fix.
+
+## N9 — Remote-Probes über eigenen Range-fähigen HTTP-Endpunkt (Priorität: kritisch)
+
+**Gewünscht:** Remote-Items (und generell alles, was die App streamen kann) via
+`http://127.0.0.1:{port}/api/items/{type}/{id}/stream?access_token={token}` proben —
+der Endpunkt hat bereits `enableRangeProcessing: true`, ffprobe kann also seeken und liest
+nur moov/Header statt der ganzen Datei. Umgeht libssh komplett, nutzt denselben
+SSH.NET-Read-Pfad wie Wiedergabe — funktioniert source-typ-unabhängig.
+
+**Zu klären bei Umsetzung:**
+- Auth: interner, kurzlebiger Token für den server-internen Aufruf (nicht das
+  Benutzer-Token; `DeviceTokenService`/`access_token`-Mechanismus prüfen und passend
+  wiederverwenden bzw. internes Pendant).
+- Loopback-URL/Port aus Konfiguration des eigenen Web-Hosts (`ASPNETCORE_URLS`/Setup).
+- Mapping `MediaItem` → `{type}/{id}` für den Stream-Endpunkt.
+- ffprobe http-Protokoll: `Range`-Requests funktionieren; Timeouts (`timeout`/`rw_timeout`)
+  sinnvoll setzen; Response muss Range unterstützen (Integrationstest mit echtem ffprobe
+  gegen Testserver falls möglich).
+- Prüfen: schlägt der Ansatz auch fürs Streaming (Schritt 6, pipe:0-Grenze) vor?
+  Erstmal nur Probe-Seite.

@@ -17,7 +17,7 @@ namespace VideoWebPlayer.Services;
 /// configured lifetime — they never persist, so a process restart simply turns an
 /// outstanding probe into a transient failure that is retried later.
 /// </summary>
-public sealed class InternalMediaStreamTokenService : IInternalMediaStreamTokenService
+public sealed partial class InternalMediaStreamTokenService : IInternalMediaStreamTokenService
 {
     /// <summary>
     /// Route prefix of <see cref="Controllers.InternalMediaStreamController"/> — the token is
@@ -32,15 +32,34 @@ public sealed class InternalMediaStreamTokenService : IInternalMediaStreamTokenS
 
     private static readonly string[] WildcardHosts = { "*", "+", "", "0.0.0.0", "::" };
 
+    /// <summary>
+    /// Masks a media-stream token wherever it appears in text handed to logs or external
+    /// process output — the token sits in the URI path (final segment after
+    /// <see cref="StreamRoutePrefix"/>), so credential-only masking does not catch it.
+    /// </summary>
+    /// <param name="text">Text that may contain a probe URI with a token.</param>
+    /// <returns>The text with any stream token replaced by <c>***</c>.</returns>
+    internal static string MaskStreamTokenInText(string? text)
+        => string.IsNullOrEmpty(text)
+            ? string.Empty
+            : StreamTokenRegex().Replace(text, $"{StreamRoutePrefix}***");
+
+    /// <summary>Matches a stream route prefix followed by a token-like hex tail.</summary>
+    [System.Text.RegularExpressions.GeneratedRegex(@"/api/internal/media-stream/[0-9a-fA-F]{16,}")]
+    private static partial System.Text.RegularExpressions.Regex StreamTokenRegex();
+
     private readonly ConcurrentDictionary<string, TokenEntry> _tokens = new();
     private readonly IServer? _server;
     private readonly MediaProbeOptions _options;
     private readonly ILogger<InternalMediaStreamTokenService> _logger;
     private readonly TimeProvider _timeProvider;
 
-    // The bound addresses never change after startup — resolve once, log once.
+    // The bound addresses never change after startup — resolve once, log once. A negative
+    // result is NOT cached: at startup Addresses can still be empty, and retrying on the
+    // next probe is cheap, while permanently disabling HTTP probing would be wrong.
     private string? _resolvedBaseUrl;
     private bool _baseUrlResolved;
+    private bool _noAddressWarned;
 
     private sealed record TokenEntry(long MediaItemId, DateTimeOffset ExpiresAt);
 
@@ -142,8 +161,15 @@ public sealed class InternalMediaStreamTokenService : IInternalMediaStreamTokenS
             }
         }
 
-        _logger.LogWarning(
-            "Keine erreichbare http-Adresse der eigenen Instanz gefunden — die HTTP-Laufzeitermittlung ist deaktiviert und Remote-Dateien fallen auf sftp:///pipe:0-Probes zurück (MediaProbe:HttpProbeBaseUrl kann die Adresse explizit setzen).");
+        // Deliberately not marking _baseUrlResolved: the addresses may simply not be
+        // populated yet (startup race), and the next probe should try again — a one-off
+        // empty read must not disable HTTP probing for the whole process lifetime.
+        if (!_noAddressWarned)
+        {
+            _noAddressWarned = true;
+            _logger.LogWarning(
+                "Keine erreichbare http-Adresse der eigenen Instanz gefunden — die HTTP-Laufzeitermittlung pausiert und Remote-Dateien fallen vorerst auf sftp:///pipe:0-Probes zurück (MediaProbe:HttpProbeBaseUrl kann die Adresse explizit setzen).");
+        }
 
         return null;
     }

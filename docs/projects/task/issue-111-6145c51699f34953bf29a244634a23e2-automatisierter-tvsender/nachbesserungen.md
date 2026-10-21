@@ -130,3 +130,19 @@ Laufzeit oder nicht freigegeben").
   eigentlichen Familien-Serien liegen unter „Familie"=64 auf Quelle 1 bzw. „Family"=115/131
   auf Quelle 5/6, teils noch unversteckt). Ohne Quell-Filter und Auflösung der
   Alternativnamen ist die Auswahl faktisch unbestimmt.
+
+## N6 — Fortschritt der Laufzeitermittlung sichtbar machen (Priorität: mittel)
+
+**Beobachtet:** Der Anwender kann nicht erkennen, ob der Duration-Backfill
+(`MediaDurationProbeWorker`) voranschreitet oder hängt. Erkennbar ist der Fortschritt
+aktuell nur über Log-Datei oder DB-Abfrage (`DurationProbedAt`-Zähler).
+
+**Gewünscht:** Eine Fortschritts-/Statusanzeige für die Laufzeitermittlung, z. B. auf der
+TV-Sender-Adminseite oder als Ticker/Statuszeile: Anzahl geprüft/ausstehend/fehlgeschlagen,
+zuletzt ermittelte Laufzeiten (Rolling-Log „was wurde gerade erfasst"), letzter
+Aktivitätszeitpunkt, ggf. Rate. Damit ist ohne Log lesbar, ob der Prozess läuft.
+Datenquelle: `MediaItem.DurationProbedAt`/`Duration`/`DurationProbeAttempts` —
+Aggregatabfrage ist günstig (gezählte Spalten), kein neuer Persistenzbedarf.
+
+**Bezug:** ergänzt N5 (Planungsdiagnose pro Regel); beide zusammen decken „warum plant
+die Regel nichts" (N5) und „schreitet die Laufzeitermittlung voran" (N6) ab.

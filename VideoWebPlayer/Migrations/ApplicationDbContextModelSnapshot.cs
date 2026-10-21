@@ -285,6 +285,12 @@ namespace VideoWebPlayer.Migrations
                     b.Property<DateTime?>("PlaylistBackfillLastSweepAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("ProgramScheduleHorizonHours")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ProgramScheduleIntervalMinutes")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("ScanProcessIntervalMinutes")
                         .HasColumnType("INTEGER");
 
@@ -1353,6 +1359,72 @@ namespace VideoWebPlayer.Migrations
                     b.ToTable("ProgramRules");
                 });
 
+            modelBuilder.Entity("VideoWebPlayer.Data.ProgramRuleCursor", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("LastContentId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("LastContentType")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ProgramRuleId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProgramRuleId")
+                        .IsUnique();
+
+                    b.ToTable("ProgramRuleCursors");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.ProgramSlot", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("End")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("MediaItemId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("MovieId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("ProgramRuleId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("RuleType")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("Start")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("TVChannelId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("TVShowEpisodeId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TVChannelId", "Start");
+
+                    b.ToTable("ProgramSlots");
+                });
+
             modelBuilder.Entity("VideoWebPlayer.Data.RefreshToken", b =>
                 {
                     b.Property<int>("Id")
@@ -2154,6 +2226,28 @@ namespace VideoWebPlayer.Migrations
                 {
                     b.HasOne("VideoWebPlayer.Data.TVChannel", "TVChannel")
                         .WithMany("ProgramRules")
+                        .HasForeignKey("TVChannelId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("TVChannel");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.ProgramRuleCursor", b =>
+                {
+                    b.HasOne("VideoWebPlayer.Data.ProgramRule", "ProgramRule")
+                        .WithMany()
+                        .HasForeignKey("ProgramRuleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ProgramRule");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.ProgramSlot", b =>
+                {
+                    b.HasOne("VideoWebPlayer.Data.TVChannel", "TVChannel")
+                        .WithMany()
                         .HasForeignKey("TVChannelId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();

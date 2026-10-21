@@ -168,3 +168,36 @@ public sealed class ProgramSettingsServiceHolidayFederalStateTests
         await Assert.ThrowsAsync<ArgumentException>(() => service.UpdateHolidayFederalStateAsync("XX-YY", ct));
     }
 }
+
+public sealed class ProgramSettingsServiceScheduleTests
+{
+    [Fact]
+    public async Task ProgramScheduleSettings_DefaultTo48HoursAnd15Minutes()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await PairingTestDb.CreateAsync("program-settings-schedule-default", ct);
+        var service = new ProgramSettingsService(fixture.Db, NullLogger<ProgramSettingsService>.Instance);
+
+        Assert.Equal(TimeSpan.FromHours(48), await service.GetProgramScheduleHorizonAsync(ct));
+        Assert.Equal(TimeSpan.FromMinutes(15), await service.GetProgramScheduleIntervalAsync(ct));
+    }
+
+    [Fact]
+    public async Task UpdateProgramScheduleSettings_PersistsAndValidates()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await PairingTestDb.CreateAsync("program-settings-schedule-update", ct);
+        var service = new ProgramSettingsService(fixture.Db, NullLogger<ProgramSettingsService>.Instance);
+
+        await service.UpdateProgramScheduleSettingsAsync(72, 30, ct);
+
+        var setup = await fixture.Db.Setups.AsNoTracking().SingleAsync(ct);
+        Assert.Equal(72, setup.ProgramScheduleHorizonHours);
+        Assert.Equal(30, setup.ProgramScheduleIntervalMinutes);
+        Assert.Equal(TimeSpan.FromHours(72), await service.GetProgramScheduleHorizonAsync(ct));
+        Assert.Equal(TimeSpan.FromMinutes(30), await service.GetProgramScheduleIntervalAsync(ct));
+
+        await Assert.ThrowsAsync<ArgumentException>(() => service.UpdateProgramScheduleSettingsAsync(0, 15, ct));
+        await Assert.ThrowsAsync<ArgumentException>(() => service.UpdateProgramScheduleSettingsAsync(48, 0, ct));
+    }
+}

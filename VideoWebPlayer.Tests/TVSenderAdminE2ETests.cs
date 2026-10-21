@@ -29,6 +29,12 @@ public sealed class TVSenderAdminE2ETests : PlaylistsE2ETestBase
         var showId = await SeedTvShowWithSeasonsAsync("E2E Serie", ("Staffel 1", 2));
         await OpenAdminPageAsAdminAsync();
 
+        // Channel settings: set schedule horizon + generation interval, save.
+        await Page.FillAsync("#tvsender-horizon-hours", "72");
+        await Page.FillAsync("#tvsender-interval-minutes", "30");
+        await Page.ClickAsync("#tvsender-save-settings");
+        await Expect(Page.Locator("#tvsender-channel-status")).ToContainTextAsync("gespeichert");
+
         // Create a rule: open the dialog, fill fields, pick material via the search selector.
         await DriveUntilStateAsync(
             async () =>

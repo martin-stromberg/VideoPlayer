@@ -232,6 +232,51 @@ public sealed class ProgramSettingsService
 
         await _db.SaveChangesAsync(cancellationToken);
     }
+
+    /// <summary>
+    /// Gets the schedule horizon the automated TV channel plans ahead.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The configured horizon (default 48 hours when unset or invalid).</returns>
+    public async Task<TimeSpan> GetProgramScheduleHorizonAsync(CancellationToken cancellationToken = default)
+    {
+        var setup = await GetOrCreateSetupAsync(cancellationToken);
+        var hours = setup.ProgramScheduleHorizonHours <= 0 ? 48 : setup.ProgramScheduleHorizonHours;
+        return TimeSpan.FromHours(hours);
+    }
+
+    /// <summary>
+    /// Gets the interval at which the schedule worker extends the program schedule.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The configured interval (default 15 minutes when unset or invalid).</returns>
+    public async Task<TimeSpan> GetProgramScheduleIntervalAsync(CancellationToken cancellationToken = default)
+    {
+        var setup = await GetOrCreateSetupAsync(cancellationToken);
+        var minutes = setup.ProgramScheduleIntervalMinutes <= 0 ? 15 : setup.ProgramScheduleIntervalMinutes;
+        return TimeSpan.FromMinutes(minutes);
+    }
+
+    /// <summary>
+    /// Persists the schedule horizon and generation interval of the automated TV channel.
+    /// </summary>
+    /// <param name="horizonHours">Schedule horizon in hours (minimum 1).</param>
+    /// <param name="intervalMinutes">Generation interval in minutes (minimum 1).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <exception cref="ArgumentException">A value is smaller than 1.</exception>
+    public async Task UpdateProgramScheduleSettingsAsync(int horizonHours, int intervalMinutes, CancellationToken cancellationToken = default)
+    {
+        if (horizonHours < 1)
+            throw new ArgumentException("Der Planungshorizont muss mindestens 1 Stunde betragen.");
+        if (intervalMinutes < 1)
+            throw new ArgumentException("Das Generierungsintervall muss mindestens 1 Minute betragen.");
+
+        var setup = await GetOrCreateSetupAsync(cancellationToken);
+        setup.ProgramScheduleHorizonHours = horizonHours;
+        setup.ProgramScheduleIntervalMinutes = intervalMinutes;
+
+        await _db.SaveChangesAsync(cancellationToken);
+    }
 }
 
 /// <summary>

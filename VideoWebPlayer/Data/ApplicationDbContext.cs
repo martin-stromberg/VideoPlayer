@@ -199,6 +199,16 @@ namespace VideoWebPlayer.Data
         /// Tabelle für die Programmregeln der TV-Sender.
         /// </summary>
         public DbSet<ProgramRule> ProgramRules { get; set; }
+
+        /// <summary>
+        /// Tabelle für Sendeplätze (Sendeplan des TV-Senders).
+        /// </summary>
+        public DbSet<ProgramSlot> ProgramSlots { get; set; }
+
+        /// <summary>
+        /// Tabelle für die Fortsetzungsstände der Programmregeln.
+        /// </summary>
+        public DbSet<ProgramRuleCursor> ProgramRuleCursors { get; set; }
         #endregion
         #region MediaSource Manipulation Methods
         /// <summary>

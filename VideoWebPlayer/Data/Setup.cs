@@ -75,4 +75,16 @@ public class Setup
     /// follow. <c>null</c> means only holidays valid in all of Germany apply.
     /// </summary>
     public string? HolidayFederalState { get; set; }
+
+    /// <summary>
+    /// Gets or sets the schedule horizon in hours the automated TV channel plans ahead.
+    /// Default: 48 hours.
+    /// </summary>
+    public int ProgramScheduleHorizonHours { get; set; } = 48;
+
+    /// <summary>
+    /// Gets or sets the interval (in minutes) at which the schedule worker extends the
+    /// program schedule. Default: 15 minutes.
+    /// </summary>
+    public int ProgramScheduleIntervalMinutes { get; set; } = 15;
 }

@@ -50,6 +50,14 @@ else
                         }
                     </select>
                 </div>
+                <div>
+                    <label class="form-label" for="tvsender-horizon-hours">Planungshorizont (Stunden)</label>
+                    <input id="tvsender-horizon-hours" type="number" min="1" class="form-control" @bind="horizonHours" />
+                </div>
+                <div>
+                    <label class="form-label" for="tvsender-interval-minutes">Generierungsintervall (Minuten)</label>
+                    <input id="tvsender-interval-minutes" type="number" min="1" class="form-control" @bind="intervalMinutes" />
+                </div>
             </div>
             <div class="admin-actions">
                 <button id="tvsender-save-settings" class="btn btn-primary" @onclick="SaveChannelSettingsAsync">Speichern</button>
@@ -276,6 +284,8 @@ else
     private TVChannel? channel;
     private string channelName = string.Empty;
     private string? federalState;
+    private int horizonHours = 48;
+    private int intervalMinutes = 15;
     private readonly string[] federalStates = ProgramSettingsService.HolidayFederalStates.ToArray();
     private string? channelStatus;
     private string? rulesStatus;
@@ -307,6 +317,8 @@ else
         channel = await ProgramRuleService.GetOrCreateChannelAsync();
         channelName = channel.Name;
         federalState = await ProgramSettings.GetHolidayFederalStateAsync();
+        horizonHours = (int)(await ProgramSettings.GetProgramScheduleHorizonAsync()).TotalHours;
+        intervalMinutes = (int)(await ProgramSettings.GetProgramScheduleIntervalAsync()).TotalMinutes;
         genreOptions = await Client.RequestGenreOptionsAsync();
         playlistOptions = (await Client.RequestPlaylistsAsync())
             .Concat(await Client.RequestPublicPlaylistsAsync())
@@ -330,6 +342,7 @@ else
         {
             channel = await ProgramRuleService.RenameChannelAsync(userId, channelName);
             await ProgramSettings.UpdateHolidayFederalStateAsync(string.IsNullOrWhiteSpace(federalState) ? null : federalState);
+            await ProgramSettings.UpdateProgramScheduleSettingsAsync(horizonHours, intervalMinutes);
             channelStatus = "Einstellungen wurden gespeichert.";
         }
         catch (Exception ex)

@@ -48,24 +48,24 @@ public sealed class LiveTvE2ETests : PlaylistsE2ETestBase
         db.TVChannels.Add(channel);
         var source = new MediaSource { Name = $"Live-E2E-Quelle {Guid.NewGuid():N}", Path = "/e2e-live", Host = "localhost", Port = 22 };
         db.MediaSources.Add(source);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var collection = new MediaCollection { Name = $"Live-E2E-Col {Guid.NewGuid():N}", MediaSourceId = source.Id, Path = $"/{Guid.NewGuid():N}", CreatedAt = DateTime.UtcNow };
         db.MediaCollections.Add(collection);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var movie = new Movie { Name = movieTitle, MediaSourceId = source.Id, CreatedAt = DateTime.UtcNow };
         db.Movies.Add(movie);
         var item = new MediaItem { Name = "live.mkv", Path = $"{collection.Path}/live.mkv", MediaCollectionId = collection.Id, CreatedAt = DateTime.UtcNow, Duration = TimeSpan.FromMinutes(90), DurationProbedAt = DateTime.UtcNow };
         db.MediaItems.Add(item);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         db.MovieMediaItems.Add(new MovieMediaItem { MovieId = movie.Id, MediaItemId = item.Id });
 
         var now = DateTime.UtcNow;
         db.ProgramSlots.AddRange(
             new ProgramSlot { TVChannelId = channel.Id, Start = now.AddMinutes(-30), End = now.AddMinutes(60), MediaItemId = item.Id, MovieId = movie.Id, RuleType = ProgramRuleType.MoviePrimeTime, Status = ProgramSlotStatus.Scheduled },
             new ProgramSlot { TVChannelId = channel.Id, Start = now.AddMinutes(60), End = now.AddMinutes(150), MediaItemId = item.Id, MovieId = movie.Id, RuleType = ProgramRuleType.SeriesFixedTime, Status = ProgramSlotStatus.Scheduled });
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -121,15 +121,15 @@ public sealed class LiveTvE2ETests : PlaylistsE2ETestBase
             db.TVChannels.Add(channel);
             var source = new MediaSource { Name = $"Luecken-Quelle {Guid.NewGuid():N}", Path = "/e2e-gap", Host = "localhost", Port = 22 };
             db.MediaSources.Add(source);
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
             var collection = new MediaCollection { Name = $"Luecken-Col {Guid.NewGuid():N}", MediaSourceId = source.Id, Path = $"/{Guid.NewGuid():N}", CreatedAt = DateTime.UtcNow };
             db.MediaCollections.Add(collection);
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
             var movie = new Movie { Name = "Später-Film", MediaSourceId = source.Id, CreatedAt = DateTime.UtcNow };
             db.Movies.Add(movie);
             var item = new MediaItem { Name = "gap.mkv", Path = $"{collection.Path}/gap.mkv", MediaCollectionId = collection.Id, CreatedAt = DateTime.UtcNow, Duration = TimeSpan.FromMinutes(45), DurationProbedAt = DateTime.UtcNow };
             db.MediaItems.Add(item);
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
             db.MovieMediaItems.Add(new MovieMediaItem { MovieId = movie.Id, MediaItemId = item.Id });
             var start = DateTime.UtcNow.AddHours(2);
             db.ProgramSlots.Add(new ProgramSlot { TVChannelId = channel.Id, Start = start, End = start.AddMinutes(45), MediaItemId = item.Id, MovieId = movie.Id, RuleType = ProgramRuleType.Filler, Status = ProgramSlotStatus.Scheduled });

@@ -17,7 +17,7 @@ namespace VideoWebPlayer.Tests.Components;
 /// bUnit-Tests der Live-TV-Seite: Jetzt/Gleich/Vorschau-Darstellung, Sendelücke, Login-Formular
 /// ohne Anmeldung, verständliche Fehlermeldungen und die JS-Anbindung des Live-Streams.
 /// </summary>
-public class LiveTvTests(ITestOutputHelper output)
+public class LiveTvTests(ITestOutputHelper _)
 {
     private const string TestToken = "test-token";
 
@@ -93,7 +93,7 @@ public class LiveTvTests(ITestOutputHelper output)
         Assert.Equal(2, cut.FindAll(".livetv-upcoming-row").Count);
         Assert.Single(cut.FindAll("#live-tv-video"));
 
-        var attach = Assert.Single(ctx.JSInterop.Invocations.Where(i => i.Identifier == "liveTv.attach"));
+        var attach = Assert.Single(ctx.JSInterop.Invocations, i => i.Identifier == "liveTv.attach");
         Assert.Contains(attach.Arguments, a => a is string s && s.Contains($"access_token={TestToken}"));
     }
 
@@ -117,7 +117,7 @@ public class LiveTvTests(ITestOutputHelper output)
         Assert.Contains("Später-Film", cut.Find("#live-tv-next").TextContent);
         Assert.Single(cut.FindAll(".livetv-upcoming-row"));
         Assert.Empty(cut.FindAll("#live-tv-video"));
-        Assert.Empty(ctx.JSInterop.Invocations.Where(i => i.Identifier == "liveTv.attach"));
+        Assert.DoesNotContain(ctx.JSInterop.Invocations, i => i.Identifier == "liveTv.attach");
     }
 
     [Fact]

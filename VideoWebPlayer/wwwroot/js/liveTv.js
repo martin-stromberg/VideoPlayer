@@ -99,7 +99,12 @@ window.liveTv = (() => {
 
             if (videoEl.canPlayType(HLS_MIME)) {
                 // Natives HLS (z. B. Safari): src direkt setzen; Ladefehler meldet das Element.
-                state.errorHandler = () => notifyError(state, 'native');
+                state.errorHandler = () => {
+                    notifyError(state, 'native');
+                    scheduleRetry(state, () => {
+                        try { videoEl.src = streamUrl; videoEl.load(); } catch { /* naechster Tick */ }
+                    });
+                };
                 videoEl.addEventListener('error', state.errorHandler);
                 videoEl.src = streamUrl;
                 videoEl.load();

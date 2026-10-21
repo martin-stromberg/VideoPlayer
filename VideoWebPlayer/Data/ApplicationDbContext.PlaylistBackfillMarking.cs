@@ -91,7 +91,7 @@ namespace VideoWebPlayer.Data
 
             UpsertMarkersTracked(marks);
             _backfillSignal?.NotifyMarkersWritten();
-                    _programScheduleSignal?.NotifyScheduleChanged();
+            _programScheduleSignal?.NotifyScheduleChanged();
             return saved;
         }
 
@@ -139,7 +139,7 @@ namespace VideoWebPlayer.Data
 
             await UpsertMarkersTrackedAsync(marks, cancellationToken);
             _backfillSignal?.NotifyMarkersWritten();
-                    _programScheduleSignal?.NotifyScheduleChanged();
+            _programScheduleSignal?.NotifyScheduleChanged();
             return saved;
         }
 

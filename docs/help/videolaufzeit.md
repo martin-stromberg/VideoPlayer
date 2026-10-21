@@ -9,6 +9,10 @@ Die Anwendung ermittelt für jede Videodatei in der Mediathek automatisch die Wi
 - Schlägt eine Prüfung fehl, wird unterschieden: **Vorübergehende Fehler** (Zeitüberschreitung, unterbrochener Stream, ffprobe nicht startbar, abgebrochener ffprobe-Lauf) werden automatisch wiederholt — pro Datei zählt ein Versuchszähler, zwischen zwei Versuchen liegt eine konfigurierbare Wartezeit (`MediaProbe:RetryDelaySeconds`), und erst nach `MediaProbe:MaxAttempts` erfolglosen Versuchen gilt die Datei dauerhaft als nicht prüfbar. **Dauerhafte Fehler** (ffprobe läuft sauber durch, findet aber keine bestimmbare Laufzeit — z. B. defekte Datei oder kein lesbares Videoformat) werden sofort endgültig markiert und nicht erneut geprüft. Dateien ohne Laufzeit stören weder Scan noch Wiedergabe und sind von der Sendeplanung ausgeschlossen; sobald eine Laufzeit nachträglich ermittelt wird, ist die Datei wieder planbar.
 - Wird eine Videodatei ersetzt (der Scan erkennt die geänderte Datei), wird die Laufzeit automatisch neu ermittelt — inklusive Zurücksetzen des Versuchszählers.
 
+## Fortschritt beobachten
+
+Der aktuelle Stand der Ermittlung ist für Administratoren auf der Seite `Einrichtung` → `TV-Sender` in der Karte **„Laufzeitermittlung"** sichtbar: wie viele Videodateien bereits eine Laufzeit haben, wie viele noch ausstehen oder dauerhaft fehlgeschlagen sind, wann zuletzt eine Datei geprüft wurde und welche Dateien zuletzt bearbeitet wurden. Die Anzeige aktualisiert sich selbst — bleiben ausstehende Dateien längere Zeit ohne neue Aktivität, lohnt ein Blick auf die ffprobe-Einrichtung (siehe unten).
+
 ## ffprobe einrichten
 
 ffprobe ist Teil von [FFmpeg](https://ffmpeg.org/) und wird **nicht** mit der Anwendung ausgeliefert. Es muss auf dem Server installiert werden, z. B.:

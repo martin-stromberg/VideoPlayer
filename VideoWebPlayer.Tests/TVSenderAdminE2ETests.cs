@@ -29,7 +29,63 @@ public sealed class TVSenderAdminE2ETests : PlaylistsE2ETestBase
         if (SkipBrowser) return;
 
         var showId = await SeedTvShowWithSeasonsAsync("E2E Serie", ("Staffel 1", 2));
+
+        // Duration-probe seeds: one successfully probed item and one permanently failed one.
+        // Neither is pending, so the background probe worker cannot change the expected numbers.
+        {
+            using var scope = Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<VideoWebPlayer.Data.ApplicationDbContext>();
+            var ct = TestContext.Current.CancellationToken;
+            var source = await db.MediaSources.FirstOrDefaultAsync(ct);
+            if (source is null)
+            {
+                source = new VideoWebPlayer.Data.MediaSource { Name = "E2E Quelle", Host = "127.0.0.1", Port = 22, Path = "/test" };
+                db.MediaSources.Add(source);
+                await db.SaveChangesAsync(ct);
+            }
+
+            var collection = new VideoWebPlayer.Data.MediaCollection
+            {
+                Name = "probe",
+                Path = "/test/probe",
+                MediaSourceId = source.Id,
+                CreatedAt = DateTime.UtcNow
+            };
+            db.MediaCollections.Add(collection);
+            await db.SaveChangesAsync(ct);
+            db.MediaItems.Add(new VideoWebPlayer.Data.MediaItem
+            {
+                Name = "e2e-fertig.mkv",
+                Path = "/test/probe/e2e-fertig.mkv",
+                MediaCollectionId = collection.Id,
+                CreatedAt = DateTime.UtcNow,
+                Duration = TimeSpan.FromMinutes(90),
+                DurationProbedAt = DateTime.UtcNow
+            });
+            db.MediaItems.Add(new VideoWebPlayer.Data.MediaItem
+            {
+                Name = "e2e-defekt.mkv",
+                Path = "/test/probe/e2e-defekt.mkv",
+                MediaCollectionId = collection.Id,
+                CreatedAt = DateTime.UtcNow,
+                DurationProbedAt = DateTime.UtcNow.AddMinutes(-30),
+                DurationProbeAttempts = 10
+            });
+            await db.SaveChangesAsync(ct);
+        }
+
         await OpenAdminPageAsAdminAsync();
+
+        // Probe progress card: counters and the rolling list of recently probed items.
+        await Expect(Page.Locator("#tvsender-probe-card")).ToContainTextAsync("Laufzeitermittlung");
+        await Expect(Page.Locator("#tvsender-probe-probed")).ToContainTextAsync("1 ermittelt");
+        await Expect(Page.Locator("#tvsender-probe-failed")).ToContainTextAsync("1 fehlgeschlagen");
+        await Expect(Page.Locator("#tvsender-probe-status")).ToContainTextAsync("Ermittlung abgeschlossen");
+        var probeRows = Page.Locator(".tvsender-probe-row");
+        await Expect(probeRows).ToHaveCountAsync(2);
+        await Expect(probeRows.First).ToContainTextAsync("e2e-fertig.mkv");
+        await Expect(probeRows.Nth(1)).ToContainTextAsync("e2e-defekt.mkv");
+        await Expect(probeRows.Nth(1)).ToContainTextAsync("keine Laufzeit");
 
         // Channel settings: set schedule horizon + generation interval + live stream
         // settings (segment length, segment directory, retention), save.

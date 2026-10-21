@@ -126,6 +126,66 @@ public sealed class MediaDurationProbeService
     }
 
     /// <summary>
+    /// Aggregates the duration-probe progress for the administration view: counters over all
+    /// video media items (probed / pending or retrying / permanently failed), the timestamp of
+    /// the most recent probe attempt, the number of attempts within the last hour and the most
+    /// recently probed items. Administrator-only.
+    /// </summary>
+    /// <param name="userId">The requesting user; must be an administrator.</param>
+    /// <param name="recentCount">How many recent probe results to return.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The aggregated progress.</returns>
+    public async Task<MediaDurationProbeProgress> GetProgressAsync(
+        string userId, int recentCount = 10, CancellationToken cancellationToken = default)
+    {
+        await RequireAdminAsync(userId, cancellationToken);
+
+        var maxAttempts = _options.EffectiveMaxAttempts;
+        var videos = _db.MediaItems.AsNoTracking().Where(VideoExtensionPredicate());
+
+        var total = await videos.CountAsync(cancellationToken);
+        var probed = await videos.CountAsync(mi => mi.Duration != null, cancellationToken);
+        var failed = await videos.CountAsync(
+            mi => mi.Duration == null && mi.DurationProbeAttempts >= maxAttempts, cancellationToken);
+
+        var lastActivity = await videos.MaxAsync(mi => mi.DurationProbedAt, cancellationToken);
+        var hourAgo = _timeProvider.GetUtcNow().UtcDateTime.AddHours(-1);
+        var probedLastHour = await videos.CountAsync(mi => mi.DurationProbedAt >= hourAgo, cancellationToken);
+
+        List<MediaDurationProbeRecentItem> recent;
+        if (recentCount <= 0)
+        {
+            recent = new List<MediaDurationProbeRecentItem>();
+        }
+        else
+        {
+            recent = await videos
+                .Where(mi => mi.DurationProbedAt != null)
+                .OrderByDescending(mi => mi.DurationProbedAt)
+                .Take(recentCount)
+                .Select(mi => new MediaDurationProbeRecentItem(
+                    mi.Name,
+                    mi.MediaCollection.MediaSource.Name,
+                    mi.DurationProbedAt!.Value,
+                    mi.Duration,
+                    mi.DurationProbeAttempts))
+                .ToListAsync(cancellationToken);
+        }
+
+        return new MediaDurationProbeProgress(
+            total, probed, total - probed - failed, failed, lastActivity, probedLastHour, recent);
+    }
+
+    private async Task RequireAdminAsync(string userId, CancellationToken cancellationToken)
+    {
+        var user = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId, cancellationToken)
+            ?? throw new UnauthorizedAccessException("Sie sind nicht angemeldet.");
+
+        if (!user.IsAdmin)
+            throw new ForbiddenAccessException("Nur Administratoren dürfen die Laufzeitermittlung einsehen.");
+    }
+
+    /// <summary>
     /// Runs the actual ffprobe invocations for the given items, bounded by the configured probe
     /// parallelism. No database access happens on the probe tasks — the DbContext stays
     /// single-threaded; results are applied by the caller afterwards.

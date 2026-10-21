@@ -15,5 +15,5 @@ Branch: `task/issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsende
 | 9 | Genre-Material: Mehrfachauswahl, Quell-Filter, Status/Alternativnamen (N1+N2+N3) | 8 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-9-genre-auswahl` | Fertig |
 | 10 | Planungsdiagnose + manueller Generierungsanstoß (N5) | 9 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-10-diagnose` | Fertig |
 | 11 | Fortschrittsanzeige Laufzeitermittlung (N6) | 8 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-11-probe-fortschritt` | Fertig |
-| 12 | Remote-Probes seekbar via sftp:// statt pipe:0 (N8) | 8 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-12-sftp-probe` | In Arbeit |
-| 13 | Neue Genre-Zeilen erben globale Sichtbarkeit/Alternativnamen (N7) | 8 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-13-genre-vererbung` | Offen |
+| 12 | Remote-Probes seekbar via sftp:// statt pipe:0 (N8) | 8 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-12-sftp-probe` | Fertig |
+| 13 | Neue Genre-Zeilen erben globale Sichtbarkeit/Alternativnamen (N7) | 8 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-13-genre-vererbung` | In Arbeit |

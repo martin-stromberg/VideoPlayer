@@ -180,3 +180,8 @@
 - Tests: +33 (12 `SftpProbeUriBuilderTests`-Fälle, +8 Probe-Tests inkl. Maskierungs-Log-Test, +4 Service-Tests, Fakes erweitert). Volle Suite synchron (`-c Release`): **2046 grün / 0 Fehler / 1 bekannter Alt-Skip** (2047 gesamt; Baseline-Flake `PlaylistSkipLockedEntriesE2ETest` lief durch). Debug+Release-Build 0 Fehler, 142 Warnungen = Bestand; `dotnet format --verify-no-changes --severity error` sauber.
 - Doku: `docs/help/videolaufzeit.md` (sftp://-Probe + Sichtbarkeitshinweis + Fallback + Klassifikation, `StreamTimeoutSeconds`-Semantik), `docs/RELEASE_NOTES.md` (EN+DE).
 - Hinweis an Abnahme: kein echter SFTP-Integrationstest möglich (kein Server in der Testumgebung) — Nachweis über `_executeAsync`-Seam + Argument-/Klassifikations-Tests.
+
+
+### Schritt 12: sftp://-Probes (N8) — FERTIG (abgenommen)
+
+- SftpProbeUriBuilder (sftp://user:pass@host:port/pfad, EscapeDataString, IPv6), ProbeUriAsync seekable (120s lokal-Timeout reicht), Credentials in allen Log-Stellen maskiert, Pipe-Fallback ohne verbrannten Attempt + prozessweites UriUnsupported-Flag, moov/Invalid-data bei seekbarer Eingabe permanent. Abnahme: `acceptance-schritt-12.md` — erfüllt.

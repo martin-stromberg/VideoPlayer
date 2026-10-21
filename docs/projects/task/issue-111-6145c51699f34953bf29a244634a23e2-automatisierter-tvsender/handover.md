@@ -14,6 +14,7 @@
 | 8 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-8-probe-robust | abgeschlossen | 2026-10-21 |
 | 9 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-9-genre-auswahl | aktiv | 2026-10-22 |
 | 11 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-11-probe-fortschritt | aktiv | 2026-10-21 |
+| 12 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-12-sftp-probe | aktiv | 2026-10-22 |
 
 ## Übergabestand je Schritt
 
@@ -167,3 +168,15 @@
 ### Schritt 11: Fortschrittsanzeige Laufzeitermittlung (N6) — FERTIG (abgenommen)
 
 - MediaDurationProbeProgress + GetProgressAsync (admin-only), Fortschrittskarte in TVSenderAdmin mit Zaehlern/Balken/Rolling-Liste/Status (laeuft/fertig/haengt), 15s-Auto-Refresh. Abnahme: `acceptance-schritt-11.md` — erfuellt nach Fix (Tick auf Dispatcher via InvokeAsync statt Threadpool-DbContext).
+
+### Schritt 12: Remote-Probes seekbar via sftp:// (N8) — FERTIG (Implementierung; Abnahme durch anderen Agenten ausstehend)
+
+- `IMediaDurationProbe.ProbeUriAsync` neu: `FfprobeMediaDurationProbe` übergibt für SFTP-Items mit Credentials eine `sftp://user:pass@host:port/pfad`-URL direkt an ffprobe (libssh, seekfähig — nur Header/moov statt ganzer Datei via `pipe:0`); `SftpProbeUriBuilder` (internal static) baut die URL mit `Uri.EscapeDataString` je Segment + IPv6-Klammerung + Port-Konditional, liefert `null` bei fehlenden Credentials/relativem Pfad → Pipe-Fallback.
+- Pfadauflösung: `MediaItem.Path` (voller `entry.FullName`) wenn absolut, sonst `collection.Path`+`item.Path`/`item.Name` (`SftpProbeUriBuilder.CombinePath`, spiegelt `OpenFileStream`); nicht absolut → Fallback.
+- Credential-Schutz: Userinfo-Maskierung `scheme://***@` für Log-Anzeigename UND stderr (ffprobe echot die URL in Fehlermeldungen). Entscheidung dokumentiert (`docs/help/videolaufzeit.md`): Passwort in der Prozesszeile für denselben Benutzer sichtbar — keine libssh-Alternative (nur `timeout`/`truncate`/`private_key`), akzeptabel im Single-Admin-Server-Kontext, Passwort liegt bereits in der App-DB.
+- Klassifikation: `moov atom not found`/`Invalid data found when processing input` bei Exit≠0 + seekfähiger Eingabe → `PermanentFailure` (statt 10 Retries); `pipe:0` bleibt bewusst transient (Stream-Abbruch erzeugt dieselbe stderr). `Protocol not found` → neues `MediaDurationProbeResult.UriUnsupported` + `_uriProtocolUnsupported`-Instanzflag → Service fällt im selben Versuch auf `pipe:0` zurück.
+- Timeout der URI-Probe: `EffectiveTimeoutSeconds` (120 s), nicht Stream-Timeout.
+- Unverändert (bewusst): Live-Stream-Seite (`LiveStreamMediaResolver`/`FfmpegLiveStreamSegmenter`) — gleiche Pipe-Einschränkung bleibt dort bestehen.
+- Tests: +33 (12 `SftpProbeUriBuilderTests`-Fälle, +8 Probe-Tests inkl. Maskierungs-Log-Test, +4 Service-Tests, Fakes erweitert). Volle Suite synchron (`-c Release`): **2046 grün / 0 Fehler / 1 bekannter Alt-Skip** (2047 gesamt; Baseline-Flake `PlaylistSkipLockedEntriesE2ETest` lief durch). Debug+Release-Build 0 Fehler, 142 Warnungen = Bestand; `dotnet format --verify-no-changes --severity error` sauber.
+- Doku: `docs/help/videolaufzeit.md` (sftp://-Probe + Sichtbarkeitshinweis + Fallback + Klassifikation, `StreamTimeoutSeconds`-Semantik), `docs/RELEASE_NOTES.md` (EN+DE).
+- Hinweis an Abnahme: kein echter SFTP-Integrationstest möglich (kein Server in der Testumgebung) — Nachweis über `_executeAsync`-Seam + Argument-/Klassifikations-Tests.

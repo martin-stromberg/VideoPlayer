@@ -234,10 +234,7 @@ public sealed class MediaDurationProbeService
             }
             else
             {
-                await using var stream = _reader.OpenFileStream(item.MediaCollection, item.Name);
-                result = stream is null
-                    ? MediaDurationProbeResult.TransientFailure
-                    : await _probe.ProbeStreamAsync(stream, cancellationToken);
+                result = await ProbeRemoteItemAsync(item, cancellationToken);
             }
 
             if (result.Duration is not null)
@@ -256,6 +253,60 @@ public sealed class MediaDurationProbeService
             _logger.LogWarning(ex, "Laufzeitermittlung für '{Path}' fehlgeschlagen.", item.Path);
             return new ProbeOutcome(ProbeOutcomeKind.TransientFailure, null);
         }
+    }
+
+    /// <summary>
+    /// Probes an item of a remote source. For SFTP sources with credentials and an absolute
+    /// remote path a seekable <c>sftp://</c> URI is handed to ffprobe directly (libssh reads
+    /// only the container headers — seconds instead of streaming the whole file into
+    /// <c>pipe:0</c>). When the URI cannot be built or the ffprobe build lacks the
+    /// <c>sftp</c> protocol, the probe falls back to the streamed <c>pipe:0</c> input within
+    /// the same attempt.
+    /// </summary>
+    private async Task<MediaDurationProbeResult> ProbeRemoteItemAsync(MediaItem item, CancellationToken cancellationToken)
+    {
+        var collection = item.MediaCollection;
+        var source = collection.MediaSource;
+        if (source.SourceType == MediaSourceType.Sftp)
+        {
+            var uri = SftpProbeUriBuilder.TryBuildUri(
+                source.Host, source.Port, source.Username, source.Password, ResolveRemotePath(item));
+            if (uri is not null)
+            {
+                var uriResult = await _probe.ProbeUriAsync(uri, cancellationToken);
+                if (!uriResult.UriUnsupported)
+                    return uriResult;
+            }
+            else
+            {
+                _logger.LogDebug(
+                    "Für '{Path}' kann keine sftp://-Probe-URL gebildet werden (fehlende Credentials oder kein absoluter Remote-Pfad) — Fallback auf gestreamten Probe.",
+                    item.Path);
+            }
+        }
+
+        await using var stream = _reader.OpenFileStream(collection, item.Name);
+        return stream is null
+            ? MediaDurationProbeResult.TransientFailure
+            : await _probe.ProbeStreamAsync(stream, cancellationToken);
+    }
+
+    /// <summary>
+    /// Resolves the absolute path of <paramref name="item"/> on its SFTP server:
+    /// <see cref="MediaEntry.Path"/> already carries the full remote path recorded at scan time;
+    /// otherwise collection path and file name are combined like
+    /// <see cref="IMediaSourceReader.OpenFileStream"/> does. Returns <see langword="null"/>
+    /// when no absolute path can be formed.
+    /// </summary>
+    private static string? ResolveRemotePath(MediaItem item)
+    {
+        var path = item.Path;
+        if (!string.IsNullOrEmpty(path) && path[0] == '/')
+            return path;
+
+        var combined = SftpProbeUriBuilder.CombinePath(
+            item.MediaCollection.Path, string.IsNullOrEmpty(path) ? item.Name : path);
+        return combined.Length > 0 && combined[0] == '/' ? combined : null;
     }
 
     private void ApplyOutcome(MediaItem item, ProbeOutcome outcome, DateTime probedAt, int maxAttempts)

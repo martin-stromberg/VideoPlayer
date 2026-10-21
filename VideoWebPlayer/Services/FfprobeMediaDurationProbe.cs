@@ -21,10 +21,31 @@ public class FfprobeMediaDurationProbe : IMediaDurationProbe
     /// </summary>
     internal const string StandardInputArgument = "pipe:0";
 
+    /// <summary>
+    /// stderr markers that — for a <em>seekable</em> input — prove a permanently broken or
+    /// unreadable file instead of a transient problem. For piped input the same messages can
+    /// also appear when the stream aborts early, so they must not be evaluated there.
+    /// </summary>
+    private static readonly string[] PermanentErrorMarkers =
+    {
+        "moov atom not found",
+        "Invalid data found when processing input"
+    };
+
+    /// <summary>
+    /// stderr marker emitted when the ffprobe build does not support the input's URI scheme
+    /// (e.g. <c>sftp</c> without libssh).
+    /// </summary>
+    private const string ProtocolNotFoundMarker = "Protocol not found";
+
     private readonly IFfprobeLocator _locator;
     private readonly MediaProbeOptions _options;
     private readonly ILogger<FfprobeMediaDurationProbe> _logger;
     private readonly Func<string, string, Stream?, TimeSpan, CancellationToken, Task<FfprobeInvocationResult>> _executeAsync;
+
+    // Once an ffprobe build has rejected an URI scheme, every later URI probe would fail the
+    // same way — remembered so no further dead process invocations are spawned.
+    private bool _uriProtocolUnsupported;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FfprobeMediaDurationProbe"/> class.
@@ -54,16 +75,44 @@ public class FfprobeMediaDurationProbe : IMediaDurationProbe
 
     /// <inheritdoc />
     public Task<MediaDurationProbeResult> ProbeFileAsync(string filePath, CancellationToken cancellationToken)
-        => ProbeAsync($"\"{filePath}\"", stdin: null, TimeSpan.FromSeconds(_options.EffectiveTimeoutSeconds), cancellationToken);
+        => ProbeAsync($"\"{filePath}\"", $"\"{filePath}\"", stdin: null, TimeSpan.FromSeconds(_options.EffectiveTimeoutSeconds), seekable: true, cancellationToken);
+
+    /// <inheritdoc />
+    public Task<MediaDurationProbeResult> ProbeUriAsync(string uri, CancellationToken cancellationToken)
+    {
+        if (_uriProtocolUnsupported)
+            return Task.FromResult(MediaDurationProbeResult.UriUnsupportedFailure);
+
+        return ProbeAsync(
+            $"\"{uri}\"",
+            SftpProbeUriBuilder.MaskCredentials(uri),
+            stdin: null,
+            TimeSpan.FromSeconds(_options.EffectiveTimeoutSeconds),
+            seekable: true,
+            cancellationToken);
+    }
 
     /// <inheritdoc />
     public Task<MediaDurationProbeResult> ProbeStreamAsync(Stream input, CancellationToken cancellationToken)
-        => ProbeAsync(StandardInputArgument, input, TimeSpan.FromSeconds(_options.EffectiveStreamTimeoutSeconds), cancellationToken);
+        => ProbeAsync(StandardInputArgument, StandardInputArgument, input, TimeSpan.FromSeconds(_options.EffectiveStreamTimeoutSeconds), seekable: false, cancellationToken);
 
+    /// <param name="inputArgument">The input argument handed to ffprobe — may contain credentials.</param>
+    /// <param name="displayInput">Credential-masked representation of <paramref name="inputArgument"/> used for all log output.</param>
+    /// <param name="stdin">Stream to pump into ffprobe's standard input, or <see langword="null"/>.</param>
+    /// <param name="timeout">Maximum runtime of the ffprobe invocation.</param>
+    /// <param name="seekable">
+    /// Whether ffprobe can seek in the input (file path or seekable protocol such as
+    /// <c>sftp://</c>). Only then do permanent stderr markers prove a broken file — a piped
+    /// stream produces the same errors when the feed aborts early.
+    /// </param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The probe outcome.</returns>
     private async Task<MediaDurationProbeResult> ProbeAsync(
         string inputArgument,
+        string displayInput,
         Stream? stdin,
         TimeSpan timeout,
+        bool seekable,
         CancellationToken cancellationToken)
     {
         var ffprobePath = _locator.Resolve();
@@ -86,21 +135,42 @@ public class FfprobeMediaDurationProbe : IMediaDurationProbe
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "ffprobe-Aufruf für '{Input}' fehlgeschlagen.", inputArgument);
+            _logger.LogWarning(ex, "ffprobe-Aufruf für '{Input}' fehlgeschlagen.", displayInput);
             return MediaDurationProbeResult.TransientFailure;
         }
 
         if (result.TimedOut)
         {
-            _logger.LogWarning("ffprobe-Aufruf für '{Input}' hat das Timeout von {Timeout}s überschritten.", inputArgument, timeout.TotalSeconds);
+            _logger.LogWarning("ffprobe-Aufruf für '{Input}' hat das Timeout von {Timeout}s überschritten.", displayInput, timeout.TotalSeconds);
             return MediaDurationProbeResult.TransientFailure;
         }
 
         if (result.ExitCode != 0)
         {
+            // ffprobe echoes the input URI (including embedded credentials) in error output —
+            // mask before logging or inspecting.
+            var stderr = SftpProbeUriBuilder.MaskCredentialsInText(result.StandardError);
+
+            if (stderr.Contains(ProtocolNotFoundMarker, StringComparison.OrdinalIgnoreCase))
+            {
+                _uriProtocolUnsupported = true;
+                _logger.LogWarning(
+                    "ffprobe-Aufruf für '{Input}' endete mit Exit-Code {ExitCode}: das Protokoll der Eingabe wird von diesem ffprobe-Build nicht unterstützt ({Error}); künftige URI-Probes werden übersprungen.",
+                    displayInput, result.ExitCode, Truncate(stderr));
+                return MediaDurationProbeResult.UriUnsupportedFailure;
+            }
+
+            if (seekable && ContainsPermanentErrorMarker(stderr))
+            {
+                _logger.LogWarning(
+                    "ffprobe-Aufruf für '{Input}' endete mit Exit-Code {ExitCode} und einem dauerhaften Fehler ({Error}) — die Datei wird nicht erneut geprüft.",
+                    displayInput, result.ExitCode, Truncate(stderr));
+                return MediaDurationProbeResult.PermanentFailure;
+            }
+
             _logger.LogWarning(
                 "ffprobe-Aufruf für '{Input}' endete mit Exit-Code {ExitCode}: {Error}",
-                inputArgument, result.ExitCode, Truncate(result.StandardError));
+                displayInput, result.ExitCode, Truncate(stderr));
             return MediaDurationProbeResult.TransientFailure;
         }
 
@@ -109,11 +179,22 @@ public class FfprobeMediaDurationProbe : IMediaDurationProbe
         {
             _logger.LogWarning(
                 "ffprobe-Aufruf für '{Input}' lieferte keine bestimmbare Laufzeit (dauerhaft fehlgeschlagen).",
-                inputArgument);
+                displayInput);
             return MediaDurationProbeResult.PermanentFailure;
         }
 
         return MediaDurationProbeResult.Success(duration.Value);
+    }
+
+    private static bool ContainsPermanentErrorMarker(string stderr)
+    {
+        foreach (var marker in PermanentErrorMarkers)
+        {
+            if (stderr.Contains(marker, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
     }
 
     private static string Truncate(string? text)
@@ -128,7 +209,7 @@ public class FfprobeMediaDurationProbe : IMediaDurationProbe
     /// <summary>
     /// Builds the ffprobe argument string that requests only the container duration.
     /// </summary>
-    /// <param name="inputArgument">Input specification (quoted file path or <c>pipe:0</c>).</param>
+    /// <param name="inputArgument">Input specification (quoted file path, quoted URI or <c>pipe:0</c>).</param>
     /// <returns>The argument string for the ffprobe process.</returns>
     internal static string BuildArguments(string inputArgument)
         => $"-v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 {inputArgument}";

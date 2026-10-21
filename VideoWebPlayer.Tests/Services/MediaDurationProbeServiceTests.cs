@@ -243,6 +243,7 @@ public class MediaDurationProbeServiceTests : IDisposable
     public async Task ProbePendingAsync_SftpSource_StreamsViaOpenFileStream()
     {
         var ct = TestContext.Current.CancellationToken;
+        // Quelle ohne Credentials → sftp://-URL ist nicht baubar, Pipe-Fallback greift.
         var item = await SeedItemAsync("episode.mkv", MediaSourceType.Sftp);
         _reader.StreamToReturn = new MemoryStream(new byte[] { 1, 2, 3 });
         _probe.StreamResult = MediaDurationProbeResult.Success(TimeSpan.FromMinutes(22));
@@ -251,10 +252,79 @@ public class MediaDurationProbeServiceTests : IDisposable
         await service.ProbePendingAsync(10, ct);
 
         Assert.Equal(0, _probe.FileCalls);
+        Assert.Equal(0, _probe.UriCalls);
         Assert.Equal(1, _probe.StreamCalls);
         Assert.Equal(1, _reader.OpenFileStreamCalls);
         Assert.Equal(item.Name, _reader.LastFileName);
         Assert.Equal(TimeSpan.FromMinutes(22), (await ReloadAsync(item.Id, ct)).Duration);
+    }
+
+    [Fact]
+    public async Task ProbePendingAsync_SftpSource_WithCredentials_ProbesViaUri()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var item = await SeedSftpItemAsync("episode.mkv", "/remote/media/episode.mkv");
+        _probe.UriResult = MediaDurationProbeResult.Success(TimeSpan.FromMinutes(22));
+
+        var service = _serviceProvider.GetRequiredService<MediaDurationProbeService>();
+        await service.ProbePendingAsync(10, ct);
+
+        Assert.Equal(1, _probe.UriCalls);
+        Assert.Equal(0, _probe.StreamCalls);
+        Assert.Equal(0, _reader.OpenFileStreamCalls);
+        Assert.Equal(
+            "sftp://user:s3cret@nas.local:22/remote/media/episode.mkv",
+            _probe.LastUri);
+        Assert.Equal(TimeSpan.FromMinutes(22), (await ReloadAsync(item.Id, ct)).Duration);
+    }
+
+    [Fact]
+    public async Task ProbePendingAsync_SftpSource_UriUnsupported_FallsBackToStream()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var item = await SeedSftpItemAsync("episode.mkv", "/remote/media/episode.mkv");
+        _reader.StreamToReturn = new MemoryStream(new byte[] { 1, 2, 3 });
+        _probe.UriResult = MediaDurationProbeResult.UriUnsupportedFailure;
+        _probe.StreamResult = MediaDurationProbeResult.Success(TimeSpan.FromMinutes(22));
+
+        var service = _serviceProvider.GetRequiredService<MediaDurationProbeService>();
+        await service.ProbePendingAsync(10, ct);
+
+        Assert.Equal(1, _probe.UriCalls);
+        Assert.Equal(1, _probe.StreamCalls);
+        Assert.Equal(TimeSpan.FromMinutes(22), (await ReloadAsync(item.Id, ct)).Duration);
+    }
+
+    [Fact]
+    public async Task ProbePendingAsync_SftpSource_RelativePaths_FallBackToStream()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // Weder Item- noch Collection-Pfad absolut → kein absoluter sftp://-Pfad → Pipe-Fallback.
+        var item = await SeedSftpItemAsync("episode.mkv", "relative/media/episode.mkv", collectionPath: "relative");
+        _reader.StreamToReturn = new MemoryStream(new byte[] { 1, 2, 3 });
+        _probe.StreamResult = MediaDurationProbeResult.Success(TimeSpan.FromMinutes(22));
+
+        var service = _serviceProvider.GetRequiredService<MediaDurationProbeService>();
+        await service.ProbePendingAsync(10, ct);
+
+        Assert.Equal(0, _probe.UriCalls);
+        Assert.Equal(1, _probe.StreamCalls);
+        Assert.Equal(TimeSpan.FromMinutes(22), (await ReloadAsync(item.Id, ct)).Duration);
+    }
+
+    [Fact]
+    public async Task ProbePendingAsync_SftpSource_UriPermanentFailure_ExhaustsAttempts()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var item = await SeedSftpItemAsync("broken.mkv", "/remote/media/broken.mkv");
+        _probe.UriResult = MediaDurationProbeResult.PermanentFailure;
+
+        var service = _serviceProvider.GetRequiredService<MediaDurationProbeService>();
+        await service.ProbePendingAsync(10, ct);
+
+        var reloaded = await ReloadAsync(item.Id, ct);
+        Assert.Null(reloaded.Duration);
+        Assert.True(reloaded.DurationProbeAttempts >= _probeOptions.EffectiveMaxAttempts);
     }
 
     [Fact]
@@ -403,6 +473,43 @@ public class MediaDurationProbeServiceTests : IDisposable
         return item;
     }
 
+    /// <summary>
+    /// Seeds an SFTP media source with credentials (<c>nas.local:22</c>, <c>user</c>/<c>s3cret</c>),
+    /// a collection at <paramref name="collectionPath"/> and one item at <paramref name="itemPath"/>.
+    /// </summary>
+    private async Task<MediaItem> SeedSftpItemAsync(string name, string itemPath, string collectionPath = "/remote")
+    {
+        var db = _serviceProvider.GetRequiredService<ApplicationDbContext>();
+        var source = new MediaSource
+        {
+            Name = $"Sftp-{name}",
+            Path = collectionPath,
+            Host = "nas.local",
+            Port = 22,
+            Username = "user",
+            Password = "s3cret",
+            SourceType = MediaSourceType.Sftp,
+            CreatedAt = DateTime.UtcNow
+        };
+        var collection = new MediaCollection
+        {
+            Name = "remote",
+            Path = collectionPath,
+            CreatedAt = DateTime.UtcNow,
+            MediaSource = source
+        };
+        var item = new MediaItem
+        {
+            Name = name,
+            Path = itemPath,
+            CreatedAt = DateTime.UtcNow,
+            MediaCollection = collection
+        };
+        db.MediaItems.Add(item);
+        await db.SaveChangesAsync();
+        return item;
+    }
+
     private async Task SaveAsync(CancellationToken ct)
     {
         var db = _serviceProvider.GetRequiredService<ApplicationDbContext>();
@@ -422,11 +529,14 @@ public class MediaDurationProbeServiceTests : IDisposable
 
         public MediaDurationProbeResult FileResult { get; set; } = MediaDurationProbeResult.Success(TimeSpan.FromMinutes(60));
         public MediaDurationProbeResult StreamResult { get; set; } = MediaDurationProbeResult.Success(TimeSpan.FromMinutes(60));
+        public MediaDurationProbeResult UriResult { get; set; } = MediaDurationProbeResult.Success(TimeSpan.FromMinutes(60));
         public TimeSpan Delay { get; set; } = TimeSpan.Zero;
         public int FileCalls { get; set; }
         public int StreamCalls { get; set; }
+        public int UriCalls { get; set; }
         public int MaxConcurrentCalls { get; private set; }
         public string? LastFilePath { get; private set; }
+        public string? LastUri { get; private set; }
         public string? ThrowOnPathContaining { get; set; }
 
         public async Task<MediaDurationProbeResult> ProbeFileAsync(string filePath, CancellationToken cancellationToken)
@@ -437,6 +547,14 @@ public class MediaDurationProbeServiceTests : IDisposable
                 throw new IOException("Simulated probe failure.");
             await TrackAsync(cancellationToken);
             return FileResult;
+        }
+
+        public async Task<MediaDurationProbeResult> ProbeUriAsync(string uri, CancellationToken cancellationToken)
+        {
+            UriCalls++;
+            LastUri = uri;
+            await TrackAsync(cancellationToken);
+            return UriResult;
         }
 
         public async Task<MediaDurationProbeResult> ProbeStreamAsync(Stream input, CancellationToken cancellationToken)

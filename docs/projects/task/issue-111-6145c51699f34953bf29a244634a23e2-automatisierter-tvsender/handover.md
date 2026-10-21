@@ -27,3 +27,9 @@
 - Umgesetzt: `ProgramSlot` (weiche Referenzen, `RuleType`-Snapshot), `ProgramRuleCursor` (Fortsetzung je Regel, FK+Kaskade), `Setup.ProgramScheduleHorizonHours`/`ProgramScheduleIntervalMinutes`, `GermanHolidayCalendar` (Computus + Landesfeiertage), `ProgramScheduleService` (Expand-only, Prioritätskonflikte, Füller-Lückenfüllung, Freigabe- und Laufzeitfilter, verwaiste Materialien), `ProgramScheduleWorker`, Admin-UI-Felder, Migration `AddProgramSchedule`, Backup-Registrierung inkl. Alt-Backup-Regressionstest.
 - Entscheidungen: Ausstrahlungen im 24-h-Lookback konsumieren den Cursor (vergangene Sendung = „gelaufen"); der letzte Füller darf über das Horizont-Ende hinauslaufen; Freigabe = für jeden Nicht-Admin-Benutzer sichtbar (Quelle ODER Einzelfreischaltung); Extend-only — Reaktion auf Änderungen ist Schritt 4.
 - Tests: 26 neue Tests (Generation, Konflikte, Füller, Freigabe, Feiertage, Settings, Worker, Alt-Backup) plus erweiterter E2E (`TVSenderAdminE2ETests`); alle grün.
+
+
+### Schritt 3: Sendeplan aus Regeln erzeugen — FERTIG (abgenommen)
+
+- ProgramSlot + ProgramRuleCursor (Serien-Fortsetzung, Wrap-around), ProgramScheduleService (extend-only, Prioritäts-Konflikte atomar, Füller lückenlos, Filter: Duration + Vollfreigabe, verwaiste Materialien übersprungen), GermanHolidayCalendar (Computus + DE-*), Worker mit Gate-Lease, Settings Horizon/Intervall in TVSenderAdmin. Abnahme: `acceptance-schritt-3.md` — erfüllt.
+- Schritt 4 baut auf: Plan-Nachführung/Verdrängen.

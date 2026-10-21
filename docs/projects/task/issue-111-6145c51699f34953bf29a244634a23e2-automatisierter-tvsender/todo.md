@@ -13,7 +13,7 @@ Branch: `task/issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsende
 | [x] | 5a | Offene Punkte prüfen und ggf. Planung wiederholen | `project-plan.md` (aktualisiert) |
 | [x] | 5b | Projektplan gegen Anforderung prüfen (Unteragent) | `project-plan-check.md` |
 | [x] | 5c | Planungscommit | – |
-| [ ] | 6 | Entwicklungsschritte-Tracking anlegen | `steps.md` |
-| [ ] | 7 | Entwicklungsschritte abarbeiten (Schleife über `/lifecycle`) | Codeänderungen je Schritt |
+| [x] | 6 | Entwicklungsschritte-Tracking anlegen | `steps.md` |
+| [x] | 7 | Entwicklungsschritte abarbeiten (Schleife über `/lifecycle`) | Codeänderungen je Schritt |
 | [ ] | – | Projekt-Verzeichnis aufräumen | – |
 | [ ] | 8 | Abschlusscommit | – |

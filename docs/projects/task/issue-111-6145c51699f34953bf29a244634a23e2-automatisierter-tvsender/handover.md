@@ -102,3 +102,8 @@
 - Doku: `docs/help/tv-sender.md` (Abschnitt „Live-TV-Ansicht"), `README.md`, `docs/RELEASE_NOTES.md`. Kein `changes.log` im Repo vorhanden (Datei existiert nicht) — kein Eintrag möglich.
 - Lifecycle-Artefakte: `docs/features/task-issue-111-...-schritt-7-live-tv-ui/` (requirement, inventory, plan, plan-check, review, review-usability, review-code, test-results).
 - Hinweis an Abnahme: Baseline-Flake `TVSenderAdminE2ETests` (FillAsync-Timing) — Einzelwiederholung grün, kein Regressionszusammenhang.
+
+
+### Schritt 7: Live-TV in der Benutzeroberfläche — FERTIG (abgenommen)
+
+- LiveTv.razor (/live-tv, nativ+hls.js-Fallback mit Retry, Jetzt/Gleich + 6h-Vorschau, verständliche Fehlerzustände, sauberes Dispose), hls.js 1.7.3 vendored (Apache-2.0), IProgramGuideApiClient, Nav-Eintrag. Abnahme: `acceptance-schritt-7.md` — erfüllt nach Fixes (nativer Retry, bi-tv-Icon, Analyzer-Warnungen, Format).

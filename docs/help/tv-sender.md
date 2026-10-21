@@ -2,8 +2,9 @@
 
 Der automatische TV-Sender erzeugt aus dem Medienbestand ein fortlaufendes Fernsehprogramm. Dieser
 Bereich beschreibt die Administration unter `Einrichtung` → `TV-Sender` (`/admin/tv-sender`) —
-ausgeliefert wird zunächst genau ein Sender. Der Sendeplan wird bereits fortlaufend im Hintergrund
-erzeugt; Programmauskunft, HLS-Live-Stream und die Live-TV-Ansicht folgen in späteren Schritten.
+ausgeliefert wird zunächst genau ein Sender. Der Sendeplan wird fortlaufend im Hintergrund erzeugt
+und ist über die Programmauskunft für angemeldete Benutzer abfragbar; HLS-Live-Stream und die
+Live-TV-Ansicht folgen in späteren Schritten.
 
 ## Sender
 
@@ -86,3 +87,32 @@ Dabei gilt:
 - **Nachvollziehbarkeit**: Die Karte „Sendeplan" auf derselben Seite zeigt die kommenden
   Sendeplätze mit Start/Ende, Inhalt, erzeugender Regel und Status — verdrängte Sendeplätze sind
   dort als „Verdrängt" gekennzeichnet und bleiben als Historie erhalten.
+
+## Programmauskunft
+
+Die Programmauskunft beantwortet zu jedem Zeitpunkt rein aus Uhrzeit und Sendeplan, was gerade
+läuft und was als Nächstes kommt. Sie ist zustandslos — sie hängt weder davon ab, ob oder wer
+zuschaut, noch von Prozesszustand, und ist nach einem Server-Neustart sofort korrekt. Als
+verdrängt markierte Sendeplätze gelten dabei nicht als Programm und tauchen in der Auskunft nicht
+auf.
+
+Zwei abgesicherte Endpunkte stehen angemeldeten Benutzern (und gekoppelten Geräten) zur Verfügung
+— Bearer-Token im `Authorization`-Header oder als `access_token`-Abfrageparameter; anonyme
+Aufrufe werden mit 401 abgelehnt:
+
+- `GET /api/program-guide/now` — „Jetzt/Gleich": die laufende Sendung mit Position im Video
+  (`positionSeconds`), Restdauer (`remainingSeconds`) und Laufzeit (`durationSeconds`) sowie die
+  nächste Sendung. Deckt eine Sendelücke den Zeitpunkt nicht ab, ist `now` leer — die nächste
+  Sendung wird trotzdem benannt.
+- `GET /api/program-guide/upcoming?hours=N` — begrenzte Programmübersicht: laufende Sendung plus
+  alle Sendungen, die innerhalb der nächsten `N` Stunden beginnen (Vorgabe 6, Maximum 12 —
+  darüber antwortet der Server mit 400).
+
+Jeder Eintrag trägt Titel (Filmname bzw. „Serie — Staffel, E-Folge: Episodenname"), Medientyp
+(`Movie`/`TVShowEpisode`), Start/Ende in UTC und eine Füller-Markierung (`isFiller`); kann ein
+Inhalt nicht mehr aufgelöst werden (z. B. gelöschter Film), erscheint er als „Unbekannt". Der
+vollständige Sendeplan inklusive verdrängter Sendeplätze bleibt ausschließlich der Administration
+vorbehalten (Karte „Sendeplan" auf der TV-Sender-Seite).
+
+Die Programmauskunft ist die einheitliche fachliche Grundlage für die spätere Live-TV-Anzeige und
+die Stream-Auslieferung; sie ist begrifflich von den Benutzer-Playlists getrennt.

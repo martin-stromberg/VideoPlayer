@@ -6,7 +6,7 @@
 |---------|------------|--------|--------|------|
 | 1 | Devin |  | aktiv | 2026-10-21 |
 | 2 | Devin |  | fertig | 2026-10-21 |
-| 3 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-3-sendeplan-erzeugen | aktiv | 2026-10-21 |
+| 3 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-3-sendeplan-erzeugen | pausiert | 2026-10-21 |
 
 ## Übergabestand je Schritt
 

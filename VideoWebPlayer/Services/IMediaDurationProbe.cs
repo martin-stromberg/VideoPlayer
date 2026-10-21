@@ -19,6 +19,21 @@ public interface IMediaDurationProbe
     Task<MediaDurationProbeResult> ProbeFileAsync(string filePath, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Probes the duration of a media file that ffprobe opens itself through a remote URI
+    /// (e.g. <c>sftp://host/path</c>). Unlike a piped stream, protocol access is seekable, so
+    /// ffprobe only reads the container headers instead of the whole file. The URI may embed
+    /// credentials in its userinfo part — implementations must never log it verbatim.
+    /// </summary>
+    /// <param name="uri">Absolute remote URI to probe.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>
+    /// The probe outcome; <see cref="MediaDurationProbeResult.UriUnsupported"/> marks that the
+    /// URI scheme is not supported by the ffprobe build and the caller should fall back to
+    /// another input method.
+    /// </returns>
+    Task<MediaDurationProbeResult> ProbeUriAsync(string uri, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Probes the duration of a media file supplied as a stream (e.g. for remote SFTP sources);
     /// the stream is piped into ffprobe's standard input.
     /// </summary>

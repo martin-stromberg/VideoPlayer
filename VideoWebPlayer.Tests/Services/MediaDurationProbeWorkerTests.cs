@@ -106,6 +106,8 @@ public class MediaDurationProbeWorkerTests : IDisposable
     {
         public Task<MediaDurationProbeResult> ProbeFileAsync(string filePath, CancellationToken cancellationToken)
             => Task.FromResult(MediaDurationProbeResult.Success(TimeSpan.FromMinutes(3)));
+        public Task<MediaDurationProbeResult> ProbeUriAsync(string uri, CancellationToken cancellationToken)
+            => Task.FromResult(MediaDurationProbeResult.Success(TimeSpan.FromMinutes(3)));
         public Task<MediaDurationProbeResult> ProbeStreamAsync(Stream input, CancellationToken cancellationToken)
             => Task.FromResult(MediaDurationProbeResult.Success(TimeSpan.FromMinutes(3)));
     }

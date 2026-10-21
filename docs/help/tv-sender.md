@@ -34,6 +34,13 @@ Programmregeln beschreiben wiederkehrende Sendungen. Je Regel wird gepflegt:
   interner IDs: Serie (Serien-Sendezeit), Film oder Filmsammlung (Primetime, Wiederholung, Special,
   Füller), Genre (Genre-/Formatrotation) oder eine vorhandene Benutzer-Playlist. Welche Materialart
   zulässig ist, richtet sich nach der Regelart und wird serverseitig geprüft.
+  Ausnahme Genre: Hier sind **mehrere Genres** wählbar (Checkbox-Liste); der Sendeplan bildet die
+  deduplizierte Vereinigung aller gewählten Genres. Zusätzlich kann die Expansion auf ausgewählte
+  **Medienquellen** eingeschränkt werden — ohne Auswahl gelten alle Quellen. Wählbar sind nur
+  sichtbare, kanonische Genres: Versteckte Genres ohne gültige Alternativnamen-Zuordnung stehen
+  nicht zur Wahl; Alternativnamen werden zum kanonischen Genre aufgelöst, sodass auch Inhalte
+  einfließen, deren Genre-Zuordnung noch auf eine versteckte Alternativ-Zeile zeigt.
+  Saisonale Genres (Start-/Enddatum) sind nur während ihres Sichtbarkeitsfensters wählbar.
 - **Priorität** — ganzzahlig; bei sich überschneidenden Regeln gewinnt der höhere Wert.
 - **Status** — aktive Regeln gehen in die Sendeplan-Erzeugung ein, inaktive bleiben erhalten,
   werden aber ignoriert.

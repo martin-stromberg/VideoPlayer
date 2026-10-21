@@ -150,10 +150,13 @@ public sealed class TVSenderAdminE2ETests : PlaylistsE2ETestBase
         {
             using var scope = Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<VideoWebPlayer.Data.ApplicationDbContext>();
-            var source = await db.MediaSources.FirstOrDefaultAsync(TestContext.Current.CancellationToken)
-                ?? new VideoWebPlayer.Data.MediaSource { Name = "E2E Test Source", Host = "127.0.0.1", Port = 22, Path = "/test" };
-            if (source.Id == 0)
+            var source = await db.MediaSources.FirstOrDefaultAsync(TestContext.Current.CancellationToken);
+            if (source is null)
+            {
+                source = new VideoWebPlayer.Data.MediaSource { Name = "E2E Test Source", Host = "127.0.0.1", Port = 22, Path = "/test" };
                 db.MediaSources.Add(source);
+                await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            }
             sourceId = source.Id;
             sourceName = source.Name;
             var a = new VideoWebPlayer.Data.Genre { Name = "E2E Action", MediaSourceId = sourceId };

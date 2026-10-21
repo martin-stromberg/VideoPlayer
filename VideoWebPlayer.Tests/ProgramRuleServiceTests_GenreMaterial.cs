@@ -69,7 +69,7 @@ public sealed class ProgramRuleServiceTests_GenreMaterial
         var genre = await AddGenreAsync(fixture, "Action", ct);
         var show = new TVShow { Name = "S", MediaSourceId = 1, CreatedAt = DateTime.UtcNow };
         fixture.Db.TVShows.Add(show);
-        await fixture.Db.SaveChangesAsync();
+        await fixture.Db.SaveChangesAsync(ct);
 
         var input = new ProgramRuleInput("R", ProgramRuleType.SeriesFixedTime, ProgramRuleRecurrence.Daily, null, null,
             new TimeOnly(20, 0), 1, null, ProgramRuleMaterialType.TVShow, show.Id, 0, true, GenreIds: [genre.Id]);

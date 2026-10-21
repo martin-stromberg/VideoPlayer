@@ -17,4 +17,4 @@ Branch: `task/issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsende
 | 11 | Fortschrittsanzeige Laufzeitermittlung (N6) | 8 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-11-probe-fortschritt` | Fertig |
 | 12 | Remote-Probes seekbar via sftp:// statt pipe:0 (N8) | 8 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-12-sftp-probe` | Fertig |
 | 13 | Neue Genre-Zeilen erben globale Sichtbarkeit/Alternativnamen (N7) | 8 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-13-genre-vererbung` | Fertig |
-| 14 | Remote-Probes über eigenen Range-Endpunkt (N9) | 12 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-14-http-probe` | In Arbeit |
+| 14 | Remote-Probes über eigenen Range-Endpunkt (N9) | 12 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-14-http-probe` | Fertig |

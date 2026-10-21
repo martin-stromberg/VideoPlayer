@@ -204,3 +204,9 @@
 
 - GenreGlobalConfig (Vorlage = aelteste konfigurierte ci-gleichnamige Zeile anderer Quellen), Vererbung bei Neuanlage in Scan + Metadaten-Edit, Heilung nur Default-Zeilen, Same-Source-Umlenkung + Zyklenschutz, SaveGenre-Casefix, DataUpgrade v9 ReloadGenres-Heilung fuer Altbestand. Abnahme: `acceptance-schritt-13.md` — erfüllt.
 - Hinweis: C: fast voll (~0,6 GB) verursachte SQLITE_FULL in E2E-Tests.
+
+
+### Schritt 14: HTTP-Range-Probes (N9) — FERTIG (abgenommen)
+
+- Interner Endpunkt GET /api/internal/media-stream/{token} (256-Bit-In-Memory-Token, TTL 600s, pro-Datei gescoped), Loopback via IServerAddressesFeature + HttpProbeBaseUrl-Override, Fallback HTTP→sftp://→pipe:0, HTTP-Transportfehler=UriUnsupported. Abnahme: `acceptance-schritt-14.md` — erfüllt nach Fixes (Token-Maskierung in Logs/stderr, _uriProtocolUnsupported pro Scheme, BaseUrl-Negativcache weg).
+- Offen: HTTP-Probe-Ansatz auch fuer Live-Streaming pruefen (Schritt-6-pipe:0-Grenze, Folgeschritt moeglich).

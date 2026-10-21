@@ -131,3 +131,40 @@ public sealed class ProgramSettingsServiceTests
         Assert.True((await fixture.Db.Setups.AsNoTracking().SingleAsync(ct)).MdnsAdvertisementEnabled);
     }
 }
+
+public sealed class ProgramSettingsServiceHolidayFederalStateTests
+{
+    [Fact]
+    public async Task GetHolidayFederalStateAsync_DefaultsToNull()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await PairingTestDb.CreateAsync("program-settings-holiday-default", ct);
+        var service = new ProgramSettingsService(fixture.Db, NullLogger<ProgramSettingsService>.Instance);
+
+        Assert.Null(await service.GetHolidayFederalStateAsync(ct));
+    }
+
+    [Fact]
+    public async Task UpdateHolidayFederalStateAsync_PersistsCodeAndNull()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await PairingTestDb.CreateAsync("program-settings-holiday-update", ct);
+        var service = new ProgramSettingsService(fixture.Db, NullLogger<ProgramSettingsService>.Instance);
+
+        await service.UpdateHolidayFederalStateAsync("DE-NW", ct);
+        Assert.Equal("DE-NW", (await fixture.Db.Setups.SingleAsync(ct)).HolidayFederalState);
+
+        await service.UpdateHolidayFederalStateAsync(null, ct);
+        Assert.Null((await fixture.Db.Setups.SingleAsync(ct)).HolidayFederalState);
+    }
+
+    [Fact]
+    public async Task UpdateHolidayFederalStateAsync_UnknownCode_Throws()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await PairingTestDb.CreateAsync("program-settings-holiday-invalid", ct);
+        var service = new ProgramSettingsService(fixture.Db, NullLogger<ProgramSettingsService>.Instance);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => service.UpdateHolidayFederalStateAsync("XX-YY", ct));
+    }
+}

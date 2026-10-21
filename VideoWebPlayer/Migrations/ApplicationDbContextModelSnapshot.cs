@@ -273,6 +273,9 @@ namespace VideoWebPlayer.Migrations
                     b.Property<bool>("GenresChanged")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("HolidayFederalState")
+                        .HasColumnType("TEXT");
+
                     b.Property<bool>("MdnsAdvertisementEnabled")
                         .HasColumnType("INTEGER");
 
@@ -1282,6 +1285,74 @@ namespace VideoWebPlayer.Migrations
                     b.ToTable("PlaylistGenres");
                 });
 
+            modelBuilder.Entity("VideoWebPlayer.Data.ProgramRule", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("DayOfWeek")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("EpisodeCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(true);
+
+                    b.Property<long>("MaterialId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("MaterialType")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT")
+                        .UseCollation("NOCASE");
+
+                    b.Property<int>("Priority")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
+
+                    b.Property<int>("Recurrence")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("RuleType")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateOnly?>("SingleDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<TimeSpan?>("SlotDuration")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("TVChannelId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<TimeOnly>("TimeOfDay")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TVChannelId");
+
+                    b.HasIndex("TVChannelId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("ProgramRules");
+                });
+
             modelBuilder.Entity("VideoWebPlayer.Data.RefreshToken", b =>
                 {
                     b.Property<int>("Id")
@@ -1324,6 +1395,29 @@ namespace VideoWebPlayer.Migrations
                         .IsUnique();
 
                     b.ToTable("RefreshTokens");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.TVChannel", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT")
+                        .UseCollation("NOCASE");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("TVChannels");
                 });
 
             modelBuilder.Entity("VideoWebPlayer.Data.TVShow", b =>
@@ -2056,6 +2150,17 @@ namespace VideoWebPlayer.Migrations
                     b.Navigation("Playlist");
                 });
 
+            modelBuilder.Entity("VideoWebPlayer.Data.ProgramRule", b =>
+                {
+                    b.HasOne("VideoWebPlayer.Data.TVChannel", "TVChannel")
+                        .WithMany("ProgramRules")
+                        .HasForeignKey("TVChannelId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("TVChannel");
+                });
+
             modelBuilder.Entity("VideoWebPlayer.Data.TVShow", b =>
                 {
                     b.HasOne("VideoWebPlayer.Data.Picture", "BannerPicture")
@@ -2243,6 +2348,11 @@ namespace VideoWebPlayer.Migrations
             modelBuilder.Entity("VideoWebPlayer.Data.Playlist", b =>
                 {
                     b.Navigation("PlaylistEntries");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.TVChannel", b =>
+                {
+                    b.Navigation("ProgramRules");
                 });
 
             modelBuilder.Entity("VideoWebPlayer.Data.TVShow", b =>

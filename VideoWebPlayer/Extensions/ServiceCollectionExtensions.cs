@@ -254,6 +254,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IMediaSourceReader, MediaSourceReaderDispatcher>();
         services.AddScoped<DataUpgradeManager>();
         services.AddScoped<ProgramSettingsService>();
+        services.AddScoped<IProgramRuleService, ProgramRuleService>();
         services.AddSingleton(TimeProvider.System);
         services.AddScoped<WatchedStatusService>();
         services.AddBackups(configuration.GetSection("Backups"));

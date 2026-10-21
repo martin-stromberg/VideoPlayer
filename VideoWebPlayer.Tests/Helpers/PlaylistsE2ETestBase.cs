@@ -176,7 +176,7 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
     /// </remarks>
     /// <param name="interaction">The step to (re-)issue, e.g. typing into the live-search field.</param>
     /// <param name="waitForState">Waits for the state the step must produce.</param>
-    private static async Task DriveUntilStateAsync(Func<Task> interaction, Func<Task> waitForState)
+    protected static async Task DriveUntilStateAsync(Func<Task> interaction, Func<Task> waitForState)
     {
         var deadline = DateTime.UtcNow.AddMilliseconds(InteractionDeadlineMilliseconds);
         while (true)

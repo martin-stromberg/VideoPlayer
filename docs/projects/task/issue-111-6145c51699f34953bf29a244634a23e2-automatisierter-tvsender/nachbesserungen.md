@@ -51,3 +51,41 @@ können, **welche Quellen (`MediaSource`)** für diese Regel betrachtet werden. 
 - Offene Designfrage bei Umsetzung: gilt die Quell-Differenzierung nur für Genre-Material
   oder generell pro Regel (auch Serie/Film/Sammlung/Playlist)? Anforderung spricht zunächst
   nur von Genres.
+
+## N3 — Genre-Auswahl berücksichtigt Status und Alternativnamen (Priorität: hoch)
+
+**Beobachtet:** Das Genre-Dropdown im Regel-Formular wird über `api/items/genres`
+(`ItemsController` → `MediaMetadataEditorService.GetGenreOptionsAsync`) befüllt. Diese
+Methode gruppiert **alle** Genres ausschließlich nach Roh-`Name` — weder `Genre.IsHidden`
+(Status „Ausgeblendet") noch `Genre.AlternateNames` werden berücksichtigt.
+
+**Gewünscht:** Die Genre-Auswahl muss denselben Status-/Alternativnamen-Regeln folgen wie
+der Rest der Anwendung (vgl. `GenreAdmin.razor`, `GetOrCreateGenresAsync` in
+`MediaSourceClassifier`, `SourceGenresController` mit `Where(g => !g.IsHidden)`):
+
+- Ein Genre mit Status **„Ausgeblendet"** (`IsHidden = true`) darf nicht unter seinem
+  eigenen Namen wählbar sein.
+- Hat das ausgeblendete Genre **Alternativnamen**, gilt die Auswahl dem Ziel-Genre dieser
+  Umleitung. Beispiel aus der Praxis: Genre „Family" ist ausgeblendet und hat den
+  Alternativnamen „Familie" → in der Auswahl darf **nur „Familie"** stehen (Auswahl des
+  kanonischen Genres), nicht „Family".
+- Angezeigt wird also die Menge der **sichtbaren, kanonischen Genres** nach Auflösung der
+  Alternativnamen — analog der Scan-Logik, die „Family" beim Einlesen auf „Familie" umlenkt.
+
+**Betroffene Stellen:**
+- `MediaMetadataEditorService.GetGenreOptionsAsync` (bzw. ggf. eine eigene,
+  TV-Sender-spezifische Optionsquelle — Achtung: derselbe Endpoint wird auch vom
+  Metadaten-Editor genutzt; Änderung dort absichtlich oder separat entwerfen)
+- Alternativnamen-Auflösung beim Mapping `MaterialId` → Inhalte: Der Scanner verknüpft
+  Inhalte über die Umleitung mit dem kanonischen Genre, **Altbestand** kann aber noch
+  `MovieGenre`/`TVShowGenre`-Zeilen auf das ausgeblendete Genre „Family" besitzen —
+  `ExpandGenreAsync` sollte Inhalte auflösungskonform einschließen (inkl. verknüpfter
+  Alt-Zuordnungen auf die Alternativnamen des gewählten Genres bzw. umgekehrt)
+- Zusammenspiel mit **N1** (Mehrfachauswahl: die Liste der kanonischen Genres) und **N2**
+  (Genres sind quellbezogen: `Genre.MediaSourceId` — die Dedupe nach Name über Quellen
+  hinweg muss mit dem Quell-Filter konsistent bleiben)
+- `Genre.StartDate`/`EndDate`-Sichtbarkeitsfenster analog mitbehandeln (zeitweise
+  ausgeblendete Genres wie in der Genre-Verwaltung)
+- Tests: verstecktes Genre mit Alternativname → nur Ziel-Genre wählbar; verstecktes Genre
+  ohne Alternativname → nicht wählbar; zeitlich eingeschränktes Genre → Status gemäß
+  Sichtbarkeitsfenster

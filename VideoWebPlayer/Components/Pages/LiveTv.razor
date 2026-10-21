@@ -1,0 +1,299 @@
+@page "/live-tv"
+@using Microsoft.JSInterop
+@using VideoWebPlayer.Client
+@using VideoWebPlayer.Client.Models
+@using VideoWebPlayer.Components.Account.Pages.Shared
+@using VideoWebPlayer.ViewModels
+@inject AuthenticationStateProvider AuthStateProvider
+@inject VideoWebPlayerClient Client
+@inject IProgramGuideApiClient ProgramGuideClient
+@inject VideoWebPlayer.Services.StaticAssetVersioner AssetVersions
+@inject IJSRuntime JS
+@inject ILogger<LiveTv> Logger
+@rendermode InteractiveServer
+@implements IAsyncDisposable
+
+<PageTitle>Live-TV</PageTitle>
+
+@if (!isAuthenticated)
+{
+    @* Muster Home.razor: nicht angemeldete Anwender erhalten den Login-Dialog statt eines Fehlerbilds. *@
+    <LoginForm />
+}
+else if (isLoading)
+{
+    <section class="media-section">
+        <p id="live-tv-loading">Lade Daten...</p>
+    </section>
+}
+else if (!string.IsNullOrWhiteSpace(loadError))
+{
+    <section class="media-section">
+        <div class="alert alert-danger" id="live-tv-error">@loadError</div>
+    </section>
+}
+else
+{
+    <div class="livetv-page">
+        <header class="livetv-header">
+            <h1>Live-TV</h1>
+        </header>
+
+        @* Player-Bereich: bei laufender Sendung das Video (attach via liveTv.js - nativ oder hls.js);
+           bei Sendeluecke die verstaendliche Hinweismeldung. *@
+        <div class="livetv-player-wrap">
+            @if (guide?.Now is not null)
+            {
+                <video @ref="_videoRef" id="live-tv-video" class="livetv-video" controls autoplay muted playsinline></video>
+                @if (unsupportedBrowser)
+                {
+                    <div class="alert alert-warning livetv-hint" id="live-tv-unsupported">@LiveTvErrorMessages.UnsupportedBrowser</div>
+                }
+                else if (streamError)
+                {
+                    <div class="alert alert-warning livetv-hint" id="live-tv-stream-error">@LiveTvErrorMessages.StreamUnavailable</div>
+                }
+            }
+            else
+            {
+                <div class="livetv-gap" id="live-tv-no-program">
+                    <span class="bi bi-tv" aria-hidden="true"></span>
+                    <strong>@LiveTvErrorMessages.NoProgramRunning</strong>
+                    @if (guide?.Next is { } nextGap)
+                    {
+                        <span>Nächste Sendung um @FormatTime(nextGap.StartUtc): @nextGap.Title</span>
+                    }
+                </div>
+            }
+        </div>
+
+        @if (guide?.Now is { } nowEntry)
+        {
+            <section class="livetv-card" id="live-tv-now">
+                <span class="livetv-kicker">Jetzt läuft</span>
+                <h2 id="live-tv-now-title">@nowEntry.Title</h2>
+                <div class="livetv-times">
+                    @FormatTime(nowEntry.StartUtc)&nbsp;–&nbsp;@FormatTime(nowEntry.EndUtc)
+                    @if (nowEntry.RemainingSeconds is { } remaining)
+                    {
+                        <span class="livetv-remaining">(noch @FormatDuration(remaining))</span>
+                    }
+                </div>
+                @if (nowEntry.PositionSeconds is { } position && nowEntry.DurationSeconds > 0)
+                {
+                    <div class="livetv-progress" aria-hidden="true">
+                        <div class="livetv-progress-fill" style="width:@ProgressPercent(position, nowEntry.DurationSeconds)%"></div>
+                    </div>
+                }
+            </section>
+        }
+
+        @if (guide?.Next is { } nextEntry)
+        {
+            <section class="livetv-card livetv-next" id="live-tv-next">
+                <span class="livetv-kicker">Gleich</span>
+                <div class="livetv-next-line">
+                    <strong>@nextEntry.Title</strong>
+                    <span>um @FormatTime(nextEntry.StartUtc)</span>
+                </div>
+            </section>
+        }
+
+        @if (upcoming.Length > 0)
+        {
+            <section class="livetv-card" id="live-tv-upcoming">
+                <span class="livetv-kicker">Die nächsten Stunden</span>
+                <ul class="livetv-upcoming-list">
+                    @foreach (var entry in upcoming)
+                    {
+                        <li class="livetv-upcoming-row" data-slot-id="@entry.SlotId">
+                            <span class="livetv-upcoming-time">@FormatTime(entry.StartUtc)</span>
+                            <span class="livetv-upcoming-title">@entry.Title</span>
+                        </li>
+                    }
+                </ul>
+            </section>
+        }
+    </div>
+}
+
+@code {
+    private const int PreviewHours = 6;
+    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(15);
+
+    private bool isAuthenticated;
+    private bool isLoading = true;
+    private string? loadError;
+    private bool streamError;
+    private bool unsupportedBrowser;
+
+    private DtoProgramGuideNow? guide;
+    private DtoProgramGuideEntry[] upcoming = [];
+
+    private ElementReference _videoRef;
+    private DotNetObjectReference<LiveTv>? _dotNetRef;
+    private long? _attachedSlotId;
+    private PeriodicTimer? _timer;
+    private readonly CancellationTokenSource _cts = new();
+    private Task? _pollTask;
+
+    private string? StreamUrl
+        => string.IsNullOrWhiteSpace(Client.AuthorizationToken)
+            ? null
+            : $"/api/live-stream/live.m3u8?access_token={Uri.EscapeDataString(Client.AuthorizationToken)}";
+
+    private string HlsScriptUrl => AssetVersions.Url("js/vendor/hls.min.js");
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        isAuthenticated = auth.User.Identity?.IsAuthenticated == true;
+        if (!isAuthenticated)
+        {
+            isLoading = false;
+            return;
+        }
+
+        await Client.EnsureAuthorizationTokenSilentlyAsync(auth.User);
+        await RefreshGuideAsync(isInitial: true);
+        isLoading = false;
+        _pollTask = PollLoopAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!isAuthenticated)
+            return;
+
+        var currentSlotId = guide?.Now?.SlotId;
+        if (currentSlotId == _attachedSlotId)
+            return;
+
+        if (_attachedSlotId is not null)
+            await DetachPlayerAsync();
+
+        if (currentSlotId is not null && _videoRef.Context != null && StreamUrl is { } streamUrl)
+        {
+            _dotNetRef ??= DotNetObjectReference.Create(this);
+            streamError = false;
+            unsupportedBrowser = false;
+            _attachedSlotId = currentSlotId;
+            await JS.InvokeVoidAsync("liveTv.attach", _videoRef, streamUrl, HlsScriptUrl, _dotNetRef);
+        }
+        else
+        {
+            _attachedSlotId = null;
+        }
+    }
+
+    private async Task PollLoopAsync()
+    {
+        _timer = new PeriodicTimer(PollInterval);
+        try
+        {
+            while (await _timer.WaitForNextTickAsync(_cts.Token))
+            {
+                try
+                {
+                    // Datenabruf darf auf dem Hintergrundthread laufen; nur das Rendern geht ueber den
+                    // Dispatcher. Ein einzelner fehlschlagender Tick beendet die Schleife nicht.
+                    await RefreshGuideAsync(isInitial: false);
+                    await InvokeAsync(StateHasChanged);
+                }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception ex)
+                {
+                    Logger.LogWarning(ex, "Live-TV-Aktualisierung fehlgeschlagen; wird erneut versucht.");
+                }
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Fehler in der Live-TV-Aktualisierungsschleife");
+        }
+    }
+
+    /// <summary>
+    /// Laedt Jetzt/Gleich und die Vorschau. Beim ersten Laden entscheidet ein Fehler ueber die
+    /// Fehleranzeige; bei den Timer-Laeufen bleibt der letzte Stand sichtbar und es wird erneut
+    /// versucht (stiller Retry), damit ein kurzer Aussetzer die Ansicht nicht leerraeumt.
+    /// </summary>
+    private async Task RefreshGuideAsync(bool isInitial)
+    {
+        try
+        {
+            var now = await ProgramGuideClient.RequestProgramGuideNowAsync(_cts.Token);
+            var entries = await ProgramGuideClient.RequestProgramGuideUpcomingAsync(PreviewHours, _cts.Token);
+            guide = now;
+            upcoming = entries;
+            if (isInitial)
+                loadError = null;
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Programmauskunft fuer Live-TV konnte nicht geladen werden.");
+            if (isInitial)
+                loadError = LiveTvErrorMessages.Describe(ex) ?? LiveTvErrorMessages.LoadFailed;
+        }
+    }
+
+    private async Task DetachPlayerAsync()
+    {
+        try { await JS.InvokeVoidAsync("liveTv.detach", _videoRef); } catch { }
+        _attachedSlotId = null;
+    }
+
+    [JSInvokable]
+    public Task NotifyStreamPlaying()
+    {
+        streamError = false;
+        unsupportedBrowser = false;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    [JSInvokable]
+    public Task NotifyStreamError(string kind)
+    {
+        streamError = true;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    [JSInvokable]
+    public Task NotifyStreamUnsupported()
+    {
+        unsupportedBrowser = true;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private static string FormatTime(DateTimeOffset utc) => utc.ToLocalTime().ToString("HH:mm");
+
+    private static string FormatDuration(double seconds)
+    {
+        var span = TimeSpan.FromSeconds(seconds);
+        return span.TotalHours >= 1
+            ? $"{(int)span.TotalHours} Std. {span.Minutes} Min."
+            : $"{Math.Max(1, span.Minutes)} Min.";
+    }
+
+    private static double ProgressPercent(double position, double duration)
+        => Math.Clamp(position / duration * 100d, 0d, 100d);
+
+    public async ValueTask DisposeAsync()
+    {
+        await _cts.CancelAsync();
+        _timer?.Dispose();
+        if (_pollTask is not null)
+        {
+            try { await _pollTask; } catch { }
+        }
+        if (_attachedSlotId is not null)
+            await DetachPlayerAsync();
+        _dotNetRef?.Dispose();
+        _cts.Dispose();
+    }
+}

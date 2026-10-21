@@ -1,0 +1,122 @@
+.livetv-page {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    max-width: 1200px;
+}
+
+.livetv-header h1 {
+    margin: 0;
+}
+
+.livetv-player-wrap {
+    position: relative;
+    border: 1px solid var(--vp-border);
+    border-radius: var(--vp-radius);
+    background: var(--vp-bg-deep);
+    overflow: hidden;
+}
+
+.livetv-video {
+    width: 100%;
+    display: block;
+    aspect-ratio: 16 / 9;
+    background: #000;
+}
+
+.livetv-hint {
+    position: absolute;
+    left: 1rem;
+    right: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    margin: 0;
+    text-align: center;
+    z-index: 3;
+}
+
+.livetv-gap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    aspect-ratio: 16 / 9;
+    color: var(--vp-text);
+    text-align: center;
+    padding: 1rem;
+}
+
+.livetv-gap .bi {
+    font-size: 2rem;
+}
+
+.livetv-card {
+    border: 1px solid var(--vp-border);
+    border-radius: var(--vp-radius);
+    background: var(--vp-surface-low);
+    padding: 1rem 1.25rem;
+}
+
+.livetv-kicker {
+    display: block;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--vp-secondary);
+    margin-bottom: 0.25rem;
+}
+
+.livetv-card h2 {
+    margin: 0 0 0.25rem;
+}
+
+.livetv-times {
+    color: var(--vp-text);
+}
+
+.livetv-remaining {
+    margin-left: 0.5rem;
+}
+
+.livetv-progress {
+    margin-top: 0.75rem;
+    height: 8px;
+    border-radius: 999px;
+    background: #333;
+    overflow: hidden;
+}
+
+.livetv-progress-fill {
+    height: 100%;
+    background: var(--vp-primary);
+}
+
+.livetv-next-line {
+    display: flex;
+    gap: 0.75rem;
+    align-items: baseline;
+    flex-wrap: wrap;
+}
+
+.livetv-upcoming-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.livetv-upcoming-row {
+    display: flex;
+    gap: 1rem;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid var(--vp-border);
+}
+
+.livetv-upcoming-row:last-child {
+    border-bottom: none;
+}
+
+.livetv-upcoming-time {
+    min-width: 3.5rem;
+    color: var(--vp-secondary);
+}

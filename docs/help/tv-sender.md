@@ -148,8 +148,30 @@ akzeptiert den Bearer-Token im `Authorization`-Header oder als `access_token`-Ab
 Segment-Adresse um den übergebenen `access_token` ergänzt, damit Player, die relative
 Segment-URIs ohne die Abfrageparameter der Playlist-URL auflösen, autorisiert bleiben. Ungültige
 oder fehlende Dateinamen — einschließlich des Zustands „es läuft gerade kein Stream" — werden
-mit 404 beantwortet. Die eigentliche Live-TV-Ansicht in der Oberfläche ist ein eigener
-Folgeschritt.
+mit 404 beantwortet.
+
+## Live-TV-Ansicht
+
+Über den Navigationspunkt **„Live-TV"** (für angemeldete Benutzer) erreichen Zuschauer den
+Sender. Die Ansicht zeigt den laufenden Stream im Videoplayer sowie darunter „Jetzt läuft"
+(Titel, Uhrzeiten, Restdauer und Fortschritt), „Gleich" (nächste Sendung) und eine begrenzte
+Vorschau der nächsten Stunden; der vollständige Sendeplan bleibt der Administration
+vorbehalten. Die Ansicht aktualisiert sich selbstständig — zu Sendebeginn wechselt sie ohne
+Neuladen in die Wiedergabe.
+
+Die Wiedergabe nutzt dort, wo der Browser es kann, die eingebaute HLS-Wiedergabe (z. B. Safari);
+andernfalls springt die freie Bibliothek **hls.js** ein. Der Abruf erfolgt authentifiziert
+über den Benutzer-Token — der Server bleibt die verbindliche Zugriffskontrolle.
+
+Verständliche Hinweise ersetzen technische Fehlerbilder:
+
+- **„Aktuell läuft keine Sendung."** — Sendelücke; die nächste Sendung wird genannt, sobald bekannt.
+- **„Der Live-Stream ist momentan nicht verfügbar. Es wird automatisch erneut versucht."** —
+  z. B. noch keine Segmente geschrieben; die Seite versucht selbstständig weiter.
+- **„Live-TV wird von diesem Browser leider nicht unterstützt."** — der Browser kann weder
+  eingebaut noch über hls.js wiedergeben.
+- **„Die Programminformationen konnten nicht geladen werden."** / **„Sie haben keinen Zugriff
+  auf den TV-Sender."** — vorübergehender Fehler bzw. fehlende Berechtigung.
 
 ### ffmpeg-Bereitstellung und Lizenz
 

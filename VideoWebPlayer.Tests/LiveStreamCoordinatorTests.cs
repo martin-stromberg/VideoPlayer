@@ -103,8 +103,11 @@ public sealed class LiveStreamCoordinatorTests : IAsyncLifetime
         await File.WriteAllTextAsync(Path.Combine(_localRoot, fileName), "video", ct);
         var source = new MediaSource
         {
-            Name = $"Local-{Guid.NewGuid():N}", Path = _localRoot,
-            SourceType = MediaSourceType.LocalDirectory, Host = "", Port = 0
+            Name = $"Local-{Guid.NewGuid():N}",
+            Path = _localRoot,
+            SourceType = MediaSourceType.LocalDirectory,
+            Host = "",
+            Port = 0
         };
         _fixture.Db.MediaSources.Add(source);
         await _fixture.Db.SaveChangesAsync(ct);

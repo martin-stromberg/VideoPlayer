@@ -29,7 +29,11 @@ public sealed class NoOpVideoWebPlayerClient : VideoWebPlayerClient
     {
         object result = typeof(T) == typeof(List<DtoGenreOption>)
             ? new List<DtoGenreOption>()
-            : new List<MediaEntryDto>();
+            : typeof(T) == typeof(DtoProgramGuideNow)
+                ? new DtoProgramGuideNow()
+                : typeof(T) == typeof(DtoProgramGuideEntry[])
+                    ? Array.Empty<DtoProgramGuideEntry>()
+                    : (object)new List<MediaEntryDto>();
         return Task.FromResult((T)result);
     }
 }

@@ -10,6 +10,7 @@
 | 4 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-4-sendeplan-nachfuehren | abgeschlossen | 2026-10-21 |
 | 5 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-5-programmauskunft | abgeschlossen | 2026-10-21 |
 | 6 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-6-live-stream | pausiert | 2026-10-21 |
+| 7 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-7-live-tv-ui | abgeschlossen | 2026-10-21 |
 
 ## Übergabestand je Schritt
 
@@ -85,3 +86,19 @@
 
 - FfmpegLiveStreamSegmenter (Singleton, -re/-ss/-t, HLS-Fenster, stderr-Drain), LiveStreamCoordinator + LiveStreamWorker (zeitbasierte Resynchronisierung, Slot-Wechsel/Drift/Luecke), LiveStreamController (api/live-stream, BearerTokenCheck, m3u8-Token-Rewrite, Traversal-Schutz), LiveStreamSegmentStore (Speicherort + Retention), Setup-Spalten + Migration + Backup. Abnahme: `acceptance-schritt-6.md` — erfüllt nach Fixes (stderr-Drain, xUnit1051, CS1570).
 - Schritt 7: Player konsumiert api/live-stream/live.m3u8?access_token={token}.
+
+
+### Schritt 7: Live-TV in der Benutzeroberfläche — FERTIG (Implementierung; Abnahme durch anderen Agenten ausstehend)
+
+- Neue Seite `Components/Pages/LiveTv.razor` (`/live-tv`, InteractiveServer): Videoplayer nur bei laufender Sendung, „Jetzt läuft" (Titel, Uhrzeiten, Restdauer, Fortschrittsbalken), „Gleich", begrenzte Vorschau der nächsten 6 h (`ProgramGuideService.MaxPreviewHours`-Grenze serverseitig ohnehin gedeckelt). Vollständiger Sendeplan bleibt administrativ.
+- Client-API: neues `IProgramGuideApiClient` (partial `VideoWebPlayerClient.ProgramGuide.cs`, nutzt `HttpGetAsync`, teilt Reauth/Impersonation) — gleiches Muster wie `IPlaylistApiClient`; DI-Registrierung scoped auf dieselbe Client-Instanz.
+- HLS-Wiedergabe: `wwwroot/js/liveTv.js` — natives HLS via `canPlayType` zuerst, sonst hls.js (Lazy-Load des fingerabdruckten `js/vendor/hls.min.js`, erst bei Bedarf); `WeakMap`-Zustand je Videoelement, `detach` räumt Listener/Timer/hls-Instanz auf, JS-Re-Attach alle 5 s bei fatalen Fehlern, DotNet-Callbacks `NotifyStreamPlaying`/`NotifyStreamError`/`NotifyStreamUnsupported`. hls.js 1.7.3 vendored (Apache-2.0, `hls.js.LICENSE.txt` liegt daneben); kein Pipeline-Eingriff, Release-Build unberührt.
+- Authentifizierung: `access_token`-Query auf `/api/live-stream/live.m3u8` aus `Client.AuthorizationToken` nach `EnsureAuthorizationTokenSilentlyAsync`; Server bleibt verbindliche Prüfung (`[BearerTokenCheck]`).
+- Verständliche Zustände: `LoginForm` bei unauthentifiziert, `LiveTvErrorMessages` (Sendelücke, Stream-Hinweis mit Auto-Retry, Browser-Hinweis, Ladefehler, 403-Zugriffstext) — kein technischer Fehlertext im UI.
+- Aktualität: `PeriodicTimer` 15 s (Datenabruf im Hintergrund, `InvokeAsync(StateHasChanged)` nur fürs Rendern; Einzelfehler tötet die Schleife nicht), Re-Attach bei Slot-Wechsel in `OnAfterRenderAsync`.
+- Navigation: Eintrag „Live-TV" (`bi-tv`) im `<Authorized>`-Block der `NavMenu`.
+- Tests: 12 neue — bUnit `LiveTvTests` (7), `NavMenuLiveTvTests` (1), `VideoWebPlayerClientTests_ProgramGuide` (2), Playwright `LiveTvE2ETests` (2: Nav→Player+`access_token`-Request; Sendelücke mit Hinweis). Volle Suite: **1965/1966 grün, 0 Fehler, 1 bekannter Alt-Skip**; Debug+Release-Builds 0 Fehler.
+- Bekannte Einschränkung beim E2E-Nachweis: „Wiederanlauf bei Slot-Beginn ohne Reload" ist nicht browserseitig testbar, weil `ReconcileAsync` manuell eingefügte, regellose Slots als `Displaced` verwirft (im Lauf verifiziert: DB-Dump; Poll-Ticks liefen korrekt alle 15 s). Abgedeckt über bUnit-Zustandsübergänge; im Test kommentiert.
+- Doku: `docs/help/tv-sender.md` (Abschnitt „Live-TV-Ansicht"), `README.md`, `docs/RELEASE_NOTES.md`. Kein `changes.log` im Repo vorhanden (Datei existiert nicht) — kein Eintrag möglich.
+- Lifecycle-Artefakte: `docs/features/task-issue-111-...-schritt-7-live-tv-ui/` (requirement, inventory, plan, plan-check, review, review-usability, review-code, test-results).
+- Hinweis an Abnahme: Baseline-Flake `TVSenderAdminE2ETests` (FillAsync-Timing) — Einzelwiederholung grün, kein Regressionszusammenhang.

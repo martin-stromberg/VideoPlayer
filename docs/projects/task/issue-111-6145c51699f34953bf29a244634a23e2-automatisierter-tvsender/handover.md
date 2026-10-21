@@ -15,6 +15,7 @@
 | 9 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-9-genre-auswahl | aktiv | 2026-10-22 |
 | 11 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-11-probe-fortschritt | aktiv | 2026-10-21 |
 | 12 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-12-sftp-probe | aktiv | 2026-10-22 |
+| 13 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-13-genre-vererbung | aktiv | 2026-10-22 |
 
 ## Übergabestand je Schritt
 
@@ -185,3 +186,15 @@
 ### Schritt 12: sftp://-Probes (N8) — FERTIG (abgenommen)
 
 - SftpProbeUriBuilder (sftp://user:pass@host:port/pfad, EscapeDataString, IPv6), ProbeUriAsync seekable (120s lokal-Timeout reicht), Credentials in allen Log-Stellen maskiert, Pipe-Fallback ohne verbrannten Attempt + prozessweites UriUnsupported-Flag, moov/Invalid-data bei seekbarer Eingabe permanent. Abnahme: `acceptance-schritt-12.md` — erfüllt.
+
+
+### Schritt 13: Genre-Konfiguration global vererben (N7) — FERTIG (Implementierung; Abnahme durch anderen Agenten ausstehend)
+
+- `GenreGlobalConfig` (interne statische Hilfsklasse, `Services/`): `HasCustomConfig` (IsHidden/Saisonfenster/effektive Alternativnamen via `GenreCanonicalResolver`), `LoadConfiguredTemplatesAsync` (älteste konfigurierte gleichnamige Zeile anderer Quellen, ci), `ApplyConfig` (EF-konform für neue + getrackte Zeilen).
+- `MediaSourceClassifier.GetOrCreateGenresAsync` umgebaut (`GenreResolutionState` + `ResolveGenresAsync`): Quell-Genres einmalig statt pro Name geladen; neue Zeilen erben Vorlagen-Konfiguration; Default-Zeilen werden beim Zugriff geheilt (konfigurierte nie überschrieben); geerbte Alternativnamen lenken rekursiv auf kanonisches Genre derselben Quelle um; `visiting`-Zyklenschutz + Eigenname ci-ausgeschlossen; `GenreCanonicalResolver.EffectiveAlternateNames` auf internal gehoben (Wiederverwendung).
+- `MediaMetadataEditorService.NormalizeGenresAsync`: gleiche Vererbung + Heilung; `Include(AlternateNames)` nötig für `HasCustomConfig`.
+- `GenreAdmin.SaveGenre`: ci+Trim-Filter auf alle Zeilen (deckungsgleich mit der Gruppierung).
+- `DataUpgradeManager` `CurrentVersion` 9, `Upgrade_9` → `ReloadGenres` (Bestandskorrektur beim Start; heilt Default-Zeilen + baut Verknüpfungen um). Keine Migration.
+- Tests: +9 (`MediaSourceClassifierGenreInheritanceTests` 7 Fälle, `MediaMetadataEditorServiceGenreInheritanceTests`, `GenreAdminTests` bUnit) — echtes SQLite. Gegenprobe: Vererbung sabotiert → 3 Tests rot, revertiert.
+- Volle Suite synchron (Debug): **2055 grün + 1 Skip / 0 Fehler** (2056 gesamt). Debug+Release-Build 0 Fehler. Doku: `docs/help/einrichtung.md`, `docs/RELEASE_NOTES.md`.
+- Lifecycle-Artefakte: `docs/features/task-issue-111-...-schritt-13-genre-vererbung/` (im Abschlusscommit entfernt, Planung in Historie); Tasks-Datei `docs/features/...-schritt-13-genre-vererbung-tasks.md` bleibt.

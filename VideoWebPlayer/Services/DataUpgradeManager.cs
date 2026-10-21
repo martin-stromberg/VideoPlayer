@@ -20,7 +20,7 @@ public class DataUpgradeManager
     /// <summary>
     /// Gets the current data version.
     /// </summary>
-    public const int CurrentVersion = 8; // Version erhöhen
+    public const int CurrentVersion = 9; // Version erhöhen
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DataUpgradeManager"/> class.
@@ -84,6 +84,9 @@ public class DataUpgradeManager
                 case 8:
                     await Upgrade_8(cancellationToken);
                     break;
+                case 9:
+                    await Upgrade_9(cancellationToken);
+                    break;
             }
             setup.DataVersion = nextVersion;
             await _db.SaveChangesAsync(cancellationToken);
@@ -131,6 +134,11 @@ public class DataUpgradeManager
 
         var code = await userManager.GenerateEmailConfirmationTokenAsync(newUser);
         var result2 = await userManager.ConfirmEmailAsync(newUser, code);
+    }
+
+    private async Task Upgrade_9(CancellationToken cancellationToken)
+    {
+        await _classifier.ReloadGenres(cancellationToken);
     }
 
     private string GeneratePassword()

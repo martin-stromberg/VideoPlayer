@@ -90,7 +90,7 @@ internal static class GenreCanonicalResolver
             .OrderBy(o => o.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-    private static List<string> EffectiveAlternateNames(Genre genre)
+    internal static List<string> EffectiveAlternateNames(Genre genre)
         => (genre.AlternateNames ?? Enumerable.Empty<GenreName>())
             .Select(a => a.Name?.Trim())
             .Where(n => !string.IsNullOrWhiteSpace(n)

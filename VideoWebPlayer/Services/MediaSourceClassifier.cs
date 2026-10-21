@@ -1381,9 +1381,38 @@ namespace VideoWebPlayer.Services
         // Hilfsmethode wie oben beschrieben
         private async Task<List<Genre>> GetOrCreateGenresAsync(string? genreString, long mediaSourceId, CancellationToken cancellationToken)
         {
-            var resultGenres = new List<Genre>();
+            var state = new GenreResolutionState();
+            await ResolveGenresAsync(genreString, mediaSourceId, state, cancellationToken);
+
+            // Duplikate entfernen (z.B. falls mehrere Alternativen auf dasselbe Genre zeigen)
+            return state.ResultGenres
+                .GroupBy(g => g.Id)
+                .Select(g => g.First())
+                .ToList();
+        }
+
+        /// <summary>
+        /// Auflösungskontext für <see cref="ResolveGenresAsync"/>: quellbezogene Zeilen
+        /// (Cache), globale Konfigurationsvorlagen anderer Quellen (lazy geladen) und der
+        /// aktuelle Rekursionspfad als Zyklenschutz.
+        /// </summary>
+        private sealed class GenreResolutionState
+        {
+            public List<Genre>? SourceGenres { get; set; }
+            public Dictionary<string, Genre>? ConfiguredTemplates { get; set; }
+            public List<Genre> ResultGenres { get; } = new();
+            public HashSet<long> Visiting { get; } = new();
+        }
+
+        private async Task ResolveGenresAsync(string? genreString, long mediaSourceId, GenreResolutionState state, CancellationToken cancellationToken)
+        {
             if (string.IsNullOrWhiteSpace(genreString))
-                return resultGenres;
+                return;
+
+            state.SourceGenres ??= await _db.Genres
+                .Include(g => g.AlternateNames)
+                .Where(g => g.MediaSourceId == mediaSourceId)
+                .ToListAsync(cancellationToken);
 
             var genreNames = genreString.Split(',', StringSplitOptions.RemoveEmptyEntries)
                                         .Select(g => g.Trim())
@@ -1393,38 +1422,54 @@ namespace VideoWebPlayer.Services
             foreach (var name in genreNames)
             {
                 // 1. Suche Genre mit gleichem Namen in dieser Quelle
-                var genre = (await _db.Genres
-                    .Include(g => g.AlternateNames)
-                    .Where(g => g.MediaSourceId == mediaSourceId)
-                    .ToListAsync(cancellationToken))
+                var genre = state.SourceGenres
                     .FirstOrDefault(g => g.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
 
-                // 2. Falls nicht gefunden, suche nach Alternativnamen
                 if (genre == null)
                 {
-                    var newGenre = new Genre { Name = name, MediaSourceId = mediaSourceId };
-                    _db.Genres.Add(newGenre);
+                    // 2a. Neue Zeile erbt die globale Konfiguration eines gleichnamigen
+                    // Genres anderer Quellen (IsHidden/Saisonfenster/Alternativnamen).
+                    genre = new Genre { Name = name, MediaSourceId = mediaSourceId };
+                    var template = await FindConfiguredTemplateAsync(name, mediaSourceId, state, cancellationToken);
+                    if (template is not null)
+                        GenreGlobalConfig.ApplyConfig(_db, genre, template);
+                    _db.Genres.Add(genre);
+                    state.SourceGenres.Add(genre);
                     await _db.SaveChangesAsync(cancellationToken);
-                    resultGenres.Add(newGenre);
                 }
-                else
+                else if (!GenreGlobalConfig.HasCustomConfig(genre))
                 {
-                    var alternateNames = string.Join(", ", await _db.GenreNames.Where(a => a.GenreId == genre.Id && a.Name != genre.Name).Select(a => a.Name).ToListAsync());
-                    if (string.IsNullOrWhiteSpace(alternateNames))
+                    // 2b. Zeile ohne eigene Konfiguration (z. B. vor der globalen
+                    // Admin-Änderung angelegt) nachträglich heilen.
+                    var template = await FindConfiguredTemplateAsync(name, mediaSourceId, state, cancellationToken);
+                    if (template is not null)
                     {
-                        resultGenres.Add(genre);
-                        continue;
+                        GenreGlobalConfig.ApplyConfig(_db, genre, template);
+                        await _db.SaveChangesAsync(cancellationToken);
                     }
-                    resultGenres.AddRange(await GetOrCreateGenresAsync(alternateNames, mediaSourceId, cancellationToken));
+                }
+
+                // 3. Alternativnamen lenken auf das kanonische Genre derselben Quelle um
+                // (gilt auch für geerbte Alternativnamen neu angelegter Zeilen).
+                var alternateNames = GenreCanonicalResolver.EffectiveAlternateNames(genre);
+                if (alternateNames.Count == 0)
+                {
+                    state.ResultGenres.Add(genre);
                     continue;
                 }
-            }
 
-            // Duplikate entfernen (z.B. falls mehrere Alternativen auf dasselbe Genre zeigen)
-            return resultGenres
-                .GroupBy(g => g.Id)
-                .Select(g => g.First())
-                .ToList();
+                if (!state.Visiting.Add(genre.Id))
+                    continue; // Alternativnamen-Zyklus — Zeile trägt nichts bei
+
+                await ResolveGenresAsync(string.Join(",", alternateNames), mediaSourceId, state, cancellationToken);
+                state.Visiting.Remove(genre.Id);
+            }
+        }
+
+        private async Task<Genre?> FindConfiguredTemplateAsync(string name, long mediaSourceId, GenreResolutionState state, CancellationToken cancellationToken)
+        {
+            state.ConfiguredTemplates ??= await GenreGlobalConfig.LoadConfiguredTemplatesAsync(_db, mediaSourceId, cancellationToken);
+            return state.ConfiguredTemplates.TryGetValue(name.Trim(), out var template) ? template : null;
         }
 
         private sealed record ActorNfoInfo(string Name, string? Role, int Order, string? Thumb);

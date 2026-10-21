@@ -1,4 +1,5 @@
 @page "/admin/tv-sender"
+@implements IDisposable
 @using Microsoft.EntityFrameworkCore
 @using System.Security.Claims
 @using VideoWebPlayer.Client.Models
@@ -9,6 +10,7 @@
 @inject ApplicationDbContext DbContext
 @inject IProgramRuleService ProgramRuleService
 @inject IProgramScheduleService ProgramScheduleService
+@inject IProgramScheduleSignal ScheduleSignal
 @inject ProgramSettingsService ProgramSettings
 @inject AuthenticationStateProvider AuthStateProvider
 @inject VideoWebPlayer.Client.VideoWebPlayerClient Client
@@ -107,6 +109,7 @@ else
                                 <th>Sendezeit</th>
                                 <th>Umfang</th>
                                 <th>Material</th>
+                                <th>Planbar</th>
                                 <th>Priorität</th>
                                 <th>Status</th>
                                 <th>Aktionen</th>
@@ -122,6 +125,7 @@ else
                                     <td>@rule.TimeOfDay.ToString("HH:mm")</td>
                                     <td>@DurationLabel(rule)</td>
                                     <td>@MaterialLabel(rule)</td>
+                                    <td class="tvsender-rule-diagnosis">@DiagnosisLabel(rule)</td>
                                     <td>@rule.Priority</td>
                                     <td>
                                         <span class="admin-chip @(rule.IsActive ? "admin-chip-success" : "admin-chip-warning")">@(rule.IsActive ? "Aktiv" : "Inaktiv")</span>
@@ -147,6 +151,7 @@ else
             <div class="admin-card-header">
                 <h2>Sendeplan</h2>
                 <span class="admin-chip">@schedule.Count Einträge</span>
+                <button id="tvsender-generate-now" class="btn btn-sm btn-primary" @onclick="GenerateNowAsync" disabled="@generatePending">Jetzt generieren</button>
             </div>
 
             @if (schedule.Count == 0)
@@ -185,6 +190,10 @@ else
                         </tbody>
                     </table>
                 </div>
+            }
+            @if (!string.IsNullOrWhiteSpace(scheduleStatus))
+            {
+                <div class="form-text" id="tvsender-schedule-status">@scheduleStatus</div>
             }
         </div>
 
@@ -375,8 +384,12 @@ else
     private readonly string[] federalStates = ProgramSettingsService.HolidayFederalStates.ToArray();
     private string? channelStatus;
     private string? rulesStatus;
+    private string? scheduleStatus;
+    private bool generatePending;
+    private bool disposed;
     private List<ProgramRule> rules = new();
     private List<ProgramSlot> schedule = new();
+    private IReadOnlyDictionary<long, ProgramRuleDiagnosis> ruleDiagnoses = new Dictionary<long, ProgramRuleDiagnosis>();
     private RuleEditModel? editRule;
     private ProgramRule? deleteCandidate;
     private string? editError;
@@ -454,6 +467,45 @@ else
     {
         if (channel is not null)
             rules = await ProgramRuleService.GetRulesAsync(userId, channel.Id);
+        await ReloadDiagnosesAsync();
+    }
+
+    private async Task ReloadDiagnosesAsync()
+    {
+        if (channel is null)
+            return;
+
+        ruleDiagnoses = await ProgramScheduleService.GetRuleDiagnosesAsync(userId, channel.Id);
+    }
+
+    // Wakes the schedule worker immediately instead of waiting for the generation interval;
+    // the schedule table and the rule diagnoses refresh once the run has had time to finish.
+    private async Task GenerateNowAsync()
+    {
+        if (generatePending)
+            return;
+
+        generatePending = true;
+        scheduleStatus = "Plan-Aktualisierung wurde angestoßen — der Hintergrundlauf bewertet den Sendeplan jetzt neu.";
+        try
+        {
+            ScheduleSignal.NotifyScheduleChanged();
+            await Task.Delay(TimeSpan.FromSeconds(4));
+            if (disposed)
+                return;
+
+            await ReloadScheduleAsync();
+            await ReloadDiagnosesAsync();
+            scheduleStatus = "Sendeplan-Anzeige wurde aktualisiert. Bei großen Bibliotheken kann die Generierung länger dauern — die Seite ggf. erneut laden.";
+        }
+        catch (Exception ex)
+        {
+            scheduleStatus = ex.Message;
+        }
+        finally
+        {
+            generatePending = false;
+        }
     }
 
     private async Task ReloadScheduleAsync()
@@ -492,6 +544,37 @@ else
 
     private string RuleName(ProgramSlot slot)
         => slot.ProgramRuleId is { } id && slotRuleNames.TryGetValue(id, out var name) ? name : "(Regel gelöscht)";
+
+    // Compact per-rule planning diagnosis: how much of the material is schedulable, or why
+    // nothing is (missing material, no media file, duration probe pending/failed, not released).
+    private string DiagnosisLabel(ProgramRule rule)
+    {
+        if (!ruleDiagnoses.TryGetValue(rule.Id, out var d))
+            return "—";
+
+        if (d.MaterialMissing)
+            return "Material nicht gefunden (verwaist)";
+
+        var parts = new List<string>();
+        if (d.SchedulableCount > 0)
+            parts.Add($"{d.SchedulableCount} planbar");
+        if (d.NoMediaItemCount > 0)
+            parts.Add($"{d.NoMediaItemCount} ohne Mediendatei");
+        if (d.ProbePendingCount > 0)
+            parts.Add($"{d.ProbePendingCount} ohne Laufzeit (Ermittlung läuft)");
+        if (d.ProbeExhaustedCount > 0)
+            parts.Add($"{d.ProbeExhaustedCount} ohne Laufzeit (gescheitert)");
+        if (d.NoAccessCount > 0)
+            parts.Add($"{d.NoAccessCount} nicht für alle freigegeben");
+
+        if (parts.Count == 0)
+            return "Keine Inhalte im Material";
+
+        var text = string.Join(", ", parts);
+        return d.SchedulableCount == 0 ? $"Nicht planbar: {text}" : text;
+    }
+
+    public void Dispose() => disposed = true;
 
     private async Task SaveChannelSettingsAsync()
     {

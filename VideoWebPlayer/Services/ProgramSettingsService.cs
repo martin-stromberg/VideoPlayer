@@ -193,6 +193,45 @@ public sealed class ProgramSettingsService
 
         await _db.SaveChangesAsync(cancellationToken);
     }
+
+    /// <summary>
+    /// The German federal states (ISO-3166-2 <c>DE-*</c> codes) selectable for the holiday calendar
+    /// of the automated TV channel's holiday rules.
+    /// </summary>
+    public static readonly IReadOnlyList<string> HolidayFederalStates =
+    [
+        "DE-BW", "DE-BY", "DE-BE", "DE-BB", "DE-HB", "DE-HH", "DE-HE", "DE-MV",
+        "DE-NI", "DE-NW", "DE-RP", "DE-SL", "DE-SN", "DE-ST", "DE-SH", "DE-TH"
+    ];
+
+    /// <summary>
+    /// Gets the configured federal state for the holiday calendar, or <see langword="null"/> when
+    /// only Germany-wide holidays apply.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The configured federal-state code, or <see langword="null"/>.</returns>
+    public async Task<string?> GetHolidayFederalStateAsync(CancellationToken cancellationToken = default)
+    {
+        var setup = await GetOrCreateSetupAsync(cancellationToken);
+        return setup.HolidayFederalState;
+    }
+
+    /// <summary>
+    /// Persists the federal state for the holiday calendar of the automated TV channel.
+    /// </summary>
+    /// <param name="federalState">One of <see cref="HolidayFederalStates"/>, or <see langword="null"/> for Germany-wide holidays only.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <exception cref="ArgumentException">The value is neither <see langword="null"/> nor a known federal-state code.</exception>
+    public async Task UpdateHolidayFederalStateAsync(string? federalState, CancellationToken cancellationToken = default)
+    {
+        if (federalState is not null && !HolidayFederalStates.Contains(federalState))
+            throw new ArgumentException($"Unbekanntes Bundesland: {federalState}");
+
+        var setup = await GetOrCreateSetupAsync(cancellationToken);
+        setup.HolidayFederalState = federalState;
+
+        await _db.SaveChangesAsync(cancellationToken);
+    }
 }
 
 /// <summary>

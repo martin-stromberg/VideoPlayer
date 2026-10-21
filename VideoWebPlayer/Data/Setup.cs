@@ -68,4 +68,11 @@ public class Setup
     /// <c>null</c> means it has never run.
     /// </summary>
     public DateTime? PlaylistBackfillLastSweepAt { get; set; }
+
+    /// <summary>
+    /// Gets or sets the German federal state (ISO-3166-2 code like <c>DE-NW</c>) whose public
+    /// holidays the automated TV channel's holiday rules (<see cref="ProgramRuleRecurrence.Holiday"/>)
+    /// follow. <c>null</c> means only holidays valid in all of Germany apply.
+    /// </summary>
+    public string? HolidayFederalState { get; set; }
 }

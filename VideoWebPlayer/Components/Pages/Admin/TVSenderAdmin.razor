@@ -1,0 +1,582 @@
+@page "/admin/tv-sender"
+@using Microsoft.EntityFrameworkCore
+@using System.Security.Claims
+@using VideoWebPlayer.Client.Models
+@using VideoWebPlayer.Components.Playlists
+@using VideoWebPlayer.Controllers.Models
+@using VideoWebPlayer.Data
+@using VideoWebPlayer.Services
+@inject ApplicationDbContext DbContext
+@inject IProgramRuleService ProgramRuleService
+@inject ProgramSettingsService ProgramSettings
+@inject AuthenticationStateProvider AuthStateProvider
+@inject VideoWebPlayer.Client.VideoWebPlayerClient Client
+@rendermode InteractiveServer
+
+<PageTitle>TV-Sender</PageTitle>
+
+@if (!isAdmin)
+{
+    <div class="alert alert-danger">Nicht autorisiert.</div>
+}
+else
+{
+    <section class="admin-console admin-tvsender-page">
+        <header class="admin-page-header">
+            <div>
+                <span class="admin-kicker">Einrichtung</span>
+                <h1>TV-Sender</h1>
+                <p>Sender, Programmregeln und Feiertags-Einstellung verwalten.</p>
+            </div>
+            <a class="btn btn-outline-light" href="/admin">Zurück</a>
+        </header>
+
+        <div class="admin-card admin-card-wide">
+            <div class="admin-card-header">
+                <h2>Sender</h2>
+            </div>
+            <div class="admin-settings-grid">
+                <div>
+                    <label class="form-label" for="tvsender-name">Name</label>
+                    <input id="tvsender-name" class="form-control" @bind="channelName" />
+                </div>
+                <div>
+                    <label class="form-label" for="tvsender-federal-state">Bundesland für Feiertage</label>
+                    <select id="tvsender-federal-state" class="form-control" @bind="federalState">
+                        <option value="">Nur bundesweit gültige Feiertage</option>
+                        @foreach (var state in federalStates)
+                        {
+                            <option value="@state">@state</option>
+                        }
+                    </select>
+                </div>
+            </div>
+            <div class="admin-actions">
+                <button id="tvsender-save-settings" class="btn btn-primary" @onclick="SaveChannelSettingsAsync">Speichern</button>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(channelStatus))
+            {
+                <div class="form-text" id="tvsender-channel-status">@channelStatus</div>
+            }
+        </div>
+
+        <div class="admin-card admin-card-wide">
+            <div class="admin-card-header">
+                <h2>Programmregeln</h2>
+                <span class="admin-chip">@rules.Count Einträge</span>
+                <button id="tvsender-new-rule" class="btn btn-sm btn-primary" @onclick="StartCreate">Neue Regel</button>
+            </div>
+
+            @if (rules.Count == 0)
+            {
+                <div class="admin-empty-state">
+                    <strong>Keine Programmregeln vorhanden</strong>
+                    <span>Legen Sie die erste Regel für diesen Sender an.</span>
+                </div>
+            }
+            else
+            {
+                <div class="admin-table-wrap">
+                    <table class="table table-dark table-striped align-middle">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Regelart</th>
+                                <th>Wiederholung</th>
+                                <th>Sendezeit</th>
+                                <th>Umfang</th>
+                                <th>Material</th>
+                                <th>Priorität</th>
+                                <th>Status</th>
+                                <th>Aktionen</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var rule in rules)
+                            {
+                                <tr class="tvsender-rule-row" data-rule-id="@rule.Id">
+                                    <td>@rule.Name</td>
+                                    <td>@RuleTypeLabel(rule.RuleType)</td>
+                                    <td>@RecurrenceLabel(rule)</td>
+                                    <td>@rule.TimeOfDay.ToString("HH:mm")</td>
+                                    <td>@DurationLabel(rule)</td>
+                                    <td>@MaterialLabel(rule)</td>
+                                    <td>@rule.Priority</td>
+                                    <td>
+                                        <span class="admin-chip @(rule.IsActive ? "admin-chip-success" : "admin-chip-warning")">@(rule.IsActive ? "Aktiv" : "Inaktiv")</span>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-primary tvsender-rule-edit" @onclick="() => StartEdit(rule)">Bearbeiten</button>
+                                        <button class="btn btn-sm btn-outline-light tvsender-rule-toggle" @onclick="() => ToggleActiveAsync(rule)">@(rule.IsActive ? "Deaktivieren" : "Aktivieren")</button>
+                                        <button class="btn btn-sm btn-danger tvsender-rule-delete" @onclick="() => AskDelete(rule)">Löschen</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            @if (!string.IsNullOrWhiteSpace(rulesStatus))
+            {
+                <div class="form-text" id="tvsender-rules-status">@rulesStatus</div>
+            }
+        </div>
+
+        @if (editRule != null)
+        {
+            <div class="admin-dialog-overlay" @onclick="CancelEdit">
+                <div class="admin-dialog" @onclick:stopPropagation>
+                    <header class="admin-card-header">
+                        <h2>@(editRule.Id == 0 ? "Neue Programmregel" : $"Programmregel „{editRule.Name}“")</h2>
+                        <button class="btn btn-sm btn-outline-light" @onclick="CancelEdit">Schließen</button>
+                    </header>
+
+                    <label class="form-label" for="rule-name">Name</label>
+                    <input id="rule-name" class="form-control" @bind="editRule.Name" />
+
+                    <div class="admin-settings-grid">
+                        <div>
+                            <label class="form-label" for="rule-type">Regelart</label>
+                            <select id="rule-type" class="form-control" value="@editRule.RuleType" @onchange="OnRuleTypeChanged">
+                                @foreach (ProgramRuleType t in Enum.GetValues<ProgramRuleType>())
+                                {
+                                    <option value="@t">@RuleTypeLabel(t)</option>
+                                }
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label" for="rule-recurrence">Wiederholung</label>
+                            <select id="rule-recurrence" class="form-control" value="@editRule.Recurrence" @onchange="OnRecurrenceChanged">
+                                <option value="@ProgramRuleRecurrence.Daily">Täglich</option>
+                                <option value="@ProgramRuleRecurrence.Weekly">Wöchentlich</option>
+                                <option value="@ProgramRuleRecurrence.Once">Einmalig</option>
+                                <option value="@ProgramRuleRecurrence.Holiday">An Feiertagen</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="admin-settings-grid">
+                        @if (editRule.Recurrence == ProgramRuleRecurrence.Weekly)
+                        {
+                            <div>
+                                <label class="form-label" for="rule-weekday">Wochentag</label>
+                                <select id="rule-weekday" class="form-control" @bind="editRule.DayOfWeek">
+                                    @foreach (DayOfWeek d in Enum.GetValues<DayOfWeek>())
+                                    {
+                                        <option value="@d">@WeekdayLabel(d)</option>
+                                    }
+                                </select>
+                            </div>
+                        }
+                        @if (editRule.Recurrence == ProgramRuleRecurrence.Once)
+                        {
+                            <div>
+                                <label class="form-label" for="rule-date">Datum</label>
+                                <InputDate id="rule-date" class="form-control" @bind-Value="editRule.SingleDate" />
+                            </div>
+                        }
+                        <div>
+                            <label class="form-label" for="rule-time">Sendezeit</label>
+                            <input id="rule-time" type="time" class="form-control" @bind="editRule.TimeOfDay" />
+                        </div>
+                    </div>
+
+                    <div class="admin-settings-grid">
+                        <div>
+                            <label class="form-label" for="rule-episodes">Anzahl Folgen</label>
+                            <input id="rule-episodes" type="number" min="0" class="form-control" @bind="editRule.EpisodeCount" />
+                        </div>
+                        <div>
+                            <label class="form-label" for="rule-duration">Länge (Minuten)</label>
+                            <input id="rule-duration" type="number" min="0" class="form-control" @bind="editRule.DurationMinutes" />
+                        </div>
+                        <div>
+                            <label class="form-label" for="rule-priority">Priorität</label>
+                            <input id="rule-priority" type="number" class="form-control" @bind="editRule.Priority" />
+                        </div>
+                    </div>
+
+                    <label class="admin-toggle-row">
+                        <InputCheckbox class="form-check-input" @bind-Value="editRule.IsActive" />
+                        <span>Regel ist aktiv</span>
+                    </label>
+
+                    <label class="form-label">Programmmaterial</label>
+                    @if (!string.IsNullOrWhiteSpace(editRule.MaterialDisplayName))
+                    {
+                        <div class="admin-chip" id="rule-material-selected">
+                            @editRule.MaterialDisplayName
+                            <button class="btn btn-sm btn-ghost" @onclick="() => editRule.MaterialDisplayName = string.Empty">Ändern</button>
+                        </div>
+                    }
+                    else
+                    {
+                        <div id="rule-material-picker">
+                            @if (AllowedMaterialTypes.Any(t => t is ProgramRuleMaterialType.TVShow or ProgramRuleMaterialType.Movie or ProgramRuleMaterialType.MovieCollection))
+                            {
+                                <MediaSearchSelector AllowedMediaTypes="@AllowedSearchMediaTypes" OnMediaSelected="OnMaterialSelected" />
+                            }
+                            @if (AllowedMaterialTypes.Contains(ProgramRuleMaterialType.Genre))
+                            {
+                                <select id="rule-material-genre" class="form-control" @onchange="OnGenreSelected">
+                                    <option value="">Genre wählen…</option>
+                                    @foreach (var g in genreOptions)
+                                    {
+                                        <option value="@g.Id">@g.Name</option>
+                                    }
+                                </select>
+                            }
+                            @if (AllowedMaterialTypes.Contains(ProgramRuleMaterialType.Playlist))
+                            {
+                                <select id="rule-material-playlist" class="form-control" @onchange="OnPlaylistSelected">
+                                    <option value="">Playlist wählen…</option>
+                                    @foreach (var p in playlistOptions)
+                                    {
+                                        <option value="@p.Id">@p.Name</option>
+                                    }
+                                </select>
+                            }
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrWhiteSpace(editError))
+                    {
+                        <div class="alert alert-danger" id="rule-edit-error">@editError</div>
+                    }
+
+                    <div class="admin-actions">
+                        <button id="rule-save" class="btn btn-primary" @onclick="SaveRuleAsync">Speichern</button>
+                        <button class="btn btn-ghost" @onclick="CancelEdit">Abbrechen</button>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (deleteCandidate != null)
+        {
+            <div class="admin-dialog-overlay" @onclick="() => deleteCandidate = null">
+                <div class="admin-dialog" @onclick:stopPropagation>
+                    <header class="admin-card-header">
+                        <h2>Programmregel löschen</h2>
+                    </header>
+                    <p>Soll die Programmregel „@deleteCandidate.Name" wirklich gelöscht werden?</p>
+                    <div class="admin-actions">
+                        <button id="rule-delete-confirm" class="btn btn-danger" @onclick="DeleteRuleAsync">Löschen</button>
+                        <button class="btn btn-ghost" @onclick="() => deleteCandidate = null">Abbrechen</button>
+                    </div>
+                </div>
+            </div>
+        }
+    </section>
+}
+
+@code {
+    private bool isAdmin;
+    private string userId = string.Empty;
+    private TVChannel? channel;
+    private string channelName = string.Empty;
+    private string? federalState;
+    private readonly string[] federalStates = ProgramSettingsService.HolidayFederalStates.ToArray();
+    private string? channelStatus;
+    private string? rulesStatus;
+    private List<ProgramRule> rules = new();
+    private RuleEditModel? editRule;
+    private ProgramRule? deleteCandidate;
+    private string? editError;
+    private List<DtoGenreOption> genreOptions = new();
+    private List<DtoPlaylist> playlistOptions = new();
+
+    private IReadOnlyList<ProgramRuleMaterialType> AllowedMaterialTypes
+        => editRule is null ? Array.Empty<ProgramRuleMaterialType>() : ProgramRuleService.GetAllowedMaterialTypes(editRule.RuleType);
+
+    private IReadOnlyCollection<string>? AllowedSearchMediaTypes
+        => editRule is null ? null : AllowedMaterialTypes
+            .Where(t => t is ProgramRuleMaterialType.TVShow or ProgramRuleMaterialType.Movie or ProgramRuleMaterialType.MovieCollection)
+            .Select(t => t.ToString())
+            .ToArray();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        isAdmin = auth.User.Identity?.IsAuthenticated == true && auth.User.HasClaim("IsAdmin", "True");
+        if (!isAdmin)
+            return;
+
+        await Client.EnsureAuthorizationTokenSilentlyAsync(auth.User);
+        userId = auth.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+        channel = await ProgramRuleService.GetOrCreateChannelAsync();
+        channelName = channel.Name;
+        federalState = await ProgramSettings.GetHolidayFederalStateAsync();
+        genreOptions = await Client.RequestGenreOptionsAsync();
+        playlistOptions = (await Client.RequestPlaylistsAsync())
+            .Concat(await Client.RequestPublicPlaylistsAsync())
+            .GroupBy(p => p.Id)
+            .Select(g => g.First())
+            .OrderBy(p => p.Name)
+            .ToList();
+        await ReloadRulesAsync();
+    }
+
+    private async Task ReloadRulesAsync()
+    {
+        if (channel is not null)
+            rules = await ProgramRuleService.GetRulesAsync(userId, channel.Id);
+    }
+
+    private async Task SaveChannelSettingsAsync()
+    {
+        channelStatus = null;
+        try
+        {
+            channel = await ProgramRuleService.RenameChannelAsync(userId, channelName);
+            await ProgramSettings.UpdateHolidayFederalStateAsync(string.IsNullOrWhiteSpace(federalState) ? null : federalState);
+            channelStatus = "Einstellungen wurden gespeichert.";
+        }
+        catch (Exception ex)
+        {
+            channelStatus = ex.Message;
+        }
+    }
+
+    private void StartCreate()
+    {
+        editError = null;
+        editRule = new RuleEditModel { RuleType = ProgramRuleType.SeriesFixedTime, Recurrence = ProgramRuleRecurrence.Daily, TimeOfDay = new TimeOnly(20, 0), IsActive = true, EpisodeCount = 1 };
+    }
+
+    private void StartEdit(ProgramRule rule)
+    {
+        editError = null;
+        editRule = new RuleEditModel
+        {
+            Id = rule.Id,
+            Name = rule.Name,
+            RuleType = rule.RuleType,
+            Recurrence = rule.Recurrence,
+            DayOfWeek = rule.DayOfWeek ?? DayOfWeek.Monday,
+            SingleDate = rule.SingleDate?.ToDateTime(TimeOnly.MinValue),
+            TimeOfDay = rule.TimeOfDay,
+            EpisodeCount = rule.EpisodeCount,
+            DurationMinutes = rule.SlotDuration is { } d ? (int)d.TotalMinutes : null,
+            MaterialType = rule.MaterialType,
+            MaterialId = rule.MaterialId,
+            MaterialDisplayName = MaterialLabel(rule),
+            Priority = rule.Priority,
+            IsActive = rule.IsActive
+        };
+    }
+
+    private void CancelEdit() => editRule = null;
+
+    private void OnRuleTypeChanged(ChangeEventArgs e)
+    {
+        if (editRule is not null && Enum.TryParse<ProgramRuleType>(e.Value?.ToString(), out var t))
+        {
+            editRule.RuleType = t;
+            if (!ProgramRuleService.GetAllowedMaterialTypes(t).Contains(editRule.MaterialType))
+                ClearMaterial();
+        }
+    }
+
+    private void OnRecurrenceChanged(ChangeEventArgs e)
+    {
+        if (editRule is not null && Enum.TryParse<ProgramRuleRecurrence>(e.Value?.ToString(), out var r))
+            editRule.Recurrence = r;
+    }
+
+    private void ClearMaterial()
+    {
+        if (editRule is not null)
+        {
+            editRule.MaterialDisplayName = string.Empty;
+            editRule.MaterialId = 0;
+        }
+    }
+
+    private void OnMaterialSelected((string MediaType, long MediaId) selection)
+    {
+        if (editRule is not null && Enum.TryParse<ProgramRuleMaterialType>(selection.MediaType, out var t))
+        {
+            editRule.MaterialType = t;
+            editRule.MaterialId = selection.MediaId;
+            editRule.MaterialDisplayName = MaterialLabel(t, selection.MediaId);
+        }
+    }
+
+    private void OnGenreSelected(ChangeEventArgs e)
+    {
+        if (editRule is not null && long.TryParse(e.Value?.ToString(), out var id) && id > 0)
+        {
+            editRule.MaterialType = ProgramRuleMaterialType.Genre;
+            editRule.MaterialId = id;
+            editRule.MaterialDisplayName = $"Genre: {genreOptions.FirstOrDefault(g => g.Id == id)?.Name ?? id.ToString()}";
+        }
+    }
+
+    private void OnPlaylistSelected(ChangeEventArgs e)
+    {
+        if (editRule is not null && long.TryParse(e.Value?.ToString(), out var id) && id > 0)
+        {
+            editRule.MaterialType = ProgramRuleMaterialType.Playlist;
+            editRule.MaterialId = id;
+            editRule.MaterialDisplayName = $"Playlist: {playlistOptions.FirstOrDefault(p => p.Id == id)?.Name ?? id.ToString()}";
+        }
+    }
+
+    private async Task SaveRuleAsync()
+    {
+        if (editRule is null || channel is null)
+            return;
+
+        editError = null;
+        var input = new ProgramRuleInput(
+            editRule.Name,
+            editRule.RuleType,
+            editRule.Recurrence,
+            editRule.Recurrence == ProgramRuleRecurrence.Weekly ? editRule.DayOfWeek : null,
+            editRule.Recurrence == ProgramRuleRecurrence.Once && editRule.SingleDate.HasValue ? DateOnly.FromDateTime(editRule.SingleDate.Value) : null,
+            editRule.TimeOfDay,
+            editRule.EpisodeCount is > 0 ? editRule.EpisodeCount : null,
+            editRule.DurationMinutes is > 0 ? TimeSpan.FromMinutes(editRule.DurationMinutes.Value) : null,
+            editRule.MaterialType,
+            editRule.MaterialId,
+            editRule.Priority,
+            editRule.IsActive);
+
+        try
+        {
+            if (editRule.Id == 0)
+                await ProgramRuleService.CreateRuleAsync(userId, channel.Id, input);
+            else
+                await ProgramRuleService.UpdateRuleAsync(userId, editRule.Id, input);
+
+            editRule = null;
+            rulesStatus = "Programmregel wurde gespeichert.";
+            await ReloadRulesAsync();
+        }
+        catch (Exception ex)
+        {
+            editError = ex.Message;
+        }
+    }
+
+    private async Task ToggleActiveAsync(ProgramRule rule)
+    {
+        rulesStatus = null;
+        try
+        {
+            await ProgramRuleService.SetRuleActiveAsync(userId, rule.Id, !rule.IsActive);
+            await ReloadRulesAsync();
+        }
+        catch (Exception ex)
+        {
+            rulesStatus = ex.Message;
+        }
+    }
+
+    private void AskDelete(ProgramRule rule) => deleteCandidate = rule;
+
+    private async Task DeleteRuleAsync()
+    {
+        if (deleteCandidate is null)
+            return;
+
+        try
+        {
+            await ProgramRuleService.DeleteRuleAsync(userId, deleteCandidate.Id);
+            deleteCandidate = null;
+            rulesStatus = "Programmregel wurde gelöscht.";
+            await ReloadRulesAsync();
+        }
+        catch (Exception ex)
+        {
+            rulesStatus = ex.Message;
+            deleteCandidate = null;
+        }
+    }
+
+    private string MaterialLabel(ProgramRule rule) => MaterialLabel(rule.MaterialType, rule.MaterialId);
+
+    private string MaterialLabel(ProgramRuleMaterialType type, long id)
+    {
+        var name = type switch
+        {
+            ProgramRuleMaterialType.TVShow => DbContext.TVShows.FirstOrDefault(m => m.Id == id)?.Name,
+            ProgramRuleMaterialType.Movie => DbContext.Movies.FirstOrDefault(m => m.Id == id)?.Name,
+            ProgramRuleMaterialType.MovieCollection => DbContext.MovieCollections.FirstOrDefault(m => m.Id == id)?.Name,
+            ProgramRuleMaterialType.Genre => DbContext.Genres.FirstOrDefault(m => m.Id == id)?.Name,
+            ProgramRuleMaterialType.Playlist => DbContext.Playlists.FirstOrDefault(m => m.Id == id)?.Name,
+            _ => null
+        };
+        var typeLabel = type switch
+        {
+            ProgramRuleMaterialType.TVShow => "Serie",
+            ProgramRuleMaterialType.Movie => "Film",
+            ProgramRuleMaterialType.MovieCollection => "Filmsammlung",
+            ProgramRuleMaterialType.Genre => "Genre",
+            ProgramRuleMaterialType.Playlist => "Playlist",
+            _ => type.ToString()
+        };
+        return name is null ? $"{typeLabel} (nicht gefunden)" : $"{typeLabel}: {name}";
+    }
+
+    private static string RuleTypeLabel(ProgramRuleType t) => t switch
+    {
+        ProgramRuleType.SeriesFixedTime => "Serien-Sendezeit",
+        ProgramRuleType.MoviePrimeTime => "Film zur Primetime",
+        ProgramRuleType.GenreRotation => "Genre-/Formatrotation",
+        ProgramRuleType.Repeat => "Wiederholung",
+        ProgramRuleType.HolidaySpecial => "Feiertags-Special",
+        ProgramRuleType.Filler => "Platzhalter/Füller",
+        _ => t.ToString()
+    };
+
+    private static string RecurrenceLabel(ProgramRule r) => r.Recurrence switch
+    {
+        ProgramRuleRecurrence.Daily => "Täglich",
+        ProgramRuleRecurrence.Weekly => $"Wöchentlich ({WeekdayLabel(r.DayOfWeek ?? DayOfWeek.Monday)})",
+        ProgramRuleRecurrence.Once => $"Einmalig ({r.SingleDate?.ToString("dd.MM.yyyy")})",
+        ProgramRuleRecurrence.Holiday => "An Feiertagen",
+        _ => r.Recurrence.ToString()
+    };
+
+    private static string DurationLabel(ProgramRule r)
+    {
+        var parts = new List<string>();
+        if (r.EpisodeCount is > 0)
+            parts.Add($"{r.EpisodeCount} Folge(n)");
+        if (r.SlotDuration is { } d)
+            parts.Add($"{(int)d.TotalMinutes} Min");
+        return string.Join(" / ", parts);
+    }
+
+    private static string WeekdayLabel(DayOfWeek d) => d switch
+    {
+        DayOfWeek.Monday => "Montag",
+        DayOfWeek.Tuesday => "Dienstag",
+        DayOfWeek.Wednesday => "Mittwoch",
+        DayOfWeek.Thursday => "Donnerstag",
+        DayOfWeek.Friday => "Freitag",
+        DayOfWeek.Saturday => "Samstag",
+        DayOfWeek.Sunday => "Sonntag",
+        _ => d.ToString()
+    };
+
+    private sealed class RuleEditModel
+    {
+        public long Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public ProgramRuleType RuleType { get; set; }
+        public ProgramRuleRecurrence Recurrence { get; set; }
+        public DayOfWeek? DayOfWeek { get; set; }
+        public DateTime? SingleDate { get; set; }
+        public TimeOnly TimeOfDay { get; set; } = new TimeOnly(20, 0);
+        public int? EpisodeCount { get; set; }
+        public int? DurationMinutes { get; set; }
+        public ProgramRuleMaterialType MaterialType { get; set; }
+        public long MaterialId { get; set; }
+        public string MaterialDisplayName { get; set; } = string.Empty;
+        public int Priority { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+}

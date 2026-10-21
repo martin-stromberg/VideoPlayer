@@ -35,7 +35,9 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         nameof(ApplicationDbContext.PlaylistBackfillMarkers),
         nameof(ApplicationDbContext.PairedDevices),
         nameof(ApplicationDbContext.PairingCodes),
-        nameof(ApplicationDbContext.RefreshTokens)
+        nameof(ApplicationDbContext.RefreshTokens),
+        nameof(ApplicationDbContext.TVChannels),
+        nameof(ApplicationDbContext.ProgramRules)
     };
 
     private static readonly HashSet<string> OptionalRestoreColumns = new(StringComparer.OrdinalIgnoreCase)
@@ -74,7 +76,8 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.MdnsAdvertisementEnabled)}",
         $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.DiscoveryPublicBaseUrl)}",
         $"{nameof(ApplicationDbContext.MediaItems)}.{nameof(MediaItem.Duration)}",
-        $"{nameof(ApplicationDbContext.MediaItems)}.{nameof(MediaItem.DurationProbedAt)}"
+        $"{nameof(ApplicationDbContext.MediaItems)}.{nameof(MediaItem.DurationProbedAt)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.HolidayFederalState)}"
     };
 
     private static readonly HashSet<string> IgnoredRestoreColumns = new(StringComparer.OrdinalIgnoreCase)

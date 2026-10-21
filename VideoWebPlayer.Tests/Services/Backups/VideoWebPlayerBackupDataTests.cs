@@ -928,4 +928,50 @@ public sealed class VideoWebPlayerBackupDataTests
         Assert.Equal(MediaSourceType.Sftp, restored.SourceType);
     }
 
+
+    /// <summary>
+    /// Verifies that a backup taken before the TV channel tables (<c>TVChannels</c>, <c>ProgramRules</c>)
+    /// and the <c>Setups.HolidayFederalState</c> column existed can still be restored.
+    /// </summary>
+    [Fact]
+    public async Task ReadFromAsync_LegacyBackupWithoutTVChannelTablesAndHolidayFederalState_RestoresSuccessfully()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var connection = new SqliteConnection("Data Source=file:backuptest-no-tvchannel-tables?mode=memory&cache=shared");
+        await connection.OpenAsync(ct);
+        var (db, backup, _) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
+        await using var dbLifetime = db;
+
+        var channel = new TVChannel { Name = "TV-Sender" };
+        db.TVChannels.Add(channel);
+        await db.SaveChangesAsync(ct);
+        db.ProgramRules.Add(new ProgramRule
+        {
+            TVChannelId = channel.Id,
+            Name = "Abendserie",
+            RuleType = ProgramRuleType.SeriesFixedTime,
+            Recurrence = ProgramRuleRecurrence.Daily,
+            TimeOfDay = new TimeOnly(20, 0),
+            EpisodeCount = 1,
+            MaterialType = ProgramRuleMaterialType.TVShow,
+            MaterialId = 1
+        });
+        var setup = await db.Setups.FirstOrDefaultAsync(ct) ?? db.Setups.Add(new Setup()).Entity;
+        setup.HolidayFederalState = "DE-NW";
+        await db.SaveChangesAsync(ct);
+
+        using var legacyStream = await LegacyBackupArchiveBuilder.RemoveTablesAsync(backup, new[] { "TVChannels", "ProgramRules" }, ct);
+
+        var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
+
+        Assert.Null(exception);
+        Assert.False(await db.TVChannels.AsNoTracking().AnyAsync(ct));
+        Assert.False(await db.ProgramRules.AsNoTracking().AnyAsync(ct));
+
+        using var legacyStream2 = await LegacyBackupArchiveBuilder.RemoveColumnsAsync(backup, "Setups", new[] { "HolidayFederalState" }, ct);
+        var exception2 = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream2, ct));
+
+        Assert.Null(exception2);
+        Assert.Null((await db.Setups.AsNoTracking().FirstAsync(ct)).HolidayFederalState);
+    }
 }

@@ -191,6 +191,14 @@ namespace VideoWebPlayer.Data
         /// Tabelle fuer Refresh-Tokens (gekoppelt an Benutzer und Geraet).
         /// </summary>
         public DbSet<RefreshToken> RefreshTokens { get; set; }
+        /// <summary>
+        /// Tabelle für die automatischen TV-Sender.
+        /// </summary>
+        public DbSet<TVChannel> TVChannels { get; set; }
+        /// <summary>
+        /// Tabelle für die Programmregeln der TV-Sender.
+        /// </summary>
+        public DbSet<ProgramRule> ProgramRules { get; set; }
         #endregion
         #region MediaSource Manipulation Methods
         /// <summary>

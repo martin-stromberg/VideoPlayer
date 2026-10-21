@@ -140,6 +140,82 @@ public sealed class TVSenderAdminE2ETests : PlaylistsE2ETestBase
     }
 
     [Fact]
+    public async Task Admin_GenreRule_MultiSelectAndSourceFilter()
+    {
+        if (SkipBrowser) return;
+
+        // Two visible genres plus one hidden genre (must not be selectable) on the shared source.
+        long genreAId, genreBId, hiddenId, sourceId;
+        string sourceName;
+        {
+            using var scope = Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<VideoWebPlayer.Data.ApplicationDbContext>();
+            var source = await db.MediaSources.FirstOrDefaultAsync(TestContext.Current.CancellationToken)
+                ?? new VideoWebPlayer.Data.MediaSource { Name = "E2E Test Source", Host = "127.0.0.1", Port = 22, Path = "/test" };
+            if (source.Id == 0)
+                db.MediaSources.Add(source);
+            sourceId = source.Id;
+            sourceName = source.Name;
+            var a = new VideoWebPlayer.Data.Genre { Name = "E2E Action", MediaSourceId = sourceId };
+            var b = new VideoWebPlayer.Data.Genre { Name = "E2E Komödie", MediaSourceId = sourceId };
+            var hidden = new VideoWebPlayer.Data.Genre { Name = "E2E Versteckt", MediaSourceId = sourceId, IsHidden = true };
+            db.Genres.AddRange(a, b, hidden);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            (genreAId, genreBId, hiddenId) = (a.Id, b.Id, hidden.Id);
+        }
+
+        await OpenAdminPageAsAdminAsync();
+
+        // Create a rule: switch to Genre-/Formatrotation, pick two genres + restrict the source.
+        await DriveUntilStateAsync(
+            async () =>
+            {
+                if (await Page.Locator("#rule-name").CountAsync() > 0) return;
+                var btn = Page.Locator("#tvsender-new-rule");
+                if (await btn.CountAsync() > 0) await btn.ClickAsync(new LocatorClickOptions { Timeout = 10_000 });
+            },
+            () => Page.Locator("#rule-name").WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 }));
+
+        await Page.FillAsync("#rule-name", "Genreabend");
+        await Page.FillAsync("#rule-episodes", "2");
+        await Page.SelectOptionAsync("#rule-type", "GenreRotation");
+        await Page.Locator("#rule-material-genre").WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
+
+        // Hidden genre is not offered; both visible genres can be selected together.
+        Assert.Equal(0, await Page.Locator($"#rule-genre-{hiddenId}").CountAsync());
+        await Page.CheckAsync($"#rule-genre-{genreAId}");
+        await Page.CheckAsync($"#rule-genre-{genreBId}");
+        await Page.CheckAsync($"#rule-source-{sourceId}");
+
+        await Page.ClickAsync("#rule-save");
+
+        var row = Page.Locator(".tvsender-rule-row", new PageLocatorOptions { HasText = "Genreabend" });
+        await row.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+        await Expect(row).ToContainTextAsync("Genre-/Formatrotation");
+        await Expect(row).ToContainTextAsync("Genre: E2E Action, E2E Komödie");
+        await Expect(row).ToContainTextAsync($"Quellen: {sourceName}");
+
+        // Join rows persisted server-side.
+        {
+            using var scope = Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<VideoWebPlayer.Data.ApplicationDbContext>();
+            var rule = await db.ProgramRules.SingleAsync(r => r.Name == "Genreabend", TestContext.Current.CancellationToken);
+            var links = await db.ProgramRuleGenres.Where(g => g.ProgramRuleId == rule.Id).Select(g => g.GenreId).ToListAsync(TestContext.Current.CancellationToken);
+            Assert.Equal(new HashSet<long>([genreAId, genreBId]), links.ToHashSet());
+            Assert.Single(await db.ProgramRuleMediaSources.Where(s => s.ProgramRuleId == rule.Id).ToListAsync(TestContext.Current.CancellationToken));
+        }
+
+        // Edit: the stored multi-selection is shown checked again.
+        await row.Locator(".tvsender-rule-edit").ClickAsync();
+        await Page.Locator("#rule-name").WaitForAsync();
+        Assert.True(await Page.Locator($"#rule-genre-{genreAId}").IsCheckedAsync());
+        Assert.True(await Page.Locator($"#rule-genre-{genreBId}").IsCheckedAsync());
+        Assert.True(await Page.Locator($"#rule-source-{sourceId}").IsCheckedAsync());
+        await Page.ClickAsync("#rule-save");
+        await Expect(Page.Locator("#tvsender-rules-status")).ToContainTextAsync("gespeichert");
+    }
+
+    [Fact]
     public async Task NonAdmin_SeesNotAuthorized()
     {
         if (SkipBrowser) return;

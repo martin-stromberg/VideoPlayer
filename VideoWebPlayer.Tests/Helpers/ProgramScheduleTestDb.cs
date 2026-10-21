@@ -154,12 +154,45 @@ internal sealed class ProgramScheduleTestDb : IDisposable
         return (show, season, episodes);
     }
 
+    /// <summary>Creates a genre row on the given source (optionally hidden, with alternate names
+    /// and a seasonal window).</summary>
+    public async Task<Genre> CreateGenreAsync(string name, long sourceId = 1, bool isHidden = false,
+        IEnumerable<string>? alternateNames = null, DateTime? startDate = null, DateTime? endDate = null)
+    {
+        await EnsureSourceAsync(sourceId);
+        var genre = new Genre { Name = name, MediaSourceId = sourceId, IsHidden = isHidden, StartDate = startDate, EndDate = endDate };
+        Db.Genres.Add(genre);
+        await SaveDiagAsync();
+        if (alternateNames is not null)
+        {
+            foreach (var alt in alternateNames)
+                Db.GenreNames.Add(new GenreName { Name = alt, GenreId = genre.Id });
+            await SaveDiagAsync();
+        }
+        return genre;
+    }
+
+    /// <summary>Links a genre to a movie (MovieGenre row).</summary>
+    public async Task LinkMovieGenreAsync(long movieId, long genreId)
+    {
+        Db.MovieGenres.Add(new MovieGenre { MovieId = movieId, GenreId = genreId });
+        await SaveDiagAsync();
+    }
+
+    /// <summary>Links a genre to a TV show (TVShowGenre row).</summary>
+    public async Task LinkShowGenreAsync(long showId, long genreId)
+    {
+        Db.TVShowGenres.Add(new TVShowGenre { TVShowId = showId, GenreId = genreId });
+        await SaveDiagAsync();
+    }
+
     /// <summary>Creates a program rule directly in the database (service-level validation bypassed).</summary>
     public async Task<ProgramRule> CreateRuleAsync(
         long channelId, string name, ProgramRuleType type, ProgramRuleRecurrence recurrence,
         TimeOnly timeOfDay, ProgramRuleMaterialType materialType, long materialId,
         int priority = 0, int? episodeCount = null, TimeSpan? slotDuration = null,
-        DayOfWeek? dayOfWeek = null, DateOnly? singleDate = null, bool isActive = true)
+        DayOfWeek? dayOfWeek = null, DateOnly? singleDate = null, bool isActive = true,
+        IEnumerable<long>? genreIds = null, IEnumerable<long>? mediaSourceIds = null)
     {
         var rule = new ProgramRule
         {
@@ -181,6 +214,18 @@ internal sealed class ProgramScheduleTestDb : IDisposable
         };
         Db.ProgramRules.Add(rule);
         await SaveDiagAsync();
+        if (genreIds is not null)
+        {
+            foreach (var genreId in genreIds.Distinct())
+                Db.ProgramRuleGenres.Add(new ProgramRuleGenre { ProgramRuleId = rule.Id, GenreId = genreId });
+            await SaveDiagAsync();
+        }
+        if (mediaSourceIds is not null)
+        {
+            foreach (var sourceId in mediaSourceIds.Distinct())
+                Db.ProgramRuleMediaSources.Add(new ProgramRuleMediaSource { ProgramRuleId = rule.Id, MediaSourceId = sourceId });
+            await SaveDiagAsync();
+        }
         return rule;
     }
 

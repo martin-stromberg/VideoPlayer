@@ -40,6 +40,35 @@ internal sealed class ProgramScheduleTestDb : IDisposable
     public ProgramScheduleService CreateService()
         => new(Db, new ProgramRuleService(Db), new ProgramSettingsService(Db, NullLogger<ProgramSettingsService>.Instance), NullLogger<ProgramScheduleService>.Instance);
 
+    public ProgramGuideService CreateGuideService()
+        => new(Db);
+
+    /// <summary>Creates a program slot directly in the database — the seed the guide tests need
+    /// without going through schedule generation.</summary>
+    public async Task<ProgramSlot> CreateSlotAsync(
+        long channelId, DateTime startUtc, DateTime endUtc, long mediaItemId,
+        long? movieId = null, long? episodeId = null, long? ruleId = null,
+        ProgramRuleType ruleType = ProgramRuleType.MoviePrimeTime,
+        ProgramSlotStatus status = ProgramSlotStatus.Scheduled)
+    {
+        var slot = new ProgramSlot
+        {
+            TVChannelId = channelId,
+            Start = startUtc,
+            End = endUtc,
+            MediaItemId = mediaItemId,
+            MovieId = movieId,
+            TVShowEpisodeId = episodeId,
+            ProgramRuleId = ruleId,
+            RuleType = ruleType,
+            Status = status,
+            CreatedAt = DateTime.UtcNow
+        };
+        Db.ProgramSlots.Add(slot);
+        await SaveDiagAsync();
+        return slot;
+    }
+
     public async Task<ApplicationUser> AddUserAsync(string email, bool isAdmin = false)
     {
         var user = new ApplicationUser { Id = Guid.NewGuid().ToString("N"), UserName = email, Email = email, IsAdmin = isAdmin };

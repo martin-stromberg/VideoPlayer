@@ -499,6 +499,52 @@ Antwortstatuswerte:
 - `replaced`
 - `removed`
 
+## Programmauskunft (TV-Sender)
+
+Die Programmauskunft des automatischen TV-Senders beantwortet rein zeitbasiert aus dem Sendeplan,
+was gerade läuft und was kommt. Beide Endpunkte verlangen einen angemeldeten Benutzer bzw. ein
+gekoppeltes Gerät (Bearer-Token im `Authorization`-Header oder als `access_token`-Abfrageparameter);
+anonyme Aufrufe werden mit `401` abgelehnt. Verdrängte Sendeplätze erscheinen nicht. Der
+vollständige Sendeplan bleibt der Administration vorbehalten.
+
+### GET /api/program-guide/now
+
+„Jetzt/Gleich" — liefert `DtoProgramGuideNow` mit der laufenden Sendung (inkl. `positionSeconds`
+und `remainingSeconds` innerhalb des Videos) und der nächsten Sendung.
+
+Antwort:
+
+```json
+{
+  "serverTimeUtc": "2026-10-21T20:45:00+00:00",
+  "now": {
+    "slotId": 12,
+    "title": "Serie — Staffel 1, E3: Folgenname",
+    "mediaType": "TVShowEpisode",
+    "mediaId": 77,
+    "mediaItemId": 1234,
+    "isFiller": false,
+    "startUtc": "2026-10-21T20:00:00+00:00",
+    "endUtc": "2026-10-21T20:45:00+00:00",
+    "durationSeconds": 2700,
+    "positionSeconds": 1800,
+    "remainingSeconds": 900
+  },
+  "next": { "slotId": 13, "title": "Abendfilm", "mediaType": "Movie", "mediaId": 42, "mediaItemId": 1235, "isFiller": false, "startUtc": "2026-10-21T20:45:00+00:00", "endUtc": "2026-10-21T22:15:00+00:00", "durationSeconds": 5400, "positionSeconds": null, "remainingSeconds": null }
+}
+```
+
+`now` ist `null`, wenn eine Sendelücke oder noch kein Sender existiert; `next` ist `null`, wenn
+nichts weiter geplant ist. `positionSeconds`/`remainingSeconds` sind nur bei der laufenden
+Sendung gesetzt. Kann ein Inhalt nicht mehr aufgelöst werden, lautet `title` `"Unbekannt"`.
+
+### GET /api/program-guide/upcoming?hours=N
+
+Begrenzte Programmübersicht: liefert `DtoProgramGuideEntry[]` — die laufende Sendung (falls
+vorhanden) plus alle Sendungen, die innerhalb der nächsten `N` Stunden beginnen, nach Start
+sortiert. `hours` ist optional (Vorgabe `6`, Maximum `12`; außerhalb `1..12` antwortet der Server
+mit `400`).
+
 ## Playlists
 
 Alle Playlist-Endpunkte sind benutzerbezogen: Sie wirken ausschließlich auf die Playlists des

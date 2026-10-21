@@ -8,6 +8,7 @@
 | 2 | Devin |  | fertig | 2026-10-21 |
 | 3 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-3-sendeplan-erzeugen | pausiert | 2026-10-21 |
 | 4 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-4-sendeplan-nachfuehren | abgeschlossen | 2026-10-21 |
+| 5 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-5-programmauskunft | aktiv | 2026-10-21 |
 
 ## Übergabestand je Schritt
 
@@ -48,3 +49,14 @@
 ### Schritt 4: Sendeplan bei Änderungen nachführen — FERTIG (abgenommen)
 
 - ReconcileAsync (Validierungssweep, Suffix-Verdrängung, Cursor-Rücksetzung ohne Episodensprung, Prioritäts-Eviction), ProgramSlotStatus (Scheduled/Displaced), IProgramScheduleSignal + Trigger (ProgramRuleService-CRUD, DbContext-Marker für neue Medien/Löschung, Scan-Suppression), Sendeplan-Karte in TVSenderAdmin. Abnahme: `acceptance-schritt-4.md` — erfüllt nach Fix von CI-Warnungen (CS1573/CS1574/xUnit1051).
+
+
+### Schritt 5: Laufendes Programm zeitbasiert auskunftsfähig machen — FERTIG (Implementierung; Abnahme ausstehend)
+
+- `IProgramGuideService`/`ProgramGuideService` (eigener Begriff „Programmauskunft", kein Playlist-Naming): rein zeitbasiert, zustandslos — `GetNowAsync` (laufende Sendung + `PositionSeconds`/`RemainingSeconds` + nächste Sendung) und `GetUpcomingAsync` (begrenzte Vorschau, harte Obergrenze `MaxPreviewHours = 12`). Nur `Scheduled`-Slots; `Displaced` ist Historie. Kanal wird lesend geholt (kein Seiteneffekt-Anlegen). Titelauflösung per Batch-Lookup nach `TVSenderAdmin`-Muster, Fallback „Unbekannt".
+- `ProgramGuideController` (`api/program-guide`): `GET now`, `GET upcoming?hours=` (Default 6, 1..12 sonst 400 — Bereichsprüfung vor `TimeSpan.FromHours` wegen Overflow). `[BearerTokenCheck]` (Header oder `access_token`-Query) + `CheckLoggedIn`, `ExecuteAsync`-Fehlermapping (401/400/500) nach `PlaylistsController`-Muster.
+- DTOs `DtoProgramGuideNow`, `DtoProgramGuideEntry` in `VideoWebPlayer.Client/Models`; DI scoped neben `IProgramScheduleService`. Keine Migration, keine Backup-Änderung (reiner Service/API-Schritt).
+- Tests: 27 neue (12 Service gegen echtes SQLite via `ProgramScheduleTestDb` + `CreateSlotAsync`, 9 Controller, 6 HTTP-E2E via `DeviceClientTestBase` inkl. 401-anonym und `access_token`-Query). Volle Suite: 1892/1893 grün, 0 Fehler, 1 bekannter Alt-Skip.
+- Doku: `docs/help/tv-sender.md` (Abschnitt Programmauskunft), `docs/API.md` (beide Endpunkte), `docs/RELEASE_NOTES.md` (What's New + Neuerungen).
+- Entscheidungen: `ProgramGuide`-Namensraum (EPG-Begriff); `Next` = erster `Scheduled`-Slot mit `Start >= current.End` (bzw. `>= now` in der Lücke); Vorschau-Fenster halb-offen `[now, now+preview)`; Grenze als Konstante statt Setup-Feld.
+- Hinweis an Schritt 6: `DtoProgramGuideEntry.MediaItemId` ist die Videodatei-Referenz für die Stream-Auslieferung; `ProgramGuideService.MaxPreviewHours` begrenzt auch die Vorschau des UI (Schritt 7).

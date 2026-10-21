@@ -44,39 +44,57 @@ public class FfprobeMediaDurationProbeTests
             Assert.Contains("format=duration", args);
             Assert.Contains("\"video.mp4\"", args);
             Assert.Null(stdin);
-            return Task.FromResult(new FfprobeInvocationResult(0, "3720.5", false));
+            return Task.FromResult(new FfprobeInvocationResult(0, "3720.5", string.Empty, false));
         });
 
-        var duration = await probe.ProbeFileAsync("video.mp4", TestContext.Current.CancellationToken);
-        Assert.Equal(TimeSpan.FromSeconds(3720.5), duration);
+        var result = await probe.ProbeFileAsync("video.mp4", TestContext.Current.CancellationToken);
+        Assert.Equal(TimeSpan.FromSeconds(3720.5), result.Duration);
+        Assert.False(result.Transient);
     }
 
     [Fact]
-    public async Task ProbeFileAsync_NonZeroExit_ReturnsNull()
+    public async Task ProbeFileAsync_NonZeroExit_ReturnsTransientFailure()
     {
         var probe = CreateProbe((path, args, stdin, timeout, ct) =>
-            Task.FromResult(new FfprobeInvocationResult(1, "error", false)));
+            Task.FromResult(new FfprobeInvocationResult(1, string.Empty, "error", false)));
 
-        Assert.Null(await probe.ProbeFileAsync("video.mp4", TestContext.Current.CancellationToken));
+        var result = await probe.ProbeFileAsync("video.mp4", TestContext.Current.CancellationToken);
+        Assert.Null(result.Duration);
+        Assert.True(result.Transient);
     }
 
     [Fact]
-    public async Task ProbeFileAsync_TimedOut_ReturnsNull()
+    public async Task ProbeFileAsync_TimedOut_ReturnsTransientFailure()
     {
         var probe = CreateProbe((path, args, stdin, timeout, ct) =>
-            Task.FromResult(new FfprobeInvocationResult(-1, string.Empty, true)));
+            Task.FromResult(new FfprobeInvocationResult(-1, string.Empty, string.Empty, true)));
 
-        Assert.Null(await probe.ProbeFileAsync("video.mp4", TestContext.Current.CancellationToken));
+        var result = await probe.ProbeFileAsync("video.mp4", TestContext.Current.CancellationToken);
+        Assert.Null(result.Duration);
+        Assert.True(result.Transient);
     }
 
     [Fact]
-    public async Task ProbeFileAsync_NoBinary_ReturnsNull()
+    public async Task ProbeFileAsync_ExitZeroWithoutDuration_ReturnsPermanentFailure()
+    {
+        var probe = CreateProbe((path, args, stdin, timeout, ct) =>
+            Task.FromResult(new FfprobeInvocationResult(0, "N/A", string.Empty, false)));
+
+        var result = await probe.ProbeFileAsync("video.mp4", TestContext.Current.CancellationToken);
+        Assert.Null(result.Duration);
+        Assert.False(result.Transient);
+    }
+
+    [Fact]
+    public async Task ProbeFileAsync_NoBinary_ReturnsTransientFailure()
     {
         _locator.Path = null;
         var probe = CreateProbe((path, args, stdin, timeout, ct) =>
             throw new InvalidOperationException("Must not be invoked when ffprobe is missing."));
 
-        Assert.Null(await probe.ProbeFileAsync("video.mp4", TestContext.Current.CancellationToken));
+        var result = await probe.ProbeFileAsync("video.mp4", TestContext.Current.CancellationToken);
+        Assert.Null(result.Duration);
+        Assert.True(result.Transient);
     }
 
     [Fact]
@@ -87,11 +105,11 @@ public class FfprobeMediaDurationProbeTests
         {
             Assert.Contains(FfprobeMediaDurationProbe.StandardInputArgument, args);
             Assert.Same(stream, stdin);
-            return Task.FromResult(new FfprobeInvocationResult(0, "60", false));
+            return Task.FromResult(new FfprobeInvocationResult(0, "60", string.Empty, false));
         });
 
-        var duration = await probe.ProbeStreamAsync(stream, TestContext.Current.CancellationToken);
-        Assert.Equal(TimeSpan.FromSeconds(60), duration);
+        var result = await probe.ProbeStreamAsync(stream, TestContext.Current.CancellationToken);
+        Assert.Equal(TimeSpan.FromSeconds(60), result.Duration);
     }
 
     [Fact]
@@ -106,7 +124,7 @@ public class FfprobeMediaDurationProbeTests
             (path, args, stdin, timeout, ct) =>
             {
                 captured = timeout;
-                return Task.FromResult(new FfprobeInvocationResult(0, "10", false));
+                return Task.FromResult(new FfprobeInvocationResult(0, "10", string.Empty, false));
             });
 
         await probe.ProbeFileAsync("video.mp4", TestContext.Current.CancellationToken);
@@ -114,12 +132,33 @@ public class FfprobeMediaDurationProbeTests
     }
 
     [Fact]
-    public async Task ProbeFileAsync_UnexpectedException_ReturnsNull()
+    public async Task ProbeStreamAsync_UsesStreamTimeout()
+    {
+        var options = Options.Create(new MediaProbeOptions { TimeoutSeconds = 7, StreamTimeoutSeconds = 42 });
+        TimeSpan? captured = null;
+        var probe = new FfprobeMediaDurationProbe(
+            _locator,
+            options,
+            NullLogger<FfprobeMediaDurationProbe>.Instance,
+            (path, args, stdin, timeout, ct) =>
+            {
+                captured = timeout;
+                return Task.FromResult(new FfprobeInvocationResult(0, "10", string.Empty, false));
+            });
+
+        await probe.ProbeStreamAsync(new MemoryStream(new byte[] { 1 }), TestContext.Current.CancellationToken);
+        Assert.Equal(TimeSpan.FromSeconds(42), captured);
+    }
+
+    [Fact]
+    public async Task ProbeFileAsync_UnexpectedException_ReturnsTransientFailure()
     {
         var probe = CreateProbe((path, args, stdin, timeout, ct) =>
             throw new IOException("Simulated process failure."));
 
-        Assert.Null(await probe.ProbeFileAsync("video.mp4", TestContext.Current.CancellationToken));
+        var result = await probe.ProbeFileAsync("video.mp4", TestContext.Current.CancellationToken);
+        Assert.Null(result.Duration);
+        Assert.True(result.Transient);
     }
 
     [Fact]

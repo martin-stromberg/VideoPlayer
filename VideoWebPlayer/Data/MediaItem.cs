@@ -23,10 +23,18 @@ namespace VideoWebPlayer.Data
         public TimeSpan? Duration { get; set; }
 
         /// <summary>
-        /// Gets or sets the timestamp of the last duration probe, or <c>null</c> when the file was
-        /// never probed. A set timestamp together with a <c>null</c> <see cref="Duration"/> marks a
-        /// failed probe that must not be retried.
+        /// Gets or sets the timestamp of the last duration probe attempt, or <c>null</c> when the
+        /// file was never probed. A set timestamp together with a <c>null</c> <see cref="Duration"/>
+        /// marks a failed attempt; the file is probed again once the configured retry delay has
+        /// elapsed, until <see cref="DurationProbeAttempts"/> reaches the configured maximum.
         /// </summary>
         public DateTime? DurationProbedAt { get; set; }
+
+        /// <summary>
+        /// Gets or sets the number of failed duration probe attempts. Transient failures (timeout,
+        /// IO errors) increment the counter and are retried after a delay; a counter at or above
+        /// the configured maximum marks the probe as permanently failed.
+        /// </summary>
+        public int DurationProbeAttempts { get; set; }
     }
 }

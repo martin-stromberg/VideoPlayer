@@ -104,10 +104,10 @@ public class MediaDurationProbeWorkerTests : IDisposable
 
     private sealed class AlwaysProbe : IMediaDurationProbe
     {
-        public Task<TimeSpan?> ProbeFileAsync(string filePath, CancellationToken cancellationToken)
-            => Task.FromResult<TimeSpan?>(TimeSpan.FromMinutes(3));
-        public Task<TimeSpan?> ProbeStreamAsync(Stream input, CancellationToken cancellationToken)
-            => Task.FromResult<TimeSpan?>(TimeSpan.FromMinutes(3));
+        public Task<MediaDurationProbeResult> ProbeFileAsync(string filePath, CancellationToken cancellationToken)
+            => Task.FromResult(MediaDurationProbeResult.Success(TimeSpan.FromMinutes(3)));
+        public Task<MediaDurationProbeResult> ProbeStreamAsync(Stream input, CancellationToken cancellationToken)
+            => Task.FromResult(MediaDurationProbeResult.Success(TimeSpan.FromMinutes(3)));
     }
 
     private sealed class PresentLocator : IFfprobeLocator

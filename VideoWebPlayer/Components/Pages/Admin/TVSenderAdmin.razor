@@ -11,6 +11,7 @@
 @inject IProgramRuleService ProgramRuleService
 @inject IProgramScheduleService ProgramScheduleService
 @inject IProgramScheduleSignal ScheduleSignal
+@inject MediaDurationProbeService ProbeService
 @inject ProgramSettingsService ProgramSettings
 @inject AuthenticationStateProvider AuthStateProvider
 @inject VideoWebPlayer.Client.VideoWebPlayerClient Client
@@ -194,6 +195,77 @@ else
             @if (!string.IsNullOrWhiteSpace(scheduleStatus))
             {
                 <div class="form-text" id="tvsender-schedule-status">@scheduleStatus</div>
+            }
+        </div>
+
+        <div class="admin-card admin-card-wide" id="tvsender-probe-card">
+            <div class="admin-card-header">
+                <h2>Laufzeitermittlung</h2>
+                @if (probeProgress is { } summary)
+                {
+                    <span class="admin-chip">@summary.ProbedCount von @summary.TotalCount ermittelt</span>
+                }
+            </div>
+
+            @if (probeProgress is null)
+            {
+                <div class="admin-empty-state">
+                    <strong>Fortschritt wird geladen…</strong>
+                </div>
+            }
+            else if (probeProgress.TotalCount == 0)
+            {
+                <div class="admin-empty-state" id="tvsender-probe-empty">
+                    <strong>Keine Videodateien gefunden</strong>
+                    <span>Sobald Videodateien in den Medienquellen vorhanden sind, wird ihre Laufzeit hier ermittelt.</span>
+                </div>
+            }
+            else
+            {
+                <p class="form-text" id="tvsender-probe-status">@ProbeStatusLabel(probeProgress)</p>
+
+                <div id="tvsender-probe-counts">
+                    <span class="admin-chip admin-chip-success" id="tvsender-probe-probed">@probeProgress.ProbedCount ermittelt</span>
+                    <span class="admin-chip admin-chip-warning" id="tvsender-probe-pending">@probeProgress.PendingCount ausstehend</span>
+                    <span class="admin-chip admin-chip-danger" id="tvsender-probe-failed">@probeProgress.FailedCount fehlgeschlagen</span>
+                </div>
+
+                <div class="progress mt-2" role="progressbar" aria-label="Fortschritt der Laufzeitermittlung"
+                     aria-valuenow="@probeProgress.ProbedCount" aria-valuemin="0" aria-valuemax="@probeProgress.TotalCount">
+                    <div class="progress-bar" style="width: @ProbePercent(probeProgress)%"></div>
+                </div>
+
+                <p class="form-text mt-2">
+                    <span id="tvsender-probe-last-activity">Letzte Aktivität: @(probeProgress.LastActivityAt?.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss") ?? "—")</span>
+                    · <span id="tvsender-probe-rate">Letzte Stunde: @probeProgress.ProbedLastHour Ermittlung(en)</span>
+                </p>
+
+                @if (probeProgress.RecentItems.Count > 0)
+                {
+                    <div class="admin-table-wrap">
+                        <table class="table table-dark table-striped align-middle" id="tvsender-probe-recent">
+                            <thead>
+                                <tr>
+                                    <th>Zeitpunkt</th>
+                                    <th>Datei</th>
+                                    <th>Quelle</th>
+                                    <th>Ergebnis</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in probeProgress.RecentItems)
+                                {
+                                    <tr class="tvsender-probe-row">
+                                        <td>@item.ProbedAt.ToLocalTime().ToString("dd.MM. HH:mm:ss")</td>
+                                        <td>@item.Name</td>
+                                        <td>@item.SourceName</td>
+                                        <td>@RecentResultLabel(item)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
             }
         </div>
 
@@ -396,6 +468,11 @@ else
     private List<DtoGenreOption> genreOptions = new();
     private List<DtoPlaylist> playlistOptions = new();
     private List<MediaSource> mediaSources = new();
+    private MediaDurationProbeProgress? probeProgress;
+    private CancellationTokenSource? refreshCts;
+
+    private const int RecentProbeCount = 10;
+    private static readonly TimeSpan ProbeRefreshInterval = TimeSpan.FromSeconds(15);
 
     private IReadOnlyList<ProgramRuleMaterialType> AllowedMaterialTypes
         => editRule is null ? Array.Empty<ProgramRuleMaterialType>() : ProgramRuleService.GetAllowedMaterialTypes(editRule.RuleType);
@@ -433,7 +510,70 @@ else
             .ToList();
         await ReloadRulesAsync();
         await ReloadScheduleAsync();
+        await LoadProbeProgressAsync();
+
+        refreshCts = new CancellationTokenSource();
+        _ = ProbeProgressLoopAsync(refreshCts.Token);
     }
+
+    private async Task LoadProbeProgressAsync(CancellationToken cancellationToken = default)
+    {
+        probeProgress = await ProbeService.GetProgressAsync(userId, RecentProbeCount, cancellationToken);
+    }
+
+    // Keeps the progress card live so "running" vs. "stalled" is visible without a manual reload;
+    // a single failed refresh must not kill the loop.
+    private async Task ProbeProgressLoopAsync(CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(ProbeRefreshInterval);
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                try
+                {
+                    await LoadProbeProgressAsync(cancellationToken);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    return;
+                }
+                catch (Exception)
+                {
+                    // Transient failure — the next tick retries with the same data still shown.
+                }
+
+                if (!disposed)
+                    await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    // Makes "advancing vs. stalled" directly readable: pending items with recent activity mean
+    // the probe is working; pending items without any activity in the last hour mean it is stuck
+    // (e.g. ffprobe missing) or waiting.
+    private static string ProbeStatusLabel(MediaDurationProbeProgress progress)
+    {
+        if (progress.PendingCount == 0 && progress.FailedCount == 0)
+            return "Alle Videodateien sind ermittelt.";
+        if (progress.PendingCount == 0)
+            return $"Ermittlung abgeschlossen — {progress.FailedCount} Datei(en) dauerhaft nicht prüfbar.";
+        if (progress.ProbedLastHour > 0)
+            return $"Ermittlung läuft — {progress.ProbedLastHour} Datei(en) in der letzten Stunde.";
+        return $"{progress.PendingCount} Datei(en) ausstehend, aber keine Aktivität in der letzten Stunde — die Ermittlung hängt möglicherweise (ffprobe verfügbar?).";
+    }
+
+    private static int ProbePercent(MediaDurationProbeProgress progress)
+        => progress.TotalCount == 0 ? 0 : (int)(100.0 * progress.ProbedCount / progress.TotalCount);
+
+    private static string RecentResultLabel(MediaDurationProbeRecentItem item)
+        => item.Duration is { } d ? FormatDuration(d) : $"keine Laufzeit — Versuch {item.Attempts}";
+
+    private static string FormatDuration(TimeSpan duration)
+        => duration.TotalHours >= 1 ? $"{(int)duration.TotalHours}:{duration.Minutes:00}:{duration.Seconds:00}" : $"{duration.Minutes}:{duration.Seconds:00} min";
 
     // Genre options follow the current source filter of the edit dialog; already-selected genres
     // that fall outside it stay visible (and removable) so a narrower source selection does not
@@ -574,7 +714,11 @@ else
         return d.SchedulableCount == 0 ? $"Nicht planbar: {text}" : text;
     }
 
-    public void Dispose() => disposed = true;
+    public void Dispose()
+    {
+        disposed = true;
+        refreshCts?.Cancel();
+    }
 
     private async Task SaveChannelSettingsAsync()
     {

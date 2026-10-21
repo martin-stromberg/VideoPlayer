@@ -13,6 +13,7 @@
 | 7 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-7-live-tv-ui | abgeschlossen | 2026-10-21 |
 | 8 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-8-probe-robust | abgeschlossen | 2026-10-21 |
 | 9 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-9-genre-auswahl | aktiv | 2026-10-22 |
+| 11 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-11-probe-fortschritt | aktiv | 2026-10-21 |
 
 ## Übergabestand je Schritt
 
@@ -151,3 +152,13 @@
 
 - GetRuleDiagnosesAsync (admin-only, on-demand ueber ExpandMaterialAsync, Gruende: MaterialMissing/NoMediaItem/ProbePending/ProbeExhausted/nicht freigegeben), Planbar-Spalte in TVSenderAdmin, #tvsender-generate-now Button -> ScheduleSignal. Abnahme: `acceptance-schritt-10.md` — erfüllt.
 - E2E-Flake Admin_CreateEditDeactivateDeleteRule (Settings-Race aus Schritt 7) dokumentiert, Einzelretry gruen.
+
+
+### Schritt 11: Fortschrittsanzeige Laufzeitermittlung (N6) — FERTIG (Implementierung; Abnahme durch anderen Agenten ausstehend)
+
+- Neue Admin-only-Abfrage `MediaDurationProbeService.GetProgressAsync(userId, recentCount, ct)` (serverseitiges `RequireAdminAsync` wie in ProgramRule/ScheduleService): Zähler Total/Ermittelt/Ausstehend/Dauerhaft gescheitert über die `VideoExtensionPredicate()`-Teilmenge, `LastActivityAt` = MAX(`DurationProbedAt`), `ProbedLastHour` (1-h-Rate via `TimeProvider`), Rolling-Liste `MediaDurationProbeRecentItem` (Name, Quelle, Zeitpunkt, Dauer, Versuche) — neue Records `MediaDurationProbeProgress`/`MediaDurationProbeRecentItem` in `Services/MediaDurationProbeProgress.cs`. Keine Migration nötig.
+- `TVSenderAdmin.razor`: neue Karte „Laufzeitermittlung" am Seitenende (`#tvsender-probe-card`) — Statuszeile (`ProbeStatusLabel`: ermittelt/abgeschlossen/läuft/hängt), Chips ermittelt/ausstehend/fehlgeschlagen, Bootstrap-Fortschrittsbalken, letzte Aktivität + Stundenrate, Rolling-Tabelle `#tvsender-probe-recent`, Empty-State; `PeriodicTimer`-Auto-Refresh 15 s (Muster `LiveTv.razor`), Abbruch in `Dispose` via `refreshCts.Cancel()`.
+- Tests: 5 neue `MediaDurationProbeServiceTests_Progress` (echtes In-Memory-SQLite, Zähler/Reihenfolge+Limit/Aktivität+Rate/Leerstand/Admin-Erzwingung); E2E konsolidiert in `Admin_CreateEditDeactivateDeleteRule` erweitert (deterministische Seeds: 1 ermittelt + 1 dauerhaft gescheitert, beide nicht ausstehend, damit der mitlaufende Probe-Worker den Zustand nicht verändert).
+- Volle Suite synchron (`-c Release`): **2012 grün + 1 bekannter E2E-Flake (`PlaylistSkipLockedEntriesE2ETest`, Einzelwiederholung grün) + 1 bekannter Alt-Skip** — 2014 gesamt. `dotnet format --verify-no-changes --severity error` sauber. Doku: `docs/help/tv-sender.md` (Abschnitt „Fortschritt der Laufzeitermittlung"), `docs/help/videolaufzeit.md` (Abschnitt „Fortschritt beobachten"), `docs/RELEASE_NOTES.md` (EN+DE).
+- **Offener Umgebungspunkt für die Abnahme:** `dotnet build VideoPlayer.sln` (Debug) schlug mit MSB3027 fehl, weil eine laufende Benutzer-Instanz `VideoWebPlayer.exe` (PID 55720, aus VS gestartet) `bin/Debug/net10.0/` sperrt — der Prozess wurde nicht beendet. Release-Build 0 Fehler; Debug-Kompilierung vollständig über Scratch-`-p:OutDir`-Build verifiziert (0 Fehler, Warnungsstand 142 = Bestand). Sobald die Instanz geschlossen ist, läuft der normale Debug-Build wieder.
+- Lifecycle-Artefakte: `docs/features/task-issue-111-...-schritt-11-probe-fortschritt/` (im Abschlusscommit entfernt, Planung in Historie).

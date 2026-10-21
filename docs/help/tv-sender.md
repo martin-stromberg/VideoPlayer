@@ -112,6 +112,17 @@ Bestandsänderungen. Die Sendeplan-Anzeige und die Diagnosen aktualisieren sich 
 selbst; bei großen Bibliotheken kann die Generierung länger dauern, dann zeigt ein erneutes
 Laden der Seite den Endstand.
 
+### Fortschritt der Laufzeitermittlung
+
+Die Karte **„Laufzeitermittlung"** am Ende der Seite zeigt den Stand des automatischen
+Ermittelns der Videolaufzeiten — ohne dass ein Blick in Log-Dateien nötig ist: Zähler für
+ermittelte, ausstehende und dauerhaft fehlgeschlagene Dateien, ein Fortschrittsbalken, der
+Zeitpunkt der letzten Aktivität sowie die Anzahl der Ermittlungen in der letzten Stunde.
+Eine Liste „Zuletzt ermittelt" führt die jüngst geprüften Dateien mit Ergebnis (Laufzeit oder
+Fehlversuch). Ein Statussatz fasst zusammen, ob die Ermittlung läuft, abgeschlossen ist oder
+ausstehende Dateien ohne Aktivität verharren (Hinweis auf ein möglicherweise fehlendes
+ffprobe). Die Anzeige aktualisiert sich alle 15 Sekunden selbst.
+
 ## Programmauskunft
 
 Die Programmauskunft beantwortet zu jedem Zeitpunkt rein aus Uhrzeit und Sendeplan, was gerade

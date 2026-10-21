@@ -530,9 +530,21 @@ else
         {
             while (await timer.WaitForNextTickAsync(cancellationToken))
             {
+                if (disposed)
+                    return;
+
                 try
                 {
-                    await LoadProbeProgressAsync(cancellationToken);
+                    // DbContext-Zugriff muss auf dem Dispatcher laufen — ein Tick vom
+                    // Threadpool würde den geteilten scoped Context mit Nutzeraktionen
+                    // kollidieren lassen (Muster wie PollBackupStatusAsync in Backups.razor).
+                    await InvokeAsync(async () =>
+                    {
+                        if (disposed)
+                            return;
+                        await LoadProbeProgressAsync(cancellationToken);
+                        StateHasChanged();
+                    });
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
@@ -542,9 +554,6 @@ else
                 {
                     // Transient failure — the next tick retries with the same data still shown.
                 }
-
-                if (!disposed)
-                    await InvokeAsync(StateHasChanged);
             }
         }
         catch (OperationCanceledException)

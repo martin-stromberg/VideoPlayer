@@ -146,3 +146,38 @@ Aggregatabfrage ist günstig (gezählte Spalten), kein neuer Persistenzbedarf.
 
 **Bezug:** ergänzt N5 (Planungsdiagnose pro Regel); beide zusammen decken „warum plant
 die Regel nichts" (N5) und „schreitet die Laufzeitermittlung voran" (N6) ab.
+
+## N7 — Neue Genre-Zeilen erben die globale Sichtbarkeit/Alternativnamen nicht (Priorität: hoch, BUG)
+
+**Beobachtet (Code-verifiziert):** `GenreAdmin.razor` verwaltet Genres **global pro
+Name** (`GroupBy(g.Name.ToLower())`; `SaveGenre` wendet `IsHidden`/`StartDate`/`EndDate`/
+`AlternateNames` auf ALLE gleichnamigen Zeilen aller Quellen an). `GetOrCreateGenresAsync`
+in `MediaSourceClassifier` erzeugt beim Scan jedoch neue `Genre`-Zeilen quellbezogen mit
+`IsHidden = false` und **ohne** `AlternateNames` — die Admin-Intention gilt nur für
+rückwirkend vorhandene Zeilen, nicht für neu hinzukommende Quellen/Rescans.
+
+**Live-Beleg in der Test-DB:** „Family" auf Quelle 1+2 ausgeblendet→„Familie" (vor den
+Quellen 3/5/6 gesetzt), auf Quelle 3/5/6 danach gescannt → dort sichtbar, keine
+Alternativnamen → „Family" erscheint trotz globaler Ausblendung in Auswahlen/Anzeigen.
+
+**Zweiter Aspekt (case):** Anzeige gruppiert case-insensitiv (`ToLower()`), `SaveGenre`
+filtert `g.Name == editGenre.Name` exakt — „family" vs. „Family" würde divergieren.
+
+**Gewünscht:**
+- Bei der Genre-Erzeugung im Scan (`GetOrCreateGenresAsync` o. ä.) muss die **globale
+  Konfiguration eines gleichnamigen Genres** (Name, case-insensitiv) übernommen werden:
+  `IsHidden`, `StartDate`/`EndDate`, `AlternateNames` — sodass „Family" auf jeder neuen
+  Quelle sofort ausgeblendet und auf „Familie" umgelenkt ist.
+- Alternativ-/Begleitlösung prüfen: Sichtbarkeit/Alternativnamen kanonisch **pro Name**
+  auswerten (statt pro Zeile) — Design-Entscheidung bei Umsetzung; die einfachste
+  konsistente Variante ist die Vererbung beim Erzeugen, weil `SaveGenre` schon global
+  pro Name arbeitet.
+- `SaveGenre`-Case-Mismatch mitbeheben (Filter case-insensitiv wie die Gruppierung).
+- **Tests (fehlen aktuell — explizit gefordert):** Genre „Family" versteckt+Alternativname
+  auf Quelle 1 → Scan/Genre-Anlage auf Quelle 2 mit „Family"-getaggtem Inhalt → neue Zeile
+  muss versteckt sein und Alternativnamen tragen → Inhalt landet beim kanonischen Genre.
+
+**Bezug:** ursächlich für den beobachteten Effekt aus N3-Kontext („Family" weiterhin
+auswählbar) — N3 filtert korrekt pro Zeile, aber die fehlende Vererbung macht die
+Ausblendung faktisch unwirksam für neue Quellen. Wirkt sich auch auf `GenreCanonicalResolver`
+und die bestehenden Genre-Listen/Filter aus (nicht nur TV-Sender).

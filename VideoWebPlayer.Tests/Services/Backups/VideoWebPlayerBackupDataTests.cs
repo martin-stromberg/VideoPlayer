@@ -723,6 +723,63 @@ public sealed class VideoWebPlayerBackupDataTests
     }
 
     /// <summary>
+    /// A backup taken before <c>MediaItems.Duration</c>/<c>DurationProbedAt</c> existed must still
+    /// restore; the missing columns default to <c>null</c> (unprobed → re-probed by the worker).
+    /// </summary>
+    [Fact]
+    public async Task ReadFromAsync_LegacyBackupWithoutDurationColumnsInMediaItems_RestoresSuccessfully()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var connection = new SqliteConnection("Data Source=file:backuptest-no-duration-columns?mode=memory&cache=shared");
+        await connection.OpenAsync(ct);
+        var (db, backup, userId) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
+        await using var dbLifetime = db;
+
+        var source = new MediaSource
+        {
+            Name = "src",
+            Path = "/media",
+            SourceType = MediaSourceType.LocalDirectory,
+            CreatedAt = DateTime.UtcNow
+        };
+        db.MediaSources.Add(source);
+        await db.SaveChangesAsync(ct);
+
+        db.MediaCollections.Add(new MediaCollection
+        {
+            Name = "root",
+            Path = "/media",
+            CreatedAt = DateTime.UtcNow,
+            MediaSource = source,
+            MediaSourceId = source.Id
+        });
+        await db.SaveChangesAsync(ct);
+        var collection = await db.MediaCollections.SingleAsync(ct);
+
+        db.MediaItems.Add(new MediaItem
+        {
+            Name = "movie.mp4",
+            Path = "/media/movie.mp4",
+            CreatedAt = DateTime.UtcNow,
+            MediaCollectionId = collection.Id,
+            Duration = TimeSpan.FromMinutes(95),
+            DurationProbedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync(ct);
+
+        using var legacyStream = await LegacyBackupArchiveBuilder.RemoveColumnsAsync(
+            backup, "MediaItems", new[] { "Duration", "DurationProbedAt" }, ct);
+
+        var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
+
+        Assert.Null(exception);
+        db.ChangeTracker.Clear();
+        var restoredItem = await db.MediaItems.SingleAsync(ct);
+        Assert.Null(restoredItem.Duration);
+        Assert.Null(restoredItem.DurationProbedAt);
+    }
+
+    /// <summary>
     /// Backs up <paramref name="backup"/>'s current schema and rebuilds the archive with an old-style
     /// <c>Setups</c> table that lacks the <c>ContinueWatchingEndThresholdSeconds</c> column, simulating a
     /// backup taken before that column existed.

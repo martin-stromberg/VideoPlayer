@@ -266,10 +266,13 @@ namespace VideoWebPlayer.Services
                     }
                     else if (existingItem.CreatedAt != file.CreatedAt)
                     {
-                        // remote file changed -> update timestamps and mark changed for classifier
+                        // remote file changed -> update timestamps, mark changed for classifier
+                        // and reset the probed duration so the file is probed again
                         existingItem.CreatedAt = file.CreatedAt;
                         existingItem.Changed = true;
                         existingItem.ClassifiedAt = null;
+                        existingItem.Duration = null;
+                        existingItem.DurationProbedAt = null;
                         await _db.SaveChangesAsync(cancellationToken);
                         _logger.LogInformation("Vorhandenes MediaItem aktualisiert (CreatedAt ge�ndert): {Path}", existingItem.Path);
                     }

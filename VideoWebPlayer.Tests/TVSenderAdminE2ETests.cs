@@ -95,7 +95,7 @@ public sealed class TVSenderAdminE2ETests : PlaylistsE2ETestBase
         {
             using var scope = Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<VideoWebPlayer.Data.ApplicationDbContext>();
-            var channel = await db.TVChannels.FirstAsync();
+            var channel = await db.TVChannels.FirstAsync(TestContext.Current.CancellationToken);
             db.ProgramSlots.Add(new VideoWebPlayer.Data.ProgramSlot
             {
                 TVChannelId = channel.Id,
@@ -115,7 +115,7 @@ public sealed class TVSenderAdminE2ETests : PlaylistsE2ETestBase
                 RuleType = VideoWebPlayer.Data.ProgramRuleType.SeriesFixedTime,
                 Status = VideoWebPlayer.Data.ProgramSlotStatus.Displaced
             });
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         await Page.GotoAsync($"{ServerUrl}/admin/tv-sender");

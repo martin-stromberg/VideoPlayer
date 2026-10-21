@@ -24,6 +24,7 @@ namespace VideoWebPlayer.Data
         /// <param name="options">Konfigurationsoptionen f�r den DbContext.</param>
         /// <param name="eventManager">EventManager f�r das Publizieren von Events.</param>
         /// <param name="backfillSignal">Optional wake-up line for the playlist backfill worker (null in tests / when unused).</param>
+        /// <param name="programScheduleSignal">Optionale Weckleitung f&uuml;r den Sendeplan-Worker (null in Tests / wenn ungenutzt).</param>
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options, EventManager eventManager, IPlaylistBackfillSignal? backfillSignal = null, IProgramScheduleSignal? programScheduleSignal = null)
             : base(options)
         {

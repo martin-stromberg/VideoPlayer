@@ -15,7 +15,7 @@ public sealed class ProgramScheduleSignalTests
         var signal = new ProgramScheduleSignal();
         signal.NotifyScheduleChanged();
         var wait = signal.WaitAsync(TestContext.Current.CancellationToken).AsTask();
-        Assert.True(await Task.WhenAny(wait, Task.Delay(2000)) == wait);
+        Assert.True(await Task.WhenAny(wait, Task.Delay(2000, TestContext.Current.CancellationToken)) == wait);
     }
 
     [Fact]
@@ -26,7 +26,7 @@ public sealed class ProgramScheduleSignalTests
         signal.NotifyScheduleChanged();
         await signal.WaitAsync(TestContext.Current.CancellationToken);
         var second = signal.WaitAsync(TestContext.Current.CancellationToken).AsTask();
-        Assert.False(await Task.WhenAny(second, Task.Delay(200)) == second, "Coalesced signals must not wake twice.");
+        Assert.False(await Task.WhenAny(second, Task.Delay(200, TestContext.Current.CancellationToken)) == second, "Coalesced signals must not wake twice.");
     }
 
     [Fact]
@@ -38,8 +38,8 @@ public sealed class ProgramScheduleSignalTests
         {
             signal.NotifyScheduleChanged();
             wait = signal.WaitAsync(TestContext.Current.CancellationToken).AsTask();
-            Assert.False(await Task.WhenAny(wait, Task.Delay(200)) == wait, "Notification during a scan must be suppressed.");
+            Assert.False(await Task.WhenAny(wait, Task.Delay(200, TestContext.Current.CancellationToken)) == wait, "Notification during a scan must be suppressed.");
         }
-        Assert.True(await Task.WhenAny(wait, Task.Delay(2000)) == wait, "End of scan must wake the pending waiter.");
+        Assert.True(await Task.WhenAny(wait, Task.Delay(2000, TestContext.Current.CancellationToken)) == wait, "End of scan must wake the pending waiter.");
     }
 }

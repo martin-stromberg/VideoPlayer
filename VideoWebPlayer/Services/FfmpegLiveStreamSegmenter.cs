@@ -23,6 +23,9 @@ internal interface ISegmenterProcess : IDisposable
     /// <summary>Gets the process standard input stream for piped media input.</summary>
     Stream StandardInput { get; }
 
+    /// <summary>Gets the process standard error stream (must be drained to avoid pipe-buffer stalls).</summary>
+    Stream StandardError { get; }
+
     /// <summary>Waits for the process to exit.</summary>
     Task WaitForExitAsync(CancellationToken cancellationToken);
 
@@ -48,6 +51,9 @@ internal sealed class SegmenterProcess : ISegmenterProcess
 
     /// <inheritdoc />
     public Stream StandardInput => _process.StandardInput.BaseStream;
+
+    /// <inheritdoc />
+    public Stream StandardError => _process.StandardError.BaseStream;
 
     /// <inheritdoc />
     public Task WaitForExitAsync(CancellationToken cancellationToken)
@@ -152,6 +158,7 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
                 "[FfmpegLiveStreamSegmenter] Segmentierung fuer Sendeplatz {SlotId} gestartet (Position {Position}s).",
                 job.SlotId, job.PositionSeconds);
 
+            _ = Task.Run(() => DrainStandardErrorAsync(process), CancellationToken.None);
             if (job.Input.IsPipe)
                 _ = Task.Run(() => PumpInputAsync(process, job), CancellationToken.None);
         }
@@ -202,6 +209,25 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
 
         if (job is not null)
             _logger.LogInformation("[FfmpegLiveStreamSegmenter] Segmentierung fuer Sendeplatz {SlotId} beendet.", job.SlotId);
+    }
+
+    /// <summary>
+    /// Drain die stderr-Ausgabe des ffmpeg-Prozesses kontinuierlich weg: ffmpeg loggt seinen
+    /// Fortschritt auf stderr — wird der Pipe-Puffer nie gelesen, blockiert der Prozess und der
+    /// Live-Stream bleibt bis zum Drift-Neustart stehen.
+    /// </summary>
+    private async Task DrainStandardErrorAsync(ISegmenterProcess process)
+    {
+        try
+        {
+            var buffer = new byte[8192];
+            while (await process.StandardError.ReadAsync(buffer, CancellationToken.None) > 0)
+            {
+            }
+        }
+        catch (Exception ex) when (ex is IOException or ObjectDisposedException or OperationCanceledException)
+        {
+        }
     }
 
     private async Task PumpInputAsync(ISegmenterProcess process, LiveStreamJob job)

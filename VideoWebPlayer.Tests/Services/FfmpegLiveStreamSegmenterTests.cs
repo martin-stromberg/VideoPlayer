@@ -16,6 +16,7 @@ public sealed class FfmpegLiveStreamSegmenterTests
         public bool HasExited { get; set; }
         public int ExitCode => HasExited ? 0 : -1;
         public Stream StandardInput { get; } = new MemoryStream();
+        public Stream StandardError { get; } = new MemoryStream();
         public bool Killed { get; private set; }
 
         public Task WaitForExitAsync(CancellationToken cancellationToken)
@@ -48,7 +49,7 @@ public sealed class FfmpegLiveStreamSegmenterTests
     public async Task StartAsync_FileInput_BuildsExpectedArguments()
     {
         var segmenter = CreateSegmenter();
-        await segmenter.StartAsync(FileJob());
+        await segmenter.StartAsync(FileJob(), TestContext.Current.CancellationToken);
 
         var args = _started.Single().Arguments;
         Assert.Contains("-re", args);
@@ -74,7 +75,7 @@ public sealed class FfmpegLiveStreamSegmenterTests
         await segmenter.StartAsync(FileJob() with
         {
             Input = LiveStreamInput.ForStream(_ => Task.FromResult<Stream?>(new MemoryStream()))
-        });
+        }, TestContext.Current.CancellationToken);
 
         var args = _started.Single().Arguments;
         Assert.Contains("-i pipe:0", args);
@@ -86,7 +87,7 @@ public sealed class FfmpegLiveStreamSegmenterTests
     public async Task StartAsync_SetsRunningStateAndSlot()
     {
         var segmenter = CreateSegmenter();
-        await segmenter.StartAsync(FileJob(slotId: 7));
+        await segmenter.StartAsync(FileJob(slotId: 7), TestContext.Current.CancellationToken);
 
         Assert.True(segmenter.IsRunning);
         Assert.Equal(7, segmenter.CurrentSlotId);
@@ -97,8 +98,8 @@ public sealed class FfmpegLiveStreamSegmenterTests
     public async Task StopAsync_KillsProcessAndClearsState()
     {
         var segmenter = CreateSegmenter();
-        await segmenter.StartAsync(FileJob());
-        await segmenter.StopAsync();
+        await segmenter.StartAsync(FileJob(), TestContext.Current.CancellationToken);
+        await segmenter.StopAsync(TestContext.Current.CancellationToken);
 
         Assert.False(segmenter.IsRunning);
         Assert.Null(segmenter.CurrentSlotId);
@@ -109,8 +110,8 @@ public sealed class FfmpegLiveStreamSegmenterTests
     public async Task StartAsync_SecondJob_StopsPreviousProcess()
     {
         var segmenter = CreateSegmenter();
-        await segmenter.StartAsync(FileJob(slotId: 1));
-        await segmenter.StartAsync(FileJob(slotId: 2));
+        await segmenter.StartAsync(FileJob(slotId: 1), TestContext.Current.CancellationToken);
+        await segmenter.StartAsync(FileJob(slotId: 2), TestContext.Current.CancellationToken);
 
         Assert.Equal(2, _processes.Count);
         Assert.True(_processes[0].Killed);
@@ -124,7 +125,7 @@ public sealed class FfmpegLiveStreamSegmenterTests
         var segmenter = new FfmpegLiveStreamSegmenter(
             NullLogger<FfmpegLiveStreamSegmenter>.Instance, _ => null, TimeProvider.System);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => segmenter.StartAsync(FileJob()));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => segmenter.StartAsync(FileJob(), TestContext.Current.CancellationToken));
         Assert.False(segmenter.IsRunning);
     }
 

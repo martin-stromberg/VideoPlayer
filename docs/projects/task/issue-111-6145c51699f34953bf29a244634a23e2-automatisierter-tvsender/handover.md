@@ -12,6 +12,7 @@
 | 6 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-6-live-stream | pausiert | 2026-10-21 |
 | 7 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-7-live-tv-ui | abgeschlossen | 2026-10-21 |
 | 8 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-8-probe-robust | abgeschlossen | 2026-10-21 |
+| 9 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-9-genre-auswahl | aktiv | 2026-10-22 |
 
 ## Übergabestand je Schritt
 
@@ -126,3 +127,15 @@
 ### Schritt 8: Probe-Robustheit (N4) — FERTIG (abgenommen)
 
 - StreamTimeoutSeconds=600 für pipe:0 (lokal bleibt 120s), MediaDurationProbeResult transient/permanent, Retry 300s/max 10 via DurationProbeAttempts, Altbestand-Faileds werden wieder aufgegriffen, ParallelProbes=4, ProgramScheduleSignal bei fertiger Duration. Abnahme: `acceptance-schritt-8.md` — erfüllt.
+
+### Schritt 9: Genre-Material — Mehrfachauswahl, Quell-Filter, Status/Alternativnamen (N1+N2+N3) — Implementierung abgeschlossen, Abnahme steht aus
+
+- Datenmodell: `ProgramRuleGenre` + `ProgramRuleMediaSource` (Composite-Key-FKs, Cascade); Migration `AddProgramRuleGenreAndSourceLinks` mit Backfill `MaterialId`→Join; beide Tabellen in `OptionalRestoreTables`; `MaterialId` bleibt Kompatibilitätsspalte (erstes Genre / Altbestand-Fallback in Expansion, UI und Backup-Restore ohne Join-Rows).
+- Logik: `GenreCanonicalResolver` (sichtbar = nicht `IsHidden` + saisonales Fenster analog `GenreService`; Alternativnamen rekursiv + zyklussicher quellbezogen aufgelöst); Sender-Optionsquelle `IProgramRuleService.GetGenreMaterialOptionsAsync` — `api/items/genres` bleibt bewusst unverändert (Metadaten-/Playlist-Editoren brauchen rohe Namen).
+- Expansion (`ExpandGenreAsync`): Stored-Genres → kanonische Namen → alle In-Scope-Genre-Rows (Quell-Filter) mit Überschneidung → Union von Filmen/Serien inkl. Alt-Zuordnungen auf versteckte Genre-Zeilen → Quell-Filter zusätzlich auf Inhalts-`MediaSourceId` → Dedupe pro Inhalt → Access-/Dauer-Filter + Cursor-Semantik unverändert.
+- Validierung serverseitig: Genre-Material verlangt ≥1 GenreId; Genre-/Quell-Listen bei anderem Material → Fehler; unbekannte Ids → `KeyNotFoundException`; Admin-Pflicht überall.
+- UI (`TVSenderAdmin`): Genre-Checkbox-Liste `rule-material-genre` + Quell-Checkboxen `rule-material-sources` (nur bei Genre-Material), Optionsliste folgt Quell-Filter, bereits gewählte Genres außerhalb des Filters bleiben sichtbar, Material-Chip `Genre: A, B`, Tabelle zeigt Quellen.
+- Tests: 24 neue Tests (10 Schedule/Genre, 10 Service/Genre-Material, 2 Backup-Regression, 1 konsolidierter E2E), alle gegen echtes SQLite bzw. Playwright. Volle Suite synchron: **1998 grün / 0 Fehler / 1 bekannter Alt-Skip (1999 gesamt)**; Debug- und Release-Build 0 Fehler.
+- Doku: `docs/help/tv-sender.md` (Programmmaterial-Abschnitt), `docs/RELEASE_NOTES.md`. Lifecycle-Artefakte: `docs/features/task-issue-111-...-schritt-9-genre-auswahl/`.
+- Hinweis an Abnahme: Bewusste Entscheidungen — leere Genre-Auswahl wird serverseitig abgelehnt; Quell-Filter ist pro Regel (nicht pro Genre); Options-Dedupe nach kanonischem Namen über Quellen hinweg mit kleinster sichtbarer kanonischer Id als Repräsentant.
+- Hinweis an Schritt 10 (N5): Genre-Expansion liefert jetzt deduplizierte Union über `ProgramRuleGenre`-Joins — Laufzeit-Diagnose siehe `ExpandGenreAsync` in `ProgramScheduleService`.

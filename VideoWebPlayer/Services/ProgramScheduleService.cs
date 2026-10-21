@@ -52,6 +52,8 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     {
         var channel = await _ruleService.GetOrCreateChannelAsync(cancellationToken);
         var rules = await _db.ProgramRules
+            .Include(r => r.Genres)
+            .Include(r => r.MediaSourceFilters)
             .Where(r => r.TVChannelId == channel.Id && r.IsActive)
             .ToListAsync(cancellationToken);
 
@@ -110,6 +112,8 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     {
         var channel = await _ruleService.GetOrCreateChannelAsync(cancellationToken);
         var rules = await _db.ProgramRules
+            .Include(r => r.Genres)
+            .Include(r => r.MediaSourceFilters)
             .Where(r => r.TVChannelId == channel.Id)
             .ToListAsync(cancellationToken);
         var rulesById = rules.ToDictionary(r => r.Id);
@@ -872,7 +876,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             ProgramRuleMaterialType.TVShow => await ExpandShowAsync(rule.MaterialId, access, summary, cancellationToken),
             ProgramRuleMaterialType.Movie => await ExpandMovieAsync(rule.MaterialId, access, summary, cancellationToken),
             ProgramRuleMaterialType.MovieCollection => await ExpandMovieCollectionAsync(rule.MaterialId, access, summary, cancellationToken),
-            ProgramRuleMaterialType.Genre => await ExpandGenreAsync(rule.MaterialId, access, summary, cancellationToken),
+            ProgramRuleMaterialType.Genre => await ExpandGenreAsync(rule, access, summary, cancellationToken),
             ProgramRuleMaterialType.Playlist => await ExpandPlaylistAsync(rule.MaterialId, access, summary, cancellationToken),
             _ => new List<SchedulableItem>()
         };
@@ -1007,26 +1011,77 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             .ToList();
     }
 
-    private async Task<List<SchedulableItem>> ExpandGenreAsync(long genreId, AccessContext access, SummaryCounters summary, CancellationToken cancellationToken)
+    // Expands genre material to the deduplicated union over all selected genres. The stored genre
+    // rows resolve to canonical names (alternate names forward — same source, recursive,
+    // cycle-safe; hidden/out-of-season rows without alternates contribute nothing), and every
+    // genre row in the in-scope media sources resolving to one of those names feeds its linked
+    // movies and shows into the union — including legacy links on hidden genre rows that forward
+    // to a selected canonical genre. The per-rule media-source filter additionally restricts both
+    // the genre rows and the resulting content; empty filter = all sources. Rules without
+    // ProgramRuleGenre rows (legacy data, old backups) fall back to MaterialId as the single
+    // genre.
+    private async Task<List<SchedulableItem>> ExpandGenreAsync(ProgramRule rule, AccessContext access, SummaryCounters summary, CancellationToken cancellationToken)
     {
-        if (!await _db.Genres.AnyAsync(g => g.Id == genreId, cancellationToken))
+        var sourceFilter = rule.MediaSourceFilters.Select(s => s.MediaSourceId).ToHashSet();
+        var storedIds = rule.Genres.Count > 0
+            ? rule.Genres.Select(g => g.GenreId).ToList()
+            : [rule.MaterialId];
+
+        var scopedGenres = await _db.Genres
+            .AsNoTracking()
+            .Include(g => g.AlternateNames)
+            .Where(g => sourceFilter.Count == 0 || sourceFilter.Contains(g.MediaSourceId))
+            .ToListAsync(cancellationToken);
+
+        var storedGenres = await _db.Genres
+            .AsNoTracking()
+            .Include(g => g.AlternateNames)
+            .Where(g => storedIds.Contains(g.Id))
+            .ToListAsync(cancellationToken);
+        if (storedGenres.Count == 0)
             return [];
 
-        var movies = await _db.MovieGenres
-            .Where(g => g.GenreId == genreId)
-            .Select(g => g.Movie)
+        var allRows = scopedGenres
+            .Concat(storedGenres.Where(s => scopedGenres.All(g => g.Id != s.Id)))
+            .ToList();
+        var canonicalNames = GenreCanonicalResolver.ResolveCanonicalNames(allRows, DateTime.UtcNow);
+
+        var selectedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var stored in storedGenres)
+            selectedNames.UnionWith(canonicalNames.GetValueOrDefault(stored.Id, []));
+        if (selectedNames.Count == 0)
+            return [];
+
+        var effectiveGenreIds = scopedGenres
+            .Where(g => canonicalNames[g.Id].Overlaps(selectedNames))
+            .Select(g => g.Id)
+            .ToHashSet();
+        if (effectiveGenreIds.Count == 0)
+            return [];
+
+        var movieIds = await _db.MovieGenres
+            .Where(g => effectiveGenreIds.Contains(g.GenreId))
+            .Select(g => g.MovieId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        var movies = await _db.Movies
+            .Where(m => movieIds.Contains(m.Id))
+            .Where(m => sourceFilter.Count == 0 || sourceFilter.Contains(m.MediaSourceId))
             .OrderBy(m => m.ReleaseDate ?? m.PremieredAt)
             .ThenBy(m => m.Name)
             .ThenBy(m => m.Id)
             .ToListAsync(cancellationToken);
 
         var showIds = await _db.TVShowGenres
-            .Where(g => g.GenreId == genreId)
+            .Where(g => effectiveGenreIds.Contains(g.GenreId))
             .Select(g => g.TVShowId)
+            .Distinct()
             .ToListAsync(cancellationToken);
 
         var episodes = await _db.TVShowEpisodes
             .Where(e => showIds.Contains(e.TVShowSeason.TVShowId))
+            .Where(e => sourceFilter.Count == 0 || sourceFilter.Contains(e.MediaSourceId))
             .OrderBy(e => e.TVShowSeason.TVShow.Name)
             .ThenBy(e => e.TVShowSeason.TVShowId)
             .ThenBy(e => e.TVShowSeason.Id)

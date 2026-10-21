@@ -90,9 +90,23 @@ namespace VideoWebPlayer.Data
 
         /// <summary>
         /// Gets or sets the identifier of the assigned program material within the entity set
-        /// selected by <see cref="MaterialType"/>.
+        /// selected by <see cref="MaterialType"/>. For <see cref="ProgramRuleMaterialType.Genre"/>
+        /// rules this holds the first selected genre; the full genre selection lives in
+        /// <see cref="Genres"/>.
         /// </summary>
         public long MaterialId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the genres selected for <see cref="ProgramRuleMaterialType.Genre"/>
+        /// material (empty for every other material type).
+        /// </summary>
+        public ICollection<ProgramRuleGenre> Genres { get; set; } = new List<ProgramRuleGenre>();
+
+        /// <summary>
+        /// Gets or sets the media-source filter used by
+        /// <see cref="ProgramRuleMaterialType.Genre"/> material; empty means all media sources.
+        /// </summary>
+        public ICollection<ProgramRuleMediaSource> MediaSourceFilters { get; set; } = new List<ProgramRuleMediaSource>();
 
         /// <summary>
         /// Gets or sets the priority used to resolve conflicts between competing rules

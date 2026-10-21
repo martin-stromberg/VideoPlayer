@@ -75,9 +75,27 @@ public sealed class ProgramRuleService : IProgramRuleService
 
         return await _db.ProgramRules
             .AsNoTracking()
+            .Include(r => r.Genres)
+                .ThenInclude(g => g.Genre)
+            .Include(r => r.MediaSourceFilters)
+                .ThenInclude(s => s.MediaSource)
             .Where(r => r.TVChannelId == channelId)
             .OrderBy(r => r.Name)
             .ToListAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<List<DtoGenreOption>> GetGenreMaterialOptionsAsync(string userId, IReadOnlyCollection<long>? mediaSourceIds, CancellationToken cancellationToken = default)
+    {
+        await RequireAdminAsync(userId, cancellationToken);
+
+        var filter = mediaSourceIds is { Count: > 0 } ? mediaSourceIds.ToHashSet() : null;
+        var genres = await _db.Genres
+            .AsNoTracking()
+            .Include(g => g.AlternateNames)
+            .Where(g => filter == null || filter.Contains(g.MediaSourceId))
+            .ToListAsync(cancellationToken);
+        return GenreCanonicalResolver.BuildOptions(genres, DateTime.UtcNow);
     }
 
     /// <inheritdoc />
@@ -102,7 +120,7 @@ public sealed class ProgramRuleService : IProgramRuleService
             EpisodeCount = input.EpisodeCount,
             SlotDuration = input.SlotDuration,
             MaterialType = input.MaterialType,
-            MaterialId = input.MaterialId,
+            MaterialId = MaterialIdFor(input),
             Priority = input.Priority,
             IsActive = input.IsActive,
             CreatedAt = now,
@@ -111,6 +129,7 @@ public sealed class ProgramRuleService : IProgramRuleService
 
         _db.ProgramRules.Add(rule);
         await _db.SaveChangesAsync(cancellationToken);
+        await ReplaceGenreLinksAsync(rule.Id, input, cancellationToken);
         _scheduleSignal?.NotifyScheduleChanged();
         return rule;
     }
@@ -133,14 +152,40 @@ public sealed class ProgramRuleService : IProgramRuleService
         rule.EpisodeCount = input.EpisodeCount;
         rule.SlotDuration = input.SlotDuration;
         rule.MaterialType = input.MaterialType;
-        rule.MaterialId = input.MaterialId;
+        rule.MaterialId = MaterialIdFor(input);
         rule.Priority = input.Priority;
         rule.IsActive = input.IsActive;
         rule.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
+        await ReplaceGenreLinksAsync(rule.Id, input, cancellationToken);
         _scheduleSignal?.NotifyScheduleChanged();
         return rule;
+    }
+
+    // For genre material the first selected genre keeps MaterialId populated (the column stays
+    // required and serves as the single-genre fallback for legacy rows and old backups).
+    private static long MaterialIdFor(ProgramRuleInput input)
+        => input.MaterialType == ProgramRuleMaterialType.Genre && input.GenreIds is { Count: > 0 } ids
+            ? ids[0]
+            : input.MaterialId;
+
+    // Replaces the genre and media-source filter links of the rule: genre material stores both
+    // join sets; every other material type clears them (links are genre-material only).
+    private async Task ReplaceGenreLinksAsync(long ruleId, ProgramRuleInput input, CancellationToken cancellationToken)
+    {
+        _db.ProgramRuleGenres.RemoveRange(_db.ProgramRuleGenres.Where(g => g.ProgramRuleId == ruleId));
+        _db.ProgramRuleMediaSources.RemoveRange(_db.ProgramRuleMediaSources.Where(s => s.ProgramRuleId == ruleId));
+
+        if (input.MaterialType == ProgramRuleMaterialType.Genre)
+        {
+            foreach (var genreId in (input.GenreIds ?? Array.Empty<long>()).Distinct())
+                _db.ProgramRuleGenres.Add(new ProgramRuleGenre { ProgramRuleId = ruleId, GenreId = genreId });
+            foreach (var sourceId in (input.MediaSourceIds ?? Array.Empty<long>()).Distinct())
+                _db.ProgramRuleMediaSources.Add(new ProgramRuleMediaSource { ProgramRuleId = ruleId, MediaSourceId = sourceId });
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
     }
 
     /// <inheritdoc />
@@ -212,18 +257,45 @@ public sealed class ProgramRuleService : IProgramRuleService
         if (!GetAllowedMaterialTypes(input.RuleType).Contains(input.MaterialType))
             throw new ArgumentException($"Die Materialart {input.MaterialType} ist für die Regelart {input.RuleType} nicht zulässig.");
 
+        if (input.MaterialType == ProgramRuleMaterialType.Genre)
+        {
+            await ValidateGenreInputAsync(input, cancellationToken);
+            return;
+        }
+
+        if (input.GenreIds is { Count: > 0 } || input.MediaSourceIds is { Count: > 0 })
+            throw new ArgumentException("Genre- und Quell-Filter sind nur bei Genre-Material zulässig.");
+
         var exists = input.MaterialType switch
         {
             ProgramRuleMaterialType.TVShow => await _db.TVShows.AnyAsync(m => m.Id == input.MaterialId, cancellationToken),
             ProgramRuleMaterialType.Movie => await _db.Movies.AnyAsync(m => m.Id == input.MaterialId, cancellationToken),
             ProgramRuleMaterialType.MovieCollection => await _db.MovieCollections.AnyAsync(m => m.Id == input.MaterialId, cancellationToken),
-            ProgramRuleMaterialType.Genre => await _db.Genres.AnyAsync(m => m.Id == input.MaterialId, cancellationToken),
             ProgramRuleMaterialType.Playlist => await _db.Playlists.AnyAsync(m => m.Id == input.MaterialId, cancellationToken),
             _ => false
         };
 
         if (!exists)
             throw new KeyNotFoundException("Das gewählte Programmmaterial wurde nicht gefunden.");
+    }
+
+    private async Task ValidateGenreInputAsync(ProgramRuleInput input, CancellationToken cancellationToken)
+    {
+        var genreIds = (input.GenreIds ?? Array.Empty<long>()).Distinct().ToList();
+        if (genreIds.Count == 0)
+            throw new ArgumentException("Bei Genre-Material muss mindestens ein Genre gewählt werden.");
+
+        var existingGenres = await _db.Genres.CountAsync(g => genreIds.Contains(g.Id), cancellationToken);
+        if (existingGenres != genreIds.Count)
+            throw new KeyNotFoundException("Ein gewähltes Genre wurde nicht gefunden.");
+
+        var sourceIds = (input.MediaSourceIds ?? Array.Empty<long>()).Distinct().ToList();
+        if (sourceIds.Count > 0)
+        {
+            var existingSources = await _db.MediaSources.CountAsync(s => sourceIds.Contains(s.Id), cancellationToken);
+            if (existingSources != sourceIds.Count)
+                throw new KeyNotFoundException("Eine gewählte Medienquelle wurde nicht gefunden.");
+        }
     }
 
     private static void ValidateChannelName(string name)

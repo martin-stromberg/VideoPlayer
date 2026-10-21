@@ -26,9 +26,23 @@ public interface IProgramRuleService
     Task<TVChannel> RenameChannelAsync(string userId, string name, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Returns all program rules of the channel, ordered by name. Requires administrator rights.
+    /// Returns all program rules of the channel including their genre and media-source filter
+    /// links, ordered by name. Requires administrator rights.
     /// </summary>
     Task<List<ProgramRule>> GetRulesAsync(string userId, long channelId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns the selectable genre options for <see cref="ProgramRuleMaterialType.Genre"/>
+    /// program material: the deduplicated names of the visible, canonical genre rows within the
+    /// given media sources (hidden rows are not selectable; rows hidden behind
+    /// <see cref="GenreName"/> alternate names resolve to their canonical target).
+    /// Requires administrator rights.
+    /// </summary>
+    /// <param name="userId">The calling user; must be an administrator.</param>
+    /// <param name="mediaSourceIds">Optional media-source filter — <see langword="null"/> or empty
+    /// means all media sources.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    Task<List<DtoGenreOption>> GetGenreMaterialOptionsAsync(string userId, IReadOnlyCollection<long>? mediaSourceIds, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Creates a program rule after validating the input. Requires administrator rights.

@@ -523,6 +523,23 @@ input[type="text"]:focus {
     gap: 0.35rem;
 }
 
+/* TV-Sender: Mehrfachauswahl (Genres / Quell-Filter) im Regel-Dialog */
+.rule-multi-select {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid var(--admin-border);
+    border-radius: var(--vp-radius);
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.rule-multi-select .form-check {
+    margin-bottom: 0;
+}
+
 .admin-table-wrap {
     overflow-x: auto;
     border: 1px solid var(--admin-border);

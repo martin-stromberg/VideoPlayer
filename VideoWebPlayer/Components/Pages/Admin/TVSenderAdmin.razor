@@ -282,16 +282,6 @@ else
                             {
                                 <MediaSearchSelector AllowedMediaTypes="@AllowedSearchMediaTypes" OnMediaSelected="OnMaterialSelected" />
                             }
-                            @if (AllowedMaterialTypes.Contains(ProgramRuleMaterialType.Genre))
-                            {
-                                <select id="rule-material-genre" class="form-control" @onchange="OnGenreSelected">
-                                    <option value="">Genre wählen…</option>
-                                    @foreach (var g in genreOptions)
-                                    {
-                                        <option value="@g.Id">@g.Name</option>
-                                    }
-                                </select>
-                            }
                             @if (AllowedMaterialTypes.Contains(ProgramRuleMaterialType.Playlist))
                             {
                                 <select id="rule-material-playlist" class="form-control" @onchange="OnPlaylistSelected">
@@ -302,6 +292,41 @@ else
                                     }
                                 </select>
                             }
+                        </div>
+                    }
+
+                    @if (AllowedMaterialTypes.Contains(ProgramRuleMaterialType.Genre)
+                        && (editRule.MaterialType == ProgramRuleMaterialType.Genre || string.IsNullOrWhiteSpace(editRule.MaterialDisplayName)))
+                    {
+                        <div class="rule-genre-editor" id="rule-genre-editor">
+                            <label class="form-label" id="rule-material-genre-label">Genres (Mehrfachauswahl)</label>
+                            <div id="rule-material-genre" class="rule-multi-select">
+                                @if (genreOptions.Count == 0)
+                                {
+                                    <span class="form-text" id="rule-material-genre-empty">Keine wählbaren Genres für die aktuelle Quell-Auswahl.</span>
+                                }
+                                @foreach (var g in genreOptions)
+                                {
+                                    <label class="form-check rule-genre-option" for="rule-genre-@g.Id">
+                                        <input type="checkbox" class="form-check-input" id="rule-genre-@g.Id"
+                                               checked="@editRule.SelectedGenreIds.Contains(g.Id)"
+                                               @onchange="e => OnGenreToggled(g.Id, e.Value is bool b && b)" />
+                                        @g.Name
+                                    </label>
+                                }
+                            </div>
+                            <label class="form-label" id="rule-material-sources-label">Quellen einschränken (keine Auswahl = alle Quellen)</label>
+                            <div id="rule-material-sources" class="rule-multi-select">
+                                @foreach (var s in mediaSources)
+                                {
+                                    <label class="form-check rule-source-option" for="rule-source-@s.Id">
+                                        <input type="checkbox" class="form-check-input" id="rule-source-@s.Id"
+                                               checked="@editRule.SelectedMediaSourceIds.Contains(s.Id)"
+                                               @onchange="async e => await OnSourceToggledAsync(s.Id, e.Value is bool b && b)" />
+                                        @s.Name
+                                    </label>
+                                }
+                            </div>
                         </div>
                     }
 
@@ -357,6 +382,7 @@ else
     private string? editError;
     private List<DtoGenreOption> genreOptions = new();
     private List<DtoPlaylist> playlistOptions = new();
+    private List<MediaSource> mediaSources = new();
 
     private IReadOnlyList<ProgramRuleMaterialType> AllowedMaterialTypes
         => editRule is null ? Array.Empty<ProgramRuleMaterialType>() : ProgramRuleService.GetAllowedMaterialTypes(editRule.RuleType);
@@ -384,7 +410,8 @@ else
         segmentLengthSeconds = (int)(await ProgramSettings.GetLiveStreamSegmentLengthAsync()).TotalSeconds;
         segmentDirectory = await ProgramSettings.GetLiveStreamSegmentDirectoryAsync();
         segmentRetentionMinutes = (int)(await ProgramSettings.GetLiveStreamSegmentRetentionAsync()).TotalMinutes;
-        genreOptions = await Client.RequestGenreOptionsAsync();
+        mediaSources = await DbContext.MediaSources.AsNoTracking().OrderBy(s => s.Name).ToListAsync();
+        await ReloadGenreOptionsAsync();
         playlistOptions = (await Client.RequestPlaylistsAsync())
             .Concat(await Client.RequestPublicPlaylistsAsync())
             .GroupBy(p => p.Id)
@@ -393,6 +420,34 @@ else
             .ToList();
         await ReloadRulesAsync();
         await ReloadScheduleAsync();
+    }
+
+    // Genre options follow the current source filter of the edit dialog; already-selected genres
+    // that fall outside it stay visible (and removable) so a narrower source selection does not
+    // silently drop stored genres.
+    private async Task ReloadGenreOptionsAsync()
+    {
+        var sourceFilter = editRule?.SelectedMediaSourceIds;
+        genreOptions = await ProgramRuleService.GetGenreMaterialOptionsAsync(
+            userId, sourceFilter is { Count: > 0 } ? sourceFilter.ToList() : null);
+
+        if (editRule is { SelectedGenreIds.Count: > 0 })
+        {
+            var missingIds = editRule.SelectedGenreIds.Where(id => genreOptions.All(g => g.Id != id)).ToList();
+            if (missingIds.Count > 0)
+            {
+                var missingNames = await DbContext.Genres
+                    .AsNoTracking()
+                    .Where(g => missingIds.Contains(g.Id))
+                    .ToDictionaryAsync(g => g.Id, g => g.Name);
+                genreOptions = genreOptions
+                    .Concat(missingIds
+                        .Where(missingNames.ContainsKey)
+                        .Select(id => new DtoGenreOption { Id = id, Name = missingNames[id] }))
+                    .OrderBy(g => g.Name, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+        }
     }
 
     private async Task ReloadRulesAsync()
@@ -455,15 +510,19 @@ else
         }
     }
 
-    private void StartCreate()
+    private async Task StartCreate()
     {
         editError = null;
         editRule = new RuleEditModel { RuleType = ProgramRuleType.SeriesFixedTime, Recurrence = ProgramRuleRecurrence.Daily, TimeOfDay = new TimeOnly(20, 0), IsActive = true, EpisodeCount = 1 };
+        await ReloadGenreOptionsAsync();
     }
 
-    private void StartEdit(ProgramRule rule)
+    private async Task StartEdit(ProgramRule rule)
     {
         editError = null;
+        var genreIds = rule.MaterialType == ProgramRuleMaterialType.Genre
+            ? (rule.Genres.Count > 0 ? rule.Genres.Select(g => g.GenreId) : [rule.MaterialId])
+            : Enumerable.Empty<long>();
         editRule = new RuleEditModel
         {
             Id = rule.Id,
@@ -478,9 +537,14 @@ else
             MaterialType = rule.MaterialType,
             MaterialId = rule.MaterialId,
             MaterialDisplayName = MaterialLabel(rule),
+            SelectedGenreIds = genreIds.ToHashSet(),
+            SelectedMediaSourceIds = rule.MaterialType == ProgramRuleMaterialType.Genre
+                ? rule.MediaSourceFilters.Select(s => s.MediaSourceId).ToHashSet()
+                : [],
             Priority = rule.Priority,
             IsActive = rule.IsActive
         };
+        await ReloadGenreOptionsAsync();
     }
 
     private void CancelEdit() => editRule = null;
@@ -507,6 +571,8 @@ else
         {
             editRule.MaterialDisplayName = string.Empty;
             editRule.MaterialId = 0;
+            editRule.SelectedGenreIds.Clear();
+            editRule.SelectedMediaSourceIds.Clear();
         }
     }
 
@@ -517,17 +583,51 @@ else
             editRule.MaterialType = t;
             editRule.MaterialId = selection.MediaId;
             editRule.MaterialDisplayName = MaterialLabel(t, selection.MediaId);
+            editRule.SelectedGenreIds.Clear();
+            editRule.SelectedMediaSourceIds.Clear();
         }
     }
 
-    private void OnGenreSelected(ChangeEventArgs e)
+    private void OnGenreToggled(long genreId, bool selected)
     {
-        if (editRule is not null && long.TryParse(e.Value?.ToString(), out var id) && id > 0)
+        if (editRule is null)
+            return;
+
+        editRule.MaterialType = ProgramRuleMaterialType.Genre;
+        if (selected)
+            editRule.SelectedGenreIds.Add(genreId);
+        else
+            editRule.SelectedGenreIds.Remove(genreId);
+        UpdateGenreMaterialLabel();
+    }
+
+    private async Task OnSourceToggledAsync(long sourceId, bool selected)
+    {
+        if (editRule is null)
+            return;
+
+        if (selected)
+            editRule.SelectedMediaSourceIds.Add(sourceId);
+        else
+            editRule.SelectedMediaSourceIds.Remove(sourceId);
+        await ReloadGenreOptionsAsync();
+    }
+
+    private void UpdateGenreMaterialLabel()
+    {
+        if (editRule is null || editRule.SelectedGenreIds.Count == 0)
         {
-            editRule.MaterialType = ProgramRuleMaterialType.Genre;
-            editRule.MaterialId = id;
-            editRule.MaterialDisplayName = $"Genre: {genreOptions.FirstOrDefault(g => g.Id == id)?.Name ?? id.ToString()}";
+            if (editRule is not null)
+                editRule.MaterialDisplayName = string.Empty;
+            return;
         }
+
+        var names = editRule.SelectedGenreIds
+            .Select(id => genreOptions.FirstOrDefault(g => g.Id == id)?.Name ?? id.ToString())
+            .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        editRule.MaterialId = editRule.SelectedGenreIds.OrderBy(id => id).First();
+        editRule.MaterialDisplayName = $"Genre: {string.Join(", ", names)}";
     }
 
     private void OnPlaylistSelected(ChangeEventArgs e)
@@ -537,6 +637,8 @@ else
             editRule.MaterialType = ProgramRuleMaterialType.Playlist;
             editRule.MaterialId = id;
             editRule.MaterialDisplayName = $"Playlist: {playlistOptions.FirstOrDefault(p => p.Id == id)?.Name ?? id.ToString()}";
+            editRule.SelectedGenreIds.Clear();
+            editRule.SelectedMediaSourceIds.Clear();
         }
     }
 
@@ -556,9 +658,17 @@ else
             editRule.EpisodeCount is > 0 ? editRule.EpisodeCount : null,
             editRule.DurationMinutes is > 0 ? TimeSpan.FromMinutes(editRule.DurationMinutes.Value) : null,
             editRule.MaterialType,
-            editRule.MaterialId,
+            editRule.MaterialType == ProgramRuleMaterialType.Genre && editRule.SelectedGenreIds.Count > 0
+                ? editRule.SelectedGenreIds.OrderBy(id => id).First()
+                : editRule.MaterialId,
             editRule.Priority,
-            editRule.IsActive);
+            editRule.IsActive,
+            editRule.MaterialType == ProgramRuleMaterialType.Genre
+                ? editRule.SelectedGenreIds.OrderBy(id => id).ToList()
+                : null,
+            editRule.MaterialType == ProgramRuleMaterialType.Genre && editRule.SelectedMediaSourceIds.Count > 0
+                ? editRule.SelectedMediaSourceIds.OrderBy(id => id).ToList()
+                : null);
 
         try
         {
@@ -612,7 +722,21 @@ else
         }
     }
 
-    private string MaterialLabel(ProgramRule rule) => MaterialLabel(rule.MaterialType, rule.MaterialId);
+    private string MaterialLabel(ProgramRule rule)
+    {
+        if (rule.MaterialType == ProgramRuleMaterialType.Genre)
+        {
+            var names = rule.Genres.Count > 0
+                ? rule.Genres.Select(g => g.Genre?.Name).Where(n => n is not null).Cast<string>().OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList()
+                : new List<string?> { DbContext.Genres.FirstOrDefault(m => m.Id == rule.MaterialId)?.Name }.Where(n => n is not null).Cast<string>().ToList();
+            var sources = rule.MediaSourceFilters.Select(s => s.MediaSource?.Name).Where(n => n is not null).OrderBy(n => n).ToList();
+            if (names.Count == 0)
+                return "Genre (nicht gefunden)";
+            var label = $"Genre: {string.Join(", ", names)}";
+            return sources.Count > 0 ? $"{label} — Quellen: {string.Join(", ", sources)}" : label;
+        }
+        return MaterialLabel(rule.MaterialType, rule.MaterialId);
+    }
 
     private string MaterialLabel(ProgramRuleMaterialType type, long id)
     {
@@ -621,7 +745,7 @@ else
             ProgramRuleMaterialType.TVShow => DbContext.TVShows.FirstOrDefault(m => m.Id == id)?.Name,
             ProgramRuleMaterialType.Movie => DbContext.Movies.FirstOrDefault(m => m.Id == id)?.Name,
             ProgramRuleMaterialType.MovieCollection => DbContext.MovieCollections.FirstOrDefault(m => m.Id == id)?.Name,
-            ProgramRuleMaterialType.Genre => DbContext.Genres.FirstOrDefault(m => m.Id == id)?.Name,
+            ProgramRuleMaterialType.Genre => DbContext.Genres.AsNoTracking().FirstOrDefault(m => m.Id == id)?.Name,
             ProgramRuleMaterialType.Playlist => DbContext.Playlists.FirstOrDefault(m => m.Id == id)?.Name,
             _ => null
         };
@@ -693,6 +817,8 @@ else
         public ProgramRuleMaterialType MaterialType { get; set; }
         public long MaterialId { get; set; }
         public string MaterialDisplayName { get; set; } = string.Empty;
+        public HashSet<long> SelectedGenreIds { get; set; } = new();
+        public HashSet<long> SelectedMediaSourceIds { get; set; } = new();
         public int Priority { get; set; }
         public bool IsActive { get; set; } = true;
     }

@@ -1397,6 +1397,36 @@ namespace VideoWebPlayer.Migrations
                     b.ToTable("ProgramRuleCursors");
                 });
 
+            modelBuilder.Entity("VideoWebPlayer.Data.ProgramRuleGenre", b =>
+                {
+                    b.Property<long>("ProgramRuleId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("GenreId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("ProgramRuleId", "GenreId");
+
+                    b.HasIndex("GenreId");
+
+                    b.ToTable("ProgramRuleGenres");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.ProgramRuleMediaSource", b =>
+                {
+                    b.Property<long>("ProgramRuleId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("MediaSourceId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("ProgramRuleId", "MediaSourceId");
+
+                    b.HasIndex("MediaSourceId");
+
+                    b.ToTable("ProgramRuleMediaSources");
+                });
+
             modelBuilder.Entity("VideoWebPlayer.Data.ProgramSlot", b =>
                 {
                     b.Property<long>("Id")
@@ -2259,6 +2289,44 @@ namespace VideoWebPlayer.Migrations
                     b.Navigation("ProgramRule");
                 });
 
+            modelBuilder.Entity("VideoWebPlayer.Data.ProgramRuleGenre", b =>
+                {
+                    b.HasOne("VideoWebPlayer.Data.Genre", "Genre")
+                        .WithMany()
+                        .HasForeignKey("GenreId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("VideoWebPlayer.Data.ProgramRule", "ProgramRule")
+                        .WithMany("Genres")
+                        .HasForeignKey("ProgramRuleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Genre");
+
+                    b.Navigation("ProgramRule");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.ProgramRuleMediaSource", b =>
+                {
+                    b.HasOne("VideoWebPlayer.Data.MediaSource", "MediaSource")
+                        .WithMany()
+                        .HasForeignKey("MediaSourceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("VideoWebPlayer.Data.ProgramRule", "ProgramRule")
+                        .WithMany("MediaSourceFilters")
+                        .HasForeignKey("ProgramRuleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MediaSource");
+
+                    b.Navigation("ProgramRule");
+                });
+
             modelBuilder.Entity("VideoWebPlayer.Data.ProgramSlot", b =>
                 {
                     b.HasOne("VideoWebPlayer.Data.TVChannel", "TVChannel")
@@ -2457,6 +2525,13 @@ namespace VideoWebPlayer.Migrations
             modelBuilder.Entity("VideoWebPlayer.Data.Playlist", b =>
                 {
                     b.Navigation("PlaylistEntries");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.ProgramRule", b =>
+                {
+                    b.Navigation("Genres");
+
+                    b.Navigation("MediaSourceFilters");
                 });
 
             modelBuilder.Entity("VideoWebPlayer.Data.TVChannel", b =>

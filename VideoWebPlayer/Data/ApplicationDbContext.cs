@@ -212,6 +212,16 @@ namespace VideoWebPlayer.Data
         /// Tabelle für die Fortsetzungsstände der Programmregeln.
         /// </summary>
         public DbSet<ProgramRuleCursor> ProgramRuleCursors { get; set; }
+
+        /// <summary>
+        /// Gets or sets the genre links of program rules (genre material multi-selection).
+        /// </summary>
+        public DbSet<ProgramRuleGenre> ProgramRuleGenres { get; set; }
+
+        /// <summary>
+        /// Gets or sets the media-source filter links of program rules (genre material).
+        /// </summary>
+        public DbSet<ProgramRuleMediaSource> ProgramRuleMediaSources { get; set; }
         #endregion
         #region MediaSource Manipulation Methods
         /// <summary>

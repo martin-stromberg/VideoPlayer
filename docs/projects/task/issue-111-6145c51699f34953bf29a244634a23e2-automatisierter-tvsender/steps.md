@@ -13,4 +13,4 @@ Branch: `task/issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsende
 | 7 | Live-TV in der Benutzeroberfläche | 6 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-7-live-tv-ui` | Fertig |
 | 8 | Laufzeit-Ermittlung robust für Remote-Quellen + Retry (N4) | 1 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-8-probe-robust` | Fertig |
 | 9 | Genre-Material: Mehrfachauswahl, Quell-Filter, Status/Alternativnamen (N1+N2+N3) | 8 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-9-genre-auswahl` | Fertig |
-| 10 | Planungsdiagnose + manueller Generierungsanstoß (N5) | 9 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-10-diagnose` | In Arbeit |
+| 10 | Planungsdiagnose + manueller Generierungsanstoß (N5) | 9 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-10-diagnose` | Fertig |

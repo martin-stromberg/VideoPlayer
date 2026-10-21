@@ -145,3 +145,9 @@
 
 - Join-Tabellen ProgramRuleGenre/ProgramRuleMediaSource (Mehrfachauswahl + Quell-Filter leer=alle), GenreCanonicalResolver (IsHidden/Alternativnamen/StartDate-EndDate, zyklussicher), eigene Options-API GetGenreMaterialOptionsAsync (api/items/genres unveraendert), ExpandGenreAsync auf kanonischer Union + Quell-Filter, Alt-Zuordnungen eingeschlossen, Migration mit MaterialId-Backfill. Abnahme: `acceptance-schritt-9.md` — erfüllt.
 - Hinweis an Folgeschritte: Saison-Tests sind laufzeitdatums-abhaengig (Nov/Dez-Fenster beachten); Zyklen ad-hoc geprueft.
+
+
+### Schritt 10: Planungsdiagnose + Generierungsanstoß (N5) — FERTIG (abgenommen)
+
+- GetRuleDiagnosesAsync (admin-only, on-demand ueber ExpandMaterialAsync, Gruende: MaterialMissing/NoMediaItem/ProbePending/ProbeExhausted/nicht freigegeben), Planbar-Spalte in TVSenderAdmin, #tvsender-generate-now Button -> ScheduleSignal. Abnahme: `acceptance-schritt-10.md` — erfüllt.
+- E2E-Flake Admin_CreateEditDeactivateDeleteRule (Settings-Race aus Schritt 7) dokumentiert, Einzelretry gruen.

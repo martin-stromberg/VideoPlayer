@@ -79,3 +79,9 @@
 - Doku: `docs/API.md` (neuer Endpunkt), `docs/help/tv-sender.md` (Abschnitt „Live-Stream (HLS)" + ffmpeg-Bereitstellung/Lizenz), `docs/RELEASE_NOTES.md` (What's New).
 - Entscheidungen: Roh-Pfad im Setup speichern — ContentRoot-Auflösung liegt konsistent im `LiveStreamSegmentStore`; kein persistenter Stream-Zustand; Drift-Schwelle 30 s als Konstante; `-t` deckelt die Ausgabe auf die Slot-Restdauer als Sicherheitspuffer gegen Worker-Lag.
 - Hinweis an Schritt 7: Player konsumiert `GET /api/live-stream/live.m3u8?access_token={token}`; die Player-Oberfläche (Videoelement/HLS-Client) ist erst Schritt 7.
+
+
+### Schritt 6: Live-Stream ausliefern — FERTIG (abgenommen)
+
+- FfmpegLiveStreamSegmenter (Singleton, -re/-ss/-t, HLS-Fenster, stderr-Drain), LiveStreamCoordinator + LiveStreamWorker (zeitbasierte Resynchronisierung, Slot-Wechsel/Drift/Luecke), LiveStreamController (api/live-stream, BearerTokenCheck, m3u8-Token-Rewrite, Traversal-Schutz), LiveStreamSegmentStore (Speicherort + Retention), Setup-Spalten + Migration + Backup. Abnahme: `acceptance-schritt-6.md` — erfüllt nach Fixes (stderr-Drain, xUnit1051, CS1570).
+- Schritt 7: Player konsumiert api/live-stream/live.m3u8?access_token={token}.

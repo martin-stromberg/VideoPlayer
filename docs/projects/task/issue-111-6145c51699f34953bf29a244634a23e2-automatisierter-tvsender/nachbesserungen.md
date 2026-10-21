@@ -89,3 +89,44 @@ der Rest der Anwendung (vgl. `GenreAdmin.razor`, `GetOrCreateGenresAsync` in
 - Tests: verstecktes Genre mit Alternativname → nur Ziel-Genre wählbar; verstecktes Genre
   ohne Alternativname → nicht wählbar; zeitlich eingeschränktes Genre → Status gemäß
   Sichtbarkeitsfenster
+
+## N4 — ffprobe-Timeout bei entfernten (pipe:0) Quellen + kein Retry bei Probe-Fehlern (Priorität: kritisch)
+
+**Beobachtet (Live-Befund, 2026-10-21):** Der `MediaDurationProbeWorker` läuft, aber
+quasi jeder ffprobe-Aufruf über `pipe:0` (SFTP-gestreamte Quelle) läuft ins
+**120s-Timeout** — Log voller „ffprobe-Aufruf für 'pipe:0' hat das Timeout von 120s
+überschritten." Stand: 111.783 MediaItems, davon 49 erfolgreich, 29 failed,
+111.705 ausstehend → bei ~30 Items/Stunde nie fertig. Vermutete Ursache: ffprobe muss
+bei Containern ohne vorgelagertes `moov`-Atom (typisches MP4) die **ganze Datei** lesen
+— über SFTP-Pipe zu langsam für 120 s.
+
+**Verschärfend:** Probe-Fehler (inkl. Timeout) markieren das Item dauerhaft als
+fehlgeschlagen (`DurationProbedAt` gesetzt, `Duration` NULL, kein Retry) → der Bestand
+wird sukzessive als „unplanbar" gebranntmarkt, obwohl die Ursache nur Latenz ist.
+
+**Gewünscht:**
+- ffprobe für Remote-Quellen robuster machen: längeres Timeout für pipe:0 (konfigurierbar),
+  ggf. `-show_format`-Fastpath / Begrenzung der einzulesenden Daten, oder
+  Dateipfad-Variante wo möglich (Netzlaufwerk/SMB), alternativ lokaler Temp-Cache.
+- **Retry-Strategie für Probe-Fehler**: Timeouts/IO-Fehler nicht permanent markieren —
+  z. B. Retry-Zähler mit Backoff oder „Probe zurücksetzen"-Funktion, damit temporäre
+  Fehler den Bestand nicht dauerhaft aus der Planung entfernen.
+- Batch-Größe/Parallelisierung prüfen (aktuell ~1 Item pro 2 min bei Timeout ist
+  effektiv ein Dauer-Backlog).
+
+## N5 — Planungsdiagnose in der UI sichtbar machen (Priorität: mittel)
+
+**Beobachtet:** Die Admin-Karte „Sendeplan" zeigt einfach „keine Einträge". Warum die
+Regel nichts plant, steht nur im Log („liefert kein planbares Material — verwaist, ohne
+Laufzeit oder nicht freigegeben").
+
+**Gewünscht:**
+- Pro Regel in der Übersicht eine **Diagnose**: Anzahl planbarer Inhalte bzw. Grund der
+  Leere (keine Laufzeit ermittelt / nicht für alle freigegeben / Material gelöscht).
+- Optionaler **„Jetzt generieren"-Button**, der `IProgramScheduleSignal` auslöst, damit
+  man nach Konfig-Änderungen nicht auf das Intervall warten muss.
+- Ergänzend N2/N3: Das Genre-Dropdown dedupliziert über Quellen hinweg und löst auf eine
+  beliebige Genre-Id auf (hier: „Familie" → Genre 15 auf Quelle 2 = nur Filme; die
+  eigentlichen Familien-Serien liegen unter „Familie"=64 auf Quelle 1 bzw. „Family"=115/131
+  auf Quelle 5/6, teils noch unversteckt). Ohne Quell-Filter und Auflösung der
+  Alternativnamen ist die Auswahl faktisch unbestimmt.

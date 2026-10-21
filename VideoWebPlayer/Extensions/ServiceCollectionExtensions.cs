@@ -255,6 +255,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<DataUpgradeManager>();
         services.AddScoped<ProgramSettingsService>();
         services.AddScoped<IProgramRuleService, ProgramRuleService>();
+        services.AddScoped<IProgramScheduleService, ProgramScheduleService>();
         services.AddSingleton(TimeProvider.System);
         services.AddScoped<WatchedStatusService>();
         services.AddBackups(configuration.GetSection("Backups"));
@@ -305,6 +306,7 @@ public static class ServiceCollectionExtensions
         services.AddHostedService<ContinueWatchingWorker>();
         services.AddHostedService<ActorBackfillWorker>();
         services.AddHostedService<PlaylistBackfillWorker>();
+        services.AddHostedService<ProgramScheduleWorker>();
         if (!env.IsEnvironment("Testing"))
         {
             // Kein fester UDP-Port 5353 in Tests (WebApplicationFactory/E2E belegen dynamische Ports).

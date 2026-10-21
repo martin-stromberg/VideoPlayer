@@ -974,4 +974,67 @@ public sealed class VideoWebPlayerBackupDataTests
         Assert.Null(exception2);
         Assert.Null((await db.Setups.AsNoTracking().FirstAsync(ct)).HolidayFederalState);
     }
+
+    [Fact]
+    public async Task ReadFromAsync_LegacyBackupWithoutProgramScheduleTablesAndSettings_RestoresSuccessfully()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var connection = new SqliteConnection("Data Source=file:backuptest-no-programschedule?mode=memory&cache=shared");
+        await connection.OpenAsync(ct);
+        var (db, backup, _) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
+        await using var dbLifetime = db;
+
+        var channel = new TVChannel { Name = "TV-Sender" };
+        db.TVChannels.Add(channel);
+        await db.SaveChangesAsync(ct);
+        var rule = new ProgramRule
+        {
+            TVChannelId = channel.Id,
+            Name = "Füller",
+            RuleType = ProgramRuleType.Filler,
+            Recurrence = ProgramRuleRecurrence.Daily,
+            TimeOfDay = new TimeOnly(0, 0),
+            EpisodeCount = 1,
+            MaterialType = ProgramRuleMaterialType.Movie,
+            MaterialId = 1
+        };
+        db.ProgramRules.Add(rule);
+        await db.SaveChangesAsync(ct);
+        db.ProgramSlots.Add(new ProgramSlot
+        {
+            TVChannelId = channel.Id,
+            Start = new DateTime(2026, 10, 24, 18, 0, 0, DateTimeKind.Utc),
+            End = new DateTime(2026, 10, 24, 18, 30, 0, DateTimeKind.Utc),
+            MediaItemId = 1,
+            MovieId = 1,
+            ProgramRuleId = rule.Id,
+            RuleType = ProgramRuleType.Filler
+        });
+        db.ProgramRuleCursors.Add(new ProgramRuleCursor
+        {
+            ProgramRuleId = rule.Id,
+            LastContentType = ProgramCursorContentType.Movie,
+            LastContentId = 1
+        });
+        var setup = await db.Setups.FirstOrDefaultAsync(ct) ?? db.Setups.Add(new Setup()).Entity;
+        setup.ProgramScheduleHorizonHours = 72;
+        setup.ProgramScheduleIntervalMinutes = 30;
+        await db.SaveChangesAsync(ct);
+
+        using var legacyStream = await LegacyBackupArchiveBuilder.RemoveTablesAsync(backup, new[] { "ProgramSlots", "ProgramRuleCursors" }, ct);
+        var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
+
+        Assert.Null(exception);
+        Assert.False(await db.ProgramSlots.AsNoTracking().AnyAsync(ct));
+        Assert.False(await db.ProgramRuleCursors.AsNoTracking().AnyAsync(ct));
+
+        using var legacyStream2 = await LegacyBackupArchiveBuilder.RemoveColumnsAsync(
+            backup, "Setups", new[] { "ProgramScheduleHorizonHours", "ProgramScheduleIntervalMinutes" }, ct);
+        var exception2 = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream2, ct));
+
+        Assert.Null(exception2);
+        var restored = await db.Setups.AsNoTracking().FirstAsync(ct);
+        Assert.Equal(48, restored.ProgramScheduleHorizonHours);
+        Assert.Equal(15, restored.ProgramScheduleIntervalMinutes);
+    }
 }

@@ -37,7 +37,9 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         nameof(ApplicationDbContext.PairingCodes),
         nameof(ApplicationDbContext.RefreshTokens),
         nameof(ApplicationDbContext.TVChannels),
-        nameof(ApplicationDbContext.ProgramRules)
+        nameof(ApplicationDbContext.ProgramRules),
+        nameof(ApplicationDbContext.ProgramSlots),
+        nameof(ApplicationDbContext.ProgramRuleCursors)
     };
 
     private static readonly HashSet<string> OptionalRestoreColumns = new(StringComparer.OrdinalIgnoreCase)
@@ -77,7 +79,9 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.DiscoveryPublicBaseUrl)}",
         $"{nameof(ApplicationDbContext.MediaItems)}.{nameof(MediaItem.Duration)}",
         $"{nameof(ApplicationDbContext.MediaItems)}.{nameof(MediaItem.DurationProbedAt)}",
-        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.HolidayFederalState)}"
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.HolidayFederalState)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ProgramScheduleHorizonHours)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ProgramScheduleIntervalMinutes)}"
     };
 
     private static readonly HashSet<string> IgnoredRestoreColumns = new(StringComparer.OrdinalIgnoreCase)
@@ -113,7 +117,9 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         (nameof(ApplicationDbContext.Setups), nameof(Setup.ContinueWatchingEndThresholdSeconds), 30),
         (nameof(ApplicationDbContext.Setups), nameof(Setup.ActorCollectionThresholdPercent), 50),
         (nameof(ApplicationDbContext.MediaSources), nameof(MediaSource.SourceType), (int)MediaSourceType.Sftp),
-        (nameof(ApplicationDbContext.PairingCodes), nameof(PairingCode.Kind), (int)PairingCodeKind.AdminCode)
+        (nameof(ApplicationDbContext.PairingCodes), nameof(PairingCode.Kind), (int)PairingCodeKind.AdminCode),
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.ProgramScheduleHorizonHours), 48),
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.ProgramScheduleIntervalMinutes), 15)
     };
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };

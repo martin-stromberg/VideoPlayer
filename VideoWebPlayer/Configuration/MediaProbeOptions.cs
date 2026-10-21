@@ -12,6 +12,12 @@ public sealed class MediaProbeOptions
     public string? FfprobePath { get; set; }
 
     /// <summary>
+    /// Gets or sets the absolute path to the ffmpeg executable, or <c>null</c> to resolve it
+    /// automatically (convention directories next to the application, then <c>PATH</c>).
+    /// </summary>
+    public string? FfmpegPath { get; set; }
+
+    /// <summary>
     /// Gets or sets the polling interval of the probe worker in seconds.
     /// </summary>
     public int IntervalSeconds { get; set; } = 60;

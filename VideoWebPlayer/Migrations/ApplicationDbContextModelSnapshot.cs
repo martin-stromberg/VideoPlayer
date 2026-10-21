@@ -276,6 +276,15 @@ namespace VideoWebPlayer.Migrations
                     b.Property<string>("HolidayFederalState")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("LiveStreamSegmentDirectory")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("LiveStreamSegmentLengthSeconds")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("LiveStreamSegmentRetentionMinutes")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("MdnsAdvertisementEnabled")
                         .HasColumnType("INTEGER");
 

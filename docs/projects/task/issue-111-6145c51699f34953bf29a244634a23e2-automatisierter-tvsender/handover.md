@@ -9,7 +9,7 @@
 | 3 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-3-sendeplan-erzeugen | pausiert | 2026-10-21 |
 | 4 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-4-sendeplan-nachfuehren | abgeschlossen | 2026-10-21 |
 | 5 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-5-programmauskunft | abgeschlossen | 2026-10-21 |
-| 6 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-6-live-stream | aktiv | 2026-10-21 |
+| 6 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-6-live-stream | pausiert | 2026-10-21 |
 
 ## Übergabestand je Schritt
 
@@ -67,3 +67,15 @@
 
 - IProgramGuideService/ProgramGuideService (GetNowAsync: Position/Remaining/Duration + Next; GetUpcomingAsync: halbes Fenster, MaxPreviewHours=12, nur Scheduled), ProgramGuideController (api/program-guide/now + upcoming, BearerTokenCheck + CheckLoggedIn, 400 bei ungueltigem hours), DTOs. Abnahme: `acceptance-schritt-5.md` — erfüllt.
 - Schritt 6 nutzt dieselbe Auskunft als Basis für den Stream.
+
+### Schritt 6: Live-Stream ausliefern — FERTIG (Implementierung; Abnahme ausstehend)
+
+- Echte ffmpeg-Segmentierung (kein virtueller Stream): `FfmpegLiveStreamSegmenter` (Singleton, `ISegmenterProcess`-Testseam, `BuildArguments`: `-re -ss -t -f hls`, H.264/AAC-Transcode mit segmentausgerichteten Keyframes, `hls_list_size 12`, `delete_segments+independent_segments`, eindeutige Segmentnamen `seg_%Y%m%d%H%M%S_{slotId}_%05d.ts`, `-nostdin` bei Datei- bzw. stdin-Pump bei Pipe-Eingang, `Kill(entireProcessTree)`).
+- Rein zeitbasierte Synchronisation ohne Prozesszustand: `LiveStreamCoordinator` fragt je Tick `IProgramGuideService.GetNowAsync` ab; laufender Slot → Start/Neustart bei Slot-Wechsel oder Drift > 30 s, Sendelücke/aufloesbares Medium → Stopp, `WakeAtUtc` = Slot-Ende bzw. Nächster-Start. `LiveStreamWorker` (Initialdelay, einmaliges `ClearAsync` des Segment-Verzeichnisses, Gate-Lease je Tick, Poll-Cap 30 s, Weckung über `IProgramScheduleSignal`, gedrosseltes Fehlen-Log).
+- Aufloesung: `LiveStreamMediaResolver` — `LocalDirectory`-Quellen liefern den physischen Pfad (`LocalMediaSourceReader.ResolveLocalFilePath`, neue öffentliche Methode auf bestehender Containment-Logik), entfernte Quellen eine `OpenFileStream`-Streamfabrik (bekannte Einschraenkung: MP4 ohne moov-am-Anfang kann ueber Pipe nicht demuxen).
+- Konfiguration: drei neue `Setup`-Spalten (Segmentlänge 6 s, Segment-Verzeichnis Default `Data/LiveStream` unter ContentRoot, Retention 30 min) + `ProgramSettingsService`-Getter/`UpdateLiveStreamSettingsAsync` + drei Felder in `TVSenderAdmin`; Migration `AddSetupLiveStreamSettings`, Backup-Optionaleinträge + Alt-Backup-Regressionstest. ffmpeg-Bereitstellung analog ffprobe: `MediaProbe:FfmpegPath` → `tools/ffmpeg/` + App-Dir → `PATH` (`FfmpegLocator`); GPL-Lizenzaspekt und Bereitstellung in `docs/help/tv-sender.md` dokumentiert.
+- Auslieferung: `LiveStreamController` (`api/live-stream/{fileName}`, `[BearerTokenCheck]` + `CheckLoggedIn`): `.m3u8` wird beim Abruf gelesen und jede Segment-URI um den übergebenen `access_token` ergänzt (relative URIs verlieren sonst die Query), `no-store`; `seg_*.ts` als `video/mp2t`; strikte Dateinamen-Whitelist + Containment, 404 bei ungültig/fehlend/liegender Sendelücke. Serverseitige Zugriffsprüfung — kein UI-Versteck.
+- Tests: 61 neue (Locator, Segmenter-Fake-Prozess, Coordinator gegen echtes SQLite, Resolver, Store, Controller, Worker, Settings, Alt-Backup, HTTP-E2E 401/200/Token-Rewrite/404, Playwright-Erweiterung). Volle Suite: 1953/1954 grün, 0 Fehler, 1 bekannter Alt-Skip.
+- Doku: `docs/API.md` (neuer Endpunkt), `docs/help/tv-sender.md` (Abschnitt „Live-Stream (HLS)" + ffmpeg-Bereitstellung/Lizenz), `docs/RELEASE_NOTES.md` (What's New).
+- Entscheidungen: Roh-Pfad im Setup speichern — ContentRoot-Auflösung liegt konsistent im `LiveStreamSegmentStore`; kein persistenter Stream-Zustand; Drift-Schwelle 30 s als Konstante; `-t` deckelt die Ausgabe auf die Slot-Restdauer als Sicherheitspuffer gegen Worker-Lag.
+- Hinweis an Schritt 7: Player konsumiert `GET /api/live-stream/live.m3u8?access_token={token}`; die Player-Oberfläche (Videoelement/HLS-Client) ist erst Schritt 7.

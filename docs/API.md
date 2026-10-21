@@ -545,6 +545,33 @@ vorhanden) plus alle Sendungen, die innerhalb der nächsten `N` Stunden beginnen
 sortiert. `hours` ist optional (Vorgabe `6`, Maximum `12`; außerhalb `1..12` antwortet der Server
 mit `400`).
 
+## Live-Stream (HLS)
+
+Der automatisierte TV-Sender wird als durchgehender HLS-Live-Stream ausgeliefert: ein
+Hintergrundlauf segmentiert die aktuell laufende Sendung mit `ffmpeg` in ein rollierendes
+HLS-Fenster. Die Auslieferung erfolgt ausschließlich über den folgenden Endpunkt und ist wie die
+Programmauskunft nur angemeldeten Benutzern bzw. gekoppelten Geräten zugänglich (Bearer-Token im
+`Authorization`-Header oder als `access_token`-Abfrageparameter); anonyme Aufrufe werden mit
+`401` abgelehnt. Da Player relative Segment-URIs ohne die Abfrageparameter der Playlist-URL
+auflösen, wird die Wiedergabeliste bei der Auslieferung so umgeschrieben, dass jede Segment-URI
+den übergebenen `access_token` trägt — die Segment-Adressen sind daher nur mit einem gültigen
+Token abrufbar.
+
+### GET /api/live-stream/{fileName}
+
+Liefert eine Datei aus dem Segment-Verzeichnis des Live-Streams:
+
+- `{fileName} = live.m3u8` (bzw. eine andere `*.m3u8` der Ausgabe): die aktuelle
+  HLS-Wiedergabeliste, Antworttyp `application/vnd.apple.mpegurl`, `Cache-Control: no-store`.
+  Jede Segment-URI darin trägt bei einem Abruf mit `access_token`-Parameter diesen Token als
+  `access_token`-Abfrageparameter; ohne Parameter bleiben die URIs unverändert.
+- `{fileName} = seg_*.ts`: ein HLS-Segment, Antworttyp `video/mp2t`.
+
+Dateinamen werden strikt geprüft (nur `A–Z`, `a–z`, `0–9`, `.`, `_`, `-`; keine Pfadtrenner) und
+müssen innerhalb des Segment-Verzeichnisses liegen. Ungültige oder fehlende Dateinamen —
+einschließlich des Zustands „es wird gerade kein Stream erzeugt" (Sendelücke, fehlendes
+`ffmpeg`, fehlende Mediendatei) — werden mit `404` beantwortet.
+
 ## Playlists
 
 Alle Playlist-Endpunkte sind benutzerbezogen: Sie wirken ausschließlich auf die Playlists des

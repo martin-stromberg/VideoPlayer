@@ -277,6 +277,82 @@ public sealed class ProgramSettingsService
 
         await _db.SaveChangesAsync(cancellationToken);
     }
+
+    /// <summary>
+    /// Gets the target HLS segment length of the live stream.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The configured segment length (default 6 seconds when unset or invalid).</returns>
+    public async Task<TimeSpan> GetLiveStreamSegmentLengthAsync(CancellationToken cancellationToken = default)
+    {
+        var setup = await GetOrCreateSetupAsync(cancellationToken);
+        var seconds = setup.LiveStreamSegmentLengthSeconds <= 0 ? 6 : setup.LiveStreamSegmentLengthSeconds;
+        return TimeSpan.FromSeconds(seconds);
+    }
+
+    /// <summary>
+    /// Gets the admin-configured segment directory of the live stream, or <see langword="null"/>
+    /// when the default directory applies.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The configured directory, or <see langword="null"/>.</returns>
+    public async Task<string?> GetLiveStreamSegmentDirectoryAsync(CancellationToken cancellationToken = default)
+    {
+        var setup = await GetOrCreateSetupAsync(cancellationToken);
+        return string.IsNullOrWhiteSpace(setup.LiveStreamSegmentDirectory) ? null : setup.LiveStreamSegmentDirectory;
+    }
+
+    /// <summary>
+    /// Gets the retention of expired live stream segments.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The configured retention (default 30 minutes when unset or invalid).</returns>
+    public async Task<TimeSpan> GetLiveStreamSegmentRetentionAsync(CancellationToken cancellationToken = default)
+    {
+        var setup = await GetOrCreateSetupAsync(cancellationToken);
+        var minutes = setup.LiveStreamSegmentRetentionMinutes <= 0 ? 30 : setup.LiveStreamSegmentRetentionMinutes;
+        return TimeSpan.FromMinutes(minutes);
+    }
+
+    /// <summary>
+    /// Persists the live stream settings of the automated TV channel.
+    /// </summary>
+    /// <param name="segmentLengthSeconds">Target HLS segment length in seconds (1–300).</param>
+    /// <param name="segmentDirectory">Segment directory; <see langword="null"/> or empty for the
+    /// default <c>Data/LiveStream</c>. A relative path resolves against the content root.</param>
+    /// <param name="retentionMinutes">Segment retention in minutes (minimum 1).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <exception cref="ArgumentException">A value is outside its valid range or the path is invalid.</exception>
+    public async Task UpdateLiveStreamSettingsAsync(int segmentLengthSeconds, string? segmentDirectory, int retentionMinutes, CancellationToken cancellationToken = default)
+    {
+        if (segmentLengthSeconds < 1 || segmentLengthSeconds > 300)
+            throw new ArgumentException("Die Segmentlänge muss zwischen 1 und 300 Sekunden liegen.");
+        if (retentionMinutes < 1)
+            throw new ArgumentException("Die Segment-Aufbewahrung muss mindestens 1 Minute betragen.");
+
+        string? directory = null;
+        if (!string.IsNullOrWhiteSpace(segmentDirectory))
+        {
+            try
+            {
+                // Validation probe only — the raw value is stored; the segment store resolves
+                // relative paths against the content root, not the process working directory.
+                _ = Path.GetFullPath(segmentDirectory.Trim());
+                directory = segmentDirectory.Trim();
+            }
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+            {
+                throw new ArgumentException($"Ungültiges Segment-Verzeichnis: {segmentDirectory}");
+            }
+        }
+
+        var setup = await GetOrCreateSetupAsync(cancellationToken);
+        setup.LiveStreamSegmentLengthSeconds = segmentLengthSeconds;
+        setup.LiveStreamSegmentDirectory = directory;
+        setup.LiveStreamSegmentRetentionMinutes = retentionMinutes;
+
+        await _db.SaveChangesAsync(cancellationToken);
+    }
 }
 
 /// <summary>

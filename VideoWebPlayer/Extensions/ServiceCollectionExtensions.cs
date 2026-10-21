@@ -232,6 +232,11 @@ public static class ServiceCollectionExtensions
         services.AddScoped<MediaSourceClassifier>();
         services.Configure<MediaProbeOptions>(configuration.GetSection("MediaProbe"));
         services.AddSingleton<IFfprobeLocator, FfprobeLocator>();
+        services.AddSingleton<IFfmpegLocator, FfmpegLocator>();
+        services.AddSingleton<ILiveStreamSegmenter, FfmpegLiveStreamSegmenter>();
+        services.AddScoped<LiveStreamMediaResolver>();
+        services.AddScoped<LiveStreamSegmentStore>();
+        services.AddScoped<LiveStreamCoordinator>();
         services.AddSingleton<IMediaDurationProbe, FfprobeMediaDurationProbe>();
         services.AddScoped<MediaDurationProbeService>();
         services.AddHostedService<MediaDurationProbeWorker>();
@@ -312,6 +317,8 @@ public static class ServiceCollectionExtensions
         services.AddHostedService<ProgramScheduleWorker>();
         if (!env.IsEnvironment("Testing"))
         {
+            // In WebApplicationFactory-/E2E-Hosts darf kein ffmpeg-Prozess starten.
+            services.AddHostedService<LiveStreamWorker>();
             // Kein fester UDP-Port 5353 in Tests (WebApplicationFactory/E2E belegen dynamische Ports).
             services.AddHostedService<MdnsAdvertiserWorker>();
         }

@@ -87,4 +87,24 @@ public class Setup
     /// program schedule. Default: 15 minutes.
     /// </summary>
     public int ProgramScheduleIntervalMinutes { get; set; } = 15;
+
+    /// <summary>
+    /// Gets or sets the target HLS segment length in seconds the live stream is
+    /// segmented with. Default: 6 seconds.
+    /// </summary>
+    public int LiveStreamSegmentLengthSeconds { get; set; } = 6;
+
+    /// <summary>
+    /// Gets or sets the directory the live stream's HLS segments and playlist are
+    /// written to. <c>null</c> or empty means the default directory
+    /// <c>Data/LiveStream</c> below the application's content root; a relative path
+    /// is resolved against the content root as well.
+    /// </summary>
+    public string? LiveStreamSegmentDirectory { get; set; }
+
+    /// <summary>
+    /// Gets or sets the number of minutes expired HLS segments are kept before the
+    /// automatic retention sweep removes them. Default: 30 minutes.
+    /// </summary>
+    public int LiveStreamSegmentRetentionMinutes { get; set; } = 30;
 }

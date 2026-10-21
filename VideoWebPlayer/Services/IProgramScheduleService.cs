@@ -43,6 +43,35 @@ public readonly record struct ProgramScheduleReconcileSummary(
     long RemainingGapSeconds);
 
 /// <summary>
+/// Per-rule planning diagnosis for the administration view: how much content of a
+/// <see cref="ProgramRule"/>'s material is currently schedulable, and — when nothing is —
+/// why not. Computed on demand with the same expansion logic the schedule run uses.
+/// </summary>
+/// <param name="RuleId">The rule the diagnosis belongs to.</param>
+/// <param name="MaterialMissing"><see langword="true"/> when the referenced material no longer
+/// resolves (entity deleted; for genre material also when the stored genres resolve to no
+/// usable canonical names or no genre rows inside the source filter).</param>
+/// <param name="CandidateCount">How many content elements the material expansion considered.</param>
+/// <param name="SchedulableCount">How many of them are schedulable (probed duration and released
+/// for the whole audience).</param>
+/// <param name="NoMediaItemCount">Candidates without any linked media item.</param>
+/// <param name="ProbePendingCount">Candidates whose media item has no duration yet and whose
+/// probe is still pending or retrying (attempts below the configured maximum).</param>
+/// <param name="ProbeExhaustedCount">Candidates whose media item has no duration and whose
+/// probe attempt budget is exhausted (permanently failed).</param>
+/// <param name="NoAccessCount">Candidates with a probed duration that are not released for the
+/// whole (non-admin) audience.</param>
+public readonly record struct ProgramRuleDiagnosis(
+    long RuleId,
+    bool MaterialMissing,
+    int CandidateCount,
+    int SchedulableCount,
+    int NoMediaItemCount,
+    int ProbePendingCount,
+    int ProbeExhaustedCount,
+    int NoAccessCount);
+
+/// <summary>
 /// Generates the rolling, gapless program schedule ("Sendeplan") of the delivered
 /// <see cref="TVChannel"/> from its active <see cref="ProgramRule"/>s.
 /// </summary>
@@ -81,4 +110,15 @@ public interface IProgramScheduleService
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The upcoming program slots including their status.</returns>
     Task<List<ProgramSlot>> GetScheduleAsync(long channelId, DateTimeOffset fromUtc, int maxCount, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Computes the per-rule planning diagnosis for the administration view: every rule of the
+    /// channel (including inactive ones) is expanded with the same material logic a schedule run
+    /// uses, and the skip reasons are counted per rule. Administrator-only.
+    /// </summary>
+    /// <param name="userId">The requesting user; must be an administrator.</param>
+    /// <param name="channelId">The channel identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The diagnosis per rule id.</returns>
+    Task<IReadOnlyDictionary<long, ProgramRuleDiagnosis>> GetRuleDiagnosesAsync(string userId, long channelId, CancellationToken cancellationToken = default);
 }

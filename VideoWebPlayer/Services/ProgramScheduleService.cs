@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using VideoWebPlayer.Client.Models;
+using VideoWebPlayer.Configuration;
 using VideoWebPlayer.Data;
 
 namespace VideoWebPlayer.Services;
@@ -27,6 +29,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     private readonly IProgramRuleService _ruleService;
     private readonly ProgramSettingsService _settings;
     private readonly ILogger<ProgramScheduleService> _logger;
+    private readonly int _maxProbeAttempts;
 
     /// <summary>
     /// Creates a new instance.
@@ -35,16 +38,20 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     /// <param name="ruleService">Channel access.</param>
     /// <param name="settings">Program settings (horizon, federal state).</param>
     /// <param name="logger">Logger instance.</param>
+    /// <param name="probeOptions">Media probe options — the attempt limit classifies exhausted
+    /// duration probes in the rule diagnosis; when <see langword="null"/> the defaults apply.</param>
     public ProgramScheduleService(
         ApplicationDbContext db,
         IProgramRuleService ruleService,
         ProgramSettingsService settings,
-        ILogger<ProgramScheduleService> logger)
+        ILogger<ProgramScheduleService> logger,
+        IOptions<MediaProbeOptions>? probeOptions = null)
     {
         _db = db;
         _ruleService = ruleService;
         _settings = settings;
         _logger = logger;
+        _maxProbeAttempts = (probeOptions?.Value ?? new MediaProbeOptions()).EffectiveMaxAttempts;
     }
 
     /// <inheritdoc />
@@ -324,6 +331,50 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             .Take(maxCount)
             .ToListAsync(cancellationToken);
 
+    /// <inheritdoc />
+    public async Task<IReadOnlyDictionary<long, ProgramRuleDiagnosis>> GetRuleDiagnosesAsync(string userId, long channelId, CancellationToken cancellationToken = default)
+    {
+        await RequireAdminAsync(userId, cancellationToken);
+
+        var rules = await _db.ProgramRules
+            .AsNoTracking()
+            .Include(r => r.Genres)
+            .Include(r => r.MediaSourceFilters)
+            .Where(r => r.TVChannelId == channelId)
+            .OrderBy(r => r.Name)
+            .ToListAsync(cancellationToken);
+
+        var access = await LoadAccessContextAsync(cancellationToken);
+        var diagnoses = new Dictionary<long, ProgramRuleDiagnosis>();
+        foreach (var rule in rules)
+        {
+            // Fresh counters per rule — the same expansion the schedule run uses, with the skip
+            // reasons tallied into a per-rule diagnosis instead of the run summary.
+            var counters = new SummaryCounters();
+            var items = await ExpandMaterialAsync(rule, access, counters, cancellationToken);
+            diagnoses[rule.Id] = new ProgramRuleDiagnosis(
+                rule.Id,
+                counters.MaterialMissing > 0,
+                counters.Candidates,
+                items.Count,
+                counters.NoMediaItem,
+                counters.ProbePending,
+                counters.ProbeExhausted,
+                counters.SkippedNoAccess);
+        }
+
+        return diagnoses;
+    }
+
+    private async Task RequireAdminAsync(string userId, CancellationToken cancellationToken)
+    {
+        var user = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId, cancellationToken)
+            ?? throw new UnauthorizedAccessException("Sie sind nicht angemeldet.");
+
+        if (!user.IsAdmin)
+            throw new ForbiddenAccessException("Nur Administratoren dürfen die Planungsdiagnose abrufen.");
+    }
+
     // ---- reconcile internals ----
 
     // Groups ordered slots into airings: maximal runs of the same producing rule where each slot
@@ -563,6 +614,14 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         public int OrphanedRules;
         public int DroppedConflicts;
         public long RemainingGapSeconds;
+
+        // Diagnosis detail counters — only consumed by GetRuleDiagnosesAsync; the public run
+        // and reconcile summaries are unchanged.
+        public int Candidates;
+        public int MaterialMissing;
+        public int NoMediaItem;
+        public int ProbePending;
+        public int ProbeExhausted;
 
         public ProgramScheduleRunSummary ToSummary()
             => new(SlotsCreated, FillerSlotsCreated, SkippedNoDuration, SkippedNoAccess, OrphanedRules, DroppedConflicts, RemainingGapSeconds);
@@ -892,31 +951,64 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         return items;
     }
 
-    private async Task<Dictionary<long, (long MediaItemId, TimeSpan Duration)>> MovieMediaItemsAsync(IReadOnlyCollection<long> movieIds, CancellationToken cancellationToken)
+    // One representative media-item link per content element, including its probe state so the
+    // diagnosis can tell "no media file", "probe pending" and "probe exhausted" apart. Items with
+    // a probed duration are preferred — ties keep the historical lowest-MediaItemId choice.
+    private sealed record MediaItemRef(long MediaItemId, TimeSpan? Duration, DateTime? DurationProbedAt, int DurationProbeAttempts);
+
+    private async Task<Dictionary<long, MediaItemRef>> MovieMediaItemsAsync(IReadOnlyCollection<long> movieIds, CancellationToken cancellationToken)
     {
         var links = await _db.MovieMediaItems
-            .Where(l => movieIds.Contains(l.MovieId) && l.MediaItem.Duration != null)
-            .OrderBy(l => l.MediaItemId)
-            .Select(l => new { l.MovieId, l.MediaItemId, Duration = l.MediaItem.Duration!.Value })
+            .Where(l => movieIds.Contains(l.MovieId))
+            .Select(l => new { l.MovieId, l.MediaItemId, l.MediaItem.Duration, l.MediaItem.DurationProbedAt, l.MediaItem.DurationProbeAttempts })
             .ToListAsync(cancellationToken);
-        return links.GroupBy(l => l.MovieId).ToDictionary(g => g.Key, g => (g.First().MediaItemId, g.First().Duration));
+        return links.GroupBy(l => l.MovieId).ToDictionary(
+            g => g.Key,
+            g => g.OrderBy(l => l.Duration is null ? 1 : 0).ThenBy(l => l.MediaItemId)
+                .Select(l => new MediaItemRef(l.MediaItemId, l.Duration, l.DurationProbedAt, l.DurationProbeAttempts))
+                .First());
     }
 
-    private async Task<Dictionary<long, (long MediaItemId, TimeSpan Duration)>> EpisodeMediaItemsAsync(IReadOnlyCollection<long> episodeIds, CancellationToken cancellationToken)
+    private async Task<Dictionary<long, MediaItemRef>> EpisodeMediaItemsAsync(IReadOnlyCollection<long> episodeIds, CancellationToken cancellationToken)
     {
         var links = await _db.TVShowEpisodeMediaItems
-            .Where(l => episodeIds.Contains(l.TVShowEpisodeId) && l.MediaItem.Duration != null)
-            .OrderBy(l => l.MediaItemId)
-            .Select(l => new { l.TVShowEpisodeId, l.MediaItemId, Duration = l.MediaItem.Duration!.Value })
+            .Where(l => episodeIds.Contains(l.TVShowEpisodeId))
+            .Select(l => new { l.TVShowEpisodeId, l.MediaItemId, l.MediaItem.Duration, l.MediaItem.DurationProbedAt, l.MediaItem.DurationProbeAttempts })
             .ToListAsync(cancellationToken);
-        return links.GroupBy(l => l.TVShowEpisodeId).ToDictionary(g => g.Key, g => (g.First().MediaItemId, g.First().Duration));
+        return links.GroupBy(l => l.TVShowEpisodeId).ToDictionary(
+            g => g.Key,
+            g => g.OrderBy(l => l.Duration is null ? 1 : 0).ThenBy(l => l.MediaItemId)
+                .Select(l => new MediaItemRef(l.MediaItemId, l.Duration, l.DurationProbedAt, l.DurationProbeAttempts))
+                .First());
     }
 
-    private SchedulableItem? TryMovieItem(Movie movie, Dictionary<long, (long MediaItemId, TimeSpan Duration)> mediaItems, AccessContext access, SummaryCounters summary)
+    // Shared skip-reason bookkeeping for a candidate whose media item is missing or unprobed.
+    // All three cases still count as SkippedNoDuration for the public run summary; the diagnosis
+    // counters tell them apart.
+    private void CountNoDuration(MediaItemRef? media, SummaryCounters summary)
     {
-        if (!mediaItems.TryGetValue(movie.Id, out var media))
+        summary.SkippedNoDuration++;
+        if (media is null)
         {
-            summary.SkippedNoDuration++;
+            summary.NoMediaItem++;
+        }
+        else if (media.DurationProbedAt is not null && media.DurationProbeAttempts >= _maxProbeAttempts)
+        {
+            summary.ProbeExhausted++;
+        }
+        else
+        {
+            summary.ProbePending++;
+        }
+    }
+
+    private SchedulableItem? TryMovieItem(Movie movie, Dictionary<long, MediaItemRef> mediaItems, AccessContext access, SummaryCounters summary)
+    {
+        summary.Candidates++;
+        mediaItems.TryGetValue(movie.Id, out var media);
+        if (media?.Duration is null)
+        {
+            CountNoDuration(media, summary);
             return null;
         }
         if (!access.Allows(movie.MediaSourceId, null, movie.MovieCollectionId))
@@ -924,28 +1016,16 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             summary.SkippedNoAccess++;
             return null;
         }
-        return new SchedulableItem(ProgramCursorContentType.Movie, movie.Id, media.MediaItemId, movie.Id, null, media.Duration);
-    }
-
-    private SchedulableItem? TryEpisodeItem(TVShowEpisode episode, long showId, Dictionary<long, (long MediaItemId, TimeSpan Duration)> mediaItems, AccessContext access, SummaryCounters summary)
-    {
-        if (!mediaItems.TryGetValue(episode.Id, out var media))
-        {
-            summary.SkippedNoDuration++;
-            return null;
-        }
-        if (!access.Allows(episode.MediaSourceId, showId, null))
-        {
-            summary.SkippedNoAccess++;
-            return null;
-        }
-        return new SchedulableItem(ProgramCursorContentType.TVShowEpisode, episode.Id, media.MediaItemId, null, episode.Id, media.Duration);
+        return new SchedulableItem(ProgramCursorContentType.Movie, movie.Id, media.MediaItemId, movie.Id, null, media.Duration.Value);
     }
 
     private async Task<List<SchedulableItem>> ExpandShowAsync(long showId, AccessContext access, SummaryCounters summary, CancellationToken cancellationToken)
     {
         if (!await _db.TVShows.AnyAsync(s => s.Id == showId, cancellationToken))
+        {
+            summary.MaterialMissing++;
             return [];
+        }
 
         var episodes = await _db.TVShowEpisodes
             .Where(e => e.TVShowSeason.TVShowId == showId)
@@ -966,11 +1046,13 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     // Minimal carrier for episode fields needed by ToItem (id + source).
     private sealed record ProxyEpisode(long Id, long MediaSourceId);
 
-    private SchedulableItem? ToItem(ProxyEpisode episode, long showId, Dictionary<long, (long MediaItemId, TimeSpan Duration)> mediaItems, AccessContext access, SummaryCounters summary)
+    private SchedulableItem? ToItem(ProxyEpisode episode, long showId, Dictionary<long, MediaItemRef> mediaItems, AccessContext access, SummaryCounters summary)
     {
-        if (!mediaItems.TryGetValue(episode.Id, out var media))
+        summary.Candidates++;
+        mediaItems.TryGetValue(episode.Id, out var media);
+        if (media?.Duration is null)
         {
-            summary.SkippedNoDuration++;
+            CountNoDuration(media, summary);
             return null;
         }
         if (!access.Allows(episode.MediaSourceId, showId, null))
@@ -978,14 +1060,17 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             summary.SkippedNoAccess++;
             return null;
         }
-        return new SchedulableItem(ProgramCursorContentType.TVShowEpisode, episode.Id, media.MediaItemId, null, episode.Id, media.Duration);
+        return new SchedulableItem(ProgramCursorContentType.TVShowEpisode, episode.Id, media.MediaItemId, null, episode.Id, media.Duration.Value);
     }
 
     private async Task<List<SchedulableItem>> ExpandMovieAsync(long movieId, AccessContext access, SummaryCounters summary, CancellationToken cancellationToken)
     {
         var movie = await _db.Movies.FirstOrDefaultAsync(m => m.Id == movieId, cancellationToken);
         if (movie is null)
+        {
+            summary.MaterialMissing++;
             return [];
+        }
 
         var mediaItems = await MovieMediaItemsAsync([movie.Id], cancellationToken);
         var item = TryMovieItem(movie, mediaItems, access, summary);
@@ -995,7 +1080,10 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     private async Task<List<SchedulableItem>> ExpandMovieCollectionAsync(long collectionId, AccessContext access, SummaryCounters summary, CancellationToken cancellationToken)
     {
         if (!await _db.MovieCollections.AnyAsync(c => c.Id == collectionId, cancellationToken))
+        {
+            summary.MaterialMissing++;
             return [];
+        }
 
         var movies = await _db.Movies
             .Where(m => m.MovieCollectionId == collectionId)
@@ -1039,7 +1127,10 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             .Where(g => storedIds.Contains(g.Id))
             .ToListAsync(cancellationToken);
         if (storedGenres.Count == 0)
+        {
+            summary.MaterialMissing++;
             return [];
+        }
 
         var allRows = scopedGenres
             .Concat(storedGenres.Where(s => scopedGenres.All(g => g.Id != s.Id)))
@@ -1050,14 +1141,24 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         foreach (var stored in storedGenres)
             selectedNames.UnionWith(canonicalNames.GetValueOrDefault(stored.Id, []));
         if (selectedNames.Count == 0)
+        {
+            // Every stored genre is hidden/out-of-season without a usable alternate — the
+            // selection resolves to nothing.
+            summary.MaterialMissing++;
             return [];
+        }
 
         var effectiveGenreIds = scopedGenres
             .Where(g => canonicalNames[g.Id].Overlaps(selectedNames))
             .Select(g => g.Id)
             .ToHashSet();
         if (effectiveGenreIds.Count == 0)
+        {
+            // The source filter excludes every genre row the selection resolves to — no material
+            // can ever match in this configuration.
+            summary.MaterialMissing++;
             return [];
+        }
 
         var movieIds = await _db.MovieGenres
             .Where(g => effectiveGenreIds.Contains(g.GenreId))
@@ -1105,7 +1206,10 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     {
         var playlist = await _db.Playlists.FirstOrDefaultAsync(p => p.Id == playlistId, cancellationToken);
         if (playlist is null)
+        {
+            summary.MaterialMissing++;
             return [];
+        }
 
         var entries = await _db.PlaylistEntries
             .Where(e => e.PlaylistId == playlistId)

@@ -95,6 +95,23 @@ Dabei gilt:
   Sendeplätze mit Start/Ende, Inhalt, erzeugender Regel und Status — verdrängte Sendeplätze sind
   dort als „Verdrängt" gekennzeichnet und bleiben als Historie erhalten.
 
+### Planungsdiagnose und manueller Anstoß
+
+Die Spalte **„Planbar"** in der Programmregeln-Tabelle zeigt pro Regel, wie viele Inhalte des
+gewählten Materials aktuell planbar sind — gerechnet mit derselben Logik wie die
+Sendeplan-Erzeugung (Genre-Vereinigung, Quell-Filter, Freigabe für das gesamte Publikum,
+bekannte Laufzeit). Ist nichts planbar, nennt die Zelle den Grund: „Material nicht gefunden
+(verwaist)", „ohne Mediendatei", „ohne Laufzeit (Ermittlung läuft)" bzw. „ohne Laufzeit
+(gescheitert)" — sobald die Versuchsgrenze der Laufzeitermittlung erreicht ist — oder „nicht
+für alle freigegeben". Die Diagnose wird bei jedem Laden der Seite und nach jeder Regel-
+Änderung neu berechnet; sie verändert den Sendeplan selbst nicht.
+
+Die Schaltfläche **„Jetzt generieren"** auf der Sendeplan-Karte stößt die Plan-Neubewertung
+sofort an, ohne auf das Generierungsintervall zu warten — nützlich nach Konfigurations- oder
+Bestandsänderungen. Die Sendeplan-Anzeige und die Diagnosen aktualisieren sich kurz darauf
+selbst; bei großen Bibliotheken kann die Generierung länger dauern, dann zeigt ein erneutes
+Laden der Seite den Endstand.
+
 ## Programmauskunft
 
 Die Programmauskunft beantwortet zu jedem Zeitpunkt rein aus Uhrzeit und Sendeplan, was gerade

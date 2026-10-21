@@ -94,6 +94,15 @@ public sealed class TVSenderAdminE2ETests : PlaylistsE2ETestBase
         await Page.ClickAsync("#rule-save");
         await Expect(Page.Locator(".tvsender-rule-row")).ToContainTextAsync("Abendserie II");
 
+        // Planning diagnosis: the row explains why nothing is schedulable yet — the seeded
+        // episodes have no media items at all.
+        await Expect(row.Locator(".tvsender-rule-diagnosis")).ToContainTextAsync("ohne Mediendatei");
+
+        // "Jetzt generieren" wakes the schedule worker immediately and reports back.
+        await Page.ClickAsync("#tvsender-generate-now");
+        await Expect(Page.Locator("#tvsender-schedule-status")).ToContainTextAsync("aktualisiert",
+            new LocatorAssertionsToContainTextOptions { Timeout = 20_000 });
+
         // Deactivate then reactivate.
         await Page.Locator(".tvsender-rule-toggle").ClickAsync();
         await Expect(Page.Locator(".tvsender-rule-row")).ToContainTextAsync("Inaktiv");

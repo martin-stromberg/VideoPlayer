@@ -11,6 +11,7 @@
 | 5 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-5-programmauskunft | abgeschlossen | 2026-10-21 |
 | 6 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-6-live-stream | pausiert | 2026-10-21 |
 | 7 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-7-live-tv-ui | abgeschlossen | 2026-10-21 |
+| 8 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-8-probe-robust | abgeschlossen | 2026-10-21 |
 
 ## Übergabestand je Schritt
 
@@ -107,3 +108,16 @@
 ### Schritt 7: Live-TV in der Benutzeroberfläche — FERTIG (abgenommen)
 
 - LiveTv.razor (/live-tv, nativ+hls.js-Fallback mit Retry, Jetzt/Gleich + 6h-Vorschau, verständliche Fehlerzustände, sauberes Dispose), hls.js 1.7.3 vendored (Apache-2.0), IProgramGuideApiClient, Nav-Eintrag. Abnahme: `acceptance-schritt-7.md` — erfüllt nach Fixes (nativer Retry, bi-tv-Icon, Analyzer-Warnungen, Format).
+
+
+### Schritt 8: Laufzeit-Ermittlung robust für Remote-Quellen + Retry (N4) — FERTIG (Implementierung; Abnahme durch anderen Agenten ausstehend)
+
+- Konfiguration: `MediaProbe:StreamTimeoutSeconds` (Default 600 s, nur `pipe:0`-Probes; `TimeoutSeconds` 120 s gilt weiter für lokale Pfade), `RetryDelaySeconds` (300 s), `MaxAttempts` (10), `ParallelProbes` (4) — alle in `MediaProbeOptions` mit `Effective*`-Fallback und in `appsettings.json` dokumentiert.
+- Retry statt Dauer-Brandmarkung: neue Spalte `MediaItem.DurationProbeAttempts` (Migration `AddMediaItemDurationProbeAttempts`, `OptionalRestoreColumns` + `OptionalRestoreIntDefaults` Default 0 → Alt-Backups restaurieren und stellen failed-Items wieder in die Queue). `DurationProbedAt` ist jetzt „Zeitpunkt des letzten Versuchs"; Selektion: `Duration == null && (DurationProbedAt == null || (Attempts < max && DurationProbedAt <= jetzt - RetryDelay))`. Bestands-Failed-Items (Attempts = 0) werden automatisch wieder aufgegriffen; Rescan (`MediaSourceScanner`) setzt den Zähler mit zurück.
+- Fehlerklassifikation: `IMediaDurationProbe` liefert `MediaDurationProbeResult(Duration, Transient)` statt `TimeSpan?`. `FfprobeMediaDurationProbe`: Timeout/Start-Fehler/Exit != 0/Ausnahme → transient; Exit 0 ohne parsebare Dauer → permanent (setzt Attempts = max → kein Retry). stderr wird für Warn-Logs erfasst (200 Zeichen gekürzt).
+- Parallelität: `SemaphoreSlim(EffectiveParallelProbes)` über `Task.WhenAll` — nur ffprobe/Stream läuft parallel, DbContext-Anwendung + `SaveChangesAsync` bleiben seriell je Item; `SftpMediaSourceReader.OpenFileStream` baut pro Aufruf eigenen `SftpClient`.
+- Planbarkeit: `MediaDurationProbeService` injiziert optional `IProgramScheduleSignal` und feuert `NotifyScheduleChanged()` sobald ≥1 `Duration` geschrieben wurde → Items sind sofort wieder planbar.
+- Tests: 38 Probe-Tests grün (Retry-Gate, Legacy-Aufgriff, MaxAttempts, permanent vs. transient, Stream-Timeout, Parallelität, Signal, Alt-Backup-Regression). Volle Suite synchron: **1975 grün / 0 Fehler / 1 bekannter Alt-Skip**; Debug+Release-Build 0 Fehler; `dotnet format --verify-no-changes --severity error` sauber.
+- Doku: `docs/help/videolaufzeit.md` (Retry-Semantik + 4 neue Schlüssel), `docs/RELEASE_NOTES.md`. Lifecycle-Artefakte: `docs/features/task-issue-111-...-schritt-8-probe-robust/` (im Abschlusscommit entfernt, Planung in Historie).
+- Hinweis an Abnahme: Bewusste Designentscheidung — `ExitCode != 0` zählt als transient (Stream-Abriss nicht von korrupt unterscheidbar); korrupte Dateien kosten maximal `MaxAttempts` Versuche. Permanente Fehler werden über `Attempts >= MaxAttempts` codiert — Erhöhung von `MaxAttempts` reaktiviert sie (harmlos).
+- Hinweis an Schritt 9/10: `DurationProbedAt`-Index existiert weiter; N5-Diagnose kann `DurationProbeAttempts`/`DurationProbedAt` für „keine Laufzeit"-Gründe nutzen.

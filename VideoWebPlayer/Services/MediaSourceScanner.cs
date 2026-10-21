@@ -273,6 +273,7 @@ namespace VideoWebPlayer.Services
                         existingItem.ClassifiedAt = null;
                         existingItem.Duration = null;
                         existingItem.DurationProbedAt = null;
+                        existingItem.DurationProbeAttempts = 0;
                         await _db.SaveChangesAsync(cancellationToken);
                         _logger.LogInformation("Vorhandenes MediaItem aktualisiert (CreatedAt ge�ndert): {Path}", existingItem.Path);
                     }

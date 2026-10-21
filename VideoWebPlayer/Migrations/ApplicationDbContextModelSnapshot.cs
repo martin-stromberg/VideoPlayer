@@ -726,6 +726,9 @@ namespace VideoWebPlayer.Migrations
                     b.Property<TimeSpan?>("Duration")
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("DurationProbeAttempts")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTime?>("DurationProbedAt")
                         .HasColumnType("TEXT");
 

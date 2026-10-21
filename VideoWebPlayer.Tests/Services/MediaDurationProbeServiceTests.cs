@@ -2,6 +2,8 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using VideoWebPlayer.Configuration;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 using Xunit;
@@ -19,6 +21,8 @@ public class MediaDurationProbeServiceTests : IDisposable
     private readonly FakeDurationProbe _probe = new();
     private readonly FakeFfprobeLocator _locator = new();
     private readonly StubMediaSourceReader _reader = new();
+    private readonly FakeScheduleSignal _signal = new();
+    private readonly MediaProbeOptions _probeOptions = new();
 
     public MediaDurationProbeServiceTests()
     {
@@ -37,6 +41,8 @@ public class MediaDurationProbeServiceTests : IDisposable
         services.AddSingleton<IMediaSourceReader>(_reader);
         services.AddSingleton<IMediaDurationProbe>(_probe);
         services.AddSingleton<IFfprobeLocator>(_locator);
+        services.AddSingleton<IProgramScheduleSignal>(_signal);
+        services.AddSingleton(Options.Create(_probeOptions));
         services.AddScoped<MediaDurationProbeService>();
         services.AddSingleton<Microsoft.Extensions.Logging.ILogger<MediaDurationProbeService>>(
             NullLogger<MediaDurationProbeService>.Instance);
@@ -62,7 +68,7 @@ public class MediaDurationProbeServiceTests : IDisposable
     {
         var ct = TestContext.Current.CancellationToken;
         var item = await SeedItemAsync("movie.mp4", MediaSourceType.LocalDirectory);
-        _probe.FileResult = TimeSpan.FromMinutes(95);
+        _probe.FileResult = MediaDurationProbeResult.Success(TimeSpan.FromMinutes(95));
 
         var service = _serviceProvider.GetRequiredService<MediaDurationProbeService>();
         var processed = await service.ProbePendingAsync(10, ct);
@@ -71,23 +77,116 @@ public class MediaDurationProbeServiceTests : IDisposable
         var reloaded = await ReloadAsync(item.Id, ct);
         Assert.Equal(TimeSpan.FromMinutes(95), reloaded.Duration);
         Assert.NotNull(reloaded.DurationProbedAt);
+        Assert.Equal(0, reloaded.DurationProbeAttempts);
     }
 
     [Fact]
-    public async Task ProbePendingAsync_FailedProbe_MarksProbedWithoutDuration()
+    public async Task ProbePendingAsync_SuccessfulProbe_NotifiesScheduleSignal()
     {
         var ct = TestContext.Current.CancellationToken;
-        var item = await SeedItemAsync("broken.mkv", MediaSourceType.LocalDirectory);
-        _probe.FileResult = null;
+        await SeedItemAsync("movie.mp4", MediaSourceType.LocalDirectory);
+        _probe.FileResult = MediaDurationProbeResult.Success(TimeSpan.FromMinutes(95));
 
         var service = _serviceProvider.GetRequiredService<MediaDurationProbeService>();
         await service.ProbePendingAsync(10, ct);
 
+        Assert.Equal(1, _signal.NotifyCalls);
+    }
+
+    [Fact]
+    public async Task ProbePendingAsync_FailedProbe_DoesNotNotifyScheduleSignal()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await SeedItemAsync("broken.mkv", MediaSourceType.LocalDirectory);
+        _probe.FileResult = MediaDurationProbeResult.TransientFailure;
+
+        var service = _serviceProvider.GetRequiredService<MediaDurationProbeService>();
+        await service.ProbePendingAsync(10, ct);
+
+        Assert.Equal(0, _signal.NotifyCalls);
+    }
+
+    [Fact]
+    public async Task ProbePendingAsync_TransientFailure_RetriedAfterDelay()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var item = await SeedItemAsync("slow.mp4", MediaSourceType.LocalDirectory);
+        _probe.FileResult = MediaDurationProbeResult.TransientFailure;
+
+        var service = _serviceProvider.GetRequiredService<MediaDurationProbeService>();
+        Assert.Equal(1, await service.ProbePendingAsync(10, ct));
+
         var reloaded = await ReloadAsync(item.Id, ct);
         Assert.Null(reloaded.Duration);
         Assert.NotNull(reloaded.DurationProbedAt);
+        Assert.Equal(1, reloaded.DurationProbeAttempts);
 
-        // A failed probe is not retried.
+        // The retry delay has not elapsed -> the item is not probed again.
+        _probe.FileCalls = 0;
+        Assert.Equal(0, await service.ProbePendingAsync(10, ct));
+        Assert.Equal(0, _probe.FileCalls);
+
+        // Once the delay has elapsed the item is picked up again.
+        var db = _serviceProvider.GetRequiredService<ApplicationDbContext>();
+        (await db.MediaItems.SingleAsync(i => i.Id == item.Id, ct)).DurationProbedAt =
+            DateTime.UtcNow.AddSeconds(-_probeOptions.EffectiveRetryDelaySeconds - 1);
+        await db.SaveChangesAsync(ct);
+
+        Assert.Equal(1, await service.ProbePendingAsync(10, ct));
+        Assert.Equal(1, _probe.FileCalls);
+        reloaded = await ReloadAsync(item.Id, ct);
+        Assert.Equal(2, reloaded.DurationProbeAttempts);
+    }
+
+    [Fact]
+    public async Task ProbePendingAsync_LegacyFailedItem_IsPickedUpAgain()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // Simulates an item marked failed by the pre-retry implementation:
+        // DurationProbedAt set, Duration null, no attempt counter yet.
+        var item = await SeedItemAsync("legacy.mp4", MediaSourceType.LocalDirectory);
+        item.DurationProbedAt = DateTime.UtcNow.AddDays(-1);
+        await SaveAsync(ct);
+
+        _probe.FileResult = MediaDurationProbeResult.Success(TimeSpan.FromMinutes(80));
+
+        var service = _serviceProvider.GetRequiredService<MediaDurationProbeService>();
+        Assert.Equal(1, await service.ProbePendingAsync(10, ct));
+
+        var reloaded = await ReloadAsync(item.Id, ct);
+        Assert.Equal(TimeSpan.FromMinutes(80), reloaded.Duration);
+        Assert.Equal(0, reloaded.DurationProbeAttempts);
+        Assert.Equal(1, _signal.NotifyCalls);
+    }
+
+    [Fact]
+    public async Task ProbePendingAsync_MaxAttemptsReached_NotRetried()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var item = await SeedItemAsync("exhausted.mp4", MediaSourceType.LocalDirectory);
+        item.DurationProbedAt = DateTime.UtcNow.AddDays(-7);
+        item.DurationProbeAttempts = _probeOptions.EffectiveMaxAttempts;
+        await SaveAsync(ct);
+
+        var service = _serviceProvider.GetRequiredService<MediaDurationProbeService>();
+        Assert.Equal(0, await service.ProbePendingAsync(10, ct));
+        Assert.Equal(0, _probe.FileCalls);
+    }
+
+    [Fact]
+    public async Task ProbePendingAsync_PermanentFailure_ExhaustsAttemptsAndStops()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var item = await SeedItemAsync("no-duration.mp4", MediaSourceType.LocalDirectory);
+        _probe.FileResult = MediaDurationProbeResult.PermanentFailure;
+
+        var service = _serviceProvider.GetRequiredService<MediaDurationProbeService>();
+        Assert.Equal(1, await service.ProbePendingAsync(10, ct));
+
+        var reloaded = await ReloadAsync(item.Id, ct);
+        Assert.Null(reloaded.Duration);
+        Assert.True(reloaded.DurationProbeAttempts >= _probeOptions.EffectiveMaxAttempts);
+
         _probe.FileCalls = 0;
         Assert.Equal(0, await service.ProbePendingAsync(10, ct));
         Assert.Equal(0, _probe.FileCalls);
@@ -130,7 +229,7 @@ public class MediaDurationProbeServiceTests : IDisposable
         var filePath = Path.Combine(_rootDir, "clip.mp4");
         await File.WriteAllTextAsync(filePath, "video", ct);
         var item = await SeedItemAsync("clip.mp4", MediaSourceType.LocalDirectory, filePath);
-        _probe.FileResult = TimeSpan.FromSeconds(30);
+        _probe.FileResult = MediaDurationProbeResult.Success(TimeSpan.FromSeconds(30));
 
         var service = _serviceProvider.GetRequiredService<MediaDurationProbeService>();
         await service.ProbePendingAsync(10, ct);
@@ -146,7 +245,7 @@ public class MediaDurationProbeServiceTests : IDisposable
         var ct = TestContext.Current.CancellationToken;
         var item = await SeedItemAsync("episode.mkv", MediaSourceType.Sftp);
         _reader.StreamToReturn = new MemoryStream(new byte[] { 1, 2, 3 });
-        _probe.StreamResult = TimeSpan.FromMinutes(22);
+        _probe.StreamResult = MediaDurationProbeResult.Success(TimeSpan.FromMinutes(22));
 
         var service = _serviceProvider.GetRequiredService<MediaDurationProbeService>();
         await service.ProbePendingAsync(10, ct);
@@ -159,7 +258,7 @@ public class MediaDurationProbeServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ProbePendingAsync_SftpSource_NullStream_MarksFailed()
+    public async Task ProbePendingAsync_SftpSource_NullStream_CountsTransientAttempt()
     {
         var ct = TestContext.Current.CancellationToken;
         var item = await SeedItemAsync("gone.mp4", MediaSourceType.Sftp);
@@ -171,16 +270,17 @@ public class MediaDurationProbeServiceTests : IDisposable
         var reloaded = await ReloadAsync(item.Id, ct);
         Assert.Null(reloaded.Duration);
         Assert.NotNull(reloaded.DurationProbedAt);
+        Assert.Equal(1, reloaded.DurationProbeAttempts);
         Assert.Equal(0, _probe.StreamCalls);
     }
 
     [Fact]
-    public async Task ProbePendingAsync_ProbeThrows_MarksFailedAndContinues()
+    public async Task ProbePendingAsync_ProbeThrows_MarksTransientAndContinues()
     {
         var ct = TestContext.Current.CancellationToken;
         var failing = await SeedItemAsync("a-throws.mp4", MediaSourceType.LocalDirectory);
         var succeeding = await SeedItemAsync("b-works.mp4", MediaSourceType.LocalDirectory);
-        _probe.FileResult = TimeSpan.FromMinutes(5);
+        _probe.FileResult = MediaDurationProbeResult.Success(TimeSpan.FromMinutes(5));
         _probe.ThrowOnPathContaining = "a-throws";
 
         var service = _serviceProvider.GetRequiredService<MediaDurationProbeService>();
@@ -190,6 +290,7 @@ public class MediaDurationProbeServiceTests : IDisposable
         var failedItem = await ReloadAsync(failing.Id, ct);
         Assert.Null(failedItem.Duration);
         Assert.NotNull(failedItem.DurationProbedAt);
+        Assert.Equal(1, failedItem.DurationProbeAttempts);
         Assert.Equal(TimeSpan.FromMinutes(5), (await ReloadAsync(succeeding.Id, ct)).Duration);
     }
 
@@ -216,7 +317,7 @@ public class MediaDurationProbeServiceTests : IDisposable
         var ct = TestContext.Current.CancellationToken;
         for (var i = 0; i < 4; i++)
             await SeedItemAsync($"movie-{i}.mp4", MediaSourceType.LocalDirectory);
-        _probe.FileResult = TimeSpan.FromMinutes(10);
+        _probe.FileResult = MediaDurationProbeResult.Success(TimeSpan.FromMinutes(10));
 
         var service = _serviceProvider.GetRequiredService<MediaDurationProbeService>();
         Assert.Equal(2, await service.ProbePendingAsync(2, ct));
@@ -224,6 +325,38 @@ public class MediaDurationProbeServiceTests : IDisposable
 
         Assert.Equal(2, await service.ProbePendingAsync(2, ct));
         Assert.Equal(0, await service.ProbePendingAsync(2, ct));
+    }
+
+    [Fact]
+    public async Task ProbePendingAsync_ParallelProbes_RunsConcurrently()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _probeOptions.ParallelProbes = 4;
+        for (var i = 0; i < 4; i++)
+            await SeedItemAsync($"parallel-{i}.mp4", MediaSourceType.LocalDirectory);
+        _probe.FileResult = MediaDurationProbeResult.Success(TimeSpan.FromMinutes(10));
+        _probe.Delay = TimeSpan.FromMilliseconds(200);
+
+        var service = _serviceProvider.GetRequiredService<MediaDurationProbeService>();
+        Assert.Equal(4, await service.ProbePendingAsync(4, ct));
+
+        Assert.True(_probe.MaxConcurrentCalls > 1, $"expected concurrent probes, observed max {_probe.MaxConcurrentCalls}");
+    }
+
+    [Fact]
+    public async Task ProbePendingAsync_SequentialProbes_RunOneAtATime()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        _probeOptions.ParallelProbes = 1;
+        for (var i = 0; i < 3; i++)
+            await SeedItemAsync($"sequential-{i}.mp4", MediaSourceType.LocalDirectory);
+        _probe.FileResult = MediaDurationProbeResult.Success(TimeSpan.FromMinutes(10));
+        _probe.Delay = TimeSpan.FromMilliseconds(50);
+
+        var service = _serviceProvider.GetRequiredService<MediaDurationProbeService>();
+        Assert.Equal(3, await service.ProbePendingAsync(3, ct));
+
+        Assert.Equal(1, _probe.MaxConcurrentCalls);
     }
 
     private async Task<MediaItem> SeedItemAsync(string name, MediaSourceType sourceType, string? path = null)
@@ -285,26 +418,52 @@ public class MediaDurationProbeServiceTests : IDisposable
 
     private sealed class FakeDurationProbe : IMediaDurationProbe
     {
-        public TimeSpan? FileResult { get; set; } = TimeSpan.FromMinutes(60);
-        public TimeSpan? StreamResult { get; set; } = TimeSpan.FromMinutes(60);
+        private int _concurrentCalls;
+
+        public MediaDurationProbeResult FileResult { get; set; } = MediaDurationProbeResult.Success(TimeSpan.FromMinutes(60));
+        public MediaDurationProbeResult StreamResult { get; set; } = MediaDurationProbeResult.Success(TimeSpan.FromMinutes(60));
+        public TimeSpan Delay { get; set; } = TimeSpan.Zero;
         public int FileCalls { get; set; }
         public int StreamCalls { get; set; }
+        public int MaxConcurrentCalls { get; private set; }
         public string? LastFilePath { get; private set; }
         public string? ThrowOnPathContaining { get; set; }
 
-        public Task<TimeSpan?> ProbeFileAsync(string filePath, CancellationToken cancellationToken)
+        public async Task<MediaDurationProbeResult> ProbeFileAsync(string filePath, CancellationToken cancellationToken)
         {
             FileCalls++;
             LastFilePath = filePath;
             if (ThrowOnPathContaining is not null && filePath.Contains(ThrowOnPathContaining, StringComparison.Ordinal))
                 throw new IOException("Simulated probe failure.");
-            return Task.FromResult(FileResult);
+            await TrackAsync(cancellationToken);
+            return FileResult;
         }
 
-        public Task<TimeSpan?> ProbeStreamAsync(Stream input, CancellationToken cancellationToken)
+        public async Task<MediaDurationProbeResult> ProbeStreamAsync(Stream input, CancellationToken cancellationToken)
         {
             StreamCalls++;
-            return Task.FromResult(StreamResult);
+            await TrackAsync(cancellationToken);
+            return StreamResult;
+        }
+
+        private async Task TrackAsync(CancellationToken cancellationToken)
+        {
+            var current = Interlocked.Increment(ref _concurrentCalls);
+            lock (this)
+            {
+                if (current > MaxConcurrentCalls)
+                    MaxConcurrentCalls = current;
+            }
+
+            try
+            {
+                if (Delay > TimeSpan.Zero)
+                    await Task.Delay(Delay, cancellationToken);
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _concurrentCalls);
+            }
         }
     }
 
@@ -312,6 +471,23 @@ public class MediaDurationProbeServiceTests : IDisposable
     {
         public string? Path { get; set; } = "ffprobe";
         public string? Resolve() => Path;
+    }
+
+    private sealed class FakeScheduleSignal : IProgramScheduleSignal
+    {
+        public int NotifyCalls { get; private set; }
+
+        public void NotifyScheduleChanged() => NotifyCalls++;
+
+        public IDisposable BeginScan() => new NoOpDisposable();
+
+        public ValueTask WaitAsync(CancellationToken cancellationToken)
+            => new(Task.Delay(Timeout.Infinite, cancellationToken));
+
+        private sealed class NoOpDisposable : IDisposable
+        {
+            public void Dispose() { }
+        }
     }
 
     private sealed class StubMediaSourceReader : IMediaSourceReader

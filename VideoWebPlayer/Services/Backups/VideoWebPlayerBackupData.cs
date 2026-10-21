@@ -79,6 +79,7 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.DiscoveryPublicBaseUrl)}",
         $"{nameof(ApplicationDbContext.MediaItems)}.{nameof(MediaItem.Duration)}",
         $"{nameof(ApplicationDbContext.MediaItems)}.{nameof(MediaItem.DurationProbedAt)}",
+        $"{nameof(ApplicationDbContext.MediaItems)}.{nameof(MediaItem.DurationProbeAttempts)}",
         $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.HolidayFederalState)}",
         $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ProgramScheduleHorizonHours)}",
         $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ProgramScheduleIntervalMinutes)}",
@@ -126,7 +127,8 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         (nameof(ApplicationDbContext.Setups), nameof(Setup.ProgramScheduleIntervalMinutes), 15),
         (nameof(ApplicationDbContext.ProgramSlots), nameof(ProgramSlot.Status), (int)ProgramSlotStatus.Scheduled),
         (nameof(ApplicationDbContext.Setups), nameof(Setup.LiveStreamSegmentLengthSeconds), 6),
-        (nameof(ApplicationDbContext.Setups), nameof(Setup.LiveStreamSegmentRetentionMinutes), 30)
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.LiveStreamSegmentRetentionMinutes), 30),
+        (nameof(ApplicationDbContext.MediaItems), nameof(MediaItem.DurationProbeAttempts), 0)
     };
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };

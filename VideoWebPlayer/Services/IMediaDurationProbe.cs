@@ -15,8 +15,8 @@ public interface IMediaDurationProbe
     /// </summary>
     /// <param name="filePath">Absolute path of the media file.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The probed duration, or <c>null</c> when the duration could not be determined.</returns>
-    Task<TimeSpan?> ProbeFileAsync(string filePath, CancellationToken cancellationToken);
+    /// <returns>The probe outcome; <c>null</c> duration marks a failed attempt.</returns>
+    Task<MediaDurationProbeResult> ProbeFileAsync(string filePath, CancellationToken cancellationToken);
 
     /// <summary>
     /// Probes the duration of a media file supplied as a stream (e.g. for remote SFTP sources);
@@ -24,6 +24,6 @@ public interface IMediaDurationProbe
     /// </summary>
     /// <param name="input">Readable stream containing the media file content.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The probed duration, or <c>null</c> when the duration could not be determined.</returns>
-    Task<TimeSpan?> ProbeStreamAsync(Stream input, CancellationToken cancellationToken);
+    /// <returns>The probe outcome; <c>null</c> duration marks a failed attempt.</returns>
+    Task<MediaDurationProbeResult> ProbeStreamAsync(Stream input, CancellationToken cancellationToken);
 }

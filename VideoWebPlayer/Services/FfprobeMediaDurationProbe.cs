@@ -53,24 +53,27 @@ public class FfprobeMediaDurationProbe : IMediaDurationProbe
     }
 
     /// <inheritdoc />
-    public Task<TimeSpan?> ProbeFileAsync(string filePath, CancellationToken cancellationToken)
-        => ProbeAsync($"\"{filePath}\"", stdin: null, cancellationToken);
+    public Task<MediaDurationProbeResult> ProbeFileAsync(string filePath, CancellationToken cancellationToken)
+        => ProbeAsync($"\"{filePath}\"", stdin: null, TimeSpan.FromSeconds(_options.EffectiveTimeoutSeconds), cancellationToken);
 
     /// <inheritdoc />
-    public Task<TimeSpan?> ProbeStreamAsync(Stream input, CancellationToken cancellationToken)
-        => ProbeAsync(StandardInputArgument, input, cancellationToken);
+    public Task<MediaDurationProbeResult> ProbeStreamAsync(Stream input, CancellationToken cancellationToken)
+        => ProbeAsync(StandardInputArgument, input, TimeSpan.FromSeconds(_options.EffectiveStreamTimeoutSeconds), cancellationToken);
 
-    private async Task<TimeSpan?> ProbeAsync(string inputArgument, Stream? stdin, CancellationToken cancellationToken)
+    private async Task<MediaDurationProbeResult> ProbeAsync(
+        string inputArgument,
+        Stream? stdin,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
     {
         var ffprobePath = _locator.Resolve();
         if (ffprobePath is null)
         {
             _logger.LogWarning("ffprobe wurde nicht gefunden; Laufzeitermittlung übersprungen.");
-            return null;
+            return MediaDurationProbeResult.TransientFailure;
         }
 
         var arguments = BuildArguments(inputArgument);
-        var timeout = TimeSpan.FromSeconds(_options.EffectiveTimeoutSeconds);
 
         FfprobeInvocationResult result;
         try
@@ -84,22 +87,42 @@ public class FfprobeMediaDurationProbe : IMediaDurationProbe
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "ffprobe-Aufruf für '{Input}' fehlgeschlagen.", inputArgument);
-            return null;
+            return MediaDurationProbeResult.TransientFailure;
         }
 
         if (result.TimedOut)
         {
             _logger.LogWarning("ffprobe-Aufruf für '{Input}' hat das Timeout von {Timeout}s überschritten.", inputArgument, timeout.TotalSeconds);
-            return null;
+            return MediaDurationProbeResult.TransientFailure;
         }
 
         if (result.ExitCode != 0)
         {
-            _logger.LogWarning("ffprobe-Aufruf für '{Input}' endete mit Exit-Code {ExitCode}.", inputArgument, result.ExitCode);
-            return null;
+            _logger.LogWarning(
+                "ffprobe-Aufruf für '{Input}' endete mit Exit-Code {ExitCode}: {Error}",
+                inputArgument, result.ExitCode, Truncate(result.StandardError));
+            return MediaDurationProbeResult.TransientFailure;
         }
 
-        return TryParseDurationOutput(result.StandardOutput);
+        var duration = TryParseDurationOutput(result.StandardOutput);
+        if (duration is null)
+        {
+            _logger.LogWarning(
+                "ffprobe-Aufruf für '{Input}' lieferte keine bestimmbare Laufzeit (dauerhaft fehlgeschlagen).",
+                inputArgument);
+            return MediaDurationProbeResult.PermanentFailure;
+        }
+
+        return MediaDurationProbeResult.Success(duration.Value);
+    }
+
+    private static string Truncate(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return string.Empty;
+
+        var trimmed = text.Trim();
+        return trimmed.Length <= 200 ? trimmed : trimmed[..200] + "…";
     }
 
     /// <summary>
@@ -157,7 +180,7 @@ public class FfprobeMediaDurationProbe : IMediaDurationProbe
         }
         catch (Exception ex) when (ex is Win32Exception or FileNotFoundException or InvalidOperationException)
         {
-            return new FfprobeInvocationResult(-1, string.Empty, TimedOut: false);
+            return new FfprobeInvocationResult(-1, string.Empty, string.Empty, TimedOut: false);
         }
 
         var stdoutTask = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
@@ -205,7 +228,11 @@ public class FfprobeMediaDurationProbe : IMediaDurationProbe
             // Output collection is best-effort after process termination.
         }
 
-        return new FfprobeInvocationResult(process.HasExited ? process.ExitCode : -1, await SafeResult(stdoutTask), timedOut);
+        return new FfprobeInvocationResult(
+            process.HasExited ? process.ExitCode : -1,
+            await SafeResult(stdoutTask),
+            await SafeResult(stderrTask),
+            timedOut);
     }
 
     private static void TryKill(Process process)
@@ -230,5 +257,6 @@ public class FfprobeMediaDurationProbe : IMediaDurationProbe
 /// </summary>
 /// <param name="ExitCode">Process exit code (-1 when the process could not be started).</param>
 /// <param name="StandardOutput">Captured standard output.</param>
+/// <param name="StandardError">Captured standard error (diagnostics only).</param>
 /// <param name="TimedOut">Whether the invocation was killed after the configured timeout.</param>
-internal sealed record FfprobeInvocationResult(int ExitCode, string StandardOutput, bool TimedOut);
+internal sealed record FfprobeInvocationResult(int ExitCode, string StandardOutput, string StandardError, bool TimedOut);

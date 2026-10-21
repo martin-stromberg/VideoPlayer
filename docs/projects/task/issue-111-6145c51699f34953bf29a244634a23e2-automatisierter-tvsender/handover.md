@@ -198,3 +198,9 @@
 - Tests: +9 (`MediaSourceClassifierGenreInheritanceTests` 7 Fälle, `MediaMetadataEditorServiceGenreInheritanceTests`, `GenreAdminTests` bUnit) — echtes SQLite. Gegenprobe: Vererbung sabotiert → 3 Tests rot, revertiert.
 - Volle Suite synchron (Debug): **2055 grün + 1 Skip / 0 Fehler** (2056 gesamt). Debug+Release-Build 0 Fehler. Doku: `docs/help/einrichtung.md`, `docs/RELEASE_NOTES.md`.
 - Lifecycle-Artefakte: `docs/features/task-issue-111-...-schritt-13-genre-vererbung/` (im Abschlusscommit entfernt, Planung in Historie); Tasks-Datei `docs/features/...-schritt-13-genre-vererbung-tasks.md` bleibt.
+
+
+### Schritt 13: Genre-Vererbung (N7) — FERTIG (abgenommen)
+
+- GenreGlobalConfig (Vorlage = aelteste konfigurierte ci-gleichnamige Zeile anderer Quellen), Vererbung bei Neuanlage in Scan + Metadaten-Edit, Heilung nur Default-Zeilen, Same-Source-Umlenkung + Zyklenschutz, SaveGenre-Casefix, DataUpgrade v9 ReloadGenres-Heilung fuer Altbestand. Abnahme: `acceptance-schritt-13.md` — erfüllt.
+- Hinweis: C: fast voll (~0,6 GB) verursachte SQLITE_FULL in E2E-Tests.

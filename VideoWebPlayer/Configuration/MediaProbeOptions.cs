@@ -57,6 +57,30 @@ public sealed class MediaProbeOptions
     public int ParallelProbes { get; set; } = 4;
 
     /// <summary>
+    /// Gets or sets whether remote media items are probed through the application's own
+    /// loopback HTTP stream endpoint before falling back to <c>sftp://</c>/<c>pipe:0</c>.
+    /// Over HTTP with range support ffprobe seeks like it does over a seekable protocol and
+    /// only reads the container headers — through the same media-source read path as
+    /// playback (e.g. SSH.NET for SFTP), independent of the source type.
+    /// </summary>
+    public bool HttpProbeEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets the explicit loopback base URL used for HTTP self-probes
+    /// (e.g. <c>http://127.0.0.1:5039</c>), or <c>null</c> to detect it automatically from
+    /// the server's bound addresses. Set this when the automatic detection cannot produce a
+    /// reachable address (e.g. behind a reverse proxy or with unusual bindings).
+    /// </summary>
+    public string? HttpProbeBaseUrl { get; set; }
+
+    /// <summary>
+    /// Gets or sets the lifetime in seconds of an internal stream token issued for an HTTP
+    /// probe. The token authorizes streaming of exactly one media item and only needs to
+    /// outlive a single ffprobe invocation.
+    /// </summary>
+    public int HttpProbeTokenLifetimeSeconds { get; set; } = 600;
+
+    /// <summary>
     /// Gets the normalized polling interval (values &lt;= 0 fall back to the default).
     /// </summary>
     public int EffectiveIntervalSeconds => IntervalSeconds > 0 ? IntervalSeconds : 60;
@@ -90,4 +114,9 @@ public sealed class MediaProbeOptions
     /// Gets the normalized probe parallelism (values &lt;= 0 fall back to sequential probing).
     /// </summary>
     public int EffectiveParallelProbes => ParallelProbes > 0 ? ParallelProbes : 1;
+
+    /// <summary>
+    /// Gets the normalized internal stream token lifetime (values &lt;= 0 fall back to the default).
+    /// </summary>
+    public int EffectiveHttpProbeTokenLifetimeSeconds => HttpProbeTokenLifetimeSeconds > 0 ? HttpProbeTokenLifetimeSeconds : 600;
 }

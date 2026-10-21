@@ -38,6 +38,23 @@ public class FfprobeMediaDurationProbe : IMediaDurationProbe
     /// </summary>
     private const string ProtocolNotFoundMarker = "Protocol not found";
 
+    /// <summary>
+    /// stderr markers that — for an <c>http(s)</c> input — mean the HTTP layer itself failed
+    /// (endpoint unreachable, rejected response status), so the file content was never
+    /// reached. Such failures are reported as <see cref="MediaDurationProbeResult.UriUnsupported"/>
+    /// so the caller falls back to another input method instead of misreading them as a
+    /// defective file or a retryable read hiccup.
+    /// </summary>
+    private static readonly string[] HttpTransportErrorMarkers =
+    {
+        "HTTP error",
+        "Server returned",
+        "Connection refused",
+        "Connection timed out",
+        "No route to host",
+        "Failed to connect"
+    };
+
     private readonly IFfprobeLocator _locator;
     private readonly MediaProbeOptions _options;
     private readonly ILogger<FfprobeMediaDurationProbe> _logger;
@@ -75,7 +92,7 @@ public class FfprobeMediaDurationProbe : IMediaDurationProbe
 
     /// <inheritdoc />
     public Task<MediaDurationProbeResult> ProbeFileAsync(string filePath, CancellationToken cancellationToken)
-        => ProbeAsync($"\"{filePath}\"", $"\"{filePath}\"", stdin: null, TimeSpan.FromSeconds(_options.EffectiveTimeoutSeconds), seekable: true, cancellationToken);
+        => ProbeAsync($"\"{filePath}\"", $"\"{filePath}\"", stdin: null, TimeSpan.FromSeconds(_options.EffectiveTimeoutSeconds), seekable: true, httpInput: false, cancellationToken);
 
     /// <inheritdoc />
     public Task<MediaDurationProbeResult> ProbeUriAsync(string uri, CancellationToken cancellationToken)
@@ -89,12 +106,13 @@ public class FfprobeMediaDurationProbe : IMediaDurationProbe
             stdin: null,
             TimeSpan.FromSeconds(_options.EffectiveTimeoutSeconds),
             seekable: true,
+            uri.StartsWith("http", StringComparison.OrdinalIgnoreCase),
             cancellationToken);
     }
 
     /// <inheritdoc />
     public Task<MediaDurationProbeResult> ProbeStreamAsync(Stream input, CancellationToken cancellationToken)
-        => ProbeAsync(StandardInputArgument, StandardInputArgument, input, TimeSpan.FromSeconds(_options.EffectiveStreamTimeoutSeconds), seekable: false, cancellationToken);
+        => ProbeAsync(StandardInputArgument, StandardInputArgument, input, TimeSpan.FromSeconds(_options.EffectiveStreamTimeoutSeconds), seekable: false, httpInput: false, cancellationToken);
 
     /// <param name="inputArgument">The input argument handed to ffprobe — may contain credentials.</param>
     /// <param name="displayInput">Credential-masked representation of <paramref name="inputArgument"/> used for all log output.</param>
@@ -105,6 +123,12 @@ public class FfprobeMediaDurationProbe : IMediaDurationProbe
     /// <c>sftp://</c>). Only then do permanent stderr markers prove a broken file — a piped
     /// stream produces the same errors when the feed aborts early.
     /// </param>
+    /// <param name="httpInput">
+    /// Whether the input is an <c>http(s)</c> URI. Only then do HTTP transport errors prove
+    /// the URI itself cannot be served (endpoint unreachable or rejecting), so the result is
+    /// <see cref="MediaDurationProbeResult.UriUnsupported"/> — for other URI schemes or piped
+    /// input the same words in stderr mean something else.
+    /// </param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The probe outcome.</returns>
     private async Task<MediaDurationProbeResult> ProbeAsync(
@@ -113,6 +137,7 @@ public class FfprobeMediaDurationProbe : IMediaDurationProbe
         Stream? stdin,
         TimeSpan timeout,
         bool seekable,
+        bool httpInput,
         CancellationToken cancellationToken)
     {
         var ffprobePath = _locator.Resolve();
@@ -160,6 +185,14 @@ public class FfprobeMediaDurationProbe : IMediaDurationProbe
                 return MediaDurationProbeResult.UriUnsupportedFailure;
             }
 
+            if (httpInput && ContainsHttpTransportErrorMarker(stderr))
+            {
+                _logger.LogWarning(
+                    "ffprobe-Aufruf für '{Input}' endete mit Exit-Code {ExitCode} und einem HTTP-Transportfehler ({Error}) — es wird auf andere Eingabemethoden zurückgefallen.",
+                    displayInput, result.ExitCode, Truncate(stderr));
+                return MediaDurationProbeResult.UriUnsupportedFailure;
+            }
+
             if (seekable && ContainsPermanentErrorMarker(stderr))
             {
                 _logger.LogWarning(
@@ -184,6 +217,17 @@ public class FfprobeMediaDurationProbe : IMediaDurationProbe
         }
 
         return MediaDurationProbeResult.Success(duration.Value);
+    }
+
+    private static bool ContainsHttpTransportErrorMarker(string stderr)
+    {
+        foreach (var marker in HttpTransportErrorMarkers)
+        {
+            if (stderr.Contains(marker, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
     }
 
     private static bool ContainsPermanentErrorMarker(string stderr)

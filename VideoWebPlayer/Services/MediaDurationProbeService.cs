@@ -25,6 +25,7 @@ public sealed class MediaDurationProbeService
     private readonly ILogger<MediaDurationProbeService> _logger;
     private readonly TimeProvider _timeProvider;
     private readonly IProgramScheduleSignal? _scheduleSignal;
+    private readonly IInternalMediaStreamTokenService? _streamTokens;
 
     // Static so the once-per-process warning survives the scoped service instances.
     private static bool _missingBinaryLogged;
@@ -41,6 +42,9 @@ public sealed class MediaDurationProbeService
     /// <param name="timeProvider">Optional time provider, primarily for testing.</param>
     /// <param name="scheduleSignal">Optional signal that wakes the program schedule worker once
     /// newly probed durations make media items schedulable.</param>
+    /// <param name="streamTokens">Optional internal stream token service that builds the
+    /// loopback HTTP probe URIs; when absent, remote items fall back directly to the
+    /// <c>sftp://</c>/<c>pipe:0</c> paths.</param>
     public MediaDurationProbeService(
         ApplicationDbContext db,
         IMediaSourceReader reader,
@@ -49,7 +53,8 @@ public sealed class MediaDurationProbeService
         IOptions<MediaProbeOptions> options,
         ILogger<MediaDurationProbeService> logger,
         TimeProvider? timeProvider = null,
-        IProgramScheduleSignal? scheduleSignal = null)
+        IProgramScheduleSignal? scheduleSignal = null,
+        IInternalMediaStreamTokenService? streamTokens = null)
     {
         _db = db;
         _reader = reader;
@@ -59,6 +64,7 @@ public sealed class MediaDurationProbeService
         _logger = logger;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _scheduleSignal = scheduleSignal;
+        _streamTokens = streamTokens;
     }
 
     /// <summary>
@@ -256,17 +262,28 @@ public sealed class MediaDurationProbeService
     }
 
     /// <summary>
-    /// Probes an item of a remote source. For SFTP sources with credentials and an absolute
-    /// remote path a seekable <c>sftp://</c> URI is handed to ffprobe directly (libssh reads
-    /// only the container headers — seconds instead of streaming the whole file into
-    /// <c>pipe:0</c>). When the URI cannot be built or the ffprobe build lacks the
-    /// <c>sftp</c> protocol, the probe falls back to the streamed <c>pipe:0</c> input within
-    /// the same attempt.
+    /// Probes an item of a remote source. The preferred path hands ffprobe a loopback
+    /// <c>http://</c> URI of the internal media-stream endpoint — ffprobe seeks with HTTP
+    /// range requests through the same media-source read path as playback (only container
+    /// headers, seconds instead of the whole file), independently of the source type. When
+    /// that URI cannot be built or the endpoint cannot serve it, the probe falls back to a
+    /// seekable <c>sftp://</c> URI for SFTP sources with credentials (libssh reads only the
+    /// container headers) and finally to the streamed <c>pipe:0</c> input — all within the
+    /// same attempt.
     /// </summary>
     private async Task<MediaDurationProbeResult> ProbeRemoteItemAsync(MediaItem item, CancellationToken cancellationToken)
     {
         var collection = item.MediaCollection;
         var source = collection.MediaSource;
+
+        var httpUri = _streamTokens?.TryCreateProbeUri(item.Id);
+        if (httpUri is not null)
+        {
+            var httpResult = await _probe.ProbeUriAsync(httpUri, cancellationToken);
+            if (!httpResult.UriUnsupported)
+                return httpResult;
+        }
+
         if (source.SourceType == MediaSourceType.Sftp)
         {
             var uri = SftpProbeUriBuilder.TryBuildUri(

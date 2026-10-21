@@ -62,3 +62,27 @@ Dabei gilt:
   (Nicht-Administrator-)Publikum freigegeben sind — über den regulären Medienquellenzugriff oder
   eine Einzelfreischaltung der Serie bzw. Filmsammlung.
 - Regeln auf nicht mehr vorhandenes Material werden übersprungen und protokolliert.
+
+### Nachführung bei Änderungen
+
+Der Sendeplan wird nicht nur periodisch fortgeschrieben, sondern nach jeder planrelevanten
+Änderung neu bewertet: Beim Anlegen, Bearbeiten, (De)Aktivieren oder Löschen einer Programmregel,
+beim Eintritt neuer Episoden oder Filme in eine Sammlung, beim Löschen einer Medienquelle und am
+Ende jedes Medien-Scans wacht der Hintergrundlauf sofort auf; das Generierungsintervall dient als
+Sicherheitsnetz für Änderungen ohne Auslöser (z. B. direkte Datenbank-Löschungen).
+
+Dabei gilt:
+
+- **Noch gültige Sendeplätze bleiben** — auch laufende und bereits gesendete; vergangene
+  Sendeplätze werden grundsätzlich nie verändert oder gelöscht.
+- **Ungültige Sendeplätze werden als „verdrängt" markiert**, nicht gelöscht — z. B. weil die
+  erzeugende Regel geändert, deaktiviert oder gelöscht wurde, ihr referenzierter Inhalt nicht
+  mehr planbar ist oder eine höherpriorisierte Regel das Zeitfenster übernimmt.
+- **Verdrängte Serienfolgen** werden zur nächsten passenden Gelegenheit desselben Regelkontexts
+  erneut eingeplant — in Sendedreihenfolge, ohne dass eine Folge übersprungen wird (außer die
+  Folge selbst ist nicht mehr planbar).
+- **Entstehende Lücken** werden regelkonform neu gefüllt, insbesondere über die Füller-Regeln;
+  Restlücken kleiner als der kürzeste Füller bleiben wie bei der Erzeugung bestehen.
+- **Nachvollziehbarkeit**: Die Karte „Sendeplan" auf derselben Seite zeigt die kommenden
+  Sendeplätze mit Start/Ende, Inhalt, erzeugender Regel und Status — verdrängte Sendeplätze sind
+  dort als „Verdrängt" gekennzeichnet und bleiben als Historie erhalten.

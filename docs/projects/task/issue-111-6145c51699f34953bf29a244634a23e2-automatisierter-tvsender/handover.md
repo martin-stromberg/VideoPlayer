@@ -7,7 +7,7 @@
 | 1 | Devin |  | aktiv | 2026-10-21 |
 | 2 | Devin |  | fertig | 2026-10-21 |
 | 3 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-3-sendeplan-erzeugen | pausiert | 2026-10-21 |
-| 4 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-4-sendeplan-nachfuehren | aktiv | 2026-10-21 |
+| 4 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-4-sendeplan-nachfuehren | abgeschlossen | 2026-10-21 |
 
 ## Übergabestand je Schritt
 
@@ -34,3 +34,12 @@
 
 - ProgramSlot + ProgramRuleCursor (Serien-Fortsetzung, Wrap-around), ProgramScheduleService (extend-only, Prioritäts-Konflikte atomar, Füller lückenlos, Filter: Duration + Vollfreigabe, verwaiste Materialien übersprungen), GermanHolidayCalendar (Computus + DE-*), Worker mit Gate-Lease, Settings Horizon/Intervall in TVSenderAdmin. Abnahme: `acceptance-schritt-3.md` — erfüllt.
 - Schritt 4 baut auf: Plan-Nachführung/Verdrängen.
+
+
+### Schritt 4: Sendeplan bei Änderungen nachführen — FERTIG
+
+- ProgramSlot.Status (Scheduled/Displaced, Migration AddProgramSlotStatus, optionale Backup-Spalte + Alt-Backup-Regressionstest); ProgramScheduleService.ReconcileAsync — Validierungssweep per Ausstrahlungs-Simulation (kein Dirty-Flag nötig, absturzsicher), Suffix-Verdrängung je Regel, Cursor-Rücksetzung (Wiedereinplanung ohne Episodensprung), Prioritäts-Eviction, Neu-Materialisierung + Füller-Lücken; GetScheduleAsync für die Admin-Ansicht.
+- IProgramScheduleSignal/ProgramScheduleSignal (koaleszierend, Scan-Suppression); Worker weckt per Signal oder Intervall und läuft hinter IBackgroundProcessingGate; Trigger: ProgramRuleService-CRUD, DbContext-Marker-Hook (neue Episoden/Filme), DeleteMediaSourceAsync, Scan-Ende.
+- TVSenderAdmin: neue Karte „Sendeplan" mit Status-Chip „Verdrängt" (E2E-nachgewiesen); Hilfe tv-sender.md + RELEASE_NOTES aktualisiert.
+- Entscheidungen: Suffix-Verdrängung statt Einzel-Slot für Sequenz-Konsistenz (kann inhaltlich identische Ersatzzeilen erzeugen); Restlücken < kleinster Füller bleiben wie bei der Erzeugung; Bulk-ExecuteDelete-Pfade außer DeleteMediaSourceAsync werden nur periodisch erkannt (zustandsloser Sweep als Netz).
+- Tests: 14 neue (10 Reconcile + 3 Signal + 1 Alt-Backup) plus erweiterter E2E; volle Suite 1865 grün / 1 übersprungen / 0 fehlgeschlagen (Baseline-Flake PlaylistSkipLockedEntriesE2ETest im Retry grün, dokumentiert).

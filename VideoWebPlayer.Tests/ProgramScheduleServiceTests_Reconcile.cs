@@ -259,7 +259,7 @@ public sealed class ProgramScheduleServiceTests_Reconcile
 
         var service = fixture.CreateService();
         await service.EnsureCoverageAsync(now, ct);
-        Assert.Empty((await fixture.SlotsAsync(ct)).Where(s => s.ProgramRuleId == ruleB.Id && s.RuleType == ProgramRuleType.MoviePrimeTime));
+        Assert.DoesNotContain(await fixture.SlotsAsync(ct), s => s.ProgramRuleId == ruleB.Id && s.RuleType == ProgramRuleType.MoviePrimeTime);
 
         ruleB.Priority = 9;
         await fixture.SaveDiagAsync();

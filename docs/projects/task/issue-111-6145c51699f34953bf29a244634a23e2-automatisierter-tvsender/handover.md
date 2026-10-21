@@ -162,3 +162,8 @@
 - Volle Suite synchron (`-c Release`): **2012 grün + 1 bekannter E2E-Flake (`PlaylistSkipLockedEntriesE2ETest`, Einzelwiederholung grün) + 1 bekannter Alt-Skip** — 2014 gesamt. `dotnet format --verify-no-changes --severity error` sauber. Doku: `docs/help/tv-sender.md` (Abschnitt „Fortschritt der Laufzeitermittlung"), `docs/help/videolaufzeit.md` (Abschnitt „Fortschritt beobachten"), `docs/RELEASE_NOTES.md` (EN+DE).
 - **Offener Umgebungspunkt für die Abnahme:** `dotnet build VideoPlayer.sln` (Debug) schlug mit MSB3027 fehl, weil eine laufende Benutzer-Instanz `VideoWebPlayer.exe` (PID 55720, aus VS gestartet) `bin/Debug/net10.0/` sperrt — der Prozess wurde nicht beendet. Release-Build 0 Fehler; Debug-Kompilierung vollständig über Scratch-`-p:OutDir`-Build verifiziert (0 Fehler, Warnungsstand 142 = Bestand). Sobald die Instanz geschlossen ist, läuft der normale Debug-Build wieder.
 - Lifecycle-Artefakte: `docs/features/task-issue-111-...-schritt-11-probe-fortschritt/` (im Abschlusscommit entfernt, Planung in Historie).
+
+
+### Schritt 11: Fortschrittsanzeige Laufzeitermittlung (N6) — FERTIG (abgenommen)
+
+- MediaDurationProbeProgress + GetProgressAsync (admin-only), Fortschrittskarte in TVSenderAdmin mit Zaehlern/Balken/Rolling-Liste/Status (laeuft/fertig/haengt), 15s-Auto-Refresh. Abnahme: `acceptance-schritt-11.md` — erfuellt nach Fix (Tick auf Dispatcher via InvokeAsync statt Threadpool-DbContext).

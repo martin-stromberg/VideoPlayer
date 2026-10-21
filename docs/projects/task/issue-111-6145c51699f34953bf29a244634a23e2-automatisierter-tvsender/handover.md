@@ -121,3 +121,8 @@
 - Doku: `docs/help/videolaufzeit.md` (Retry-Semantik + 4 neue Schlüssel), `docs/RELEASE_NOTES.md`. Lifecycle-Artefakte: `docs/features/task-issue-111-...-schritt-8-probe-robust/` (im Abschlusscommit entfernt, Planung in Historie).
 - Hinweis an Abnahme: Bewusste Designentscheidung — `ExitCode != 0` zählt als transient (Stream-Abriss nicht von korrupt unterscheidbar); korrupte Dateien kosten maximal `MaxAttempts` Versuche. Permanente Fehler werden über `Attempts >= MaxAttempts` codiert — Erhöhung von `MaxAttempts` reaktiviert sie (harmlos).
 - Hinweis an Schritt 9/10: `DurationProbedAt`-Index existiert weiter; N5-Diagnose kann `DurationProbeAttempts`/`DurationProbedAt` für „keine Laufzeit"-Gründe nutzen.
+
+
+### Schritt 8: Probe-Robustheit (N4) — FERTIG (abgenommen)
+
+- StreamTimeoutSeconds=600 für pipe:0 (lokal bleibt 120s), MediaDurationProbeResult transient/permanent, Retry 300s/max 10 via DurationProbeAttempts, Altbestand-Faileds werden wieder aufgegriffen, ParallelProbes=4, ProgramScheduleSignal bei fertiger Duration. Abnahme: `acceptance-schritt-8.md` — erfüllt.

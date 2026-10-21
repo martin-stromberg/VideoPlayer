@@ -60,3 +60,9 @@
 - Doku: `docs/help/tv-sender.md` (Abschnitt Programmauskunft), `docs/API.md` (beide Endpunkte), `docs/RELEASE_NOTES.md` (What's New + Neuerungen).
 - Entscheidungen: `ProgramGuide`-Namensraum (EPG-Begriff); `Next` = erster `Scheduled`-Slot mit `Start >= current.End` (bzw. `>= now` in der Lücke); Vorschau-Fenster halb-offen `[now, now+preview)`; Grenze als Konstante statt Setup-Feld.
 - Hinweis an Schritt 6: `DtoProgramGuideEntry.MediaItemId` ist die Videodatei-Referenz für die Stream-Auslieferung; `ProgramGuideService.MaxPreviewHours` begrenzt auch die Vorschau des UI (Schritt 7).
+
+
+### Schritt 5: Programmauskunft — FERTIG (abgenommen)
+
+- IProgramGuideService/ProgramGuideService (GetNowAsync: Position/Remaining/Duration + Next; GetUpcomingAsync: halbes Fenster, MaxPreviewHours=12, nur Scheduled), ProgramGuideController (api/program-guide/now + upcoming, BearerTokenCheck + CheckLoggedIn, 400 bei ungueltigem hours), DTOs. Abnahme: `acceptance-schritt-5.md` — erfüllt.
+- Schritt 6 nutzt dieselbe Auskunft als Basis für den Stream.

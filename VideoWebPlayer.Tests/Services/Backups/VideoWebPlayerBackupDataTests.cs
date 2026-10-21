@@ -1037,4 +1037,43 @@ public sealed class VideoWebPlayerBackupDataTests
         Assert.Equal(48, restored.ProgramScheduleHorizonHours);
         Assert.Equal(15, restored.ProgramScheduleIntervalMinutes);
     }
+
+    /// <summary>
+    /// A backup taken before <c>ProgramSlots.Status</c> existed must still restore; the missing
+    /// column defaults to <see cref="ProgramSlotStatus.Scheduled"/>.
+    /// </summary>
+    [Fact]
+    public async Task ReadFromAsync_LegacyBackupWithoutProgramSlotStatus_RestoresWithScheduled()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var connection = new SqliteConnection("Data Source=file:backuptest-no-slotstatus-column?mode=memory&cache=shared");
+        await connection.OpenAsync(ct);
+        var (db, backup, userId) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
+        await using var dbLifetime = db;
+
+        var channel = new TVChannel { Name = "TV-Sender" };
+        db.TVChannels.Add(channel);
+        await db.SaveChangesAsync(ct);
+        db.ProgramSlots.Add(new ProgramSlot
+        {
+            TVChannelId = channel.Id,
+            Start = new DateTime(2026, 10, 24, 18, 0, 0, DateTimeKind.Utc),
+            End = new DateTime(2026, 10, 24, 18, 30, 0, DateTimeKind.Utc),
+            MediaItemId = 1,
+            MovieId = 1,
+            RuleType = ProgramRuleType.Filler,
+            Status = ProgramSlotStatus.Displaced
+        });
+        await db.SaveChangesAsync(ct);
+
+        using var legacyStream = await LegacyBackupArchiveBuilder.RemoveColumnsAsync(
+            backup, "ProgramSlots", new[] { "Status" }, ct);
+
+        var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
+
+        Assert.Null(exception);
+        db.ChangeTracker.Clear();
+        var restoredSlot = await db.ProgramSlots.AsNoTracking().SingleAsync(ct);
+        Assert.Equal(ProgramSlotStatus.Scheduled, restoredSlot.Status);
+    }
 }

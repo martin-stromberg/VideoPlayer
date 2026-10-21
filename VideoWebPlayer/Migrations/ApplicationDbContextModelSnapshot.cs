@@ -1412,6 +1412,9 @@ namespace VideoWebPlayer.Migrations
                     b.Property<DateTime>("Start")
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("Status")
+                        .HasColumnType("INTEGER");
+
                     b.Property<long>("TVChannelId")
                         .HasColumnType("INTEGER");
 

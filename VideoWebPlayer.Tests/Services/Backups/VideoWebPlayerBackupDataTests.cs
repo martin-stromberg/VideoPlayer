@@ -1076,4 +1076,37 @@ public sealed class VideoWebPlayerBackupDataTests
         var restoredSlot = await db.ProgramSlots.AsNoTracking().SingleAsync(ct);
         Assert.Equal(ProgramSlotStatus.Scheduled, restoredSlot.Status);
     }
+
+    /// <summary>
+    /// Verifies that a backup taken before the live stream settings columns
+    /// (<c>Setups.LiveStreamSegment*</c>) existed can still be restored — the columns are
+    /// registered as optional restore columns with defaults.
+    /// </summary>
+    [Fact]
+    public async Task ReadFromAsync_LegacyBackupWithoutLiveStreamSettings_RestoresSuccessfully()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var connection = new SqliteConnection("Data Source=file:backuptest-no-livestream-settings?mode=memory&cache=shared");
+        await connection.OpenAsync(ct);
+        var (db, backup, _) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
+        await using var dbLifetime = db;
+
+        var setup = await db.Setups.FirstOrDefaultAsync(ct) ?? db.Setups.Add(new Setup()).Entity;
+        setup.LiveStreamSegmentLengthSeconds = 12;
+        setup.LiveStreamSegmentDirectory = "/tmp/segs";
+        setup.LiveStreamSegmentRetentionMinutes = 60;
+        await db.SaveChangesAsync(ct);
+
+        using var legacyStream = await LegacyBackupArchiveBuilder.RemoveColumnsAsync(backup, "Setups",
+            new[] { "LiveStreamSegmentLengthSeconds", "LiveStreamSegmentDirectory", "LiveStreamSegmentRetentionMinutes" }, ct);
+
+        var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(legacyStream, ct));
+
+        Assert.Null(exception);
+        db.ChangeTracker.Clear();
+        var restored = await db.Setups.AsNoTracking().FirstAsync(ct);
+        Assert.Equal(6, restored.LiveStreamSegmentLengthSeconds);
+        Assert.Null(restored.LiveStreamSegmentDirectory);
+        Assert.Equal(30, restored.LiveStreamSegmentRetentionMinutes);
+    }
 }

@@ -82,7 +82,10 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.HolidayFederalState)}",
         $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ProgramScheduleHorizonHours)}",
         $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ProgramScheduleIntervalMinutes)}",
-        $"{nameof(ApplicationDbContext.ProgramSlots)}.{nameof(ProgramSlot.Status)}"
+        $"{nameof(ApplicationDbContext.ProgramSlots)}.{nameof(ProgramSlot.Status)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.LiveStreamSegmentLengthSeconds)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.LiveStreamSegmentDirectory)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.LiveStreamSegmentRetentionMinutes)}"
     };
 
     private static readonly HashSet<string> IgnoredRestoreColumns = new(StringComparer.OrdinalIgnoreCase)
@@ -121,7 +124,9 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         (nameof(ApplicationDbContext.PairingCodes), nameof(PairingCode.Kind), (int)PairingCodeKind.AdminCode),
         (nameof(ApplicationDbContext.Setups), nameof(Setup.ProgramScheduleHorizonHours), 48),
         (nameof(ApplicationDbContext.Setups), nameof(Setup.ProgramScheduleIntervalMinutes), 15),
-        (nameof(ApplicationDbContext.ProgramSlots), nameof(ProgramSlot.Status), (int)ProgramSlotStatus.Scheduled)
+        (nameof(ApplicationDbContext.ProgramSlots), nameof(ProgramSlot.Status), (int)ProgramSlotStatus.Scheduled),
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.LiveStreamSegmentLengthSeconds), 6),
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.LiveStreamSegmentRetentionMinutes), 30)
     };
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };

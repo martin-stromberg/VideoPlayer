@@ -116,3 +116,52 @@ vorbehalten (Karte „Sendeplan" auf der TV-Sender-Seite).
 
 Die Programmauskunft ist die einheitliche fachliche Grundlage für die spätere Live-TV-Anzeige und
 die Stream-Auslieferung; sie ist begrifflich von den Benutzer-Playlists getrennt.
+
+## Live-Stream (HLS)
+
+Der laufende Sendeplan wird als durchgehender HLS-Live-Stream ausgeliefert. Ein Hintergrundlauf
+synchronisiert dazu fortlaufend einen `ffmpeg`-Segmentierungsprozess mit der Sendung, die laut
+Programmauskunft gerade on air ist — rein zeitbasiert: Jede Entscheidung wird aus Uhrzeit und
+Sendeplan neu berechnet, es wird kein Prozesszustand gespeichert, sodass sich der Stream nach
+einem Server-Neustart von selbst wieder auf die richtige Sendung und Position einstellt. Der
+Start erfolgt zeitversetzt (`-ss` auf die aktuelle Programmposition); an jedem Sendeplatz-
+Übergang wird der Prozess sauber beendet und auf dem Folgeslot neu gestartet — neue Segmente
+tragen eindeutige, zeit- und slot-codierte Namen, die Wiedergabeliste beginnt je Sendung sauber.
+Bei Sendelücken oder fehlender Mediendatei ruht die Segmentierung; weicht der laufende Prozess
+erkennbar vom Programmpunkt ab, wird er neu gestartet. Alle Zuschauer sehen daher zum selben
+Zeitpunkt dieselbe Programmposition.
+
+Drei Einstellungen in der Sender-Karte steuern die Ausgabe:
+
+- **Segmentlänge (Sekunden)** — Zieldauer je HLS-Segment (Standard: 6 Sekunden, zulässig 1–300).
+- **Segment-Verzeichnis** — Speicherort für Segmente und Wiedergabeliste; leer = Standard
+  `Data/LiveStream` unterhalb des Anwendungsverzeichnisses, relative Pfade werden gegen das
+  Anwendungsverzeichnis aufgelöst.
+- **Segment-Aufbewahrung (Minuten)** — abgelaufene Segmente werden automatisiert entfernt
+  (Standard: 30 Minuten); beim Start des Hintergrundlaufs wird das Verzeichnis vollständig
+  geleert.
+
+Die Auslieferung erfolgt ausschließlich authentifiziert: `GET /api/live-stream/{datei}`
+akzeptiert den Bearer-Token im `Authorization`-Header oder als `access_token`-Abfrageparameter
+— anonyme Aufrufe werden mit 401 abgelehnt. Bei Auslieferung der Wiedergabeliste
+(`live.m3u8`, Antworttyp `application/vnd.apple.mpegurl`, `Cache-Control: no-store`) wird jede
+Segment-Adresse um den übergebenen `access_token` ergänzt, damit Player, die relative
+Segment-URIs ohne die Abfrageparameter der Playlist-URL auflösen, autorisiert bleiben. Ungültige
+oder fehlende Dateinamen — einschließlich des Zustands „es läuft gerade kein Stream" — werden
+mit 404 beantwortet. Die eigentliche Live-TV-Ansicht in der Oberfläche ist ein eigener
+Folgeschritt.
+
+### ffmpeg-Bereitstellung und Lizenz
+
+`ffmpeg` wird wie `ffprobe` **nicht mit ausgeliefert**, sondern gesucht in der Reihenfolge:
+konfigurierbarer Pfad (`MediaProbe:FfmpegPath` in `appsettings.json`), Konventionsverzeichnisse
+`tools/ffmpeg/` sowie das Anwendungsverzeichnis, danach `PATH`. Ist `ffmpeg` nicht auffindbar,
+pausiert nur der Live-Stream — der übrige Betrieb (Sendeplan, Programmauskunft, Verwaltung)
+bleibt unberührt und eine Warnung wird protokolliert. Übliche gepackte Builds (z. B. die
+`ffmpeg`-Pakete für Windows von gyan.dev) sind mit `--enable-gpl` gebaut; die Lizenz des
+verwendeten Builds ist beim Bezug zu prüfen (GPL-Builds erfordern bei Weitergabe des
+`ffmpeg`-Binärpakets selbst die GPL-Bedingungen — der Server ruft `ffmpeg` als eigenständigen
+Prozess auf und steht dadurch nicht unter der GPL). Hinweise für Pipe-Eingaben von
+Netzquellen: MP4-Dateien ohne `moov`-Atom am Dateianfang können über eine Pipe nicht demuxen
+werden — lokale Medienquellen (`LocalDirectory`), die über den Dateipfad gelesen werden, sind
+davon nicht betroffen.

@@ -31,11 +31,25 @@ public sealed class TVSenderAdminE2ETests : PlaylistsE2ETestBase
         var showId = await SeedTvShowWithSeasonsAsync("E2E Serie", ("Staffel 1", 2));
         await OpenAdminPageAsAdminAsync();
 
-        // Channel settings: set schedule horizon + generation interval, save.
+        // Channel settings: set schedule horizon + generation interval + live stream
+        // settings (segment length, segment directory, retention), save.
         await Page.FillAsync("#tvsender-horizon-hours", "72");
         await Page.FillAsync("#tvsender-interval-minutes", "30");
+        await Page.FillAsync("#tvsender-segment-length-seconds", "10");
+        await Page.FillAsync("#tvsender-segment-directory", "");
+        await Page.FillAsync("#tvsender-segment-retention-minutes", "45");
         await Page.ClickAsync("#tvsender-save-settings");
         await Expect(Page.Locator("#tvsender-channel-status")).ToContainTextAsync("gespeichert");
+
+        // The stream settings round-tripped into the persisted setup row.
+        {
+            using var scope = Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<VideoWebPlayer.Data.ApplicationDbContext>();
+            var setup = await db.Setups.FirstAsync(TestContext.Current.CancellationToken);
+            Assert.Equal(10, setup.LiveStreamSegmentLengthSeconds);
+            Assert.Null(setup.LiveStreamSegmentDirectory);
+            Assert.Equal(45, setup.LiveStreamSegmentRetentionMinutes);
+        }
 
         // Create a rule: open the dialog, fill fields, pick material via the search selector.
         await DriveUntilStateAsync(

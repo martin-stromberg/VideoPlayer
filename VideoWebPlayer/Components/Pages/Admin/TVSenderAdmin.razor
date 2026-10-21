@@ -59,6 +59,18 @@ else
                     <label class="form-label" for="tvsender-interval-minutes">Generierungsintervall (Minuten)</label>
                     <input id="tvsender-interval-minutes" type="number" min="1" class="form-control" @bind="intervalMinutes" />
                 </div>
+                <div>
+                    <label class="form-label" for="tvsender-segment-length-seconds">Segmentlänge (Sekunden)</label>
+                    <input id="tvsender-segment-length-seconds" type="number" min="1" max="300" class="form-control" @bind="segmentLengthSeconds" />
+                </div>
+                <div>
+                    <label class="form-label" for="tvsender-segment-directory">Segment-Verzeichnis (leer = Standard)</label>
+                    <input id="tvsender-segment-directory" class="form-control" @bind="segmentDirectory" />
+                </div>
+                <div>
+                    <label class="form-label" for="tvsender-segment-retention-minutes">Segment-Aufbewahrung (Minuten)</label>
+                    <input id="tvsender-segment-retention-minutes" type="number" min="1" class="form-control" @bind="segmentRetentionMinutes" />
+                </div>
             </div>
             <div class="admin-actions">
                 <button id="tvsender-save-settings" class="btn btn-primary" @onclick="SaveChannelSettingsAsync">Speichern</button>
@@ -332,6 +344,9 @@ else
     private string? federalState;
     private int horizonHours = 48;
     private int intervalMinutes = 15;
+    private int segmentLengthSeconds = 6;
+    private string? segmentDirectory;
+    private int segmentRetentionMinutes = 30;
     private readonly string[] federalStates = ProgramSettingsService.HolidayFederalStates.ToArray();
     private string? channelStatus;
     private string? rulesStatus;
@@ -366,6 +381,9 @@ else
         federalState = await ProgramSettings.GetHolidayFederalStateAsync();
         horizonHours = (int)(await ProgramSettings.GetProgramScheduleHorizonAsync()).TotalHours;
         intervalMinutes = (int)(await ProgramSettings.GetProgramScheduleIntervalAsync()).TotalMinutes;
+        segmentLengthSeconds = (int)(await ProgramSettings.GetLiveStreamSegmentLengthAsync()).TotalSeconds;
+        segmentDirectory = await ProgramSettings.GetLiveStreamSegmentDirectoryAsync();
+        segmentRetentionMinutes = (int)(await ProgramSettings.GetLiveStreamSegmentRetentionAsync()).TotalMinutes;
         genreOptions = await Client.RequestGenreOptionsAsync();
         playlistOptions = (await Client.RequestPlaylistsAsync())
             .Concat(await Client.RequestPublicPlaylistsAsync())
@@ -428,6 +446,7 @@ else
             channel = await ProgramRuleService.RenameChannelAsync(userId, channelName);
             await ProgramSettings.UpdateHolidayFederalStateAsync(string.IsNullOrWhiteSpace(federalState) ? null : federalState);
             await ProgramSettings.UpdateProgramScheduleSettingsAsync(horizonHours, intervalMinutes);
+            await ProgramSettings.UpdateLiveStreamSettingsAsync(segmentLengthSeconds, segmentDirectory, segmentRetentionMinutes);
             channelStatus = "Einstellungen wurden gespeichert.";
         }
         catch (Exception ex)

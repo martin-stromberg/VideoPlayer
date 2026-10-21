@@ -139,3 +139,9 @@
 - Doku: `docs/help/tv-sender.md` (Programmmaterial-Abschnitt), `docs/RELEASE_NOTES.md`. Lifecycle-Artefakte: `docs/features/task-issue-111-...-schritt-9-genre-auswahl/`.
 - Hinweis an Abnahme: Bewusste Entscheidungen — leere Genre-Auswahl wird serverseitig abgelehnt; Quell-Filter ist pro Regel (nicht pro Genre); Options-Dedupe nach kanonischem Namen über Quellen hinweg mit kleinster sichtbarer kanonischer Id als Repräsentant.
 - Hinweis an Schritt 10 (N5): Genre-Expansion liefert jetzt deduplizierte Union über `ProgramRuleGenre`-Joins — Laufzeit-Diagnose siehe `ExpandGenreAsync` in `ProgramScheduleService`.
+
+
+### Schritt 9: Genre-Auswahl (N1+N2+N3) — FERTIG (abgenommen)
+
+- Join-Tabellen ProgramRuleGenre/ProgramRuleMediaSource (Mehrfachauswahl + Quell-Filter leer=alle), GenreCanonicalResolver (IsHidden/Alternativnamen/StartDate-EndDate, zyklussicher), eigene Options-API GetGenreMaterialOptionsAsync (api/items/genres unveraendert), ExpandGenreAsync auf kanonischer Union + Quell-Filter, Alt-Zuordnungen eingeschlossen, Migration mit MaterialId-Backfill. Abnahme: `acceptance-schritt-9.md` — erfüllt.
+- Hinweis an Folgeschritte: Saison-Tests sind laufzeitdatums-abhaengig (Nov/Dez-Fenster beachten); Zyklen ad-hoc geprueft.

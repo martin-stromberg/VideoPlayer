@@ -43,3 +43,8 @@
 - TVSenderAdmin: neue Karte „Sendeplan" mit Status-Chip „Verdrängt" (E2E-nachgewiesen); Hilfe tv-sender.md + RELEASE_NOTES aktualisiert.
 - Entscheidungen: Suffix-Verdrängung statt Einzel-Slot für Sequenz-Konsistenz (kann inhaltlich identische Ersatzzeilen erzeugen); Restlücken < kleinster Füller bleiben wie bei der Erzeugung; Bulk-ExecuteDelete-Pfade außer DeleteMediaSourceAsync werden nur periodisch erkannt (zustandsloser Sweep als Netz).
 - Tests: 14 neue (10 Reconcile + 3 Signal + 1 Alt-Backup) plus erweiterter E2E; volle Suite 1865 grün / 1 übersprungen / 0 fehlgeschlagen (Baseline-Flake PlaylistSkipLockedEntriesE2ETest im Retry grün, dokumentiert).
+
+
+### Schritt 4: Sendeplan bei Änderungen nachführen — FERTIG (abgenommen)
+
+- ReconcileAsync (Validierungssweep, Suffix-Verdrängung, Cursor-Rücksetzung ohne Episodensprung, Prioritäts-Eviction), ProgramSlotStatus (Scheduled/Displaced), IProgramScheduleSignal + Trigger (ProgramRuleService-CRUD, DbContext-Marker für neue Medien/Löschung, Scan-Suppression), Sendeplan-Karte in TVSenderAdmin. Abnahme: `acceptance-schritt-4.md` — erfüllt nach Fix von CI-Warnungen (CS1573/CS1574/xUnit1051).

@@ -195,6 +195,58 @@ public class FfprobeMediaDurationProbeTests
         Assert.Equal(1, calls);
     }
 
+    [Theory]
+    [InlineData("http://127.0.0.1:5039/api/internal/media-stream/abc: HTTP error 404 Not Found")]
+    [InlineData("http://127.0.0.1:5039/api/internal/media-stream/abc: Server returned 500 Internal Server Error")]
+    [InlineData("http://127.0.0.1:5039/api/internal/media-stream/abc: Connection refused")]
+    [InlineData("http://127.0.0.1:5039/api/internal/media-stream/abc: Connection timed out")]
+    [InlineData("Failed to connect to 127.0.0.1 port 5039")]
+    public async Task ProbeUriAsync_HttpTransportError_ReturnsUriUnsupported_AndDoesNotSuppressLaterProbes(string stderr)
+    {
+        var calls = 0;
+        var probe = CreateProbe((path, args, stdin, timeout, ct) =>
+        {
+            calls++;
+            return Task.FromResult(new FfprobeInvocationResult(1, string.Empty, stderr, false));
+        });
+
+        var ct = TestContext.Current.CancellationToken;
+        var result = await probe.ProbeUriAsync("http://127.0.0.1:5039/api/internal/media-stream/abc", ct);
+        Assert.True(result.UriUnsupported);
+
+        // Anders als 'Protocol not found' unterdrückt ein Transportfehler keine Folge-Probes —
+        // der Endpunkt könnte für das nächste Item wieder erreichbar sein.
+        await probe.ProbeUriAsync("http://127.0.0.1:5039/api/internal/media-stream/def", ct);
+        Assert.Equal(2, calls);
+    }
+
+    [Fact]
+    public async Task ProbeUriAsync_TransportErrorOnNonHttpUri_RemainsTransientFailure()
+    {
+        // 'Connection refused' bei einer sftp://-URI ist ein read-Fehler, kein
+        // HTTP-Schicht-Fehler — nicht als UriUnsupported fehlinterpretieren.
+        var probe = CreateProbe((path, args, stdin, timeout, ct) =>
+            Task.FromResult(new FfprobeInvocationResult(1, string.Empty, "sftp://u:p@host/x.mp4: Connection refused", false)));
+
+        var result = await probe.ProbeUriAsync("sftp://u:p@host/x.mp4", TestContext.Current.CancellationToken);
+        Assert.Null(result.Duration);
+        Assert.True(result.Transient);
+        Assert.False(result.UriUnsupported);
+    }
+
+    [Fact]
+    public async Task ProbeUriAsync_HttpMoovError_RemainsPermanentFailure()
+    {
+        // Ein echtes Strukturfehler über HTTP bleibt permanent — kein Fallback nötig.
+        var probe = CreateProbe((path, args, stdin, timeout, ct) =>
+            Task.FromResult(new FfprobeInvocationResult(1, string.Empty, "http://127.0.0.1/x.mp4: moov atom not found", false)));
+
+        var result = await probe.ProbeUriAsync("http://127.0.0.1/x.mp4", TestContext.Current.CancellationToken);
+        Assert.Null(result.Duration);
+        Assert.False(result.Transient);
+        Assert.False(result.UriUnsupported);
+    }
+
     [Fact]
     public async Task ProbeUriAsync_ErrorLogs_MaskCredentials()
     {

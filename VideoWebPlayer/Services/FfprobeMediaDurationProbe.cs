@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
@@ -38,14 +39,32 @@ public class FfprobeMediaDurationProbe : IMediaDurationProbe
     /// </summary>
     private const string ProtocolNotFoundMarker = "Protocol not found";
 
+    /// <summary>
+    /// stderr markers that — for an <c>http(s)</c> input — mean the HTTP layer itself failed
+    /// (endpoint unreachable, rejected response status), so the file content was never
+    /// reached. Such failures are reported as <see cref="MediaDurationProbeResult.UriUnsupported"/>
+    /// so the caller falls back to another input method instead of misreading them as a
+    /// defective file or a retryable read hiccup.
+    /// </summary>
+    private static readonly string[] HttpTransportErrorMarkers =
+    {
+        "HTTP error",
+        "Server returned",
+        "Connection refused",
+        "Connection timed out",
+        "No route to host",
+        "Failed to connect"
+    };
+
     private readonly IFfprobeLocator _locator;
     private readonly MediaProbeOptions _options;
     private readonly ILogger<FfprobeMediaDurationProbe> _logger;
     private readonly Func<string, string, Stream?, TimeSpan, CancellationToken, Task<FfprobeInvocationResult>> _executeAsync;
 
-    // Once an ffprobe build has rejected an URI scheme, every later URI probe would fail the
-    // same way — remembered so no further dead process invocations are spawned.
-    private bool _uriProtocolUnsupported;
+    // Once an ffprobe build has rejected an URI scheme, every later probe of that scheme
+    // would fail the same way — remembered per scheme so no further dead process invocations
+    // are spawned (e.g. a missing sftp protocol must not disable http probing).
+    private readonly ConcurrentDictionary<string, byte> _unsupportedSchemes = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FfprobeMediaDurationProbe"/> class.
@@ -75,26 +94,36 @@ public class FfprobeMediaDurationProbe : IMediaDurationProbe
 
     /// <inheritdoc />
     public Task<MediaDurationProbeResult> ProbeFileAsync(string filePath, CancellationToken cancellationToken)
-        => ProbeAsync($"\"{filePath}\"", $"\"{filePath}\"", stdin: null, TimeSpan.FromSeconds(_options.EffectiveTimeoutSeconds), seekable: true, cancellationToken);
+        => ProbeAsync($"\"{filePath}\"", $"\"{filePath}\"", stdin: null, TimeSpan.FromSeconds(_options.EffectiveTimeoutSeconds), seekable: true, httpInput: false, scheme: null, cancellationToken);
 
     /// <inheritdoc />
     public Task<MediaDurationProbeResult> ProbeUriAsync(string uri, CancellationToken cancellationToken)
     {
-        if (_uriProtocolUnsupported)
+        var scheme = Uri.TryCreate(uri, UriKind.Absolute, out var parsed) ? parsed.Scheme : null;
+        if (scheme is not null && _unsupportedSchemes.ContainsKey(scheme))
             return Task.FromResult(MediaDurationProbeResult.UriUnsupportedFailure);
 
         return ProbeAsync(
             $"\"{uri}\"",
-            SftpProbeUriBuilder.MaskCredentials(uri),
+            MaskProbeUri(uri),
             stdin: null,
             TimeSpan.FromSeconds(_options.EffectiveTimeoutSeconds),
             seekable: true,
+            scheme is not null && scheme.StartsWith("http", StringComparison.OrdinalIgnoreCase),
+            scheme,
             cancellationToken);
     }
 
     /// <inheritdoc />
     public Task<MediaDurationProbeResult> ProbeStreamAsync(Stream input, CancellationToken cancellationToken)
-        => ProbeAsync(StandardInputArgument, StandardInputArgument, input, TimeSpan.FromSeconds(_options.EffectiveStreamTimeoutSeconds), seekable: false, cancellationToken);
+        => ProbeAsync(StandardInputArgument, StandardInputArgument, input, TimeSpan.FromSeconds(_options.EffectiveStreamTimeoutSeconds), seekable: false, httpInput: false, scheme: null, cancellationToken);
+
+    /// <summary>
+    /// Masks credentials <em>and</em> media-stream tokens in a probe URI for log output — the
+    /// internal stream token travels in the URI path, so credential-only masking is not enough.
+    /// </summary>
+    private static string MaskProbeUri(string uri)
+        => InternalMediaStreamTokenService.MaskStreamTokenInText(SftpProbeUriBuilder.MaskCredentials(uri));
 
     /// <param name="inputArgument">The input argument handed to ffprobe — may contain credentials.</param>
     /// <param name="displayInput">Credential-masked representation of <paramref name="inputArgument"/> used for all log output.</param>
@@ -105,6 +134,16 @@ public class FfprobeMediaDurationProbe : IMediaDurationProbe
     /// <c>sftp://</c>). Only then do permanent stderr markers prove a broken file — a piped
     /// stream produces the same errors when the feed aborts early.
     /// </param>
+    /// <param name="httpInput">
+    /// Whether the input is an <c>http(s)</c> URI. Only then do HTTP transport errors prove
+    /// the URI itself cannot be served (endpoint unreachable or rejecting), so the result is
+    /// <see cref="MediaDurationProbeResult.UriUnsupported"/> — for other URI schemes or piped
+    /// input the same words in stderr mean something else.
+    /// </param>
+    /// <param name="scheme">
+    /// URI scheme of the input (<c>http</c>, <c>sftp</c>, …) or <see langword="null"/> for
+    /// file/stdin inputs — used to remember per-scheme "protocol not supported" verdicts.
+    /// </param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The probe outcome.</returns>
     private async Task<MediaDurationProbeResult> ProbeAsync(
@@ -113,6 +152,8 @@ public class FfprobeMediaDurationProbe : IMediaDurationProbe
         Stream? stdin,
         TimeSpan timeout,
         bool seekable,
+        bool httpInput,
+        string? scheme,
         CancellationToken cancellationToken)
     {
         var ffprobePath = _locator.Resolve();
@@ -147,15 +188,24 @@ public class FfprobeMediaDurationProbe : IMediaDurationProbe
 
         if (result.ExitCode != 0)
         {
-            // ffprobe echoes the input URI (including embedded credentials) in error output —
-            // mask before logging or inspecting.
-            var stderr = SftpProbeUriBuilder.MaskCredentialsInText(result.StandardError);
+            // ffprobe echoes the input URI (including embedded credentials or the stream
+            // token in the path) in error output — mask before logging or inspecting.
+            var stderr = InternalMediaStreamTokenService.MaskStreamTokenInText(
+                SftpProbeUriBuilder.MaskCredentialsInText(result.StandardError));
 
-            if (stderr.Contains(ProtocolNotFoundMarker, StringComparison.OrdinalIgnoreCase))
+            if (scheme is not null && stderr.Contains(ProtocolNotFoundMarker, StringComparison.OrdinalIgnoreCase))
             {
-                _uriProtocolUnsupported = true;
+                _unsupportedSchemes[scheme] = 1;
                 _logger.LogWarning(
-                    "ffprobe-Aufruf für '{Input}' endete mit Exit-Code {ExitCode}: das Protokoll der Eingabe wird von diesem ffprobe-Build nicht unterstützt ({Error}); künftige URI-Probes werden übersprungen.",
+                    "ffprobe-Aufruf für '{Input}' endete mit Exit-Code {ExitCode}: das Protokoll '{Scheme}' wird von diesem ffprobe-Build nicht unterstützt ({Error}); künftige URI-Probes dieses Schemas werden übersprungen.",
+                    displayInput, result.ExitCode, scheme, Truncate(stderr));
+                return MediaDurationProbeResult.UriUnsupportedFailure;
+            }
+
+            if (httpInput && ContainsHttpTransportErrorMarker(stderr))
+            {
+                _logger.LogWarning(
+                    "ffprobe-Aufruf für '{Input}' endete mit Exit-Code {ExitCode} und einem HTTP-Transportfehler ({Error}) — es wird auf andere Eingabemethoden zurückgefallen.",
                     displayInput, result.ExitCode, Truncate(stderr));
                 return MediaDurationProbeResult.UriUnsupportedFailure;
             }
@@ -184,6 +234,17 @@ public class FfprobeMediaDurationProbe : IMediaDurationProbe
         }
 
         return MediaDurationProbeResult.Success(duration.Value);
+    }
+
+    private static bool ContainsHttpTransportErrorMarker(string stderr)
+    {
+        foreach (var marker in HttpTransportErrorMarkers)
+        {
+            if (stderr.Contains(marker, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
     }
 
     private static bool ContainsPermanentErrorMarker(string stderr)

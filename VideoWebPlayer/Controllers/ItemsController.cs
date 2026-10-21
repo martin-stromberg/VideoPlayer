@@ -641,15 +641,7 @@ public class ItemsController : ApiBaseController
         if (stream is null)
             throw new RecordNotFoundException("Für diesen Titel ist keine Videodatei hinterlegt");
 
-        var ext = Path.GetExtension(fileName).ToLowerInvariant();
-        var contentType = ext switch
-        {
-            ".mp4" => "video/mp4",
-            ".mkv" => "video/x-matroska",
-            ".avi" => "video/x-msvideo",
-            ".mpeg" => "video/mpeg",
-            _ => "application/octet-stream"
-        };
+        var contentType = MediaFileContentTypes.ForFileName(fileName);
 
         return new MediaFile(stream, fileName, contentType);
     }

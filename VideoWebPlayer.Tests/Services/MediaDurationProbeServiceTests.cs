@@ -22,6 +22,7 @@ public class MediaDurationProbeServiceTests : IDisposable
     private readonly FakeFfprobeLocator _locator = new();
     private readonly StubMediaSourceReader _reader = new();
     private readonly FakeScheduleSignal _signal = new();
+    private readonly StubStreamTokenService _streamTokens = new();
     private readonly MediaProbeOptions _probeOptions = new();
 
     public MediaDurationProbeServiceTests()
@@ -42,6 +43,7 @@ public class MediaDurationProbeServiceTests : IDisposable
         services.AddSingleton<IMediaDurationProbe>(_probe);
         services.AddSingleton<IFfprobeLocator>(_locator);
         services.AddSingleton<IProgramScheduleSignal>(_signal);
+        services.AddSingleton<IInternalMediaStreamTokenService>(_streamTokens);
         services.AddSingleton(Options.Create(_probeOptions));
         services.AddScoped<MediaDurationProbeService>();
         services.AddSingleton<Microsoft.Extensions.Logging.ILogger<MediaDurationProbeService>>(
@@ -345,6 +347,101 @@ public class MediaDurationProbeServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ProbePendingAsync_RemoteItem_ProbesViaHttpUri()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var item = await SeedSftpItemAsync("episode.mkv", "/remote/media/episode.mkv");
+        _streamTokens.UriToReturn = "http://127.0.0.1:5039/api/internal/media-stream/abc123";
+        _probe.UriResult = MediaDurationProbeResult.Success(TimeSpan.FromMinutes(22));
+
+        var service = _serviceProvider.GetRequiredService<MediaDurationProbeService>();
+        await service.ProbePendingAsync(10, ct);
+
+        Assert.Equal(1, _streamTokens.CreateCalls);
+        Assert.Equal(item.Id, _streamTokens.LastMediaItemId);
+        Assert.Equal(1, _probe.UriCalls);
+        Assert.Equal("http://127.0.0.1:5039/api/internal/media-stream/abc123", _probe.LastUri);
+        Assert.Equal(0, _probe.StreamCalls);
+        Assert.Equal(0, _reader.OpenFileStreamCalls);
+        Assert.Equal(TimeSpan.FromMinutes(22), (await ReloadAsync(item.Id, ct)).Duration);
+    }
+
+    [Fact]
+    public async Task ProbePendingAsync_HttpUriUnsupported_FallsBackToSftpUri()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await SeedSftpItemAsync("episode.mkv", "/remote/media/episode.mkv");
+        _streamTokens.UriToReturn = "http://127.0.0.1:5039/api/internal/media-stream/abc123";
+        _probe.UriResultSelector = uri => uri.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+            ? MediaDurationProbeResult.UriUnsupportedFailure
+            : MediaDurationProbeResult.Success(TimeSpan.FromMinutes(22));
+
+        var service = _serviceProvider.GetRequiredService<MediaDurationProbeService>();
+        await service.ProbePendingAsync(10, ct);
+
+        Assert.Equal(2, _probe.UriCalls);
+        Assert.Equal("sftp://user:s3cret@nas.local:22/remote/media/episode.mkv", _probe.LastUri);
+        Assert.Equal(0, _probe.StreamCalls);
+    }
+
+    [Fact]
+    public async Task ProbePendingAsync_HttpUriUnsupported_NoSftpUri_FallsBackToStream()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // Ohne Credentials ist keine sftp://-URL baubar → pipe:0 bleibt letzter Fallback.
+        var item = await SeedItemAsync("episode.mkv", MediaSourceType.Sftp);
+        _streamTokens.UriToReturn = "http://127.0.0.1:5039/api/internal/media-stream/abc123";
+        _probe.UriResult = MediaDurationProbeResult.UriUnsupportedFailure;
+        _reader.StreamToReturn = new MemoryStream(new byte[] { 1, 2, 3 });
+        _probe.StreamResult = MediaDurationProbeResult.Success(TimeSpan.FromMinutes(22));
+
+        var service = _serviceProvider.GetRequiredService<MediaDurationProbeService>();
+        await service.ProbePendingAsync(10, ct);
+
+        Assert.Equal(1, _probe.UriCalls);
+        Assert.Equal(1, _probe.StreamCalls);
+        Assert.Equal(TimeSpan.FromMinutes(22), (await ReloadAsync(item.Id, ct)).Duration);
+    }
+
+    [Fact]
+    public async Task ProbePendingAsync_HttpProbeTransient_DoesNotCascadeToPipe()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var item = await SeedSftpItemAsync("episode.mkv", "/remote/media/episode.mkv");
+        _streamTokens.UriToReturn = "http://127.0.0.1:5039/api/internal/media-stream/abc123";
+        _probe.UriResult = MediaDurationProbeResult.TransientFailure;
+        _reader.StreamToReturn = new MemoryStream(new byte[] { 1, 2, 3 });
+        _probe.StreamResult = MediaDurationProbeResult.Success(TimeSpan.FromMinutes(22));
+
+        var service = _serviceProvider.GetRequiredService<MediaDurationProbeService>();
+        await service.ProbePendingAsync(10, ct);
+
+        // Ein vorübergehender HTTP-Fehler zählt als Versuch — nicht innerhalb desselben
+        // Versuchs noch einmal 600s pipe:0 verbrennen.
+        Assert.Equal(1, _probe.UriCalls);
+        Assert.Equal(0, _probe.StreamCalls);
+        Assert.Equal(1, (await ReloadAsync(item.Id, ct)).DurationProbeAttempts);
+    }
+
+    [Fact]
+    public async Task ProbePendingAsync_LocalItem_DoesNotUseHttpProbe()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var filePath = Path.Combine(_rootDir, "clip.mp4");
+        await File.WriteAllTextAsync(filePath, "video", ct);
+        await SeedItemAsync("clip.mp4", MediaSourceType.LocalDirectory, filePath);
+        _streamTokens.UriToReturn = "http://127.0.0.1:5039/api/internal/media-stream/abc123";
+        _probe.FileResult = MediaDurationProbeResult.Success(TimeSpan.FromSeconds(30));
+
+        var service = _serviceProvider.GetRequiredService<MediaDurationProbeService>();
+        await service.ProbePendingAsync(10, ct);
+
+        Assert.Equal(0, _streamTokens.CreateCalls);
+        Assert.Equal(0, _probe.UriCalls);
+        Assert.Equal(1, _probe.FileCalls);
+    }
+
+    [Fact]
     public async Task ProbePendingAsync_ProbeThrows_MarksTransientAndContinues()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -530,6 +627,7 @@ public class MediaDurationProbeServiceTests : IDisposable
         public MediaDurationProbeResult FileResult { get; set; } = MediaDurationProbeResult.Success(TimeSpan.FromMinutes(60));
         public MediaDurationProbeResult StreamResult { get; set; } = MediaDurationProbeResult.Success(TimeSpan.FromMinutes(60));
         public MediaDurationProbeResult UriResult { get; set; } = MediaDurationProbeResult.Success(TimeSpan.FromMinutes(60));
+        public Func<string, MediaDurationProbeResult>? UriResultSelector { get; set; }
         public TimeSpan Delay { get; set; } = TimeSpan.Zero;
         public int FileCalls { get; set; }
         public int StreamCalls { get; set; }
@@ -554,7 +652,7 @@ public class MediaDurationProbeServiceTests : IDisposable
             UriCalls++;
             LastUri = uri;
             await TrackAsync(cancellationToken);
-            return UriResult;
+            return UriResultSelector?.Invoke(uri) ?? UriResult;
         }
 
         public async Task<MediaDurationProbeResult> ProbeStreamAsync(Stream input, CancellationToken cancellationToken)
@@ -589,6 +687,22 @@ public class MediaDurationProbeServiceTests : IDisposable
     {
         public string? Path { get; set; } = "ffprobe";
         public string? Resolve() => Path;
+    }
+
+    private sealed class StubStreamTokenService : IInternalMediaStreamTokenService
+    {
+        public string? UriToReturn { get; set; }
+        public int CreateCalls { get; private set; }
+        public long LastMediaItemId { get; private set; }
+
+        public string? TryCreateProbeUri(long mediaItemId)
+        {
+            CreateCalls++;
+            LastMediaItemId = mediaItemId;
+            return UriToReturn;
+        }
+
+        public long? ResolveMediaItemId(string token) => null;
     }
 
     private sealed class FakeScheduleSignal : IProgramScheduleSignal

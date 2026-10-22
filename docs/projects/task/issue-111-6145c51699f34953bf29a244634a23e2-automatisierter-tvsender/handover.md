@@ -17,6 +17,7 @@
 | 12 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-12-sftp-probe | aktiv | 2026-10-22 |
 | 13 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-13-genre-vererbung | aktiv | 2026-10-22 |
 | 16 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-16-admin-ux | abgeschlossen | 2026-10-22 |
+| 18 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-18-maskottchen | aktiv | 2026-10-24 |
 
 ## Übergabestand je Schritt
 

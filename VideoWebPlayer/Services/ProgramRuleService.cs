@@ -38,7 +38,7 @@ public sealed class ProgramRuleService : IProgramRuleService
             ProgramRuleType.GenreRotation => [ProgramRuleMaterialType.Genre],
             ProgramRuleType.Repeat => AllMaterialTypes,
             ProgramRuleType.HolidaySpecial => AllMaterialTypes,
-            ProgramRuleType.Filler => [ProgramRuleMaterialType.Movie, ProgramRuleMaterialType.MovieCollection, ProgramRuleMaterialType.Genre, ProgramRuleMaterialType.Playlist],
+            ProgramRuleType.Filler => [ProgramRuleMaterialType.Movie, ProgramRuleMaterialType.MovieCollection, ProgramRuleMaterialType.Genre, ProgramRuleMaterialType.Playlist, ProgramRuleMaterialType.Trailer],
             _ => throw new ArgumentException($"Unbekannte Regelart: {ruleType}")
         };
 
@@ -272,6 +272,8 @@ public sealed class ProgramRuleService : IProgramRuleService
             ProgramRuleMaterialType.Movie => await _db.Movies.AnyAsync(m => m.Id == input.MaterialId, cancellationToken),
             ProgramRuleMaterialType.MovieCollection => await _db.MovieCollections.AnyAsync(m => m.Id == input.MaterialId, cancellationToken),
             ProgramRuleMaterialType.Playlist => await _db.Playlists.AnyAsync(m => m.Id == input.MaterialId, cancellationToken),
+            // Trailer material references no entity — it covers every trailer of upcoming movies.
+            ProgramRuleMaterialType.Trailer => true,
             _ => false
         };
 

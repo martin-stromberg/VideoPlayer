@@ -47,6 +47,9 @@ Programmregeln beschreiben wiederkehrende Sendungen. Je Regel wird gepflegt:
   nicht zur Wahl; Alternativnamen werden zum kanonischen Genre aufgelöst, sodass auch Inhalte
   einfließen, deren Genre-Zuordnung noch auf eine versteckte Alternativ-Zeile zeigt.
   Saisonale Genres (Start-/Enddatum) sind nur während ihres Sichtbarkeitsfensters wählbar.
+  Zusätzlich gibt es für Füller-Regeln die Materialart **„Trailer anstehender Filme"**
+  (Checkbox ohne weitere Auswahl): Damit werden Trailer-Dateien eingeplanter Filme bevorzugt als
+  Füllmaterial gesendet — siehe Abschnitt „Trailer" weiter unten.
 - **Priorität** — ganzzahlig; bei sich überschneidenden Regeln gewinnt der höhere Wert.
 - **Status** — aktive Regeln gehen in die Sendeplan-Erzeugung ein, inaktive bleiben erhalten,
   werden aber ignoriert.
@@ -76,6 +79,24 @@ Dabei gilt:
   (Nicht-Administrator-)Publikum freigegeben sind — über den regulären Medienquellenzugriff oder
   eine Einzelfreischaltung der Serie bzw. Filmsammlung.
 - Regeln auf nicht mehr vorhandenes Material werden übersprungen und protokolliert.
+
+### Trailer
+
+Der Sender erkennt Trailer-Dateien automatisch beim Medien-Scan — nach der üblichen
+Plex/Jellyfin-Konvention:
+
+- eine Datei mit **„-trailer"-Endung** neben der Filmdatei (`Film.mp4` → `Film-trailer.mp4`),
+- sowie alle Videodateien in einem Unterordner namens **„trailers"** im Film-Verzeichnis.
+
+Erkannte Trailer werden dem Film zugeordnet, erhalten wie jede Videodatei eine ermittelte
+Laufzeit und tauchen **niemals als regulärer Film** im Programm oder der Medienübersicht auf —
+sie stehen ausschließlich als Füllmaterial zur Verfügung.
+
+Mit der Materialart **„Trailer anstehender Filme"** in einer Füller-Regel bevorzugt der
+Sendeplan Trailer, deren Film innerhalb der nächsten Tage ausgestrahlt wird
+(Vorlauf-Werbung-Effekt). Passt an einer Position kein Trailer, greifen die übrigen
+Füller-Regeln als Rückfall. Das Vorlauffenster steuert der Betreiber über den
+Konfigurationsschlüssel `ProgramSchedule:TrailerLeadDays` (Standard: 7 Tage).
 
 ### Nachführung bei Änderungen
 

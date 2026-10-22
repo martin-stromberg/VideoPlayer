@@ -21,6 +21,13 @@ namespace VideoWebPlayer.Data
         Genre = 3,
 
         /// <summary>An existing user playlist.</summary>
-        Playlist = 4
+        Playlist = 4,
+
+        /// <summary>
+        /// Trailers of movies scheduled in the upcoming days — a global material without a
+        /// <see cref="ProgramRule.MaterialId"/> reference (filler material "trailer of upcoming
+        /// movies").
+        /// </summary>
+        Trailer = 5
     }
 }

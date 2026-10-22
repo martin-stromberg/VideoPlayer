@@ -1,29 +1,12 @@
-# Aufgabenliste – Anforderungsbearbeitung
+# ToDo: Trailer als Vorlauf-Füllmaterial (N11)
 
-Branch: `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-17-trailer`
-
-Basisbranch: `task/issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender`
-
-| Status | Schritt | Beschreibung | Artefakt |
-|--------|---------|--------------|----------|
-| [x] | 1 | Branch-Name ermitteln | – |
-| [x] | 2 | Verzeichnisstruktur vorbereiten | `docs/features/{branchname}/` |
-| [x] | – | Einstiegspunkt ermitteln | – |
-| [ ] | 3 | Anforderung übersetzen | `requirement.md` |
-| [ ] | 4 | Bestandsaufnahme | `inventory.md`, `inventory/` |
-| [ ] | 5 | Umsetzungsplanung | `plan.md` |
-| [ ] | 5a | Offene Punkte prüfen und ggf. Planung wiederholen | `plan.md` (aktualisiert) |
-| [ ] | 5b | Plan gegen Anforderung und Testbedarf prüfen | `plan-check.md` |
-| [ ] | 5c | Planungscommit | – |
-| [ ] | 6 | Implementierung | Codeänderungen |
-| [ ] | 7 | Plan-Review (bedingt) | `review.md` |
-| [ ] | 8 | Usability-Review (bei UI-Änderungen) | `review-usability.md` |
-| [ ] | 9 | Code-Review | `review-code.md` |
-| [ ] | 10 | Tests ausführen | `test-results.md` |
-| [ ] | – | Iteration oder Abschluss entscheiden | – |
-| [ ] | 11 | Folgeaufgaben dokumentieren (bei Schleifenabbruch) | `continue.md` |
-| [ ] | 12 | Dokumentation erstellen | `docs/help/` |
-| [ ] | 12b | README aktualisieren | `README.md` |
-| [ ] | 12c | Release Notes aktualisieren | `docs/RELEASE_NOTES.md` |
-| [ ] | – | Feature-Verzeichnis löschen | – |
-| [ ] | – | Commit durchführen | – |
+| # | Schritt | Status |
+|---|---------|--------|
+| 1 | Lifecycle: Feature-Verzeichnis + todo.md, requirement.md | Fertig |
+| 2 | Bestandsaufnahme + Baseline (2098 ok / 1 skip) | Fertig |
+| 3 | plan.md + tasks-Datei + plan-check + Planungscommit | Fertig |
+| 4 | Implementierung: Erkennung, Entity/Migration, Füller-Logik, UI, Tests | Fertig |
+| 5 | Reviews: review.md, review-usability.md, review-code.md | Fertig |
+| 6 | Voller Testlauf + test-results.md (2111: 2107 ok, 3 behoben/Flakes → grün) | Fertig |
+| 7 | Doku: tv-sender.md, RELEASE_NOTES (EN), changes.log (entfällt — nicht vorhanden) | Fertig |
+| 8 | Aufräumen + Abschlusscommit | Fertig |

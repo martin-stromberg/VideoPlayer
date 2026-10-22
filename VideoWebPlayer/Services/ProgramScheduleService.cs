@@ -30,6 +30,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     private readonly ProgramSettingsService _settings;
     private readonly ILogger<ProgramScheduleService> _logger;
     private readonly int _maxProbeAttempts;
+    private readonly TimeSpan _trailerLead;
 
     /// <summary>
     /// Creates a new instance.
@@ -40,18 +41,22 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     /// <param name="logger">Logger instance.</param>
     /// <param name="probeOptions">Media probe options — the attempt limit classifies exhausted
     /// duration probes in the rule diagnosis; when <see langword="null"/> the defaults apply.</param>
+    /// <param name="scheduleOptions">Program schedule options — the trailer lead window; when
+    /// <see langword="null"/> the defaults apply.</param>
     public ProgramScheduleService(
         ApplicationDbContext db,
         IProgramRuleService ruleService,
         ProgramSettingsService settings,
         ILogger<ProgramScheduleService> logger,
-        IOptions<MediaProbeOptions>? probeOptions = null)
+        IOptions<MediaProbeOptions>? probeOptions = null,
+        IOptions<ProgramScheduleOptions>? scheduleOptions = null)
     {
         _db = db;
         _ruleService = ruleService;
         _settings = settings;
         _logger = logger;
         _maxProbeAttempts = (probeOptions?.Value ?? new MediaProbeOptions()).EffectiveMaxAttempts;
+        _trailerLead = (scheduleOptions?.Value ?? new ProgramScheduleOptions()).EffectiveTrailerLead;
     }
 
     /// <inheritdoc />
@@ -84,7 +89,11 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         var states = new Dictionary<long, RuleState>();
         foreach (var rule in rules)
         {
-            var items = await ExpandMaterialAsync(rule, access, summary, cancellationToken);
+            // Trailer material expands only after the occurrences are materialized — its content
+            // set depends on the freshly computed movie airings of this very run.
+            var items = rule.MaterialType == ProgramRuleMaterialType.Trailer
+                ? new List<SchedulableItem>()
+                : await ExpandMaterialAsync(rule, access, summary, cancellationToken);
             cursors.TryGetValue(rule.Id, out var cursor);
             states[rule.Id] = new RuleState(rule, items, NextIndexFor(items, cursor));
         }
@@ -101,7 +110,9 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         foreach (var occurrence in occurrences.OrderByDescending(o => o.Rule.Priority).ThenBy(o => o.Rule.Id).ThenBy(o => o.StartUtc))
             MaterializeOccurrence(occurrence, states, blocked, newSlots, coverageStart, summary);
 
-        FillGaps(states, rules, blocked, newSlots, coverageStart, horizonEnd.UtcDateTime, summary);
+        var movieAirings = await LoadMovieAiringsAsync(channel.Id, coverageStart, newSlots, cancellationToken);
+        await ExpandTrailerStatesAsync(states, cursors, access, movieAirings, coverageStart, summary, cancellationToken);
+        FillGaps(states, rules, blocked, newSlots, coverageStart, horizonEnd.UtcDateTime, summary, movieAirings);
 
         PersistCursors(states, cursors);
         _db.ProgramSlots.AddRange(newSlots);
@@ -141,10 +152,11 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             .Where(c => ruleIds.Contains(c.ProgramRuleId))
             .ToDictionaryAsync(c => c.ProgramRuleId, cancellationToken);
 
+        var airingsByMovie = await LoadMovieAiringsAsync(channel.Id, coverageStart, [], cancellationToken);
         var states = new Dictionary<long, RuleState>();
         foreach (var rule in rules)
         {
-            var items = await ExpandMaterialAsync(rule, access, summary, cancellationToken);
+            var items = await ExpandMaterialAsync(rule, access, summary, airingsByMovie, coverageStart, cancellationToken);
             cursors.TryGetValue(rule.Id, out var cursor);
             states[rule.Id] = new RuleState(rule, items, NextIndexFor(items, cursor));
         }
@@ -306,7 +318,8 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             }
         }
 
-        FillGaps(states, activeRules, blocked, newSlots, coverageStart, horizonEnd.UtcDateTime, summary);
+        var leadAirings = await BuildMovieAiringsFromSlotsAsync(keptSlots.Concat(newSlots), coverageStart, cancellationToken);
+        FillGaps(states, activeRules, blocked, newSlots, coverageStart, horizonEnd.UtcDateTime, summary, leadAirings);
 
         PersistCursors(states, cursors);
         _db.ProgramSlots.AddRange(newSlots);
@@ -345,13 +358,14 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             .ToListAsync(cancellationToken);
 
         var access = await LoadAccessContextAsync(cancellationToken);
+        var airingsByMovie = await LoadMovieAiringsAsync(channelId, DateTime.UtcNow, [], cancellationToken);
         var diagnoses = new Dictionary<long, ProgramRuleDiagnosis>();
         foreach (var rule in rules)
         {
             // Fresh counters per rule — the same expansion the schedule run uses, with the skip
             // reasons tallied into a per-rule diagnosis instead of the run summary.
             var counters = new SummaryCounters();
-            var items = await ExpandMaterialAsync(rule, access, counters, cancellationToken);
+            var items = await ExpandMaterialAsync(rule, access, counters, airingsByMovie, DateTime.UtcNow, cancellationToken);
             diagnoses[rule.Id] = new ProgramRuleDiagnosis(
                 rule.Id,
                 counters.MaterialMissing > 0,
@@ -581,7 +595,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     private sealed class RuleState(ProgramRule rule, List<SchedulableItem> items, int nextIndex)
     {
         public ProgramRule Rule { get; } = rule;
-        public List<SchedulableItem> Items { get; } = items;
+        public List<SchedulableItem> Items { get; set; } = items;
         public int NextIndex { get; private set; } = nextIndex;
         public SchedulableItem? LastPlaced { get; private set; }
 
@@ -811,7 +825,8 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         summary.SlotsCreated += ranges.Count;
     }
 
-    private void FillGaps(Dictionary<long, RuleState> states, List<ProgramRule> rules, List<Interval> blocked, List<ProgramSlot> newSlots, DateTime coverageStart, DateTime horizonEnd, SummaryCounters summary)
+    private void FillGaps(Dictionary<long, RuleState> states, List<ProgramRule> rules, List<Interval> blocked, List<ProgramSlot> newSlots, DateTime coverageStart, DateTime horizonEnd, SummaryCounters summary,
+        IReadOnlyDictionary<long, List<DateTime>>? airingsByMovie = null)
     {
         var fillerStates = rules
             .Where(r => r.RuleType == ProgramRuleType.Filler)
@@ -853,7 +868,25 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                 {
                     if (fillAt >= gap.End)
                         break;
-                    var item = filler.PeekAt(0);
+                    var take = 1;
+                    SchedulableItem? item;
+                    if (filler.Rule.MaterialType == ProgramRuleMaterialType.Trailer)
+                    {
+                        // Vorlauf: only a trailer whose movie airs within the lead window after
+                        // this position qualifies — otherwise the rule contributes nothing here
+                        // and the remaining filler rules cover the gap (fallback).
+                        var offset = airingsByMovie is null
+                            ? (int?)null
+                            : FindLeadMatchOffset(filler, fillAt, fillAt + _trailerLead, airingsByMovie);
+                        if (offset is null)
+                            continue;
+                        take = offset.Value + 1;
+                        item = filler.PeekAt(offset.Value);
+                    }
+                    else
+                    {
+                        item = filler.PeekAt(0);
+                    }
                     // Fillers must fit inside the gap — except at the horizon edge, where the last
                     // one may overshoot the window end so coverage truly reaches the horizon.
                     var overshootAllowed = gap.End >= horizonEnd;
@@ -872,7 +905,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                         RuleType = ProgramRuleType.Filler,
                         CreatedAt = DateTime.UtcNow
                     });
-                    filler.Commit(1);
+                    filler.Commit(take);
                     fillAt += item.Duration;
                     summary.FillerSlotsCreated++;
                     summary.SlotsCreated++;
@@ -929,6 +962,10 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     // ---- material expansion ----
 
     private async Task<List<SchedulableItem>> ExpandMaterialAsync(ProgramRule rule, AccessContext access, SummaryCounters summary, CancellationToken cancellationToken)
+        => await ExpandMaterialAsync(rule, access, summary, null, DateTime.UtcNow, cancellationToken);
+
+    private async Task<List<SchedulableItem>> ExpandMaterialAsync(ProgramRule rule, AccessContext access, SummaryCounters summary,
+        IReadOnlyDictionary<long, List<DateTime>>? airingsByMovie, DateTime coverageStart, CancellationToken cancellationToken)
     {
         var items = rule.MaterialType switch
         {
@@ -937,6 +974,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             ProgramRuleMaterialType.MovieCollection => await ExpandMovieCollectionAsync(rule.MaterialId, access, summary, cancellationToken),
             ProgramRuleMaterialType.Genre => await ExpandGenreAsync(rule, access, summary, cancellationToken),
             ProgramRuleMaterialType.Playlist => await ExpandPlaylistAsync(rule.MaterialId, access, summary, cancellationToken),
+            ProgramRuleMaterialType.Trailer => await ExpandTrailersAsync(access, airingsByMovie ?? new Dictionary<long, List<DateTime>>(), coverageStart, summary, cancellationToken),
             _ => new List<SchedulableItem>()
         };
 
@@ -959,7 +997,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     private async Task<Dictionary<long, MediaItemRef>> MovieMediaItemsAsync(IReadOnlyCollection<long> movieIds, CancellationToken cancellationToken)
     {
         var links = await _db.MovieMediaItems
-            .Where(l => movieIds.Contains(l.MovieId))
+            .Where(l => movieIds.Contains(l.MovieId) && !l.IsTrailer)
             .Select(l => new { l.MovieId, l.MediaItemId, l.MediaItem.Duration, l.MediaItem.DurationProbedAt, l.MediaItem.DurationProbeAttempts })
             .ToListAsync(cancellationToken);
         return links.GroupBy(l => l.MovieId).ToDictionary(
@@ -1200,6 +1238,138 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             .Cast<SchedulableItem>()
             .ToList();
         return items;
+    }
+
+    // Deferred expansion pass for trailer-material rules: runs after the occurrences are
+    // materialized so freshly scheduled movie airings of this run count as "movie in the plan".
+    private async Task ExpandTrailerStatesAsync(
+        Dictionary<long, RuleState> states, Dictionary<long, ProgramRuleCursor> cursors,
+        AccessContext access, IReadOnlyDictionary<long, List<DateTime>> airingsByMovie,
+        DateTime coverageStart, SummaryCounters summary, CancellationToken cancellationToken)
+    {
+        foreach (var state in states.Values.Where(s => s.Rule.MaterialType == ProgramRuleMaterialType.Trailer))
+        {
+            var items = await ExpandTrailersAsync(access, airingsByMovie, coverageStart, summary, cancellationToken);
+            if (items.Count == 0)
+            {
+                summary.OrphanedRules++;
+                _logger.LogInformation(
+                    "[ProgramSchedule] Regel {RuleId} ({Name}) liefert kein planbares Material (verwaist, ohne Laufzeit oder nicht freigegeben).",
+                    state.Rule.Id, state.Rule.Name);
+            }
+            cursors.TryGetValue(state.Rule.Id, out var cursor);
+            state.Items = items;
+            state.RewindTo(NextIndexFor(items, cursor));
+        }
+    }
+
+    // Expands the "trailer of upcoming movies" material: every trailer link whose movie airs in
+    // the covered window, deduplicated by media item and ordered by the movie's next airing so
+    // the soonest trailer leads. The per-gap lead check in FillGaps applies the configured
+    // TrailerLeadDays window on top of this candidate set.
+    private async Task<List<SchedulableItem>> ExpandTrailersAsync(
+        AccessContext access, IReadOnlyDictionary<long, List<DateTime>> airingsByMovie,
+        DateTime coverageStart, SummaryCounters summary, CancellationToken cancellationToken)
+    {
+        var links = await _db.MovieMediaItems
+            .AsNoTracking()
+            .Where(l => l.IsTrailer)
+            .Select(l => new
+            {
+                l.MovieId,
+                l.MediaItemId,
+                l.MediaItem.Duration,
+                l.MediaItem.DurationProbedAt,
+                l.MediaItem.DurationProbeAttempts,
+                l.Movie.MediaSourceId,
+                l.Movie.MovieCollectionId
+            })
+            .ToListAsync(cancellationToken);
+        if (links.Count == 0)
+            return [];
+
+        var items = new List<SchedulableItem>();
+        foreach (var link in links
+                     .GroupBy(l => l.MediaItemId)
+                     .Select(g => g.OrderBy(l => airingsByMovie.GetValueOrDefault(l.MovieId)?.FirstOrDefault() ?? DateTime.MaxValue).First())
+                     .OrderBy(l => airingsByMovie.GetValueOrDefault(l.MovieId)?.FirstOrDefault() ?? DateTime.MaxValue))
+        {
+            summary.Candidates++;
+            if (link.Duration is null)
+            {
+                CountNoDuration(new MediaItemRef(link.MediaItemId, link.Duration, link.DurationProbedAt, link.DurationProbeAttempts), summary);
+                continue;
+            }
+            if (!access.Allows(link.MediaSourceId, null, link.MovieCollectionId))
+            {
+                summary.SkippedNoAccess++;
+                continue;
+            }
+            if (!airingsByMovie.TryGetValue(link.MovieId, out var starts) || !starts.Exists(s => s > coverageStart))
+                continue; // movie has no upcoming airing in the covered window
+            items.Add(new SchedulableItem(ProgramCursorContentType.Trailer, link.MediaItemId, link.MediaItemId, link.MovieId, null, link.Duration.Value));
+        }
+        return items;
+    }
+
+    // Index of the first item in the filler ring whose movie airs within (fillAt, leadEnd] —
+    // the "trailer leads the movie" check evaluated per gap position.
+    private static int? FindLeadMatchOffset(RuleState state, DateTime fillAt, DateTime leadEnd, IReadOnlyDictionary<long, List<DateTime>> airingsByMovie)
+    {
+        for (var i = 0; i < state.Items.Count; i++)
+        {
+            var item = state.PeekAt(i);
+            if (item?.MovieId is { } movieId
+                && airingsByMovie.TryGetValue(movieId, out var starts)
+                && starts.Exists(s => s > fillAt && s <= leadEnd))
+                return i;
+        }
+        return null;
+    }
+
+    private async Task<HashSet<long>> TrailerMediaItemIdsAsync(CancellationToken cancellationToken)
+        => (await _db.MovieMediaItems
+                .Where(l => l.IsTrailer)
+                .Select(l => l.MediaItemId)
+                .ToListAsync(cancellationToken))
+            .ToHashSet();
+
+    private async Task<Dictionary<long, List<DateTime>>> LoadMovieAiringsAsync(long channelId, DateTime afterUtc, IEnumerable<ProgramSlot> extraSlots, CancellationToken cancellationToken)
+    {
+        var trailerItemIds = await TrailerMediaItemIdsAsync(cancellationToken);
+        var rows = await _db.ProgramSlots
+            .Where(s => s.TVChannelId == channelId && s.Status == ProgramSlotStatus.Scheduled && s.MovieId != null && s.Start > afterUtc)
+            .Select(s => new { s.MovieId, s.MediaItemId, s.Start })
+            .ToListAsync(cancellationToken);
+        return BuildMovieAiringsMap(
+            rows.Select(r => (r.MovieId, r.MediaItemId, r.Start))
+                .Concat(extraSlots.Select(s => (s.MovieId, s.MediaItemId, s.Start))),
+            afterUtc, trailerItemIds);
+    }
+
+    private async Task<Dictionary<long, List<DateTime>>> BuildMovieAiringsFromSlotsAsync(IEnumerable<ProgramSlot> slots, DateTime afterUtc, CancellationToken cancellationToken)
+    {
+        var trailerItemIds = await TrailerMediaItemIdsAsync(cancellationToken);
+        return BuildMovieAiringsMap(
+            slots.Select(s => (s.MovieId, s.MediaItemId, s.Start)),
+            afterUtc, trailerItemIds);
+    }
+
+    // Groups movie airing starts per movie; slots produced by trailer material itself (media item
+    // is a trailer link) never count as an airing of the movie.
+    private static Dictionary<long, List<DateTime>> BuildMovieAiringsMap(
+        IEnumerable<(long? MovieId, long MediaItemId, DateTime Start)> slots, DateTime afterUtc, HashSet<long> trailerItemIds)
+    {
+        var map = new Dictionary<long, List<DateTime>>();
+        foreach (var s in slots)
+        {
+            if (s.MovieId is not { } movieId || s.Start <= afterUtc || trailerItemIds.Contains(s.MediaItemId))
+                continue;
+            (map.TryGetValue(movieId, out var list) ? list : map[movieId] = []).Add(s.Start);
+        }
+        foreach (var list in map.Values)
+            list.Sort();
+        return map;
     }
 
     private async Task<List<SchedulableItem>> ExpandPlaylistAsync(long playlistId, AccessContext access, SummaryCounters summary, CancellationToken cancellationToken)

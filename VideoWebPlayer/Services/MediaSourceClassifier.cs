@@ -576,6 +576,10 @@ namespace VideoWebPlayer.Services
                 if (!fileExtensions_Video.Contains(ext))
                     continue;
 
+                // Trailer-Dateien („-trailer"-Suffix oder „trailers"-Unterordner) sind nie Episoden.
+                if (IsTrailerFileName(item.Path) || (item.MediaCollection is not null && IsTrailerFolder(item.MediaCollection)))
+                    continue;
+
                 // NFO-Dateiname bestimmen
                 var nfoFileName = System.IO.Path.ChangeExtension(System.IO.Path.GetFileName(item.Path), ".nfo");
                 var collection = item.MediaCollection;
@@ -763,6 +767,18 @@ namespace VideoWebPlayer.Services
         /// </summary>
         /// <param name="collection">Die zu verarbeitende Collection.</param>
         /// <param name="cancellationToken">Token zum Abbrechen der Verarbeitung.</param>
+        // Trailer-Dateikonventionen (Plex/Jellyfin): „-trailer"-Suffix neben der Filmdatei und
+        // ein Unterordner namens „trailers". Solche Dateien werden nie als regulärer Film
+        // klassifiziert, sondern dem Film als Trailer-Link zugeordnet.
+        private const string TrailerFolderName = "trailers";
+        private const string TrailerSuffix = "-trailer";
+
+        private static bool IsTrailerFolder(MediaCollection collection)
+            => string.Equals(collection.Name, TrailerFolderName, StringComparison.OrdinalIgnoreCase);
+
+        private static bool IsTrailerFileName(string path)
+            => Path.GetFileNameWithoutExtension(path)?.EndsWith(TrailerSuffix, StringComparison.OrdinalIgnoreCase) == true;
+
         private async Task ProcessCollectionAsMovieAsync(MediaCollection collection, CancellationToken cancellationToken)
         {
             // 1. Alle MediaItems (Videodateien) der Collection laden
@@ -770,12 +786,21 @@ namespace VideoWebPlayer.Services
                 .Where(mi => mi.MediaCollectionId == collection.Id)
                 .ToListAsync(cancellationToken);
 
+            var trailerItems = new List<MediaItem>();
             var movies = new List<Movie>();
             foreach (var item in mediaItems)
             {
                 var ext = Path.GetExtension(item.Path);
                 if (!fileExtensions_Video.Contains(ext))
                     continue;
+
+                // Trailer-Dateien werden gesammelt und nach der Filmverarbeitung verknüpft —
+                // sie dürfen keinen eigenen Movie-Datensatz erzeugen.
+                if (IsTrailerFileName(item.Path) || IsTrailerFolder(collection))
+                {
+                    trailerItems.Add(item);
+                    continue;
+                }
                 // NFO-Dateiname bestimmen
                 var nfoFileName = System.IO.Path.ChangeExtension(System.IO.Path.GetFileName(item.Path), ".nfo");
 
@@ -930,14 +955,99 @@ namespace VideoWebPlayer.Services
                 }
                 await AssignPicturesToMovieCollectionAsync(existingCollection, collection, cancellationToken);
             }
+
+            // 4. Trailer-Kandidaten verknüpfen.
+            await LinkTrailerMediaItemsAsync(collection, mediaItems, trailerItems, cancellationToken);
+
+            // 5. Video-Items eines „trailers"-Unterordners allen Filmen dieser Collection zuordnen.
+            if (!IsTrailerFolder(collection))
+            {
+                var trailerChildIds = (await _db.MediaCollections
+                        .Where(c => c.ParentMediaCollectionId == collection.Id)
+                        .ToListAsync(cancellationToken))
+                    .Where(IsTrailerFolder)
+                    .Select(c => c.Id)
+                    .ToList();
+                if (trailerChildIds.Count > 0)
+                {
+                    var childTrailerItems = await _db.MediaItems
+                        .Where(mi => trailerChildIds.Contains(mi.MediaCollectionId))
+                        .ToListAsync(cancellationToken);
+                    var ownMovieIds = await _db.Movies
+                        .Where(m => m.CollectionId == collection.Id)
+                        .Select(m => m.Id)
+                        .ToListAsync(cancellationToken);
+                    foreach (var childItem in childTrailerItems.Where(i => fileExtensions_Video.Contains(Path.GetExtension(i.Path))))
+                    {
+                        foreach (var movieId in ownMovieIds)
+                            await EnsureTrailerLinkAsync(movieId, childItem, cancellationToken);
+                    }
+                }
+            }
+        }
+
+        // Verknüpft Trailer-Kandidaten mit Filmen: bei einer „trailers"-Collection über alle
+        // Filme der Eltern-Collection, bei „-trailer"-Suffix über den gleichnamigen Film-Stamm.
+        private async Task LinkTrailerMediaItemsAsync(
+            MediaCollection collection, IReadOnlyCollection<MediaItem> siblings,
+            IReadOnlyCollection<MediaItem> trailerItems, CancellationToken cancellationToken)
+        {
+            foreach (var trailer in trailerItems)
+            {
+                var targetMovieIds = new List<long>();
+                if (IsTrailerFolder(collection))
+                {
+                    if (collection.ParentMediaCollectionId is { } parentId)
+                        targetMovieIds = await _db.Movies
+                            .Where(m => m.CollectionId == parentId)
+                            .Select(m => m.Id)
+                            .ToListAsync(cancellationToken);
+                }
+                else if (IsTrailerFileName(trailer.Path))
+                {
+                    var stem = Path.GetFileNameWithoutExtension(trailer.Path)!;
+                    stem = stem[..^TrailerSuffix.Length];
+                    var host = siblings.FirstOrDefault(mi =>
+                        string.Equals(Path.GetFileNameWithoutExtension(mi.Path), stem, StringComparison.OrdinalIgnoreCase));
+                    if (host is not null)
+                    {
+                        var movieId = await _db.MovieMediaItems
+                            .Where(mmi => mmi.MediaItemId == host.Id && !mmi.IsTrailer)
+                            .Select(mmi => (long?)mmi.MovieId)
+                            .FirstOrDefaultAsync(cancellationToken);
+                        if (movieId is { } id)
+                            targetMovieIds.Add(id);
+                    }
+                }
+
+                foreach (var movieId in targetMovieIds)
+                    await EnsureTrailerLinkAsync(movieId, trailer, cancellationToken);
+            }
+        }
+
+        private async Task EnsureTrailerLinkAsync(long movieId, MediaItem trailer, CancellationToken cancellationToken)
+        {
+            var link = await _db.MovieMediaItems
+                .FirstOrDefaultAsync(mmi => mmi.MovieId == movieId && mmi.MediaItemId == trailer.Id, cancellationToken);
+            if (link is null)
+            {
+                _db.MovieMediaItems.Add(new MovieMediaItem { MovieId = movieId, MediaItemId = trailer.Id, IsTrailer = true });
+                await _db.SaveChangesAsync(cancellationToken);
+                _logger.LogInformation("Trailer '{TrailerPath}' mit Film {MovieId} verknüpft.", trailer.Path, movieId);
+            }
+            else if (!link.IsTrailer)
+            {
+                link.IsTrailer = true;
+                await _db.SaveChangesAsync(cancellationToken);
+            }
         }
 
         private async Task AssignPicturesToMovieAsync(Movie movie, MediaCollection collection, CancellationToken cancellationToken)
         {
-            // Alle zugeordneten MediaItems des Movies laden
+            // Alle zugeordneten MediaItems des Movies laden (Trailer-Links sind keine Hauptdateien)
             var movieMediaItems = await _db.MovieMediaItems
                 .Include(mmi => mmi.MediaItem)
-                .Where(mmi => mmi.MovieId == movie.Id)
+                .Where(mmi => mmi.MovieId == movie.Id && !mmi.IsTrailer)
                 .ToListAsync(cancellationToken);
 
             if (movieMediaItems.Count == 0)
@@ -1657,7 +1767,7 @@ namespace VideoWebPlayer.Services
                     if (movie.IsManuallyEdited)
                         continue;
 
-                    var mediaItem = movie.MovieMediaItems.Select(mmi => mmi.MediaItem).FirstOrDefault();
+                    var mediaItem = movie.MovieMediaItems.Where(mmi => !mmi.IsTrailer).Select(mmi => mmi.MediaItem).FirstOrDefault();
                     if (mediaItem?.MediaCollection is null)
                         continue;
 

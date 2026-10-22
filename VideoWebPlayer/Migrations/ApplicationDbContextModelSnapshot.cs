@@ -203,6 +203,9 @@ namespace VideoWebPlayer.Migrations
                     b.Property<long>("MediaItemId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("IsTrailer")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("MovieId", "MediaItemId");
 
                     b.HasIndex("MediaItemId");

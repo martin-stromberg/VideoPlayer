@@ -162,11 +162,13 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         }
 
         // Scheduled slots reaching into the lookback window — wide enough to capture the head slot
-        // of airings that are still running.
+        // of airings that are still running. No upper bound on Start: an airing overshooting the
+        // horizon must be loaded completely, otherwise the truncated tail fails the sequence check
+        // and gets displaced — which then re-materializes the same positions and piles up
+        // overlapping displaced duplicates run over run.
         var loadFrom = coverageStart - OccurrenceLookback;
         var scheduled = await _db.ProgramSlots
-            .Where(s => s.TVChannelId == channel.Id && s.Status == ProgramSlotStatus.Scheduled
-                && s.End > loadFrom && s.Start < horizonEnd.UtcDateTime)
+            .Where(s => s.TVChannelId == channel.Id && s.Status == ProgramSlotStatus.Scheduled && s.End > loadFrom)
             .OrderBy(s => s.Start)
             .ToListAsync(cancellationToken);
 
@@ -205,8 +207,8 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
                 var rule = airing[0].ProgramRuleId is { } rid ? rulesById.GetValueOrDefault(rid) : null;
                 var invalid = rule is null || !rule.IsActive
-                    || !occurrenceStarts.TryGetValue(rule.Id, out var starts) || !starts.Contains(airing[0].Start)
-                    || !AiringReproducible(airing, states[rule.Id]);
+                    || !occurrenceStarts.TryGetValue(rule.Id, out var starts)
+                    || !AiringReproducible(airing, states[rule.Id], starts);
                 if (invalid)
                     firstInvalid = i;
             }
@@ -411,14 +413,20 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         return airings;
     }
 
-    // An airing is still valid iff its producing rule would schedule exactly this slot sequence at
-    // the airing's start occurrence: the first slot's content is located in the current expansion
-    // and the same item-selection logic (EpisodeCount / SlotDuration) reproduces count, media items
-    // and slot boundaries.
-    private static bool AiringReproducible(List<ProgramSlot> airing, RuleState state)
+    // An airing is still valid iff its producing rule would schedule exactly this slot sequence for
+    // the occurrence the airing belongs to. That occurrence may already have been in progress when
+    // the plan was extended: the materialization writes only the slots ending after the coverage
+    // start, so the first written slot of a partially aired occurrence legitimately begins
+    // mid-occurrence instead of at the occurrence start (the already "aired" head items consumed
+    // cursor progress but produced no slot row). The check therefore walks the item ring backwards
+    // from the airing's head item — each step counts one more skipped head item — and accepts the
+    // first skipped-prefix length whose cumulative duration lands the airing's start exactly on an
+    // occurrence start of the rule. The written tail must then reproduce count, media items and
+    // slot boundaries under the same selection logic (EpisodeCount / SlotDuration).
+    private static bool AiringReproducible(List<ProgramSlot> airing, RuleState state, HashSet<DateTime> occurrenceStarts)
     {
         var items = state.Items;
-        if (items.Count == 0)
+        if (items.Count == 0 || occurrenceStarts.Count == 0)
             return false;
 
         var idx = FindItemIndex(items, airing[0]);
@@ -430,29 +438,57 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             : rule.SlotDuration is not null ? int.MaxValue : 1;
         var target = rule.EpisodeCount is > 0 ? (TimeSpan?)null : rule.SlotDuration;
 
-        var expected = new List<SchedulableItem>();
-        var accumulated = TimeSpan.Zero;
-        for (var i = 0; i < wanted; i++)
+        var count = items.Count;
+        var earliestStart = occurrenceStarts.Min();
+        var skipped = TimeSpan.Zero;
+        for (var k = 0; k < wanted; k++)
         {
-            var item = items[(idx + i) % items.Count];
-            expected.Add(item);
-            accumulated += item.Duration;
-            if (target is not null && accumulated >= target)
-                break;
-        }
+            if (k > 0)
+            {
+                var headDuration = items[((idx - k) % count + count) % count].Duration;
+                if (headDuration <= TimeSpan.Zero)
+                    break; // degenerate duration — the backward walk would never progress
+                skipped += headDuration;
+            }
+            var occurrenceStart = airing[0].Start - skipped;
+            if (occurrenceStart < earliestStart)
+                break; // skipped duration already reaches past the oldest occurrence in the window
+            if (!occurrenceStarts.Contains(occurrenceStart))
+                continue;
 
-        if (expected.Count != airing.Count)
-            return false;
+            // Candidate: the occurrence started k head items before the airing's first slot.
+            var headIndex = ((idx - k) % count + count) % count;
+            var expected = new List<SchedulableItem>();
+            var accumulated = TimeSpan.Zero;
+            for (var i = 0; i < wanted; i++)
+            {
+                var item = items[(headIndex + i) % count];
+                expected.Add(item);
+                accumulated += item.Duration;
+                if (target is not null && accumulated >= target)
+                    break;
+            }
 
-        var start = airing[0].Start;
-        for (var i = 0; i < expected.Count; i++)
-        {
-            var slot = airing[i];
-            if (slot.MediaItemId != expected[i].MediaItemId || slot.Start != start || slot.End != start + expected[i].Duration)
-                return false;
-            start = slot.End;
+            if (expected.Count - k != airing.Count)
+                continue;
+
+            var start = airing[0].Start;
+            var matches = true;
+            for (var i = 0; i < airing.Count; i++)
+            {
+                var slot = airing[i];
+                var item = expected[k + i];
+                if (slot.MediaItemId != item.MediaItemId || slot.Start != start || slot.End != start + item.Duration)
+                {
+                    matches = false;
+                    break;
+                }
+                start = slot.End;
+            }
+            if (matches)
+                return true;
         }
-        return true;
+        return false;
     }
 
     // Locates a slot's content inside the expanded list: by media item first (unique), then by the

@@ -283,3 +283,8 @@
 - Doku: `docs/help/tv-sender.md` (fortgefuehrte Playlist + DISCONTINUITY statt „beginnt je Sendung sauber"), `docs/RELEASE_NOTES.md` (EN+DE).
 - Hinweis an Abnahme: bewusste Nicht-Umsetzung von `-hls_start_number_source`/Controller-Rewrite — begruendet oben; `append_list` existiert seit ffmpeg ~2.x, Deployment-Risiko minimal (bei fehlender Unterstuetzung: Start-Fehler → LastUnexpectedExit-Diagnose, nichts Schlimmeres als heute).
 - Lifecycle-Artefakte: `docs/features/task-issue-111-...-schritt-20-slot-wechsel/` (im Abschlusscommit entfernt, Planung in Historie).
+
+
+### Schritt 20: Slot-Wechsel (N17) — FERTIG (abgenommen)
+
+- hls_flags append_list+discont_start+program_date_time: Sequence+Zaehler laufen fort, ffmpeg markiert Generationsgrenze selbst mit EXT-X-DISCONTINUITY; liveTv.js Recovery differenziert; FileShare-Fix im Controller (Playlist-Read blockierte Muxer-Write). Abnahme: `acceptance-schritt-20.md` — erfüllt.

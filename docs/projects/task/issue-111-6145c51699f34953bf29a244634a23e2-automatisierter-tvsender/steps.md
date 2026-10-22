@@ -22,3 +22,4 @@ Branch: `task/issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsende
 | 16 | Adminseite restrukturieren + Fehlschlag-/Ausstehend-Liste (N13+N14, Variante 2: HTML-Vorschau) | 10+11 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-16-admin-ux` | Fertig |
 | 17 | Trailer-Verknuepfung + Vorlauf-Fuellmaterial (N11) | 10 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-17-trailer` | Fertig |
 | 18 | Maskottchen-Interstitials: Drehbuecher + Clip-Produktion + Fuehler-Einbindung (N12) | 10 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-18-maskottchen` | Fertig |
+| 19 | Segmenter: stderr-Logging + Range-Input statt pipe:0 (N15) | 6 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-19-stream-input` | In Arbeit |

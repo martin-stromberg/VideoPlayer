@@ -1166,11 +1166,20 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         var accumulated = TimeSpan.Zero;
         var selected = 0;
 
+        // EpisodeCount < strand count would otherwise serve only strand 0 forever;
+        // rotating the start strand by occurrence day gives every strand its turn
+        // over consecutive days. With SlotDuration (wanted >= m) positions stay
+        // identical day-to-day, so the offset stays 0.
+        var startOffset = wanted < m
+            ? (int)((((occurrenceStartUtc.Date - DateTime.UnixEpoch).Days) % m) + m) % m
+            : 0;
+
         while (selected < wanted)
         {
             var progressed = false;
-            for (var s = 0; s < m && selected < wanted; s++)
+            for (var i = 0; i < m && selected < wanted; i++)
             {
+                var s = (startOffset + i) % m;
                 var strand = strands[s];
                 if (done[s] || strand.Items.Count == 0)
                     continue;
@@ -1185,7 +1194,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                     consumed[s]++;
                     picks.Add((s, null)); // oversized head — permanently skipped
                     progressed = true;
-                    s--;                  // the strand's position retries with its next head
+                    i--;                  // the strand's position retries with its next head
                     continue;
                 }
                 picks.Add((s, item));

@@ -1,27 +1,18 @@
-# Aufgabenliste – Anforderungsbearbeitung
+# todo.md
 
-Branch: `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-16-admin-ux`
+Stand: 2026-10-22 — Feature abgeschlossen
 
-| Status | Schritt | Beschreibung | Artefakt |
-|--------|---------|--------------|----------|
-| [x] | 1 | Branch-Name ermitteln | – |
-| [x] | 2 | Verzeichnisstruktur vorbereiten | `docs/features/task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-16-admin-ux/` |
-| [x] | – | Einstiegspunkt ermitteln | – |
-| [ ] | 3 | Anforderung übersetzen | `requirement.md` |
-| [ ] | 4 | Bestandsaufnahme | `inventory.md`, `inventory/` |
-| [ ] | 5 | Umsetzungsplanung | `plan.md` |
-| [ ] | 5a | Offene Punkte prüfen und ggf. Planung wiederholen | `plan.md` (aktualisiert) |
-| [ ] | 5b | Plan gegen Anforderung und Testbedarf prüfen | `plan-check.md` |
-| [ ] | 5c | Planungscommit | – |
-| [ ] | 6 | Implementierung | Codeänderungen |
-| [ ] | 7 | Plan-Review | `review.md` |
-| [ ] | 8 | Usability-Review (bei UI-Änderungen) | `review-usability.md` |
-| [ ] | 9 | Code-Review | `review-code.md` |
-| [ ] | 10 | Tests ausführen | `test-results.md` |
-| [ ] | – | Iteration oder Abschluss entscheiden | – |
-| [ ] | 11 | Folgeaufgaben dokumentieren (bei Schleifenabbruch) | `continue.md` |
-| [ ] | 12 | Dokumentation erstellen | `docs/help/` |
-| [ ] | 12b | README aktualisieren | `README.md` |
-| [ ] | 12c | Release Notes aktualisieren | `docs/RELEASE_NOTES.md` |
-| [ ] | – | Feature-Verzeichnis löschen | – |
-| [ ] | – | Commit durchführen | – |
+- [x] Einstiegspunkt ermitteln, Feature-Verzeichnis anlegen
+- [x] `requirement.md`
+- [x] `inventory/` (inkl. Baseline-Testlauf: 2092 grün, 1 Skip, 0 Fehler)
+- [x] `plan.md`
+- [x] `plan-check.md` → „Plan vollständig"
+- [x] Planungscommit
+- [x] Implementierung (Tab-Layout, Editor-Card, Probe-Detail-Listen, Service-Erweiterung, Tests, Hilfe-Doku)
+- [x] `review.md` → „Vollständig umgesetzt"
+- [x] `review-usability.md` → „Keine Befunde"
+- [x] `review-code.md` → „Keine Befunde"
+- [x] Tests (volle Suite synchron, siehe `test-results.md`: 2098 grün, 1 Skip, 0 Fehler)
+- [x] Abschlussentscheidung: alle offenen Punkte geprüft, keine Blocker — Feature fertig, kein `continue.md`
+- [x] Dokumentation: `docs/help/tv-sender.md`, `docs/RELEASE_NOTES.md` (README.md nicht betroffen — beschreibt keine Seitenstruktur)
+- [x] Abschlusscommit + Aufräumen des Feature-Verzeichnisses

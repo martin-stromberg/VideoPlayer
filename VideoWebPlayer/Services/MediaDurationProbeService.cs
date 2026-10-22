@@ -134,8 +134,9 @@ public sealed class MediaDurationProbeService
     /// <summary>
     /// Aggregates the duration-probe progress for the administration view: counters over all
     /// video media items (probed / pending or retrying / permanently failed), the timestamp of
-    /// the most recent probe attempt, the number of attempts within the last hour and the most
-    /// recently probed items. Administrator-only.
+    /// the most recent probe attempt, the number of attempts within the last hour, the most
+    /// recently probed items and capped detail lists of the pending and failed items.
+    /// Administrator-only.
     /// </summary>
     /// <param name="userId">The requesting user; must be an administrator.</param>
     /// <param name="recentCount">How many recent probe results to return.</param>
@@ -192,33 +193,34 @@ public sealed class MediaDurationProbeService
         }
         else
         {
-            pendingItems = await videos
-                .Where(mi => mi.Duration == null && mi.DurationProbeAttempts < maxAttempts)
-                .OrderByDescending(mi => mi.DurationProbedAt)
-                .Take(detailItemCount)
-                .Select(mi => new MediaDurationProbeDetailItem(
-                    mi.Name,
-                    mi.MediaCollection.MediaSource.Name,
-                    mi.DurationProbedAt,
-                    mi.DurationProbeAttempts))
-                .ToListAsync(cancellationToken);
-
-            failedItems = await videos
-                .Where(mi => mi.Duration == null && mi.DurationProbeAttempts >= maxAttempts)
-                .OrderByDescending(mi => mi.DurationProbedAt)
-                .Take(detailItemCount)
-                .Select(mi => new MediaDurationProbeDetailItem(
-                    mi.Name,
-                    mi.MediaCollection.MediaSource.Name,
-                    mi.DurationProbedAt,
-                    mi.DurationProbeAttempts))
-                .ToListAsync(cancellationToken);
+            pendingItems = await DetailItemsAsync(
+                videos.Where(mi => mi.Duration == null && mi.DurationProbeAttempts < maxAttempts),
+                detailItemCount, cancellationToken);
+            failedItems = await DetailItemsAsync(
+                videos.Where(mi => mi.Duration == null && mi.DurationProbeAttempts >= maxAttempts),
+                detailItemCount, cancellationToken);
         }
 
         return new MediaDurationProbeProgress(
             total, probed, total - probed - failed, failed, lastActivity, probedLastHour, recent,
             pendingItems, failedItems);
     }
+
+    /// <summary>
+    /// Projects up to <paramref name="take"/> media items into detail entries for the expandable
+    /// sections of the progress card, most recently attempted first (never-probed items last).
+    /// </summary>
+    private static async Task<List<MediaDurationProbeDetailItem>> DetailItemsAsync(
+        IQueryable<MediaItem> items, int take, CancellationToken cancellationToken)
+        => await items
+            .OrderByDescending(mi => mi.DurationProbedAt)
+            .Take(take)
+            .Select(mi => new MediaDurationProbeDetailItem(
+                mi.Name,
+                mi.MediaCollection.MediaSource.Name,
+                mi.DurationProbedAt,
+                mi.DurationProbeAttempts))
+            .ToListAsync(cancellationToken);
 
     private async Task RequireAdminAsync(string userId, CancellationToken cancellationToken)
     {

@@ -531,7 +531,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             var headIndex = ((idx - k) % count + count) % count;
             var (expected, consumed) = SelectAiringItems(items, headIndex, rule, occurrenceStart, BoundaryAfter(boundStarts, occurrenceStart, rule.Priority));
             var writtenOffset = k - consumed;
-            if (expected.Count - writtenOffset != airing.Count)
+            if (writtenOffset < 0 || expected.Count - writtenOffset != airing.Count)
                 continue;
 
             var start = airing[0].Start;

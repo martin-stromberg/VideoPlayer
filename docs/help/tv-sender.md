@@ -6,6 +6,12 @@ ausgeliefert wird zunächst genau ein Sender. Der Sendeplan wird fortlaufend im 
 und ist über die Programmauskunft für angemeldete Benutzer abfragbar; HLS-Live-Stream und die
 Live-TV-Ansicht folgen in späteren Schritten.
 
+Die Seite ist in vier Bereiche gegliedert, die über die Reiter (Tabs) oben erreichbar sind:
+**Regeln** (Programmregeln-Tabelle und einklappbarer Regel-Editor), **Sendeplan** (kommende
+Sendeplätze und manueller Generierungsanstoß), **Einstellungen** (Sender, Planung und
+Segmentierung) und **Laufzeitermittlung** (Fortschritt der automatischen
+Videolaufzeit-Ermittlung).
+
 ## Sender
 
 Beim ersten Öffnen der Seite wird der Sender automatisch als „TV-Sender" angelegt. Der Name ist
@@ -52,7 +58,7 @@ serverseitig erzwungen, nicht nur in der Oberfläche.
 ## Sendeplan
 
 Der Server erzeugt aus den aktiven Programmregeln automatisch einen rollierenden, lückenlosen
-Sendeplan. Zwei Einstellungen in der Sender-Karte steuern die Erzeugung:
+Sendeplan. Zwei Einstellungen im Tab „Einstellungen" (Gruppe „Planung") steuern die Erzeugung:
 
 - **Planungshorizont (Stunden)** — wie weit voraus geplant wird (Standard: 48 Stunden).
 - **Generierungsintervall (Minuten)** — in welchem Abstand der Hintergrundlauf den Plan
@@ -106,7 +112,7 @@ bekannte Laufzeit). Ist nichts planbar, nennt die Zelle den Grund: „Material n
 für alle freigegeben". Die Diagnose wird bei jedem Laden der Seite und nach jeder Regel-
 Änderung neu berechnet; sie verändert den Sendeplan selbst nicht.
 
-Die Schaltfläche **„Jetzt generieren"** auf der Sendeplan-Karte stößt die Plan-Neubewertung
+Die Schaltfläche **„Jetzt generieren"** im Tab „Sendeplan" stößt die Plan-Neubewertung
 sofort an, ohne auf das Generierungsintervall zu warten — nützlich nach Konfigurations- oder
 Bestandsänderungen. Die Sendeplan-Anzeige und die Diagnosen aktualisieren sich kurz darauf
 selbst; bei großen Bibliotheken kann die Generierung länger dauern, dann zeigt ein erneutes
@@ -114,10 +120,13 @@ Laden der Seite den Endstand.
 
 ### Fortschritt der Laufzeitermittlung
 
-Die Karte **„Laufzeitermittlung"** am Ende der Seite zeigt den Stand des automatischen
+Der Tab **„Laufzeitermittlung"** zeigt den Stand des automatischen
 Ermittelns der Videolaufzeiten — ohne dass ein Blick in Log-Dateien nötig ist: Zähler für
 ermittelte, ausstehende und dauerhaft fehlgeschlagene Dateien, ein Fortschrittsbalken, der
 Zeitpunkt der letzten Aktivität sowie die Anzahl der Ermittlungen in der letzten Stunde.
+Über **„▾ Details"** an den Zählern „ausstehend" und „fehlgeschlagen" klappen Tabellen der
+betroffenen Dateien auf — jeweils mit Name, Quelle, Anzahl der Versuche und Zeitpunkt des
+letzten Versuchs (bei langen Listen gekappt, mit Hinweis auf die übrigen Einträge).
 Eine Liste „Zuletzt ermittelt" führt die jüngst geprüften Dateien mit Ergebnis (Laufzeit oder
 Fehlversuch). Ein Statussatz fasst zusammen, ob die Ermittlung läuft, abgeschlossen ist oder
 ausstehende Dateien ohne Aktivität verharren (Hinweis auf ein möglicherweise fehlendes

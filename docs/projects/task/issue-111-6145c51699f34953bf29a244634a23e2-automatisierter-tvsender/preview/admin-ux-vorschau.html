@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TV-Sender Admin — Layout-Vorschau (N13/N14)</title>
+<!--
+  Statische Layout-Vorschau fuer Schritt 16 (Admin-UX) des TV-Sender-Projekts.
+  Bildet die Farbgebung/Klassen aus VideoWebPlayer/wwwroot/app.css (.admin-console)
+  nach. Kein produktiver Code — dient nur der visuellen Beurteilung.
+-->
+<style>
+    :root {
+        --vp-bg: #131313;
+        --vp-radius-sm: 4px;
+        --vp-radius: 8px;
+        --admin-bg: #0b1326;
+        --admin-surface: #171f33;
+        --admin-surface-low: #131b2e;
+        --admin-surface-high: #222a3d;
+        --admin-border: #424754;
+        --admin-text: #dae2fd;
+        --admin-muted: #c2c6d6;
+        --admin-primary: #adc6ff;
+        --admin-primary-strong: #4d8eff;
+        --admin-success: #4edea3;
+        --admin-warning: #ffcf66;
+        --admin-danger: #ffb4ab;
+    }
+
+    html, body {
+        margin: 0;
+        min-height: 100%;
+        font-family: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background:
+            radial-gradient(circle at top right, rgba(0, 168, 232, 0.09), transparent 34rem),
+            linear-gradient(180deg, #121212 0%, var(--vp-bg) 48%, #0f0f0f 100%);
+        color: var(--admin-text);
+    }
+
+    .preview-banner {
+        position: sticky;
+        top: 0;
+        z-index: 2000;
+        padding: 0.6rem 1.5rem;
+        background: rgba(255, 207, 102, 0.14);
+        border-bottom: 1px solid rgba(255, 207, 102, 0.5);
+        color: var(--admin-warning);
+        font-weight: 700;
+        font-size: 0.9rem;
+        text-align: center;
+    }
+
+    .preview-banner small {
+        display: block;
+        font-weight: 400;
+        color: var(--admin-muted);
+    }
+
+    .admin-console {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 1.5rem;
+    }
+
+    .admin-console h1 {
+        margin: 0;
+        color: var(--admin-primary);
+        font-family: Montserrat, Inter, "Segoe UI", sans-serif;
+        font-size: clamp(2rem, 4vw, 3rem);
+    }
+
+    .admin-console h2 {
+        margin: 0;
+        font-family: Montserrat, Inter, "Segoe UI", sans-serif;
+        font-size: 1.25rem;
+    }
+
+    .admin-console h3 {
+        margin: 0;
+        font-family: Montserrat, Inter, "Segoe UI", sans-serif;
+        font-size: 1.05rem;
+        color: var(--admin-primary);
+    }
+
+    .admin-console p,
+    .admin-console .form-text {
+        color: var(--admin-muted);
+        font-size: 0.85rem;
+    }
+
+    .admin-page-header {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+        margin-bottom: 1.25rem;
+        padding: 1.5rem;
+        border: 1px solid var(--admin-border);
+        border-radius: var(--vp-radius);
+        background: linear-gradient(135deg, rgba(23, 31, 51, 0.96), rgba(19, 27, 46, 0.88));
+    }
+
+    .admin-kicker {
+        display: inline-flex;
+        margin-bottom: 0.5rem;
+        color: var(--admin-primary);
+        font-family: "JetBrains Mono", Consolas, monospace;
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+    }
+
+    .admin-header-side {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .admin-card {
+        min-width: 0;
+        margin-bottom: 1rem;
+        padding: 1rem;
+        color: var(--admin-text);
+        background: var(--admin-surface);
+        border: 1px solid var(--admin-border);
+        border-radius: var(--vp-radius);
+    }
+
+    .admin-sub-card {
+        padding: 1rem;
+        border: 1px solid var(--admin-border);
+        border-radius: var(--vp-radius);
+        background: var(--admin-surface-low);
+    }
+
+    .admin-card-header,
+    .admin-actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .admin-card-header {
+        margin-bottom: 1rem;
+    }
+
+    .admin-card-header-left {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .admin-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        border-radius: 999px;
+        padding: 0.25rem 0.55rem;
+        color: var(--admin-primary);
+        background: rgba(173, 198, 255, 0.12);
+        border: 1px solid rgba(173, 198, 255, 0.24);
+        font-size: 0.78rem;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .admin-chip-success {
+        color: var(--admin-success);
+        background: rgba(78, 222, 163, 0.12);
+        border-color: rgba(78, 222, 163, 0.3);
+    }
+
+    .admin-chip-warning {
+        color: var(--admin-warning);
+        background: rgba(255, 207, 102, 0.12);
+        border-color: rgba(255, 207, 102, 0.3);
+    }
+
+    .admin-chip-danger {
+        color: var(--admin-danger);
+        background: rgba(255, 180, 171, 0.12);
+        border-color: rgba(255, 180, 171, 0.3);
+    }
+
+    .btn {
+        display: inline-block;
+        padding: 0.45rem 0.9rem;
+        border: 1px solid transparent;
+        border-radius: var(--vp-radius-sm);
+        font: inherit;
+        font-weight: 700;
+        font-size: 0.9rem;
+        cursor: pointer;
+        text-decoration: none;
+    }
+
+    .btn-sm {
+        padding: 0.25rem 0.6rem;
+        font-size: 0.8rem;
+    }
+
+    .btn-primary {
+        color: #fff;
+        background: var(--admin-primary-strong);
+        border-color: var(--admin-primary-strong);
+    }
+
+    .btn-danger {
+        color: #fff;
+        background: #b3261e;
+        border-color: #b3261e;
+    }
+
+    .btn-ghost,
+    .btn-outline-light {
+        color: var(--admin-text);
+        border-color: var(--admin-border);
+        background: var(--admin-surface-low);
+    }
+
+    .form-control {
+        display: block;
+        width: 100%;
+        box-sizing: border-box;
+        padding: 0.4rem 0.6rem;
+        color: var(--admin-text);
+        background: var(--admin-bg);
+        border: 1px solid var(--admin-border);
+        border-radius: var(--vp-radius-sm);
+        font: inherit;
+        font-size: 0.9rem;
+    }
+
+    input[type="number"].form-control,
+    input[type="time"].form-control {
+        font-family: "JetBrains Mono", Consolas, monospace;
+    }
+
+    .form-label {
+        display: block;
+        margin-bottom: 0.3rem;
+        color: var(--admin-muted);
+        font-size: 0.8rem;
+        font-weight: 700;
+    }
+
+    .admin-settings-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .admin-settings-grid:last-child {
+        margin-bottom: 0;
+    }
+
+    .admin-table-wrap {
+        overflow-x: auto;
+        border: 1px solid var(--admin-border);
+        border-radius: var(--vp-radius);
+        margin-bottom: 0.75rem;
+    }
+
+    .table {
+        width: 100%;
+        margin: 0;
+        border-collapse: collapse;
+        color: var(--admin-text);
+        font-size: 0.88rem;
+    }
+
+    .table th {
+        padding: 0.55rem 0.7rem;
+        text-align: left;
+        color: var(--admin-muted);
+        background: var(--admin-surface-low);
+        border-bottom: 1px solid var(--admin-border);
+        font-size: 0.72rem;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
+    .table td {
+        padding: 0.5rem 0.7rem;
+        border-bottom: 1px solid rgba(66, 71, 84, 0.72);
+        vertical-align: middle;
+    }
+
+    .table tbody tr:nth-of-type(odd) td {
+        background: var(--admin-surface-low);
+    }
+
+    .table tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    .table .row-displaced td {
+        color: var(--admin-muted);
+        text-decoration: line-through;
+    }
+
+    .table .row-displaced td:last-child {
+        text-decoration: none;
+    }
+
+    .actions-cell {
+        white-space: nowrap;
+    }
+
+    .actions-cell .btn {
+        margin-right: 0.3rem;
+    }
+
+    /* ---------- Tabs (N14) ---------- */
+    .admin-tabs {
+        display: flex;
+        gap: 0.35rem;
+        margin-bottom: 1.25rem;
+        padding: 0.35rem;
+        border: 1px solid var(--admin-border);
+        border-radius: var(--vp-radius);
+        background: var(--admin-surface-low);
+        flex-wrap: wrap;
+    }
+
+    .admin-tab {
+        flex: 1 1 auto;
+        min-width: 8rem;
+        padding: 0.6rem 1rem;
+        border: 1px solid transparent;
+        border-radius: var(--vp-radius-sm);
+        background: transparent;
+        color: var(--admin-muted);
+        font: inherit;
+        font-weight: 700;
+        font-size: 0.9rem;
+        cursor: pointer;
+        text-align: center;
+    }
+
+    .admin-tab:hover {
+        color: var(--admin-text);
+        background: var(--admin-surface-high);
+    }
+
+    .admin-tab.active {
+        color: #fff;
+        background: var(--admin-primary-strong);
+        border-color: var(--admin-primary-strong);
+    }
+
+    .tab-pane {
+        display: none;
+    }
+
+    .tab-pane.active {
+        display: block;
+    }
+
+    /* ---------- Einklappbarer Regel-Editor ---------- */
+    .rule-editor-card {
+        border: 1px solid var(--admin-primary-strong);
+        background: var(--admin-surface);
+    }
+
+    .rule-multi-select {
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+        max-height: 160px;
+        overflow-y: auto;
+        border: 1px solid var(--admin-border);
+        border-radius: var(--vp-radius);
+        padding: 0.5rem 0.75rem;
+        margin-bottom: 0.75rem;
+        background: var(--admin-bg);
+    }
+
+    .form-check {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.88rem;
+        cursor: pointer;
+    }
+
+    .admin-toggle-row {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem;
+        margin-bottom: 1rem;
+        border: 1px solid var(--admin-border);
+        border-radius: var(--vp-radius-sm);
+        background: var(--admin-surface-low);
+        cursor: pointer;
+    }
+
+    /* ---------- Probe-Details (N13) ---------- */
+    .probe-counts {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-bottom: 0.6rem;
+    }
+
+    .chip-detail-btn {
+        border: none;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        font-size: 0.7rem;
+        cursor: pointer;
+        padding: 0 0.1rem;
+        opacity: 0.85;
+    }
+
+    .probe-detail {
+        margin: 0.6rem 0;
+        border: 1px solid var(--admin-border);
+        border-radius: var(--vp-radius);
+        background: var(--admin-surface-low);
+    }
+
+    .probe-detail summary {
+        padding: 0.5rem 0.8rem;
+        cursor: pointer;
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: var(--admin-muted);
+    }
+
+    .probe-detail summary:hover {
+        color: var(--admin-text);
+    }
+
+    .probe-detail .table-wrap-inner {
+        padding: 0 0.6rem 0.6rem;
+    }
+
+    .progress {
+        display: flex;
+        height: 0.9rem;
+        overflow: hidden;
+        border-radius: 999px;
+        background: var(--admin-surface-high);
+        margin: 0.6rem 0;
+    }
+
+    .progress-bar {
+        background: var(--admin-primary-strong);
+    }
+
+    .mt-2 { margin-top: 0.75rem; }
+    .mb-2 { margin-bottom: 0.75rem; }
+
+    .alert-info {
+        padding: 0.75rem 1rem;
+        margin-bottom: 1rem;
+        border: 1px solid rgba(173, 198, 255, 0.35);
+        border-radius: var(--vp-radius);
+        background: rgba(173, 198, 255, 0.08);
+        color: var(--admin-primary);
+        font-size: 0.88rem;
+    }
+</style>
+</head>
+<body>
+
+<div class="preview-banner">
+    Vorschau — kein produktiver Code
+    <small>Statisches Mockup: TV-Sender-Adminseite neu strukturiert (N14: Tabs, N13: Detail-Tabellen in der Laufzeitermittlung) — Variante&nbsp;2</small>
+</div>
+
+<section class="admin-console">
+
+    <!-- Kopfzeile -->
+    <header class="admin-page-header">
+        <div>
+            <span class="admin-kicker">Einrichtung</span>
+            <h1>TV-Sender</h1>
+            <p style="margin:0.35rem 0 0;">Sender, Programmregeln und Feiertags-Einstellung verwalten.</p>
+        </div>
+        <div class="admin-header-side">
+            <span class="admin-chip admin-chip-success" title="Sender-Status">Sender: Softwareschmiede&nbsp;TV</span>
+            <span class="admin-chip" title="Generierungsintervall">Plan alle 15&nbsp;Min aktiv</span>
+            <a class="btn btn-outline-light" href="#">Zurück</a>
+        </div>
+    </header>
+
+    <!-- Tab-Navigation (N14) -->
+    <nav class="admin-tabs" role="tablist">
+        <button class="admin-tab active" data-tab="tab-regeln" role="tab" aria-selected="true">Regeln</button>
+        <button class="admin-tab" data-tab="tab-sendeplan" role="tab" aria-selected="false">Sendeplan</button>
+        <button class="admin-tab" data-tab="tab-einstellungen" role="tab" aria-selected="false">Einstellungen</button>
+        <button class="admin-tab" data-tab="tab-laufzeit" role="tab" aria-selected="false">Laufzeitermittlung</button>
+    </nav>
+
+    <!-- ============ Tab: Regeln ============ -->
+    <div class="tab-pane active" id="tab-regeln">
+
+        <div class="admin-card">
+            <div class="admin-card-header">
+                <div class="admin-card-header-left">
+                    <h2>Programmregeln</h2>
+                    <span class="admin-chip">6 Einträge</span>
+                </div>
+                <button class="btn btn-sm btn-primary" id="btn-new-rule">Neue Regel</button>
+            </div>
+
+            <div class="admin-table-wrap">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Regelart</th>
+                            <th>Wiederholung</th>
+                            <th>Sendezeit</th>
+                            <th>Umfang</th>
+                            <th>Material</th>
+                            <th>Planbar</th>
+                            <th>Priorität</th>
+                            <th>Status</th>
+                            <th>Aktionen</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Kinderserien am Morgen</td>
+                            <td>Genre-/Formatrotation</td>
+                            <td>Täglich</td>
+                            <td>07:00</td>
+                            <td>2 Folge(n)</td>
+                            <td>Genre: Kinderserien</td>
+                            <td>24 planbar</td>
+                            <td>10</td>
+                            <td><span class="admin-chip admin-chip-success">Aktiv</span></td>
+                            <td class="actions-cell">
+                                <button class="btn btn-sm btn-primary">Bearbeiten</button>
+                                <button class="btn btn-sm btn-outline-light">Deaktivieren</button>
+                                <button class="btn btn-sm btn-danger">Löschen</button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Simpsons am Abend</td>
+                            <td>Serien-Sendezeit</td>
+                            <td>Täglich</td>
+                            <td>18:00</td>
+                            <td>2 Folge(n)</td>
+                            <td>Serie: Die Simpsons</td>
+                            <td>12 planbar</td>
+                            <td>50</td>
+                            <td><span class="admin-chip admin-chip-success">Aktiv</span></td>
+                            <td class="actions-cell">
+                                <button class="btn btn-sm btn-primary">Bearbeiten</button>
+                                <button class="btn btn-sm btn-outline-light">Deaktivieren</button>
+                                <button class="btn btn-sm btn-danger">Löschen</button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Primetime-Film</td>
+                            <td>Film zur Primetime</td>
+                            <td>Täglich</td>
+                            <td>20:15</td>
+                            <td>120 Min</td>
+                            <td>Genre: Action, Thriller — Quellen: Filme-NAS</td>
+                            <td>38 planbar, 4 ohne Laufzeit (Ermittlung läuft)</td>
+                            <td>100</td>
+                            <td><span class="admin-chip admin-chip-success">Aktiv</span></td>
+                            <td class="actions-cell">
+                                <button class="btn btn-sm btn-primary">Bearbeiten</button>
+                                <button class="btn btn-sm btn-outline-light">Deaktivieren</button>
+                                <button class="btn btn-sm btn-danger">Löschen</button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Krimi-Wiederholung</td>
+                            <td>Wiederholung</td>
+                            <td>Wöchentlich (Samstag)</td>
+                            <td>14:00</td>
+                            <td>1 Folge(n) / 90 Min</td>
+                            <td>Serie: Columbo</td>
+                            <td>8 planbar</td>
+                            <td>20</td>
+                            <td><span class="admin-chip admin-chip-success">Aktiv</span></td>
+                            <td class="actions-cell">
+                                <button class="btn btn-sm btn-primary">Bearbeiten</button>
+                                <button class="btn btn-sm btn-outline-light">Deaktivieren</button>
+                                <button class="btn btn-sm btn-danger">Löschen</button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Feiertags-Special</td>
+                            <td>Feiertags-Special</td>
+                            <td>An Feiertagen</td>
+                            <td>10:00</td>
+                            <td>180 Min</td>
+                            <td>Playlist: Weihnachtsklassiker</td>
+                            <td>14 planbar</td>
+                            <td>80</td>
+                            <td><span class="admin-chip admin-chip-warning">Inaktiv</span></td>
+                            <td class="actions-cell">
+                                <button class="btn btn-sm btn-primary">Bearbeiten</button>
+                                <button class="btn btn-sm btn-outline-light">Aktivieren</button>
+                                <button class="btn btn-sm btn-danger">Löschen</button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Nachtschleife</td>
+                            <td>Platzhalter/Füller</td>
+                            <td>Täglich</td>
+                            <td>02:00</td>
+                            <td>240 Min</td>
+                            <td>Genre: Dokumentation</td>
+                            <td>Nicht planbar: 3 ohne Laufzeit (gescheitert)</td>
+                            <td>0</td>
+                            <td><span class="admin-chip admin-chip-warning">Inaktiv</span></td>
+                            <td class="actions-cell">
+                                <button class="btn btn-sm btn-primary">Bearbeiten</button>
+                                <button class="btn btn-sm btn-outline-light">Aktivieren</button>
+                                <button class="btn btn-sm btn-danger">Löschen</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="form-text" style="margin:0;">Programmregel wurde gespeichert.</p>
+        </div>
+
+        <!-- Einklappbarer Editor (im Mockup geoeffnet dargestellt) -->
+        <div class="admin-card rule-editor-card" id="rule-editor">
+            <div class="admin-card-header">
+                <h2>Neue Programmregel</h2>
+                <button class="btn btn-sm btn-outline-light" id="btn-close-editor">Schließen</button>
+            </div>
+
+            <div class="alert-info">Der Editor klappt über „Neue Regel“ auf bzw. über „Schließen“/„Abbrechen“ zu — ersetzt den bisherigen Dialog unter der Tabelle.</div>
+
+            <div class="admin-settings-grid">
+                <div>
+                    <label class="form-label">Name</label>
+                    <input class="form-control" value="Wochenend-Krimi">
+                </div>
+                <div>
+                    <label class="form-label">Regelart</label>
+                    <select class="form-control">
+                        <option>Serien-Sendezeit</option>
+                        <option selected>Film zur Primetime</option>
+                        <option>Genre-/Formatrotation</option>
+                        <option>Wiederholung</option>
+                        <option>Feiertags-Special</option>
+                        <option>Platzhalter/Füller</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Wiederholung</label>
+                    <select class="form-control">
+                        <option>Täglich</option>
+                        <option selected>Wöchentlich</option>
+                        <option>Einmalig</option>
+                        <option>An Feiertagen</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="admin-settings-grid">
+                <div>
+                    <label class="form-label">Wochentag</label>
+                    <select class="form-control">
+                        <option>Montag</option>
+                        <option>Dienstag</option>
+                        <option>Mittwoch</option>
+                        <option>Donnerstag</option>
+                        <option>Freitag</option>
+                        <option>Samstag</option>
+                        <option selected>Sonntag</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Sendezeit</label>
+                    <input type="time" class="form-control" value="20:15">
+                </div>
+            </div>
+
+            <div class="admin-settings-grid">
+                <div>
+                    <label class="form-label">Anzahl Folgen</label>
+                    <input type="number" class="form-control" value="0">
+                </div>
+                <div>
+                    <label class="form-label">Länge (Minuten)</label>
+                    <input type="number" class="form-control" value="120">
+                </div>
+                <div>
+                    <label class="form-label">Priorität</label>
+                    <input type="number" class="form-control" value="100">
+                </div>
+            </div>
+
+            <label class="admin-toggle-row">
+                <input type="checkbox" checked>
+                <span>Regel ist aktiv</span>
+            </label>
+
+            <label class="form-label">Programmmaterial</label>
+            <label class="form-label">Genres (Mehrfachauswahl)</label>
+            <div class="rule-multi-select">
+                <label class="form-check"><input type="checkbox"> Action</label>
+                <label class="form-check"><input type="checkbox"> Komödie</label>
+                <label class="form-check"><input type="checkbox" checked> Krimi</label>
+                <label class="form-check"><input type="checkbox" checked> Thriller</label>
+                <label class="form-check"><input type="checkbox"> Dokumentation</label>
+                <label class="form-check"><input type="checkbox"> Science-Fiction</label>
+            </div>
+            <label class="form-label">Quellen einschränken (keine Auswahl = alle Quellen)</label>
+            <div class="rule-multi-select">
+                <label class="form-check"><input type="checkbox" checked> Filme-NAS</label>
+                <label class="form-check"><input type="checkbox"> Serien-NAS</label>
+                <label class="form-check"><input type="checkbox"> Filme-Archiv</label>
+            </div>
+
+            <div class="admin-actions" style="justify-content:flex-start;">
+                <button class="btn btn-primary">Speichern</button>
+                <button class="btn btn-ghost">Abbrechen</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ Tab: Sendeplan ============ -->
+    <div class="tab-pane" id="tab-sendeplan">
+        <div class="admin-card">
+            <div class="admin-card-header">
+                <div class="admin-card-header-left">
+                    <h2>Sendeplan</h2>
+                    <span class="admin-chip">7 Einträge</span>
+                </div>
+                <button class="btn btn-primary">Jetzt generieren</button>
+            </div>
+
+            <div class="admin-table-wrap">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Start</th>
+                            <th>Ende</th>
+                            <th>Inhalt</th>
+                            <th>Regel</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>18.06. 18:00</td>
+                            <td>18:45</td>
+                            <td>Die Simpsons — Staffel 6, E12: Homer, der Chefpuppenspieler</td>
+                            <td>Simpsons am Abend</td>
+                            <td><span class="admin-chip admin-chip-success">Geplant</span></td>
+                        </tr>
+                        <tr>
+                            <td>18.06. 18:45</td>
+                            <td>19:10</td>
+                            <td>Die Simpsons — Staffel 6, E13: Und Maggie macht drei</td>
+                            <td>Simpsons am Abend</td>
+                            <td><span class="admin-chip admin-chip-success">Geplant</span></td>
+                        </tr>
+                        <tr>
+                            <td>18.06. 20:15</td>
+                            <td>22:15</td>
+                            <td>The Rock — Fels der Entscheidung</td>
+                            <td>Primetime-Film</td>
+                            <td><span class="admin-chip admin-chip-success">Geplant</span></td>
+                        </tr>
+                        <tr class="row-displaced">
+                            <td>18.06. 20:15</td>
+                            <td>22:05</td>
+                            <td>Casino Royale</td>
+                            <td>Primetime-Film</td>
+                            <td><span class="admin-chip admin-chip-warning">Verdrängt</span></td>
+                        </tr>
+                        <tr>
+                            <td>19.06. 07:00</td>
+                            <td>07:45</td>
+                            <td>Shaun das Schaf — Staffel 2, E4: Der Lärm</td>
+                            <td>Kinderserien am Morgen</td>
+                            <td><span class="admin-chip admin-chip-success">Geplant</span></td>
+                        </tr>
+                        <tr>
+                            <td>19.06. 07:45</td>
+                            <td>08:30</td>
+                            <td>Shaun das Schaf — Staffel 2, E5: Bitteres vom Schaf</td>
+                            <td>Kinderserien am Morgen</td>
+                            <td><span class="admin-chip admin-chip-success">Geplant</span></td>
+                        </tr>
+                        <tr>
+                            <td>19.06. 18:00</td>
+                            <td>18:45</td>
+                            <td>Die Simpsons — Staffel 6, E14: Die Springfield-Connection</td>
+                            <td>Simpsons am Abend</td>
+                            <td><span class="admin-chip admin-chip-success">Geplant</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="form-text" style="margin:0;">Sendeplan-Anzeige wurde aktualisiert. Bei großen Bibliotheken kann die Generierung länger dauern — die Seite ggf. erneut laden.</p>
+        </div>
+    </div>
+
+    <!-- ============ Tab: Einstellungen ============ -->
+    <div class="tab-pane" id="tab-einstellungen">
+        <div class="admin-card">
+            <div class="admin-card-header">
+                <h2>Sender-Einstellungen</h2>
+            </div>
+            <div class="admin-settings-grid">
+                <div class="admin-sub-card">
+                    <h3 class="mb-2">Sender</h3>
+                    <div class="mb-2">
+                        <label class="form-label">Name</label>
+                        <input class="form-control" value="Softwareschmiede TV">
+                    </div>
+                    <div>
+                        <label class="form-label">Bundesland für Feiertage</label>
+                        <select class="form-control">
+                            <option>Nur bundesweit gültige Feiertage</option>
+                            <option selected>Bayern</option>
+                            <option>Berlin</option>
+                            <option>Nordrhein-Westfalen</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="admin-sub-card">
+                    <h3 class="mb-2">Planung</h3>
+                    <div class="mb-2">
+                        <label class="form-label">Planungshorizont (Stunden)</label>
+                        <input type="number" class="form-control" value="48">
+                    </div>
+                    <div>
+                        <label class="form-label">Generierungsintervall (Minuten)</label>
+                        <input type="number" class="form-control" value="15">
+                    </div>
+                </div>
+                <div class="admin-sub-card">
+                    <h3 class="mb-2">Segmentierung</h3>
+                    <div class="mb-2">
+                        <label class="form-label">Segmentlänge (Sekunden)</label>
+                        <input type="number" class="form-control" value="6">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Segment-Verzeichnis (leer = Standard)</label>
+                        <input class="form-control" value="">
+                    </div>
+                    <div>
+                        <label class="form-label">Segment-Aufbewahrung (Minuten)</label>
+                        <input type="number" class="form-control" value="30">
+                    </div>
+                </div>
+            </div>
+            <div class="admin-actions" style="justify-content:flex-start;">
+                <button class="btn btn-primary">Speichern</button>
+            </div>
+            <p class="form-text mt-2" style="margin-bottom:0;">Einstellungen wurden gespeichert.</p>
+        </div>
+    </div>
+
+    <!-- ============ Tab: Laufzeitermittlung ============ -->
+    <div class="tab-pane" id="tab-laufzeit">
+        <div class="admin-card">
+            <div class="admin-card-header">
+                <h2>Laufzeitermittlung</h2>
+                <span class="admin-chip">1211 von 1252 ermittelt</span>
+            </div>
+
+            <p class="form-text">Ermittlung läuft — 41 Datei(en) in der letzten Stunde.</p>
+
+            <!-- N13: Zaehler mit Aufklapp-Buttons -->
+            <div class="probe-counts">
+                <span class="admin-chip admin-chip-success">1211 ermittelt</span>
+                <span class="admin-chip admin-chip-warning">36 ausstehend
+                    <button class="chip-detail-btn" title="Betroffene Dateien anzeigen">▾ Details</button>
+                </span>
+                <span class="admin-chip admin-chip-danger">5 fehlgeschlagen
+                    <button class="chip-detail-btn" title="Betroffene Dateien anzeigen">▾ Details</button>
+                </span>
+            </div>
+
+            <div class="progress" role="progressbar" aria-label="Fortschritt der Laufzeitermittlung" aria-valuenow="1211" aria-valuemin="0" aria-valuemax="1252">
+                <div class="progress-bar" style="width: 97%"></div>
+            </div>
+
+            <p class="form-text">
+                Letzte Aktivität: 18.06.2025 14:32:18 · Letzte Stunde: 41 Ermittlung(en)
+            </p>
+
+            <!-- N13: aufgeklappte Detail-Tabellen (Mockup zeigt ausgeklappten Zustand) -->
+            <details class="probe-detail" open>
+                <summary>Ausstehende Dateien (36) — Ermittlung läuft oder wartet</summary>
+                <div class="table-wrap-inner">
+                    <div class="admin-table-wrap mt-2">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Quelle</th>
+                                    <th>Versuche</th>
+                                    <th>Letzter Versuch</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>Interstellar (2014).mkv</td><td>Filme-NAS</td><td>1</td><td>18.06. 14:31:02</td></tr>
+                                <tr><td>Oppenheimer.2023.mkv</td><td>Filme-NAS</td><td>1</td><td>18.06. 14:30:44</td></tr>
+                                <tr><td>Dark Matter S01E03.mp4</td><td>Serien-NAS</td><td>2</td><td>18.06. 14:29:57</td></tr>
+                                <tr><td>Der letzte Bulle S02E11.avi</td><td>Serien-NAS</td><td>1</td><td>18.06. 14:28:10</td></tr>
+                                <tr><td>… und 32 weitere</td><td colspan="3"></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </details>
+
+            <details class="probe-detail" open>
+                <summary>Fehlgeschlagene Dateien (5) — dauerhaft nicht prüfbar</summary>
+                <div class="table-wrap-inner">
+                    <div class="admin-table-wrap mt-2">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Quelle</th>
+                                    <th>Versuche</th>
+                                    <th>Letzter Versuch</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>Alien Directors Cut (archiv).mkv</td><td>Filme-Archiv</td><td>5</td><td>17.06. 22:14:47</td></tr>
+                                <tr><td>Blade Runner Workprint.vob</td><td>Filme-Archiv</td><td>5</td><td>17.06. 22:13:31</td></tr>
+                                <tr><td>Tatort 1123 (defekt).ts</td><td>Filme-NAS</td><td>5</td><td>16.06. 03:41:19</td></tr>
+                                <tr><td>Kolloquium_1978.mpg</td><td>Serien-NAS</td><td>5</td><td>15.06. 19:02:55</td></tr>
+                                <tr><td>Promo-Clip ohne Header.mp4</td><td>Filme-NAS</td><td>5</td><td>15.06. 11:47:03</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </details>
+
+            <!-- Rolling-Liste letzte Probes (bestehend) -->
+            <div class="admin-card-header mt-2" style="margin-bottom:0.5rem;">
+                <h3>Letzte Ermittlungen</h3>
+            </div>
+            <div class="admin-table-wrap">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Zeitpunkt</th>
+                            <th>Datei</th>
+                            <th>Quelle</th>
+                            <th>Ergebnis</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>18.06. 14:32:18</td><td>The Rock.mkv</td><td>Filme-NAS</td><td>2:16:24</td></tr>
+                        <tr><td>18.06. 14:31:55</td><td>Con Air.mkv</td><td>Filme-NAS</td><td>1:55:12</td></tr>
+                        <tr><td>18.06. 14:31:33</td><td>Shaun das Schaf S02E04.mp4</td><td>Serien-NAS</td><td>7:02 min</td></tr>
+                        <tr><td>18.06. 14:31:02</td><td>Interstellar (2014).mkv</td><td>Filme-NAS</td><td>keine Laufzeit — Versuch 1</td></tr>
+                        <tr><td>18.06. 14:30:44</td><td>Die Simpsons S06E14.mkv</td><td>Serien-NAS</td><td>22:41 min</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</section>
+
+<script>
+    // Nur fuer die Vorschau: Tab-Umschaltung + Editor-Toggle.
+    document.querySelectorAll('.admin-tab').forEach(function (tab) {
+        tab.addEventListener('click', function () {
+            document.querySelectorAll('.admin-tab').forEach(function (t) {
+                t.classList.remove('active');
+                t.setAttribute('aria-selected', 'false');
+            });
+            document.querySelectorAll('.tab-pane').forEach(function (p) {
+                p.classList.remove('active');
+            });
+            tab.classList.add('active');
+            tab.setAttribute('aria-selected', 'true');
+            document.getElementById(tab.dataset.tab).classList.add('active');
+        });
+    });
+
+    var editor = document.getElementById('rule-editor');
+    document.getElementById('btn-new-rule').addEventListener('click', function () {
+        editor.style.display = editor.style.display === 'none' ? '' : 'none';
+    });
+    document.getElementById('btn-close-editor').addEventListener('click', function () {
+        editor.style.display = 'none';
+    });
+</script>
+</body>
+</html>

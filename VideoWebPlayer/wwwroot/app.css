@@ -540,6 +540,144 @@ input[type="text"]:focus {
     margin-bottom: 0;
 }
 
+/* ---------- TV-Sender: Tab-Struktur (N14) ---------- */
+.admin-tabs {
+    display: flex;
+    gap: 0.35rem;
+    margin-bottom: 1.25rem;
+    padding: 0.35rem;
+    border: 1px solid var(--admin-border);
+    border-radius: var(--vp-radius);
+    background: var(--admin-surface-low);
+    flex-wrap: wrap;
+}
+
+.admin-tab {
+    flex: 1 1 auto;
+    min-width: 8rem;
+    padding: 0.6rem 1rem;
+    border: 1px solid transparent;
+    border-radius: var(--vp-radius-sm);
+    background: transparent;
+    color: var(--admin-muted);
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+    text-align: center;
+}
+
+.admin-tab:hover {
+    color: var(--admin-text);
+    background: var(--admin-surface-high);
+}
+
+.admin-tab.active {
+    color: #fff;
+    background: var(--admin-primary-strong);
+    border-color: var(--admin-primary-strong);
+}
+
+.tab-pane {
+    display: none;
+}
+
+.tab-pane.active {
+    display: block;
+}
+
+/* Einklappbare Editor-Card im Regeln-Tab */
+.rule-editor-card {
+    border-color: var(--admin-primary-strong);
+}
+
+/* Kopfzeilen-Bereich fuer Status-Chips neben Titel/Zurueck */
+.admin-header-side {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.admin-card-header-left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+/* Unterkarten innerhalb der Einstellungen (Sender / Planung / Segmentierung) */
+.admin-sub-card {
+    padding: 1rem;
+    border: 1px solid var(--admin-border);
+    border-radius: var(--vp-radius);
+    background: var(--admin-surface-low);
+}
+
+.actions-cell {
+    white-space: nowrap;
+}
+
+.actions-cell .btn {
+    margin-right: 0.3rem;
+}
+
+/* Verdraengte Sendeplaetze: durchgestrichen wie im abgenommenen Mockup (.row-displaced) */
+.admin-console .table .tvsender-slot-displaced td {
+    color: var(--admin-muted);
+    text-decoration: line-through;
+}
+
+.admin-console .table .tvsender-slot-displaced td:last-child {
+    text-decoration: none;
+}
+
+/* ---------- TV-Sender: Probe-Detail-Listen (N13) ---------- */
+.probe-counts {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.6rem;
+}
+
+.chip-detail-btn {
+    border: none;
+    background: transparent;
+    color: inherit;
+    font-size: 0.7rem;
+    cursor: pointer;
+    padding: 0 0.1rem;
+    opacity: 0.85;
+}
+
+.chip-detail-btn:hover {
+    opacity: 1;
+    text-decoration: underline;
+}
+
+.probe-detail {
+    margin: 0.6rem 0;
+    border: 1px solid var(--admin-border);
+    border-radius: var(--vp-radius);
+    background: var(--admin-surface-low);
+}
+
+.probe-detail summary {
+    padding: 0.5rem 0.8rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--admin-muted);
+}
+
+.probe-detail summary:hover {
+    color: var(--admin-text);
+}
+
+.probe-detail .table-wrap-inner {
+    padding: 0 0.6rem 0.6rem;
+}
+
 .admin-table-wrap {
     overflow-x: auto;
     border: 1px solid var(--admin-border);

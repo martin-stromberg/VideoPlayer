@@ -16,6 +16,7 @@
 | 11 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-11-probe-fortschritt | aktiv | 2026-10-21 |
 | 12 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-12-sftp-probe | aktiv | 2026-10-22 |
 | 13 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-13-genre-vererbung | aktiv | 2026-10-22 |
+| 16 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-16-admin-ux | abgeschlossen | 2026-10-22 |
 
 ## Übergabestand je Schritt
 
@@ -215,3 +216,13 @@
 ### Schritt 15: Saisonale Genres (N10) — FERTIG (abgenommen)
 
 - BuildOptions includeOutOfSeason: Genres ausserhalb StartDate/EndDate bleiben waehlbar und werden mit Fenster-Label "Name (dd.MM.-dd.MM.)" angezeigt; !IsHidden explizit getrennt; Expansion unveraendert (Fenster wirkt nur auf Ausstrahlung). Abnahme: `acceptance-schritt-15.md` — erfüllt.
+
+
+### Schritt 16: Adminseite restrukturieren + Fehlschlag-/Ausstehend-Liste (N13+N14) — FERTIG (Implementierung; Abnahme durch anderen Agenten ausstehend)
+
+- `TVSenderAdmin.razor` nach abgenommenem Mockup (`docs/projects/.../preview/admin-ux-vorschau.html`) in vier Tabs gegliedert: Regeln / Sendeplan / Einstellungen / Laufzeitermittlung. Panes bleiben gerendert und werden nur per CSS gezeigt — kein Reload, Formularzustand und 15s-Fortschrittsloop laufen weiter. Regel-Editor ist jetzt eine einklappbare Card unter der Regel-Tabelle (kein Overlay mehr); Lösch-Dialog bleibt Overlay. Header zeigt Sendername + Generierungsintervall als Chips; Einstellungen in drei Unterkarten (Sender/Planung/Segmentierung).
+- `MediaDurationProbeProgress` um `PendingItems`/`FailedItems` (neuer Record `MediaDurationProbeDetailItem`: Name, SourceName, LastAttemptAt, Attempts) erweitert; `GetProgressAsync` mit `detailItemCount`-Parameter (Default 25), Filter identisch zu den Zaehlern, sortiert nach `DurationProbedAt` absteigend, ueber gemeinsamen Helfer `DetailItemsAsync`. „▾ Details" an den Zaehlern oeffnet `<details class="probe-detail">`-Tabellen (Name/Quelle/Versuche/Letzter Versuch) mit „… und N weitere"-Kappungshinweis; `open` an Razor-Bools gebunden, kein JS.
+- Tests: +3 Service-Tests (Pending/Failed/Limit, echtes SQLite), +3 bUnit-Tests `Components/TVSenderAdminTests` (Tabs, Detail-Listen, Editor-Card), `TVSenderAdminE2ETests.Admin_CreateEditDeactivateDeleteRule` an Tab-Struktur angepasst + Tab-/Detail-Assertions, `SwitchTabAsync`-Helfer.
+- Volle Suite synchron (Debug): **2098 gruen + 1 Skip / 0 Fehler** (2099 gesamt; Skip = bekannter Baseline-Skip `PairedDevice_ReportsProgressForMovieWithoutCollection...`). Debug+Release-Build 0 Fehler. Doku: `docs/help/tv-sender.md`, `docs/RELEASE_NOTES.md`.
+- Lifecycle-Artefakte: `docs/features/task-issue-111-...-schritt-16-admin-ux/` (im Abschlusscommit entfernt, Planung in Historie); Tasks-Datei `docs/features/...-schritt-16-admin-ux-tasks.md` bleibt.
+- Bewusst nicht umgesetzt: optionales „Probe zuruecksetzen" (N13 optional, nicht im Mockup). Kein Befund in review.md/review-usability.md/review-code.md; Abnahme durch anderen Agenten steht noch aus.

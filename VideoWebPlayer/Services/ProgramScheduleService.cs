@@ -107,8 +107,9 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
         var newSlots = new List<ProgramSlot>();
         var occurrences = BuildOccurrences(rules.Where(r => r.RuleType != ProgramRuleType.Filler), coverageStart, horizonEnd, federalState);
+        var boundStarts = BoundStarts(occurrences, states);
         foreach (var occurrence in occurrences.OrderByDescending(o => o.Rule.Priority).ThenBy(o => o.Rule.Id).ThenBy(o => o.StartUtc))
-            MaterializeOccurrence(occurrence, states, blocked, newSlots, coverageStart, summary);
+            MaterializeOccurrence(occurrence, states, blocked, newSlots, coverageStart, BoundaryAfter(boundStarts, occurrence.StartUtc, occurrence.Rule.Priority), summary);
 
         var movieAirings = await LoadMovieAiringsAsync(channel.Id, coverageStart, newSlots, cancellationToken);
         await ExpandTrailerStatesAsync(states, cursors, access, movieAirings, coverageStart, summary, cancellationToken);
@@ -176,6 +177,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         var occurrenceStarts = occurrences
             .GroupBy(o => o.Rule.Id)
             .ToDictionary(g => g.Key, g => g.Select(o => o.StartUtc).ToHashSet());
+        var boundStarts = BoundStarts(occurrences, states);
 
         // Non-filler slots group into airings (maximal contiguous runs of the same producing
         // rule); filler slots are validated individually.
@@ -208,7 +210,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                 var rule = airing[0].ProgramRuleId is { } rid ? rulesById.GetValueOrDefault(rid) : null;
                 var invalid = rule is null || !rule.IsActive
                     || !occurrenceStarts.TryGetValue(rule.Id, out var starts)
-                    || !AiringReproducible(airing, states[rule.Id], starts);
+                    || !AiringReproducible(airing, states[rule.Id], starts, boundStarts);
                 if (invalid)
                     firstInvalid = i;
             }
@@ -291,9 +293,29 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                 || (winner.Priority == loser.Priority && winner.Id < loser.Id);
         }
 
+        // Trims an airing's invading suffix: every still-scheduled slot of the airing that
+        // reaches past the boundary start is displaced (not the whole rule future — the
+        // airing's head stays valid); the producing rule's cursor rewinds so the trimmed
+        // content re-airs at the next free occurrence.
+        void DisplaceAiringSuffix(List<ProgramSlot> airing, long ruleId, DateTime boundaryStartUtc)
+        {
+            foreach (var slot in airing.Where(s => s.End > boundaryStartUtc))
+            {
+                if (slot.End <= coverageStart || slot.Status != ProgramSlotStatus.Scheduled)
+                    continue;
+                slot.Status = ProgramSlotStatus.Displaced;
+                displaced.Add(slot);
+                keptSlots.Remove(slot);
+                blocked.RemoveAll(b => b.Start == slot.Start && b.End == slot.End);
+            }
+
+            if (states.TryGetValue(ruleId, out var state))
+                RewindCursor(state, displaced.Where(s => s.ProgramRuleId == ruleId).ToList(), cursors);
+        }
+
         foreach (var occurrence in occurrences.OrderByDescending(o => o.Rule.Priority).ThenBy(o => o.Rule.Id).ThenBy(o => o.StartUtc))
         {
-            var losers = MaterializeOccurrenceEvicting(occurrence, states, keptSlots, blocked, newSlots, coverageStart, summary, Evicts);
+            var losers = MaterializeOccurrenceEvicting(occurrence, states, keptSlots, blocked, newSlots, coverageStart, BoundaryAfter(boundStarts, occurrence.StartUtc, occurrence.Rule.Priority), summary, Evicts);
             if (losers is not null && losers.Count > 0)
             {
                 foreach (var loser in losers)
@@ -301,7 +323,27 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                     if (loser.ProgramRuleId is not { } loserRuleId)
                         continue;
                     var airing = airings.FirstOrDefault(a => a.Contains(loser));
-                    if (airing is not null)
+                    if (loser.Start < occurrence.StartUtc)
+                    {
+                        // Boundary invader: the slot started before this occurrence and its
+                        // airing's tail overshoots into this window — only the invading
+                        // suffix yields, regardless of priority (ungrouped losers = filler
+                        // slots, displaced individually below).
+                        if (airing is not null)
+                        {
+                            DisplaceAiringSuffix(airing, loserRuleId, occurrence.StartUtc);
+                        }
+                        else if (loser.Status == ProgramSlotStatus.Scheduled && loser.End > coverageStart)
+                        {
+                            loser.Status = ProgramSlotStatus.Displaced;
+                            displaced.Add(loser);
+                            keptSlots.Remove(loser);
+                            blocked.RemoveAll(b => b.Start == loser.Start && b.End == loser.End);
+                            if (states.TryGetValue(loserRuleId, out var invState))
+                                RewindCursor(invState, [loser], cursors);
+                        }
+                    }
+                    else if (airing is not null)
                     {
                         DisplaceRuleFuture(loserRuleId, airing[0].Start);
                     }
@@ -382,6 +424,35 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         return diagnoses;
     }
 
+    /// <inheritdoc />
+    public async Task<int> DeleteDisplacedSlotsAsync(string userId, long channelId, CancellationToken cancellationToken = default)
+    {
+        await RequireAdminAsync(userId, cancellationToken);
+        var deleted = await _db.ProgramSlots
+            .Where(s => s.TVChannelId == channelId && s.Status == ProgramSlotStatus.Displaced)
+            .ExecuteDeleteAsync(cancellationToken);
+        _logger.LogInformation("[ProgramSchedule] {Deleted} verdrängte Sendeplaetze bereinigt.", deleted);
+        return deleted;
+    }
+
+    /// <inheritdoc />
+    public async Task<ProgramScheduleResetResult> ResetScheduleAsync(string userId, long channelId, CancellationToken cancellationToken = default)
+    {
+        await RequireAdminAsync(userId, cancellationToken);
+        var slots = await _db.ProgramSlots
+            .Where(s => s.TVChannelId == channelId)
+            .ExecuteDeleteAsync(cancellationToken);
+        var ruleIds = await _db.ProgramRules
+            .Where(r => r.TVChannelId == channelId)
+            .Select(r => r.Id)
+            .ToListAsync(cancellationToken);
+        var cursors = await _db.ProgramRuleCursors
+            .Where(c => ruleIds.Contains(c.ProgramRuleId))
+            .ExecuteDeleteAsync(cancellationToken);
+        _logger.LogWarning("[ProgramSchedule] Sendeplan zurueckgesetzt: {Slots} Sendeplaetze, {Cursors} Fortsetzungsstaende geloescht.", slots, cursors);
+        return new ProgramScheduleResetResult(slots, cursors);
+    }
+
     private async Task RequireAdminAsync(string userId, CancellationToken cancellationToken)
     {
         var user = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId, cancellationToken)
@@ -422,8 +493,9 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     // from the airing's head item — each step counts one more skipped head item — and accepts the
     // first skipped-prefix length whose cumulative duration lands the airing's start exactly on an
     // occurrence start of the rule. The written tail must then reproduce count, media items and
-    // slot boundaries under the same selection logic (EpisodeCount / SlotDuration).
-    private static bool AiringReproducible(List<ProgramSlot> airing, RuleState state, HashSet<DateTime> occurrenceStarts)
+    // slot boundaries under the same selection logic (EpisodeCount / SlotDuration, bounded by the
+    // next occurrence start — a boundary-trimmed airing is expected, not invalid).
+    private static bool AiringReproducible(List<ProgramSlot> airing, RuleState state, HashSet<DateTime> occurrenceStarts, List<(DateTime StartUtc, int Priority)> boundStarts)
     {
         var items = state.Items;
         if (items.Count == 0 || occurrenceStarts.Count == 0)
@@ -434,9 +506,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             return false;
 
         var rule = state.Rule;
-        var wanted = rule.EpisodeCount is > 0 ? rule.EpisodeCount.Value
-            : rule.SlotDuration is not null ? int.MaxValue : 1;
-        var target = rule.EpisodeCount is > 0 ? (TimeSpan?)null : rule.SlotDuration;
+        var wanted = rule.EpisodeCount is > 0 ? rule.EpisodeCount.Value : int.MaxValue;
 
         var count = items.Count;
         var earliestStart = occurrenceStarts.Min();
@@ -456,20 +526,12 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             if (!occurrenceStarts.Contains(occurrenceStart))
                 continue;
 
-            // Candidate: the occurrence started k head items before the airing's first slot.
+            // Candidate: the occurrence started k head items before the airing's first slot —
+            // consumed head items (oversized or fully past) count toward k but produced no slot.
             var headIndex = ((idx - k) % count + count) % count;
-            var expected = new List<SchedulableItem>();
-            var accumulated = TimeSpan.Zero;
-            for (var i = 0; i < wanted; i++)
-            {
-                var item = items[(headIndex + i) % count];
-                expected.Add(item);
-                accumulated += item.Duration;
-                if (target is not null && accumulated >= target)
-                    break;
-            }
-
-            if (expected.Count - k != airing.Count)
+            var (expected, consumed) = SelectAiringItems(items, headIndex, rule, occurrenceStart, BoundaryAfter(boundStarts, occurrenceStart, rule.Priority));
+            var writtenOffset = k - consumed;
+            if (expected.Count - writtenOffset != airing.Count)
                 continue;
 
             var start = airing[0].Start;
@@ -477,7 +539,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             for (var i = 0; i < airing.Count; i++)
             {
                 var slot = airing[i];
-                var item = expected[k + i];
+                var item = expected[writtenOffset + i];
                 if (slot.MediaItemId != item.MediaItemId || slot.Start != start || slot.End != start + item.Duration)
                 {
                     matches = false;
@@ -537,7 +599,9 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
     // Like <see cref="MaterializeOccurrence"/>, but instead of dropping the airing on a conflict
     // with kept scheduled slots it returns the conflicting kept slots that lose against this
-    // occurrence — the caller displaces them (whole rule suffix) and the materialization proceeds.
+    // occurrence — the caller displaces them (whole rule suffix for competitors starting inside
+    // this occurrence's window, only the invading airing tail for slots reaching across its
+    // start) and the materialization proceeds.
     private List<ProgramSlot>? MaterializeOccurrenceEvicting(
         Occurrence occurrence,
         Dictionary<long, RuleState> states,
@@ -545,6 +609,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         List<Interval> blocked,
         List<ProgramSlot> newSlots,
         DateTime coverageStart,
+        DateTime? softEndUtc,
         SummaryCounters summary,
         Func<ProgramRule, ProgramSlot, bool> evicts)
     {
@@ -552,22 +617,9 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         if (state.Items.Count == 0)
             return null;
 
-        var wanted = occurrence.Rule.EpisodeCount is > 0 ? occurrence.Rule.EpisodeCount.Value
-            : occurrence.Rule.SlotDuration is not null ? int.MaxValue : 1;
-        var target = occurrence.Rule.EpisodeCount is > 0 ? (TimeSpan?)null : occurrence.Rule.SlotDuration;
-
-        var taken = new List<SchedulableItem>();
-        var accumulated = TimeSpan.Zero;
-        for (var i = 0; i < wanted; i++)
-        {
-            var item = state.PeekAt(i);
-            if (item is null)
-                break;
-            taken.Add(item);
-            accumulated += item.Duration;
-            if (target is not null && accumulated >= target)
-                break;
-        }
+        var (taken, consumed) = SelectAiringItems(state.Items, state.NextIndex, occurrence.Rule, occurrence.StartUtc, softEndUtc);
+        if (consumed > 0)
+            state.Commit(consumed); // oversized head items can never fit this window — skip them
 
         if (taken.Count == 0)
             return null;
@@ -590,7 +642,11 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         var conflicts = keptSlots
             .Where(k => ranges.Any(r => r.Overlaps(new Interval(k.Start, k.End))))
             .ToList();
-        if (conflicts.Any(k => !evicts(occurrence.Rule, k)) || ranges.Any(r => newSlots.Select(s => new Interval(s.Start, s.End)).Any(r.Overlaps)))
+        // Slots starting before this occurrence's start are an earlier airing's overshooting tail
+        // invading this window — they always yield (the caller trims their airing's suffix), no
+        // matter the priorities. Only slots competing head-on inside the window go through evicts.
+        var competitors = conflicts.Where(k => k.Start >= occurrence.StartUtc).ToList();
+        if (competitors.Any(k => !evicts(occurrence.Rule, k)) || ranges.Any(r => newSlots.Select(s => new Interval(s.Start, s.End)).Any(r.Overlaps)))
         {
             summary.DroppedConflicts++;
             return null;
@@ -790,30 +846,15 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         return occurrences;
     }
 
-    private void MaterializeOccurrence(Occurrence occurrence, Dictionary<long, RuleState> states, List<Interval> blocked, List<ProgramSlot> newSlots, DateTime coverageStart, SummaryCounters summary)
+    private void MaterializeOccurrence(Occurrence occurrence, Dictionary<long, RuleState> states, List<Interval> blocked, List<ProgramSlot> newSlots, DateTime coverageStart, DateTime? softEndUtc, SummaryCounters summary)
     {
         var state = states[occurrence.Rule.Id];
         if (state.Items.Count == 0)
             return;
 
-        // EpisodeCount wins; without it SlotDuration bounds the airing; when neither is set the
-        // airing gets exactly one item (rule validation normally requires one of both).
-        var wanted = occurrence.Rule.EpisodeCount is > 0 ? occurrence.Rule.EpisodeCount.Value
-            : occurrence.Rule.SlotDuration is not null ? int.MaxValue : 1;
-        var target = occurrence.Rule.EpisodeCount is > 0 ? (TimeSpan?)null : occurrence.Rule.SlotDuration;
-
-        var taken = new List<SchedulableItem>();
-        var accumulated = TimeSpan.Zero;
-        for (var i = 0; i < wanted; i++)
-        {
-            var item = state.PeekAt(i);
-            if (item is null)
-                break;
-            taken.Add(item);
-            accumulated += item.Duration;
-            if (target is not null && accumulated >= target)
-                break;
-        }
+        var (taken, consumed) = SelectAiringItems(state.Items, state.NextIndex, occurrence.Rule, occurrence.StartUtc, softEndUtc);
+        if (consumed > 0)
+            state.Commit(consumed); // oversized head items can never fit this window — skip them
 
         if (taken.Count == 0)
             return;
@@ -859,6 +900,70 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         blocked.AddRange(ranges);
         state.Commit(taken.Count);
         summary.SlotsCreated += ranges.Count;
+    }
+
+    // Boundary ownership: every occurrence owns [StartUtc, next occurrence start of any
+    // item-bearing rule). An airing may overshoot its nominal length only into unowned time —
+    // an item that would cross the boundary is not placed (items are indivisible, the airing
+    // simply ends earlier). Head items that cannot fit the window at all are consumed without a
+    // slot so the rotation does not stall on a permanently oversized item.
+    private static (List<SchedulableItem> Selected, int ConsumedLeading) SelectAiringItems(
+        List<SchedulableItem> items, int headIndex, ProgramRule rule, DateTime occurrenceStartUtc, DateTime? softEndUtc)
+    {
+        // EpisodeCount wins; without it SlotDuration bounds the airing; when neither is set the
+        // airing gets exactly one item (rule validation normally requires one of both).
+        var wanted = rule.EpisodeCount is > 0 ? rule.EpisodeCount.Value
+            : rule.SlotDuration is not null ? int.MaxValue : 1;
+        var target = rule.EpisodeCount is > 0 ? (TimeSpan?)null : rule.SlotDuration;
+
+        var count = items.Count;
+        var selected = new List<SchedulableItem>();
+        var consumed = 0;
+        var accumulated = TimeSpan.Zero;
+        var slotStart = occurrenceStartUtc;
+        var ring = 0;
+        while (selected.Count < wanted && consumed <= count)
+        {
+            var item = items[(headIndex + ring) % count];
+            ring++;
+            if (softEndUtc is { } bound && slotStart + item.Duration > bound)
+            {
+                if (selected.Count > 0)
+                    break; // tail item crosses the boundary — the airing ends here instead
+                consumed++;
+                continue; // oversized head item — permanently skipped (consumed, no slot)
+            }
+
+            selected.Add(item);
+            slotStart += item.Duration;
+            accumulated += item.Duration;
+            if (target is not null && accumulated >= target)
+                break;
+        }
+        return (selected, consumed);
+    }
+
+    // Sorted start times of all occurrences whose rule currently expands to schedulable items —
+    // each airing is bounded by the next such start so an overshooting tail cannot invade the
+    // next rule's window.
+    private static List<(DateTime StartUtc, int Priority)> BoundStarts(List<Occurrence> occurrences, Dictionary<long, RuleState> states)
+        => occurrences
+            .Where(o => states[o.Rule.Id].Items.Count > 0)
+            .Select(o => (o.StartUtc, o.Rule.Priority))
+            .Distinct()
+            .OrderBy(s => s.StartUtc)
+            .ToList();
+
+    // First bound occurrence start strictly after <paramref name="afterUtc"/> — the end of the
+    // window the airing owns. Only occurrences of rules with equal-or-lower priority bound an
+    // airing: a strictly higher-priority occurrence's window may still be overshot into — that
+    // occurrence then wins the contested segment head-on via the normal conflict resolution.
+    private static DateTime? BoundaryAfter(List<(DateTime StartUtc, int Priority)> boundStarts, DateTime afterUtc, int priority)
+    {
+        foreach (var (start, p) in boundStarts)
+            if (start > afterUtc && p <= priority)
+                return start;
+        return null;
     }
 
     private void FillGaps(Dictionary<long, RuleState> states, List<ProgramRule> rules, List<Interval> blocked, List<ProgramSlot> newSlots, DateTime coverageStart, DateTime horizonEnd, SummaryCounters summary,

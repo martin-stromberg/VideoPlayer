@@ -180,3 +180,5 @@
 - Fortschrittsanzeige mit übertragener/Gesamtgröße und Prozentangabe, automatische Wiederholung bei Netzwerkunterbrechungen und verständliche Fehlermeldungen bei endgültigem Fehlschlag.
 - Nicht abgeschlossene Uploads, auf die länger als 24 Stunden nicht zugegriffen wurde, werden automatisch aufgeräumt.
 - Eine bereits vorhandene gleichnamige `.bak`-Datei wird beim Import jetzt ersetzt.
+- Behoben: Sendungen einer Programmregel, die ihre konfigurierte Länge überschreiten, konnten das komplette Zeitfenster der nächsten Regel blockieren — die betroffene Regel erzeugte dauerhaft keine Sendeplätze. Airings enden jetzt an der nächsten Regelgrenze, und bereits eingeplante Überstände werden bei der Nachbewertung nur mit ihrem invadierenden Rest verdrängt.
+- Neu im Tab „Sendeplan" (Admin): „Verdrängte bereinigen" löscht nach Bestätigung alle verdrängten Sendeplätze mit Anzeige der Anzahl; „Plan zurücksetzen" löscht nach Bestätigung den kompletten Sendeplan samt Fortsetzungsständen für einen frischen Neuaufbau.

@@ -326,3 +326,7 @@ Werkzeug-Offenheit: KI-Videogeneratoren brauchen Zugang/Credentials (Runway/Pika
 prozedurale Generierung mit vorhandenen Mitteln (ffmpeg-Animationen/zoompan, ggf. Blender
 als Skript-Renderer, SVG/PNG-Frame-Sequenzen). Drehbuecher + fertige Clips landen als
 Assets im Projektverzeichnis bzw. einer Maskottchen-Sammlung in der Mediathek.
+
+Stand 2026-10-21: Es existiert **kein** Zugang zu KI-Videogeneratoren. Werkzeug-Auswahl und
+-pruefung sind Teil des Schritts (Evaluierung freier Zugaenge vs. prozedurale Generierung
+mit ffmpeg/Blender als Fallback), Entscheidung wird mit dem Anwender im Schritt getroffen.

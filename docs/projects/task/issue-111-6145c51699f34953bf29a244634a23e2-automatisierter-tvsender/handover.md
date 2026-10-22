@@ -263,3 +263,8 @@
 - Doku: `docs/help/tv-sender.md` (HTTP-Input, `LiveStream:UseHttpInput`, stderr-Diagnose, moov-Hinweis aktualisiert), `docs/RELEASE_NOTES.md` (EN+DE).
 - Hinweis an Abnahme: `ResolveAsync` praegt je Tick ein Token auch im „Unchanged"-Fall (gebunden durch Sweep, vernachlaessigbar — bewusst belassen). Echte Fehlerursache des Live-Befunds ist per stderr-Log jetzt sichtbar; vermutete Ursache (SFTP-Pump) entfaellt mit HTTP-Input.
 - Lifecycle-Artefakte: `docs/features/task-issue-111-...-schritt-19-stream-input/` (im Abschlusscommit entfernt, Planung in Historie); Tasks-Datei `docs/features/...-schritt-19-stream-input-tasks.md` bleibt.
+
+
+### Schritt 19: Segmenter-Input (N15) — FERTIG (abgenommen)
+
+- ffmpeg-stderr-Tail (8KB) bei unerwartetem Exit als Warnung (Laufzeit<RemainingSeconds, auch Exit0), HTTP-Range-Input via TryCreateStreamUri (TTL=Slotrest+15min), Fallback auf pipe:0 nur bei HTTP-Transportfehler, +30s-Spruenge als positionsbasierter Resync dokumentiert. Abnahme: `acceptance-schritt-19.md` — erfüllt.

@@ -340,6 +340,117 @@ public sealed class ProgramScheduleServiceTests_Reconcile
     }
 
     [Fact]
+    public async Task Reconcile_PartiallyAiredOccurrence_KeepsTailScheduled()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("reconcile-partial-occurrence", ct);
+        var channel = await fixture.GetChannelAsync(ct);
+        var (show, _, episodes) = await fixture.CreateShowAsync("Serie", 10, duration: TimeSpan.FromMinutes(45));
+
+        // The first coverage run happens while today's 14:00 airing (4×45 min) is already in
+        // progress: only the tail slots are materialized — the airing legitimately starts at
+        // 15:30, not at the occurrence start.
+        var now = new DateTimeOffset(LocalUtc(2026, 10, 24, 15, 40));
+        await fixture.CreateRuleAsync(channel.Id, "Nachmittagsserie", ProgramRuleType.SeriesFixedTime, ProgramRuleRecurrence.Daily,
+            new TimeOnly(14, 0), ProgramRuleMaterialType.TVShow, show.Id, episodeCount: 4);
+
+        var service = fixture.CreateService();
+        await service.EnsureCoverageAsync(now, ct);
+        var airing = (await ScheduledAsync(fixture, ct))
+            .Where(s => s.RuleType == ProgramRuleType.SeriesFixedTime && s.Start < now.UtcDateTime.AddHours(2))
+            .ToList();
+        Assert.Equal(2, airing.Count);
+        Assert.Equal(LocalUtc(2026, 10, 24, 15, 30), airing[0].Start);
+        Assert.Equal(episodes[2].Id, airing[0].TVShowEpisodeId);
+
+        // The re-evaluation must recognize the tail as the still-running remainder of the 14:00
+        // occurrence — nothing may be displaced.
+        var summary = await service.ReconcileAsync(now.AddMinutes(10), ct);
+        var dumped = (await fixture.SlotsAsync(ct)).Where(s => s.Status == ProgramSlotStatus.Displaced)
+            .Select(s => $"{s.Start:dd.HH:mm}-{s.End:dd.HH:mm} rule={s.ProgramRuleId} ep={s.TVShowEpisodeId}").ToList();
+        Assert.True(summary.SlotsDisplaced == 0, "Displaced: " + string.Join(" | ", dumped));
+
+        // And a second run must stay equally quiet — no oscillation.
+        var summary2 = await service.ReconcileAsync(now.AddMinutes(25), ct);
+        Assert.True(summary2.SlotsDisplaced == 0, "Displaced (2. Lauf): " + string.Join(" | ",
+            (await fixture.SlotsAsync(ct)).Where(s => s.Status == ProgramSlotStatus.Displaced)
+                .Select(s => $"{s.Start:dd.HH:mm}-{s.End:dd.HH:mm} rule={s.ProgramRuleId}")));
+    }
+
+    [Fact]
+    public async Task Reconcile_PartiallyAiredOccurrence_TomorrowAiringsStayStable()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("reconcile-partial-stable", ct);
+        var channel = await fixture.GetChannelAsync(ct);
+        var (show, _, episodes) = await fixture.CreateShowAsync("Serie", 20, duration: TimeSpan.FromMinutes(45));
+
+        var now = new DateTimeOffset(LocalUtc(2026, 10, 24, 15, 40));
+        await fixture.CreateRuleAsync(channel.Id, "Nachmittagsserie", ProgramRuleType.SeriesFixedTime, ProgramRuleRecurrence.Daily,
+            new TimeOnly(14, 0), ProgramRuleMaterialType.TVShow, show.Id, episodeCount: 4);
+
+        var service = fixture.CreateService();
+        await service.EnsureCoverageAsync(now, ct);
+
+        // Snapshot of the fully materialized future airings (tomorrow onward starts at 14:00).
+        var before = (await ScheduledAsync(fixture, ct))
+            .Where(s => s.RuleType == ProgramRuleType.SeriesFixedTime)
+            .Select(s => (s.Start, s.End, s.TVShowEpisodeId))
+            .ToList();
+
+        await service.ReconcileAsync(now.AddMinutes(10), ct);
+        var after = (await ScheduledAsync(fixture, ct))
+            .Where(s => s.RuleType == ProgramRuleType.SeriesFixedTime)
+            .Select(s => (s.Start, s.End, s.TVShowEpisodeId))
+            .ToList();
+
+        // Every previously scheduled series slot survives at the same position — the plan is
+        // idempotent instead of being rewritten each run.
+        Assert.All(before, b => Assert.Contains(after, a => a.Start == b.Start && a.End == b.End && a.TVShowEpisodeId == b.TVShowEpisodeId));
+    }
+
+    [Fact]
+    public async Task Reconcile_WorkerLoop_NoDisplacedAccumulationNoOverlap()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("reconcile-worker-loop", ct);
+        var channel = await fixture.GetChannelAsync(ct);
+        var (show, _, _) = await fixture.CreateShowAsync("Serie", 12, duration: TimeSpan.FromMinutes(45));
+        var filler = await fixture.CreateMovieAsync("Füller", duration: TimeSpan.FromMinutes(20));
+
+        // Daily 14:00 series airing (4×45 min) — the last horizon-edge airing overshoots the
+        // planning horizon, and "today" is a partially aired tail — the two historical
+        // displacement triggers of the overlap-cluster bug.
+        var now = new DateTimeOffset(LocalUtc(2026, 10, 24, 15, 40));
+        await fixture.CreateRuleAsync(channel.Id, "Nachmittagsserie", ProgramRuleType.SeriesFixedTime, ProgramRuleRecurrence.Daily,
+            new TimeOnly(14, 0), ProgramRuleMaterialType.TVShow, show.Id, episodeCount: 4);
+        await fixture.CreateRuleAsync(channel.Id, "Füller", ProgramRuleType.Filler, ProgramRuleRecurrence.Daily,
+            new TimeOnly(0, 0), ProgramRuleMaterialType.Movie, filler.Id, episodeCount: 1);
+
+        var service = fixture.CreateService();
+        await service.EnsureCoverageAsync(now, ct);
+
+        // The worker cadence: Reconcile + EnsureCoverage per interval — repeated runs must not
+        // churn the plan.
+        for (var i = 1; i <= 3; i++)
+        {
+            var t = now.AddMinutes(15 * i);
+            var summary = await service.ReconcileAsync(t, ct);
+            await service.EnsureCoverageAsync(t, ct);
+            Assert.True(summary.SlotsDisplaced == 0, $"Lauf {i}: {summary.SlotsDisplaced} verdrängt — " + string.Join(" | ",
+                (await fixture.SlotsAsync(ct)).Where(s => s.Status == ProgramSlotStatus.Displaced)
+                    .Select(s => $"{s.Start:dd.HH:mm}-{s.End:dd.HH:mm} rule={s.ProgramRuleId}")));
+        }
+
+        var scheduled = await ScheduledAsync(fixture, ct);
+        var ordered = scheduled.OrderBy(s => s.Start).ToList();
+        for (var i = 1; i < ordered.Count; i++)
+            Assert.True(ordered[i].Start >= ordered[i - 1].End,
+                $"Überlappende geplante Slots: {ordered[i - 1].Start:o}-{ordered[i - 1].End:o} und {ordered[i].Start:o}-{ordered[i].End:o}");
+        ProgramScheduleTestDb.AssertGapless(scheduled, now.AddMinutes(45).UtcDateTime, now.UtcDateTime.AddHours(48));
+    }
+
+    [Fact]
     public async Task GetSchedule_ReturnsUpcomingSlotsWithStatus()
     {
         var ct = TestContext.Current.CancellationToken;

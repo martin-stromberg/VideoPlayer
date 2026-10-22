@@ -129,7 +129,9 @@ Sicherheitsnetz für Änderungen ohne Auslöser (z. B. direkte Datenbank-Löschu
 Dabei gilt:
 
 - **Noch gültige Sendeplätze bleiben** — auch laufende und bereits gesendete; vergangene
-  Sendeplätze werden grundsätzlich nie verändert oder gelöscht.
+  Sendeplätze werden grundsätzlich nie verändert oder gelöscht. Eine Sendung, die beim
+  Fortschreiben des Plans bereits lief und deshalb nur mit ihrem Rest im Plan steht, gilt
+  ebenfalls weiter als gültig — sie wird nicht erneut verdrängt und neu geplant.
 - **Ungültige Sendeplätze werden als „verdrängt" markiert**, nicht gelöscht — z. B. weil die
   erzeugende Regel geändert, deaktiviert oder gelöscht wurde, ihr referenzierter Inhalt nicht
   mehr planbar ist oder eine höherpriorisierte Regel das Zeitfenster übernimmt.

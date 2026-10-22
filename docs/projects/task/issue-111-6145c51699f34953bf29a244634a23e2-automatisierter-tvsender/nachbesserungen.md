@@ -317,3 +317,12 @@ Laufzeitermittlung. Alles untereinander auf einer langen Seite.
 statische HTML-Vorschau der umstrukturierten Seite zur visuellen Abnahme durch den
 Anwender, bevor die Umsetzung in TVSenderAdmin.razor erfolgt. Falls das Ergebnis nicht
 tragfaehig ist, kann der Anwender alternativ einen Stitch-Entwurf liefern (Variante 1).
+
+**Erweiterung (2026-10-21):** Die Aufgabe umfasst die tatsaechliche Clip-Produktion — im
+Rahmen des Schritts werden (a) kleine Drehbuecher fuer Maskottchen-Szenen geschrieben und
+(b) die Videos mit passenden Tools generiert und in die Mediathek eingebracht.
+Werkzeug-Offenheit: KI-Videogeneratoren brauchen Zugang/Credentials (Runway/Pika/Sora o.ae.
+— Verfuegbarkeit und Kosten vorab klaeren); als garantiert verfuegbare Alternative dient
+prozedurale Generierung mit vorhandenen Mitteln (ffmpeg-Animationen/zoompan, ggf. Blender
+als Skript-Renderer, SVG/PNG-Frame-Sequenzen). Drehbuecher + fertige Clips landen als
+Assets im Projektverzeichnis bzw. einer Maskottchen-Sammlung in der Mediathek.

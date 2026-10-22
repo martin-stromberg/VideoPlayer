@@ -296,3 +296,19 @@ Versuchs — analog `MediaDurationProbeRecentItem`. Datenquelle vorhanden:
 (failed) bzw. `DurationProbedAt null` (pending); `GetProgressAsync` analoge Abfrage.
 Optional: „Probe zurücksetzen" pro Eintrag (Attempts zurücksetzen → erneuter Versuch),
 falls das Fehlerbild korrigierbar ist (z. B. Datei ersetzt).
+
+## N14 — TV-Sender-Adminseite neu strukturieren (Priorität: mittel, UX)
+
+**Beobachtet:** `/admin/tv-sender` ist unübersichtlich geworden — die Seite trägt inzwischen
+vier Belange nacheinander: Sender-Einstellungen (Name, Bundesland, Horizont, Intervall,
+Segment-Parameter), Regel-Liste + Regel-Editor, Sendeplan-Karte, Fortschrittskarte der
+Laufzeitermittlung. Alles untereinander auf einer langen Seite.
+
+**Gewünscht:** Neu strukturieren — Optionen:
+- **Tabs/Sektionen**: z. B. „Regeln", „Sendeplan", „Einstellungen", „Laufzeitermittlung" —
+  nav-seitig ein Link, inhaltlich klar getrennt (Muster evtl. aus anderen Admin-Seiten
+  übernehmen, Konsistenz mit `GenreAdmin`/`Backups` prüfen).
+- Oder **einklappbare Karten** mit sinnvollen Defaults (Regeln offen, Rest zu).
+- Regel-Editor ggf. als Dialog statt Inline-Block; Diagnose-Spalte + „Jetzt generieren"
+  gehören thematisch an den Sendeplan, Fortschrittskarte ist Infrastruktur-Status.
+- Usability-Review + bUnit/Playwright-Abdeckung der neuen Struktur.

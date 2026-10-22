@@ -96,13 +96,14 @@ public sealed class ProgramGuideService : IProgramGuideService
             .Select(c => (long?)c.Id)
             .FirstOrDefaultAsync(cancellationToken);
 
-    // Batch-resolves the titles of all given slots in two queries (movies + episodes), the same
-    // lookup the administration schedule view performs inline.
+    // Batch-resolves the titles of all given slots: movies and episodes first, then the bare
+    // media item name for slots without a content reference (e.g. clip-source filler slots).
     private async Task<TitleLookup> LoadTitlesAsync(IEnumerable<ProgramSlot?> slots, CancellationToken cancellationToken)
     {
         var list = slots.Where(s => s is not null).Cast<ProgramSlot>().ToList();
         var movieIds = list.Where(s => s.MovieId is not null).Select(s => s.MovieId!.Value).Distinct().ToList();
         var episodeIds = list.Where(s => s.TVShowEpisodeId is not null).Select(s => s.TVShowEpisodeId!.Value).Distinct().ToList();
+        var bareItemIds = list.Where(s => s.MovieId is null && s.TVShowEpisodeId is null).Select(s => s.MediaItemId).Distinct().ToList();
 
         var movies = movieIds.Count == 0
             ? new Dictionary<long, string>()
@@ -117,7 +118,13 @@ public sealed class ProgramGuideService : IProgramGuideService
                 .Select(e => new { e.Id, EpisodeName = e.Name, e.Number, SeasonName = e.TVShowSeason.Name, ShowName = e.TVShowSeason.TVShow.Name })
                 .ToDictionaryAsync(e => e.Id, e => $"{e.ShowName} — {e.SeasonName}, E{e.Number}: {e.EpisodeName}", cancellationToken);
 
-        return new TitleLookup(movies, episodes);
+        var items = bareItemIds.Count == 0
+            ? new Dictionary<long, string>()
+            : await _db.MediaItems
+                .Where(i => bareItemIds.Contains(i.Id))
+                .ToDictionaryAsync(i => i.Id, i => i.Name, cancellationToken);
+
+        return new TitleLookup(movies, episodes, items);
     }
 
     private static DtoProgramGuideEntry ToEntry(ProgramSlot slot, TitleLookup titles, DateTimeOffset utcNow)
@@ -147,6 +154,10 @@ public sealed class ProgramGuideService : IProgramGuideService
             if (titles.Episodes.TryGetValue(episodeId, out var episodeTitle))
                 entry.Title = episodeTitle;
         }
+        else if (titles.Items.TryGetValue(slot.MediaItemId, out var itemName) && !string.IsNullOrWhiteSpace(itemName))
+        {
+            entry.Title = itemName;
+        }
 
         var now = utcNow.UtcDateTime;
         if (slot.Start <= now && slot.End > now)
@@ -158,5 +169,5 @@ public sealed class ProgramGuideService : IProgramGuideService
         return entry;
     }
 
-    private sealed record TitleLookup(Dictionary<long, string> Movies, Dictionary<long, string> Episodes);
+    private sealed record TitleLookup(Dictionary<long, string> Movies, Dictionary<long, string> Episodes, Dictionary<long, string> Items);
 }

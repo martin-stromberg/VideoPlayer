@@ -17,6 +17,11 @@ namespace VideoWebPlayer.Data
 
         /// <summary>A trailer media item (the <see cref="MediaItem"/> of a
         /// <see cref="MovieMediaItem"/> link flagged <see cref="MovieMediaItem.IsTrailer"/>).</summary>
-        Trailer = 3
+        Trailer = 3,
+
+        /// <summary>A raw <see cref="MediaItem"/> of a clip-source material
+        /// (<see cref="ProgramRuleMaterialType.MediaSourceClips"/>) — <c>LastContentId</c> is
+        /// the media item identifier.</summary>
+        MediaItem = 4
     }
 }

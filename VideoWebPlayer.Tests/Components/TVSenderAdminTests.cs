@@ -206,6 +206,41 @@ public sealed class TVSenderAdminTests
         cut.WaitForAssertion(() => Assert.Empty(cut.FindAll("#rule-material-trailer")), TimeSpan.FromSeconds(5));
     }
 
+    [Fact]
+    public async Task RuleEditor_ClipSourceSelect_OnlyForFillerRuleType_AndSetsMaterial()
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("tvsender-clipsource-option", ct);
+        var admin = await fixture.AddUserAsync("admin@test.com", isAdmin: true);
+        var source = await fixture.EnsureSourceAsync(1);
+        var (ctx, _) = await CreateContextAsync(fixture, admin.Id);
+        using var _ctx = ctx;
+
+        var cut = ctx.Render<TVSenderAdmin>();
+        cut.WaitForAssertion(() => cut.Find("#tvsender-new-rule"), TimeSpan.FromSeconds(10));
+        cut.Find("#tvsender-new-rule").Click();
+
+        // Default rule type is not Filler → no clip-source select.
+        Assert.Empty(cut.FindAll("#rule-material-clipsource"));
+
+        cut.Find("#rule-type").Change("Filler");
+        cut.WaitForAssertion(() => cut.Find("#rule-material-clipsource"), TimeSpan.FromSeconds(5));
+
+        // The select offers every media source by name.
+        var select = cut.Find("#rule-material-clipsource");
+        Assert.Contains(source.Name, select.TextContent);
+
+        // Choosing a source fills the material chip.
+        select.Change(source.Id.ToString());
+        cut.WaitForAssertion(
+            () => Assert.Contains($"Clip-Quelle: {source.Name}", cut.Find("#rule-material-selected").TextContent),
+            TimeSpan.FromSeconds(5));
+
+        // Non-filler rule types do not offer the clip source.
+        cut.Find("#rule-type").Change("Repeat");
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll("#rule-material-clipsource")), TimeSpan.FromSeconds(5));
+    }
+
     /// <summary>Answers every API call with an empty JSON array — the page only reads playlist lists.</summary>
     private sealed class EmptyListHandler : HttpMessageHandler
     {

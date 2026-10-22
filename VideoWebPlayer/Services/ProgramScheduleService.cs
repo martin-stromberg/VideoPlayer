@@ -975,6 +975,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             ProgramRuleMaterialType.Genre => await ExpandGenreAsync(rule, access, summary, cancellationToken),
             ProgramRuleMaterialType.Playlist => await ExpandPlaylistAsync(rule.MaterialId, access, summary, cancellationToken),
             ProgramRuleMaterialType.Trailer => await ExpandTrailersAsync(access, airingsByMovie ?? new Dictionary<long, List<DateTime>>(), coverageStart, summary, cancellationToken),
+            ProgramRuleMaterialType.MediaSourceClips => await ExpandMediaSourceClipsAsync(rule.MaterialId, access, summary, cancellationToken),
             _ => new List<SchedulableItem>()
         };
 
@@ -1333,6 +1334,62 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                 .Select(l => l.MediaItemId)
                 .ToListAsync(cancellationToken))
             .ToHashSet();
+
+    // Expands the "clip source" material: every unclassified video media item of the referenced
+    // media source — files that were never turned into a movie or episode entry (no NFO), e.g.
+    // mascot/interstitial clips in a dedicated source. Items linked to a movie or episode are
+    // excluded so regularly classified content stays out of the filler ring even when the user
+    // points the rule at a normal library source. Ordered by media item id for a stable ring.
+    private async Task<List<SchedulableItem>> ExpandMediaSourceClipsAsync(
+        long sourceId, AccessContext access, SummaryCounters summary, CancellationToken cancellationToken)
+    {
+        if (!await _db.MediaSources.AnyAsync(s => s.Id == sourceId, cancellationToken))
+        {
+            summary.MaterialMissing++;
+            return [];
+        }
+
+        var items = await _db.MediaItems
+            .AsNoTracking()
+            .Where(mi => mi.MediaCollection.MediaSourceId == sourceId)
+            .Select(mi => new { mi.Id, mi.Path, mi.Duration, mi.DurationProbedAt, mi.DurationProbeAttempts })
+            .ToListAsync(cancellationToken);
+        if (items.Count == 0)
+            return [];
+
+        var linkedMovieItems = (await _db.MovieMediaItems
+                .Where(l => items.Select(i => i.Id).Contains(l.MediaItemId))
+                .Select(l => l.MediaItemId)
+                .ToListAsync(cancellationToken))
+            .ToHashSet();
+        var linkedEpisodeItems = (await _db.TVShowEpisodeMediaItems
+                .Where(l => items.Select(i => i.Id).Contains(l.MediaItemId))
+                .Select(l => l.MediaItemId)
+                .ToListAsync(cancellationToken))
+            .ToHashSet();
+
+        var result = new List<SchedulableItem>();
+        foreach (var item in items.OrderBy(i => i.Id))
+        {
+            if (!Utils.VideoFileExtensions.IsVideoFileName(item.Path))
+                continue;
+            if (linkedMovieItems.Contains(item.Id) || linkedEpisodeItems.Contains(item.Id))
+                continue; // classified content is regular material, not filler clips
+            summary.Candidates++;
+            if (item.Duration is null)
+            {
+                CountNoDuration(new MediaItemRef(item.Id, item.Duration, item.DurationProbedAt, item.DurationProbeAttempts), summary);
+                continue;
+            }
+            if (!access.Allows(sourceId, null, null))
+            {
+                summary.SkippedNoAccess++;
+                continue;
+            }
+            result.Add(new SchedulableItem(ProgramCursorContentType.MediaItem, item.Id, item.Id, null, null, item.Duration.Value));
+        }
+        return result;
+    }
 
     private async Task<Dictionary<long, List<DateTime>>> LoadMovieAiringsAsync(long channelId, DateTime afterUtc, IEnumerable<ProgramSlot> extraSlots, CancellationToken cancellationToken)
     {

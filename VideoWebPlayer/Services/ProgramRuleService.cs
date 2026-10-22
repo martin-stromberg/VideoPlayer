@@ -13,10 +13,11 @@ public sealed class ProgramRuleService : IProgramRuleService
     private static readonly ProgramRuleMaterialType[] AllMaterialTypes =
         Enum.GetValues<ProgramRuleMaterialType>();
 
-    // „Trailer anstehender Filme" ist ein reines Füller-Material — auf Repeat/HolidaySpecial
-    // würde die Auswahl zu leerer Expansion bzw. inkonsistentem Slot-Verhalten führen.
+    // „Trailer anstehender Filme" und „Clip-Quelle" sind reine Füller-Materialien — auf
+    // Repeat/HolidaySpecial würde die Auswahl zu leerer Expansion bzw. inkonsistentem
+    // Slot-Verhalten führen.
     private static readonly ProgramRuleMaterialType[] AllMaterialTypesExceptTrailer =
-        AllMaterialTypes.Where(t => t != ProgramRuleMaterialType.Trailer).ToArray();
+        AllMaterialTypes.Where(t => t != ProgramRuleMaterialType.Trailer && t != ProgramRuleMaterialType.MediaSourceClips).ToArray();
 
     private readonly ApplicationDbContext _db;
     private readonly IProgramScheduleSignal? _scheduleSignal;
@@ -43,7 +44,7 @@ public sealed class ProgramRuleService : IProgramRuleService
             ProgramRuleType.GenreRotation => [ProgramRuleMaterialType.Genre],
             ProgramRuleType.Repeat => AllMaterialTypesExceptTrailer,
             ProgramRuleType.HolidaySpecial => AllMaterialTypesExceptTrailer,
-            ProgramRuleType.Filler => [ProgramRuleMaterialType.Movie, ProgramRuleMaterialType.MovieCollection, ProgramRuleMaterialType.Genre, ProgramRuleMaterialType.Playlist, ProgramRuleMaterialType.Trailer],
+            ProgramRuleType.Filler => [ProgramRuleMaterialType.Movie, ProgramRuleMaterialType.MovieCollection, ProgramRuleMaterialType.Genre, ProgramRuleMaterialType.Playlist, ProgramRuleMaterialType.Trailer, ProgramRuleMaterialType.MediaSourceClips],
             _ => throw new ArgumentException($"Unbekannte Regelart: {ruleType}")
         };
 
@@ -279,6 +280,7 @@ public sealed class ProgramRuleService : IProgramRuleService
             ProgramRuleMaterialType.Playlist => await _db.Playlists.AnyAsync(m => m.Id == input.MaterialId, cancellationToken),
             // Trailer material references no entity — it covers every trailer of upcoming movies.
             ProgramRuleMaterialType.Trailer => true,
+            ProgramRuleMaterialType.MediaSourceClips => await _db.MediaSources.AnyAsync(m => m.Id == input.MaterialId, cancellationToken),
             _ => false
         };
 

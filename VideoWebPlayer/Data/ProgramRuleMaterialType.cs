@@ -28,6 +28,14 @@ namespace VideoWebPlayer.Data
         /// <see cref="ProgramRule.MaterialId"/> reference (filler material "trailer of upcoming
         /// movies").
         /// </summary>
-        Trailer = 5
+        Trailer = 5,
+
+        /// <summary>
+        /// Unclassified video <see cref="MediaItem"/>s of a media source (clip source —
+        /// <see cref="ProgramRule.MaterialId"/> references <c>MediaSources.Id</c>): short
+        /// interstitial/mascot clips that were never classified as a movie or episode (files
+        /// without an NFO), e.g. a dedicated "Maskottchen" media source.
+        /// </summary>
+        MediaSourceClips = 6
     }
 }

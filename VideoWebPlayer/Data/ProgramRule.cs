@@ -46,7 +46,8 @@ namespace VideoWebPlayer.Data
         public ProgramRuleType RuleType { get; set; }
 
         /// <summary>
-        /// Gets or sets the recurrence pattern (daily, weekly, once or on holidays).
+        /// Gets or sets the recurrence pattern (daily, weekly, once, on holidays, on weekdays
+        /// or on weekends).
         /// </summary>
         public ProgramRuleRecurrence Recurrence { get; set; }
 

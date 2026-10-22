@@ -106,6 +106,53 @@ public sealed class ProgramScheduleServiceTests_Generation
     }
 
     [Fact]
+    public async Task EnsureCoverage_WeekdayRule_OnlyMondayToFriday()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("schedule-weekday", ct);
+        var channel = await fixture.GetChannelAsync(ct);
+        var movie = await fixture.CreateMovieAsync("Werktagsfilm", duration: TimeSpan.FromMinutes(90));
+
+        // Friday 2026-10-23 10:00 local; weekday rule at 20:00 — Sa/So must be skipped.
+        var now = new DateTimeOffset(LocalUtc(2026, 10, 23, 10, 0));
+        await fixture.CreateRuleAsync(channel.Id, "Werktags", ProgramRuleType.MoviePrimeTime, ProgramRuleRecurrence.Weekday,
+            new TimeOnly(20, 0), ProgramRuleMaterialType.Movie, movie.Id);
+
+        await fixture.CreateService().EnsureCoverageAsync(now, ct);
+
+        var ruleSlots = (await fixture.SlotsAsync(ct)).Where(s => s.RuleType == ProgramRuleType.MoviePrimeTime).ToList();
+        Assert.NotEmpty(ruleSlots);
+        Assert.All(ruleSlots, s =>
+        {
+            var local = TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(s.Start, DateTimeKind.Utc), Tz);
+            Assert.True(local.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday));
+        });
+    }
+
+    [Fact]
+    public async Task EnsureCoverage_WeekendRule_OnlySaturdaySunday()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("schedule-weekend", ct);
+        var channel = await fixture.GetChannelAsync(ct);
+        var movie = await fixture.CreateMovieAsync("Wochenendfilm", duration: TimeSpan.FromMinutes(90));
+
+        var now = new DateTimeOffset(LocalUtc(2026, 10, 23, 10, 0));
+        await fixture.CreateRuleAsync(channel.Id, "Wochenende", ProgramRuleType.MoviePrimeTime, ProgramRuleRecurrence.Weekend,
+            new TimeOnly(20, 0), ProgramRuleMaterialType.Movie, movie.Id);
+
+        await fixture.CreateService().EnsureCoverageAsync(now, ct);
+
+        var ruleSlots = (await fixture.SlotsAsync(ct)).Where(s => s.RuleType == ProgramRuleType.MoviePrimeTime).ToList();
+        Assert.NotEmpty(ruleSlots);
+        Assert.All(ruleSlots, s =>
+        {
+            var local = TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(s.Start, DateTimeKind.Utc), Tz);
+            Assert.True(local.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday);
+        });
+    }
+
+    [Fact]
     public async Task EnsureCoverage_SeriesRule_AdvancesEpisodesInAirOrder()
     {
         var ct = TestContext.Current.CancellationToken;

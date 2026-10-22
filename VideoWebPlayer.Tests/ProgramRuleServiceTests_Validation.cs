@@ -20,6 +20,17 @@ public sealed class ProgramRuleServiceTests_Validation
         => new("Regel", ProgramRuleType.SeriesFixedTime, ProgramRuleRecurrence.Daily, null, null,
             new TimeOnly(20, 0), 1, null, type, materialId, 0, true);
 
+    private static async Task<long> SeedShowAsync(PairingTestDb fixture, CancellationToken ct)
+    {
+        var source = new MediaSource { Name = "Quelle" };
+        fixture.Db.MediaSources.Add(source);
+        await fixture.Db.SaveChangesAsync(ct);
+        var show = new TVShow { Name = "Serie", MediaSourceId = source.Id, CreatedAt = DateTime.UtcNow };
+        fixture.Db.TVShows.Add(show);
+        await fixture.Db.SaveChangesAsync(ct);
+        return show.Id;
+    }
+
     [Fact]
     public async Task CreateRule_WeeklyWithoutDayOfWeek_Throws()
     {
@@ -40,6 +51,38 @@ public sealed class ProgramRuleServiceTests_Validation
 
         var input = Base() with { Recurrence = ProgramRuleRecurrence.Once };
         await Assert.ThrowsAsync<ArgumentException>(() => service.CreateRuleAsync(adminId, channelId, input, ct));
+    }
+
+    [Fact]
+    public async Task CreateRule_WeekdayWithoutDayOfWeekOrDate_IsAllowed()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await PairingTestDb.CreateAsync("programrule-val-weekday", ct);
+        var (service, adminId, channelId) = await SetupAsync(fixture, ct);
+        var showId = await SeedShowAsync(fixture, ct);
+
+        var rule = await service.CreateRuleAsync(adminId, channelId,
+            Base(materialId: showId) with { Recurrence = ProgramRuleRecurrence.Weekday }, ct);
+
+        Assert.Equal(ProgramRuleRecurrence.Weekday, rule.Recurrence);
+        Assert.Null(rule.DayOfWeek);
+        Assert.Null(rule.SingleDate);
+    }
+
+    [Fact]
+    public async Task CreateRule_WeekendWithoutDayOfWeekOrDate_IsAllowed()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await PairingTestDb.CreateAsync("programrule-val-weekend", ct);
+        var (service, adminId, channelId) = await SetupAsync(fixture, ct);
+        var showId = await SeedShowAsync(fixture, ct);
+
+        var rule = await service.CreateRuleAsync(adminId, channelId,
+            Base(materialId: showId) with { Recurrence = ProgramRuleRecurrence.Weekend }, ct);
+
+        Assert.Equal(ProgramRuleRecurrence.Weekend, rule.Recurrence);
+        Assert.Null(rule.DayOfWeek);
+        Assert.Null(rule.SingleDate);
     }
 
     [Fact]

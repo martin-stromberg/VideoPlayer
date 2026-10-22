@@ -174,9 +174,9 @@ public sealed class TVSenderAdminE2ETests : PlaylistsE2ETestBase
             },
             () => Page.Locator("#rule-name").WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 }));
 
-        // The editor is the collapsible card inside the Regeln pane, not an overlay dialog.
+        // The editor is an overlay dialog floating above the rule list (Schritt 23, N21).
         await Expect(Page.Locator("#rule-editor")).ToBeVisibleAsync();
-        Assert.Equal(0, await Page.Locator(".admin-dialog-overlay").CountAsync());
+        await Expect(Page.Locator(".admin-dialog-overlay:has(#rule-editor)")).ToBeVisibleAsync();
 
         await Page.FillAsync("#rule-name", "Abendserie");
         await Page.FillAsync("#rule-episodes", "1");

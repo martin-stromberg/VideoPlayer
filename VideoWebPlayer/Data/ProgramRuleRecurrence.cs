@@ -15,6 +15,12 @@ namespace VideoWebPlayer.Data
         Once = 2,
 
         /// <summary>The rule applies on public holidays (German holiday calendar).</summary>
-        Holiday = 3
+        Holiday = 3,
+
+        /// <summary>The rule applies on weekdays (Monday to Friday).</summary>
+        Weekday = 4,
+
+        /// <summary>The rule applies on weekends (Saturday and Sunday).</summary>
+        Weekend = 5
     }
 }

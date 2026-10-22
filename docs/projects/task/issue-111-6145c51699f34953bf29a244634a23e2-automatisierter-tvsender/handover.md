@@ -325,3 +325,8 @@
   invalid (Randfall, unveraendert).
 - Lifecycle-Artefakte: `docs/features/task-issue-111-...-schritt-21-planer-eviction/` (im
   Abschlusscommit entfernt, Planung in Historie).
+
+
+### Schritt 21: Planer-Eviction (N16) — FERTIG (abgenommen)
+
+- Ursache: ReconcileAsync verwarf (a) Tail laufender Occurrences (erster Slot beginnt mitten, Check verlangte exakten Occurrence-Start) und (b) ueber den Horizont ragende Airings (scheduled mit horizonEnd-Kappung) als invalid -> komplette Regel-Zukunft verdrängt -> Oszillation = 4520 Displaced. Fix: AiringReproducible akzeptiert Suffixe bei exaktem Kopf-Offset; scheduled-Query ohne Kappung. Idempotent bewiesen. Abnahme: `acceptance-schritt-21.md` — erfüllt.

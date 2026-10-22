@@ -233,3 +233,17 @@ SSH.NET-Read-Pfad wie Wiedergabe — funktioniert source-typ-unabhängig.
   gegen Testserver falls möglich).
 - Prüfen: schlägt der Ansatz auch fürs Streaming (Schritt 6, pipe:0-Grenze) vor?
   Erstmal nur Probe-Seite.
+
+## N10 — Saisonale Genres sind im Regel-Formular vor ihrem Fenster nicht wählbar (Priorität: hoch)
+
+**Beobachtet (Live-Befund):** Genre „Halloween" (sichtbar, `StartDate=23.10.`/`EndDate=08.11.`)
+ist vor dem 23.10. nicht in der Material-Auswahl des Regel-Formulars — der
+`GenreCanonicalResolver` filtert das Sichtbarkeitsfenster auch für die *Konfigurations*-
+Auswahl. Der Admin kann eine Halloween-Regel damit erst innerhalb des Fensters anlegen —
+zu spät für Vorausplanung.
+
+**Gewünscht:** `GetGenreMaterialOptionsAsync` bietet Genres **unabhängig vom
+Sichtbarkeitsfenster** an (IsHidden-/Alternativnamen-Auflösung bleibt). Fenster-Genres
+dürfen gern markiert werden (z. B. „Halloween (23.10.–08.11.)"). Das Fenster wirkt
+weiterhin korrekt auf die *Expansion*: außerhalb der Saison liefert das Material nichts,
+innerhalb schon — so kann die Regel dauerhaft existieren und saisonal greifen.

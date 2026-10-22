@@ -20,6 +20,20 @@ public interface IInternalMediaStreamTokenService
     string? TryCreateProbeUri(long mediaItemId);
 
     /// <summary>
+    /// Issues a stream token for the given media item with a caller-chosen lifetime and
+    /// returns the absolute loopback stream URI for it — for long-running consumers such as
+    /// the live stream segmenter whose ffmpeg process reads the endpoint for the whole
+    /// remaining air time of a broadcast slot. Unlike <see cref="TryCreateProbeUri"/> this
+    /// is not gated by the probe option; the caller decides whether HTTP input is used at
+    /// all. Returns <see langword="null"/> when no usable HTTP address of this server
+    /// instance can be determined — the caller then falls back to another input method.
+    /// </summary>
+    /// <param name="mediaItemId">The media item the token authorizes.</param>
+    /// <param name="lifetime">How long the token must stay valid (clamped to a minimum).</param>
+    /// <returns>The stream URI, or <see langword="null"/> when no HTTP address is available.</returns>
+    string? TryCreateStreamUri(long mediaItemId, TimeSpan lifetime);
+
+    /// <summary>
     /// Resolves a stream token back to the media item it was issued for.
     /// </summary>
     /// <param name="token">The stream token as issued by <see cref="TryCreateProbeUri"/>.</param>

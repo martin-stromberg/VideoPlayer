@@ -105,7 +105,15 @@ public sealed class LiveStreamCoordinator
                 "Sendelücke — keine laufende Sendung.");
         }
 
-        var input = await _mediaResolver.ResolveAsync(now.MediaItemId, cancellationToken);
+        // An HTTP input whose last run died of a transport failure retries on the piped
+        // stream — other failures keep the (better) seekable input; the stream token must
+        // outlive the slot's remaining air time.
+        var useHttpInput = _segmenter.LastUnexpectedExit is not { SlotId: var failedSlot, HttpTransportFailure: true }
+            || failedSlot != now.SlotId;
+        var runDuration = now.RemainingSeconds is { } remaining
+            ? TimeSpan.FromSeconds(remaining)
+            : (TimeSpan?)null;
+        var input = await _mediaResolver.ResolveAsync(now.MediaItemId, runDuration, useHttpInput, cancellationToken);
         if (input is null)
         {
             await _segmenter.StopAsync(cancellationToken);
@@ -113,6 +121,17 @@ public sealed class LiveStreamCoordinator
                 $"Medium {now.MediaItemId} des laufenden Sendeplatzes nicht auflösbar.");
         }
 
+        if (!useHttpInput)
+        {
+            _logger.LogInformation(
+                "[LiveStreamCoordinator] Letzter ffmpeg-Lauf für Sendeplatz {SlotId} scheiterte am HTTP-Transport — dieser Versuch nutzt wieder den Pipe-Eingang.",
+                now.SlotId);
+        }
+
+        // The process state is not persisted: a crashed or drifted run restarts at the
+        // slot's current program position (never at the position it died at) — the ~30 s
+        // jumps of N15 are exactly this resync after up to one poll interval, not a
+        // duplicate booking; only one process ever exists (_gate in the segmenter).
         if (_segmenter.IsRunning && _segmenter.CurrentSlotId == now.SlotId)
         {
             var expected = _segmenter.ExpectedPositionSeconds;

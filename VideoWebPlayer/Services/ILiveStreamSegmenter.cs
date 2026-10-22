@@ -28,6 +28,14 @@ public interface ILiveStreamSegmenter
     double? ExpectedPositionSeconds { get; }
 
     /// <summary>
+    /// Gets the diagnosis of the last segmentation process that ended prematurely on its own,
+    /// or <see langword="null"/> when the last exit was expected or a new job has since been
+    /// started. The coordinator uses it to fall back to a different input method after an
+    /// HTTP transport failure.
+    /// </summary>
+    LiveStreamExitInfo? LastUnexpectedExit { get; }
+
+    /// <summary>
     /// Starts a segmentation job. Any previously running job is stopped first.
     /// </summary>
     /// <param name="job">The job to run.</param>

@@ -702,6 +702,8 @@ public class MediaDurationProbeServiceTests : IDisposable
             return UriToReturn;
         }
 
+        public string? TryCreateStreamUri(long mediaItemId, TimeSpan lifetime) => null;
+
         public long? ResolveMediaItemId(string token) => null;
     }
 

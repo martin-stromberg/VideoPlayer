@@ -18,6 +18,7 @@
 | 13 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-13-genre-vererbung | aktiv | 2026-10-22 |
 | 16 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-16-admin-ux | abgeschlossen | 2026-10-22 |
 | 18 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-18-maskottchen | fertig | 2026-10-24 |
+| 19 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-19-stream-input | aktiv | 2026-10-22 |
 
 ## Übergabestand je Schritt
 
@@ -249,3 +250,16 @@
 ### Schritt 18: Maskottchen (N12) — FERTIG (abgenommen)
 
 - Neue Füller-Materialart Clip-Quelle (MediaSourceClips, rotiert uneingeordnete Videos einer Quelle), 6 ffmpeg-produzierte Clips + 6 Drehbuecher + Generator unter docs/projects/…/maskottchen/, Titel-Fallback. Werkzeug: kein KI-Zugang → prozedurale Erzeugung; Evaluierung dokumentiert. Abnahme: `acceptance-schritt-18.md` — erfüllt.
+
+
+### Schritt 19: Segmenter stderr-Logging + seekfaehiger HTTP-Input (N15) — FERTIG (Implementierung; Abnahme durch anderen Agenten ausstehend)
+
+- **Diagnosability (Prio 1):** `DrainStandardErrorAsync` haelt jetzt einen 8-KB-stderr-Tail (`StreamReader` statt Rohbytes). Endet stderr, klassifiziert `ReportProcessExit`: `_process != process` (Kill via `StopCoreAsync`) oder Laufende innerhalb Toleranz `max(10 s, 2×SegmentSeconds)` → Debug; vorzeitiger Selbstexit → `LogWarning` mit Exit-Code + maskiertem Tail (`MaskStreamTokenInText` + `MaskCredentialsInText`) + `LastUnexpectedExit` (`LiveStreamExitInfo`: SlotId, ExitCode, HttpTransportFailure). Neuer `LogDebug` der maskierten ffmpeg-Argumente in `StartAsync`.
+- **HTTP-Input:** `LiveStreamInput.HttpUrl`/`ForHttp` (dritte Eingabeart; `IsPipe` jetzt `OpenStreamAsync is not null`), `BuildArguments` quotet die URL wie Pfade, `-nostdin` + kein Stdin-Redirect — ffmpeg seekt via HTTP-Range, `-ss` wirkt, moov-am-Ende entfaellt. `LiveStreamMediaResolver` (neue Deps: `IInternalMediaStreamTokenService` + `IOptions<LiveStreamOptions>`) liefert fuer Remote-Quellen primaer `ForHttp`, sonst bisheriges `ForStream`; lokale Quellen unveraendert `ForFile`.
+- **Token-Sharing/TTL:** Neues `IInternalMediaStreamTokenService.TryCreateStreamUri(mediaItemId, lifetime)` (gemeinsamer privater `TryCreateUri` mit `TryCreateProbeUri`; Probe-Pfad unveraendert an `HttpProbeEnabled` gekoppelt, Stream-Pfad nicht). TTL = `RemainingSeconds` + 15 min (Min. 60 s, Default bei unbekannter Restlaufzeit 45 min). Neue Option `LiveStream:UseHttpInput` (Default `true`, `LiveStreamOptions`, Section `LiveStream`, in `appsettings.json` dokumentiert).
+- **Fallback:** `FfprobeMediaDurationProbe`-HTTP-Transportmarker in `FfmpegErrorMarkers` (internal static) extrahiert und geteilt. Nur `HttpTransportFailure` desselben Slots laesst den Coordinator `useHttpInput:false` an den Resolver geben (Pipe-Pfad, mit Info-Log); andere Fehler bleiben auf dem besseren HTTP-Pfad — kein Kaskadieren. `LastUnexpectedExit` wird in `StartAsync` zurueckgesetzt → natuerliches Alternieren HTTP/Pipe.
+- **Restart-Analyse (N15 Punkt 3):** Die +30 s-Spruenge sind positionsbasiert korrekt — Restart am naechsten Tick (Poll-Cap 30 s) an `now.PositionSeconds` (Live-Position, kein Doppel-Booking; `_gate` serialisiert, stets ein Prozess). Je Crash-Zyklus gehen ~30–45 s Inhalt verloren. Dokumentiert im Coordinator-Kommentar + `docs/help/tv-sender.md`.
+- Tests: +21 (8 Segmenter-Fake inkl. `ControlledPipeStream` mit echtem EOF-Verhalten, 6 Resolver, 4 Coordinator, 4 Token-Dienst — davon 1 Ersetzung). Volle Suite synchron (Debug): **2145 gruen / 0 Fehler / 1 Alt-Skip** (2146 gesamt). Debug+Release-Build 0 Fehler, `dotnet format --verify-no-changes --severity error` sauber.
+- Doku: `docs/help/tv-sender.md` (HTTP-Input, `LiveStream:UseHttpInput`, stderr-Diagnose, moov-Hinweis aktualisiert), `docs/RELEASE_NOTES.md` (EN+DE).
+- Hinweis an Abnahme: `ResolveAsync` praegt je Tick ein Token auch im „Unchanged"-Fall (gebunden durch Sweep, vernachlaessigbar — bewusst belassen). Echte Fehlerursache des Live-Befunds ist per stderr-Log jetzt sichtbar; vermutete Ursache (SFTP-Pump) entfaellt mit HTTP-Input.
+- Lifecycle-Artefakte: `docs/features/task-issue-111-...-schritt-19-stream-input/` (im Abschlusscommit entfernt, Planung in Historie); Tasks-Datei `docs/features/...-schritt-19-stream-input-tasks.md` bleibt.

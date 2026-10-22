@@ -352,3 +352,24 @@ pipe:0-Pump über SFTP (denselben Pfad nutzt N8/N9 für Probes nicht mehr).
    Nebenprodukt: `-ss` wird wirksam und moov-am-Ende-Probleme entfallen.
 3. Neustart-Strategie prüfen: exakt +30 s-Sprünge wirken wie positions-basierte
    Wiederholung — dokumentieren/korrigieren, falls Doppel-Belegung droht.
+
+## N16 — Planer verdrängt Kandidaten en masse statt stabilen Plan (Priorität: kritisch, BUG)
+
+**Beobachtet (Live-Befund, 2026-10-22):** Regel 4 „Vorbendserien" (täglich 16:00, 4 h,
+GenreRotation, Genres Quelle 1+2, Filter Quelle 1) hat **35 Slots, alle `Displaced`** —
+kein einziger `Scheduled`. Heute 14–18 Uhr komplett leer; Regel-4-Slots liegen erst
+morgen 14:43–18:30 und **überlappen sich** (8 Items starten ~14:43–14:45). Gesamtzahlen
+pathologisch: **4.520 `Displaced` vs. 38 `Scheduled`** — Regel 7 hat 4.374 verdrängte,
+geballt morgen 04:00–07:41. Material ist planbar (35 Items verknüpft, kein
+„kein planbares Material" für Regel 4 im Log).
+
+**Verdacht:** `ReconcileAsync`/`MaterializeOccurrenceEvicting` (Evict-Pfad) schreibt
+Kandidatenbatches, die der nächste Lauf als Konflikt verdrängt, statt stabil zu bleiben —
+Oszillation statt Konvergenz. Cluster-Overlaps deuten zusätzlich auf eine Platzierung,
+die Kandidaten nicht kumulativ legt. `coverageStart`-/Horizont-Logik: heute 16:00 blieb
+komplett leer, obwohl das Fenster noch in der Zukunft lag.
+
+**Umzusetzen:** Planner-Debug — reproduzierbarer Test: GenreRotation-Regel + material,
+`EnsureCoverageAsync` zweimal hintereinander → 2. Lauf darf bestehende Slots nicht
+verdrängen (idempotent). Eviction so einschränken, dass nur echte Konflikte (höhere
+Priorität) verdrängen; Overlap-Cluster unterbinden; Regel-4-Leer-Fall heute erklären.

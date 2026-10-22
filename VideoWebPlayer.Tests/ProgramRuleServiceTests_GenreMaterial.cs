@@ -182,7 +182,7 @@ public sealed class ProgramRuleServiceTests_GenreMaterial
     }
 
     [Fact]
-    public async Task GetGenreMaterialOptions_OutOfSeasonGenre_NotListed()
+    public async Task GetGenreMaterialOptions_OutOfSeasonGenre_ListedWithWindowLabel()
     {
         var ct = TestContext.Current.CancellationToken;
         using var fixture = await PairingTestDb.CreateAsync("rule-options-season", ct);
@@ -192,7 +192,7 @@ public sealed class ProgramRuleServiceTests_GenreMaterial
 
         var options = await service.GetGenreMaterialOptionsAsync(adminId, null, ct);
 
-        Assert.Equal(["Immer"], options.Select(o => o.Name).ToArray());
+        Assert.Equal(["Immer", "Weihnachten (01.12.–26.12.)"], options.Select(o => o.Name).ToArray());
     }
 
     [Fact]

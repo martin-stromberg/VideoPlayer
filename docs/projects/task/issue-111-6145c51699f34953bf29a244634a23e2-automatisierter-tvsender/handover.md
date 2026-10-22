@@ -330,3 +330,8 @@
 ### Schritt 21: Planer-Eviction (N16) — FERTIG (abgenommen)
 
 - Ursache: ReconcileAsync verwarf (a) Tail laufender Occurrences (erster Slot beginnt mitten, Check verlangte exakten Occurrence-Start) und (b) ueber den Horizont ragende Airings (scheduled mit horizonEnd-Kappung) als invalid -> komplette Regel-Zukunft verdrängt -> Oszillation = 4520 Displaced. Fix: AiringReproducible akzeptiert Suffixe bei exaktem Kopf-Offset; scheduled-Query ohne Kappung. Idempotent bewiesen. Abnahme: `acceptance-schritt-21.md` — erfüllt.
+
+
+### Schritt 22: Plan-Rest + Bereinigen (N16-Rest + N18) — FERTIG (abgenommen)
+
+- Ursache: SlotDuration-Airings ueberzogen ins Folgefenster, Konflikt-Check verwarf die GANZE Folge-Occurrence -> Regeln hinter anderen bekamen null Slots. Fix: SelectAiringItems ueberzieht nur in freie Zeit (BoundStarts/BoundaryAfter), Invasoren suffix-genau getrimmt (DisplaceAiringSuffix), AiringReproducible mit gleicher Grenze. Zusaetzlich Verdrängte-bereinigen + Plan-zurücksetzen-Buttons (Admin, serverseitig). Abnahme: `acceptance-schritt-22.md` — erfüllt nach writtenOffset-Crash-Fix.

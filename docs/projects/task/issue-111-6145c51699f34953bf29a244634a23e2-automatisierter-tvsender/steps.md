@@ -25,4 +25,4 @@ Branch: `task/issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsende
 | 19 | Segmenter: stderr-Logging + Range-Input statt pipe:0 (N15) | 6 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-19-stream-input` | Fertig |
 | 20 | Nahtloser Slot-Wechsel: EXT-X-DISCONTINUITY (N17) | 6+7 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-20-slot-wechsel` | Fertig |
 | 21 | Planer-Eviction: keine massenhafte Verdrängung, stabiler Plan (N16) | 3+4 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-21-planer-eviction` | Fertig |
-| 22 | Regel 4 erzeugt keine Slots (N16-Rest) + Bereinigen-Button (N18) | 3+4 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-22-plan-rest` | In Arbeit |
+| 22 | Regel 4 erzeugt keine Slots (N16-Rest) + Bereinigen-Button (N18) | 3+4 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-22-plan-rest` | Fertig |

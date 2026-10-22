@@ -27,3 +27,4 @@ Branch: `task/issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsende
 | 21 | Planer-Eviction: keine massenhafte Verdrängung, stabiler Plan (N16) | 3+4 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-21-planer-eviction` | Fertig |
 | 22 | Regel 4 erzeugt keine Slots (N16-Rest) + Bereinigen-Button (N18) | 3+4 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-22-plan-rest` | Fertig |
 | 23 | Serien-Interleaving + Werktag/Wochenende + Regel-Overlay (N19-N21) | 3+4 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-23-regel-features` | Fertig |
+| 24 | Sendeplan-Panels mit Bild/Titel/Beschreibung (Admin + Live-TV) | 6+7 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-24-plan-panels` | In Arbeit |

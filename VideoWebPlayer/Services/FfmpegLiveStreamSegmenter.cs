@@ -75,7 +75,10 @@ internal sealed class SegmenterProcess : ISegmenterProcess
 /// Runs the single continuously segmenting ffmpeg process of the automated TV channel: the
 /// process transcodes the currently airing broadcast to HLS in real time (<c>-re</c>), starting
 /// at the slot's current playback position (<c>-ss</c>) and ending with the slot (<c>-t</c>).
-/// Unique per-run segment names keep every restart a clean discontinuity for players.
+/// The HLS muxer appends to the existing playlist (<c>append_list</c>), so a restarted run —
+/// slot change, drift resync or crash recovery — keeps the prior segments listed, continues
+/// the media sequence and marks the boundary with <c>#EXT-X-DISCONTINUITY</c> instead of
+/// resetting the playlist (which froze hls.js players at the transition, N17).
 /// </summary>
 public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
 {
@@ -359,8 +362,10 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
     /// <summary>
     /// Builds the ffmpeg argument string of a job: realtime read (<c>-re</c>), start offset
     /// (<c>-ss</c>), H.264/AAC transcode with segment-aligned forced keyframes, rolling HLS
-    /// window with self-deleting segments, unique per-run segment names and a duration bound
-    /// (<c>-t</c>) covering the slot's remaining air time.
+    /// window with self-deleting segments that continues across runs (<c>append_list</c>,
+    /// with <c>discont_start</c> marking each run's first segment and
+    /// <c>program_date_time</c> anchoring the wall clock for live-edge sync), unique per-run
+    /// segment names and a duration bound (<c>-t</c>) covering the slot's remaining air time.
     /// </summary>
     /// <param name="job">The segmentation job.</param>
     /// <returns>The argument string.</returns>
@@ -386,7 +391,7 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
             + "-c:v libx264 -preset veryfast -c:a aac -b:a 128k "
             + $"-force_key_frames \"expr:gte(t,n_forced*{job.SegmentSeconds})\" "
             + $"-f hls -hls_time {job.SegmentSeconds} -hls_list_size {PlaylistWindowSegmentCount} "
-            + "-hls_flags delete_segments+independent_segments "
+            + "-hls_flags delete_segments+independent_segments+append_list+discont_start+program_date_time "
             + $"-hls_segment_filename \"{segmentPattern}\" "
             + $"-t {remaining} \"{playlist}\"";
     }

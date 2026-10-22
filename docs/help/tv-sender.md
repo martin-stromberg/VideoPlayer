@@ -211,7 +211,12 @@ Sendeplan neu berechnet, es wird kein Prozesszustand gespeichert, sodass sich de
 einem Server-Neustart von selbst wieder auf die richtige Sendung und Position einstellt. Der
 Start erfolgt zeitversetzt (`-ss` auf die aktuelle Programmposition); an jedem Sendeplatz-
 Übergang wird der Prozess sauber beendet und auf dem Folgeslot neu gestartet — neue Segmente
-tragen eindeutige, zeit- und slot-codierte Namen, die Wiedergabeliste beginnt je Sendung sauber.
+tragen eindeutige, zeit- und slot-codierte Namen. Die Wiedergabeliste läuft dabei über die
+Job-Grenze hinweg weiter: der neue Lauf hängt an die bestehende `live.m3u8` an
+(`append_list`), führt deren Media-Sequence fort und markiert den Übergang mit
+`#EXT-X-DISCONTINUITY` sowie jedem Segment einen `EXT-X-PROGRAM-DATE-TIME`-Zeitstempel —
+Player wie hls.js spielen dadurch ohne Bild-Einfrieren über den Sendeplatz-Wechsel hinweg,
+auch bei Drift- oder Crash-Neustarts.
 Bei Sendelücken oder fehlender Mediendatei ruht die Segmentierung; weicht der laufende Prozess
 erkennbar vom Programmpunkt ab, wird er neu gestartet. Alle Zuschauer sehen daher zum selben
 Zeitpunkt dieselbe Programmposition. Stirbt der `ffmpeg`-Prozess unerwartet, protokolliert der

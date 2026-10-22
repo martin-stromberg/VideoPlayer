@@ -18,7 +18,8 @@
 | 13 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-13-genre-vererbung | aktiv | 2026-10-22 |
 | 16 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-16-admin-ux | abgeschlossen | 2026-10-22 |
 | 18 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-18-maskottchen | fertig | 2026-10-24 |
-| 19 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-19-stream-input | aktiv | 2026-10-22 |
+| 19 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-19-stream-input | abgeschlossen | 2026-10-22 |
+| 20 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-20-slot-wechsel | aktiv | 2026-10-22 |
 
 ## Übergabestand je Schritt
 
@@ -270,3 +271,15 @@
 - ffmpeg-stderr-Tail (8KB) bei unerwartetem Exit als Warnung (Laufzeit<RemainingSeconds, auch Exit0), HTTP-Range-Input via TryCreateStreamUri (TTL=Slotrest+15min), Fallback auf pipe:0 nur bei HTTP-Transportfehler, +30s-Spruenge als positionsbasierter Resync dokumentiert. Abnahme: `acceptance-schritt-19.md` — erfüllt.
 - Nachtrag 2026-10-22: Mit stderr-Logging wurde die echte Ursache gefunden — `-strftime 1` + `%05d` im Segmentnamen kollidiert (%0 ist kein strftime-Konversion, EINVAL beim ersten Segment). Fix: Timestamp in C# formatiert, strftime entfernt (Commit fix: HLS-Segmentdateiname).
 - Nachtrag: E2E-Test FfmpegLiveStreamSegmenterE2ETests (echtes ffmpeg + generiertes Dummy-Video) haette den strftime-Bug von Anfang an gefangen — Gegenprobe bewiesen.
+
+
+### Schritt 20: Nahtloser Slot-Wechsel via EXT-X-DISCONTINUITY (N17) — FERTIG (Implementierung; Abnahme durch anderen Agenten ausstehend)
+
+- **Designentscheidung (ffmpeg-Muxer statt Controller-Stitcher):** `-hls_flags` um `append_list+discont_start+program_date_time` erweitert (`FfmpegLiveStreamSegmenter.BuildArguments`). `append_list` haelt die Eintraege der Vorgaenger-Playlist, fuehrt `EXT-X-MEDIA-SEQUENCE` UND den `%05d`-Dateinamenzaehler fort und markiert das erste Segment jeder neuen Generation automatisch mit `#EXT-X-DISCONTINUITY` — empirisch auf ffmpeg 9.0.2 verifiziert (Proben in `docs/features/.../inventory/ffmpeg-append-list.md`). `discont_start` ist Versions-Sicherheit fuer aeltere Builds (kosmetischer Nebeneffekt: legales Head-Tag). `program_date_time` verankert die Wanduhr je Segment (hls.js `liveSyncPosition`). Eine Controller-Injektion konnte nur den Marker setzen, nicht den Sequence-Reset reparieren — haette einen zustandsvollen Playlist-Stitcher erfordert.
+- **Player-Haertung (`liveTv.js`):** Fatale hls.js-Fehler jetzt differenziert — `NETWORK_ERROR` → `startLoad()`, `MEDIA_ERROR` → `recoverMediaError()` (Referenzmuster, deckt Restfaelle am DISCONTINUITY-Uebergang), sonst destroy + Neu-Attach im bisherigen 5-s-Retry-Takt. Blazor-Callbacks unveraendert.
+- **Sharing-Haertung (im Zuge gefunden):** `LiveStreamController.RewritePlaylistAsync` liest die Playlist jetzt mit `FileShare.ReadWrite|Delete` — ein Client-Read mit `FileShare.Read` haette ffmpegs In-Place-Playlist-Write blockieren und den Muxer absterben lassen koennen (im Suite-Lauf als Flake des eigenen E2E-Tests beobachtet: Job 2 starb am Start, Playlist blieb unveraendert). Gleicher Fix im Test-Poll.
+- Tests: +1 E2E `SecondJob_PlaylistContinuesAndMarksDiscontinuity` (zwei echte ffmpeg-Laeufe auf lavfi-Dummy-Videos, Job 2 bei laufendem Job 1 = exakter Slot-Wechsel-Pfad; assertet `_1_` gelistet, DISCONTINUITY vor erstem `_2_`-URI, PDT, `LastUnexpectedExit == null`) + 3 Flag-Asserts im Argument-Test. **Mutationscheck: Test schlaegt ohne die Flags fehl** (Alt-Generation verschwindet — exakt das N17-Fehlerbild).
+- Volle Suite synchron (Debug): **2148 gesamt — 2147 gruen, 0 Fehler, 1 Alt-Skip** (4:01 min). Debug+Release-Build 0 Fehler, Warnungsstand unveraendert (144); `dotnet format --verify-no-changes --severity error` sauber. Zwischenlauf: 3 Last-Flakes (2 bekannte Playwright + 1 eigener E2E, Sharing-Violation → Fix oben), Einzel-Retries gruen, Endlauf komplett gruen.
+- Doku: `docs/help/tv-sender.md` (fortgefuehrte Playlist + DISCONTINUITY statt „beginnt je Sendung sauber"), `docs/RELEASE_NOTES.md` (EN+DE).
+- Hinweis an Abnahme: bewusste Nicht-Umsetzung von `-hls_start_number_source`/Controller-Rewrite — begruendet oben; `append_list` existiert seit ffmpeg ~2.x, Deployment-Risiko minimal (bei fehlender Unterstuetzung: Start-Fehler → LastUnexpectedExit-Diagnose, nichts Schlimmeres als heute).
+- Lifecycle-Artefakte: `docs/features/task-issue-111-...-schritt-20-slot-wechsel/` (im Abschlusscommit entfernt, Planung in Historie).

@@ -47,11 +47,25 @@ window.liveTv = (() => {
         state.hls = hls;
         hls.on(Hls.Events.ERROR, (_evt, data) => {
             if (!data || !data.fatal) return;
-            // Fataler Fehler: Blazor benachrichtigen und selbst wieder ansetzen.
+            // Fataler Fehler: Blazor benachrichtigen und selbst wieder ansetzen —
+            // differenziert nach Fehlertyp (hls.js-Referenzmuster): Netzwerkfehler
+            // laden einfach neu, Medienfehler brauchen recoverMediaError() (u. a. am
+            // EXT-X-DISCONTINUITY-Uebergang), sonstige Fehler einen Neuaufbau.
             notifyError(state, data.type || 'hls');
-            scheduleRetry(state, () => {
-                try { hls.startLoad(); } catch { /* faellt beim naechsten Tick erneut auf */ }
-            });
+            if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                scheduleRetry(state, () => {
+                    try { hls.recoverMediaError(); } catch { /* faellt beim naechsten Tick erneut auf */ }
+                });
+            } else if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                scheduleRetry(state, () => {
+                    try { hls.startLoad(); } catch { /* faellt beim naechsten Tick erneut auf */ }
+                });
+            } else {
+                scheduleRetry(state, () => {
+                    try { hls.destroy(); } catch { }
+                    attachHls(state, videoEl, url);
+                });
+            }
         });
         hls.on(Hls.Events.FRAG_BUFFERED, () => {
             state.errorNotified = false;

@@ -82,12 +82,32 @@ public sealed partial class InternalMediaStreamTokenService : IInternalMediaStre
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
+    /// <summary>The shortest lifetime a stream token is ever issued with.</summary>
+    private static readonly TimeSpan MinimumStreamTokenLifetime = TimeSpan.FromSeconds(60);
+
     /// <inheritdoc />
     public string? TryCreateProbeUri(long mediaItemId)
     {
         if (!_options.HttpProbeEnabled)
             return null;
 
+        return TryCreateUri(mediaItemId, TimeSpan.FromSeconds(_options.EffectiveHttpProbeTokenLifetimeSeconds));
+    }
+
+    /// <inheritdoc />
+    public string? TryCreateStreamUri(long mediaItemId, TimeSpan lifetime)
+        => TryCreateUri(
+            mediaItemId,
+            lifetime > MinimumStreamTokenLifetime ? lifetime : MinimumStreamTokenLifetime);
+
+    /// <summary>
+    /// Issues a stream token with the given lifetime and returns the absolute loopback URI.
+    /// </summary>
+    /// <param name="mediaItemId">The media item the token authorizes.</param>
+    /// <param name="lifetime">How long the token stays valid.</param>
+    /// <returns>The stream URI, or <see langword="null"/> when no HTTP address is available.</returns>
+    private string? TryCreateUri(long mediaItemId, TimeSpan lifetime)
+    {
         var baseUrl = ResolveBaseUrl();
         if (baseUrl is null)
             return null;
@@ -95,7 +115,7 @@ public sealed partial class InternalMediaStreamTokenService : IInternalMediaStre
         var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
         _tokens[token] = new TokenEntry(
             mediaItemId,
-            _timeProvider.GetUtcNow().AddSeconds(_options.EffectiveHttpProbeTokenLifetimeSeconds));
+            _timeProvider.GetUtcNow().Add(lifetime));
 
         SweepExpiredTokens();
 

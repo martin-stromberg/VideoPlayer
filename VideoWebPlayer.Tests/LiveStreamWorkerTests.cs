@@ -32,9 +32,17 @@ public sealed class LiveStreamWorkerTests : IAsyncLifetime
         public bool IsRunning => false;
         public long? CurrentSlotId => null;
         public double? ExpectedPositionSeconds => null;
+        public LiveStreamExitInfo? LastUnexpectedExit => null;
         public int StopCalls;
         public Task StartAsync(LiveStreamJob job, CancellationToken ct = default) => Task.CompletedTask;
         public Task StopAsync(CancellationToken ct = default) { StopCalls++; return Task.CompletedTask; }
+    }
+
+    private sealed class NullStreamTokenService : IInternalMediaStreamTokenService
+    {
+        public string? TryCreateProbeUri(long mediaItemId) => null;
+        public string? TryCreateStreamUri(long mediaItemId, TimeSpan lifetime) => null;
+        public long? ResolveMediaItemId(string token) => null;
     }
 
     private readonly string _contentRoot = Path.Combine(Path.GetTempPath(), $"vwp-worker-{Guid.NewGuid():N}");
@@ -75,6 +83,9 @@ public sealed class LiveStreamWorkerTests : IAsyncLifetime
         services.AddSingleton(new SftpMediaSourceReader());
         services.AddSingleton<IMediaSourceReader>(sp => new MediaSourceReaderDispatcher(
             sp.GetRequiredService<SftpMediaSourceReader>(), sp.GetRequiredService<LocalMediaSourceReader>()));
+        services.AddSingleton<IInternalMediaStreamTokenService>(new NullStreamTokenService());
+        services.AddSingleton(Microsoft.Extensions.Options.Options.Create(
+            new VideoWebPlayer.Configuration.LiveStreamOptions()));
         services.AddScoped<LiveStreamMediaResolver>();
         services.AddScoped<LiveStreamCoordinator>();
         await using var provider = services.BuildServiceProvider();

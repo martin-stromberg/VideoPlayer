@@ -214,7 +214,23 @@ Start erfolgt zeitversetzt (`-ss` auf die aktuelle Programmposition); an jedem S
 tragen eindeutige, zeit- und slot-codierte Namen, die Wiedergabeliste beginnt je Sendung sauber.
 Bei Sendelücken oder fehlender Mediendatei ruht die Segmentierung; weicht der laufende Prozess
 erkennbar vom Programmpunkt ab, wird er neu gestartet. Alle Zuschauer sehen daher zum selben
-Zeitpunkt dieselbe Programmposition.
+Zeitpunkt dieselbe Programmposition. Stirbt der `ffmpeg`-Prozess unerwartet, protokolliert der
+Server Exit-Code und das Ende der `stderr`-Ausgabe als Warnung im Log (Stream-Tokens und
+Zugangsdaten werden maskiert) und startet den Lauf am nächsten Synchronisationstakt an der
+dann aktuellen Programmposition neu — der Stream springt also auf die Live-Position, statt die
+verlorene Zeit nachzuholen.
+
+Medien aus **entfernten Quellen** (z. B. SFTP) werden `ffmpeg` bevorzugt als seekfähige
+HTTP-Adresse gereicht: der Server stellt die Datei über seinen internen, token-gesicherten
+Range-Endpunkt (`api/internal/media-stream/{token}`) bereit und übergibt `ffmpeg` die
+Loopback-URL — `ffmpeg` liest dann mit HTTP-Range-Anfragen, kann für `-ss` springen und kommt
+auch mit MP4-Dateien zurecht, deren `moov`-Atom am Dateiende liegt. Das Token lebt nur im
+Speicher, autorisiert genau diese eine Datei und ist auf die Restlaufzeit des Sendeplatzes
+plus Sicherheitspuffer bemessen; es erscheint maskiert im Log. Ist keine Adresse baubar oder
+scheitert ein Lauf am HTTP-Transport, fällt der nächste Versuch automatisch auf die bisherige
+Methode zurück, die den Inhalt in die Standardeingabe des Prozesses pumpt (`pipe:0`). Das
+Verhalten lässt sich mit `LiveStream:UseHttpInput` (`appsettings.json`, Standard `true`)
+abschalten — `false` nutzt immer den Pipe-Weg.
 
 Drei Einstellungen in der Sender-Karte steuern die Ausgabe:
 
@@ -270,5 +286,7 @@ verwendeten Builds ist beim Bezug zu prüfen (GPL-Builds erfordern bei Weitergab
 `ffmpeg`-Binärpakets selbst die GPL-Bedingungen — der Server ruft `ffmpeg` als eigenständigen
 Prozess auf und steht dadurch nicht unter der GPL). Hinweise für Pipe-Eingaben von
 Netzquellen: MP4-Dateien ohne `moov`-Atom am Dateianfang können über eine Pipe nicht demuxen
-werden — lokale Medienquellen (`LocalDirectory`), die über den Dateipfad gelesen werden, sind
-davon nicht betroffen.
+werden — seit die entfernten Quellen bevorzugt über den HTTP-Range-Eingang laufen (siehe
+oben, `LiveStream:UseHttpInput`), trifft das nur noch zu, wenn der HTTP-Eingang deaktiviert
+ist oder als Fallback greift; lokale Medienquellen (`LocalDirectory`), die über den Dateipfad
+gelesen werden, sind generell nicht betroffen.

@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using VideoWebPlayer.Client.Models;
+using VideoWebPlayer.Configuration;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 using VideoWebPlayer.Tests.Helpers;
@@ -35,6 +37,7 @@ public sealed class LiveStreamCoordinatorTests : IAsyncLifetime
         public bool IsRunning { get; set; }
         public long? CurrentSlotId { get; set; }
         public double? ExpectedPositionSeconds { get; set; }
+        public LiveStreamExitInfo? LastUnexpectedExit { get; set; }
         public List<LiveStreamJob> Jobs { get; } = [];
         public int StopCalls { get; private set; }
 
@@ -56,11 +59,29 @@ public sealed class LiveStreamCoordinatorTests : IAsyncLifetime
         }
     }
 
+    private sealed class StubStreamTokenService : IInternalMediaStreamTokenService
+    {
+        public string? UriToReturn { get; set; } =
+            "http://127.0.0.1:5002/api/internal/media-stream/" + new string('e', 64);
+        public int StreamUriCalls { get; private set; }
+
+        public string? TryCreateProbeUri(long mediaItemId) => null;
+
+        public string? TryCreateStreamUri(long mediaItemId, TimeSpan lifetime)
+        {
+            StreamUriCalls++;
+            return UriToReturn;
+        }
+
+        public long? ResolveMediaItemId(string token) => null;
+    }
+
     private readonly string _contentRoot = Path.Combine(Path.GetTempPath(), $"vwp-coord-{Guid.NewGuid():N}");
     private ProgramScheduleTestDb _fixture = null!;
     private FakeGuide _guide = null!;
     private FakeLocator _locator = null!;
     private FakeSegmenter _segmenter = null!;
+    private StubStreamTokenService _streamTokens = null!;
     private LiveStreamCoordinator _coordinator = null!;
     private string _localRoot = null!;
 
@@ -74,6 +95,7 @@ public sealed class LiveStreamCoordinatorTests : IAsyncLifetime
         _guide = new FakeGuide();
         _locator = new FakeLocator();
         _segmenter = new FakeSegmenter();
+        _streamTokens = new StubStreamTokenService();
         var settings = new ProgramSettingsService(_fixture.Db, NullLogger<ProgramSettingsService>.Instance);
         var store = new LiveStreamSegmentStore(
             new TestWebHostEnvironment { ContentRootPath = _contentRoot },
@@ -83,6 +105,7 @@ public sealed class LiveStreamCoordinatorTests : IAsyncLifetime
                 new SftpMediaSourceReader(),
                 new LocalMediaSourceReader(NullLogger<LocalMediaSourceReader>.Instance)),
             new LocalMediaSourceReader(NullLogger<LocalMediaSourceReader>.Instance),
+            _streamTokens, Options.Create(new LiveStreamOptions()),
             NullLogger<LiveStreamMediaResolver>.Instance);
         _coordinator = new LiveStreamCoordinator(
             _guide, resolver, store, _segmenter, _locator, settings,
@@ -95,6 +118,28 @@ public sealed class LiveStreamCoordinatorTests : IAsyncLifetime
         if (Directory.Exists(_contentRoot))
             Directory.Delete(_contentRoot, recursive: true);
         await Task.CompletedTask;
+    }
+
+    private async Task<MediaItem> SeedRemoteMediaItemAsync(string fileName = "remote.mkv")
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var source = new MediaSource
+        {
+            Name = $"Sftp-{Guid.NewGuid():N}",
+            Path = "/remote",
+            SourceType = MediaSourceType.Sftp,
+            Host = "h",
+            Port = 22
+        };
+        _fixture.Db.MediaSources.Add(source);
+        await _fixture.Db.SaveChangesAsync(ct);
+        var collection = new MediaCollection { Name = "Col", MediaSourceId = source.Id, Path = "/remote", CreatedAt = DateTime.UtcNow };
+        _fixture.Db.MediaCollections.Add(collection);
+        await _fixture.Db.SaveChangesAsync(ct);
+        var item = new MediaItem { Name = fileName, Path = $"/remote/{fileName}", MediaCollectionId = collection.Id, CreatedAt = DateTime.UtcNow, Duration = TimeSpan.FromMinutes(90) };
+        _fixture.Db.MediaItems.Add(item);
+        await _fixture.Db.SaveChangesAsync(ct);
+        return item;
     }
 
     private async Task<MediaItem> SeedLocalMediaItemAsync(string fileName = "movie.mkv")
@@ -236,5 +281,61 @@ public sealed class LiveStreamCoordinatorTests : IAsyncLifetime
 
         Assert.Equal(LiveStreamSyncAction.MediaUnavailable, result.Action);
         Assert.Empty(_segmenter.Jobs);
+    }
+
+    [Fact]
+    public async Task SynchronizeAsync_RemoteMedia_UsesHttpInput()
+    {
+        var item = await SeedRemoteMediaItemAsync();
+        _guide.Result.Now = Entry(11, item.Id);
+
+        var result = await _coordinator.SynchronizeAsync(DateTimeOffset.UtcNow, TestContext.Current.CancellationToken);
+
+        Assert.Equal(LiveStreamSyncAction.Started, result.Action);
+        var job = Assert.Single(_segmenter.Jobs);
+        Assert.Equal(_streamTokens.UriToReturn, job.Input.HttpUrl);
+        Assert.False(job.Input.IsPipe);
+    }
+
+    [Fact]
+    public async Task SynchronizeAsync_HttpTransportFailureSameSlot_FallsBackToPipe()
+    {
+        var item = await SeedRemoteMediaItemAsync();
+        _guide.Result.Now = Entry(11, item.Id);
+        _segmenter.LastUnexpectedExit = new LiveStreamExitInfo(11, 1, HttpTransportFailure: true, DateTimeOffset.UtcNow);
+
+        var result = await _coordinator.SynchronizeAsync(DateTimeOffset.UtcNow, TestContext.Current.CancellationToken);
+
+        Assert.Equal(LiveStreamSyncAction.Started, result.Action);
+        var job = Assert.Single(_segmenter.Jobs);
+        Assert.True(job.Input.IsPipe);
+        Assert.Null(job.Input.HttpUrl);
+        Assert.Equal(0, _streamTokens.StreamUriCalls);
+    }
+
+    [Fact]
+    public async Task SynchronizeAsync_NonTransportExit_KeepsHttpInput()
+    {
+        var item = await SeedRemoteMediaItemAsync();
+        _guide.Result.Now = Entry(11, item.Id);
+        _segmenter.LastUnexpectedExit = new LiveStreamExitInfo(11, 1, HttpTransportFailure: false, DateTimeOffset.UtcNow);
+
+        var result = await _coordinator.SynchronizeAsync(DateTimeOffset.UtcNow, TestContext.Current.CancellationToken);
+
+        Assert.Equal(LiveStreamSyncAction.Started, result.Action);
+        Assert.Equal(_streamTokens.UriToReturn, Assert.Single(_segmenter.Jobs).Input.HttpUrl);
+    }
+
+    [Fact]
+    public async Task SynchronizeAsync_HttpTransportFailureOtherSlot_KeepsHttpInput()
+    {
+        var item = await SeedRemoteMediaItemAsync();
+        _guide.Result.Now = Entry(11, item.Id);
+        _segmenter.LastUnexpectedExit = new LiveStreamExitInfo(99, 1, HttpTransportFailure: true, DateTimeOffset.UtcNow);
+
+        var result = await _coordinator.SynchronizeAsync(DateTimeOffset.UtcNow, TestContext.Current.CancellationToken);
+
+        Assert.Equal(LiveStreamSyncAction.Started, result.Action);
+        Assert.Equal(_streamTokens.UriToReturn, Assert.Single(_segmenter.Jobs).Input.HttpUrl);
     }
 }

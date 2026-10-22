@@ -233,6 +233,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<MediaSourceClassifier>();
         services.Configure<MediaProbeOptions>(configuration.GetSection("MediaProbe"));
         services.Configure<ProgramScheduleOptions>(configuration.GetSection("ProgramSchedule"));
+        services.Configure<LiveStreamOptions>(configuration.GetSection("LiveStream"));
         services.AddSingleton<IFfprobeLocator, FfprobeLocator>();
         services.AddSingleton<IFfmpegLocator, FfmpegLocator>();
         services.AddSingleton<ILiveStreamSegmenter, FfmpegLiveStreamSegmenter>();

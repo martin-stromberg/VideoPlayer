@@ -156,6 +156,59 @@ public class InternalMediaStreamTokenServiceTests
         Assert.Null(service.TryCreateProbeUri(42));
     }
 
+    [Fact]
+    public void TryCreateStreamUri_CustomLifetime_Honored()
+    {
+        var timeProvider = new ManualTimeProvider(DateTimeOffset.UtcNow);
+        var service = CreateService(CreateServer("http://*:5002"), timeProvider: timeProvider);
+
+        var uri = service.TryCreateStreamUri(42, TimeSpan.FromHours(2));
+        var token = UriPattern.Match(uri!).Groups["token"].Value;
+
+        timeProvider.Advance(TimeSpan.FromMinutes(119));
+        Assert.Equal(42, service.ResolveMediaItemId(token));
+
+        timeProvider.Advance(TimeSpan.FromMinutes(2));
+        Assert.Null(service.ResolveMediaItemId(token));
+    }
+
+    [Fact]
+    public void TryCreateStreamUri_ProbeDisabled_StillIssuesUri()
+    {
+        var service = CreateService(
+            CreateServer("http://*:5002"),
+            new MediaProbeOptions { HttpProbeEnabled = false });
+
+        var uri = service.TryCreateStreamUri(42, TimeSpan.FromHours(1));
+
+        Assert.NotNull(uri);
+        Assert.Matches(UriPattern, uri!);
+    }
+
+    [Fact]
+    public void TryCreateStreamUri_NoAddress_ReturnsNull()
+    {
+        var service = CreateService(CreateServer("https://*:5002"));
+
+        Assert.Null(service.TryCreateStreamUri(42, TimeSpan.FromHours(1)));
+    }
+
+    [Fact]
+    public void TryCreateStreamUri_TinyLifetime_ClampedToMinimum()
+    {
+        var timeProvider = new ManualTimeProvider(DateTimeOffset.UtcNow);
+        var service = CreateService(CreateServer("http://*:5002"), timeProvider: timeProvider);
+
+        var uri = service.TryCreateStreamUri(42, TimeSpan.FromSeconds(5));
+        var token = UriPattern.Match(uri!).Groups["token"].Value;
+
+        timeProvider.Advance(TimeSpan.FromSeconds(50));
+        Assert.Equal(42, service.ResolveMediaItemId(token));
+
+        timeProvider.Advance(TimeSpan.FromSeconds(20));
+        Assert.Null(service.ResolveMediaItemId(token));
+    }
+
     /// <summary>
     /// Minimal <see cref="IServer"/> fake exposing a settable feature collection — the real
     /// server is irrelevant; only <see cref="IServerAddressesFeature"/> is consumed.

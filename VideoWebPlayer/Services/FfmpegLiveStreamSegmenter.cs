@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -86,6 +87,12 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
 
     private static readonly TimeSpan StopTimeout = TimeSpan.FromSeconds(10);
 
+    /// <summary>The maximum stderr tail kept in memory for the unexpected-exit diagnosis.</summary>
+    private const int StderrTailCapacityChars = 8192;
+
+    /// <summary>Grace period to wait for the exit code once stderr reaches end of stream.</summary>
+    private static readonly TimeSpan ExitDetectionTimeout = TimeSpan.FromSeconds(5);
+
     private readonly ILogger<FfmpegLiveStreamSegmenter> _logger;
     private readonly Func<ProcessStartInfo, ISegmenterProcess?> _startProcess;
     private readonly TimeProvider _timeProvider;
@@ -94,6 +101,7 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
     private ISegmenterProcess? _process;
     private LiveStreamJob? _job;
     private DateTimeOffset _startedAt;
+    private volatile LiveStreamExitInfo? _lastUnexpectedExit;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FfmpegLiveStreamSegmenter"/> class.
@@ -120,6 +128,9 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
 
     /// <inheritdoc />
     public long? CurrentSlotId => IsRunning ? _job?.SlotId : null;
+
+    /// <inheritdoc />
+    public LiveStreamExitInfo? LastUnexpectedExit => _lastUnexpectedExit;
 
     /// <summary>
     /// Gets the playback position the running process is expected to have reached, or
@@ -154,11 +165,16 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
             _process = process;
             _job = job;
             _startedAt = _timeProvider.GetUtcNow();
+            _lastUnexpectedExit = null;
             _logger.LogInformation(
                 "[FfmpegLiveStreamSegmenter] Segmentierung fuer Sendeplatz {SlotId} gestartet (Position {Position}s).",
                 job.SlotId, job.PositionSeconds);
+            _logger.LogDebug(
+                "[FfmpegLiveStreamSegmenter] ffmpeg-Aufruf: {Arguments}",
+                InternalMediaStreamTokenService.MaskStreamTokenInText(
+                    SftpProbeUriBuilder.MaskCredentialsInText(startInfo.Arguments)));
 
-            _ = Task.Run(() => DrainStandardErrorAsync(process), CancellationToken.None);
+            _ = Task.Run(() => DrainStandardErrorAsync(process, job, _startedAt), CancellationToken.None);
             if (job.Input.IsPipe)
                 _ = Task.Run(() => PumpInputAsync(process, job), CancellationToken.None);
         }
@@ -212,21 +228,100 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
     }
 
     /// <summary>
-    /// Drain die stderr-Ausgabe des ffmpeg-Prozesses kontinuierlich weg: ffmpeg loggt seinen
-    /// Fortschritt auf stderr — wird der Pipe-Puffer nie gelesen, blockiert der Prozess und der
-    /// Live-Stream bleibt bis zum Drift-Neustart stehen.
+    /// Drains the ffmpeg process's stderr continuously — ffmpeg writes its progress and all
+    /// diagnostics there; a pipe buffer that is never read stalls the process and freezes the
+    /// live stream until the drift restart. The last <see cref="StderrTailCapacityChars"/>
+    /// characters are kept as a tail: when the stream ends while the process is still the
+    /// current job and it finished well before the slot's remaining air time, the exit was
+    /// unexpected — its exit code and tail are logged (stream tokens and credentials masked)
+    /// and reported through <see cref="LastUnexpectedExit"/>, because a silently dying ffmpeg
+    /// was the N15 root-cause blind spot.
     /// </summary>
-    private async Task DrainStandardErrorAsync(ISegmenterProcess process)
+    /// <param name="process">The process whose stderr is drained.</param>
+    /// <param name="job">The job the process was started for.</param>
+    /// <param name="startedAt">When the process was started (premature-exit reference).</param>
+    private async Task DrainStandardErrorAsync(ISegmenterProcess process, LiveStreamJob job, DateTimeOffset startedAt)
     {
+        var tail = new StringBuilder(StderrTailCapacityChars);
         try
         {
-            var buffer = new byte[8192];
-            while (await process.StandardError.ReadAsync(buffer, CancellationToken.None) > 0)
+            using var reader = new StreamReader(process.StandardError);
+            var buffer = new char[4096];
+            int read;
+            while ((read = await reader.ReadAsync(buffer, CancellationToken.None)) > 0)
             {
+                tail.Append(buffer, 0, read);
+                if (tail.Length > StderrTailCapacityChars)
+                    tail.Remove(0, tail.Length - StderrTailCapacityChars);
             }
         }
         catch (Exception ex) when (ex is IOException or ObjectDisposedException or OperationCanceledException)
         {
+            return;
+        }
+
+        ReportProcessExit(process, job, startedAt, tail.ToString());
+    }
+
+    /// <summary>
+    /// Classifies a just-ended process: deliberate stops (<see cref="StopCoreAsync"/> clears
+    /// <see cref="_process"/> before killing) and runs reaching the end of the slot's air time
+    /// are expected — anything earlier is an unexpected exit worth a warning and the
+    /// <see cref="LastUnexpectedExit"/> diagnosis for the coordinator's input fallback.
+    /// </summary>
+    /// <param name="process">The process whose stderr stream just ended.</param>
+    /// <param name="job">The job the process was started for.</param>
+    /// <param name="startedAt">When the process was started.</param>
+    /// <param name="stderrTail">The captured stderr tail (unmasked).</param>
+    private void ReportProcessExit(ISegmenterProcess process, LiveStreamJob job, DateTimeOffset startedAt, string stderrTail)
+    {
+        var maskedTail = InternalMediaStreamTokenService.MaskStreamTokenInText(
+            SftpProbeUriBuilder.MaskCredentialsInText(stderrTail));
+
+        var exitCode = ReadExitCode(process);
+        if (!ReferenceEquals(_process, process))
+        {
+            _logger.LogDebug(
+                "[FfmpegLiveStreamSegmenter] ffmpeg-Prozess fuer Sendeplatz {SlotId} wurde angehalten (Exit-Code {ExitCode}).",
+                job.SlotId, exitCode);
+            return;
+        }
+
+        // A run that ends within the last moments of the slot's air time finished as
+        // planned (-t bound) — only a substantially earlier exit is a failure.
+        var elapsed = _timeProvider.GetUtcNow() - startedAt;
+        var tolerance = TimeSpan.FromSeconds(Math.Max(10, 2 * job.SegmentSeconds));
+        if (elapsed.TotalSeconds >= job.RemainingSeconds - tolerance.TotalSeconds)
+        {
+            _logger.LogDebug(
+                "[FfmpegLiveStreamSegmenter] ffmpeg-Prozess fuer Sendeplatz {SlotId} endete planmaessig (Exit-Code {ExitCode}).",
+                job.SlotId, exitCode);
+            return;
+        }
+
+        var httpTransportFailure = job.Input.HttpUrl is not null
+            && FfmpegErrorMarkers.ContainsHttpTransportError(maskedTail);
+
+        _lastUnexpectedExit = new LiveStreamExitInfo(
+            job.SlotId, exitCode, httpTransportFailure, _timeProvider.GetUtcNow());
+
+        _logger.LogWarning(
+            "[FfmpegLiveStreamSegmenter] ffmpeg-Prozess fuer Sendeplatz {SlotId} beendete sich unerwartet nach {Elapsed:F1}s (Exit-Code {ExitCode}, HTTP-Transportfehler: {HttpTransportFailure}). stderr: {StderrTail}",
+            job.SlotId, elapsed.TotalSeconds, exitCode, httpTransportFailure,
+            string.IsNullOrWhiteSpace(maskedTail) ? "(leer)" : maskedTail.Trim());
+    }
+
+    private int ReadExitCode(ISegmenterProcess process)
+    {
+        try
+        {
+            if (!process.HasExited)
+                process.WaitForExitAsync(CancellationToken.None).Wait(ExitDetectionTimeout);
+            return process.HasExited ? process.ExitCode : -1;
+        }
+        catch (Exception)
+        {
+            return -1;
         }
     }
 
@@ -273,7 +368,11 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
     {
         var position = job.PositionSeconds.ToString("F3", CultureInfo.InvariantCulture);
         var remaining = Math.Max(1, job.RemainingSeconds).ToString("F3", CultureInfo.InvariantCulture);
-        var input = job.Input.FilePath is { } path ? $"\"{path}\"" : "pipe:0";
+        var input = job.Input.FilePath is { } path
+            ? $"\"{path}\""
+            : job.Input.HttpUrl is { } url
+                ? $"\"{url}\""
+                : "pipe:0";
         var noStdin = job.Input.IsPipe ? string.Empty : "-nostdin ";
         var segmentPattern = Path.Combine(job.SegmentDirectory, $"seg_%Y%m%d%H%M%S_{job.SlotId}_%05d.ts");
         var playlist = Path.Combine(job.SegmentDirectory, PlaylistFileName);

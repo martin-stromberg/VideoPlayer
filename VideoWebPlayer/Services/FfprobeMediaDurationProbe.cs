@@ -39,22 +39,9 @@ public class FfprobeMediaDurationProbe : IMediaDurationProbe
     /// </summary>
     private const string ProtocolNotFoundMarker = "Protocol not found";
 
-    /// <summary>
-    /// stderr markers that — for an <c>http(s)</c> input — mean the HTTP layer itself failed
-    /// (endpoint unreachable, rejected response status), so the file content was never
-    /// reached. Such failures are reported as <see cref="MediaDurationProbeResult.UriUnsupported"/>
-    /// so the caller falls back to another input method instead of misreading them as a
-    /// defective file or a retryable read hiccup.
-    /// </summary>
-    private static readonly string[] HttpTransportErrorMarkers =
-    {
-        "HTTP error",
-        "Server returned",
-        "Connection refused",
-        "Connection timed out",
-        "No route to host",
-        "Failed to connect"
-    };
+    // HTTP transport error classification is shared with the live stream segmenter and
+    // lives in FfmpegErrorMarkers — for an http(s) input such markers mean the URI itself
+    // cannot be served, so the result is MediaDurationProbeResult.UriUnsupported.
 
     private readonly IFfprobeLocator _locator;
     private readonly MediaProbeOptions _options;
@@ -237,15 +224,7 @@ public class FfprobeMediaDurationProbe : IMediaDurationProbe
     }
 
     private static bool ContainsHttpTransportErrorMarker(string stderr)
-    {
-        foreach (var marker in HttpTransportErrorMarkers)
-        {
-            if (stderr.Contains(marker, StringComparison.OrdinalIgnoreCase))
-                return true;
-        }
-
-        return false;
-    }
+        => FfmpegErrorMarkers.ContainsHttpTransportError(stderr);
 
     private static bool ContainsPermanentErrorMarker(string stderr)
     {

@@ -414,3 +414,23 @@ verworfen; `coverageStart`-/Blocked-Logik; Cursor `LastContentId=8961`. Zu prüf
 `EnsureCoverageAsync` für ein „heute 16:00, jetzt 16:30"-Szenario — kommt die
 Occurrence überhaupt zur Materialisierung (`DroppedConflicts`-/`DroppedPast`-Counter,
 Log-Level hochdrehen)?
+
+## N19 — Serien-Interleaving im Genre-Zeitfenster (Priorität: mittel, gewünscht)
+
+**Beobachtet (Anwender):** GenreRotation fuellt das Zeitfenster mit EINER Serie und
+spielt deren Episoden hintereinander ab (12:00 A-E1, 13:00 A-E2, 14:00 A-E3, morgen
+A-E4...). Gewuenscht ist echtes TV-Verhalten: **mehrere Serien im selben Fenster,
+jede eine Folge pro Tag zur gleichen Uhrzeit**.
+
+**Positiv-Beispiel (Soll):** Heute 12:00 A-E1, 13:00 B-E1, 13:45 C-E1, 14:30 D-E1 —
+Morgen 12:00 A-E2, 13:00 B-E2, 13:45 C-E2, ... d. h. stabilie Serien-Position im
+Tagesfenster, Episoden-Fortsetzung je Serie.
+
+**Design-Ueberlegung:** Die Materialisierung (SelectAiringItems/RuleState-Ring) liefert
+aktuell die naechsten Items sequenziell — Serien-Stripping statt Interleave. Optionen:
+- Material-Expansion pro Genre in „Sendestraenge" (je Serie ein Ring/Cursor) aufteilen
+  und im Fenster round-robin pro Serie ansetzen — Position je Serie ueber Tage stabil
+- Alternativ einfacher: Genre-Expansion liefert zufaellig/pro Serie, aber Reihenfolge
+  stabil je Tag: Slots des Tagesfensters werden serienuebergreifend rotiert statt
+  eine Serie zu blocken
+- Wichtig: pro Serie Episodenreihenfolge fortlaufend (E1->E2), nicht durcheinander

@@ -20,6 +20,7 @@
 | 18 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-18-maskottchen | fertig | 2026-10-24 |
 | 19 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-19-stream-input | abgeschlossen | 2026-10-22 |
 | 20 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-20-slot-wechsel | aktiv | 2026-10-22 |
+| 21 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-21-planer-eviction | fertig | 2026-10-22 |
 
 ## Übergabestand je Schritt
 
@@ -288,3 +289,39 @@
 ### Schritt 20: Slot-Wechsel (N17) — FERTIG (abgenommen)
 
 - hls_flags append_list+discont_start+program_date_time: Sequence+Zaehler laufen fort, ffmpeg markiert Generationsgrenze selbst mit EXT-X-DISCONTINUITY; liveTv.js Recovery differenziert; FileShare-Fix im Controller (Playlist-Read blockierte Muxer-Write). Abnahme: `acceptance-schritt-20.md` — erfüllt.
+
+
+### Schritt 21: Planer-Eviction / stabiler Plan (N16) — FERTIG (Implementierung; Abnahme durch anderen Agenten ausstehend)
+
+- **Ursache (2 Defekte in `ReconcileAsync`):** (a) Ein Tail einer bereits laufenden Occurrence
+  (Materialisierung schreibt nur Slots mit `End > coverageStart`, erstes Slot beginnt per Design
+  mitten in der Occurrence) scheiterte an `occurrenceStarts.Contains(airing[0].Start)` →
+  `firstInvalid` → **gesamte Regel-Zukunft verdrängt** → Neu-Materialisierung an denselben
+  Positionen → nächster Lauf wiederholt das Spiel (Oszillation im Worker-Takt → tausende
+  überlappende Displaced-Zeilen, Live: 4520 vs. 38; laufendes Fenster „heute 16:00" blieb leer).
+  (b) `scheduled`-Laden mit `s.Start < horizonEnd` kappte Airings am Horizont-Rand → verkürzte
+  Sequenz scheiterte am Count-Vergleich → verdrängt → Neu-Materialisierung schrieb Slots über die
+  noch-geplanten jenseitigen Slots → **überlappende Scheduled-Duplikate** (Live-Cluster
+  „8 Items ~14:43–14:45").
+- **Fix:** `AiringReproducible(airing, state, occurrenceStarts)` — Ring-Rückwärtslauf vom
+  Kopf-Item; akzeptiert Occurrence-Suffixe, deren übersprungene Kopf-Dauer exakt auf einen
+  Occurrence-Start der Regel trifft (Tail reproduziert Count/Items/Grenzen); `k=0` = bisherige
+  Semantik. `scheduled`-Query ohne `Start < horizonEnd`-Kappung (Airings komplett; jenseitige
+  Slots sind zugleich in `keptSlots`/`blocked` → keine Duplikat-Materialisierung mehr).
+- **Bewusst nicht geändert:** `Evicts` (Priorität/Id) war korrekt; kumulative Platzierung war
+  bereits korrekt; keine Migration/Massenbereinigung bestehender Displaced-Zeilen (Historie).
+- **Tests:** +3 (`Reconcile_PartiallyAiredOccurrence_KeepsTailScheduled`,
+  `..._TomorrowAiringsStayStable`, `Reconcile_WorkerLoop_NoDisplacedAccumulationNoOverlap` —
+  Worker-artige Schleife Reconcile+EnsureCoverage ×3: 0 verdrängt, keine Überlappung, lückenlos).
+  Mutationscheck: alle 3 schlagen ohne den Fix fehl (Dump = Live-Fehlerbild).
+- Volle Suite synchron (Debug): **2151 gesamt — 2150 gruen, 0 Fehler, 1 Alt-Skip** (~4:15 min).
+  Release-Build `VideoPlayer.sln` 0 Fehler; Debug-Kompilierung fehlerfrei — **aber `bin\Debug`
+  durch laufende Benutzer-App gesperrt (MSB3027)**, daher Kompilierung+Suite über
+  `-p:OutDir=scratch-test-bin` verifiziert (0 Fehler, Warnungsstand 144 unverändert);
+  `dotnet format --verify-no-changes --severity error` sauber. App wurde NICHT beendet.
+- Doku: `docs/help/tv-sender.md` (laufende Rest-Sendung gilt als gültig), `docs/RELEASE_NOTES.md` (EN).
+- Hinweis an Abnahme: Der Rückwärtslauf akzeptiert auch Tails von Occurrences im 24-h-Lookback;
+  Airings, die >24 h nach Occurrence-Start noch laufen (>24-h-Sendungen), bleiben wie bisher
+  invalid (Randfall, unveraendert).
+- Lifecycle-Artefakte: `docs/features/task-issue-111-...-schritt-21-planer-eviction/` (im
+  Abschlusscommit entfernt, Planung in Historie).

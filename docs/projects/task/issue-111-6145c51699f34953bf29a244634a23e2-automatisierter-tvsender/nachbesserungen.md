@@ -395,3 +395,22 @@ sequenzieller Übergang). Pause+Neustart geht, weil die Playlist frisch geladen 
   ggf. `liveSyncPosition`/Recovery-Verhalten.
 - Regressionstest: zwei aufeinanderfolgende Slots durchspielen (E2E mit echtem ffmpeg +
   zwei Dummy-Videos), Playlist-Übergang muss EXT-X-DISCONTINUITY enthalten.
+
+## N18 — „Bereinigen"-Funktion für verdrängte Sendeplätze (Priorität: mittel)
+
+**Gewünscht (Anwender):** Button „Verdrängte bereinigen" im Sendeplan-Tab
+(`TVSenderAdmin.razor`), der alle `ProgramSlots` mit `Status=Displaced` löscht
+(`DELETE FROM ProgramSlots WHERE Status=1` über `IProgramRuleService`/`ProgramScheduleService`)
+— mit Bestätigungsdialog + Ergebnis-Anzahl. Sicherheit: nur Admin, serverseitig.
+Optional: zusätzlich „Gesamten Plan zurücksetzen" (alle Slots + Cursor) für
+Debug/Fallback-Fälle — separate, markierte Aktion.
+
+## Nachtrag zu N16 — Rest-Befund nach Fix (2026-10-22)
+
+Nach Neustart mit Fix: **keine Oszillation mehr** (0 neue Displaced nach 16:00) — aber
+Regel 4 erzeugt **gar keine** Slots mehr (10.205 planbare Items, 0 scheduled/displaced
+seit Neustart). Mögliche Rest-Ursachen: Occurrence teilweise vergangen heute wird
+verworfen; `coverageStart`-/Blocked-Logik; Cursor `LastContentId=8961`. Zu prüfen:
+`EnsureCoverageAsync` für ein „heute 16:00, jetzt 16:30"-Szenario — kommt die
+Occurrence überhaupt zur Materialisierung (`DroppedConflicts`-/`DroppedPast`-Counter,
+Log-Level hochdrehen)?

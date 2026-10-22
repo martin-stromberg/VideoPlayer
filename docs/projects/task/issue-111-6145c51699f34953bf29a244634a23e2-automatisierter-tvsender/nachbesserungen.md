@@ -434,3 +434,21 @@ aktuell die naechsten Items sequenziell — Serien-Stripping statt Interleave. O
   stabil je Tag: Slots des Tagesfensters werden serienuebergreifend rotiert statt
   eine Serie zu blocken
 - Wichtig: pro Serie Episodenreihenfolge fortlaufend (E1->E2), nicht durcheinander
+
+## N20 — Wiederholungsarten „Werktag" und „Wochenende" (Priorität: mittel)
+
+**Gewuenscht (Anwender):** Zusaetzliche Recurrence-Arten in den Programmregeln:
+- **Werktag** (Mo–Fr)
+- **Wochenende** (Sa+So)
+Bisherige Arten (taeglich/woechentlich/einmalig — je nach Enum-Bestand pruefen)
+bleiben. Occurrence-Berechnung (`BuildOccurrences`) + UI-Auswahl (`TVSenderAdmin`
+Regel-Editor, `ProgramRuleService`-Validierung) + Lokalisierung + Tests
+(Werktag-Regel erzeugt nur Mo-Fr-Slots, Wochenende nur Sa/So).
+
+## N21 — Regel-Editor als Overlay-Panel (Priorität: mittel, UI)
+
+**Gewuenscht (Anwender):** Das Panel fuer die Regeleinstellungen soll als
+**Overlay-Panel** implementiert werden — nicht mehr als einklappbare Card
+(Schritt-16-Umsetzung). Modal/Drawer-Artiges Overlay ueber der Regel-Liste,
+Focus/Background-Handling wie in der App ueblich. Zugleich mit N19/N20 sinnvoll,
+da die Regel-Einstellungen dort erweitert werden.

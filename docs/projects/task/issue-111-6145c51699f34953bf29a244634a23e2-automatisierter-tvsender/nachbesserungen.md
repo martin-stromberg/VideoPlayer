@@ -373,3 +373,25 @@ komplett leer, obwohl das Fenster noch in der Zukunft lag.
 `EnsureCoverageAsync` zweimal hintereinander → 2. Lauf darf bestehende Slots nicht
 verdrängen (idempotent). Eviction so einschränken, dass nur echte Konflikte (höhere
 Priorität) verdrängen; Overlap-Cluster unterbinden; Regel-4-Leer-Fall heute erklären.
+
+## N17 — Slot-Wechsel: Player hängt an Playlist-Grenze (kein EXT-X-DISCONTINUITY) (Priorität: hoch)
+
+**Beobachtet (Live-Befund, 2026-10-22):** Beim Wechsel Sendeplatz 6→7 (14:30:50) startete
+der neue ffmpeg-Lauf serverseitig sauber (`-ss 0`, `-t 2733`), schreibt aber `live.m3u8`
+**komplett neu**: neue Segment-Dateinamen (`_7_`), Media-Sequence von vorn, Zeitbasis
+springt zurück. Im Player friert das letzte Bild ein, Ladeanimation — hls.js kann die
+neue Playlist nicht an die Pufferung anschließen (kein `#EXT-X-DISCONTINUITY`, kein
+sequenzieller Übergang). Pause+Neustart geht, weil die Playlist frisch geladen wird.
+
+**Umzusetzen:** Nahtloser Slot-Wechsel für hls.js-Clients, z. B.:
+- `#EXT-X-DISCONTINUITY` an der Übergangsstelle serverseitig in die ausgelieferte
+  Playlist injizieren (LiveStreamController beim Rewrite), sobald die laufende
+  ffmpeg-Generation wechselt — üblichste Lösung für zusammengesetzte Live-Pläne;
+- oder Segment-/Sequence-Nummern über Job-Grenzen hinweg fortlaufen lassen
+  (Start-Sequence des neuen Jobs an die alte anschließen);
+- oder ganz anders: ein ffmpeg-Dauerlauf mit Input-Umschaltung (concat/live-switch) —
+  größerer Umbau, nur wenn Markerweg nicht reicht.
+- Player-seitig (liveTv.js) prüfen: hls.js-Fehlerbehandlung beim Playlist-Wechsel,
+  ggf. `liveSyncPosition`/Recovery-Verhalten.
+- Regressionstest: zwei aufeinanderfolgende Slots durchspielen (E2E mit echtem ffmpeg +
+  zwei Dummy-Videos), Playlist-Übergang muss EXT-X-DISCONTINUITY enthalten.

@@ -247,3 +247,37 @@ Sichtbarkeitsfenster** an (IsHidden-/Alternativnamen-Auflösung bleibt). Fenster
 dürfen gern markiert werden (z. B. „Halloween (23.10.–08.11.)"). Das Fenster wirkt
 weiterhin korrekt auf die *Expansion*: außerhalb der Saison liefert das Material nichts,
 innerhalb schon — so kann die Regel dauerhaft existieren und saisonal greifen.
+
+## N11 — Trailer als Vorlauf-Füllmaterial zu eingeplanten Filmen (Priorität: mittel)
+
+**Beobachtet:** Keine Trailer-Verbindung im Datenmodell/Scanner — `grep -rni "trailer"` im
+Produktcode ohne Treffer. Der Anwender wünscht: Ist ein Film im Sendeplan, soll sein
+zugehöriger Trailer in den Tagen davor als Füllmaterial zur Verfügung stehen (klassischer
+Vorlauf-Werbung-Effekt).
+
+**Zu klären/umzusetzen:**
+- **Verknüpfung Trailer↔Film:** übliche Dateikonventionen (`-trailer`/`trailer`-Suffix
+  neben der Filmdatei, `Trailers/`-Ordner — Plex/Jellyfin-Konvention) beim Scan erkennen
+  und als eigene Beziehung persistieren, oder explizite Zuordnung über UI. Entscheidung
+  dokumentieren; Konvention ist wartungsärmer.
+- Trailer-Items brauchen ebenfalls `Duration` (läuft über denselben Probe-Pfad) und
+  dürfen nicht als reguläre Filme im Plan landen (Scan-Klassifizierung beachten).
+- **Planlogik:** Füller-Auswahl gewichtet Trailer bevorzugt, deren Film in den nächsten
+  X Tagen im Sendeplan steht (Vorlauf konfigurierbar, z. B. 7 Tage) — neue Materialart
+  oder Füller-Regel-Option „Trailer anstehender Filme".
+
+## N12 — Maskottchen-/Kennzeichen-Clips als Füller (Priorität: niedrig)
+
+**Anforderung:** Kurze Clips mit eigenem Sender-Maskottchen (Heinzelmännchen-Prinzip) als
+Lückenfüller/Kennzeichen.
+
+**Produktion:** **Keine Zusatzsoftware in der App nötig.** Clips sind gewöhnliche
+Videodateien — produziert werden sie außerhalb (Blender/After Effects/AI-Video-Tools oder
+einfache gerenderte Sequenzen) und als Dateien in die Mediathek gelegt. In der App genügt
+die bestehende Füller-Regel: Clips in eigene Sammlung/Playlist „Maskottchen" → Füller-Regel
+mit diesem Material (ggf. eigene Quelle ohne Serien/Film-Einordnung, damit sie nicht als
+reguläre Inhalte erscheinen).
+
+**Umzusetzen (klein):** ggf. Kennzeichnung „Interstitial/Kennzeichen" damit Maskottchen-
+Clips nicht als normale Filme auftauchen + Bevorzugung als Füller (Rotation innerhalb der
+Clip-Sammlung). Duration-Pfad gilt automatisch.

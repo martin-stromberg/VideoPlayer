@@ -143,6 +143,23 @@ Dabei gilt:
 - **Nachvollziehbarkeit**: Die Karte „Sendeplan" auf derselben Seite zeigt die kommenden
   Sendeplätze mit Start/Ende, Inhalt, erzeugender Regel und Status — verdrängte Sendeplätze sind
   dort als „Verdrängt" gekennzeichnet und bleiben als Historie erhalten.
+- **Fenstergrenzen**: Sendungen überziehen ihre Länge höchstens bis zum Beginn der nächsten
+  Sendung einer anderen Regel — nie in deren Fenster hinein. Ein Inhalt, der nicht mehr in den
+  Rest des Sendefensters passt, wird übersprungen statt die Folgesendung zu verdrängen. Ragt
+  eine bereits eingeplante Sendung über eine solche Grenze hinaus (z. B. nach einer Regel-
+  Änderung), wird nur ihr überstehender Rest verdrängt.
+
+### Aufräumen des Sendeplans
+
+Im Tab „Sendeplan" räumen zwei Schaltflächen (nur für Administratoren) den Plan auf:
+
+- **„Verdrängte bereinigen"** löscht nach einer Bestätigung alle Sendeplätze mit dem Status
+  „Verdrängt" — also die Historie der Nachführung — und zeigt die Anzahl der entfernten
+  Einträge an. Der wirksame Plan bleibt unverändert.
+- **„Plan zurücksetzen"** löscht nach einer Bestätigung mit Warnhinweis den **gesamten**
+  Sendeplan — alle geplanten und verdrängten Sendeplätze sowie die Fortsetzungsstände aller
+  Regeln (d. h. Serien beginnen wieder am Anfang ihrer Rotation). Der Plan wird beim nächsten
+  Generierungslauf komplett neu aufgebaut; „Jetzt generieren" stößt ihn sofort an.
 
 ### Planungsdiagnose und manueller Anstoß
 

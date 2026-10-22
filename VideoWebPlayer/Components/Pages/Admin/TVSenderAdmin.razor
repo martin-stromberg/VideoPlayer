@@ -309,7 +309,11 @@ else
                     <h2>Sendeplan</h2>
                     <span class="admin-chip">@schedule.Count Einträge</span>
                 </div>
-                <button id="tvsender-generate-now" class="btn btn-primary" @onclick="GenerateNowAsync" disabled="@generatePending">Jetzt generieren</button>
+                <div class="admin-actions" style="margin:0;">
+                    <button id="tvsender-generate-now" class="btn btn-primary" @onclick="GenerateNowAsync" disabled="@generatePending">Jetzt generieren</button>
+                    <button id="tvsender-cleanup-displaced" class="btn btn-outline-danger" @onclick="() => confirmCleanup = true">Verdrängte bereinigen</button>
+                    <button id="tvsender-reset-schedule" class="btn btn-outline-danger" @onclick="() => confirmReset = true">Plan zurücksetzen</button>
+                </div>
             </div>
 
             @if (schedule.Count == 0)
@@ -583,6 +587,38 @@ else
 
         </div>
 
+        @if (confirmCleanup)
+        {
+            <div class="admin-dialog-overlay" @onclick="() => confirmCleanup = false">
+                <div class="admin-dialog" @onclick:stopPropagation>
+                    <header class="admin-card-header">
+                        <h2>Verdrängte bereinigen</h2>
+                    </header>
+                    <p>Alle verdrängten Sendeplätze werden endgültig gelöscht. Der geplante Sendeplan bleibt unverändert bestehen.</p>
+                    <div class="admin-actions">
+                        <button id="schedule-cleanup-confirm" class="btn btn-danger" @onclick="CleanupDisplacedAsync">Bereinigen</button>
+                        <button class="btn btn-ghost" @onclick="() => confirmCleanup = false">Abbrechen</button>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (confirmReset)
+        {
+            <div class="admin-dialog-overlay" @onclick="() => confirmReset = false">
+                <div class="admin-dialog" @onclick:stopPropagation>
+                    <header class="admin-card-header">
+                        <h2>Sendeplan zurücksetzen</h2>
+                    </header>
+                    <p><strong>Achtung:</strong> Der gesamte Sendeplan — alle geplanten und verdrängten Sendeplätze sowie die Fortsetzungsstände aller Regeln — wird gelöscht. Der Plan wird beim nächsten Generierungslauf komplett neu aufgebaut.</p>
+                    <div class="admin-actions">
+                        <button id="schedule-reset-confirm" class="btn btn-danger" @onclick="ResetScheduleAsync">Zurücksetzen</button>
+                        <button class="btn btn-ghost" @onclick="() => confirmReset = false">Abbrechen</button>
+                    </div>
+                </div>
+            </div>
+        }
+
         @if (deleteCandidate != null)
         {
             <div class="admin-dialog-overlay" @onclick="() => deleteCandidate = null">
@@ -617,6 +653,8 @@ else
     private string? rulesStatus;
     private string? scheduleStatus;
     private bool generatePending;
+    private bool confirmCleanup;
+    private bool confirmReset;
     private bool disposed;
     private List<ProgramRule> rules = new();
     private List<ProgramSlot> schedule = new();
@@ -820,6 +858,45 @@ else
         finally
         {
             generatePending = false;
+        }
+    }
+
+    private async Task CleanupDisplacedAsync()
+    {
+        confirmCleanup = false;
+        if (channel is null)
+            return;
+
+        try
+        {
+            var deleted = await ProgramScheduleService.DeleteDisplacedSlotsAsync(userId, channel.Id);
+            scheduleStatus = deleted == 0
+                ? "Es waren keine verdrängten Sendeplätze vorhanden."
+                : $"{deleted} verdrängte Sendeplätze wurden bereinigt.";
+            await ReloadScheduleAsync();
+        }
+        catch (Exception ex)
+        {
+            scheduleStatus = ex.Message;
+        }
+    }
+
+    private async Task ResetScheduleAsync()
+    {
+        confirmReset = false;
+        if (channel is null)
+            return;
+
+        try
+        {
+            var result = await ProgramScheduleService.ResetScheduleAsync(userId, channel.Id);
+            scheduleStatus = $"Sendeplan wurde zurückgesetzt: {result.SlotsDeleted} Sendeplätze und {result.CursorsDeleted} Fortsetzungsstände gelöscht. Die Neuplanung startet mit dem nächsten Generierungslauf — „Jetzt generieren“ stößt sie sofort an.";
+            ScheduleSignal.NotifyScheduleChanged();
+            await ReloadScheduleAsync();
+        }
+        catch (Exception ex)
+        {
+            scheduleStatus = ex.Message;
         }
     }
 

@@ -72,6 +72,13 @@ public readonly record struct ProgramRuleDiagnosis(
     int NoAccessCount);
 
 /// <summary>
+/// The outcome of <see cref="IProgramScheduleService.ResetScheduleAsync"/>.
+/// </summary>
+/// <param name="SlotsDeleted">How many program slots (scheduled and displaced) were deleted.</param>
+/// <param name="CursorsDeleted">How many rule cursors (continuation state) were deleted.</param>
+public readonly record struct ProgramScheduleResetResult(int SlotsDeleted, int CursorsDeleted);
+
+/// <summary>
 /// Generates the rolling, gapless program schedule ("Sendeplan") of the delivered
 /// <see cref="TVChannel"/> from its active <see cref="ProgramRule"/>s.
 /// </summary>
@@ -110,6 +117,26 @@ public interface IProgramScheduleService
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The upcoming program slots including their status.</returns>
     Task<List<ProgramSlot>> GetScheduleAsync(long channelId, DateTimeOffset fromUtc, int maxCount, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Deletes all <see cref="ProgramSlotStatus.Displaced"/> slots of the channel — housekeeping
+    /// for re-evaluation leftovers that only exist for traceability. Administrator-only.
+    /// </summary>
+    /// <param name="userId">The requesting user; must be an administrator.</param>
+    /// <param name="channelId">The channel identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>How many displaced slots were deleted.</returns>
+    Task<int> DeleteDisplacedSlotsAsync(string userId, long channelId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Deletes the channel's whole program schedule — every slot regardless of status plus all
+    /// rule cursors — so the next schedule run plans completely fresh. Administrator-only.
+    /// </summary>
+    /// <param name="userId">The requesting user; must be an administrator.</param>
+    /// <param name="channelId">The channel identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>How many slots and cursors were deleted.</returns>
+    Task<ProgramScheduleResetResult> ResetScheduleAsync(string userId, long channelId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Computes the per-rule planning diagnosis for the administration view: every rule of the

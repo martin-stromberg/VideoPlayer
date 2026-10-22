@@ -21,6 +21,8 @@
 | 19 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-19-stream-input | abgeschlossen | 2026-10-22 |
 | 20 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-20-slot-wechsel | aktiv | 2026-10-22 |
 | 21 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-21-planer-eviction | fertig | 2026-10-22 |
+| 22 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-22-plan-rest | fertig | 2026-10-22 |
+| 23 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-23-regel-features | fertig | 2026-10-22 |
 
 ## Übergabestand je Schritt
 
@@ -335,3 +337,29 @@
 ### Schritt 22: Plan-Rest + Bereinigen (N16-Rest + N18) — FERTIG (abgenommen)
 
 - Ursache: SlotDuration-Airings ueberzogen ins Folgefenster, Konflikt-Check verwarf die GANZE Folge-Occurrence -> Regeln hinter anderen bekamen null Slots. Fix: SelectAiringItems ueberzieht nur in freie Zeit (BoundStarts/BoundaryAfter), Invasoren suffix-genau getrimmt (DisplaceAiringSuffix), AiringReproducible mit gleicher Grenze. Zusaetzlich Verdrängte-bereinigen + Plan-zurücksetzen-Buttons (Admin, serverseitig). Abnahme: `acceptance-schritt-22.md` — erfüllt nach writtenOffset-Crash-Fix.
+
+
+### Schritt 23: Regel-Features (N19–N21) — FERTIG (Implementierung + Selbstreviews)
+
+- N19 Serien-Interleaving: Genre-Regeln mit mehreren Serien füllen ihr Zeitfenster jetzt
+  Round-Robin je Strang — je Serie ein eigener Fortschritts-Cursor
+  (`ProgramRuleCursors.StrandKey`, Composite-Unique-Index `(ProgramRuleId, StrandKey)`,
+  Migration `AddProgramRuleCursorStrandKey`, `NULL` = bisheriger Gesamt-Cursor, nullable →
+  Alt-Backups brauchen keinen Default). Stabile Sendeplatz-Position je Serie über Tage,
+  fortlaufende Episoden je Serie; Filme laufen als gemeinsamer `other`-Strang weiter.
+  Füller-Regeln bleiben bewusst Flachmodus. Reconcile: `AiringReproducibleInterleaved`
+  (Präfix-Hypothesen + volle Simulation, konservativ) + `RewindCursor` je Strang.
+- N20: Neue Wiederholungsarten `Weekday` (Mo–Fr) / `Weekend` (Sa+So) — `BuildOccurrences`,
+  Editor-Select und `RecurrenceLabel` ergänzt; keine Zusatzfelder (Validierung via
+  `Enum.IsDefined`, `DayOfWeek`/`SingleDate` bleiben Weekly/Once vorbehalten).
+- N21: Regel-Editor wieder als Overlay-Panel (`.admin-dialog-overlay` + `.admin-dialog
+  .rule-editor-dialog`, Klick aufs Overlay = Abbrechen — App-Konvention).
+- Tests: +9 (4 Interleaving, 2 Recurrence-Generation, 2 Validierung, 1 Backup-StrandKey;
+  Editor-bUnit + E2E auf Overlay umgestellt). Volle Suite 2167 (2165 grün + 1 belegt
+  flake `BackupUpload_NavigatingAwayDuringUpload_AbortsWithoutRedirectBack`, Einzel-Retry
+  grün + 1 Alt-Skip). Build: Release 0 Fehler; Debug wegen laufender Benutzer-App gesperrt
+  → Scratch-OutDir-Verifikation (MSB3027, dokumentiert wie Schritt 21/22).
+- Hinweis an Abnahme: Migration wurde manuell (nicht per `dotnet ef`) erzeugt, weil das Tool
+  den gesperrten Debug-Build vorzieht — Konsistenz per Diff gegen Snapshot prüfbar.
+- Lifecycle-Artefakte: `docs/features/task-issue-111-...-schritt-23-regel-features/` (im
+  Abschlusscommit entfernt, Planung in Historie).

@@ -29,6 +29,15 @@ namespace VideoWebPlayer.Data
         public ProgramRule ProgramRule { get; set; } = null!;
 
         /// <summary>
+        /// Gets or sets the strand ("Sendestrang") this cursor belongs to — for interleaved
+        /// material (genre rules) each series keeps its own continuation state, identified by
+        /// a strand key like <c>show:{TVShowId}</c> or <c>other</c> for the shared strand of
+        /// non-episode content. <see langword="null"/> marks the rule's single overall cursor
+        /// (all non-interleaved material and rows written before strands existed).
+        /// </summary>
+        public string? StrandKey { get; set; }
+
+        /// <summary>
         /// Gets or sets the kind of content <see cref="LastContentId"/> refers to.
         /// </summary>
         public ProgramCursorContentType LastContentType { get; set; }

@@ -155,10 +155,10 @@ public sealed class TVSenderAdminTests
     }
 
     [Fact]
-    public async Task RuleEditor_RendersAsCard_InsideRulesTab()
+    public async Task RuleEditor_RendersAsOverlayDialog()
     {
         var ct = Xunit.TestContext.Current.CancellationToken;
-        using var fixture = await ProgramScheduleTestDb.CreateAsync("tvsender-editor-card", ct);
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("tvsender-editor-overlay", ct);
         var admin = await fixture.AddUserAsync("admin@test.com", isAdmin: true);
         var (ctx, _) = await CreateContextAsync(fixture, admin.Id);
         using var _ctx = ctx;
@@ -166,15 +166,22 @@ public sealed class TVSenderAdminTests
         var cut = ctx.Render<TVSenderAdmin>();
         cut.WaitForAssertion(() => cut.Find("#tvsender-new-rule"), TimeSpan.FromSeconds(10));
 
+        Assert.Empty(cut.FindAll("#rule-editor"));
         cut.Find("#tvsender-new-rule").Click();
 
+        // The editor is an overlay dialog floating above the rule list, not an embedded card.
         var editor = cut.Find("#rule-editor");
-        Assert.Contains("rule-editor-card", editor.ClassList);
-        // Embedded in the Regeln pane, not an overlay dialog any more.
-        Assert.NotNull(editor.Closest("#tab-regeln"));
-        Assert.Empty(cut.FindAll(".admin-dialog-overlay"));
+        Assert.Contains("admin-dialog", editor.ClassList);
+        var overlay = editor.Closest(".admin-dialog-overlay");
+        Assert.NotNull(overlay);
         cut.Find("#rule-name");
 
+        // Clicking the overlay background cancels the edit — the dialog disappears.
+        overlay!.Click();
+        Assert.Empty(cut.FindAll("#rule-editor"));
+
+        // Reopen and close via the header button instead.
+        cut.Find("#tvsender-new-rule").Click();
         cut.FindAll("#rule-editor button").Single(b => b.TextContent.Contains("Schließen")).Click();
         Assert.Empty(cut.FindAll("#rule-editor"));
     }

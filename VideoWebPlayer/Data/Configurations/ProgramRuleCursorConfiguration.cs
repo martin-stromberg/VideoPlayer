@@ -13,6 +13,7 @@ namespace VideoWebPlayer.Data.Configurations
         {
             builder.HasKey(c => c.Id);
 
+            builder.Property(c => c.StrandKey).IsRequired(false);
             builder.Property(c => c.LastContentType).IsRequired();
             builder.Property(c => c.LastContentId).IsRequired();
             builder.Property(c => c.UpdatedAt).IsRequired();
@@ -23,7 +24,10 @@ namespace VideoWebPlayer.Data.Configurations
                 .HasForeignKey(c => c.ProgramRuleId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            builder.HasIndex(c => c.ProgramRuleId).IsUnique();
+            // One cursor row per strand of a rule; the single-ring cursor of non-interleaved
+            // rules carries a NULL StrandKey (SQLite treats NULLs as distinct, but only one
+            // such row is ever written per rule).
+            builder.HasIndex(c => new { c.ProgramRuleId, c.StrandKey }).IsUnique();
         }
     }
 }

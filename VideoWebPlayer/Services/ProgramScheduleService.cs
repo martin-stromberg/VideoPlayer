@@ -82,9 +82,11 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         var access = await LoadAccessContextAsync(cancellationToken);
         var federalState = await _settings.GetHolidayFederalStateAsync(cancellationToken);
         var ruleIds = rules.Select(r => r.Id).ToList();
-        var cursors = await _db.ProgramRuleCursors
-            .Where(c => ruleIds.Contains(c.ProgramRuleId))
-            .ToDictionaryAsync(c => c.ProgramRuleId, cancellationToken);
+        var cursors = (await _db.ProgramRuleCursors
+                .Where(c => ruleIds.Contains(c.ProgramRuleId))
+                .ToListAsync(cancellationToken))
+            .GroupBy(c => c.ProgramRuleId)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<ProgramRuleCursor>)g.ToList());
 
         var states = new Dictionary<long, RuleState>();
         foreach (var rule in rules)
@@ -94,8 +96,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             var items = rule.MaterialType == ProgramRuleMaterialType.Trailer
                 ? new List<SchedulableItem>()
                 : await ExpandMaterialAsync(rule, access, summary, cancellationToken);
-            cursors.TryGetValue(rule.Id, out var cursor);
-            states[rule.Id] = new RuleState(rule, items, NextIndexFor(items, cursor));
+            states[rule.Id] = new RuleState(rule, items, cursors.GetValueOrDefault(rule.Id) ?? []);
         }
 
         var blocked = (await _db.ProgramSlots
@@ -149,17 +150,18 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         // displaced slots of inactive rules still need a cursor rewind so reactivation continues
         // in air order instead of jumping ahead.
         var ruleIds = rules.Select(r => r.Id).ToList();
-        var cursors = await _db.ProgramRuleCursors
-            .Where(c => ruleIds.Contains(c.ProgramRuleId))
-            .ToDictionaryAsync(c => c.ProgramRuleId, cancellationToken);
+        var cursors = (await _db.ProgramRuleCursors
+                .Where(c => ruleIds.Contains(c.ProgramRuleId))
+                .ToListAsync(cancellationToken))
+            .GroupBy(c => c.ProgramRuleId)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<ProgramRuleCursor>)g.ToList());
 
         var airingsByMovie = await LoadMovieAiringsAsync(channel.Id, coverageStart, [], cancellationToken);
         var states = new Dictionary<long, RuleState>();
         foreach (var rule in rules)
         {
             var items = await ExpandMaterialAsync(rule, access, summary, airingsByMovie, coverageStart, cancellationToken);
-            cursors.TryGetValue(rule.Id, out var cursor);
-            states[rule.Id] = new RuleState(rule, items, NextIndexFor(items, cursor));
+            states[rule.Id] = new RuleState(rule, items, cursors.GetValueOrDefault(rule.Id) ?? []);
         }
 
         // Scheduled slots reaching into the lookback window — wide enough to capture the head slot
@@ -241,12 +243,13 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             }
         }
 
-        // Cursor rewind: the earliest still-expandable displaced content per rule gets re-aired at
-        // the next free occurrence of the same rule context — air order continues without a jump.
+        // Cursor rewind: the earliest still-expandable displaced content per rule (and per
+        // strand inside interleaved rules) gets re-aired at the next free occurrence of the
+        // same rule context — air order continues without a jump.
         foreach (var ruleId in displacedRuleIds)
         {
             if (states.TryGetValue(ruleId, out var state))
-                RewindCursor(state, displaced.Where(s => s.ProgramRuleId == ruleId).ToList(), cursors);
+                RewindCursor(state, displaced.Where(s => s.ProgramRuleId == ruleId).ToList(), cursors.GetValueOrDefault(ruleId) ?? []);
         }
 
         // Re-materialization over the freed windows. Kept scheduled slots block — except they lose
@@ -279,7 +282,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             }
 
             if (states.TryGetValue(ruleId, out var state))
-                RewindCursor(state, displaced.Where(s => s.ProgramRuleId == ruleId).ToList(), cursors);
+                RewindCursor(state, displaced.Where(s => s.ProgramRuleId == ruleId).ToList(), cursors.GetValueOrDefault(ruleId) ?? []);
         }
 
         bool Evicts(ProgramRule winner, ProgramSlot kept)
@@ -310,7 +313,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             }
 
             if (states.TryGetValue(ruleId, out var state))
-                RewindCursor(state, displaced.Where(s => s.ProgramRuleId == ruleId).ToList(), cursors);
+                RewindCursor(state, displaced.Where(s => s.ProgramRuleId == ruleId).ToList(), cursors.GetValueOrDefault(ruleId) ?? []);
         }
 
         foreach (var occurrence in occurrences.OrderByDescending(o => o.Rule.Priority).ThenBy(o => o.Rule.Id).ThenBy(o => o.StartUtc))
@@ -340,7 +343,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                             keptSlots.Remove(loser);
                             blocked.RemoveAll(b => b.Start == loser.Start && b.End == loser.End);
                             if (states.TryGetValue(loserRuleId, out var invState))
-                                RewindCursor(invState, [loser], cursors);
+                                RewindCursor(invState, [loser], cursors.GetValueOrDefault(loserRuleId) ?? []);
                         }
                     }
                     else if (airing is not null)
@@ -356,7 +359,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                         keptSlots.Remove(loser);
                         blocked.RemoveAll(b => b.Start == loser.Start && b.End == loser.End);
                         if (states.TryGetValue(loserRuleId, out var loserState))
-                            RewindCursor(loserState, [loser], cursors);
+                            RewindCursor(loserState, [loser], cursors.GetValueOrDefault(loserRuleId) ?? []);
                     }
                 }
             }
@@ -497,6 +500,9 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     // next occurrence start — a boundary-trimmed airing is expected, not invalid).
     private static bool AiringReproducible(List<ProgramSlot> airing, RuleState state, HashSet<DateTime> occurrenceStarts, List<(DateTime StartUtc, int Priority)> boundStarts)
     {
+        if (state.IsInterleaved)
+            return AiringReproducibleInterleaved(airing, state, occurrenceStarts, boundStarts);
+
         var items = state.Items;
         if (items.Count == 0 || occurrenceStarts.Count == 0)
             return false;
@@ -553,6 +559,122 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         return false;
     }
 
+    // Interleaved counterpart of <see cref="AiringReproducible"/> for multi-strand states: the
+    // occurrence's picks rotate over the strands, so the check hypothesizes the number p of
+    // picks before the airing's first slot (prefix picks land cyclically on the strands
+    // starting at strand 0 — hence p mod m fixes the first slot's strand), reconstructs each
+    // strand's head as its first airing index minus its prefix pick count, and verifies by
+    // simulating the occurrence at each candidate start. Strands without a contribution to the
+    // airing cannot have supplied prefix picks (their head is not observable) — such
+    // hypotheses are rejected. Conservative by design: an unclear prefix fails the check, so
+    // the airing is displaced and re-materialized rather than kept stale.
+    private static bool AiringReproducibleInterleaved(List<ProgramSlot> airing, RuleState state, HashSet<DateTime> occurrenceStarts, List<(DateTime StartUtc, int Priority)> boundStarts)
+    {
+        var strands = state.Strands;
+        var m = strands.Count;
+        var rule = state.Rule;
+        if (occurrenceStarts.Count == 0)
+            return false;
+
+        // Locate each slot inside its strand; a strand's slots must be consecutive ring entries
+        // in order (episodes of a series never air shuffled).
+        var strandOf = new int[airing.Count];
+        var firstIndex = new int[m];
+        var countInAiring = new int[m];
+        Array.Fill(firstIndex, -1);
+        for (var i = 0; i < airing.Count; i++)
+        {
+            var s = -1;
+            var idx = -1;
+            for (var t = 0; t < m; t++)
+            {
+                idx = FindItemIndex(strands[t].Items, airing[i]);
+                if (idx >= 0)
+                {
+                    s = t;
+                    break;
+                }
+            }
+            if (s < 0)
+                return false;
+
+            strandOf[i] = s;
+            if (firstIndex[s] < 0)
+            {
+                firstIndex[s] = idx;
+            }
+            else if (idx != (firstIndex[s] + countInAiring[s]) % strands[s].Items.Count)
+            {
+                return false;
+            }
+            countInAiring[s]++;
+        }
+
+        var wanted = rule.EpisodeCount is > 0 ? rule.EpisodeCount.Value : int.MaxValue;
+        var maxPrefix = Math.Min(wanted, strands.Sum(s => s.Items.Count) + airing.Count);
+
+        foreach (var occurrenceStart in occurrenceStarts.Where(o => o <= airing[0].Start).OrderBy(o => o))
+        {
+            for (var p = 0; p < maxPrefix; p++)
+            {
+                if (p % m != strandOf[0])
+                    continue;
+
+                var prefixCount = new int[m];
+                var possible = true;
+                for (var q = 0; q < p && possible; q++)
+                {
+                    var s = q % m;
+                    if (countInAiring[s] == 0)
+                        possible = false;
+                    else
+                        prefixCount[s]++;
+                }
+                if (!possible)
+                    break;
+
+                var simStrands = new List<StrandState>(m);
+                for (var s = 0; s < m; s++)
+                {
+                    var items = strands[s].Items;
+                    var head = countInAiring[s] > 0
+                        ? ((firstIndex[s] - prefixCount[s]) % items.Count + items.Count) % items.Count
+                        : 0;
+                    simStrands.Add(new StrandState(strands[s].Key, items, head));
+                }
+
+                var picks = SelectAiringItemsInterleaved(simStrands, rule, occurrenceStart, BoundaryAfter(boundStarts, occurrenceStart, rule.Priority));
+                var selected = picks.Where(pk => pk.Item is not null).Select(pk => pk.Item!).ToList();
+                var writtenOffset = picks.Take(p).Count(pk => pk.Item is not null);
+                if (selected.Count - writtenOffset != airing.Count)
+                    continue;
+
+                var start = occurrenceStart;
+                var matches = true;
+                var pos = 0;
+                foreach (var pk in picks)
+                {
+                    if (pk.Item is null)
+                        continue;
+                    if (pos >= writtenOffset)
+                    {
+                        var slot = airing[pos - writtenOffset];
+                        if (slot.MediaItemId != pk.Item.MediaItemId || slot.Start != start || slot.End != start + pk.Item.Duration)
+                        {
+                            matches = false;
+                            break;
+                        }
+                    }
+                    start += pk.Item.Duration;
+                    pos++;
+                }
+                if (matches && pos == selected.Count)
+                    return true;
+            }
+        }
+        return false;
+    }
+
     // Locates a slot's content inside the expanded list: by media item first (unique), then by the
     // content reference (movie / episode) for material whose media item changed.
     private static int FindItemIndex(List<SchedulableItem> items, ProgramSlot slot)
@@ -567,33 +689,37 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         return -1;
     }
 
-    // Rewinds the rule's cursor to the predecessor of the earliest displaced content that is still
-    // expandable, so the next occurrence re-airs it (air order without a jump). Only rewinds when
-    // the cursor has already passed that position.
-    private static void RewindCursor(RuleState state, List<ProgramSlot> displacedSlots, Dictionary<long, ProgramRuleCursor> cursors)
+    // Rewinds each strand's cursor to the predecessor of its earliest displaced content that is
+    // still expandable, so the next occurrence re-airs it (air order without a jump). Only
+    // rewinds when the strand cursor has already passed that position.
+    private static void RewindCursor(RuleState state, List<ProgramSlot> displacedSlots, IReadOnlyList<ProgramRuleCursor> cursorRows)
     {
-        var items = state.Items;
-        if (items.Count == 0)
-            return;
-
-        foreach (var slot in displacedSlots.OrderBy(s => s.Start))
+        foreach (var strand in state.Strands)
         {
-            var idx = FindItemIndex(items, slot);
-            if (idx < 0)
+            var items = strand.Items;
+            if (items.Count == 0)
                 continue;
 
-            if (state.NextIndex > idx)
+            foreach (var slot in displacedSlots.OrderBy(s => s.Start))
             {
-                var predecessor = items[(idx - 1 + items.Count) % items.Count];
-                if (cursors.TryGetValue(state.Rule.Id, out var cursor))
+                var idx = FindItemIndex(items, slot);
+                if (idx < 0)
+                    continue;
+
+                if (strand.NextIndex > idx)
                 {
-                    cursor.LastContentType = predecessor.ContentType;
-                    cursor.LastContentId = predecessor.ContentId;
-                    cursor.UpdatedAt = DateTime.UtcNow;
+                    var predecessor = items[(idx - 1 + items.Count) % items.Count];
+                    var cursor = cursorRows.FirstOrDefault(c => c.StrandKey == strand.Key);
+                    if (cursor is not null)
+                    {
+                        cursor.LastContentType = predecessor.ContentType;
+                        cursor.LastContentId = predecessor.ContentId;
+                        cursor.UpdatedAt = DateTime.UtcNow;
+                    }
+                    strand.RewindTo(idx);
                 }
-                state.RewindTo(idx);
+                break; // earliest resolvable displaced content of this strand decides — done either way
             }
-            return; // earliest resolvable displaced content decides — done either way
         }
     }
 
@@ -617,10 +743,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         if (state.Items.Count == 0)
             return null;
 
-        var (taken, consumed) = SelectAiringItems(state.Items, state.NextIndex, occurrence.Rule, occurrence.StartUtc, softEndUtc);
-        if (consumed > 0)
-            state.Commit(consumed); // oversized head items can never fit this window — skip them
-
+        var (taken, takenCounts) = SelectAndCommitConsumed(state, occurrence.Rule, occurrence.StartUtc, softEndUtc);
         if (taken.Count == 0)
             return null;
 
@@ -669,7 +792,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         }
 
         blocked.AddRange(ranges);
-        state.Commit(taken.Count);
+        CommitTaken(state, taken, takenCounts);
         summary.SlotsCreated += ranges.Count;
         return conflicts.Count > 0 ? conflicts : null;
     }
@@ -682,12 +805,21 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         long MediaItemId,
         long? MovieId,
         long? TVShowEpisodeId,
-        TimeSpan Duration);
+        TimeSpan Duration,
+        string StrandKey = "");
 
-    private sealed class RuleState(ProgramRule rule, List<SchedulableItem> items, int nextIndex)
+    // Strand key of the shared strand holding all non-episode content of a genre expansion
+    // (movies rotate through it like a series of their own — sequential, not looping daily).
+    private const string OtherStrandKey = "other";
+
+    // One ring per strand ("Sendestrang") of a rule's material: for interleaved genre rules
+    // each TV show is its own strand (episodes continue in order independently of the other
+    // shows), with a dedicated persisted cursor row; everything else contributes to the
+    // shared "other" strand. Non-interleaved rules hold exactly one strand (Key == null).
+    private sealed class StrandState(string? key, List<SchedulableItem> items, int nextIndex)
     {
-        public ProgramRule Rule { get; } = rule;
-        public List<SchedulableItem> Items { get; set; } = items;
+        public string? Key { get; } = key;
+        public List<SchedulableItem> Items { get; } = items;
         public int NextIndex { get; private set; } = nextIndex;
         public SchedulableItem? LastPlaced { get; private set; }
 
@@ -702,6 +834,64 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         }
 
         public void RewindTo(int index) => NextIndex = index;
+    }
+
+    private sealed class RuleState
+    {
+        public RuleState(ProgramRule rule, List<SchedulableItem> items, IReadOnlyList<ProgramRuleCursor> cursors)
+        {
+            Rule = rule;
+            SetItems(items, cursors);
+        }
+
+        public ProgramRule Rule { get; }
+        public List<SchedulableItem> Items { get; private set; } = [];
+        public List<StrandState> Strands { get; private set; } = [];
+        public bool IsInterleaved => Strands.Count > 1;
+
+        // Flat-mode surface (single strand): used by filler handling and the flat airing
+        // reproducibility check — identical semantics to the former single ring.
+        public int NextIndex => Strands[0].NextIndex;
+        public SchedulableItem? LastPlaced => Strands[0].LastPlaced;
+        public SchedulableItem? PeekAt(int offset) => Strands[0].PeekAt(offset);
+        public void Commit(int count) => Strands[0].Commit(count);
+        public void RewindTo(int index) => Strands[0].RewindTo(index);
+
+        // Rebuilds items and strands — used when a rule's expansion refreshes mid-run
+        // (trailer material expands only after the occurrences are materialized).
+        public void SetItems(List<SchedulableItem> items, IReadOnlyList<ProgramRuleCursor> cursors)
+        {
+            Items = items;
+
+            if (Rule.MaterialType == ProgramRuleMaterialType.Genre && Rule.RuleType != ProgramRuleType.Filler)
+            {
+                var order = new List<string>();
+                var byKey = new Dictionary<string, List<SchedulableItem>>();
+                foreach (var item in items)
+                {
+                    var key = string.IsNullOrEmpty(item.StrandKey) ? OtherStrandKey : item.StrandKey;
+                    if (!byKey.TryGetValue(key, out var list))
+                    {
+                        list = [];
+                        byKey[key] = list;
+                        order.Add(key);
+                    }
+                    list.Add(item);
+                }
+                if (order.Count > 1)
+                {
+                    Strands = order
+                        .Select(key => new StrandState(key, byKey[key], NextIndexFor(byKey[key], FindCursor(cursors, key))))
+                        .ToList();
+                    return;
+                }
+            }
+
+            Strands = [new StrandState(null, items, NextIndexFor(items, FindCursor(cursors, null)))];
+        }
+
+        private static ProgramRuleCursor? FindCursor(IReadOnlyList<ProgramRuleCursor> cursors, string? key)
+            => cursors.FirstOrDefault(c => c.StrandKey == key);
     }
 
     private sealed record Occurrence(ProgramRule Rule, DateTime StartUtc);
@@ -831,6 +1021,8 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                     ProgramRuleRecurrence.Weekly => rule.DayOfWeek is { } dow && day.DayOfWeek == dow,
                     ProgramRuleRecurrence.Once => rule.SingleDate == day,
                     ProgramRuleRecurrence.Holiday => GermanHolidayCalendar.IsHoliday(day, federalState),
+                    ProgramRuleRecurrence.Weekday => day.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday),
+                    ProgramRuleRecurrence.Weekend => day.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday,
                     _ => false
                 };
                 if (!applies)
@@ -852,10 +1044,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         if (state.Items.Count == 0)
             return;
 
-        var (taken, consumed) = SelectAiringItems(state.Items, state.NextIndex, occurrence.Rule, occurrence.StartUtc, softEndUtc);
-        if (consumed > 0)
-            state.Commit(consumed); // oversized head items can never fit this window — skip them
-
+        var (taken, takenCounts) = SelectAndCommitConsumed(state, occurrence.Rule, occurrence.StartUtc, softEndUtc);
         if (taken.Count == 0)
             return;
 
@@ -898,8 +1087,120 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         }
 
         blocked.AddRange(ranges);
-        state.Commit(taken.Count);
+        CommitTaken(state, taken, takenCounts);
         summary.SlotsCreated += ranges.Count;
+    }
+
+    // Shared selection entry for both materialization paths: picks the airing's items and
+    // immediately commits the consumed (permanently skipped oversized head) picks — those are
+    // cursor progress regardless of the outcome — while the taken items are only committed
+    // once the airing survives the conflict check (see <see cref="CommitTaken"/>). For flat
+    // (single-strand) states this is exactly the previous ring behavior; for interleaved
+    // states the window is filled round-robin over the strands (<see cref="SelectAiringItemsInterleaved"/>)
+    // and the per-strand take counts come back in the second tuple element (null when flat).
+    private static (List<SchedulableItem> Taken, int[]? TakenCounts) SelectAndCommitConsumed(
+        RuleState state, ProgramRule rule, DateTime occurrenceStartUtc, DateTime? softEndUtc)
+    {
+        if (!state.IsInterleaved)
+        {
+            var (taken, consumed) = SelectAiringItems(state.Items, state.NextIndex, rule, occurrenceStartUtc, softEndUtc);
+            if (consumed > 0)
+                state.Commit(consumed); // oversized head items can never fit this window — skip them
+            return (taken, null);
+        }
+
+        var picks = SelectAiringItemsInterleaved(state.Strands, rule, occurrenceStartUtc, softEndUtc);
+        var consumedCounts = new int[state.Strands.Count];
+        var takenCounts = new int[state.Strands.Count];
+        var selected = new List<SchedulableItem>();
+        foreach (var (strand, item) in picks)
+        {
+            if (item is null)
+                consumedCounts[strand]++;
+            else
+            {
+                takenCounts[strand]++;
+                selected.Add(item);
+            }
+        }
+        for (var i = 0; i < state.Strands.Count; i++)
+            state.Strands[i].Commit(consumedCounts[i]);
+        return (selected, takenCounts);
+    }
+
+    // Commits the taken items of a selection after the airing passed the conflict check.
+    private static void CommitTaken(RuleState state, List<SchedulableItem> taken, int[]? takenCounts)
+    {
+        if (takenCounts is not null)
+        {
+            for (var i = 0; i < state.Strands.Count; i++)
+                state.Strands[i].Commit(takenCounts[i]);
+        }
+        else
+        {
+            state.Commit(taken.Count);
+        }
+    }
+
+    // Interleaved variant of <see cref="SelectAiringItems"/> for multi-strand states: the
+    // window is filled round-robin over the strands in fixed order, each occurrence starting
+    // again at the first strand — the series keep their slot position across days while each
+    // strand's own cursor advances in episode order. Per strand an oversized head is consumed
+    // (skipped permanently, bounded by its ring size) only while the strand has not
+    // contributed yet; once it has, a boundary-crossing item ends the strand's contribution
+    // to this airing (the other strands keep filling).
+    // Returns the pick sequence: (strand index, item or null for a consumed head).
+    private static List<(int Strand, SchedulableItem? Item)> SelectAiringItemsInterleaved(
+        List<StrandState> strands, ProgramRule rule, DateTime occurrenceStartUtc, DateTime? softEndUtc)
+    {
+        var wanted = rule.EpisodeCount is > 0 ? rule.EpisodeCount.Value
+            : rule.SlotDuration is not null ? int.MaxValue : 1;
+        var target = rule.EpisodeCount is > 0 ? (TimeSpan?)null : rule.SlotDuration;
+
+        var m = strands.Count;
+        var picks = new List<(int Strand, SchedulableItem? Item)>();
+        var taken = new int[m];
+        var consumed = new int[m];
+        var done = new bool[m];
+        var slotStart = occurrenceStartUtc;
+        var accumulated = TimeSpan.Zero;
+        var selected = 0;
+
+        while (selected < wanted)
+        {
+            var progressed = false;
+            for (var s = 0; s < m && selected < wanted; s++)
+            {
+                var strand = strands[s];
+                if (done[s] || strand.Items.Count == 0)
+                    continue;
+                var item = strand.Items[(strand.NextIndex + taken[s] + consumed[s]) % strand.Items.Count];
+                if (softEndUtc is { } bound && slotStart + item.Duration > bound)
+                {
+                    if (taken[s] > 0 || consumed[s] >= strand.Items.Count)
+                    {
+                        done[s] = true; // tail item crosses the boundary / every head oversized
+                        continue;
+                    }
+                    consumed[s]++;
+                    picks.Add((s, null)); // oversized head — permanently skipped
+                    progressed = true;
+                    s--;                  // the strand's position retries with its next head
+                    continue;
+                }
+                picks.Add((s, item));
+                taken[s]++;
+                selected++;
+                slotStart += item.Duration;
+                accumulated += item.Duration;
+                progressed = true;
+                if (target is not null && accumulated >= target)
+                    break;
+            }
+            if (!progressed)
+                break;
+        }
+        return picks;
     }
 
     // Boundary ownership: every occurrence owns [StartUtc, next occurrence start of any
@@ -1075,27 +1376,35 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         return seconds;
     }
 
-    private void PersistCursors(Dictionary<long, RuleState> states, Dictionary<long, ProgramRuleCursor> cursors)
+    // Writes one cursor row per strand that placed content this run: flat rules keep their
+    // single NULL-StrandKey row, interleaved (genre) rules one row per series/other strand.
+    private void PersistCursors(Dictionary<long, RuleState> states, Dictionary<long, IReadOnlyList<ProgramRuleCursor>> cursors)
     {
         var now = DateTime.UtcNow;
-        foreach (var state in states.Values.Where(s => s.LastPlaced is not null))
+        foreach (var state in states.Values)
         {
-            var placed = state.LastPlaced!;
-            if (cursors.TryGetValue(state.Rule.Id, out var cursor))
+            var rows = cursors.GetValueOrDefault(state.Rule.Id);
+            foreach (var strand in state.Strands.Where(s => s.LastPlaced is not null))
             {
-                cursor.LastContentType = placed.ContentType;
-                cursor.LastContentId = placed.ContentId;
-                cursor.UpdatedAt = now;
-            }
-            else
-            {
-                _db.ProgramRuleCursors.Add(new ProgramRuleCursor
+                var placed = strand.LastPlaced!;
+                var cursor = rows?.FirstOrDefault(c => c.StrandKey == strand.Key);
+                if (cursor is not null)
                 {
-                    ProgramRuleId = state.Rule.Id,
-                    LastContentType = placed.ContentType,
-                    LastContentId = placed.ContentId,
-                    UpdatedAt = now
-                });
+                    cursor.LastContentType = placed.ContentType;
+                    cursor.LastContentId = placed.ContentId;
+                    cursor.UpdatedAt = now;
+                }
+                else
+                {
+                    _db.ProgramRuleCursors.Add(new ProgramRuleCursor
+                    {
+                        ProgramRuleId = state.Rule.Id,
+                        StrandKey = strand.Key,
+                        LastContentType = placed.ContentType,
+                        LastContentId = placed.ContentId,
+                        UpdatedAt = now
+                    });
+                }
             }
         }
     }
@@ -1373,19 +1682,25 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         var mediaByMovie = await MovieMediaItemsAsync(movies.Select(m => m.Id).ToList(), cancellationToken);
         var mediaByEpisode = await EpisodeMediaItemsAsync(episodes.Select(e => e.Id).ToList(), cancellationToken);
 
-        var items = movies
+        // Strand keys drive the series interleaving (N19): every show is its own strand so its
+        // episodes continue in air order at a stable slot position; movies share the "other"
+        // strand and keep flowing through it in release order like a series of their own.
+        var movieItems = movies
             .Select(m => TryMovieItem(m, mediaByMovie, access, summary))
-            .Concat(episodes.Select(e => ToItem(new ProxyEpisode(e.Id, e.MediaSourceId), e.ShowId, mediaByEpisode, access, summary)))
             .Where(i => i is not null)
             .Cast<SchedulableItem>()
-            .ToList();
-        return items;
+            .Select(i => i with { StrandKey = OtherStrandKey });
+        var episodeItems = episodes
+            .Select(e => (Item: ToItem(new ProxyEpisode(e.Id, e.MediaSourceId), e.ShowId, mediaByEpisode, access, summary), e.ShowId))
+            .Where(x => x.Item is not null)
+            .Select(x => x.Item! with { StrandKey = $"show:{x.ShowId}" });
+        return movieItems.Concat(episodeItems).ToList();
     }
 
     // Deferred expansion pass for trailer-material rules: runs after the occurrences are
     // materialized so freshly scheduled movie airings of this run count as "movie in the plan".
     private async Task ExpandTrailerStatesAsync(
-        Dictionary<long, RuleState> states, Dictionary<long, ProgramRuleCursor> cursors,
+        Dictionary<long, RuleState> states, Dictionary<long, IReadOnlyList<ProgramRuleCursor>> cursors,
         AccessContext access, IReadOnlyDictionary<long, List<DateTime>> airingsByMovie,
         DateTime coverageStart, SummaryCounters summary, CancellationToken cancellationToken)
     {
@@ -1399,9 +1714,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                     "[ProgramSchedule] Regel {RuleId} ({Name}) liefert kein planbares Material (verwaist, ohne Laufzeit oder nicht freigegeben).",
                     state.Rule.Id, state.Rule.Name);
             }
-            cursors.TryGetValue(state.Rule.Id, out var cursor);
-            state.Items = items;
-            state.RewindTo(NextIndexFor(items, cursor));
+            state.SetItems(items, cursors.GetValueOrDefault(state.Rule.Id) ?? []);
         }
     }
 

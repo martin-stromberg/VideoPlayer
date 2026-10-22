@@ -585,9 +585,10 @@ input[type="text"]:focus {
     display: block;
 }
 
-/* Einklappbare Editor-Card im Regeln-Tab */
-.rule-editor-card {
-    border-color: var(--admin-primary-strong);
+/* Regel-Editor als Overlay-Panel: breiter als die Standard-Dialoge, weil das Formular
+   deutlich mehr Felder enthaelt. Rahmen/Hintergrund/Scrollen kommen von .admin-dialog. */
+.rule-editor-dialog {
+    width: min(960px, 100%);
 }
 
 /* Kopfzeilen-Bereich fuer Status-Chips neben Titel/Zurueck */

@@ -7,7 +7,8 @@ und ist über die Programmauskunft für angemeldete Benutzer abfragbar; HLS-Live
 Live-TV-Ansicht folgen in späteren Schritten.
 
 Die Seite ist in vier Bereiche gegliedert, die über die Reiter (Tabs) oben erreichbar sind:
-**Regeln** (Programmregeln-Tabelle und einklappbarer Regel-Editor), **Sendeplan** (kommende
+**Regeln** (Programmregeln-Tabelle; der Regel-Editor öffnet sich als Overlay-Panel über der
+Liste), **Sendeplan** (kommende
 Sendeplätze und manueller Generierungsanstoß), **Einstellungen** (Sender, Planung und
 Segmentierung) und **Laufzeitermittlung** (Fortschritt der automatischen
 Videolaufzeit-Ermittlung).
@@ -33,7 +34,8 @@ Programmregeln beschreiben wiederkehrende Sendungen. Je Regel wird gepflegt:
 - **Name** — frei wählbar, je Sender eindeutig.
 - **Regelart** — Serien-Sendezeit, Film zur Primetime, Genre-/Formatrotation, Wiederholung,
   Feiertags-Special oder Platzhalter/Füller.
-- **Wiederholung** — Täglich, Wöchentlich (mit Wochentag), Einmalig (mit Datum) oder An Feiertagen.
+- **Wiederholung** — Täglich, Wöchentlich (mit Wochentag), Einmalig (mit Datum), An Feiertagen,
+  Werktags (Mo–Fr) oder Wochenende (Sa+So).
 - **Sendezeit** — gewünschte Uhrzeit der Ausstrahlung.
 - **Umfang** — Länge in Minuten und/oder Anzahl der Folgen (bei Serien-Sendezeit Pflicht).
 - **Programmmaterial** — genau ein Inhalt je Regel, ausgewählt über Such- bzw. Auswahldialoge statt
@@ -47,6 +49,13 @@ Programmregeln beschreiben wiederkehrende Sendungen. Je Regel wird gepflegt:
   nicht zur Wahl; Alternativnamen werden zum kanonischen Genre aufgelöst, sodass auch Inhalte
   einfließen, deren Genre-Zuordnung noch auf eine versteckte Alternativ-Zeile zeigt.
   Saisonale Genres (Start-/Enddatum) sind nur während ihres Sichtbarkeitsfensters wählbar.
+  Enthält das Genre-Material **mehrere Serien**, füllt der Sendeplan das Zeitfenster
+  serien-übergreifend im Wechsel: Jede Serie behält ihre Sendeplatz-Position innerhalb des
+  Fensters über die Tage hinweg und setzt ihre Folgen in aufsteigender Reihenfolge fort —
+  statt eine einzelne Serie blockweise zu „strippen", bekommt pro Ausstrahlung jede Serie
+  der Reihe nach ihren Sendeplatz (z. B. 12:00 Serie A, 12:45 Serie B — am Folgetag die
+  nächste Folge jeder Serie an derselben Stelle). Filme des Genres laufen als gemeinsamer
+  Strang in Veröffentlichungsreihenfolge mit.
   Zusätzlich gibt es für Füller-Regeln die Materialart **„Trailer anstehender Filme"**
   (Checkbox ohne weitere Auswahl): Damit werden Trailer-Dateien eingeplanter Filme bevorzugt als
   Füllmaterial gesendet — siehe Abschnitt „Trailer" weiter unten.

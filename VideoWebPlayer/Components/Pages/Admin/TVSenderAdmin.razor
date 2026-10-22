@@ -128,7 +128,8 @@ else
 
         @if (editRule != null)
         {
-            <div class="admin-card admin-card-wide rule-editor-card" id="rule-editor">
+            <div class="admin-dialog-overlay" @onclick="CancelEdit">
+            <div class="admin-dialog rule-editor-dialog" id="rule-editor" @onclick:stopPropagation>
                 <div class="admin-card-header">
                     <h2>@(editRule.Id == 0 ? "Neue Programmregel" : $"Programmregel „{editRule.Name}“")</h2>
                     <button class="btn btn-sm btn-outline-light" @onclick="CancelEdit">Schließen</button>
@@ -154,6 +155,8 @@ else
                             <option value="@ProgramRuleRecurrence.Weekly">Wöchentlich</option>
                             <option value="@ProgramRuleRecurrence.Once">Einmalig</option>
                             <option value="@ProgramRuleRecurrence.Holiday">An Feiertagen</option>
+                            <option value="@ProgramRuleRecurrence.Weekday">Werktags (Mo–Fr)</option>
+                            <option value="@ProgramRuleRecurrence.Weekend">Wochenende (Sa+So)</option>
                         </select>
                     </div>
                 </div>
@@ -295,6 +298,7 @@ else
                     <button id="rule-save" class="btn btn-primary" @onclick="SaveRuleAsync">Speichern</button>
                     <button class="btn btn-ghost" @onclick="CancelEdit">Abbrechen</button>
                 </div>
+            </div>
             </div>
         }
 
@@ -1303,6 +1307,8 @@ else
         ProgramRuleRecurrence.Weekly => $"Wöchentlich ({WeekdayLabel(r.DayOfWeek ?? DayOfWeek.Monday)})",
         ProgramRuleRecurrence.Once => $"Einmalig ({r.SingleDate?.ToString("dd.MM.yyyy")})",
         ProgramRuleRecurrence.Holiday => "An Feiertagen",
+        ProgramRuleRecurrence.Weekday => "Werktags (Mo–Fr)",
+        ProgramRuleRecurrence.Weekend => "Wochenende (Sa+So)",
         _ => r.Recurrence.ToString()
     };
 

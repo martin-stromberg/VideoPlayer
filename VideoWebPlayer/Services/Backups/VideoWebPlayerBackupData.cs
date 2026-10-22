@@ -89,7 +89,8 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.LiveStreamSegmentLengthSeconds)}",
         $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.LiveStreamSegmentDirectory)}",
         $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.LiveStreamSegmentRetentionMinutes)}",
-        $"{nameof(ApplicationDbContext.MovieMediaItems)}.{nameof(MovieMediaItem.IsTrailer)}"
+        $"{nameof(ApplicationDbContext.MovieMediaItems)}.{nameof(MovieMediaItem.IsTrailer)}",
+        $"{nameof(ApplicationDbContext.ProgramRuleCursors)}.{nameof(ProgramRuleCursor.StrandKey)}"
     };
 
     private static readonly HashSet<string> IgnoredRestoreColumns = new(StringComparer.OrdinalIgnoreCase)

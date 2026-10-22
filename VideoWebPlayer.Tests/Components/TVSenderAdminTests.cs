@@ -248,6 +248,57 @@ public sealed class TVSenderAdminTests
         cut.WaitForAssertion(() => Assert.Empty(cut.FindAll("#rule-material-clipsource")), TimeSpan.FromSeconds(5));
     }
 
+    [Fact]
+    public async Task Sendeplan_RendersProgramCards_WithBadgesPosterAndProgress()
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("tvsender-cards", ct);
+        var admin = await fixture.AddUserAsync("admin@test.com", isAdmin: true);
+        var channel = await fixture.GetChannelAsync(ct);
+
+        var poster = new Picture { Data = [0x42], ContentType = "image/png", Type = "poster" };
+        fixture.Db.Pictures.Add(poster);
+        await fixture.SaveDiagAsync();
+        var movie = await fixture.CreateMovieAsync("Kartenfilm", duration: TimeSpan.FromMinutes(60));
+        movie.Plot = "Handlung des Kartenfilms.";
+        movie.GenreNames = "Krimi";
+        movie.PosterPictureId = poster.Id;
+        await fixture.SaveDiagAsync();
+        var item = await fixture.Db.MovieMediaItems
+            .Where(m => m.MovieId == movie.Id).Select(m => m.MediaItemId).SingleAsync(ct);
+
+        var now = DateTime.UtcNow;
+        await fixture.CreateSlotAsync(channel.Id, now.AddMinutes(-30), now.AddMinutes(30), item, movieId: movie.Id);
+        await fixture.CreateSlotAsync(channel.Id, now.AddMinutes(30), now.AddMinutes(90), item, movieId: movie.Id,
+            status: ProgramSlotStatus.Displaced);
+
+        var (ctx, _) = await CreateContextAsync(fixture, admin.Id);
+        using var _ctx = ctx;
+        var cut = ctx.Render<TVSenderAdmin>();
+        cut.WaitForAssertion(() => cut.Find("#tvsender-tab-sendeplan"), TimeSpan.FromSeconds(10));
+        cut.Find("#tvsender-tab-sendeplan").Click();
+
+        var cards = cut.FindAll("#tvsender-schedule-cards .program-card.tvsender-slot-row");
+        Assert.Equal(2, cards.Count);
+
+        var live = cards[0];
+        Assert.Contains("slot-now", live.ClassList);
+        Assert.Single(live.QuerySelectorAll(".badge-live"));
+        Assert.Single(live.QuerySelectorAll(".progress-track .progress-fill"));
+        Assert.Contains("Kartenfilm", live.TextContent);
+        Assert.Contains("Handlung des Kartenfilms.", live.TextContent);
+        Assert.Contains("Krimi", live.TextContent);
+        Assert.Contains("Geplant", live.TextContent);
+        var img = live.QuerySelector(".program-poster img");
+        Assert.NotNull(img);
+        Assert.Contains($"/api/pictures/{poster.Id}", img!.GetAttribute("src"));
+
+        var displaced = cards[1];
+        Assert.Contains("tvsender-slot-displaced", displaced.ClassList);
+        Assert.Contains("Verdrängt", displaced.TextContent);
+        Assert.Empty(displaced.QuerySelectorAll(".badge-live"));
+    }
+
     /// <summary>Answers every API call with an empty JSON array — the page only reads playlist lists.</summary>
     private sealed class EmptyListHandler : HttpMessageHandler
     {

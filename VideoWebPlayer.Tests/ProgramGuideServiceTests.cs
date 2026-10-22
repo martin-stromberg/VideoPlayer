@@ -280,4 +280,125 @@ public sealed class ProgramGuideServiceTests
         Assert.Null(now.MediaId);
         Assert.Equal(clip.Id, now.MediaItemId);
     }
+
+    [Fact]
+    public async Task GetNowAsync_MovieSlot_ReturnsCardMetadata()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("guide-card-movie", ct);
+        var channel = await fixture.GetChannelAsync(ct);
+        var poster = new Picture { Data = [0x42], ContentType = "image/png", Type = "poster" };
+        fixture.Db.Pictures.Add(poster);
+        await fixture.SaveDiagAsync();
+        var movie = await fixture.CreateMovieAsync("Plakatfilm", duration: TimeSpan.FromMinutes(90));
+        movie.Plot = "Ein Film über Plakate.";
+        movie.GenreNames = "Drama,Komödie";
+        movie.PosterPictureId = poster.Id;
+        await fixture.SaveDiagAsync();
+        var item = await fixture.Db.MovieMediaItems.Where(m => m.MovieId == movie.Id).Select(m => m.MediaItemId).SingleAsync(ct);
+
+        await fixture.CreateSlotAsync(channel.Id, Now.AddMinutes(-10), Now.AddMinutes(80), item, movieId: movie.Id);
+
+        var result = await fixture.CreateGuideService().GetNowAsync(new DateTimeOffset(Now), ct);
+
+        var now = Assert.IsType<DtoProgramGuideEntry>(result.Now);
+        Assert.Equal("Ein Film über Plakate.", now.Description);
+        Assert.Equal(poster.Id, now.PosterPictureId);
+        Assert.Equal("Drama", now.GenreName);
+        Assert.Null(now.ShowName);
+        Assert.Null(now.SeasonName);
+        Assert.Null(now.SeasonNumber);
+        Assert.Null(now.EpisodeNumber);
+        Assert.Null(now.EpisodeName);
+    }
+
+    [Fact]
+    public async Task GetNowAsync_EpisodeSlot_ReturnsCardMetadataAndSeasonPosterFallback()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("guide-card-episode", ct);
+        var channel = await fixture.GetChannelAsync(ct);
+        var poster = new Picture { Data = [0x42], ContentType = "image/png", Type = "poster" };
+        fixture.Db.Pictures.Add(poster);
+        await fixture.SaveDiagAsync();
+        var (show, season, episodes) = await fixture.CreateShowAsync("Testsendung", 1);
+        season.Name = "Staffel 06";
+        season.PosterPictureId = poster.Id;
+        show.GenreNames = "Krimi";
+        show.Plot = "Serienbeschreibung.";
+        var episode = episodes[0];
+        episode.Name = "Der Fall";
+        episode.Plot = "Episodenhandlung.";
+        await fixture.SaveDiagAsync();
+        var item = await fixture.Db.TVShowEpisodeMediaItems.Where(m => m.TVShowEpisodeId == episode.Id).Select(m => m.MediaItemId).SingleAsync(ct);
+
+        await fixture.CreateSlotAsync(channel.Id, Now.AddMinutes(-10), Now.AddMinutes(35), item,
+            episodeId: episode.Id, ruleType: ProgramRuleType.SeriesFixedTime);
+
+        var result = await fixture.CreateGuideService().GetNowAsync(new DateTimeOffset(Now), ct);
+
+        var now = Assert.IsType<DtoProgramGuideEntry>(result.Now);
+        Assert.Equal("Testsendung", now.ShowName);
+        Assert.Equal("Staffel 06", now.SeasonName);
+        Assert.Equal(6, now.SeasonNumber);
+        Assert.Equal(episode.Number, now.EpisodeNumber);
+        Assert.Equal("Der Fall", now.EpisodeName);
+        Assert.Equal("Episodenhandlung.", now.Description);
+        // Episode without own poster falls back to the season poster.
+        Assert.Equal(poster.Id, now.PosterPictureId);
+        Assert.Equal("Krimi", now.GenreName);
+    }
+
+    [Fact]
+    public async Task GetNowAsync_EpisodeWithoutPlot_FallsBackToShowPlot()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("guide-card-showplot", ct);
+        var channel = await fixture.GetChannelAsync(ct);
+        var (show, _, episodes) = await fixture.CreateShowAsync("Plotlose Serie", 1);
+        show.Plot = "Serienweite Handlung.";
+        var episode = episodes[0];
+        episode.Plot = null;
+        await fixture.SaveDiagAsync();
+        var item = await fixture.Db.TVShowEpisodeMediaItems.Where(m => m.TVShowEpisodeId == episode.Id).Select(m => m.MediaItemId).SingleAsync(ct);
+
+        await fixture.CreateSlotAsync(channel.Id, Now.AddMinutes(-10), Now.AddMinutes(35), item, episodeId: episode.Id);
+
+        var result = await fixture.CreateGuideService().GetNowAsync(new DateTimeOffset(Now), ct);
+
+        Assert.Equal("Serienweite Handlung.", Assert.IsType<DtoProgramGuideEntry>(result.Now).Description);
+    }
+
+    [Fact]
+    public async Task GetNowAsync_BareItemSlot_ReturnsNoCardMetadata()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("guide-card-bare", ct);
+        var channel = await fixture.GetChannelAsync(ct);
+        var clip = await fixture.CreateMediaItemAsync(duration: TimeSpan.FromSeconds(15));
+
+        await fixture.CreateSlotAsync(channel.Id, Now.AddSeconds(-10), Now.AddSeconds(5), clip.Id,
+            ruleType: ProgramRuleType.Filler);
+
+        var result = await fixture.CreateGuideService().GetNowAsync(new DateTimeOffset(Now), ct);
+
+        var now = Assert.IsType<DtoProgramGuideEntry>(result.Now);
+        Assert.Null(now.PosterPictureId);
+        Assert.Null(now.Description);
+        Assert.Null(now.GenreName);
+        Assert.Null(now.ShowName);
+        Assert.Null(now.SeasonName);
+        Assert.Null(now.EpisodeNumber);
+        Assert.Null(now.EpisodeName);
+    }
+
+    [Theory]
+    [InlineData("Staffel 6", 6)]
+    [InlineData("Staffel 06", 6)]
+    [InlineData("Staffel 12", 12)]
+    [InlineData("Specials", null)]
+    [InlineData("", null)]
+    [InlineData(null, null)]
+    public void SeasonNumberFromName_ReadsDigitsFromSeasonName(string? name, int? expected)
+        => Assert.Equal(expected, ProgramGuideEntryText.SeasonNumberFromName(name));
 }

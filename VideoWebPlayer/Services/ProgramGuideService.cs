@@ -58,9 +58,9 @@ public sealed class ProgramGuideService : IProgramGuideService
             .OrderBy(s => s.Start)
             .FirstOrDefaultAsync(cancellationToken);
 
-        var titles = await LoadTitlesAsync([current, next], cancellationToken);
-        result.Now = current is null ? null : ToEntry(current, titles, utcNow);
-        result.Next = next is null ? null : ToEntry(next, titles, utcNow);
+        var details = await LoadDetailsAsync([current, next], cancellationToken);
+        result.Now = current is null ? null : ToEntry(current, details, utcNow);
+        result.Next = next is null ? null : ToEntry(next, details, utcNow);
         return result;
     }
 
@@ -83,8 +83,8 @@ public sealed class ProgramGuideService : IProgramGuideService
             .OrderBy(s => s.Start)
             .ToListAsync(cancellationToken);
 
-        var titles = await LoadTitlesAsync(slots, cancellationToken);
-        return slots.Select(s => ToEntry(s, titles, utcNow)).ToArray();
+        var details = await LoadDetailsAsync(slots, cancellationToken);
+        return slots.Select(s => ToEntry(s, details, utcNow)).ToArray();
     }
 
     // The guide is a pure read service: it picks the single delivered channel directly instead of
@@ -96,9 +96,10 @@ public sealed class ProgramGuideService : IProgramGuideService
             .Select(c => (long?)c.Id)
             .FirstOrDefaultAsync(cancellationToken);
 
-    // Batch-resolves the titles of all given slots: movies and episodes first, then the bare
-    // media item name for slots without a content reference (e.g. clip-source filler slots).
-    private async Task<TitleLookup> LoadTitlesAsync(IEnumerable<ProgramSlot?> slots, CancellationToken cancellationToken)
+    // Batch-resolves everything the cards need of all given slots: movies and episodes first
+    // (name, plot, poster, genres, season/show info), then the bare media item name for slots
+    // without a content reference (e.g. clip-source filler slots).
+    private async Task<GuideDetails> LoadDetailsAsync(IEnumerable<ProgramSlot?> slots, CancellationToken cancellationToken)
     {
         var list = slots.Where(s => s is not null).Cast<ProgramSlot>().ToList();
         var movieIds = list.Where(s => s.MovieId is not null).Select(s => s.MovieId!.Value).Distinct().ToList();
@@ -106,17 +107,21 @@ public sealed class ProgramGuideService : IProgramGuideService
         var bareItemIds = list.Where(s => s.MovieId is null && s.TVShowEpisodeId is null).Select(s => s.MediaItemId).Distinct().ToList();
 
         var movies = movieIds.Count == 0
-            ? new Dictionary<long, string>()
+            ? new Dictionary<long, MovieDetails>()
             : await _db.Movies
                 .Where(m => movieIds.Contains(m.Id))
-                .ToDictionaryAsync(m => m.Id, m => m.Name, cancellationToken);
+                .ToDictionaryAsync(m => m.Id, m => new MovieDetails(m.Name, m.Plot, m.PosterPictureId, m.GenreNames), cancellationToken);
 
         var episodes = episodeIds.Count == 0
-            ? new Dictionary<long, string>()
+            ? new Dictionary<long, EpisodeDetails>()
             : await _db.TVShowEpisodes
                 .Where(e => episodeIds.Contains(e.Id))
-                .Select(e => new { e.Id, EpisodeName = e.Name, e.Number, SeasonName = e.TVShowSeason.Name, ShowName = e.TVShowSeason.TVShow.Name })
-                .ToDictionaryAsync(e => e.Id, e => $"{e.ShowName} — {e.SeasonName}, E{e.Number}: {e.EpisodeName}", cancellationToken);
+                .Select(e => new EpisodeDetails(
+                    e.Id, e.Name, e.Number, e.Plot, e.PosterPictureId,
+                    e.TVShowSeason.Name, e.TVShowSeason.PosterPictureId,
+                    e.TVShowSeason.TVShow.Name, e.TVShowSeason.TVShow.Plot,
+                    e.TVShowSeason.TVShow.PosterPictureId, e.TVShowSeason.TVShow.GenreNames))
+                .ToDictionaryAsync(e => e.Id, cancellationToken);
 
         var items = bareItemIds.Count == 0
             ? new Dictionary<long, string>()
@@ -124,10 +129,10 @@ public sealed class ProgramGuideService : IProgramGuideService
                 .Where(i => bareItemIds.Contains(i.Id))
                 .ToDictionaryAsync(i => i.Id, i => i.Name, cancellationToken);
 
-        return new TitleLookup(movies, episodes, items);
+        return new GuideDetails(movies, episodes, items);
     }
 
-    private static DtoProgramGuideEntry ToEntry(ProgramSlot slot, TitleLookup titles, DateTimeOffset utcNow)
+    private static DtoProgramGuideEntry ToEntry(ProgramSlot slot, GuideDetails details, DateTimeOffset utcNow)
     {
         var entry = new DtoProgramGuideEntry
         {
@@ -144,17 +149,32 @@ public sealed class ProgramGuideService : IProgramGuideService
         {
             entry.MediaType = MediaTypeValues.Movie;
             entry.MediaId = movieId;
-            if (titles.Movies.TryGetValue(movieId, out var movieTitle))
-                entry.Title = movieTitle;
+            if (details.Movies.TryGetValue(movieId, out var movie))
+            {
+                entry.Title = movie.Name;
+                entry.Description = movie.Plot;
+                entry.PosterPictureId = movie.PosterPictureId;
+                entry.GenreName = ProgramGuideEntryText.FirstGenre(movie.GenreNames);
+            }
         }
         else if (slot.TVShowEpisodeId is { } episodeId)
         {
             entry.MediaType = MediaTypeValues.TVShowEpisode;
             entry.MediaId = episodeId;
-            if (titles.Episodes.TryGetValue(episodeId, out var episodeTitle))
-                entry.Title = episodeTitle;
+            if (details.Episodes.TryGetValue(episodeId, out var episode))
+            {
+                entry.Title = $"{episode.ShowName} — {episode.SeasonName}, E{episode.Number}: {episode.Name}";
+                entry.ShowName = episode.ShowName;
+                entry.SeasonName = episode.SeasonName;
+                entry.SeasonNumber = ProgramGuideEntryText.SeasonNumberFromName(episode.SeasonName);
+                entry.EpisodeNumber = episode.Number;
+                entry.EpisodeName = episode.Name;
+                entry.Description = episode.Plot ?? episode.ShowPlot;
+                entry.PosterPictureId = episode.PosterPictureId ?? episode.SeasonPosterPictureId ?? episode.ShowPosterPictureId;
+                entry.GenreName = ProgramGuideEntryText.FirstGenre(episode.ShowGenreNames);
+            }
         }
-        else if (titles.Items.TryGetValue(slot.MediaItemId, out var itemName) && !string.IsNullOrWhiteSpace(itemName))
+        else if (details.Items.TryGetValue(slot.MediaItemId, out var itemName) && !string.IsNullOrWhiteSpace(itemName))
         {
             entry.Title = itemName;
         }
@@ -169,5 +189,15 @@ public sealed class ProgramGuideService : IProgramGuideService
         return entry;
     }
 
-    private sealed record TitleLookup(Dictionary<long, string> Movies, Dictionary<long, string> Episodes, Dictionary<long, string> Items);
+    private sealed record MovieDetails(string Name, string? Plot, long? PosterPictureId, string? GenreNames);
+
+    private sealed record EpisodeDetails(
+        long Id, string Name, int Number, string? Plot, long? PosterPictureId,
+        string SeasonName, long? SeasonPosterPictureId,
+        string ShowName, string? ShowPlot, long? ShowPosterPictureId, string? ShowGenreNames);
+
+    private sealed record GuideDetails(
+        Dictionary<long, MovieDetails> Movies,
+        Dictionary<long, EpisodeDetails> Episodes,
+        Dictionary<long, string> Items);
 }

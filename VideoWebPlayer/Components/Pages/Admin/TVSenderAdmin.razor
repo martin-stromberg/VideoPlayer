@@ -329,32 +329,45 @@ else
             }
             else
             {
-                <div class="admin-table-wrap">
-                    <table class="table table-dark table-striped align-middle" id="tvsender-schedule-table">
-                        <thead>
-                            <tr>
-                                <th>Start</th>
-                                <th>Ende</th>
-                                <th>Inhalt</th>
-                                <th>Regel</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var slot in schedule)
-                            {
-                                <tr class="tvsender-slot-row @(slot.Status == ProgramSlotStatus.Displaced ? "tvsender-slot-displaced" : "")">
-                                    <td>@slot.Start.ToLocalTime().ToString("dd.MM. HH:mm")</td>
-                                    <td>@slot.End.ToLocalTime().ToString("HH:mm")</td>
-                                    <td>@SlotTitle(slot)</td>
-                                    <td>@RuleName(slot)</td>
-                                    <td>
-                                        <span class="admin-chip @(slot.Status == ProgramSlotStatus.Displaced ? "admin-chip-warning" : "admin-chip-success")">@(slot.Status == ProgramSlotStatus.Displaced ? "Verdrängt" : "Geplant")</span>
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
+                @* Programm-Karten nach dem freigegebenen Prototyp (sendeplan-vorschau.html):
+                   Poster 2:3, Badge (Genre/Live/Status), Zeit, Titel, Episoden-Info + Regel,
+                   3-zeilige Beschreibung; laufender Slot mit LIVE-Badge + Fortschritt. *@
+                <div class="program-grid" id="tvsender-schedule-cards">
+                    @foreach (var slot in schedule)
+                    {
+                        var card = SlotCard(slot);
+                        var running = IsRunning(slot);
+                        <div class="program-card tvsender-slot-row @(slot.Status == ProgramSlotStatus.Displaced ? "tvsender-slot-displaced" : "") @(running ? "slot-now" : "")" data-slot-id="@slot.Id">
+                            <div class="program-poster">
+                                <img src="@PosterUrl(card)" alt="" />
+                            </div>
+                            <div class="program-body">
+                                <div class="program-badges">
+                                    @if (running)
+                                    {
+                                        <span class="program-badge badge-live">Live</span>
+                                    }
+                                    @if (card.GenreName is { } genre)
+                                    {
+                                        <span class="program-badge badge-genre">@genre</span>
+                                    }
+                                    <span class="admin-chip @(slot.Status == ProgramSlotStatus.Displaced ? "admin-chip-warning" : "admin-chip-success")">@(slot.Status == ProgramSlotStatus.Displaced ? "Verdrängt" : "Geplant")</span>
+                                </div>
+                                <span class="program-time">@slot.Start.ToLocalTime().ToString("dd.MM. HH:mm")&nbsp;–&nbsp;@slot.End.ToLocalTime().ToString("HH:mm")</span>
+                                <span class="program-title">@(card.ShowName ?? card.Title)</span>
+                                @if (card.Subtitle is { } sub)
+                                {
+                                    <span class="program-sub">@sub</span>
+                                }
+                                <span class="program-sub">Regel: @RuleName(slot)</span>
+                                <p class="program-desc">@(card.Description ?? ProgramGuideEntryText.NoDescriptionText)</p>
+                                @if (running)
+                                {
+                                    <div class="progress-track" aria-hidden="true"><div class="progress-fill" style="width:@ProgressPercent(slot)%"></div></div>
+                                }
+                            </div>
+                        </div>
+                    }
                 </div>
             }
             @if (!string.IsNullOrWhiteSpace(scheduleStatus))
@@ -915,35 +928,95 @@ else
             .Where(r => ruleIds.Contains(r.Id))
             .ToDictionaryAsync(r => r.Id, r => r.Name);
         var movieIds = schedule.Where(s => s.MovieId is not null).Select(s => s.MovieId!.Value).Distinct().ToList();
-        slotMovieNames = await DbContext.Movies
+        var movies = await DbContext.Movies
             .Where(m => movieIds.Contains(m.Id))
-            .ToDictionaryAsync(m => m.Id, m => m.Name);
+            .ToDictionaryAsync(m => m.Id, m => new MovieCardData(m.Name, m.Plot, m.PosterPictureId, m.GenreNames));
         var episodeIds = schedule.Where(s => s.TVShowEpisodeId is not null).Select(s => s.TVShowEpisodeId!.Value).Distinct().ToList();
-        slotEpisodeTitles = await DbContext.TVShowEpisodes
+        var episodes = await DbContext.TVShowEpisodes
             .Where(e => episodeIds.Contains(e.Id))
-            .Select(e => new { e.Id, EpisodeName = e.Name, e.Number, SeasonName = e.TVShowSeason.Name, ShowName = e.TVShowSeason.TVShow.Name })
-            .ToDictionaryAsync(e => e.Id, e => $"{e.ShowName} — {e.SeasonName}, E{e.Number}: {e.EpisodeName}");
+            .Select(e => new EpisodeCardData(
+                e.Id, e.Name, e.Number, e.Plot, e.PosterPictureId,
+                e.TVShowSeason.Name, e.TVShowSeason.PosterPictureId,
+                e.TVShowSeason.TVShow.Name, e.TVShowSeason.TVShow.Plot,
+                e.TVShowSeason.TVShow.PosterPictureId, e.TVShowSeason.TVShow.GenreNames))
+            .ToDictionaryAsync(e => e.Id);
         var bareItemIds = schedule.Where(s => s.MovieId is null && s.TVShowEpisodeId is null).Select(s => s.MediaItemId).Distinct().ToList();
-        slotItemNames = await DbContext.MediaItems
+        var itemNames = await DbContext.MediaItems
             .Where(i => bareItemIds.Contains(i.Id))
             .ToDictionaryAsync(i => i.Id, i => i.Name);
+
+        // Die Karten brauchen dieselben Inhalte wie die Programmauskunft (Poster, Beschreibung,
+        // Genre, Episoden-Info) — hier direkt per EF, weil der Admin-Plan auch verdrängte Slots
+        // zeigt, die api/program-guide bewusst nicht liefert.
+        slotCards = new Dictionary<long, ScheduleCardContent>();
+        foreach (var slot in schedule)
+        {
+            var title = "(Inhalt nicht gefunden)";
+            string? showName = null, subtitle = null, description = null, genreName = null;
+            long? posterId = null;
+
+            if (slot.TVShowEpisodeId is { } epId && episodes.TryGetValue(epId, out var ep))
+            {
+                title = $"{ep.ShowName} — {ep.SeasonName}, E{ep.Number}: {ep.EpisodeName}";
+                showName = ep.ShowName;
+                subtitle = ProgramGuideEntryText.Subtitle(ep.SeasonName, ep.Number, ep.EpisodeName);
+                description = ep.Plot ?? ep.ShowPlot;
+                genreName = ProgramGuideEntryText.FirstGenre(ep.ShowGenreNames);
+                posterId = ep.PosterPictureId ?? ep.SeasonPosterPictureId ?? ep.ShowPosterPictureId;
+            }
+            else if (slot.MovieId is { } mvId && movies.TryGetValue(mvId, out var mv))
+            {
+                title = mv.Name;
+                description = mv.Plot;
+                genreName = ProgramGuideEntryText.FirstGenre(mv.GenreNames);
+                posterId = mv.PosterPictureId;
+            }
+            else if (slot.MovieId is null && slot.TVShowEpisodeId is null
+                     && itemNames.TryGetValue(slot.MediaItemId, out var itemName)
+                     && !string.IsNullOrWhiteSpace(itemName))
+            {
+                title = itemName;
+            }
+
+            slotCards[slot.Id] = new ScheduleCardContent(title, showName, subtitle, description, genreName, posterId);
+        }
     }
+
+    private sealed record MovieCardData(string Name, string? Plot, long? PosterPictureId, string? GenreNames);
+
+    private sealed record EpisodeCardData(
+        long Id, string EpisodeName, int Number, string? Plot, long? PosterPictureId,
+        string SeasonName, long? SeasonPosterPictureId,
+        string ShowName, string? ShowPlot, long? ShowPosterPictureId, string? ShowGenreNames);
+
+    private sealed record ScheduleCardContent(
+        string Title,
+        string? ShowName = null,
+        string? Subtitle = null,
+        string? Description = null,
+        string? GenreName = null,
+        long? PosterPictureId = null);
 
     private Dictionary<long, string> slotRuleNames = new();
-    private Dictionary<long, string> slotMovieNames = new();
-    private Dictionary<long, string> slotEpisodeTitles = new();
-    private Dictionary<long, string> slotItemNames = new();
+    private Dictionary<long, ScheduleCardContent> slotCards = new();
 
-    private string SlotTitle(ProgramSlot slot)
+    private ScheduleCardContent SlotCard(ProgramSlot slot)
+        => slotCards.TryGetValue(slot.Id, out var card) ? card : new ScheduleCardContent("(Inhalt nicht gefunden)");
+
+    private static bool IsRunning(ProgramSlot slot)
     {
-        if (slot.TVShowEpisodeId is { } ep && slotEpisodeTitles.TryGetValue(ep, out var et))
-            return et;
-        if (slot.MovieId is { } mv && slotMovieNames.TryGetValue(mv, out var mt))
-            return mt;
-        if (slotItemNames.TryGetValue(slot.MediaItemId, out var itemName) && !string.IsNullOrWhiteSpace(itemName))
-            return itemName;
-        return "(Inhalt nicht gefunden)";
+        var now = DateTime.UtcNow;
+        return slot.Status == ProgramSlotStatus.Scheduled && slot.Start <= now && slot.End > now;
     }
+
+    private static int ProgressPercent(ProgramSlot slot)
+    {
+        var span = slot.End - slot.Start;
+        return span <= TimeSpan.Zero ? 0 : (int)Math.Clamp((DateTime.UtcNow - slot.Start) / span * 100.0, 0, 100);
+    }
+
+    private string PosterUrl(ScheduleCardContent card)
+        => MediaPictureUrlResolver.Resolve(card.PosterPictureId, Client.AuthorizationToken);
 
     private string RuleName(ProgramSlot slot)
         => slot.ProgramRuleId is { } id && slotRuleNames.TryGetValue(id, out var name) ? name : "(Regel gelöscht)";

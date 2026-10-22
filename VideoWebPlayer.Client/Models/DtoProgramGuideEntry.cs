@@ -71,5 +71,56 @@ namespace VideoWebPlayer.Client.Models
         /// broadcast, otherwise <see langword="null"/>.
         /// </summary>
         public double? RemainingSeconds { get; set; }
+
+        /// <summary>
+        /// Gets or sets the poster picture identifier for the aired content (movie poster; for
+        /// episodes the first available of episode, season or show poster), or
+        /// <see langword="null"/> when the slot has no image — the picture itself is served by
+        /// <c>GET /api/pictures/{id}</c>.
+        /// </summary>
+        public long? PosterPictureId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the plot description of the aired content (NFO <c>plot</c> of the movie
+        /// or episode, falling back to the show's plot for episodes without one), or
+        /// <see langword="null"/> when no description is stored.
+        /// </summary>
+        public string? Description { get; set; }
+
+        /// <summary>
+        /// Gets or sets the first genre name of the aired content (movie genres or the show's
+        /// genres for episodes), or <see langword="null"/> when no genre is stored.
+        /// </summary>
+        public string? GenreName { get; set; }
+
+        /// <summary>
+        /// Gets or sets the show name when the slot airs a TV show episode — the card title for
+        /// series broadcasts — or <see langword="null"/> for movies and unresolved content.
+        /// </summary>
+        public string? ShowName { get; set; }
+
+        /// <summary>
+        /// Gets or sets the season name (e.g. "Staffel 6" or "Specials") when the slot airs a TV
+        /// show episode, otherwise <see langword="null"/>.
+        /// </summary>
+        public string? SeasonName { get; set; }
+
+        /// <summary>
+        /// Gets or sets the season number read from <see cref="SeasonName"/> when the slot airs a
+        /// TV show episode, or <see langword="null"/> when the name carries no digits.
+        /// </summary>
+        public int? SeasonNumber { get; set; }
+
+        /// <summary>
+        /// Gets or sets the episode number within its season when the slot airs a TV show
+        /// episode, otherwise <see langword="null"/>.
+        /// </summary>
+        public int? EpisodeNumber { get; set; }
+
+        /// <summary>
+        /// Gets or sets the episode title when the slot airs a TV show episode, otherwise
+        /// <see langword="null"/>.
+        /// </summary>
+        public string? EpisodeName { get; set; }
     }
 }

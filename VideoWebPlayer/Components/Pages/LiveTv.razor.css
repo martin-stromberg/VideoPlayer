@@ -9,6 +9,28 @@
     margin: 0;
 }
 
+/* Zweispaltig wie im Prototyp: Player links, Programm-Karten rechts (340px);
+   auf schmalen Screens rutscht die Karten-Spalte unter den Player. */
+.livetv-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: 1.25rem;
+    align-items: start;
+}
+
+@media (max-width: 900px) {
+    .livetv-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+.livetv-side {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+}
+
 .livetv-player-wrap {
     position: relative;
     border: 1px solid var(--vp-border);
@@ -51,72 +73,22 @@
     font-size: 2rem;
 }
 
-.livetv-card {
-    border: 1px solid var(--vp-border);
-    border-radius: var(--vp-radius);
-    background: var(--vp-surface-low);
-    padding: 1rem 1.25rem;
-}
-
 .livetv-kicker {
     display: block;
     font-size: 0.85rem;
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: var(--vp-secondary);
-    margin-bottom: 0.25rem;
+    margin-bottom: -2px;
 }
 
-.livetv-card h2 {
-    margin: 0 0 0.25rem;
-}
-
-.livetv-times {
-    color: var(--vp-text);
-}
-
-.livetv-remaining {
-    margin-left: 0.5rem;
-}
-
-.livetv-progress {
-    margin-top: 0.75rem;
-    height: 8px;
-    border-radius: 999px;
-    background: #333;
-    overflow: hidden;
-}
-
-.livetv-progress-fill {
-    height: 100%;
-    background: var(--vp-primary);
-}
-
-.livetv-next-line {
-    display: flex;
-    gap: 0.75rem;
-    align-items: baseline;
-    flex-wrap: wrap;
-}
-
+/* Die kommenden Sendungen sind kompakte program-cards (siehe app.css) — die Liste selbst
+   traegt nur Abstand und List-Stil. */
 .livetv-upcoming-list {
     list-style: none;
     margin: 0;
     padding: 0;
-}
-
-.livetv-upcoming-row {
     display: flex;
-    gap: 1rem;
-    padding: 0.4rem 0;
-    border-bottom: 1px solid var(--vp-border);
-}
-
-.livetv-upcoming-row:last-child {
-    border-bottom: none;
-}
-
-.livetv-upcoming-time {
-    min-width: 3.5rem;
-    color: var(--vp-secondary);
+    flex-direction: column;
+    gap: 10px;
 }

@@ -269,3 +269,4 @@
 
 - ffmpeg-stderr-Tail (8KB) bei unerwartetem Exit als Warnung (Laufzeit<RemainingSeconds, auch Exit0), HTTP-Range-Input via TryCreateStreamUri (TTL=Slotrest+15min), Fallback auf pipe:0 nur bei HTTP-Transportfehler, +30s-Spruenge als positionsbasierter Resync dokumentiert. Abnahme: `acceptance-schritt-19.md` — erfüllt.
 - Nachtrag 2026-10-22: Mit stderr-Logging wurde die echte Ursache gefunden — `-strftime 1` + `%05d` im Segmentnamen kollidiert (%0 ist kein strftime-Konversion, EINVAL beim ersten Segment). Fix: Timestamp in C# formatiert, strftime entfernt (Commit fix: HLS-Segmentdateiname).
+- Nachtrag: E2E-Test FfmpegLiveStreamSegmenterE2ETests (echtes ffmpeg + generiertes Dummy-Video) haette den strftime-Bug von Anfang an gefangen — Gegenprobe bewiesen.

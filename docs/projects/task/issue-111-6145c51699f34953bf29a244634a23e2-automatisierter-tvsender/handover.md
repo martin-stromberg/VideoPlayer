@@ -363,3 +363,8 @@
   den gesperrten Debug-Build vorzieht — Konsistenz per Diff gegen Snapshot prüfbar.
 - Lifecycle-Artefakte: `docs/features/task-issue-111-...-schritt-23-regel-features/` (im
   Abschlusscommit entfernt, Planung in Historie).
+
+
+### Schritt 23: Regel-Features (N19-N21) — FERTIG (abgenommen)
+
+- Interleaving je Serie (StrandState + StrandKey-Cursor), Werktag/Wochenende-Recurrence, Regel-Editor als Overlay; Start-Strang-Rotation bei EpisodeCount < Straenge. Abnahme: `acceptance-schritt-23.md`.

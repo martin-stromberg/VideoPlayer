@@ -18,3 +18,4 @@ Branch: `task/issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsende
 | 12 | Remote-Probes seekbar via sftp:// statt pipe:0 (N8) | 8 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-12-sftp-probe` | Fertig |
 | 13 | Neue Genre-Zeilen erben globale Sichtbarkeit/Alternativnamen (N7) | 8 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-13-genre-vererbung` | Fertig |
 | 14 | Remote-Probes über eigenen Range-Endpunkt (N9) | 12 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-14-http-probe` | Fertig |
+| 15 | Saisonale Genres in Regel-Auswahl immer wählbar (N10) | 9 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-15-saison-genre` | In Arbeit |

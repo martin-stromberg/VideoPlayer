@@ -452,3 +452,30 @@ Regel-Editor, `ProgramRuleService`-Validierung) + Lokalisierung + Tests
 (Schritt-16-Umsetzung). Modal/Drawer-Artiges Overlay ueber der Regel-Liste,
 Focus/Background-Handling wie in der App ueblich. Zugleich mit N19/N20 sinnvoll,
 da die Regel-Einstellungen dort erweitert werden.
+
+## N22 — Videos duerfen NIEMALS gekuerzt werden (Prioritaet: hoch, BUG)
+
+**Beobachtet (Anwender, reproduzierbar):** Gegen Ende einer Regel-Periode wird ein
+laengeres Video fuer die verbleibende Restzeit eingeplant und **mittendrin
+abgeschnitten** (z. B. 3 Min Rest -> Video wird nur 3 min gezeigt).
+
+**Regel (Anwender, explizit):** Ein Video darf nie gekuerzt ausgestrahlt werden.
+Ueberlauf ist erlaubt und gewuenscht: „selbst bei 15 Minuten Restzeit muss das Video
+dann eben ueber die Endzeit hinaus fertig abgespielt werden". Fuer sehr kleine
+Restlücken sind ohnehin Füllclips vorgesehen (N12/N15-Kontext).
+
+**Umzusetzen:**
+- Finden, wo der Kuerzungs-Pfad steckt (vermutlich nicht SelectAiringItems — das
+  ueberzieht seit Schritt 22 sauber; eher FillGaps/TrailingItem/Clamp auf
+  occurrence.End oder BoundaryAfter schneidet das letzte Item ab statt es
+  komplett zu lassen).
+- Semantik: letztes Item darf das Fenster-Ende ueberziehen und laeuft aus —
+  Folge-Occurrence startet erst danach (oder wird vom Invasor-Trim in
+  DisplaceAiringSuffix abgedeckt — Wechselwirkung mit Schritt-22 pruefen!
+  Der dortige BoundaryAfter-Skip verhindert den Ueberzug, koennte jetzt genau
+  diese Kuerzung erzeugen, wenn das letzte Item anstatt „auslaufen" gekappt wird).
+- Kein Truncat, keine Teil-Ausstrahlung; Item-Ende > Fenster-Ende ist legitim.
+- Mindest-Restlücke definieren (z. B. < 60 s oder unter kuerzestem Item): dann Filler.
+- Tests: Fenster-Rest 3 min + Item 45 min -> Item laeuft komplett durch, endet
+  nach Fenster-Ende; Folge-Regel wird entsprechend geshiftet oder displaced;
+  Rest < Schwelle -> keine Planung, Filler-Pfad greift.

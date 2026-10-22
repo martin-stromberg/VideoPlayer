@@ -368,3 +368,8 @@
 ### Schritt 23: Regel-Features (N19-N21) — FERTIG (abgenommen)
 
 - Interleaving je Serie (StrandState + StrandKey-Cursor), Werktag/Wochenende-Recurrence, Regel-Editor als Overlay; Start-Strang-Rotation bei EpisodeCount < Straenge. Abnahme: `acceptance-schritt-23.md`.
+
+
+### Schritt 24: Sendeplan-Panels — FERTIG (abgenommen)
+
+- program-card-Design (Prototyp getreu) im Sendeplan-Tab + Live-TV-Vorschau; DtoProgramGuideEntry +PosterPictureId/Description/GenreName/ShowName/SeasonName/SeasonNumber/EpisodeNumber/EpisodeName; Poster via GET /api/pictures/{id}?access_token. Abnahme: `acceptance-schritt-24.md` — erfüllt (nur Prozess-Hinweis Bearbeiter-Zeile, hier nachgetragen).

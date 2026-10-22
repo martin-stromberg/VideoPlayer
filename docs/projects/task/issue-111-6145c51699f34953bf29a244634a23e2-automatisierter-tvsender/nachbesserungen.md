@@ -281,3 +281,18 @@ reguläre Inhalte erscheinen).
 **Umzusetzen (klein):** ggf. Kennzeichnung „Interstitial/Kennzeichen" damit Maskottchen-
 Clips nicht als normale Filme auftauchen + Bevorzugung als Füller (Rotation innerhalb der
 Clip-Sammlung). Duration-Pfad gilt automatisch.
+
+## N13 — Fehlgeschlagene Laufzeitmessungen einsehbar machen (Priorität: mittel)
+
+**Beobachtet:** Die Fortschrittskarte zeigt den Zähler „fehlgeschlagen" — aber nicht,
+welche Dateien betroffen sind. Der Anwender kann also nicht beurteilen/beheben, was
+scheitert (korrupte Datei vs. Pfadproblem vs. moov-los).
+
+**Gewünscht:** Info-/Aufklapp-Schaltfläche am Fehlgeschlagen-KPI (und sinnvoll auch
+„ausstehend") in der Fortschrittskarte (`#tvsender-probe-card`), die die Liste der
+betroffenen Dateien anzeigt: Name, Quelle, Anzahl Versuche, Zeitpunkt des letzten
+Versuchs — analog `MediaDurationProbeRecentItem`. Datenquelle vorhanden:
+`MediaItem` mit `Duration null` + `DurationProbeAttempts >= MaxAttempts`
+(failed) bzw. `DurationProbedAt null` (pending); `GetProgressAsync` analoge Abfrage.
+Optional: „Probe zurücksetzen" pro Eintrag (Attempts zurücksetzen → erneuter Versuch),
+falls das Fehlerbild korrigierbar ist (z. B. Datei ersetzt).

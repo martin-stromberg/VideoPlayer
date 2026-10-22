@@ -311,6 +311,9 @@ public sealed class TVSenderAdminE2ETests : PlaylistsE2ETestBase
         await displacedRow.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         await Expect(displacedRow).ToContainTextAsync("Verdrängt");
         await Expect(Page.Locator(".tvsender-slot-row").First).ToContainTextAsync("Geplant");
+        // Panel-Karten statt Tabelle: Poster, Zeit, Titel und Beschreibung je Sendeplatz.
+        Assert.True(await Page.Locator("#tvsender-schedule-cards .program-card").CountAsync() >= 2);
+        await Expect(Page.Locator("#tvsender-schedule-cards .program-card .program-poster img").First).ToBeVisibleAsync();
     }
 
     [Fact]

@@ -27,7 +27,10 @@ public sealed class VideoWebPlayerClientTests_ProgramGuide : DeviceClientTestBas
         db.MediaCollections.Add(collection);
         await db.SaveChangesAsync();
 
-        var movie = new Movie { Name = "Client-Guide-Film", MediaSourceId = source.Id, CreatedAt = DateTime.UtcNow };
+        var poster = new Picture { Data = [0x42], ContentType = "image/png", Type = "poster" };
+        db.Pictures.Add(poster);
+        await db.SaveChangesAsync();
+        var movie = new Movie { Name = "Client-Guide-Film", MediaSourceId = source.Id, CreatedAt = DateTime.UtcNow, Plot = "Eine Handlung.", GenreNames = "Drama", PosterPictureId = poster.Id };
         db.Movies.Add(movie);
         var item = new MediaItem { Name = "guide.mkv", Path = $"{collection.Path}/guide.mkv", MediaCollectionId = collection.Id, CreatedAt = DateTime.UtcNow, Duration = TimeSpan.FromMinutes(90), DurationProbedAt = DateTime.UtcNow };
         db.MediaItems.Add(item);
@@ -55,6 +58,10 @@ public sealed class VideoWebPlayerClientTests_ProgramGuide : DeviceClientTestBas
         Assert.Equal(runningSlotId, now.SlotId);
         Assert.Equal("Client-Guide-Film", now.Title);
         Assert.True(now.PositionSeconds > 0);
+        // Card metadata for the program panels is delivered over the API as well.
+        Assert.Equal("Eine Handlung.", now.Description);
+        Assert.Equal("Drama", now.GenreName);
+        Assert.NotNull(now.PosterPictureId);
         var next = Assert.IsType<DtoProgramGuideEntry>(guide.Next);
         Assert.Equal(nextSlotId, next.SlotId);
     }

@@ -54,7 +54,10 @@ public sealed class LiveTvE2ETests : PlaylistsE2ETestBase
         db.MediaCollections.Add(collection);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var movie = new Movie { Name = movieTitle, MediaSourceId = source.Id, CreatedAt = DateTime.UtcNow };
+        var poster = new Picture { Data = [0x42], ContentType = "image/png", Type = "poster" };
+        db.Pictures.Add(poster);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var movie = new Movie { Name = movieTitle, MediaSourceId = source.Id, CreatedAt = DateTime.UtcNow, Plot = "Handlung des Abendfilms.", GenreNames = "Drama", PosterPictureId = poster.Id };
         db.Movies.Add(movie);
         var item = new MediaItem { Name = "live.mkv", Path = $"{collection.Path}/live.mkv", MediaCollectionId = collection.Id, CreatedAt = DateTime.UtcNow, Duration = TimeSpan.FromMinutes(90), DurationProbedAt = DateTime.UtcNow };
         db.MediaItems.Add(item);
@@ -101,6 +104,10 @@ public sealed class LiveTvE2ETests : PlaylistsE2ETestBase
         await Expect(Page.Locator("#live-tv-now-title")).ToContainTextAsync("Live-Abendfilm");
         await Expect(Page.Locator("#live-tv-next")).ToContainTextAsync("Live-Abendfilm");
         Assert.True(await Page.Locator(".livetv-upcoming-row").CountAsync() >= 2);
+        // Panel-Karten: "Jetzt läuft" mit LIVE-Badge/Fortschritt + Beschreibung aus den Metadaten.
+        await Expect(Page.Locator("#live-tv-now.program-card.now-card")).ToBeVisibleAsync();
+        await Expect(Page.Locator("#live-tv-now .badge-live")).ToBeVisibleAsync();
+        await Expect(Page.Locator("#live-tv-now .program-desc")).ToContainTextAsync("Handlung des Abendfilms.");
         await Expect(Page.Locator("#live-tv-video")).ToBeVisibleAsync();
 
         // The HLS wiring end to end: the page fetched the playlist with the bearer token.

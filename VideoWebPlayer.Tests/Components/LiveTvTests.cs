@@ -121,6 +121,62 @@ public class LiveTvTests(ITestOutputHelper _)
     }
 
     [Fact]
+    public void Upcoming_RendersCompactProgramCards_WithPosterBadgeAndDescription()
+    {
+        var guide = CreateGuideMock(
+            now: new DtoProgramGuideNow
+            {
+                ServerTimeUtc = DateTimeOffset.UtcNow,
+                Now = new DtoProgramGuideEntry
+                {
+                    SlotId = 11, Title = "Krimiserie — Staffel 1, E2: Der Fall",
+                    ShowName = "Krimiserie", SeasonName = "Staffel 1", SeasonNumber = 1,
+                    EpisodeNumber = 2, EpisodeName = "Der Fall",
+                    Description = "Episodentext.", GenreName = "Krimi", PosterPictureId = 42,
+                    MediaItemId = 5,
+                    StartUtc = DateTimeOffset.UtcNow.AddMinutes(-10), EndUtc = DateTimeOffset.UtcNow.AddMinutes(50),
+                    DurationSeconds = 3600, PositionSeconds = 600, RemainingSeconds = 3000,
+                },
+            },
+            upcoming:
+            [
+                new DtoProgramGuideEntry
+                {
+                    SlotId = 11, Title = "Krimiserie — Staffel 1, E2: Der Fall",
+                    PosterPictureId = 42, Description = "Episodentext.", MediaItemId = 5,
+                    StartUtc = DateTimeOffset.UtcNow.AddMinutes(-10), EndUtc = DateTimeOffset.UtcNow.AddMinutes(50),
+                },
+                new DtoProgramGuideEntry
+                {
+                    SlotId = 12, Title = "Ohne-Metadaten-Film", MediaItemId = 6,
+                    StartUtc = DateTimeOffset.UtcNow.AddMinutes(50), EndUtc = DateTimeOffset.UtcNow.AddMinutes(140),
+                },
+            ]);
+        using var ctx = CreateContext(guide);
+
+        var cut = ctx.Render<LiveTv>();
+
+        var nowCard = cut.Find("#live-tv-now");
+        Assert.Contains("now-card", nowCard.ClassList);
+        Assert.Contains("compact", nowCard.ClassList);
+        Assert.Single(nowCard.QuerySelectorAll(".badge-live"));
+        Assert.Single(nowCard.QuerySelectorAll(".progress-fill"));
+        Assert.Equal("Krimiserie", nowCard.QuerySelector(".program-title")!.TextContent.Trim());
+        Assert.Contains("S1 E2", nowCard.TextContent);
+        Assert.Equal($"/api/pictures/42?access_token={TestToken}",
+            nowCard.QuerySelector(".program-poster img")!.GetAttribute("src"));
+
+        var rows = cut.FindAll(".livetv-upcoming-row.program-card");
+        Assert.Equal(2, rows.Count);
+        Assert.Contains("Episodentext.", rows[0].TextContent);
+        Assert.Contains("/api/pictures/42", rows[0].QuerySelector(".program-poster img")!.GetAttribute("src"));
+
+        // Ohne Bild/Beschreibung: Platzhalter-Bild + sauberer Fallback-Text.
+        Assert.Contains("placeholder.png", rows[1].QuerySelector(".program-poster img")!.GetAttribute("src"));
+        Assert.Contains("keine Beschreibung", rows[1].TextContent);
+    }
+
+    [Fact]
     public void Page_NotAuthenticated_ShowsLoginForm_WithoutGuideCall()
     {
         var guide = CreateGuideMock();

@@ -3,6 +3,8 @@
 @using VideoWebPlayer.Client
 @using VideoWebPlayer.Client.Models
 @using VideoWebPlayer.Components.Account.Pages.Shared
+@using VideoWebPlayer.Components.Playlists
+@using VideoWebPlayer.Services
 @using VideoWebPlayer.ViewModels
 @inject AuthenticationStateProvider AuthStateProvider
 @inject VideoWebPlayerClient Client
@@ -39,80 +41,108 @@ else
             <h1>Live-TV</h1>
         </header>
 
-        @* Player-Bereich: bei laufender Sendung das Video (attach via liveTv.js - nativ oder hls.js);
-           bei Sendeluecke die verstaendliche Hinweismeldung. *@
-        <div class="livetv-player-wrap">
-            @if (guide?.Now is not null)
-            {
-                <video @ref="_videoRef" id="live-tv-video" class="livetv-video" controls autoplay muted playsinline></video>
-                @if (unsupportedBrowser)
-                {
-                    <div class="alert alert-warning livetv-hint" id="live-tv-unsupported">@LiveTvErrorMessages.UnsupportedBrowser</div>
-                }
-                else if (streamError)
-                {
-                    <div class="alert alert-warning livetv-hint" id="live-tv-stream-error">@LiveTvErrorMessages.StreamUnavailable</div>
-                }
-            }
-            else
-            {
-                <div class="livetv-gap" id="live-tv-no-program">
-                    <strong>@LiveTvErrorMessages.NoProgramRunning</strong>
-                    @if (guide?.Next is { } nextGap)
+        @* Player links, Programm-Karten rechts/darunter (sendeplan-vorschau.html):
+           kompakte program-cards mit Poster, Uhrzeit, Titel und kurzer Beschreibung. *@
+        <div class="livetv-layout">
+            <div class="livetv-main">
+                @* Player-Bereich: bei laufender Sendung das Video (attach via liveTv.js - nativ oder hls.js);
+                   bei Sendeluecke die verstaendliche Hinweismeldung. *@
+                <div class="livetv-player-wrap">
+                    @if (guide?.Now is not null)
                     {
-                        <span>Nächste Sendung um @FormatTime(nextGap.StartUtc): @nextGap.Title</span>
+                        <video @ref="_videoRef" id="live-tv-video" class="livetv-video" controls autoplay muted playsinline></video>
+                        @if (unsupportedBrowser)
+                        {
+                            <div class="alert alert-warning livetv-hint" id="live-tv-unsupported">@LiveTvErrorMessages.UnsupportedBrowser</div>
+                        }
+                        else if (streamError)
+                        {
+                            <div class="alert alert-warning livetv-hint" id="live-tv-stream-error">@LiveTvErrorMessages.StreamUnavailable</div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="livetv-gap" id="live-tv-no-program">
+                            <strong>@LiveTvErrorMessages.NoProgramRunning</strong>
+                            @if (guide?.Next is { } nextGap)
+                            {
+                                <span>Nächste Sendung um @FormatTime(nextGap.StartUtc): @nextGap.Title</span>
+                            }
+                        </div>
                     }
                 </div>
-            }
+            </div>
+
+            <div class="livetv-side">
+                @if (guide?.Now is { } nowEntry)
+                {
+                    <span class="livetv-kicker">Jetzt läuft</span>
+                    <section class="program-card compact now-card" id="live-tv-now">
+                        <div class="program-poster"><img src="@PosterUrl(nowEntry)" alt="" /></div>
+                        <div class="program-body">
+                            <span class="program-badge badge-live">Live</span>
+                            <span class="program-time">
+                                @FormatTime(nowEntry.StartUtc)&nbsp;–&nbsp;@FormatTime(nowEntry.EndUtc)
+                                @if (nowEntry.RemainingSeconds is { } remaining)
+                                {
+                                    <text>&nbsp;(noch @FormatDuration(remaining))</text>
+                                }
+                            </span>
+                            <span class="program-title" id="live-tv-now-title">@CardTitle(nowEntry)</span>
+                            @if (CardSub(nowEntry) is { } nowSub)
+                            {
+                                <span class="program-sub">@nowSub</span>
+                            }
+                            <p class="program-desc">@Desc(nowEntry)</p>
+                            @if (nowEntry.PositionSeconds is { } position && nowEntry.DurationSeconds > 0)
+                            {
+                                <div class="progress-track" aria-hidden="true">
+                                    <div class="progress-fill" style="width:@ProgressPercent(position, nowEntry.DurationSeconds)%"></div>
+                                </div>
+                            }
+                        </div>
+                    </section>
+                }
+
+                @if (guide?.Next is { } nextEntry)
+                {
+                    <span class="livetv-kicker">Gleich</span>
+                    <section class="program-card compact" id="live-tv-next">
+                        <div class="program-poster"><img src="@PosterUrl(nextEntry)" alt="" /></div>
+                        <div class="program-body">
+                            <span class="program-time">@FormatTime(nextEntry.StartUtc)</span>
+                            <span class="program-title">@CardTitle(nextEntry)</span>
+                            @if (CardSub(nextEntry) is { } nextSub)
+                            {
+                                <span class="program-sub">@nextSub</span>
+                            }
+                        </div>
+                    </section>
+                }
+
+                @if (upcoming.Length > 0)
+                {
+                    <span class="livetv-kicker">Die nächsten Stunden</span>
+                    <ul class="livetv-upcoming-list" id="live-tv-upcoming">
+                        @foreach (var entry in upcoming)
+                        {
+                            <li class="livetv-upcoming-row program-card compact" data-slot-id="@entry.SlotId">
+                                <div class="program-poster"><img src="@PosterUrl(entry)" alt="" /></div>
+                                <div class="program-body">
+                                    <span class="program-time">@FormatTime(entry.StartUtc)</span>
+                                    <span class="program-title">@CardTitle(entry)</span>
+                                    @if (CardSub(entry) is { } sub)
+                                    {
+                                        <span class="program-sub">@sub</span>
+                                    }
+                                    <p class="program-desc">@Desc(entry)</p>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
         </div>
-
-        @if (guide?.Now is { } nowEntry)
-        {
-            <section class="livetv-card" id="live-tv-now">
-                <span class="livetv-kicker">Jetzt läuft</span>
-                <h2 id="live-tv-now-title">@nowEntry.Title</h2>
-                <div class="livetv-times">
-                    @FormatTime(nowEntry.StartUtc)&nbsp;–&nbsp;@FormatTime(nowEntry.EndUtc)
-                    @if (nowEntry.RemainingSeconds is { } remaining)
-                    {
-                        <span class="livetv-remaining">(noch @FormatDuration(remaining))</span>
-                    }
-                </div>
-                @if (nowEntry.PositionSeconds is { } position && nowEntry.DurationSeconds > 0)
-                {
-                    <div class="livetv-progress" aria-hidden="true">
-                        <div class="livetv-progress-fill" style="width:@ProgressPercent(position, nowEntry.DurationSeconds)%"></div>
-                    </div>
-                }
-            </section>
-        }
-
-        @if (guide?.Next is { } nextEntry)
-        {
-            <section class="livetv-card livetv-next" id="live-tv-next">
-                <span class="livetv-kicker">Gleich</span>
-                <div class="livetv-next-line">
-                    <strong>@nextEntry.Title</strong>
-                    <span>um @FormatTime(nextEntry.StartUtc)</span>
-                </div>
-            </section>
-        }
-
-        @if (upcoming.Length > 0)
-        {
-            <section class="livetv-card" id="live-tv-upcoming">
-                <span class="livetv-kicker">Die nächsten Stunden</span>
-                <ul class="livetv-upcoming-list">
-                    @foreach (var entry in upcoming)
-                    {
-                        <li class="livetv-upcoming-row" data-slot-id="@entry.SlotId">
-                            <span class="livetv-upcoming-time">@FormatTime(entry.StartUtc)</span>
-                            <span class="livetv-upcoming-title">@entry.Title</span>
-                        </li>
-                    }
-                </ul>
-            </section>
-        }
     </div>
 }
 
@@ -268,6 +298,19 @@ else
         StateHasChanged();
         return Task.CompletedTask;
     }
+
+    // Bei Serien traegt die Karte den Serientitel als Hauptzeile, die Episoden-Kurzinfo als
+    // Unterzeile ("S6 E42"); Filme und namentlich aufgeloeste Clips zeigen den Guide-Titel.
+    private static string CardTitle(DtoProgramGuideEntry entry) => entry.ShowName ?? entry.Title;
+
+    private static string? CardSub(DtoProgramGuideEntry entry)
+        => ProgramGuideEntryText.ShortSubtitle(entry.SeasonNumber, entry.EpisodeNumber);
+
+    private static string Desc(DtoProgramGuideEntry entry)
+        => entry.Description ?? ProgramGuideEntryText.NoDescriptionText;
+
+    private string PosterUrl(DtoProgramGuideEntry entry)
+        => MediaPictureUrlResolver.Resolve(entry.PosterPictureId, Client.AuthorizationToken);
 
     private static string FormatTime(DateTimeOffset utc) => utc.ToLocalTime().ToString("HH:mm");
 

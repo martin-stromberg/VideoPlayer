@@ -150,8 +150,11 @@ Dabei gilt:
 - **Entstehende Lücken** werden regelkonform neu gefüllt, insbesondere über die Füller-Regeln;
   Restlücken kleiner als der kürzeste Füller bleiben wie bei der Erzeugung bestehen.
 - **Nachvollziehbarkeit**: Die Karte „Sendeplan" auf derselben Seite zeigt die kommenden
-  Sendeplätze mit Start/Ende, Inhalt, erzeugender Regel und Status — verdrängte Sendeplätze sind
-  dort als „Verdrängt" gekennzeichnet und bleiben als Historie erhalten.
+  Sendeplätze als Panels mit Poster, Genre-Badge, Titel, Episoden-Info (Staffel/Episode),
+  Beschreibung, erzeugender Regel und Status — der laufende Sendeplatz trägt ein LIVE-Badge
+  mit Fortschrittsbalken; fehlen Poster oder Beschreibung in den Metadaten, erscheinen
+  Platzhalter. Verdrängte Sendeplätze sind als „Verdrängt" gekennzeichnet und bleiben als
+  Historie erhalten.
 - **Fenstergrenzen**: Sendungen überziehen ihre Länge höchstens bis zum Beginn der nächsten
   Sendung einer anderen Regel — nie in deren Fenster hinein. Ein Inhalt, der nicht mehr in den
   Rest des Sendefensters passt, wird übersprungen statt die Folgesendung zu verdrängen. Ragt
@@ -287,8 +290,9 @@ mit 404 beantwortet.
 ## Live-TV-Ansicht
 
 Über den Navigationspunkt **„Live-TV"** (für angemeldete Benutzer) erreichen Zuschauer den
-Sender. Die Ansicht zeigt den laufenden Stream im Videoplayer sowie darunter „Jetzt läuft"
-(Titel, Uhrzeiten, Restdauer und Fortschritt), „Gleich" (nächste Sendung) und eine begrenzte
+Sender. Die Ansicht zeigt den laufenden Stream im Videoplayer sowie daneben (auf schmalen
+Bildschirmen darunter) kompakte Programm-Karten: „Jetzt läuft" (Poster, LIVE-Badge,
+Fortschrittsbalken, Beschreibung), „Gleich" (nächste Sendung) und eine begrenzte
 Vorschau der nächsten Stunden; der vollständige Sendeplan bleibt der Administration
 vorbehalten. Die Ansicht aktualisiert sich selbstständig — zu Sendebeginn wechselt sie ohne
 Neuladen in die Wiedergabe.

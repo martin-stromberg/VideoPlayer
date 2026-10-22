@@ -88,11 +88,20 @@ public class LiveStreamController : ApiBaseController
     private async Task<string> RewritePlaylistAsync(string path, CancellationToken cancellationToken)
     {
         var accessToken = HttpContext.Request.Query["access_token"].ToString();
-        var lines = await System.IO.File.ReadAllLinesAsync(path, cancellationToken);
+        // ReadWrite|Delete share: ffmpeg rewrites the playlist in place while we read it —
+        // a FileShare.Read handle would make its write fail and abort the muxer.
+        string content;
+        await using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete))
+        {
+            using var reader = new StreamReader(stream);
+            content = await reader.ReadToEndAsync(cancellationToken);
+        }
         var builder = new StringBuilder();
 
-        foreach (var line in lines)
+        foreach (var raw in content.Split('\n'))
         {
+            var line = raw.TrimEnd('\r');
             if (string.IsNullOrWhiteSpace(accessToken) || line.StartsWith('#') || string.IsNullOrWhiteSpace(line))
             {
                 builder.AppendLine(line);

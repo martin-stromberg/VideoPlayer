@@ -81,14 +81,33 @@ internal static class GenreCanonicalResolver
     /// </summary>
     /// <param name="genres">Genre rows in the current scope (already source-filtered).</param>
     /// <param name="now">Reference instant for the seasonal visibility window.</param>
+    /// <param name="includeOutOfSeason">
+    /// When <see langword="true"/>, genres outside their
+    /// <see cref="Genre.StartDate"/>/<see cref="Genre.EndDate"/> window stay selectable and are
+    /// labeled with their window — used for configuration UIs where the admin plans ahead
+    /// (the window limits airing, not configuration). When <see langword="false"/>, the
+    /// window filters as before.
+    /// </param>
     /// <returns>Distinct canonical genre options ordered by name.</returns>
-    public static List<DtoGenreOption> BuildOptions(IReadOnlyCollection<Genre> genres, DateTime now)
+    public static List<DtoGenreOption> BuildOptions(IReadOnlyCollection<Genre> genres, DateTime now, bool includeOutOfSeason = false)
         => genres
-            .Where(g => !string.IsNullOrWhiteSpace(g.Name) && !HasEffectiveAlternates(g) && IsVisible(g, now))
+            .Where(g => !string.IsNullOrWhiteSpace(g.Name) && !g.IsHidden && !HasEffectiveAlternates(g) && (includeOutOfSeason || IsVisible(g, now)))
             .GroupBy(g => g.Name.Trim(), StringComparer.OrdinalIgnoreCase)
-            .Select(g => new DtoGenreOption { Id = g.Min(x => x.Id), Name = g.Key })
+            .Select(g => new DtoGenreOption { Id = g.Min(x => x.Id), Name = OptionName(g.First(), g.Key, now) })
             .OrderBy(o => o.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
+
+    /// <summary>
+    /// Appends the seasonal window to the option label when the genre has a configured
+    /// window at all — so admins can tell seasonal genres apart while planning.
+    /// </summary>
+    private static string OptionName(Genre genre, string name, DateTime now)
+        => includeWindow(genre, now)
+            ? $"{name} ({genre.StartDate:dd.MM.}–{genre.EndDate:dd.MM.})"
+            : name;
+
+    private static bool includeWindow(Genre genre, DateTime now)
+        => genre.StartDate is not null && genre.EndDate is not null && !IsVisible(genre, now);
 
     internal static List<string> EffectiveAlternateNames(Genre genre)
         => (genre.AlternateNames ?? Enumerable.Empty<GenreName>())

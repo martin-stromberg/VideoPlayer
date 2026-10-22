@@ -95,7 +95,7 @@ public sealed class ProgramRuleService : IProgramRuleService
             .Include(g => g.AlternateNames)
             .Where(g => filter == null || filter.Contains(g.MediaSourceId))
             .ToListAsync(cancellationToken);
-        return GenreCanonicalResolver.BuildOptions(genres, DateTime.UtcNow);
+        return GenreCanonicalResolver.BuildOptions(genres, DateTime.UtcNow, includeOutOfSeason: true);
     }
 
     /// <inheritdoc />

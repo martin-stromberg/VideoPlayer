@@ -238,6 +238,16 @@ else
                                 Trailer anstehender Filme
                             </label>
                         }
+                        @if (AllowedMaterialTypes.Contains(ProgramRuleMaterialType.MediaSourceClips))
+                        {
+                            <select id="rule-material-clipsource" class="form-control" @onchange="OnClipSourceSelected">
+                                <option value="">Clip-Quelle wählen…</option>
+                                @foreach (var s in mediaSources)
+                                {
+                                    <option value="@s.Id" selected="@(editRule.MaterialType == ProgramRuleMaterialType.MediaSourceClips && editRule.MaterialId == s.Id)">Clip-Quelle: @s.Name</option>
+                                }
+                            </select>
+                        }
                     </div>
                 }
 
@@ -832,11 +842,16 @@ else
             .Where(e => episodeIds.Contains(e.Id))
             .Select(e => new { e.Id, EpisodeName = e.Name, e.Number, SeasonName = e.TVShowSeason.Name, ShowName = e.TVShowSeason.TVShow.Name })
             .ToDictionaryAsync(e => e.Id, e => $"{e.ShowName} — {e.SeasonName}, E{e.Number}: {e.EpisodeName}");
+        var bareItemIds = schedule.Where(s => s.MovieId is null && s.TVShowEpisodeId is null).Select(s => s.MediaItemId).Distinct().ToList();
+        slotItemNames = await DbContext.MediaItems
+            .Where(i => bareItemIds.Contains(i.Id))
+            .ToDictionaryAsync(i => i.Id, i => i.Name);
     }
 
     private Dictionary<long, string> slotRuleNames = new();
     private Dictionary<long, string> slotMovieNames = new();
     private Dictionary<long, string> slotEpisodeTitles = new();
+    private Dictionary<long, string> slotItemNames = new();
 
     private string SlotTitle(ProgramSlot slot)
     {
@@ -844,6 +859,8 @@ else
             return et;
         if (slot.MovieId is { } mv && slotMovieNames.TryGetValue(mv, out var mt))
             return mt;
+        if (slotItemNames.TryGetValue(slot.MediaItemId, out var itemName) && !string.IsNullOrWhiteSpace(itemName))
+            return itemName;
         return "(Inhalt nicht gefunden)";
     }
 
@@ -1034,6 +1051,20 @@ else
         }
     }
 
+    // Clip-source material: all unclassified video items of the chosen media source (e.g. a
+    // dedicated "Maskottchen" source whose clips carry no NFO) rotate as filler.
+    private void OnClipSourceSelected(ChangeEventArgs e)
+    {
+        if (editRule is not null && long.TryParse(e.Value?.ToString(), out var id) && id > 0)
+        {
+            editRule.MaterialType = ProgramRuleMaterialType.MediaSourceClips;
+            editRule.MaterialId = id;
+            editRule.MaterialDisplayName = $"Clip-Quelle: {mediaSources.FirstOrDefault(s => s.Id == id)?.Name ?? id.ToString()}";
+            editRule.SelectedGenreIds.Clear();
+            editRule.SelectedMediaSourceIds.Clear();
+        }
+    }
+
     // Trailer material references no entity — it covers every trailer of movies scheduled in the
     // upcoming days, so MaterialId stays 0.
     private void OnTrailerToggled(bool selected)
@@ -1162,6 +1193,7 @@ else
             ProgramRuleMaterialType.MovieCollection => DbContext.MovieCollections.FirstOrDefault(m => m.Id == id)?.Name,
             ProgramRuleMaterialType.Genre => DbContext.Genres.AsNoTracking().FirstOrDefault(m => m.Id == id)?.Name,
             ProgramRuleMaterialType.Playlist => DbContext.Playlists.FirstOrDefault(m => m.Id == id)?.Name,
+            ProgramRuleMaterialType.MediaSourceClips => DbContext.MediaSources.FirstOrDefault(m => m.Id == id)?.Name,
             _ => null
         };
         var typeLabel = type switch
@@ -1171,6 +1203,7 @@ else
             ProgramRuleMaterialType.MovieCollection => "Filmsammlung",
             ProgramRuleMaterialType.Genre => "Genre",
             ProgramRuleMaterialType.Playlist => "Playlist",
+            ProgramRuleMaterialType.MediaSourceClips => "Clip-Quelle",
             _ => type.ToString()
         };
         return name is null ? $"{typeLabel} (nicht gefunden)" : $"{typeLabel}: {name}";

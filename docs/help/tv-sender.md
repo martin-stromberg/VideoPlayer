@@ -98,6 +98,26 @@ Sendeplan Trailer, deren Film innerhalb der nächsten Tage ausgestrahlt wird
 Füller-Regeln als Rückfall. Das Vorlauffenster steuert der Betreiber über den
 Konfigurationsschlüssel `ProgramSchedule:TrailerLeadDays` (Standard: 7 Tage).
 
+### Maskottchen-/Kennzeichen-Clips (Interstitials)
+
+Kurze Sender-Kennzeichen oder Maskottchen-Clips (z. B. „Funki, das Glühbirnchen") können als
+Füllmaterial rotieren — ohne als reguläre Filme in der Mediathek aufzutauchen:
+
+1. **Dedizierte Medienquelle** anlegen (z. B. lokales Verzeichnis `Maskottchen/`) und die
+   Clips dort ablegen. **Keine `.nfo`-Dateien** mitliefern — nur Dateien mit NFO werden zu
+   Filmen/Serien eingeordnet, die Clips bleiben damit „uneingeordnet" und unsichtbar in der
+   Bibliothek (Laufzeit wird trotzdem ermittelt, das gilt für jede Videodatei).
+2. Die Quelle **für alle Anwender freigeben** — Füller werden nur eingeplant, wenn sie für
+   die gesamte Nicht-Admin-Zuhörerschaft sichtbar sind.
+3. **Füller-Regel** anlegen (Regelart „Platzhalter/Füller") und als Programmmaterial
+   **„Clip-Quelle"** die Maskottchen-Quelle wählen. Alle uneingeordneten Videodateien der
+   Quelle rotieren dann als Füller — pro Durchlauf in fester Reihenfolge, danach von vorn.
+   Bereits eingeordnete Inhalte derselben Quelle (Filme/Episoden) bleiben außen vor.
+
+In Programmauskunft, Live-TV und Sendeplan-Anzeige tragen die Sendeplätze den Dateinamen des
+Clips als Titel. Fertige Beispielclips samt Drehbüchern und dem Generatorskript liegen im
+Projektverzeichnis unter `docs/projects/…/maskottchen/` (siehe dortige `README.md`).
+
 ### Nachführung bei Änderungen
 
 Der Sendeplan wird nicht nur periodisch fortgeschrieben, sondern nach jeder planrelevanten

@@ -233,6 +233,50 @@ public sealed class TVSenderAdminE2ETests : PlaylistsE2ETestBase
         await Expect(Page.Locator(".tvsender-rule-row")).ToHaveCountAsync(0);
         await Expect(Page.Locator("#tvsender-rules-status")).ToContainTextAsync("gelöscht");
 
+        // Second rule on the same app instance: a Filler rule whose material is a clip source —
+        // picked through the media-source dropdown that only appears for the Filler rule type.
+        await DriveUntilStateAsync(
+            async () =>
+            {
+                if (await Page.Locator("#rule-name").CountAsync() > 0) return;
+                var btn = Page.Locator("#tvsender-new-rule");
+                if (await btn.CountAsync() > 0) await btn.ClickAsync(new LocatorClickOptions { Timeout = 10_000 });
+            },
+            () => Page.Locator("#rule-name").WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 }));
+        await Page.FillAsync("#rule-name", "Funki-Füller");
+        await Page.FillAsync("#rule-episodes", "");
+        await Page.FillAsync("#rule-duration", "30");
+        await Page.SelectOptionAsync("#rule-type", "Filler");
+        await Page.Locator("#rule-material-clipsource").WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
+        // Pick whichever media source the dropdown offers first — names differ per test seed.
+        var firstClipOption = Page.Locator("#rule-material-clipsource option").Nth(1);
+        var clipOptionText = (await firstClipOption.TextContentAsync())!.Trim();
+        var clipOptionValue = await firstClipOption.GetAttributeAsync("value");
+        await Page.Locator("#rule-material-clipsource").SelectOptionAsync(
+            new SelectOptionValue { Label = clipOptionText });
+        await Expect(Page.Locator("#rule-material-selected")).ToContainTextAsync(clipOptionText);
+        await Page.ClickAsync("#rule-save");
+
+        var clipRow = Page.Locator(".tvsender-rule-row", new PageLocatorOptions { HasText = "Funki-Füller" });
+        await clipRow.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+        await Expect(clipRow).ToContainTextAsync("Platzhalter/Füller");
+        await Expect(clipRow).ToContainTextAsync(clipOptionText);
+
+        // Persisted server-side as MediaSourceClips material on the chosen source.
+        {
+            using var scope = Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<VideoWebPlayer.Data.ApplicationDbContext>();
+            var clipRule = await db.ProgramRules.SingleAsync(r => r.Name == "Funki-Füller", TestContext.Current.CancellationToken);
+            Assert.Equal(VideoWebPlayer.Data.ProgramRuleMaterialType.MediaSourceClips, clipRule.MaterialType);
+            Assert.Equal(long.Parse(clipOptionValue!), clipRule.MaterialId);
+        }
+
+        // Clean up so the rest of the test sees an empty rule list.
+        await clipRow.Locator(".tvsender-rule-delete").ClickAsync();
+        await Page.Locator("#rule-delete-confirm").WaitForAsync();
+        await Page.ClickAsync("#rule-delete-confirm");
+        await Expect(Page.Locator(".tvsender-rule-row")).ToHaveCountAsync(0);
+
         // Sendeplan-Karte: geplanter und verdrängter Sendeplatz werden mit Status-Chip angezeigt.
         {
             using var scope = Services.CreateScope();

@@ -255,4 +255,29 @@ public sealed class ProgramGuideServiceTests
 
         Assert.Empty(result);
     }
+
+    [Fact]
+    public async Task GetNowAsync_BareMediaItemSlot_FallsBackToItemName()
+    {
+        // Clip-source filler slots carry only MediaItemId — the guide shows the file's name
+        // instead of "Unbekannt" (mascot clips have no movie/episode entry by design).
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("guide-clip-title", ct);
+        var channel = await fixture.GetChannelAsync(ct);
+        var clip = await fixture.CreateMediaItemAsync(duration: TimeSpan.FromSeconds(15));
+        clip.Name = "funki-begruessung.mp4";
+        await fixture.SaveDiagAsync();
+
+        await fixture.CreateSlotAsync(channel.Id, Now.AddSeconds(-10), Now.AddSeconds(5), clip.Id,
+            ruleType: ProgramRuleType.Filler);
+
+        var result = await fixture.CreateGuideService().GetNowAsync(new DateTimeOffset(Now), ct);
+
+        var now = Assert.IsType<DtoProgramGuideEntry>(result.Now);
+        Assert.Equal("funki-begruessung.mp4", now.Title);
+        Assert.True(now.IsFiller);
+        Assert.Null(now.MediaType);
+        Assert.Null(now.MediaId);
+        Assert.Equal(clip.Id, now.MediaItemId);
+    }
 }

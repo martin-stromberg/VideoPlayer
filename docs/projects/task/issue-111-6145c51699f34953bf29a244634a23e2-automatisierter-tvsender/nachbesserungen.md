@@ -330,3 +330,25 @@ Assets im Projektverzeichnis bzw. einer Maskottchen-Sammlung in der Mediathek.
 Stand 2026-10-21: Es existiert **kein** Zugang zu KI-Videogeneratoren. Werkzeug-Auswahl und
 -pruefung sind Teil des Schritts (Evaluierung freier Zugaenge vs. prozedurale Generierung
 mit ffmpeg/Blender als Fallback), Entscheidung wird mit dem Anwender im Schritt getroffen.
+
+## N15 — Live-Stream restartet ffmpeg alle ~16 s (Pipe bricht, kein stderr im Log) (Priorität: hoch)
+
+**Beobachtet (Live-Befund, 2026-10-22):** Live-TV zeigt „Stream momentan nicht
+verfügbar, wird erneut versucht". Log zeigt: `FfmpegLiveStreamSegmenter` startet für
+Sendeplatz 5 alle ~14–17 s neu (`Die Pipe wurde beendet` in `PumpInputAsync` —
+ffmpeg verlässt stdin = ffmpeg-Prozess beendet sich), Position rückt je Versuch ~30 s
+vor. Degradiert statt läuft; kein Warmlauf.
+
+**Befund:** ffmpeg beendet mitten im Lauf; dessen stderr wird gedrained, aber **nicht
+geloggt** → Ursache unsichtbar (Diagnosability-Lücke). Unter dem Verdacht steht der
+pipe:0-Pump über SFTP (denselben Pfad nutzt N8/N9 für Probes nicht mehr).
+
+**Umzusetzen:**
+1. **stderr des Segmenter-ffmpeg bei unerwartetem Exit loggen** (Exit-Code + Tail) —
+   sonst ist der Fehler blind.
+2. **Seekfähige Eingabe statt pump:0**: dasselbe interne Range-Endpoint wie N9
+   (`api/internal/media-stream/{token}`) auch als ffmpeg-Input für den Segmenter —
+   ffmpeg liest mit Range-Requests, kann seeken, kein Volldurchlauf nötig.
+   Nebenprodukt: `-ss` wird wirksam und moov-am-Ende-Probleme entfallen.
+3. Neustart-Strategie prüfen: exakt +30 s-Sprünge wirken wie positions-basierte
+   Wiederholung — dokumentieren/korrigieren, falls Doppel-Belegung droht.

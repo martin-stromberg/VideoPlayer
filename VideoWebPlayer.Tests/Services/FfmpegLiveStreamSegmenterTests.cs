@@ -145,7 +145,7 @@ public sealed class FfmpegLiveStreamSegmenterTests
         Assert.Contains("-hls_time 6", args);
         Assert.Contains("-hls_list_size 12", args);
         Assert.Contains("delete_segments", args);
-        Assert.Contains("seg_%Y%m%d%H%M%S_42_%05d.ts", args);
+        Assert.Matches(@"seg_\d{14}_42_%05d\.ts", args);
         Assert.Contains("-t 240.250", args);
         Assert.EndsWith("live.m3u8\"", args);
         Assert.False(_started.Single().RedirectStandardInput);

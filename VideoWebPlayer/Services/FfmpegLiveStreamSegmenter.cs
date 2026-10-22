@@ -374,7 +374,10 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
                 ? $"\"{url}\""
                 : "pipe:0";
         var noStdin = job.Input.IsPipe ? string.Empty : "-nostdin ";
-        var segmentPattern = Path.Combine(job.SegmentDirectory, $"seg_%Y%m%d%H%M%S_{job.SlotId}_%05d.ts");
+        // The timestamp is formatted in C# — a strftime `%Y…` pattern cannot coexist with the
+        // `%0Nd` segment counter under `-strftime 1` (`%0` is an invalid strftime conversion
+        // and aborts the muxer with EINVAL on the very first segment).
+        var segmentPattern = Path.Combine(job.SegmentDirectory, $"seg_{DateTime.Now:yyyyMMddHHmmss}_{job.SlotId}_%05d.ts");
         var playlist = Path.Combine(job.SegmentDirectory, PlaylistFileName);
 
         return "-hide_banner -loglevel warning -y "
@@ -384,7 +387,7 @@ public sealed class FfmpegLiveStreamSegmenter : ILiveStreamSegmenter
             + $"-force_key_frames \"expr:gte(t,n_forced*{job.SegmentSeconds})\" "
             + $"-f hls -hls_time {job.SegmentSeconds} -hls_list_size {PlaylistWindowSegmentCount} "
             + "-hls_flags delete_segments+independent_segments "
-            + $"-strftime 1 -hls_segment_filename \"{segmentPattern}\" "
+            + $"-hls_segment_filename \"{segmentPattern}\" "
             + $"-t {remaining} \"{playlist}\"";
     }
 

@@ -20,5 +20,5 @@ Branch: `task/issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsende
 | 14 | Remote-Probes über eigenen Range-Endpunkt (N9) | 12 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-14-http-probe` | Fertig |
 | 15 | Saisonale Genres in Regel-Auswahl immer wählbar (N10) | 9 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-15-saison-genre` | Fertig |
 | 16 | Adminseite restrukturieren + Fehlschlag-/Ausstehend-Liste (N13+N14, Variante 2: HTML-Vorschau) | 10+11 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-16-admin-ux` | Fertig |
-| 17 | Trailer-Verknuepfung + Vorlauf-Fuellmaterial (N11) | 10 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-17-trailer` | In Arbeit |
-| 18 | Maskottchen-Interstitials: Drehbuecher + Clip-Produktion + Fuehler-Einbindung (N12) | 10 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-18-maskottchen` | Offen |
+| 17 | Trailer-Verknuepfung + Vorlauf-Fuellmaterial (N11) | 10 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-17-trailer` | Fertig |
+| 18 | Maskottchen-Interstitials: Drehbuecher + Clip-Produktion + Fuehler-Einbindung (N12) | 10 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-18-maskottchen` | In Arbeit |

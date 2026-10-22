@@ -226,3 +226,8 @@
 - Volle Suite synchron (Debug): **2098 gruen + 1 Skip / 0 Fehler** (2099 gesamt; Skip = bekannter Baseline-Skip `PairedDevice_ReportsProgressForMovieWithoutCollection...`). Debug+Release-Build 0 Fehler. Doku: `docs/help/tv-sender.md`, `docs/RELEASE_NOTES.md`.
 - Lifecycle-Artefakte: `docs/features/task-issue-111-...-schritt-16-admin-ux/` (im Abschlusscommit entfernt, Planung in Historie); Tasks-Datei `docs/features/...-schritt-16-admin-ux-tasks.md` bleibt.
 - Bewusst nicht umgesetzt: optionales „Probe zuruecksetzen" (N13 optional, nicht im Mockup). Kein Befund in review.md/review-usability.md/review-code.md; Abnahme durch anderen Agenten steht noch aus.
+
+
+### Schritt 17: Trailer (N11) — FERTIG (abgenommen)
+
+- MovieMediaItem.IsTrailer (Migration+Backup), Konventionserkennung (-trailer-Suffix + trailers/-Ordner), Trailer nie als reguläres Material, neue Füller-Materialart Trailer anstehender Filme mit Vorlauf TrailerLeadDays (7), Fallback Füller. Abnahme: `acceptance-schritt-17.md` — erfüllt nach Fixes (Sidecar-Video-Filter, Trailer nur Füller, CS1572, bUnit-Test).

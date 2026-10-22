@@ -229,6 +229,15 @@ else
                                 }
                             </select>
                         }
+                        @if (AllowedMaterialTypes.Contains(ProgramRuleMaterialType.Trailer))
+                        {
+                            <label class="form-check rule-trailer-option" for="rule-material-trailer">
+                                <input type="checkbox" class="form-check-input" id="rule-material-trailer"
+                                       checked="@(editRule.MaterialType == ProgramRuleMaterialType.Trailer)"
+                                       @onchange="e => OnTrailerToggled(e.Value is bool b && b)" />
+                                Trailer anstehender Filme
+                            </label>
+                        }
                     </div>
                 }
 
@@ -1025,6 +1034,27 @@ else
         }
     }
 
+    // Trailer material references no entity — it covers every trailer of movies scheduled in the
+    // upcoming days, so MaterialId stays 0.
+    private void OnTrailerToggled(bool selected)
+    {
+        if (editRule is null)
+            return;
+
+        if (selected)
+        {
+            editRule.MaterialType = ProgramRuleMaterialType.Trailer;
+            editRule.MaterialId = 0;
+            editRule.MaterialDisplayName = "Trailer anstehender Filme";
+            editRule.SelectedGenreIds.Clear();
+            editRule.SelectedMediaSourceIds.Clear();
+        }
+        else if (editRule.MaterialType == ProgramRuleMaterialType.Trailer)
+        {
+            ClearMaterial();
+        }
+    }
+
     private async Task SaveRuleAsync()
     {
         if (editRule is null || channel is null)
@@ -1123,6 +1153,8 @@ else
 
     private string MaterialLabel(ProgramRuleMaterialType type, long id)
     {
+        if (type == ProgramRuleMaterialType.Trailer)
+            return "Trailer anstehender Filme";
         var name = type switch
         {
             ProgramRuleMaterialType.TVShow => DbContext.TVShows.FirstOrDefault(m => m.Id == id)?.Name,

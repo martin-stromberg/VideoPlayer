@@ -179,6 +179,33 @@ public sealed class TVSenderAdminTests
         Assert.Empty(cut.FindAll("#rule-editor"));
     }
 
+    [Fact]
+    public async Task RuleEditor_TrailerCheckbox_OnlyForFillerRuleType()
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("tvsender-trailer-option", ct);
+        var admin = await fixture.AddUserAsync("admin@test.com", isAdmin: true);
+        var (ctx, _) = await CreateContextAsync(fixture, admin.Id);
+        using var _ctx = ctx;
+
+        var cut = ctx.Render<TVSenderAdmin>();
+        cut.WaitForAssertion(() => cut.Find("#tvsender-new-rule"), TimeSpan.FromSeconds(10));
+        cut.Find("#tvsender-new-rule").Click();
+
+        // Default rule type is not Filler → no trailer option.
+        Assert.Empty(cut.FindAll("#rule-material-trailer"));
+
+        cut.Find("#rule-type").Change("Filler");
+        cut.WaitForAssertion(() => cut.Find("#rule-material-trailer"), TimeSpan.FromSeconds(5));
+
+        // Repeat/HolidaySpecial must not offer trailer material either (acceptance finding:
+        // AllMaterialTypes previously leaked it into both rule types).
+        cut.Find("#rule-type").Change("Repeat");
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll("#rule-material-trailer")), TimeSpan.FromSeconds(5));
+        cut.Find("#rule-type").Change("HolidaySpecial");
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll("#rule-material-trailer")), TimeSpan.FromSeconds(5));
+    }
+
     /// <summary>Answers every API call with an empty JSON array — the page only reads playlist lists.</summary>
     private sealed class EmptyListHandler : HttpMessageHandler
     {

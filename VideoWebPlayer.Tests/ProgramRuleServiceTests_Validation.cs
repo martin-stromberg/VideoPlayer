@@ -112,8 +112,11 @@ public sealed class ProgramRuleServiceTests_Validation
         Assert.Equal(
             [ProgramRuleMaterialType.Movie, ProgramRuleMaterialType.MovieCollection],
             service.GetAllowedMaterialTypes(ProgramRuleType.MoviePrimeTime));
-        Assert.Equal(5, service.GetAllowedMaterialTypes(ProgramRuleType.Repeat).Count);
-        Assert.Equal(5, service.GetAllowedMaterialTypes(ProgramRuleType.HolidaySpecial).Count);
+        var repeat = service.GetAllowedMaterialTypes(ProgramRuleType.Repeat);
+        var holiday = service.GetAllowedMaterialTypes(ProgramRuleType.HolidaySpecial);
+        Assert.DoesNotContain(ProgramRuleMaterialType.Trailer, repeat);
+        Assert.DoesNotContain(ProgramRuleMaterialType.Trailer, holiday);
         Assert.DoesNotContain(ProgramRuleMaterialType.TVShow, service.GetAllowedMaterialTypes(ProgramRuleType.Filler));
+        Assert.Contains(ProgramRuleMaterialType.Trailer, service.GetAllowedMaterialTypes(ProgramRuleType.Filler));
     }
 }

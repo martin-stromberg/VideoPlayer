@@ -13,6 +13,10 @@ namespace VideoWebPlayer.Data
         TVShowEpisode = 1,
 
         /// <summary>A playlist entry (<see cref="PlaylistEntry"/>) of a playlist material.</summary>
-        PlaylistEntry = 2
+        PlaylistEntry = 2,
+
+        /// <summary>A trailer media item (the <see cref="MediaItem"/> of a
+        /// <see cref="MovieMediaItem"/> link flagged <see cref="MovieMediaItem.IsTrailer"/>).</summary>
+        Trailer = 3
     }
 }

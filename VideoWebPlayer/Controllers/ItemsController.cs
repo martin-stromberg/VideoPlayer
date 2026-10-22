@@ -562,7 +562,7 @@ public class ItemsController : ApiBaseController
         {
             "movie" => await _db.MovieMediaItems
                 .Include(mi => mi.MediaItem)
-                .Where(mi => mi.MovieId == entry.Id)
+                .Where(mi => mi.MovieId == entry.Id && !mi.IsTrailer)
                 .Select(mi => mi.MediaItem)
                 .FirstOrDefaultAsync(),
             "tvshowepisode" => await _db.TVShowEpisodeMediaItems

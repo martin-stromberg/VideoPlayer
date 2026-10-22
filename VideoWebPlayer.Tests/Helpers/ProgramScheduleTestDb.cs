@@ -37,8 +37,8 @@ internal sealed class ProgramScheduleTestDb : IDisposable
         return new ProgramScheduleTestDb(connection, db);
     }
 
-    public ProgramScheduleService CreateService()
-        => new(Db, new ProgramRuleService(Db), new ProgramSettingsService(Db, NullLogger<ProgramSettingsService>.Instance), NullLogger<ProgramScheduleService>.Instance);
+    public ProgramScheduleService CreateService(Microsoft.Extensions.Options.IOptions<VideoWebPlayer.Configuration.ProgramScheduleOptions>? scheduleOptions = null)
+        => new(Db, new ProgramRuleService(Db), new ProgramSettingsService(Db, NullLogger<ProgramSettingsService>.Instance), NullLogger<ProgramScheduleService>.Instance, scheduleOptions: scheduleOptions);
 
     public ProgramGuideService CreateGuideService()
         => new(Db);

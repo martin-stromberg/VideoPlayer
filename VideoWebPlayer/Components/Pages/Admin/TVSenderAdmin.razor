@@ -32,62 +32,40 @@ else
                 <h1>TV-Sender</h1>
                 <p>Sender, Programmregeln und Feiertags-Einstellung verwalten.</p>
             </div>
-            <a class="btn btn-outline-light" href="/admin">Zurück</a>
+            <div class="admin-header-side">
+                @if (channel is not null)
+                {
+                    <span class="admin-chip admin-chip-success" id="tvsender-header-channel" title="Sender-Status">Sender: @channel.Name</span>
+                    <span class="admin-chip" id="tvsender-header-interval" title="Generierungsintervall">Plan alle @intervalMinutes&nbsp;Min aktiv</span>
+                }
+                <a class="btn btn-outline-light" href="/admin">Zurück</a>
+            </div>
         </header>
 
-        <div class="admin-card admin-card-wide">
-            <div class="admin-card-header">
-                <h2>Sender</h2>
-            </div>
-            <div class="admin-settings-grid">
-                <div>
-                    <label class="form-label" for="tvsender-name">Name</label>
-                    <input id="tvsender-name" class="form-control" @bind="channelName" />
-                </div>
-                <div>
-                    <label class="form-label" for="tvsender-federal-state">Bundesland für Feiertage</label>
-                    <select id="tvsender-federal-state" class="form-control" @bind="federalState">
-                        <option value="">Nur bundesweit gültige Feiertage</option>
-                        @foreach (var state in federalStates)
-                        {
-                            <option value="@state">@state</option>
-                        }
-                    </select>
-                </div>
-                <div>
-                    <label class="form-label" for="tvsender-horizon-hours">Planungshorizont (Stunden)</label>
-                    <input id="tvsender-horizon-hours" type="number" min="1" class="form-control" @bind="horizonHours" />
-                </div>
-                <div>
-                    <label class="form-label" for="tvsender-interval-minutes">Generierungsintervall (Minuten)</label>
-                    <input id="tvsender-interval-minutes" type="number" min="1" class="form-control" @bind="intervalMinutes" />
-                </div>
-                <div>
-                    <label class="form-label" for="tvsender-segment-length-seconds">Segmentlänge (Sekunden)</label>
-                    <input id="tvsender-segment-length-seconds" type="number" min="1" max="300" class="form-control" @bind="segmentLengthSeconds" />
-                </div>
-                <div>
-                    <label class="form-label" for="tvsender-segment-directory">Segment-Verzeichnis (leer = Standard)</label>
-                    <input id="tvsender-segment-directory" class="form-control" @bind="segmentDirectory" />
-                </div>
-                <div>
-                    <label class="form-label" for="tvsender-segment-retention-minutes">Segment-Aufbewahrung (Minuten)</label>
-                    <input id="tvsender-segment-retention-minutes" type="number" min="1" class="form-control" @bind="segmentRetentionMinutes" />
-                </div>
-            </div>
-            <div class="admin-actions">
-                <button id="tvsender-save-settings" class="btn btn-primary" @onclick="SaveChannelSettingsAsync">Speichern</button>
-            </div>
-            @if (!string.IsNullOrWhiteSpace(channelStatus))
-            {
-                <div class="form-text" id="tvsender-channel-status">@channelStatus</div>
-            }
-        </div>
+        <nav class="admin-tabs" role="tablist">
+            <button id="tvsender-tab-regeln" class="admin-tab @(activeTab == "regeln" ? "active" : "")" role="tab"
+                    aria-selected="@(activeTab == "regeln" ? "true" : "false")" aria-controls="tab-regeln"
+                    @onclick='() => SelectTab("regeln")'>Regeln</button>
+            <button id="tvsender-tab-sendeplan" class="admin-tab @(activeTab == "sendeplan" ? "active" : "")" role="tab"
+                    aria-selected="@(activeTab == "sendeplan" ? "true" : "false")" aria-controls="tab-sendeplan"
+                    @onclick='() => SelectTab("sendeplan")'>Sendeplan</button>
+            <button id="tvsender-tab-einstellungen" class="admin-tab @(activeTab == "einstellungen" ? "active" : "")" role="tab"
+                    aria-selected="@(activeTab == "einstellungen" ? "true" : "false")" aria-controls="tab-einstellungen"
+                    @onclick='() => SelectTab("einstellungen")'>Einstellungen</button>
+            <button id="tvsender-tab-laufzeit" class="admin-tab @(activeTab == "laufzeit" ? "active" : "")" role="tab"
+                    aria-selected="@(activeTab == "laufzeit" ? "true" : "false")" aria-controls="tab-laufzeit"
+                    @onclick='() => SelectTab("laufzeit")'>Laufzeitermittlung</button>
+        </nav>
+
+        <!-- ============ Tab: Regeln ============ -->
+        <div class="tab-pane @(activeTab == "regeln" ? "active" : "")" id="tab-regeln" role="tabpanel" aria-labelledby="tvsender-tab-regeln">
 
         <div class="admin-card admin-card-wide">
             <div class="admin-card-header">
-                <h2>Programmregeln</h2>
-                <span class="admin-chip">@rules.Count Einträge</span>
+                <div class="admin-card-header-left">
+                    <h2>Programmregeln</h2>
+                    <span class="admin-chip">@rules.Count Einträge</span>
+                </div>
                 <button id="tvsender-new-rule" class="btn btn-sm btn-primary" @onclick="StartCreate">Neue Regel</button>
             </div>
 
@@ -131,7 +109,7 @@ else
                                     <td>
                                         <span class="admin-chip @(rule.IsActive ? "admin-chip-success" : "admin-chip-warning")">@(rule.IsActive ? "Aktiv" : "Inaktiv")</span>
                                     </td>
-                                    <td>
+                                    <td class="actions-cell">
                                         <button class="btn btn-sm btn-primary tvsender-rule-edit" @onclick="() => StartEdit(rule)">Bearbeiten</button>
                                         <button class="btn btn-sm btn-outline-light tvsender-rule-toggle" @onclick="() => ToggleActiveAsync(rule)">@(rule.IsActive ? "Deaktivieren" : "Aktivieren")</button>
                                         <button class="btn btn-sm btn-danger tvsender-rule-delete" @onclick="() => AskDelete(rule)">Löschen</button>
@@ -148,11 +126,171 @@ else
             }
         </div>
 
+        @if (editRule != null)
+        {
+            <div class="admin-card admin-card-wide rule-editor-card" id="rule-editor">
+                <div class="admin-card-header">
+                    <h2>@(editRule.Id == 0 ? "Neue Programmregel" : $"Programmregel „{editRule.Name}“")</h2>
+                    <button class="btn btn-sm btn-outline-light" @onclick="CancelEdit">Schließen</button>
+                </div>
+
+                <label class="form-label" for="rule-name">Name</label>
+                <input id="rule-name" class="form-control" @bind="editRule.Name" />
+
+                <div class="admin-settings-grid">
+                    <div>
+                        <label class="form-label" for="rule-type">Regelart</label>
+                        <select id="rule-type" class="form-control" value="@editRule.RuleType" @onchange="OnRuleTypeChanged">
+                            @foreach (ProgramRuleType t in Enum.GetValues<ProgramRuleType>())
+                            {
+                                <option value="@t">@RuleTypeLabel(t)</option>
+                            }
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label" for="rule-recurrence">Wiederholung</label>
+                        <select id="rule-recurrence" class="form-control" value="@editRule.Recurrence" @onchange="OnRecurrenceChanged">
+                            <option value="@ProgramRuleRecurrence.Daily">Täglich</option>
+                            <option value="@ProgramRuleRecurrence.Weekly">Wöchentlich</option>
+                            <option value="@ProgramRuleRecurrence.Once">Einmalig</option>
+                            <option value="@ProgramRuleRecurrence.Holiday">An Feiertagen</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="admin-settings-grid">
+                    @if (editRule.Recurrence == ProgramRuleRecurrence.Weekly)
+                    {
+                        <div>
+                            <label class="form-label" for="rule-weekday">Wochentag</label>
+                            <select id="rule-weekday" class="form-control" @bind="editRule.DayOfWeek">
+                                @foreach (DayOfWeek d in Enum.GetValues<DayOfWeek>())
+                                {
+                                    <option value="@d">@WeekdayLabel(d)</option>
+                                }
+                            </select>
+                        </div>
+                    }
+                    @if (editRule.Recurrence == ProgramRuleRecurrence.Once)
+                    {
+                        <div>
+                            <label class="form-label" for="rule-date">Datum</label>
+                            <InputDate id="rule-date" class="form-control" @bind-Value="editRule.SingleDate" />
+                        </div>
+                    }
+                    <div>
+                        <label class="form-label" for="rule-time">Sendezeit</label>
+                        <input id="rule-time" type="time" class="form-control" @bind="editRule.TimeOfDay" />
+                    </div>
+                </div>
+
+                <div class="admin-settings-grid">
+                    <div>
+                        <label class="form-label" for="rule-episodes">Anzahl Folgen</label>
+                        <input id="rule-episodes" type="number" min="0" class="form-control" @bind="editRule.EpisodeCount" />
+                    </div>
+                    <div>
+                        <label class="form-label" for="rule-duration">Länge (Minuten)</label>
+                        <input id="rule-duration" type="number" min="0" class="form-control" @bind="editRule.DurationMinutes" />
+                    </div>
+                    <div>
+                        <label class="form-label" for="rule-priority">Priorität</label>
+                        <input id="rule-priority" type="number" class="form-control" @bind="editRule.Priority" />
+                    </div>
+                </div>
+
+                <label class="admin-toggle-row">
+                    <InputCheckbox class="form-check-input" @bind-Value="editRule.IsActive" />
+                    <span>Regel ist aktiv</span>
+                </label>
+
+                <label class="form-label">Programmmaterial</label>
+                @if (!string.IsNullOrWhiteSpace(editRule.MaterialDisplayName))
+                {
+                    <div class="admin-chip" id="rule-material-selected">
+                        @editRule.MaterialDisplayName
+                        <button class="btn btn-sm btn-ghost" @onclick="() => editRule.MaterialDisplayName = string.Empty">Ändern</button>
+                    </div>
+                }
+                else
+                {
+                    <div id="rule-material-picker">
+                        @if (AllowedMaterialTypes.Any(t => t is ProgramRuleMaterialType.TVShow or ProgramRuleMaterialType.Movie or ProgramRuleMaterialType.MovieCollection))
+                        {
+                            <MediaSearchSelector AllowedMediaTypes="@AllowedSearchMediaTypes" OnMediaSelected="OnMaterialSelected" />
+                        }
+                        @if (AllowedMaterialTypes.Contains(ProgramRuleMaterialType.Playlist))
+                        {
+                            <select id="rule-material-playlist" class="form-control" @onchange="OnPlaylistSelected">
+                                <option value="">Playlist wählen…</option>
+                                @foreach (var p in playlistOptions)
+                                {
+                                    <option value="@p.Id">@p.Name</option>
+                                }
+                            </select>
+                        }
+                    </div>
+                }
+
+                @if (AllowedMaterialTypes.Contains(ProgramRuleMaterialType.Genre)
+                    && (editRule.MaterialType == ProgramRuleMaterialType.Genre || string.IsNullOrWhiteSpace(editRule.MaterialDisplayName)))
+                {
+                    <div class="rule-genre-editor" id="rule-genre-editor">
+                        <label class="form-label" id="rule-material-genre-label">Genres (Mehrfachauswahl)</label>
+                        <div id="rule-material-genre" class="rule-multi-select">
+                            @if (genreOptions.Count == 0)
+                            {
+                                <span class="form-text" id="rule-material-genre-empty">Keine wählbaren Genres für die aktuelle Quell-Auswahl.</span>
+                            }
+                            @foreach (var g in genreOptions)
+                            {
+                                <label class="form-check rule-genre-option" for="rule-genre-@g.Id">
+                                    <input type="checkbox" class="form-check-input" id="rule-genre-@g.Id"
+                                           checked="@editRule.SelectedGenreIds.Contains(g.Id)"
+                                           @onchange="e => OnGenreToggled(g.Id, e.Value is bool b && b)" />
+                                    @g.Name
+                                </label>
+                            }
+                        </div>
+                        <label class="form-label" id="rule-material-sources-label">Quellen einschränken (keine Auswahl = alle Quellen)</label>
+                        <div id="rule-material-sources" class="rule-multi-select">
+                            @foreach (var s in mediaSources)
+                            {
+                                <label class="form-check rule-source-option" for="rule-source-@s.Id">
+                                    <input type="checkbox" class="form-check-input" id="rule-source-@s.Id"
+                                           checked="@editRule.SelectedMediaSourceIds.Contains(s.Id)"
+                                           @onchange="async e => await OnSourceToggledAsync(s.Id, e.Value is bool b && b)" />
+                                    @s.Name
+                                </label>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(editError))
+                {
+                    <div class="alert alert-danger" id="rule-edit-error">@editError</div>
+                }
+
+                <div class="admin-actions">
+                    <button id="rule-save" class="btn btn-primary" @onclick="SaveRuleAsync">Speichern</button>
+                    <button class="btn btn-ghost" @onclick="CancelEdit">Abbrechen</button>
+                </div>
+            </div>
+        }
+
+        </div>
+
+        <!-- ============ Tab: Sendeplan ============ -->
+        <div class="tab-pane @(activeTab == "sendeplan" ? "active" : "")" id="tab-sendeplan" role="tabpanel" aria-labelledby="tvsender-tab-sendeplan">
+
         <div class="admin-card admin-card-wide">
             <div class="admin-card-header">
-                <h2>Sendeplan</h2>
-                <span class="admin-chip">@schedule.Count Einträge</span>
-                <button id="tvsender-generate-now" class="btn btn-sm btn-primary" @onclick="GenerateNowAsync" disabled="@generatePending">Jetzt generieren</button>
+                <div class="admin-card-header-left">
+                    <h2>Sendeplan</h2>
+                    <span class="admin-chip">@schedule.Count Einträge</span>
+                </div>
+                <button id="tvsender-generate-now" class="btn btn-primary" @onclick="GenerateNowAsync" disabled="@generatePending">Jetzt generieren</button>
             </div>
 
             @if (schedule.Count == 0)
@@ -198,6 +336,74 @@ else
             }
         </div>
 
+        </div>
+
+        <!-- ============ Tab: Einstellungen ============ -->
+        <div class="tab-pane @(activeTab == "einstellungen" ? "active" : "")" id="tab-einstellungen" role="tabpanel" aria-labelledby="tvsender-tab-einstellungen">
+
+        <div class="admin-card admin-card-wide">
+            <div class="admin-card-header">
+                <h2>Sender-Einstellungen</h2>
+            </div>
+            <div class="admin-settings-grid">
+                <div class="admin-sub-card">
+                    <h3 class="mb-2">Sender</h3>
+                    <div class="mb-2">
+                        <label class="form-label" for="tvsender-name">Name</label>
+                        <input id="tvsender-name" class="form-control" @bind="channelName" />
+                    </div>
+                    <div>
+                        <label class="form-label" for="tvsender-federal-state">Bundesland für Feiertage</label>
+                        <select id="tvsender-federal-state" class="form-control" @bind="federalState">
+                            <option value="">Nur bundesweit gültige Feiertage</option>
+                            @foreach (var state in federalStates)
+                            {
+                                <option value="@state">@state</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+                <div class="admin-sub-card">
+                    <h3 class="mb-2">Planung</h3>
+                    <div class="mb-2">
+                        <label class="form-label" for="tvsender-horizon-hours">Planungshorizont (Stunden)</label>
+                        <input id="tvsender-horizon-hours" type="number" min="1" class="form-control" @bind="horizonHours" />
+                    </div>
+                    <div>
+                        <label class="form-label" for="tvsender-interval-minutes">Generierungsintervall (Minuten)</label>
+                        <input id="tvsender-interval-minutes" type="number" min="1" class="form-control" @bind="intervalMinutes" />
+                    </div>
+                </div>
+                <div class="admin-sub-card">
+                    <h3 class="mb-2">Segmentierung</h3>
+                    <div class="mb-2">
+                        <label class="form-label" for="tvsender-segment-length-seconds">Segmentlänge (Sekunden)</label>
+                        <input id="tvsender-segment-length-seconds" type="number" min="1" max="300" class="form-control" @bind="segmentLengthSeconds" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label" for="tvsender-segment-directory">Segment-Verzeichnis (leer = Standard)</label>
+                        <input id="tvsender-segment-directory" class="form-control" @bind="segmentDirectory" />
+                    </div>
+                    <div>
+                        <label class="form-label" for="tvsender-segment-retention-minutes">Segment-Aufbewahrung (Minuten)</label>
+                        <input id="tvsender-segment-retention-minutes" type="number" min="1" class="form-control" @bind="segmentRetentionMinutes" />
+                    </div>
+                </div>
+            </div>
+            <div class="admin-actions">
+                <button id="tvsender-save-settings" class="btn btn-primary" @onclick="SaveChannelSettingsAsync">Speichern</button>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(channelStatus))
+            {
+                <div class="form-text" id="tvsender-channel-status">@channelStatus</div>
+            }
+        </div>
+
+        </div>
+
+        <!-- ============ Tab: Laufzeitermittlung ============ -->
+        <div class="tab-pane @(activeTab == "laufzeit" ? "active" : "")" id="tab-laufzeit" role="tabpanel" aria-labelledby="tvsender-tab-laufzeit">
+
         <div class="admin-card admin-card-wide" id="tvsender-probe-card">
             <div class="admin-card-header">
                 <h2>Laufzeitermittlung</h2>
@@ -224,10 +430,22 @@ else
             {
                 <p class="form-text" id="tvsender-probe-status">@ProbeStatusLabel(probeProgress)</p>
 
-                <div id="tvsender-probe-counts">
+                <div class="probe-counts" id="tvsender-probe-counts">
                     <span class="admin-chip admin-chip-success" id="tvsender-probe-probed">@probeProgress.ProbedCount ermittelt</span>
-                    <span class="admin-chip admin-chip-warning" id="tvsender-probe-pending">@probeProgress.PendingCount ausstehend</span>
-                    <span class="admin-chip admin-chip-danger" id="tvsender-probe-failed">@probeProgress.FailedCount fehlgeschlagen</span>
+                    <span class="admin-chip admin-chip-warning" id="tvsender-probe-pending">@probeProgress.PendingCount ausstehend
+                        @if (probeProgress.PendingItems.Count > 0)
+                        {
+                            <button class="chip-detail-btn" id="tvsender-probe-pending-details" title="Betroffene Dateien anzeigen"
+                                    @onclick="() => showPendingProbeDetails = !showPendingProbeDetails">▾ Details</button>
+                        }
+                    </span>
+                    <span class="admin-chip admin-chip-danger" id="tvsender-probe-failed">@probeProgress.FailedCount fehlgeschlagen
+                        @if (probeProgress.FailedItems.Count > 0)
+                        {
+                            <button class="chip-detail-btn" id="tvsender-probe-failed-details" title="Betroffene Dateien anzeigen"
+                                    @onclick="() => showFailedProbeDetails = !showFailedProbeDetails">▾ Details</button>
+                        }
+                    </span>
                 </div>
 
                 <div class="progress mt-2" role="progressbar" aria-label="Fortschritt der Laufzeitermittlung"
@@ -240,8 +458,83 @@ else
                     · <span id="tvsender-probe-rate">Letzte Stunde: @probeProgress.ProbedLastHour Ermittlung(en)</span>
                 </p>
 
+                @if (probeProgress.PendingItems.Count > 0)
+                {
+                    <details class="probe-detail" id="tvsender-probe-pending-detail" open="@showPendingProbeDetails">
+                        <summary>Ausstehende Dateien (@probeProgress.PendingCount) — Ermittlung läuft oder wartet</summary>
+                        <div class="table-wrap-inner">
+                            <div class="admin-table-wrap mt-2">
+                                <table class="table table-dark table-striped align-middle">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Quelle</th>
+                                            <th>Versuche</th>
+                                            <th>Letzter Versuch</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var item in probeProgress.PendingItems)
+                                        {
+                                            <tr class="tvsender-probe-detail-row">
+                                                <td>@item.Name</td>
+                                                <td>@item.SourceName</td>
+                                                <td>@item.Attempts</td>
+                                                <td>@(item.LastAttemptAt?.ToLocalTime().ToString("dd.MM. HH:mm:ss") ?? "—")</td>
+                                            </tr>
+                                        }
+                                        @if (probeProgress.PendingCount > probeProgress.PendingItems.Count)
+                                        {
+                                            <tr><td>… und @(probeProgress.PendingCount - probeProgress.PendingItems.Count) weitere</td><td colspan="3"></td></tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </details>
+                }
+
+                @if (probeProgress.FailedItems.Count > 0)
+                {
+                    <details class="probe-detail" id="tvsender-probe-failed-detail" open="@showFailedProbeDetails">
+                        <summary>Fehlgeschlagene Dateien (@probeProgress.FailedCount) — dauerhaft nicht prüfbar</summary>
+                        <div class="table-wrap-inner">
+                            <div class="admin-table-wrap mt-2">
+                                <table class="table table-dark table-striped align-middle">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Quelle</th>
+                                            <th>Versuche</th>
+                                            <th>Letzter Versuch</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var item in probeProgress.FailedItems)
+                                        {
+                                            <tr class="tvsender-probe-detail-row">
+                                                <td>@item.Name</td>
+                                                <td>@item.SourceName</td>
+                                                <td>@item.Attempts</td>
+                                                <td>@(item.LastAttemptAt?.ToLocalTime().ToString("dd.MM. HH:mm:ss") ?? "—")</td>
+                                            </tr>
+                                        }
+                                        @if (probeProgress.FailedCount > probeProgress.FailedItems.Count)
+                                        {
+                                            <tr><td>… und @(probeProgress.FailedCount - probeProgress.FailedItems.Count) weitere</td><td colspan="3"></td></tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </details>
+                }
+
                 @if (probeProgress.RecentItems.Count > 0)
                 {
+                    <div class="admin-card-header mt-2" style="margin-bottom:0.5rem;">
+                        <h3>Letzte Ermittlungen</h3>
+                    </div>
                     <div class="admin-table-wrap">
                         <table class="table table-dark table-striped align-middle" id="tvsender-probe-recent">
                             <thead>
@@ -269,160 +562,7 @@ else
             }
         </div>
 
-        @if (editRule != null)
-        {
-            <div class="admin-dialog-overlay" @onclick="CancelEdit">
-                <div class="admin-dialog" @onclick:stopPropagation>
-                    <header class="admin-card-header">
-                        <h2>@(editRule.Id == 0 ? "Neue Programmregel" : $"Programmregel „{editRule.Name}“")</h2>
-                        <button class="btn btn-sm btn-outline-light" @onclick="CancelEdit">Schließen</button>
-                    </header>
-
-                    <label class="form-label" for="rule-name">Name</label>
-                    <input id="rule-name" class="form-control" @bind="editRule.Name" />
-
-                    <div class="admin-settings-grid">
-                        <div>
-                            <label class="form-label" for="rule-type">Regelart</label>
-                            <select id="rule-type" class="form-control" value="@editRule.RuleType" @onchange="OnRuleTypeChanged">
-                                @foreach (ProgramRuleType t in Enum.GetValues<ProgramRuleType>())
-                                {
-                                    <option value="@t">@RuleTypeLabel(t)</option>
-                                }
-                            </select>
-                        </div>
-                        <div>
-                            <label class="form-label" for="rule-recurrence">Wiederholung</label>
-                            <select id="rule-recurrence" class="form-control" value="@editRule.Recurrence" @onchange="OnRecurrenceChanged">
-                                <option value="@ProgramRuleRecurrence.Daily">Täglich</option>
-                                <option value="@ProgramRuleRecurrence.Weekly">Wöchentlich</option>
-                                <option value="@ProgramRuleRecurrence.Once">Einmalig</option>
-                                <option value="@ProgramRuleRecurrence.Holiday">An Feiertagen</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="admin-settings-grid">
-                        @if (editRule.Recurrence == ProgramRuleRecurrence.Weekly)
-                        {
-                            <div>
-                                <label class="form-label" for="rule-weekday">Wochentag</label>
-                                <select id="rule-weekday" class="form-control" @bind="editRule.DayOfWeek">
-                                    @foreach (DayOfWeek d in Enum.GetValues<DayOfWeek>())
-                                    {
-                                        <option value="@d">@WeekdayLabel(d)</option>
-                                    }
-                                </select>
-                            </div>
-                        }
-                        @if (editRule.Recurrence == ProgramRuleRecurrence.Once)
-                        {
-                            <div>
-                                <label class="form-label" for="rule-date">Datum</label>
-                                <InputDate id="rule-date" class="form-control" @bind-Value="editRule.SingleDate" />
-                            </div>
-                        }
-                        <div>
-                            <label class="form-label" for="rule-time">Sendezeit</label>
-                            <input id="rule-time" type="time" class="form-control" @bind="editRule.TimeOfDay" />
-                        </div>
-                    </div>
-
-                    <div class="admin-settings-grid">
-                        <div>
-                            <label class="form-label" for="rule-episodes">Anzahl Folgen</label>
-                            <input id="rule-episodes" type="number" min="0" class="form-control" @bind="editRule.EpisodeCount" />
-                        </div>
-                        <div>
-                            <label class="form-label" for="rule-duration">Länge (Minuten)</label>
-                            <input id="rule-duration" type="number" min="0" class="form-control" @bind="editRule.DurationMinutes" />
-                        </div>
-                        <div>
-                            <label class="form-label" for="rule-priority">Priorität</label>
-                            <input id="rule-priority" type="number" class="form-control" @bind="editRule.Priority" />
-                        </div>
-                    </div>
-
-                    <label class="admin-toggle-row">
-                        <InputCheckbox class="form-check-input" @bind-Value="editRule.IsActive" />
-                        <span>Regel ist aktiv</span>
-                    </label>
-
-                    <label class="form-label">Programmmaterial</label>
-                    @if (!string.IsNullOrWhiteSpace(editRule.MaterialDisplayName))
-                    {
-                        <div class="admin-chip" id="rule-material-selected">
-                            @editRule.MaterialDisplayName
-                            <button class="btn btn-sm btn-ghost" @onclick="() => editRule.MaterialDisplayName = string.Empty">Ändern</button>
-                        </div>
-                    }
-                    else
-                    {
-                        <div id="rule-material-picker">
-                            @if (AllowedMaterialTypes.Any(t => t is ProgramRuleMaterialType.TVShow or ProgramRuleMaterialType.Movie or ProgramRuleMaterialType.MovieCollection))
-                            {
-                                <MediaSearchSelector AllowedMediaTypes="@AllowedSearchMediaTypes" OnMediaSelected="OnMaterialSelected" />
-                            }
-                            @if (AllowedMaterialTypes.Contains(ProgramRuleMaterialType.Playlist))
-                            {
-                                <select id="rule-material-playlist" class="form-control" @onchange="OnPlaylistSelected">
-                                    <option value="">Playlist wählen…</option>
-                                    @foreach (var p in playlistOptions)
-                                    {
-                                        <option value="@p.Id">@p.Name</option>
-                                    }
-                                </select>
-                            }
-                        </div>
-                    }
-
-                    @if (AllowedMaterialTypes.Contains(ProgramRuleMaterialType.Genre)
-                        && (editRule.MaterialType == ProgramRuleMaterialType.Genre || string.IsNullOrWhiteSpace(editRule.MaterialDisplayName)))
-                    {
-                        <div class="rule-genre-editor" id="rule-genre-editor">
-                            <label class="form-label" id="rule-material-genre-label">Genres (Mehrfachauswahl)</label>
-                            <div id="rule-material-genre" class="rule-multi-select">
-                                @if (genreOptions.Count == 0)
-                                {
-                                    <span class="form-text" id="rule-material-genre-empty">Keine wählbaren Genres für die aktuelle Quell-Auswahl.</span>
-                                }
-                                @foreach (var g in genreOptions)
-                                {
-                                    <label class="form-check rule-genre-option" for="rule-genre-@g.Id">
-                                        <input type="checkbox" class="form-check-input" id="rule-genre-@g.Id"
-                                               checked="@editRule.SelectedGenreIds.Contains(g.Id)"
-                                               @onchange="e => OnGenreToggled(g.Id, e.Value is bool b && b)" />
-                                        @g.Name
-                                    </label>
-                                }
-                            </div>
-                            <label class="form-label" id="rule-material-sources-label">Quellen einschränken (keine Auswahl = alle Quellen)</label>
-                            <div id="rule-material-sources" class="rule-multi-select">
-                                @foreach (var s in mediaSources)
-                                {
-                                    <label class="form-check rule-source-option" for="rule-source-@s.Id">
-                                        <input type="checkbox" class="form-check-input" id="rule-source-@s.Id"
-                                               checked="@editRule.SelectedMediaSourceIds.Contains(s.Id)"
-                                               @onchange="async e => await OnSourceToggledAsync(s.Id, e.Value is bool b && b)" />
-                                        @s.Name
-                                    </label>
-                                }
-                            </div>
-                        </div>
-                    }
-
-                    @if (!string.IsNullOrWhiteSpace(editError))
-                    {
-                        <div class="alert alert-danger" id="rule-edit-error">@editError</div>
-                    }
-
-                    <div class="admin-actions">
-                        <button id="rule-save" class="btn btn-primary" @onclick="SaveRuleAsync">Speichern</button>
-                        <button class="btn btn-ghost" @onclick="CancelEdit">Abbrechen</button>
-                    </div>
-                </div>
-            </div>
-        }
+        </div>
 
         @if (deleteCandidate != null)
         {
@@ -470,6 +610,9 @@ else
     private List<MediaSource> mediaSources = new();
     private MediaDurationProbeProgress? probeProgress;
     private CancellationTokenSource? refreshCts;
+    private string activeTab = "regeln";
+    private bool showPendingProbeDetails;
+    private bool showFailedProbeDetails;
 
     private const int RecentProbeCount = 10;
     private static readonly TimeSpan ProbeRefreshInterval = TimeSpan.FromSeconds(15);
@@ -516,9 +659,13 @@ else
         _ = ProbeProgressLoopAsync(refreshCts.Token);
     }
 
+    // Panes stay rendered and are only shown/hidden by CSS, so form state, scroll positions
+    // and the running refresh loop survive a tab switch without any reload.
+    private void SelectTab(string tab) => activeTab = tab;
+
     private async Task LoadProbeProgressAsync(CancellationToken cancellationToken = default)
     {
-        probeProgress = await ProbeService.GetProgressAsync(userId, RecentProbeCount, cancellationToken);
+        probeProgress = await ProbeService.GetProgressAsync(userId, RecentProbeCount, cancellationToken: cancellationToken);
     }
 
     // Keeps the progress card live so "running" vs. "stalled" is visible without a manual reload;

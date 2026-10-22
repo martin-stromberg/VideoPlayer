@@ -19,6 +19,11 @@ namespace VideoWebPlayer.Services;
 /// nothing was ever probed.</param>
 /// <param name="ProbedLastHour">How many probe attempts happened within the last hour.</param>
 /// <param name="RecentItems">The most recently probed items, newest first.</param>
+/// <param name="PendingItems">Up to a caller-chosen limit of the still pending or retrying
+/// items (matching <see cref="PendingCount"/>), most recently attempted first; items never
+/// probed come last and report a <see langword="null"/> attempt timestamp.</param>
+/// <param name="FailedItems">Up to a caller-chosen limit of the permanently failed items
+/// (matching <see cref="FailedCount"/>), most recently attempted first.</param>
 public sealed record MediaDurationProbeProgress(
     int TotalCount,
     int ProbedCount,
@@ -26,7 +31,9 @@ public sealed record MediaDurationProbeProgress(
     int FailedCount,
     DateTime? LastActivityAt,
     int ProbedLastHour,
-    IReadOnlyList<MediaDurationProbeRecentItem> RecentItems);
+    IReadOnlyList<MediaDurationProbeRecentItem> RecentItems,
+    IReadOnlyList<MediaDurationProbeDetailItem> PendingItems,
+    IReadOnlyList<MediaDurationProbeDetailItem> FailedItems);
 
 /// <summary>
 /// One entry of the rolling list in <see cref="MediaDurationProbeProgress.RecentItems"/>.
@@ -41,4 +48,20 @@ public sealed record MediaDurationProbeRecentItem(
     string SourceName,
     DateTime ProbedAt,
     TimeSpan? Duration,
+    int Attempts);
+
+/// <summary>
+/// One entry of the expandable detail lists <see cref="MediaDurationProbeProgress.PendingItems"/>
+/// and <see cref="MediaDurationProbeProgress.FailedItems"/>: enough to identify the affected file
+/// and judge its state (attempt counter plus timestamp of the last attempt).
+/// </summary>
+/// <param name="Name">The media item's file name.</param>
+/// <param name="SourceName">The name of the media source the item belongs to.</param>
+/// <param name="LastAttemptAt">Timestamp of the most recent probe attempt, or
+/// <see langword="null"/> when the item was never probed yet.</param>
+/// <param name="Attempts">The failed-attempt counter so far.</param>
+public sealed record MediaDurationProbeDetailItem(
+    string Name,
+    string SourceName,
+    DateTime? LastAttemptAt,
     int Attempts);

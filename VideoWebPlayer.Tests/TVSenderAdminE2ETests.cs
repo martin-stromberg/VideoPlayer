@@ -20,7 +20,22 @@ public sealed class TVSenderAdminE2ETests : PlaylistsE2ETestBase
         await GrantMediaSourceAccessForUserAsync(UserAEmail);
         await LoginAsync(UserAEmail);
         await Page.GotoAsync($"{ServerUrl}/admin/tv-sender");
-        await Page.WaitForSelectorAsync("#tvsender-name", new PageWaitForSelectorOptions { Timeout = 30_000 });
+        // The tab bar is visible on every pane state; field selectors live inside tab panes
+        // that start out hidden until their tab is clicked (see SwitchTabAsync below).
+        await Page.WaitForSelectorAsync("#tvsender-tab-regeln", new PageWaitForSelectorOptions { Timeout = 30_000 });
+    }
+
+    private async Task SwitchTabAsync(string tabButtonSelector, string paneSelector)
+    {
+        await DriveUntilStateAsync(
+            async () =>
+            {
+                var pane = Page.Locator($"{paneSelector}.active");
+                if (await pane.CountAsync() > 0) return;
+                var tab = Page.Locator(tabButtonSelector);
+                if (await tab.CountAsync() > 0) await tab.ClickAsync(new LocatorClickOptions { Timeout = 10_000 });
+            },
+            () => Page.Locator($"{paneSelector}.active").WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 }));
     }
 
     [Fact]
@@ -71,24 +86,64 @@ public sealed class TVSenderAdminE2ETests : PlaylistsE2ETestBase
                 DurationProbedAt = DateTime.UtcNow.AddMinutes(-30),
                 DurationProbeAttempts = 10
             });
+            // A pending retry item: its last attempt is fresh, so the configured retry delay
+            // keeps it pending for the whole test run.
+            db.MediaItems.Add(new VideoWebPlayer.Data.MediaItem
+            {
+                Name = "e2e-wartet.mkv",
+                Path = "/test/probe/e2e-wartet.mkv",
+                MediaCollectionId = collection.Id,
+                CreatedAt = DateTime.UtcNow,
+                DurationProbedAt = DateTime.UtcNow.AddMinutes(-1),
+                DurationProbeAttempts = 1
+            });
             await db.SaveChangesAsync(ct);
         }
 
         await OpenAdminPageAsAdminAsync();
 
-        // Probe progress card: counters and the rolling list of recently probed items.
+        // Tab structure: four tabs in the mockup order, "Regeln" initially active.
+        var tabs = Page.Locator(".admin-tab");
+        await Expect(tabs).ToHaveCountAsync(4);
+        await Expect(tabs.Nth(0)).ToContainTextAsync("Regeln");
+        await Expect(tabs.Nth(1)).ToContainTextAsync("Sendeplan");
+        await Expect(tabs.Nth(2)).ToContainTextAsync("Einstellungen");
+        await Expect(tabs.Nth(3)).ToContainTextAsync("Laufzeitermittlung");
+        await Expect(Page.Locator("#tab-regeln.active")).ToBeVisibleAsync();
+        await Expect(Page.Locator("#tvsender-new-rule")).ToBeVisibleAsync();
+
+        // Laufzeitermittlung tab: counters, rolling list and the expandable detail tables.
+        await SwitchTabAsync("#tvsender-tab-laufzeit", "#tab-laufzeit");
         await Expect(Page.Locator("#tvsender-probe-card")).ToContainTextAsync("Laufzeitermittlung");
         await Expect(Page.Locator("#tvsender-probe-probed")).ToContainTextAsync("1 ermittelt");
+        await Expect(Page.Locator("#tvsender-probe-pending")).ToContainTextAsync("1 ausstehend");
         await Expect(Page.Locator("#tvsender-probe-failed")).ToContainTextAsync("1 fehlgeschlagen");
-        await Expect(Page.Locator("#tvsender-probe-status")).ToContainTextAsync("Ermittlung abgeschlossen");
         var probeRows = Page.Locator(".tvsender-probe-row");
-        await Expect(probeRows).ToHaveCountAsync(2);
+        await Expect(probeRows).ToHaveCountAsync(3);
         await Expect(probeRows.First).ToContainTextAsync("e2e-fertig.mkv");
-        await Expect(probeRows.Nth(1)).ToContainTextAsync("e2e-defekt.mkv");
-        await Expect(probeRows.Nth(1)).ToContainTextAsync("keine Laufzeit");
+        await Expect(probeRows.Nth(2)).ToContainTextAsync("e2e-defekt.mkv");
+        await Expect(probeRows.Nth(2)).ToContainTextAsync("keine Laufzeit");
 
-        // Channel settings: set schedule horizon + generation interval + live stream
-        // settings (segment length, segment directory, retention), save.
+        // Detail lists: the chips carry "▾ Details" toggles revealing the file tables.
+        await Page.ClickAsync("#tvsender-probe-pending-details");
+        var pendingDetail = Page.Locator("#tvsender-probe-pending-detail[open]");
+        await Expect(pendingDetail).ToBeVisibleAsync();
+        var pendingRows = pendingDetail.Locator(".tvsender-probe-detail-row");
+        await Expect(pendingRows).ToHaveCountAsync(1);
+        await Expect(pendingRows.First).ToContainTextAsync("e2e-wartet.mkv");
+        await Expect(pendingRows.First).ToContainTextAsync("1");
+
+        await Page.ClickAsync("#tvsender-probe-failed-details");
+        var failedDetail = Page.Locator("#tvsender-probe-failed-detail[open]");
+        await Expect(failedDetail).ToBeVisibleAsync();
+        var failedRows = failedDetail.Locator(".tvsender-probe-detail-row");
+        await Expect(failedRows).ToHaveCountAsync(1);
+        await Expect(failedRows.First).ToContainTextAsync("e2e-defekt.mkv");
+        await Expect(failedRows.First).ToContainTextAsync("10");
+
+        // Channel settings (Einstellungen tab): set schedule horizon + generation interval +
+        // live stream settings (segment length, segment directory, retention), save.
+        await SwitchTabAsync("#tvsender-tab-einstellungen", "#tab-einstellungen");
         await Page.FillAsync("#tvsender-horizon-hours", "72");
         await Page.FillAsync("#tvsender-interval-minutes", "30");
         await Page.FillAsync("#tvsender-segment-length-seconds", "10");
@@ -107,7 +162,9 @@ public sealed class TVSenderAdminE2ETests : PlaylistsE2ETestBase
             Assert.Equal(45, setup.LiveStreamSegmentRetentionMinutes);
         }
 
-        // Create a rule: open the dialog, fill fields, pick material via the search selector.
+        // Create a rule (Regeln tab): open the collapsible editor card, fill fields,
+        // pick material via the search selector.
+        await SwitchTabAsync("#tvsender-tab-regeln", "#tab-regeln");
         await DriveUntilStateAsync(
             async () =>
             {
@@ -116,6 +173,10 @@ public sealed class TVSenderAdminE2ETests : PlaylistsE2ETestBase
                 if (await btn.CountAsync() > 0) await btn.ClickAsync(new LocatorClickOptions { Timeout = 10_000 });
             },
             () => Page.Locator("#rule-name").WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 }));
+
+        // The editor is the collapsible card inside the Regeln pane, not an overlay dialog.
+        await Expect(Page.Locator("#rule-editor")).ToBeVisibleAsync();
+        Assert.Equal(0, await Page.Locator(".admin-dialog-overlay").CountAsync());
 
         await Page.FillAsync("#rule-name", "Abendserie");
         await Page.FillAsync("#rule-episodes", "1");
@@ -154,12 +215,14 @@ public sealed class TVSenderAdminE2ETests : PlaylistsE2ETestBase
         // episodes have no media items at all.
         await Expect(row.Locator(".tvsender-rule-diagnosis")).ToContainTextAsync("ohne Mediendatei");
 
-        // "Jetzt generieren" wakes the schedule worker immediately and reports back.
+        // "Jetzt generieren" (Sendeplan tab) wakes the schedule worker immediately and reports back.
+        await SwitchTabAsync("#tvsender-tab-sendeplan", "#tab-sendeplan");
         await Page.ClickAsync("#tvsender-generate-now");
         await Expect(Page.Locator("#tvsender-schedule-status")).ToContainTextAsync("aktualisiert",
             new LocatorAssertionsToContainTextOptions { Timeout = 20_000 });
 
-        // Deactivate then reactivate.
+        // Deactivate then reactivate (the rule actions live in the Regeln tab).
+        await SwitchTabAsync("#tvsender-tab-regeln", "#tab-regeln");
         await Page.Locator(".tvsender-rule-toggle").ClickAsync();
         await Expect(Page.Locator(".tvsender-rule-row")).ToContainTextAsync("Inaktiv");
 
@@ -198,6 +261,8 @@ public sealed class TVSenderAdminE2ETests : PlaylistsE2ETestBase
         }
 
         await Page.GotoAsync($"{ServerUrl}/admin/tv-sender");
+        await Page.WaitForSelectorAsync("#tvsender-tab-sendeplan");
+        await SwitchTabAsync("#tvsender-tab-sendeplan", "#tab-sendeplan");
         var displacedRow = Page.Locator(".tvsender-slot-row.tvsender-slot-displaced");
         await displacedRow.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         await Expect(displacedRow).ToContainTextAsync("Verdrängt");

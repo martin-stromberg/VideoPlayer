@@ -139,10 +139,12 @@ public sealed class MediaDurationProbeService
     /// </summary>
     /// <param name="userId">The requesting user; must be an administrator.</param>
     /// <param name="recentCount">How many recent probe results to return.</param>
+    /// <param name="detailItemCount">How many entries the expandable pending and failed
+    /// detail lists carry at most; the counters themselves always reflect the full set.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The aggregated progress.</returns>
     public async Task<MediaDurationProbeProgress> GetProgressAsync(
-        string userId, int recentCount = 10, CancellationToken cancellationToken = default)
+        string userId, int recentCount = 10, int detailItemCount = 25, CancellationToken cancellationToken = default)
     {
         await RequireAdminAsync(userId, cancellationToken);
 
@@ -178,8 +180,44 @@ public sealed class MediaDurationProbeService
                 .ToListAsync(cancellationToken);
         }
 
+        // Detail lists for the expandable sections of the progress card: same filters as the
+        // counters, so the lists always match the chips above them; the never-probed pending
+        // items (DurationProbedAt null) sort last in descending order.
+        List<MediaDurationProbeDetailItem> pendingItems;
+        List<MediaDurationProbeDetailItem> failedItems;
+        if (detailItemCount <= 0)
+        {
+            pendingItems = new List<MediaDurationProbeDetailItem>();
+            failedItems = new List<MediaDurationProbeDetailItem>();
+        }
+        else
+        {
+            pendingItems = await videos
+                .Where(mi => mi.Duration == null && mi.DurationProbeAttempts < maxAttempts)
+                .OrderByDescending(mi => mi.DurationProbedAt)
+                .Take(detailItemCount)
+                .Select(mi => new MediaDurationProbeDetailItem(
+                    mi.Name,
+                    mi.MediaCollection.MediaSource.Name,
+                    mi.DurationProbedAt,
+                    mi.DurationProbeAttempts))
+                .ToListAsync(cancellationToken);
+
+            failedItems = await videos
+                .Where(mi => mi.Duration == null && mi.DurationProbeAttempts >= maxAttempts)
+                .OrderByDescending(mi => mi.DurationProbedAt)
+                .Take(detailItemCount)
+                .Select(mi => new MediaDurationProbeDetailItem(
+                    mi.Name,
+                    mi.MediaCollection.MediaSource.Name,
+                    mi.DurationProbedAt,
+                    mi.DurationProbeAttempts))
+                .ToListAsync(cancellationToken);
+        }
+
         return new MediaDurationProbeProgress(
-            total, probed, total - probed - failed, failed, lastActivity, probedLastHour, recent);
+            total, probed, total - probed - failed, failed, lastActivity, probedLastHour, recent,
+            pendingItems, failedItems);
     }
 
     private async Task RequireAdminAsync(string userId, CancellationToken cancellationToken)

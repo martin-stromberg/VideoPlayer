@@ -244,3 +244,8 @@
 - Doku: `docs/help/tv-sender.md` (Abschnitt „Maskottchen-/Kennzeichen-Clips (Interstitials)" — Quelle anlegen, keine .nfo, für alle teilen, Füller-Regel „Clip-Quelle"), `docs/RELEASE_NOTES.md` (EN+DE), `README.md`, `docs/projects/…/maskottchen/README.md`.
 - Hinweis an Abnahme: bewusste Nicht-Umsetzung eines Markers — begründet oben; Clips mit `.nfo` würden versehentlich zu Filmen (in Hilfe dokumentiert).
 - Lifecycle-Artefakte: `docs/features/task-issue-111-...-schritt-18-maskottchen/` (im Abschlusscommit entfernt, Planung in Historie); Tasks-Datei `docs/features/...-schritt-18-maskottchen-tasks.md` bleibt.
+
+
+### Schritt 18: Maskottchen (N12) — FERTIG (abgenommen)
+
+- Neue Füller-Materialart Clip-Quelle (MediaSourceClips, rotiert uneingeordnete Videos einer Quelle), 6 ffmpeg-produzierte Clips + 6 Drehbuecher + Generator unter docs/projects/…/maskottchen/, Titel-Fallback. Werkzeug: kein KI-Zugang → prozedurale Erzeugung; Evaluierung dokumentiert. Abnahme: `acceptance-schritt-18.md` — erfüllt.

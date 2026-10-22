@@ -13,6 +13,11 @@ public sealed class ProgramRuleService : IProgramRuleService
     private static readonly ProgramRuleMaterialType[] AllMaterialTypes =
         Enum.GetValues<ProgramRuleMaterialType>();
 
+    // „Trailer anstehender Filme" ist ein reines Füller-Material — auf Repeat/HolidaySpecial
+    // würde die Auswahl zu leerer Expansion bzw. inkonsistentem Slot-Verhalten führen.
+    private static readonly ProgramRuleMaterialType[] AllMaterialTypesExceptTrailer =
+        AllMaterialTypes.Where(t => t != ProgramRuleMaterialType.Trailer).ToArray();
+
     private readonly ApplicationDbContext _db;
     private readonly IProgramScheduleSignal? _scheduleSignal;
 
@@ -36,8 +41,8 @@ public sealed class ProgramRuleService : IProgramRuleService
             ProgramRuleType.SeriesFixedTime => [ProgramRuleMaterialType.TVShow],
             ProgramRuleType.MoviePrimeTime => [ProgramRuleMaterialType.Movie, ProgramRuleMaterialType.MovieCollection],
             ProgramRuleType.GenreRotation => [ProgramRuleMaterialType.Genre],
-            ProgramRuleType.Repeat => AllMaterialTypes,
-            ProgramRuleType.HolidaySpecial => AllMaterialTypes,
+            ProgramRuleType.Repeat => AllMaterialTypesExceptTrailer,
+            ProgramRuleType.HolidaySpecial => AllMaterialTypesExceptTrailer,
             ProgramRuleType.Filler => [ProgramRuleMaterialType.Movie, ProgramRuleMaterialType.MovieCollection, ProgramRuleMaterialType.Genre, ProgramRuleMaterialType.Playlist, ProgramRuleMaterialType.Trailer],
             _ => throw new ArgumentException($"Unbekannte Regelart: {ruleType}")
         };

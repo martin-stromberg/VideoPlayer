@@ -762,16 +762,17 @@ namespace VideoWebPlayer.Services
         }
 
 
-        /// <summary>
-        /// Pr�ft und verarbeitet eine Collection als Movie-Collection.
-        /// </summary>
-        /// <param name="collection">Die zu verarbeitende Collection.</param>
-        /// <param name="cancellationToken">Token zum Abbrechen der Verarbeitung.</param>
         // Trailer-Dateikonventionen (Plex/Jellyfin): „-trailer"-Suffix neben der Filmdatei und
         // ein Unterordner namens „trailers". Solche Dateien werden nie als regulärer Film
         // klassifiziert, sondern dem Film als Trailer-Link zugeordnet.
         private const string TrailerFolderName = "trailers";
         private const string TrailerSuffix = "-trailer";
+
+        /// <summary>
+        /// Pr�ft und verarbeitet eine Collection als Movie-Collection.
+        /// </summary>
+        /// <param name="collection">Die zu verarbeitende Collection.</param>
+        /// <param name="cancellationToken">Token zum Abbrechen der Verarbeitung.</param>
 
         private static bool IsTrailerFolder(MediaCollection collection)
             => string.Equals(collection.Name, TrailerFolderName, StringComparison.OrdinalIgnoreCase);
@@ -1008,7 +1009,8 @@ namespace VideoWebPlayer.Services
                     var stem = Path.GetFileNameWithoutExtension(trailer.Path)!;
                     stem = stem[..^TrailerSuffix.Length];
                     var host = siblings.FirstOrDefault(mi =>
-                        string.Equals(Path.GetFileNameWithoutExtension(mi.Path), stem, StringComparison.OrdinalIgnoreCase));
+                        VideoWebPlayer.Utils.VideoFileExtensions.IsVideoFileName(mi.Path)
+                        && string.Equals(Path.GetFileNameWithoutExtension(mi.Path), stem, StringComparison.OrdinalIgnoreCase));
                     if (host is not null)
                     {
                         var movieId = await _db.MovieMediaItems

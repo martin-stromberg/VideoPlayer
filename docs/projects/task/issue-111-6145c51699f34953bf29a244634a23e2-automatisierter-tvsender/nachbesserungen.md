@@ -312,3 +312,8 @@ Laufzeitermittlung. Alles untereinander auf einer langen Seite.
 - Regel-Editor ggf. als Dialog statt Inline-Block; Diagnose-Spalte + „Jetzt generieren"
   gehören thematisch an den Sendeplan, Fortschrittskarte ist Infrastruktur-Status.
 - Usability-Review + bUnit/Playwright-Abdeckung der neuen Struktur.
+
+**Vorgehensentscheidung (2026-10-21):** Zuerst **Variante 2** — Agent erstellt eine
+statische HTML-Vorschau der umstrukturierten Seite zur visuellen Abnahme durch den
+Anwender, bevor die Umsetzung in TVSenderAdmin.razor erfolgt. Falls das Ergebnis nicht
+tragfaehig ist, kann der Anwender alternativ einen Stitch-Entwurf liefern (Variante 1).

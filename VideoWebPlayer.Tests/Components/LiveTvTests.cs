@@ -20,7 +20,7 @@ namespace VideoWebPlayer.Tests.Components;
 /// bUnit-Tests der Live-TV-Seite: Jetzt/Gleich/Vorschau-Darstellung, Sendelücke, Login-Formular
 /// ohne Anmeldung, verständliche Fehlermeldungen und die JS-Anbindung des Live-Streams.
 /// </summary>
-public class LiveTvTests(ITestOutputHelper _)
+public class LiveTvTests
 {
     private const string TestToken = "test-token";
     private static readonly Helpers.ControllableTimeProvider ControllableTime = new();

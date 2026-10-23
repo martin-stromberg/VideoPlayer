@@ -67,7 +67,7 @@ public sealed class LiveStreamE2ETests : DeviceClientTestBase
     {
         var ct = TestContext.Current.CancellationToken;
         await SeedSegmentDirectoryAsync();
-        var (_, payload) = await CreateUserAndPairDeviceAsync($"live-{Guid.NewGuid():N}@test.com");
+        var (_, payload) = await CreateUserAndPairDeviceAsync($"live-{Guid.NewGuid():N}@test.com", grantsTvAccess: true);
 
         using var http = CreateHttpClient();
         var response = await http.GetAsync($"/api/live-stream/live.m3u8?access_token={payload.Token}", ct);
@@ -84,7 +84,7 @@ public sealed class LiveStreamE2ETests : DeviceClientTestBase
     {
         var ct = TestContext.Current.CancellationToken;
         await SeedSegmentDirectoryAsync();
-        var (_, payload) = await CreateUserAndPairDeviceAsync($"live-seg-{Guid.NewGuid():N}@test.com");
+        var (_, payload) = await CreateUserAndPairDeviceAsync($"live-seg-{Guid.NewGuid():N}@test.com", grantsTvAccess: true);
 
         using var http = CreateHttpClient();
         var response = await http.GetAsync($"/api/live-stream/seg_001.ts?access_token={payload.Token}", ct);
@@ -102,7 +102,7 @@ public sealed class LiveStreamE2ETests : DeviceClientTestBase
     {
         var ct = TestContext.Current.CancellationToken;
         await SeedSegmentDirectoryAsync();
-        var (_, payload) = await CreateUserAndPairDeviceAsync($"live-404-{Guid.NewGuid():N}@test.com");
+        var (_, payload) = await CreateUserAndPairDeviceAsync($"live-404-{Guid.NewGuid():N}@test.com", grantsTvAccess: true);
 
         using var http = CreateHttpClient();
         var response = await http.GetAsync($"/api/live-stream/{fileName}?access_token={payload.Token}", ct);

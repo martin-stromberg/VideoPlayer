@@ -299,6 +299,57 @@ public sealed class TVSenderAdminTests
         Assert.Empty(displaced.QuerySelectorAll(".badge-live"));
     }
 
+    [Fact]
+    public async Task Sendeplan_GroupsSlotsByDay_AndMarksRuleChanges()
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("tvsender-day-groups", ct);
+        var admin = await fixture.AddUserAsync("admin@test.com", isAdmin: true);
+        var channel = await fixture.GetChannelAsync(ct);
+        var item = await fixture.CreateMediaItemAsync(duration: TimeSpan.FromMinutes(60));
+
+        var ruleA = await fixture.CreateRuleAsync(channel.Id, "Fruehregel",
+            ProgramRuleType.SeriesFixedTime, ProgramRuleRecurrence.Daily, new TimeOnly(20, 0),
+            ProgramRuleMaterialType.MediaSourceClips, materialId: 0, priority: 1);
+        var ruleB = await fixture.CreateRuleAsync(channel.Id, "Nachtregel",
+            ProgramRuleType.MoviePrimeTime, ProgramRuleRecurrence.Daily, new TimeOnly(22, 0),
+            ProgramRuleMaterialType.Movie, materialId: 0, priority: 2);
+
+        // Zwei Tage; am ersten Tag wechselt die Regel einmal, am zweiten nicht.
+        // UTC-verankert ab morgen, damit der `Start >= UtcNow-2h`-Filter der Seite
+        // die Slots sicher einschliest; die erwarteten Tage folgen der lokalen
+        // Datumsanzeige der Seite (ToLocalTime).
+        var day1 = DateTime.UtcNow.Date.AddDays(1);
+        var day2 = day1.AddDays(1);
+        var slot1Start = day1.AddHours(8);
+        var slot4Start = day2.AddHours(8);
+        await fixture.CreateSlotAsync(channel.Id, day1.AddHours(8), day1.AddHours(9), item.Id, ruleId: ruleA.Id);
+        await fixture.CreateSlotAsync(channel.Id, day1.AddHours(9), day1.AddHours(10), item.Id, ruleId: ruleA.Id);
+        await fixture.CreateSlotAsync(channel.Id, day1.AddHours(10), day1.AddHours(11), item.Id, ruleId: ruleB.Id);
+        await fixture.CreateSlotAsync(channel.Id, day2.AddHours(8), day2.AddHours(9), item.Id, ruleId: ruleB.Id);
+
+        var (ctx, _) = await CreateContextAsync(fixture, admin.Id);
+        using var _ctx = ctx;
+        var cut = ctx.Render<TVSenderAdmin>();
+        cut.WaitForAssertion(() => cut.Find("#tvsender-tab-sendeplan"), TimeSpan.FromSeconds(10));
+        cut.Find("#tvsender-tab-sendeplan").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            // Je Kalendertag (lokale Zeit) genau ein Header.
+            var headers = cut.FindAll("#tvsender-schedule-cards .tvsender-day-header");
+            Assert.Equal(2, headers.Count);
+            Assert.Equal(slot1Start.ToLocalTime().ToString("yyyy-MM-dd"), headers[0].GetAttribute("data-day"));
+            Assert.Equal(slot4Start.ToLocalTime().ToString("yyyy-MM-dd"), headers[1].GetAttribute("data-day"));
+
+            // Genau eine Trennlinie: der Regelwechsel A → B am ersten Tag.
+            var dividers = cut.FindAll("#tvsender-schedule-cards .tvsender-rule-divider");
+            var divider = Assert.Single(dividers);
+            Assert.Equal(ruleB.Id.ToString(), divider.GetAttribute("data-rule-id"));
+            Assert.Contains("Nachtregel", divider.TextContent);
+        }, TimeSpan.FromSeconds(10));
+    }
+
     /// <summary>Answers every API call with an empty JSON array — the page only reads playlist lists.</summary>
     private sealed class EmptyListHandler : HttpMessageHandler
     {

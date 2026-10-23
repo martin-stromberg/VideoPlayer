@@ -131,7 +131,11 @@
             mediaSources = (await Client.RequestSourcesAsync()).ToList();
             try
             {
-                tvSenderEnabled = await ProgramSettings.GetTvSenderEnabledAsync();
+                // N28: Flag UND Benutzer-Freigabe (Admins implizit) — ohne Freigabe bleibt der
+                // Eintrag verborgen.
+                tvSenderEnabled = await ProgramSettings.IsTvSenderAccessGrantedAsync(
+                    state.User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                    state.User.HasClaim("IsAdmin", "True"));
             }
             catch (Exception ex) when (ex is ObjectDisposedException or OperationCanceledException)
             {

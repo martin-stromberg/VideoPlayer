@@ -813,6 +813,36 @@ input[type="text"]:focus {
     background: var(--admin-border);
 }
 
+/* Sendeplan-Gliederung (N27): Tages-Header trennen Kalendertage, die gestrichelte
+   Trennlinie markiert den Blockwechsel je Programmregel innerhalb eines Tages. */
+.admin-console .tvsender-day-header {
+    margin-top: 0.6rem;
+    padding-bottom: 0.25rem;
+    border-bottom: 1px solid var(--admin-border);
+    color: var(--admin-primary);
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.admin-console .tvsender-day-header:first-child {
+    margin-top: 0;
+}
+
+.admin-console .tvsender-rule-divider {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--admin-muted);
+    font-size: 0.8rem;
+}
+
+.admin-console .tvsender-rule-divider::before,
+.admin-console .tvsender-rule-divider::after {
+    content: "";
+    flex: 1;
+    border-top: 1px dashed var(--admin-border);
+}
+
 /* Verdraengte Sendeplaetze: durchgestrichen wie bisher (.tvsender-slot-displaced) */
 .admin-console .program-card.tvsender-slot-displaced .program-body {
     color: var(--admin-muted);

@@ -25,11 +25,12 @@ public class NavMenuLiveTvTests
             .Options;
         using var db = new ApplicationDbContext(options, new EventManager());
         db.Setups.Add(new Setup { TvSenderEnabled = true });
+        db.TvSenderUserAccess.Add(new TvSenderUserAccess { UserId = "test-user-id" });
         db.SaveChanges();
 
         using var ctx = new global::Bunit.BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
-        ctx.AddAuthorization().SetAuthorized("test-user");
+        ctx.AddAuthorization().SetAuthorized("test-user").SetClaims(new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, "test-user-id"));
         ctx.Services.AddSingleton(db);
         ctx.Services.AddSingleton(new ProgramSettingsService(db, Microsoft.Extensions.Logging.Abstractions.NullLogger<ProgramSettingsService>.Instance));
         ctx.Services.AddSingleton<VideoWebPlayerClient>(new NoOpVideoWebPlayerClient());
@@ -54,7 +55,7 @@ public class NavMenuLiveTvTests
 
         using var ctx = new global::Bunit.BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
-        ctx.AddAuthorization().SetAuthorized("test-user");
+        ctx.AddAuthorization().SetAuthorized("test-user").SetClaims(new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, "test-user-id"));
         ctx.Services.AddSingleton(db);
         ctx.Services.AddSingleton(new ProgramSettingsService(db, Microsoft.Extensions.Logging.Abstractions.NullLogger<ProgramSettingsService>.Instance));
         ctx.Services.AddSingleton<VideoWebPlayerClient>(new NoOpVideoWebPlayerClient());
@@ -63,5 +64,51 @@ public class NavMenuLiveTvTests
         var cut = ctx.Render<NavMenu>();
 
         Assert.DoesNotContain(cut.FindAll("a.nav-link"), a => a.GetAttribute("href")?.Equals("/live-tv", StringComparison.OrdinalIgnoreCase) == true);
+    }
+
+    [Fact]
+    public void NavMenu_HidesLiveTvEntry_WhenUserNotReleased()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .Options;
+        using var db = new ApplicationDbContext(options, new EventManager());
+        db.Setups.Add(new Setup { TvSenderEnabled = true });
+        db.SaveChanges();
+
+        using var ctx = new global::Bunit.BunitContext();
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        ctx.AddAuthorization().SetAuthorized("test-user").SetClaims(new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, "test-user-id"));
+        ctx.Services.AddSingleton(db);
+        ctx.Services.AddSingleton(new ProgramSettingsService(db, Microsoft.Extensions.Logging.Abstractions.NullLogger<ProgramSettingsService>.Instance));
+        ctx.Services.AddSingleton<VideoWebPlayerClient>(new NoOpVideoWebPlayerClient());
+        ctx.Services.AddSingleton(new Mock<ILoginIpBlockService>().Object);
+
+        var cut = ctx.Render<NavMenu>();
+
+        Assert.DoesNotContain(cut.FindAll("a.nav-link"), a => a.GetAttribute("href")?.Equals("/live-tv", StringComparison.OrdinalIgnoreCase) == true);
+    }
+
+    [Fact]
+    public void NavMenu_ShowsLiveTvEntry_ForAdminWithoutAccessRow()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .Options;
+        using var db = new ApplicationDbContext(options, new EventManager());
+        db.Setups.Add(new Setup { TvSenderEnabled = true });
+        db.SaveChanges();
+
+        using var ctx = new global::Bunit.BunitContext();
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        ctx.AddAuthorization().SetAuthorized("admin-user").SetClaims(new System.Security.Claims.Claim("IsAdmin", "True"));
+        ctx.Services.AddSingleton(db);
+        ctx.Services.AddSingleton(new ProgramSettingsService(db, Microsoft.Extensions.Logging.Abstractions.NullLogger<ProgramSettingsService>.Instance));
+        ctx.Services.AddSingleton<VideoWebPlayerClient>(new NoOpVideoWebPlayerClient());
+        ctx.Services.AddSingleton(new Mock<ILoginIpBlockService>().Object);
+
+        var cut = ctx.Render<NavMenu>();
+
+        Assert.Contains(cut.FindAll("a.nav-link"), a => a.GetAttribute("href")?.Equals("/live-tv", StringComparison.OrdinalIgnoreCase) == true);
     }
 }

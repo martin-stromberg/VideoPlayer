@@ -53,7 +53,7 @@ public sealed class VideoWebPlayerClientTests_ProgramGuide : DeviceClientTestBas
     {
         var ct = TestContext.Current.CancellationToken;
         var (runningSlotId, nextSlotId) = await SeedChannelWithProgramAsync();
-        await CreateUserAndPairDeviceAsync($"guide-client-{Guid.NewGuid():N}@test.com");
+        await CreateUserAndPairDeviceAsync($"guide-client-{Guid.NewGuid():N}@test.com", grantsTvAccess: true);
 
         var guide = await Client.RequestProgramGuideNowAsync(ct);
 
@@ -74,7 +74,7 @@ public sealed class VideoWebPlayerClientTests_ProgramGuide : DeviceClientTestBas
     {
         var ct = TestContext.Current.CancellationToken;
         var (runningSlotId, nextSlotId) = await SeedChannelWithProgramAsync();
-        await CreateUserAndPairDeviceAsync($"guide-client-up-{Guid.NewGuid():N}@test.com");
+        await CreateUserAndPairDeviceAsync($"guide-client-up-{Guid.NewGuid():N}@test.com", grantsTvAccess: true);
 
         var entries = await Client.RequestProgramGuideUpcomingAsync(3, ct);
 

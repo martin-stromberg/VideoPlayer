@@ -36,6 +36,12 @@ else if (!tvSenderEnabled)
         <div class="alert alert-info" id="live-tv-disabled">Der TV-Sender ist nicht freigeschaltet.</div>
     </section>
 }
+else if (!tvSenderAccessGranted)
+{
+    <section class="media-section">
+        <div class="alert alert-info" id="live-tv-no-access">@LiveTvErrorMessages.Forbidden</div>
+    </section>
+}
 else if (!string.IsNullOrWhiteSpace(loadError))
 {
     <section class="media-section">
@@ -105,7 +111,7 @@ else
                             @if (nowEntry.PositionSeconds is { } position && nowEntry.DurationSeconds > 0)
                             {
                                 <div class="progress-track" aria-hidden="true">
-                                    <div class="progress-fill" style="width:@ProgressPercent(position, nowEntry.DurationSeconds)%"></div>
+                                    <div class="progress-fill" style="width:@CssFormat.Percent(ProgressPercent(position, nowEntry.DurationSeconds))"></div>
                                 </div>
                             }
                         </div>
@@ -160,6 +166,7 @@ else
 
     private bool isAuthenticated;
     private bool tvSenderEnabled;
+    private bool tvSenderAccessGranted;
     private bool isLoading = true;
     private string? loadError;
     private bool streamError;
@@ -193,15 +200,23 @@ else
         }
 
         await Client.EnsureAuthorizationTokenSilentlyAsync(auth.User);
+        // N28: erst das globale Flag, dann die Benutzer-Freigabe (Admins implizit) — ohne
+        // Freigabe wird kein Guide-Aufruf gestartet.
         tvSenderEnabled = await ProgramSettings.GetTvSenderEnabledAsync();
         if (tvSenderEnabled)
+        {
+            var userId = auth.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            tvSenderAccessGranted = await ProgramSettings.IsTvSenderAccessGrantedAsync(
+                userId, auth.User.HasClaim("IsAdmin", "True"));
+        }
+        if (tvSenderAccessGranted)
             await RefreshGuideAsync(isInitial: true);
         isLoading = false;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!isAuthenticated || !tvSenderEnabled)
+        if (!isAuthenticated || !tvSenderEnabled || !tvSenderAccessGranted)
             return;
 
         // Die Aktualisierungsschleife wird erst auf der interaktiven Instanz gestartet —
@@ -353,6 +368,9 @@ else
             : $"{Math.Max(1, span.Minutes)} Min.";
     }
 
+    // Gibt den nackten Prozentwert als double zurueck; die CSS-Einbettung formatiert ueber
+    // CssFormat.Percent invariant — sonst landet unter de-DE ein Komma im style-Attribut
+    // ("width:59,38%"), das der Browser verwirft und den Balken voll wirken laesst.
     private static double ProgressPercent(double position, double duration)
         => Math.Clamp(position / duration * 100d, 0d, 100d);
 

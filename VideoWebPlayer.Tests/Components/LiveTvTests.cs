@@ -5,6 +5,7 @@ using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.JSInterop;
 using Moq;
+using System.Globalization;
 using System.Net;
 using VideoWebPlayer.Client;
 using VideoWebPlayer.Client.Models;
@@ -24,12 +25,15 @@ public class LiveTvTests(ITestOutputHelper _)
     private const string TestToken = "test-token";
     private static readonly Helpers.ControllableTimeProvider ControllableTime = new();
 
-    private static BunitContext CreateContext(Mock<IProgramGuideApiClient>? guide = null, bool authorized = true, bool tvSenderEnabled = true)
+    private const string TestUserId = "test-user-id";
+
+    private static BunitContext CreateContext(Mock<IProgramGuideApiClient>? guide = null, bool authorized = true, bool tvSenderEnabled = true, bool tvSenderAccessGranted = true)
     {
         var ctx = new BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         if (authorized)
-            ctx.AddAuthorization().SetAuthorized("test-user");
+            ctx.AddAuthorization().SetAuthorized("test-user")
+                .SetClaims(new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, TestUserId));
         else
             ctx.AddAuthorization();
 
@@ -43,6 +47,8 @@ public class LiveTvTests(ITestOutputHelper _)
             .Options;
         var db = new ApplicationDbContext(options, new EventManager());
         db.Setups.Add(new Setup { TvSenderEnabled = tvSenderEnabled });
+        if (tvSenderAccessGranted)
+            db.TvSenderUserAccess.Add(new TvSenderUserAccess { UserId = TestUserId });
         db.SaveChanges();
         ctx.Services.AddSingleton(new ProgramSettingsService(db, NullLogger<ProgramSettingsService>.Instance));
         return ctx;
@@ -107,6 +113,47 @@ public class LiveTvTests(ITestOutputHelper _)
 
         var attach = Assert.Single(ctx.JSInterop.Invocations, i => i.Identifier == "liveTv.attach");
         Assert.Contains(attach.Arguments, a => a is string s && s.Contains($"access_token={TestToken}"));
+    }
+
+    [Fact]
+    public void Now_ProgressFill_WritesInvariantPercent_UnderGermanCulture()
+    {
+        // N26: "width:59,38%" (de-DE-Komma) ist ungueltiges CSS und laesst den Balken immer
+        // voll wirken — der Wert muss mit Punkt-Dezimaltrenner serialisiert werden.
+        var previous = CultureInfo.CurrentCulture;
+        var previousUi = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("de-DE");
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("de-DE");
+
+            var guide = CreateGuideMock(
+                now: new DtoProgramGuideNow
+                {
+                    ServerTimeUtc = DateTimeOffset.UtcNow,
+                    Now = new DtoProgramGuideEntry
+                    {
+                        SlotId = 11, Title = "Halbzeit", MediaItemId = 5,
+                        StartUtc = DateTimeOffset.UtcNow.AddMinutes(-10), EndUtc = DateTimeOffset.UtcNow.AddMinutes(70),
+                        // 450s von 3600s = 12,5 % — gebrochener Wert, der unter de-DE ein
+                        // Komma produzieren wuerde, wenn die Formatierung kulturabhaengig waere.
+                        DurationSeconds = 3600, PositionSeconds = 450, RemainingSeconds = 3150,
+                    },
+                });
+            using var ctx = CreateContext(guide);
+
+            var cut = ctx.Render<LiveTv>();
+
+            var fill = cut.Find(".progress-fill");
+            var style = fill.GetAttribute("style");
+            Assert.Equal("width:12.5%", style);
+            Assert.DoesNotContain(',', style!);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previous;
+            CultureInfo.CurrentUICulture = previousUi;
+        }
     }
 
     [Fact]
@@ -248,6 +295,18 @@ public class LiveTvTests(ITestOutputHelper _)
         Assert.Contains("nicht freigeschaltet", cut.Find("#live-tv-disabled").TextContent);
         guide.Verify(m => m.RequestProgramGuideNowAsync(It.IsAny<CancellationToken>()), Times.Never);
         guide.Verify(m => m.RequestProgramGuideUpcomingAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public void Page_UserWithoutTvAccess_ShowsForbiddenHint_WithoutGuideCall()
+    {
+        var guide = CreateGuideMock();
+        using var ctx = CreateContext(guide, tvSenderAccessGranted: false);
+
+        var cut = ctx.Render<LiveTv>();
+
+        Assert.Contains("keinen Zugriff auf den TV-Sender", cut.Find("#live-tv-no-access").TextContent);
+        guide.Verify(m => m.RequestProgramGuideNowAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

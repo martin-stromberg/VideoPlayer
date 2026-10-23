@@ -84,7 +84,7 @@ public sealed class ProgramGuideE2ETests : DeviceClientTestBase
     {
         var ct = TestContext.Current.CancellationToken;
         var (runningSlotId, nextSlotId) = await SeedChannelWithProgramAsync("E2E-Abendfilm");
-        var (_, payload) = await CreateUserAndPairDeviceAsync($"guide-{Guid.NewGuid():N}@test.com");
+        var (_, payload) = await CreateUserAndPairDeviceAsync($"guide-{Guid.NewGuid():N}@test.com", grantsTvAccess: true);
 
         using var http = CreateHttpClient();
         http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", payload.Token);
@@ -108,7 +108,7 @@ public sealed class ProgramGuideE2ETests : DeviceClientTestBase
     {
         var ct = TestContext.Current.CancellationToken;
         await SeedChannelWithProgramAsync("E2E-Query-Film");
-        var (_, payload) = await CreateUserAndPairDeviceAsync($"guide-query-{Guid.NewGuid():N}@test.com");
+        var (_, payload) = await CreateUserAndPairDeviceAsync($"guide-query-{Guid.NewGuid():N}@test.com", grantsTvAccess: true);
 
         using var http = CreateHttpClient();
         var response = await http.GetAsync($"/api/program-guide/now?access_token={payload.Token}", ct);
@@ -123,7 +123,7 @@ public sealed class ProgramGuideE2ETests : DeviceClientTestBase
     {
         var ct = TestContext.Current.CancellationToken;
         var (runningSlotId, nextSlotId) = await SeedChannelWithProgramAsync("E2E-Vorschau-Film");
-        var (_, payload) = await CreateUserAndPairDeviceAsync($"guide-upcoming-{Guid.NewGuid():N}@test.com");
+        var (_, payload) = await CreateUserAndPairDeviceAsync($"guide-upcoming-{Guid.NewGuid():N}@test.com", grantsTvAccess: true);
 
         using var http = CreateHttpClient();
         http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", payload.Token);
@@ -142,7 +142,7 @@ public sealed class ProgramGuideE2ETests : DeviceClientTestBase
     {
         var ct = TestContext.Current.CancellationToken;
         await SeedChannelWithProgramAsync("E2E-Limit-Film");
-        var (_, payload) = await CreateUserAndPairDeviceAsync($"guide-limit-{Guid.NewGuid():N}@test.com");
+        var (_, payload) = await CreateUserAndPairDeviceAsync($"guide-limit-{Guid.NewGuid():N}@test.com", grantsTvAccess: true);
 
         using var http = CreateHttpClient();
         http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", payload.Token);

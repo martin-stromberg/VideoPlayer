@@ -30,6 +30,9 @@ public sealed class LiveStreamControllerTests : IAsyncLifetime
             new TestWebHostEnvironment { ContentRootPath = _contentRoot },
             settings, NullLogger<LiveStreamSegmentStore>.Instance);
         _segDir = await store.GetDirectoryAsync(ct);
+        _fixture.Db.Users.Add(new ApplicationUser { Id = "u1", UserName = "u@x.de" });
+        _fixture.Db.TvSenderUserAccess.Add(new TvSenderUserAccess { UserId = "u1" });
+        await _fixture.Db.SaveChangesAsync(ct);
 
         _controller = new LiveStreamController(store, settings,
             new FakeAuthService { CurrentUser = new ApplicationUser { Id = "u1", UserName = "u@x.de" } },
@@ -111,6 +114,43 @@ public sealed class LiveStreamControllerTests : IAsyncLifetime
         var result = await _controller.GetFile(fileName);
 
         Assert.IsType<NotFoundResult>(result);
+    }
+
+    [Fact]
+    public async Task GetFile_UserWithoutTvAccess_Returns403()
+    {
+        _fixture.Db.Users.Add(new ApplicationUser { Id = "u2", UserName = "u2@x.de" });
+        await _fixture.Db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var controller = new LiveStreamController(
+            new LiveStreamSegmentStore(
+                new TestWebHostEnvironment { ContentRootPath = _contentRoot },
+                new ProgramSettingsService(_fixture.Db, NullLogger<ProgramSettingsService>.Instance),
+                NullLogger<LiveStreamSegmentStore>.Instance),
+            new ProgramSettingsService(_fixture.Db, NullLogger<ProgramSettingsService>.Instance),
+            new FakeAuthService { CurrentUser = new ApplicationUser { Id = "u2", UserName = "u2@x.de" } },
+            NullLogger<LiveStreamController>.Instance);
+        controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() };
+
+        Assert.IsType<ForbidResult>(await controller.GetFile("live.m3u8"));
+    }
+
+    [Fact]
+    public async Task GetFile_AdminWithoutTvAccessRow_ReturnsFileOr404Not403()
+    {
+        _fixture.Db.Users.Add(new ApplicationUser { Id = "a1", UserName = "a@x.de", IsAdmin = true });
+        await _fixture.Db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var controller = new LiveStreamController(
+            new LiveStreamSegmentStore(
+                new TestWebHostEnvironment { ContentRootPath = _contentRoot },
+                new ProgramSettingsService(_fixture.Db, NullLogger<ProgramSettingsService>.Instance),
+                NullLogger<LiveStreamSegmentStore>.Instance),
+            new ProgramSettingsService(_fixture.Db, NullLogger<ProgramSettingsService>.Instance),
+            new FakeAuthService { CurrentUser = new ApplicationUser { Id = "a1", UserName = "a@x.de", IsAdmin = true } },
+            NullLogger<LiveStreamController>.Instance);
+        controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() };
+
+        // Datei existiert nicht → 404 ist erlaubt; entscheidend ist: kein 403.
+        Assert.IsNotType<ForbidResult>(await controller.GetFile("live.m3u8"));
     }
 
     [Fact]

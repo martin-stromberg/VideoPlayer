@@ -30,6 +30,7 @@ public sealed class ProgramGuideControllerTests : IAsyncLifetime
         _fixture = await ProgramScheduleTestDb.CreateAsync($"guide-controller-{Guid.NewGuid():N}", ct);
         _fakeAuth = new FakeAuthService { CurrentUser = new ApplicationUser { Id = Guid.NewGuid().ToString(), UserName = "guide-user@test.com" } };
         _fixture.Db.Users.Add(_fakeAuth.CurrentUser);
+        _fixture.Db.TvSenderUserAccess.Add(new TvSenderUserAccess { UserId = _fakeAuth.CurrentUser.Id });
         await _fixture.Db.SaveChangesAsync(ct);
         _channel = await new ProgramRuleService(_fixture.Db).GetOrCreateChannelAsync(ct);
         _controller = CreateController(_fakeAuth);
@@ -104,6 +105,43 @@ public sealed class ProgramGuideControllerTests : IAsyncLifetime
         var result = await controller.GetUpcoming();
 
         Assert.IsType<UnauthorizedObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GetNow_UserWithoutTvAccess_Returns403()
+    {
+        var user = new ApplicationUser { Id = Guid.NewGuid().ToString("N"), UserName = "noaccess@test.com" };
+        _fixture.Db.Users.Add(user);
+        await _fixture.Db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var controller = CreateController(new FakeAuthService { CurrentUser = user });
+
+        Assert.IsType<ForbidResult>(await controller.GetNow());
+        Assert.IsType<ForbidResult>(await controller.GetUpcoming());
+    }
+
+    [Fact]
+    public async Task GetNow_AdminWithoutTvAccessRow_Returns200()
+    {
+        var admin = new ApplicationUser { Id = Guid.NewGuid().ToString("N"), UserName = "admin@test.com", IsAdmin = true };
+        _fixture.Db.Users.Add(admin);
+        await _fixture.Db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var controller = CreateController(new FakeAuthService { CurrentUser = admin });
+
+        var item = await _fixture.CreateMediaItemAsync(duration: TimeSpan.FromMinutes(60));
+        var now = DateTime.UtcNow;
+        await _fixture.CreateSlotAsync(_channel.Id, now.AddMinutes(-10), now.AddMinutes(50), item.Id);
+
+        Assert.IsType<OkObjectResult>(await controller.GetNow());
+    }
+
+    [Fact]
+    public async Task GetNow_UserWithTvAccess_Returns200()
+    {
+        var item = await _fixture.CreateMediaItemAsync(duration: TimeSpan.FromMinutes(60));
+        var now = DateTime.UtcNow;
+        await _fixture.CreateSlotAsync(_channel.Id, now.AddMinutes(-10), now.AddMinutes(50), item.Id);
+
+        Assert.IsType<OkObjectResult>(await _controller.GetNow());
     }
 
     [Theory]

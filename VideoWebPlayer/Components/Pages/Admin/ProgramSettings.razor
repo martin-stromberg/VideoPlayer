@@ -1,9 +1,13 @@
 @page "/admin/program-settings"
 @using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using VideoWebPlayer.Data
 @using VideoWebPlayer.Services
 @inject ProgramSettingsService SettingsService
 @inject IProgramScheduleSignal ScheduleSignal
 @inject AuthenticationStateProvider AuthStateProvider
+@inject UserManager<ApplicationUser> UserManager
 @rendermode InteractiveServer
 
 <PageTitle>Allgemein</PageTitle>
@@ -94,6 +98,35 @@ else
                     <label class="form-check-label" for="tvSenderEnabled">Automatisierten TV-Sender freischalten</label>
                 </div>
                 <div class="form-text">Erst bei Freigabe erscheint der „Live-TV"-Eintrag in der Navigation, laufen Sendeplan, Stream und Laufzeitermittlung und sind die Seiten <code>/live-tv</code> und <code>/admin/tv-sender</code> samt API erreichbar. Wirkt ohne Neustart — laufende Worker stoppen bzw. starten beim nächsten Intervall.</div>
+
+                <div class="mt-3" id="tvsender-user-access">
+                    <label class="form-label">Diese Benutzer dürfen den TV-Sender sehen</label>
+                    @if (users.Count == 0)
+                    {
+                        <div class="form-text">Keine Benutzerkonten vorhanden.</div>
+                    }
+                    else
+                    {
+                        @foreach (var user in users)
+                        {
+                            var userId = user.Id;
+                            <div class="form-check tvsender-user-access-row">
+                                <input type="checkbox" class="form-check-input" id="tvsender-user-@userId"
+                                       checked="@model.TvSenderAllowedUserIds.Contains(userId)"
+                                       disabled="@user.IsAdmin"
+                                       @onchange="e => OnTvSenderUserToggled(userId, e.Value is bool b && b)" />
+                                <label class="form-check-label" for="tvsender-user-@userId">
+                                    @user.Email
+                                    @if (user.IsAdmin)
+                                    {
+                                        <span class="form-text d-inline">(Administrator — immer Zugriff)</span>
+                                    }
+                                </label>
+                            </div>
+                        }
+                    }
+                    <div class="form-text">Administratoren haben immer Zugriff. Ohne Auswahl sehen nur Administratoren den Sender. Die Auswahl wirkt zusätzlich zur globalen Freischaltung und sofort — bestehende Zugriffe entfallen ohne Neustart.</div>
+                </div>
             </div>
 
             <div class="admin-card admin-card-wide">
@@ -128,6 +161,8 @@ else
     private string? statusMessage;
     private string? errorMessage;
     private SettingsModel? model;
+    private List<ApplicationUser> users = new();
+    private const string SystemUserNormalizedName = "SYSTEM";
 
     protected override async Task OnInitializedAsync()
     {
@@ -148,7 +183,28 @@ else
             MdnsAdvertisementEnabled = setup.MdnsAdvertisementEnabled,
             DiscoveryPublicBaseUrl = setup.DiscoveryPublicBaseUrl,
             TvSenderEnabled = setup.TvSenderEnabled,
+            TvSenderAllowedUserIds = await SettingsService.GetTvSenderAllowedUserIdsAsync(),
         };
+
+        // Benutzerliste fuer die TV-Sender-Freigabe (N28): das Systemkonto wird wie in der
+        // Anwenderverwaltung ausgeblendet.
+        users = await UserManager.Users
+            .Where(u => u.NormalizedUserName != SystemUserNormalizedName)
+            .OrderBy(u => u.Email)
+            .ToListAsync();
+        // Admin-Haekchen sind deaktiviert, aber trotzdem in der Auswahl repräsentiert.
+        foreach (var admin in users.Where(u => u.IsAdmin))
+            model.TvSenderAllowedUserIds.Add(admin.Id);
+    }
+
+    private void OnTvSenderUserToggled(string userId, bool selected)
+    {
+        if (model is null)
+            return;
+        if (selected)
+            model.TvSenderAllowedUserIds.Add(userId);
+        else
+            model.TvSenderAllowedUserIds.Remove(userId);
     }
 
     private async Task SaveAsync()
@@ -170,6 +226,9 @@ else
                     model.MdnsAdvertisementEnabled,
                     model.DiscoveryPublicBaseUrl,
                     model.TvSenderEnabled));
+            // N28: Allowlist im selben Speichern — Admin-Haekchen sind deaktiviert, werden aber
+            // mitgegeben (harmlose Zeilen, Auswertung laeuft ueber den impliziten Admin-Zugriff).
+            await SettingsService.UpdateTvSenderAllowedUserIdsAsync(model.TvSenderAllowedUserIds);
             // Sendeplan/Stream/Probe werten das Flag je Intervall aus; das Signal weckt sie sofort,
             // damit eine frisch erteilte Freigabe nicht bis zum nächsten Generierungslauf wartet.
             ScheduleSignal.NotifyScheduleChanged();
@@ -203,6 +262,8 @@ else
         public bool MdnsAdvertisementEnabled { get; set; } = true;
 
         public bool TvSenderEnabled { get; set; }
+
+        public HashSet<string> TvSenderAllowedUserIds { get; set; } = new(StringComparer.Ordinal);
 
         [Display(Name = "Die öffentliche Basis-URL")]
         [AbsoluteHttpUrl]

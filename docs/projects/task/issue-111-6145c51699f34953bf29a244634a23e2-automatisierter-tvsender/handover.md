@@ -23,6 +23,7 @@
 | 21 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-21-planer-eviction | fertig | 2026-10-22 |
 | 22 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-22-plan-rest | fertig | 2026-10-22 |
 | 23 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-23-regel-features | fertig | 2026-10-22 |
+| 27 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-27-ui-freigabe | aktiv | 2026-10-23 |
 
 ## Übergabestand je Schritt
 
@@ -393,3 +394,23 @@ sauber; Debug-bin war durch laufende App gesperrt → Scratch-OutDir/Release-Pfa
 ### Schritt 26: N23-N25 — FERTIG (abgenommen)
 
 - StrandOrderKey (FNV-1a) mischt Strangreihenfolge je Regel; Poll-Fix in LiveTv (firstRender + entkoppelte Abrufe); Setup.TvSenderEnabled + Admin-Toggle + serverseitige 404-Gates + Worker-Idle. Abnahme: `acceptance-schritt-26.md` — erfuellt nach 5 Fixen.
+
+
+### Schritt 27: N26–N28 — FERTIG (umgesetzt, Testsuite grün)
+
+- N26: `CssFormat.Percent` (InvariantCulture) fuer `width:…%`-Stellen mit double —
+  `LiveTv.razor` (progress-fill) + `VideoPlayer.razor` (player-progress-fill);
+  int-Stellen in `TVSenderAdmin.razor` nicht betroffen. Format-Tests unter de-DE.
+- N27: Sendeplan-Tab gruppiert Karten nach lokalem Kalendertag (`.tvsender-day-header`,
+  `data-day`) + gestrichelte `.tvsender-rule-divider`-Trennlinie mit Regelname bei
+  `ProgramRuleId`-Wechsel; Styles in `app.css`.
+- N28: Neue Tabelle `TvSenderUserAccess` (FK Cascade→AspNetUsers, Migration
+  `AddTvSenderUserAccess` via dotnet ef, `OptionalRestoreTables`). Service:
+  `IsTvSenderAccessGrantedAsync` = Flag UND (Admin ODER Allowlist-Zeile).
+  Gating: NavMenu-Eintrag, `/live-tv` (`#live-tv-no-access`), `api/program-guide` +
+  `api/live-stream` liefern 403 (Flag aus weiterhin 404). Admin-Checkbox-Liste in
+  `Einrichtung → Allgemein`; `UserManagement.DeleteUser` raeumt Zeilen ab.
+- Tests: Suite 2210 gruen + 1 Alt-Skip (Basis 2193); Debug+Release 0 Fehler,
+  144 Alt-Warnungen. Neue Tests gegen echtes SQLite inkl. FK- und
+  Alt-Backup-Regression. Lifecycle-Artefakte lagen unter
+  `docs/features/…-schritt-27-ui-freigabe/` (im Abschlusscommit entfernt).

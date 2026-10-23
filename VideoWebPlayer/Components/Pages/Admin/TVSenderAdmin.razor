@@ -342,10 +342,28 @@ else
                    Poster 2:3, Badge (Genre/Live/Status), Zeit, Titel, Episoden-Info + Regel,
                    3-zeilige Beschreibung; laufender Slot mit LIVE-Badge + Fortschritt. *@
                 <div class="program-grid" id="tvsender-schedule-cards">
-                    @foreach (var slot in schedule)
+                    @* N27: Tages-Header je Kalendertag (lokale Zeit, wie die angezeigten
+                       Sendezeiten) und eine Trennlinie, sobald die erzeugende Programmregel
+                       wechselt — Bloecke je Regel bleiben visuell abgegrenzt. *@
+                    @foreach (var day in schedule.GroupBy(s => s.Start.ToLocalTime().Date))
                     {
-                        var card = SlotCard(slot);
-                        var running = IsRunning(slot);
+                        <div class="tvsender-day-header" data-day="@day.Key.ToString("yyyy-MM-dd")">
+                            @day.Key.ToString("dddd, dd.MM.yyyy")
+                        </div>
+                        long? previousRuleId = null;
+                        var firstInDay = true;
+                        @foreach (var slot in day)
+                        {
+                            if (!firstInDay && slot.ProgramRuleId != previousRuleId)
+                            {
+                                <div class="tvsender-rule-divider" data-rule-id="@slot.ProgramRuleId">
+                                    <span class="tvsender-rule-divider-label">@RuleName(slot)</span>
+                                </div>
+                            }
+                            firstInDay = false;
+                            previousRuleId = slot.ProgramRuleId;
+                            var card = SlotCard(slot);
+                            var running = IsRunning(slot);
                         <div class="program-card tvsender-slot-row @(slot.Status == ProgramSlotStatus.Displaced ? "tvsender-slot-displaced" : "") @(running ? "slot-now" : "")" data-slot-id="@slot.Id">
                             <div class="program-poster">
                                 <img src="@PosterUrl(card)" alt="" />
@@ -376,6 +394,7 @@ else
                                 }
                             </div>
                         </div>
+                        }
                     }
                 </div>
             }

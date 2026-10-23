@@ -129,7 +129,15 @@
         {
             await Client.EnsureAuthorizationTokenSilentlyAsync(state.User);
             mediaSources = (await Client.RequestSourcesAsync()).ToList();
-            tvSenderEnabled = await ProgramSettings.GetTvSenderEnabledAsync();
+            try
+            {
+                tvSenderEnabled = await ProgramSettings.GetTvSenderEnabledAsync();
+            }
+            catch (Exception ex) when (ex is ObjectDisposedException or OperationCanceledException)
+            {
+                // Circuit teardown may dispose the scoped settings service mid-await —
+                // the flag then simply keeps its default and the entry stays hidden.
+            }
         }
     }
 

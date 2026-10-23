@@ -15,6 +15,14 @@ Administrator unter `Einrichtung` → `Allgemein` den Schalter **„Automatisier
 freischalten"** setzt. Ohne Freigabe antworten die Endpunkte mit 404 und zeigen die Seiten einen
 Hinweis. Die Einstellung wirkt ohne Neustart; beim Sperren stoppt ein laufender ffmpeg-Lauf.
 
+Zusätzlich gilt eine **Freigabe pro Benutzer**: Unterhalb des Schalters wählt der Administrator
+in der Checkbox-Liste **„Diese Benutzer dürfen den TV-Sender sehen"** die freigegebenen Konten
+aus. Nur diese Benutzer sehen den „Live-TV"-Eintrag in der Navigation und können `/live-tv`
+sowie die Endpunkte nutzen — nicht freigegebene Benutzer erhalten dort 403 („kein Zugriff").
+Administratoren haben immer Zugriff und brauchen keinen Eintrag in der Liste (ihre Markierung
+ist fest gesetzt). Ohne Auswahl sehen nur Administratoren den Sender. Das Löschen eines
+Benutzerkontos entfernt dessen Freigabezeile automatisch.
+
 Die Seite ist in vier Bereiche gegliedert, die über die Reiter (Tabs) oben erreichbar sind:
 **Regeln** (Programmregeln-Tabelle; der Regel-Editor öffnet sich als Overlay-Panel über der
 Liste), **Sendeplan** (kommende
@@ -77,6 +85,10 @@ werden. Die Seite ist ausschließlich Administratoren zugänglich; die Berechtig
 serverseitig erzwungen, nicht nur in der Oberfläche.
 
 ## Sendeplan
+
+Die Karten im Tab „Sendeplan" sind nach Kalendertag gegliedert (Tages-Header). Innerhalb eines
+Tages markiert eine gestrichelte Trennlinie mit Regelname den Blockwechsel, sobald eine andere
+Programmregel den Sendeplatz erzeugt hat.
 
 Der Server erzeugt aus den aktiven Programmregeln automatisch einen rollierenden, lückenlosen
 Sendeplan. Zwei Einstellungen im Tab „Einstellungen" (Gruppe „Planung") steuern die Erzeugung:

@@ -30,4 +30,4 @@ Branch: `task/issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsende
 | 24 | Sendeplan-Panels mit Bild/Titel/Beschreibung (Admin + Live-TV) | 6+7 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-24-plan-panels` | Fertig |
 | 25 | Videos niemals kuerzen, Ueberlauf ueber Fenster-Ende erlaubt (N22) | 3+4 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-25-kein-kuerzen` | Fertig |
 | 26 | Serienmischung + Upcoming-Refresh + Sender-Freischaltung (N23-N25) | 3+7 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-26-diverse` | Fertig |
-| 27 | Fortschrittsbalken-Kultur + Tagesgliederung + User-Freigabe (N26-N28) | 7 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-27-ui-freigabe` | In Arbeit |
+| 27 | Fortschrittsbalken-Kultur + Tagesgliederung + User-Freigabe (N26-N28) | 7 | `task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-27-ui-freigabe` | Fertig |

@@ -414,3 +414,8 @@ sauber; Debug-bin war durch laufende App gesperrt → Scratch-OutDir/Release-Pfa
   144 Alt-Warnungen. Neue Tests gegen echtes SQLite inkl. FK- und
   Alt-Backup-Regression. Lifecycle-Artefakte lagen unter
   `docs/features/…-schritt-27-ui-freigabe/` (im Abschlusscommit entfernt).
+
+
+### Schritt 27: N26-N28 — FERTIG (abgenommen)
+
+- CssFormat.Percent invariant (Komma-Bug); Sendeplan Tages-Header + Regelwechsel-Divider; TvSenderUserAccess-Tabelle + IsTvSenderAccessGranted (Flag UND Admin-ODER-Allowlist) + 403-Gates + Admin-UI. Abnahme: `acceptance-schritt-27.md` — erfuellt.

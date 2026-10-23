@@ -23,6 +23,7 @@
 | 21 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-21-planer-eviction | fertig | 2026-10-22 |
 | 22 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-22-plan-rest | fertig | 2026-10-22 |
 | 23 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-23-regel-features | fertig | 2026-10-22 |
+| 27 | Devin | task-issue-111-6145c51699f34953bf29a244634a23e2-automatisierter-tvsender-schritt-27-ui-freigabe | aktiv | 2026-10-23 |
 
 ## Übergabestand je Schritt
 

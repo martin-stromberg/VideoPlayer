@@ -56,6 +56,11 @@ public class LiveStreamController : ApiBaseController
             if (!await _settings.GetTvSenderEnabledAsync(HttpContext.RequestAborted))
                 return NotFound();
 
+            // N28: ohne Benutzer-Freigabe (Admins implizit) wird der Zugriff verweigert (403).
+            if (!await _settings.IsTvSenderAccessGrantedAsync(
+                    CurrentUser?.Id, CurrentUser?.IsAdmin ?? false, HttpContext.RequestAborted))
+                return Forbid();
+
             var path = await _segmentStore.TryResolveFileAsync(fileName, HttpContext.RequestAborted);
             if (path is null)
                 return NotFound();

@@ -222,6 +222,11 @@ namespace VideoWebPlayer.Data
         /// Gets or sets the media-source filter links of program rules (genre material).
         /// </summary>
         public DbSet<ProgramRuleMediaSource> ProgramRuleMediaSources { get; set; }
+
+        /// <summary>
+        /// Gets or sets the per-user release list of the automated TV channel.
+        /// </summary>
+        public DbSet<TvSenderUserAccess> TvSenderUserAccess { get; set; }
         #endregion
         #region MediaSource Manipulation Methods
         /// <summary>

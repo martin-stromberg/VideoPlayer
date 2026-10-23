@@ -31,6 +31,10 @@ public sealed class LiveTvE2ETests : PlaylistsE2ETestBase
         }
         setup.LiveStreamSegmentDirectory = segDir;
         setup.TvSenderEnabled = true;
+        // N28: UserA bekommt die Sender-Freigabe — sonst bleibt /live-tv hinter der
+        // Benutzer-Allowlist verborgen.
+        var userA = await db.Users.SingleAsync(u => u.Email == UserAEmail, TestContext.Current.CancellationToken);
+        db.TvSenderUserAccess.Add(new TvSenderUserAccess { UserId = userA.Id });
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         return segDir;
     }
@@ -127,6 +131,8 @@ public sealed class LiveTvE2ETests : PlaylistsE2ETestBase
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var setup = await db.Setups.FirstOrDefaultAsync(TestContext.Current.CancellationToken) ?? db.Setups.Add(new Setup()).Entity;
             setup.TvSenderEnabled = true;
+            var userA = await db.Users.SingleAsync(u => u.Email == UserAEmail, TestContext.Current.CancellationToken);
+            db.TvSenderUserAccess.Add(new TvSenderUserAccess { UserId = userA.Id });
             var channel = new TVChannel { Name = "Luecken-Sender" };
             db.TVChannels.Add(channel);
             var source = new MediaSource { Name = $"Luecken-Quelle {Guid.NewGuid():N}", Path = "/e2e-gap", Host = "localhost", Port = 22 };

@@ -25,12 +25,15 @@ public class LiveTvTests(ITestOutputHelper _)
     private const string TestToken = "test-token";
     private static readonly Helpers.ControllableTimeProvider ControllableTime = new();
 
-    private static BunitContext CreateContext(Mock<IProgramGuideApiClient>? guide = null, bool authorized = true, bool tvSenderEnabled = true)
+    private const string TestUserId = "test-user-id";
+
+    private static BunitContext CreateContext(Mock<IProgramGuideApiClient>? guide = null, bool authorized = true, bool tvSenderEnabled = true, bool tvSenderAccessGranted = true)
     {
         var ctx = new BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         if (authorized)
-            ctx.AddAuthorization().SetAuthorized("test-user");
+            ctx.AddAuthorization().SetAuthorized("test-user")
+                .SetClaims(new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, TestUserId));
         else
             ctx.AddAuthorization();
 
@@ -44,6 +47,8 @@ public class LiveTvTests(ITestOutputHelper _)
             .Options;
         var db = new ApplicationDbContext(options, new EventManager());
         db.Setups.Add(new Setup { TvSenderEnabled = tvSenderEnabled });
+        if (tvSenderAccessGranted)
+            db.TvSenderUserAccess.Add(new TvSenderUserAccess { UserId = TestUserId });
         db.SaveChanges();
         ctx.Services.AddSingleton(new ProgramSettingsService(db, NullLogger<ProgramSettingsService>.Instance));
         return ctx;
@@ -290,6 +295,18 @@ public class LiveTvTests(ITestOutputHelper _)
         Assert.Contains("nicht freigeschaltet", cut.Find("#live-tv-disabled").TextContent);
         guide.Verify(m => m.RequestProgramGuideNowAsync(It.IsAny<CancellationToken>()), Times.Never);
         guide.Verify(m => m.RequestProgramGuideUpcomingAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public void Page_UserWithoutTvAccess_ShowsForbiddenHint_WithoutGuideCall()
+    {
+        var guide = CreateGuideMock();
+        using var ctx = CreateContext(guide, tvSenderAccessGranted: false);
+
+        var cut = ctx.Render<LiveTv>();
+
+        Assert.Contains("keinen Zugriff auf den TV-Sender", cut.Find("#live-tv-no-access").TextContent);
+        guide.Verify(m => m.RequestProgramGuideNowAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

@@ -183,6 +183,58 @@ public sealed class ProgramSettingsService
     }
 
     /// <summary>
+    /// Combined access check for the automated TV channel: the feature must be released
+    /// globally (<see cref="Setup.TvSenderEnabled"/>) <em>and</em> the user must be either an
+    /// administrator (implicit access) or listed in <see cref="TvSenderUserAccess"/>.
+    /// </summary>
+    /// <param name="userId">The user's <see cref="ApplicationUser"/> id, or
+    /// <see langword="null"/> when unknown.</param>
+    /// <param name="isAdmin">Whether the user is an administrator.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Whether the user may see and use the TV channel.</returns>
+    public async Task<bool> IsTvSenderAccessGrantedAsync(string? userId, bool isAdmin, CancellationToken cancellationToken = default)
+    {
+        if (!await GetTvSenderEnabledAsync(cancellationToken))
+            return false;
+        if (isAdmin)
+            return true;
+        return !string.IsNullOrEmpty(userId)
+            && await _db.TvSenderUserAccess.AnyAsync(a => a.UserId == userId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Gets the ids of the users explicitly released for the automated TV channel.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The allowed user ids (never <see langword="null"/>).</returns>
+    public async Task<HashSet<string>> GetTvSenderAllowedUserIdsAsync(CancellationToken cancellationToken = default)
+        => (await _db.TvSenderUserAccess.AsNoTracking().Select(a => a.UserId).ToListAsync(cancellationToken))
+            .ToHashSet(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Replaces the per-user release list of the automated TV channel: rows whose user id is
+    /// missing from <paramref name="userIds"/> are removed, new ids are inserted — in a single
+    /// save so the allowlist is never half-written. Administrators need no row; the caller may
+    /// pass their ids as well, they are stored but evaluated via the implicit admin access.
+    /// </summary>
+    /// <param name="userIds">The complete new set of allowed user ids.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task UpdateTvSenderAllowedUserIdsAsync(IEnumerable<string> userIds, CancellationToken cancellationToken = default)
+    {
+        var wanted = userIds.Where(id => !string.IsNullOrWhiteSpace(id)).ToHashSet(StringComparer.Ordinal);
+        var existing = await _db.TvSenderUserAccess.Where(a => wanted.Contains(a.UserId)).ToListAsync(cancellationToken);
+
+        // Remove rows not in the new set, then insert the missing ones.
+        var kept = existing.Select(a => a.UserId).ToHashSet(StringComparer.Ordinal);
+        _db.TvSenderUserAccess.RemoveRange(
+            _db.TvSenderUserAccess.Where(a => !wanted.Contains(a.UserId)));
+        _db.TvSenderUserAccess.AddRange(wanted.Except(kept, StringComparer.Ordinal)
+            .Select(id => new TvSenderUserAccess { UserId = id }));
+
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
     /// Gets the admin-maintained public base URL for discovery answers.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>

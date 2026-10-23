@@ -39,6 +39,13 @@ public class ProgramGuideController : ApiBaseController
     private async Task<bool> FeatureReleasedAsync()
         => await _settings.GetTvSenderEnabledAsync(HttpContext.RequestAborted);
 
+    // N28: zusätzlich zur globalen Freigabe muss der aufrufende Benutzer freigegeben sein —
+    // sonst 403 (sichtbar als „kein Zugriff", nicht als „Feature existiert nicht").
+    // Administratoren sind implizit freigegeben.
+    private async Task<bool> AccessGrantedAsync()
+        => await _settings.IsTvSenderAccessGrantedAsync(
+            CurrentUser?.Id, CurrentUser?.IsAdmin ?? false, HttpContext.RequestAborted);
+
     /// <summary>
     /// Gets which broadcast runs right now (with its position inside the video and its remaining
     /// duration) and which one follows — purely time-based, independent of viewers.
@@ -52,6 +59,8 @@ public class ProgramGuideController : ApiBaseController
             CheckLoggedIn();
             if (!await FeatureReleasedAsync())
                 return NotFound();
+            if (!await AccessGrantedAsync())
+                return Forbid();
             var result = await _programGuideService.GetNowAsync(DateTimeOffset.UtcNow, HttpContext.RequestAborted);
             return Ok(result);
         }, "Abrufen der Programmauskunft (Jetzt/Gleich)");
@@ -73,6 +82,8 @@ public class ProgramGuideController : ApiBaseController
             CheckLoggedIn();
             if (!await FeatureReleasedAsync())
                 return NotFound();
+            if (!await AccessGrantedAsync())
+                return Forbid();
             // Range check before TimeSpan.FromHours: extreme values would overflow into a 500.
             if (hours < 1 || hours > ProgramGuideService.MaxPreviewHours)
                 return BadRequest($"hours muss zwischen 1 und {ProgramGuideService.MaxPreviewHours} liegen.");

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Data;
@@ -26,6 +27,9 @@ public sealed class ProgramGuideE2ETests : DeviceClientTestBase
     {
         using var scope = CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var setup = await db.Setups.FirstOrDefaultAsync(TestContext.Current.CancellationToken) ?? db.Setups.Add(new Setup()).Entity;
+        setup.TvSenderEnabled = true;
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var channel = new TVChannel { Name = "E2E-Sender" };
         db.TVChannels.Add(channel);

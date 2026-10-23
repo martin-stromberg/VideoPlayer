@@ -29,7 +29,7 @@ public sealed class ProgramSettingsServiceTests
         var service = new ProgramSettingsService(fixture.Db, NullLogger<ProgramSettingsService>.Instance);
 
         await service.UpdateGeneralSettingsAsync(
-            new GeneralSettingsUpdate("Titel", 60, 7, 30, MdnsAdvertisementEnabled: false, DiscoveryPublicBaseUrl: null), ct);
+            new GeneralSettingsUpdate("Titel", 60, 7, 30, MdnsAdvertisementEnabled: false, DiscoveryPublicBaseUrl: null, TvSenderEnabled: true), ct);
 
         var setup = await fixture.Db.Setups.AsNoTracking().SingleAsync(ct);
         Assert.False(setup.MdnsAdvertisementEnabled);
@@ -37,7 +37,7 @@ public sealed class ProgramSettingsServiceTests
         Assert.False(await service.GetMdnsAdvertisementEnabledAsync(ct));
 
         await service.UpdateGeneralSettingsAsync(
-            new GeneralSettingsUpdate("Titel", 60, 7, 30, MdnsAdvertisementEnabled: true, DiscoveryPublicBaseUrl: null), ct);
+            new GeneralSettingsUpdate("Titel", 60, 7, 30, MdnsAdvertisementEnabled: true, DiscoveryPublicBaseUrl: null, TvSenderEnabled: true), ct);
         Assert.True((await fixture.Db.Setups.AsNoTracking().SingleAsync(ct)).MdnsAdvertisementEnabled);
     }
 
@@ -61,7 +61,7 @@ public sealed class ProgramSettingsServiceTests
         await service.UpdateGeneralSettingsAsync(
             new GeneralSettingsUpdate(
                 "Titel", 60, 7, 30, MdnsAdvertisementEnabled: true,
-                DiscoveryPublicBaseUrl: "  https://videos.example.com/videoplayer/  "), ct);
+                DiscoveryPublicBaseUrl: "  https://videos.example.com/videoplayer/  ", TvSenderEnabled: true), ct);
 
         var setup = await fixture.Db.Setups.AsNoTracking().SingleAsync(ct);
         Assert.Equal("https://videos.example.com/videoplayer/", setup.DiscoveryPublicBaseUrl);
@@ -80,11 +80,11 @@ public sealed class ProgramSettingsServiceTests
         await service.UpdateGeneralSettingsAsync(
             new GeneralSettingsUpdate(
                 "Titel", 60, 7, 30, MdnsAdvertisementEnabled: true,
-                DiscoveryPublicBaseUrl: "https://videos.example.com/videoplayer/"), ct);
+                DiscoveryPublicBaseUrl: "https://videos.example.com/videoplayer/", TvSenderEnabled: true), ct);
 
         // Leeren Wert speichern löscht den Admin-Override.
         await service.UpdateGeneralSettingsAsync(
-            new GeneralSettingsUpdate("Titel", 60, 7, 30, MdnsAdvertisementEnabled: true, DiscoveryPublicBaseUrl: " "), ct);
+            new GeneralSettingsUpdate("Titel", 60, 7, 30, MdnsAdvertisementEnabled: true, DiscoveryPublicBaseUrl: " ", TvSenderEnabled: true), ct);
 
         Assert.Null((await fixture.Db.Setups.AsNoTracking().SingleAsync(ct)).DiscoveryPublicBaseUrl);
         Assert.Null(await service.GetDiscoveryPublicBaseUrlAsync(ct));
@@ -103,12 +103,12 @@ public sealed class ProgramSettingsServiceTests
         await service.UpdateGeneralSettingsAsync(
             new GeneralSettingsUpdate(
                 "Titel", 60, 7, 30, MdnsAdvertisementEnabled: true,
-                DiscoveryPublicBaseUrl: "https://videos.example.com/"), ct);
+                DiscoveryPublicBaseUrl: "https://videos.example.com/", TvSenderEnabled: true), ct);
 
         await Assert.ThrowsAsync<DiscoveryUrlValidationException>(() => service.UpdateGeneralSettingsAsync(
             new GeneralSettingsUpdate(
                 "Titel", 60, 7, 30, MdnsAdvertisementEnabled: true,
-                DiscoveryPublicBaseUrl: invalidUrl), ct));
+                DiscoveryPublicBaseUrl: invalidUrl, TvSenderEnabled: true), ct));
 
         // Atomar: die ungültige Eingabe schreibt nichts, der bisherige Wert bleibt bestehen.
         var setup = await fixture.Db.Setups.AsNoTracking().SingleAsync(ct);

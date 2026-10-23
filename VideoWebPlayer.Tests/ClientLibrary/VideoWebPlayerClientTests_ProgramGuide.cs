@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Data;
@@ -16,6 +17,8 @@ public sealed class VideoWebPlayerClientTests_ProgramGuide : DeviceClientTestBas
     {
         using var scope = CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var setup = await db.Setups.FirstOrDefaultAsync() ?? db.Setups.Add(new Setup()).Entity;
+        setup.TvSenderEnabled = true;
 
         var channel = new TVChannel { Name = "Client-Guide-Sender" };
         db.TVChannels.Add(channel);

@@ -68,24 +68,37 @@ public sealed class LiveStreamWorker : BackgroundService
                 try
                 {
                     using var scope = _scopeFactory.CreateScope();
-                    var gate = scope.ServiceProvider.GetService<IBackgroundProcessingGate>();
-                    await using var lease = gate is null
-                        ? null
-                        : await gate.EnterOperationAsync("Live-Stream", stoppingToken);
+                    var settings = scope.ServiceProvider.GetRequiredService<ProgramSettingsService>();
 
-                    var coordinator = scope.ServiceProvider.GetRequiredService<LiveStreamCoordinator>();
-                    var result = await coordinator.SynchronizeAsync(_timeProvider.GetUtcNow(), stoppingToken);
-
-                    if (result.Action == LiveStreamSyncAction.FfmpegUnavailable)
-                        LogFfmpegUnavailableThrottled(result.Detail);
-                    else if (result.Action is LiveStreamSyncAction.Started or LiveStreamSyncAction.MediaUnavailable)
-                        _logger.LogInformation("[LiveStreamWorker] {Detail}", result.Detail);
-
-                    if (result.WakeAtUtc is { } wakeAt)
+                    if (!await settings.GetTvSenderEnabledAsync(stoppingToken))
                     {
-                        var until = wakeAt - _timeProvider.GetUtcNow();
-                        if (until < delay)
-                            delay = until > TimeSpan.Zero ? until : TimeSpan.FromSeconds(1);
+                        // Feature-Flag aus: keine Segmentierung — einen evtl. noch laufenden
+                        // ffmpeg-Lauf stoppen (idempotent), dann den Poll-Takt beibehalten.
+                        var segmenter = scope.ServiceProvider.GetRequiredService<ILiveStreamSegmenter>();
+                        if (segmenter.IsRunning)
+                            await segmenter.StopAsync(stoppingToken);
+                    }
+                    else
+                    {
+                        var gate = scope.ServiceProvider.GetService<IBackgroundProcessingGate>();
+                        await using var lease = gate is null
+                            ? null
+                            : await gate.EnterOperationAsync("Live-Stream", stoppingToken);
+
+                        var coordinator = scope.ServiceProvider.GetRequiredService<LiveStreamCoordinator>();
+                        var result = await coordinator.SynchronizeAsync(_timeProvider.GetUtcNow(), stoppingToken);
+
+                        if (result.Action == LiveStreamSyncAction.FfmpegUnavailable)
+                            LogFfmpegUnavailableThrottled(result.Detail);
+                        else if (result.Action is LiveStreamSyncAction.Started or LiveStreamSyncAction.MediaUnavailable)
+                            _logger.LogInformation("[LiveStreamWorker] {Detail}", result.Detail);
+
+                        if (result.WakeAtUtc is { } wakeAt)
+                        {
+                            var until = wakeAt - _timeProvider.GetUtcNow();
+                            if (until < delay)
+                                delay = until > TimeSpan.Zero ? until : TimeSpan.FromSeconds(1);
+                        }
                     }
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

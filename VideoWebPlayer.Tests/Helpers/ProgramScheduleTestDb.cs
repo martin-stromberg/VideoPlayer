@@ -34,6 +34,11 @@ internal sealed class ProgramScheduleTestDb : IDisposable
             .Options;
         var db = new ApplicationDbContext(options, new EventManager());
         await db.Database.EnsureCreatedAsync(ct);
+
+        // Feature-Flag: Tests der Sender-Funktionen laufen standardmaessig mit Freigabe;
+        // Tests der Sperre setzen den Wert explizit auf false.
+        db.Setups.Add(new Setup { TvSenderEnabled = true });
+        await db.SaveChangesAsync(ct);
         return new ProgramScheduleTestDb(connection, db);
     }
 

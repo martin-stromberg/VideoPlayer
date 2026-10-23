@@ -90,7 +90,8 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.LiveStreamSegmentDirectory)}",
         $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.LiveStreamSegmentRetentionMinutes)}",
         $"{nameof(ApplicationDbContext.MovieMediaItems)}.{nameof(MovieMediaItem.IsTrailer)}",
-        $"{nameof(ApplicationDbContext.ProgramRuleCursors)}.{nameof(ProgramRuleCursor.StrandKey)}"
+        $"{nameof(ApplicationDbContext.ProgramRuleCursors)}.{nameof(ProgramRuleCursor.StrandKey)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.TvSenderEnabled)}"
     };
 
     private static readonly HashSet<string> IgnoredRestoreColumns = new(StringComparer.OrdinalIgnoreCase)
@@ -114,7 +115,8 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         (nameof(ApplicationDbContext.Playlists), nameof(Playlist.CoverPictureIsUserUploaded), false),
         (nameof(ApplicationDbContext.Playlists), nameof(Playlist.IsPublic), false),
         (nameof(ApplicationDbContext.Setups), nameof(Setup.MdnsAdvertisementEnabled), true),
-        (nameof(ApplicationDbContext.MovieMediaItems), nameof(MovieMediaItem.IsTrailer), false)
+        (nameof(ApplicationDbContext.MovieMediaItems), nameof(MovieMediaItem.IsTrailer), false),
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.TvSenderEnabled), false)
     };
 
     private static readonly (string Table, string Column, long DefaultValue)[] OptionalRestoreLongDefaults =

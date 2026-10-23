@@ -33,6 +33,7 @@ public sealed class LiveStreamE2ETests : DeviceClientTestBase
             db.Setups.Add(setup);
         }
         setup.LiveStreamSegmentDirectory = segDir;
+        setup.TvSenderEnabled = true;
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         return segDir;
     }

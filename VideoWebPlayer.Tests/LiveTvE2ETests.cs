@@ -30,6 +30,7 @@ public sealed class LiveTvE2ETests : PlaylistsE2ETestBase
             db.Setups.Add(setup);
         }
         setup.LiveStreamSegmentDirectory = segDir;
+        setup.TvSenderEnabled = true;
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         return segDir;
     }
@@ -124,6 +125,8 @@ public sealed class LiveTvE2ETests : PlaylistsE2ETestBase
         using (var scope = Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var setup = await db.Setups.FirstOrDefaultAsync(TestContext.Current.CancellationToken) ?? db.Setups.Add(new Setup()).Entity;
+            setup.TvSenderEnabled = true;
             var channel = new TVChannel { Name = "Luecken-Sender" };
             db.TVChannels.Add(channel);
             var source = new MediaSource { Name = $"Luecken-Quelle {Guid.NewGuid():N}", Path = "/e2e-gap", Host = "localhost", Port = 22 };

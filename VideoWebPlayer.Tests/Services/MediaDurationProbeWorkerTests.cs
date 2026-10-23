@@ -39,6 +39,8 @@ public class MediaDurationProbeWorkerTests : IDisposable
         services.AddSingleton<IFfprobeLocator>(new PresentLocator());
         services.AddSingleton(Options.Create(new MediaProbeOptions { IntervalSeconds = 60, BatchSize = 10 }));
         services.AddScoped<MediaDurationProbeService>();
+        services.AddScoped<ProgramSettingsService>();
+        services.AddSingleton<Microsoft.Extensions.Logging.ILogger<ProgramSettingsService>>(NullLogger<ProgramSettingsService>.Instance);
         services.AddSingleton<Microsoft.Extensions.Logging.ILogger<MediaDurationProbeService>>(NullLogger<MediaDurationProbeService>.Instance);
         services.AddSingleton<Microsoft.Extensions.Logging.ILogger<MediaDurationProbeWorker>>(NullLogger<MediaDurationProbeWorker>.Instance);
         services.AddSingleton<Microsoft.Extensions.Logging.ILoggerFactory>(NullLoggerFactory.Instance);
@@ -48,7 +50,7 @@ public class MediaDurationProbeWorkerTests : IDisposable
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         db.Database.EnsureCreated();
-        db.Setups.Add(new Setup { DataVersion = DataUpgradeManager.CurrentVersion });
+        db.Setups.Add(new Setup { DataVersion = DataUpgradeManager.CurrentVersion, TvSenderEnabled = true });
         db.SaveChanges();
     }
 

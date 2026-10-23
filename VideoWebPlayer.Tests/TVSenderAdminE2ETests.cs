@@ -38,10 +38,22 @@ public sealed class TVSenderAdminE2ETests : PlaylistsE2ETestBase
             () => Page.Locator($"{paneSelector}.active").WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 }));
     }
 
+
+    private async Task EnableTvSenderAsync()
+    {
+        using var scope = Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<VideoWebPlayer.Data.ApplicationDbContext>();
+        var ct = TestContext.Current.CancellationToken;
+        var setup = await db.Setups.FirstOrDefaultAsync(ct) ?? db.Setups.Add(new Setup()).Entity;
+        setup.TvSenderEnabled = true;
+        await db.SaveChangesAsync(ct);
+    }
+
     [Fact]
     public async Task Admin_CreateEditDeactivateDeleteRule()
     {
         if (SkipBrowser) return;
+        await EnableTvSenderAsync();
 
         var showId = await SeedTvShowWithSeasonsAsync("E2E Serie", ("Staffel 1", 2));
 
@@ -320,6 +332,7 @@ public sealed class TVSenderAdminE2ETests : PlaylistsE2ETestBase
     public async Task Admin_GenreRule_MultiSelectAndSourceFilter()
     {
         if (SkipBrowser) return;
+        await EnableTvSenderAsync();
 
         // Two visible genres plus one hidden genre (must not be selectable) on the shared source.
         long genreAId, genreBId, hiddenId, sourceId;
@@ -399,6 +412,7 @@ public sealed class TVSenderAdminE2ETests : PlaylistsE2ETestBase
     public async Task NonAdmin_SeesNotAuthorized()
     {
         if (SkipBrowser) return;
+        await EnableTvSenderAsync();
 
         await LoginAsync(UserBEmail);
         await Page.GotoAsync($"{ServerUrl}/admin/tv-sender");

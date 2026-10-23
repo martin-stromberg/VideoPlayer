@@ -56,6 +56,8 @@ public sealed class ProgramScheduleWorkerTests
             db.Movies.Add(movie);
             await db.SaveChangesAsync(ct);
             db.MovieMediaItems.Add(new MovieMediaItem { MovieId = movie.Id, MediaItemId = item.Id });
+            db.Setups.Add(new Setup { TvSenderEnabled = true });
+            await db.SaveChangesAsync(ct);
             db.ProgramRules.Add(new ProgramRule
             {
                 TVChannelId = channel.Id,

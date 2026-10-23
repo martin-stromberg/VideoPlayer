@@ -60,14 +60,19 @@ public sealed class ProgramScheduleWorker : BackgroundService
                     var settings = scope.ServiceProvider.GetRequiredService<ProgramSettingsService>();
                     interval = await settings.GetProgramScheduleIntervalAsync(stoppingToken);
 
-                    var gate = scope.ServiceProvider.GetService<IBackgroundProcessingGate>();
-                    await using var lease = gate is null
-                        ? null
-                        : await gate.EnterOperationAsync("Sendeplan", stoppingToken);
+                    if (await settings.GetTvSenderEnabledAsync(stoppingToken))
+                    {
+                        var gate = scope.ServiceProvider.GetService<IBackgroundProcessingGate>();
+                        await using var lease = gate is null
+                            ? null
+                            : await gate.EnterOperationAsync("Sendeplan", stoppingToken);
 
-                    var service = scope.ServiceProvider.GetRequiredService<IProgramScheduleService>();
-                    await service.ReconcileAsync(_timeProvider.GetUtcNow(), stoppingToken);
-                    await service.EnsureCoverageAsync(_timeProvider.GetUtcNow(), stoppingToken);
+                        var service = scope.ServiceProvider.GetRequiredService<IProgramScheduleService>();
+                        await service.ReconcileAsync(_timeProvider.GetUtcNow(), stoppingToken);
+                        await service.EnsureCoverageAsync(_timeProvider.GetUtcNow(), stoppingToken);
+                    }
+                    // Feature-Flag aus: Sendeplan pausiert (kein Reconcile, kein Ausbau) —
+                    // der Intervall-Sleep unten bleibt, das Aufwachen per Signal ebenfalls.
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                 {

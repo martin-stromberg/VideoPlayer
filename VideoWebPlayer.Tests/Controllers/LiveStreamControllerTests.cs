@@ -31,7 +31,7 @@ public sealed class LiveStreamControllerTests : IAsyncLifetime
             settings, NullLogger<LiveStreamSegmentStore>.Instance);
         _segDir = await store.GetDirectoryAsync(ct);
 
-        _controller = new LiveStreamController(store,
+        _controller = new LiveStreamController(store, settings,
             new FakeAuthService { CurrentUser = new ApplicationUser { Id = "u1", UserName = "u@x.de" } },
             NullLogger<LiveStreamController>.Instance);
         _controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() };
@@ -121,6 +121,7 @@ public sealed class LiveStreamControllerTests : IAsyncLifetime
                 new TestWebHostEnvironment { ContentRootPath = _contentRoot },
                 new ProgramSettingsService(_fixture.Db, NullLogger<ProgramSettingsService>.Instance),
                 NullLogger<LiveStreamSegmentStore>.Instance),
+            new ProgramSettingsService(_fixture.Db, NullLogger<ProgramSettingsService>.Instance),
             new FakeAuthService(), NullLogger<LiveStreamController>.Instance);
         controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() };
 

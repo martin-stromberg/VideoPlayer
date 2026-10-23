@@ -23,6 +23,15 @@
 {
     <div class="alert alert-danger">Nicht autorisiert.</div>
 }
+else if (!tvSenderEnabled)
+{
+    <section class="admin-console">
+        <div class="alert alert-info" id="tvsender-disabled">
+            Der TV-Sender ist nicht freigeschaltet. Die Freischaltung erfolgt unter
+            <a href="/admin/program-settings">Einrichtung → Allgemein</a>.
+        </div>
+    </section>
+}
 else
 {
     <section class="admin-console admin-tvsender-page">
@@ -656,6 +665,7 @@ else
 
 @code {
     private bool isAdmin;
+    private bool tvSenderEnabled = true;
     private string userId = string.Empty;
     private TVChannel? channel;
     private string channelName = string.Empty;
@@ -705,6 +715,10 @@ else
         var auth = await AuthStateProvider.GetAuthenticationStateAsync();
         isAdmin = auth.User.Identity?.IsAuthenticated == true && auth.User.HasClaim("IsAdmin", "True");
         if (!isAdmin)
+            return;
+
+        tvSenderEnabled = await ProgramSettings.GetTvSenderEnabledAsync();
+        if (!tvSenderEnabled)
             return;
 
         await Client.EnsureAuthorizationTokenSilentlyAsync(auth.User);

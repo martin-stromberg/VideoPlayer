@@ -154,7 +154,31 @@ public sealed class ProgramSettingsService
         setup.ContinueWatchingEndThresholdSeconds = Math.Max(0, settings.ContinueWatchingEndThresholdSeconds);
         setup.MdnsAdvertisementEnabled = settings.MdnsAdvertisementEnabled;
         setup.DiscoveryPublicBaseUrl = normalizedBaseUrl;
+        setup.TvSenderEnabled = settings.TvSenderEnabled;
 
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Gets the admin release switch for the automated TV channel.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Whether the TV channel feature is released.</returns>
+    public async Task<bool> GetTvSenderEnabledAsync(CancellationToken cancellationToken = default)
+    {
+        var setup = await GetOrCreateSetupAsync(cancellationToken);
+        return setup.TvSenderEnabled;
+    }
+
+    /// <summary>
+    /// Persists the admin release switch for the automated TV channel.
+    /// </summary>
+    /// <param name="enabled">Whether the TV channel feature is released.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task UpdateTvSenderEnabledAsync(bool enabled, CancellationToken cancellationToken = default)
+    {
+        var setup = await GetOrCreateSetupAsync(cancellationToken);
+        setup.TvSenderEnabled = enabled;
         await _db.SaveChangesAsync(cancellationToken);
     }
 
@@ -365,6 +389,7 @@ public sealed class ProgramSettingsService
 /// <param name="ContinueWatchingEndThresholdSeconds">Seconds before the end of a video after which the position is no longer saved.</param>
 /// <param name="MdnsAdvertisementEnabled">Whether the server announces itself via mDNS.</param>
 /// <param name="DiscoveryPublicBaseUrl">Public base URL for discovery answers; empty clears the admin override. Must be an absolute <c>http</c>/<c>https</c> URL when set.</param>
+/// <param name="TvSenderEnabled">Whether the automated TV channel feature is released.</param>
 /// <returns>The parameter object for the atomic general-settings update.</returns>
 public sealed record GeneralSettingsUpdate(
     string ApplicationTitle,
@@ -372,4 +397,5 @@ public sealed record GeneralSettingsUpdate(
     int MediaCollectionScanIntervalDays,
     int ContinueWatchingEndThresholdSeconds,
     bool MdnsAdvertisementEnabled,
-    string? DiscoveryPublicBaseUrl);
+    string? DiscoveryPublicBaseUrl,
+    bool TvSenderEnabled);

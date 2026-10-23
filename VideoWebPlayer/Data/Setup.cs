@@ -70,6 +70,16 @@ public class Setup
     public DateTime? PlaylistBackfillLastSweepAt { get; set; }
 
     /// <summary>
+    /// Gets or sets the admin release switch for the automated TV channel (feature flag):
+    /// only when enabled do the navigation entry, the <c>/live-tv</c> and
+    /// <c>/admin/tv-sender</c> pages, the <c>/api/program-guide</c> and
+    /// <c>/api/live-stream</c> endpoints serve content, and the schedule/stream/probe
+    /// workers run. Default: <see langword="false"/> — the feature stays hidden until
+    /// an administrator explicitly enables it.
+    /// </summary>
+    public bool TvSenderEnabled { get; set; }
+
+    /// <summary>
     /// Gets or sets the German federal state (ISO-3166-2 code like <c>DE-NW</c>) whose public
     /// holidays the automated TV channel's holiday rules (<c>ProgramRuleRecurrence.Holiday</c>)
     /// follow. <c>null</c> means only holidays valid in all of Germany apply.

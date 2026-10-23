@@ -373,3 +373,8 @@
 ### Schritt 24: Sendeplan-Panels — FERTIG (abgenommen)
 
 - program-card-Design (Prototyp getreu) im Sendeplan-Tab + Live-TV-Vorschau; DtoProgramGuideEntry +PosterPictureId/Description/GenreName/ShowName/SeasonName/SeasonNumber/EpisodeNumber/EpisodeName; Poster via GET /api/pictures/{id}?access_token. Abnahme: `acceptance-schritt-24.md` — erfüllt (nur Prozess-Hinweis Bearbeiter-Zeile, hier nachgetragen).
+
+
+### Schritt 25: Kein Kuerzen (N22) — FERTIG (abgenommen)
+
+- Ursache: DisplaceAiringSuffix verdrängte legitime Ueberstaende; BoundaryAfter-Drop toetete Folge-Ausstrahlung. Fix: weiche Grenze (Item startet ab MinStartRemainSeconds=30s Rest, laeuft komplett, ShiftPastInvaders verschiebt Folge hinter Item-Ende) vs. harte Grenze bei hoeherpriorer Folge (passt oder defer); DisplaceAiringSuffix entfernt. Abnahme-Fixes: Offset-Tag-Kandidaten (UTC-Grenze), Kommentar. Abnahme: `acceptance-schritt-25.md`.

@@ -16,6 +16,21 @@ public sealed class ProgramScheduleWorkerTests
     public async Task Worker_RunsEnsureCoverage_OnStartup()
     {
         var ct = TestContext.Current.CancellationToken;
+        await AssertWorkerCreatesSlotsAsync(ct, tvSenderEnabled: true, expectSlots: true);
+    }
+
+    [Fact]
+    public async Task Worker_IdlesWithoutSchedule_WhenFeatureNotReleased()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // Feature-Flag aus: der Worker behaelt seinen Takt, darf aber keinen Sendeplatz
+        // materialisieren — Reconcile/EnsureCoverage werden uebersprungen.
+        await AssertWorkerCreatesSlotsAsync(ct, tvSenderEnabled: false, expectSlots: false);
+    }
+
+    private static async Task AssertWorkerCreatesSlotsAsync(
+        CancellationToken ct, bool tvSenderEnabled, bool expectSlots)
+    {
         var connectionString = $"Data Source=file:schedule-worker-{Guid.NewGuid():N}?mode=memory&cache=shared";
         await using var connection = new SqliteConnection(connectionString);
         await connection.OpenAsync(ct);
@@ -56,7 +71,7 @@ public sealed class ProgramScheduleWorkerTests
             db.Movies.Add(movie);
             await db.SaveChangesAsync(ct);
             db.MovieMediaItems.Add(new MovieMediaItem { MovieId = movie.Id, MediaItemId = item.Id });
-            db.Setups.Add(new Setup { TvSenderEnabled = true });
+            db.Setups.Add(new Setup { TvSenderEnabled = tvSenderEnabled });
             await db.SaveChangesAsync(ct);
             db.ProgramRules.Add(new ProgramRule
             {
@@ -81,7 +96,7 @@ public sealed class ProgramScheduleWorkerTests
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         await worker.StartAsync(cts.Token);
 
-        var deadline = DateTime.UtcNow.AddSeconds(30);
+        var deadline = DateTime.UtcNow.AddSeconds(expectSlots ? 30 : 5);
         var created = 0;
         while (DateTime.UtcNow < deadline)
         {
@@ -96,6 +111,6 @@ public sealed class ProgramScheduleWorkerTests
         await worker.StopAsync(CancellationToken.None);
         worker.Dispose();
 
-        Assert.True(created > 0, "Worker hat keine Sendeplätze erzeugt.");
+        Assert.Equal(expectSlots, created > 0);
     }
 }

@@ -104,6 +104,49 @@ public class MediaDurationProbeWorkerTests : IDisposable
         Assert.Equal(TimeSpan.FromMinutes(3), (await db.MediaItems.SingleAsync(i => i.Id == item.Id, ct)).Duration);
     }
 
+    [Fact]
+    public async Task ExecuteAsync_FeatureNotReleased_LeavesItemsUnprobed()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var db = _serviceProvider.GetRequiredService<ApplicationDbContext>();
+
+        // Feature-Flag aus: der Worker haelt seinen Takt, fuehrt aber keine Probes aus —
+        // die Laufzeitermittlung gehoert ausschliesslich zum TV-Sender.
+        var setup = await db.Setups.SingleAsync(ct);
+        setup.TvSenderEnabled = false;
+        await db.SaveChangesAsync(ct);
+
+        var source = new MediaSource { Name = "local", Path = _rootDir, SourceType = MediaSourceType.LocalDirectory, CreatedAt = DateTime.UtcNow };
+        db.MediaSources.Add(source);
+        await db.SaveChangesAsync(ct);
+        var collection = new MediaCollection { Name = "root", Path = _rootDir, CreatedAt = DateTime.UtcNow, MediaSource = source, MediaSourceId = source.Id };
+        db.MediaCollections.Add(collection);
+        await db.SaveChangesAsync(ct);
+        var item = new MediaItem { Name = "clip.mp4", Path = Path.Combine(_rootDir, "clip.mp4"), CreatedAt = DateTime.UtcNow, MediaCollectionId = collection.Id };
+        db.MediaItems.Add(item);
+        await db.SaveChangesAsync(ct);
+
+        var worker = new MediaDurationProbeWorker(
+            _serviceProvider.GetRequiredService<IServiceScopeFactory>(),
+            _serviceProvider.GetRequiredService<IOptions<MediaProbeOptions>>(),
+            new Helpers.ListLogger<MediaDurationProbeWorker>(new System.Collections.Concurrent.ConcurrentQueue<string>()),
+            initialDelay: TimeSpan.Zero);
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        await worker.StartAsync(cts.Token);
+
+        // Laenger als ein Worker-Intervall-Tick warten: auch ein zweiter Zyklus darf nichts messen.
+        await Task.Delay(TimeSpan.FromSeconds(3), ct);
+
+        await cts.CancelAsync();
+        await worker.StopAsync(CancellationToken.None);
+
+        db.ChangeTracker.Clear();
+        var reloaded = await db.MediaItems.SingleAsync(i => i.Id == item.Id, ct);
+        Assert.Null(reloaded.DurationProbedAt);
+        Assert.Null(reloaded.Duration);
+    }
+
     private sealed class AlwaysProbe : IMediaDurationProbe
     {
         public Task<MediaDurationProbeResult> ProbeFileAsync(string filePath, CancellationToken cancellationToken)

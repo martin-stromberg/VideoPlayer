@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -29,13 +30,15 @@ public sealed class LiveStreamWorkerTests : IAsyncLifetime
 
     private sealed class FakeSegmenter : ILiveStreamSegmenter
     {
-        public bool IsRunning => false;
+        public bool Running;
+        public bool IsRunning => Running;
         public long? CurrentSlotId => null;
         public double? ExpectedPositionSeconds => null;
         public LiveStreamExitInfo? LastUnexpectedExit => null;
         public int StopCalls;
-        public Task StartAsync(LiveStreamJob job, CancellationToken ct = default) => Task.CompletedTask;
-        public Task StopAsync(CancellationToken ct = default) { StopCalls++; return Task.CompletedTask; }
+        public int StartCalls;
+        public Task StartAsync(LiveStreamJob job, CancellationToken ct = default) { StartCalls++; return Task.CompletedTask; }
+        public Task StopAsync(CancellationToken ct = default) { StopCalls++; Running = false; return Task.CompletedTask; }
     }
 
     private sealed class NullStreamTokenService : IInternalMediaStreamTokenService
@@ -106,6 +109,60 @@ public sealed class LiveStreamWorkerTests : IAsyncLifetime
             for (var i = 0; i < 50 && segmenter.StopCalls == 0; i++)
                 await Task.Delay(100, ct);
             Assert.True(segmenter.StopCalls >= 1, "Der Worker hat keinen Synchronisations-Tick ausgeführt.");
+        }
+        finally
+        {
+            await worker.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_FeatureNotReleased_StopsSegmenterAndNeverStarts()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        // Feature-Flag aus (Fixture seedet true → hier umkippen): ein noch laufender ffmpeg-Lauf
+        // wird gestoppt, die Synchronisation startet nie — kein Zombie-Segmenter nach dem Sperren.
+        var setup = await _fixture.Db.Setups.FirstAsync(ct);
+        setup.TvSenderEnabled = false;
+        await _fixture.Db.SaveChangesAsync(ct);
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(_fixture.Db);
+        services.AddScoped<ProgramSettingsService>();
+        services.AddSingleton<Microsoft.AspNetCore.Hosting.IWebHostEnvironment>(
+            new TestWebHostEnvironment { ContentRootPath = _contentRoot });
+        services.AddScoped<LiveStreamSegmentStore>();
+        services.AddSingleton<IProgramGuideService>(new FakeGuide());
+        var segmenter = new FakeSegmenter { Running = true };
+        services.AddSingleton<ILiveStreamSegmenter>(segmenter);
+        services.AddSingleton<IFfmpegLocator>(new FakeLocator());
+        var local = new LocalMediaSourceReader(NullLogger<LocalMediaSourceReader>.Instance);
+        services.AddSingleton(local);
+        services.AddSingleton(new SftpMediaSourceReader());
+        services.AddSingleton<IMediaSourceReader>(sp => new MediaSourceReaderDispatcher(
+            sp.GetRequiredService<SftpMediaSourceReader>(), sp.GetRequiredService<LocalMediaSourceReader>()));
+        services.AddSingleton<IInternalMediaStreamTokenService>(new NullStreamTokenService());
+        services.AddSingleton(Microsoft.Extensions.Options.Options.Create(
+            new VideoWebPlayer.Configuration.LiveStreamOptions()));
+        services.AddScoped<LiveStreamMediaResolver>();
+        services.AddScoped<LiveStreamCoordinator>();
+        await using var provider = services.BuildServiceProvider();
+
+        var worker = new LiveStreamWorker(provider.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<LiveStreamWorker>.Instance, signal: null, initialDelay: TimeSpan.Zero);
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromSeconds(15));
+        await worker.StartAsync(cts.Token);
+        try
+        {
+            for (var i = 0; i < 50 && segmenter.StopCalls == 0; i++)
+                await Task.Delay(100, ct);
+            Assert.True(segmenter.StopCalls >= 1, "Der Worker hat den laufenden Segmenter nicht gestoppt.");
+            Assert.False(segmenter.Running, "Der Segmenter laeuft trotz gesperrtem Sender weiter.");
+            Assert.Equal(0, segmenter.StartCalls);
         }
         finally
         {

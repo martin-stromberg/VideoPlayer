@@ -28,6 +28,17 @@
   Fixture-/E2E-Seeds aktivieren `TvSenderEnabled` (ProgramScheduleTestDb, Worker-Tests,
   ProgramGuideE2E, LiveStreamE2E, LiveTvE2E, TVSenderAdminE2E, Client-Guide-Tests).
 
+## Nachbesserungen Runde 2 (acceptance-schritt-26.md)
+
+- Alt-Backup-Regressionstest `ReadFromAsync_LegacyBackupWithoutTvSenderEnabledColumn_
+  RestoresDefaultFalse` (Seed true -> Restore false).
+- Worker-Idle-Tests: `Worker_IdlesWithoutSchedule_WhenFeatureNotReleased`,
+  `ExecuteAsync_FeatureNotReleased_StopsSegmenterAndNeverStarts`,
+  `ExecuteAsync_FeatureNotReleased_LeavesItemsUnprobed`.
+- N23-Test auf Hash-Pin umgestellt (`LeadStrand_FollowsHashOrder_NotAlphabetical`).
+- Voller Lauf Release: 2193/2195 gruen, 1 Alt-Skip, 1 Playwright-Flake
+  (`PlaylistSkipLockedEntriesE2ETest`, beim Einzelretry gruen).
+
 ## Reviews
 
 - Plan-Check: `plan-check.md` (Plan vollständig).

@@ -133,11 +133,16 @@ public class LiveTvTests(ITestOutputHelper _)
                     ServerTimeUtc = DateTimeOffset.UtcNow,
                     Now = new DtoProgramGuideEntry
                     {
-                        SlotId = 11, Title = "Halbzeit", MediaItemId = 5,
-                        StartUtc = DateTimeOffset.UtcNow.AddMinutes(-10), EndUtc = DateTimeOffset.UtcNow.AddMinutes(70),
+                        SlotId = 11,
+                        Title = "Halbzeit",
+                        MediaItemId = 5,
+                        StartUtc = DateTimeOffset.UtcNow.AddMinutes(-10),
+                        EndUtc = DateTimeOffset.UtcNow.AddMinutes(70),
                         // 450s von 3600s = 12,5 % — gebrochener Wert, der unter de-DE ein
                         // Komma produzieren wuerde, wenn die Formatierung kulturabhaengig waere.
-                        DurationSeconds = 3600, PositionSeconds = 450, RemainingSeconds = 3150,
+                        DurationSeconds = 3600,
+                        PositionSeconds = 450,
+                        RemainingSeconds = 3150,
                     },
                 });
             using var ctx = CreateContext(guide);
@@ -188,13 +193,22 @@ public class LiveTvTests(ITestOutputHelper _)
                 ServerTimeUtc = DateTimeOffset.UtcNow,
                 Now = new DtoProgramGuideEntry
                 {
-                    SlotId = 11, Title = "Krimiserie — Staffel 1, E2: Der Fall",
-                    ShowName = "Krimiserie", SeasonName = "Staffel 1", SeasonNumber = 1,
-                    EpisodeNumber = 2, EpisodeName = "Der Fall",
-                    Description = "Episodentext.", GenreName = "Krimi", PosterPictureId = 42,
+                    SlotId = 11,
+                    Title = "Krimiserie — Staffel 1, E2: Der Fall",
+                    ShowName = "Krimiserie",
+                    SeasonName = "Staffel 1",
+                    SeasonNumber = 1,
+                    EpisodeNumber = 2,
+                    EpisodeName = "Der Fall",
+                    Description = "Episodentext.",
+                    GenreName = "Krimi",
+                    PosterPictureId = 42,
                     MediaItemId = 5,
-                    StartUtc = DateTimeOffset.UtcNow.AddMinutes(-10), EndUtc = DateTimeOffset.UtcNow.AddMinutes(50),
-                    DurationSeconds = 3600, PositionSeconds = 600, RemainingSeconds = 3000,
+                    StartUtc = DateTimeOffset.UtcNow.AddMinutes(-10),
+                    EndUtc = DateTimeOffset.UtcNow.AddMinutes(50),
+                    DurationSeconds = 3600,
+                    PositionSeconds = 600,
+                    RemainingSeconds = 3000,
                 },
             },
             upcoming:

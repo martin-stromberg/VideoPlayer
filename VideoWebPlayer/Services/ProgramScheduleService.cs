@@ -616,77 +616,77 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                     if ((startOffset + p) % m != strandOf[0])
                         continue;
 
-                var prefixCount = new int[m];
-                var possible = true;
-                for (var q = 0; q < p && possible; q++)
-                {
-                    var s = (startOffset + q) % m;
-                    if (countInAiring[s] == 0)
-                        possible = false;
-                    else
-                        prefixCount[s]++;
-                }
-                if (!possible)
-                    break;
-
-                var simStrands = new List<StrandState>(m);
-                for (var s = 0; s < m; s++)
-                {
-                    var items = strands[s].Items;
-                    var head = countInAiring[s] > 0
-                        ? ((firstIndex[s] - prefixCount[s]) % items.Count + items.Count) % items.Count
-                        : 0;
-                    simStrands.Add(new StrandState(strands[s].Key, items, head));
-                }
-
-                // The airing's real start: the p prefix picks occupy contiguous time ending at
-                // the first written slot — walk their durations back from airing[0].Start.
-                var simStart = airing[0].Start;
-                var localPick = new int[m];
-                for (var q = 0; q < p; q++)
-                {
-                    var s = (startOffset + q) % m;
-                    var items = strands[s].Items;
-                    var head = simStrands[s].NextIndex;
-                    simStart -= items[(head + localPick[s]) % items.Count].Duration;
-                    localPick[s]++;
-                }
-
-                // The materialization derived the start-strand offset from the real start's
-                // day — a hypothesis is only consistent when it yields the same offset.
-                if (StrandStartOffset(wanted, m, simStart) != startOffset)
-                    continue;
-
-                if (occurrenceStart > simStart
-                    || (occurrenceStart < simStart
-                        && !(invaderStarts.TryGetValue(simStart, out var inv) && inv < occurrenceStart)))
-                    continue; // shift requires an occupied slot covering the nominal start
-
-                var picks = SelectAiringItemsInterleaved(simStrands, rule, simStart,
-                    BoundaryAfter(boundStarts, occurrenceStart, rule.Priority), minStartRemain);
-                if (picks.Count - p != airing.Count)
-                    continue;
-
-                var start = simStart;
-                var matches = true;
-                var pos = 0;
-                foreach (var pk in picks)
-                {
-                    if (pos >= p)
+                    var prefixCount = new int[m];
+                    var possible = true;
+                    for (var q = 0; q < p && possible; q++)
                     {
-                        var slot = airing[pos - p];
-                        if (slot.MediaItemId != pk.Item.MediaItemId || slot.Start != start || slot.End != start + pk.Item.Duration)
-                        {
-                            matches = false;
-                            break;
-                        }
+                        var s = (startOffset + q) % m;
+                        if (countInAiring[s] == 0)
+                            possible = false;
+                        else
+                            prefixCount[s]++;
                     }
-                    start += pk.Item.Duration;
-                    pos++;
+                    if (!possible)
+                        break;
+
+                    var simStrands = new List<StrandState>(m);
+                    for (var s = 0; s < m; s++)
+                    {
+                        var items = strands[s].Items;
+                        var head = countInAiring[s] > 0
+                            ? ((firstIndex[s] - prefixCount[s]) % items.Count + items.Count) % items.Count
+                            : 0;
+                        simStrands.Add(new StrandState(strands[s].Key, items, head));
+                    }
+
+                    // The airing's real start: the p prefix picks occupy contiguous time ending at
+                    // the first written slot — walk their durations back from airing[0].Start.
+                    var simStart = airing[0].Start;
+                    var localPick = new int[m];
+                    for (var q = 0; q < p; q++)
+                    {
+                        var s = (startOffset + q) % m;
+                        var items = strands[s].Items;
+                        var head = simStrands[s].NextIndex;
+                        simStart -= items[(head + localPick[s]) % items.Count].Duration;
+                        localPick[s]++;
+                    }
+
+                    // The materialization derived the start-strand offset from the real start's
+                    // day — a hypothesis is only consistent when it yields the same offset.
+                    if (StrandStartOffset(wanted, m, simStart) != startOffset)
+                        continue;
+
+                    if (occurrenceStart > simStart
+                        || (occurrenceStart < simStart
+                            && !(invaderStarts.TryGetValue(simStart, out var inv) && inv < occurrenceStart)))
+                        continue; // shift requires an occupied slot covering the nominal start
+
+                    var picks = SelectAiringItemsInterleaved(simStrands, rule, simStart,
+                        BoundaryAfter(boundStarts, occurrenceStart, rule.Priority), minStartRemain);
+                    if (picks.Count - p != airing.Count)
+                        continue;
+
+                    var start = simStart;
+                    var matches = true;
+                    var pos = 0;
+                    foreach (var pk in picks)
+                    {
+                        if (pos >= p)
+                        {
+                            var slot = airing[pos - p];
+                            if (slot.MediaItemId != pk.Item.MediaItemId || slot.Start != start || slot.End != start + pk.Item.Duration)
+                            {
+                                matches = false;
+                                break;
+                            }
+                        }
+                        start += pk.Item.Duration;
+                        pos++;
+                    }
+                    if (matches && pos == picks.Count)
+                        return true;
                 }
-                if (matches && pos == picks.Count)
-                    return true;
-            }
             }
         }
         return false;

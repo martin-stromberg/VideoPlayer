@@ -534,3 +534,12 @@ Design: Benutzer-Allowlist (z. B. `TvSenderAllowedUserIds` in Setup oder eigene
 Tabelle `TvSenderUserAccess`), Admin-UI zur Auswahl, serverseitige Pruefung in
 NavMenu + Controllern + Pages (User-Claim/Id), Worker bleiben global.
 Admin selbst hat implizit Zugriff. Tests: User ohne Freigabe → versteckt/verweigert.
+
+## N29 — Live-Stream startet nicht automatisch beim Seitenaufruf (Prioritaet: hoch, BUG)
+
+**Beobachtet (Anwender):** Beim Aufruf von /live-tv startet das Video nicht mehr
+automatisch (Regression durch bedingtes Mounten + Gate-Checks). Ursache: das
+<video autoplay muted>-Element rendert erst nach guide.Now — bei spaetem Mount +
+MSE-Attach (hls.js) feuert das autoplay-Attribut nicht zuverlaessig; liveTv.js
+rief nie video.play() auf. Fix: tryPlay-Helper (Promise-Rejection abgefangen),
+aufgerufen nach hls.attachMedia + nativem src-Setzen + Re-Attach-Pfaden.

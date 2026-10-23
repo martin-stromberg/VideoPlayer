@@ -42,6 +42,14 @@ window.liveTv = (() => {
 
     function videoElOf(state) { return state.videoEl; }
 
+    function tryPlay(videoEl) {
+        // Dynamisch eingefuegtes <video autoplay muted> startet bei MSE-/spaetem
+        // src-Attach nicht zuverlaessig von selbst — play() muss explizit angefragt
+        // werden. Eine Ablehnung (Autoplay-Richtlinie) ist unkritisch: das Element
+        // bleibt mit controls bedienbar.
+        try { const p = videoEl.play(); if (p && p.catch) p.catch(() => { }); } catch { }
+    }
+
     function attachHls(state, videoEl, url) {
         const hls = new Hls({ enableWorker: true });
         state.hls = hls;
@@ -73,6 +81,7 @@ window.liveTv = (() => {
         });
         hls.loadSource(url);
         hls.attachMedia(videoEl);
+        tryPlay(videoEl);
     }
 
     function loadHlsScript(scriptUrl) {
@@ -122,6 +131,7 @@ window.liveTv = (() => {
                 videoEl.addEventListener('error', state.errorHandler);
                 videoEl.src = streamUrl;
                 videoEl.load();
+                tryPlay(videoEl);
                 return;
             }
 

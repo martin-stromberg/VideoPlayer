@@ -479,3 +479,30 @@ Restlücken sind ohnehin Füllclips vorgesehen (N12/N15-Kontext).
 - Tests: Fenster-Rest 3 min + Item 45 min -> Item laeuft komplett durch, endet
   nach Fenster-Ende; Folge-Regel wird entsprechend geshiftet oder displaced;
   Rest < Schwelle -> keine Planung, Filler-Pfad greift.
+
+## N23 — Serien-Auswahl wirkt nicht zufällig (Häufung bei „A") (Priorität: mittel)
+
+**Beobachtet (Anwender):** Im Sendeplan tauchen auffällig oft Serien mit Anfangsbuchstabe
+„A" auf. Vermutung: die Material-Expansion sortiert deterministisch (Titel/Added) statt
+die Stränge/Items zu mischen — frühe Positionen gehen immer an alphabetisch erste Serien.
+Zu pruefen: ExpandGenreMaterial Sortierung + Strand-Bildung; gewuenscht ist wohl eine
+stabile, aber nicht alphabetisch voreingenommene Mischung (z. B. zufaellig je
+Regel gehasht oder Rotation ueber den gesamten Bestand statt Listenanfang).
+
+## N24 — „Die nächsten Stunden" aktualisiert nicht im Verlauf (Priorität: hoch)
+
+**Beobachtet (Anwender):** Die Upcoming-Liste auf LiveTv.razor veraltet waehrend der
+Wiedergabe — abgelaufene Eintraege bleiben stehen, neue kommen nicht nach.
+PollInterval=15s existiert — pruefen: laeuft der Poll, wird `upcoming` neu geladen
+oder nur einmal initialisiert? Auch bei Slot-Wechsel/Stream-Recovery muss die Liste
+aktualisiert werden.
+
+## N25 — TV-Sender admin-freischaltbar machen (Priorität: hoch)
+
+**Beobachtet (Anwender):** Der TV-Sender muss per Admin-Freigabe aktivierbar sein —
+der Menue-Eintrag (NavMenu) darf erst erscheinen, wenn der Admin das Feature
+freischaltet. Umzusetzen: Einstellung (z. B. AppSettings/FeatureFlag `TvSenderEnabled`,
+persistiert ueber ProgramSettingsService o. aehnlichem), Admin-Toggle im TV-Sender-
+Admin oder allgemeinen Einstellungen, NavMenu-Bedingung, serverseitige Absicherung
+(API-Endpunkte /api/live-stream, /api/program-guide, /admin/tv-sender duerfen ohne
+Freigabe nicht erreichbar sein — 404/403), plus Verhalten der Worker, wenn deaktiviert.

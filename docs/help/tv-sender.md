@@ -80,6 +80,15 @@ Dabei gilt:
 
 - **Konflikte** zwischen überschneidenden Ausstrahlungen entscheidet die Priorität der Regel
   (bei Gleichstand die ältere Regel); die unterlegene Ausstrahlung entfällt komplett.
+- **Videos werden niemals gekürzt:** Ein einmal eingeplantes Video läuft immer vollständig —
+  auch über das Ende seines Regelfensters hinaus (Überlauf). Beginnt z. B. 15 Minuten vor dem
+  nächsten Sendefenster ein 45-minütiger Film, läuft er zu Ende und die folgende Ausstrahlung
+  verschiebt sich entsprechend hinter sein Ende. Ausnahme: Liegt das nächste Fenster einer
+  **höherprioren** Regel, wird ein Video, das vorher nicht zu Ende kommen kann, gar nicht erst
+  eingeplant — es wartet auf die nächste eigene Sendezeit. Bleibt vor einer Fenstergrenze
+  weniger als die konfigurierbare **Mindest-Restlücke** frei
+  (Konfigurationsschlüssel `ProgramSchedule:MinStartRemainSeconds`, Standard: 30 Sekunden),
+  wird ebenfalls nichts eingeplant — die Restlücke füllen Füller.
 - **Serien** werden je Regel in Sendedreihenfolge fortgesetzt; der Fortschritt überlebt Neustarts
   und beginnt nach dem letzten Titel wieder vorn.
 - **Lücken** füllen die Regeln der Art „Platzhalter/Füller" — nur Inhalte, die vollständig in die

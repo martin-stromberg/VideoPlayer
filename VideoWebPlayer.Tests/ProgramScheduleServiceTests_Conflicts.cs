@@ -30,16 +30,17 @@ public sealed class ProgramScheduleServiceTests_Conflicts
 
         var summary = await fixture.CreateService().EnsureCoverageAsync(now, ct);
 
-        Assert.True(summary.DroppedConflicts >= 1);
+        // The 20:30 movie window is a hard bound for the lower-priority series: its 45-min
+        // episodes can never complete before 20:30, so they defer instead of colliding —
+        // no airing is materialized, nothing is dropped mid-air.
+        Assert.Equal(0, summary.DroppedConflicts);
         var slots = await fixture.SlotsAsync(ct);
-        // The 90-min movie occupies 20:30–22:00; the 2×45-min series airing at 20:00–21:30 overlaps → dropped.
         Assert.DoesNotContain(slots, s => s.TVShowEpisodeId is not null);
         Assert.Contains(slots, s => s.MovieId == winner.Id);
-        // Loser cursor: yesterday's lookback airing consumed 2 episodes; today's dropped
-        // conflict must not advance it further.
+        // Loser cursor: no episode ever aired (every occurrence defers on the hard bound) —
+        // the rotation simply waits.
         var loserRule = await fixture.Db.ProgramRules.FirstAsync(r => r.Name == "Serie20", ct);
-        var loserCursor = await fixture.Db.ProgramRuleCursors.SingleAsync(c => c.ProgramRuleId == loserRule.Id, ct);
-        Assert.Equal(loserEpisodes[1].Id, loserCursor.LastContentId);
+        Assert.Empty(await fixture.Db.ProgramRuleCursors.Where(c => c.ProgramRuleId == loserRule.Id).ToListAsync(ct));
     }
 
     [Fact]

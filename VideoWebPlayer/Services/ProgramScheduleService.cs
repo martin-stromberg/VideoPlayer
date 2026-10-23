@@ -31,6 +31,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     private readonly ILogger<ProgramScheduleService> _logger;
     private readonly int _maxProbeAttempts;
     private readonly TimeSpan _trailerLead;
+    private readonly TimeSpan _minStartRemain;
 
     /// <summary>
     /// Creates a new instance.
@@ -56,7 +57,9 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         _settings = settings;
         _logger = logger;
         _maxProbeAttempts = (probeOptions?.Value ?? new MediaProbeOptions()).EffectiveMaxAttempts;
-        _trailerLead = (scheduleOptions?.Value ?? new ProgramScheduleOptions()).EffectiveTrailerLead;
+        var schedule = scheduleOptions?.Value ?? new ProgramScheduleOptions();
+        _trailerLead = schedule.EffectiveTrailerLead;
+        _minStartRemain = schedule.EffectiveMinStartRemain;
     }
 
     /// <inheritdoc />
@@ -175,6 +178,13 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             .OrderBy(s => s.Start)
             .ToListAsync(cancellationToken);
 
+        // Invader evidence for the reproducibility check: an airing that starts later than its
+        // nominal occurrence start is only plausible when an occupied slot covered that start —
+        // grouped by the invader's exact end (the shifted airing starts there contiguously).
+        var invaderStarts = scheduled
+            .GroupBy(s => s.End)
+            .ToDictionary(g => g.Key, g => g.Min(s => s.Start));
+
         var occurrences = BuildOccurrences(activeRules.Where(r => r.RuleType != ProgramRuleType.Filler), coverageStart, horizonEnd, federalState);
         var occurrenceStarts = occurrences
             .GroupBy(o => o.Rule.Id)
@@ -212,7 +222,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                 var rule = airing[0].ProgramRuleId is { } rid ? rulesById.GetValueOrDefault(rid) : null;
                 var invalid = rule is null || !rule.IsActive
                     || !occurrenceStarts.TryGetValue(rule.Id, out var starts)
-                    || !AiringReproducible(airing, states[rule.Id], starts, boundStarts);
+                    || !AiringReproducible(airing, states[rule.Id], starts, boundStarts, invaderStarts, _minStartRemain);
                 if (invalid)
                     firstInvalid = i;
             }
@@ -296,26 +306,6 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                 || (winner.Priority == loser.Priority && winner.Id < loser.Id);
         }
 
-        // Trims an airing's invading suffix: every still-scheduled slot of the airing that
-        // reaches past the boundary start is displaced (not the whole rule future — the
-        // airing's head stays valid); the producing rule's cursor rewinds so the trimmed
-        // content re-airs at the next free occurrence.
-        void DisplaceAiringSuffix(List<ProgramSlot> airing, long ruleId, DateTime boundaryStartUtc)
-        {
-            foreach (var slot in airing.Where(s => s.End > boundaryStartUtc))
-            {
-                if (slot.End <= coverageStart || slot.Status != ProgramSlotStatus.Scheduled)
-                    continue;
-                slot.Status = ProgramSlotStatus.Displaced;
-                displaced.Add(slot);
-                keptSlots.Remove(slot);
-                blocked.RemoveAll(b => b.Start == slot.Start && b.End == slot.End);
-            }
-
-            if (states.TryGetValue(ruleId, out var state))
-                RewindCursor(state, displaced.Where(s => s.ProgramRuleId == ruleId).ToList(), cursors.GetValueOrDefault(ruleId) ?? []);
-        }
-
         foreach (var occurrence in occurrences.OrderByDescending(o => o.Rule.Priority).ThenBy(o => o.Rule.Id).ThenBy(o => o.StartUtc))
         {
             var losers = MaterializeOccurrenceEvicting(occurrence, states, keptSlots, blocked, newSlots, coverageStart, BoundaryAfter(boundStarts, occurrence.StartUtc, occurrence.Rule.Priority), summary, Evicts);
@@ -326,27 +316,10 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                     if (loser.ProgramRuleId is not { } loserRuleId)
                         continue;
                     var airing = airings.FirstOrDefault(a => a.Contains(loser));
-                    if (loser.Start < occurrence.StartUtc)
-                    {
-                        // Boundary invader: the slot started before this occurrence and its
-                        // airing's tail overshoots into this window — only the invading
-                        // suffix yields, regardless of priority (ungrouped losers = filler
-                        // slots, displaced individually below).
-                        if (airing is not null)
-                        {
-                            DisplaceAiringSuffix(airing, loserRuleId, occurrence.StartUtc);
-                        }
-                        else if (loser.Status == ProgramSlotStatus.Scheduled && loser.End > coverageStart)
-                        {
-                            loser.Status = ProgramSlotStatus.Displaced;
-                            displaced.Add(loser);
-                            keptSlots.Remove(loser);
-                            blocked.RemoveAll(b => b.Start == loser.Start && b.End == loser.End);
-                            if (states.TryGetValue(loserRuleId, out var invState))
-                                RewindCursor(invState, [loser], cursors.GetValueOrDefault(loserRuleId) ?? []);
-                        }
-                    }
-                    else if (airing is not null)
+                    // A kept slot can only lose starting inside this occurrence's window —
+                    // slots reaching across its start are overshooting tails that air to the
+                    // end (the materialization already started behind them).
+                    if (airing is not null)
                     {
                         DisplaceRuleFuture(loserRuleId, airing[0].Start);
                     }
@@ -492,16 +465,20 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     // the plan was extended: the materialization writes only the slots ending after the coverage
     // start, so the first written slot of a partially aired occurrence legitimately begins
     // mid-occurrence instead of at the occurrence start (the already "aired" head items consumed
-    // cursor progress but produced no slot row). The check therefore walks the item ring backwards
-    // from the airing's head item — each step counts one more skipped head item — and accepts the
-    // first skipped-prefix length whose cumulative duration lands the airing's start exactly on an
-    // occurrence start of the rule. The written tail must then reproduce count, media items and
-    // slot boundaries under the same selection logic (EpisodeCount / SlotDuration, bounded by the
-    // next occurrence start — a boundary-trimmed airing is expected, not invalid).
-    private static bool AiringReproducible(List<ProgramSlot> airing, RuleState state, HashSet<DateTime> occurrenceStarts, List<(DateTime StartUtc, int Priority)> boundStarts)
+    // cursor progress but produced no slot row). A begun predecessor may additionally overshoot
+    // into the occurrence start and shift the airing's real start behind its own — the check
+    // therefore accepts any nominal occurrence start at or before the reconstructed real start.
+    // It walks the item ring backwards from the airing's head item — each step counts one more
+    // skipped head item — reconstructs the airing's real start as the airing's first slot start
+    // minus the cumulative prefix durations, and re-runs the selection there with the boundary
+    // of each candidate occurrence start. The written tail must then reproduce count, media
+    // items and slot boundaries under the same selection logic (EpisodeCount / SlotDuration,
+    // min-start-remainder and the overshoot boundary — a shifted or overshooting airing is
+    // expected, not invalid).
+    private static bool AiringReproducible(List<ProgramSlot> airing, RuleState state, HashSet<DateTime> occurrenceStarts, List<(DateTime StartUtc, int Priority)> boundStarts, Dictionary<DateTime, DateTime> invaderStarts, TimeSpan minStartRemain)
     {
         if (state.IsInterleaved)
-            return AiringReproducibleInterleaved(airing, state, occurrenceStarts, boundStarts);
+            return AiringReproducibleInterleaved(airing, state, occurrenceStarts, boundStarts, invaderStarts, minStartRemain);
 
         var items = state.Items;
         if (items.Count == 0 || occurrenceStarts.Count == 0)
@@ -526,49 +503,58 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                     break; // degenerate duration — the backward walk would never progress
                 skipped += headDuration;
             }
-            var occurrenceStart = airing[0].Start - skipped;
-            if (occurrenceStart < earliestStart)
+            // The airing's real start — its first item began here; the nominal occurrence
+            // started at or before this point (the remainder was blocked by an overshooting
+            // predecessor).
+            var airingStart = airing[0].Start - skipped;
+            if (airingStart < earliestStart)
                 break; // skipped duration already reaches past the oldest occurrence in the window
-            if (!occurrenceStarts.Contains(occurrenceStart))
-                continue;
 
-            // Candidate: the occurrence started k head items before the airing's first slot —
-            // consumed head items (oversized or fully past) count toward k but produced no slot.
             var headIndex = ((idx - k) % count + count) % count;
-            var (expected, consumed) = SelectAiringItems(items, headIndex, rule, occurrenceStart, BoundaryAfter(boundStarts, occurrenceStart, rule.Priority));
-            var writtenOffset = k - consumed;
-            if (writtenOffset < 0 || expected.Count - writtenOffset != airing.Count)
-                continue;
-
-            var start = airing[0].Start;
-            var matches = true;
-            for (var i = 0; i < airing.Count; i++)
+            foreach (var occurrenceStart in occurrenceStarts.Where(o => o <= airingStart))
             {
-                var slot = airing[i];
-                var item = expected[writtenOffset + i];
-                if (slot.MediaItemId != item.MediaItemId || slot.Start != start || slot.End != start + item.Duration)
+                // A shift needs invader evidence: an occupied slot covering the nominal start
+                // whose end is exactly the real start — otherwise the earlier anchor would
+                // rescue stale airings (e.g. after the rule's time-of-day changed).
+                if (occurrenceStart < airingStart
+                    && !(invaderStarts.TryGetValue(airingStart, out var invaderStart) && invaderStart < occurrenceStart))
+                    continue;
+                var expected = SelectAiringItems(items, headIndex, rule, airingStart,
+                    BoundaryAfter(boundStarts, occurrenceStart, rule.Priority), minStartRemain);
+                if (expected.Count - k != airing.Count)
+                    continue;
+
+                var start = airing[0].Start;
+                var matches = true;
+                for (var i = 0; i < airing.Count; i++)
                 {
-                    matches = false;
-                    break;
+                    var slot = airing[i];
+                    var item = expected[k + i];
+                    if (slot.MediaItemId != item.MediaItemId || slot.Start != start || slot.End != start + item.Duration)
+                    {
+                        matches = false;
+                        break;
+                    }
+                    start = slot.End;
                 }
-                start = slot.End;
+                if (matches)
+                    return true;
             }
-            if (matches)
-                return true;
         }
         return false;
     }
 
     // Interleaved counterpart of <see cref="AiringReproducible"/> for multi-strand states: the
     // occurrence's picks rotate over the strands, so the check hypothesizes the number p of
-    // picks before the airing's first slot (prefix picks land cyclically on the strands
-    // starting at strand 0 — hence p mod m fixes the first slot's strand), reconstructs each
-    // strand's head as its first airing index minus its prefix pick count, and verifies by
-    // simulating the occurrence at each candidate start. Strands without a contribution to the
-    // airing cannot have supplied prefix picks (their head is not observable) — such
-    // hypotheses are rejected. Conservative by design: an unclear prefix fails the check, so
-    // the airing is displaced and re-materialized rather than kept stale.
-    private static bool AiringReproducibleInterleaved(List<ProgramSlot> airing, RuleState state, HashSet<DateTime> occurrenceStarts, List<(DateTime StartUtc, int Priority)> boundStarts)
+    // picks before the airing's first slot (pick q lands on strand (startOffset + q) mod m —
+    // hence that fixes the first slot's strand), reconstructs each strand's head as its first
+    // airing index minus its prefix pick count, and verifies by simulating the occurrence at
+    // the reconstructed real start under the boundary of each candidate nominal start (a begun
+    // predecessor may have shifted the airing behind the nominal start). Strands without a
+    // contribution to the airing cannot have supplied prefix picks (their head is not
+    // observable) — such hypotheses are rejected. Conservative by design: an unclear prefix
+    // fails the check, so the airing is displaced and re-materialized rather than kept stale.
+    private static bool AiringReproducibleInterleaved(List<ProgramSlot> airing, RuleState state, HashSet<DateTime> occurrenceStarts, List<(DateTime StartUtc, int Priority)> boundStarts, Dictionary<DateTime, DateTime> invaderStarts, TimeSpan minStartRemain)
     {
         var strands = state.Strands;
         var m = strands.Count;
@@ -615,16 +601,20 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
         foreach (var occurrenceStart in occurrenceStarts.Where(o => o <= airing[0].Start).OrderBy(o => o))
         {
+            var startOffset = wanted < m
+                ? (int)((((occurrenceStart.Date - DateTime.UnixEpoch).Days) % m) + m) % m
+                : 0;
+
             for (var p = 0; p < maxPrefix; p++)
             {
-                if (p % m != strandOf[0])
+                if ((startOffset + p) % m != strandOf[0])
                     continue;
 
                 var prefixCount = new int[m];
                 var possible = true;
                 for (var q = 0; q < p && possible; q++)
                 {
-                    var s = q % m;
+                    var s = (startOffset + q) % m;
                     if (countInAiring[s] == 0)
                         possible = false;
                     else
@@ -643,22 +633,37 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                     simStrands.Add(new StrandState(strands[s].Key, items, head));
                 }
 
-                var picks = SelectAiringItemsInterleaved(simStrands, rule, occurrenceStart, BoundaryAfter(boundStarts, occurrenceStart, rule.Priority));
-                var selected = picks.Where(pk => pk.Item is not null).Select(pk => pk.Item!).ToList();
-                var writtenOffset = picks.Take(p).Count(pk => pk.Item is not null);
-                if (selected.Count - writtenOffset != airing.Count)
+                // The airing's real start: the p prefix picks occupy contiguous time ending at
+                // the first written slot — walk their durations back from airing[0].Start.
+                var simStart = airing[0].Start;
+                var localPick = new int[m];
+                for (var q = 0; q < p; q++)
+                {
+                    var s = (startOffset + q) % m;
+                    var items = strands[s].Items;
+                    var head = simStrands[s].NextIndex;
+                    simStart -= items[(head + localPick[s]) % items.Count].Duration;
+                    localPick[s]++;
+                }
+
+                if (occurrenceStart > simStart
+                    || (occurrenceStart < simStart
+                        && !(invaderStarts.TryGetValue(simStart, out var inv) && inv < occurrenceStart)))
+                    continue; // shift requires an occupied slot covering the nominal start
+
+                var picks = SelectAiringItemsInterleaved(simStrands, rule, simStart,
+                    BoundaryAfter(boundStarts, occurrenceStart, rule.Priority), minStartRemain);
+                if (picks.Count - p != airing.Count)
                     continue;
 
-                var start = occurrenceStart;
+                var start = simStart;
                 var matches = true;
                 var pos = 0;
                 foreach (var pk in picks)
                 {
-                    if (pk.Item is null)
-                        continue;
-                    if (pos >= writtenOffset)
+                    if (pos >= p)
                     {
-                        var slot = airing[pos - writtenOffset];
+                        var slot = airing[pos - p];
                         if (slot.MediaItemId != pk.Item.MediaItemId || slot.Start != start || slot.End != start + pk.Item.Duration)
                         {
                             matches = false;
@@ -668,7 +673,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                     start += pk.Item.Duration;
                     pos++;
                 }
-                if (matches && pos == selected.Count)
+                if (matches && pos == picks.Count)
                     return true;
             }
         }
@@ -725,9 +730,10 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
     // Like <see cref="MaterializeOccurrence"/>, but instead of dropping the airing on a conflict
     // with kept scheduled slots it returns the conflicting kept slots that lose against this
-    // occurrence — the caller displaces them (whole rule suffix for competitors starting inside
-    // this occurrence's window, only the invading airing tail for slots reaching across its
-    // start) and the materialization proceeds.
+    // occurrence — the caller displaces them (whole rule suffix for competitors inside this
+    // occurrence's window) and the materialization proceeds. Kept slots reaching across the
+    // occurrence start are a begun airing's legitimate tail: they are never cut — the airing
+    // simply starts behind their end.
     private List<ProgramSlot>? MaterializeOccurrenceEvicting(
         Occurrence occurrence,
         Dictionary<long, RuleState> states,
@@ -735,7 +741,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         List<Interval> blocked,
         List<ProgramSlot> newSlots,
         DateTime coverageStart,
-        DateTime? softEndUtc,
+        (DateTime StartUtc, bool Hard)? bound,
         SummaryCounters summary,
         Func<ProgramRule, ProgramSlot, bool> evicts)
     {
@@ -743,11 +749,13 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         if (state.Items.Count == 0)
             return null;
 
-        var (taken, takenCounts) = SelectAndCommitConsumed(state, occurrence.Rule, occurrence.StartUtc, softEndUtc);
+        var airingStart = ShiftPastInvaders(occurrence.StartUtc, blocked);
+
+        var (taken, takenCounts) = SelectItems(state, occurrence.Rule, airingStart, bound);
         if (taken.Count == 0)
             return null;
 
-        var start = occurrence.StartUtc;
+        var start = airingStart;
         var ranges = new List<Interval>();
         foreach (var item in taken)
         {
@@ -901,6 +909,28 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         public bool Overlaps(Interval other) => Start < other.End && End > other.Start;
     }
 
+    // Advances a would-be occurrence start past every occupied interval covering it: a slot
+    // reaching across the start is a begun airing's overshooting tail — it always airs to the
+    // end, so the new airing takes its start behind the tail's real end instead of displacing
+    // the video mid-air or dropping the whole airing.
+    private static DateTime ShiftPastInvaders(DateTime startUtc, IEnumerable<Interval> occupied)
+    {
+        var moved = true;
+        while (moved)
+        {
+            moved = false;
+            foreach (var i in occupied)
+            {
+                if (i.Start < startUtc && i.End > startUtc)
+                {
+                    startUtc = i.End;
+                    moved = true;
+                }
+            }
+        }
+        return startUtc;
+    }
+
     private sealed class SummaryCounters
     {
         public int SlotsCreated;
@@ -1038,20 +1068,24 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         return occurrences;
     }
 
-    private void MaterializeOccurrence(Occurrence occurrence, Dictionary<long, RuleState> states, List<Interval> blocked, List<ProgramSlot> newSlots, DateTime coverageStart, DateTime? softEndUtc, SummaryCounters summary)
+    private void MaterializeOccurrence(Occurrence occurrence, Dictionary<long, RuleState> states, List<Interval> blocked, List<ProgramSlot> newSlots, DateTime coverageStart, (DateTime StartUtc, bool Hard)? bound, SummaryCounters summary)
     {
         var state = states[occurrence.Rule.Id];
         if (state.Items.Count == 0)
             return;
 
-        var (taken, takenCounts) = SelectAndCommitConsumed(state, occurrence.Rule, occurrence.StartUtc, softEndUtc);
+        // A slot already occupying the occurrence start is a begun airing's overshooting tail —
+        // it always airs to the end, so this airing starts behind it ("verschiebt sich").
+        var airingStart = ShiftPastInvaders(occurrence.StartUtc, blocked);
+
+        var (taken, takenCounts) = SelectItems(state, occurrence.Rule, airingStart, bound);
         if (taken.Count == 0)
             return;
 
         // Slots that ended before the coverage start are history — the items still consume cursor
         // progress (they "aired"), but no slot row is written. Slots spanning the coverage start
         // keep their true Start.
-        var start = occurrence.StartUtc;
+        var start = airingStart;
         var ranges = new List<Interval>();
         foreach (var item in taken)
         {
@@ -1091,40 +1125,31 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         summary.SlotsCreated += ranges.Count;
     }
 
-    // Shared selection entry for both materialization paths: picks the airing's items and
-    // immediately commits the consumed (permanently skipped oversized head) picks — those are
-    // cursor progress regardless of the outcome — while the taken items are only committed
-    // once the airing survives the conflict check (see <see cref="CommitTaken"/>). For flat
-    // (single-strand) states this is exactly the previous ring behavior; for interleaved
-    // states the window is filled round-robin over the strands (<see cref="SelectAiringItemsInterleaved"/>)
-    // and the per-strand take counts come back in the second tuple element (null when flat).
-    private static (List<SchedulableItem> Taken, int[]? TakenCounts) SelectAndCommitConsumed(
-        RuleState state, ProgramRule rule, DateTime occurrenceStartUtc, DateTime? softEndUtc)
+    // Shared selection entry for both materialization paths: picks the airing's items without
+    // committing them — the taken items are only committed once the airing survives the
+    // conflict check (see <see cref="CommitTaken"/>). For flat (single-strand) states this is
+    // exactly the ring behavior; for interleaved states the window is filled round-robin over
+    // the strands (<see cref="SelectAiringItemsInterleaved"/>) and the per-strand take counts
+    // come back in the second tuple element (null when flat). <paramref name="airingStartUtc"/>
+    // is the airing's real start — the occurrence start, or the end of an overshooting
+    // predecessor when the window begins occupied.
+    private (List<SchedulableItem> Taken, int[]? TakenCounts) SelectItems(
+        RuleState state, ProgramRule rule, DateTime airingStartUtc, (DateTime StartUtc, bool Hard)? bound)
     {
         if (!state.IsInterleaved)
         {
-            var (taken, consumed) = SelectAiringItems(state.Items, state.NextIndex, rule, occurrenceStartUtc, softEndUtc);
-            if (consumed > 0)
-                state.Commit(consumed); // oversized head items can never fit this window — skip them
+            var taken = SelectAiringItems(state.Items, state.NextIndex, rule, airingStartUtc, bound, _minStartRemain);
             return (taken, null);
         }
 
-        var picks = SelectAiringItemsInterleaved(state.Strands, rule, occurrenceStartUtc, softEndUtc);
-        var consumedCounts = new int[state.Strands.Count];
+        var picks = SelectAiringItemsInterleaved(state.Strands, rule, airingStartUtc, bound, _minStartRemain);
         var takenCounts = new int[state.Strands.Count];
         var selected = new List<SchedulableItem>();
         foreach (var (strand, item) in picks)
         {
-            if (item is null)
-                consumedCounts[strand]++;
-            else
-            {
-                takenCounts[strand]++;
-                selected.Add(item);
-            }
+            takenCounts[strand]++;
+            selected.Add(item);
         }
-        for (var i = 0; i < state.Strands.Count; i++)
-            state.Strands[i].Commit(consumedCounts[i]);
         return (selected, takenCounts);
     }
 
@@ -1145,24 +1170,24 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     // Interleaved variant of <see cref="SelectAiringItems"/> for multi-strand states: the
     // window is filled round-robin over the strands in fixed order, each occurrence starting
     // again at the first strand — the series keep their slot position across days while each
-    // strand's own cursor advances in episode order. Per strand an oversized head is consumed
-    // (skipped permanently, bounded by its ring size) only while the strand has not
-    // contributed yet; once it has, a boundary-crossing item ends the strand's contribution
-    // to this airing (the other strands keep filling).
-    // Returns the pick sequence: (strand index, item or null for a consumed head).
-    private static List<(int Strand, SchedulableItem? Item)> SelectAiringItemsInterleaved(
-        List<StrandState> strands, ProgramRule rule, DateTime occurrenceStartUtc, DateTime? softEndUtc)
+    // strand's own cursor advances in episode order. The same boundary rule as the flat variant
+    // applies per strand: a started item always completes (overshoot allowed against soft
+    // bounds); a strand stops contributing when its head may no longer start (or cannot
+    // complete before a hard bound) — the item defers, it is never skipped or cut.
+    // Returns the pick sequence: (strand index, item).
+    private static List<(int Strand, SchedulableItem Item)> SelectAiringItemsInterleaved(
+        List<StrandState> strands, ProgramRule rule, DateTime airingStartUtc,
+        (DateTime StartUtc, bool Hard)? bound, TimeSpan minStartRemain)
     {
         var wanted = rule.EpisodeCount is > 0 ? rule.EpisodeCount.Value
             : rule.SlotDuration is not null ? int.MaxValue : 1;
         var target = rule.EpisodeCount is > 0 ? (TimeSpan?)null : rule.SlotDuration;
 
         var m = strands.Count;
-        var picks = new List<(int Strand, SchedulableItem? Item)>();
+        var picks = new List<(int Strand, SchedulableItem Item)>();
         var taken = new int[m];
-        var consumed = new int[m];
         var done = new bool[m];
-        var slotStart = occurrenceStartUtc;
+        var slotStart = airingStartUtc;
         var accumulated = TimeSpan.Zero;
         var selected = 0;
 
@@ -1171,30 +1196,25 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         // over consecutive days. With SlotDuration (wanted >= m) positions stay
         // identical day-to-day, so the offset stays 0.
         var startOffset = wanted < m
-            ? (int)((((occurrenceStartUtc.Date - DateTime.UnixEpoch).Days) % m) + m) % m
+            ? (int)((((airingStartUtc.Date - DateTime.UnixEpoch).Days) % m) + m) % m
             : 0;
 
+        var maxLap = strands.Max(s => s.Items.Count);
+        var noProgressLaps = 0;
         while (selected < wanted)
         {
             var progressed = false;
+            var lapAccumulated = accumulated;
             for (var i = 0; i < m && selected < wanted; i++)
             {
                 var s = (startOffset + i) % m;
                 var strand = strands[s];
                 if (done[s] || strand.Items.Count == 0)
                     continue;
-                var item = strand.Items[(strand.NextIndex + taken[s] + consumed[s]) % strand.Items.Count];
-                if (softEndUtc is { } bound && slotStart + item.Duration > bound)
+                var item = strand.Items[(strand.NextIndex + taken[s]) % strand.Items.Count];
+                if (bound is { } b && (b.StartUtc - slotStart < minStartRemain || (b.Hard && slotStart + item.Duration > b.StartUtc)))
                 {
-                    if (taken[s] > 0 || consumed[s] >= strand.Items.Count)
-                    {
-                        done[s] = true; // tail item crosses the boundary / every head oversized
-                        continue;
-                    }
-                    consumed[s]++;
-                    picks.Add((s, null)); // oversized head — permanently skipped
-                    progressed = true;
-                    i--;                  // the strand's position retries with its next head
+                    done[s] = true; // head may not start / cannot complete — the strand rests
                     continue;
                 }
                 picks.Add((s, item));
@@ -1208,17 +1228,24 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             }
             if (!progressed)
                 break;
+            noProgressLaps = accumulated > lapAccumulated ? 0 : noProgressLaps + 1;
+            if (noProgressLaps > maxLap)
+                break; // every strand cycled a full lap without gaining airtime — degenerate durations
         }
         return picks;
     }
 
     // Boundary ownership: every occurrence owns [StartUtc, next occurrence start of any
-    // item-bearing rule). An airing may overshoot its nominal length only into unowned time —
-    // an item that would cross the boundary is not placed (items are indivisible, the airing
-    // simply ends earlier). Head items that cannot fit the window at all are consumed without a
-    // slot so the rotation does not stall on a permanently oversized item.
-    private static (List<SchedulableItem> Selected, int ConsumedLeading) SelectAiringItems(
-        List<SchedulableItem> items, int headIndex, ProgramRule rule, DateTime occurrenceStartUtc, DateTime? softEndUtc)
+    // item-bearing rule). An item is placed whenever it can still START inside the window
+    // (<paramref name="minStartRemain"/> before the boundary) — and it always airs to the end:
+    // items are indivisible, so a started item may legitimately overshoot a soft boundary and
+    // shifts the following airing behind its real end. Against a hard boundary (higher-priority
+    // next occurrence) an item must additionally complete inside the window. An item that may
+    // not start simply waits — it is never cut and never silently skipped: the cursor stays and
+    // the next occurrence retries it.
+    private static List<SchedulableItem> SelectAiringItems(
+        List<SchedulableItem> items, int headIndex, ProgramRule rule, DateTime airingStartUtc,
+        (DateTime StartUtc, bool Hard)? bound, TimeSpan minStartRemain)
     {
         // EpisodeCount wins; without it SlotDuration bounds the airing; when neither is set the
         // airing gets exactly one item (rule validation normally requires one of both).
@@ -1228,20 +1255,18 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
         var count = items.Count;
         var selected = new List<SchedulableItem>();
-        var consumed = 0;
         var accumulated = TimeSpan.Zero;
-        var slotStart = occurrenceStartUtc;
+        var slotStart = airingStartUtc;
         var ring = 0;
-        while (selected.Count < wanted && consumed <= count)
+        while (selected.Count < wanted)
         {
             var item = items[(headIndex + ring) % count];
-            ring++;
-            if (softEndUtc is { } bound && slotStart + item.Duration > bound)
+            if (bound is { } b)
             {
-                if (selected.Count > 0)
-                    break; // tail item crosses the boundary — the airing ends here instead
-                consumed++;
-                continue; // oversized head item — permanently skipped (consumed, no slot)
+                if (b.StartUtc - slotStart < minStartRemain)
+                    break; // not enough room left to start — the rest goes to fillers
+                if (b.Hard && slotStart + item.Duration > b.StartUtc)
+                    break; // higher-priority window — the item cannot complete, defers
             }
 
             selected.Add(item);
@@ -1249,13 +1274,15 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             accumulated += item.Duration;
             if (target is not null && accumulated >= target)
                 break;
+            if (++ring >= count && accumulated <= TimeSpan.Zero)
+                break; // a full ring gained no airtime — degenerate (zero) durations
         }
-        return (selected, consumed);
+        return selected;
     }
 
     // Sorted start times of all occurrences whose rule currently expands to schedulable items —
-    // each airing is bounded by the next such start so an overshooting tail cannot invade the
-    // next rule's window.
+    // every such start bounds the airing before it: a begun item always airs to the end, so the
+    // boundary governs whether an item may still START, not how long it may run.
     private static List<(DateTime StartUtc, int Priority)> BoundStarts(List<Occurrence> occurrences, Dictionary<long, RuleState> states)
         => occurrences
             .Where(o => states[o.Rule.Id].Items.Count > 0)
@@ -1265,14 +1292,16 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             .ToList();
 
     // First bound occurrence start strictly after <paramref name="afterUtc"/> — the end of the
-    // window the airing owns. Only occurrences of rules with equal-or-lower priority bound an
-    // airing: a strictly higher-priority occurrence's window may still be overshot into — that
-    // occurrence then wins the contested segment head-on via the normal conflict resolution.
-    private static DateTime? BoundaryAfter(List<(DateTime StartUtc, int Priority)> boundStarts, DateTime afterUtc, int priority)
+    // window the airing owns. Two flavors: a soft bound (equal-or-lower priority) only gates
+    // whether an item may still start — a started item overshoots and completes, shifting the
+    // next airing behind it. A hard bound (strictly higher priority) additionally requires the
+    // item to END before it — that window can never be won, so an item that would not complete
+    // waits for the rule's next occurrence instead of being scheduled and killed.
+    private static (DateTime StartUtc, bool Hard)? BoundaryAfter(List<(DateTime StartUtc, int Priority)> boundStarts, DateTime afterUtc, int priority)
     {
         foreach (var (start, p) in boundStarts)
-            if (start > afterUtc && p <= priority)
-                return start;
+            if (start > afterUtc)
+                return (start, p > priority);
         return null;
     }
 

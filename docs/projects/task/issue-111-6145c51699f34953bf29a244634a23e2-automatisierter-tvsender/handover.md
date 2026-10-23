@@ -378,3 +378,13 @@
 ### Schritt 25: Kein Kuerzen (N22) — FERTIG (abgenommen)
 
 - Ursache: DisplaceAiringSuffix verdrängte legitime Ueberstaende; BoundaryAfter-Drop toetete Folge-Ausstrahlung. Fix: weiche Grenze (Item startet ab MinStartRemainSeconds=30s Rest, laeuft komplett, ShiftPastInvaders verschiebt Folge hinter Item-Ende) vs. harte Grenze bei hoeherpriorer Folge (passt oder defer); DisplaceAiringSuffix entfernt. Abnahme-Fixes: Offset-Tag-Kandidaten (UTC-Grenze), Kommentar. Abnahme: `acceptance-schritt-25.md`.
+
+## Schritt 26 — N23–N25 (abgeschlossen, Devin)
+
+Erledigt: N23 deterministischer FNV-1a-Hash-Mix der Strangreihenfolge je Regel
+(`ProgramScheduleService.StrandOrderKey`, `SetItems`); N24 Poll-Start erst interaktiv
+(OnAfterRenderAsync) + entkoppeltes now/upcoming-Refresh + TimeProvider-Injection; N25
+`Setup.TvSenderEnabled` (Migration `AddSetupTvSenderEnabled`, Backup-Spalte), Toggle in
+„Allgemein", NavMenu-/Seiten-Gating, 404 an ProgramGuide-/LiveStream-API, alle drei Worker
+idle bei Sperre (Segmenter-Stop). Tests 2189/2191 grün (1 Alt-Skip), Debug+Release-Build
+sauber; Debug-bin war durch laufende App gesperrt → Scratch-OutDir/Release-Pfade (dokumentiert).

@@ -6,6 +6,15 @@ ausgeliefert wird zunächst genau ein Sender. Der Sendeplan wird fortlaufend im 
 und ist über die Programmauskunft für angemeldete Benutzer abfragbar; HLS-Live-Stream und die
 Live-TV-Ansicht folgen in späteren Schritten.
 
+## Freischaltung
+
+Der TV-Sender ist ab Werk **deaktiviert**: Navigation, Seiten (`/live-tv`, `/admin/tv-sender`),
+Programmauskunft- und Stream-Endpunkte (`/api/program-guide/*`, `/api/live-stream/*`) sowie die
+Hintergrund-Worker (Sendeplan, Segmentierung, Laufzeitermittlung) bleiben inaktiv, bis ein
+Administrator unter `Einrichtung` → `Allgemein` den Schalter **„Automatisierten TV-Sender
+freischalten"** setzt. Ohne Freigabe antworten die Endpunkte mit 404 und zeigen die Seiten einen
+Hinweis. Die Einstellung wirkt ohne Neustart; beim Sperren stoppt ein laufender ffmpeg-Lauf.
+
 Die Seite ist in vier Bereiche gegliedert, die über die Reiter (Tabs) oben erreichbar sind:
 **Regeln** (Programmregeln-Tabelle; der Regel-Editor öffnet sich als Overlay-Panel über der
 Liste), **Sendeplan** (kommende

@@ -49,9 +49,15 @@ public sealed class ProgramScheduleServiceTests_Interleaving
         var (fixture, _, slots, epA, epB, _) = await SeedGenreWindowAsync("schedule-interleave-stable", ct);
         using var _ = fixture;
 
-        // Window 12:00 daily, 2 strands × 45 min: strand A at 12:00, strand B at 12:45.
+        // Window 12:00 daily, 2 strands × 45 min: the same show keeps the same slot position
+        // every day — which show leads is decided by the hash mix, not the alphabet.
         var byDay = slots.GroupBy(s => DateOnly.FromDateTime(LocalDate(s))).ToList();
         Assert.True(byDay.Count >= 2, "Mindestens zwei Ausstrahlungstage erwartet.");
+
+        var firstDayOrdered = byDay.OrderBy(g => g.Key).First().OrderBy(s => s.Start).ToList();
+        var leadingIsA = epA.Cast<long?>().Contains(firstDayOrdered[0].TVShowEpisodeId);
+        var expectedLead = leadingIsA ? epA : epB;
+        var expectedSecond = leadingIsA ? epB : epA;
 
         foreach (var day in byDay)
         {
@@ -59,8 +65,8 @@ public sealed class ProgramScheduleServiceTests_Interleaving
             Assert.Equal(2, ordered.Count);
             Assert.Equal(12, LocalDate(ordered[0]).Hour);
             Assert.Equal(45, LocalDate(ordered[1]).Minute + LocalDate(ordered[1]).Hour * 60 - 12 * 60);
-            Assert.Contains(ordered[0].TVShowEpisodeId, epA.Cast<long?>());
-            Assert.Contains(ordered[1].TVShowEpisodeId, epB.Cast<long?>());
+            Assert.Contains(ordered[0].TVShowEpisodeId, expectedLead.Cast<long?>());
+            Assert.Contains(ordered[1].TVShowEpisodeId, expectedSecond.Cast<long?>());
         }
 
         // No double occupancy: slot intervals never overlap.
@@ -122,6 +128,62 @@ public sealed class ProgramScheduleServiceTests_Interleaving
             for (var i = 1; i < aired.Count; i++)
                 Assert.True(aired[i] > aired[i - 1], diag); // strictly advancing — no restart
         }
+    }
+
+    [Fact]
+    public void StrandOrderKey_IsDeterministic_AndNotAlphabetic()
+    {
+        // Der Hash-Mix muss reproduzierbar sein, aber die alphabetische Reihenfolge brechen:
+        // ueber mehrere Regeln hinweg darf nicht immer "show:1" (alphabetisch erste Serie)
+        // die kleinste Ordnung haben.
+        var keys = new[] { "show:1", "show:2", "show:3", "show:4" };
+        var leads = new HashSet<string>();
+        var sameOrderTwice = true;
+        for (long ruleId = 1; ruleId <= 6; ruleId++)
+        {
+            var ordered = keys.OrderBy(k => ProgramScheduleService.StrandOrderKey(ruleId, k)).ToList();
+            leads.Add(ordered[0]);
+            sameOrderTwice &= keys.OrderBy(k => ProgramScheduleService.StrandOrderKey(ruleId, k))
+                .SequenceEqual(ordered);
+        }
+        Assert.True(sameOrderTwice, "Der Ordnungsschluessel ist nicht reproduzierbar.");
+        Assert.True(leads.Count > 1, "Ueber alle Regeln fuehrt immer derselbe Strang — die Mischung ist nicht regelabhaengig.");
+    }
+
+    [Fact]
+    public async Task EnsureCoverage_GenreRule_LeadStrand_VariesAcrossRules_NotAlphabetical()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var fixture = await ProgramScheduleTestDb.CreateAsync("schedule-interleave-mix", ct);
+        using var _ = fixture;
+        var channel = await fixture.GetChannelAsync(ct);
+        var genre = await fixture.CreateGenreAsync("Mischung");
+        var episodeIds = new List<long>();
+        foreach (var name in new[] { "A-Serie", "B-Serie", "C-Serie" })
+        {
+            var (show, _, eps) = await fixture.CreateShowAsync(name, 3, duration: TimeSpan.FromMinutes(45));
+            await fixture.LinkShowGenreAsync(show.Id, genre.Id);
+            episodeIds.Add(eps[0].Id);
+        }
+
+        // Drei Regeln ueber denselben Bestand: je Regel eine feste, aber unterschiedliche
+        // Fuehrungsserie — nie zwangslaeufig die alphabetisch erste.
+        var leadEpisodeIds = new HashSet<long>();
+        var service = fixture.CreateService();
+        for (var i = 0; i < 3; i++)
+        {
+            var rule = await fixture.CreateRuleAsync(channel.Id, $"Fenster-{i}", ProgramRuleType.GenreRotation,
+                ProgramRuleRecurrence.Daily, new TimeOnly(8 + i * 3, 0), ProgramRuleMaterialType.Genre, genre.Id,
+                episodeCount: 3, genreIds: [genre.Id]);
+            await service.EnsureCoverageAsync(new DateTimeOffset(LocalUtc(2026, 10, 24, 9, 0)), ct);
+            var lead = (await fixture.SlotsAsync(ct))
+                .Where(s => s.ProgramRuleId == rule.Id).OrderBy(s => s.Start).First();
+            leadEpisodeIds.Add(lead.TVShowEpisodeId!.Value);
+        }
+
+        Assert.True(leadEpisodeIds.Count > 1,
+            "Alle Regeln fuehren mit derselben Serie — die Strandmischung ist nicht regelabhaengig.");
+        Assert.All(leadEpisodeIds, id => Assert.Contains(id, episodeIds));
     }
 
     [Fact]

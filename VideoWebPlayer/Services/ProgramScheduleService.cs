@@ -901,7 +901,13 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                 }
                 if (order.Count > 1)
                 {
+                    // Deterministischer Hash-Mix statt Erstauftrittsreihenfolge: die Expansion
+                    // liefert Serien alphabetisch sortiert ("A" zuerst) — mit dieser Reihenfolge
+                    // belegten fruehe Strang-Positionen zuverlaessig die alphabetisch ersten
+                    // Serien. Der Hash-Mix nach (Regel, Strang) ist reproduzierbar, variiert
+                    // aber von Regel zu Regel; Cursors und Slot-Positionen bleiben stabil.
                     Strands = order
+                        .OrderBy(key => StrandOrderKey(Rule.Id, key))
                         .Select(key => new StrandState(key, byKey[key], NextIndexFor(byKey[key], FindCursor(cursors, key))))
                         .ToList();
                     return;
@@ -926,6 +932,24 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     // reaching across the start is a begun airing's overshooting tail — it always airs to the
     // end, so the new airing takes its start behind the tail's real end instead of displacing
     // the video mid-air or dropping the whole airing.
+    // Stabiler, prozess-invarianter Ordnungsschluessel je (Regel, Strang): FNV-1a ueber
+    // Regel-Id und Strang-Schluessel. `string.GetHashCode` waere prozess-zufaellig und
+    // wuerde die Strangreihenfolge von Lauf zu Lauf veraendern — die Mischung muss
+    // reproduzierbar bleiben, damit Plaene und Cursor stabil sind.
+    internal static int StrandOrderKey(long ruleId, string strandKey)
+    {
+        unchecked
+        {
+            ulong hash = 14695981039346656037UL;
+            foreach (var b in System.Text.Encoding.UTF8.GetBytes($"{ruleId}:{strandKey}"))
+            {
+                hash ^= b;
+                hash *= 1099511628211UL;
+            }
+            return (int)(hash & 0x7fffffff);
+        }
+    }
+
     // The starting strand of an interleaved airing derives from the real (possibly shifted)
     // start day — EpisodeCount-only rules rotate it per day so every strand gets its turn;
     // SlotDuration airings keep identical day-to-day positions (offset 0).

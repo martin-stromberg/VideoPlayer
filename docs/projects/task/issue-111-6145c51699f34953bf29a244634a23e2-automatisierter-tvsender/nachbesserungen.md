@@ -506,3 +506,31 @@ persistiert ueber ProgramSettingsService o. aehnlichem), Admin-Toggle im TV-Send
 Admin oder allgemeinen Einstellungen, NavMenu-Bedingung, serverseitige Absicherung
 (API-Endpunkte /api/live-stream, /api/program-guide, /admin/tv-sender duerfen ohne
 Freigabe nicht erreichbar sein — 404/403), plus Verhalten der Worker, wenn deaktiviert.
+
+## N26 — Fortschrittsbalken immer voll (Kultur-Bug Komma statt Punkt) (Prioritaet: hoch, BUG)
+
+**Beobachtet (Anwender, live gerendert):** `style="width:59,381461147936385%"` — die
+Progress-Fill-Breite wird mit deutscher Kultur (Komma) serialisiert; CSS braucht
+invariant `59.38%` → Balken wirkt immer voll. Fix: Prozent-Wert mit
+`CultureInfo.InvariantCulture` formatieren (Fundstelle in `LiveTv.razor` /
+`TVSenderAdmin.razor` wo `width:{double}%` gesetzt wird — war schon als Alt-Hinweis
+aus Schritt 7/24 dokumentiert, jetzt live bestaetigt). Test: Formatierung pruefen.
+
+## N27 — Sendeplan nach Tagen gliedern + Trennlinien bei Regelwechsel (Prioritaet: mittel, UI)
+
+**Gewuenscht (Anwender):** Der Sendeplan (Admin-Tab, program-card-Liste) soll nach
+einzelnen Tagen gegliedert werden (Tages-Header statt fortlaufender Liste).
+Innerhalb eines Tages zusaetzlich **Trennlinie/Markierung beim Regelwechsel**
+(Uebergang Regel A → Regel B), damit die Bloecke je Programmregel visuell
+abgegrenzt sind. Umsetzung in TVSenderAdmin.razor: Gruppierung `slot.Start.Date`,
+Section-Header je Tag, Divider wenn `ProgramRuleId` wechselt. Tests: bUnit-Markup.
+
+## N28 — TV-Sender pro Benutzer freigeben (Prioritaet: hoch)
+
+**Gewuenscht (Anwender):** Erweiterung von N25 — nicht nur globales Feature-Flag:
+der Sender muss **fuer ausgewaehlte Benutzer** explizit freigegeben werden
+(Admin waehlt Benutzer aus; nur die sehen Menueeintrag + koennen Endpunkte nutzen).
+Design: Benutzer-Allowlist (z. B. `TvSenderAllowedUserIds` in Setup oder eigene
+Tabelle `TvSenderUserAccess`), Admin-UI zur Auswahl, serverseitige Pruefung in
+NavMenu + Controllern + Pages (User-Claim/Id), Worker bleiben global.
+Admin selbst hat implizit Zugriff. Tests: User ohne Freigabe → versteckt/verweigert.

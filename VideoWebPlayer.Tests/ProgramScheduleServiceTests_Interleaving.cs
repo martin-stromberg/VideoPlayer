@@ -168,29 +168,46 @@ public sealed class ProgramScheduleServiceTests_Interleaving
 
         // Drei Regeln ueber denselben Bestand: die Fuehrungsserie jeder Regel muss exakt der
         // Hash-Permutation folgen (kleinster StrandOrderKey je Regel) — nicht der alphabetischen
-        // Reihenfolge und nicht zufaelligem Trimming. Frische Stränge starten bei Episode 1.
-        // Geprueft wird der Slot am Fensterbeginn (Pick 0): die erste Occurrence des Tages ist
-        // eine angefangene Sendung, deren erster Slot der Pick ist, der „jetzt" abdeckt.
+        // Reihenfolge und nicht zufaelligem Trimming.
+        // Alle Regeln VOR dem einen Coverage-Lauf anlegen: EnsureCoverage ist extend-only und
+        // bricht ab, sobald die Abdeckung den Horizont ueberholt — je nach Maschinen-TZ kippt
+        // die Occurrence am Horizondrand anders und ein zweiter Lauf materialisierte dann gar
+        // nichts mehr (CI-Fehler "Sequence contains no elements").
         var service = fixture.CreateService();
+        var rules = new List<ProgramRule>();
         for (var i = 0; i < 3; i++)
         {
-            var rule = await fixture.CreateRuleAsync(channel.Id, $"Fenster-{i}", ProgramRuleType.GenreRotation,
+            rules.Add(await fixture.CreateRuleAsync(channel.Id, $"Fenster-{i}", ProgramRuleType.GenreRotation,
                 ProgramRuleRecurrence.Daily, new TimeOnly(8 + i * 3, 0), ProgramRuleMaterialType.Genre, genre.Id,
-                episodeCount: 3, genreIds: [genre.Id]);
-            await service.EnsureCoverageAsync(new DateTimeOffset(LocalUtc(2026, 10, 24, 9, 0)), ct);
-
-            // Der Slot am Fensterbeginn gehoert zum Strang mit dem kleinsten StrandOrderKey;
-            // die Episode selbst folgt dem Strang-Cursor (Tag-1-Occurrence hat sie schon
-            // verbraucht), also wird die Serie — nicht die konkrete Episode — verglichen.
-            var expectedLeadEpisodes = shows
-                .OrderBy(s => ProgramScheduleService.StrandOrderKey(rule.Id, $"show:{s.ShowId}"))
-                .First().EpisodeIds;
-            var actualLead = (await fixture.SlotsAsync(ct))
-                .Where(s => s.ProgramRuleId == rule.Id && LocalDate(s).TimeOfDay == rule.TimeOfDay.ToTimeSpan())
-                .OrderBy(s => s.Start).First().TVShowEpisodeId!.Value;
-
-            Assert.Contains(actualLead, expectedLeadEpisodes);
+                episodeCount: 3, genreIds: [genre.Id]));
         }
+        await service.EnsureCoverageAsync(new DateTimeOffset(LocalUtc(2026, 10, 24, 9, 0)), ct);
+
+        var slots = await fixture.SlotsAsync(ct);
+        var leadShowIds = new HashSet<long>();
+        foreach (var rule in rules)
+        {
+            var expectedLead = shows
+                .OrderBy(s => ProgramScheduleService.StrandOrderKey(rule.Id, $"show:{s.ShowId}"))
+                .First();
+
+            // Anker ist der Slot am exakten UTC-Start der Occurrence vom 25.10.: die Tag-1-
+            // Occurrence ist je nach Fensterzeit bereits gestartet und schreibt dann keinen
+            // Slot am Fensterbeginn; der 25.10. liegt auf jedem Rechner mitten im Horizont.
+            // Der Vergleich auf den UTC-Start statt auf die lokale Slot-Zeit ist zeitzonenfest:
+            // Test und Service konvertieren ueber dieselbe Maschinen-TZ (TimeZoneInfo.Local).
+            var occurrenceStart = LocalUtc(2026, 10, 25, rule.TimeOfDay.Hour, rule.TimeOfDay.Minute);
+            var leadSlot = slots.Single(s => s.ProgramRuleId == rule.Id && s.Start == occurrenceStart);
+
+            // Pick 0 gehoert dem Hash-Min-Strang; die Episode folgt dem Strang-Cursor
+            // (die Tag-1-Occurrence hat sie bereits verbraucht) — verglichen wird die Serie.
+            var leadShow = shows.Single(s => s.EpisodeIds.Contains(leadSlot.TVShowEpisodeId!.Value));
+            Assert.Equal(expectedLead.ShowId, leadShow.ShowId);
+            leadShowIds.Add(leadShow.ShowId);
+        }
+
+        Assert.True(leadShowIds.Count > 1,
+            "Ueber alle Regeln fuehrt immer dieselbe Serie — die Mischung ist nicht regelabhaengig.");
     }
 
     [Fact]

@@ -1,4 +1,5 @@
 using Bunit;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -8,6 +9,7 @@ using System.Net;
 using VideoWebPlayer.Client;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Components.Pages;
+using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
 using Xunit;
 
@@ -20,8 +22,9 @@ namespace VideoWebPlayer.Tests.Components;
 public class LiveTvTests(ITestOutputHelper _)
 {
     private const string TestToken = "test-token";
+    private static readonly Helpers.ControllableTimeProvider ControllableTime = new();
 
-    private static BunitContext CreateContext(Mock<IProgramGuideApiClient>? guide = null, bool authorized = true)
+    private static BunitContext CreateContext(Mock<IProgramGuideApiClient>? guide = null, bool authorized = true, bool tvSenderEnabled = true)
     {
         var ctx = new BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
@@ -33,6 +36,15 @@ public class LiveTvTests(ITestOutputHelper _)
         ctx.Services.AddSingleton<VideoWebPlayerClient>(new TokenClient());
         ctx.Services.AddSingleton((guide ?? CreateGuideMock()).Object);
         ctx.Services.AddSingleton(new StaticAssetVersioner(new NullFileProvider()));
+        ctx.Services.AddSingleton<TimeProvider>(ControllableTime);
+
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .Options;
+        var db = new ApplicationDbContext(options, new EventManager());
+        db.Setups.Add(new Setup { TvSenderEnabled = tvSenderEnabled });
+        db.SaveChanges();
+        ctx.Services.AddSingleton(new ProgramSettingsService(db, NullLogger<ProgramSettingsService>.Instance));
         return ctx;
     }
 
@@ -223,6 +235,65 @@ public class LiveTvTests(ITestOutputHelper _)
         await cut.InvokeAsync(() => cut.Instance.NotifyStreamUnsupported());
 
         Assert.Contains("nicht unterstützt", cut.Find("#live-tv-unsupported").TextContent);
+    }
+
+    [Fact]
+    public void Page_FeatureNotReleased_ShowsHint_WithoutGuideCallOrPoll()
+    {
+        var guide = CreateGuideMock();
+        using var ctx = CreateContext(guide, tvSenderEnabled: false);
+
+        var cut = ctx.Render<LiveTv>();
+
+        Assert.Contains("nicht freigeschaltet", cut.Find("#live-tv-disabled").TextContent);
+        guide.Verify(m => m.RequestProgramGuideNowAsync(It.IsAny<CancellationToken>()), Times.Never);
+        guide.Verify(m => m.RequestProgramGuideUpcomingAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task PollTick_RefreshesUpcomingList()
+    {
+        var guide = CreateGuideMock();
+        using var ctx = CreateContext(guide);
+        var cut = ctx.Render<LiveTv>();
+        Assert.Equal(2, cut.FindAll(".livetv-upcoming-row").Count);
+
+        // Neue Programmdaten: abgelaufener Eintrag weg, ein neuer dazu.
+        guide.Setup(m => m.RequestProgramGuideUpcomingAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                new DtoProgramGuideEntry { SlotId = 13, Title = "Neue Late-Show", MediaItemId = 7, StartUtc = DateTimeOffset.UtcNow.AddMinutes(30), EndUtc = DateTimeOffset.UtcNow.AddMinutes(90) },
+            ]);
+        guide.Setup(m => m.RequestProgramGuideNowAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DtoProgramGuideNow { ServerTimeUtc = DateTimeOffset.UtcNow });
+
+        ControllableTime.TickTimers();
+        cut.WaitForAssertion(() =>
+            Assert.Single(cut.FindAll(".livetv-upcoming-row")), timeout: TimeSpan.FromSeconds(5));
+
+        Assert.Contains("Neue Late-Show", cut.Find("#live-tv-upcoming").TextContent);
+        Assert.DoesNotContain("Laufender E2E-Film", cut.Find("#live-tv-upcoming").TextContent);
+        guide.Verify(m => m.RequestProgramGuideUpcomingAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.AtLeast(2));
+    }
+
+    [Fact]
+    public async Task PollTick_NowFails_UpcomingStillRefreshes()
+    {
+        var guide = CreateGuideMock();
+        using var ctx = CreateContext(guide);
+        var cut = ctx.Render<LiveTv>();
+        Assert.Equal(2, cut.FindAll(".livetv-upcoming-row").Count);
+
+        // Der Now-Endpunkt faellt dauerhaft aus — die Vorschau darf trotzdem weiterlaufen.
+        guide.Setup(m => m.RequestProgramGuideNowAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("down", null, HttpStatusCode.InternalServerError));
+        guide.Setup(m => m.RequestProgramGuideUpcomingAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                new DtoProgramGuideEntry { SlotId = 14, Title = "Trotzdem-Neu", MediaItemId = 8, StartUtc = DateTimeOffset.UtcNow.AddHours(1), EndUtc = DateTimeOffset.UtcNow.AddHours(2) },
+            ]);
+
+        ControllableTime.TickTimers();
+        cut.WaitForAssertion(() =>
+            Assert.Contains("Trotzdem-Neu", cut.Find("#live-tv-upcoming").TextContent), timeout: TimeSpan.FromSeconds(5));
     }
 
     [Fact]

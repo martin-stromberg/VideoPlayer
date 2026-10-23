@@ -306,7 +306,10 @@ namespace VideoWebPlayer.Migrations
                     b.Property<int>("ScanProcessIntervalMinutes")
                         .HasColumnType("INTEGER");
 
-                    b.HasKey("Id");
+                                        b.Property<bool>("TvSenderEnabled")
+                        .HasColumnType("INTEGER");
+
+b.HasKey("Id");
 
                     b.ToTable("Setups");
                 });

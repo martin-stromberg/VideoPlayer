@@ -29,6 +29,7 @@ public class NavMenuPlaylistsTests
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.AddAuthorization().SetAuthorized("test-user");
         ctx.Services.AddSingleton(db);
+        ctx.Services.AddSingleton(new ProgramSettingsService(db, Microsoft.Extensions.Logging.Abstractions.NullLogger<ProgramSettingsService>.Instance));
         ctx.Services.AddSingleton<VideoWebPlayerClient>(new NoOpVideoWebPlayerClient());
         ctx.Services.AddSingleton(new Mock<ILoginIpBlockService>().Object);
 

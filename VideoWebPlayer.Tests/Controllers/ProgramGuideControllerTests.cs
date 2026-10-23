@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -42,10 +43,34 @@ public sealed class ProgramGuideControllerTests : IAsyncLifetime
     }
 
     private ProgramGuideController CreateController(FakeAuthService auth)
-        => new(new ProgramGuideService(_fixture.Db), auth, NullLogger<ProgramGuideController>.Instance)
+        => new(new ProgramGuideService(_fixture.Db),
+            new ProgramSettingsService(_fixture.Db, NullLogger<ProgramSettingsService>.Instance),
+            auth, NullLogger<ProgramGuideController>.Instance)
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
         };
+
+    [Fact]
+    public async Task GetNow_FeatureNotReleased_Returns404()
+    {
+        (await _fixture.Db.Setups.FirstAsync(TestContext.Current.CancellationToken)).TvSenderEnabled = false;
+        await _fixture.Db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var result = await _controller.GetNow();
+
+        Assert.IsType<NotFoundResult>(result);
+    }
+
+    [Fact]
+    public async Task GetUpcoming_FeatureNotReleased_Returns404()
+    {
+        (await _fixture.Db.Setups.FirstAsync(TestContext.Current.CancellationToken)).TvSenderEnabled = false;
+        await _fixture.Db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var result = await _controller.GetUpcoming();
+
+        Assert.IsType<NotFoundResult>(result);
+    }
 
     [Fact]
     public async Task GetNow_LoggedIn_ReturnsDtoWithRunningBroadcast()

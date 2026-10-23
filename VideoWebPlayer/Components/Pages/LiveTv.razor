@@ -9,9 +9,11 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @inject VideoWebPlayerClient Client
 @inject IProgramGuideApiClient ProgramGuideClient
+@inject ProgramSettingsService ProgramSettings
 @inject VideoWebPlayer.Services.StaticAssetVersioner AssetVersions
 @inject IJSRuntime JS
 @inject ILogger<LiveTv> Logger
+@inject TimeProvider TimeProvider
 @rendermode InteractiveServer
 @implements IAsyncDisposable
 
@@ -26,6 +28,12 @@ else if (isLoading)
 {
     <section class="media-section">
         <p id="live-tv-loading">Lade Daten...</p>
+    </section>
+}
+else if (!tvSenderEnabled)
+{
+    <section class="media-section">
+        <div class="alert alert-info" id="live-tv-disabled">Der TV-Sender ist nicht freigeschaltet.</div>
     </section>
 }
 else if (!string.IsNullOrWhiteSpace(loadError))
@@ -151,6 +159,7 @@ else
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(15);
 
     private bool isAuthenticated;
+    private bool tvSenderEnabled;
     private bool isLoading = true;
     private string? loadError;
     private bool streamError;
@@ -184,15 +193,22 @@ else
         }
 
         await Client.EnsureAuthorizationTokenSilentlyAsync(auth.User);
-        await RefreshGuideAsync(isInitial: true);
+        tvSenderEnabled = await ProgramSettings.GetTvSenderEnabledAsync();
+        if (tvSenderEnabled)
+            await RefreshGuideAsync(isInitial: true);
         isLoading = false;
-        _pollTask = PollLoopAsync();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!isAuthenticated)
+        if (!isAuthenticated || !tvSenderEnabled)
             return;
+
+        // Die Aktualisierungsschleife wird erst auf der interaktiven Instanz gestartet —
+        // OnInitializedAsync laeuft auch beim Prerender, dessen Wegwerf-Instanz nie disposed
+        // wird und sonst einen Timer fuer den Prozessrest mitschleppt.
+        if (firstRender)
+            _pollTask = PollLoopAsync();
 
         var currentSlotId = guide?.Now?.SlotId;
         if (currentSlotId == _attachedSlotId)
@@ -217,7 +233,7 @@ else
 
     private async Task PollLoopAsync()
     {
-        _timer = new PeriodicTimer(PollInterval);
+        _timer = new PeriodicTimer(PollInterval, TimeProvider);
         try
         {
             while (await _timer.WaitForNextTickAsync(_cts.Token))
@@ -250,19 +266,34 @@ else
     /// </summary>
     private async Task RefreshGuideAsync(bool isInitial)
     {
+        // Jetzt/Gleich und Vorschau werden unabhaengig geholt: scheitert einer der beiden
+        // Aufrufe dauerhaft, aktualisiert sich der andere Bereich trotzdem weiter —
+        // ein gekoppelter Abruf wuerde die Upcoming-Liste bei einem `now`-Fehler einfrieren.
         try
         {
-            var now = await ProgramGuideClient.RequestProgramGuideNowAsync(_cts.Token);
-            var entries = await ProgramGuideClient.RequestProgramGuideUpcomingAsync(PreviewHours, _cts.Token);
-            guide = now;
-            upcoming = entries;
+            guide = await ProgramGuideClient.RequestProgramGuideNowAsync(_cts.Token);
             if (isInitial)
                 loadError = null;
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            Logger.LogWarning(ex, "Programmauskunft fuer Live-TV konnte nicht geladen werden.");
+            Logger.LogWarning(ex, "Programmauskunft (Jetzt/Gleich) fuer Live-TV konnte nicht geladen werden.");
+            if (isInitial)
+            {
+                loadError = LiveTvErrorMessages.Describe(ex) ?? LiveTvErrorMessages.LoadFailed;
+                return; // wie zuvor: beim Initialfehler wird nichts Weiteres geholt
+            }
+        }
+
+        try
+        {
+            upcoming = await ProgramGuideClient.RequestProgramGuideUpcomingAsync(PreviewHours, _cts.Token);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Programmvorschau fuer Live-TV konnte nicht geladen werden.");
             if (isInitial)
                 loadError = LiveTvErrorMessages.Describe(ex) ?? LiveTvErrorMessages.LoadFailed;
         }

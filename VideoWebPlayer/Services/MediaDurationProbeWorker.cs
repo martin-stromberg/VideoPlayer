@@ -59,20 +59,26 @@ public sealed class MediaDurationProbeWorker : BackgroundService
                 try
                 {
                     using var scope = _scopeFactory.CreateScope();
-                    var service = scope.ServiceProvider.GetRequiredService<MediaDurationProbeService>();
-                    var gate = scope.ServiceProvider.GetService<IBackgroundProcessingGate>();
+                    var settings = scope.ServiceProvider.GetRequiredService<ProgramSettingsService>();
 
-                    await using var lease = gate is null
-                        ? null
-                        : await gate.EnterOperationAsync("Laufzeitermittlung", stoppingToken);
-
-                    var batchSize = _options.Value.EffectiveBatchSize;
-                    int processed;
-                    do
+                    // Feature-Flag aus: Laufzeitermittlung pausiert (sie dient nur dem Sender).
+                    if (await settings.GetTvSenderEnabledAsync(stoppingToken))
                     {
-                        processed = await service.ProbePendingAsync(batchSize, stoppingToken);
+                        var service = scope.ServiceProvider.GetRequiredService<MediaDurationProbeService>();
+                        var gate = scope.ServiceProvider.GetService<IBackgroundProcessingGate>();
+
+                        await using var lease = gate is null
+                            ? null
+                            : await gate.EnterOperationAsync("Laufzeitermittlung", stoppingToken);
+
+                        var batchSize = _options.Value.EffectiveBatchSize;
+                        int processed;
+                        do
+                        {
+                            processed = await service.ProbePendingAsync(batchSize, stoppingToken);
+                        }
+                        while (processed > 0 && !stoppingToken.IsCancellationRequested);
                     }
-                    while (processed > 0 && !stoppingToken.IsCancellationRequested);
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                 {

@@ -21,17 +21,20 @@ public class LiveStreamController : ApiBaseController
     internal const string SegmentContentType = "video/mp2t";
 
     private readonly LiveStreamSegmentStore _segmentStore;
+    private readonly ProgramSettingsService _settings;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="LiveStreamController"/> class.
     /// </summary>
     /// <param name="segmentStore">The segment directory store.</param>
+    /// <param name="settings">Program settings holding the TV-channel release switch.</param>
     /// <param name="authService">Authentication service.</param>
     /// <param name="logger">Logger instance.</param>
-    public LiveStreamController(LiveStreamSegmentStore segmentStore, IAuthService authService, ILogger<LiveStreamController> logger)
+    public LiveStreamController(LiveStreamSegmentStore segmentStore, ProgramSettingsService settings, IAuthService authService, ILogger<LiveStreamController> logger)
         : base(authService, logger)
     {
         _segmentStore = segmentStore;
+        _settings = settings;
     }
 
     /// <summary>
@@ -48,6 +51,10 @@ public class LiveStreamController : ApiBaseController
         try
         {
             CheckLoggedIn();
+
+            // Feature-Flag: ohne Admin-Freigabe ist der Stream-Endpunkt unsichtbar (404).
+            if (!await _settings.GetTvSenderEnabledAsync(HttpContext.RequestAborted))
+                return NotFound();
 
             var path = await _segmentStore.TryResolveFileAsync(fileName, HttpContext.RequestAborted);
             if (path is null)

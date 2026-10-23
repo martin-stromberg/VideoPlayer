@@ -24,11 +24,14 @@ public class NavMenuLiveTvTests
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
             .Options;
         using var db = new ApplicationDbContext(options, new EventManager());
+        db.Setups.Add(new Setup { TvSenderEnabled = true });
+        db.SaveChanges();
 
         using var ctx = new global::Bunit.BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
         ctx.AddAuthorization().SetAuthorized("test-user");
         ctx.Services.AddSingleton(db);
+        ctx.Services.AddSingleton(new ProgramSettingsService(db, Microsoft.Extensions.Logging.Abstractions.NullLogger<ProgramSettingsService>.Instance));
         ctx.Services.AddSingleton<VideoWebPlayerClient>(new NoOpVideoWebPlayerClient());
         ctx.Services.AddSingleton(new Mock<ILoginIpBlockService>().Object);
 
@@ -37,5 +40,28 @@ public class NavMenuLiveTvTests
         var links = cut.FindAll("a.nav-link").Where(a => a.GetAttribute("href")?.Equals("/live-tv", StringComparison.OrdinalIgnoreCase) == true).ToArray();
         var link = Assert.Single(links);
         Assert.Equal("Live-TV", link.TextContent.Trim());
+    }
+
+    [Fact]
+    public void NavMenu_HidesLiveTvEntry_WhenFeatureNotReleased()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .Options;
+        using var db = new ApplicationDbContext(options, new EventManager());
+        db.Setups.Add(new Setup { TvSenderEnabled = false });
+        db.SaveChanges();
+
+        using var ctx = new global::Bunit.BunitContext();
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        ctx.AddAuthorization().SetAuthorized("test-user");
+        ctx.Services.AddSingleton(db);
+        ctx.Services.AddSingleton(new ProgramSettingsService(db, Microsoft.Extensions.Logging.Abstractions.NullLogger<ProgramSettingsService>.Instance));
+        ctx.Services.AddSingleton<VideoWebPlayerClient>(new NoOpVideoWebPlayerClient());
+        ctx.Services.AddSingleton(new Mock<ILoginIpBlockService>().Object);
+
+        var cut = ctx.Render<NavMenu>();
+
+        Assert.DoesNotContain(cut.FindAll("a.nav-link"), a => a.GetAttribute("href")?.Equals("/live-tv", StringComparison.OrdinalIgnoreCase) == true);
     }
 }

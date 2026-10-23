@@ -18,18 +18,26 @@ public class ProgramGuideController : ApiBaseController
     private const int DefaultPreviewHours = 6;
 
     private readonly IProgramGuideService _programGuideService;
+    private readonly ProgramSettingsService _settings;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ProgramGuideController"/> class.
     /// </summary>
     /// <param name="programGuideService">Program guide service.</param>
+    /// <param name="settings">Program settings holding the TV-channel release switch.</param>
     /// <param name="authService">Authentication service.</param>
     /// <param name="logger">Logger instance.</param>
-    public ProgramGuideController(IProgramGuideService programGuideService, IAuthService authService, ILogger<ProgramGuideController> logger)
+    public ProgramGuideController(IProgramGuideService programGuideService, ProgramSettingsService settings, IAuthService authService, ILogger<ProgramGuideController> logger)
         : base(authService, logger)
     {
         _programGuideService = programGuideService;
+        _settings = settings;
     }
+
+    // The whole TV-channel feature sits behind an admin release switch: while unreleased the
+    // endpoints answer 404 — the feature is indistinguishable from "does not exist".
+    private async Task<bool> FeatureReleasedAsync()
+        => await _settings.GetTvSenderEnabledAsync(HttpContext.RequestAborted);
 
     /// <summary>
     /// Gets which broadcast runs right now (with its position inside the video and its remaining
@@ -42,6 +50,8 @@ public class ProgramGuideController : ApiBaseController
         return ExecuteAsync(async () =>
         {
             CheckLoggedIn();
+            if (!await FeatureReleasedAsync())
+                return NotFound();
             var result = await _programGuideService.GetNowAsync(DateTimeOffset.UtcNow, HttpContext.RequestAborted);
             return Ok(result);
         }, "Abrufen der Programmauskunft (Jetzt/Gleich)");
@@ -61,6 +71,8 @@ public class ProgramGuideController : ApiBaseController
         return ExecuteAsync(async () =>
         {
             CheckLoggedIn();
+            if (!await FeatureReleasedAsync())
+                return NotFound();
             // Range check before TimeSpan.FromHours: extreme values would overflow into a 500.
             if (hours < 1 || hours > ProgramGuideService.MaxPreviewHours)
                 return BadRequest($"hours muss zwischen 1 und {ProgramGuideService.MaxPreviewHours} liegen.");

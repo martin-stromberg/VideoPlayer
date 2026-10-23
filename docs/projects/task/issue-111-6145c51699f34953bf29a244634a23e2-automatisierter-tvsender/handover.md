@@ -388,3 +388,8 @@ Erledigt: N23 deterministischer FNV-1a-Hash-Mix der Strangreihenfolge je Regel
 „Allgemein", NavMenu-/Seiten-Gating, 404 an ProgramGuide-/LiveStream-API, alle drei Worker
 idle bei Sperre (Segmenter-Stop). Tests 2189/2191 grün (1 Alt-Skip), Debug+Release-Build
 sauber; Debug-bin war durch laufende App gesperrt → Scratch-OutDir/Release-Pfade (dokumentiert).
+
+
+### Schritt 26: N23-N25 — FERTIG (abgenommen)
+
+- StrandOrderKey (FNV-1a) mischt Strangreihenfolge je Regel; Poll-Fix in LiveTv (firstRender + entkoppelte Abrufe); Setup.TvSenderEnabled + Admin-Toggle + serverseitige 404-Gates + Worker-Idle. Abnahme: `acceptance-schritt-26.md` — erfuellt nach 5 Fixen.

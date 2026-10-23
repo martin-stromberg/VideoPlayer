@@ -768,18 +768,17 @@ namespace VideoWebPlayer.Services
         private const string TrailerFolderName = "trailers";
         private const string TrailerSuffix = "-trailer";
 
-        /// <summary>
-        /// Pr�ft und verarbeitet eine Collection als Movie-Collection.
-        /// </summary>
-        /// <param name="collection">Die zu verarbeitende Collection.</param>
-        /// <param name="cancellationToken">Token zum Abbrechen der Verarbeitung.</param>
-
         private static bool IsTrailerFolder(MediaCollection collection)
             => string.Equals(collection.Name, TrailerFolderName, StringComparison.OrdinalIgnoreCase);
 
         private static bool IsTrailerFileName(string path)
             => Path.GetFileNameWithoutExtension(path)?.EndsWith(TrailerSuffix, StringComparison.OrdinalIgnoreCase) == true;
 
+        /// <summary>
+        /// Pr�ft und verarbeitet eine Collection als Movie-Collection.
+        /// </summary>
+        /// <param name="collection">Die zu verarbeitende Collection.</param>
+        /// <param name="cancellationToken">Token zum Abbrechen der Verarbeitung.</param>
         private async Task ProcessCollectionAsMovieAsync(MediaCollection collection, CancellationToken cancellationToken)
         {
             // 1. Alle MediaItems (Videodateien) der Collection laden

@@ -601,14 +601,20 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
         foreach (var occurrenceStart in occurrenceStarts.Where(o => o <= airing[0].Start).OrderBy(o => o))
         {
-            var startOffset = wanted < m
-                ? (int)((((occurrenceStart.Date - DateTime.UnixEpoch).Days) % m) + m) % m
-                : 0;
+            // The real start may shift across a UTC day boundary when invaders push it —
+            // the materialization derives the start-strand offset from that shifted day,
+            // so both plausible days are tried and checked for consistency below.
+            var realDay = airing[0].Start.Date;
+            var offsetCandidates = new[] { realDay, realDay.AddDays(-1) }
+                .Select(d => StrandStartOffset(wanted, m, d))
+                .Distinct();
 
-            for (var p = 0; p < maxPrefix; p++)
+            foreach (var startOffset in offsetCandidates)
             {
-                if ((startOffset + p) % m != strandOf[0])
-                    continue;
+                for (var p = 0; p < maxPrefix; p++)
+                {
+                    if ((startOffset + p) % m != strandOf[0])
+                        continue;
 
                 var prefixCount = new int[m];
                 var possible = true;
@@ -646,6 +652,11 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                     localPick[s]++;
                 }
 
+                // The materialization derived the start-strand offset from the real start's
+                // day — a hypothesis is only consistent when it yields the same offset.
+                if (StrandStartOffset(wanted, m, simStart) != startOffset)
+                    continue;
+
                 if (occurrenceStart > simStart
                     || (occurrenceStart < simStart
                         && !(invaderStarts.TryGetValue(simStart, out var inv) && inv < occurrenceStart)))
@@ -675,6 +686,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                 }
                 if (matches && pos == picks.Count)
                     return true;
+            }
             }
         }
         return false;
@@ -774,8 +786,9 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             .Where(k => ranges.Any(r => r.Overlaps(new Interval(k.Start, k.End))))
             .ToList();
         // Slots starting before this occurrence's start are an earlier airing's overshooting tail
-        // invading this window — they always yield (the caller trims their airing's suffix), no
-        // matter the priorities. Only slots competing head-on inside the window go through evicts.
+        // invading this window — they lose regardless of priority and are returned as losers
+        // (the caller displaces their airing's future). Only slots competing head-on inside the
+        // window go through the evicts check.
         var competitors = conflicts.Where(k => k.Start >= occurrence.StartUtc).ToList();
         if (competitors.Any(k => !evicts(occurrence.Rule, k)) || ranges.Any(r => newSlots.Select(s => new Interval(s.Start, s.End)).Any(r.Overlaps)))
         {
@@ -913,6 +926,14 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     // reaching across the start is a begun airing's overshooting tail — it always airs to the
     // end, so the new airing takes its start behind the tail's real end instead of displacing
     // the video mid-air or dropping the whole airing.
+    // The starting strand of an interleaved airing derives from the real (possibly shifted)
+    // start day — EpisodeCount-only rules rotate it per day so every strand gets its turn;
+    // SlotDuration airings keep identical day-to-day positions (offset 0).
+    private static int StrandStartOffset(int wanted, int strandCount, DateTime startUtc)
+        => wanted < strandCount
+            ? (int)((((startUtc.Date - DateTime.UnixEpoch).Days) % strandCount) + strandCount) % strandCount
+            : 0;
+
     private static DateTime ShiftPastInvaders(DateTime startUtc, IEnumerable<Interval> occupied)
     {
         var moved = true;
@@ -1195,9 +1216,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         // rotating the start strand by occurrence day gives every strand its turn
         // over consecutive days. With SlotDuration (wanted >= m) positions stay
         // identical day-to-day, so the offset stays 0.
-        var startOffset = wanted < m
-            ? (int)((((airingStartUtc.Date - DateTime.UnixEpoch).Days) % m) + m) % m
-            : 0;
+        var startOffset = StrandStartOffset(wanted, m, airingStartUtc);
 
         var maxLap = strands.Max(s => s.Items.Count);
         var noProgressLaps = 0;

@@ -116,3 +116,11 @@ Prozess-Hinweis — keine funktionale Kürzung, kein Datenrisiko.
   degenerierte Zero-Duration-Items terminieren über die Ring-/Lap-Wächter (`:1274`-`1276`,
   `:1227`-`1231`); Füller-Slots zählen ebenfalls als Invasor-Evidenz, was fachlich stimmt (ein Füller
   kann einen Occurrence-Start legitim belegen).
+
+## Nachtrag — Abweichungen behoben
+
+1. Stale Kommentar in MaterializeOccurrenceEvicting aktualisiert (Invasoren verlieren unabhaengig
+   von Prioritaet; nur Fenster-Kompetitoren laufen durch evicts).
+2. Offset-Inkonsistenz in AiringReproducibleInterleaved gefixt: Kandidaten-Offsets ueber den realen
+   Start-Tag und den Vortag, Konsistenz-Check gegen simStart.Date; gemeinsamer StrandStartOffset-
+   Helper fuer Materialisierung und Reproduktion (82/82 Planer-Tests gruen).

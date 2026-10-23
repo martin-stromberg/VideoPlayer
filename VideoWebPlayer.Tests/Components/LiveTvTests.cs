@@ -5,6 +5,7 @@ using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.JSInterop;
 using Moq;
+using System.Globalization;
 using System.Net;
 using VideoWebPlayer.Client;
 using VideoWebPlayer.Client.Models;
@@ -107,6 +108,47 @@ public class LiveTvTests(ITestOutputHelper _)
 
         var attach = Assert.Single(ctx.JSInterop.Invocations, i => i.Identifier == "liveTv.attach");
         Assert.Contains(attach.Arguments, a => a is string s && s.Contains($"access_token={TestToken}"));
+    }
+
+    [Fact]
+    public void Now_ProgressFill_WritesInvariantPercent_UnderGermanCulture()
+    {
+        // N26: "width:59,38%" (de-DE-Komma) ist ungueltiges CSS und laesst den Balken immer
+        // voll wirken — der Wert muss mit Punkt-Dezimaltrenner serialisiert werden.
+        var previous = CultureInfo.CurrentCulture;
+        var previousUi = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("de-DE");
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("de-DE");
+
+            var guide = CreateGuideMock(
+                now: new DtoProgramGuideNow
+                {
+                    ServerTimeUtc = DateTimeOffset.UtcNow,
+                    Now = new DtoProgramGuideEntry
+                    {
+                        SlotId = 11, Title = "Halbzeit", MediaItemId = 5,
+                        StartUtc = DateTimeOffset.UtcNow.AddMinutes(-10), EndUtc = DateTimeOffset.UtcNow.AddMinutes(70),
+                        // 450s von 3600s = 12,5 % — gebrochener Wert, der unter de-DE ein
+                        // Komma produzieren wuerde, wenn die Formatierung kulturabhaengig waere.
+                        DurationSeconds = 3600, PositionSeconds = 450, RemainingSeconds = 3150,
+                    },
+                });
+            using var ctx = CreateContext(guide);
+
+            var cut = ctx.Render<LiveTv>();
+
+            var fill = cut.Find(".progress-fill");
+            var style = fill.GetAttribute("style");
+            Assert.Equal("width:12.5%", style);
+            Assert.DoesNotContain(',', style!);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previous;
+            CultureInfo.CurrentUICulture = previousUi;
+        }
     }
 
     [Fact]

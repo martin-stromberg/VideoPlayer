@@ -1,6 +1,8 @@
 @using Microsoft.JSInterop
 @using VideoWebPlayer.Client.Models
 @using VideoWebPlayer.ViewModels
+@* CssFormat statt kulturabhaengigem ToString: "width:59,38%" (de-DE-Komma) ist ungueltiges CSS
+   und laesst den Fortschrittsbalken immer voll wirken (N26). *@
 
 @inject IJSRuntime JS
 @inject VideoWebPlayer.Client.IPlaylistApiClient PlaylistClient
@@ -34,7 +36,7 @@
                 <div class="alert alert-danger player-stream-error" id="player-stream-error">@MediaAccessErrorMessages.PlaybackFailed</div>
             }
             <div class="player-progress-rail" aria-hidden="true">
-                <div class="player-progress-fill" style="width:@ProgressPercent%"></div>
+                <div class="player-progress-fill" style="width:@CssFormat.Percent(ProgressPercent)"></div>
             </div>
             @if (currentPlaylistId.HasValue)
             {

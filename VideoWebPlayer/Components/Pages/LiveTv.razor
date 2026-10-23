@@ -105,7 +105,7 @@ else
                             @if (nowEntry.PositionSeconds is { } position && nowEntry.DurationSeconds > 0)
                             {
                                 <div class="progress-track" aria-hidden="true">
-                                    <div class="progress-fill" style="width:@ProgressPercent(position, nowEntry.DurationSeconds)%"></div>
+                                    <div class="progress-fill" style="width:@CssFormat.Percent(ProgressPercent(position, nowEntry.DurationSeconds))"></div>
                                 </div>
                             }
                         </div>
@@ -353,6 +353,9 @@ else
             : $"{Math.Max(1, span.Minutes)} Min.";
     }
 
+    // Gibt den nackten Prozentwert als double zurueck; die CSS-Einbettung formatiert ueber
+    // CssFormat.Percent invariant — sonst landet unter de-DE ein Komma im style-Attribut
+    // ("width:59,38%"), das der Browser verwirft und den Balken voll wirken laesst.
     private static double ProgressPercent(double position, double duration)
         => Math.Clamp(position / duration * 100d, 0d, 100d);
 

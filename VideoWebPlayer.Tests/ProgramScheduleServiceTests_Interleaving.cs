@@ -151,24 +151,26 @@ public sealed class ProgramScheduleServiceTests_Interleaving
     }
 
     [Fact]
-    public async Task EnsureCoverage_GenreRule_LeadStrand_VariesAcrossRules_NotAlphabetical()
+    public async Task EnsureCoverage_GenreRule_LeadStrand_FollowsHashOrder_NotAlphabetical()
     {
         var ct = TestContext.Current.CancellationToken;
         var fixture = await ProgramScheduleTestDb.CreateAsync("schedule-interleave-mix", ct);
         using var _ = fixture;
         var channel = await fixture.GetChannelAsync(ct);
         var genre = await fixture.CreateGenreAsync("Mischung");
-        var episodeIds = new List<long>();
+        var shows = new List<(long ShowId, long[] EpisodeIds)>();
         foreach (var name in new[] { "A-Serie", "B-Serie", "C-Serie" })
         {
             var (show, _, eps) = await fixture.CreateShowAsync(name, 3, duration: TimeSpan.FromMinutes(45));
             await fixture.LinkShowGenreAsync(show.Id, genre.Id);
-            episodeIds.Add(eps[0].Id);
+            shows.Add((show.Id, eps.Select(e => e.Id).ToArray()));
         }
 
-        // Drei Regeln ueber denselben Bestand: je Regel eine feste, aber unterschiedliche
-        // Fuehrungsserie — nie zwangslaeufig die alphabetisch erste.
-        var leadEpisodeIds = new HashSet<long>();
+        // Drei Regeln ueber denselben Bestand: die Fuehrungsserie jeder Regel muss exakt der
+        // Hash-Permutation folgen (kleinster StrandOrderKey je Regel) — nicht der alphabetischen
+        // Reihenfolge und nicht zufaelligem Trimming. Frische Stränge starten bei Episode 1.
+        // Geprueft wird der Slot am Fensterbeginn (Pick 0): die erste Occurrence des Tages ist
+        // eine angefangene Sendung, deren erster Slot der Pick ist, der „jetzt" abdeckt.
         var service = fixture.CreateService();
         for (var i = 0; i < 3; i++)
         {
@@ -176,14 +178,19 @@ public sealed class ProgramScheduleServiceTests_Interleaving
                 ProgramRuleRecurrence.Daily, new TimeOnly(8 + i * 3, 0), ProgramRuleMaterialType.Genre, genre.Id,
                 episodeCount: 3, genreIds: [genre.Id]);
             await service.EnsureCoverageAsync(new DateTimeOffset(LocalUtc(2026, 10, 24, 9, 0)), ct);
-            var lead = (await fixture.SlotsAsync(ct))
-                .Where(s => s.ProgramRuleId == rule.Id).OrderBy(s => s.Start).First();
-            leadEpisodeIds.Add(lead.TVShowEpisodeId!.Value);
-        }
 
-        Assert.True(leadEpisodeIds.Count > 1,
-            "Alle Regeln fuehren mit derselben Serie — die Strandmischung ist nicht regelabhaengig.");
-        Assert.All(leadEpisodeIds, id => Assert.Contains(id, episodeIds));
+            // Der Slot am Fensterbeginn gehoert zum Strang mit dem kleinsten StrandOrderKey;
+            // die Episode selbst folgt dem Strang-Cursor (Tag-1-Occurrence hat sie schon
+            // verbraucht), also wird die Serie — nicht die konkrete Episode — verglichen.
+            var expectedLeadEpisodes = shows
+                .OrderBy(s => ProgramScheduleService.StrandOrderKey(rule.Id, $"show:{s.ShowId}"))
+                .First().EpisodeIds;
+            var actualLead = (await fixture.SlotsAsync(ct))
+                .Where(s => s.ProgramRuleId == rule.Id && LocalDate(s).TimeOfDay == rule.TimeOfDay.ToTimeSpan())
+                .OrderBy(s => s.Start).First().TVShowEpisodeId!.Value;
+
+            Assert.Contains(actualLead, expectedLeadEpisodes);
+        }
     }
 
     [Fact]

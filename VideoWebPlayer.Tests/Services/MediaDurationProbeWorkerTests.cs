@@ -38,7 +38,7 @@ public class MediaDurationProbeWorkerTests : IDisposable
         services.AddSingleton<IMediaSourceReader>(new LocalMediaSourceReader(NullLogger<LocalMediaSourceReader>.Instance));
         services.AddSingleton<IMediaDurationProbe>(new FixedDurationProbe(TimeSpan.FromMinutes(3)));
         services.AddSingleton<IFfprobeLocator>(new PresentLocator());
-        services.AddSingleton(Options.Create(new MediaProbeOptions { IntervalSeconds = 60, BatchSize = 10 }));
+        services.AddSingleton(Options.Create(new MediaProbeOptions { IntervalSeconds = 1, BatchSize = 10 }));
         services.AddScoped<MediaDurationProbeService>();
         services.AddScoped<ProgramSettingsService>();
         services.AddSingleton<Microsoft.Extensions.Logging.ILogger<ProgramSettingsService>>(NullLogger<ProgramSettingsService>.Instance);
@@ -106,7 +106,7 @@ public class MediaDurationProbeWorkerTests : IDisposable
     }
 
     [Fact]
-    public async Task ExecuteAsync_FeatureNotReleased_LeavesItemsUnprobed()
+    public async Task ExecuteAsync_FeatureFlagEvaluatedPerCycle()
     {
         var ct = TestContext.Current.CancellationToken;
         var db = _serviceProvider.GetRequiredService<ApplicationDbContext>();
@@ -136,16 +136,37 @@ public class MediaDurationProbeWorkerTests : IDisposable
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         await worker.StartAsync(cts.Token);
 
-        // Laenger als ein Worker-Intervall-Tick warten: auch ein zweiter Zyklus darf nichts messen.
+        // Mehrere Worker-Intervall-Ticks (IntervalSeconds = 1) abwarten:
+        // kein Zyklus darf bei ausgeschaltetem Flag etwas messen.
         await Task.Delay(TimeSpan.FromSeconds(3), ct);
-
-        await cts.CancelAsync();
-        await worker.StopAsync(CancellationToken.None);
 
         db.ChangeTracker.Clear();
         var reloaded = await db.MediaItems.SingleAsync(i => i.Id == item.Id, ct);
         Assert.Null(reloaded.DurationProbedAt);
         Assert.Null(reloaded.Duration);
+
+        // Flag zur Laufzeit einschalten: der naechste Takt muss es ohne Worker-Neustart
+        // auswerten und das Item messen (deckt ab, dass das Flag pro Zyklus gelesen wird).
+        db.ChangeTracker.Clear();
+        setup = await db.Setups.SingleAsync(ct);
+        setup.TvSenderEnabled = true;
+        await db.SaveChangesAsync(ct);
+
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        DateTime? probedAt;
+        do
+        {
+            await Task.Delay(100, ct);
+            db.ChangeTracker.Clear();
+            probedAt = (await db.MediaItems.SingleAsync(i => i.Id == item.Id, ct)).DurationProbedAt;
+        }
+        while (probedAt is null && DateTime.UtcNow < deadline);
+
+        await cts.CancelAsync();
+        await worker.StopAsync(CancellationToken.None);
+
+        Assert.True(probedAt is not null, "Item wurde nach Freischalten des Flags nicht gemessen.");
+        Assert.Equal(TimeSpan.FromMinutes(3), (await db.MediaItems.SingleAsync(i => i.Id == item.Id, ct)).Duration);
     }
 
 }

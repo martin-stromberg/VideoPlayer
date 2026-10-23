@@ -8,7 +8,7 @@
 
 | Szenario | Test / Testklasse | Ergebnis |
 |----------|-------------------|----------|
-| Einzel-Reset aus der geöffneten Fehlerliste: Zeilen-Button klicken → Item verlässt `tvsender-probe-failed-detail`, `tvsender-probe-failed`-Chip zählt herunter, `tvsender-probe-pending`-Chip zählt hoch, Statusmeldung erscheint | `TVSenderAdminE2ETests.Admin_ProbeReset_SingleItemAndAllFailed` (eigener `[Fact]`, `TVSenderAdminE2ETests.cs:352`) | Bestanden [10 s] |
+| Einzel-Reset aus der geöffneten Fehlerliste: Zeilen-Button klicken → Item verlässt `tvsender-probe-failed-detail`, `tvsender-probe-failed`-Chip zählt herunter, `tvsender-probe-pending`-Chip zählt hoch, Statusmeldung erscheint | `TVSenderAdminE2ETests.Admin_ProbeReset_SingleItemAndAllFailed` (eigener `[Fact]`, `TVSenderAdminE2ETests.cs:352`) | Bestanden [14 s] |
 | Massen-Reset mit Bestätigungsdialog: „Alle zurücksetzen" → `admin-dialog` erscheint → Bestätigen → `Failed`-Chip „0 fehlgeschlagen", Fehlerliste entfällt | `TVSenderAdminE2ETests.Admin_ProbeReset_SingleItemAndAllFailed` (zweiter Abschnitt, zweites Failed-Seed `e2e-defekt-2.mkv`) | Bestanden |
 | Dialog-Variante „Abbrechen" (laut plan-check.md bewusst nur per bUnit, kein E2E geplant) | `TVSenderAdminTests.ProbeResetAll_ConfirmDialog_ResetsAllAndShowsStatus` (bUnit) | Bestanden (bUnit; E2E nicht geplant — vertretbar laut Plan-Gegenprüfung) |
 
@@ -21,7 +21,7 @@ Beide geplanten E2E-Szenarien (Einzel-Reset, Massen-Reset mit Dialog) sind im ei
 - Fehlgeschlagen: 0
 - Übersprungen: 1
 
-Ausgeführter Befehl (Arbeitsverzeichnis = Repository-Root `D:\Repositories\softwareschmiede\3c36e985-0c38-4ded-ae2e-409eb0645be8`, Exit-Code 0, Laufzeit 5,39 min):
+Ausgeführter Befehl (Arbeitsverzeichnis = Repository-Root `D:\Repositories\softwareschmiede\3c36e985-0c38-4ded-ae2e-409eb0645be8`, Exit-Code 0, Laufzeit 5,40 min):
 
 ```
 dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj --collect:"XPlat Code Coverage" --logger "console;verbosity=normal" --results-directory TestResults
@@ -31,11 +31,11 @@ Vorheriger Build: `dotnet build VideoPlayer.sln` — 0 Fehler, 0 Warnungen (Debu
 
 Der eine übersprungene Test (`DevicePlaylistE2ETests_Playback.PairedDevice_ReportsProgressForMovieWithoutCollection_ContinueWatchingListStillLoads`) trägt ein dokumentiertes `[Fact(Skip = …)]`: Er sichert einen bekannten, auftragsfremden Befund ab (`api/continue-watching` antwortet mit 500, wenn ein Film zu keiner Filmsammlung gehört — `ContinueWatchingService.Create` ohne Null-Prüfung). Kein Zusammenhang mit diesem Schritt.
 
-Auftragsbezogene Testnachweise (alle bestanden): `MediaDurationProbeServiceTests_Reset` (9 Tests inkl. Admin-Erzwingung, Failed-Guard, Kappungs-Test > 25 Items, Wiederaufnahme via `ProbePendingAsync_PicksUpResetItem`), `MediaDurationProbeServiceTests_Progress.GetProgressAsync_DetailItems_CarryMediaItemId`, `TVSenderAdminTests.ProbeFailedRow_ResetButton_ResetsItemAndRefreshes`, `TVSenderAdminTests.ProbeResetAll_ConfirmDialog_ResetsAllAndShowsStatus` sowie der E2E `TVSenderAdminE2ETests.Admin_ProbeReset_SingleItemAndAllFailed`. Dritte Runde nach den Review-Fixes (nur Testdateien betroffen) — keine Einzelwiederholungen erforderlich, da keine Fehlschläge auftraten.
+Auftragsbezogene Testnachweise (alle bestanden): `MediaDurationProbeServiceTests_Reset` (9 Tests inkl. Admin-Erzwingung, Failed-Guard, Kappungs-Test > 25 Items, Wiederaufnahme via `ProbePendingAsync_PicksUpResetItem`), `MediaDurationProbeServiceTests_Progress.GetProgressAsync_DetailItems_CarryMediaItemId`, `TVSenderAdminTests.ProbeFailedRow_ResetButton_ResetsItemAndRefreshes`, `TVSenderAdminTests.ProbeResetAll_ConfirmDialog_ResetsAllAndShowsStatus` sowie der E2E `TVSenderAdminE2ETests.Admin_ProbeReset_SingleItemAndAllFailed`. Fortsetzungsrunde zur finalen Verifikation — keine Einzelwiederholungen erforderlich, da keine Fehlschläge auftraten.
 
 ## Testabdeckung
 
-**Abdeckung:** 95 % (Zeilenabdeckung, XPlat Code Coverage / Cobertura: 142 927 von 150 475 Zeilen)
+**Abdeckung:** 95 % (Zeilenabdeckung, XPlat Code Coverage / Cobertura: 142 930 von 150 475 Zeilen)
 
 | Datei | Abdeckung |
 |-------|-----------|
@@ -61,6 +61,7 @@ Auftragsbezogene Testnachweise (alle bestanden): `MediaDurationProbeServiceTests
 | VideoWebPlayer/Components/Pages/TV/TVShowDetails.razor | 26,6 % |
 | VideoWebPlayer/Services/Backups/ManualBackupJobService.cs | 29,5 % |
 | VideoWebPlayer/Components/Shared/Home/RecentEntriesList.razor | 31,2 % |
+| VideoWebPlayer/Controllers/FavoritesController.cs | 31,4 % |
 | VideoWebPlayer/Controllers/Exceptions/ForbiddenAccessException.cs | 33,3 % |
 | VideoWebPlayer/Controllers/Exceptions/RecordNotFoundException.cs | 33,3 % |
 | VideoWebPlayer/Services/Exceptions/ContinueWatchingConfirmationRequiredException.cs | 33,3 % |
@@ -71,7 +72,6 @@ Auftragsbezogene Testnachweise (alle bestanden): `MediaDurationProbeServiceTests
 | VideoWebPlayer/Services/Exceptions/PlaylistNotInManualSortModeException.cs | 33,3 % |
 | VideoWebPlayer/Services/Exceptions/UploadedCoverReplacementConfirmationRequiredException.cs | 33,3 % |
 | VideoWebPlayer/Controllers/SourceGenresController.cs | 34,2 % |
-| VideoWebPlayer/Controllers/FavoritesController.cs | 39,2 % |
 | VideoWebPlayer/Services/FavoritesService.cs | 39,8 % |
 | VideoWebPlayer/Components/Pages/Admin/Backups.razor | 43,5 % |
 | VideoWebPlayer/Services/MdnsAdvertiserWorker.cs | 44,1 % |
@@ -91,12 +91,9 @@ Auftragsbezogene Testnachweise (alle bestanden): `MediaDurationProbeServiceTests
 | VideoWebPlayer/Components/Pages/Admin/MediaSources/MediaSourceAdminDetails.razor | 57,4 % |
 | VideoWebPlayer/Controllers/AdminSourcesController.cs | 57,7 % |
 | VideoWebPlayer/Controllers/PicturesController.cs | 57,7 % |
-| VideoWebPlayer/Components/Shared/Home/FavoritesList.razor | 58,2 % |
 | VideoWebPlayer/Services/MediaUpdateNotificationService.cs | 58,7 % |
 | VideoWebPlayer/Services/GenreService.cs | 58,8 % |
-| VideoWebPlayer/Components/Pages/MediaSources/MediaSourceDetails.razor | 59,6 % |
-| VideoWebPlayer/Services/EpisodeBackgroundImage/EpisodeBackgroundImageOptionsValidator.cs | 60,0 % |
-| VideoWebPlayer/Controllers/UnlockedMediaController.cs | 60,4 % |
+| VideoWebPlayer/Components/Pages/MediaSources/MediaSourceDetails.razor | 61,0 % |
 | VideoWebPlayer/Services/Backups/VideoWebPlayerBackupFacade.cs | 61,4 % |
 | VideoWebPlayer/Data/Genre.cs | 61,5 % |
 | VideoWebPlayer/Services/WhitelistIpMiddleware.cs | 61,5 % |
@@ -116,7 +113,7 @@ Auftragsbezogene Testnachweise (alle bestanden): `MediaDurationProbeServiceTests
 | VideoWebPlayer.Client/Models/DtoSource.cs | 72,7 % |
 | VideoWebPlayer/Controllers/AuthController.cs | 72,7 % |
 | VideoWebPlayer/Components/Shared/Media/VideoPlayer.razor | 73,3 % |
-| VideoWebPlayer/Components/Pages/Admin/TVSenderAdmin.razor | 74,8 % |
+| VideoWebPlayer/Components/Pages/Admin/TVSenderAdmin.razor | 76,1 % |
 | VideoWebPlayer/Data/Entities/ContinueWatchingEntry.cs | 75,0 % |
 | VideoWebPlayer/Components/Shared/Media/UnlockButton.razor | 75,0 % |
 | VideoWebPlayer/Components/Playlists/PlaylistSortModeIcon.razor | 75,0 % |
@@ -140,7 +137,7 @@ Auftragsbezogene Testnachweise (alle bestanden): `MediaDurationProbeServiceTests
 
 Nicht aufgeführt (ignoriert gemäß Vorgabe): generierte Dateien (`VideoWebPlayer/Migrations/*`, `*.Designer.cs`), Identity-Scaffolding (`Components/Account/*`), Sample-Seiten (`Components/Pages/Samples/*`) und der Einstiegspunkt `Program.cs`. Pro Datei sind die Zeilen aller darin liegenden Klassen zusammengeführt (dedupliziert nach Zeilennummer, Zeile gilt als abgedeckt, wenn sie in mindestens einer Klasse getroffen wurde).
 
-Für diesen Schritt geänderte/berührte Dateien liegen ausreichend abgedeckt vor: `MediaDurationProbeService.cs` 95,8 %, `MediaDurationProbeProgress.cs` 100 %, `MediaDurationProbeWorker.cs` 82,7 %. `TVSenderAdmin.razor` (74,8 %; Vorrunden: 76,1 % / 74,6 % — normaler E2E-Streuungsbereich) ist eine sehr große Datei mit vielen auftragsfremden Pfaden; die neuen Reset-Pfade sind in Service-, bUnit- und E2E-Tests abgedeckt.
+Für diesen Schritt geänderte/berührte Dateien liegen ausreichend abgedeckt vor: `MediaDurationProbeService.cs` 95,8 %, `MediaDurationProbeProgress.cs` 100 %, `MediaDurationProbeWorker.cs` 84,6 %. `TVSenderAdmin.razor` (76,1 %; Vorrunden: 74,8 % / 76,1 % / 74,6 % — normaler E2E-Streuungsbereich) ist eine sehr große Datei mit vielen auftragsfremden Pfaden; die neuen Reset-Pfade sind in Service-, bUnit- und E2E-Tests abgedeckt.
 
 ## Fehlende Tests
 

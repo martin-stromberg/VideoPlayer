@@ -19,7 +19,7 @@ namespace VideoWebPlayer.Client
     /// Media Entries, ...) while still sharing this class's HTTP/reauthorization infrastructure and the
     /// impersonation behavior of <c>InternalVideoWebPlayerClient</c>.
     /// </summary>
-    public partial class VideoWebPlayerClient : IPlaylistApiClient
+    public partial class VideoWebPlayerClient : IPlaylistApiClient, IProgramGuideApiClient
     {
         private readonly HttpClient httpClient;
         private readonly ConcurrentDictionary<string, ProgressSendState> progressStates = new();

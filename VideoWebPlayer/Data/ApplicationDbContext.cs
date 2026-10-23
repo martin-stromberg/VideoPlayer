@@ -16,6 +16,7 @@ namespace VideoWebPlayer.Data
     {
         // Instanz des EventManagers fï¿½r die Event-basierte Architektur
         private readonly EventManager _eventManager;
+        private readonly IProgramScheduleSignal? _programScheduleSignal;
 
         /// <summary>
         /// Erstellt eine neue Instanz des ApplicationDbContext.
@@ -23,11 +24,13 @@ namespace VideoWebPlayer.Data
         /// <param name="options">Konfigurationsoptionen fï¿½r den DbContext.</param>
         /// <param name="eventManager">EventManager fï¿½r das Publizieren von Events.</param>
         /// <param name="backfillSignal">Optional wake-up line for the playlist backfill worker (null in tests / when unused).</param>
-        public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options, EventManager eventManager, IPlaylistBackfillSignal? backfillSignal = null)
+        /// <param name="programScheduleSignal">Optionale Weckleitung f&#252;r den Sendeplan-Worker (null in Tests / wenn ungenutzt).</param>
+        public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options, EventManager eventManager, IPlaylistBackfillSignal? backfillSignal = null, IProgramScheduleSignal? programScheduleSignal = null)
             : base(options)
         {
             _eventManager = eventManager;
             _backfillSignal = backfillSignal;
+            _programScheduleSignal = programScheduleSignal;
 
             // Die per [DbFunction]/HasDbFunction() angebundene Funktion lower_invariant() existiert nicht
             // von sich aus in SQLite; sie muss zusaetzlich auf der zugrunde liegenden Verbindung als
@@ -191,6 +194,39 @@ namespace VideoWebPlayer.Data
         /// Tabelle fuer Refresh-Tokens (gekoppelt an Benutzer und Geraet).
         /// </summary>
         public DbSet<RefreshToken> RefreshTokens { get; set; }
+        /// <summary>
+        /// Tabelle für die automatischen TV-Sender.
+        /// </summary>
+        public DbSet<TVChannel> TVChannels { get; set; }
+        /// <summary>
+        /// Tabelle für die Programmregeln der TV-Sender.
+        /// </summary>
+        public DbSet<ProgramRule> ProgramRules { get; set; }
+
+        /// <summary>
+        /// Tabelle für Sendeplätze (Sendeplan des TV-Senders).
+        /// </summary>
+        public DbSet<ProgramSlot> ProgramSlots { get; set; }
+
+        /// <summary>
+        /// Tabelle für die Fortsetzungsstände der Programmregeln.
+        /// </summary>
+        public DbSet<ProgramRuleCursor> ProgramRuleCursors { get; set; }
+
+        /// <summary>
+        /// Gets or sets the genre links of program rules (genre material multi-selection).
+        /// </summary>
+        public DbSet<ProgramRuleGenre> ProgramRuleGenres { get; set; }
+
+        /// <summary>
+        /// Gets or sets the media-source filter links of program rules (genre material).
+        /// </summary>
+        public DbSet<ProgramRuleMediaSource> ProgramRuleMediaSources { get; set; }
+
+        /// <summary>
+        /// Gets or sets the per-user release list of the automated TV channel.
+        /// </summary>
+        public DbSet<TvSenderUserAccess> TvSenderUserAccess { get; set; }
         #endregion
         #region MediaSource Manipulation Methods
         /// <summary>
@@ -394,6 +430,7 @@ namespace VideoWebPlayer.Data
 
                 await transaction.CommitAsync(cancellationToken);
                 _eventManager.Publish(new MediaSourceDeletedEvent(source));
+                _programScheduleSignal?.NotifyScheduleChanged();
             }
             catch
             {

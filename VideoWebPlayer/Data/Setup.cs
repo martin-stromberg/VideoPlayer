@@ -68,4 +68,53 @@ public class Setup
     /// <c>null</c> means it has never run.
     /// </summary>
     public DateTime? PlaylistBackfillLastSweepAt { get; set; }
+
+    /// <summary>
+    /// Gets or sets the admin release switch for the automated TV channel (feature flag):
+    /// only when enabled do the navigation entry, the <c>/live-tv</c> and
+    /// <c>/admin/tv-sender</c> pages, the <c>/api/program-guide</c> and
+    /// <c>/api/live-stream</c> endpoints serve content, and the schedule/stream/probe
+    /// workers run. Default: <see langword="false"/> — the feature stays hidden until
+    /// an administrator explicitly enables it.
+    /// </summary>
+    public bool TvSenderEnabled { get; set; }
+
+    /// <summary>
+    /// Gets or sets the German federal state (ISO-3166-2 code like <c>DE-NW</c>) whose public
+    /// holidays the automated TV channel's holiday rules (<c>ProgramRuleRecurrence.Holiday</c>)
+    /// follow. <c>null</c> means only holidays valid in all of Germany apply.
+    /// </summary>
+    public string? HolidayFederalState { get; set; }
+
+    /// <summary>
+    /// Gets or sets the schedule horizon in hours the automated TV channel plans ahead.
+    /// Default: 48 hours.
+    /// </summary>
+    public int ProgramScheduleHorizonHours { get; set; } = 48;
+
+    /// <summary>
+    /// Gets or sets the interval (in minutes) at which the schedule worker extends the
+    /// program schedule. Default: 15 minutes.
+    /// </summary>
+    public int ProgramScheduleIntervalMinutes { get; set; } = 15;
+
+    /// <summary>
+    /// Gets or sets the target HLS segment length in seconds the live stream is
+    /// segmented with. Default: 6 seconds.
+    /// </summary>
+    public int LiveStreamSegmentLengthSeconds { get; set; } = 6;
+
+    /// <summary>
+    /// Gets or sets the directory the live stream's HLS segments and playlist are
+    /// written to. <c>null</c> or empty means the default directory
+    /// <c>Data/LiveStream</c> below the application's content root; a relative path
+    /// is resolved against the content root as well.
+    /// </summary>
+    public string? LiveStreamSegmentDirectory { get; set; }
+
+    /// <summary>
+    /// Gets or sets the number of minutes expired HLS segments are kept before the
+    /// automatic retention sweep removes them. Default: 30 minutes.
+    /// </summary>
+    public int LiveStreamSegmentRetentionMinutes { get; set; } = 30;
 }

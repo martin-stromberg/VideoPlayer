@@ -154,6 +154,82 @@ public sealed class ProgramSettingsService
         setup.ContinueWatchingEndThresholdSeconds = Math.Max(0, settings.ContinueWatchingEndThresholdSeconds);
         setup.MdnsAdvertisementEnabled = settings.MdnsAdvertisementEnabled;
         setup.DiscoveryPublicBaseUrl = normalizedBaseUrl;
+        setup.TvSenderEnabled = settings.TvSenderEnabled;
+
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Gets the admin release switch for the automated TV channel.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Whether the TV channel feature is released.</returns>
+    public async Task<bool> GetTvSenderEnabledAsync(CancellationToken cancellationToken = default)
+    {
+        var setup = await GetOrCreateSetupAsync(cancellationToken);
+        return setup.TvSenderEnabled;
+    }
+
+    /// <summary>
+    /// Persists the admin release switch for the automated TV channel.
+    /// </summary>
+    /// <param name="enabled">Whether the TV channel feature is released.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task UpdateTvSenderEnabledAsync(bool enabled, CancellationToken cancellationToken = default)
+    {
+        var setup = await GetOrCreateSetupAsync(cancellationToken);
+        setup.TvSenderEnabled = enabled;
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Combined access check for the automated TV channel: the feature must be released
+    /// globally (<see cref="Setup.TvSenderEnabled"/>) <em>and</em> the user must be either an
+    /// administrator (implicit access) or listed in <see cref="TvSenderUserAccess"/>.
+    /// </summary>
+    /// <param name="userId">The user's <see cref="ApplicationUser"/> id, or
+    /// <see langword="null"/> when unknown.</param>
+    /// <param name="isAdmin">Whether the user is an administrator.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Whether the user may see and use the TV channel.</returns>
+    public async Task<bool> IsTvSenderAccessGrantedAsync(string? userId, bool isAdmin, CancellationToken cancellationToken = default)
+    {
+        if (!await GetTvSenderEnabledAsync(cancellationToken))
+            return false;
+        if (isAdmin)
+            return true;
+        return !string.IsNullOrEmpty(userId)
+            && await _db.TvSenderUserAccess.AnyAsync(a => a.UserId == userId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Gets the ids of the users explicitly released for the automated TV channel.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The allowed user ids (never <see langword="null"/>).</returns>
+    public async Task<HashSet<string>> GetTvSenderAllowedUserIdsAsync(CancellationToken cancellationToken = default)
+        => (await _db.TvSenderUserAccess.AsNoTracking().Select(a => a.UserId).ToListAsync(cancellationToken))
+            .ToHashSet(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Replaces the per-user release list of the automated TV channel: rows whose user id is
+    /// missing from <paramref name="userIds"/> are removed, new ids are inserted — in a single
+    /// save so the allowlist is never half-written. Administrators need no row; the caller may
+    /// pass their ids as well, they are stored but evaluated via the implicit admin access.
+    /// </summary>
+    /// <param name="userIds">The complete new set of allowed user ids.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task UpdateTvSenderAllowedUserIdsAsync(IEnumerable<string> userIds, CancellationToken cancellationToken = default)
+    {
+        var wanted = userIds.Where(id => !string.IsNullOrWhiteSpace(id)).ToHashSet(StringComparer.Ordinal);
+        var existing = await _db.TvSenderUserAccess.Where(a => wanted.Contains(a.UserId)).ToListAsync(cancellationToken);
+
+        // Remove rows not in the new set, then insert the missing ones.
+        var kept = existing.Select(a => a.UserId).ToHashSet(StringComparer.Ordinal);
+        _db.TvSenderUserAccess.RemoveRange(
+            _db.TvSenderUserAccess.Where(a => !wanted.Contains(a.UserId)));
+        _db.TvSenderUserAccess.AddRange(wanted.Except(kept, StringComparer.Ordinal)
+            .Select(id => new TvSenderUserAccess { UserId = id }));
 
         await _db.SaveChangesAsync(cancellationToken);
     }
@@ -193,6 +269,166 @@ public sealed class ProgramSettingsService
 
         await _db.SaveChangesAsync(cancellationToken);
     }
+
+    /// <summary>
+    /// The German federal states (ISO-3166-2 <c>DE-*</c> codes) selectable for the holiday calendar
+    /// of the automated TV channel's holiday rules.
+    /// </summary>
+    public static readonly IReadOnlyList<string> HolidayFederalStates =
+    [
+        "DE-BW", "DE-BY", "DE-BE", "DE-BB", "DE-HB", "DE-HH", "DE-HE", "DE-MV",
+        "DE-NI", "DE-NW", "DE-RP", "DE-SL", "DE-SN", "DE-ST", "DE-SH", "DE-TH"
+    ];
+
+    /// <summary>
+    /// Gets the configured federal state for the holiday calendar, or <see langword="null"/> when
+    /// only Germany-wide holidays apply.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The configured federal-state code, or <see langword="null"/>.</returns>
+    public async Task<string?> GetHolidayFederalStateAsync(CancellationToken cancellationToken = default)
+    {
+        var setup = await GetOrCreateSetupAsync(cancellationToken);
+        return setup.HolidayFederalState;
+    }
+
+    /// <summary>
+    /// Persists the federal state for the holiday calendar of the automated TV channel.
+    /// </summary>
+    /// <param name="federalState">One of <see cref="HolidayFederalStates"/>, or <see langword="null"/> for Germany-wide holidays only.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <exception cref="ArgumentException">The value is neither <see langword="null"/> nor a known federal-state code.</exception>
+    public async Task UpdateHolidayFederalStateAsync(string? federalState, CancellationToken cancellationToken = default)
+    {
+        if (federalState is not null && !HolidayFederalStates.Contains(federalState))
+            throw new ArgumentException($"Unbekanntes Bundesland: {federalState}");
+
+        var setup = await GetOrCreateSetupAsync(cancellationToken);
+        setup.HolidayFederalState = federalState;
+
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Gets the schedule horizon the automated TV channel plans ahead.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The configured horizon (default 48 hours when unset or invalid).</returns>
+    public async Task<TimeSpan> GetProgramScheduleHorizonAsync(CancellationToken cancellationToken = default)
+    {
+        var setup = await GetOrCreateSetupAsync(cancellationToken);
+        var hours = setup.ProgramScheduleHorizonHours <= 0 ? 48 : setup.ProgramScheduleHorizonHours;
+        return TimeSpan.FromHours(hours);
+    }
+
+    /// <summary>
+    /// Gets the interval at which the schedule worker extends the program schedule.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The configured interval (default 15 minutes when unset or invalid).</returns>
+    public async Task<TimeSpan> GetProgramScheduleIntervalAsync(CancellationToken cancellationToken = default)
+    {
+        var setup = await GetOrCreateSetupAsync(cancellationToken);
+        var minutes = setup.ProgramScheduleIntervalMinutes <= 0 ? 15 : setup.ProgramScheduleIntervalMinutes;
+        return TimeSpan.FromMinutes(minutes);
+    }
+
+    /// <summary>
+    /// Persists the schedule horizon and generation interval of the automated TV channel.
+    /// </summary>
+    /// <param name="horizonHours">Schedule horizon in hours (minimum 1).</param>
+    /// <param name="intervalMinutes">Generation interval in minutes (minimum 1).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <exception cref="ArgumentException">A value is smaller than 1.</exception>
+    public async Task UpdateProgramScheduleSettingsAsync(int horizonHours, int intervalMinutes, CancellationToken cancellationToken = default)
+    {
+        if (horizonHours < 1)
+            throw new ArgumentException("Der Planungshorizont muss mindestens 1 Stunde betragen.");
+        if (intervalMinutes < 1)
+            throw new ArgumentException("Das Generierungsintervall muss mindestens 1 Minute betragen.");
+
+        var setup = await GetOrCreateSetupAsync(cancellationToken);
+        setup.ProgramScheduleHorizonHours = horizonHours;
+        setup.ProgramScheduleIntervalMinutes = intervalMinutes;
+
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Gets the target HLS segment length of the live stream.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The configured segment length (default 6 seconds when unset or invalid).</returns>
+    public async Task<TimeSpan> GetLiveStreamSegmentLengthAsync(CancellationToken cancellationToken = default)
+    {
+        var setup = await GetOrCreateSetupAsync(cancellationToken);
+        var seconds = setup.LiveStreamSegmentLengthSeconds <= 0 ? 6 : setup.LiveStreamSegmentLengthSeconds;
+        return TimeSpan.FromSeconds(seconds);
+    }
+
+    /// <summary>
+    /// Gets the admin-configured segment directory of the live stream, or <see langword="null"/>
+    /// when the default directory applies.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The configured directory, or <see langword="null"/>.</returns>
+    public async Task<string?> GetLiveStreamSegmentDirectoryAsync(CancellationToken cancellationToken = default)
+    {
+        var setup = await GetOrCreateSetupAsync(cancellationToken);
+        return string.IsNullOrWhiteSpace(setup.LiveStreamSegmentDirectory) ? null : setup.LiveStreamSegmentDirectory;
+    }
+
+    /// <summary>
+    /// Gets the retention of expired live stream segments.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The configured retention (default 30 minutes when unset or invalid).</returns>
+    public async Task<TimeSpan> GetLiveStreamSegmentRetentionAsync(CancellationToken cancellationToken = default)
+    {
+        var setup = await GetOrCreateSetupAsync(cancellationToken);
+        var minutes = setup.LiveStreamSegmentRetentionMinutes <= 0 ? 30 : setup.LiveStreamSegmentRetentionMinutes;
+        return TimeSpan.FromMinutes(minutes);
+    }
+
+    /// <summary>
+    /// Persists the live stream settings of the automated TV channel.
+    /// </summary>
+    /// <param name="segmentLengthSeconds">Target HLS segment length in seconds (1–300).</param>
+    /// <param name="segmentDirectory">Segment directory; <see langword="null"/> or empty for the
+    /// default <c>Data/LiveStream</c>. A relative path resolves against the content root.</param>
+    /// <param name="retentionMinutes">Segment retention in minutes (minimum 1).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <exception cref="ArgumentException">A value is outside its valid range or the path is invalid.</exception>
+    public async Task UpdateLiveStreamSettingsAsync(int segmentLengthSeconds, string? segmentDirectory, int retentionMinutes, CancellationToken cancellationToken = default)
+    {
+        if (segmentLengthSeconds < 1 || segmentLengthSeconds > 300)
+            throw new ArgumentException("Die Segmentlänge muss zwischen 1 und 300 Sekunden liegen.");
+        if (retentionMinutes < 1)
+            throw new ArgumentException("Die Segment-Aufbewahrung muss mindestens 1 Minute betragen.");
+
+        string? directory = null;
+        if (!string.IsNullOrWhiteSpace(segmentDirectory))
+        {
+            try
+            {
+                // Validation probe only — the raw value is stored; the segment store resolves
+                // relative paths against the content root, not the process working directory.
+                _ = Path.GetFullPath(segmentDirectory.Trim());
+                directory = segmentDirectory.Trim();
+            }
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+            {
+                throw new ArgumentException($"Ungültiges Segment-Verzeichnis: {segmentDirectory}");
+            }
+        }
+
+        var setup = await GetOrCreateSetupAsync(cancellationToken);
+        setup.LiveStreamSegmentLengthSeconds = segmentLengthSeconds;
+        setup.LiveStreamSegmentDirectory = directory;
+        setup.LiveStreamSegmentRetentionMinutes = retentionMinutes;
+
+        await _db.SaveChangesAsync(cancellationToken);
+    }
 }
 
 /// <summary>
@@ -205,6 +441,7 @@ public sealed class ProgramSettingsService
 /// <param name="ContinueWatchingEndThresholdSeconds">Seconds before the end of a video after which the position is no longer saved.</param>
 /// <param name="MdnsAdvertisementEnabled">Whether the server announces itself via mDNS.</param>
 /// <param name="DiscoveryPublicBaseUrl">Public base URL for discovery answers; empty clears the admin override. Must be an absolute <c>http</c>/<c>https</c> URL when set.</param>
+/// <param name="TvSenderEnabled">Whether the automated TV channel feature is released.</param>
 /// <returns>The parameter object for the atomic general-settings update.</returns>
 public sealed record GeneralSettingsUpdate(
     string ApplicationTitle,
@@ -212,4 +449,5 @@ public sealed record GeneralSettingsUpdate(
     int MediaCollectionScanIntervalDays,
     int ContinueWatchingEndThresholdSeconds,
     bool MdnsAdvertisementEnabled,
-    string? DiscoveryPublicBaseUrl);
+    string? DiscoveryPublicBaseUrl,
+    bool TvSenderEnabled);

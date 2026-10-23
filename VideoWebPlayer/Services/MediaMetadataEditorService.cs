@@ -202,8 +202,13 @@ public sealed class MediaMetadataEditorService
             .ToList();
 
         var existingGenres = await _db.Genres
+            .Include(g => g.AlternateNames)
             .Where(g => g.MediaSourceId == mediaSourceId)
             .ToListAsync(cancellationToken);
+
+        // Globale Genre-Konfiguration (quellübergreifend, case-insensitiv) — wird lazy
+        // geladen, sobald eine Zeile angelegt oder geheilt werden muss.
+        Dictionary<string, Genre>? configuredTemplates = null;
 
         var result = new List<Genre>();
         foreach (var name in requestedNames)
@@ -212,9 +217,21 @@ public sealed class MediaMetadataEditorService
             if (genre is null)
             {
                 genre = new Genre { Name = name, MediaSourceId = mediaSourceId };
+                configuredTemplates ??= await GenreGlobalConfig.LoadConfiguredTemplatesAsync(_db, mediaSourceId, cancellationToken);
+                if (configuredTemplates.TryGetValue(name, out var template))
+                    GenreGlobalConfig.ApplyConfig(_db, genre, template);
                 _db.Genres.Add(genre);
                 existingGenres.Add(genre);
                 await _db.SaveChangesAsync(cancellationToken);
+            }
+            else if (!GenreGlobalConfig.HasCustomConfig(genre))
+            {
+                configuredTemplates ??= await GenreGlobalConfig.LoadConfiguredTemplatesAsync(_db, mediaSourceId, cancellationToken);
+                if (configuredTemplates.TryGetValue(name, out var template))
+                {
+                    GenreGlobalConfig.ApplyConfig(_db, genre, template);
+                    await _db.SaveChangesAsync(cancellationToken);
+                }
             }
 
             if (!result.Any(g => g.Name.Equals(genre.Name, StringComparison.OrdinalIgnoreCase)))

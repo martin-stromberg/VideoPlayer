@@ -15,6 +15,9 @@ namespace VideoWebPlayer.Data.Configurations
                 .HasOne(mi => mi.MediaCollection)
                 .WithMany(mc => mc.MediaItems)
                 .HasForeignKey(mi => mi.MediaCollectionId);
+
+            builder
+                .HasIndex(mi => mi.DurationProbedAt);
         }
     }
 }

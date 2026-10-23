@@ -11,7 +11,10 @@ Die Startseite der Einrichtung zeigt Kacheln für die wichtigsten Verwaltungsauf
 - `Updates` für Programmupdates und Update-Einstellungen
 - `Sicherheit` für blockierte IP-Adressen
 - `Geräte` für Pairing-Codes und gekoppelte Geräte
-- `Genres` für Genre-Metadaten, Synonyme und Icons
+- `Genres` für Genre-Metadaten, Synonyme und Icons — die Einstellungen (Ausblenden,
+  Saisonfenster, alternative Namen) gelten global pro Genre-Name und werden auf neu
+  hinzukommende Quellen automatisch vererbt; gleiche Namen werden unabhängig von der
+  Groß-/Kleinschreibung zusammengeführt
 - `Allgemein` für Anwendungstitel, Scan-Intervalle und Netzwerk-Erkennung
 - `Anwender` für die Registrierung neuer Benutzer
 

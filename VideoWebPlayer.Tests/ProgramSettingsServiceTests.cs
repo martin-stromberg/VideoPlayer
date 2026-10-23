@@ -29,7 +29,7 @@ public sealed class ProgramSettingsServiceTests
         var service = new ProgramSettingsService(fixture.Db, NullLogger<ProgramSettingsService>.Instance);
 
         await service.UpdateGeneralSettingsAsync(
-            new GeneralSettingsUpdate("Titel", 60, 7, 30, MdnsAdvertisementEnabled: false, DiscoveryPublicBaseUrl: null), ct);
+            new GeneralSettingsUpdate("Titel", 60, 7, 30, MdnsAdvertisementEnabled: false, DiscoveryPublicBaseUrl: null, TvSenderEnabled: true), ct);
 
         var setup = await fixture.Db.Setups.AsNoTracking().SingleAsync(ct);
         Assert.False(setup.MdnsAdvertisementEnabled);
@@ -37,7 +37,7 @@ public sealed class ProgramSettingsServiceTests
         Assert.False(await service.GetMdnsAdvertisementEnabledAsync(ct));
 
         await service.UpdateGeneralSettingsAsync(
-            new GeneralSettingsUpdate("Titel", 60, 7, 30, MdnsAdvertisementEnabled: true, DiscoveryPublicBaseUrl: null), ct);
+            new GeneralSettingsUpdate("Titel", 60, 7, 30, MdnsAdvertisementEnabled: true, DiscoveryPublicBaseUrl: null, TvSenderEnabled: true), ct);
         Assert.True((await fixture.Db.Setups.AsNoTracking().SingleAsync(ct)).MdnsAdvertisementEnabled);
     }
 
@@ -61,7 +61,7 @@ public sealed class ProgramSettingsServiceTests
         await service.UpdateGeneralSettingsAsync(
             new GeneralSettingsUpdate(
                 "Titel", 60, 7, 30, MdnsAdvertisementEnabled: true,
-                DiscoveryPublicBaseUrl: "  https://videos.example.com/videoplayer/  "), ct);
+                DiscoveryPublicBaseUrl: "  https://videos.example.com/videoplayer/  ", TvSenderEnabled: true), ct);
 
         var setup = await fixture.Db.Setups.AsNoTracking().SingleAsync(ct);
         Assert.Equal("https://videos.example.com/videoplayer/", setup.DiscoveryPublicBaseUrl);
@@ -80,11 +80,11 @@ public sealed class ProgramSettingsServiceTests
         await service.UpdateGeneralSettingsAsync(
             new GeneralSettingsUpdate(
                 "Titel", 60, 7, 30, MdnsAdvertisementEnabled: true,
-                DiscoveryPublicBaseUrl: "https://videos.example.com/videoplayer/"), ct);
+                DiscoveryPublicBaseUrl: "https://videos.example.com/videoplayer/", TvSenderEnabled: true), ct);
 
         // Leeren Wert speichern löscht den Admin-Override.
         await service.UpdateGeneralSettingsAsync(
-            new GeneralSettingsUpdate("Titel", 60, 7, 30, MdnsAdvertisementEnabled: true, DiscoveryPublicBaseUrl: " "), ct);
+            new GeneralSettingsUpdate("Titel", 60, 7, 30, MdnsAdvertisementEnabled: true, DiscoveryPublicBaseUrl: " ", TvSenderEnabled: true), ct);
 
         Assert.Null((await fixture.Db.Setups.AsNoTracking().SingleAsync(ct)).DiscoveryPublicBaseUrl);
         Assert.Null(await service.GetDiscoveryPublicBaseUrlAsync(ct));
@@ -103,12 +103,12 @@ public sealed class ProgramSettingsServiceTests
         await service.UpdateGeneralSettingsAsync(
             new GeneralSettingsUpdate(
                 "Titel", 60, 7, 30, MdnsAdvertisementEnabled: true,
-                DiscoveryPublicBaseUrl: "https://videos.example.com/"), ct);
+                DiscoveryPublicBaseUrl: "https://videos.example.com/", TvSenderEnabled: true), ct);
 
         await Assert.ThrowsAsync<DiscoveryUrlValidationException>(() => service.UpdateGeneralSettingsAsync(
             new GeneralSettingsUpdate(
                 "Titel", 60, 7, 30, MdnsAdvertisementEnabled: true,
-                DiscoveryPublicBaseUrl: invalidUrl), ct));
+                DiscoveryPublicBaseUrl: invalidUrl, TvSenderEnabled: true), ct));
 
         // Atomar: die ungültige Eingabe schreibt nichts, der bisherige Wert bleibt bestehen.
         var setup = await fixture.Db.Setups.AsNoTracking().SingleAsync(ct);
@@ -129,5 +129,75 @@ public sealed class ProgramSettingsServiceTests
         await service.UpdateMdnsAdvertisementEnabledAsync(true, ct);
         Assert.True(await service.GetMdnsAdvertisementEnabledAsync(ct));
         Assert.True((await fixture.Db.Setups.AsNoTracking().SingleAsync(ct)).MdnsAdvertisementEnabled);
+    }
+}
+
+public sealed class ProgramSettingsServiceHolidayFederalStateTests
+{
+    [Fact]
+    public async Task GetHolidayFederalStateAsync_DefaultsToNull()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await PairingTestDb.CreateAsync("program-settings-holiday-default", ct);
+        var service = new ProgramSettingsService(fixture.Db, NullLogger<ProgramSettingsService>.Instance);
+
+        Assert.Null(await service.GetHolidayFederalStateAsync(ct));
+    }
+
+    [Fact]
+    public async Task UpdateHolidayFederalStateAsync_PersistsCodeAndNull()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await PairingTestDb.CreateAsync("program-settings-holiday-update", ct);
+        var service = new ProgramSettingsService(fixture.Db, NullLogger<ProgramSettingsService>.Instance);
+
+        await service.UpdateHolidayFederalStateAsync("DE-NW", ct);
+        Assert.Equal("DE-NW", (await fixture.Db.Setups.SingleAsync(ct)).HolidayFederalState);
+
+        await service.UpdateHolidayFederalStateAsync(null, ct);
+        Assert.Null((await fixture.Db.Setups.SingleAsync(ct)).HolidayFederalState);
+    }
+
+    [Fact]
+    public async Task UpdateHolidayFederalStateAsync_UnknownCode_Throws()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await PairingTestDb.CreateAsync("program-settings-holiday-invalid", ct);
+        var service = new ProgramSettingsService(fixture.Db, NullLogger<ProgramSettingsService>.Instance);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => service.UpdateHolidayFederalStateAsync("XX-YY", ct));
+    }
+}
+
+public sealed class ProgramSettingsServiceScheduleTests
+{
+    [Fact]
+    public async Task ProgramScheduleSettings_DefaultTo48HoursAnd15Minutes()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await PairingTestDb.CreateAsync("program-settings-schedule-default", ct);
+        var service = new ProgramSettingsService(fixture.Db, NullLogger<ProgramSettingsService>.Instance);
+
+        Assert.Equal(TimeSpan.FromHours(48), await service.GetProgramScheduleHorizonAsync(ct));
+        Assert.Equal(TimeSpan.FromMinutes(15), await service.GetProgramScheduleIntervalAsync(ct));
+    }
+
+    [Fact]
+    public async Task UpdateProgramScheduleSettings_PersistsAndValidates()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await PairingTestDb.CreateAsync("program-settings-schedule-update", ct);
+        var service = new ProgramSettingsService(fixture.Db, NullLogger<ProgramSettingsService>.Instance);
+
+        await service.UpdateProgramScheduleSettingsAsync(72, 30, ct);
+
+        var setup = await fixture.Db.Setups.AsNoTracking().SingleAsync(ct);
+        Assert.Equal(72, setup.ProgramScheduleHorizonHours);
+        Assert.Equal(30, setup.ProgramScheduleIntervalMinutes);
+        Assert.Equal(TimeSpan.FromHours(72), await service.GetProgramScheduleHorizonAsync(ct));
+        Assert.Equal(TimeSpan.FromMinutes(30), await service.GetProgramScheduleIntervalAsync(ct));
+
+        await Assert.ThrowsAsync<ArgumentException>(() => service.UpdateProgramScheduleSettingsAsync(0, 15, ct));
+        await Assert.ThrowsAsync<ArgumentException>(() => service.UpdateProgramScheduleSettingsAsync(48, 0, ct));
     }
 }

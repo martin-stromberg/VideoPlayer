@@ -35,7 +35,14 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         nameof(ApplicationDbContext.PlaylistBackfillMarkers),
         nameof(ApplicationDbContext.PairedDevices),
         nameof(ApplicationDbContext.PairingCodes),
-        nameof(ApplicationDbContext.RefreshTokens)
+        nameof(ApplicationDbContext.RefreshTokens),
+        nameof(ApplicationDbContext.TVChannels),
+        nameof(ApplicationDbContext.ProgramRules),
+        nameof(ApplicationDbContext.ProgramSlots),
+        nameof(ApplicationDbContext.ProgramRuleCursors),
+        nameof(ApplicationDbContext.ProgramRuleGenres),
+        nameof(ApplicationDbContext.ProgramRuleMediaSources),
+        nameof(ApplicationDbContext.TvSenderUserAccess)
     };
 
     private static readonly HashSet<string> OptionalRestoreColumns = new(StringComparer.OrdinalIgnoreCase)
@@ -72,7 +79,20 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         $"{nameof(ApplicationDbContext.PairingCodes)}.{nameof(PairingCode.Kind)}",
         $"{nameof(ApplicationDbContext.PairingCodes)}.{nameof(PairingCode.TicketHash)}",
         $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.MdnsAdvertisementEnabled)}",
-        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.DiscoveryPublicBaseUrl)}"
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.DiscoveryPublicBaseUrl)}",
+        $"{nameof(ApplicationDbContext.MediaItems)}.{nameof(MediaItem.Duration)}",
+        $"{nameof(ApplicationDbContext.MediaItems)}.{nameof(MediaItem.DurationProbedAt)}",
+        $"{nameof(ApplicationDbContext.MediaItems)}.{nameof(MediaItem.DurationProbeAttempts)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.HolidayFederalState)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ProgramScheduleHorizonHours)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.ProgramScheduleIntervalMinutes)}",
+        $"{nameof(ApplicationDbContext.ProgramSlots)}.{nameof(ProgramSlot.Status)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.LiveStreamSegmentLengthSeconds)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.LiveStreamSegmentDirectory)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.LiveStreamSegmentRetentionMinutes)}",
+        $"{nameof(ApplicationDbContext.MovieMediaItems)}.{nameof(MovieMediaItem.IsTrailer)}",
+        $"{nameof(ApplicationDbContext.ProgramRuleCursors)}.{nameof(ProgramRuleCursor.StrandKey)}",
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.TvSenderEnabled)}"
     };
 
     private static readonly HashSet<string> IgnoredRestoreColumns = new(StringComparer.OrdinalIgnoreCase)
@@ -95,7 +115,9 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         (nameof(ApplicationDbContext.Playlists), nameof(Playlist.GenresManuallyOverridden), false),
         (nameof(ApplicationDbContext.Playlists), nameof(Playlist.CoverPictureIsUserUploaded), false),
         (nameof(ApplicationDbContext.Playlists), nameof(Playlist.IsPublic), false),
-        (nameof(ApplicationDbContext.Setups), nameof(Setup.MdnsAdvertisementEnabled), true)
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.MdnsAdvertisementEnabled), true),
+        (nameof(ApplicationDbContext.MovieMediaItems), nameof(MovieMediaItem.IsTrailer), false),
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.TvSenderEnabled), false)
     };
 
     private static readonly (string Table, string Column, long DefaultValue)[] OptionalRestoreLongDefaults =
@@ -108,7 +130,13 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         (nameof(ApplicationDbContext.Setups), nameof(Setup.ContinueWatchingEndThresholdSeconds), 30),
         (nameof(ApplicationDbContext.Setups), nameof(Setup.ActorCollectionThresholdPercent), 50),
         (nameof(ApplicationDbContext.MediaSources), nameof(MediaSource.SourceType), (int)MediaSourceType.Sftp),
-        (nameof(ApplicationDbContext.PairingCodes), nameof(PairingCode.Kind), (int)PairingCodeKind.AdminCode)
+        (nameof(ApplicationDbContext.PairingCodes), nameof(PairingCode.Kind), (int)PairingCodeKind.AdminCode),
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.ProgramScheduleHorizonHours), 48),
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.ProgramScheduleIntervalMinutes), 15),
+        (nameof(ApplicationDbContext.ProgramSlots), nameof(ProgramSlot.Status), (int)ProgramSlotStatus.Scheduled),
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.LiveStreamSegmentLengthSeconds), 6),
+        (nameof(ApplicationDbContext.Setups), nameof(Setup.LiveStreamSegmentRetentionMinutes), 30),
+        (nameof(ApplicationDbContext.MediaItems), nameof(MediaItem.DurationProbeAttempts), 0)
     };
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };

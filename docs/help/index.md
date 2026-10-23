@@ -6,6 +6,7 @@
 
 - [Episoden](episoden/index.md) — Funktionen und Einstellungen für Episode-Detailansichten, einschließlich dynamisch generierter Hintergrundbilder
 - [Medienbibliothek](medienbibliothek.md) — Überarbeitete Oberfläche und Navigation durch Ihre Mediencollection
+- [TV-Sender](tv-sender.md) — Automatischer TV-Sender: Sender-Name, Bundesland für Feiertage und Programmregeln (Regelart, Wiederholung, Sendezeit, Umfang, Programmmaterial, Priorität, Aktiv-Status) verwalten
 - [Playlists](playlists.md) — Eigene Playlists anlegen, öffnen, bearbeiten und löschen; als Administrator eigene Playlists für alle Anwender öffentlich (lesend) machen; Medieninhalte hinzufügen und entfernen; automatisch sortierte, fortlaufend nachladende Anzeige der Inhalte; Abbildung hochladen oder aus den Inhalten neu erzeugen
 - [Gesehen-Kennzeichen](gesehen-status.md) — Benutzerbezogene Markierung bereits gesehener Filme und Episoden
 - [Medienmetadaten bearbeiten](medien-editiermodus.md) — Administrativer Editiermodus für Serien, Staffeln, Episoden, Filme und Filmsammlungen

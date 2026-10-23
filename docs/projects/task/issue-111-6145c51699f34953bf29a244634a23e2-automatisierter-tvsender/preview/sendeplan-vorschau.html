@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Sendeplan-Vorschau — Prototypen</title>
+<style>
+  :root {
+    --bg: #0b1220;
+    --surface: #131c2e;
+    --surface-2: #1a2540;
+    --border: #263350;
+    --text: #e5eaf3;
+    --text-dim: #93a0b8;
+    --accent: #38bdf8;
+    --accent-soft: rgba(56, 189, 248, .14);
+    --live: #ef4444;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    font-family: "Segoe UI", system-ui, sans-serif;
+    background: var(--bg); color: var(--text); padding: 32px;
+    display: flex; flex-direction: column; gap: 48px;
+  }
+  h1 { font-size: 20px; font-weight: 600; }
+  h2 { font-size: 15px; color: var(--accent); margin-bottom: 4px; letter-spacing: .04em; text-transform: uppercase; }
+  .proto-note { color: var(--text-dim); font-size: 13px; margin-bottom: 20px; max-width: 860px; }
+
+  /* ===== Gemeinsame Panel-Karte ===== */
+  .program-card {
+    display: flex; gap: 14px; padding: 12px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; align-items: stretch;
+    transition: border-color .15s, transform .15s;
+  }
+  .program-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .program-poster {
+    width: 92px; min-width: 92px; border-radius: 8px; overflow: hidden;
+    aspect-ratio: 2/3; background: linear-gradient(145deg, var(--surface-2), var(--border));
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-dim); font-size: 11px; text-align: center; padding: 6px;
+  }
+  .program-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .program-time { font-size: 12px; color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .program-title { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .program-sub { font-size: 12px; color: var(--text-dim); }
+  .program-desc {
+    font-size: 12.5px; color: var(--text-dim); line-height: 1.45;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+    margin-top: 2px;
+  }
+  .program-badge {
+    align-self: flex-start; font-size: 10px; font-weight: 700; letter-spacing: .06em;
+    padding: 2px 8px; border-radius: 999px; text-transform: uppercase;
+  }
+  .badge-live { background: var(--live); color: #fff; }
+  .badge-genre { background: var(--accent-soft); color: var(--accent); }
+
+  /* ===== Prototyp A: Admin-Sendeplan (Tagesraster) ===== */
+  .admin-frame { max-width: 860px; }
+  .admin-toolbar { display: flex; gap: 12px; margin-bottom: 16px; align-items: center; }
+  .admin-toolbar .day-pill {
+    padding: 6px 14px; border-radius: 999px; background: var(--surface-2);
+    border: 1px solid var(--border); font-size: 13px; cursor: default;
+  }
+  .admin-toolbar .day-pill.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  .program-grid { display: flex; flex-direction: column; gap: 10px; }
+  .slot-now { border-color: var(--live); }
+  .slot-now .program-poster { position: relative; }
+  .progress-track { height: 3px; background: var(--border); border-radius: 2px; margin-top: 6px; overflow: hidden; }
+  .progress-fill { height: 100%; width: 38%; background: var(--live); border-radius: 2px; }
+
+  /* ===== Prototyp B: Live-TV-Vorschau (seitlich/kompakt) ===== */
+  .livetv-frame { display: grid; grid-template-columns: 1fr 340px; gap: 20px; max-width: 1100px; }
+  .player-box {
+    aspect-ratio: 16/9; background: #000; border-radius: 12px; border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center; color: var(--text-dim); font-size: 14px;
+  }
+  .upcoming-col { display: flex; flex-direction: column; gap: 10px; }
+  .upcoming-col .kicker { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); margin-bottom: 2px; }
+  .program-card.compact { padding: 10px; gap: 10px; }
+  .program-card.compact .program-poster { width: 56px; min-width: 56px; }
+  .program-card.compact .program-title { font-size: 13px; }
+  .program-card.compact .program-desc { -webkit-line-clamp: 2; font-size: 11.5px; }
+  .now-card { border-color: var(--live); }
+</style>
+</head>
+<body>
+
+<!-- ============ PROTOTYP A: Admin-Sendeplan ============ -->
+<section class="admin-frame">
+  <h2>Prototyp A — Sendeplan (Einstellungen)</h1></h2>
+  <p class="proto-note">Tagesraster im Sendeplan-Tab: Poster, Titel, Episodeninfo, kurze Beschreibung. Laufender Slot mit LIVE-Badge + Fortschrittsbalken. Bilder kommen aus den NFO-/Poster-Metadaten des Items; Platzhalter bei fehlendem Bild.</p>
+  <h1>Sendeplan — Familiensender</h1>
+  <div class="admin-toolbar">
+    <span class="day-pill">Mo 20.10.</span>
+    <span class="day-pill">Di 21.10.</span>
+    <span class="day-pill active">Mi 22.10. — heute</span>
+    <span class="day-pill">Do 23.10.</span>
+    <span class="day-pill">Fr 24.10.</span>
+  </div>
+  <div class="program-grid">
+
+    <div class="program-card slot-now">
+      <div class="program-poster">Poster<br>Forsthaus Falkenau</div>
+      <div class="program-body">
+        <span class="program-badge badge-live">Live</span>
+        <span class="program-time">16:00 – 16:44</span>
+        <span class="program-title">Forsthaus Falkenau</span>
+        <span class="program-sub">Staffel 6, Episode 42 — „Die alte Försterei"</span>
+        <p class="program-desc">Förster Hannes muss eine Entscheidung über den alten Baumbestand treffen, während Lena sich um ein verletztes Rehkitz kümmert. Ein Besuch der Jagdbehörde stellt alles infrage.</p>
+        <div class="progress-track"><div class="progress-fill"></div></div>
+      </div>
+    </div>
+
+    <div class="program-card">
+      <div class="program-poster">Poster<br>Ein Fall für zwei</div>
+      <div class="program-body">
+        <span class="program-badge badge-genre">Krimi</span>
+        <span class="program-time">16:44 – 17:32</span>
+        <span class="program-title">Ein Fall für zwei</span>
+        <span class="program-sub">Staffel 3, Episode 7 — „Tödliche Wette"</span>
+        <p class="program-desc">Matula ermittelt im Umfeld eines illegalen Wettbüros, als ein Stammspieler spurlos verschwindet. Dr. Franck deckt einen Trickbetrug auf.</p>
+      </div>
+    </div>
+
+    <div class="program-card">
+      <div class="program-poster">Poster<br>Didi's Comedy-Show</div>
+      <div class="program-body">
+        <span class="program-badge badge-genre">Komödie</span>
+        <span class="program-time">17:32 – 18:12</span>
+        <span class="program-title">Didi's Comedy-Show</span>
+        <span class="program-sub">Staffel 1, Episode 3</span>
+        <p class="program-desc">Didi Hallervorden in Sketchen und Verwandlungen — diesmal als ahnungsloser Bankkunde und als pingeliger Archivar.</p>
+      </div>
+    </div>
+
+    <div class="program-card">
+      <div class="program-poster">Poster<br>Die Simpsons</div>
+      <div class="program-body">
+        <span class="program-badge badge-genre">Animation</span>
+        <span class="program-time">18:12 – 18:35</span>
+        <span class="program-title">Die Simpsons</span>
+        <span class="program-sub">Staffel 8, Episode 16 — „Homer gegen die Stadt"</span>
+        <p class="program-desc">Homer nimmt den Kampf gegen den städtischen Müllskandal auf — und kandidiert kurzerhand selbst für das Amt des Müllkommissars.</p>
+      </div>
+    </div>
+
+    <div class="program-card">
+      <div class="program-poster">Kein Bild<br>(Platzhalter)</div>
+      <div class="program-body">
+        <span class="program-badge badge-genre">Serie</span>
+        <span class="program-time">18:35 – 19:20</span>
+        <span class="program-title">Weißblaue Geschichten</span>
+        <span class="program-sub">Folge 112</span>
+        <p class="program-desc">— keine Beschreibung in den Metadaten hinterlegt —</p>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============ PROTOTYP B: Live-TV-Vorschau ============ -->
+<section class="livetv-frame">
+  <div>
+    <h2>Prototyp B — Live-TV-Vorschau</h2>
+    <p class="proto-note">Rechts neben/unter dem Player: „Die nächsten Stunden" als kompakte Karten mit kleinem Poster, Uhrzeit, Titel und 2-zeiliger Beschreibung. Der laufende Slot trägt das LIVE-Badge + Fortschritt.</p>
+    <div class="player-box">[ Stream-Player ]</div>
+  </div>
+
+  <div class="upcoming-col">
+    <span class="kicker">Jetzt läuft</span>
+    <div class="program-card compact now-card">
+      <div class="program-poster">Poster</div>
+      <div class="program-body">
+        <span class="program-badge badge-live">Live</span>
+        <span class="program-title">Forsthaus Falkenau</span>
+        <span class="program-sub">S6 E42</span>
+        <p class="program-desc">Förster Hannes muss über den Baumbestand entscheiden…</p>
+        <div class="progress-track"><div class="progress-fill"></div></div>
+      </div>
+    </div>
+
+    <span class="kicker" style="margin-top:6px">Die nächsten Stunden</span>
+    <div class="program-card compact">
+      <div class="program-poster">Poster</div>
+      <div class="program-body">
+        <span class="program-time">16:44</span>
+        <span class="program-title">Ein Fall für zwei</span>
+        <p class="program-desc">Matula ermittelt im Umfeld eines Wettbüros…</p>
+      </div>
+    </div>
+    <div class="program-card compact">
+      <div class="program-poster">Poster</div>
+      <div class="program-body">
+        <span class="program-time">17:32</span>
+        <span class="program-title">Didi's Comedy-Show</span>
+        <p class="program-desc">Sketche und Verwandlungen mit Hallervorden…</p>
+      </div>
+    </div>
+    <div class="program-card compact">
+      <div class="program-poster">Poster</div>
+      <div class="program-body">
+        <span class="program-time">18:12</span>
+        <span class="program-title">Die Simpsons</span>
+        <p class="program-desc">Homer kandidiert zum Müllkommissar…</p>
+      </div>
+    </div>
+    <div class="program-card compact">
+      <div class="program-poster">Poster</div>
+      <div class="program-body">
+        <span class="program-time">18:35</span>
+        <span class="program-title">Weißblaue Geschichten</span>
+        <p class="program-desc">Folge 112 — bayerische Kurzgeschichten.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>

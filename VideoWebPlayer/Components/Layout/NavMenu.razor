@@ -7,6 +7,7 @@
 @inject ApplicationDbContext DbContext
 @inject AuthenticationStateProvider AuthStateProvider
 @inject VideoWebPlayerClient Client
+@inject ProgramSettingsService ProgramSettings
 @inject ILoginIpBlockService IpBlockService          
 @inject IJSRuntime JS                               
 @rendermode InteractiveServer
@@ -36,6 +37,15 @@
                         <span class="bi bi-playlist-nav-menu" aria-hidden="true"></span> Playlists
                     </NavLink>
                 </div>
+
+                @if (tvSenderEnabled)
+                {
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="/live-tv">
+                            <span class="bi bi-tv" aria-hidden="true"></span> Live-TV
+                        </NavLink>
+                    </div>
+                }
 
                 @if (mediaSources.Any())
                 {
@@ -102,6 +112,7 @@
 @code {
     private string? currentUrl;
     private List<DtoMediaSource> mediaSources = new();
+    private bool tvSenderEnabled;
 
     // Badge-Status
     private int newBlockedCount;
@@ -118,6 +129,19 @@
         {
             await Client.EnsureAuthorizationTokenSilentlyAsync(state.User);
             mediaSources = (await Client.RequestSourcesAsync()).ToList();
+            try
+            {
+                // N28: Flag UND Benutzer-Freigabe (Admins implizit) — ohne Freigabe bleibt der
+                // Eintrag verborgen.
+                tvSenderEnabled = await ProgramSettings.IsTvSenderAccessGrantedAsync(
+                    state.User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                    state.User.HasClaim("IsAdmin", "True"));
+            }
+            catch (Exception ex) when (ex is ObjectDisposedException or OperationCanceledException)
+            {
+                // Circuit teardown may dispose the scoped settings service mid-await —
+                // the flag then simply keeps its default and the entry stays hidden.
+            }
         }
     }
 

@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using VideoWebPlayer.Configuration;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services;
+using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
 namespace VideoWebPlayer.Tests.Services;
@@ -35,7 +36,7 @@ public class MediaDurationProbeWorkerTests : IDisposable
         services.AddSingleton<EventManager>();
         services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(connectionString));
         services.AddSingleton<IMediaSourceReader>(new LocalMediaSourceReader(NullLogger<LocalMediaSourceReader>.Instance));
-        services.AddSingleton<IMediaDurationProbe>(new AlwaysProbe());
+        services.AddSingleton<IMediaDurationProbe>(new FixedDurationProbe(TimeSpan.FromMinutes(3)));
         services.AddSingleton<IFfprobeLocator>(new PresentLocator());
         services.AddSingleton(Options.Create(new MediaProbeOptions { IntervalSeconds = 60, BatchSize = 10 }));
         services.AddScoped<MediaDurationProbeService>();
@@ -147,18 +148,4 @@ public class MediaDurationProbeWorkerTests : IDisposable
         Assert.Null(reloaded.Duration);
     }
 
-    private sealed class AlwaysProbe : IMediaDurationProbe
-    {
-        public Task<MediaDurationProbeResult> ProbeFileAsync(string filePath, CancellationToken cancellationToken)
-            => Task.FromResult(MediaDurationProbeResult.Success(TimeSpan.FromMinutes(3)));
-        public Task<MediaDurationProbeResult> ProbeUriAsync(string uri, CancellationToken cancellationToken)
-            => Task.FromResult(MediaDurationProbeResult.Success(TimeSpan.FromMinutes(3)));
-        public Task<MediaDurationProbeResult> ProbeStreamAsync(Stream input, CancellationToken cancellationToken)
-            => Task.FromResult(MediaDurationProbeResult.Success(TimeSpan.FromMinutes(3)));
-    }
-
-    private sealed class PresentLocator : IFfprobeLocator
-    {
-        public string? Resolve() => "ffprobe";
-    }
 }

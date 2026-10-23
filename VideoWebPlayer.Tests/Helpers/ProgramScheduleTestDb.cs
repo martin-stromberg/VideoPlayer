@@ -121,6 +121,21 @@ internal sealed class ProgramScheduleTestDb : IDisposable
         return item;
     }
 
+    /// <summary>Creates a media item with an explicitly set duration-probe state (seeded via
+    /// <see cref="CreateMediaItemAsync(long, TimeSpan?)"/>, then the probe fields are
+    /// overwritten — e.g. an exhausted attempt counter for the failed set).</summary>
+    public async Task<MediaItem> SeedProbeItemAsync(
+        string name, TimeSpan? duration, DateTime? probedAt, int attempts, CancellationToken ct)
+    {
+        var item = await CreateMediaItemAsync();
+        item.Name = name;
+        item.Duration = duration;
+        item.DurationProbedAt = probedAt;
+        item.DurationProbeAttempts = attempts;
+        await Db.SaveChangesAsync(ct);
+        return item;
+    }
+
     /// <summary>Creates a movie linked to a media item with the given duration.</summary>
     public async Task<Movie> CreateMovieAsync(string name, long sourceId = 1, TimeSpan? duration = null, long? collectionId = null, DateTime? releaseDate = null)
     {

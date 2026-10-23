@@ -514,6 +514,12 @@ else
                                     @onclick="() => showFailedProbeDetails = !showFailedProbeDetails">▾ Details</button>
                         }
                     </span>
+                    @if (probeProgress.FailedCount > 0)
+                    {
+                        <button id="tvsender-probe-reset-all" class="btn btn-sm btn-outline-danger"
+                                title="Alle fehlgeschlagenen Dateien beim nächsten Ermittlungslauf erneut prüfen"
+                                @onclick="() => confirmProbeReset = true">Alle zurücksetzen</button>
+                    }
                 </div>
 
                 <div class="progress mt-2" role="progressbar" aria-label="Fortschritt der Laufzeitermittlung"
@@ -575,6 +581,7 @@ else
                                             <th>Quelle</th>
                                             <th>Versuche</th>
                                             <th>Letzter Versuch</th>
+                                            <th>Aktionen</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -585,11 +592,14 @@ else
                                                 <td>@item.SourceName</td>
                                                 <td>@item.Attempts</td>
                                                 <td>@(item.LastAttemptAt?.ToLocalTime().ToString("dd.MM. HH:mm:ss") ?? "—")</td>
+                                                <td class="actions-cell">
+                                                    <button class="btn btn-sm btn-outline-light tvsender-probe-reset" @onclick="() => ResetProbeItemAsync(item)">Erneut ermitteln</button>
+                                                </td>
                                             </tr>
                                         }
                                         @if (probeProgress.FailedCount > probeProgress.FailedItems.Count)
                                         {
-                                            <tr><td>… und @(probeProgress.FailedCount - probeProgress.FailedItems.Count) weitere</td><td colspan="3"></td></tr>
+                                            <tr><td colspan="5">… und @(probeProgress.FailedCount - probeProgress.FailedItems.Count) weitere — angezeigt werden nur die ersten @probeProgress.FailedItems.Count; „Alle zurücksetzen“ erfasst auch die nicht angezeigten Dateien.</td></tr>
                                         }
                                     </tbody>
                                 </table>
@@ -628,6 +638,10 @@ else
                     </div>
                 }
             }
+            @if (!string.IsNullOrWhiteSpace(probeStatus))
+            {
+                <div class="form-text" id="tvsender-probe-action-status">@probeStatus</div>
+            }
         </div>
 
         </div>
@@ -659,6 +673,22 @@ else
                     <div class="admin-actions">
                         <button id="schedule-reset-confirm" class="btn btn-danger" @onclick="ResetScheduleAsync">Zurücksetzen</button>
                         <button class="btn btn-ghost" @onclick="() => confirmReset = false">Abbrechen</button>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (confirmProbeReset)
+        {
+            <div class="admin-dialog-overlay" @onclick="() => confirmProbeReset = false">
+                <div class="admin-dialog" @onclick:stopPropagation>
+                    <header class="admin-card-header">
+                        <h2>Fehlgeschlagene Dateien zurücksetzen</h2>
+                    </header>
+                    <p>Alle @(probeProgress?.FailedCount ?? 0) fehlgeschlagenen Dateien werden zurückgesetzt und beim nächsten Lauf der Laufzeitermittlung erneut geprüft.</p>
+                    <div class="admin-actions">
+                        <button id="probe-reset-all-confirm" class="btn btn-danger" @onclick="ResetAllFailedProbesAsync">Alle zurücksetzen</button>
+                        <button class="btn btn-ghost" @onclick="() => confirmProbeReset = false">Abbrechen</button>
                     </div>
                 </div>
             </div>
@@ -701,6 +731,8 @@ else
     private bool generatePending;
     private bool confirmCleanup;
     private bool confirmReset;
+    private bool confirmProbeReset;
+    private string? probeStatus;
     private bool disposed;
     private List<ProgramRule> rules = new();
     private List<ProgramSlot> schedule = new();
@@ -1439,6 +1471,39 @@ else
         DayOfWeek.Sunday => "Sonntag",
         _ => d.ToString()
     };
+
+    private async Task ResetProbeItemAsync(MediaDurationProbeDetailItem item)
+    {
+        try
+        {
+            var reset = await ProbeService.ResetFailedProbeAsync(userId, item.MediaItemId, CancellationToken.None);
+            probeStatus = reset
+                ? $"„{item.Name}“ wurde zurückgesetzt und wird beim nächsten Ermittlungslauf erneut geprüft."
+                : $"„{item.Name}“ ist nicht (mehr) fehlgeschlagen.";
+            await LoadProbeProgressAsync();
+        }
+        catch (Exception ex)
+        {
+            probeStatus = ex.Message;
+        }
+    }
+
+    private async Task ResetAllFailedProbesAsync()
+    {
+        confirmProbeReset = false;
+        try
+        {
+            var reset = await ProbeService.ResetFailedProbesAsync(userId, CancellationToken.None);
+            probeStatus = reset == 0
+                ? "Es waren keine fehlgeschlagenen Dateien vorhanden."
+                : $"{reset} Datei(en) wurden zurückgesetzt und werden beim nächsten Ermittlungslauf erneut geprüft.";
+            await LoadProbeProgressAsync();
+        }
+        catch (Exception ex)
+        {
+            probeStatus = ex.Message;
+        }
+    }
 
     private sealed class RuleEditModel
     {

@@ -21,6 +21,7 @@
 - [Medienquellen](medienquellen/index.md) — Medienquellen vom Typ SFTP-Server oder lokales Verzeichnis verwalten
 - [Netzwerk-Erkennung](netzwerk-erkennung/index.md) — Server-Erkennung im lokalen Netzwerk per mDNS-Ankündigung und UDP-Broadcast mit auflösbarer öffentlicher Basis-URL
 - [Updates](updates.md) — Prüfen, installieren und konfigurieren von Programmupdates inklusive Schutz deployment-seitiger Dateianpassungen
+- [Videolaufzeit](videolaufzeit.md) — Automatische Laufzeitermittlung per ffprobe: Fortschritt im TV-Sender-Tab „Laufzeitermittlung" beobachten, fehlgeschlagene Ermittlungen zurücksetzen, ffprobe-Einrichtung und Konfiguration
 
 ## Projekt und Entwicklung
 

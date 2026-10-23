@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
 using static Microsoft.Playwright.Assertions;
+using VideoWebPlayer.Configuration;
 using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
@@ -14,6 +15,10 @@ namespace VideoWebPlayer.Tests;
 /// </summary>
 public sealed class TVSenderAdminE2ETests : PlaylistsE2ETestBase
 {
+    // Attempt count that marks a permanently failed item — taken from the options so the
+    // seeds stay "failed" even when the MediaProbeOptions default changes.
+    private static readonly int FailedProbeAttempts = new MediaProbeOptions().EffectiveMaxAttempts;
+
     private async Task OpenAdminPageAsAdminAsync()
     {
         await MakeUserAdminAsync(UserAEmail);
@@ -49,6 +54,72 @@ public sealed class TVSenderAdminE2ETests : PlaylistsE2ETestBase
         await db.SaveChangesAsync(ct);
     }
 
+    // Duration-probe seeds shared by the progress and reset tests: one successfully probed
+    // item, two permanently failed ones (the second for the bulk reset; its older timestamp
+    // keeps it last in the rolling recent list, which orders by DurationProbedAt descending)
+    // and one pending retry item whose fresh attempt timestamp keeps it pending for the
+    // whole test run — so the background probe worker cannot change the expected numbers.
+    private async Task SeedProbeItemsAsync()
+    {
+        using var scope = Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<VideoWebPlayer.Data.ApplicationDbContext>();
+        var ct = TestContext.Current.CancellationToken;
+        var source = await db.MediaSources.FirstOrDefaultAsync(ct);
+        if (source is null)
+        {
+            source = new VideoWebPlayer.Data.MediaSource { Name = "E2E Quelle", Host = "127.0.0.1", Port = 22, Path = "/test" };
+            db.MediaSources.Add(source);
+            await db.SaveChangesAsync(ct);
+        }
+
+        var collection = new VideoWebPlayer.Data.MediaCollection
+        {
+            Name = "probe",
+            Path = "/test/probe",
+            MediaSourceId = source.Id,
+            CreatedAt = DateTime.UtcNow
+        };
+        db.MediaCollections.Add(collection);
+        await db.SaveChangesAsync(ct);
+        db.MediaItems.Add(new VideoWebPlayer.Data.MediaItem
+        {
+            Name = "e2e-fertig.mkv",
+            Path = "/test/probe/e2e-fertig.mkv",
+            MediaCollectionId = collection.Id,
+            CreatedAt = DateTime.UtcNow,
+            Duration = TimeSpan.FromMinutes(90),
+            DurationProbedAt = DateTime.UtcNow
+        });
+        db.MediaItems.Add(new VideoWebPlayer.Data.MediaItem
+        {
+            Name = "e2e-defekt.mkv",
+            Path = "/test/probe/e2e-defekt.mkv",
+            MediaCollectionId = collection.Id,
+            CreatedAt = DateTime.UtcNow,
+            DurationProbedAt = DateTime.UtcNow.AddMinutes(-30),
+            DurationProbeAttempts = FailedProbeAttempts
+        });
+        db.MediaItems.Add(new VideoWebPlayer.Data.MediaItem
+        {
+            Name = "e2e-defekt-2.mkv",
+            Path = "/test/probe/e2e-defekt-2.mkv",
+            MediaCollectionId = collection.Id,
+            CreatedAt = DateTime.UtcNow,
+            DurationProbedAt = DateTime.UtcNow.AddMinutes(-60),
+            DurationProbeAttempts = FailedProbeAttempts
+        });
+        db.MediaItems.Add(new VideoWebPlayer.Data.MediaItem
+        {
+            Name = "e2e-wartet.mkv",
+            Path = "/test/probe/e2e-wartet.mkv",
+            MediaCollectionId = collection.Id,
+            CreatedAt = DateTime.UtcNow,
+            DurationProbedAt = DateTime.UtcNow.AddMinutes(-1),
+            DurationProbeAttempts = 1
+        });
+        await db.SaveChangesAsync(ct);
+    }
+
     [Fact]
     public async Task Admin_CreateEditDeactivateDeleteRule()
     {
@@ -56,61 +127,7 @@ public sealed class TVSenderAdminE2ETests : PlaylistsE2ETestBase
         await EnableTvSenderAsync();
 
         var showId = await SeedTvShowWithSeasonsAsync("E2E Serie", ("Staffel 1", 2));
-
-        // Duration-probe seeds: one successfully probed item and one permanently failed one.
-        // Neither is pending, so the background probe worker cannot change the expected numbers.
-        {
-            using var scope = Services.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<VideoWebPlayer.Data.ApplicationDbContext>();
-            var ct = TestContext.Current.CancellationToken;
-            var source = await db.MediaSources.FirstOrDefaultAsync(ct);
-            if (source is null)
-            {
-                source = new VideoWebPlayer.Data.MediaSource { Name = "E2E Quelle", Host = "127.0.0.1", Port = 22, Path = "/test" };
-                db.MediaSources.Add(source);
-                await db.SaveChangesAsync(ct);
-            }
-
-            var collection = new VideoWebPlayer.Data.MediaCollection
-            {
-                Name = "probe",
-                Path = "/test/probe",
-                MediaSourceId = source.Id,
-                CreatedAt = DateTime.UtcNow
-            };
-            db.MediaCollections.Add(collection);
-            await db.SaveChangesAsync(ct);
-            db.MediaItems.Add(new VideoWebPlayer.Data.MediaItem
-            {
-                Name = "e2e-fertig.mkv",
-                Path = "/test/probe/e2e-fertig.mkv",
-                MediaCollectionId = collection.Id,
-                CreatedAt = DateTime.UtcNow,
-                Duration = TimeSpan.FromMinutes(90),
-                DurationProbedAt = DateTime.UtcNow
-            });
-            db.MediaItems.Add(new VideoWebPlayer.Data.MediaItem
-            {
-                Name = "e2e-defekt.mkv",
-                Path = "/test/probe/e2e-defekt.mkv",
-                MediaCollectionId = collection.Id,
-                CreatedAt = DateTime.UtcNow,
-                DurationProbedAt = DateTime.UtcNow.AddMinutes(-30),
-                DurationProbeAttempts = 10
-            });
-            // A pending retry item: its last attempt is fresh, so the configured retry delay
-            // keeps it pending for the whole test run.
-            db.MediaItems.Add(new VideoWebPlayer.Data.MediaItem
-            {
-                Name = "e2e-wartet.mkv",
-                Path = "/test/probe/e2e-wartet.mkv",
-                MediaCollectionId = collection.Id,
-                CreatedAt = DateTime.UtcNow,
-                DurationProbedAt = DateTime.UtcNow.AddMinutes(-1),
-                DurationProbeAttempts = 1
-            });
-            await db.SaveChangesAsync(ct);
-        }
+        await SeedProbeItemsAsync();
 
         await OpenAdminPageAsAdminAsync();
 
@@ -129,12 +146,13 @@ public sealed class TVSenderAdminE2ETests : PlaylistsE2ETestBase
         await Expect(Page.Locator("#tvsender-probe-card")).ToContainTextAsync("Laufzeitermittlung");
         await Expect(Page.Locator("#tvsender-probe-probed")).ToContainTextAsync("1 ermittelt");
         await Expect(Page.Locator("#tvsender-probe-pending")).ToContainTextAsync("1 ausstehend");
-        await Expect(Page.Locator("#tvsender-probe-failed")).ToContainTextAsync("1 fehlgeschlagen");
+        await Expect(Page.Locator("#tvsender-probe-failed")).ToContainTextAsync("2 fehlgeschlagen");
         var probeRows = Page.Locator(".tvsender-probe-row");
-        await Expect(probeRows).ToHaveCountAsync(3);
+        await Expect(probeRows).ToHaveCountAsync(4);
         await Expect(probeRows.First).ToContainTextAsync("e2e-fertig.mkv");
         await Expect(probeRows.Nth(2)).ToContainTextAsync("e2e-defekt.mkv");
         await Expect(probeRows.Nth(2)).ToContainTextAsync("keine Laufzeit");
+        await Expect(probeRows.Nth(3)).ToContainTextAsync("e2e-defekt-2.mkv");
 
         // Detail lists: the chips carry "▾ Details" toggles revealing the file tables.
         await Page.ClickAsync("#tvsender-probe-pending-details");
@@ -143,15 +161,18 @@ public sealed class TVSenderAdminE2ETests : PlaylistsE2ETestBase
         var pendingRows = pendingDetail.Locator(".tvsender-probe-detail-row");
         await Expect(pendingRows).ToHaveCountAsync(1);
         await Expect(pendingRows.First).ToContainTextAsync("e2e-wartet.mkv");
-        await Expect(pendingRows.First).ToContainTextAsync("1");
+        // Versuche-Zelle gezielt mit exaktem Vergleich — ein Substring-Match auf die Zeile
+        // könnte die Zahl auch aus dem Zeitstempel der Spalte "Letzter Versuch" beziehen.
+        await Expect(pendingRows.First.Locator("td").Nth(2)).ToHaveTextAsync("1");
 
         await Page.ClickAsync("#tvsender-probe-failed-details");
         var failedDetail = Page.Locator("#tvsender-probe-failed-detail[open]");
         await Expect(failedDetail).ToBeVisibleAsync();
         var failedRows = failedDetail.Locator(".tvsender-probe-detail-row");
-        await Expect(failedRows).ToHaveCountAsync(1);
+        await Expect(failedRows).ToHaveCountAsync(2);
         await Expect(failedRows.First).ToContainTextAsync("e2e-defekt.mkv");
-        await Expect(failedRows.First).ToContainTextAsync("10");
+        await Expect(failedRows.First.Locator("td").Nth(2)).ToHaveTextAsync(FailedProbeAttempts.ToString());
+        await Expect(failedRows.Nth(1)).ToContainTextAsync("e2e-defekt-2.mkv");
 
         // Channel settings (Einstellungen tab): set schedule horizon + generation interval +
         // live stream settings (segment length, segment directory, retention), save.
@@ -326,6 +347,47 @@ public sealed class TVSenderAdminE2ETests : PlaylistsE2ETestBase
         // Panel-Karten statt Tabelle: Poster, Zeit, Titel und Beschreibung je Sendeplatz.
         Assert.True(await Page.Locator("#tvsender-schedule-cards .program-card").CountAsync() >= 2);
         await Expect(Page.Locator("#tvsender-schedule-cards .program-card .program-poster img").First).ToBeVisibleAsync();
+    }
+
+    [Fact]
+    public async Task Admin_ProbeReset_SingleItemAndAllFailed()
+    {
+        if (SkipBrowser) return;
+        await EnableTvSenderAsync();
+        await SeedProbeItemsAsync();
+
+        await OpenAdminPageAsAdminAsync();
+        await SwitchTabAsync("#tvsender-tab-laufzeit", "#tab-laufzeit");
+
+        // Der Massen-Reset ist auch ohne Aufklappen der Detail-Liste erreichbar.
+        await Expect(Page.Locator("#tvsender-probe-reset-all")).ToBeVisibleAsync();
+
+        await Page.ClickAsync("#tvsender-probe-failed-details");
+        var failedDetail = Page.Locator("#tvsender-probe-failed-detail[open]");
+        await Expect(failedDetail).ToBeVisibleAsync();
+        var failedRows = failedDetail.Locator(".tvsender-probe-detail-row");
+        await Expect(failedRows).ToHaveCountAsync(2);
+
+        // Einzel-Reset: der Zeilen-Button nimmt genau dieses Item wieder in die Ermittlung auf.
+        // Assertions zielen auf den Failed-Chip — ein Probe-Worker-Tick kann das zurückgesetzte
+        // Item zwischendurch erneut proben (transient bleibt es ausstehend).
+        var defektRow = failedRows.Filter(new LocatorFilterOptions { HasText = "e2e-defekt.mkv" });
+        await defektRow.Locator(".tvsender-probe-reset").ClickAsync();
+        await Expect(Page.Locator("#tvsender-probe-action-status")).ToContainTextAsync("zurückgesetzt",
+            new LocatorAssertionsToContainTextOptions { Timeout = 15_000 });
+        await Expect(Page.Locator("#tvsender-probe-failed")).ToContainTextAsync("1 fehlgeschlagen");
+        await Expect(Page.Locator("#tvsender-probe-pending")).ToContainTextAsync("2 ausstehend");
+        await Expect(failedRows).ToHaveCountAsync(1);
+        await Expect(failedRows.First).ToContainTextAsync("e2e-defekt-2.mkv");
+
+        // Massen-Reset über den Bestätigungsdialog: alle fehlgeschlagenen Items zurücksetzen.
+        await Page.ClickAsync("#tvsender-probe-reset-all");
+        await Expect(Page.Locator(".admin-dialog-overlay .admin-dialog")).ToBeVisibleAsync();
+        await Page.ClickAsync("#probe-reset-all-confirm");
+        await Expect(Page.Locator("#tvsender-probe-failed")).ToContainTextAsync("0 fehlgeschlagen",
+            new LocatorAssertionsToContainTextOptions { Timeout = 15_000 });
+        await Expect(Page.Locator("#tvsender-probe-action-status")).ToContainTextAsync("1 Datei(en)");
+        Assert.Equal(0, await Page.Locator("#tvsender-probe-failed-detail").CountAsync());
     }
 
     [Fact]

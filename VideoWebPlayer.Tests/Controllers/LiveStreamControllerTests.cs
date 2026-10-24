@@ -99,8 +99,51 @@ public sealed class LiveStreamControllerTests : IAsyncLifetime
 
         var result = await _controller.GetFile("seg_001.ts");
 
-        var file = Assert.IsType<PhysicalFileResult>(result);
+        var file = Assert.IsType<FileStreamResult>(result);
+        await using var stream = file.FileStream;
         Assert.Equal("video/mp2t", file.ContentType);
+    }
+
+    [Fact]
+    public async Task GetFile_TsSegment_FileCanBeDeletedWhileDeliveryStreamIsOpen()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var expected = new byte[] { 0x47, 0x11, 0x22, 0x33, 0x44 };
+        var path = Path.Combine(_segDir, "seg_001.ts");
+        await File.WriteAllBytesAsync(path, expected, ct);
+
+        var result = await _controller.GetFile("seg_001.ts");
+
+        // (a) Plattformunabhängige Absicherung gegen einen Rückbau auf PhysicalFile:
+        // Linux würde unlink auch ohne FileShare.Delete zulassen, darum trägt dort allein
+        // diese Typ-Assertion den Share-Flag-Nachweis. (b) und (c) sind reine
+        // Windows-Diskriminatoren — .NET emuliert FileShare unter Unix nur binär
+        // (flock LOCK_SH/LOCK_EX) und FileShare.Delete ist dort gar nicht beobachtbar
+        // (File.Delete ist ein blankes unlink, das keine Locks konsultiert).
+        var file = Assert.IsType<FileStreamResult>(result);
+        await using var delivery = file.FileStream;
+        Assert.IsType<FileStream>(delivery);
+
+        // (b) Windows-Diskriminator ReadWrite-Share: ein zweites Handle mit
+        // FileAccess.ReadWrite öffnet sich nur, wenn der Auslieferungs-Stream
+        // FileShare.ReadWrite gewährt — mit dem alten FileShare.Read-Handle
+        // (PhysicalFile-Pfad) scheitert dieser Zweitgriff unter Windows.
+        using (var second = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.Read))
+        {
+            Assert.True(second.CanWrite);
+        }
+
+        // (c) Windows-Diskriminator Delete-Share: ohne FileShare.Delete schlägt
+        // File.Delete unter Windows mit einer IOException fehl, solange der
+        // Auslieferungs-Stream offen ist (Fehlverhalten-Reproduktion).
+        var deleteError = Record.Exception(() => File.Delete(path));
+        Assert.Null(deleteError);
+
+        // (d) Der Auslieferungs-Stream liefert nach dem Löschen noch den
+        // vollständigen Inhalt.
+        using var delivered = new MemoryStream();
+        await delivery.CopyToAsync(delivered, ct);
+        Assert.Equal(expected, delivered.ToArray());
     }
 
     [Theory]

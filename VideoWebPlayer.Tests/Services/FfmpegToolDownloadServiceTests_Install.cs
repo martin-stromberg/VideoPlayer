@@ -93,12 +93,15 @@ public sealed class FfmpegToolDownloadServiceTests_Install
         var snapshot = await FfmpegToolDownloadTestSupport.AwaitCompletionAsync(service);
 
         Assert.Equal(FfmpegToolDownloadJobStatus.Succeeded, snapshot.Status);
-        foreach (var name in new[] { "ffmpeg", "ffprobe" })
+        if (!OperatingSystem.IsWindows())
         {
-            var mode = File.GetUnixFileMode(Path.Combine(baseDir, "tools", "ffmpeg", name));
-            Assert.True(mode.HasFlag(UnixFileMode.UserExecute), $"{name}: UserExecute fehlt ({mode})");
-            Assert.True(mode.HasFlag(UnixFileMode.GroupExecute), $"{name}: GroupExecute fehlt ({mode})");
-            Assert.True(mode.HasFlag(UnixFileMode.OtherExecute), $"{name}: OtherExecute fehlt ({mode})");
+            foreach (var name in new[] { "ffmpeg", "ffprobe" })
+            {
+                var mode = File.GetUnixFileMode(Path.Combine(baseDir, "tools", "ffmpeg", name));
+                Assert.True(mode.HasFlag(UnixFileMode.UserExecute), $"{name}: UserExecute fehlt ({mode})");
+                Assert.True(mode.HasFlag(UnixFileMode.GroupExecute), $"{name}: GroupExecute fehlt ({mode})");
+                Assert.True(mode.HasFlag(UnixFileMode.OtherExecute), $"{name}: OtherExecute fehlt ({mode})");
+            }
         }
     }
 

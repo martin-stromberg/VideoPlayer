@@ -6,12 +6,17 @@ using VideoWebPlayer.Services;
 namespace VideoWebPlayer.Controllers;
 
 /// <summary>
-/// Internal, token-secured media stream endpoint used by the duration probe's HTTP path:
-/// the server hands ffprobe a loopback URI containing a short-lived token that authorizes
-/// streaming of exactly one media item — no user login involved. The endpoint intentionally
-/// does not carry <see cref="BearerTokenCheckAttribute"/> or user-based access checks; the
-/// unguessable, expiring token issued by <see cref="IInternalMediaStreamTokenService"/> is
-/// the only credential. It serves the file through the same
+/// Internal, token-secured media stream endpoint used by the duration probe's HTTP path and
+/// by the live-stream segmenter: the server hands ffprobe a loopback URI containing a
+/// short-lived token (<see cref="IInternalMediaStreamTokenService.TryCreateProbeUri"/>) and
+/// hands the segmenter's ffmpeg input a URI whose token lives for the remaining slot runtime
+/// plus margin (<see cref="IInternalMediaStreamTokenService.TryCreateStreamUri"/>). Each token
+/// authorizes streaming of exactly one media item — no user login involved. The endpoint
+/// intentionally does not carry <see cref="BearerTokenCheckAttribute"/> or user-based access
+/// checks; the unguessable, expiring token issued by
+/// <see cref="IInternalMediaStreamTokenService"/> is the only credential. Like every other
+/// TV-channel endpoint it follows the global release switch <see cref="Setup.TvSenderEnabled"/>
+/// and answers 404 while the feature is unreleased. It serves the file through the same
 /// <see cref="IMediaSourceReader"/> path as playback and with HTTP range processing, so a
 /// probing client can seek remotely instead of downloading the whole file.
 /// </summary>
@@ -22,6 +27,7 @@ public class InternalMediaStreamController : ControllerBase
     private readonly ApplicationDbContext _db;
     private readonly IMediaSourceReader _reader;
     private readonly IInternalMediaStreamTokenService _tokens;
+    private readonly ProgramSettingsService _settings;
     private readonly ILogger<InternalMediaStreamController> _logger;
 
     /// <summary>
@@ -30,16 +36,19 @@ public class InternalMediaStreamController : ControllerBase
     /// <param name="db">Database context.</param>
     /// <param name="reader">Media source reader used to open the file.</param>
     /// <param name="tokens">Internal stream token service.</param>
+    /// <param name="settings">Program settings holding the TV-channel release switch.</param>
     /// <param name="logger">Logger instance.</param>
     public InternalMediaStreamController(
         ApplicationDbContext db,
         IMediaSourceReader reader,
         IInternalMediaStreamTokenService tokens,
+        ProgramSettingsService settings,
         ILogger<InternalMediaStreamController> logger)
     {
         _db = db;
         _reader = reader;
         _tokens = tokens;
+        _settings = settings;
         _logger = logger;
     }
 
@@ -54,6 +63,12 @@ public class InternalMediaStreamController : ControllerBase
     [HttpGet("{token}")]
     public async Task<IActionResult> Stream(string token, CancellationToken cancellationToken)
     {
+        // Feature-Flag: ohne Admin-Freigabe ist der Endpunkt unsichtbar (404) — geprüft vor
+        // dem Token-Resolve, damit das Feature wie an den übrigen TV-Sender-Gates von
+        // „existiert nicht" ununterscheidbar bleibt.
+        if (!await _settings.GetTvSenderEnabledAsync(cancellationToken))
+            return NotFound();
+
         var mediaItemId = _tokens.ResolveMediaItemId(token);
         if (mediaItemId is null)
             return NotFound();

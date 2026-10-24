@@ -56,6 +56,7 @@ public sealed class InternalMediaStreamControllerTests : IDisposable
     public async Task Stream_InvalidToken_Returns404()
     {
         var ct = TestContext.Current.CancellationToken;
+        await SetTvSenderEnabledAsync(true);
         var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
 
         var response = await client.GetAsync("/api/internal/media-stream/no-such-token", ct);
@@ -108,6 +109,32 @@ public sealed class InternalMediaStreamControllerTests : IDisposable
             (await client.GetAsync("/api/internal/media-stream/other-token", ct)).StatusCode);
     }
 
+    [Fact]
+    public async Task Stream_FeatureDisabled_ValidToken_Returns404()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (requestUri, _) = await IssueProbeUriAsync();
+        await SetTvSenderEnabledAsync(false);
+        var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+
+        var response = await client.GetAsync(requestUri, ct);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    /// <summary>
+    /// Sets the TV-channel release switch <see cref="Setup.TvSenderEnabled"/> in the test
+    /// database so the endpoint tests run against a defined flag state — the internal
+    /// stream endpoint answers 404 while the feature is unreleased.
+    /// </summary>
+    private async Task SetTvSenderEnabledAsync(bool enabled)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var scope = _factory.Services.CreateScope();
+        var settings = scope.ServiceProvider.GetRequiredService<ProgramSettingsService>();
+        await settings.UpdateTvSenderEnabledAsync(enabled, ct);
+    }
+
     /// <summary>
     /// Seeds a local media source with one media item backed by the temp file and issues a
     /// probe URI for it. Returns the request path and the media item id.
@@ -115,6 +142,7 @@ public sealed class InternalMediaStreamControllerTests : IDisposable
     private async Task<(string RequestUri, long MediaItemId)> IssueProbeUriAsync()
     {
         var ct = TestContext.Current.CancellationToken;
+        await SetTvSenderEnabledAsync(true);
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 

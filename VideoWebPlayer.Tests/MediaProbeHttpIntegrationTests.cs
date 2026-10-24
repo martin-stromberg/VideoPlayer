@@ -172,6 +172,11 @@ public sealed class MediaProbeHttpIntegrationTests : IAsyncLifetime
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
+        // Der interne Stream-Endpunkt folgt dem globalen Feature-Flag — die Tests laufen
+        // mit freigegebenem Sender, sonst antwortet er 404 statt 200/206.
+        var settings = scope.ServiceProvider.GetRequiredService<ProgramSettingsService>();
+        await settings.UpdateTvSenderEnabledAsync(true, ct);
+
         var source = new MediaSource
         {
             Name = "HTTP-Probe-Quelle",

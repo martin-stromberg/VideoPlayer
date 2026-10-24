@@ -13,7 +13,13 @@ Programmauskunft- und Stream-Endpunkte (`/api/program-guide/*`, `/api/live-strea
 Hintergrund-Worker (Sendeplan, Segmentierung, Laufzeitermittlung) bleiben inaktiv, bis ein
 Administrator unter `Einrichtung` → `Allgemein` den Schalter **„Automatisierten TV-Sender
 freischalten"** setzt. Ohne Freigabe antworten die Endpunkte mit 404 und zeigen die Seiten einen
-Hinweis. Die Einstellung wirkt ohne Neustart; beim Sperren stoppt ein laufender ffmpeg-Lauf.
+Hinweis — auch der interne, token-gesicherte Media-Stream-Endpunkt
+(`/api/internal/media-stream/*`), über den Laufzeitermittlung und Segmentierer die Mediendateien
+lesen. Die Prüfung greift auch bei noch gültigem Stream-Token: Beim Sperren beantwortet der
+interne Endpunkt neue und Folge-Anfragen sofort mit 404; ein dadurch abgebrochener
+ffmpeg-Lesezugriff gilt als HTTP-Transportfehler, sodass der nächste Segmentierer-Versuch auf
+dieselbe Sendeposition auf die Pipe-Eingabe (`pipe:0`) zurückfällt (siehe „Live-Stream (HLS)").
+Die Einstellung wirkt ohne Neustart; beim Sperren stoppt ein laufender ffmpeg-Lauf.
 
 Zusätzlich gilt eine **Freigabe pro Benutzer**: Unterhalb des Schalters wählt der Administrator
 in der Checkbox-Liste **„Diese Benutzer dürfen den TV-Sender sehen"** die freigegebenen Konten

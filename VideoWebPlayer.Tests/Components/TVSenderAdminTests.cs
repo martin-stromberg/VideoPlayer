@@ -28,8 +28,12 @@ public sealed class TVSenderAdminTests
     // bei einer Default-Änderung weiterhin „fehlgeschlagen" statt „ausstehend" bedeuten.
     private static readonly int MaxAttempts = new MediaProbeOptions().EffectiveMaxAttempts;
 
-    private static async Task<(BunitContext Ctx, string AdminId)> CreateContextAsync(
-        ProgramScheduleTestDb fixture, string adminId)
+    internal static async Task<(BunitContext Ctx, string AdminId)> CreateContextAsync(
+        ProgramScheduleTestDb fixture, string adminId,
+        IFfprobeLocator? ffprobeLocator = null,
+        IFfmpegLocator? ffmpegLocator = null,
+        IFfmpegToolDownloadService? downloadService = null,
+        TimeProvider? timeProvider = null)
     {
         var db = fixture.Db;
         var ruleService = new ProgramRuleService(db);
@@ -52,6 +56,10 @@ public sealed class TVSenderAdminTests
         ctx.Services.AddSingleton<IProgramScheduleSignal>(new ProgramScheduleSignal());
         ctx.Services.AddSingleton(probeService);
         ctx.Services.AddSingleton(settings);
+        ctx.Services.AddSingleton(ffprobeLocator ?? new PresentLocator());
+        ctx.Services.AddSingleton(ffmpegLocator ?? new FakeFfmpegLocator());
+        ctx.Services.AddSingleton(downloadService ?? new FakeFfmpegToolDownloadService());
+        ctx.Services.AddSingleton(timeProvider ?? TimeProvider.System);
         ctx.Services.AddSingleton(
             new VideoWebPlayerClient(
                 new HttpClient(new EmptyListHandler()) { BaseAddress = new Uri("http://localhost/") },

@@ -20,7 +20,11 @@ Technisch stellt die Aktion denselben Zustand her, den der Medien-Scan bei einer
 
 ## ffprobe einrichten
 
-ffprobe ist Teil von [FFmpeg](https://ffmpeg.org/) und wird **nicht** mit der Anwendung ausgeliefert. Es muss auf dem Server installiert werden, z. B.:
+ffprobe ist Teil von [FFmpeg](https://ffmpeg.org/) und wird **nicht** mit der Anwendung ausgeliefert. Es muss auf dem Server installiert werden.
+
+**Am einfachsten per Download-Schaltfläche** (nur Administratoren): Fehlt ffprobe, zeigt der Tab **„Laufzeitermittlung"** unter `Einrichtung` → `TV-Sender` die Warnung „ffprobe wurde nicht gefunden — die Laufzeitermittlung pausiert." mit der Schaltfläche **„ffmpeg/ffprobe herunterladen"** direkt daneben. Nach einem Bestätigungsdialog mit Lizenzhinweis lädt die Anwendung das zum Server passende statische ffmpeg-Paket herunter und legt `ffmpeg` und `ffprobe` gemeinsam im Ordner `tools/ffmpeg/` neben der Anwendung ab — unter Linux inklusive Ausführungsbit, eine dort vorhandene Version wird ersetzt. Fortschritt, Ergebnis und Fehlerbilder (kein Internet, Zielordner nicht beschreibbar, Plattform nicht unterstützt, Paket unverwendbar) sowie die konfigurierbaren Download-Quellen (`MediaProbe:DownloadSources`) beschreibt [TV-Sender → ffmpeg-Bereitstellung und Lizenz](tv-sender.md).
+
+Alternativ bleibt die manuelle Installation möglich, z. B.:
 
 - Windows: `winget install Gyan.FFmpeg` oder das Build von https://www.gyan.dev/ffmpeg/builds/ bzw. https://ffmpeg.org/download.html
 - Linux: `apt install ffmpeg` (Debian/Ubuntu) bzw. Paket der Distribution
@@ -31,13 +35,15 @@ Die Anwendung sucht das `ffprobe`-Binary in dieser Reihenfolge:
 2. `tools/ffmpeg/ffprobe(.exe)` und `ffprobe(.exe)` im Anwendungsverzeichnis,
 3. `PATH` des Betriebssystems.
 
-Ist kein Binary auffindbar, wartet die Laufzeitermittlung und protokolliert einmalig eine Warnung; der restliche Betrieb läuft unverändert weiter. Nach einer Installation laufen ausstehende Dateien automatisch nach.
+Ist kein Binary auffindbar, wartet die Laufzeitermittlung und protokolliert einmalig eine Warnung; im Tab „Laufzeitermittlung" erscheint zusätzlich der beschriebene Hinweis mit Download-Schaltfläche. Der restliche Betrieb läuft unverändert weiter. Nach einer Installation laufen ausstehende Dateien automatisch nach.
 
 ## Konfiguration (`appsettings.json`)
 
 | Schlüssel | Standard | Bedeutung |
 |-----------|----------|-----------|
 | `MediaProbe:FfprobePath` | `null` | Optionaler absoluter Pfad zum ffprobe-Binary |
+| `MediaProbe:FfmpegPath` | `null` | Optionaler absoluter Pfad zum ffmpeg-Binary (Live-Stream-Segmentierung) |
+| `MediaProbe:DownloadSources:win-x64` / `MediaProbe:DownloadSources:linux-x64` | statische Builds von gyan.dev bzw. johnvansickle.com | Paket-URLs für die Download-Schaltfläche „ffmpeg/ffprobe herunterladen" (Details: [TV-Sender → ffmpeg-Bereitstellung und Lizenz](tv-sender.md)) |
 | `MediaProbe:IntervalSeconds` | `60` | Intervall, in dem nach neuen, ungeprüften Dateien gesucht wird |
 | `MediaProbe:BatchSize` | `10` | Maximale Anzahl Dateien je Prüfschritt |
 | `MediaProbe:TimeoutSeconds` | `120` | Zeitlimit je ffprobe-Aufruf über den lokalen Dateipfad oder eine seekfähige URL (`http://`-Loopback des internen Stream-Endpunkts, `sftp://`) |

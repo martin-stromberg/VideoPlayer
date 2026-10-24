@@ -1,0 +1,8 @@
+# Tasks: HLS-Segment-Auslieferung mit `FileShare.ReadWrite | FileShare.Delete` öffnen
+
+| # | Bereich | Aufgabe | Status | Testnachweis |
+|---|---------|---------|--------|--------------|
+| 1 | Logik | `.ts`-/Fallback-Zweig in `LiveStreamController.GetFile` (`VideoWebPlayer/Controllers/LiveStreamController.cs`, Z. 75–78): `PhysicalFile(path, contentType)` durch eigenen `FileStream` (`FileMode.Open`, `FileAccess.Read`, `FileShare.ReadWrite \| FileShare.Delete`, `FileOptions.Asynchronous`) + `File(stream, contentType)` ersetzen, inkl. Begründungskommentar | Offen | — |
+| 2 | Tests | `LiveStreamControllerTests.GetFile_TsSegment_ReturnsVideoMp2t` auf `FileStreamResult` umstellen (Typ-Assertion, Stream schließen, `video/mp2t`-Prüfung beibehalten) | Offen | — |
+| 3 | Tests | Neuen Regressionstest `GetFile_TsSegment_FileCanBeDeletedWhileDeliveryStreamIsOpen` in `LiveStreamControllerTests` anlegen: (a) `FileStreamResult`-/`System.IO.FileStream`-Typnachweis (plattformunabhängig, unter Linux alleiniger Share-Flag-Beleg), (b) Zweit-Handle mit `FileAccess.ReadWrite`/`FileShare.Read` öffnen (ReadWrite-Share-Nachweis, Windows-Diskriminator — **nicht** `FileShare.None`, das scheitert auf beiden Plattformen auch bei korrekter Implementierung), (c) `File.Delete` bei offenem Stream (Delete-Share-Nachweis, Windows-Diskriminator), (d) vollständiger Inhaltsvergleich nach dem Löschen; Plattform-Einordnung im Test kommentieren | Offen | — |
+| 4 | Qualitätssicherung | `dotnet build VideoPlayer.sln` in Debug und Release fehlerfrei; volle Testsuite `dotnet test VideoWebPlayer.Tests/VideoWebPlayer.Tests.csproj` grün (Baseline: 2247 bestanden, 1 dokumentiert übersprungen) | Offen | — |

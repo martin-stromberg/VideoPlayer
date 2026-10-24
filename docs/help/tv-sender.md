@@ -88,7 +88,9 @@ serverseitig erzwungen, nicht nur in der Oberfläche.
 
 Die Karten im Tab „Sendeplan" sind nach Kalendertag gegliedert (Tages-Header). Innerhalb eines
 Tages markiert eine gestrichelte Trennlinie mit Regelname den Blockwechsel, sobald eine andere
-Programmregel den Sendeplatz erzeugt hat.
+Programmregel den Sendeplatz erzeugt hat. Alle angezeigten Sendezeiten folgen der lokalen
+Zeitzone des Servers — gespeichert werden sie intern in UTC; die Sendezeit einer Regel wird
+ebenfalls in der Server-Zeitzone interpretiert.
 
 Der Server erzeugt aus den aktiven Programmregeln automatisch einen rollierenden, lückenlosen
 Sendeplan. Zwei Einstellungen im Tab „Einstellungen" (Gruppe „Planung") steuern die Erzeugung:

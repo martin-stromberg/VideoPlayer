@@ -351,6 +351,15 @@ Segment-URIs ohne die Abfrageparameter der Playlist-URL auflösen, autorisiert b
 oder fehlende Dateinamen — einschließlich des Zustands „es läuft gerade kein Stream" — werden
 mit 404 beantwortet.
 
+Bei der Segment-Auslieferung hält der Server die `.ts`-Dateien so geöffnet, dass sie parallel
+weiter beschrieben und gelöscht werden dürfen: Die automatische Aufbewahrung
+(„Segment-Aufbewahrung", siehe oben) und `ffmpeg` selbst räumen das rollierende Fenster also
+auch dann auf, wenn ein Zuschauer ein abgelaufenes Segment gerade noch lädt — die Übertragung
+läuft vollständig zu Ende. Unter Windows würde ein schlichter Lesezugriff das Löschen sonst
+blockieren und im ungünstigen Fall den Segmentierer abbrechen. Segment-Antworten tragen
+bewusst keine `Last-Modified`-/`ETag`-Prüfmarken: Die Segmentnamen sind eindeutig und
+zeitgestempelt, ihr Inhalt ändert sich nie, sodass bedingte Abrufe ohnehin nicht greifen.
+
 ## Live-TV-Ansicht
 
 Über den Navigationspunkt **„Live-TV"** (für angemeldete Benutzer) erreichen Zuschauer den

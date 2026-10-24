@@ -173,6 +173,15 @@ Dabei gilt:
   Sendeplätze werden grundsätzlich nie verändert oder gelöscht. Eine Sendung, die beim
   Fortschreiben des Plans bereits lief und deshalb nur mit ihrem Rest im Plan steht, gilt
   ebenfalls weiter als gültig — sie wird nicht erneut verdrängt und neu geplant.
+- **Lange Sendungen (über 24 Stunden) bleiben gültig**: Der Plan-Lauf schaut für die
+  Gültigkeitsprüfung regulär 24 Stunden zurück. Beginnt eine noch laufende oder künftige
+  Ausstrahlung weiter in der Vergangenheit — z. B. ein mehrtägiger Marathon-Block oder eine
+  Kette nahtlos anschließender Sendungen derselben Regel —, wird das Prüffenster bei Bedarf
+  einmalig bis zum konfigurierbaren Maximum verbreitert (Konfigurationsschlüssel
+  `ProgramSchedule:MaxOccurrenceLookbackDays`, Standard: 7 Tage, nach oben auf 30 Tage
+  begrenzt), damit ihr realer Beginn noch
+  belegbar ist. Sendungen, deren realer Beginn älter als dieses Maximum ist, gelten als nicht
+  mehr nachvollziehbar und werden verdrängt und neu eingeplant.
 - **Ungültige Sendeplätze werden als „verdrängt" markiert**, nicht gelöscht — z. B. weil die
   erzeugende Regel geändert, deaktiviert oder gelöscht wurde, ihr referenzierter Inhalt nicht
   mehr planbar ist oder eine höherpriorisierte Regel das Zeitfenster übernimmt.

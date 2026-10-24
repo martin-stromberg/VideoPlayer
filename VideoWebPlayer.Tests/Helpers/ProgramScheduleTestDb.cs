@@ -272,6 +272,19 @@ internal sealed class ProgramScheduleTestDb : IDisposable
     public async Task<List<ProgramSlot>> SlotsAsync(CancellationToken ct)
         => await Db.ProgramSlots.AsNoTracking().OrderBy(s => s.Start).ToListAsync(ct);
 
+    /// <summary>Asserts a reconcile run displaced nothing — the displaced-slot dump is built
+    /// only on failure.</summary>
+    public static async Task AssertNoDisplacedAsync(ProgramScheduleTestDb fixture, ProgramScheduleReconcileSummary summary, CancellationToken ct, string? context = null)
+    {
+        if (summary.SlotsDisplaced == 0)
+            return;
+        var dumped = (await fixture.SlotsAsync(ct))
+            .Where(s => s.Status == ProgramSlotStatus.Displaced)
+            .Select(s => $"{s.Start:dd.HH:mm}-{s.End:dd.HH:mm} rule={s.ProgramRuleId} type={s.RuleType} ep={s.TVShowEpisodeId} item={s.MediaItemId}")
+            .ToList();
+        Assert.Fail((context is null ? "Displaced: " : context + " — Displaced: ") + string.Join(" | ", dumped));
+    }
+
     /// <summary>Asserts the slot chain covers [from, to] without gaps or overlaps.</summary>
     public static void AssertGapless(IReadOnlyList<ProgramSlot> slots, DateTime from, DateTime to)
     {

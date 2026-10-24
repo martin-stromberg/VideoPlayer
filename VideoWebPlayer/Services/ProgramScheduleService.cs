@@ -32,6 +32,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     private readonly int _maxProbeAttempts;
     private readonly TimeSpan _trailerLead;
     private readonly TimeSpan _minStartRemain;
+    private readonly TimeSpan _maxOccurrenceLookback;
 
     /// <summary>
     /// Creates a new instance.
@@ -60,6 +61,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         var schedule = scheduleOptions?.Value ?? new ProgramScheduleOptions();
         _trailerLead = schedule.EffectiveTrailerLead;
         _minStartRemain = schedule.EffectiveMinStartRemain;
+        _maxOccurrenceLookback = schedule.EffectiveMaxOccurrenceLookback;
     }
 
     /// <inheritdoc />
@@ -110,7 +112,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             .ToList();
 
         var newSlots = new List<ProgramSlot>();
-        var occurrences = BuildOccurrences(rules.Where(r => r.RuleType != ProgramRuleType.Filler), coverageStart, horizonEnd, federalState);
+        var occurrences = BuildOccurrences(rules.Where(r => r.RuleType != ProgramRuleType.Filler), coverageStart, horizonEnd, federalState, OccurrenceLookback);
         var boundStarts = BoundStarts(occurrences, states);
         foreach (var occurrence in occurrences.OrderByDescending(o => o.Rule.Priority).ThenBy(o => o.Rule.Id).ThenBy(o => o.StartUtc))
             MaterializeOccurrence(occurrence, states, blocked, newSlots, coverageStart, BoundaryAfter(boundStarts, occurrence.StartUtc, occurrence.Rule.Priority), summary);
@@ -171,30 +173,44 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         // of airings that are still running. No upper bound on Start: an airing overshooting the
         // horizon must be loaded completely, otherwise the truncated tail fails the sequence check
         // and gets displaced — which then re-materializes the same positions and piles up
-        // overlapping displaced duplicates run over run.
+        // overlapping displaced duplicates run over run. The window is widened on demand up to
+        // the configured maximum lookback: airings whose real start lies more than a day back
+        // (marathon blocks, multi-day broadcasts) need their head slots and invader evidence
+        // loaded for the reproducibility check.
+        Task<List<ProgramSlot>> LoadScheduledAsync(DateTime from)
+            => _db.ProgramSlots
+                .Where(s => s.TVChannelId == channel.Id && s.Status == ProgramSlotStatus.Scheduled && s.End > from)
+                .OrderBy(s => s.Start)
+                .ToListAsync(cancellationToken);
+
+        // Everything derived from the loaded slot window lives in the ReconcileWindow — Reload()
+        // re-derives and re-validates it atomically on every (re-)load, so no structure of a
+        // narrower window can be reused by mistake.
+        var window = new ReconcileWindow(coverageStart, horizonEnd, federalState, activeRules, states, rulesById, _minStartRemain);
+
+        // Cost heuristic only — carries no correctness weight: a slot starting at or before the
+        // base window edge proves that pre-window context exists, so the window is widened once
+        // and the validation runs a single time on the full window. If the trigger misses (a
+        // partially materialized head leaves no slot row at the edge, or a Scheduled gap covers
+        // it), the validation-driven widening below decides instead.
         var loadFrom = coverageStart - OccurrenceLookback;
-        var scheduled = await _db.ProgramSlots
-            .Where(s => s.TVChannelId == channel.Id && s.Status == ProgramSlotStatus.Scheduled && s.End > loadFrom)
-            .OrderBy(s => s.Start)
-            .ToListAsync(cancellationToken);
+        var scheduled = await LoadScheduledAsync(loadFrom);
+        var widened = scheduled.Any(s => s.Start <= loadFrom);
+        if (widened)
+        {
+            loadFrom = coverageStart - _maxOccurrenceLookback;
+            scheduled = await LoadScheduledAsync(loadFrom);
+        }
+        window.Reload(loadFrom, scheduled);
 
-        // Invader evidence for the reproducibility check: an airing that starts later than its
-        // nominal occurrence start is only plausible when an occupied slot covered that start —
-        // grouped by the invader's exact end (the shifted airing starts there contiguously).
-        var invaderStarts = scheduled
-            .GroupBy(s => s.End)
-            .ToDictionary(g => g.Key, g => g.Min(s => s.Start));
-
-        var occurrences = BuildOccurrences(activeRules.Where(r => r.RuleType != ProgramRuleType.Filler), coverageStart, horizonEnd, federalState);
-        var occurrenceStarts = occurrences
-            .GroupBy(o => o.Rule.Id)
-            .ToDictionary(g => g.Key, g => g.Select(o => o.StartUtc).ToHashSet());
-        var boundStarts = BoundStarts(occurrences, states);
-
-        // Non-filler slots group into airings (maximal contiguous runs of the same producing
-        // rule); filler slots are validated individually.
-        var airings = GroupAirings(scheduled.Where(s => s.RuleType != ProgramRuleType.Filler).ToList());
-        var fillerSlots = scheduled.Where(s => s.RuleType == ProgramRuleType.Filler).ToList();
+        // Validation-driven widening (only when the trigger did not already widen): an invalid
+        // airing of an active rule reaching into the coverage may merely miss pre-window context
+        // — widen once, reload and re-validate on the full window. Genuinely stale airings stay
+        // invalid either way (the second pass costs a bounded reload, nothing more).
+        if (!widened && window.HasRescuableInvalid)
+        {
+            window.Reload(coverageStart - _maxOccurrenceLookback, await LoadScheduledAsync(coverageStart - _maxOccurrenceLookback));
+        }
 
         var displaced = new List<ProgramSlot>();
         var displacedRuleIds = new HashSet<long>();
@@ -207,39 +223,21 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             displaced.Add(slot);
         }
 
-        // Validate each airing; on the first invalid airing of a rule the whole remaining future of
-        // that rule is displaced (sequence context is cursor-based — later airings depend on it).
-        foreach (var group in airings.GroupBy(a => a[0].ProgramRuleId))
+        // Suffix displacement is applied only now, on the final validation result: on the first
+        // invalid airing of a rule the whole remaining future of that rule is displaced
+        // (sequence context is cursor-based — later airings depend on it).
+        foreach (var (ordered, firstInvalid) in window.InvalidGroups)
         {
-            var ordered = group.OrderBy(a => a[0].Start).ToList();
-            var firstInvalid = -1;
-            for (var i = 0; i < ordered.Count && firstInvalid < 0; i++)
+            foreach (var airing in ordered.Skip(firstInvalid))
             {
-                var airing = ordered[i];
-                if (!airing.Any(s => s.End > coverageStart))
-                    continue; // fully aired — history
-
-                var rule = airing[0].ProgramRuleId is { } rid ? rulesById.GetValueOrDefault(rid) : null;
-                var invalid = rule is null || !rule.IsActive
-                    || !occurrenceStarts.TryGetValue(rule.Id, out var starts)
-                    || !AiringReproducible(airing, states[rule.Id], starts, boundStarts, invaderStarts, _minStartRemain);
-                if (invalid)
-                    firstInvalid = i;
-            }
-
-            if (firstInvalid >= 0)
-            {
-                foreach (var airing in ordered.Skip(firstInvalid))
-                {
-                    foreach (var slot in airing)
-                        Displace(slot);
-                    if (airing[0].ProgramRuleId is { } displacedRuleId)
-                        displacedRuleIds.Add(displacedRuleId);
-                }
+                foreach (var slot in airing)
+                    Displace(slot);
+                if (airing[0].ProgramRuleId is { } displacedRuleId)
+                    displacedRuleIds.Add(displacedRuleId);
             }
         }
 
-        foreach (var slot in fillerSlots.Where(s => s.End > coverageStart))
+        foreach (var slot in window.FillerSlots.Where(s => s.End > coverageStart))
         {
             var rule = slot.ProgramRuleId is { } fillerRuleId ? rulesById.GetValueOrDefault(fillerRuleId) : null;
             var invalid = rule is null || !rule.IsActive
@@ -264,13 +262,13 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
         // Re-materialization over the freed windows. Kept scheduled slots block — except they lose
         // to a higher-priority occurrence (filler always loses; otherwise priority, then lower rule id).
-        var keptSlots = scheduled.Where(s => s.Status == ProgramSlotStatus.Scheduled && s.End > coverageStart).ToList();
+        var keptSlots = window.Scheduled.Where(s => s.Status == ProgramSlotStatus.Scheduled && s.End > coverageStart).ToList();
         var newSlots = new List<ProgramSlot>();
         var blocked = keptSlots.Select(s => new Interval(s.Start, s.End)).ToList();
 
         void DisplaceRuleFuture(long ruleId, DateTime fromStartUtc)
         {
-            foreach (var airing in airings.Where(a => a[0].ProgramRuleId == ruleId && a[0].Start >= fromStartUtc))
+            foreach (var airing in window.Airings.Where(a => a[0].ProgramRuleId == ruleId && a[0].Start >= fromStartUtc))
             {
                 foreach (var slot in airing)
                 {
@@ -283,7 +281,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                 }
             }
 
-            foreach (var slot in fillerSlots.Where(s => s.ProgramRuleId == ruleId && s.Start >= fromStartUtc && s.Status == ProgramSlotStatus.Scheduled))
+            foreach (var slot in window.FillerSlots.Where(s => s.ProgramRuleId == ruleId && s.Start >= fromStartUtc && s.Status == ProgramSlotStatus.Scheduled))
             {
                 slot.Status = ProgramSlotStatus.Displaced;
                 displaced.Add(slot);
@@ -306,16 +304,19 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                 || (winner.Priority == loser.Priority && winner.Id < loser.Id);
         }
 
-        foreach (var occurrence in occurrences.OrderByDescending(o => o.Rule.Priority).ThenBy(o => o.Rule.Id).ThenBy(o => o.StartUtc))
+        // Occurrences from the widened lookback serve only as reproduction anchors — re-materializing
+        // them could write shifted content behind the kept tail that the next run could not prove
+        // again (oscillation). Re-materialization therefore stays on the base window.
+        foreach (var occurrence in window.Occurrences.Where(o => o.StartUtc >= coverageStart - OccurrenceLookback).OrderByDescending(o => o.Rule.Priority).ThenBy(o => o.Rule.Id).ThenBy(o => o.StartUtc))
         {
-            var losers = MaterializeOccurrenceEvicting(occurrence, states, keptSlots, blocked, newSlots, coverageStart, BoundaryAfter(boundStarts, occurrence.StartUtc, occurrence.Rule.Priority), summary, Evicts);
+            var losers = MaterializeOccurrenceEvicting(occurrence, states, keptSlots, blocked, newSlots, coverageStart, BoundaryAfter(window.BoundStarts, occurrence.StartUtc, occurrence.Rule.Priority), summary, Evicts);
             if (losers is not null && losers.Count > 0)
             {
                 foreach (var loser in losers)
                 {
                     if (loser.ProgramRuleId is not { } loserRuleId)
                         continue;
-                    var airing = airings.FirstOrDefault(a => a.Contains(loser));
+                    var airing = window.Airings.FirstOrDefault(a => a.Contains(loser));
                     // A kept slot can only lose starting inside this occurrence's window —
                     // slots reaching across its start are overshooting tails that air to the
                     // end (the materialization already started behind them).
@@ -460,6 +461,17 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         return airings;
     }
 
+    // Recursion-invariant context of the airing-reproducibility check plus the memo shared
+    // across the recursion — bundled so the dispatch to the flat/interleaved tail checks keeps
+    // a short (airing, offset, afterStart) signature.
+    private sealed record ReproContext(
+        RuleState State,
+        HashSet<DateTime> OccurrenceStarts,
+        List<(DateTime StartUtc, int Priority)> BoundStarts,
+        Dictionary<DateTime, DateTime> InvaderStarts,
+        TimeSpan MinStartRemain,
+        Dictionary<(int Offset, DateTime AfterStart), bool> Memo);
+
     // An airing is still valid iff its producing rule would schedule exactly this slot sequence for
     // the occurrence the airing belongs to. That occurrence may already have been in progress when
     // the plan was extended: the materialization writes only the slots ending after the coverage
@@ -476,15 +488,37 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     // min-start-remainder and the overshoot boundary — a shifted or overshooting airing is
     // expected, not invalid).
     private static bool AiringReproducible(List<ProgramSlot> airing, RuleState state, HashSet<DateTime> occurrenceStarts, List<(DateTime StartUtc, int Priority)> boundStarts, Dictionary<DateTime, DateTime> invaderStarts, TimeSpan minStartRemain)
-    {
-        if (state.IsInterleaved)
-            return AiringReproducibleInterleaved(airing, state, occurrenceStarts, boundStarts, invaderStarts, minStartRemain);
+        => AiringReproducible(airing, 0, DateTime.MinValue,
+            new ReproContext(state, occurrenceStarts, boundStarts, invaderStarts, minStartRemain, new Dictionary<(int Offset, DateTime AfterStart), bool>()));
 
+    // Validates airing[offset..] as a chain of sub-airings anchored at strictly ascending
+    // occurrence starts (> afterStart): a merged group of a dense rule holds one (partial)
+    // airing per occurrence, so the check decomposes it recursively. Each sub-airing keeps the
+    // full original proof — anchor, invader evidence and slot-by-slot match — and consumes at
+    // least one slot, so the recursion depth is bounded by the group length; the memo keyed by
+    // (rest head, lower occurrence bound) bounds the branching cost of pathological groups.
+    private static bool AiringReproducible(List<ProgramSlot> airing, int offset, DateTime afterStart, ReproContext context)
+    {
+        if (offset >= airing.Count)
+            return true;
+        if (context.Memo.TryGetValue((offset, afterStart), out var cached))
+            return cached;
+
+        var result = context.State.IsInterleaved
+            ? InterleavedAiringTailReproducible(airing, offset, afterStart, context)
+            : FlatAiringTailReproducible(airing, offset, afterStart, context);
+        context.Memo[(offset, afterStart)] = result;
+        return result;
+    }
+
+    private static bool FlatAiringTailReproducible(List<ProgramSlot> airing, int offset, DateTime afterStart, ReproContext context)
+    {
+        var (state, occurrenceStarts, boundStarts, invaderStarts, minStartRemain, _) = context;
         var items = state.Items;
         if (items.Count == 0 || occurrenceStarts.Count == 0)
             return false;
 
-        var idx = FindItemIndex(items, airing[0]);
+        var idx = FindItemIndex(items, airing[offset]);
         if (idx < 0)
             return false;
 
@@ -503,15 +537,15 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                     break; // degenerate duration — the backward walk would never progress
                 skipped += headDuration;
             }
-            // The airing's real start — its first item began here; the nominal occurrence
+            // The sub-airing's real start — its first item began here; the nominal occurrence
             // started at or before this point (the remainder was blocked by an overshooting
             // predecessor).
-            var airingStart = airing[0].Start - skipped;
+            var airingStart = airing[offset].Start - skipped;
             if (airingStart < earliestStart)
                 break; // skipped duration already reaches past the oldest occurrence in the window
 
             var headIndex = ((idx - k) % count + count) % count;
-            foreach (var occurrenceStart in occurrenceStarts.Where(o => o <= airingStart))
+            foreach (var occurrenceStart in occurrenceStarts.Where(o => o > afterStart && o <= airingStart))
             {
                 // A shift needs invader evidence: an occupied slot covering the nominal start
                 // whose end is exactly the real start — otherwise the earlier anchor would
@@ -521,14 +555,18 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                     continue;
                 var expected = SelectAiringItems(items, headIndex, rule, airingStart,
                     BoundaryAfter(boundStarts, occurrenceStart, rule.Priority), minStartRemain);
-                if (expected.Count - k != airing.Count)
+                // The candidate may cover a real prefix of the group — the merged chain holds
+                // one airing per occurrence; the remainder is checked recursively against
+                // strictly later occurrences.
+                var consumed = expected.Count - k;
+                if (consumed < 1 || consumed > airing.Count - offset)
                     continue;
 
-                var start = airing[0].Start;
+                var start = airing[offset].Start;
                 var matches = true;
-                for (var i = 0; i < airing.Count; i++)
+                for (var i = 0; i < consumed; i++)
                 {
-                    var slot = airing[i];
+                    var slot = airing[offset + i];
                     var item = expected[k + i];
                     if (slot.MediaItemId != item.MediaItemId || slot.Start != start || slot.End != start + item.Duration)
                     {
@@ -537,7 +575,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                     }
                     start = slot.End;
                 }
-                if (matches)
+                if (matches && AiringReproducible(airing, offset + consumed, occurrenceStart, context))
                     return true;
             }
         }
@@ -554,27 +592,29 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     // contribution to the airing cannot have supplied prefix picks (their head is not
     // observable) — such hypotheses are rejected. Conservative by design: an unclear prefix
     // fails the check, so the airing is displaced and re-materialized rather than kept stale.
-    private static bool AiringReproducibleInterleaved(List<ProgramSlot> airing, RuleState state, HashSet<DateTime> occurrenceStarts, List<(DateTime StartUtc, int Priority)> boundStarts, Dictionary<DateTime, DateTime> invaderStarts, TimeSpan minStartRemain)
+    private static bool InterleavedAiringTailReproducible(List<ProgramSlot> airing, int offset, DateTime afterStart, ReproContext context)
     {
+        var (state, occurrenceStarts, boundStarts, invaderStarts, minStartRemain, _) = context;
         var strands = state.Strands;
         var m = strands.Count;
         var rule = state.Rule;
         if (occurrenceStarts.Count == 0)
             return false;
 
-        // Locate each slot inside its strand; a strand's slots must be consecutive ring entries
-        // in order (episodes of a series never air shuffled).
-        var strandOf = new int[airing.Count];
+        // Locate each slot of the remaining tail inside its strand; a strand's slots must be
+        // consecutive ring entries in order (episodes of a series never air shuffled).
+        var rest = airing.Count - offset;
+        var strandOf = new int[rest];
         var firstIndex = new int[m];
         var countInAiring = new int[m];
         Array.Fill(firstIndex, -1);
-        for (var i = 0; i < airing.Count; i++)
+        for (var i = 0; i < rest; i++)
         {
             var s = -1;
             var idx = -1;
             for (var t = 0; t < m; t++)
             {
-                idx = FindItemIndex(strands[t].Items, airing[i]);
+                idx = FindItemIndex(strands[t].Items, airing[offset + i]);
                 if (idx >= 0)
                 {
                     s = t;
@@ -597,14 +637,14 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         }
 
         var wanted = rule.EpisodeCount is > 0 ? rule.EpisodeCount.Value : int.MaxValue;
-        var maxPrefix = Math.Min(wanted, strands.Sum(s => s.Items.Count) + airing.Count);
+        var maxPrefix = Math.Min(wanted, strands.Sum(s => s.Items.Count) + rest);
 
-        foreach (var occurrenceStart in occurrenceStarts.Where(o => o <= airing[0].Start).OrderBy(o => o))
+        foreach (var occurrenceStart in occurrenceStarts.Where(o => o > afterStart && o <= airing[offset].Start).OrderBy(o => o))
         {
             // The real start may shift across a UTC day boundary when invaders push it —
             // the materialization derives the start-strand offset from that shifted day,
             // so both plausible days are tried and checked for consistency below.
-            var realDay = airing[0].Start.Date;
+            var realDay = airing[offset].Start.Date;
             var offsetCandidates = new[] { realDay, realDay.AddDays(-1) }
                 .Select(d => StrandStartOffset(wanted, m, d))
                 .Distinct();
@@ -640,8 +680,8 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                     }
 
                     // The airing's real start: the p prefix picks occupy contiguous time ending at
-                    // the first written slot — walk their durations back from airing[0].Start.
-                    var simStart = airing[0].Start;
+                    // the first written slot — walk their durations back from the tail's head.
+                    var simStart = airing[offset].Start;
                     var localPick = new int[m];
                     for (var q = 0; q < p; q++)
                     {
@@ -664,7 +704,10 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
                     var picks = SelectAiringItemsInterleaved(simStrands, rule, simStart,
                         BoundaryAfter(boundStarts, occurrenceStart, rule.Priority), minStartRemain);
-                    if (picks.Count - p != airing.Count)
+                    // A real prefix of the group suffices — the remainder is checked recursively
+                    // against strictly later occurrences (merged multi-occurrence chains).
+                    var consumed = picks.Count - p;
+                    if (consumed < 1 || consumed > rest)
                         continue;
 
                     var start = simStart;
@@ -674,7 +717,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                     {
                         if (pos >= p)
                         {
-                            var slot = airing[pos - p];
+                            var slot = airing[offset + pos - p];
                             if (slot.MediaItemId != pk.Item.MediaItemId || slot.Start != start || slot.End != start + pk.Item.Duration)
                             {
                                 matches = false;
@@ -684,7 +727,8 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                         start += pk.Item.Duration;
                         pos++;
                     }
-                    if (matches && pos == picks.Count)
+                    if (matches && pos == picks.Count
+                        && AiringReproducible(airing, offset + consumed, occurrenceStart, context))
                         return true;
                 }
             }
@@ -736,6 +780,97 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                     strand.RewindTo(idx);
                 }
                 break; // earliest resolvable displaced content of this strand decides — done either way
+            }
+        }
+    }
+
+    // State derived from the loaded slot window of a reconcile run. Reload() is the only way to
+    // (re-)set the loaded window: it re-derives every structure the validation and the
+    // displacement/materialization phases read from the fresh Scheduled list (Rebuild) and
+    // immediately re-runs the read-only validation over them (Validate — no slot status
+    // touched), so after a widened reload nothing from a narrower window — not even a stale
+    // validation result — can be reused by mistake.
+    private sealed class ReconcileWindow(
+        DateTime coverageStart,
+        DateTimeOffset horizonEnd,
+        string? federalState,
+        List<ProgramRule> activeRules,
+        Dictionary<long, RuleState> states,
+        Dictionary<long, ProgramRule> rulesById,
+        TimeSpan minStartRemain)
+    {
+        public List<ProgramSlot> Scheduled { get; private set; } = [];
+
+        public List<Occurrence> Occurrences { get; private set; } = [];
+        public List<(DateTime StartUtc, int Priority)> BoundStarts { get; private set; } = [];
+        public List<List<ProgramSlot>> Airings { get; private set; } = [];
+        public List<ProgramSlot> FillerSlots { get; private set; } = [];
+        public List<(List<List<ProgramSlot>> Ordered, int FirstInvalid)> InvalidGroups { get; private set; } = [];
+        public bool HasRescuableInvalid { get; private set; }
+
+        private Dictionary<DateTime, DateTime> _invaderStarts = [];
+        private Dictionary<long, HashSet<DateTime>> _occurrenceStarts = [];
+
+        // Sets the load-window edge together with the freshly loaded slots and atomically
+        // re-derives (Rebuild) and re-validates (Validate) — a reload can never leave stale
+        // derived state or validation results behind.
+        public void Reload(DateTime loadFrom, List<ProgramSlot> scheduled)
+        {
+            Scheduled = scheduled;
+            Rebuild(loadFrom);
+            Validate();
+        }
+
+        private void Rebuild(DateTime loadFrom)
+        {
+            // Invader evidence for the reproducibility check: an airing that starts later than
+            // its nominal occurrence start is only plausible when an occupied slot covered that
+            // start — grouped by the invader's exact end (the shifted airing starts there
+            // contiguously).
+            _invaderStarts = Scheduled
+                .GroupBy(s => s.End)
+                .ToDictionary(g => g.Key, g => g.Min(s => s.Start));
+
+            var reconcileLookback = coverageStart - loadFrom;
+            Occurrences = BuildOccurrences(activeRules.Where(r => r.RuleType != ProgramRuleType.Filler), coverageStart, horizonEnd, federalState, reconcileLookback);
+            _occurrenceStarts = Occurrences
+                .GroupBy(o => o.Rule.Id)
+                .ToDictionary(g => g.Key, g => g.Select(o => o.StartUtc).ToHashSet());
+            BoundStarts = ProgramScheduleService.BoundStarts(Occurrences, states);
+
+            // Non-filler slots group into airings (maximal contiguous runs of the same producing
+            // rule); filler slots are validated individually.
+            Airings = GroupAirings(Scheduled.Where(s => s.RuleType != ProgramRuleType.Filler).ToList());
+            FillerSlots = Scheduled.Where(s => s.RuleType == ProgramRuleType.Filler).ToList();
+        }
+
+        private void Validate()
+        {
+            InvalidGroups = [];
+            HasRescuableInvalid = false;
+            foreach (var group in Airings.GroupBy(a => a[0].ProgramRuleId))
+            {
+                var ordered = group.OrderBy(a => a[0].Start).ToList();
+                var firstInvalid = -1;
+                for (var i = 0; i < ordered.Count && firstInvalid < 0; i++)
+                {
+                    var airing = ordered[i];
+                    if (!airing.Any(s => s.End > coverageStart))
+                        continue; // fully aired — history
+
+                    var rule = airing[0].ProgramRuleId is { } rid ? rulesById.GetValueOrDefault(rid) : null;
+                    var invalid = rule is null || !rule.IsActive
+                        || !_occurrenceStarts.TryGetValue(rule.Id, out var starts)
+                        || !AiringReproducible(airing, states[rule.Id], starts, BoundStarts, _invaderStarts, minStartRemain);
+                    if (invalid)
+                    {
+                        firstInvalid = i;
+                        HasRescuableInvalid |= rule is { IsActive: true };
+                    }
+                }
+
+                if (firstInvalid >= 0)
+                    InvalidGroups.Add((ordered, firstInvalid));
             }
         }
     }
@@ -1090,10 +1225,10 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         return pos < 0 ? 0 : pos + 1;
     }
 
-    private List<Occurrence> BuildOccurrences(IEnumerable<ProgramRule> rules, DateTime coverageStartUtc, DateTimeOffset horizonEnd, string? federalState)
+    private static List<Occurrence> BuildOccurrences(IEnumerable<ProgramRule> rules, DateTime coverageStartUtc, DateTimeOffset horizonEnd, string? federalState, TimeSpan lookback)
     {
         var tz = TimeZoneInfo.Local;
-        var windowStartDay = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(coverageStartUtc, tz)).AddDays(-1);
+        var windowStartDay = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(coverageStartUtc - lookback, tz));
         var windowEndDay = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(horizonEnd.UtcDateTime, tz));
 
         var occurrences = new List<Occurrence>();
@@ -1116,7 +1251,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
                 var localStart = day.ToDateTime(rule.TimeOfDay, DateTimeKind.Unspecified);
                 var startUtc = TimeZoneInfo.ConvertTimeToUtc(localStart, tz);
-                if (startUtc >= coverageStartUtc - OccurrenceLookback && startUtc < horizonEnd.UtcDateTime)
+                if (startUtc >= coverageStartUtc - lookback && startUtc < horizonEnd.UtcDateTime)
                     occurrences.Add(new Occurrence(rule, startUtc));
             }
         }

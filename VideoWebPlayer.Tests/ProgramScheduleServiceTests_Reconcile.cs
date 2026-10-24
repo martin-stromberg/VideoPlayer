@@ -46,9 +46,7 @@ public sealed class ProgramScheduleServiceTests_Reconcile
 
         var summary = await service.ReconcileAsync(now.AddMinutes(30), ct);
 
-        var dumped = (await fixture.SlotsAsync(ct)).Where(s => s.Status == ProgramSlotStatus.Displaced)
-            .Select(s => $"{s.Start:HH:mm}-{s.End:HH:mm} {s.RuleType} rule={s.ProgramRuleId} item={s.MediaItemId}").ToList();
-        Assert.True(summary.SlotsDisplaced == 0, "Displaced: " + string.Join(" | ", dumped));
+        await ProgramScheduleTestDb.AssertNoDisplacedAsync(fixture, summary, ct);
         var slots = await fixture.SlotsAsync(ct);
         // The reconcile window reaches 30 minutes past the previous coverage edge — the tail may
         // be filled (no displacement, all existing slots stay Scheduled).
@@ -366,15 +364,11 @@ public sealed class ProgramScheduleServiceTests_Reconcile
         // The re-evaluation must recognize the tail as the still-running remainder of the 14:00
         // occurrence — nothing may be displaced.
         var summary = await service.ReconcileAsync(now.AddMinutes(10), ct);
-        var dumped = (await fixture.SlotsAsync(ct)).Where(s => s.Status == ProgramSlotStatus.Displaced)
-            .Select(s => $"{s.Start:dd.HH:mm}-{s.End:dd.HH:mm} rule={s.ProgramRuleId} ep={s.TVShowEpisodeId}").ToList();
-        Assert.True(summary.SlotsDisplaced == 0, "Displaced: " + string.Join(" | ", dumped));
+        await ProgramScheduleTestDb.AssertNoDisplacedAsync(fixture, summary, ct);
 
         // And a second run must stay equally quiet — no oscillation.
         var summary2 = await service.ReconcileAsync(now.AddMinutes(25), ct);
-        Assert.True(summary2.SlotsDisplaced == 0, "Displaced (2. Lauf): " + string.Join(" | ",
-            (await fixture.SlotsAsync(ct)).Where(s => s.Status == ProgramSlotStatus.Displaced)
-                .Select(s => $"{s.Start:dd.HH:mm}-{s.End:dd.HH:mm} rule={s.ProgramRuleId}")));
+        await ProgramScheduleTestDb.AssertNoDisplacedAsync(fixture, summary2, ct, "2. Lauf");
     }
 
     [Fact]
@@ -437,9 +431,7 @@ public sealed class ProgramScheduleServiceTests_Reconcile
             var t = now.AddMinutes(15 * i);
             var summary = await service.ReconcileAsync(t, ct);
             await service.EnsureCoverageAsync(t, ct);
-            Assert.True(summary.SlotsDisplaced == 0, $"Lauf {i}: {summary.SlotsDisplaced} verdrängt — " + string.Join(" | ",
-                (await fixture.SlotsAsync(ct)).Where(s => s.Status == ProgramSlotStatus.Displaced)
-                    .Select(s => $"{s.Start:dd.HH:mm}-{s.End:dd.HH:mm} rule={s.ProgramRuleId}")));
+            await ProgramScheduleTestDb.AssertNoDisplacedAsync(fixture, summary, ct, $"Lauf {i}");
         }
 
         var scheduled = await ScheduledAsync(fixture, ct);
@@ -473,5 +465,212 @@ public sealed class ProgramScheduleServiceTests_Reconcile
         Assert.NotEmpty(slots);
         Assert.Contains(slots, s => s.Status == ProgramSlotStatus.Displaced);
         Assert.All(slots, s => Assert.True(s.Start >= now.UtcDateTime.AddHours(-2)));
+    }
+
+    // Issue #261: a broadcast whose real start lies more than 24 h before the coverage start
+    // must stay reproducible — the reconcile lookback widens (up to MaxOccurrenceLookbackDays)
+    // so the occurrence anchor stays provable. Under a daily rule the 30 h airings chain
+    // seamlessly (each following occurrence is shifted behind the running tail), so
+    // GroupAirings merges them into a single multi-occurrence chain.
+    [Fact]
+    public async Task Reconcile_LongAiring_StaysScheduled()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("reconcile-long-airing", ct);
+        var channel = await fixture.GetChannelAsync(ct);
+        var movie = await fixture.CreateMovieAsync("Marathonfilm", duration: TimeSpan.FromHours(30));
+
+        var now = new DateTimeOffset(LocalUtc(2026, 11, 1, 12, 0));
+        await fixture.CreateRuleAsync(channel.Id, "Marathon", ProgramRuleType.MoviePrimeTime, ProgramRuleRecurrence.Daily,
+            new TimeOnly(20, 0), ProgramRuleMaterialType.Movie, movie.Id, episodeCount: 1);
+
+        var service = fixture.CreateService();
+        await service.EnsureCoverageAsync(now, ct);
+        var marathonSlots = (await ScheduledAsync(fixture, ct))
+            .Where(s => s.RuleType == ProgramRuleType.MoviePrimeTime).ToList();
+        Assert.True(marathonSlots.Count >= 2, "erwartete verschmolzene Kette fehlt");
+        Assert.Equal(marathonSlots[0].End, marathonSlots[1].Start); // lückenlose Kette
+
+        // 38 h after the first occurrence's nominal start — the chain head lies outside the
+        // 24-h base window and must still be recognized as reproducible.
+        var check = new DateTimeOffset(LocalUtc(2026, 11, 3, 10, 0));
+        var summary = await service.ReconcileAsync(check, ct);
+        await ProgramScheduleTestDb.AssertNoDisplacedAsync(fixture, summary, ct);
+
+        // Second run stays equally quiet — no oscillation.
+        var summary2 = await service.ReconcileAsync(check.AddMinutes(25), ct);
+        await ProgramScheduleTestDb.AssertNoDisplacedAsync(fixture, summary2, ct, "2. Lauf");
+    }
+
+    // Same long-airing scenario beyond two days: the occurrence day loop must reach back as far
+    // as the lookback allows, not just to the coverage day minus one.
+    [Fact]
+    public async Task Reconcile_LongAiring_BeyondTwoDays_StaysScheduled()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("reconcile-long-airing-2d", ct);
+        var channel = await fixture.GetChannelAsync(ct);
+        var movie = await fixture.CreateMovieAsync("Langfilm", duration: TimeSpan.FromHours(50));
+
+        var now = new DateTimeOffset(LocalUtc(2026, 11, 1, 12, 0));
+        await fixture.CreateRuleAsync(channel.Id, "Marathon", ProgramRuleType.MoviePrimeTime, ProgramRuleRecurrence.Daily,
+            new TimeOnly(20, 0), ProgramRuleMaterialType.Movie, movie.Id, episodeCount: 1);
+
+        var service = fixture.CreateService();
+        await service.EnsureCoverageAsync(now, ct);
+
+        var check = new DateTimeOffset(LocalUtc(2026, 11, 4, 12, 0));
+        var summary = await service.ReconcileAsync(check, ct);
+
+        await ProgramScheduleTestDb.AssertNoDisplacedAsync(fixture, summary, ct);
+        Assert.All(await fixture.SlotsAsync(ct),
+            s => Assert.Equal(ProgramSlotStatus.Scheduled, s.Status));
+    }
+
+    // Marathon block as a chain of many single slots: head slots end before the base load
+    // window edge, the chain reaches over the coverage start, no single slot spans both
+    // boundaries — the widening trigger (a slot with Start <= loadFrom) fires.
+    [Fact]
+    public async Task Reconcile_MultiPartLongAiring_StaysScheduled()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("reconcile-multipart-long", ct);
+        var channel = await fixture.GetChannelAsync(ct);
+        var (show, _, _) = await fixture.CreateShowAsync("Marathon", 50, duration: TimeSpan.FromMinutes(45));
+
+        var now = new DateTimeOffset(LocalUtc(2026, 11, 1, 12, 0));
+        await fixture.CreateRuleAsync(channel.Id, "Marathonblock", ProgramRuleType.SeriesFixedTime, ProgramRuleRecurrence.Once,
+            new TimeOnly(20, 0), ProgramRuleMaterialType.TVShow, show.Id,
+            slotDuration: TimeSpan.FromHours(30), singleDate: new DateOnly(2026, 11, 1));
+
+        var service = fixture.CreateService();
+        await service.EnsureCoverageAsync(now, ct);
+
+        // 25 h into the 30 h block: one interior slot covers the base window edge, the head
+        // slots are already out of the load window.
+        var check = new DateTimeOffset(LocalUtc(2026, 11, 2, 21, 7));
+        var summary = await service.ReconcileAsync(check, ct);
+
+        await ProgramScheduleTestDb.AssertNoDisplacedAsync(fixture, summary, ct);
+    }
+
+    // Aired with a shifted real start: the predecessor airing overshoots the occurrence start,
+    // so the > 24 h airing begins late — the invader slot proving the shift ends outside the
+    // base load window and must be loaded by the widened window.
+    [Fact]
+    public async Task Reconcile_LongAiring_Shifted_StaysScheduled()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("reconcile-long-shifted", ct);
+        var channel = await fixture.GetChannelAsync(ct);
+        var predecessor = await fixture.CreateMovieAsync("Vorprogramm", duration: TimeSpan.FromHours(8));
+        var movie = await fixture.CreateMovieAsync("Langfilm", duration: TimeSpan.FromHours(30));
+
+        // Coverage built before the predecessor's airing so it is persisted and can overshoot
+        // the 20:00 occurrence — the long airing's real start shifts to 22:00.
+        var now = new DateTimeOffset(LocalUtc(2026, 10, 31, 12, 0));
+        await fixture.CreateRuleAsync(channel.Id, "Nachmittag", ProgramRuleType.MoviePrimeTime, ProgramRuleRecurrence.Daily,
+            new TimeOnly(14, 0), ProgramRuleMaterialType.Movie, predecessor.Id, episodeCount: 1);
+        var rule = await fixture.CreateRuleAsync(channel.Id, "Primetime", ProgramRuleType.MoviePrimeTime, ProgramRuleRecurrence.Daily,
+            new TimeOnly(20, 0), ProgramRuleMaterialType.Movie, movie.Id, episodeCount: 1);
+
+        var service = fixture.CreateService();
+        await service.EnsureCoverageAsync(now, ct);
+
+        // The 20:00 airing was shifted behind the predecessor's overshoot — its real start is
+        // the invader's end. More than 24 h later the invader slot already ended before the
+        // base load window and its evidence must be loaded by the widened window.
+        var check = new DateTimeOffset(LocalUtc(2026, 11, 2, 23, 0));
+        var summary = await service.ReconcileAsync(check, ct);
+
+        await ProgramScheduleTestDb.AssertNoDisplacedAsync(fixture, summary, ct);
+        Assert.Contains(await ScheduledAsync(fixture, ct),
+            s => s.ProgramRuleId == rule.Id && s.Start < check.UtcDateTime.AddHours(-24));
+    }
+
+    // Rest gap k > 0 without a trigger hit: young plan history — the tail of a long airing was
+    // materialized with its head items consumed without slot rows, so the first written slot
+    // starts after loadFrom and nothing covers the window edge. The validation-driven widening
+    // (base validation fails, reload on the max window, re-validate) must still rescue it.
+    [Fact]
+    public async Task Reconcile_PartiallyMaterializedLongAiring_NoTrigger_StaysScheduled()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("reconcile-long-notrigger", ct);
+        var channel = await fixture.GetChannelAsync(ct);
+        var (show, _, _) = await fixture.CreateShowAsync("Marathon", 10, duration: TimeSpan.FromHours(9));
+
+        // One-off 36 h block from Nov 1 11:00 (4 x 9 h): the ensure run at Nov 2 09:00 lands
+        // inside the airing, so only the tail slots are written — the head items consumed the
+        // cursor without producing rows (k > 0 reconstruction needed).
+        var now = new DateTimeOffset(LocalUtc(2026, 11, 2, 9, 0));
+        await fixture.CreateRuleAsync(channel.Id, "Marathon", ProgramRuleType.SeriesFixedTime, ProgramRuleRecurrence.Once,
+            new TimeOnly(11, 0), ProgramRuleMaterialType.TVShow, show.Id, episodeCount: 4,
+            singleDate: new DateOnly(2026, 11, 1));
+
+        var service = fixture.CreateService();
+        await service.EnsureCoverageAsync(now, ct);
+        var allSlots = (await fixture.SlotsAsync(ct))
+            .Select(s => $"{s.Start:dd.HH:mm}-{s.End:dd.HH:mm} ep={s.TVShowEpisodeId} st={s.Status}").ToList();
+
+        // 26 h after the airing's nominal start, only 4 h after the plan was built: no loaded
+        // slot starts at or before loadFrom — the trigger provably does not fire.
+        var check = new DateTimeOffset(LocalUtc(2026, 11, 2, 13, 0));
+        var summary = await service.ReconcileAsync(check, ct);
+
+        await ProgramScheduleTestDb.AssertNoDisplacedAsync(fixture, summary, ct,
+            "Ausgangsplan: " + string.Join(" | ", allSlots));
+    }
+
+    // Genuine staleness must still displace: after the rule's time of day changed, the > 24 h
+    // chain finds neither an anchor nor invader evidence — widening must not rescue it.
+    [Fact]
+    public async Task Reconcile_LongAiring_ChangedRule_StillDisplaced()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("reconcile-long-changed", ct);
+        var channel = await fixture.GetChannelAsync(ct);
+        var movie = await fixture.CreateMovieAsync("Marathonfilm", duration: TimeSpan.FromHours(30));
+
+        var now = new DateTimeOffset(LocalUtc(2026, 11, 1, 12, 0));
+        var rule = await fixture.CreateRuleAsync(channel.Id, "Marathon", ProgramRuleType.MoviePrimeTime, ProgramRuleRecurrence.Daily,
+            new TimeOnly(20, 0), ProgramRuleMaterialType.Movie, movie.Id, episodeCount: 1);
+
+        var service = fixture.CreateService();
+        await service.EnsureCoverageAsync(now, ct);
+
+        rule.TimeOfDay = new TimeOnly(22, 0);
+        await fixture.SaveDiagAsync();
+        var summary = await service.ReconcileAsync(new DateTimeOffset(LocalUtc(2026, 11, 3, 10, 0)), ct);
+
+        Assert.True(summary.SlotsDisplaced > 0);
+        Assert.Contains(await DisplacedAsync(fixture, ct), s => s.ProgramRuleId == rule.Id);
+        // Re-planned at the new time.
+        Assert.Contains(await ScheduledAsync(fixture, ct), s => s.ProgramRuleId == rule.Id);
+    }
+
+    // Documented bound: airings whose real start is older than MaxOccurrenceLookbackDays are
+    // still displaced and re-planned (deliberate, configurable limit).
+    [Fact]
+    public async Task Reconcile_LongAiring_BeyondMaxLookback_Displaced()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("reconcile-long-maxlookback", ct);
+        var channel = await fixture.GetChannelAsync(ct);
+        var movie = await fixture.CreateMovieAsync("Marathonfilm", duration: TimeSpan.FromHours(30));
+
+        var now = new DateTimeOffset(LocalUtc(2026, 11, 1, 12, 0));
+        var rule = await fixture.CreateRuleAsync(channel.Id, "Marathon", ProgramRuleType.MoviePrimeTime, ProgramRuleRecurrence.Daily,
+            new TimeOnly(20, 0), ProgramRuleMaterialType.Movie, movie.Id, episodeCount: 1);
+
+        var service = fixture.CreateService(Microsoft.Extensions.Options.Options.Create(
+            new Configuration.ProgramScheduleOptions { MaxOccurrenceLookbackDays = 1 }));
+        await service.EnsureCoverageAsync(now, ct);
+
+        var summary = await service.ReconcileAsync(new DateTimeOffset(LocalUtc(2026, 11, 3, 10, 0)), ct);
+
+        Assert.True(summary.SlotsDisplaced > 0);
+        Assert.Contains(await DisplacedAsync(fixture, ct), s => s.ProgramRuleId == rule.Id);
+        Assert.Contains(await ScheduledAsync(fixture, ct), s => s.ProgramRuleId == rule.Id);
     }
 }

@@ -219,8 +219,37 @@ public sealed class ProgramScheduleServiceTests_Interleaving
 
         var summary = await service.ReconcileAsync(new DateTimeOffset(LocalUtc(2026, 10, 24, 12, 30)), ct);
 
-        var dumped = (await fixture.SlotsAsync(ct)).Where(s => s.Status == ProgramSlotStatus.Displaced)
-            .Select(s => $"{s.Start:dd.HH:mm}-{s.End:HH:mm} ep={s.TVShowEpisodeId}").ToList();
-        Assert.True(summary.SlotsDisplaced == 0, "Displaced: " + string.Join(" | ", dumped));
+        await ProgramScheduleTestDb.AssertNoDisplacedAsync(fixture, summary, ct);
+    }
+
+    // Issue #261, interleaved path: a genre window whose pick chain exceeds 24 h chains into
+    // the next day's window seamlessly — GroupAirings merges the shifted airings into one
+    // multi-occurrence chain that must stay valid more than 24 h after its real start.
+    [Fact]
+    public async Task Reconcile_GenreRule_Interleaved_LongAiring_StaysScheduled()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var fixture = await ProgramScheduleTestDb.CreateAsync("interleave-long-airing", ct);
+        using var _ = fixture;
+        var channel = await fixture.GetChannelAsync(ct);
+        var genre = await fixture.CreateGenreAsync("Serienfenster");
+        var (showA, _, _) = await fixture.CreateShowAsync("A-Serie", 8, duration: TimeSpan.FromHours(13));
+        var (showB, _, _) = await fixture.CreateShowAsync("B-Serie", 8, duration: TimeSpan.FromHours(13));
+        await fixture.LinkShowGenreAsync(showA.Id, genre.Id);
+        await fixture.LinkShowGenreAsync(showB.Id, genre.Id);
+
+        var rule = await fixture.CreateRuleAsync(channel.Id, "Serienfenster", ProgramRuleType.GenreRotation,
+            ProgramRuleRecurrence.Daily, new TimeOnly(12, 0), ProgramRuleMaterialType.Genre, genre.Id,
+            episodeCount: 2, genreIds: [genre.Id]);
+
+        var service = fixture.CreateService();
+        await service.EnsureCoverageAsync(new DateTimeOffset(LocalUtc(2026, 11, 1, 9, 0)), ct);
+        var slots = (await fixture.SlotsAsync(ct)).Where(s => s.ProgramRuleId == rule.Id).ToList();
+        Assert.True(slots.Count >= 4, "erwartete verschmolzene Interleaved-Kette fehlt");
+
+        // 32 h after the chain's nominal first occurrence — outside the 24-h base window.
+        var summary = await service.ReconcileAsync(new DateTimeOffset(LocalUtc(2026, 11, 2, 20, 0)), ct);
+
+        await ProgramScheduleTestDb.AssertNoDisplacedAsync(fixture, summary, ct);
     }
 }

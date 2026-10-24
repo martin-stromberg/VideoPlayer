@@ -126,10 +126,7 @@ public sealed class ProgramScheduleServiceTests_Boundary
         {
             var t = now.AddMinutes(15 * i);
             var summary = await service.ReconcileAsync(t, ct);
-            Assert.True(summary.SlotsDisplaced == 0,
-                $"Lauf {i}: {summary.SlotsDisplaced} verdrängt — " + string.Join(" | ",
-                    (await fixture.SlotsAsync(ct)).Where(s => s.Status == ProgramSlotStatus.Displaced)
-                        .Select(s => $"{s.Start:dd.HH:mm}-{s.End:dd.HH:mm} rule={s.ProgramRuleId}")));
+            await ProgramScheduleTestDb.AssertNoDisplacedAsync(fixture, summary, ct, $"Lauf {i}");
             await service.EnsureCoverageAsync(t, ct);
         }
     }
@@ -272,6 +269,19 @@ public sealed class ProgramScheduleServiceTests_Boundary
         Assert.Equal(TimeSpan.FromSeconds(30), new Configuration.ProgramScheduleOptions { MinStartRemainSeconds = -5 }.EffectiveMinStartRemain);
         Assert.Equal(TimeSpan.FromSeconds(45), new Configuration.ProgramScheduleOptions { MinStartRemainSeconds = 45 }.EffectiveMinStartRemain);
         Assert.Equal(TimeSpan.FromSeconds(30), new Configuration.ProgramScheduleOptions().EffectiveMinStartRemain);
+    }
+
+    [Fact]
+    public void ProgramScheduleOptions_MaxOccurrenceLookback_Normalizes()
+    {
+        Assert.Equal(TimeSpan.FromDays(7), new Configuration.ProgramScheduleOptions { MaxOccurrenceLookbackDays = 0 }.EffectiveMaxOccurrenceLookback);
+        Assert.Equal(TimeSpan.FromDays(7), new Configuration.ProgramScheduleOptions { MaxOccurrenceLookbackDays = -3 }.EffectiveMaxOccurrenceLookback);
+        Assert.Equal(TimeSpan.FromDays(4), new Configuration.ProgramScheduleOptions { MaxOccurrenceLookbackDays = 4 }.EffectiveMaxOccurrenceLookback);
+        Assert.Equal(TimeSpan.FromDays(7), new Configuration.ProgramScheduleOptions().EffectiveMaxOccurrenceLookback);
+        // Upper clamp: an absurdly large value must not sink the reconcile run into a
+        // DateTime underflow or a practically endless occurrence day loop.
+        Assert.Equal(TimeSpan.FromDays(30), new Configuration.ProgramScheduleOptions { MaxOccurrenceLookbackDays = 45 }.EffectiveMaxOccurrenceLookback);
+        Assert.Equal(TimeSpan.FromDays(30), new Configuration.ProgramScheduleOptions { MaxOccurrenceLookbackDays = int.MaxValue }.EffectiveMaxOccurrenceLookback);
     }
 
     [Fact]

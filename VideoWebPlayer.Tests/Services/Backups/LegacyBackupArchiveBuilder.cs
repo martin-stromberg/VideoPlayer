@@ -167,58 +167,29 @@ internal static class LegacyBackupArchiveBuilder
         string tableName,
         IReadOnlyCollection<string> columnNames,
         CancellationToken cancellationToken)
-    {
-        archiveStream.Position = 0;
-        using var originalArchive = new ZipArchive(archiveStream, ZipArchiveMode.Read, true);
-        var indexNode = await ReadIndexAsync(originalArchive, cancellationToken);
-        var table = indexNode["tables"]!.AsArray().First(t =>
-            string.Equals(t!["name"]!.GetValue<string>(), tableName, StringComparison.OrdinalIgnoreCase))!;
-        var entryName = table["entryName"]!.GetValue<string>();
-
-        var columns = table["columns"]!.AsArray();
-        foreach (var columnName in columnNames)
-        {
-            var column = columns.FirstOrDefault(c =>
-                string.Equals(c!.GetValue<string>(), columnName, StringComparison.OrdinalIgnoreCase));
-            if (column is not null)
-                columns.Remove(column);
-        }
-
-        var legacyStream = new MemoryStream();
-        using (var legacyArchive = new ZipArchive(legacyStream, ZipArchiveMode.Create, true))
-        {
-            await WriteJsonEntryAsync(legacyArchive, "index.json", indexNode, cancellationToken);
-
-            foreach (var entry in originalArchive.Entries)
+        => await RewriteTablePayloadAsync(
+            archiveStream,
+            tableName,
+            tableIndex =>
             {
-                if (string.Equals(entry.FullName, "index.json", StringComparison.Ordinal))
-                    continue;
-
-                if (!string.Equals(entry.FullName, entryName, StringComparison.OrdinalIgnoreCase))
+                var columns = tableIndex["columns"]!.AsArray();
+                foreach (var columnName in columnNames)
                 {
-                    await CopyEntryAsync(legacyArchive, entry, cancellationToken);
-                    continue;
+                    var column = columns.FirstOrDefault(c =>
+                        string.Equals(c!.GetValue<string>(), columnName, StringComparison.OrdinalIgnoreCase));
+                    if (column is not null)
+                        columns.Remove(column);
                 }
-
-                JsonNode dataNode;
-                await using (var dataStream = entry.Open())
-                {
-                    dataNode = (await JsonNode.ParseAsync(dataStream, cancellationToken: cancellationToken))!;
-                }
-
-                foreach (var row in dataNode["rows"]!.AsArray())
+            },
+            payloadRows =>
+            {
+                foreach (var row in payloadRows)
                 {
                     foreach (var columnName in columnNames)
                         row!.AsObject().Remove(columnName);
                 }
-
-                await WriteJsonEntryAsync(legacyArchive, entry.FullName, dataNode, cancellationToken);
-            }
-        }
-
-        legacyStream.Position = 0;
-        return legacyStream;
-    }
+            },
+            cancellationToken);
 
     /// <summary>
     /// Writes <paramref name="backup"/> in the current schema and rebuilds the archive with the
@@ -256,47 +227,16 @@ internal static class LegacyBackupArchiveBuilder
         string tableName,
         IReadOnlyCollection<Dictionary<string, object?>> rows,
         CancellationToken cancellationToken)
-    {
-        archiveStream.Position = 0;
-        using var originalArchive = new ZipArchive(archiveStream, ZipArchiveMode.Read, true);
-        var indexNode = await ReadIndexAsync(originalArchive, cancellationToken);
-        var table = indexNode["tables"]!.AsArray().First(t =>
-            string.Equals(t!["name"]!.GetValue<string>(), tableName, StringComparison.OrdinalIgnoreCase))!;
-        var entryName = table["entryName"]!.GetValue<string>();
-
-        var rebuiltStream = new MemoryStream();
-        using (var rebuiltArchive = new ZipArchive(rebuiltStream, ZipArchiveMode.Create, true))
-        {
-            await WriteJsonEntryAsync(rebuiltArchive, "index.json", indexNode, cancellationToken);
-
-            foreach (var entry in originalArchive.Entries)
+        => await RewriteTablePayloadAsync(
+            archiveStream,
+            tableName,
+            mutateTableIndex: null,
+            payloadRows =>
             {
-                if (string.Equals(entry.FullName, "index.json", StringComparison.Ordinal))
-                    continue;
-
-                if (!string.Equals(entry.FullName, entryName, StringComparison.OrdinalIgnoreCase))
-                {
-                    await CopyEntryAsync(rebuiltArchive, entry, cancellationToken);
-                    continue;
-                }
-
-                JsonNode dataNode;
-                await using (var dataStream = entry.Open())
-                {
-                    dataNode = (await JsonNode.ParseAsync(dataStream, cancellationToken: cancellationToken))!;
-                }
-
-                var payloadRows = dataNode["rows"]!.AsArray();
                 foreach (var row in rows)
                     payloadRows.Add(JsonSerializer.SerializeToNode(row, JsonOptions));
-
-                await WriteJsonEntryAsync(rebuiltArchive, entry.FullName, dataNode, cancellationToken);
-            }
-        }
-
-        rebuiltStream.Position = 0;
-        return rebuiltStream;
-    }
+            },
+            cancellationToken);
 
     /// <summary>
     /// Reads a table's column list out of a backup archive's <c>index.json</c> — exactly the list the
@@ -329,6 +269,66 @@ internal static class LegacyBackupArchiveBuilder
         {
             archiveStream.Position = position;
         }
+    }
+
+    /// <summary>
+    /// Shared archive-rebuild skeleton for the rewrites above: reads <c>index.json</c>, applies
+    /// <paramref name="mutateTableIndex"/> to the target table's index node (if any), then writes
+    /// a new archive with the mutated index, all other entries copied and the target table's
+    /// payload replaced by a version whose row list <paramref name="mutateRows"/> rewrote.
+    /// </summary>
+    /// <param name="archiveStream">The backup archive to rewrite.</param>
+    /// <param name="tableName">The name of the table whose index node and payload get mutated.</param>
+    /// <param name="mutateTableIndex">Mutation applied to the table's <c>index.json</c> node, or <c>null</c> for none.</param>
+    /// <param name="mutateRows">Mutation applied to the table payload's <c>rows</c> array.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The rebuilt backup archive, positioned at the start.</returns>
+    private static async Task<MemoryStream> RewriteTablePayloadAsync(
+        MemoryStream archiveStream,
+        string tableName,
+        Action<JsonObject>? mutateTableIndex,
+        Action<JsonArray> mutateRows,
+        CancellationToken cancellationToken)
+    {
+        archiveStream.Position = 0;
+        using var originalArchive = new ZipArchive(archiveStream, ZipArchiveMode.Read, true);
+        var indexNode = await ReadIndexAsync(originalArchive, cancellationToken);
+        var table = indexNode["tables"]!.AsArray().First(t =>
+            string.Equals(t!["name"]!.GetValue<string>(), tableName, StringComparison.OrdinalIgnoreCase))!;
+        var entryName = table["entryName"]!.GetValue<string>();
+
+        mutateTableIndex?.Invoke(table.AsObject());
+
+        var rebuiltStream = new MemoryStream();
+        using (var rebuiltArchive = new ZipArchive(rebuiltStream, ZipArchiveMode.Create, true))
+        {
+            await WriteJsonEntryAsync(rebuiltArchive, "index.json", indexNode, cancellationToken);
+
+            foreach (var entry in originalArchive.Entries)
+            {
+                if (string.Equals(entry.FullName, "index.json", StringComparison.Ordinal))
+                    continue;
+
+                if (!string.Equals(entry.FullName, entryName, StringComparison.OrdinalIgnoreCase))
+                {
+                    await CopyEntryAsync(rebuiltArchive, entry, cancellationToken);
+                    continue;
+                }
+
+                JsonNode dataNode;
+                await using (var dataStream = entry.Open())
+                {
+                    dataNode = (await JsonNode.ParseAsync(dataStream, cancellationToken: cancellationToken))!;
+                }
+
+                mutateRows(dataNode["rows"]!.AsArray());
+
+                await WriteJsonEntryAsync(rebuiltArchive, entry.FullName, dataNode, cancellationToken);
+            }
+        }
+
+        rebuiltStream.Position = 0;
+        return rebuiltStream;
     }
 
     private static async Task<JsonNode> ReadIndexAsync(ZipArchive archive, CancellationToken cancellationToken)

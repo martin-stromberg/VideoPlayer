@@ -133,6 +133,64 @@ public sealed class VideoWebPlayerBackupDataTests_StrandKey
         Assert.Equal(42, cursor.LastContentId);
     }
 
+    // Rows with a non-NULL StrandKey must pass the dedup untouched: a backup where one rule
+    // owns NULL-StrandKey duplicates plus "show:"/"other" strand rows restores every strand
+    // row and deduplicates only the NULL duplicates. Without the StrandKey pass-through the
+    // dedup would group all rows of the rule into one and drop the strand rows.
+    [Fact]
+    public async Task ReadFromAsync_BackupWithNullAndStrandKeyRows_KeepsAllStrandRows()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var connection = new SqliteConnection("Data Source=file:backuptest-strandkey-passthrough?mode=memory&cache=shared");
+        await connection.OpenAsync(ct);
+        var (db, backup, userId) = await LegacyBackupArchiveBuilder.CreateSeededBackupAsync(connection, ct);
+        await using var dbLifetime = db;
+
+        var rule = await SeedRuleWithNullStrandCursorAsync(db, ct);
+        var existingId = (await db.ProgramRuleCursors.SingleAsync(ct)).Id;
+        var extraRows = new[]
+        {
+            new Dictionary<string, object?>
+            {
+                ["Id"] = existingId + 1,
+                ["ProgramRuleId"] = rule.Id,
+                ["StrandKey"] = null,
+                ["LastContentType"] = (int)ProgramCursorContentType.TVShowEpisode,
+                ["LastContentId"] = 42,
+                ["UpdatedAt"] = CursorUpdatedAt.AddDays(2)
+            },
+            new Dictionary<string, object?>
+            {
+                ["Id"] = existingId + 2,
+                ["ProgramRuleId"] = rule.Id,
+                ["StrandKey"] = "show:1",
+                ["LastContentType"] = (int)ProgramCursorContentType.TVShowEpisode,
+                ["LastContentId"] = 101,
+                ["UpdatedAt"] = CursorUpdatedAt.AddDays(1)
+            },
+            new Dictionary<string, object?>
+            {
+                ["Id"] = existingId + 3,
+                ["ProgramRuleId"] = rule.Id,
+                ["StrandKey"] = "other",
+                ["LastContentType"] = (int)ProgramCursorContentType.Movie,
+                ["LastContentId"] = 102,
+                ["UpdatedAt"] = CursorUpdatedAt.AddDays(1)
+            }
+        };
+        using var archive = await LegacyBackupArchiveBuilder.AppendRowsAsync(backup, "ProgramRuleCursors", extraRows, ct);
+
+        var exception = await Record.ExceptionAsync(async () => await backup.ReadFromAsync(archive, ct));
+
+        Assert.Null(exception);
+        db.ChangeTracker.Clear();
+        Assert.Equal(userId, (await db.Users.FirstAsync(ct)).Id);
+        var cursors = await db.ProgramRuleCursors.OrderBy(cursor => cursor.Id).ToListAsync(ct);
+        Assert.Equal(3, cursors.Count);
+        Assert.Equal(new string?[] { null, "show:1", "other" }, cursors.Select(cursor => cursor.StrandKey).ToArray());
+        Assert.Equal(42, cursors[0].LastContentId);
+    }
+
     private static readonly DateTime CursorUpdatedAt = new(2026, 10, 20, 12, 0, 0, DateTimeKind.Utc);
 
     private static async Task<ProgramRule> SeedRuleWithNullStrandCursorAsync(ApplicationDbContext db, CancellationToken ct)

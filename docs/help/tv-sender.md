@@ -234,6 +234,19 @@ Fehlversuch). Ein Statussatz fasst zusammen, ob die Ermittlung läuft, abgeschlo
 ausstehende Dateien ohne Aktivität verharren (Hinweis auf ein möglicherweise fehlendes
 ffprobe). Die Anzeige aktualisiert sich alle 15 Sekunden selbst.
 
+Dauerhaft fehlgeschlagene Dateien lassen sich von hier aus wieder in die Ermittlung
+zurückholen — etwa nachdem eine defekte Datei repariert oder ersetzt wurde, ohne dass der
+Medien-Scan die Änderung bemerkt hat: In der Tabelle „Fehlgeschlagene Dateien" setzt die
+Schaltfläche **„Erneut ermitteln"** (Spalte „Aktionen") die angezeigte Datei einzeln zurück,
+**„Alle zurücksetzen"** neben dem Zähler „fehlgeschlagen" setzt nach einem
+Bestätigungsdialog **alle** dauerhaft fehlgeschlagenen Dateien zurück — auch die, die wegen
+der Listenkappung nicht angezeigt werden (darauf weist die Fußzeile der Tabelle hin). Ein
+Zurücksetzen löscht Versuchszähler und Zeitstempel des letzten Versuchs; die Datei wird beim
+nächsten Lauf der Ermittlung erneut geprüft und landet, falls sie weiterhin defekt ist, nach
+erneutem Erreichen der Versuchsgrenze wieder in der Fehlerliste. Eine Statusmeldung in der
+Karte bestätigt die Aktion. Hintergrund und Konfiguration der Ermittlung:
+[Videolaufzeit](videolaufzeit.md).
+
 ## Programmauskunft
 
 Die Programmauskunft beantwortet zu jedem Zeitpunkt rein aus Uhrzeit und Sendeplan, was gerade

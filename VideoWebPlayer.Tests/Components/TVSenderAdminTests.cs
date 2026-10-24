@@ -24,7 +24,9 @@ namespace VideoWebPlayer.Tests.Components;
 /// </summary>
 public sealed class TVSenderAdminTests
 {
-    private const int MaxAttempts = 10;
+    // Entspricht dem MediaProbeOptions-Default — über die Options bezogen, damit die Seeds
+    // bei einer Default-Änderung weiterhin „fehlgeschlagen" statt „ausstehend" bedeuten.
+    private static readonly int MaxAttempts = new MediaProbeOptions().EffectiveMaxAttempts;
 
     private static async Task<(BunitContext Ctx, string AdminId)> CreateContextAsync(
         ProgramScheduleTestDb fixture, string adminId)
@@ -35,7 +37,7 @@ public sealed class TVSenderAdminTests
         var scheduleService = new ProgramScheduleService(
             db, ruleService, settings, NullLogger<ProgramScheduleService>.Instance);
         var probeService = new MediaDurationProbeService(
-            db, new StubMediaSourceReader(), new NullProbe(), new PresentLocator(),
+            db, new StubMediaSourceReader(), new FixedDurationProbe(TimeSpan.Zero), new PresentLocator(),
             Options.Create(new MediaProbeOptions()), NullLogger<MediaDurationProbeService>.Instance);
 
         var ctx = new BunitContext();
@@ -56,19 +58,6 @@ public sealed class TVSenderAdminTests
                 NullLogger<VideoWebPlayerClient>.Instance));
         ctx.Services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         return (ctx, adminId);
-    }
-
-    private static async Task<MediaItem> SeedProbeItemAsync(
-        ProgramScheduleTestDb fixture, string name,
-        TimeSpan? duration, DateTime? probedAt, int attempts, CancellationToken ct)
-    {
-        var item = await fixture.CreateMediaItemAsync();
-        item.Name = name;
-        item.Duration = duration;
-        item.DurationProbedAt = probedAt;
-        item.DurationProbeAttempts = attempts;
-        await fixture.Db.SaveChangesAsync(ct);
-        return item;
     }
 
     [Fact]
@@ -115,10 +104,10 @@ public sealed class TVSenderAdminTests
         var admin = await fixture.AddUserAsync("admin@test.com", isAdmin: true);
         var now = DateTime.UtcNow;
 
-        await SeedProbeItemAsync(fixture, "fertig.mkv", TimeSpan.FromMinutes(90), now, 0, ct);
-        await SeedProbeItemAsync(fixture, "wartet-retry.mkv", null, now.AddMinutes(-5), 1, ct);
-        await SeedProbeItemAsync(fixture, "wartet-neu.mkv", null, null, 0, ct);
-        await SeedProbeItemAsync(fixture, "defekt.mkv", null, now.AddDays(-1), MaxAttempts, ct);
+        await fixture.SeedProbeItemAsync("fertig.mkv", TimeSpan.FromMinutes(90), now, 0, ct);
+        await fixture.SeedProbeItemAsync("wartet-retry.mkv", null, now.AddMinutes(-5), 1, ct);
+        await fixture.SeedProbeItemAsync("wartet-neu.mkv", null, null, 0, ct);
+        await fixture.SeedProbeItemAsync("defekt.mkv", null, now.AddDays(-1), MaxAttempts, ct);
 
         var (ctx, _) = await CreateContextAsync(fixture, admin.Id);
         using var _ctx = ctx;
@@ -151,7 +140,9 @@ public sealed class TVSenderAdminTests
         var failedRows = cut.FindAll("#tvsender-probe-failed-detail .tvsender-probe-detail-row");
         Assert.Single(failedRows);
         Assert.Contains("defekt.mkv", failedRows[0].TextContent);
-        Assert.Contains(MaxAttempts.ToString(), failedRows[0].TextContent);
+        // Versuche-Zelle (td[2]) mit exaktem Vergleich — ein Substring-Match auf die Zeile
+        // könnte die Zahl auch aus dem Zeitstempel "Letzter Versuch" beziehen.
+        Assert.Equal(MaxAttempts.ToString(), failedRows[0].QuerySelectorAll("td")[2].TextContent.Trim());
     }
 
     [Fact]
@@ -350,6 +341,82 @@ public sealed class TVSenderAdminTests
         }, TimeSpan.FromSeconds(10));
     }
 
+    [Fact]
+    public async Task ProbeFailedRow_ResetButton_ResetsItemAndRefreshes()
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("tvsender-probe-reset-row", ct);
+        var admin = await fixture.AddUserAsync("admin@test.com", isAdmin: true);
+        var now = DateTime.UtcNow;
+
+        await fixture.SeedProbeItemAsync("wartet.mkv", null, now.AddMinutes(-5), 1, ct);
+        await fixture.SeedProbeItemAsync("defekt.mkv", null, now.AddDays(-1), MaxAttempts, ct);
+
+        var (ctx, _) = await CreateContextAsync(fixture, admin.Id);
+        using var _ctx = ctx;
+        var cut = ctx.Render<TVSenderAdmin>();
+        cut.WaitForAssertion(() => cut.Find("#tvsender-tab-laufzeit"), TimeSpan.FromSeconds(10));
+        cut.Find("#tvsender-tab-laufzeit").Click();
+
+        // The pending detail table carries no reset action — only failed rows do.
+        cut.Find("#tvsender-probe-pending-details").Click();
+        Assert.Single(cut.FindAll("#tvsender-probe-pending-detail .tvsender-probe-detail-row"));
+        Assert.Empty(cut.FindAll("#tvsender-probe-pending-detail .tvsender-probe-reset"));
+
+        cut.Find("#tvsender-probe-failed-details").Click();
+        var resetButton = Assert.Single(
+            cut.FindAll("#tvsender-probe-failed-detail .tvsender-probe-reset"));
+        resetButton.Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("0 fehlgeschlagen", cut.Find("#tvsender-probe-failed").TextContent);
+            Assert.Contains("2 ausstehend", cut.Find("#tvsender-probe-pending").TextContent);
+        }, TimeSpan.FromSeconds(10));
+
+        Assert.Empty(cut.FindAll("#tvsender-probe-failed-detail"));
+        Assert.Contains("zurückgesetzt", cut.Find("#tvsender-probe-action-status").TextContent);
+    }
+
+    [Fact]
+    public async Task ProbeResetAll_ConfirmDialog_ResetsAllAndShowsStatus()
+    {
+        var ct = Xunit.TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("tvsender-probe-reset-all", ct);
+        var admin = await fixture.AddUserAsync("admin@test.com", isAdmin: true);
+        var now = DateTime.UtcNow;
+
+        await fixture.SeedProbeItemAsync("defekt-1.mkv", null, now.AddDays(-1), MaxAttempts, ct);
+        await fixture.SeedProbeItemAsync("defekt-2.mkv", null, now.AddDays(-2), MaxAttempts, ct);
+
+        var (ctx, _) = await CreateContextAsync(fixture, admin.Id);
+        using var _ctx = ctx;
+        var cut = ctx.Render<TVSenderAdmin>();
+        cut.WaitForAssertion(() => cut.Find("#tvsender-tab-laufzeit"), TimeSpan.FromSeconds(10));
+        cut.Find("#tvsender-tab-laufzeit").Click();
+        cut.Find("#tvsender-probe-failed-details").Click();
+
+        // Abbrechen schließt den Dialog ohne Änderung.
+        cut.Find("#tvsender-probe-reset-all").Click();
+        var overlay = cut.Find(".admin-dialog-overlay");
+        Assert.Contains("admin-dialog", overlay.QuerySelector(".admin-dialog")!.ClassList);
+        overlay.QuerySelectorAll("button").Single(b => b.TextContent.Contains("Abbrechen")).Click();
+        Assert.Empty(cut.FindAll(".admin-dialog-overlay"));
+        Assert.Equal(2, cut.FindAll("#tvsender-probe-failed-detail .tvsender-probe-detail-row").Count);
+
+        cut.Find("#tvsender-probe-reset-all").Click();
+        cut.Find("#probe-reset-all-confirm").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("0 fehlgeschlagen", cut.Find("#tvsender-probe-failed").TextContent);
+            Assert.Contains("2 ausstehend", cut.Find("#tvsender-probe-pending").TextContent);
+        }, TimeSpan.FromSeconds(10));
+
+        Assert.Empty(cut.FindAll("#tvsender-probe-failed-detail"));
+        Assert.Contains("2 Datei(en)", cut.Find("#tvsender-probe-action-status").TextContent);
+    }
+
     /// <summary>Answers every API call with an empty JSON array — the page only reads playlist lists.</summary>
     private sealed class EmptyListHandler : HttpMessageHandler
     {
@@ -360,30 +427,4 @@ public sealed class TVSenderAdminTests
             });
     }
 
-    private sealed class NullProbe : IMediaDurationProbe
-    {
-        public Task<MediaDurationProbeResult> ProbeFileAsync(string filePath, CancellationToken cancellationToken)
-            => Task.FromResult(MediaDurationProbeResult.Success(TimeSpan.Zero));
-
-        public Task<MediaDurationProbeResult> ProbeUriAsync(string uri, CancellationToken cancellationToken)
-            => Task.FromResult(MediaDurationProbeResult.Success(TimeSpan.Zero));
-
-        public Task<MediaDurationProbeResult> ProbeStreamAsync(Stream input, CancellationToken cancellationToken)
-            => Task.FromResult(MediaDurationProbeResult.Success(TimeSpan.Zero));
-    }
-
-    private sealed class PresentLocator : IFfprobeLocator
-    {
-        public string? Resolve() => "ffprobe";
-    }
-
-    private sealed class StubMediaSourceReader : IMediaSourceReader
-    {
-        public IEnumerable<MediaEntry> ReadRootDirectory(MediaSource source) => Enumerable.Empty<MediaEntry>();
-        public IEnumerable<MediaEntry> ReadDirectoryEntries(MediaCollection collection) => Enumerable.Empty<MediaEntry>();
-        public Task<bool> FileExistsAsync(MediaCollection collection, string fileName) => Task.FromResult(false);
-        public Task<string?> ReadFileAsync(MediaCollection collection, string fileName) => Task.FromResult<string?>(null);
-        public Task<Stream?> ReadFileStreamAsync(MediaCollection collection, string fileName) => Task.FromResult<Stream?>(null);
-        public Stream? OpenFileStream(MediaCollection collection, string fileName) => null;
-    }
 }

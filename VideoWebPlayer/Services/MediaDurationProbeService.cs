@@ -154,8 +154,7 @@ public sealed class MediaDurationProbeService
 
         var total = await videos.CountAsync(cancellationToken);
         var probed = await videos.CountAsync(mi => mi.Duration != null, cancellationToken);
-        var failed = await videos.CountAsync(
-            mi => mi.Duration == null && mi.DurationProbeAttempts >= maxAttempts, cancellationToken);
+        var failed = await videos.CountAsync(FailedProbePredicate(maxAttempts), cancellationToken);
 
         var lastActivity = await videos.MaxAsync(mi => mi.DurationProbedAt, cancellationToken);
         var hourAgo = _timeProvider.GetUtcNow().UtcDateTime.AddHours(-1);
@@ -197,7 +196,7 @@ public sealed class MediaDurationProbeService
                 videos.Where(mi => mi.Duration == null && mi.DurationProbeAttempts < maxAttempts),
                 detailItemCount, cancellationToken);
             failedItems = await DetailItemsAsync(
-                videos.Where(mi => mi.Duration == null && mi.DurationProbeAttempts >= maxAttempts),
+                videos.Where(FailedProbePredicate(maxAttempts)),
                 detailItemCount, cancellationToken);
         }
 
@@ -216,6 +215,7 @@ public sealed class MediaDurationProbeService
             .OrderByDescending(mi => mi.DurationProbedAt)
             .Take(take)
             .Select(mi => new MediaDurationProbeDetailItem(
+                mi.Id,
                 mi.Name,
                 mi.MediaCollection.MediaSource.Name,
                 mi.DurationProbedAt,
@@ -405,5 +405,72 @@ public sealed class MediaDurationProbeService
         }
 
         return System.Linq.Expressions.Expression.Lambda<Func<MediaItem, bool>>(body!, parameter);
+    }
+
+    /// <summary>
+    /// The single definition of the permanently failed set — video media items without a
+    /// duration whose attempt budget is exhausted — shared by the progress counters, the
+    /// failed detail list and both reset methods, so all of them address the same items.
+    /// </summary>
+    private static System.Linq.Expressions.Expression<Func<MediaItem, bool>> FailedProbePredicate(int maxAttempts)
+        => mi => mi.Duration == null && mi.DurationProbeAttempts >= maxAttempts;
+
+    /// <summary>
+    /// Resets the probe state of a single permanently failed media item — the attempt counter and
+    /// the last-attempt timestamp are cleared, so <see cref="ProbePendingAsync"/> selects the item
+    /// again on its next run (the same reset <see cref="MediaSourceScanner"/> applies to changed
+    /// files). The update is guarded by the failed-set predicate, so an item that was meanwhile
+    /// probed successfully keeps its <see cref="MediaItem.Duration"/>. Administrator-only.
+    /// </summary>
+    /// <param name="userId">The requesting user; must be an administrator.</param>
+    /// <param name="mediaItemId">The media item to reset.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns><see langword="true"/> when the item was reset; <see langword="false"/> when the id
+    /// is unknown or the item is not (no longer) in the failed set.</returns>
+    public async Task<bool> ResetFailedProbeAsync(string userId, long mediaItemId, CancellationToken cancellationToken)
+    {
+        await RequireAdminAsync(userId, cancellationToken);
+
+        var reset = await _db.MediaItems
+            .Where(mi => mi.Id == mediaItemId)
+            .Where(VideoExtensionPredicate())
+            .Where(FailedProbePredicate(_options.EffectiveMaxAttempts))
+            .ExecuteUpdateAsync(s => s
+                    .SetProperty(mi => mi.DurationProbedAt, (DateTime?)null)
+                    .SetProperty(mi => mi.DurationProbeAttempts, 0),
+                cancellationToken);
+
+        _logger.LogInformation(
+            "[MediaDurationProbe] Laufzeitermittlung für MediaItem {MediaItemId} zurückgesetzt ({Reset} Zeile(n) geändert).",
+            mediaItemId, reset);
+        return reset > 0;
+    }
+
+    /// <summary>
+    /// Resets the probe state of the whole failed set — every video media item without a duration
+    /// whose attempt budget is exhausted — so <see cref="ProbePendingAsync"/> picks all of them up
+    /// again on its next runs. The set is wider than the failed detail list of the administration
+    /// view, which is capped for display. Administrator-only.
+    /// </summary>
+    /// <param name="userId">The requesting user; must be an administrator.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>How many media items were reset.</returns>
+    public async Task<int> ResetFailedProbesAsync(string userId, CancellationToken cancellationToken)
+    {
+        await RequireAdminAsync(userId, cancellationToken);
+
+        var maxAttempts = _options.EffectiveMaxAttempts;
+        var reset = await _db.MediaItems
+            .Where(VideoExtensionPredicate())
+            .Where(FailedProbePredicate(maxAttempts))
+            .ExecuteUpdateAsync(s => s
+                    .SetProperty(mi => mi.DurationProbedAt, (DateTime?)null)
+                    .SetProperty(mi => mi.DurationProbeAttempts, 0),
+                cancellationToken);
+
+        _logger.LogInformation(
+            "[MediaDurationProbe] {Reset} fehlgeschlagene Laufzeitermittlungen zurückgesetzt.",
+            reset);
+        return reset;
     }
 }

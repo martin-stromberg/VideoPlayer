@@ -19,23 +19,10 @@ public sealed class MediaDurationProbeServiceTests_Progress
         => new(
             fixture.Db,
             new StubMediaSourceReader(),
-            new NullProbe(),
+            new FixedDurationProbe(TimeSpan.Zero),
             new PresentLocator(),
             Options.Create(new MediaProbeOptions()),
             NullLogger<MediaDurationProbeService>.Instance);
-
-    private static async Task<MediaItem> SeedItemAsync(
-        ProgramScheduleTestDb fixture, string name,
-        TimeSpan? duration, DateTime? probedAt, int attempts, CancellationToken ct)
-    {
-        var item = await fixture.CreateMediaItemAsync();
-        item.Name = name;
-        item.Duration = duration;
-        item.DurationProbedAt = probedAt;
-        item.DurationProbeAttempts = attempts;
-        await fixture.Db.SaveChangesAsync(ct);
-        return item;
-    }
 
     [Fact]
     public async Task GetProgressAsync_CountsStatesSeparately()
@@ -46,11 +33,11 @@ public sealed class MediaDurationProbeServiceTests_Progress
         var now = DateTime.UtcNow;
         var maxAttempts = new MediaProbeOptions().EffectiveMaxAttempts;
 
-        await SeedItemAsync(fixture, "fertig.mkv", TimeSpan.FromMinutes(90), now, 0, ct);
-        await SeedItemAsync(fixture, "neu.mkv", null, null, 0, ct);
-        await SeedItemAsync(fixture, "retry.mkv", null, now.AddMinutes(-10), 2, ct);
-        await SeedItemAsync(fixture, "defekt.mkv", null, now.AddDays(-1), maxAttempts, ct);
-        await SeedItemAsync(fixture, "notizen.nfo", null, null, 0, ct);
+        await fixture.SeedProbeItemAsync("fertig.mkv", TimeSpan.FromMinutes(90), now, 0, ct);
+        await fixture.SeedProbeItemAsync("neu.mkv", null, null, 0, ct);
+        await fixture.SeedProbeItemAsync("retry.mkv", null, now.AddMinutes(-10), 2, ct);
+        await fixture.SeedProbeItemAsync("defekt.mkv", null, now.AddDays(-1), maxAttempts, ct);
+        await fixture.SeedProbeItemAsync("notizen.nfo", null, null, 0, ct);
 
         var progress = await CreateService(fixture).GetProgressAsync(admin.Id, 10, cancellationToken: ct);
 
@@ -68,9 +55,9 @@ public sealed class MediaDurationProbeServiceTests_Progress
         var admin = await fixture.AddUserAsync("admin@test.com", isAdmin: true);
         var now = DateTime.UtcNow;
 
-        await SeedItemAsync(fixture, "alt.mkv", TimeSpan.FromMinutes(10), now.AddMinutes(-30), 0, ct);
-        await SeedItemAsync(fixture, "mitte.mkv", TimeSpan.FromMinutes(20), now.AddMinutes(-20), 0, ct);
-        await SeedItemAsync(fixture, "neu.mkv", TimeSpan.FromMinutes(30), now.AddMinutes(-10), 0, ct);
+        await fixture.SeedProbeItemAsync("alt.mkv", TimeSpan.FromMinutes(10), now.AddMinutes(-30), 0, ct);
+        await fixture.SeedProbeItemAsync("mitte.mkv", TimeSpan.FromMinutes(20), now.AddMinutes(-20), 0, ct);
+        await fixture.SeedProbeItemAsync("neu.mkv", TimeSpan.FromMinutes(30), now.AddMinutes(-10), 0, ct);
 
         var progress = await CreateService(fixture).GetProgressAsync(admin.Id, 2, cancellationToken: ct);
 
@@ -89,8 +76,8 @@ public sealed class MediaDurationProbeServiceTests_Progress
         var admin = await fixture.AddUserAsync("admin@test.com", isAdmin: true);
         var now = DateTime.UtcNow;
 
-        var recent = await SeedItemAsync(fixture, "frisch.mkv", TimeSpan.FromMinutes(5), now.AddMinutes(-30), 0, ct);
-        await SeedItemAsync(fixture, "lange-her.mkv", TimeSpan.FromMinutes(5), now.AddHours(-2), 0, ct);
+        var recent = await fixture.SeedProbeItemAsync("frisch.mkv", TimeSpan.FromMinutes(5), now.AddMinutes(-30), 0, ct);
+        await fixture.SeedProbeItemAsync("lange-her.mkv", TimeSpan.FromMinutes(5), now.AddHours(-2), 0, ct);
 
         var progress = await CreateService(fixture).GetProgressAsync(admin.Id, 10, cancellationToken: ct);
 
@@ -107,11 +94,11 @@ public sealed class MediaDurationProbeServiceTests_Progress
         var now = DateTime.UtcNow;
         var maxAttempts = new MediaProbeOptions().EffectiveMaxAttempts;
 
-        await SeedItemAsync(fixture, "fertig.mkv", TimeSpan.FromMinutes(90), now, 0, ct);
-        await SeedItemAsync(fixture, "nie-probiert.mkv", null, null, 0, ct);
-        var retried = await SeedItemAsync(fixture, "retry.mkv", null, now.AddMinutes(-10), 2, ct);
-        await SeedItemAsync(fixture, "defekt.mkv", null, now.AddDays(-1), maxAttempts, ct);
-        await SeedItemAsync(fixture, "notizen.nfo", null, null, 0, ct);
+        await fixture.SeedProbeItemAsync("fertig.mkv", TimeSpan.FromMinutes(90), now, 0, ct);
+        await fixture.SeedProbeItemAsync("nie-probiert.mkv", null, null, 0, ct);
+        var retried = await fixture.SeedProbeItemAsync("retry.mkv", null, now.AddMinutes(-10), 2, ct);
+        await fixture.SeedProbeItemAsync("defekt.mkv", null, now.AddDays(-1), maxAttempts, ct);
+        await fixture.SeedProbeItemAsync("notizen.nfo", null, null, 0, ct);
 
         var progress = await CreateService(fixture).GetProgressAsync(admin.Id, 10, cancellationToken: ct);
 
@@ -135,10 +122,10 @@ public sealed class MediaDurationProbeServiceTests_Progress
         var now = DateTime.UtcNow;
         var maxAttempts = new MediaProbeOptions().EffectiveMaxAttempts;
 
-        await SeedItemAsync(fixture, "fertig.mkv", TimeSpan.FromMinutes(90), now, 0, ct);
-        await SeedItemAsync(fixture, "wartet.mkv", null, null, 0, ct);
-        await SeedItemAsync(fixture, "defekt-alt.mkv", null, now.AddDays(-2), maxAttempts, ct);
-        await SeedItemAsync(fixture, "defekt-neu.mkv", null, now.AddHours(-3), maxAttempts + 2, ct);
+        await fixture.SeedProbeItemAsync("fertig.mkv", TimeSpan.FromMinutes(90), now, 0, ct);
+        await fixture.SeedProbeItemAsync("wartet.mkv", null, null, 0, ct);
+        await fixture.SeedProbeItemAsync("defekt-alt.mkv", null, now.AddDays(-2), maxAttempts, ct);
+        await fixture.SeedProbeItemAsync("defekt-neu.mkv", null, now.AddHours(-3), maxAttempts + 2, ct);
 
         var progress = await CreateService(fixture).GetProgressAsync(admin.Id, 10, cancellationToken: ct);
 
@@ -164,8 +151,8 @@ public sealed class MediaDurationProbeServiceTests_Progress
 
         for (var i = 0; i < 4; i++)
         {
-            await SeedItemAsync(fixture, $"wartet-{i}.mkv", null, null, 0, ct);
-            await SeedItemAsync(fixture, $"defekt-{i}.mkv", null, now.AddMinutes(-i), maxAttempts, ct);
+            await fixture.SeedProbeItemAsync($"wartet-{i}.mkv", null, null, 0, ct);
+            await fixture.SeedProbeItemAsync($"defekt-{i}.mkv", null, now.AddMinutes(-i), maxAttempts, ct);
         }
 
         var progress = await CreateService(fixture).GetProgressAsync(admin.Id, 10, detailItemCount: 2, cancellationToken: ct);
@@ -174,6 +161,24 @@ public sealed class MediaDurationProbeServiceTests_Progress
         Assert.Equal(4, progress.FailedCount);
         Assert.Equal(2, progress.PendingItems.Count);
         Assert.Equal(2, progress.FailedItems.Count);
+    }
+
+    [Fact]
+    public async Task GetProgressAsync_DetailItems_CarryMediaItemId()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var fixture = await ProgramScheduleTestDb.CreateAsync("probe-progress-itemid", ct);
+        var admin = await fixture.AddUserAsync("admin@test.com", isAdmin: true);
+        var now = DateTime.UtcNow;
+        var maxAttempts = new MediaProbeOptions().EffectiveMaxAttempts;
+
+        var pending = await fixture.SeedProbeItemAsync("wartet.mkv", null, null, 0, ct);
+        var failed = await fixture.SeedProbeItemAsync("defekt.mkv", null, now.AddDays(-1), maxAttempts, ct);
+
+        var progress = await CreateService(fixture).GetProgressAsync(admin.Id, 10, cancellationToken: ct);
+
+        Assert.Equal(pending.Id, Assert.Single(progress.PendingItems).MediaItemId);
+        Assert.Equal(failed.Id, Assert.Single(progress.FailedItems).MediaItemId);
     }
 
     [Fact]
@@ -208,30 +213,4 @@ public sealed class MediaDurationProbeServiceTests_Progress
             () => service.GetProgressAsync("no-such-user", 10, cancellationToken: ct));
     }
 
-    private sealed class NullProbe : IMediaDurationProbe
-    {
-        public Task<MediaDurationProbeResult> ProbeFileAsync(string filePath, CancellationToken cancellationToken)
-            => Task.FromResult(MediaDurationProbeResult.Success(TimeSpan.Zero));
-
-        public Task<MediaDurationProbeResult> ProbeUriAsync(string uri, CancellationToken cancellationToken)
-            => Task.FromResult(MediaDurationProbeResult.Success(TimeSpan.Zero));
-
-        public Task<MediaDurationProbeResult> ProbeStreamAsync(Stream input, CancellationToken cancellationToken)
-            => Task.FromResult(MediaDurationProbeResult.Success(TimeSpan.Zero));
-    }
-
-    private sealed class PresentLocator : IFfprobeLocator
-    {
-        public string? Resolve() => "ffprobe";
-    }
-
-    private sealed class StubMediaSourceReader : IMediaSourceReader
-    {
-        public IEnumerable<MediaEntry> ReadRootDirectory(MediaSource source) => Enumerable.Empty<MediaEntry>();
-        public IEnumerable<MediaEntry> ReadDirectoryEntries(MediaCollection collection) => Enumerable.Empty<MediaEntry>();
-        public Task<bool> FileExistsAsync(MediaCollection collection, string fileName) => Task.FromResult(false);
-        public Task<string?> ReadFileAsync(MediaCollection collection, string fileName) => Task.FromResult<string?>(null);
-        public Task<Stream?> ReadFileStreamAsync(MediaCollection collection, string fileName) => Task.FromResult<Stream?>(null);
-        public Stream? OpenFileStream(MediaCollection collection, string fileName) => null;
-    }
 }

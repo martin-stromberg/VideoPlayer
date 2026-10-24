@@ -55,12 +55,15 @@ public sealed record MediaDurationProbeRecentItem(
 /// and <see cref="MediaDurationProbeProgress.FailedItems"/>: enough to identify the affected file
 /// and judge its state (attempt counter plus timestamp of the last attempt).
 /// </summary>
+/// <param name="MediaItemId">Identity of the media item — the file name is not unique, so
+/// per-entry actions (e.g. resetting a failed probe) address the item by its id.</param>
 /// <param name="Name">The media item's file name.</param>
 /// <param name="SourceName">The name of the media source the item belongs to.</param>
 /// <param name="LastAttemptAt">Timestamp of the most recent probe attempt, or
 /// <see langword="null"/> when the item was never probed yet.</param>
 /// <param name="Attempts">The failed-attempt counter so far.</param>
 public sealed record MediaDurationProbeDetailItem(
+    long MediaItemId,
     string Name,
     string SourceName,
     DateTime? LastAttemptAt,

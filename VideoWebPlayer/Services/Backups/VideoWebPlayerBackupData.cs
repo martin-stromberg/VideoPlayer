@@ -306,7 +306,7 @@ public sealed class VideoWebPlayerBackupData : IBackupData
 
                 ReportRestoreProgress(table.Name, dataSetNumber, tables.Count, 0, 0, "Datenbestand wird gelesen.");
                 var tableData = await ReadTablePayloadAsync(tablePayload, openPayloadEntryAsync, cancellationToken);
-                var rows = tableData.Rows ?? new List<Dictionary<string, JsonElement?>>();
+                var rows = DeduplicateNullStrandKeyCursorRows(table, tableData.Rows ?? new List<Dictionary<string, JsonElement?>>());
                 ReportRestoreProgress(table.Name, dataSetNumber, tables.Count, 0, rows.Count, "Datenbestand wird wiederhergestellt.");
 
                 for (var rowIndex = 0; rowIndex < rows.Count; rowIndex++)
@@ -455,6 +455,61 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         return await JsonSerializer.DeserializeAsync<TableDataPayload>(stream, JsonOptions, cancellationToken)
             ?? throw new InvalidDataException($"Entitätsdatei {table.EntryName} ist leer.");
     }
+
+    // Backups taken while the database still allowed several NULL-StrandKey cursor rows per
+    // rule are deduplicated instead of failing the whole restore on the filtered unique index:
+    // per ProgramRuleId the youngest row wins (highest UpdatedAt, ties by highest Id) — the
+    // same winner rule the data migration uses. Rows without or with a NULL StrandKey are the
+    // only candidates (covers both backups with "StrandKey": null and legacy backups lacking
+    // the column entirely); rows with a non-empty StrandKey pass through untouched, so a
+    // composite-index violation still rolls the restore back as before.
+    private List<Dictionary<string, JsonElement?>> DeduplicateNullStrandKeyCursorRows(
+        TableMetadata table,
+        List<Dictionary<string, JsonElement?>> rows)
+    {
+        if (!string.Equals(table.Name, nameof(ApplicationDbContext.ProgramRuleCursors), StringComparison.OrdinalIgnoreCase))
+            return rows;
+
+        var nullStrandGroups = new Dictionary<string, List<Dictionary<string, JsonElement?>>>(StringComparer.Ordinal);
+        var deduplicated = new List<Dictionary<string, JsonElement?>>(rows.Count);
+        foreach (var row in rows)
+        {
+            if (GetString(row, nameof(ProgramRuleCursor.StrandKey)) is not null
+                || GetString(row, nameof(ProgramRuleCursor.ProgramRuleId)) is not { } ruleId)
+            {
+                deduplicated.Add(row);
+                continue;
+            }
+
+            if (!nullStrandGroups.TryGetValue(ruleId, out var group))
+                nullStrandGroups[ruleId] = group = new List<Dictionary<string, JsonElement?>>();
+            group.Add(row);
+        }
+
+        foreach (var group in nullStrandGroups.Values)
+        {
+            deduplicated.Add(group
+                .OrderByDescending(row => GetRowUpdatedAt(row))
+                .ThenByDescending(row => GetRowId(row))
+                .First());
+        }
+
+        var discarded = rows.Count - deduplicated.Count;
+        if (discarded > 0)
+            _logger.LogInformation("Restore discarded {DiscardedCount} duplicate NULL-StrandKey ProgramRuleCursors row(s).", discarded);
+
+        return deduplicated;
+    }
+
+    private static DateTime GetRowUpdatedAt(Dictionary<string, JsonElement?> row)
+        => DateTime.TryParse(GetString(row, nameof(ProgramRuleCursor.UpdatedAt)), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var value)
+            ? value
+            : DateTime.MinValue;
+
+    private static long GetRowId(Dictionary<string, JsonElement?> row)
+        => long.TryParse(GetString(row, nameof(ProgramRuleCursor.Id)), CultureInfo.InvariantCulture, out var value)
+            ? value
+            : long.MinValue;
 
     private async Task<BackupValidationResult> ValidatePayloadAsync(
         DatabaseBackupIndex? payload,

@@ -1400,6 +1400,11 @@ namespace VideoWebPlayer.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ProgramRuleId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ProgramRuleCursors_ProgramRuleId_NullStrandKey")
+                        .HasFilter("[StrandKey] IS NULL");
+
                     b.HasIndex("ProgramRuleId", "StrandKey")
                         .IsUnique();
 

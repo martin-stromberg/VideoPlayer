@@ -33,7 +33,9 @@ namespace VideoWebPlayer.Data
         /// material (genre rules) each series keeps its own continuation state, identified by
         /// a strand key like <c>show:{TVShowId}</c> or <c>other</c> for the shared strand of
         /// non-episode content. <see langword="null"/> marks the rule's single overall cursor
-        /// (all non-interleaved material and rows written before strands existed).
+        /// (all non-interleaved material and rows written before strands existed); a filtered
+        /// unique index enforces at most one <see langword="null"/> row per rule on database
+        /// level.
         /// </summary>
         public string? StrandKey { get; set; }
 

@@ -726,7 +726,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                 if (strand.NextIndex > idx)
                 {
                     var predecessor = items[(idx - 1 + items.Count) % items.Count];
-                    var cursor = cursorRows.FirstOrDefault(c => c.StrandKey == strand.Key);
+                    var cursor = SelectStrandCursor(cursorRows, strand.Key);
                     if (cursor is not null)
                     {
                         cursor.LastContentType = predecessor.ContentType;
@@ -918,7 +918,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         }
 
         private static ProgramRuleCursor? FindCursor(IReadOnlyList<ProgramRuleCursor> cursors, string? key)
-            => cursors.FirstOrDefault(c => c.StrandKey == key);
+            => SelectStrandCursor(cursors, key);
     }
 
     private sealed record Occurrence(ProgramRule Rule, DateTime StartUtc);
@@ -949,6 +949,17 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             return (int)(hash & 0x7fffffff);
         }
     }
+
+    // Deterministic winner pick among a rule's cursor rows of one strand: normally the
+    // filtered unique index guarantees a single row, but defence in depth (duplicates could
+    // still arrive via an unchecked path) picks the same winner the data migration and the
+    // restore deduplication use — highest UpdatedAt, ties broken by highest Id.
+    internal static ProgramRuleCursor? SelectStrandCursor(IReadOnlyList<ProgramRuleCursor> cursors, string? key)
+        => cursors
+            .Where(c => c.StrandKey == key)
+            .OrderByDescending(c => c.UpdatedAt)
+            .ThenByDescending(c => c.Id)
+            .FirstOrDefault();
 
     // The starting strand of an interleaved airing derives from the real (possibly shifted)
     // start day — EpisodeCount-only rules rotate it per day so every strand gets its turn;
@@ -1468,7 +1479,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             foreach (var strand in state.Strands.Where(s => s.LastPlaced is not null))
             {
                 var placed = strand.LastPlaced!;
-                var cursor = rows?.FirstOrDefault(c => c.StrandKey == strand.Key);
+                var cursor = rows is null ? null : SelectStrandCursor(rows, strand.Key);
                 if (cursor is not null)
                 {
                     cursor.LastContentType = placed.ContentType;

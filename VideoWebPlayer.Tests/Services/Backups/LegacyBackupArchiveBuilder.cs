@@ -149,9 +149,27 @@ internal static class LegacyBackupArchiveBuilder
     {
         using var currentStream = new MemoryStream();
         await backup.WriteToAsync(currentStream, cancellationToken);
-        currentStream.Position = 0;
+        return await RemoveColumnsAsync(currentStream, tableName, columnNames, cancellationToken);
+    }
 
-        using var originalArchive = new ZipArchive(currentStream, ZipArchiveMode.Read, true);
+    /// <summary>
+    /// Same as <see cref="RemoveColumnsAsync(VideoWebPlayerBackupData, string, IReadOnlyCollection{string}, CancellationToken)"/>,
+    /// but operates on an already-built archive — used to combine several archive rewrites
+    /// (e.g. appended rows plus removed columns).
+    /// </summary>
+    /// <param name="archiveStream">The backup archive to rewrite.</param>
+    /// <param name="tableName">The name of the table to remove the columns from.</param>
+    /// <param name="columnNames">The names of the columns to remove.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The rebuilt legacy backup archive, positioned at the start.</returns>
+    public static async Task<MemoryStream> RemoveColumnsAsync(
+        MemoryStream archiveStream,
+        string tableName,
+        IReadOnlyCollection<string> columnNames,
+        CancellationToken cancellationToken)
+    {
+        archiveStream.Position = 0;
+        using var originalArchive = new ZipArchive(archiveStream, ZipArchiveMode.Read, true);
         var indexNode = await ReadIndexAsync(originalArchive, cancellationToken);
         var table = indexNode["tables"]!.AsArray().First(t =>
             string.Equals(t!["name"]!.GetValue<string>(), tableName, StringComparison.OrdinalIgnoreCase))!;
@@ -200,6 +218,84 @@ internal static class LegacyBackupArchiveBuilder
 
         legacyStream.Position = 0;
         return legacyStream;
+    }
+
+    /// <summary>
+    /// Writes <paramref name="backup"/> in the current schema and rebuilds the archive with the
+    /// given extra rows appended to the given table's payload, simulating a backup whose table
+    /// content could no longer be produced by the current application (e.g. rows that violate a
+    /// unique constraint introduced later).
+    /// </summary>
+    /// <param name="backup">The current-schema backup to derive the archive from.</param>
+    /// <param name="tableName">The name of the table to append the rows to.</param>
+    /// <param name="rows">The extra rows as column-name → value dictionaries.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The rebuilt backup archive, positioned at the start.</returns>
+    public static async Task<MemoryStream> AppendRowsAsync(
+        VideoWebPlayerBackupData backup,
+        string tableName,
+        IReadOnlyCollection<Dictionary<string, object?>> rows,
+        CancellationToken cancellationToken)
+    {
+        using var currentStream = new MemoryStream();
+        await backup.WriteToAsync(currentStream, cancellationToken);
+        return await AppendRowsAsync(currentStream, tableName, rows, cancellationToken);
+    }
+
+    /// <summary>
+    /// Same as <see cref="AppendRowsAsync(VideoWebPlayerBackupData, string, IReadOnlyCollection{Dictionary{string, object?}}, CancellationToken)"/>,
+    /// but operates on an already-built archive — used to combine several archive rewrites.
+    /// </summary>
+    /// <param name="archiveStream">The backup archive to rewrite.</param>
+    /// <param name="tableName">The name of the table to append the rows to.</param>
+    /// <param name="rows">The extra rows as column-name → value dictionaries.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The rebuilt backup archive, positioned at the start.</returns>
+    public static async Task<MemoryStream> AppendRowsAsync(
+        MemoryStream archiveStream,
+        string tableName,
+        IReadOnlyCollection<Dictionary<string, object?>> rows,
+        CancellationToken cancellationToken)
+    {
+        archiveStream.Position = 0;
+        using var originalArchive = new ZipArchive(archiveStream, ZipArchiveMode.Read, true);
+        var indexNode = await ReadIndexAsync(originalArchive, cancellationToken);
+        var table = indexNode["tables"]!.AsArray().First(t =>
+            string.Equals(t!["name"]!.GetValue<string>(), tableName, StringComparison.OrdinalIgnoreCase))!;
+        var entryName = table["entryName"]!.GetValue<string>();
+
+        var rebuiltStream = new MemoryStream();
+        using (var rebuiltArchive = new ZipArchive(rebuiltStream, ZipArchiveMode.Create, true))
+        {
+            await WriteJsonEntryAsync(rebuiltArchive, "index.json", indexNode, cancellationToken);
+
+            foreach (var entry in originalArchive.Entries)
+            {
+                if (string.Equals(entry.FullName, "index.json", StringComparison.Ordinal))
+                    continue;
+
+                if (!string.Equals(entry.FullName, entryName, StringComparison.OrdinalIgnoreCase))
+                {
+                    await CopyEntryAsync(rebuiltArchive, entry, cancellationToken);
+                    continue;
+                }
+
+                JsonNode dataNode;
+                await using (var dataStream = entry.Open())
+                {
+                    dataNode = (await JsonNode.ParseAsync(dataStream, cancellationToken: cancellationToken))!;
+                }
+
+                var payloadRows = dataNode["rows"]!.AsArray();
+                foreach (var row in rows)
+                    payloadRows.Add(JsonSerializer.SerializeToNode(row, JsonOptions));
+
+                await WriteJsonEntryAsync(rebuiltArchive, entry.FullName, dataNode, cancellationToken);
+            }
+        }
+
+        rebuiltStream.Position = 0;
+        return rebuiltStream;
     }
 
     /// <summary>

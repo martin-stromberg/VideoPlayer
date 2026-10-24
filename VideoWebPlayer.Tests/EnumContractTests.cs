@@ -1,6 +1,7 @@
 using System.Reflection;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Data;
+using VideoWebPlayer.Services;
 using VideoWebPlayer.Services.Backups;
 using Xunit;
 
@@ -64,6 +65,22 @@ public class EnumContractTests
         Assert.Equal(
             Enum.GetValues<ManualBackupJobStatus>().Select(s => (int)s),
             Enum.GetValues<RestoreBackupJobStatus>().Select(s => (int)s));
+    }
+
+    /// <summary>
+    /// The states of an ffmpeg tool download job (<see cref="FfmpegToolDownloadJobStatus"/>) are polled by
+    /// the administration page; the members, their order and their numeric values mirror the other job
+    /// enums and are part of that contract.
+    /// </summary>
+    [Fact]
+    public void FfmpegToolDownloadJobStatus_HasTheDocumentedStatesInOrder()
+    {
+        Assert.Equal(ExpectedJobStatuses, Enum.GetNames<FfmpegToolDownloadJobStatus>());
+        Assert.Equal(0, (int)FfmpegToolDownloadJobStatus.Idle);
+        Assert.Equal(1, (int)FfmpegToolDownloadJobStatus.Queued);
+        Assert.Equal(2, (int)FfmpegToolDownloadJobStatus.Running);
+        Assert.Equal(3, (int)FfmpegToolDownloadJobStatus.Succeeded);
+        Assert.Equal(4, (int)FfmpegToolDownloadJobStatus.Failed);
     }
 
     /// <summary>

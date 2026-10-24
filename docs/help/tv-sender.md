@@ -249,7 +249,11 @@ letzten Versuchs (bei langen Listen gekappt, mit Hinweis auf die übrigen Eintr�
 Eine Liste „Zuletzt ermittelt" führt die jüngst geprüften Dateien mit Ergebnis (Laufzeit oder
 Fehlversuch). Ein Statussatz fasst zusammen, ob die Ermittlung läuft, abgeschlossen ist oder
 ausstehende Dateien ohne Aktivität verharren (Hinweis auf ein möglicherweise fehlendes
-ffprobe). Die Anzeige aktualisiert sich alle 15 Sekunden selbst.
+ffprobe). Ist ffprobe gar nicht auffindbar, erscheint oberhalb des Fortschritts die Warnung
+„ffprobe wurde nicht gefunden — die Laufzeitermittlung pausiert." samt Schaltfläche
+**„ffmpeg/ffprobe herunterladen"** — siehe Abschnitt
+[„ffmpeg-Bereitstellung und Lizenz"](#ffmpeg-bereitstellung-und-lizenz). Die Anzeige
+aktualisiert sich alle 15 Sekunden selbst.
 
 Dauerhaft fehlgeschlagene Dateien lassen sich von hier aus wieder in die Ermittlung
 zurückholen — etwa nachdem eine defekte Datei repariert oder ersetzt wurde, ohne dass der
@@ -377,7 +381,66 @@ Verständliche Hinweise ersetzen technische Fehlerbilder:
 konfigurierbarer Pfad (`MediaProbe:FfmpegPath` in `appsettings.json`), Konventionsverzeichnisse
 `tools/ffmpeg/` sowie das Anwendungsverzeichnis, danach `PATH`. Ist `ffmpeg` nicht auffindbar,
 pausiert nur der Live-Stream — der übrige Betrieb (Sendeplan, Programmauskunft, Verwaltung)
-bleibt unberührt und eine Warnung wird protokolliert. Übliche gepackte Builds (z. B. die
+bleibt unberührt und eine Warnung wird protokolliert.
+
+#### Nachinstallation per Download-Schaltfläche
+
+Der einfachste Weg, die fehlenden Programme nachzurüsten, führt über die Verwaltungsseite
+selbst — ohne Paketverwaltung oder manuelle Dateiablage. Fehlt `ffmpeg`, zeigt die Karte
+**„Segmentierung"** im Tab **„Einstellungen"** die Warnung „ffmpeg wurde nicht gefunden — der
+Live-Stream pausiert."; fehlt `ffprobe`, erscheint im Tab **„Laufzeitermittlung"**
+entsprechend „ffprobe wurde nicht gefunden — die Laufzeitermittlung pausiert.". Beide
+Hinweise tragen direkt die Schaltfläche **„ffmpeg/ffprobe herunterladen"**. Die Aktion steht
+ausschließlich Administratoren offen; die Berechtigung wird serverseitig erzwungen.
+
+Die Schaltfläche öffnet zunächst einen Bestätigungsdialog, der Vorgang und Lizenzhinweis
+erläutert: Das Paket wird im Ordner `tools/ffmpeg/` neben der Anwendung abgelegt, eine dort
+vorhandene Version wird ersetzt und die übrigen Einstellungen bleiben unverändert; die Pakete
+sind statisch gebaut und mit `--enable-gpl` erstellt — es gelten die Lizenzbedingungen der
+jeweiligen ffmpeg-Distribution (siehe unten). Erst **„Herunterladen"** im Dialog startet den
+Download.
+
+Der Download lädt das zum Server passende, statisch gebaute ffmpeg-Paket herunter. Es enthält
+stets **beide** Programme — ein Lauf installiert `ffmpeg` und `ffprobe` gemeinsam, auch wenn
+nur eines davon fehlt. Ablageort ist ausschließlich das Konventionsverzeichnis `tools/ffmpeg/`
+neben der Anwendung; konfigurierte Pfade (`MediaProbe:FfprobePath`/`MediaProbe:FfmpegPath`),
+das Anwendungsverzeichnis und `PATH` werden nie verändert. Unter Linux setzt die Installation
+das Ausführungsbit selbst. Der Ordner `tools/ffmpeg/` gehört nicht zum Auslieferungspaket —
+er bleibt bei Programmupdates unverändert erhalten. Nach Abschluss finden die Suchwege beider
+Funktionen die Programme ohne Neustart: Laufzeitermittlung und Live-Stream laufen im nächsten
+Arbeitstakt automatisch wieder an und die Warnhinweise verschwinden.
+
+Unterstützt werden Windows x64 und Linux x64; auf anderen Plattformen meldet der Download,
+dass das System nicht unterstützt wird, und verweist auf die manuelle Installation. Die
+Bezugsquelle je Plattform ist in der Server-Konfiguration unter `MediaProbe:DownloadSources`
+hinterlegt (Schlüssel `win-x64` und `linux-x64` in `appsettings.json`) und lässt sich dort für
+Umgebungen ohne direkten Internetzugang auf eine eigene Adresse umbiegen; voreingestellt sind
+die von ffmpeg.org verlinkten statischen Builds (gyan.dev für Windows, johnvansickle.com für
+Linux).
+
+Während des Laufs zeigt eine Fortschrittskarte den Stand an — die übertragene Datenmenge,
+soweit die Paketgröße bekannt ist, in Prozent; ein laufender Download sperrt weitere Starts.
+Erfolg und Fehler erscheinen als Meldung mit Schaltfläche „Schließen" — im Erfolgsfall „ffmpeg
+und ffprobe wurden installiert. Laufzeitermittlung und Live-Stream laufen wieder." Die
+Meldungen decken die üblichen Fehlerbilder verständlich ab:
+
+- **Kein Download möglich** („Das Paket konnte nicht heruntergeladen werden. Bitte die
+  Internetverbindung prüfen und den Download erneut starten.") — auch, wenn der Server zu
+  lange keine Daten mehr sendet.
+- **Zielordner nicht beschreibbar** („Der Server kann den Zielordner „tools/ffmpeg/" neben
+  der Anwendung nicht beschreiben. …") — Schreibrechte prüfen oder alternativ einen eigenen
+  Pfad für ffmpeg/ffprobe in `appsettings.json` hinterlegen.
+- **Plattform nicht unterstützt** („Dieses System wird nicht unterstützt. …") — ffmpeg und
+  ffprobe manuell installieren bzw. eigenen Speicherort konfigurieren.
+- **Paket unverwendbar** („Das Paket enthält kein ffmpeg/ffprobe-Programm …" bzw. „Das
+  heruntergeladene Paket konnte nicht entpackt werden.") — bzw. „Es ist keine gültige
+  Download-Quelle für dieses System hinterlegt." (`MediaProbe:DownloadSources` prüfen).
+
+Technische Einzelheiten eines Fehlers stehen zusätzlich im Server-Protokoll. Der manuelle Weg
+(eigene Installation, konfigurierter Pfad, Ablage in `tools/ffmpeg/` von Hand, `PATH`) bleibt
+unverändert möglich — siehe [Videolaufzeit → ffprobe einrichten](videolaufzeit.md).
+
+**Lizenz.** Übliche gepackte Builds (z. B. die
 `ffmpeg`-Pakete für Windows von gyan.dev) sind mit `--enable-gpl` gebaut; die Lizenz des
 verwendeten Builds ist beim Bezug zu prüfen (GPL-Builds erfordern bei Weitergabe des
 `ffmpeg`-Binärpakets selbst die GPL-Bedingungen — der Server ruft `ffmpeg` als eigenständigen

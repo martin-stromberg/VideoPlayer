@@ -18,6 +18,18 @@ public sealed class MediaProbeOptions
     public string? FfmpegPath { get; set; }
 
     /// <summary>
+    /// Gets or sets the download sources for the ffmpeg/ffprobe package per runtime identifier
+    /// (keys <c>win-x64</c> and <c>linux-x64</c>). Overridable via
+    /// <c>MediaProbe:DownloadSources:*</c> for air-gapped environments and tests; the built-in
+    /// defaults point to the static builds linked from ffmpeg.org.
+    /// </summary>
+    public Dictionary<string, string> DownloadSources { get; set; } = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["win-x64"] = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip",
+        ["linux-x64"] = "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz",
+    };
+
+    /// <summary>
     /// Gets or sets the polling interval of the probe worker in seconds.
     /// </summary>
     public int IntervalSeconds { get; set; } = 60;

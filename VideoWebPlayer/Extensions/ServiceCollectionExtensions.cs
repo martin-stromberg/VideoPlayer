@@ -176,6 +176,12 @@ public static class ServiceCollectionExtensions
                 http.DefaultRequestHeaders.Add("X-API-Key", apiKey);
         });
 
+        // Ausgehender Download-Client fuer die ffmpeg/ffprobe-Pakete (kein API-Key, kein
+        // interner User-Agent). Das Client-Timeout gilt wegen ResponseHeadersRead nur bis
+        // zu den Antwort-Headern — den eigentlichen Download-Body sichert der Job ueber ein
+        // eigenes Stall-Timeout ab (CancellationToken in FfmpegToolDownloadService).
+        services.AddHttpClient(FfmpegToolDownloadService.HttpClientName);
+
         // BaseAddress erst im scoped Kontext bestimmen (Blazor-Circuit, HTTP-Request oder Fallback)
         services.AddScoped<HttpClient>(sp =>
         {
@@ -236,6 +242,7 @@ public static class ServiceCollectionExtensions
         services.Configure<LiveStreamOptions>(configuration.GetSection("LiveStream"));
         services.AddSingleton<IFfprobeLocator, FfprobeLocator>();
         services.AddSingleton<IFfmpegLocator, FfmpegLocator>();
+        services.AddSingleton<IFfmpegToolDownloadService, FfmpegToolDownloadService>();
         services.AddSingleton<ILiveStreamSegmenter, FfmpegLiveStreamSegmenter>();
         services.AddScoped<LiveStreamMediaResolver>();
         services.AddScoped<LiveStreamSegmentStore>();

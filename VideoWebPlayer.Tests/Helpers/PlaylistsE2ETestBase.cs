@@ -62,10 +62,23 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
                 {
                     services.Configure<HttpsRedirectionOptions>(options => options.HttpsPort = null);
                 });
+                ConfigureWebHostBuilder(builder);
             });
     }
 
-    public async ValueTask InitializeAsync()
+    /// <summary>
+    /// Erweiterungspunkt fuer abgeleitete E2E-Basisklassen: wird innerhalb des
+    /// <c>WithWebHostBuilder</c>-Callbacks aufgerufen (z. B. um <c>UseSetting</c>-Umbiegen oder
+    /// Dienst-Neuregistrierungen fuer einen bestimmten Szenario-Test vorzunehmen). Laeuft erst
+    /// beim Host-Start in <see cref="InitializeAsync"/> — abgeleitete Klassen koennen in ihrer
+    /// eigenen <c>InitializeAsync</c> zuerst Fixtures hochfahren und dann
+    /// <c>base.InitializeAsync()</c> aufrufen.
+    /// </summary>
+    protected virtual void ConfigureWebHostBuilder(IWebHostBuilder builder)
+    {
+    }
+
+    public virtual async ValueTask InitializeAsync()
     {
         _factory.UseKestrel();
         _factory.StartServer();
@@ -91,7 +104,7 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
         }
     }
 
-    public async ValueTask DisposeAsync()
+    public virtual async ValueTask DisposeAsync()
     {
         if (Page is not null)
             await Page.CloseAsync();

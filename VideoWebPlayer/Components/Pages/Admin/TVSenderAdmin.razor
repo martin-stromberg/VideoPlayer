@@ -15,6 +15,10 @@
 @inject ProgramSettingsService ProgramSettings
 @inject AuthenticationStateProvider AuthStateProvider
 @inject VideoWebPlayer.Client.VideoWebPlayerClient Client
+@inject IFfprobeLocator FfprobeLocator
+@inject IFfmpegLocator FfmpegLocator
+@inject IFfmpegToolDownloadService ToolDownloadService
+@inject TimeProvider TimeProvider
 @rendermode InteractiveServer
 
 <PageTitle>TV-Sender</PageTitle>
@@ -65,6 +69,36 @@ else
                     aria-selected="@(activeTab == "laufzeit" ? "true" : "false")" aria-controls="tab-laufzeit"
                     @onclick='() => SelectTab("laufzeit")'>Laufzeitermittlung</button>
         </nav>
+
+        @if (downloadSnapshot.IsActive)
+        {
+            <div class="admin-card" id="tvsender-download-progress-card">
+                @* Ohne bekannte Gesamtgröße bleibt der Balken unbestimmt (keine aria-Werte) —
+                   die Byte-Anzeige steht dann im sichtbaren Statustext. *@
+                <div class="progress" role="progressbar" aria-label="Download-Fortschritt"
+                     aria-valuenow="@DownloadAriaValue" aria-valuemin="@DownloadAriaMin"
+                     aria-valuemax="@DownloadAriaMax">
+                    <div class="progress-bar" style="width: @DownloadPercent%"></div>
+                </div>
+                <p class="form-text" id="tvsender-download-status">@DownloadStatusLabel</p>
+            </div>
+        }
+        else if ((!string.IsNullOrWhiteSpace(downloadError) || downloadSnapshot.Status == FfmpegToolDownloadJobStatus.Failed) && !downloadErrorDismissed)
+        {
+            <div class="alert alert-danger" id="tvsender-download-error">
+                @(downloadError ?? downloadSnapshot.Error)
+                <button type="button" id="tvsender-download-error-close" class="btn btn-sm btn-ghost"
+                        @onclick="DismissDownloadError">Schließen</button>
+            </div>
+        }
+        else if (downloadSnapshot.Status == FfmpegToolDownloadJobStatus.Succeeded && !downloadSuccessDismissed)
+        {
+            <div class="alert alert-success" id="tvsender-download-success">
+                @downloadSnapshot.Message Laufzeitermittlung und Live-Stream laufen wieder.
+                <button type="button" id="tvsender-download-success-close" class="btn btn-sm btn-ghost"
+                        @onclick="DismissDownloadSuccess">Schließen</button>
+            </div>
+        }
 
         <!-- ============ Tab: Regeln ============ -->
         <div class="tab-pane @(activeTab == "regeln" ? "active" : "")" id="tab-regeln" role="tabpanel" aria-labelledby="tvsender-tab-regeln">
@@ -444,6 +478,15 @@ else
                 </div>
                 <div class="admin-sub-card">
                     <h3 class="mb-2">Segmentierung</h3>
+                    @if (ffmpegPath is null)
+                    {
+                        <div class="alert alert-warning" id="tvsender-ffmpeg-missing">
+                            ffmpeg wurde nicht gefunden — der Live-Stream pausiert.
+                            <button id="tvsender-download-tools-ffmpeg" class="btn btn-sm btn-primary"
+                                    disabled="@downloadSnapshot.IsActive"
+                                    @onclick="() => confirmFfmpegDownload = true">ffmpeg/ffprobe herunterladen</button>
+                        </div>
+                    }
                     <div class="mb-2">
                         <label class="form-label" for="tvsender-segment-length-seconds">Segmentlänge (Sekunden)</label>
                         <input id="tvsender-segment-length-seconds" type="number" min="1" max="300" class="form-control" @bind="segmentLengthSeconds" />
@@ -480,6 +523,16 @@ else
                     <span class="admin-chip">@summary.ProbedCount von @summary.TotalCount ermittelt</span>
                 }
             </div>
+
+            @if (ffprobePath is null)
+            {
+                <div class="alert alert-warning" id="tvsender-ffprobe-missing">
+                    ffprobe wurde nicht gefunden — die Laufzeitermittlung pausiert.
+                    <button id="tvsender-download-tools-ffprobe" class="btn btn-sm btn-primary"
+                            disabled="@downloadSnapshot.IsActive"
+                            @onclick="() => confirmFfmpegDownload = true">ffmpeg/ffprobe herunterladen</button>
+                </div>
+            }
 
             @if (probeProgress is null)
             {
@@ -709,6 +762,24 @@ else
                 </div>
             </div>
         }
+
+        @if (confirmFfmpegDownload)
+        {
+            <div class="admin-dialog-overlay" @onclick="() => confirmFfmpegDownload = false">
+                <div class="admin-dialog" id="tvsender-download-dialog" @onclick:stopPropagation>
+                    <header class="admin-card-header">
+                        <h2>ffmpeg/ffprobe herunterladen</h2>
+                    </header>
+                    <p>Es wird ein fertiges ffmpeg-Paket für dieses System heruntergeladen. Die Programme <code>ffmpeg</code> und <code>ffprobe</code> werden im Ordner <code>tools/ffmpeg/</code> neben der Anwendung abgelegt. Eine dort vorhandene Version wird ersetzt; Ihre sonstigen Einstellungen bleiben unverändert.</p>
+                    <p><strong>Lizenzhinweis:</strong> ffmpeg steht unter der GPL-Lizenz — es gelten die Lizenzbedingungen der jeweiligen ffmpeg-Distribution, insbesondere wenn Sie das Paket selbst weitergeben. Der Server nutzt ffmpeg als eigenes Hintergrundprogramm.</p>
+                    <p class="form-text">Technisch: die Pakete sind statisch gebaut und mit <code>--enable-gpl</code> erstellt.</p>
+                    <div class="admin-actions">
+                        <button id="tvsender-download-confirm" class="btn btn-primary" @onclick="StartFfmpegDownloadAsync">Herunterladen</button>
+                        <button class="btn btn-ghost" @onclick="() => confirmFfmpegDownload = false">Abbrechen</button>
+                    </div>
+                </div>
+            </div>
+        }
     </section>
 }
 
@@ -732,7 +803,14 @@ else
     private bool confirmCleanup;
     private bool confirmReset;
     private bool confirmProbeReset;
+    private bool confirmFfmpegDownload;
     private string? probeStatus;
+    private string? downloadError;
+    private bool downloadErrorDismissed;
+    private bool downloadSuccessDismissed;
+    private string? ffprobePath;
+    private string? ffmpegPath;
+    private FfmpegToolDownloadJobSnapshot downloadSnapshot = FfmpegToolDownloadJobSnapshot.Idle;
     private bool disposed;
     private List<ProgramRule> rules = new();
     private List<ProgramSlot> schedule = new();
@@ -751,6 +829,31 @@ else
 
     private const int RecentProbeCount = 10;
     private static readonly TimeSpan ProbeRefreshInterval = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan DownloadRefreshInterval = TimeSpan.FromSeconds(1);
+
+    private int DownloadPercent
+        => downloadSnapshot.TotalBytes is > 0
+            ? (int)Math.Clamp(100.0 * downloadSnapshot.BytesReceived / downloadSnapshot.TotalBytes.Value, 0, 100)
+            : 0;
+
+    // ARIA: a determinate bar reports the percent; without a known total the bar stays
+    // indeterminate and carries no value attributes at all (aria-valuemax="0" with a
+    // positive valuenow would be meaningless to screen readers). Null attribute values
+    // are omitted from the rendered markup.
+    private int? DownloadAriaValue => downloadSnapshot.TotalBytes > 0 ? DownloadPercent : null;
+    private int? DownloadAriaMin => downloadSnapshot.TotalBytes > 0 ? 0 : null;
+    private int? DownloadAriaMax => downloadSnapshot.TotalBytes > 0 ? 100 : null;
+
+    private string DownloadStatusLabel
+    {
+        get
+        {
+            var bytes = downloadSnapshot.TotalBytes is > 0
+                ? $"{FormatBytes(downloadSnapshot.BytesReceived)} von {FormatBytes(downloadSnapshot.TotalBytes.Value)} ({DownloadPercent} %)"
+                : $"{FormatBytes(downloadSnapshot.BytesReceived)} heruntergeladen";
+            return $"{downloadSnapshot.Message} — {bytes}";
+        }
+    }
 
     private IReadOnlyList<ProgramRuleMaterialType> AllowedMaterialTypes
         => editRule is null ? Array.Empty<ProgramRuleMaterialType>() : ProgramRuleService.GetAllowedMaterialTypes(editRule.RuleType);
@@ -793,9 +896,17 @@ else
         await ReloadRulesAsync();
         await ReloadScheduleAsync();
         await LoadProbeProgressAsync();
+        RefreshToolPaths();
+        downloadSnapshot = ToolDownloadService.GetSnapshot();
+        // Ein bereits abgeschlossenes Ergebnis wird genau einmal angezeigt: der erste Aufruf,
+        // der den Endstand vorfindet, quittiert ihn im Service — die lokale Kopie rendert ihn
+        // für diese Instanz noch einmal, der nächste Seitenaufruf sieht dann Idle.
+        ToolDownloadService.AcknowledgeTerminalState(downloadSnapshot.Id);
 
         refreshCts = new CancellationTokenSource();
         _ = ProbeProgressLoopAsync(refreshCts.Token);
+        if (downloadSnapshot.IsActive)
+            _ = DownloadProgressLoopAsync(refreshCts.Token);
     }
 
     // Panes stay rendered and are only shown/hidden by CSS, so form state, scroll positions
@@ -811,7 +922,7 @@ else
     // a single failed refresh must not kill the loop.
     private async Task ProbeProgressLoopAsync(CancellationToken cancellationToken)
     {
-        using var timer = new PeriodicTimer(ProbeRefreshInterval);
+        using var timer = new PeriodicTimer(ProbeRefreshInterval, TimeProvider);
         try
         {
             while (await timer.WaitForNextTickAsync(cancellationToken))
@@ -829,6 +940,10 @@ else
                         if (disposed)
                             return;
                         await LoadProbeProgressAsync(cancellationToken);
+                        // Die Locators sind billige File.Exists-Abfragen — der ohnehin
+                        // laufende Tick frischt die „fehlt"-Hinweise mit auf, damit auch
+                        // ein passiver Beobachter eine Fremd-Installation ohne Reload sieht.
+                        RefreshToolPaths();
                         StateHasChanged();
                     });
                 }
@@ -863,6 +978,106 @@ else
 
     private static int ProbePercent(MediaDurationProbeProgress progress)
         => progress.TotalCount == 0 ? 0 : (int)(100.0 * progress.ProbedCount / progress.TotalCount);
+
+    private void RefreshToolPaths()
+    {
+        ffprobePath = FfprobeLocator.Resolve();
+        ffmpegPath = FfmpegLocator.Resolve();
+    }
+
+    private async Task StartFfmpegDownloadAsync()
+    {
+        confirmFfmpegDownload = false;
+        downloadError = null;
+        downloadErrorDismissed = false;
+        downloadSuccessDismissed = false;
+        try
+        {
+            var result = await ToolDownloadService.StartDownloadAsync(userId);
+            downloadSnapshot = result.Snapshot;
+            // Also when another admin's job is already running (Started=false but active):
+            // without the loop the progress card would freeze — the loop ends itself once
+            // the job is no longer active.
+            if (result.Snapshot.IsActive)
+                _ = DownloadProgressLoopAsync(refreshCts?.Token ?? CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            downloadError = ex.Message;
+        }
+    }
+
+    // Schließen quittiert den Endstand zusätzlich im Service — die Meldung kehrt dann auch
+    // nicht wieder, falls die Komponente den Übergang selbst nicht miterlebt hat.
+    private void DismissDownloadError()
+    {
+        downloadErrorDismissed = true;
+        // Nur den angezeigten Stand quittieren — ein zwischenzeitlich neuerer Endstand
+        // bleibt für den nächsten Beobachter erhalten.
+        ToolDownloadService.AcknowledgeTerminalState(downloadSnapshot.Id);
+    }
+
+    private void DismissDownloadSuccess()
+    {
+        downloadSuccessDismissed = true;
+        ToolDownloadService.AcknowledgeTerminalState(downloadSnapshot.Id);
+    }
+
+    // Polls the download job while it is active so progress and the final state reach the
+    // UI; on every non-active state the locator flags are re-read so the "missing" notices
+    // disappear without a reload — also when another tab completed and already
+    // acknowledged the job (this loop then reads Idle), not only on Succeeded here.
+    private async Task DownloadProgressLoopAsync(CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(DownloadRefreshInterval, TimeProvider);
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                if (disposed)
+                    return;
+
+                var finished = false;
+                try
+                {
+                    await InvokeAsync(() =>
+                    {
+                        if (disposed)
+                            return;
+                        downloadSnapshot = ToolDownloadService.GetSnapshot();
+                        if (!downloadSnapshot.IsActive)
+                        {
+                            // Jeder nicht-aktive Stand (Succeeded, Failed, bereits fremd-
+                            // quittiertes Idle): die Locators sind billige File.Exists-
+                            // Aufrufe, ein veralteter "fehlt"-Hinweis darf nicht stehen bleiben.
+                            RefreshToolPaths();
+                            // Der Endstand wurde dieser Komponente einmal angezeigt — als
+                            // gesehen quittieren, damit er beim nächsten Seitenaufruf nicht
+                            // erneut aufpoppt. Die Id bindet das Quittieren an genau den
+                            // gelesenen Stand.
+                            ToolDownloadService.AcknowledgeTerminalState(downloadSnapshot.Id);
+                            finished = true;
+                        }
+                        StateHasChanged();
+                    });
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    return;
+                }
+                catch (Exception)
+                {
+                    // Transient failure — the next tick retries.
+                }
+
+                if (finished)
+                    return;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
 
     private static string RecentResultLabel(MediaDurationProbeRecentItem item)
         => item.Duration is { } d ? FormatDuration(d) : $"keine Laufzeit — Versuch {item.Attempts}";

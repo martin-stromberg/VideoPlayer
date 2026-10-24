@@ -75,7 +75,13 @@ public class LiveStreamController : ApiBaseController
             var contentType = fileName.EndsWith(".ts", StringComparison.OrdinalIgnoreCase)
                 ? SegmentContentType
                 : "application/octet-stream";
-            return PhysicalFile(path, contentType);
+            // ReadWrite|Delete share: ffmpeg and SweepExpiredSegmentsAsync delete expired
+            // segments from the rolling window while a client is still downloading them —
+            // the FileShare.Read handle PhysicalFile opens internally would make that delete
+            // fail under Windows.
+            var stream = new FileStream(path, FileMode.Open, FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete, bufferSize: 4096, FileOptions.Asynchronous);
+            return File(stream, contentType);
         }
         catch (UnauthorizedAccessException ex)
         {

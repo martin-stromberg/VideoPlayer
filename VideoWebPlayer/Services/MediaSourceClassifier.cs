@@ -37,7 +37,7 @@ namespace VideoWebPlayer.Services
         private static readonly Queue<long> _queuedCollectionTreeClassificationIds = new();
         private static readonly HashSet<long> _queuedCollectionTreeClassificationIdSet = new();
 
-        private readonly string[] fileExtensions_Video = new string[] { ".mp4", ".avi", ".mkv", ".mpeg" };
+        private readonly IReadOnlyCollection<string> fileExtensions_Video = VideoWebPlayer.Utils.VideoFileExtensions.All;
         private static readonly string[] PictureTypes = new[] { "poster", "banner", "fanart", "thumb" };
         private static readonly string[] MovieCollectionPictureNames = new[] { "folder", "banner", "poster", "fanart" };
         private static readonly string[] ImageExtensions = new[] { ".jpg", ".jpeg", ".png", ".webp" };
@@ -576,6 +576,10 @@ namespace VideoWebPlayer.Services
                 if (!fileExtensions_Video.Contains(ext))
                     continue;
 
+                // Trailer-Dateien („-trailer"-Suffix oder „trailers"-Unterordner) sind nie Episoden.
+                if (IsTrailerFileName(item.Path) || (item.MediaCollection is not null && IsTrailerFolder(item.MediaCollection)))
+                    continue;
+
                 // NFO-Dateiname bestimmen
                 var nfoFileName = System.IO.Path.ChangeExtension(System.IO.Path.GetFileName(item.Path), ".nfo");
                 var collection = item.MediaCollection;
@@ -758,6 +762,18 @@ namespace VideoWebPlayer.Services
         }
 
 
+        // Trailer-Dateikonventionen (Plex/Jellyfin): „-trailer"-Suffix neben der Filmdatei und
+        // ein Unterordner namens „trailers". Solche Dateien werden nie als regulärer Film
+        // klassifiziert, sondern dem Film als Trailer-Link zugeordnet.
+        private const string TrailerFolderName = "trailers";
+        private const string TrailerSuffix = "-trailer";
+
+        private static bool IsTrailerFolder(MediaCollection collection)
+            => string.Equals(collection.Name, TrailerFolderName, StringComparison.OrdinalIgnoreCase);
+
+        private static bool IsTrailerFileName(string path)
+            => Path.GetFileNameWithoutExtension(path)?.EndsWith(TrailerSuffix, StringComparison.OrdinalIgnoreCase) == true;
+
         /// <summary>
         /// Pr�ft und verarbeitet eine Collection als Movie-Collection.
         /// </summary>
@@ -770,12 +786,21 @@ namespace VideoWebPlayer.Services
                 .Where(mi => mi.MediaCollectionId == collection.Id)
                 .ToListAsync(cancellationToken);
 
+            var trailerItems = new List<MediaItem>();
             var movies = new List<Movie>();
             foreach (var item in mediaItems)
             {
                 var ext = Path.GetExtension(item.Path);
                 if (!fileExtensions_Video.Contains(ext))
                     continue;
+
+                // Trailer-Dateien werden gesammelt und nach der Filmverarbeitung verknüpft —
+                // sie dürfen keinen eigenen Movie-Datensatz erzeugen.
+                if (IsTrailerFileName(item.Path) || IsTrailerFolder(collection))
+                {
+                    trailerItems.Add(item);
+                    continue;
+                }
                 // NFO-Dateiname bestimmen
                 var nfoFileName = System.IO.Path.ChangeExtension(System.IO.Path.GetFileName(item.Path), ".nfo");
 
@@ -930,14 +955,100 @@ namespace VideoWebPlayer.Services
                 }
                 await AssignPicturesToMovieCollectionAsync(existingCollection, collection, cancellationToken);
             }
+
+            // 4. Trailer-Kandidaten verknüpfen.
+            await LinkTrailerMediaItemsAsync(collection, mediaItems, trailerItems, cancellationToken);
+
+            // 5. Video-Items eines „trailers"-Unterordners allen Filmen dieser Collection zuordnen.
+            if (!IsTrailerFolder(collection))
+            {
+                var trailerChildIds = (await _db.MediaCollections
+                        .Where(c => c.ParentMediaCollectionId == collection.Id)
+                        .ToListAsync(cancellationToken))
+                    .Where(IsTrailerFolder)
+                    .Select(c => c.Id)
+                    .ToList();
+                if (trailerChildIds.Count > 0)
+                {
+                    var childTrailerItems = await _db.MediaItems
+                        .Where(mi => trailerChildIds.Contains(mi.MediaCollectionId))
+                        .ToListAsync(cancellationToken);
+                    var ownMovieIds = await _db.Movies
+                        .Where(m => m.CollectionId == collection.Id)
+                        .Select(m => m.Id)
+                        .ToListAsync(cancellationToken);
+                    foreach (var childItem in childTrailerItems.Where(i => fileExtensions_Video.Contains(Path.GetExtension(i.Path))))
+                    {
+                        foreach (var movieId in ownMovieIds)
+                            await EnsureTrailerLinkAsync(movieId, childItem, cancellationToken);
+                    }
+                }
+            }
+        }
+
+        // Verknüpft Trailer-Kandidaten mit Filmen: bei einer „trailers"-Collection über alle
+        // Filme der Eltern-Collection, bei „-trailer"-Suffix über den gleichnamigen Film-Stamm.
+        private async Task LinkTrailerMediaItemsAsync(
+            MediaCollection collection, IReadOnlyCollection<MediaItem> siblings,
+            IReadOnlyCollection<MediaItem> trailerItems, CancellationToken cancellationToken)
+        {
+            foreach (var trailer in trailerItems)
+            {
+                var targetMovieIds = new List<long>();
+                if (IsTrailerFolder(collection))
+                {
+                    if (collection.ParentMediaCollectionId is { } parentId)
+                        targetMovieIds = await _db.Movies
+                            .Where(m => m.CollectionId == parentId)
+                            .Select(m => m.Id)
+                            .ToListAsync(cancellationToken);
+                }
+                else if (IsTrailerFileName(trailer.Path))
+                {
+                    var stem = Path.GetFileNameWithoutExtension(trailer.Path)!;
+                    stem = stem[..^TrailerSuffix.Length];
+                    var host = siblings.FirstOrDefault(mi =>
+                        VideoWebPlayer.Utils.VideoFileExtensions.IsVideoFileName(mi.Path)
+                        && string.Equals(Path.GetFileNameWithoutExtension(mi.Path), stem, StringComparison.OrdinalIgnoreCase));
+                    if (host is not null)
+                    {
+                        var movieId = await _db.MovieMediaItems
+                            .Where(mmi => mmi.MediaItemId == host.Id && !mmi.IsTrailer)
+                            .Select(mmi => (long?)mmi.MovieId)
+                            .FirstOrDefaultAsync(cancellationToken);
+                        if (movieId is { } id)
+                            targetMovieIds.Add(id);
+                    }
+                }
+
+                foreach (var movieId in targetMovieIds)
+                    await EnsureTrailerLinkAsync(movieId, trailer, cancellationToken);
+            }
+        }
+
+        private async Task EnsureTrailerLinkAsync(long movieId, MediaItem trailer, CancellationToken cancellationToken)
+        {
+            var link = await _db.MovieMediaItems
+                .FirstOrDefaultAsync(mmi => mmi.MovieId == movieId && mmi.MediaItemId == trailer.Id, cancellationToken);
+            if (link is null)
+            {
+                _db.MovieMediaItems.Add(new MovieMediaItem { MovieId = movieId, MediaItemId = trailer.Id, IsTrailer = true });
+                await _db.SaveChangesAsync(cancellationToken);
+                _logger.LogInformation("Trailer '{TrailerPath}' mit Film {MovieId} verknüpft.", trailer.Path, movieId);
+            }
+            else if (!link.IsTrailer)
+            {
+                link.IsTrailer = true;
+                await _db.SaveChangesAsync(cancellationToken);
+            }
         }
 
         private async Task AssignPicturesToMovieAsync(Movie movie, MediaCollection collection, CancellationToken cancellationToken)
         {
-            // Alle zugeordneten MediaItems des Movies laden
+            // Alle zugeordneten MediaItems des Movies laden (Trailer-Links sind keine Hauptdateien)
             var movieMediaItems = await _db.MovieMediaItems
                 .Include(mmi => mmi.MediaItem)
-                .Where(mmi => mmi.MovieId == movie.Id)
+                .Where(mmi => mmi.MovieId == movie.Id && !mmi.IsTrailer)
                 .ToListAsync(cancellationToken);
 
             if (movieMediaItems.Count == 0)
@@ -1381,9 +1492,38 @@ namespace VideoWebPlayer.Services
         // Hilfsmethode wie oben beschrieben
         private async Task<List<Genre>> GetOrCreateGenresAsync(string? genreString, long mediaSourceId, CancellationToken cancellationToken)
         {
-            var resultGenres = new List<Genre>();
+            var state = new GenreResolutionState();
+            await ResolveGenresAsync(genreString, mediaSourceId, state, cancellationToken);
+
+            // Duplikate entfernen (z.B. falls mehrere Alternativen auf dasselbe Genre zeigen)
+            return state.ResultGenres
+                .GroupBy(g => g.Id)
+                .Select(g => g.First())
+                .ToList();
+        }
+
+        /// <summary>
+        /// Auflösungskontext für <see cref="ResolveGenresAsync"/>: quellbezogene Zeilen
+        /// (Cache), globale Konfigurationsvorlagen anderer Quellen (lazy geladen) und der
+        /// aktuelle Rekursionspfad als Zyklenschutz.
+        /// </summary>
+        private sealed class GenreResolutionState
+        {
+            public List<Genre>? SourceGenres { get; set; }
+            public Dictionary<string, Genre>? ConfiguredTemplates { get; set; }
+            public List<Genre> ResultGenres { get; } = new();
+            public HashSet<long> Visiting { get; } = new();
+        }
+
+        private async Task ResolveGenresAsync(string? genreString, long mediaSourceId, GenreResolutionState state, CancellationToken cancellationToken)
+        {
             if (string.IsNullOrWhiteSpace(genreString))
-                return resultGenres;
+                return;
+
+            state.SourceGenres ??= await _db.Genres
+                .Include(g => g.AlternateNames)
+                .Where(g => g.MediaSourceId == mediaSourceId)
+                .ToListAsync(cancellationToken);
 
             var genreNames = genreString.Split(',', StringSplitOptions.RemoveEmptyEntries)
                                         .Select(g => g.Trim())
@@ -1393,38 +1533,54 @@ namespace VideoWebPlayer.Services
             foreach (var name in genreNames)
             {
                 // 1. Suche Genre mit gleichem Namen in dieser Quelle
-                var genre = (await _db.Genres
-                    .Include(g => g.AlternateNames)
-                    .Where(g => g.MediaSourceId == mediaSourceId)
-                    .ToListAsync(cancellationToken))
+                var genre = state.SourceGenres
                     .FirstOrDefault(g => g.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
 
-                // 2. Falls nicht gefunden, suche nach Alternativnamen
                 if (genre == null)
                 {
-                    var newGenre = new Genre { Name = name, MediaSourceId = mediaSourceId };
-                    _db.Genres.Add(newGenre);
+                    // 2a. Neue Zeile erbt die globale Konfiguration eines gleichnamigen
+                    // Genres anderer Quellen (IsHidden/Saisonfenster/Alternativnamen).
+                    genre = new Genre { Name = name, MediaSourceId = mediaSourceId };
+                    var template = await FindConfiguredTemplateAsync(name, mediaSourceId, state, cancellationToken);
+                    if (template is not null)
+                        GenreGlobalConfig.ApplyConfig(_db, genre, template);
+                    _db.Genres.Add(genre);
+                    state.SourceGenres.Add(genre);
                     await _db.SaveChangesAsync(cancellationToken);
-                    resultGenres.Add(newGenre);
                 }
-                else
+                else if (!GenreGlobalConfig.HasCustomConfig(genre))
                 {
-                    var alternateNames = string.Join(", ", await _db.GenreNames.Where(a => a.GenreId == genre.Id && a.Name != genre.Name).Select(a => a.Name).ToListAsync());
-                    if (string.IsNullOrWhiteSpace(alternateNames))
+                    // 2b. Zeile ohne eigene Konfiguration (z. B. vor der globalen
+                    // Admin-Änderung angelegt) nachträglich heilen.
+                    var template = await FindConfiguredTemplateAsync(name, mediaSourceId, state, cancellationToken);
+                    if (template is not null)
                     {
-                        resultGenres.Add(genre);
-                        continue;
+                        GenreGlobalConfig.ApplyConfig(_db, genre, template);
+                        await _db.SaveChangesAsync(cancellationToken);
                     }
-                    resultGenres.AddRange(await GetOrCreateGenresAsync(alternateNames, mediaSourceId, cancellationToken));
+                }
+
+                // 3. Alternativnamen lenken auf das kanonische Genre derselben Quelle um
+                // (gilt auch für geerbte Alternativnamen neu angelegter Zeilen).
+                var alternateNames = GenreCanonicalResolver.EffectiveAlternateNames(genre);
+                if (alternateNames.Count == 0)
+                {
+                    state.ResultGenres.Add(genre);
                     continue;
                 }
-            }
 
-            // Duplikate entfernen (z.B. falls mehrere Alternativen auf dasselbe Genre zeigen)
-            return resultGenres
-                .GroupBy(g => g.Id)
-                .Select(g => g.First())
-                .ToList();
+                if (!state.Visiting.Add(genre.Id))
+                    continue; // Alternativnamen-Zyklus — Zeile trägt nichts bei
+
+                await ResolveGenresAsync(string.Join(",", alternateNames), mediaSourceId, state, cancellationToken);
+                state.Visiting.Remove(genre.Id);
+            }
+        }
+
+        private async Task<Genre?> FindConfiguredTemplateAsync(string name, long mediaSourceId, GenreResolutionState state, CancellationToken cancellationToken)
+        {
+            state.ConfiguredTemplates ??= await GenreGlobalConfig.LoadConfiguredTemplatesAsync(_db, mediaSourceId, cancellationToken);
+            return state.ConfiguredTemplates.TryGetValue(name.Trim(), out var template) ? template : null;
         }
 
         private sealed record ActorNfoInfo(string Name, string? Role, int Order, string? Thumb);
@@ -1612,7 +1768,7 @@ namespace VideoWebPlayer.Services
                     if (movie.IsManuallyEdited)
                         continue;
 
-                    var mediaItem = movie.MovieMediaItems.Select(mmi => mmi.MediaItem).FirstOrDefault();
+                    var mediaItem = movie.MovieMediaItems.Where(mmi => !mmi.IsTrailer).Select(mmi => mmi.MediaItem).FirstOrDefault();
                     if (mediaItem?.MediaCollection is null)
                         continue;
 

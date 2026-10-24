@@ -6,6 +6,7 @@
 
 - [Episoden](episoden/index.md) — Funktionen und Einstellungen für Episode-Detailansichten, einschließlich dynamisch generierter Hintergrundbilder
 - [Medienbibliothek](medienbibliothek.md) — Überarbeitete Oberfläche und Navigation durch Ihre Mediencollection
+- [TV-Sender](tv-sender.md) — Automatischer TV-Sender: Sender-Name, Bundesland für Feiertage und Programmregeln (Regelart, Wiederholung, Sendezeit, Umfang, Programmmaterial, Priorität, Aktiv-Status) verwalten
 - [Playlists](playlists.md) — Eigene Playlists anlegen, öffnen, bearbeiten und löschen; als Administrator eigene Playlists für alle Anwender öffentlich (lesend) machen; Medieninhalte hinzufügen und entfernen; automatisch sortierte, fortlaufend nachladende Anzeige der Inhalte; Abbildung hochladen oder aus den Inhalten neu erzeugen
 - [Gesehen-Kennzeichen](gesehen-status.md) — Benutzerbezogene Markierung bereits gesehener Filme und Episoden
 - [Medienmetadaten bearbeiten](medien-editiermodus.md) — Administrativer Editiermodus für Serien, Staffeln, Episoden, Filme und Filmsammlungen
@@ -20,6 +21,7 @@
 - [Medienquellen](medienquellen/index.md) — Medienquellen vom Typ SFTP-Server oder lokales Verzeichnis verwalten
 - [Netzwerk-Erkennung](netzwerk-erkennung/index.md) — Server-Erkennung im lokalen Netzwerk per mDNS-Ankündigung und UDP-Broadcast mit auflösbarer öffentlicher Basis-URL
 - [Updates](updates.md) — Prüfen, installieren und konfigurieren von Programmupdates inklusive Schutz deployment-seitiger Dateianpassungen
+- [Videolaufzeit](videolaufzeit.md) — Automatische Laufzeitermittlung per ffprobe: Fortschritt im TV-Sender-Tab „Laufzeitermittlung" beobachten, fehlgeschlagene Ermittlungen zurücksetzen, ffprobe-Einrichtung und Konfiguration
 
 ## Projekt und Entwicklung
 

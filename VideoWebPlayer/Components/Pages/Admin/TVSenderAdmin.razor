@@ -1,0 +1,1527 @@
+@page "/admin/tv-sender"
+@implements IDisposable
+@using Microsoft.EntityFrameworkCore
+@using System.Security.Claims
+@using VideoWebPlayer.Client.Models
+@using VideoWebPlayer.Components.Playlists
+@using VideoWebPlayer.Controllers.Models
+@using VideoWebPlayer.Data
+@using VideoWebPlayer.Services
+@inject ApplicationDbContext DbContext
+@inject IProgramRuleService ProgramRuleService
+@inject IProgramScheduleService ProgramScheduleService
+@inject IProgramScheduleSignal ScheduleSignal
+@inject MediaDurationProbeService ProbeService
+@inject ProgramSettingsService ProgramSettings
+@inject AuthenticationStateProvider AuthStateProvider
+@inject VideoWebPlayer.Client.VideoWebPlayerClient Client
+@rendermode InteractiveServer
+
+<PageTitle>TV-Sender</PageTitle>
+
+@if (!isAdmin)
+{
+    <div class="alert alert-danger">Nicht autorisiert.</div>
+}
+else if (!tvSenderEnabled)
+{
+    <section class="admin-console">
+        <div class="alert alert-info" id="tvsender-disabled">
+            Der TV-Sender ist nicht freigeschaltet. Die Freischaltung erfolgt unter
+            <a href="/admin/program-settings">Einrichtung → Allgemein</a>.
+        </div>
+    </section>
+}
+else
+{
+    <section class="admin-console admin-tvsender-page">
+        <header class="admin-page-header">
+            <div>
+                <span class="admin-kicker">Einrichtung</span>
+                <h1>TV-Sender</h1>
+                <p>Sender, Programmregeln und Feiertags-Einstellung verwalten.</p>
+            </div>
+            <div class="admin-header-side">
+                @if (channel is not null)
+                {
+                    <span class="admin-chip admin-chip-success" id="tvsender-header-channel" title="Sender-Status">Sender: @channel.Name</span>
+                    <span class="admin-chip" id="tvsender-header-interval" title="Generierungsintervall">Plan alle @intervalMinutes&nbsp;Min aktiv</span>
+                }
+                <a class="btn btn-outline-light" href="/admin">Zurück</a>
+            </div>
+        </header>
+
+        <nav class="admin-tabs" role="tablist">
+            <button id="tvsender-tab-regeln" class="admin-tab @(activeTab == "regeln" ? "active" : "")" role="tab"
+                    aria-selected="@(activeTab == "regeln" ? "true" : "false")" aria-controls="tab-regeln"
+                    @onclick='() => SelectTab("regeln")'>Regeln</button>
+            <button id="tvsender-tab-sendeplan" class="admin-tab @(activeTab == "sendeplan" ? "active" : "")" role="tab"
+                    aria-selected="@(activeTab == "sendeplan" ? "true" : "false")" aria-controls="tab-sendeplan"
+                    @onclick='() => SelectTab("sendeplan")'>Sendeplan</button>
+            <button id="tvsender-tab-einstellungen" class="admin-tab @(activeTab == "einstellungen" ? "active" : "")" role="tab"
+                    aria-selected="@(activeTab == "einstellungen" ? "true" : "false")" aria-controls="tab-einstellungen"
+                    @onclick='() => SelectTab("einstellungen")'>Einstellungen</button>
+            <button id="tvsender-tab-laufzeit" class="admin-tab @(activeTab == "laufzeit" ? "active" : "")" role="tab"
+                    aria-selected="@(activeTab == "laufzeit" ? "true" : "false")" aria-controls="tab-laufzeit"
+                    @onclick='() => SelectTab("laufzeit")'>Laufzeitermittlung</button>
+        </nav>
+
+        <!-- ============ Tab: Regeln ============ -->
+        <div class="tab-pane @(activeTab == "regeln" ? "active" : "")" id="tab-regeln" role="tabpanel" aria-labelledby="tvsender-tab-regeln">
+
+        <div class="admin-card admin-card-wide">
+            <div class="admin-card-header">
+                <div class="admin-card-header-left">
+                    <h2>Programmregeln</h2>
+                    <span class="admin-chip">@rules.Count Einträge</span>
+                </div>
+                <button id="tvsender-new-rule" class="btn btn-sm btn-primary" @onclick="StartCreate">Neue Regel</button>
+            </div>
+
+            @if (rules.Count == 0)
+            {
+                <div class="admin-empty-state">
+                    <strong>Keine Programmregeln vorhanden</strong>
+                    <span>Legen Sie die erste Regel für diesen Sender an.</span>
+                </div>
+            }
+            else
+            {
+                <div class="admin-table-wrap">
+                    <table class="table table-dark table-striped align-middle">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Regelart</th>
+                                <th>Wiederholung</th>
+                                <th>Sendezeit</th>
+                                <th>Umfang</th>
+                                <th>Material</th>
+                                <th>Planbar</th>
+                                <th>Priorität</th>
+                                <th>Status</th>
+                                <th>Aktionen</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var rule in rules)
+                            {
+                                <tr class="tvsender-rule-row" data-rule-id="@rule.Id">
+                                    <td>@rule.Name</td>
+                                    <td>@RuleTypeLabel(rule.RuleType)</td>
+                                    <td>@RecurrenceLabel(rule)</td>
+                                    <td>@rule.TimeOfDay.ToString("HH:mm")</td>
+                                    <td>@DurationLabel(rule)</td>
+                                    <td>@MaterialLabel(rule)</td>
+                                    <td class="tvsender-rule-diagnosis">@DiagnosisLabel(rule)</td>
+                                    <td>@rule.Priority</td>
+                                    <td>
+                                        <span class="admin-chip @(rule.IsActive ? "admin-chip-success" : "admin-chip-warning")">@(rule.IsActive ? "Aktiv" : "Inaktiv")</span>
+                                    </td>
+                                    <td class="actions-cell">
+                                        <button class="btn btn-sm btn-primary tvsender-rule-edit" @onclick="() => StartEdit(rule)">Bearbeiten</button>
+                                        <button class="btn btn-sm btn-outline-light tvsender-rule-toggle" @onclick="() => ToggleActiveAsync(rule)">@(rule.IsActive ? "Deaktivieren" : "Aktivieren")</button>
+                                        <button class="btn btn-sm btn-danger tvsender-rule-delete" @onclick="() => AskDelete(rule)">Löschen</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            @if (!string.IsNullOrWhiteSpace(rulesStatus))
+            {
+                <div class="form-text" id="tvsender-rules-status">@rulesStatus</div>
+            }
+        </div>
+
+        @if (editRule != null)
+        {
+            <div class="admin-dialog-overlay" @onclick="CancelEdit">
+            <div class="admin-dialog rule-editor-dialog" id="rule-editor" @onclick:stopPropagation>
+                <div class="admin-card-header">
+                    <h2>@(editRule.Id == 0 ? "Neue Programmregel" : $"Programmregel „{editRule.Name}“")</h2>
+                    <button class="btn btn-sm btn-outline-light" @onclick="CancelEdit">Schließen</button>
+                </div>
+
+                <label class="form-label" for="rule-name">Name</label>
+                <input id="rule-name" class="form-control" @bind="editRule.Name" />
+
+                <div class="admin-settings-grid">
+                    <div>
+                        <label class="form-label" for="rule-type">Regelart</label>
+                        <select id="rule-type" class="form-control" value="@editRule.RuleType" @onchange="OnRuleTypeChanged">
+                            @foreach (ProgramRuleType t in Enum.GetValues<ProgramRuleType>())
+                            {
+                                <option value="@t">@RuleTypeLabel(t)</option>
+                            }
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label" for="rule-recurrence">Wiederholung</label>
+                        <select id="rule-recurrence" class="form-control" value="@editRule.Recurrence" @onchange="OnRecurrenceChanged">
+                            <option value="@ProgramRuleRecurrence.Daily">Täglich</option>
+                            <option value="@ProgramRuleRecurrence.Weekly">Wöchentlich</option>
+                            <option value="@ProgramRuleRecurrence.Once">Einmalig</option>
+                            <option value="@ProgramRuleRecurrence.Holiday">An Feiertagen</option>
+                            <option value="@ProgramRuleRecurrence.Weekday">Werktags (Mo–Fr)</option>
+                            <option value="@ProgramRuleRecurrence.Weekend">Wochenende (Sa+So)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="admin-settings-grid">
+                    @if (editRule.Recurrence == ProgramRuleRecurrence.Weekly)
+                    {
+                        <div>
+                            <label class="form-label" for="rule-weekday">Wochentag</label>
+                            <select id="rule-weekday" class="form-control" @bind="editRule.DayOfWeek">
+                                @foreach (DayOfWeek d in Enum.GetValues<DayOfWeek>())
+                                {
+                                    <option value="@d">@WeekdayLabel(d)</option>
+                                }
+                            </select>
+                        </div>
+                    }
+                    @if (editRule.Recurrence == ProgramRuleRecurrence.Once)
+                    {
+                        <div>
+                            <label class="form-label" for="rule-date">Datum</label>
+                            <InputDate id="rule-date" class="form-control" @bind-Value="editRule.SingleDate" />
+                        </div>
+                    }
+                    <div>
+                        <label class="form-label" for="rule-time">Sendezeit</label>
+                        <input id="rule-time" type="time" class="form-control" @bind="editRule.TimeOfDay" />
+                    </div>
+                </div>
+
+                <div class="admin-settings-grid">
+                    <div>
+                        <label class="form-label" for="rule-episodes">Anzahl Folgen</label>
+                        <input id="rule-episodes" type="number" min="0" class="form-control" @bind="editRule.EpisodeCount" />
+                    </div>
+                    <div>
+                        <label class="form-label" for="rule-duration">Länge (Minuten)</label>
+                        <input id="rule-duration" type="number" min="0" class="form-control" @bind="editRule.DurationMinutes" />
+                    </div>
+                    <div>
+                        <label class="form-label" for="rule-priority">Priorität</label>
+                        <input id="rule-priority" type="number" class="form-control" @bind="editRule.Priority" />
+                    </div>
+                </div>
+
+                <label class="admin-toggle-row">
+                    <InputCheckbox class="form-check-input" @bind-Value="editRule.IsActive" />
+                    <span>Regel ist aktiv</span>
+                </label>
+
+                <label class="form-label">Programmmaterial</label>
+                @if (!string.IsNullOrWhiteSpace(editRule.MaterialDisplayName))
+                {
+                    <div class="admin-chip" id="rule-material-selected">
+                        @editRule.MaterialDisplayName
+                        <button class="btn btn-sm btn-ghost" @onclick="() => editRule.MaterialDisplayName = string.Empty">Ändern</button>
+                    </div>
+                }
+                else
+                {
+                    <div id="rule-material-picker">
+                        @if (AllowedMaterialTypes.Any(t => t is ProgramRuleMaterialType.TVShow or ProgramRuleMaterialType.Movie or ProgramRuleMaterialType.MovieCollection))
+                        {
+                            <MediaSearchSelector AllowedMediaTypes="@AllowedSearchMediaTypes" OnMediaSelected="OnMaterialSelected" />
+                        }
+                        @if (AllowedMaterialTypes.Contains(ProgramRuleMaterialType.Playlist))
+                        {
+                            <select id="rule-material-playlist" class="form-control" @onchange="OnPlaylistSelected">
+                                <option value="">Playlist wählen…</option>
+                                @foreach (var p in playlistOptions)
+                                {
+                                    <option value="@p.Id">@p.Name</option>
+                                }
+                            </select>
+                        }
+                        @if (AllowedMaterialTypes.Contains(ProgramRuleMaterialType.Trailer))
+                        {
+                            <label class="form-check rule-trailer-option" for="rule-material-trailer">
+                                <input type="checkbox" class="form-check-input" id="rule-material-trailer"
+                                       checked="@(editRule.MaterialType == ProgramRuleMaterialType.Trailer)"
+                                       @onchange="e => OnTrailerToggled(e.Value is bool b && b)" />
+                                Trailer anstehender Filme
+                            </label>
+                        }
+                        @if (AllowedMaterialTypes.Contains(ProgramRuleMaterialType.MediaSourceClips))
+                        {
+                            <select id="rule-material-clipsource" class="form-control" @onchange="OnClipSourceSelected">
+                                <option value="">Clip-Quelle wählen…</option>
+                                @foreach (var s in mediaSources)
+                                {
+                                    <option value="@s.Id" selected="@(editRule.MaterialType == ProgramRuleMaterialType.MediaSourceClips && editRule.MaterialId == s.Id)">Clip-Quelle: @s.Name</option>
+                                }
+                            </select>
+                        }
+                    </div>
+                }
+
+                @if (AllowedMaterialTypes.Contains(ProgramRuleMaterialType.Genre)
+                    && (editRule.MaterialType == ProgramRuleMaterialType.Genre || string.IsNullOrWhiteSpace(editRule.MaterialDisplayName)))
+                {
+                    <div class="rule-genre-editor" id="rule-genre-editor">
+                        <label class="form-label" id="rule-material-genre-label">Genres (Mehrfachauswahl)</label>
+                        <div id="rule-material-genre" class="rule-multi-select">
+                            @if (genreOptions.Count == 0)
+                            {
+                                <span class="form-text" id="rule-material-genre-empty">Keine wählbaren Genres für die aktuelle Quell-Auswahl.</span>
+                            }
+                            @foreach (var g in genreOptions)
+                            {
+                                <label class="form-check rule-genre-option" for="rule-genre-@g.Id">
+                                    <input type="checkbox" class="form-check-input" id="rule-genre-@g.Id"
+                                           checked="@editRule.SelectedGenreIds.Contains(g.Id)"
+                                           @onchange="e => OnGenreToggled(g.Id, e.Value is bool b && b)" />
+                                    @g.Name
+                                </label>
+                            }
+                        </div>
+                        <label class="form-label" id="rule-material-sources-label">Quellen einschränken (keine Auswahl = alle Quellen)</label>
+                        <div id="rule-material-sources" class="rule-multi-select">
+                            @foreach (var s in mediaSources)
+                            {
+                                <label class="form-check rule-source-option" for="rule-source-@s.Id">
+                                    <input type="checkbox" class="form-check-input" id="rule-source-@s.Id"
+                                           checked="@editRule.SelectedMediaSourceIds.Contains(s.Id)"
+                                           @onchange="async e => await OnSourceToggledAsync(s.Id, e.Value is bool b && b)" />
+                                    @s.Name
+                                </label>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(editError))
+                {
+                    <div class="alert alert-danger" id="rule-edit-error">@editError</div>
+                }
+
+                <div class="admin-actions">
+                    <button id="rule-save" class="btn btn-primary" @onclick="SaveRuleAsync">Speichern</button>
+                    <button class="btn btn-ghost" @onclick="CancelEdit">Abbrechen</button>
+                </div>
+            </div>
+            </div>
+        }
+
+        </div>
+
+        <!-- ============ Tab: Sendeplan ============ -->
+        <div class="tab-pane @(activeTab == "sendeplan" ? "active" : "")" id="tab-sendeplan" role="tabpanel" aria-labelledby="tvsender-tab-sendeplan">
+
+        <div class="admin-card admin-card-wide">
+            <div class="admin-card-header">
+                <div class="admin-card-header-left">
+                    <h2>Sendeplan</h2>
+                    <span class="admin-chip">@schedule.Count Einträge</span>
+                </div>
+                <div class="admin-actions" style="margin:0;">
+                    <button id="tvsender-generate-now" class="btn btn-primary" @onclick="GenerateNowAsync" disabled="@generatePending">Jetzt generieren</button>
+                    <button id="tvsender-cleanup-displaced" class="btn btn-outline-danger" @onclick="() => confirmCleanup = true">Verdrängte bereinigen</button>
+                    <button id="tvsender-reset-schedule" class="btn btn-outline-danger" @onclick="() => confirmReset = true">Plan zurücksetzen</button>
+                </div>
+            </div>
+
+            @if (schedule.Count == 0)
+            {
+                <div class="admin-empty-state">
+                    <strong>Keine Sendeplätze vorhanden</strong>
+                    <span>Der Sendeplan wird im Hintergrund aus den aktiven Regeln erzeugt.</span>
+                </div>
+            }
+            else
+            {
+                @* Programm-Karten nach dem freigegebenen Prototyp (sendeplan-vorschau.html):
+                   Poster 2:3, Badge (Genre/Live/Status), Zeit, Titel, Episoden-Info + Regel,
+                   3-zeilige Beschreibung; laufender Slot mit LIVE-Badge + Fortschritt. *@
+                <div class="program-grid" id="tvsender-schedule-cards">
+                    @* N27: Tages-Header je Kalendertag (lokale Zeit, wie die angezeigten
+                       Sendezeiten) und eine Trennlinie, sobald die erzeugende Programmregel
+                       wechselt — Bloecke je Regel bleiben visuell abgegrenzt. *@
+                    @foreach (var day in schedule.GroupBy(s => s.Start.ToLocalTime().Date))
+                    {
+                        <div class="tvsender-day-header" data-day="@day.Key.ToString("yyyy-MM-dd")">
+                            @day.Key.ToString("dddd, dd.MM.yyyy")
+                        </div>
+                        long? previousRuleId = null;
+                        var firstInDay = true;
+                        @foreach (var slot in day)
+                        {
+                            if (!firstInDay && slot.ProgramRuleId != previousRuleId)
+                            {
+                                <div class="tvsender-rule-divider" data-rule-id="@slot.ProgramRuleId">
+                                    <span class="tvsender-rule-divider-label">@RuleName(slot)</span>
+                                </div>
+                            }
+                            firstInDay = false;
+                            previousRuleId = slot.ProgramRuleId;
+                            var card = SlotCard(slot);
+                            var running = IsRunning(slot);
+                        <div class="program-card tvsender-slot-row @(slot.Status == ProgramSlotStatus.Displaced ? "tvsender-slot-displaced" : "") @(running ? "slot-now" : "")" data-slot-id="@slot.Id">
+                            <div class="program-poster">
+                                <img src="@PosterUrl(card)" alt="" />
+                            </div>
+                            <div class="program-body">
+                                <div class="program-badges">
+                                    @if (running)
+                                    {
+                                        <span class="program-badge badge-live">Live</span>
+                                    }
+                                    @if (card.GenreName is { } genre)
+                                    {
+                                        <span class="program-badge badge-genre">@genre</span>
+                                    }
+                                    <span class="admin-chip @(slot.Status == ProgramSlotStatus.Displaced ? "admin-chip-warning" : "admin-chip-success")">@(slot.Status == ProgramSlotStatus.Displaced ? "Verdrängt" : "Geplant")</span>
+                                </div>
+                                <span class="program-time">@slot.Start.ToLocalTime().ToString("dd.MM. HH:mm")&nbsp;–&nbsp;@slot.End.ToLocalTime().ToString("HH:mm")</span>
+                                <span class="program-title">@(card.ShowName ?? card.Title)</span>
+                                @if (card.Subtitle is { } sub)
+                                {
+                                    <span class="program-sub">@sub</span>
+                                }
+                                <span class="program-sub">Regel: @RuleName(slot)</span>
+                                <p class="program-desc">@(card.Description ?? ProgramGuideEntryText.NoDescriptionText)</p>
+                                @if (running)
+                                {
+                                    <div class="progress-track" aria-hidden="true"><div class="progress-fill" style="width:@ProgressPercent(slot)%"></div></div>
+                                }
+                            </div>
+                        </div>
+                        }
+                    }
+                </div>
+            }
+            @if (!string.IsNullOrWhiteSpace(scheduleStatus))
+            {
+                <div class="form-text" id="tvsender-schedule-status">@scheduleStatus</div>
+            }
+        </div>
+
+        </div>
+
+        <!-- ============ Tab: Einstellungen ============ -->
+        <div class="tab-pane @(activeTab == "einstellungen" ? "active" : "")" id="tab-einstellungen" role="tabpanel" aria-labelledby="tvsender-tab-einstellungen">
+
+        <div class="admin-card admin-card-wide">
+            <div class="admin-card-header">
+                <h2>Sender-Einstellungen</h2>
+            </div>
+            <div class="admin-settings-grid">
+                <div class="admin-sub-card">
+                    <h3 class="mb-2">Sender</h3>
+                    <div class="mb-2">
+                        <label class="form-label" for="tvsender-name">Name</label>
+                        <input id="tvsender-name" class="form-control" @bind="channelName" />
+                    </div>
+                    <div>
+                        <label class="form-label" for="tvsender-federal-state">Bundesland für Feiertage</label>
+                        <select id="tvsender-federal-state" class="form-control" @bind="federalState">
+                            <option value="">Nur bundesweit gültige Feiertage</option>
+                            @foreach (var state in federalStates)
+                            {
+                                <option value="@state">@state</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+                <div class="admin-sub-card">
+                    <h3 class="mb-2">Planung</h3>
+                    <div class="mb-2">
+                        <label class="form-label" for="tvsender-horizon-hours">Planungshorizont (Stunden)</label>
+                        <input id="tvsender-horizon-hours" type="number" min="1" class="form-control" @bind="horizonHours" />
+                    </div>
+                    <div>
+                        <label class="form-label" for="tvsender-interval-minutes">Generierungsintervall (Minuten)</label>
+                        <input id="tvsender-interval-minutes" type="number" min="1" class="form-control" @bind="intervalMinutes" />
+                    </div>
+                </div>
+                <div class="admin-sub-card">
+                    <h3 class="mb-2">Segmentierung</h3>
+                    <div class="mb-2">
+                        <label class="form-label" for="tvsender-segment-length-seconds">Segmentlänge (Sekunden)</label>
+                        <input id="tvsender-segment-length-seconds" type="number" min="1" max="300" class="form-control" @bind="segmentLengthSeconds" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label" for="tvsender-segment-directory">Segment-Verzeichnis (leer = Standard)</label>
+                        <input id="tvsender-segment-directory" class="form-control" @bind="segmentDirectory" />
+                    </div>
+                    <div>
+                        <label class="form-label" for="tvsender-segment-retention-minutes">Segment-Aufbewahrung (Minuten)</label>
+                        <input id="tvsender-segment-retention-minutes" type="number" min="1" class="form-control" @bind="segmentRetentionMinutes" />
+                    </div>
+                </div>
+            </div>
+            <div class="admin-actions">
+                <button id="tvsender-save-settings" class="btn btn-primary" @onclick="SaveChannelSettingsAsync">Speichern</button>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(channelStatus))
+            {
+                <div class="form-text" id="tvsender-channel-status">@channelStatus</div>
+            }
+        </div>
+
+        </div>
+
+        <!-- ============ Tab: Laufzeitermittlung ============ -->
+        <div class="tab-pane @(activeTab == "laufzeit" ? "active" : "")" id="tab-laufzeit" role="tabpanel" aria-labelledby="tvsender-tab-laufzeit">
+
+        <div class="admin-card admin-card-wide" id="tvsender-probe-card">
+            <div class="admin-card-header">
+                <h2>Laufzeitermittlung</h2>
+                @if (probeProgress is { } summary)
+                {
+                    <span class="admin-chip">@summary.ProbedCount von @summary.TotalCount ermittelt</span>
+                }
+            </div>
+
+            @if (probeProgress is null)
+            {
+                <div class="admin-empty-state">
+                    <strong>Fortschritt wird geladen…</strong>
+                </div>
+            }
+            else if (probeProgress.TotalCount == 0)
+            {
+                <div class="admin-empty-state" id="tvsender-probe-empty">
+                    <strong>Keine Videodateien gefunden</strong>
+                    <span>Sobald Videodateien in den Medienquellen vorhanden sind, wird ihre Laufzeit hier ermittelt.</span>
+                </div>
+            }
+            else
+            {
+                <p class="form-text" id="tvsender-probe-status">@ProbeStatusLabel(probeProgress)</p>
+
+                <div class="probe-counts" id="tvsender-probe-counts">
+                    <span class="admin-chip admin-chip-success" id="tvsender-probe-probed">@probeProgress.ProbedCount ermittelt</span>
+                    <span class="admin-chip admin-chip-warning" id="tvsender-probe-pending">@probeProgress.PendingCount ausstehend
+                        @if (probeProgress.PendingItems.Count > 0)
+                        {
+                            <button class="chip-detail-btn" id="tvsender-probe-pending-details" title="Betroffene Dateien anzeigen"
+                                    @onclick="() => showPendingProbeDetails = !showPendingProbeDetails">▾ Details</button>
+                        }
+                    </span>
+                    <span class="admin-chip admin-chip-danger" id="tvsender-probe-failed">@probeProgress.FailedCount fehlgeschlagen
+                        @if (probeProgress.FailedItems.Count > 0)
+                        {
+                            <button class="chip-detail-btn" id="tvsender-probe-failed-details" title="Betroffene Dateien anzeigen"
+                                    @onclick="() => showFailedProbeDetails = !showFailedProbeDetails">▾ Details</button>
+                        }
+                    </span>
+                    @if (probeProgress.FailedCount > 0)
+                    {
+                        <button id="tvsender-probe-reset-all" class="btn btn-sm btn-outline-danger"
+                                title="Alle fehlgeschlagenen Dateien beim nächsten Ermittlungslauf erneut prüfen"
+                                @onclick="() => confirmProbeReset = true">Alle zurücksetzen</button>
+                    }
+                </div>
+
+                <div class="progress mt-2" role="progressbar" aria-label="Fortschritt der Laufzeitermittlung"
+                     aria-valuenow="@probeProgress.ProbedCount" aria-valuemin="0" aria-valuemax="@probeProgress.TotalCount">
+                    <div class="progress-bar" style="width: @ProbePercent(probeProgress)%"></div>
+                </div>
+
+                <p class="form-text mt-2">
+                    <span id="tvsender-probe-last-activity">Letzte Aktivität: @(probeProgress.LastActivityAt?.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss") ?? "—")</span>
+                    · <span id="tvsender-probe-rate">Letzte Stunde: @probeProgress.ProbedLastHour Ermittlung(en)</span>
+                </p>
+
+                @if (probeProgress.PendingItems.Count > 0)
+                {
+                    <details class="probe-detail" id="tvsender-probe-pending-detail" open="@showPendingProbeDetails">
+                        <summary>Ausstehende Dateien (@probeProgress.PendingCount) — Ermittlung läuft oder wartet</summary>
+                        <div class="table-wrap-inner">
+                            <div class="admin-table-wrap mt-2">
+                                <table class="table table-dark table-striped align-middle">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Quelle</th>
+                                            <th>Versuche</th>
+                                            <th>Letzter Versuch</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var item in probeProgress.PendingItems)
+                                        {
+                                            <tr class="tvsender-probe-detail-row">
+                                                <td>@item.Name</td>
+                                                <td>@item.SourceName</td>
+                                                <td>@item.Attempts</td>
+                                                <td>@(item.LastAttemptAt?.ToLocalTime().ToString("dd.MM. HH:mm:ss") ?? "—")</td>
+                                            </tr>
+                                        }
+                                        @if (probeProgress.PendingCount > probeProgress.PendingItems.Count)
+                                        {
+                                            <tr><td>… und @(probeProgress.PendingCount - probeProgress.PendingItems.Count) weitere</td><td colspan="3"></td></tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </details>
+                }
+
+                @if (probeProgress.FailedItems.Count > 0)
+                {
+                    <details class="probe-detail" id="tvsender-probe-failed-detail" open="@showFailedProbeDetails">
+                        <summary>Fehlgeschlagene Dateien (@probeProgress.FailedCount) — dauerhaft nicht prüfbar</summary>
+                        <div class="table-wrap-inner">
+                            <div class="admin-table-wrap mt-2">
+                                <table class="table table-dark table-striped align-middle">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Quelle</th>
+                                            <th>Versuche</th>
+                                            <th>Letzter Versuch</th>
+                                            <th>Aktionen</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var item in probeProgress.FailedItems)
+                                        {
+                                            <tr class="tvsender-probe-detail-row">
+                                                <td>@item.Name</td>
+                                                <td>@item.SourceName</td>
+                                                <td>@item.Attempts</td>
+                                                <td>@(item.LastAttemptAt?.ToLocalTime().ToString("dd.MM. HH:mm:ss") ?? "—")</td>
+                                                <td class="actions-cell">
+                                                    <button class="btn btn-sm btn-outline-light tvsender-probe-reset" @onclick="() => ResetProbeItemAsync(item)">Erneut ermitteln</button>
+                                                </td>
+                                            </tr>
+                                        }
+                                        @if (probeProgress.FailedCount > probeProgress.FailedItems.Count)
+                                        {
+                                            <tr><td colspan="5">… und @(probeProgress.FailedCount - probeProgress.FailedItems.Count) weitere — angezeigt werden nur die ersten @probeProgress.FailedItems.Count; „Alle zurücksetzen“ erfasst auch die nicht angezeigten Dateien.</td></tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </details>
+                }
+
+                @if (probeProgress.RecentItems.Count > 0)
+                {
+                    <div class="admin-card-header mt-2" style="margin-bottom:0.5rem;">
+                        <h3>Letzte Ermittlungen</h3>
+                    </div>
+                    <div class="admin-table-wrap">
+                        <table class="table table-dark table-striped align-middle" id="tvsender-probe-recent">
+                            <thead>
+                                <tr>
+                                    <th>Zeitpunkt</th>
+                                    <th>Datei</th>
+                                    <th>Quelle</th>
+                                    <th>Ergebnis</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in probeProgress.RecentItems)
+                                {
+                                    <tr class="tvsender-probe-row">
+                                        <td>@item.ProbedAt.ToLocalTime().ToString("dd.MM. HH:mm:ss")</td>
+                                        <td>@item.Name</td>
+                                        <td>@item.SourceName</td>
+                                        <td>@RecentResultLabel(item)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            }
+            @if (!string.IsNullOrWhiteSpace(probeStatus))
+            {
+                <div class="form-text" id="tvsender-probe-action-status">@probeStatus</div>
+            }
+        </div>
+
+        </div>
+
+        @if (confirmCleanup)
+        {
+            <div class="admin-dialog-overlay" @onclick="() => confirmCleanup = false">
+                <div class="admin-dialog" @onclick:stopPropagation>
+                    <header class="admin-card-header">
+                        <h2>Verdrängte bereinigen</h2>
+                    </header>
+                    <p>Alle verdrängten Sendeplätze werden endgültig gelöscht. Der geplante Sendeplan bleibt unverändert bestehen.</p>
+                    <div class="admin-actions">
+                        <button id="schedule-cleanup-confirm" class="btn btn-danger" @onclick="CleanupDisplacedAsync">Bereinigen</button>
+                        <button class="btn btn-ghost" @onclick="() => confirmCleanup = false">Abbrechen</button>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (confirmReset)
+        {
+            <div class="admin-dialog-overlay" @onclick="() => confirmReset = false">
+                <div class="admin-dialog" @onclick:stopPropagation>
+                    <header class="admin-card-header">
+                        <h2>Sendeplan zurücksetzen</h2>
+                    </header>
+                    <p><strong>Achtung:</strong> Der gesamte Sendeplan — alle geplanten und verdrängten Sendeplätze sowie die Fortsetzungsstände aller Regeln — wird gelöscht. Der Plan wird beim nächsten Generierungslauf komplett neu aufgebaut.</p>
+                    <div class="admin-actions">
+                        <button id="schedule-reset-confirm" class="btn btn-danger" @onclick="ResetScheduleAsync">Zurücksetzen</button>
+                        <button class="btn btn-ghost" @onclick="() => confirmReset = false">Abbrechen</button>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (confirmProbeReset)
+        {
+            <div class="admin-dialog-overlay" @onclick="() => confirmProbeReset = false">
+                <div class="admin-dialog" @onclick:stopPropagation>
+                    <header class="admin-card-header">
+                        <h2>Fehlgeschlagene Dateien zurücksetzen</h2>
+                    </header>
+                    <p>Alle @(probeProgress?.FailedCount ?? 0) fehlgeschlagenen Dateien werden zurückgesetzt und beim nächsten Lauf der Laufzeitermittlung erneut geprüft.</p>
+                    <div class="admin-actions">
+                        <button id="probe-reset-all-confirm" class="btn btn-danger" @onclick="ResetAllFailedProbesAsync">Alle zurücksetzen</button>
+                        <button class="btn btn-ghost" @onclick="() => confirmProbeReset = false">Abbrechen</button>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (deleteCandidate != null)
+        {
+            <div class="admin-dialog-overlay" @onclick="() => deleteCandidate = null">
+                <div class="admin-dialog" @onclick:stopPropagation>
+                    <header class="admin-card-header">
+                        <h2>Programmregel löschen</h2>
+                    </header>
+                    <p>Soll die Programmregel „@deleteCandidate.Name" wirklich gelöscht werden?</p>
+                    <div class="admin-actions">
+                        <button id="rule-delete-confirm" class="btn btn-danger" @onclick="DeleteRuleAsync">Löschen</button>
+                        <button class="btn btn-ghost" @onclick="() => deleteCandidate = null">Abbrechen</button>
+                    </div>
+                </div>
+            </div>
+        }
+    </section>
+}
+
+@code {
+    private bool isAdmin;
+    private bool tvSenderEnabled = true;
+    private string userId = string.Empty;
+    private TVChannel? channel;
+    private string channelName = string.Empty;
+    private string? federalState;
+    private int horizonHours = 48;
+    private int intervalMinutes = 15;
+    private int segmentLengthSeconds = 6;
+    private string? segmentDirectory;
+    private int segmentRetentionMinutes = 30;
+    private readonly string[] federalStates = ProgramSettingsService.HolidayFederalStates.ToArray();
+    private string? channelStatus;
+    private string? rulesStatus;
+    private string? scheduleStatus;
+    private bool generatePending;
+    private bool confirmCleanup;
+    private bool confirmReset;
+    private bool confirmProbeReset;
+    private string? probeStatus;
+    private bool disposed;
+    private List<ProgramRule> rules = new();
+    private List<ProgramSlot> schedule = new();
+    private IReadOnlyDictionary<long, ProgramRuleDiagnosis> ruleDiagnoses = new Dictionary<long, ProgramRuleDiagnosis>();
+    private RuleEditModel? editRule;
+    private ProgramRule? deleteCandidate;
+    private string? editError;
+    private List<DtoGenreOption> genreOptions = new();
+    private List<DtoPlaylist> playlistOptions = new();
+    private List<MediaSource> mediaSources = new();
+    private MediaDurationProbeProgress? probeProgress;
+    private CancellationTokenSource? refreshCts;
+    private string activeTab = "regeln";
+    private bool showPendingProbeDetails;
+    private bool showFailedProbeDetails;
+
+    private const int RecentProbeCount = 10;
+    private static readonly TimeSpan ProbeRefreshInterval = TimeSpan.FromSeconds(15);
+
+    private IReadOnlyList<ProgramRuleMaterialType> AllowedMaterialTypes
+        => editRule is null ? Array.Empty<ProgramRuleMaterialType>() : ProgramRuleService.GetAllowedMaterialTypes(editRule.RuleType);
+
+    private IReadOnlyCollection<string>? AllowedSearchMediaTypes
+        => editRule is null ? null : AllowedMaterialTypes
+            .Where(t => t is ProgramRuleMaterialType.TVShow or ProgramRuleMaterialType.Movie or ProgramRuleMaterialType.MovieCollection)
+            .Select(t => t.ToString())
+            .ToArray();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        isAdmin = auth.User.Identity?.IsAuthenticated == true && auth.User.HasClaim("IsAdmin", "True");
+        if (!isAdmin)
+            return;
+
+        tvSenderEnabled = await ProgramSettings.GetTvSenderEnabledAsync();
+        if (!tvSenderEnabled)
+            return;
+
+        await Client.EnsureAuthorizationTokenSilentlyAsync(auth.User);
+        userId = auth.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+        channel = await ProgramRuleService.GetOrCreateChannelAsync();
+        channelName = channel.Name;
+        federalState = await ProgramSettings.GetHolidayFederalStateAsync();
+        horizonHours = (int)(await ProgramSettings.GetProgramScheduleHorizonAsync()).TotalHours;
+        intervalMinutes = (int)(await ProgramSettings.GetProgramScheduleIntervalAsync()).TotalMinutes;
+        segmentLengthSeconds = (int)(await ProgramSettings.GetLiveStreamSegmentLengthAsync()).TotalSeconds;
+        segmentDirectory = await ProgramSettings.GetLiveStreamSegmentDirectoryAsync();
+        segmentRetentionMinutes = (int)(await ProgramSettings.GetLiveStreamSegmentRetentionAsync()).TotalMinutes;
+        mediaSources = await DbContext.MediaSources.AsNoTracking().OrderBy(s => s.Name).ToListAsync();
+        await ReloadGenreOptionsAsync();
+        playlistOptions = (await Client.RequestPlaylistsAsync())
+            .Concat(await Client.RequestPublicPlaylistsAsync())
+            .GroupBy(p => p.Id)
+            .Select(g => g.First())
+            .OrderBy(p => p.Name)
+            .ToList();
+        await ReloadRulesAsync();
+        await ReloadScheduleAsync();
+        await LoadProbeProgressAsync();
+
+        refreshCts = new CancellationTokenSource();
+        _ = ProbeProgressLoopAsync(refreshCts.Token);
+    }
+
+    // Panes stay rendered and are only shown/hidden by CSS, so form state, scroll positions
+    // and the running refresh loop survive a tab switch without any reload.
+    private void SelectTab(string tab) => activeTab = tab;
+
+    private async Task LoadProbeProgressAsync(CancellationToken cancellationToken = default)
+    {
+        probeProgress = await ProbeService.GetProgressAsync(userId, RecentProbeCount, cancellationToken: cancellationToken);
+    }
+
+    // Keeps the progress card live so "running" vs. "stalled" is visible without a manual reload;
+    // a single failed refresh must not kill the loop.
+    private async Task ProbeProgressLoopAsync(CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(ProbeRefreshInterval);
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                if (disposed)
+                    return;
+
+                try
+                {
+                    // DbContext-Zugriff muss auf dem Dispatcher laufen — ein Tick vom
+                    // Threadpool würde den geteilten scoped Context mit Nutzeraktionen
+                    // kollidieren lassen (Muster wie PollBackupStatusAsync in Backups.razor).
+                    await InvokeAsync(async () =>
+                    {
+                        if (disposed)
+                            return;
+                        await LoadProbeProgressAsync(cancellationToken);
+                        StateHasChanged();
+                    });
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    return;
+                }
+                catch (Exception)
+                {
+                    // Transient failure — the next tick retries with the same data still shown.
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    // Makes "advancing vs. stalled" directly readable: pending items with recent activity mean
+    // the probe is working; pending items without any activity in the last hour mean it is stuck
+    // (e.g. ffprobe missing) or waiting.
+    private static string ProbeStatusLabel(MediaDurationProbeProgress progress)
+    {
+        if (progress.PendingCount == 0 && progress.FailedCount == 0)
+            return "Alle Videodateien sind ermittelt.";
+        if (progress.PendingCount == 0)
+            return $"Ermittlung abgeschlossen — {progress.FailedCount} Datei(en) dauerhaft nicht prüfbar.";
+        if (progress.ProbedLastHour > 0)
+            return $"Ermittlung läuft — {progress.ProbedLastHour} Datei(en) in der letzten Stunde.";
+        return $"{progress.PendingCount} Datei(en) ausstehend, aber keine Aktivität in der letzten Stunde — die Ermittlung hängt möglicherweise (ffprobe verfügbar?).";
+    }
+
+    private static int ProbePercent(MediaDurationProbeProgress progress)
+        => progress.TotalCount == 0 ? 0 : (int)(100.0 * progress.ProbedCount / progress.TotalCount);
+
+    private static string RecentResultLabel(MediaDurationProbeRecentItem item)
+        => item.Duration is { } d ? FormatDuration(d) : $"keine Laufzeit — Versuch {item.Attempts}";
+
+    private static string FormatDuration(TimeSpan duration)
+        => duration.TotalHours >= 1 ? $"{(int)duration.TotalHours}:{duration.Minutes:00}:{duration.Seconds:00}" : $"{duration.Minutes}:{duration.Seconds:00} min";
+
+    // Genre options follow the current source filter of the edit dialog; already-selected genres
+    // that fall outside it stay visible (and removable) so a narrower source selection does not
+    // silently drop stored genres.
+    private async Task ReloadGenreOptionsAsync()
+    {
+        var sourceFilter = editRule?.SelectedMediaSourceIds;
+        genreOptions = await ProgramRuleService.GetGenreMaterialOptionsAsync(
+            userId, sourceFilter is { Count: > 0 } ? sourceFilter.ToList() : null);
+
+        if (editRule is { SelectedGenreIds.Count: > 0 })
+        {
+            var missingIds = editRule.SelectedGenreIds.Where(id => genreOptions.All(g => g.Id != id)).ToList();
+            if (missingIds.Count > 0)
+            {
+                var missingNames = await DbContext.Genres
+                    .AsNoTracking()
+                    .Where(g => missingIds.Contains(g.Id))
+                    .ToDictionaryAsync(g => g.Id, g => g.Name);
+                genreOptions = genreOptions
+                    .Concat(missingIds
+                        .Where(missingNames.ContainsKey)
+                        .Select(id => new DtoGenreOption { Id = id, Name = missingNames[id] }))
+                    .OrderBy(g => g.Name, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+        }
+    }
+
+    private async Task ReloadRulesAsync()
+    {
+        if (channel is not null)
+            rules = await ProgramRuleService.GetRulesAsync(userId, channel.Id);
+        await ReloadDiagnosesAsync();
+    }
+
+    private async Task ReloadDiagnosesAsync()
+    {
+        if (channel is null)
+            return;
+
+        ruleDiagnoses = await ProgramScheduleService.GetRuleDiagnosesAsync(userId, channel.Id);
+    }
+
+    // Wakes the schedule worker immediately instead of waiting for the generation interval;
+    // the schedule table and the rule diagnoses refresh once the run has had time to finish.
+    private async Task GenerateNowAsync()
+    {
+        if (generatePending)
+            return;
+
+        generatePending = true;
+        scheduleStatus = "Plan-Aktualisierung wurde angestoßen — der Hintergrundlauf bewertet den Sendeplan jetzt neu.";
+        try
+        {
+            ScheduleSignal.NotifyScheduleChanged();
+            await Task.Delay(TimeSpan.FromSeconds(4));
+            if (disposed)
+                return;
+
+            await ReloadScheduleAsync();
+            await ReloadDiagnosesAsync();
+            scheduleStatus = "Sendeplan-Anzeige wurde aktualisiert. Bei großen Bibliotheken kann die Generierung länger dauern — die Seite ggf. erneut laden.";
+        }
+        catch (Exception ex)
+        {
+            scheduleStatus = ex.Message;
+        }
+        finally
+        {
+            generatePending = false;
+        }
+    }
+
+    private async Task CleanupDisplacedAsync()
+    {
+        confirmCleanup = false;
+        if (channel is null)
+            return;
+
+        try
+        {
+            var deleted = await ProgramScheduleService.DeleteDisplacedSlotsAsync(userId, channel.Id);
+            scheduleStatus = deleted == 0
+                ? "Es waren keine verdrängten Sendeplätze vorhanden."
+                : $"{deleted} verdrängte Sendeplätze wurden bereinigt.";
+            await ReloadScheduleAsync();
+        }
+        catch (Exception ex)
+        {
+            scheduleStatus = ex.Message;
+        }
+    }
+
+    private async Task ResetScheduleAsync()
+    {
+        confirmReset = false;
+        if (channel is null)
+            return;
+
+        try
+        {
+            var result = await ProgramScheduleService.ResetScheduleAsync(userId, channel.Id);
+            scheduleStatus = $"Sendeplan wurde zurückgesetzt: {result.SlotsDeleted} Sendeplätze und {result.CursorsDeleted} Fortsetzungsstände gelöscht. Die Neuplanung startet mit dem nächsten Generierungslauf — „Jetzt generieren“ stößt sie sofort an.";
+            ScheduleSignal.NotifyScheduleChanged();
+            await ReloadScheduleAsync();
+        }
+        catch (Exception ex)
+        {
+            scheduleStatus = ex.Message;
+        }
+    }
+
+    private async Task ReloadScheduleAsync()
+    {
+        if (channel is null)
+            return;
+
+        schedule = await ProgramScheduleService.GetScheduleAsync(channel.Id, DateTimeOffset.UtcNow.AddHours(-2), 200);
+        var ruleIds = schedule.Where(s => s.ProgramRuleId is not null).Select(s => s.ProgramRuleId!.Value).Distinct().ToList();
+        slotRuleNames = await DbContext.ProgramRules
+            .Where(r => ruleIds.Contains(r.Id))
+            .ToDictionaryAsync(r => r.Id, r => r.Name);
+        var movieIds = schedule.Where(s => s.MovieId is not null).Select(s => s.MovieId!.Value).Distinct().ToList();
+        var movies = await DbContext.Movies
+            .Where(m => movieIds.Contains(m.Id))
+            .ToDictionaryAsync(m => m.Id, m => new MovieCardData(m.Name, m.Plot, m.PosterPictureId, m.GenreNames));
+        var episodeIds = schedule.Where(s => s.TVShowEpisodeId is not null).Select(s => s.TVShowEpisodeId!.Value).Distinct().ToList();
+        var episodes = await DbContext.TVShowEpisodes
+            .Where(e => episodeIds.Contains(e.Id))
+            .Select(e => new EpisodeCardData(
+                e.Id, e.Name, e.Number, e.Plot, e.PosterPictureId,
+                e.TVShowSeason.Name, e.TVShowSeason.PosterPictureId,
+                e.TVShowSeason.TVShow.Name, e.TVShowSeason.TVShow.Plot,
+                e.TVShowSeason.TVShow.PosterPictureId, e.TVShowSeason.TVShow.GenreNames))
+            .ToDictionaryAsync(e => e.Id);
+        var bareItemIds = schedule.Where(s => s.MovieId is null && s.TVShowEpisodeId is null).Select(s => s.MediaItemId).Distinct().ToList();
+        var itemNames = await DbContext.MediaItems
+            .Where(i => bareItemIds.Contains(i.Id))
+            .ToDictionaryAsync(i => i.Id, i => i.Name);
+
+        // Die Karten brauchen dieselben Inhalte wie die Programmauskunft (Poster, Beschreibung,
+        // Genre, Episoden-Info) — hier direkt per EF, weil der Admin-Plan auch verdrängte Slots
+        // zeigt, die api/program-guide bewusst nicht liefert.
+        slotCards = new Dictionary<long, ScheduleCardContent>();
+        foreach (var slot in schedule)
+        {
+            var title = "(Inhalt nicht gefunden)";
+            string? showName = null, subtitle = null, description = null, genreName = null;
+            long? posterId = null;
+
+            if (slot.TVShowEpisodeId is { } epId && episodes.TryGetValue(epId, out var ep))
+            {
+                title = $"{ep.ShowName} — {ep.SeasonName}, E{ep.Number}: {ep.EpisodeName}";
+                showName = ep.ShowName;
+                subtitle = ProgramGuideEntryText.Subtitle(ep.SeasonName, ep.Number, ep.EpisodeName);
+                description = ep.Plot ?? ep.ShowPlot;
+                genreName = ProgramGuideEntryText.FirstGenre(ep.ShowGenreNames);
+                posterId = ep.PosterPictureId ?? ep.SeasonPosterPictureId ?? ep.ShowPosterPictureId;
+            }
+            else if (slot.MovieId is { } mvId && movies.TryGetValue(mvId, out var mv))
+            {
+                title = mv.Name;
+                description = mv.Plot;
+                genreName = ProgramGuideEntryText.FirstGenre(mv.GenreNames);
+                posterId = mv.PosterPictureId;
+            }
+            else if (slot.MovieId is null && slot.TVShowEpisodeId is null
+                     && itemNames.TryGetValue(slot.MediaItemId, out var itemName)
+                     && !string.IsNullOrWhiteSpace(itemName))
+            {
+                title = itemName;
+            }
+
+            slotCards[slot.Id] = new ScheduleCardContent(title, showName, subtitle, description, genreName, posterId);
+        }
+    }
+
+    private sealed record MovieCardData(string Name, string? Plot, long? PosterPictureId, string? GenreNames);
+
+    private sealed record EpisodeCardData(
+        long Id, string EpisodeName, int Number, string? Plot, long? PosterPictureId,
+        string SeasonName, long? SeasonPosterPictureId,
+        string ShowName, string? ShowPlot, long? ShowPosterPictureId, string? ShowGenreNames);
+
+    private sealed record ScheduleCardContent(
+        string Title,
+        string? ShowName = null,
+        string? Subtitle = null,
+        string? Description = null,
+        string? GenreName = null,
+        long? PosterPictureId = null);
+
+    private Dictionary<long, string> slotRuleNames = new();
+    private Dictionary<long, ScheduleCardContent> slotCards = new();
+
+    private ScheduleCardContent SlotCard(ProgramSlot slot)
+        => slotCards.TryGetValue(slot.Id, out var card) ? card : new ScheduleCardContent("(Inhalt nicht gefunden)");
+
+    private static bool IsRunning(ProgramSlot slot)
+    {
+        var now = DateTime.UtcNow;
+        return slot.Status == ProgramSlotStatus.Scheduled && slot.Start <= now && slot.End > now;
+    }
+
+    private static int ProgressPercent(ProgramSlot slot)
+    {
+        var span = slot.End - slot.Start;
+        return span <= TimeSpan.Zero ? 0 : (int)Math.Clamp((DateTime.UtcNow - slot.Start) / span * 100.0, 0, 100);
+    }
+
+    private string PosterUrl(ScheduleCardContent card)
+        => MediaPictureUrlResolver.Resolve(card.PosterPictureId, Client.AuthorizationToken);
+
+    private string RuleName(ProgramSlot slot)
+        => slot.ProgramRuleId is { } id && slotRuleNames.TryGetValue(id, out var name) ? name : "(Regel gelöscht)";
+
+    // Compact per-rule planning diagnosis: how much of the material is schedulable, or why
+    // nothing is (missing material, no media file, duration probe pending/failed, not released).
+    private string DiagnosisLabel(ProgramRule rule)
+    {
+        if (!ruleDiagnoses.TryGetValue(rule.Id, out var d))
+            return "—";
+
+        if (d.MaterialMissing)
+            return "Material nicht gefunden (verwaist)";
+
+        var parts = new List<string>();
+        if (d.SchedulableCount > 0)
+            parts.Add($"{d.SchedulableCount} planbar");
+        if (d.NoMediaItemCount > 0)
+            parts.Add($"{d.NoMediaItemCount} ohne Mediendatei");
+        if (d.ProbePendingCount > 0)
+            parts.Add($"{d.ProbePendingCount} ohne Laufzeit (Ermittlung läuft)");
+        if (d.ProbeExhaustedCount > 0)
+            parts.Add($"{d.ProbeExhaustedCount} ohne Laufzeit (gescheitert)");
+        if (d.NoAccessCount > 0)
+            parts.Add($"{d.NoAccessCount} nicht für alle freigegeben");
+
+        if (parts.Count == 0)
+            return "Keine Inhalte im Material";
+
+        var text = string.Join(", ", parts);
+        return d.SchedulableCount == 0 ? $"Nicht planbar: {text}" : text;
+    }
+
+    public void Dispose()
+    {
+        disposed = true;
+        refreshCts?.Cancel();
+    }
+
+    private async Task SaveChannelSettingsAsync()
+    {
+        channelStatus = null;
+        try
+        {
+            channel = await ProgramRuleService.RenameChannelAsync(userId, channelName);
+            await ProgramSettings.UpdateHolidayFederalStateAsync(string.IsNullOrWhiteSpace(federalState) ? null : federalState);
+            await ProgramSettings.UpdateProgramScheduleSettingsAsync(horizonHours, intervalMinutes);
+            await ProgramSettings.UpdateLiveStreamSettingsAsync(segmentLengthSeconds, segmentDirectory, segmentRetentionMinutes);
+            channelStatus = "Einstellungen wurden gespeichert.";
+        }
+        catch (Exception ex)
+        {
+            channelStatus = ex.Message;
+        }
+    }
+
+    private async Task StartCreate()
+    {
+        editError = null;
+        editRule = new RuleEditModel { RuleType = ProgramRuleType.SeriesFixedTime, Recurrence = ProgramRuleRecurrence.Daily, TimeOfDay = new TimeOnly(20, 0), IsActive = true, EpisodeCount = 1 };
+        await ReloadGenreOptionsAsync();
+    }
+
+    private async Task StartEdit(ProgramRule rule)
+    {
+        editError = null;
+        var genreIds = rule.MaterialType == ProgramRuleMaterialType.Genre
+            ? (rule.Genres.Count > 0 ? rule.Genres.Select(g => g.GenreId) : [rule.MaterialId])
+            : Enumerable.Empty<long>();
+        editRule = new RuleEditModel
+        {
+            Id = rule.Id,
+            Name = rule.Name,
+            RuleType = rule.RuleType,
+            Recurrence = rule.Recurrence,
+            DayOfWeek = rule.DayOfWeek ?? DayOfWeek.Monday,
+            SingleDate = rule.SingleDate?.ToDateTime(TimeOnly.MinValue),
+            TimeOfDay = rule.TimeOfDay,
+            EpisodeCount = rule.EpisodeCount,
+            DurationMinutes = rule.SlotDuration is { } d ? (int)d.TotalMinutes : null,
+            MaterialType = rule.MaterialType,
+            MaterialId = rule.MaterialId,
+            MaterialDisplayName = MaterialLabel(rule),
+            SelectedGenreIds = genreIds.ToHashSet(),
+            SelectedMediaSourceIds = rule.MaterialType == ProgramRuleMaterialType.Genre
+                ? rule.MediaSourceFilters.Select(s => s.MediaSourceId).ToHashSet()
+                : [],
+            Priority = rule.Priority,
+            IsActive = rule.IsActive
+        };
+        await ReloadGenreOptionsAsync();
+    }
+
+    private void CancelEdit() => editRule = null;
+
+    private void OnRuleTypeChanged(ChangeEventArgs e)
+    {
+        if (editRule is not null && Enum.TryParse<ProgramRuleType>(e.Value?.ToString(), out var t))
+        {
+            editRule.RuleType = t;
+            if (!ProgramRuleService.GetAllowedMaterialTypes(t).Contains(editRule.MaterialType))
+                ClearMaterial();
+        }
+    }
+
+    private void OnRecurrenceChanged(ChangeEventArgs e)
+    {
+        if (editRule is not null && Enum.TryParse<ProgramRuleRecurrence>(e.Value?.ToString(), out var r))
+            editRule.Recurrence = r;
+    }
+
+    private void ClearMaterial()
+    {
+        if (editRule is not null)
+        {
+            editRule.MaterialDisplayName = string.Empty;
+            editRule.MaterialId = 0;
+            editRule.SelectedGenreIds.Clear();
+            editRule.SelectedMediaSourceIds.Clear();
+        }
+    }
+
+    private void OnMaterialSelected((string MediaType, long MediaId) selection)
+    {
+        if (editRule is not null && Enum.TryParse<ProgramRuleMaterialType>(selection.MediaType, out var t))
+        {
+            editRule.MaterialType = t;
+            editRule.MaterialId = selection.MediaId;
+            editRule.MaterialDisplayName = MaterialLabel(t, selection.MediaId);
+            editRule.SelectedGenreIds.Clear();
+            editRule.SelectedMediaSourceIds.Clear();
+        }
+    }
+
+    private void OnGenreToggled(long genreId, bool selected)
+    {
+        if (editRule is null)
+            return;
+
+        editRule.MaterialType = ProgramRuleMaterialType.Genre;
+        if (selected)
+            editRule.SelectedGenreIds.Add(genreId);
+        else
+            editRule.SelectedGenreIds.Remove(genreId);
+        UpdateGenreMaterialLabel();
+    }
+
+    private async Task OnSourceToggledAsync(long sourceId, bool selected)
+    {
+        if (editRule is null)
+            return;
+
+        if (selected)
+            editRule.SelectedMediaSourceIds.Add(sourceId);
+        else
+            editRule.SelectedMediaSourceIds.Remove(sourceId);
+        await ReloadGenreOptionsAsync();
+    }
+
+    private void UpdateGenreMaterialLabel()
+    {
+        if (editRule is null || editRule.SelectedGenreIds.Count == 0)
+        {
+            if (editRule is not null)
+                editRule.MaterialDisplayName = string.Empty;
+            return;
+        }
+
+        var names = editRule.SelectedGenreIds
+            .Select(id => genreOptions.FirstOrDefault(g => g.Id == id)?.Name ?? id.ToString())
+            .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        editRule.MaterialId = editRule.SelectedGenreIds.OrderBy(id => id).First();
+        editRule.MaterialDisplayName = $"Genre: {string.Join(", ", names)}";
+    }
+
+    private void OnPlaylistSelected(ChangeEventArgs e)
+    {
+        if (editRule is not null && long.TryParse(e.Value?.ToString(), out var id) && id > 0)
+        {
+            editRule.MaterialType = ProgramRuleMaterialType.Playlist;
+            editRule.MaterialId = id;
+            editRule.MaterialDisplayName = $"Playlist: {playlistOptions.FirstOrDefault(p => p.Id == id)?.Name ?? id.ToString()}";
+            editRule.SelectedGenreIds.Clear();
+            editRule.SelectedMediaSourceIds.Clear();
+        }
+    }
+
+    // Clip-source material: all unclassified video items of the chosen media source (e.g. a
+    // dedicated "Maskottchen" source whose clips carry no NFO) rotate as filler.
+    private void OnClipSourceSelected(ChangeEventArgs e)
+    {
+        if (editRule is not null && long.TryParse(e.Value?.ToString(), out var id) && id > 0)
+        {
+            editRule.MaterialType = ProgramRuleMaterialType.MediaSourceClips;
+            editRule.MaterialId = id;
+            editRule.MaterialDisplayName = $"Clip-Quelle: {mediaSources.FirstOrDefault(s => s.Id == id)?.Name ?? id.ToString()}";
+            editRule.SelectedGenreIds.Clear();
+            editRule.SelectedMediaSourceIds.Clear();
+        }
+    }
+
+    // Trailer material references no entity — it covers every trailer of movies scheduled in the
+    // upcoming days, so MaterialId stays 0.
+    private void OnTrailerToggled(bool selected)
+    {
+        if (editRule is null)
+            return;
+
+        if (selected)
+        {
+            editRule.MaterialType = ProgramRuleMaterialType.Trailer;
+            editRule.MaterialId = 0;
+            editRule.MaterialDisplayName = "Trailer anstehender Filme";
+            editRule.SelectedGenreIds.Clear();
+            editRule.SelectedMediaSourceIds.Clear();
+        }
+        else if (editRule.MaterialType == ProgramRuleMaterialType.Trailer)
+        {
+            ClearMaterial();
+        }
+    }
+
+    private async Task SaveRuleAsync()
+    {
+        if (editRule is null || channel is null)
+            return;
+
+        editError = null;
+        var input = new ProgramRuleInput(
+            editRule.Name,
+            editRule.RuleType,
+            editRule.Recurrence,
+            editRule.Recurrence == ProgramRuleRecurrence.Weekly ? editRule.DayOfWeek : null,
+            editRule.Recurrence == ProgramRuleRecurrence.Once && editRule.SingleDate.HasValue ? DateOnly.FromDateTime(editRule.SingleDate.Value) : null,
+            editRule.TimeOfDay,
+            editRule.EpisodeCount is > 0 ? editRule.EpisodeCount : null,
+            editRule.DurationMinutes is > 0 ? TimeSpan.FromMinutes(editRule.DurationMinutes.Value) : null,
+            editRule.MaterialType,
+            editRule.MaterialType == ProgramRuleMaterialType.Genre && editRule.SelectedGenreIds.Count > 0
+                ? editRule.SelectedGenreIds.OrderBy(id => id).First()
+                : editRule.MaterialId,
+            editRule.Priority,
+            editRule.IsActive,
+            editRule.MaterialType == ProgramRuleMaterialType.Genre
+                ? editRule.SelectedGenreIds.OrderBy(id => id).ToList()
+                : null,
+            editRule.MaterialType == ProgramRuleMaterialType.Genre && editRule.SelectedMediaSourceIds.Count > 0
+                ? editRule.SelectedMediaSourceIds.OrderBy(id => id).ToList()
+                : null);
+
+        try
+        {
+            if (editRule.Id == 0)
+                await ProgramRuleService.CreateRuleAsync(userId, channel.Id, input);
+            else
+                await ProgramRuleService.UpdateRuleAsync(userId, editRule.Id, input);
+
+            editRule = null;
+            rulesStatus = "Programmregel wurde gespeichert.";
+            await ReloadRulesAsync();
+        }
+        catch (Exception ex)
+        {
+            editError = ex.Message;
+        }
+    }
+
+    private async Task ToggleActiveAsync(ProgramRule rule)
+    {
+        rulesStatus = null;
+        try
+        {
+            await ProgramRuleService.SetRuleActiveAsync(userId, rule.Id, !rule.IsActive);
+            await ReloadRulesAsync();
+        }
+        catch (Exception ex)
+        {
+            rulesStatus = ex.Message;
+        }
+    }
+
+    private void AskDelete(ProgramRule rule) => deleteCandidate = rule;
+
+    private async Task DeleteRuleAsync()
+    {
+        if (deleteCandidate is null)
+            return;
+
+        try
+        {
+            await ProgramRuleService.DeleteRuleAsync(userId, deleteCandidate.Id);
+            deleteCandidate = null;
+            rulesStatus = "Programmregel wurde gelöscht.";
+            await ReloadRulesAsync();
+        }
+        catch (Exception ex)
+        {
+            rulesStatus = ex.Message;
+            deleteCandidate = null;
+        }
+    }
+
+    private string MaterialLabel(ProgramRule rule)
+    {
+        if (rule.MaterialType == ProgramRuleMaterialType.Genre)
+        {
+            var names = rule.Genres.Count > 0
+                ? rule.Genres.Select(g => g.Genre?.Name).Where(n => n is not null).Cast<string>().OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList()
+                : new List<string?> { DbContext.Genres.FirstOrDefault(m => m.Id == rule.MaterialId)?.Name }.Where(n => n is not null).Cast<string>().ToList();
+            var sources = rule.MediaSourceFilters.Select(s => s.MediaSource?.Name).Where(n => n is not null).OrderBy(n => n).ToList();
+            if (names.Count == 0)
+                return "Genre (nicht gefunden)";
+            var label = $"Genre: {string.Join(", ", names)}";
+            return sources.Count > 0 ? $"{label} — Quellen: {string.Join(", ", sources)}" : label;
+        }
+        return MaterialLabel(rule.MaterialType, rule.MaterialId);
+    }
+
+    private string MaterialLabel(ProgramRuleMaterialType type, long id)
+    {
+        if (type == ProgramRuleMaterialType.Trailer)
+            return "Trailer anstehender Filme";
+        var name = type switch
+        {
+            ProgramRuleMaterialType.TVShow => DbContext.TVShows.FirstOrDefault(m => m.Id == id)?.Name,
+            ProgramRuleMaterialType.Movie => DbContext.Movies.FirstOrDefault(m => m.Id == id)?.Name,
+            ProgramRuleMaterialType.MovieCollection => DbContext.MovieCollections.FirstOrDefault(m => m.Id == id)?.Name,
+            ProgramRuleMaterialType.Genre => DbContext.Genres.AsNoTracking().FirstOrDefault(m => m.Id == id)?.Name,
+            ProgramRuleMaterialType.Playlist => DbContext.Playlists.FirstOrDefault(m => m.Id == id)?.Name,
+            ProgramRuleMaterialType.MediaSourceClips => DbContext.MediaSources.FirstOrDefault(m => m.Id == id)?.Name,
+            _ => null
+        };
+        var typeLabel = type switch
+        {
+            ProgramRuleMaterialType.TVShow => "Serie",
+            ProgramRuleMaterialType.Movie => "Film",
+            ProgramRuleMaterialType.MovieCollection => "Filmsammlung",
+            ProgramRuleMaterialType.Genre => "Genre",
+            ProgramRuleMaterialType.Playlist => "Playlist",
+            ProgramRuleMaterialType.MediaSourceClips => "Clip-Quelle",
+            _ => type.ToString()
+        };
+        return name is null ? $"{typeLabel} (nicht gefunden)" : $"{typeLabel}: {name}";
+    }
+
+    private static string RuleTypeLabel(ProgramRuleType t) => t switch
+    {
+        ProgramRuleType.SeriesFixedTime => "Serien-Sendezeit",
+        ProgramRuleType.MoviePrimeTime => "Film zur Primetime",
+        ProgramRuleType.GenreRotation => "Genre-/Formatrotation",
+        ProgramRuleType.Repeat => "Wiederholung",
+        ProgramRuleType.HolidaySpecial => "Feiertags-Special",
+        ProgramRuleType.Filler => "Platzhalter/Füller",
+        _ => t.ToString()
+    };
+
+    private static string RecurrenceLabel(ProgramRule r) => r.Recurrence switch
+    {
+        ProgramRuleRecurrence.Daily => "Täglich",
+        ProgramRuleRecurrence.Weekly => $"Wöchentlich ({WeekdayLabel(r.DayOfWeek ?? DayOfWeek.Monday)})",
+        ProgramRuleRecurrence.Once => $"Einmalig ({r.SingleDate?.ToString("dd.MM.yyyy")})",
+        ProgramRuleRecurrence.Holiday => "An Feiertagen",
+        ProgramRuleRecurrence.Weekday => "Werktags (Mo–Fr)",
+        ProgramRuleRecurrence.Weekend => "Wochenende (Sa+So)",
+        _ => r.Recurrence.ToString()
+    };
+
+    private static string DurationLabel(ProgramRule r)
+    {
+        var parts = new List<string>();
+        if (r.EpisodeCount is > 0)
+            parts.Add($"{r.EpisodeCount} Folge(n)");
+        if (r.SlotDuration is { } d)
+            parts.Add($"{(int)d.TotalMinutes} Min");
+        return string.Join(" / ", parts);
+    }
+
+    private static string WeekdayLabel(DayOfWeek d) => d switch
+    {
+        DayOfWeek.Monday => "Montag",
+        DayOfWeek.Tuesday => "Dienstag",
+        DayOfWeek.Wednesday => "Mittwoch",
+        DayOfWeek.Thursday => "Donnerstag",
+        DayOfWeek.Friday => "Freitag",
+        DayOfWeek.Saturday => "Samstag",
+        DayOfWeek.Sunday => "Sonntag",
+        _ => d.ToString()
+    };
+
+    private async Task ResetProbeItemAsync(MediaDurationProbeDetailItem item)
+    {
+        try
+        {
+            var reset = await ProbeService.ResetFailedProbeAsync(userId, item.MediaItemId, CancellationToken.None);
+            probeStatus = reset
+                ? $"„{item.Name}“ wurde zurückgesetzt und wird beim nächsten Ermittlungslauf erneut geprüft."
+                : $"„{item.Name}“ ist nicht (mehr) fehlgeschlagen.";
+            await LoadProbeProgressAsync();
+        }
+        catch (Exception ex)
+        {
+            probeStatus = ex.Message;
+        }
+    }
+
+    private async Task ResetAllFailedProbesAsync()
+    {
+        confirmProbeReset = false;
+        try
+        {
+            var reset = await ProbeService.ResetFailedProbesAsync(userId, CancellationToken.None);
+            probeStatus = reset == 0
+                ? "Es waren keine fehlgeschlagenen Dateien vorhanden."
+                : $"{reset} Datei(en) wurden zurückgesetzt und werden beim nächsten Ermittlungslauf erneut geprüft.";
+            await LoadProbeProgressAsync();
+        }
+        catch (Exception ex)
+        {
+            probeStatus = ex.Message;
+        }
+    }
+
+    private sealed class RuleEditModel
+    {
+        public long Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public ProgramRuleType RuleType { get; set; }
+        public ProgramRuleRecurrence Recurrence { get; set; }
+        public DayOfWeek? DayOfWeek { get; set; }
+        public DateTime? SingleDate { get; set; }
+        public TimeOnly TimeOfDay { get; set; } = new TimeOnly(20, 0);
+        public int? EpisodeCount { get; set; }
+        public int? DurationMinutes { get; set; }
+        public ProgramRuleMaterialType MaterialType { get; set; }
+        public long MaterialId { get; set; }
+        public string MaterialDisplayName { get; set; } = string.Empty;
+        public HashSet<long> SelectedGenreIds { get; set; } = new();
+        public HashSet<long> SelectedMediaSourceIds { get; set; } = new();
+        public int Priority { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+}

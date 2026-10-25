@@ -76,7 +76,10 @@ public sealed class TVSenderAdminClipGroupsE2ETests : TVSenderAdminE2ETestBase
         var sourceId = await EnsureMediaSourceIdAsync(db);
         var collection = new MediaCollection
         {
-            Name = $"clips-{Guid.NewGuid():N}", MediaSourceId = sourceId, Path = $"/test/clips-{Guid.NewGuid():N}", CreatedAt = DateTime.UtcNow
+            Name = $"clips-{Guid.NewGuid():N}",
+            MediaSourceId = sourceId,
+            Path = $"/test/clips-{Guid.NewGuid():N}",
+            CreatedAt = DateTime.UtcNow
         };
         db.MediaCollections.Add(collection);
         await db.SaveChangesAsync(ct);
@@ -86,8 +89,12 @@ public sealed class TVSenderAdminClipGroupsE2ETests : TVSenderAdminE2ETestBase
         await db.SaveChangesAsync(ct);
         var items = clips.Select(c => new MediaItem
         {
-            Name = c.Name, Path = $"{collection.Path}/{c.Name}", MediaCollectionId = collection.Id,
-            Duration = c.Duration, DurationProbedAt = DateTime.UtcNow, CreatedAt = DateTime.UtcNow
+            Name = c.Name,
+            Path = $"{collection.Path}/{c.Name}",
+            MediaCollectionId = collection.Id,
+            Duration = c.Duration,
+            DurationProbedAt = DateTime.UtcNow,
+            CreatedAt = DateTime.UtcNow
         }).ToList();
         db.MediaItems.AddRange(items);
         await db.SaveChangesAsync(ct);
@@ -104,7 +111,10 @@ public sealed class TVSenderAdminClipGroupsE2ETests : TVSenderAdminE2ETestBase
         var sourceId = await EnsureMediaSourceIdAsync(db);
         var collection = new MediaCollection
         {
-            Name = $"movies-{Guid.NewGuid():N}", MediaSourceId = sourceId, Path = $"/test/m-{Guid.NewGuid():N}", CreatedAt = DateTime.UtcNow
+            Name = $"movies-{Guid.NewGuid():N}",
+            MediaSourceId = sourceId,
+            Path = $"/test/m-{Guid.NewGuid():N}",
+            CreatedAt = DateTime.UtcNow
         };
         db.MediaCollections.Add(collection);
         var movie = new Movie { Name = name, MediaSourceId = sourceId, CreatedAt = DateTime.UtcNow };
@@ -112,8 +122,12 @@ public sealed class TVSenderAdminClipGroupsE2ETests : TVSenderAdminE2ETestBase
         await db.SaveChangesAsync(ct);
         var item = new MediaItem
         {
-            Name = $"{name}.mkv", Path = $"{collection.Path}/{name}.mkv", MediaCollectionId = collection.Id,
-            Duration = TimeSpan.FromMinutes(76), DurationProbedAt = DateTime.UtcNow, CreatedAt = DateTime.UtcNow
+            Name = $"{name}.mkv",
+            Path = $"{collection.Path}/{name}.mkv",
+            MediaCollectionId = collection.Id,
+            Duration = TimeSpan.FromMinutes(76),
+            DurationProbedAt = DateTime.UtcNow,
+            CreatedAt = DateTime.UtcNow
         };
         db.MediaItems.Add(item);
         await db.SaveChangesAsync(ct);
@@ -313,10 +327,17 @@ public sealed class TVSenderAdminClipGroupsE2ETests : TVSenderAdminE2ETestBase
             var channel = await new ProgramRuleService(db).GetOrCreateChannelAsync(ct);
             var rule = new ProgramRule
             {
-                TVChannelId = channel.Id, Name = "Primetime", RuleType = ProgramRuleType.MoviePrimeTime,
-                Recurrence = ProgramRuleRecurrence.Daily, TimeOfDay = new TimeOnly(20, 0),
-                SlotDuration = TimeSpan.FromHours(4), MaterialType = ProgramRuleMaterialType.Movie,
-                MaterialId = movie.Id, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
+                TVChannelId = channel.Id,
+                Name = "Primetime",
+                RuleType = ProgramRuleType.MoviePrimeTime,
+                Recurrence = ProgramRuleRecurrence.Daily,
+                TimeOfDay = new TimeOnly(20, 0),
+                SlotDuration = TimeSpan.FromHours(4),
+                MaterialType = ProgramRuleMaterialType.Movie,
+                MaterialId = movie.Id,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
             };
             db.ProgramRules.Add(rule);
             await db.SaveChangesAsync(ct);

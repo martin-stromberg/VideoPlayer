@@ -224,6 +224,12 @@ public sealed class FfmpegToolDownloadService : IFfmpegToolDownloadService
         catch (Exception ex)
         {
             _logger.LogError(ex, "ffmpeg tool download job {JobId} failed.", jobId);
+            // Cleanup BEFORE the terminal snapshot: observers waiting on the job must never
+            // see Failed while staged *.tmp files are still on disk (flake in CI under load).
+            TryDelete(tempFile);
+            foreach (var staged in stagedFiles)
+                TryDelete(staged);
+            stagedFiles.Clear();
             SetSnapshot(jobId, FfmpegToolDownloadJobStatus.Failed, "Download fehlgeschlagen.",
                 UserFacingError(ex), DateTimeOffset.UtcNow);
         }

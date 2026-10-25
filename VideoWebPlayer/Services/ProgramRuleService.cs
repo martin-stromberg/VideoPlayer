@@ -85,6 +85,8 @@ public sealed class ProgramRuleService : IProgramRuleService
                 .ThenInclude(g => g.Genre)
             .Include(r => r.MediaSourceFilters)
                 .ThenInclude(s => s.MediaSource)
+            .Include(r => r.ClipGroups)
+                .ThenInclude(c => c.ClipGroup)
             .Where(r => r.TVChannelId == channelId)
             .OrderBy(r => r.Name)
             .ToListAsync(cancellationToken);
@@ -129,6 +131,7 @@ public sealed class ProgramRuleService : IProgramRuleService
             MaterialId = MaterialIdFor(input),
             Priority = input.Priority,
             IsActive = input.IsActive,
+            PlaceholderGrace = input.PlaceholderGrace ?? ProgramRule.DefaultPlaceholderGrace,
             CreatedAt = now,
             UpdatedAt = now
         };
@@ -136,6 +139,7 @@ public sealed class ProgramRuleService : IProgramRuleService
         _db.ProgramRules.Add(rule);
         await _db.SaveChangesAsync(cancellationToken);
         await ReplaceGenreLinksAsync(rule.Id, input, cancellationToken);
+        await ReplaceClipGroupLinksAsync(rule.Id, input, cancellationToken);
         _scheduleSignal?.NotifyScheduleChanged();
         return rule;
     }
@@ -161,10 +165,12 @@ public sealed class ProgramRuleService : IProgramRuleService
         rule.MaterialId = MaterialIdFor(input);
         rule.Priority = input.Priority;
         rule.IsActive = input.IsActive;
+        rule.PlaceholderGrace = input.PlaceholderGrace ?? ProgramRule.DefaultPlaceholderGrace;
         rule.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
         await ReplaceGenreLinksAsync(rule.Id, input, cancellationToken);
+        await ReplaceClipGroupLinksAsync(rule.Id, input, cancellationToken);
         _scheduleSignal?.NotifyScheduleChanged();
         return rule;
     }
@@ -190,6 +196,18 @@ public sealed class ProgramRuleService : IProgramRuleService
             foreach (var sourceId in (input.MediaSourceIds ?? Array.Empty<long>()).Distinct())
                 _db.ProgramRuleMediaSources.Add(new ProgramRuleMediaSource { ProgramRuleId = ruleId, MediaSourceId = sourceId });
         }
+
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    // Replaces the clip-group links of the rule — independent of the material type (clip groups
+    // are an additional assignment on non-filler rules with a slot duration).
+    private async Task ReplaceClipGroupLinksAsync(long ruleId, ProgramRuleInput input, CancellationToken cancellationToken)
+    {
+        _db.ProgramRuleClipGroups.RemoveRange(_db.ProgramRuleClipGroups.Where(c => c.ProgramRuleId == ruleId));
+
+        foreach (var groupId in (input.ClipGroupIds ?? Array.Empty<long>()).Distinct())
+            _db.ProgramRuleClipGroups.Add(new ProgramRuleClipGroup { ProgramRuleId = ruleId, ProgramClipGroupId = groupId });
 
         await _db.SaveChangesAsync(cancellationToken);
     }
@@ -263,6 +281,8 @@ public sealed class ProgramRuleService : IProgramRuleService
         if (!GetAllowedMaterialTypes(input.RuleType).Contains(input.MaterialType))
             throw new ArgumentException($"Die Materialart {input.MaterialType} ist für die Regelart {input.RuleType} nicht zulässig.");
 
+        await ValidateClipGroupInputAsync(input, cancellationToken);
+
         if (input.MaterialType == ProgramRuleMaterialType.Genre)
         {
             await ValidateGenreInputAsync(input, cancellationToken);
@@ -286,6 +306,37 @@ public sealed class ProgramRuleService : IProgramRuleService
 
         if (!exists)
             throw new KeyNotFoundException("Das gewählte Programmmaterial wurde nicht gefunden.");
+    }
+
+    // Clip groups only make sense on non-filler rules with a slot duration (the grace period
+    // governs the end of a timed period); the reserved "Trailer" group is a regular assignable
+    // row. The grace is just as bound to a slot duration — without one it is rejected rather
+    // than stored as a dead value; with one it must leave room for at least one title inside
+    // the period.
+    private async Task ValidateClipGroupInputAsync(ProgramRuleInput input, CancellationToken cancellationToken)
+    {
+        var clipGroupIds = (input.ClipGroupIds ?? Array.Empty<long>()).Distinct().ToList();
+        if (clipGroupIds.Count > 0)
+        {
+            if (input.RuleType == ProgramRuleType.Filler)
+                throw new ArgumentException("Clip-Gruppen sind für Füller-Regeln nicht zulässig.");
+            if (input.SlotDuration is null)
+                throw new ArgumentException("Clip-Gruppen erfordern eine Länge (Sendeplatz-Dauer) an der Regel.");
+
+            var existingGroups = await _db.ProgramClipGroups.CountAsync(g => clipGroupIds.Contains(g.Id), cancellationToken);
+            if (existingGroups != clipGroupIds.Count)
+                throw new KeyNotFoundException("Eine gewählte Clip-Gruppe wurde nicht gefunden.");
+        }
+
+        if (input.PlaceholderGrace is { } grace)
+        {
+            if (grace <= TimeSpan.Zero)
+                throw new ArgumentException("Die Karenzzeit muss größer als 0 sein.");
+            if (input.SlotDuration is null)
+                throw new ArgumentException("Die Karenzzeit erfordert eine Länge (Sendeplatz-Dauer) an der Regel.");
+            if (grace >= input.SlotDuration)
+                throw new ArgumentException("Die Karenzzeit muss kleiner als die Länge des Sendeplatzes sein.");
+        }
     }
 
     private async Task ValidateGenreInputAsync(ProgramRuleInput input, CancellationToken cancellationToken)

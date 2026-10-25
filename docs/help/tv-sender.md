@@ -29,12 +29,14 @@ Administratoren haben immer Zugriff und brauchen keinen Eintrag in der Liste (ih
 ist fest gesetzt). Ohne Auswahl sehen nur Administratoren den Sender. Das Löschen eines
 Benutzerkontos entfernt dessen Freigabezeile automatisch.
 
-Die Seite ist in vier Bereiche gegliedert, die über die Reiter (Tabs) oben erreichbar sind:
+Die Seite ist in fünf Bereiche gegliedert, die über die Reiter (Tabs) oben erreichbar sind:
 **Regeln** (Programmregeln-Tabelle; der Regel-Editor öffnet sich als Overlay-Panel über der
 Liste), **Sendeplan** (kommende
 Sendeplätze und manueller Generierungsanstoß), **Einstellungen** (Sender, Planung und
-Segmentierung) und **Laufzeitermittlung** (Fortschritt der automatischen
-Videolaufzeit-Ermittlung).
+Segmentierung), **Laufzeitermittlung** (Fortschritt der automatischen
+Videolaufzeit-Ermittlung) und **Clip-Gruppen** (Verwaltung benannter Platzhalter-Clip-Gruppen
+für die Restzeit-Auffüllung im Sendeplatz — siehe Abschnitt
+[„Clip-Gruppen mit Karenzzeit im Sendeplatz"](#clip-gruppen-mit-karenzzeit-im-sendeplatz)).
 
 ## Sender
 
@@ -165,10 +167,90 @@ In Programmauskunft, Live-TV und Sendeplan-Anzeige tragen die Sendeplätze den D
 Clips als Titel. Fertige Beispielclips samt Drehbüchern und dem Generatorskript liegen im
 Projektverzeichnis unter `docs/projects/…/maskottchen/` (siehe dortige `README.md`).
 
+#### Clip-Gruppen mit Karenzzeit im Sendeplatz
+
+Neben der „Clip-Quelle" für Füller-Regeln lassen sich Platzhalter-Clips auch in benannten
+**Clip-Gruppen** verwalten und gezielt an Regeln hängen — etwa „Funki vor Werbung",
+„Senderpause" oder „Feiertags-Jingles".
+
+##### Gruppen verwalten (Tab „Clip-Gruppen")
+
+Der Tab **„Clip-Gruppen"** führt die Gruppenliste mit Name und Clip-Anzahl. Über
+**„Neue Gruppe"** wird eine Gruppe im Dialog angelegt; **„Umbenennen"** und **„Löschen"**
+ändern sie nachträglich. Das Löschen muss bestätigt werden und entfernt auch die
+Zuordnungen der Gruppe zu allen Regeln. Jede Änderung an Gruppen oder Mitgliedschaften
+stößt die Plan-Neubewertung sofort an — ohne auf das Generierungsintervall zu warten.
+
+Über **„Clips verwalten"** öffnet sich die Mitgliederliste einer Gruppe (je Clip: Name,
+Quelle, Laufzeit, Schaltfläche **„Entfernen"**). Im Abschnitt **„Clips hinzufügen"** werden
+Kandidaten über ein **Suche**-Feld (Suchtext im Dateinamen) und einen **Quelle**-Filter
+ausgewählt; die Schaltfläche **„Suchen"** lädt die Trefferliste. Schon zugeordnete Dateien
+tragen die Markierung **„Bereits zugeordnet"**, die übrigen lassen sich per
+**„Hinzufügen"** übernehmen; bei langen Trefferlisten erscheint **„Weitere laden"**.
+
+Als Mitglieder kommen wie bei der Clip-Quelle ausschließlich **uneingeordnete
+Videodateien** in Frage (keine `.nfo`, keine Film-/Serien-Zuordnung); findet die Suche
+nichts Passendes, weist ein Hinweis darauf hin. Dateien, die inzwischen einem Film oder
+einer Episode zugeordnet wurden, lassen sich nicht mehr zuordnen und fallen im Sendeplan
+automatisch aus der Rotation. Ein Clip darf mehreren Gruppen angehören. Zwei
+Einschränkungen gelten zusätzlich:
+
+- Ein Clip ohne ermittelte Laufzeit trägt die Markierung **„keine Laufzeit"** — er lässt
+  sich zuordnen, wird bei der Restzeit-Auffüllung aber nicht berücksichtigt. Die
+  Laufzeitermittlung läuft im Hintergrund nach (Tab „Laufzeitermittlung").
+- Wie überall im Sendeplan werden nur Clips eingeplant, deren Quelle für das gesamte
+  (Nicht-Administrator-)Publikum freigegeben ist.
+
+##### Reservierte Gruppe „Trailer"
+
+Das System führt automatisch die Clip-Gruppe **„Trailer"** — in der Liste mit dem Zusatz
+„(System — automatisch befüllt)" gekennzeichnet. Sie lässt sich jeder passenden Regel
+zuordnen, kann aber weder umbenannt noch gelöscht oder manuell befüllt werden; ihre
+Schaltfläche **„Ansehen"** zeigt nur einen Hinweis auf die automatische Befüllung: Der
+Plan zieht daraus Trailer, deren Film innerhalb des Vorlauffensters
+(`ProgramSchedule:TrailerLeadDays`) ausgestrahlt wird — Vorlauf-Werbung direkt im
+Sendeplatz. Steht gerade kein Film im Vorlauffenster, liefern die übrigen zugeordneten
+Gruppen das Füllmaterial. Der Name „Trailer" ist für frei anlegbare Gruppen gesperrt. Ein
+Trailer-Clip zeigt in der Programmauskunft die Daten seines Films.
+
+##### Zuordnung und Karenzzeit an der Regel
+
+Im Regel-Editor erscheint bei allen Regelarten außer „Platzhalter/Füller" die
+Checkbox-Liste **„Clip-Gruppen (Restzeit-Auffüllung)"** — beliebig viele Gruppen sind
+wählbar, „Trailer" trägt den Zusatz „(automatisch befüllt)". Ist noch keine Gruppe
+angelegt, verweist ein Hinweis auf den Tab „Clip-Gruppen".
+
+Die Auswahl wirkt nur bei gesetzter **Sendeplatz-Länge** („Länge (Minuten)"): Ohne Länge
+erscheint der Hinweis „Clip-Gruppen und Karenzzeit wirken nur bei gesetzter
+Sendeplatz-Länge." und das Zahlenfeld **„Karenzzeit (Minuten)"** bleibt ausgeblendet.
+Mit Länge steuert die Karenzzeit den Füllbeginn (Standard: 15 Minuten; sie muss größer
+als 0 und kleiner als die Sendeplatz-Länge sein — das wird beim Speichern geprüft). In der
+Regel-Tabelle zeigt der Material-Eintrag zugeordnete Gruppen als Suffix „— Clips: …".
+
+##### Wirkung im Sendeplan
+
+- Endet die Titel-Ausstrahlung eines Sendeplatzes so, dass bis zum Periodenende **weniger
+  als die Karenzzeit** frei bleibt, wird kein weiterer Titel mehr gestartet (Rest gleich
+  oder größer der Karenzzeit → der nächste Titel startet wie bisher und läuft über das
+  Periodenende hinaus zu Ende). Stattdessen verteilt der Plan die Restzeit gleichmäßig auf
+  Clips der zugeordneten Gruppen — **vor dem ersten Titel, zwischen den Titeln und nach
+  dem letzten**.
+- Clips rotieren über die Gruppen im Wechsel (Round-Robin); jede Gruppe merkt sich ihren
+  Fortschritt über die Läufe hinweg, so dass keine Wiederholung direkt aufeinander folgt.
+- Der **letzte Clip** darf wie üblich über das Periodenende hinausragen; reicht der freie
+  Raum für keinen Clip, bleibt die Restzeit eine normale Lücke für die Füller-Regeln. In
+  belegte Fenster oder reservierte Fenster höherpriorer Regeln ragen Clips niemals hinein.
+- Ist an einer Regel **keine** Clip-Gruppe hinterlegt, verhält sich der Sendeplatz exakt
+  wie bisher (Titel-Overshoot über das Periodenende hinaus).
+
+Technische Einzelheiten zu Ablauf und Datenmodell: [TV-Sender — Technischer Ablauf](tv-sender-ablauf-technisch.md),
+[TV-Sender — Datenmodell](tv-sender-datenmodell.md).
+
 ### Nachführung bei Änderungen
 
 Der Sendeplan wird nicht nur periodisch fortgeschrieben, sondern nach jeder planrelevanten
 Änderung neu bewertet: Beim Anlegen, Bearbeiten, (De)Aktivieren oder Löschen einer Programmregel,
+bei jeder Änderung an Clip-Gruppen oder deren Clip-Mitgliedschaften,
 beim Eintritt neuer Episoden oder Filme in eine Sammlung, beim Löschen einer Medienquelle und am
 Ende jedes Medien-Scans wacht der Hintergrundlauf sofort auf; das Generierungsintervall dient als
 Sicherheitsnetz für Änderungen ohne Auslöser (z. B. direkte Datenbank-Löschungen).

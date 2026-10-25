@@ -54,6 +54,7 @@ public sealed class TVSenderAdminTests
         ctx.Services.AddSingleton<IProgramRuleService>(ruleService);
         ctx.Services.AddSingleton<IProgramScheduleService>(scheduleService);
         ctx.Services.AddSingleton<IProgramScheduleSignal>(new ProgramScheduleSignal());
+        ctx.Services.AddSingleton<IProgramClipGroupService>(new ProgramClipGroupService(db));
         ctx.Services.AddSingleton(probeService);
         ctx.Services.AddSingleton(settings);
         ctx.Services.AddSingleton(ffprobeLocator ?? new PresentLocator());
@@ -82,11 +83,12 @@ public sealed class TVSenderAdminTests
         cut.WaitForAssertion(() =>
         {
             var tabs = cut.FindAll(".admin-tab");
-            Assert.Equal(4, tabs.Count);
+            Assert.Equal(5, tabs.Count);
             Assert.Equal("Regeln", tabs[0].TextContent.Trim());
             Assert.Equal("Sendeplan", tabs[1].TextContent.Trim());
             Assert.Equal("Einstellungen", tabs[2].TextContent.Trim());
             Assert.Equal("Laufzeitermittlung", tabs[3].TextContent.Trim());
+            Assert.Equal("Clip-Gruppen", tabs[4].TextContent.Trim());
         }, TimeSpan.FromSeconds(10));
 
         // Only the Regeln pane is active; the other panes stay in the DOM (CSS-hidden),

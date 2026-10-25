@@ -275,6 +275,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IProgramRuleService, ProgramRuleService>();
         services.AddScoped<IProgramScheduleService, ProgramScheduleService>();
         services.AddScoped<IProgramGuideService, ProgramGuideService>();
+        services.AddScoped<IProgramClipGroupService, ProgramClipGroupService>();
         services.AddSingleton(TimeProvider.System);
         services.AddScoped<WatchedStatusService>();
         services.AddBackups(configuration.GetSection("Backups"));

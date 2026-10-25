@@ -39,7 +39,38 @@ internal sealed class ProgramScheduleTestDb : IDisposable
         // Tests der Sperre setzen den Wert explizit auf false.
         db.Setups.Add(new Setup { TvSenderEnabled = true });
         await db.SaveChangesAsync(ct);
-        return new ProgramScheduleTestDb(connection, db);
+        var fixture = new ProgramScheduleTestDb(connection, db);
+        await fixture.SeedTrailerClipGroupAsync(ct);
+        return fixture;
+    }
+
+    /// <summary>Seeds the reserved system clip group "Trailer" — the migration InsertData seed
+    /// never runs under EnsureCreated, so fixtures add the row explicitly.</summary>
+    public async Task<ProgramClipGroup> SeedTrailerClipGroupAsync(CancellationToken ct)
+    {
+        var existing = await Db.ProgramClipGroups.FindAsync([ProgramClipGroup.TrailerGroupId], ct);
+        if (existing is not null)
+            return existing;
+        var group = new ProgramClipGroup { Id = ProgramClipGroup.TrailerGroupId, Name = ProgramClipGroup.TrailerGroupName, IsSystem = true };
+        Db.ProgramClipGroups.Add(group);
+        await SaveDiagAsync();
+        return group;
+    }
+
+    /// <summary>Creates a named clip group directly in the database (bypasses service validation).</summary>
+    public async Task<ProgramClipGroup> CreateClipGroupAsync(string name, CancellationToken ct)
+    {
+        var group = new ProgramClipGroup { Name = name };
+        Db.ProgramClipGroups.Add(group);
+        await SaveDiagAsync();
+        return group;
+    }
+
+    /// <summary>Adds a media item to a clip group (direct join-row insert).</summary>
+    public async Task AddClipToGroupAsync(long groupId, long mediaItemId, CancellationToken ct)
+    {
+        Db.ProgramClipGroupItems.Add(new ProgramClipGroupItem { ProgramClipGroupId = groupId, MediaItemId = mediaItemId });
+        await SaveDiagAsync();
     }
 
     public ProgramScheduleService CreateService(Microsoft.Extensions.Options.IOptions<VideoWebPlayer.Configuration.ProgramScheduleOptions>? scheduleOptions = null)
@@ -212,7 +243,8 @@ internal sealed class ProgramScheduleTestDb : IDisposable
         TimeOnly timeOfDay, ProgramRuleMaterialType materialType, long materialId,
         int priority = 0, int? episodeCount = null, TimeSpan? slotDuration = null,
         DayOfWeek? dayOfWeek = null, DateOnly? singleDate = null, bool isActive = true,
-        IEnumerable<long>? genreIds = null, IEnumerable<long>? mediaSourceIds = null)
+        IEnumerable<long>? genreIds = null, IEnumerable<long>? mediaSourceIds = null,
+        IEnumerable<long>? clipGroupIds = null, TimeSpan? placeholderGrace = null)
     {
         var rule = new ProgramRule
         {
@@ -229,6 +261,7 @@ internal sealed class ProgramScheduleTestDb : IDisposable
             MaterialId = materialId,
             Priority = priority,
             IsActive = isActive,
+            PlaceholderGrace = placeholderGrace ?? ProgramRule.DefaultPlaceholderGrace,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -244,6 +277,12 @@ internal sealed class ProgramScheduleTestDb : IDisposable
         {
             foreach (var sourceId in mediaSourceIds.Distinct())
                 Db.ProgramRuleMediaSources.Add(new ProgramRuleMediaSource { ProgramRuleId = rule.Id, MediaSourceId = sourceId });
+            await SaveDiagAsync();
+        }
+        if (clipGroupIds is not null)
+        {
+            foreach (var groupId in clipGroupIds.Distinct())
+                Db.ProgramRuleClipGroups.Add(new ProgramRuleClipGroup { ProgramRuleId = rule.Id, ProgramClipGroupId = groupId });
             await SaveDiagAsync();
         }
         return rule;

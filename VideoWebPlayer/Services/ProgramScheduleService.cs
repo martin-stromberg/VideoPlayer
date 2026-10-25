@@ -71,6 +71,8 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         var rules = await _db.ProgramRules
             .Include(r => r.Genres)
             .Include(r => r.MediaSourceFilters)
+            .Include(r => r.ClipGroups)
+                .ThenInclude(c => c.ClipGroup)
             .Where(r => r.TVChannelId == channel.Id && r.IsActive)
             .ToListAsync(cancellationToken);
 
@@ -94,6 +96,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             .ToDictionary(g => g.Key, g => (IReadOnlyList<ProgramRuleCursor>)g.ToList());
 
         var states = new Dictionary<long, RuleState>();
+        var clipContext = new ClipFillContext(access, null, coverageStart, [], horizonEnd.UtcDateTime, summary);
         foreach (var rule in rules)
         {
             // Trailer material expands only after the occurrences are materialized — its content
@@ -101,7 +104,12 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             var items = rule.MaterialType == ProgramRuleMaterialType.Trailer
                 ? new List<SchedulableItem>()
                 : await ExpandMaterialAsync(rule, access, summary, cancellationToken);
-            states[rule.Id] = new RuleState(rule, items, cursors.GetValueOrDefault(rule.Id) ?? []);
+            var state = new RuleState(rule, items, cursors.GetValueOrDefault(rule.Id) ?? []);
+            // Trailer clip groups expand late (after materialization) — their candidate set
+            // depends on the freshly computed movie airings of this run.
+            state.ClipGroups.AddRange(await BuildClipGroupStates(
+                rule, cursors.GetValueOrDefault(rule.Id) ?? [], clipContext, cancellationToken));
+            states[rule.Id] = state;
         }
 
         var blocked = (await _db.ProgramSlots
@@ -119,6 +127,9 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
         var movieAirings = await LoadMovieAiringsAsync(channel.Id, coverageStart, newSlots, cancellationToken);
         await ExpandTrailerStatesAsync(states, cursors, access, movieAirings, coverageStart, summary, cancellationToken);
+        clipContext = clipContext with { AiringsByMovie = movieAirings, BoundStarts = boundStarts };
+        await ExpandClipGroupStatesAsync(states, cursors, clipContext, cancellationToken);
+        InsertClipFill(newSlots, blocked, states, clipContext);
         FillGaps(states, rules, blocked, newSlots, coverageStart, horizonEnd.UtcDateTime, summary, movieAirings);
 
         PersistCursors(states, cursors);
@@ -139,6 +150,8 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         var rules = await _db.ProgramRules
             .Include(r => r.Genres)
             .Include(r => r.MediaSourceFilters)
+            .Include(r => r.ClipGroups)
+                .ThenInclude(c => c.ClipGroup)
             .Where(r => r.TVChannelId == channel.Id)
             .ToListAsync(cancellationToken);
         var rulesById = rules.ToDictionary(r => r.Id);
@@ -163,10 +176,16 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
         var airingsByMovie = await LoadMovieAiringsAsync(channel.Id, coverageStart, [], cancellationToken);
         var states = new Dictionary<long, RuleState>();
+        var clipContext = new ClipFillContext(access, airingsByMovie, coverageStart, [], horizonEnd.UtcDateTime, summary);
         foreach (var rule in rules)
         {
             var items = await ExpandMaterialAsync(rule, access, summary, airingsByMovie, coverageStart, cancellationToken);
-            states[rule.Id] = new RuleState(rule, items, cursors.GetValueOrDefault(rule.Id) ?? []);
+            var state = new RuleState(rule, items, cursors.GetValueOrDefault(rule.Id) ?? []);
+            // Reconcile knows the persisted movie airings already — trailer clip groups expand
+            // immediately, like the trailer material.
+            state.ClipGroups.AddRange(await BuildClipGroupStates(
+                rule, cursors.GetValueOrDefault(rule.Id) ?? [], clipContext, cancellationToken));
+            states[rule.Id] = state;
         }
 
         // Scheduled slots reaching into the lookback window — wide enough to capture the head slot
@@ -340,6 +359,8 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         }
 
         var leadAirings = await BuildMovieAiringsFromSlotsAsync(keptSlots.Concat(newSlots), coverageStart, cancellationToken);
+        InsertClipFill(newSlots, blocked, states,
+            clipContext with { AiringsByMovie = leadAirings, BoundStarts = window.BoundStarts });
         FillGaps(states, activeRules, blocked, newSlots, coverageStart, horizonEnd.UtcDateTime, summary, leadAirings);
 
         PersistCursors(states, cursors);
@@ -487,9 +508,59 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     // items and slot boundaries under the same selection logic (EpisodeCount / SlotDuration,
     // min-start-remainder and the overshoot boundary — a shifted or overshooting airing is
     // expected, not invalid).
+    // Media item ids of every clip-group ring of the rule — the clip-first classification set:
+    // a slot whose media item is a clip candidate is a fill clip, everything else a title.
+    private static HashSet<long> ClipMediaItemIds(RuleState state)
+    {
+        var ids = new HashSet<long>();
+        foreach (var clipGroup in state.ClipGroups)
+            foreach (var item in clipGroup.Ring.Items)
+                ids.Add(item.MediaItemId);
+        return ids;
+    }
+
     private static bool AiringReproducible(List<ProgramSlot> airing, RuleState state, HashSet<DateTime> occurrenceStarts, List<(DateTime StartUtc, int Priority)> boundStarts, Dictionary<DateTime, DateTime> invaderStarts, TimeSpan minStartRemain)
-        => AiringReproducible(airing, 0, DateTime.MinValue,
+    {
+        var clipIds = ClipMediaItemIds(state);
+        var effective = airing;
+        if (clipIds.Count > 0)
+        {
+            // Clip-aware pre-filter: clip slots are verified by membership in the current clip
+            // expansion (a removed/changed clip makes the airing invalid — same behavior as
+            // changed material) and by gapless chaining; their positions are not re-simulated.
+            // For the title tail check the kept slots are projected onto a clip-free time axis:
+            // every title slot shifts back by the clip time preceding it, so content, order and
+            // durations reproduce under the regular check.
+            effective = new List<ProgramSlot>(airing.Count);
+            var clipTime = TimeSpan.Zero;
+            for (var i = 0; i < airing.Count; i++)
+            {
+                var slot = airing[i];
+                if (i > 0 && slot.Start != airing[i - 1].End)
+                    return false; // broken chain — a clip airing must stay gaplessly linked
+                if (clipIds.Contains(slot.MediaItemId))
+                {
+                    clipTime += slot.End - slot.Start;
+                    continue;
+                }
+                effective.Add(new ProgramSlot
+                {
+                    Start = slot.Start - clipTime,
+                    End = slot.End - clipTime,
+                    MediaItemId = slot.MediaItemId,
+                    MovieId = slot.MovieId,
+                    TVShowEpisodeId = slot.TVShowEpisodeId,
+                    ProgramRuleId = slot.ProgramRuleId,
+                    RuleType = slot.RuleType,
+                    Status = slot.Status
+                });
+            }
+            if (effective.Count == 0)
+                return false; // an airing always carries at least one title
+        }
+        return AiringReproducible(effective, 0, DateTime.MinValue,
             new ReproContext(state, occurrenceStarts, boundStarts, invaderStarts, minStartRemain, new Dictionary<(int Offset, DateTime AfterStart), bool>()));
+    }
 
     // Validates airing[offset..] as a chain of sub-airings anchored at strictly ascending
     // occurrence starts (> afterStart): a merged group of a dense rule holds one (partial)
@@ -524,6 +595,9 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
         var rule = state.Rule;
         var wanted = rule.EpisodeCount is > 0 ? rule.EpisodeCount.Value : int.MaxValue;
+        var clipGrace = state.ClipGroups.Count > 0 && rule.SlotDuration is not null
+            ? rule.PlaceholderGrace
+            : (TimeSpan?)null;
 
         var count = items.Count;
         var earliestStart = occurrenceStarts.Min();
@@ -554,7 +628,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                     && !(invaderStarts.TryGetValue(airingStart, out var invaderStart) && invaderStart < occurrenceStart))
                     continue;
                 var expected = SelectAiringItems(items, headIndex, rule, airingStart,
-                    BoundaryAfter(boundStarts, occurrenceStart, rule.Priority), minStartRemain);
+                    BoundaryAfter(boundStarts, occurrenceStart, rule.Priority), minStartRemain, clipGrace);
                 // The candidate may cover a real prefix of the group — the merged chain holds
                 // one airing per occurrence; the remainder is checked recursively against
                 // strictly later occurrences.
@@ -598,6 +672,9 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         var strands = state.Strands;
         var m = strands.Count;
         var rule = state.Rule;
+        var clipGrace = state.ClipGroups.Count > 0 && rule.SlotDuration is not null
+            ? rule.PlaceholderGrace
+            : (TimeSpan?)null;
         if (occurrenceStarts.Count == 0)
             return false;
 
@@ -703,7 +780,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                         continue; // shift requires an occupied slot covering the nominal start
 
                     var picks = SelectAiringItemsInterleaved(simStrands, rule, simStart,
-                        BoundaryAfter(boundStarts, occurrenceStart, rule.Priority), minStartRemain);
+                        BoundaryAfter(boundStarts, occurrenceStart, rule.Priority), minStartRemain, clipGrace);
                     // A real prefix of the group suffices — the remainder is checked recursively
                     // against strictly later occurrences (merged multi-occurrence chains).
                     var consumed = picks.Count - p;
@@ -755,32 +832,52 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     // rewinds when the strand cursor has already passed that position.
     private static void RewindCursor(RuleState state, List<ProgramSlot> displacedSlots, IReadOnlyList<ProgramRuleCursor> cursorRows)
     {
+        // Displaced clip slots belong to the clip-group rings, not the title strands — the
+        // clip-first classification keeps a trailer clip (which carries MovieId) from being
+        // misattributed to a title ring through the content-reference fallback.
+        var clipIds = ClipMediaItemIds(state);
+        var titleSlots = displacedSlots.Where(s => !clipIds.Contains(s.MediaItemId)).ToList();
+        var clipSlots = displacedSlots.Where(s => clipIds.Contains(s.MediaItemId)).ToList();
+
         foreach (var strand in state.Strands)
+            RewindRing(strand, strand.Key, titleSlots, slot => FindItemIndex(strand.Items, slot), cursorRows);
+
+        foreach (var clipGroup in state.ClipGroups)
+            RewindRing(clipGroup.Ring, clipGroup.StrandKey, clipSlots,
+                slot => clipGroup.Ring.Items.FindIndex(i => i.MediaItemId == slot.MediaItemId), cursorRows);
+    }
+
+    // Rewinds one ring's cursor to the predecessor of its earliest displaced slot resolvable in
+    // the ring — shared by the title strands (content index) and the clip-group rings (media
+    // item index). Only rewinds when the ring cursor has already passed that position; either
+    // way the earliest resolvable displaced content decides and ends the walk.
+    private static void RewindRing(
+        StrandState ring, string? key, List<ProgramSlot> slots,
+        Func<ProgramSlot, int> indexOf, IReadOnlyList<ProgramRuleCursor> cursorRows)
+    {
+        var items = ring.Items;
+        if (items.Count == 0)
+            return;
+
+        foreach (var slot in slots.OrderBy(s => s.Start))
         {
-            var items = strand.Items;
-            if (items.Count == 0)
+            var idx = indexOf(slot);
+            if (idx < 0)
                 continue;
 
-            foreach (var slot in displacedSlots.OrderBy(s => s.Start))
+            if (ring.NextIndex > idx)
             {
-                var idx = FindItemIndex(items, slot);
-                if (idx < 0)
-                    continue;
-
-                if (strand.NextIndex > idx)
+                var predecessor = items[(idx - 1 + items.Count) % items.Count];
+                var cursor = SelectStrandCursor(cursorRows, key);
+                if (cursor is not null)
                 {
-                    var predecessor = items[(idx - 1 + items.Count) % items.Count];
-                    var cursor = SelectStrandCursor(cursorRows, strand.Key);
-                    if (cursor is not null)
-                    {
-                        cursor.LastContentType = predecessor.ContentType;
-                        cursor.LastContentId = predecessor.ContentId;
-                        cursor.UpdatedAt = DateTime.UtcNow;
-                    }
-                    strand.RewindTo(idx);
+                    cursor.LastContentType = predecessor.ContentType;
+                    cursor.LastContentId = predecessor.ContentId;
+                    cursor.UpdatedAt = DateTime.UtcNow;
                 }
-                break; // earliest resolvable displaced content of this strand decides — done either way
+                ring.RewindTo(idx);
             }
+            break;
         }
     }
 
@@ -992,6 +1089,26 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         public void RewindTo(int index) => NextIndex = index;
     }
 
+    // Ring state of one clip group assigned to a rule: the group entity, its clip ring
+    // (sequential draw, persisted via a "clipgroup:{id}" cursor strand) and whether it is the
+    // reserved "Trailer" group whose items expand late from the freshly computed movie airings.
+    private sealed class ClipGroupState
+    {
+        public ClipGroupState(ProgramClipGroup group)
+        {
+            Group = group;
+            Ring = new StrandState(StrandKey, [], 0);
+        }
+
+        public ProgramClipGroup Group { get; }
+        public bool IsTrailer => Group.Id == ProgramClipGroup.TrailerGroupId;
+        public string StrandKey => $"clipgroup:{Group.Id}";
+        public StrandState Ring { get; private set; }
+
+        public void SetItems(List<SchedulableItem> items, IReadOnlyList<ProgramRuleCursor> cursors)
+            => Ring = new StrandState(StrandKey, items, NextIndexFor(items, SelectStrandCursor(cursors, StrandKey)));
+    }
+
     private sealed class RuleState
     {
         public RuleState(ProgramRule rule, List<SchedulableItem> items, IReadOnlyList<ProgramRuleCursor> cursors)
@@ -1003,6 +1120,10 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         public ProgramRule Rule { get; }
         public List<SchedulableItem> Items { get; private set; } = [];
         public List<StrandState> Strands { get; private set; } = [];
+
+        // Clip-group rings live outside Strands — they are draw sources for the clip fill pass,
+        // not airing material, and must not affect IsInterleaved, CommitTaken or the tail checks.
+        public List<ClipGroupState> ClipGroups { get; } = [];
         public bool IsInterleaved => Strands.Count > 1;
 
         // Flat-mode surface (single strand): used by filler handling and the flat airing
@@ -1327,13 +1448,19 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     private (List<SchedulableItem> Taken, int[]? TakenCounts) SelectItems(
         RuleState state, ProgramRule rule, DateTime airingStartUtc, (DateTime StartUtc, bool Hard)? bound)
     {
+        // The per-rule placeholder grace stops the title selection once the remaining period
+        // drops below it — only when clip groups are assigned to a slot-duration rule.
+        var clipGrace = state.ClipGroups.Count > 0 && rule.SlotDuration is not null
+            ? rule.PlaceholderGrace
+            : (TimeSpan?)null;
+
         if (!state.IsInterleaved)
         {
-            var taken = SelectAiringItems(state.Items, state.NextIndex, rule, airingStartUtc, bound, _minStartRemain);
+            var taken = SelectAiringItems(state.Items, state.NextIndex, rule, airingStartUtc, bound, _minStartRemain, clipGrace);
             return (taken, null);
         }
 
-        var picks = SelectAiringItemsInterleaved(state.Strands, rule, airingStartUtc, bound, _minStartRemain);
+        var picks = SelectAiringItemsInterleaved(state.Strands, rule, airingStartUtc, bound, _minStartRemain, clipGrace);
         var takenCounts = new int[state.Strands.Count];
         var selected = new List<SchedulableItem>();
         foreach (var (strand, item) in picks)
@@ -1368,7 +1495,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     // Returns the pick sequence: (strand index, item).
     private static List<(int Strand, SchedulableItem Item)> SelectAiringItemsInterleaved(
         List<StrandState> strands, ProgramRule rule, DateTime airingStartUtc,
-        (DateTime StartUtc, bool Hard)? bound, TimeSpan minStartRemain)
+        (DateTime StartUtc, bool Hard)? bound, TimeSpan minStartRemain, TimeSpan? clipGrace = null)
     {
         var wanted = rule.EpisodeCount is > 0 ? rule.EpisodeCount.Value
             : rule.SlotDuration is not null ? int.MaxValue : 1;
@@ -1390,6 +1517,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
 
         var maxLap = strands.Max(s => s.Items.Count);
         var noProgressLaps = 0;
+        var graceHit = false;
         while (selected < wanted)
         {
             var progressed = false;
@@ -1400,6 +1528,11 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                 var strand = strands[s];
                 if (done[s] || strand.Items.Count == 0)
                     continue;
+                if (clipGrace is { } grace && target is { } t && t - accumulated < grace)
+                {
+                    graceHit = true; // period remainder below the grace — the rest goes to clip fill
+                    break;
+                }
                 var item = strand.Items[(strand.NextIndex + taken[s]) % strand.Items.Count];
                 if (bound is { } b && (b.StartUtc - slotStart < minStartRemain || (b.Hard && slotStart + item.Duration > b.StartUtc)))
                 {
@@ -1415,7 +1548,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
                 if (target is not null && accumulated >= target)
                     break;
             }
-            if (!progressed)
+            if (graceHit || !progressed)
                 break;
             noProgressLaps = accumulated > lapAccumulated ? 0 : noProgressLaps + 1;
             if (noProgressLaps > maxLap)
@@ -1434,7 +1567,7 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     // the next occurrence retries it.
     private static List<SchedulableItem> SelectAiringItems(
         List<SchedulableItem> items, int headIndex, ProgramRule rule, DateTime airingStartUtc,
-        (DateTime StartUtc, bool Hard)? bound, TimeSpan minStartRemain)
+        (DateTime StartUtc, bool Hard)? bound, TimeSpan minStartRemain, TimeSpan? clipGrace = null)
     {
         // EpisodeCount wins; without it SlotDuration bounds the airing; when neither is set the
         // airing gets exactly one item (rule validation normally requires one of both).
@@ -1450,6 +1583,8 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         while (selected.Count < wanted)
         {
             var item = items[(headIndex + ring) % count];
+            if (clipGrace is { } grace && target is { } t && t - accumulated < grace)
+                break; // period remainder below the grace — the rest goes to clip fill
             if (bound is { } b)
             {
                 if (b.StartUtc - slotStart < minStartRemain)
@@ -1611,7 +1746,10 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         foreach (var state in states.Values)
         {
             var rows = cursors.GetValueOrDefault(state.Rule.Id);
-            foreach (var strand in state.Strands.Where(s => s.LastPlaced is not null))
+            // Clip-group rings persist their draw position under "clipgroup:{groupId}" strands.
+            foreach (var strand in state.Strands
+                         .Concat(state.ClipGroups.Select(c => c.Ring))
+                         .Where(s => s.LastPlaced is not null))
             {
                 var placed = strand.LastPlaced!;
                 var cursor = rows is null ? null : SelectStrandCursor(rows, strand.Key);
@@ -1997,10 +2135,13 @@ public sealed class ProgramScheduleService : IProgramScheduleService
     // Index of the first item in the filler ring whose movie airs within (fillAt, leadEnd] —
     // the "trailer leads the movie" check evaluated per gap position.
     private static int? FindLeadMatchOffset(RuleState state, DateTime fillAt, DateTime leadEnd, IReadOnlyDictionary<long, List<DateTime>> airingsByMovie)
+        => FindLeadMatchOffset(state.Strands[0], fillAt, leadEnd, airingsByMovie);
+
+    private static int? FindLeadMatchOffset(StrandState ring, DateTime fillAt, DateTime leadEnd, IReadOnlyDictionary<long, List<DateTime>> airingsByMovie)
     {
-        for (var i = 0; i < state.Items.Count; i++)
+        for (var i = 0; i < ring.Items.Count; i++)
         {
-            var item = state.PeekAt(i);
+            var item = ring.PeekAt(i);
             if (item?.MovieId is { } movieId
                 && airingsByMovie.TryGetValue(movieId, out var starts)
                 && starts.Exists(s => s > fillAt && s <= leadEnd))
@@ -2033,43 +2174,10 @@ public sealed class ProgramScheduleService : IProgramScheduleService
         var items = await _db.MediaItems
             .AsNoTracking()
             .Where(mi => mi.MediaCollection.MediaSourceId == sourceId)
-            .Select(mi => new { mi.Id, mi.Path, mi.Duration, mi.DurationProbedAt, mi.DurationProbeAttempts })
+            .Select(mi => new ClipCandidate(mi.Id, mi.Path, mi.MediaCollection.MediaSourceId, mi.Duration, mi.DurationProbedAt, mi.DurationProbeAttempts))
             .ToListAsync(cancellationToken);
-        if (items.Count == 0)
-            return [];
 
-        var linkedMovieItems = (await _db.MovieMediaItems
-                .Where(l => items.Select(i => i.Id).Contains(l.MediaItemId))
-                .Select(l => l.MediaItemId)
-                .ToListAsync(cancellationToken))
-            .ToHashSet();
-        var linkedEpisodeItems = (await _db.TVShowEpisodeMediaItems
-                .Where(l => items.Select(i => i.Id).Contains(l.MediaItemId))
-                .Select(l => l.MediaItemId)
-                .ToListAsync(cancellationToken))
-            .ToHashSet();
-
-        var result = new List<SchedulableItem>();
-        foreach (var item in items.OrderBy(i => i.Id))
-        {
-            if (!Utils.VideoFileExtensions.IsVideoFileName(item.Path))
-                continue;
-            if (linkedMovieItems.Contains(item.Id) || linkedEpisodeItems.Contains(item.Id))
-                continue; // classified content is regular material, not filler clips
-            summary.Candidates++;
-            if (item.Duration is null)
-            {
-                CountNoDuration(new MediaItemRef(item.Id, item.Duration, item.DurationProbedAt, item.DurationProbeAttempts), summary);
-                continue;
-            }
-            if (!access.Allows(sourceId, null, null))
-            {
-                summary.SkippedNoAccess++;
-                continue;
-            }
-            result.Add(new SchedulableItem(ProgramCursorContentType.MediaItem, item.Id, item.Id, null, null, item.Duration.Value));
-        }
-        return result;
+        return await FilterClipCandidatesAsync(items, access, summary, cancellationToken);
     }
 
     private async Task<Dictionary<long, List<DateTime>>> LoadMovieAiringsAsync(long channelId, DateTime afterUtc, IEnumerable<ProgramSlot> extraSlots, CancellationToken cancellationToken)
@@ -2181,5 +2289,329 @@ public sealed class ProgramScheduleService : IProgramScheduleService
             // Orphaned entries (referenced media no longer exists) are skipped silently.
         }
         return items;
+    }
+
+    // ---- clip-group fill ----
+
+    // Shared context of the clip-group build/expansion/fill passes — bundled like ReproContext
+    // so the helpers keep short signatures: the audience snapshot, the movie-airing map for the
+    // trailer group's lead matching (null while a run has not computed it yet), the coverage
+    // edge, the reserved occurrence starts for the free-room check, the horizon cap and the
+    // run counters.
+    private sealed record ClipFillContext(
+        AccessContext Access,
+        IReadOnlyDictionary<long, List<DateTime>>? AiringsByMovie,
+        DateTime CoverageStart,
+        IReadOnlyList<(DateTime StartUtc, int Priority)> BoundStarts,
+        DateTime HorizonEnd,
+        SummaryCounters Summary)
+    {
+        // Per-rule round-robin draw position of the fill pass — mutable run state shared by
+        // the `with`-clones of this record, so the draw continues across airings of a rule.
+        public Dictionary<long, int> RoundRobin { get; } = new();
+    }
+
+    // A clip-ring candidate row of either clip expansion: the media item plus the fields the
+    // schedulability filter needs (video check, classification links, duration probe state,
+    // owning source for the audience check).
+    private sealed record ClipCandidate(
+        long MediaItemId, string Path, long MediaSourceId,
+        TimeSpan? Duration, DateTime? DurationProbedAt, int DurationProbeAttempts);
+
+    // Builds the per-group ring states of a rule's clip-group assignment, ordered by
+    // ProgramClipGroupId (the round-robin order of the fill pass). User groups expand
+    // immediately through ExpandClipGroupItemsAsync; the reserved "Trailer" group only expands
+    // when the movie-airing map is already known (reconcile) — during extend-only runs it stays
+    // empty and is filled later by ExpandClipGroupStatesAsync, once the freshly materialized
+    // movie airings of this run exist. A link whose group row is missing (old backup without
+    // the seed row) yields no state — tolerated per design.
+    private async Task<List<ClipGroupState>> BuildClipGroupStates(
+        ProgramRule rule, IReadOnlyList<ProgramRuleCursor> cursors, ClipFillContext ctx, CancellationToken cancellationToken)
+    {
+        var result = new List<ClipGroupState>();
+        foreach (var link in rule.ClipGroups.OrderBy(c => c.ProgramClipGroupId))
+        {
+            if (link.ClipGroup is null)
+                continue;
+
+            var clipState = new ClipGroupState(link.ClipGroup);
+            if (clipState.IsTrailer)
+            {
+                if (ctx.AiringsByMovie is not null)
+                    clipState.SetItems(await ExpandTrailersAsync(ctx.Access, ctx.AiringsByMovie, ctx.CoverageStart, ctx.Summary, cancellationToken), cursors);
+            }
+            else
+            {
+                clipState.SetItems(await ExpandClipGroupItemsAsync(link.ClipGroup.Id, ctx.Access, ctx.Summary, cancellationToken), cursors);
+            }
+            result.Add(clipState);
+        }
+        return result;
+    }
+
+    // Deferred expansion pass for the reserved "Trailer" clip group: runs after the occurrences
+    // are materialized so freshly scheduled movie airings of this run count — same reason the
+    // trailer material expands late (see ExpandTrailerStatesAsync).
+    private async Task ExpandClipGroupStatesAsync(
+        Dictionary<long, RuleState> states, Dictionary<long, IReadOnlyList<ProgramRuleCursor>> cursors,
+        ClipFillContext ctx, CancellationToken cancellationToken)
+    {
+        var airingsByMovie = ctx.AiringsByMovie ?? new Dictionary<long, List<DateTime>>();
+        foreach (var state in states.Values)
+        {
+            var ruleCursors = cursors.GetValueOrDefault(state.Rule.Id) ?? [];
+            foreach (var clipState in state.ClipGroups.Where(c => c.IsTrailer && c.Ring.Items.Count == 0))
+                clipState.SetItems(await ExpandTrailersAsync(ctx.Access, airingsByMovie, ctx.CoverageStart, ctx.Summary, cancellationToken), ruleCursors);
+        }
+    }
+
+    // Expands a user clip group to its schedulable member ring: media items that are still
+    // unclassified videos (the classification may have changed since the assignment), carry a
+    // probed duration and are released for the whole audience — the same "clip" definition as
+    // ExpandMediaSourceClipsAsync, but across sources. Ordered by media item id for a stable ring.
+    private async Task<List<SchedulableItem>> ExpandClipGroupItemsAsync(
+        long groupId, AccessContext access, SummaryCounters summary, CancellationToken cancellationToken)
+    {
+        var items = await _db.ProgramClipGroupItems
+            .AsNoTracking()
+            .Where(i => i.ProgramClipGroupId == groupId)
+            .Select(i => new ClipCandidate(
+                i.MediaItemId,
+                i.MediaItem.Path,
+                i.MediaItem.MediaCollection.MediaSourceId,
+                i.MediaItem.Duration,
+                i.MediaItem.DurationProbedAt,
+                i.MediaItem.DurationProbeAttempts))
+            .ToListAsync(cancellationToken);
+
+        return await FilterClipCandidatesAsync(items, access, summary, cancellationToken);
+    }
+
+    // Shared filter pipeline of the clip expansions (clip-source material and clip-group
+    // members): only unclassified video files with a probed duration and a source released for
+    // the whole audience become schedulable — ordered by media item id for a stable ring.
+    private async Task<List<SchedulableItem>> FilterClipCandidatesAsync(
+        List<ClipCandidate> candidates, AccessContext access, SummaryCounters summary, CancellationToken cancellationToken)
+    {
+        if (candidates.Count == 0)
+            return [];
+
+        var ids = candidates.Select(c => c.MediaItemId).ToList();
+        var linkedMovieItems = (await _db.MovieMediaItems
+                .Where(l => ids.Contains(l.MediaItemId))
+                .Select(l => l.MediaItemId)
+                .ToListAsync(cancellationToken))
+            .ToHashSet();
+        var linkedEpisodeItems = (await _db.TVShowEpisodeMediaItems
+                .Where(l => ids.Contains(l.MediaItemId))
+                .Select(l => l.MediaItemId)
+                .ToListAsync(cancellationToken))
+            .ToHashSet();
+
+        var result = new List<SchedulableItem>();
+        foreach (var item in candidates.OrderBy(i => i.MediaItemId))
+        {
+            if (!Utils.VideoFileExtensions.IsVideoFileName(item.Path))
+                continue;
+            if (linkedMovieItems.Contains(item.MediaItemId) || linkedEpisodeItems.Contains(item.MediaItemId))
+                continue; // classified content is regular material, not filler clips
+            summary.Candidates++;
+            if (item.Duration is null)
+            {
+                CountNoDuration(new MediaItemRef(item.MediaItemId, item.Duration, item.DurationProbedAt, item.DurationProbeAttempts), summary);
+                continue;
+            }
+            if (!access.Allows(item.MediaSourceId, null, null))
+            {
+                summary.SkippedNoAccess++;
+                continue;
+            }
+            result.Add(new SchedulableItem(ProgramCursorContentType.MediaItem, item.MediaItemId, item.MediaItemId, null, null, item.Duration.Value));
+        }
+        return result;
+    }
+
+    // Sequential round-robin draw over the clip-group rings: the next group whose offered item
+    // satisfies the placement predicate supplies the clip. User groups offer their ring head;
+    // the reserved trailer group offers its head-of-lead-match item (FindLeadMatchOffset
+    // semantics at the position) or nothing. Groups that cannot contribute are skipped without
+    // consuming their ring — no fitting search over items.
+    private SchedulableItem? NextClipItem(
+        List<ClipGroupState> clipGroups, ref int roundRobin, DateTime position,
+        IReadOnlyDictionary<long, List<DateTime>> airingsByMovie,
+        Func<SchedulableItem, bool> fits)
+    {
+        var count = clipGroups.Count;
+        for (var t = 0; t < count; t++)
+        {
+            var index = (roundRobin + t) % count;
+            var group = clipGroups[index];
+            var ring = group.Ring;
+            if (ring.Items.Count == 0)
+                continue;
+
+            int take;
+            SchedulableItem? item;
+            if (group.IsTrailer)
+            {
+                var offset = FindLeadMatchOffset(ring, position, position + _trailerLead, airingsByMovie);
+                if (offset is null)
+                    continue;
+                take = offset.Value + 1;
+                item = ring.PeekAt(offset.Value);
+            }
+            else
+            {
+                take = 1;
+                item = ring.PeekAt(0);
+            }
+
+            if (item is null || !fits(item))
+                continue;
+
+            ring.Commit(take);
+            roundRobin = (index + 1) % count;
+            return item;
+        }
+        return null;
+    }
+
+    // Post-pass after materialization: distributes clip slots of the assigned clip groups into
+    // the n+1 segments of each slot-duration airing — the head segment before the first title
+    // included — whenever a positive rest remains between the last title's end and the period
+    // end (firstSlot.Start + SlotDuration). The rest is shared evenly across the segments with
+    // leftover budget carried forward; clips are drawn sequentially round-robin over the group
+    // rings. Clips only go into free space: no overlap with occupied intervals and no overlap
+    // with reserved bound windows of higher-priority rules. The last clip may overshoot the
+    // period end while the space stays free; an overshooting clip reaching into occupied or
+    // bound space is dropped and the remainder stays an open gap for FillGaps. Occupied
+    // neighbors are never shifted. After the pass, blocked reflects the final geometry.
+    private void InsertClipFill(
+        List<ProgramSlot> newSlots,
+        List<Interval> blocked,
+        Dictionary<long, RuleState> states,
+        ClipFillContext ctx)
+    {
+        var airings = GroupAirings(newSlots.OrderBy(s => s.Start).ToList());
+        var rebuilt = new List<ProgramSlot>(newSlots.Count);
+
+        foreach (var airing in airings)
+        {
+            var state = airing[0].ProgramRuleId is { } ruleId ? states.GetValueOrDefault(ruleId) : null;
+            var rule = state?.Rule;
+            if (rule is null || state!.ClipGroups.Count == 0 || rule.SlotDuration is null)
+            {
+                rebuilt.AddRange(airing);
+                continue;
+            }
+
+            FillAiringSegments(airing, state, blocked, rebuilt, ctx);
+        }
+
+        newSlots.Clear();
+        newSlots.AddRange(rebuilt);
+    }
+
+    // The tail space an airing may grow into: nearest occupied start or reserved
+    // higher-priority bound window after its end, capped at the horizon.
+    private static DateTime TailLimit(
+        DateTime lastEnd, int rulePriority, List<Interval> blocked,
+        IReadOnlyList<(DateTime StartUtc, int Priority)> boundStarts, DateTime horizonEnd)
+    {
+        var limit = horizonEnd;
+        foreach (var o in blocked)
+            if (o.Start >= lastEnd && o.Start < limit)
+                limit = o.Start;
+        foreach (var b in boundStarts)
+            if (b.Priority > rulePriority && b.StartUtc >= lastEnd && b.StartUtc < limit)
+                limit = b.StartUtc;
+        return limit;
+    }
+
+    // Re-lays a single slot-duration airing with clip fill (the caller has already checked the
+    // rule carries clip groups and a slot duration): nothing to do while no positive rest
+    // remains between the last title's end and the period end. Otherwise the rest is shared
+    // evenly across the n+1 segments (leftover budget carried forward), clips are drawn
+    // sequentially round-robin over the group rings and the title slots are re-positioned
+    // behind them. The tail segment may overshoot the period end while the space stays free —
+    // an overshooting clip reaching into occupied or bound space is dropped. The method keeps
+    // blocked in sync itself: the airing's own span leaves the occupied set before the re-lay
+    // and the rebuilt geometry is registered afterwards.
+    private void FillAiringSegments(
+        List<ProgramSlot> airing, RuleState state, List<Interval> blocked,
+        List<ProgramSlot> rebuilt, ClipFillContext ctx)
+    {
+        var rule = state.Rule;
+        var periodEnd = airing[0].Start + rule.SlotDuration!.Value;
+        var rest = periodEnd - airing[^1].End;
+        if (rest <= TimeSpan.Zero)
+        {
+            rebuilt.AddRange(airing);
+            return;
+        }
+
+        // The airing's own span leaves the occupied set — its slots are re-laid below.
+        foreach (var slot in airing)
+            blocked.RemoveAll(b => b.Start == slot.Start && b.End == slot.End);
+
+        var tailLimit = TailLimit(airing[^1].End, rule.Priority, blocked, ctx.BoundStarts, ctx.HorizonEnd);
+        var roundRobin = ctx.RoundRobin.GetValueOrDefault(rule.Id);
+        var airingStartIndex = rebuilt.Count;
+        var airingsByMovie = ctx.AiringsByMovie ?? new Dictionary<long, List<DateTime>>();
+        var share = TimeSpan.FromTicks(rest.Ticks / (airing.Count + 1));
+        var carry = TimeSpan.Zero;
+        var pos = airing[0].Start;
+        var now = DateTime.UtcNow;
+
+        for (var i = 0; i <= airing.Count; i++)
+        {
+            var tail = i == airing.Count;
+            var budget = share + carry;
+            var placed = TimeSpan.Zero;
+
+            while (true)
+            {
+                var clip = NextClipItem(state.ClipGroups, ref roundRobin, pos, airingsByMovie,
+                    item => tail
+                        ? pos < periodEnd && pos + item.Duration <= (placed > TimeSpan.Zero ? tailLimit : periodEnd)
+                        : placed + item.Duration <= budget && pos + item.Duration <= tailLimit);
+                if (clip is null)
+                    break;
+
+                rebuilt.Add(new ProgramSlot
+                {
+                    TVChannelId = rule.TVChannelId,
+                    Start = pos,
+                    End = pos + clip.Duration,
+                    MediaItemId = clip.MediaItemId,
+                    MovieId = clip.MovieId,
+                    TVShowEpisodeId = clip.TVShowEpisodeId,
+                    ProgramRuleId = rule.Id,
+                    RuleType = rule.RuleType,
+                    CreatedAt = now
+                });
+                pos += clip.Duration;
+                placed += clip.Duration;
+                ctx.Summary.SlotsCreated++;
+            }
+
+            if (!tail)
+                carry = budget - placed;
+
+            if (i < airing.Count)
+            {
+                var title = airing[i];
+                var duration = title.End - title.Start;
+                title.Start = pos;
+                title.End = pos + duration;
+                pos = title.End;
+                rebuilt.Add(title);
+            }
+        }
+
+        ctx.RoundRobin[rule.Id] = roundRobin;
+
+        for (var j = airingStartIndex; j < rebuilt.Count; j++)
+            blocked.Add(new Interval(rebuilt[j].Start, rebuilt[j].End));
     }
 }

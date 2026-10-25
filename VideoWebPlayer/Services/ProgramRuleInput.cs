@@ -24,4 +24,6 @@ public sealed record ProgramRuleInput(
     int Priority,
     bool IsActive,
     IReadOnlyList<long>? GenreIds = null,
-    IReadOnlyList<long>? MediaSourceIds = null);
+    IReadOnlyList<long>? MediaSourceIds = null,
+    IReadOnlyList<long>? ClipGroupIds = null,
+    TimeSpan? PlaceholderGrace = null);

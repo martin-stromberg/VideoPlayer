@@ -21,7 +21,7 @@ namespace VideoWebPlayer.Tests;
 /// server — so the download really installs into <c>tools/ffmpeg/</c> and the real
 /// <c>Resolve()</c> finds the binaries afterwards.
 /// </summary>
-public sealed class TVSenderAdminE2ETests_FfmpegDownload : PlaylistsE2ETestBase
+public sealed class TVSenderAdminE2ETests_FfmpegDownload : TVSenderAdminE2ETestBase
 {
     private FfmpegPackageServer _packageServer = null!;
     private string _toolsBaseDir = null!;
@@ -67,38 +67,6 @@ public sealed class TVSenderAdminE2ETests_FfmpegDownload : PlaylistsE2ETestBase
                 _toolsBaseDir,
                 null));
         });
-    }
-
-    private async Task EnableTvSenderAsync()
-    {
-        using var scope = Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var ct = TestContext.Current.CancellationToken;
-        var setup = await scope.ServiceProvider.GetRequiredService<ProgramSettingsService>().GetOrCreateSetupAsync(ct);
-        setup.TvSenderEnabled = true;
-        await db.SaveChangesAsync(ct);
-    }
-
-    private async Task OpenAdminPageAsAdminAsync()
-    {
-        await MakeUserAdminAsync(UserAEmail);
-        await GrantMediaSourceAccessForUserAsync(UserAEmail);
-        await LoginAsync(UserAEmail);
-        await Page.GotoAsync($"{ServerUrl}/admin/tv-sender");
-        await Page.WaitForSelectorAsync("#tvsender-tab-regeln", new PageWaitForSelectorOptions { Timeout = 30_000 });
-    }
-
-    private async Task SwitchTabAsync(string tabButtonSelector, string paneSelector)
-    {
-        await DriveUntilStateAsync(
-            async () =>
-            {
-                var pane = Page.Locator($"{paneSelector}.active");
-                if (await pane.CountAsync() > 0) return;
-                var tab = Page.Locator(tabButtonSelector);
-                if (await tab.CountAsync() > 0) await tab.ClickAsync(new LocatorClickOptions { Timeout = 10_000 });
-            },
-            () => Page.Locator($"{paneSelector}.active").WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 }));
     }
 
     [Fact]

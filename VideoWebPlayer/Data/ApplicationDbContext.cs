@@ -227,6 +227,21 @@ namespace VideoWebPlayer.Data
         /// Gets or sets the per-user release list of the automated TV channel.
         /// </summary>
         public DbSet<TvSenderUserAccess> TvSenderUserAccess { get; set; }
+
+        /// <summary>
+        /// Gets or sets the named placeholder clip groups of the automated TV channel.
+        /// </summary>
+        public DbSet<ProgramClipGroup> ProgramClipGroups { get; set; }
+
+        /// <summary>
+        /// Gets or sets the clip memberships of placeholder clip groups.
+        /// </summary>
+        public DbSet<ProgramClipGroupItem> ProgramClipGroupItems { get; set; }
+
+        /// <summary>
+        /// Gets or sets the clip group assignments of program rules.
+        /// </summary>
+        public DbSet<ProgramRuleClipGroup> ProgramRuleClipGroups { get; set; }
         #endregion
         #region MediaSource Manipulation Methods
         /// <summary>

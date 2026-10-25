@@ -16,6 +16,12 @@ namespace VideoWebPlayer.Data
         public const int NameMaxLength = 255;
 
         /// <summary>
+        /// The default placeholder grace period ("Karenzzeit") applied to rules with assigned
+        /// clip groups when no explicit value is submitted.
+        /// </summary>
+        public static readonly TimeSpan DefaultPlaceholderGrace = TimeSpan.FromMinutes(15);
+
+        /// <summary>
         /// Gets or sets the rule identifier.
         /// </summary>
         [Key]
@@ -108,6 +114,19 @@ namespace VideoWebPlayer.Data
         /// <see cref="ProgramRuleMaterialType.Genre"/> material; empty means all media sources.
         /// </summary>
         public ICollection<ProgramRuleMediaSource> MediaSourceFilters { get; set; } = new List<ProgramRuleMediaSource>();
+
+        /// <summary>
+        /// Gets or sets the clip groups assigned to this rule (independent of the material type;
+        /// only meaningful for non-filler rules with a <see cref="SlotDuration"/>).
+        /// </summary>
+        public ICollection<ProgramRuleClipGroup> ClipGroups { get; set; } = new List<ProgramRuleClipGroup>();
+
+        /// <summary>
+        /// Gets or sets the placeholder grace period ("Karenzzeit"): once the remaining time of a
+        /// <see cref="SlotDuration"/> period falls below this value, no further title is started
+        /// and the remainder is filled with clips from <see cref="ClipGroups"/> instead.
+        /// </summary>
+        public TimeSpan PlaceholderGrace { get; set; } = DefaultPlaceholderGrace;
 
         /// <summary>
         /// Gets or sets the priority used to resolve conflicts between competing rules

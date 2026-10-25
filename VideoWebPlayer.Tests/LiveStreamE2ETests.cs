@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Net;
 using Microsoft.Extensions.DependencyInjection;
 using VideoWebPlayer.Data;
+using VideoWebPlayer.Services;
 using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
@@ -26,12 +27,7 @@ public sealed class LiveStreamE2ETests : DeviceClientTestBase
 
         using var scope = CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var setup = await db.Setups.FirstOrDefaultAsync(TestContext.Current.CancellationToken);
-        if (setup is null)
-        {
-            setup = new Setup();
-            db.Setups.Add(setup);
-        }
+        var setup = await scope.ServiceProvider.GetRequiredService<ProgramSettingsService>().GetOrCreateSetupAsync(TestContext.Current.CancellationToken);
         setup.LiveStreamSegmentDirectory = segDir;
         setup.TvSenderEnabled = true;
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);

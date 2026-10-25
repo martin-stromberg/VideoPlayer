@@ -1,3 +1,4 @@
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using VideoWebPlayer.Configuration;
 using VideoWebPlayer.Data;
@@ -30,47 +31,74 @@ public sealed class ProgramSettingsService
     /// <returns>The persisted setup row.</returns>
     public async Task<Setup> GetOrCreateSetupAsync(CancellationToken cancellationToken = default)
     {
-        var setup = await _db.Setups.FirstOrDefaultAsync(cancellationToken);
-        if (setup is not null)
+        var setup = await ReadSetupAsync(cancellationToken);
+        if (setup is null)
+            setup = await CreateSetupAsync(cancellationToken);
+
+        var changed = false;
+
+        if (setup.ScanProcessIntervalMinutes <= 0)
         {
-            var changed = false;
-
-            if (setup.ScanProcessIntervalMinutes <= 0)
-            {
-                setup.ScanProcessIntervalMinutes = 60;
-                changed = true;
-            }
-
-            if (setup.MediaCollectionScanIntervalDays <= 0)
-            {
-                setup.MediaCollectionScanIntervalDays = 7;
-                changed = true;
-            }
-
-            if (setup.ContinueWatchingEndThresholdSeconds <= 0)
-            {
-                setup.ContinueWatchingEndThresholdSeconds = 30;
-                changed = true;
-            }
-
-            if (string.IsNullOrWhiteSpace(setup.ApplicationTitle))
-            {
-                setup.ApplicationTitle = "Martins Videosammlung";
-                changed = true;
-            }
-
-            if (changed)
-                await _db.SaveChangesAsync(cancellationToken);
-
-            return setup;
+            setup.ScanProcessIntervalMinutes = 60;
+            changed = true;
         }
 
-        setup = new Setup();
-        _db.Setups.Add(setup);
-        await _db.SaveChangesAsync(cancellationToken);
-        _logger.LogInformation("Setup row created for program settings.");
+        if (setup.MediaCollectionScanIntervalDays <= 0)
+        {
+            setup.MediaCollectionScanIntervalDays = 7;
+            changed = true;
+        }
+
+        if (setup.ContinueWatchingEndThresholdSeconds <= 0)
+        {
+            setup.ContinueWatchingEndThresholdSeconds = 30;
+            changed = true;
+        }
+
+        if (string.IsNullOrWhiteSpace(setup.ApplicationTitle))
+        {
+            setup.ApplicationTitle = "Martins Videosammlung";
+            changed = true;
+        }
+
+        if (changed)
+            await _db.SaveChangesAsync(cancellationToken);
+
         return setup;
     }
+
+    // The Setups table carries exactly one row (enforced by the UX_Setups_SingleRow index);
+    // without ORDER BY a corrupted duplicate database could answer this read non-deterministically.
+    private Task<Setup?> ReadSetupAsync(CancellationToken cancellationToken)
+        => _db.Setups.OrderBy(s => s.Id).FirstOrDefaultAsync(cancellationToken);
+
+    /// <summary>
+    /// Inserts the setup row. Two writers can race on an empty table (e.g. the startup data
+    /// upgrade and the first request): the loser then hits the single-row unique index on
+    /// <c>SaveChanges</c> and reads the winner's row instead of adding a second one.
+    /// </summary>
+    private async Task<Setup> CreateSetupAsync(CancellationToken cancellationToken)
+    {
+        var setup = new Setup();
+        _db.Setups.Add(setup);
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation("Setup row created for program settings.");
+            return setup;
+        }
+        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+        {
+            _db.Entry(setup).State = EntityState.Detached;
+            var existing = await ReadSetupAsync(cancellationToken);
+            if (existing is null)
+                throw;
+            return existing;
+        }
+    }
+
+    private static bool IsUniqueViolation(DbUpdateException ex)
+        => ex.InnerException is SqliteException { SqliteErrorCode: 19 };
 
     /// <summary>
     /// Returns scan intervals derived from persisted settings.

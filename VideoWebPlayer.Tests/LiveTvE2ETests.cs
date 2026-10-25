@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Data;
+using VideoWebPlayer.Services;
 using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
@@ -16,19 +17,14 @@ namespace VideoWebPlayer.Tests;
 /// </summary>
 public sealed class LiveTvE2ETests : PlaylistsE2ETestBase
 {
-    private async Task<string> SeedSegmentDirectoryAsync(ApplicationDbContext db)
+    private async Task<string> SeedSegmentDirectoryAsync(IServiceProvider services, ApplicationDbContext db)
     {
         var segDir = Path.Combine(Path.GetTempPath(), $"vwp-livetv-e2e-{Guid.NewGuid():N}");
         Directory.CreateDirectory(segDir);
         await File.WriteAllTextAsync(Path.Combine(segDir, "live.m3u8"),
             "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:6\n#EXTINF:6.0,\nseg_001.ts\n");
         await File.WriteAllTextAsync(Path.Combine(segDir, "seg_001.ts"), "segment-bytes");
-        var setup = await db.Setups.FirstOrDefaultAsync(TestContext.Current.CancellationToken);
-        if (setup is null)
-        {
-            setup = new Setup();
-            db.Setups.Add(setup);
-        }
+        var setup = await services.GetRequiredService<ProgramSettingsService>().GetOrCreateSetupAsync(TestContext.Current.CancellationToken);
         setup.LiveStreamSegmentDirectory = segDir;
         setup.TvSenderEnabled = true;
         // N28: UserA bekommt die Sender-Freigabe — sonst bleibt /live-tv hinter der
@@ -47,7 +43,7 @@ public sealed class LiveTvE2ETests : PlaylistsE2ETestBase
     {
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        await SeedSegmentDirectoryAsync(db);
+        await SeedSegmentDirectoryAsync(scope.ServiceProvider, db);
 
         var channel = new TVChannel { Name = "Live-E2E-Sender" };
         db.TVChannels.Add(channel);
@@ -129,7 +125,7 @@ public sealed class LiveTvE2ETests : PlaylistsE2ETestBase
         using (var scope = Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var setup = await db.Setups.FirstOrDefaultAsync(TestContext.Current.CancellationToken) ?? db.Setups.Add(new Setup()).Entity;
+            var setup = await scope.ServiceProvider.GetRequiredService<ProgramSettingsService>().GetOrCreateSetupAsync(TestContext.Current.CancellationToken);
             setup.TvSenderEnabled = true;
             var userA = await db.Users.SingleAsync(u => u.Email == UserAEmail, TestContext.Current.CancellationToken);
             db.TvSenderUserAccess.Add(new TvSenderUserAccess { UserId = userA.Id });

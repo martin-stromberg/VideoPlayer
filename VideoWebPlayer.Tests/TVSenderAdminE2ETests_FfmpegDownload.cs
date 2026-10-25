@@ -74,7 +74,7 @@ public sealed class TVSenderAdminE2ETests_FfmpegDownload : PlaylistsE2ETestBase
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var ct = TestContext.Current.CancellationToken;
-        var setup = await db.Setups.FirstOrDefaultAsync(ct) ?? db.Setups.Add(new Setup()).Entity;
+        var setup = await scope.ServiceProvider.GetRequiredService<ProgramSettingsService>().GetOrCreateSetupAsync(ct);
         setup.TvSenderEnabled = true;
         await db.SaveChangesAsync(ct);
     }

@@ -1,3 +1,4 @@
+using System.Xml.Linq;
 using VideoWebPlayer.Utils;
 using Xunit;
 
@@ -53,5 +54,61 @@ public sealed class AgeRatingNormalizerTests
 
         Assert.Equal(expectedDisplay, result.DisplayValue);
         Assert.Null(result.MinAge);
+    }
+
+    [Fact]
+    public void ExtractFromXml_MpaaElementWinsOverCertification()
+    {
+        var xml = XElement.Parse("<movie><mpaa>FSK 18</mpaa><certification>Rated PG-13</certification></movie>");
+
+        var (raw, rating) = AgeRatingNormalizer.ExtractFromXml(xml);
+
+        Assert.Equal("FSK 18", raw);
+        Assert.Equal("FSK 18", rating.DisplayValue);
+        Assert.Equal(18, rating.MinAge);
+    }
+
+    [Fact]
+    public void ExtractFromXml_FallsBackToCertification()
+    {
+        var xml = XElement.Parse("<tvshow><mpaa>   </mpaa><certification>Rated PG-13</certification></tvshow>");
+
+        var (raw, rating) = AgeRatingNormalizer.ExtractFromXml(xml);
+
+        Assert.Equal("Rated PG-13", raw);
+        Assert.Equal("PG-13", rating.DisplayValue);
+        Assert.Equal(13, rating.MinAge);
+    }
+
+    [Fact]
+    public void ExtractFromXml_NoRatingElement_ReturnsNulls()
+    {
+        var xml = XElement.Parse("<movie><title>Test</title></movie>");
+
+        var (raw, rating) = AgeRatingNormalizer.ExtractFromXml(xml);
+
+        Assert.Null(raw);
+        Assert.Null(rating.DisplayValue);
+        Assert.Null(rating.MinAge);
+    }
+
+    [Fact]
+    public void CanonicalOptions_ContainsAllKnownStepsInDisplayOrder()
+    {
+        Assert.Equal(
+            new[]
+            {
+                ("FSK 0", "FSK 0"),
+                ("FSK 6", "FSK 6"),
+                ("FSK 12", "FSK 12"),
+                ("FSK 16", "FSK 16"),
+                ("FSK 18", "FSK 18"),
+                ("G", "G (MPAA)"),
+                ("PG", "PG (MPAA)"),
+                ("PG-13", "PG-13 (MPAA)"),
+                ("R", "R (MPAA)"),
+                ("NC-17", "NC-17 (MPAA)"),
+            },
+            AgeRatingNormalizer.CanonicalOptions);
     }
 }

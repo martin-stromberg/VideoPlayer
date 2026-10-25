@@ -15,7 +15,8 @@ public sealed class MediaSourceClassifierAgeRatingBackfillTests
     public async Task BackfillMissingAgeRatingsAsync_FillsFromExistingNfo()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = await CreateDbAsync("agerating-backfill-fill", ct);
+        await using var testDb = await CreateDbAsync("agerating-backfill-fill", ct);
+        var db = testDb.Context;
         var (movie, _) = await SeedMovieAsync(db, "The Test", "/media/movies/The Test.mkv", ct);
 
         var reader = new BackfillSftpMediaSourceReader(new()
@@ -36,7 +37,8 @@ public sealed class MediaSourceClassifierAgeRatingBackfillTests
     public async Task BackfillMissingAgeRatingsAsync_FillsTvShowFromTvShowNfo()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = await CreateDbAsync("agerating-backfill-tvshow", ct);
+        await using var testDb = await CreateDbAsync("agerating-backfill-tvshow", ct);
+        var db = testDb.Context;
         var source = await SeedSourceAsync(db, ct);
         var collection = new MediaCollection
         {
@@ -70,7 +72,8 @@ public sealed class MediaSourceClassifierAgeRatingBackfillTests
     public async Task BackfillMissingAgeRatingsAsync_SkipsManuallyEdited()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = await CreateDbAsync("agerating-backfill-manual", ct);
+        await using var testDb = await CreateDbAsync("agerating-backfill-manual", ct);
+        var db = testDb.Context;
         var (movie, _) = await SeedMovieAsync(db, "Manual", "/media/movies/Manual.mkv", ct, m => m.IsManuallyEdited = true);
 
         var reader = new BackfillSftpMediaSourceReader(new()
@@ -90,8 +93,9 @@ public sealed class MediaSourceClassifierAgeRatingBackfillTests
     public async Task BackfillMissingAgeRatingsAsync_SkipsAlreadyClassified()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = await CreateDbAsync("agerating-backfill-done", ct);
+        await using var testDb = await CreateDbAsync("agerating-backfill-done", ct);
         var classifiedAt = DateTime.UtcNow.AddDays(-1);
+        var db = testDb.Context;
         var (movie, _) = await SeedMovieAsync(db, "Done", "/media/movies/Done.mkv", ct,
             m =>
             {
@@ -117,7 +121,8 @@ public sealed class MediaSourceClassifierAgeRatingBackfillTests
     public async Task BackfillMissingAgeRatingsAsync_MovieDotNfoFallback()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var db = await CreateDbAsync("agerating-backfill-movienfo", ct);
+        await using var testDb = await CreateDbAsync("agerating-backfill-movienfo", ct);
+        var db = testDb.Context;
         var (movie, _) = await SeedMovieAsync(db, "Fallback", "/media/movies/Fallback.mkv", ct);
 
         var reader = new BackfillSftpMediaSourceReader(new()
@@ -134,7 +139,82 @@ public sealed class MediaSourceClassifierAgeRatingBackfillTests
         Assert.NotNull(reloaded.AgeRatingClassifiedAt);
     }
 
-    private static async Task<ApplicationDbContext> CreateDbAsync(string name, CancellationToken ct)
+    [Fact]
+    public async Task BackfillMissingAgeRatingsAsync_BrokenNfo_StillMarksClassified()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var testDb = await CreateDbAsync("agerating-backfill-brokennfo", ct);
+        var db = testDb.Context;
+        var (movie, _) = await SeedMovieAsync(db, "Broken", "/media/movies/Broken.mkv", ct);
+
+        var reader = new BackfillSftpMediaSourceReader(new()
+        {
+            [("/media/movies", "Broken.nfo")] = "<movie><title>Broken</title><mpaa>FSK 12"
+        });
+
+        await CreateClassifier(db, reader).BackfillMissingAgeRatingsAsync(ct);
+
+        var reloaded = await db.Movies.FirstAsync(m => m.Id == movie.Id, ct);
+        Assert.NotNull(reloaded.AgeRatingClassifiedAt);
+    }
+
+    [Fact]
+    public async Task BackfillMissingAgeRatingsAsync_BrokenNfo_OnlineLookupStillRuns()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var testDb = await CreateDbAsync("agerating-backfill-brokennfo-online", ct);
+        var db = testDb.Context;
+        var (movie, _) = await SeedMovieAsync(db, "Broken Online", "/media/movies/BrokenOnline.mkv", ct);
+
+        var reader = new BackfillSftpMediaSourceReader(new()
+        {
+            [("/media/movies", "BrokenOnline.nfo")] = "<movie><title>Broken Online</title><mpaa>FSK 12"
+        });
+        var fake = new FakeTmdbAgeRatingService(movieRating: new TmdbAgeRating("DE", "16"));
+
+        await CreateClassifier(db, reader, fake).BackfillMissingAgeRatingsAsync(ct);
+
+        var reloaded = await db.Movies.FirstAsync(m => m.Id == movie.Id, ct);
+        Assert.Equal(1, fake.MovieCalls);
+        Assert.Equal("DE:16", reloaded.AgeRatingRaw);
+        Assert.Equal("FSK 16", reloaded.AgeRating);
+        Assert.Equal(16, reloaded.AgeRatingMinAge);
+        Assert.NotNull(reloaded.AgeRatingClassifiedAt);
+    }
+
+    [Fact]
+    public async Task BackfillMissingAgeRatingsAsync_BrokenTvShowNfo_StillMarksClassified()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var testDb = await CreateDbAsync("agerating-backfill-brokennfo-show", ct);
+        var db = testDb.Context;
+        var source = await SeedSourceAsync(db, ct);
+        var collection = new MediaCollection
+        {
+            Name = "BrokenShow", Path = "/media/brokenshow", MediaSource = source, CreatedAt = DateTime.UtcNow
+        };
+        db.MediaCollections.Add(collection);
+        await db.SaveChangesAsync(ct);
+
+        var show = new TVShow
+        {
+            Name = "BrokenShow", MediaSourceId = source.Id, CollectionId = collection.Id, CreatedAt = DateTime.UtcNow
+        };
+        db.TVShows.Add(show);
+        await db.SaveChangesAsync(ct);
+
+        var reader = new BackfillSftpMediaSourceReader(new()
+        {
+            [("/media/brokenshow", "tvshow.nfo")] = "<tvshow><title>BrokenShow</title><mpaa>PG"
+        });
+
+        await CreateClassifier(db, reader).BackfillMissingAgeRatingsAsync(ct);
+
+        var reloaded = await db.TVShows.FirstAsync(s => s.Id == show.Id, ct);
+        Assert.NotNull(reloaded.AgeRatingClassifiedAt);
+    }
+
+    private static async Task<TestDb> CreateDbAsync(string name, CancellationToken ct)
     {
         var connectionString = $"Data Source=file:{name}?mode=memory&cache=shared";
         var keeper = new SqliteConnection(connectionString);
@@ -146,7 +226,26 @@ public sealed class MediaSourceClassifierAgeRatingBackfillTests
 
         var db = new ApplicationDbContext(options, new EventManager());
         await db.Database.EnsureCreatedAsync(ct);
-        return db;
+        return new TestDb(db, keeper);
+    }
+
+    private sealed class TestDb : IAsyncDisposable
+    {
+        private readonly SqliteConnection _keeper;
+
+        public TestDb(ApplicationDbContext context, SqliteConnection keeper)
+        {
+            Context = context;
+            _keeper = keeper;
+        }
+
+        public ApplicationDbContext Context { get; }
+
+        public async ValueTask DisposeAsync()
+        {
+            await Context.DisposeAsync();
+            await _keeper.DisposeAsync();
+        }
     }
 
     private static async Task<MediaSource> SeedSourceAsync(ApplicationDbContext db, CancellationToken ct)
@@ -188,7 +287,8 @@ public sealed class MediaSourceClassifierAgeRatingBackfillTests
         return (movie, mediaItem);
     }
 
-    private static MediaSourceClassifier CreateClassifier(ApplicationDbContext db, IMediaSourceReader reader)
+    private static MediaSourceClassifier CreateClassifier(
+        ApplicationDbContext db, IMediaSourceReader reader, ITmdbAgeRatingService? ageRatingService = null)
         => new(
             db,
             reader,
@@ -196,5 +296,6 @@ public sealed class MediaSourceClassifierAgeRatingBackfillTests
             new EventManager(),
             null!,
             NullLogger<MediaSourceClassifier>.Instance,
-            new HttpClient());
+            new HttpClient(),
+            ageRatingService: ageRatingService);
 }

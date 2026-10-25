@@ -319,19 +319,7 @@ else
         <InputDate class="form-control metadata-date-input" @bind-Value="editModel.Date" />
         @if (editSupportsAgeRating)
         {
-            <InputSelect class="form-select metadata-agerating-select" @bind-Value="editModel.AgeRating" title="Altersfreigabe">
-                <option value="">Keine Altersfreigabe</option>
-                <option value="FSK 0">FSK 0</option>
-                <option value="FSK 6">FSK 6</option>
-                <option value="FSK 12">FSK 12</option>
-                <option value="FSK 16">FSK 16</option>
-                <option value="FSK 18">FSK 18</option>
-                <option value="G">G (MPAA)</option>
-                <option value="PG">PG (MPAA)</option>
-                <option value="PG-13">PG-13 (MPAA)</option>
-                <option value="R">R (MPAA)</option>
-                <option value="NC-17">NC-17 (MPAA)</option>
-            </InputSelect>
+            <AgeRatingSelect @bind-Value="editModel.AgeRating" />
         }
         @if (editSupportsGenres)
         {

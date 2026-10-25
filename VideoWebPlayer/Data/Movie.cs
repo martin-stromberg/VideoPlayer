@@ -9,7 +9,7 @@ namespace VideoWebPlayer.Data
     /// <summary>
     /// Represents a movie entry and its metadata.
     /// </summary>
-    public class Movie : MediaBaseEntry
+    public class Movie : MediaBaseEntry, IAgeRated
     {
         /// <summary>
         /// Gets or sets the owning movie collection identifier.
@@ -119,11 +119,8 @@ namespace VideoWebPlayer.Data
             Credits = string.Join(",", xml.Elements("credits").Select(c => c.Value));
             Plot = xml.Element("plot")?.Value;
 
-            var ageRatingRaw = xml.Element("mpaa")?.Value;
-            if (string.IsNullOrWhiteSpace(ageRatingRaw))
-                ageRatingRaw = xml.Element("certification")?.Value;
-            AgeRatingRaw = string.IsNullOrWhiteSpace(ageRatingRaw) ? null : ageRatingRaw;
-            var ageRating = AgeRatingNormalizer.Normalize(AgeRatingRaw);
+            var (ageRatingRaw, ageRating) = AgeRatingNormalizer.ExtractFromXml(xml);
+            AgeRatingRaw = ageRatingRaw;
             AgeRating = ageRating.DisplayValue;
             AgeRatingMinAge = ageRating.MinAge;
         }

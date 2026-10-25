@@ -9,7 +9,7 @@ namespace VideoWebPlayer.Data
     /// <summary>
     /// Represents a TV show entry and its metadata.
     /// </summary>
-    public class TVShow : MediaBaseEntry
+    public class TVShow : MediaBaseEntry, IAgeRated
     {
         // Bisherige Eigenschaften
         /// <summary>
@@ -78,11 +78,8 @@ namespace VideoWebPlayer.Data
             GenreNames = string.Join(",", xml.Elements("genre").Select(g => g.Value));
             PremieredAt = DateTime.TryParse(GetElementValue(xml, "premiered"), out var dt) ? dt : null;
 
-            var ageRatingRaw = xml.Element("mpaa")?.Value;
-            if (string.IsNullOrWhiteSpace(ageRatingRaw))
-                ageRatingRaw = xml.Element("certification")?.Value;
-            AgeRatingRaw = string.IsNullOrWhiteSpace(ageRatingRaw) ? null : ageRatingRaw;
-            var ageRating = AgeRatingNormalizer.Normalize(AgeRatingRaw);
+            var (ageRatingRaw, ageRating) = AgeRatingNormalizer.ExtractFromXml(xml);
+            AgeRatingRaw = ageRatingRaw;
             AgeRating = ageRating.DisplayValue;
             AgeRatingMinAge = ageRating.MinAge;
         }

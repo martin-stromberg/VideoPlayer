@@ -188,6 +188,7 @@ public sealed class TmdbAgeRatingService : ITmdbAgeRatingService
         }
 
         var json = await response.Content.ReadAsStringAsync(timeoutCts.Token);
-        return JsonDocument.Parse(json).RootElement.Clone();
+        using var document = JsonDocument.Parse(json);
+        return document.RootElement.Clone();
     }
 }

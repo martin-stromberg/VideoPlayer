@@ -38,7 +38,10 @@ Felder nicht angeboten.
 
 Bei Filmen und Serien kann zusätzlich die Altersfreigabe über eine Auswahlliste
 gepflegt werden (FSK 0/6/12/16/18 sowie die MPAA-Stufen G, PG, PG-13, R und
-NC-17). `Keine Altersfreigabe` entfernt einen vorhandenen Wert. Die Freigabe
+NC-17). `Keine Altersfreigabe` entfernt einen vorhandenen Wert. Ist ein Wert
+hinterlegt, der keiner bekannten Stufe entspricht (z. B. `TV-MA` aus einer
+NFO-Datei), erscheint er zusätzlich als `übernommen`-Option, damit er beim
+Speichern anderer Felder erhalten bleibt. Die Freigabe
 wird als Badge in der Meta-Zeile der Detailansicht angezeigt; bei Serien
 übernehmen Staffel- und Episodenansicht die Serienfreigabe. Eine manuell
 gesetzte Freigabe wird durch den manuellen-Editier-Schutz nicht mehr vom Scan

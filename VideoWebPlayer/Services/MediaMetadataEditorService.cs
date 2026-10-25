@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using VideoWebPlayer.Components.Shared.Media;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services.Backups;
 using VideoWebPlayer.Utils;
@@ -12,7 +13,6 @@ public sealed class MediaMetadataEditorService
 {
     private const int MaxNameLength = 512;
     private const int MaxPlotLength = 10000;
-    private const int MaxAgeRatingLength = 64;
     private readonly ApplicationDbContext _db;
     private readonly IBackgroundProcessingGate? _backgroundGate;
     private readonly IMediaMetadataWriteCoordinator? _writeCoordinator;
@@ -94,12 +94,14 @@ public sealed class MediaMetadataEditorService
     private async Task UpdateMovieAsync(MediaMetadataUpdateRequest request, CancellationToken cancellationToken)
     {
         ValidateReleaseDateOnly(request, "Filme");
-        ValidateAgeRatingValue(request);
+        ValidateAgeRatingLength(request);
 
         var movie = await _db.Movies
             .Include(m => m.MovieGenres)
             .FirstOrDefaultAsync(m => m.Id == request.Id, cancellationToken)
             ?? throw new KeyNotFoundException("Film nicht gefunden.");
+
+        ValidateAgeRatingValue(request, movie.AgeRating);
 
         movie.Name = request.Name.Trim();
         movie.ReleaseDate = NormalizeDate(request.ReleaseDate);
@@ -132,12 +134,14 @@ public sealed class MediaMetadataEditorService
     private async Task UpdateTVShowAsync(MediaMetadataUpdateRequest request, CancellationToken cancellationToken)
     {
         ValidateReleaseDateOnly(request, "Serien");
-        ValidateAgeRatingValue(request);
+        ValidateAgeRatingLength(request);
 
         var show = await _db.TVShows
             .Include(s => s.TVShowGenres)
             .FirstOrDefaultAsync(s => s.Id == request.Id, cancellationToken)
             ?? throw new KeyNotFoundException("Serie nicht gefunden.");
+
+        ValidateAgeRatingValue(request, show.AgeRating);
 
         show.Name = request.Name.Trim();
         show.ReleaseDate = NormalizeDate(request.ReleaseDate);
@@ -283,15 +287,22 @@ public sealed class MediaMetadataEditorService
             throw new ArgumentException("Dieser Medientyp besitzt kein Altersfreigabe-Feld.");
     }
 
-    private static void ValidateAgeRatingValue(MediaMetadataUpdateRequest request)
+    private static void ValidateAgeRatingLength(MediaMetadataUpdateRequest request)
+    {
+        if (!string.IsNullOrWhiteSpace(request.AgeRating)
+            && request.AgeRating.Trim().Length > MetadataEditModel.MaxAgeRatingLength)
+            throw new ArgumentException($"Die Altersfreigabe darf maximal {MetadataEditModel.MaxAgeRatingLength} Zeichen lang sein.");
+    }
+
+    private static void ValidateAgeRatingValue(MediaMetadataUpdateRequest request, string? currentAgeRating)
     {
         if (string.IsNullOrWhiteSpace(request.AgeRating))
             return;
 
-        if (request.AgeRating.Trim().Length > MaxAgeRatingLength)
-            throw new ArgumentException($"Die Altersfreigabe darf maximal {MaxAgeRatingLength} Zeichen lang sein.");
-
-        if (AgeRatingNormalizer.Normalize(request.AgeRating).MinAge is null)
+        // Ein bereits gespeicherter, nicht-kanonischer Wert (z. B. „TV-MA" aus einer
+        // NFO) darf unverändert mitgespeichert werden; neu setzbar sind nur bekannte Stufen.
+        if (AgeRatingNormalizer.Normalize(request.AgeRating).MinAge is null
+            && !string.Equals(request.AgeRating.Trim(), currentAgeRating, StringComparison.Ordinal))
             throw new ArgumentException("Unbekannte Altersfreigabe.");
     }
 

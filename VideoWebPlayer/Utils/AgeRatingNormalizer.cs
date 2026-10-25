@@ -1,3 +1,5 @@
+using System.Xml.Linq;
+
 namespace VideoWebPlayer.Utils;
 
 /// <summary>
@@ -17,6 +19,18 @@ public static class AgeRatingNormalizer
     };
 
     private static readonly int[] ValidFskAges = { 0, 6, 12, 16, 18 };
+
+    /// <summary>
+    /// Kanonische Auswahlwerte (Wert, Anzeigetext) für die Altersfreigabe-Auswahl in
+    /// der Oberfläche — einzige Quelle, damit UI und Normalisierung nicht driften.
+    /// </summary>
+    public static IReadOnlyList<(string Value, string Label)> CanonicalOptions { get; } =
+        ValidFskAges
+            .Select(age => ($"FSK {age}", $"FSK {age}"))
+            .Concat(MpaaRatings
+                .OrderBy(r => r.MinAge)
+                .Select(r => (r.Canonical, $"{r.Canonical} (MPAA)")))
+            .ToArray();
 
     /// <summary>
     /// Normalisiert einen Altersfreigabe-Rohwert.
@@ -65,5 +79,24 @@ public static class AgeRatingNormalizer
             return new AgeRatingResult($"FSK {bareAge}", bareAge);
 
         return new AgeRatingResult(trimmed, null);
+    }
+
+    /// <summary>
+    /// Liest den Altersfreigabe-Rohwert aus einer NFO — <c>&lt;mpaa&gt;</c> primär,
+    /// <c>&lt;certification&gt;</c> als Fallback — und normalisiert ihn.
+    /// </summary>
+    /// <param name="xml">Wurzelelement der NFO (z. B. <c>&lt;movie&gt;</c> oder <c>&lt;tvshow&gt;</c>).</param>
+    /// <returns>
+    /// Der unveränderte Rohwert (<c>null</c>, wenn kein Element gefüllt ist) plus das
+    /// Normalisierungsergebnis.
+    /// </returns>
+    public static (string? Raw, AgeRatingResult Rating) ExtractFromXml(XElement xml)
+    {
+        var raw = xml.Element("mpaa")?.Value;
+        if (string.IsNullOrWhiteSpace(raw))
+            raw = xml.Element("certification")?.Value;
+
+        var effectiveRaw = string.IsNullOrWhiteSpace(raw) ? null : raw;
+        return (effectiveRaw, Normalize(effectiveRaw));
     }
 }

@@ -535,9 +535,7 @@ namespace VideoWebPlayer.Services
                     else
                         existingShow.TVShowGenres.Add(new TVShowGenre { TVShowId = existingShow.Id, GenreId = genre.Id });
                 }
-            }
-            if (!existingShow.IsManuallyEdited)
-            {
+
                 await TryApplyOnlineAgeRatingAsync(existingShow, xml, cancellationToken);
                 existingShow.AgeRatingClassifiedAt = DateTime.UtcNow;
             }
@@ -878,9 +876,7 @@ namespace VideoWebPlayer.Services
                 {
                     await TryApplyOnlineAgeRatingAsync(existingMovie, xml, cancellationToken);
                     existingMovie.AgeRatingClassifiedAt = DateTime.UtcNow;
-                }
-                if (!existingMovie.IsManuallyEdited)
-                {
+
                     var movieGenres = await GetOrCreateGenresAsync(existingMovie.GenreNames, collection.MediaSourceId, cancellationToken);
                     existingMovie.GenreNames = string.Join(",", movieGenres.Select(g => g.Name));
                     existingMovie.MovieGenres.Clear();
@@ -1949,7 +1945,10 @@ namespace VideoWebPlayer.Services
                     if (nfoContent is not null)
                     {
                         try { xml = XElement.Parse(nfoContent); }
-                        catch { continue; }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "NFO für Movie '{MovieName}' (ID: {MovieId}) ist kein gültiges XML; versuche Online-Lookup.", movie.Name, movie.Id);
+                        }
                     }
 
                     if (xml is not null)
@@ -1993,7 +1992,10 @@ namespace VideoWebPlayer.Services
                         if (nfoContent is not null)
                         {
                             try { xml = XElement.Parse(nfoContent); }
-                            catch { continue; }
+                            catch (Exception ex)
+                            {
+                                _logger.LogWarning(ex, "tvshow.nfo für TVShow '{ShowName}' (ID: {ShowId}) ist kein gültiges XML; versuche Online-Lookup.", show.Name, show.Id);
+                            }
                         }
                     }
 
@@ -2015,58 +2017,44 @@ namespace VideoWebPlayer.Services
             _logger.LogInformation("Nacherfassung der Altersfreigaben abgeschlossen.");
         }
 
-        private async Task TryApplyOnlineAgeRatingAsync(Movie movie, XElement xml, CancellationToken cancellationToken)
+        private Task TryApplyOnlineAgeRatingAsync(Movie movie, XElement xml, CancellationToken cancellationToken)
+            => TryApplyOnlineAgeRatingAsync(movie, "Film",
+                ct => _ageRatingService!.GetMovieAgeRatingAsync(
+                    movie.Name, movie.Year, ExtractTmdbId(xml), ct),
+                cancellationToken);
+
+        private Task TryApplyOnlineAgeRatingAsync(TVShow show, XElement xml, CancellationToken cancellationToken)
+            => TryApplyOnlineAgeRatingAsync(show, "Serie",
+                ct => _ageRatingService!.GetTVShowAgeRatingAsync(
+                    show.Name, show.PremieredAt?.Year, ExtractTmdbId(xml), ct),
+                cancellationToken);
+
+        private async Task TryApplyOnlineAgeRatingAsync<T>(
+            T entity,
+            string kind,
+            Func<CancellationToken, Task<TmdbAgeRating?>> lookup,
+            CancellationToken cancellationToken)
+            where T : MediaBaseEntry, IAgeRated
         {
-            if (_ageRatingService is null || movie.AgeRatingRaw is not null)
+            if (_ageRatingService is null || entity.AgeRatingRaw is not null)
                 return;
 
             try
             {
-                var rating = await _ageRatingService.GetMovieAgeRatingAsync(
-                    movie.Name, movie.Year, ExtractTmdbId(xml), cancellationToken);
-                ApplyOnlineAgeRating(rating, (raw, display, minAge) =>
-                {
-                    movie.AgeRatingRaw = raw;
-                    movie.AgeRating = display;
-                    movie.AgeRatingMinAge = minAge;
-                });
+                var rating = await lookup(cancellationToken);
+                if (rating is null || string.IsNullOrWhiteSpace(rating.Certification))
+                    return;
+
+                var raw = $"{rating.Country}:{rating.Certification}";
+                var normalized = AgeRatingNormalizer.Normalize(raw);
+                entity.AgeRatingRaw = raw;
+                entity.AgeRating = normalized.DisplayValue;
+                entity.AgeRatingMinAge = normalized.MinAge;
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                _logger.LogDebug(ex, "Online-Altersfreigabe für Film '{MovieName}' fehlgeschlagen.", movie.Name);
+                _logger.LogDebug(ex, "Online-Altersfreigabe für {Kind} '{Name}' fehlgeschlagen.", kind, entity.Name);
             }
-        }
-
-        private async Task TryApplyOnlineAgeRatingAsync(TVShow show, XElement xml, CancellationToken cancellationToken)
-        {
-            if (_ageRatingService is null || show.AgeRatingRaw is not null)
-                return;
-
-            try
-            {
-                var rating = await _ageRatingService.GetTVShowAgeRatingAsync(
-                    show.Name, show.PremieredAt?.Year, ExtractTmdbId(xml), cancellationToken);
-                ApplyOnlineAgeRating(rating, (raw, display, minAge) =>
-                {
-                    show.AgeRatingRaw = raw;
-                    show.AgeRating = display;
-                    show.AgeRatingMinAge = minAge;
-                });
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                _logger.LogDebug(ex, "Online-Altersfreigabe für Serie '{ShowName}' fehlgeschlagen.", show.Name);
-            }
-        }
-
-        private static void ApplyOnlineAgeRating(TmdbAgeRating? rating, Action<string, string?, int?> apply)
-        {
-            if (rating is null || string.IsNullOrWhiteSpace(rating.Certification))
-                return;
-
-            var raw = $"{rating.Country}:{rating.Certification}";
-            var normalized = AgeRatingNormalizer.Normalize(raw);
-            apply(raw, normalized.DisplayValue, normalized.MinAge);
         }
 
         private static string? ExtractTmdbId(XElement xml)

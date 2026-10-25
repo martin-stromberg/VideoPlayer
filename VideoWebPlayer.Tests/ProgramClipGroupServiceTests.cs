@@ -28,16 +28,16 @@ public sealed class ProgramClipGroupServiceTests
         var ct = CT;
         var (f, svc, admin, _) = await SetupAsync("cgs-crud", ct);
         using var _ = f;
-        var g = await svc.CreateGroupAsync(admin, "Maskottchen");
+        var g = await svc.CreateGroupAsync(admin, "Maskottchen", ct);
         Assert.Equal("Maskottchen", g.Name);
         Assert.False(g.IsSystem);
-        var renamed = await svc.RenameGroupAsync(admin, g.Id, "Werbung");
+        var renamed = await svc.RenameGroupAsync(admin, g.Id, "Werbung", ct);
         Assert.Equal("Werbung", renamed.Name);
-        var groups = await svc.GetGroupsAsync(admin);
+        var groups = await svc.GetGroupsAsync(admin, ct);
         Assert.Contains(groups, x => x.Id == g.Id);
         Assert.Contains(groups, x => x.Name == "Trailer" && x.IsSystem);
-        await svc.DeleteGroupAsync(admin, g.Id);
-        Assert.DoesNotContain(await svc.GetGroupsAsync(admin), x => x.Id == g.Id);
+        await svc.DeleteGroupAsync(admin, g.Id, ct);
+        Assert.DoesNotContain(await svc.GetGroupsAsync(admin, ct), x => x.Id == g.Id);
     }
 
     [Fact]
@@ -46,10 +46,10 @@ public sealed class ProgramClipGroupServiceTests
         var ct = CT;
         var (f, svc, admin, _) = await SetupAsync("cgs-reserved", ct);
         using var _ = f;
-        await Assert.ThrowsAsync<ArgumentException>(() => svc.CreateGroupAsync(admin, "Trailer"));
-        await Assert.ThrowsAsync<ArgumentException>(() => svc.CreateGroupAsync(admin, " trailer "));
-        var g = await svc.CreateGroupAsync(admin, "Eigene");
-        await Assert.ThrowsAsync<ArgumentException>(() => svc.RenameGroupAsync(admin, g.Id, "trailer"));
+        await Assert.ThrowsAsync<ArgumentException>(() => svc.CreateGroupAsync(admin, "Trailer", ct));
+        await Assert.ThrowsAsync<ArgumentException>(() => svc.CreateGroupAsync(admin, " trailer ", ct));
+        var g = await svc.CreateGroupAsync(admin, "Eigene", ct);
+        await Assert.ThrowsAsync<ArgumentException>(() => svc.RenameGroupAsync(admin, g.Id, "trailer", ct));
     }
 
     [Fact]
@@ -59,10 +59,10 @@ public sealed class ProgramClipGroupServiceTests
         var (f, svc, admin, _) = await SetupAsync("cgs-system", ct);
         using var _ = f;
         var item = await f.CreateMediaItemAsync(1, TimeSpan.FromMinutes(1));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => svc.RenameGroupAsync(admin, ProgramClipGroup.TrailerGroupId, "X"));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => svc.DeleteGroupAsync(admin, ProgramClipGroup.TrailerGroupId));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => svc.AddClipsToGroupAsync(admin, ProgramClipGroup.TrailerGroupId, [item.Id]));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => svc.RemoveClipFromGroupAsync(admin, ProgramClipGroup.TrailerGroupId, item.Id));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => svc.RenameGroupAsync(admin, ProgramClipGroup.TrailerGroupId, "X", ct));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => svc.DeleteGroupAsync(admin, ProgramClipGroup.TrailerGroupId, ct));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => svc.AddClipsToGroupAsync(admin, ProgramClipGroup.TrailerGroupId, [item.Id], ct));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => svc.RemoveClipFromGroupAsync(admin, ProgramClipGroup.TrailerGroupId, item.Id, ct));
     }
 
     [Fact]
@@ -71,8 +71,8 @@ public sealed class ProgramClipGroupServiceTests
         var ct = CT;
         var (f, svc, _, user) = await SetupAsync("cgs-noadmin", ct);
         using var _ = f;
-        await Assert.ThrowsAnyAsync<Exception>(() => svc.CreateGroupAsync(user, "X"));
-        await Assert.ThrowsAnyAsync<Exception>(() => svc.GetGroupsAsync(user));
+        await Assert.ThrowsAnyAsync<Exception>(() => svc.CreateGroupAsync(user, "X", ct));
+        await Assert.ThrowsAnyAsync<Exception>(() => svc.GetGroupsAsync(user, ct));
     }
 
     [Fact]
@@ -89,7 +89,7 @@ public sealed class ProgramClipGroupServiceTests
         var episodeItem = await f.Db.TVShowEpisodeMediaItems
             .Where(l => l.TVShowEpisodeId == episodes[0].Id).Select(l => l.MediaItemId).FirstAsync(ct);
 
-        var candidates = await svc.GetClipCandidatesAsync(admin, null, null, 0, 200);
+        var candidates = await svc.GetClipCandidatesAsync(admin, null, null, 0, 200, ct);
 
         Assert.Contains(candidates, c => c.MediaItemId == clip.Id);
         Assert.Contains(candidates, c => c.MediaItemId == noDur.Id);
@@ -103,15 +103,15 @@ public sealed class ProgramClipGroupServiceTests
         var ct = CT;
         var (f, svc, admin, _) = await SetupAsync("cgs-addmissing", ct);
         using var _ = f;
-        var g = await svc.CreateGroupAsync(admin, "G");
+        var g = await svc.CreateGroupAsync(admin, "G", ct);
         var item = await f.CreateMediaItemAsync(1, TimeSpan.FromMinutes(1));
 
         // Unbekannte Ids — einschließlich der Id 0, die ein Default-Sentinel früher als
         // „vorhanden" durchwinkte und erst beim Speichern als FK-Verletzung scheiterte —
         // werden als sauberer Fachfehler abgelehnt, bevor irgendetwas geschrieben wird.
-        await Assert.ThrowsAsync<KeyNotFoundException>(() => svc.AddClipsToGroupAsync(admin, g.Id, [0]));
-        await Assert.ThrowsAsync<KeyNotFoundException>(() => svc.AddClipsToGroupAsync(admin, g.Id, [item.Id, item.Id + 1000]));
-        Assert.Empty(await svc.GetGroupClipsAsync(admin, g.Id));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => svc.AddClipsToGroupAsync(admin, g.Id, [0], ct));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => svc.AddClipsToGroupAsync(admin, g.Id, [item.Id, item.Id + 1000], ct));
+        Assert.Empty(await svc.GetGroupClipsAsync(admin, g.Id, ct));
     }
 
     [Fact]
@@ -120,10 +120,10 @@ public sealed class ProgramClipGroupServiceTests
         var ct = CT;
         var (f, svc, admin, _) = await SetupAsync("cgs-addclassified", ct);
         using var _ = f;
-        var g = await svc.CreateGroupAsync(admin, "G");
+        var g = await svc.CreateGroupAsync(admin, "G", ct);
         var movie = await f.CreateMovieAsync("Film", 1, TimeSpan.FromMinutes(90));
         var movieItem = await f.Db.MovieMediaItems.Where(l => l.MovieId == movie.Id).Select(l => l.MediaItemId).FirstAsync(ct);
-        await Assert.ThrowsAsync<ArgumentException>(() => svc.AddClipsToGroupAsync(admin, g.Id, [movieItem]));
+        await Assert.ThrowsAsync<ArgumentException>(() => svc.AddClipsToGroupAsync(admin, g.Id, [movieItem], ct));
     }
 
     [Fact]
@@ -132,14 +132,14 @@ public sealed class ProgramClipGroupServiceTests
         var ct = CT;
         var (f, svc, admin, _) = await SetupAsync("cgs-members", ct);
         using var _ = f;
-        var g = await svc.CreateGroupAsync(admin, "G");
+        var g = await svc.CreateGroupAsync(admin, "G", ct);
         var item = await f.CreateMediaItemAsync(1, TimeSpan.FromMinutes(1));
-        await svc.AddClipsToGroupAsync(admin, g.Id, [item.Id]);
-        var members = await svc.GetGroupClipsAsync(admin, g.Id);
+        await svc.AddClipsToGroupAsync(admin, g.Id, [item.Id], ct);
+        var members = await svc.GetGroupClipsAsync(admin, g.Id, ct);
         Assert.Single(members);
         Assert.Equal(item.Id, members[0].MediaItemId);
-        await svc.RemoveClipFromGroupAsync(admin, g.Id, item.Id);
-        Assert.Empty(await svc.GetGroupClipsAsync(admin, g.Id));
+        await svc.RemoveClipFromGroupAsync(admin, g.Id, item.Id, ct);
+        Assert.Empty(await svc.GetGroupClipsAsync(admin, g.Id, ct));
     }
 
     [Fact]
@@ -152,9 +152,9 @@ public sealed class ProgramClipGroupServiceTests
         await f.GrantSourceAccessAsync(user);
         f.Db.ProgramClipGroups.RemoveRange(f.Db.ProgramClipGroups);
         await f.Db.SaveChangesAsync(ct);
-        var groups = await svc.GetGroupsAsync(admin);
+        var groups = await svc.GetGroupsAsync(admin, ct);
         Assert.Empty(groups);
-        var g = await svc.CreateGroupAsync(admin, "Eigene");
+        var g = await svc.CreateGroupAsync(admin, "Eigene", ct);
         Assert.NotNull(g);
 
         // CreateRuleAsync mit der (fehlenden) Trailer-Gruppe schlägt als unbekannte Gruppe fehl.
@@ -172,11 +172,11 @@ public sealed class ProgramClipGroupServiceTests
         var rule = await f.CreateRuleAsync(channel.Id, "R2", ProgramRuleType.MoviePrimeTime,
             ProgramRuleRecurrence.Daily, new TimeOnly(20, 0), ProgramRuleMaterialType.Movie, movie.Id,
             slotDuration: TimeSpan.FromHours(4));
-        await f.Db.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys = OFF");
+        await f.Db.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys = OFF", ct);
         await f.Db.Database.ExecuteSqlRawAsync(
             "INSERT INTO ProgramRuleClipGroups (ProgramRuleId, ProgramClipGroupId) VALUES ({0}, {1})",
             rule.Id, ProgramClipGroup.TrailerGroupId);
-        await f.Db.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys = ON");
+        await f.Db.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys = ON", ct);
 
         var summary = await f.CreateService().EnsureCoverageAsync(DateTimeOffset.UtcNow, ct);
         Assert.True(summary.SlotsCreated > 0);

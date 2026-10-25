@@ -332,7 +332,7 @@ public sealed class ProgramScheduleServiceTests_ClipGroups
 
         await fixture.CreateService().EnsureCoverageAsync(Now, ct);
         var slots = await AiringSlotsAsync(fixture, rule, ct);
-        Assert.NotEmpty(slots.Where(s => clipIds.Contains(s.MediaItemId)));
+        Assert.Contains(slots, s => clipIds.Contains(s.MediaItemId));
     }
 
     [Fact]

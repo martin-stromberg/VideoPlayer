@@ -106,10 +106,7 @@ public sealed class MediaMetadataEditorService
         movie.Name = request.Name.Trim();
         movie.ReleaseDate = NormalizeDate(request.ReleaseDate);
         movie.Plot = NormalizeText(request.Plot);
-        movie.AgeRatingRaw = NormalizeText(request.AgeRating);
-        var movieRating = AgeRatingNormalizer.Normalize(movie.AgeRatingRaw);
-        movie.AgeRating = movieRating.DisplayValue;
-        movie.AgeRatingMinAge = movieRating.MinAge;
+        ApplyAgeRating(movie, request.AgeRating);
         movie.IsManuallyEdited = true;
         await ApplyMovieGenresAsync(movie, request.GenreNames, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
@@ -146,10 +143,7 @@ public sealed class MediaMetadataEditorService
         show.Name = request.Name.Trim();
         show.ReleaseDate = NormalizeDate(request.ReleaseDate);
         show.Plot = NormalizeText(request.Plot);
-        show.AgeRatingRaw = NormalizeText(request.AgeRating);
-        var showRating = AgeRatingNormalizer.Normalize(show.AgeRatingRaw);
-        show.AgeRating = showRating.DisplayValue;
-        show.AgeRatingMinAge = showRating.MinAge;
+        ApplyAgeRating(show, request.AgeRating);
         show.IsManuallyEdited = true;
         await ApplyTVShowGenresAsync(show, request.GenreNames, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
@@ -326,4 +320,12 @@ public sealed class MediaMetadataEditorService
 
     private static string? NormalizeText(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static void ApplyAgeRating(IAgeRated entity, string? input)
+    {
+        entity.AgeRatingRaw = NormalizeText(input);
+        var rating = AgeRatingNormalizer.Normalize(entity.AgeRatingRaw);
+        entity.AgeRating = rating.DisplayValue;
+        entity.AgeRatingMinAge = rating.MinAge;
+    }
 }

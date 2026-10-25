@@ -40,7 +40,7 @@ namespace VideoWebPlayer.Services
                 {
                     await classifier.BackfillMissingActorsAsync(stoppingToken);
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (ex is not OperationCanceledException)
                 {
                     _logger.LogError(ex, "[ActorBackfillWorker] Fehler bei der Nacherfassung der Schauspieler.");
                 }
@@ -49,12 +49,12 @@ namespace VideoWebPlayer.Services
                 {
                     await classifier.BackfillMissingAgeRatingsAsync(stoppingToken);
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (ex is not OperationCanceledException)
                 {
                     _logger.LogError(ex, "[ActorBackfillWorker] Fehler bei der Nacherfassung der Altersfreigaben.");
                 }
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 _logger.LogError(ex, "[ActorBackfillWorker] Fehler bei der Nacherfassung.");
             }

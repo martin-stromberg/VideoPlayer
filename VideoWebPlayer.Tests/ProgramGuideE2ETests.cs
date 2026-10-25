@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using VideoWebPlayer.Client.Models;
 using VideoWebPlayer.Data;
+using VideoWebPlayer.Services;
 using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
@@ -27,7 +28,9 @@ public sealed class ProgramGuideE2ETests : DeviceClientTestBase
     {
         using var scope = CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var setup = await db.Setups.FirstOrDefaultAsync(TestContext.Current.CancellationToken) ?? db.Setups.Add(new Setup()).Entity;
+        // GetOrCreateSetupAsync is race-safe: a check-then-act insert here could collide with the
+        // startup data upgrade on an empty table and leave a second Setup row behind (Issue #279).
+        var setup = await scope.ServiceProvider.GetRequiredService<ProgramSettingsService>().GetOrCreateSetupAsync(TestContext.Current.CancellationToken);
         setup.TvSenderEnabled = true;
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 

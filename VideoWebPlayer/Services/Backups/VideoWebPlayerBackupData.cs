@@ -42,7 +42,10 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         nameof(ApplicationDbContext.ProgramRuleCursors),
         nameof(ApplicationDbContext.ProgramRuleGenres),
         nameof(ApplicationDbContext.ProgramRuleMediaSources),
-        nameof(ApplicationDbContext.TvSenderUserAccess)
+        nameof(ApplicationDbContext.TvSenderUserAccess),
+        nameof(ApplicationDbContext.ProgramClipGroups),
+        nameof(ApplicationDbContext.ProgramClipGroupItems),
+        nameof(ApplicationDbContext.ProgramRuleClipGroups)
     };
 
     private static readonly HashSet<string> OptionalRestoreColumns = new(StringComparer.OrdinalIgnoreCase)
@@ -92,7 +95,8 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.LiveStreamSegmentRetentionMinutes)}",
         $"{nameof(ApplicationDbContext.MovieMediaItems)}.{nameof(MovieMediaItem.IsTrailer)}",
         $"{nameof(ApplicationDbContext.ProgramRuleCursors)}.{nameof(ProgramRuleCursor.StrandKey)}",
-        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.TvSenderEnabled)}"
+        $"{nameof(ApplicationDbContext.Setups)}.{nameof(Setup.TvSenderEnabled)}",
+        $"{nameof(ApplicationDbContext.ProgramRules)}.{nameof(ProgramRule.PlaceholderGrace)}"
     };
 
     private static readonly HashSet<string> IgnoredRestoreColumns = new(StringComparer.OrdinalIgnoreCase)
@@ -137,6 +141,11 @@ public sealed class VideoWebPlayerBackupData : IBackupData
         (nameof(ApplicationDbContext.Setups), nameof(Setup.LiveStreamSegmentLengthSeconds), 6),
         (nameof(ApplicationDbContext.Setups), nameof(Setup.LiveStreamSegmentRetentionMinutes), 30),
         (nameof(ApplicationDbContext.MediaItems), nameof(MediaItem.DurationProbeAttempts), 0)
+    };
+
+    private static readonly (string Table, string Column, TimeSpan DefaultValue)[] OptionalRestoreTimeSpanDefaults =
+    {
+        (nameof(ApplicationDbContext.ProgramRules), nameof(ProgramRule.PlaceholderGrace), ProgramRule.DefaultPlaceholderGrace)
     };
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };
@@ -962,44 +971,30 @@ public sealed class VideoWebPlayerBackupData : IBackupData
             row["ApplicationTitle"] = JsonSerializer.SerializeToElement("Martins Videosammlung", JsonOptions);
         }
 
-        foreach (var (tableName, columnName, defaultValue) in OptionalRestoreBoolDefaults)
+        void InjectDefault(string tableName, string columnName, object defaultValue)
         {
             if (!string.Equals(table.Name, tableName, StringComparison.OrdinalIgnoreCase)
                 || insertColumns.Contains(columnName, StringComparer.OrdinalIgnoreCase)
                 || !table.Columns.Any(x => string.Equals(x.Name, columnName, StringComparison.OrdinalIgnoreCase)))
             {
-                continue;
+                return;
             }
 
             insertColumns.Add(columnName);
             row[columnName] = JsonSerializer.SerializeToElement(defaultValue, JsonOptions);
         }
+
+        foreach (var (tableName, columnName, defaultValue) in OptionalRestoreBoolDefaults)
+            InjectDefault(tableName, columnName, defaultValue);
 
         foreach (var (tableName, columnName, defaultValue) in OptionalRestoreLongDefaults)
-        {
-            if (!string.Equals(table.Name, tableName, StringComparison.OrdinalIgnoreCase)
-                || insertColumns.Contains(columnName, StringComparer.OrdinalIgnoreCase)
-                || !table.Columns.Any(x => string.Equals(x.Name, columnName, StringComparison.OrdinalIgnoreCase)))
-            {
-                continue;
-            }
-
-            insertColumns.Add(columnName);
-            row[columnName] = JsonSerializer.SerializeToElement(defaultValue, JsonOptions);
-        }
+            InjectDefault(tableName, columnName, defaultValue);
 
         foreach (var (tableName, columnName, defaultValue) in OptionalRestoreIntDefaults)
-        {
-            if (!string.Equals(table.Name, tableName, StringComparison.OrdinalIgnoreCase)
-                || insertColumns.Contains(columnName, StringComparer.OrdinalIgnoreCase)
-                || !table.Columns.Any(x => string.Equals(x.Name, columnName, StringComparison.OrdinalIgnoreCase)))
-            {
-                continue;
-            }
+            InjectDefault(tableName, columnName, defaultValue);
 
-            insertColumns.Add(columnName);
-            row[columnName] = JsonSerializer.SerializeToElement(defaultValue, JsonOptions);
-        }
+        foreach (var (tableName, columnName, defaultValue) in OptionalRestoreTimeSpanDefaults)
+            InjectDefault(tableName, columnName, defaultValue);
 
         return insertColumns;
     }

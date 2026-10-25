@@ -24,6 +24,7 @@ namespace VideoWebPlayer.Data.Configurations
             builder.Property(r => r.MaterialType).IsRequired();
             builder.Property(r => r.MaterialId).IsRequired();
             builder.Property(r => r.Priority).IsRequired().HasDefaultValue(0);
+            builder.Property(r => r.PlaceholderGrace).IsRequired().HasDefaultValue(ProgramRule.DefaultPlaceholderGrace);
             builder.Property(r => r.IsActive).IsRequired().HasDefaultValue(true);
             builder.Property(r => r.CreatedAt).IsRequired();
             builder.Property(r => r.UpdatedAt).IsRequired();

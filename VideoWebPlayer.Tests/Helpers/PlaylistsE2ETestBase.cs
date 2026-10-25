@@ -839,8 +839,13 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
         var user = await ResolveUserByEmailAsync(scope.ServiceProvider, userEmail);
         var sourceId = await EnsureMediaSourceIdAsync(db);
 
-        db.MediaSourceUsers.Add(new MediaSourceUser { UserId = user.Id, MediaSourceId = sourceId });
-        await db.SaveChangesAsync();
+        // Idempotent: MediaSourceUsers has a composite (MediaSourceId, UserId) primary key —
+        // a seed helper may have granted the access already.
+        if (!await db.MediaSourceUsers.AnyAsync(m => m.UserId == user.Id && m.MediaSourceId == sourceId))
+        {
+            db.MediaSourceUsers.Add(new MediaSourceUser { UserId = user.Id, MediaSourceId = sourceId });
+            await db.SaveChangesAsync();
+        }
     }
 
     /// <summary>
@@ -943,7 +948,9 @@ public abstract class PlaylistsE2ETestBase : IAsyncLifetime
             return (episode.Id, show.Id);
         });
 
-    private static async Task<long> EnsureMediaSourceIdAsync(ApplicationDbContext db)
+    /// <summary>Returns the id of an existing media source, creating the shared "E2E Test Source"
+    /// when the fixture database has none yet.</summary>
+    protected static async Task<long> EnsureMediaSourceIdAsync(ApplicationDbContext db)
     {
         var existing = await db.MediaSources.FirstOrDefaultAsync();
         if (existing is not null)

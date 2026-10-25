@@ -1309,6 +1309,52 @@ namespace VideoWebPlayer.Migrations
                     b.ToTable("PlaylistGenres");
                 });
 
+            modelBuilder.Entity("VideoWebPlayer.Data.ProgramClipGroup", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsSystem")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT")
+                        .UseCollation("NOCASE");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("ProgramClipGroups");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.ProgramClipGroupItem", b =>
+                {
+                    b.Property<long>("ProgramClipGroupId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("MediaItemId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("ProgramClipGroupId", "MediaItemId");
+
+                    b.HasIndex("MediaItemId");
+
+                    b.ToTable("ProgramClipGroupItems");
+                });
+
             modelBuilder.Entity("VideoWebPlayer.Data.ProgramRule", b =>
                 {
                     b.Property<long>("Id")
@@ -1340,6 +1386,11 @@ namespace VideoWebPlayer.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("TEXT")
                         .UseCollation("NOCASE");
+
+                    b.Property<TimeSpan>("PlaceholderGrace")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue(new TimeSpan(0, 0, 15, 0, 0));
 
                     b.Property<int>("Priority")
                         .ValueGeneratedOnAdd()
@@ -1375,6 +1426,21 @@ namespace VideoWebPlayer.Migrations
                         .IsUnique();
 
                     b.ToTable("ProgramRules");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.ProgramRuleClipGroup", b =>
+                {
+                    b.Property<long>("ProgramRuleId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ProgramClipGroupId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("ProgramRuleId", "ProgramClipGroupId");
+
+                    b.HasIndex("ProgramClipGroupId");
+
+                    b.ToTable("ProgramRuleClipGroups");
                 });
 
             modelBuilder.Entity("VideoWebPlayer.Data.ProgramRuleCursor", b =>
@@ -2291,6 +2357,25 @@ namespace VideoWebPlayer.Migrations
                     b.Navigation("Playlist");
                 });
 
+            modelBuilder.Entity("VideoWebPlayer.Data.ProgramClipGroupItem", b =>
+                {
+                    b.HasOne("VideoWebPlayer.Data.MediaItem", "MediaItem")
+                        .WithMany()
+                        .HasForeignKey("MediaItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("VideoWebPlayer.Data.ProgramClipGroup", "ProgramClipGroup")
+                        .WithMany()
+                        .HasForeignKey("ProgramClipGroupId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MediaItem");
+
+                    b.Navigation("ProgramClipGroup");
+                });
+
             modelBuilder.Entity("VideoWebPlayer.Data.ProgramRule", b =>
                 {
                     b.HasOne("VideoWebPlayer.Data.TVChannel", "TVChannel")
@@ -2300,6 +2385,25 @@ namespace VideoWebPlayer.Migrations
                         .IsRequired();
 
                     b.Navigation("TVChannel");
+                });
+
+            modelBuilder.Entity("VideoWebPlayer.Data.ProgramRuleClipGroup", b =>
+                {
+                    b.HasOne("VideoWebPlayer.Data.ProgramClipGroup", "ProgramClipGroup")
+                        .WithMany()
+                        .HasForeignKey("ProgramClipGroupId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("VideoWebPlayer.Data.ProgramRule", "ProgramRule")
+                        .WithMany("ClipGroups")
+                        .HasForeignKey("ProgramRuleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ProgramClipGroup");
+
+                    b.Navigation("ProgramRule");
                 });
 
             modelBuilder.Entity("VideoWebPlayer.Data.ProgramRuleCursor", b =>
@@ -2564,6 +2668,8 @@ namespace VideoWebPlayer.Migrations
 
             modelBuilder.Entity("VideoWebPlayer.Data.ProgramRule", b =>
                 {
+                    b.Navigation("ClipGroups");
+
                     b.Navigation("Genres");
 
                     b.Navigation("MediaSourceFilters");

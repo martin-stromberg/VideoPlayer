@@ -11,6 +11,7 @@
 @inject IProgramRuleService ProgramRuleService
 @inject IProgramScheduleService ProgramScheduleService
 @inject IProgramScheduleSignal ScheduleSignal
+@inject IProgramClipGroupService ClipGroupService
 @inject MediaDurationProbeService ProbeService
 @inject ProgramSettingsService ProgramSettings
 @inject AuthenticationStateProvider AuthStateProvider
@@ -68,6 +69,9 @@ else
             <button id="tvsender-tab-laufzeit" class="admin-tab @(activeTab == "laufzeit" ? "active" : "")" role="tab"
                     aria-selected="@(activeTab == "laufzeit" ? "true" : "false")" aria-controls="tab-laufzeit"
                     @onclick='() => SelectTab("laufzeit")'>Laufzeitermittlung</button>
+            <button id="tvsender-tab-clipgruppen" class="admin-tab @(activeTab == "clipgruppen" ? "active" : "")" role="tab"
+                    aria-selected="@(activeTab == "clipgruppen" ? "true" : "false")" aria-controls="tab-clipgruppen"
+                    @onclick='() => SelectTab("clipgruppen")'>Clip-Gruppen</button>
         </nav>
 
         @if (downloadSnapshot.IsActive)
@@ -330,6 +334,44 @@ else
                             }
                         </div>
                     </div>
+                }
+
+                @if (editRule.RuleType != ProgramRuleType.Filler)
+                {
+                    <label class="form-label" id="rule-clip-groups-label">Clip-Gruppen (Restzeit-Auffüllung)</label>
+                    <div id="rule-clip-groups" class="rule-multi-select">
+                        @if (clipGroups.Count == 0)
+                        {
+                            <span class="form-text" id="rule-clip-groups-empty">Keine Clip-Gruppen vorhanden — im Tab „Clip-Gruppen" anlegen.</span>
+                        }
+                        @foreach (var g in clipGroups)
+                        {
+                            <label class="form-check rule-clip-group-option" for="rule-clip-group-@g.Id">
+                                <input type="checkbox" class="form-check-input" id="rule-clip-group-@g.Id"
+                                       checked="@editRule.SelectedClipGroupIds.Contains(g.Id)"
+                                       @onchange="e => OnClipGroupToggled(g.Id, e.Value is bool b && b)" />
+                                @g.Name@(g.IsSystem ? " (automatisch befüllt)" : "")
+                            </label>
+                        }
+                    </div>
+                    @if (editRule.DurationMinutes is not > 0)
+                    {
+                        <span class="form-text" id="rule-clip-groups-hint">Clip-Gruppen und Karenzzeit wirken nur bei gesetzter Länge (Minuten).</span>
+                    }
+                    else if (editRule.SelectedClipGroupIds.Count == 0)
+                    {
+                        <span class="form-text" id="rule-clip-groups-hint">Die Karenzzeit wirkt erst mit mindestens einer gewählten Clip-Gruppe.</span>
+                    }
+                    else
+                    {
+                        <div class="admin-settings-grid">
+                            <div>
+                                <label class="form-label" for="rule-grace-minutes">Karenzzeit (Minuten)</label>
+                                <input id="rule-grace-minutes" type="number" min="1" class="form-control" @bind="editRule.GraceMinutes" />
+                                <span class="form-text" id="rule-grace-minutes-hint">Restzeit vor dem Sendeplatz-Ende, ab der kein weiterer Titel mehr gestartet, sondern mit Clips der gewählten Gruppen aufgefüllt wird.</span>
+                            </div>
+                        </div>
+                    }
                 }
 
                 @if (!string.IsNullOrWhiteSpace(editError))
@@ -699,6 +741,14 @@ else
 
         </div>
 
+        <!-- ============ Tab: Clip-Gruppen ============ -->
+        <div class="tab-pane @(activeTab == "clipgruppen" ? "active" : "")" id="tab-clipgruppen" role="tabpanel" aria-labelledby="tvsender-tab-clipgruppen">
+
+        <TVSenderAdminClipGroups UserId="@userId" Groups="@clipGroups" Counts="@clipCounts"
+                                 MediaSources="@mediaSources" OnGroupsChanged="ReloadClipGroupsAsync" />
+
+        </div>
+
         @if (confirmCleanup)
         {
             <div class="admin-dialog-overlay" @onclick="() => confirmCleanup = false">
@@ -818,6 +868,8 @@ else
     private RuleEditModel? editRule;
     private ProgramRule? deleteCandidate;
     private string? editError;
+    private List<ProgramClipGroup> clipGroups = new();
+    private IReadOnlyDictionary<long, int> clipCounts = new Dictionary<long, int>();
     private List<DtoGenreOption> genreOptions = new();
     private List<DtoPlaylist> playlistOptions = new();
     private List<MediaSource> mediaSources = new();
@@ -895,6 +947,7 @@ else
             .ToList();
         await ReloadRulesAsync();
         await ReloadScheduleAsync();
+        await ReloadClipGroupsAsync();
         await LoadProbeProgressAsync();
         RefreshToolPaths();
         downloadSnapshot = ToolDownloadService.GetSnapshot();
@@ -1384,6 +1437,8 @@ else
             SelectedMediaSourceIds = rule.MaterialType == ProgramRuleMaterialType.Genre
                 ? rule.MediaSourceFilters.Select(s => s.MediaSourceId).ToHashSet()
                 : [],
+            SelectedClipGroupIds = rule.ClipGroups.Select(c => c.ProgramClipGroupId).ToHashSet(),
+            GraceMinutes = (int)rule.PlaceholderGrace.TotalMinutes,
             Priority = rule.Priority,
             IsActive = rule.IsActive
         };
@@ -1546,6 +1601,12 @@ else
                 : null,
             editRule.MaterialType == ProgramRuleMaterialType.Genre && editRule.SelectedMediaSourceIds.Count > 0
                 ? editRule.SelectedMediaSourceIds.OrderBy(id => id).ToList()
+                : null,
+            editRule.RuleType != ProgramRuleType.Filler && editRule.SelectedClipGroupIds.Count > 0
+                ? editRule.SelectedClipGroupIds.OrderBy(id => id).ToList()
+                : null,
+            editRule.RuleType != ProgramRuleType.Filler && editRule.DurationMinutes is > 0 && editRule.GraceMinutes is > 0
+                ? TimeSpan.FromMinutes(editRule.GraceMinutes.Value)
                 : null);
 
         try
@@ -1581,6 +1642,25 @@ else
 
     private void AskDelete(ProgramRule rule) => deleteCandidate = rule;
 
+    // ---- Clip-Gruppen ----
+
+    private async Task ReloadClipGroupsAsync()
+    {
+        clipGroups = await ClipGroupService.GetGroupsAsync(userId);
+        clipCounts = await ClipGroupService.GetGroupCountsAsync(userId);
+    }
+
+    private void OnClipGroupToggled(long groupId, bool isChecked)
+    {
+        if (editRule is null)
+            return;
+        if (isChecked)
+            editRule.SelectedClipGroupIds.Add(groupId);
+        else
+            editRule.SelectedClipGroupIds.Remove(groupId);
+    }
+
+
     private async Task DeleteRuleAsync()
     {
         if (deleteCandidate is null)
@@ -1611,10 +1691,15 @@ else
             if (names.Count == 0)
                 return "Genre (nicht gefunden)";
             var label = $"Genre: {string.Join(", ", names)}";
-            return sources.Count > 0 ? $"{label} — Quellen: {string.Join(", ", sources)}" : label;
+            return (sources.Count > 0 ? $"{label} — Quellen: {string.Join(", ", sources)}" : label) + ClipGroupSuffix(rule);
         }
-        return MaterialLabel(rule.MaterialType, rule.MaterialId);
+        return MaterialLabel(rule.MaterialType, rule.MaterialId) + ClipGroupSuffix(rule);
     }
+
+    private static string ClipGroupSuffix(ProgramRule rule)
+        => rule.ClipGroups.Count == 0
+            ? string.Empty
+            : $" — Clips: {string.Join(", ", rule.ClipGroups.Select(c => c.ClipGroup?.Name).Where(n => n is not null).OrderBy(n => n))}";
 
     private string MaterialLabel(ProgramRuleMaterialType type, long id)
     {
@@ -1736,6 +1821,8 @@ else
         public string MaterialDisplayName { get; set; } = string.Empty;
         public HashSet<long> SelectedGenreIds { get; set; } = new();
         public HashSet<long> SelectedMediaSourceIds { get; set; } = new();
+        public HashSet<long> SelectedClipGroupIds { get; set; } = new();
+        public int? GraceMinutes { get; set; } = (int)ProgramRule.DefaultPlaceholderGrace.TotalMinutes;
         public int Priority { get; set; }
         public bool IsActive { get; set; } = true;
     }

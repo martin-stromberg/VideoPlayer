@@ -3,7 +3,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
 using static Microsoft.Playwright.Assertions;
 using VideoWebPlayer.Configuration;
-using VideoWebPlayer.Services;
 using VideoWebPlayer.Tests.Helpers;
 using Xunit;
 
@@ -14,46 +13,11 @@ namespace VideoWebPlayer.Tests;
 /// consolidated rule lifecycle (create via search dialog, edit, deactivate, delete) and the
 /// admin-only access gate.
 /// </summary>
-public sealed class TVSenderAdminE2ETests : PlaylistsE2ETestBase
+public sealed class TVSenderAdminE2ETests : TVSenderAdminE2ETestBase
 {
     // Attempt count that marks a permanently failed item — taken from the options so the
     // seeds stay "failed" even when the MediaProbeOptions default changes.
     private static readonly int FailedProbeAttempts = new MediaProbeOptions().EffectiveMaxAttempts;
-
-    private async Task OpenAdminPageAsAdminAsync()
-    {
-        await MakeUserAdminAsync(UserAEmail);
-        await GrantMediaSourceAccessForUserAsync(UserAEmail);
-        await LoginAsync(UserAEmail);
-        await Page.GotoAsync($"{ServerUrl}/admin/tv-sender");
-        // The tab bar is visible on every pane state; field selectors live inside tab panes
-        // that start out hidden until their tab is clicked (see SwitchTabAsync below).
-        await Page.WaitForSelectorAsync("#tvsender-tab-regeln", new PageWaitForSelectorOptions { Timeout = 30_000 });
-    }
-
-    private async Task SwitchTabAsync(string tabButtonSelector, string paneSelector)
-    {
-        await DriveUntilStateAsync(
-            async () =>
-            {
-                var pane = Page.Locator($"{paneSelector}.active");
-                if (await pane.CountAsync() > 0) return;
-                var tab = Page.Locator(tabButtonSelector);
-                if (await tab.CountAsync() > 0) await tab.ClickAsync(new LocatorClickOptions { Timeout = 10_000 });
-            },
-            () => Page.Locator($"{paneSelector}.active").WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 }));
-    }
-
-
-    private async Task EnableTvSenderAsync()
-    {
-        using var scope = Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<VideoWebPlayer.Data.ApplicationDbContext>();
-        var ct = TestContext.Current.CancellationToken;
-        var setup = await scope.ServiceProvider.GetRequiredService<ProgramSettingsService>().GetOrCreateSetupAsync(ct);
-        setup.TvSenderEnabled = true;
-        await db.SaveChangesAsync(ct);
-    }
 
     // Duration-probe seeds shared by the progress and reset tests: one successfully probed
     // item, two permanently failed ones (the second for the bulk reset; its older timestamp
@@ -65,19 +29,13 @@ public sealed class TVSenderAdminE2ETests : PlaylistsE2ETestBase
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<VideoWebPlayer.Data.ApplicationDbContext>();
         var ct = TestContext.Current.CancellationToken;
-        var source = await db.MediaSources.FirstOrDefaultAsync(ct);
-        if (source is null)
-        {
-            source = new VideoWebPlayer.Data.MediaSource { Name = "E2E Quelle", Host = "127.0.0.1", Port = 22, Path = "/test" };
-            db.MediaSources.Add(source);
-            await db.SaveChangesAsync(ct);
-        }
+        var sourceId = await EnsureMediaSourceIdAsync(db);
 
         var collection = new VideoWebPlayer.Data.MediaCollection
         {
             Name = "probe",
             Path = "/test/probe",
-            MediaSourceId = source.Id,
+            MediaSourceId = sourceId,
             CreatedAt = DateTime.UtcNow
         };
         db.MediaCollections.Add(collection);
@@ -132,13 +90,14 @@ public sealed class TVSenderAdminE2ETests : PlaylistsE2ETestBase
 
         await OpenAdminPageAsAdminAsync();
 
-        // Tab structure: four tabs in the mockup order, "Regeln" initially active.
+        // Tab structure: five tabs in the mockup order, "Regeln" initially active.
         var tabs = Page.Locator(".admin-tab");
-        await Expect(tabs).ToHaveCountAsync(4);
+        await Expect(tabs).ToHaveCountAsync(5);
         await Expect(tabs.Nth(0)).ToContainTextAsync("Regeln");
         await Expect(tabs.Nth(1)).ToContainTextAsync("Sendeplan");
         await Expect(tabs.Nth(2)).ToContainTextAsync("Einstellungen");
         await Expect(tabs.Nth(3)).ToContainTextAsync("Laufzeitermittlung");
+        await Expect(tabs.Nth(4)).ToContainTextAsync("Clip-Gruppen");
         await Expect(Page.Locator("#tab-regeln.active")).ToBeVisibleAsync();
         await Expect(Page.Locator("#tvsender-new-rule")).ToBeVisibleAsync();
 
@@ -403,15 +362,9 @@ public sealed class TVSenderAdminE2ETests : PlaylistsE2ETestBase
         {
             using var scope = Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<VideoWebPlayer.Data.ApplicationDbContext>();
-            var source = await db.MediaSources.FirstOrDefaultAsync(TestContext.Current.CancellationToken);
-            if (source is null)
-            {
-                source = new VideoWebPlayer.Data.MediaSource { Name = "E2E Test Source", Host = "127.0.0.1", Port = 22, Path = "/test" };
-                db.MediaSources.Add(source);
-                await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-            }
-            sourceId = source.Id;
-            sourceName = source.Name;
+            sourceId = await EnsureMediaSourceIdAsync(db);
+            sourceName = await db.MediaSources.Where(s => s.Id == sourceId)
+                .Select(s => s.Name).SingleAsync(TestContext.Current.CancellationToken);
             var a = new VideoWebPlayer.Data.Genre { Name = "E2E Action", MediaSourceId = sourceId };
             var b = new VideoWebPlayer.Data.Genre { Name = "E2E Komödie", MediaSourceId = sourceId };
             var hidden = new VideoWebPlayer.Data.Genre { Name = "E2E Versteckt", MediaSourceId = sourceId, IsHidden = true };

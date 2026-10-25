@@ -13,7 +13,7 @@ internal sealed class TestWebHostEnvironment : IWebHostEnvironment
     public string ApplicationName { get; set; } = "VideoWebPlayer";
 
     /// <inheritdoc />
-    public string EnvironmentName { get; set; } = "Test";
+    public string EnvironmentName { get; set; } = "Testing";
 
     /// <inheritdoc />
     public string ContentRootPath { get; set; } = AppContext.BaseDirectory;

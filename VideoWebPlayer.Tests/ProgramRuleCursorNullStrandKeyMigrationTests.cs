@@ -85,21 +85,21 @@ public sealed class ProgramRuleCursorNullStrandKeyMigrationTests
     {
         var channel = new TVChannel { Name = "Testsender" };
         db.TVChannels.Add(channel);
-        var rule = new ProgramRule
-        {
-            TVChannel = channel,
-            Name = "Serienfenster",
-            RuleType = ProgramRuleType.GenreRotation,
-            Recurrence = ProgramRuleRecurrence.Daily,
-            TimeOfDay = new TimeOnly(12, 0),
-            EpisodeCount = 2,
-            MaterialType = ProgramRuleMaterialType.Genre,
-            MaterialId = 1,
-            Priority = 5,
-            IsActive = true
-        };
-        db.ProgramRules.Add(rule);
         await db.SaveChangesAsync(ct);
-        return rule;
+
+        // The rule is seeded through raw SQL: at the predecessor migration the table does not
+        // yet carry PlaceholderGrace, so an EF entity insert would fail against the schema.
+        await db.Database.OpenConnectionAsync(ct);
+        await using var cmd = db.Database.GetDbConnection().CreateCommand();
+        cmd.CommandText = $"""
+            INSERT INTO ProgramRules (TVChannelId, Name, RuleType, Recurrence, TimeOfDay, EpisodeCount,
+                MaterialType, MaterialId, Priority, IsActive, CreatedAt, UpdatedAt)
+            VALUES ({channel.Id}, 'Serienfenster', {(int)ProgramRuleType.GenreRotation}, {(int)ProgramRuleRecurrence.Daily},
+                '12:00:00', 2, {(int)ProgramRuleMaterialType.Genre}, 1, 5, 1,
+                '2026-10-20 00:00:00', '2026-10-20 00:00:00')
+            RETURNING Id
+            """;
+        var id = (long)(await cmd.ExecuteScalarAsync(ct))!;
+        return new ProgramRule { Id = id, Name = "Serienfenster" };
     }
 }

@@ -18,7 +18,7 @@ using Xunit;
 namespace VideoWebPlayer.Tests.Components;
 
 /// <summary>
-/// bUnit tests for the restructured <see cref="TVSenderAdmin"/> page (N13+N14): the four-tab
+/// bUnit tests for the restructured <see cref="TVSenderAdmin"/> page (N13+N14): the five-tab
 /// layout, tab switching via Razor state and the expandable pending/failed probe detail
 /// tables — rendered against a real SQLite database like <see cref="GenreAdminTests"/>.
 /// </summary>
@@ -54,6 +54,7 @@ public sealed class TVSenderAdminTests
         ctx.Services.AddSingleton<IProgramRuleService>(ruleService);
         ctx.Services.AddSingleton<IProgramScheduleService>(scheduleService);
         ctx.Services.AddSingleton<IProgramScheduleSignal>(new ProgramScheduleSignal());
+        ctx.Services.AddSingleton<IProgramClipGroupService>(new ProgramClipGroupService(db));
         ctx.Services.AddSingleton(probeService);
         ctx.Services.AddSingleton(settings);
         ctx.Services.AddSingleton(ffprobeLocator ?? new PresentLocator());
@@ -69,7 +70,7 @@ public sealed class TVSenderAdminTests
     }
 
     [Fact]
-    public async Task RendersFourTabs_WithRulesActive()
+    public async Task RendersAllTabs_WithRulesActive()
     {
         var ct = Xunit.TestContext.Current.CancellationToken;
         using var fixture = await ProgramScheduleTestDb.CreateAsync("tvsender-tabs", ct);
@@ -82,11 +83,12 @@ public sealed class TVSenderAdminTests
         cut.WaitForAssertion(() =>
         {
             var tabs = cut.FindAll(".admin-tab");
-            Assert.Equal(4, tabs.Count);
+            Assert.Equal(5, tabs.Count);
             Assert.Equal("Regeln", tabs[0].TextContent.Trim());
             Assert.Equal("Sendeplan", tabs[1].TextContent.Trim());
             Assert.Equal("Einstellungen", tabs[2].TextContent.Trim());
             Assert.Equal("Laufzeitermittlung", tabs[3].TextContent.Trim());
+            Assert.Equal("Clip-Gruppen", tabs[4].TextContent.Trim());
         }, TimeSpan.FromSeconds(10));
 
         // Only the Regeln pane is active; the other panes stay in the DOM (CSS-hidden),

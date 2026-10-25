@@ -211,6 +211,12 @@ public sealed class FfmpegToolDownloadService : IFfmpegToolDownloadService
                 .ToList();
             if (missing.Count > 0)
             {
+                // Same ordering as the catch path: cleanup before the terminal snapshot,
+                // so observers never see Failed while staged *.tmp files are still on disk.
+                TryDelete(tempFile);
+                foreach (var staged in stagedFiles)
+                    TryDelete(staged);
+                stagedFiles.Clear();
                 SetSnapshot(jobId, FfmpegToolDownloadJobStatus.Failed, "Download fehlgeschlagen.",
                     $"Das Paket enthält kein {string.Join("/", missing)}-Programm und ist daher nicht verwendbar.",
                     DateTimeOffset.UtcNow);

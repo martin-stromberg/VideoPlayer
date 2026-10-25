@@ -838,6 +838,18 @@ namespace VideoWebPlayer.Migrations
                     b.Property<DateTime?>("ActorsClassifiedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("AgeRating")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("AgeRatingClassifiedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("AgeRatingMinAge")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("AgeRatingRaw")
+                        .HasColumnType("TEXT");
+
                     b.Property<long?>("BannerPictureId")
                         .HasColumnType("INTEGER");
 
@@ -1623,6 +1635,18 @@ namespace VideoWebPlayer.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("AgeRating")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("AgeRatingClassifiedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("AgeRatingMinAge")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("AgeRatingRaw")
+                        .HasColumnType("TEXT");
+
                     b.Property<long?>("BannerPictureId")
                         .HasColumnType("INTEGER");
 
@@ -2389,7 +2413,7 @@ namespace VideoWebPlayer.Migrations
 
             modelBuilder.Entity("VideoWebPlayer.Data.ProgramRuleClipGroup", b =>
                 {
-                    b.HasOne("VideoWebPlayer.Data.ProgramClipGroup", "ProgramClipGroup")
+                    b.HasOne("VideoWebPlayer.Data.ProgramClipGroup", "ClipGroup")
                         .WithMany()
                         .HasForeignKey("ProgramClipGroupId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -2401,7 +2425,7 @@ namespace VideoWebPlayer.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("ProgramClipGroup");
+                    b.Navigation("ClipGroup");
 
                     b.Navigation("ProgramRule");
                 });

@@ -11,9 +11,9 @@ Branch: `task/issue-269-619639f466104b2f9c65709f34f17768-altersfreigaben-fsk-mpa
 | [x] | 4 | Bestandsaufnahme (Unteragent) | `inventory.md`, `inventory/` |
 | [x] | 5 | Umsetzungsplanung (Unteragent) | `plan.md` |
 | [x] | 5a | Offene Punkte geprüft — Anwender übernimmt alle Empfehlungen | `plan.md` |
-| [ ] | 5b | Plan gegen Anforderung und Testbedarf prüfen (Unteragent) | `plan-check.md` |
-| [ ] | 5c | Planungscommit | – |
-| [ ] | 6 | Implementierung (Unteragent) | Codeänderungen |
+| [x] | 5b | Plan gegen Anforderung und Testbedarf prüfen — `Plan vollständig` | `plan-check.md` |
+| [x] | 5c | Planungscommit (`aaf3c1e`) | – |
+| [x] | 6 | Implementierung (Unteragent) | Codeänderungen |
 | [ ] | 7 | Plan-Review (Unteragent, bedingt) | `review.md` |
 | [ ] | 8 | Usability-Review (Unteragent, bei UI-Änderungen) | `review-usability.md` |
 | [ ] | 9 | Code-Review (Unteragent) | `review-code.md` |

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using VideoWebPlayer.Data;
 using VideoWebPlayer.Services.Backups;
+using VideoWebPlayer.Utils;
 
 namespace VideoWebPlayer.Services;
 
@@ -11,6 +12,7 @@ public sealed class MediaMetadataEditorService
 {
     private const int MaxNameLength = 512;
     private const int MaxPlotLength = 10000;
+    private const int MaxAgeRatingLength = 64;
     private readonly ApplicationDbContext _db;
     private readonly IBackgroundProcessingGate? _backgroundGate;
     private readonly IMediaMetadataWriteCoordinator? _writeCoordinator;
@@ -92,6 +94,7 @@ public sealed class MediaMetadataEditorService
     private async Task UpdateMovieAsync(MediaMetadataUpdateRequest request, CancellationToken cancellationToken)
     {
         ValidateReleaseDateOnly(request, "Filme");
+        ValidateAgeRatingValue(request);
 
         var movie = await _db.Movies
             .Include(m => m.MovieGenres)
@@ -101,6 +104,10 @@ public sealed class MediaMetadataEditorService
         movie.Name = request.Name.Trim();
         movie.ReleaseDate = NormalizeDate(request.ReleaseDate);
         movie.Plot = NormalizeText(request.Plot);
+        movie.AgeRatingRaw = NormalizeText(request.AgeRating);
+        var movieRating = AgeRatingNormalizer.Normalize(movie.AgeRatingRaw);
+        movie.AgeRating = movieRating.DisplayValue;
+        movie.AgeRatingMinAge = movieRating.MinAge;
         movie.IsManuallyEdited = true;
         await ApplyMovieGenresAsync(movie, request.GenreNames, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
@@ -110,6 +117,7 @@ public sealed class MediaMetadataEditorService
     {
         ValidateReleaseDateOnly(request, "Filmsammlungen");
         ValidateNoPlotOrGenres(request, "Filmsammlungen besitzen keine eigenen Plot- oder Genre-Felder.");
+        ValidateNoAgeRating(request);
 
         var collection = await _db.MovieCollections
             .FirstOrDefaultAsync(m => m.Id == request.Id, cancellationToken)
@@ -124,6 +132,7 @@ public sealed class MediaMetadataEditorService
     private async Task UpdateTVShowAsync(MediaMetadataUpdateRequest request, CancellationToken cancellationToken)
     {
         ValidateReleaseDateOnly(request, "Serien");
+        ValidateAgeRatingValue(request);
 
         var show = await _db.TVShows
             .Include(s => s.TVShowGenres)
@@ -133,6 +142,10 @@ public sealed class MediaMetadataEditorService
         show.Name = request.Name.Trim();
         show.ReleaseDate = NormalizeDate(request.ReleaseDate);
         show.Plot = NormalizeText(request.Plot);
+        show.AgeRatingRaw = NormalizeText(request.AgeRating);
+        var showRating = AgeRatingNormalizer.Normalize(show.AgeRatingRaw);
+        show.AgeRating = showRating.DisplayValue;
+        show.AgeRatingMinAge = showRating.MinAge;
         show.IsManuallyEdited = true;
         await ApplyTVShowGenresAsync(show, request.GenreNames, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
@@ -142,6 +155,7 @@ public sealed class MediaMetadataEditorService
     {
         ValidatePremieredAtOnly(request, "Staffeln");
         ValidateNoPlotOrGenres(request, "Staffeln besitzen keine eigenen Plot- oder Genre-Felder.");
+        ValidateNoAgeRating(request);
 
         var season = await _db.TVShowSeasons
             .FirstOrDefaultAsync(s => s.Id == request.Id, cancellationToken)
@@ -156,6 +170,7 @@ public sealed class MediaMetadataEditorService
     private async Task UpdateTVShowEpisodeAsync(MediaMetadataUpdateRequest request, CancellationToken cancellationToken)
     {
         ValidateReleaseDateOnly(request, "Episoden");
+        ValidateNoAgeRating(request);
 
         if (request.GenreNames.Length > 0)
             throw new ArgumentException("Episoden besitzen keine eigenen Genre-Felder.");
@@ -260,6 +275,24 @@ public sealed class MediaMetadataEditorService
     {
         if (!string.IsNullOrWhiteSpace(request.Plot) || request.GenreNames.Length > 0)
             throw new ArgumentException(message);
+    }
+
+    private static void ValidateNoAgeRating(MediaMetadataUpdateRequest request)
+    {
+        if (!string.IsNullOrWhiteSpace(request.AgeRating))
+            throw new ArgumentException("Dieser Medientyp besitzt kein Altersfreigabe-Feld.");
+    }
+
+    private static void ValidateAgeRatingValue(MediaMetadataUpdateRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.AgeRating))
+            return;
+
+        if (request.AgeRating.Trim().Length > MaxAgeRatingLength)
+            throw new ArgumentException($"Die Altersfreigabe darf maximal {MaxAgeRatingLength} Zeichen lang sein.");
+
+        if (AgeRatingNormalizer.Normalize(request.AgeRating).MinAge is null)
+            throw new ArgumentException("Unbekannte Altersfreigabe.");
     }
 
     private static void ValidateReleaseDateOnly(MediaMetadataUpdateRequest request, string objectTypeLabel)

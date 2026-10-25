@@ -19,6 +19,8 @@ In der Quellenübersicht kennzeichnet die Spalte `Typ` jede Quelle als `SFTP` od
 
 Nach dem Einlesen verhalten sich beide Quelltypen für den Anwender identisch: Scan, Klassifizierung (NFO-Dateien, Poster, Schauspielerbilder), Streaming und Download laufen über denselben Ablauf.
 
+Bei der Klassifizierung werden aus den NFO-Dateien auch die Altersfreigaben ausgewertet: `<mpaa>` (primär) bzw. `<certification>` (Fallback) bei Filmen (`<name>.nfo`/`movie.nfo`) und Serien (`tvshow.nfo`). Werte wie „FSK 12", „Rated PG-13" oder „Germany:16" werden auf bekannte Stufen (FSK 0/6/12/16/18, MPAA G/PG/PG-13/R/NC-17) normalisiert und in der Detailansicht als Badge angezeigt. Fehlt die NFO-Angabe, kann optional eine TMDB-Anbindung (`Tmdb`-Konfigurationsabschnitt, `Enabled` + `ApiKey`) die Freigabe ergänzen; ohne Konfiguration bleibt das Feld leer.
+
 ## Beispiele
 
 - Ein NAS im Heimnetz ist per Netzwerkfreigabe erreichbar: Als Quelltyp `Lokales Verzeichnis` wählen und den UNC-Pfad `\\nas\videos` eintragen.

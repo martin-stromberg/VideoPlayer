@@ -238,6 +238,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<MediaSourceScanner>();
         services.AddScoped<MediaSourceClassifier>();
         services.Configure<MediaProbeOptions>(configuration.GetSection("MediaProbe"));
+        services.Configure<TmdbOptions>(configuration.GetSection("Tmdb"));
+        services.AddHttpClient(TmdbAgeRatingService.HttpClientName);
+        services.AddSingleton<ITmdbAgeRatingService, TmdbAgeRatingService>();
         services.Configure<ProgramScheduleOptions>(configuration.GetSection("ProgramSchedule"));
         services.Configure<LiveStreamOptions>(configuration.GetSection("LiveStream"));
         services.AddSingleton<IFfprobeLocator, FfprobeLocator>();

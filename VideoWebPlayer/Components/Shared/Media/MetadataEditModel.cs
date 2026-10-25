@@ -29,4 +29,10 @@ public sealed class MetadataEditModel
     /// Gets or sets additional comma-separated genre names.
     /// </summary>
     public string NewGenres { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the edited age rating (empty clears the value).
+    /// </summary>
+    [StringLength(64, ErrorMessage = "Die Altersfreigabe darf maximal 64 Zeichen lang sein.")]
+    public string AgeRating { get; set; } = string.Empty;
 }

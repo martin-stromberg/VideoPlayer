@@ -36,6 +36,14 @@ namespace VideoWebPlayer.Services
 
                 await using var processingLease = gate is null ? null : await gate.EnterOperationAsync("ActorBackfill", stoppingToken);
                 await classifier.BackfillMissingActorsAsync(stoppingToken);
+                try
+                {
+                    await classifier.BackfillMissingAgeRatingsAsync(stoppingToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "[ActorBackfillWorker] Fehler bei der Nacherfassung der Altersfreigaben.");
+                }
             }
             catch (Exception ex)
             {
